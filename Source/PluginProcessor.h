@@ -427,6 +427,10 @@ public:
         by the editor. */
     juce::StringArray takeStateNotices();
 
+    /** An info banner from a panel that has no window of its own to tell
+        (SPEC-SWEEP ER-46: a melody that could not be generated). */
+    void postStateNotice (const juce::String& message) { stateNotices.addIfNotAlreadyThere (message); }
+
     /** SPEC-SWEEP: FF-35/SM-31 - the same, for warnings (a refused setlist). */
     juce::StringArray takeStateWarnings();
 

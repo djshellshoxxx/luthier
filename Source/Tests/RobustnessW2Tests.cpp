@@ -20,6 +20,7 @@
 #include "../UI/Notifications.h"
 #include "../UI/OwnedFileChooser.h"
 #include "../Tune/TuneModel.h"
+#include "../Tune/TuneMelody.h"
 #include "../Model/Workshop/PartLibrary.h"
 
 using namespace luthier;
@@ -789,4 +790,41 @@ LUTHIER_TEST (StateModel, theInstancesUiStateSurvivesTheHost)
 
     auto* slide = restored.getState().getParameter (ParamIDs::slideGuitar);
     CHECK (slide != nullptr && slide->getValue() > 0.5f);
+}
+
+//==============================================================================
+/*  ER-46, error-recovery 6: "melody generation produces no notes - keep the
+    previous melody". The generator places at least one note in every bar it
+    plays, so this pins that invariant (empty progression, every length, many
+    seeds); generateMelody / regenerateMelody and the TUNE panel also refuse an
+    empty result and keep what was there, should that ever change. */
+LUTHIER_TEST (TuneBuilder, generationAlwaysProducesNotesSoAMelodyIsNeverWipedOut)
+{
+    for (int bars = 1; bars <= 8; ++bars)
+    {
+        Tune tune;
+
+        while (tune.getNumSections() > 1)
+            tune.removeSection (tune.getNumSections() - 1);
+
+        if (tune.getNumSections() == 0)
+        {
+            TuneSection s;
+            s.name = "Only";
+            tune.addSection (s);
+        }
+
+        auto* section = tune.getSection (0);
+        CHECK (section != nullptr);
+
+        if (section == nullptr)
+            return;
+
+        section->chords.clear();
+        section->lengthBars = bars;
+
+        for (int seed = 1; seed <= 20; ++seed)
+            CHECK_MSG (! generateAutoMelody (tune, 0, seed).empty(),
+                       juce::String (bars) + " bars, seed " + juce::String (seed) + " generated nothing");
+    }
 }

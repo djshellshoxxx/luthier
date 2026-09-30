@@ -951,6 +951,14 @@ void TunePanel::buildMelody()
         const int seed = s->melody.has_value() ? s->melody->seed + (again ? 1 : 0) : 1;
         const double density = s->melody.has_value() ? s->melody->density : getKitMelodyDensity (s->genreKitId);
 
+        // SPEC-SWEEP ER-46, error-recovery 6: no notes keeps the melody there was, and says so.
+        if (generateAutoMelody (session.getTune(), index, seed).empty())
+        {
+            processor.postStateNotice ("No melody could be generated for " + s->name
+                                         + " (no chords or no room to place notes). The previous melody was kept.");
+            return;
+        }
+
         session.edit (TuneEditClass::melodyGenerate,
                       "Generate melody with seed " + juce::String (seed) + ", " + juce::String (density, 1) + " notes a bar",
                       [index, again] (Tune& t) { return again ? regenerateMelody (t, index) : generateMelody (t, index); });
