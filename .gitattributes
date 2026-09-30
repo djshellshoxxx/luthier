@@ -1,0 +1,3 @@
+# The canonical-form test compares these byte-for-byte with TuneFile::toJson (LF);
+# Git for Windows would otherwise check them out as CRLF.
+*.luthiertune text eol=lf
