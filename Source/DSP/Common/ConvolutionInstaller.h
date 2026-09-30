@@ -39,9 +39,10 @@ namespace luthier::ConvolutionInstaller
                                     int timeoutMs = 4000,
                                     int settleSamples = 0)
     {
-        // Never longer than the maximum block the convolution was prepared with:
-        // juce::dsp::Convolution sizes its internal buffers from that, and a longer
-        // block writes past them (a host that prepares with a block of 1 did).
+        /*  Never pump more samples than the convolution was prepared for: a
+            host running 1- to 15-sample blocks prepares it that small, and a
+            larger block overruns juce::dsp::Convolution's internal buffers
+            (heap corruption, CodexRobustness at block size 1). */
         juce::AudioBuffer<float> silence (juce::jmax (1, numChannels),
                                           juce::jlimit (1, 4096, blockSize));
 
