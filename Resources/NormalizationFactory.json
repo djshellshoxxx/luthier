@@ -3,12 +3,12 @@
   "revision": 1,
   "edition": "standard",
   "entries": {
-    "0044e985c96f3cfec039530b3c52227065f239a955f8f521aa03b5016820d06b": {
-      "lufs": -26.68,
-      "guitarType": 23,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "Auto-Vibrato Hold / 23"
+    "00473283ba78850273e5cae51fa99ae33b24eb8297f68c71ff09f087bb52b6fa": {
+      "lufs": -22.73,
+      "guitarType": 21,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Auto-Vibrato Hold / 21"
     },
     "0086ca049f666daa9526264ec017a9d3526dcb23c0bddc9a28a215fb23eee4ec": {
       "lufs": -21.170000000000002,
@@ -24,26 +24,12 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 2"
     },
-    "00d1e615e6d37f7dee1648c5776c4ed529f40242195fc41ca331fae5433b8d0c": {
-      "lufs": -21.48,
-      "guitarType": 11,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Auto-Vibrato Hold / 11"
-    },
     "00e99ee73a72268ce41f0bc01f448ba066c8b44005ea20c5b9e8bc7dc926c407": {
       "lufs": -38.479999999999997,
       "guitarType": 13,
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 13"
-    },
-    "00efd6684004c8b7a4f13c58a1bcdd6fd0e8cb9cac057cd6b331fe2f5939fa2e": {
-      "lufs": -20.039999999999999,
-      "guitarType": 23,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Auto-Vibrato Hold / 23"
     },
     "00f18cff6a5ef89597c13fff8eb50de85aff7e6254caea0970bd859092e9fbf4": {
       "lufs": -17.510000000000002,
@@ -66,33 +52,12 @@
       "drive": 0.2,
       "preset": "Auto-Vibrato Hold / 18"
     },
-    "0138e09496657401775f82286ce5ab78bbd34526004d23f8f134e07d0d567a47": {
-      "lufs": -21.390000000000001,
-      "guitarType": 14,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Auto-Vibrato Hold / 14"
-    },
     "014575c5dd40f81651029bd4b090f6dc815f4ab8608f6d063f6278418e297b71": {
       "lufs": -17.52,
       "guitarType": 11,
       "ampModel": 0,
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 11"
-    },
-    "0175df036e056faf58a849ef954b8bc1554143376508e06ccf940a710efd0413": {
-      "lufs": -27.559999999999999,
-      "guitarType": 18,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 18"
-    },
-    "018304e495e760c1126662c7e32501797aada8f1391381281344d459b98b725a": {
-      "lufs": -20.829999999999998,
-      "guitarType": 15,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 15"
     },
     "01b627b110ea7000e0e4f195055b76505bb6388c035081b08349ae9899e97c03": {
       "lufs": -13.75,
@@ -150,6 +115,13 @@
       "drive": 0.48,
       "preset": "Auto-Vibrato Hold / 3"
     },
+    "0303c2becffa9787cace9448f2ecc66d97231be6eb0ea9bd4c43300ceab372b3": {
+      "lufs": -43.049999999999997,
+      "guitarType": 13,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Auto-Vibrato Hold / 13"
+    },
     "030a2b2c50001ad3a47c4b8e16d8bf19d1dddcc61be13ee49f9c78523e447c08": {
       "lufs": -34.210000000000001,
       "guitarType": 21,
@@ -178,13 +150,6 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 14"
     },
-    "038ba58aedda00eef8050b68e528b269f0a16fb739c8e6217d948142ebf67e4c": {
-      "lufs": -28.289999999999999,
-      "guitarType": 18,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "Auto-Vibrato Hold / 18"
-    },
     "03a83a796ab9132b166fdd074c2eb6eb3c9c1d086cda85071d7f00ec57cfe70e": {
       "lufs": -11.970000000000001,
       "guitarType": 3,
@@ -206,20 +171,6 @@
       "drive": 0.62,
       "preset": "Auto-Vibrato Hold / 15"
     },
-    "03fb0bb5fa29999b5b94fdf64aba86eca6ac78f8eb4cd3cb563fbcd54f696505": {
-      "lufs": -45.25,
-      "guitarType": 0,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Auto-Vibrato Hold / 0"
-    },
-    "0431f00be42d1061b7ad47864913aa8d63738bf3f00663635f3c82decfe5c3d4": {
-      "lufs": -19.649999999999999,
-      "guitarType": 24,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 24"
-    },
     "045c524f582beed2c36394254d3985cde990804278e35dc588905de319484fc8": {
       "lufs": -27.149999999999999,
       "guitarType": 2,
@@ -227,12 +178,19 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 2"
     },
-    "045c73ec1ae8d204dda95206f518261f8ec56f475bb53f3b6573859c4e17b5da": {
-      "lufs": -25.030000000000001,
-      "guitarType": 18,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "Auto-Vibrato Hold / 18"
+    "05059ee0b65fa8a2f8d5f48392f5c86278a36bcf12a9469e271dae62d53f8782": {
+      "lufs": -27.039999999999999,
+      "guitarType": 13,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Auto-Vibrato Hold / 13"
+    },
+    "0538af1af41d9c7afca456f1acaa36001b316bd54cad9f4eab4e0465efe8c787": {
+      "lufs": -20.82,
+      "guitarType": 11,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Auto-Vibrato Hold / 11"
     },
     "0546c5c0558559629bba0346ab37dbb572acbc01549c5472de80b78ea9ef1f50": {
       "lufs": -15.17,
@@ -276,6 +234,13 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 24"
     },
+    "058121c4bb5ce468a4d77f7e7e93332510c83439719faa421d5d2f003dee51c6": {
+      "lufs": -37.189999999999998,
+      "guitarType": 15,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "Auto-Vibrato Hold / 15"
+    },
     "059804430102cc91f56d5f88cec457398a318acf96e54c4d9f7b06cb9dd7dd39": {
       "lufs": -15.41,
       "guitarType": 6,
@@ -297,12 +262,19 @@
       "drive": 0.68,
       "preset": "Auto-Vibrato Hold / 10"
     },
-    "05b79969da6750edbd7532282c0031bf305b30916027dbdb9ab4b115d4228b9c": {
-      "lufs": -28.510000000000002,
-      "guitarType": 12,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "Auto-Vibrato Hold / 12"
+    "05d88252cf7124e10a8a37801c52b761e8ad17009e19c3693b17447509f868d5": {
+      "lufs": -25.800000000000001,
+      "guitarType": 10,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 10"
+    },
+    "0638d4b73b70b33fdf5c864358aea952021c83d6ad85a5f8c84644e058392407": {
+      "lufs": -30.120000000000001,
+      "guitarType": 15,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 15"
     },
     "064126ddecbe59c7ac8da47c164c10eeb5ce1287b797f9c5ddfcea8b2715889b": {
       "lufs": -40.170000000000002,
@@ -339,13 +311,6 @@
       "drive": 0.22,
       "preset": "Auto-Vibrato Hold / 17"
     },
-    "07641e188483541b76545be6c4145ca3733f7f68b122bb4ca91f56d8912c4bea": {
-      "lufs": -24.120000000000001,
-      "guitarType": 3,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 3"
-    },
     "077aa82da79069a9580c7475bf28f2807dafa0bd1b65b58c0c8ce77f0c4e4e63": {
       "lufs": -22.449999999999999,
       "guitarType": 7,
@@ -366,13 +331,6 @@
       "ampModel": 11,
       "drive": 0.35,
       "preset": "Auto-Vibrato Hold / 10"
-    },
-    "07b771dc9f2bbb0b4cdc42dc2e212bc77937073761f10ecee2ce3052f944f971": {
-      "lufs": -21.050000000000001,
-      "guitarType": 14,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 14"
     },
     "07c73006ad188218d8407821b78aaead4c200cf72d8bfc4148fe49572bd15cf7": {
       "lufs": -26.010000000000002,
@@ -458,12 +416,26 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 4"
     },
-    "08f88b4478c6696a2cf1e70f35ac4e9ea058e117e3491cd29f3e789bd15a91c9": {
-      "lufs": -24.890000000000001,
-      "guitarType": 11,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "Auto-Vibrato Hold / 11"
+    "090b62744cce94e06aa763eee7c78b2b2f1a8355316b4164cb0b3a7b031b5053": {
+      "lufs": -29.449999999999999,
+      "guitarType": 18,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 18"
+    },
+    "0922690bbc244c796d998e4f2015cedbb214293bdf3eb257db4add19f8f1142b": {
+      "lufs": -34.619999999999997,
+      "guitarType": 5,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "Auto-Vibrato Hold / 5"
+    },
+    "09652ed392043da29511373e8f44a820a7b5a2d698f49dec3b5d0052e4527754": {
+      "lufs": -25.579999999999998,
+      "guitarType": 0,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 0"
     },
     "0965fa3aebce3037e6fbdd347719bdd7ccac32ac1d537f4702957a360a741c48": {
       "lufs": -14.890000000000001,
@@ -478,6 +450,13 @@
       "ampModel": 0,
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 0"
+    },
+    "0981877e2b904170b5e25f5cd2a06a7d715ac09eb80ed4221759f34d855f94b1": {
+      "lufs": -18.280000000000001,
+      "guitarType": 8,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Auto-Vibrato Hold / 8"
     },
     "0986c81d7006ff4516518a2d13bc507ebebca744c7b60bba929b385f75b85fe5": {
       "lufs": -18.379999999999999,
@@ -513,13 +492,6 @@
       "ampModel": 4,
       "drive": 0.48,
       "preset": "Auto-Vibrato Hold / 1"
-    },
-    "0a0afd8563f46d7120ad2d57ee248858fbe296569eaf1ebc5a13e7f5bb4b651d": {
-      "lufs": -41.869999999999997,
-      "guitarType": 5,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Auto-Vibrato Hold / 5"
     },
     "0a48273573c1dfa536a9ef9bd86bba2ef98cdc1505376203a81c803c1f3df143": {
       "lufs": -23.84,
@@ -584,12 +556,12 @@
       "drive": 0.14,
       "preset": "Auto-Vibrato Hold / 13"
     },
-    "0b3c7dea7647bba23b09bba556a66d88eee06db453bb5e689edf2268910adefb": {
-      "lufs": -22.469999999999999,
-      "guitarType": 23,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Auto-Vibrato Hold / 23"
+    "0b4edb543d6948bbf264af0091d8a12746ccb9a9b9cc89464ff9929ce8940a38": {
+      "lufs": -18.170000000000002,
+      "guitarType": 24,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Auto-Vibrato Hold / 24"
     },
     "0bed83f96a9ff09d568bf10a8bd504e11c12653152fb18bdd8e8b251900abf63": {
       "lufs": -18.82,
@@ -632,13 +604,6 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 6"
-    },
-    "0cfe61440d3aa1322e4cb3f16c62e3cfacc1dd21f479634c513934b2e2489523": {
-      "lufs": -21.579999999999998,
-      "guitarType": 19,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 19"
     },
     "0d0031b47e74507d2cbdcc756d9a71d038f136edb544a3745575e629e8a2f4c6": {
       "lufs": -15.1,
@@ -745,13 +710,6 @@
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 24"
     },
-    "0ed7596bd785b7e08232f400c74174fc7b3878e78fefd2e7ff93da668bdc7567": {
-      "lufs": -24.800000000000001,
-      "guitarType": 12,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "Auto-Vibrato Hold / 12"
-    },
     "0ee71b79212741ba974c5d1cc94e7c81348d923563d8618ceb2c4c11b77b9dd5": {
       "lufs": -17.68,
       "guitarType": 22,
@@ -787,12 +745,12 @@
       "drive": 0.22,
       "preset": "Auto-Vibrato Hold / 11"
     },
-    "0ffc3e1120fe66a05ce20bcbe893787e7c626585fd07693706eb110fa5e82f4a": {
-      "lufs": -40.060000000000002,
-      "guitarType": 7,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Auto-Vibrato Hold / 7"
+    "102a67dbb429366d275cd2ccddef3c2248ac57f40f8aa40e0c8dff6483bdd85d": {
+      "lufs": -29.420000000000002,
+      "guitarType": 13,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 13"
     },
     "1088a8d4c6671f4d47b307d2989b98e329abf86fc3c238024808de66b4c38284": {
       "lufs": -19.129999999999999,
@@ -863,20 +821,6 @@
       "ampModel": 0,
       "drive": 0.15,
       "preset": "Auto-Vibrato Hold / 1"
-    },
-    "11efa2caeb3d4b8b725da92a63f1c0825de7268515fc83ac213e48d8da179371": {
-      "lufs": -19.890000000000001,
-      "guitarType": 19,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Auto-Vibrato Hold / 19"
-    },
-    "121a3deac1efa8ff5a45d62985022c0ea63e9c2c23923fcd8cc28c148be03038": {
-      "lufs": -21.449999999999999,
-      "guitarType": 16,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Auto-Vibrato Hold / 16"
     },
     "1236c85b3c8e656226bc9c7345258f42ae664b39add25b457f2ab207438408c2": {
       "lufs": -33.939999999999998,
@@ -955,26 +899,12 @@
       "drive": 0.8,
       "preset": "Auto-Vibrato Hold / 16"
     },
-    "1444031ac0b86c14cf7fb0c97af57c932e3088e6e9c0c4d88deec9ca470412e0": {
-      "lufs": -20.510000000000002,
-      "guitarType": 18,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 18"
-    },
     "14a9c102250caca410f45301e60c530bac4b99ae534e90f1a5dd24e98dce31e7": {
       "lufs": -15.050000000000001,
       "guitarType": 23,
       "ampModel": 5,
       "drive": 0.68,
       "preset": "Auto-Vibrato Hold / 23"
-    },
-    "14db837cc4e6f0f570672a709786dbc7df1718af0a43b58d5152d8cc3c89dde9": {
-      "lufs": -20.989999999999998,
-      "guitarType": 7,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "Auto-Vibrato Hold / 7"
     },
     "157491292730e85df408053d1c6fd8f57cb6687ec631c47973fd9678efcc07f6": {
       "lufs": -30.84,
@@ -997,19 +927,33 @@
       "drive": 0.62,
       "preset": "Auto-Vibrato Hold / 9"
     },
-    "15cf57f21a9a04ec192542f35908e08d0ef901a2e82295a9b2c995b83f3db28a": {
-      "lufs": -19.25,
-      "guitarType": 6,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Auto-Vibrato Hold / 6"
-    },
     "15efd2fc9688b7631bff5a9579df6ef16bacc77929ab632264f10c045f3e3837": {
       "lufs": -11.93,
       "guitarType": 3,
       "ampModel": 11,
       "drive": 0.48,
       "preset": "Auto-Vibrato Hold / 3"
+    },
+    "161b36a4db8b537a45ef85c47e683b78e791820855c3901e1472a7f2b8fd41de": {
+      "lufs": -19.940000000000001,
+      "guitarType": 20,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 20"
+    },
+    "1621e74b5f58cfc1589e94d0b834c6d4e4810d44fdf98c9e92896807c6472b00": {
+      "lufs": -29.289999999999999,
+      "guitarType": 12,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 12"
+    },
+    "16407d11c85f1f218596aa7f1a3e07ee52182835193de29ef1f4a461e08425ef": {
+      "lufs": -37.0,
+      "guitarType": 18,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "Auto-Vibrato Hold / 18"
     },
     "16669193b230b4cb8094617b9ab5bd8d4229a71b782278e7247dc5f64430e694": {
       "lufs": -55.259999999999998,
@@ -1094,6 +1038,13 @@
       "ampModel": 4,
       "drive": 0.6,
       "preset": "Auto-Vibrato Hold / 9"
+    },
+    "178c985c34308e1c7457a26e9e4f077775fb55215d41efd8014e80a856f1eaea": {
+      "lufs": -25.989999999999998,
+      "guitarType": 1,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 1"
     },
     "17944e39d683363c469dd8a68b8f1f43ce5e5e8f09860df7646d1e4a232ddcbb": {
       "lufs": -18.140000000000001,
@@ -1186,12 +1137,12 @@
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 2"
     },
-    "19c540873ab6947d47d56686d45e9cc1d32067c798c0f82d30124e978ba8ff80": {
-      "lufs": -22.300000000000001,
-      "guitarType": 20,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Auto-Vibrato Hold / 20"
+    "19e3e672266ea0fe958f3bc157a9a0226a0e1c18e3e4faa72919d1ba6d29e136": {
+      "lufs": -43.990000000000002,
+      "guitarType": 19,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "Auto-Vibrato Hold / 19"
     },
     "1a0ccb4b47815b626cd9990d4d300a00a0ff5cb15d5f0042e0518b4e38cd99fb": {
       "lufs": -32.710000000000001,
@@ -1213,13 +1164,6 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 12"
-    },
-    "1ab975366c8c3137408d10840b2ba745cac9e00a0de7d72d3851f194cfd787e0": {
-      "lufs": -18.690000000000001,
-      "guitarType": 24,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Auto-Vibrato Hold / 24"
     },
     "1ad8e25f4571859de66675489d309607bc481b97b3901ef5d79f54fcb5cee4a8": {
       "lufs": -15.52,
@@ -1263,13 +1207,6 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 15"
     },
-    "1b4d8c91f6c97fe4273b5b03600dcbb289645e714fb427058bef54a51b440ad7": {
-      "lufs": -25.920000000000002,
-      "guitarType": 9,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 9"
-    },
     "1b884bcd73996db9047e39beef2cdc7ead923b150b957b0b4382b5d45513da1c": {
       "lufs": -15.85,
       "guitarType": 20,
@@ -1283,13 +1220,6 @@
       "ampModel": 3,
       "drive": 0.58,
       "preset": "Auto-Vibrato Hold / 15"
-    },
-    "1bacf410ded1d3c6d5a8e2aa7cef2aaa32172c91f2b18df9a92edcf2da9d95ca": {
-      "lufs": -50.159999999999997,
-      "guitarType": 11,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Auto-Vibrato Hold / 11"
     },
     "1bad84c1a4653ddf9e3991dfdaeb9ac81b1a76a7419f825aad8c5c0604e994ab": {
       "lufs": -18.579999999999998,
@@ -1305,13 +1235,6 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 4"
     },
-    "1bdfbf65f445f5c88e1633b1360b103656f1b62bd52200857b334443940e272e": {
-      "lufs": -42.890000000000001,
-      "guitarType": 2,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Auto-Vibrato Hold / 2"
-    },
     "1be249c3d9432d852b059df7b1713d145834b3575e82ea2e8c75e62b86fab3ca": {
       "lufs": -15.859999999999999,
       "guitarType": 5,
@@ -1325,13 +1248,6 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 10"
-    },
-    "1c09fa2021f48c74e0cfe0b0725cfd960430df362490e8bf50f2a5e974054a54": {
-      "lufs": -23.73,
-      "guitarType": 2,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "Auto-Vibrato Hold / 2"
     },
     "1c42007324b3a27c65ca959b2092af0fa9269ce4870e0508cf8eb20d193f0123": {
       "lufs": -23.969999999999999,
@@ -1375,6 +1291,13 @@
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 8"
     },
+    "1d04787fe4e5a515650bab448cb1ef3c2ece1840adf6bf6c3c6b7b357d62457c": {
+      "lufs": -27.600000000000001,
+      "guitarType": 22,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Auto-Vibrato Hold / 22"
+    },
     "1d36eb98c9fe997b9319a5411a16c4ca6ffa97b89d35d36d41edc1a68333365f": {
       "lufs": -9.710000000000001,
       "guitarType": 23,
@@ -1396,26 +1319,12 @@
       "drive": 0.25,
       "preset": "Auto-Vibrato Hold / 9"
     },
-    "1dbe837c68de461fa8cc3b709c3da57f2b299c3401b8e2f7dba0dca3a3a7eed2": {
-      "lufs": -20.82,
-      "guitarType": 20,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 20"
-    },
     "1de3127929e2bdd5ed43fc38dd398d7629dfc756647e132967c31352e868d986": {
       "lufs": -22.530000000000001,
       "guitarType": 22,
       "ampModel": 3,
       "drive": 0.58,
       "preset": "Auto-Vibrato Hold / 22"
-    },
-    "1de95559ebf3c75c5fb0788742d527aa569d5bef9a9dbc817da2c27f226444f4": {
-      "lufs": -42.32,
-      "guitarType": 6,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Auto-Vibrato Hold / 6"
     },
     "1e6ed6aea3c7f97a28a53cf984eb81e3d65a527067f312eea54c85ea1bd81cb1": {
       "lufs": -29.510000000000002,
@@ -1451,13 +1360,6 @@
       "ampModel": 4,
       "drive": 0.55,
       "preset": "Auto-Vibrato Hold / 9"
-    },
-    "1efe9e8a34d83f77b9eda45fc77dde0c138f5233c277056bc7a78cd23bae6ed9": {
-      "lufs": -24.460000000000001,
-      "guitarType": 7,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "Auto-Vibrato Hold / 7"
     },
     "1f29da83fa1e6254a38a7f4913adbf63d6f4e7e03cec83506fe06bbef4ddeeb3": {
       "lufs": -18.48,
@@ -1529,26 +1431,12 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 22"
     },
-    "20ceb1b07ebd337a54f3446d43419625f3b320d18e0522e166455425e5ac7535": {
-      "lufs": -28.370000000000001,
-      "guitarType": 14,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 14"
-    },
     "20d6ea7b554b11075997e8a8231b00d9e0238bf4b3a251f523b5069f5e4c74cb": {
       "lufs": -13.630000000000001,
       "guitarType": 11,
       "ampModel": 5,
       "drive": 0.68,
       "preset": "Auto-Vibrato Hold / 11"
-    },
-    "20ea86517f620fde0791a4fd468e5ceb1324e0335e2f48fb448c157c176a2130": {
-      "lufs": -25.59,
-      "guitarType": 0,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "Auto-Vibrato Hold / 0"
     },
     "20fa8132a377f99334f27a6cdeec97bfe3e145cdeadb4e72670d5f42eb50fa70": {
       "lufs": -23.91,
@@ -1564,13 +1452,6 @@
       "drive": 0.2,
       "preset": "Auto-Vibrato Hold / 2"
     },
-    "2157ed383cbea0bdd8c0bc1666092558261720368ced5a97f4a2c89fcade0871": {
-      "lufs": -29.149999999999999,
-      "guitarType": 17,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 17"
-    },
     "216c9533eb6c48ce5076ba08f22175f97297937f9fb7b99e89d865205554034c": {
       "lufs": -18.18,
       "guitarType": 13,
@@ -1584,6 +1465,13 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 16"
+    },
+    "2192e9f0edd58e6b2fbd078d177247b7f3e02ba9e7f0000b46ba33c13ad37960": {
+      "lufs": -20.640000000000001,
+      "guitarType": 14,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "Auto-Vibrato Hold / 14"
     },
     "21a27dc20daf94a8e17ca6210ed8f4737b957f7b5cfd307d05a1a0e2eafcea49": {
       "lufs": -12.07,
@@ -1620,13 +1508,6 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 9"
     },
-    "21f2c47ae7865cc48dcedb1b10a542e0998883c3fab82566cfa4fc07ce33d226": {
-      "lufs": -21.850000000000001,
-      "guitarType": 22,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Auto-Vibrato Hold / 22"
-    },
     "2208b73b3610d4b8b6c0f0511e4d2229aa66b3914982a271cd9a727b98ae1642": {
       "lufs": -30.739999999999998,
       "guitarType": 24,
@@ -1648,12 +1529,26 @@
       "drive": 0.2,
       "preset": "Auto-Vibrato Hold / 20"
     },
+    "22a5eee79955f325d3b2a865899a9e0caa4352b6d687e449cb5d1ec8f3dfc8c7": {
+      "lufs": -25.960000000000001,
+      "guitarType": 4,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 4"
+    },
     "22fe6945b8f27ed85913dcf23bab933d74512fe301ef28fbc6a50bd19bf39193": {
       "lufs": -18.300000000000001,
       "guitarType": 4,
       "ampModel": 9,
       "drive": 0.82,
       "preset": "Auto-Vibrato Hold / 4"
+    },
+    "230856d7a165ac0ae4d2ab753c9e0fd25cd822b81d29567571026292ccc4d6f3": {
+      "lufs": -26.98,
+      "guitarType": 15,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Auto-Vibrato Hold / 15"
     },
     "23109f5e546470c0876cc1d09f3efddb9030bfad596cafbdec37dd228b1ae6c1": {
       "lufs": -17.09,
@@ -1674,13 +1569,6 @@
       "guitarType": 2,
       "ampModel": 0,
       "drive": 0.25,
-      "preset": "Auto-Vibrato Hold / 2"
-    },
-    "238359bab9eb097208f6ceb0e339f38a07b6e00511f1097b9a200c98b2817029": {
-      "lufs": -19.32,
-      "guitarType": 2,
-      "ampModel": 1,
-      "drive": 0.42,
       "preset": "Auto-Vibrato Hold / 2"
     },
     "238425da7c948f7038330eabfb6ef64e351b90be094fe63c27b87874400e4b33": {
@@ -1837,13 +1725,6 @@
       "drive": 0.8,
       "preset": "Auto-Vibrato Hold / 7"
     },
-    "2666a962cdc1d624013189cde96a2828575004f9399e5caf1ab86cf2756975c6": {
-      "lufs": -52.390000000000001,
-      "guitarType": 15,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Auto-Vibrato Hold / 15"
-    },
     "26730cbb845cf4cbfddf7c7272f30b02f396e1b6d4bdce5f2eb40b6421e0f1f7": {
       "lufs": -13.289999999999999,
       "guitarType": 3,
@@ -1858,13 +1739,6 @@
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 2"
     },
-    "268ee08268bf930ef42ce5fe2277a23c9ed0556aa6a730d1018852ba72d414d5": {
-      "lufs": -25.690000000000001,
-      "guitarType": 10,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "Auto-Vibrato Hold / 10"
-    },
     "26de2c60dd75ba7b009e3b69749c5dc287f6f6d2d2d4ae0bfd1e131798af360d": {
       "lufs": -18.41,
       "guitarType": 1,
@@ -1878,6 +1752,13 @@
       "ampModel": 0,
       "drive": 0.2,
       "preset": "Auto-Vibrato Hold / 11"
+    },
+    "272abd34d1bfe81e3c950ee10a5101bd0095d0dd446ab4d3eb6e3af1ffd6600b": {
+      "lufs": -36.759999999999998,
+      "guitarType": 24,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "Auto-Vibrato Hold / 24"
     },
     "272f65fd7a0b4915cf243c00147fb08f9b010bc45639b5675793a56ecc8e6470": {
       "lufs": -16.07,
@@ -1928,13 +1809,6 @@
       "drive": 0.7,
       "preset": "Auto-Vibrato Hold / 9"
     },
-    "2812da34b9a9dbdec35a50d5f7037aa6ee254dd45ea67a8aac9ab3c2577e29a7": {
-      "lufs": -19.600000000000001,
-      "guitarType": 3,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Auto-Vibrato Hold / 3"
-    },
     "2853be3d8ea0abb21dfd562a26621c6109afb2598e4b2a1ad7769a8b2551e1e5": {
       "lufs": -32.799999999999997,
       "guitarType": 23,
@@ -1955,13 +1829,6 @@
       "ampModel": 0,
       "drive": 0.35,
       "preset": "Auto-Vibrato Hold / 17"
-    },
-    "288b6162203d1d92c0b02e66054f01e629a09305b5f87d51c1e23ee9247f920e": {
-      "lufs": -27.59,
-      "guitarType": 21,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Auto-Vibrato Hold / 21"
     },
     "28b7ca2397df85095c3f7e862bf97920369e5a9fe098ad4a67659a94e45af792": {
       "lufs": -14.65,
@@ -1997,6 +1864,13 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 1"
+    },
+    "29a0e9625087c37dbb20c3e9a0c25699e73e5615e80939ad66b8e814d70b5daf": {
+      "lufs": -18.5,
+      "guitarType": 4,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 4"
     },
     "29a432791d1ff81793bb2e71480c7e0b9ed8d1bda82ff89f6ce8afae8af48d96": {
       "lufs": -12.24,
@@ -2089,6 +1963,13 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 13"
     },
+    "2b0dfc305fdb676828b00654e58ec977b5bb3818263459e48bd71ae8d681b988": {
+      "lufs": -33.619999999999997,
+      "guitarType": 0,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "Auto-Vibrato Hold / 0"
+    },
     "2b0f4dd1a147db28a3070148cf66d348e157f94704c9f988b7b9558fd063be7f": {
       "lufs": -24.91,
       "guitarType": 3,
@@ -2152,13 +2033,6 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 21"
     },
-    "2cc0f69a319bdf213a97abb890be63c1d6e94e1049181ffa36e3115ab7695361": {
-      "lufs": -53.280000000000001,
-      "guitarType": 17,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Auto-Vibrato Hold / 17"
-    },
     "2ce6251d315dc6c9c8731a4773104ca9ef19bfefdaf34b6c996a914aed98aed2": {
       "lufs": -15.109999999999999,
       "guitarType": 17,
@@ -2194,6 +2068,13 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 18"
     },
+    "2d7b29e9ea1ee3686bad669893d0c71cf291552b63168b2b1a0804dfb5737177": {
+      "lufs": -27.640000000000001,
+      "guitarType": 21,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Auto-Vibrato Hold / 21"
+    },
     "2da380ddc44c8058493f7deef4e1ef4cfb4b40d9c88c68b18414cc4c3f748a63": {
       "lufs": -15.9,
       "guitarType": 5,
@@ -2214,13 +2095,6 @@
       "ampModel": 0,
       "drive": 0.2,
       "preset": "Auto-Vibrato Hold / 15"
-    },
-    "2dbc7b87a1dcab4834243ebe471c3eb88ae7f1fa23363f9f398f734b99018077": {
-      "lufs": -26.77,
-      "guitarType": 2,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Auto-Vibrato Hold / 2"
     },
     "2dfd1beeecd36f9350fd123c2165833e44a86bd111ea11f5711fe0e99337e4cc": {
       "lufs": -11.73,
@@ -2264,6 +2138,13 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 0"
     },
+    "2ef921e9a8e2f04a41faf7f47ec3679a36c77ae0d9346d98df93c7569407ce5a": {
+      "lufs": -42.350000000000001,
+      "guitarType": 18,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Auto-Vibrato Hold / 18"
+    },
     "2f2c4927edaad1a129b305389a65b78009538c5dde28d80826220b04f9ca5890": {
       "lufs": -15.220000000000001,
       "guitarType": 16,
@@ -2291,6 +2172,13 @@
       "ampModel": 0,
       "drive": 0.2,
       "preset": "Auto-Vibrato Hold / 12"
+    },
+    "2f9f0c4e4c56fee594c4b3fa81268228e281539d40fb83acda29356ba9735956": {
+      "lufs": -25.920000000000002,
+      "guitarType": 11,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Auto-Vibrato Hold / 11"
     },
     "2fb0829fb342ddd17505cd3ed331a84369c09ecd591a25a8a64dccfda4d56db3": {
       "lufs": -12.82,
@@ -2341,20 +2229,6 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 17"
     },
-    "3086009ae4f1e978d11bf7f527363351392774cb4bdf5771c48029cc6df6f437": {
-      "lufs": -20.969999999999999,
-      "guitarType": 5,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Auto-Vibrato Hold / 5"
-    },
-    "30b34cfad126681c5abdb48f6e10240ac9151aedcc38478e78f796f0d48beb0a": {
-      "lufs": -20.440000000000001,
-      "guitarType": 21,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Auto-Vibrato Hold / 21"
-    },
     "30b7115ad16ab6de8ae87ba7f8e1c1aaa24585de46ab208b1831c22e322acf75": {
       "lufs": -15.039999999999999,
       "guitarType": 15,
@@ -2404,12 +2278,26 @@
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 0"
     },
+    "317f5ed9b5242162cb5efc3933fc6cdd0334b390a482c0ff93cb144eab3e63d2": {
+      "lufs": -25.649999999999999,
+      "guitarType": 8,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Auto-Vibrato Hold / 8"
+    },
     "319adce6e76e2925bea63155c6364e54030de8562303cebbcfecdf184c0f6606": {
       "lufs": -37.229999999999997,
       "guitarType": 12,
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 12"
+    },
+    "31c14eec5865685fd2d3bf749e1fc092dfa18bcba66354a41a17215b0dd08108": {
+      "lufs": -26.809999999999999,
+      "guitarType": 0,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Auto-Vibrato Hold / 0"
     },
     "31e578f3ed4c4b340b5b5ccfaa9124302750b84a43b837f825b4cf3263822d6f": {
       "lufs": -44.109999999999999,
@@ -2425,13 +2313,6 @@
       "drive": 0.14,
       "preset": "Auto-Vibrato Hold / 5"
     },
-    "321db9fa171ed3418cb635dfc0628fb260229e29ab59f61ce37433e238dcbe5b": {
-      "lufs": -19.829999999999998,
-      "guitarType": 4,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Auto-Vibrato Hold / 4"
-    },
     "32351b71c5ea37e5e62a9d654cc4f6604e2db69d68610287090798dfdef81cdc": {
       "lufs": -36.920000000000002,
       "guitarType": 13,
@@ -2446,19 +2327,19 @@
       "drive": 0.78,
       "preset": "Auto-Vibrato Hold / 0"
     },
+    "32c084c6af09e591ef5d565bf1d1f7afb835dfe5cb76388a9d5f23ee68560621": {
+      "lufs": -20.079999999999998,
+      "guitarType": 21,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 21"
+    },
     "32db19673f137a56b75a50be8a9d530f39979c705b8bacd00e5e24082bbffa2b": {
       "lufs": -14.01,
       "guitarType": 14,
       "ampModel": 4,
       "drive": 0.55,
       "preset": "Auto-Vibrato Hold / 14"
-    },
-    "33400e4b1a6c10cabf2ff50e57d418bc1b67ca29545f72d3a43ef0e95dd7aba1": {
-      "lufs": -43.159999999999997,
-      "guitarType": 23,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Auto-Vibrato Hold / 23"
     },
     "337d1b9fe114d0542089ca407390403cb4355cd23ad04040d4f7b1ec2c1ad0bd": {
       "lufs": -14.23,
@@ -2472,13 +2353,6 @@
       "guitarType": 4,
       "ampModel": 4,
       "drive": 0.55,
-      "preset": "Auto-Vibrato Hold / 4"
-    },
-    "33938e21e584de20fd020f51045015fb66e3fb77281ee0cc207c77169553bbb5": {
-      "lufs": -24.469999999999999,
-      "guitarType": 4,
-      "ampModel": 6,
-      "drive": 0.34,
       "preset": "Auto-Vibrato Hold / 4"
     },
     "33af96f9073777e552857b109dacd0b0eb3a2b52711a6ff55946ca32e280638c": {
@@ -2502,12 +2376,12 @@
       "drive": 0.2,
       "preset": "Auto-Vibrato Hold / 23"
     },
-    "343370bbcac3088acf8574824175b589e2e568756de335719443477fab2976fc": {
-      "lufs": -27.960000000000001,
-      "guitarType": 12,
-      "ampModel": 6,
+    "341f7943d91b0bb287f7cc619401ed9a3462be81c168f502d0a47c7fe42d2166": {
+      "lufs": -19.870000000000001,
+      "guitarType": 16,
+      "ampModel": 1,
       "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 12"
+      "preset": "Auto-Vibrato Hold / 16"
     },
     "34a02ef11454e7f1afa4686e0ae7385b020929235c245063d6b7b2c602bb5242": {
       "lufs": -24.050000000000001,
@@ -2523,12 +2397,12 @@
       "drive": 0.62,
       "preset": "Auto-Vibrato Hold / 12"
     },
-    "354f780dfdef69f87933b15385956e42ef2adcc8c4d40de6ae4c9278f6f2b255": {
-      "lufs": -22.969999999999999,
-      "guitarType": 0,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "Auto-Vibrato Hold / 0"
+    "351767ea149f17835855b958f9f4bc5f49449e694305079312e6c98a41e49992": {
+      "lufs": -33.380000000000003,
+      "guitarType": 1,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "Auto-Vibrato Hold / 1"
     },
     "35896ebb6c55a79841eb2c4c93e04841714a144c6d8e8da7bf3af35adbf87ffc": {
       "lufs": -21.190000000000001,
@@ -2551,13 +2425,6 @@
       "drive": 0.25,
       "preset": "Auto-Vibrato Hold / 16"
     },
-    "364b7b6fecac83de29a3a5c3f95961ca2cce7afd7abc95cadf682cbc68a5f45a": {
-      "lufs": -51.649999999999999,
-      "guitarType": 13,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Auto-Vibrato Hold / 13"
-    },
     "364cd86fb38ad71c1ab00a60d4391409dc31db38b24ed0ac0f1c54723149fada": {
       "lufs": -43.109999999999999,
       "guitarType": 12,
@@ -2572,6 +2439,13 @@
       "drive": 0.64,
       "preset": "Auto-Vibrato Hold / 18"
     },
+    "36585c95d994003fe1c4257510bfbae532e97e7756f597b1c84cead7160f3c14": {
+      "lufs": -26.879999999999999,
+      "guitarType": 5,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 5"
+    },
     "3666954badbc728c1da08aea33a44752292b43c335d1dcae813668daaa47a2e7": {
       "lufs": -15.08,
       "guitarType": 17,
@@ -2585,13 +2459,6 @@
       "ampModel": 5,
       "drive": 0.62,
       "preset": "Auto-Vibrato Hold / 21"
-    },
-    "367e42b6230bdbbc1289a820de16d1a9a1a936d23dd7b7bfbcf929d66d104fb2": {
-      "lufs": -32.219999999999999,
-      "guitarType": 17,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Auto-Vibrato Hold / 17"
     },
     "36aa3b5842367fd7e99cd484ca125f59a504300db4c63cf6ecc65f7f8ad0d686": {
       "lufs": -15.039999999999999,
@@ -2614,12 +2481,26 @@
       "drive": 0.7,
       "preset": "Auto-Vibrato Hold / 22"
     },
+    "370ef67969c60290aa451d2a1a659d3e5120973e8a302296a6a93be08438efe6": {
+      "lufs": -19.73,
+      "guitarType": 18,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 18"
+    },
     "37ba0ffef2abba8092e7aa8307f181eb3a0117f2f39504e2e6d489c7d409bf09": {
       "lufs": -15.9,
       "guitarType": 10,
       "ampModel": 4,
       "drive": 0.62,
       "preset": "Auto-Vibrato Hold / 10"
+    },
+    "37c08d32b2f7f9f1d8e60cb1d05d4b09d5814eea698966885a2642b82059f817": {
+      "lufs": -19.510000000000002,
+      "guitarType": 17,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 17"
     },
     "37cd596242b7aee6474289b052a89594fdd8e51ecc66e7d9fb31ca7790c2a9d7": {
       "lufs": -40.880000000000003,
@@ -2677,13 +2558,6 @@
       "drive": 0.22,
       "preset": "Auto-Vibrato Hold / 0"
     },
-    "385dea5001475a04c31793a3bb2b553402fb8d9c09247f4f737291ab31e59a0b": {
-      "lufs": -25.41,
-      "guitarType": 6,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Auto-Vibrato Hold / 6"
-    },
     "3883f7401d3a4383e9af534dbfcc3d60e3b4ebfb758a528a681bfffb30034c00": {
       "lufs": -15.949999999999999,
       "guitarType": 14,
@@ -2697,6 +2571,20 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 14"
+    },
+    "38e5c33ac1c942f48f6790c9c1aaea64d8afbb0576861596eb604f4e63ca14cc": {
+      "lufs": -20.059999999999999,
+      "guitarType": 23,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "Auto-Vibrato Hold / 23"
+    },
+    "39349be8569dcc583aae68dc98b9f5621aff94ce6aa696a249aa3e93c822cabd": {
+      "lufs": -20.940000000000001,
+      "guitarType": 7,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Auto-Vibrato Hold / 7"
     },
     "39707cca5cfb2578906c1ebe6d6b75d77154f55ff7cbc570711989767093f6d5": {
       "lufs": -15.26,
@@ -2712,6 +2600,27 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 17"
     },
+    "39c020e4f0a0d92d43505b0bf28b2045fbc4bbbe7f0f9d84997000817cb3dfb6": {
+      "lufs": -36.090000000000003,
+      "guitarType": 3,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Auto-Vibrato Hold / 3"
+    },
+    "39ca9ec23dde8792919aab8664d122d012006adaf05fec94212d5af144924e6e": {
+      "lufs": -38.07,
+      "guitarType": 22,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Auto-Vibrato Hold / 22"
+    },
+    "3a293ddc814e9cda6d2f5070354cee9791bfa347e819f1f0a998892c2d54d843": {
+      "lufs": -35.280000000000001,
+      "guitarType": 22,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "Auto-Vibrato Hold / 22"
+    },
     "3a356bb8b77d653f0689e9de3a257303293a0096f1de0838a0c03c4866a7755b": {
       "lufs": -35.560000000000002,
       "guitarType": 20,
@@ -2726,12 +2635,12 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 6"
     },
-    "3a5cc9090ca661928245bee1e89e14052268aa6ddcb1a82a10f83dd771cb497a": {
-      "lufs": -25.260000000000002,
-      "guitarType": 5,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 5"
+    "3a462770ba903ee08299a6c065b5295181c0f22c605eb1276effea4be6906215": {
+      "lufs": -19.82,
+      "guitarType": 8,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "Auto-Vibrato Hold / 8"
     },
     "3a603caacc5fdc166a34557764b73eabe085db6d15a3a47f988dfaaedb5a37c8": {
       "lufs": -19.109999999999999,
@@ -2768,13 +2677,6 @@
       "drive": 0.78,
       "preset": "Auto-Vibrato Hold / 10"
     },
-    "3b075b30bca0f6e112b780b3dd5e12c3a680bdea28c06976bd3a016e3495b8d6": {
-      "lufs": -21.52,
-      "guitarType": 22,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "Auto-Vibrato Hold / 22"
-    },
     "3b0a4c11b9fadc17e6edce84da7ce12a841f1173cc1e6f58715d3ef3865e01ed": {
       "lufs": -27.120000000000001,
       "guitarType": 18,
@@ -2788,13 +2690,6 @@
       "ampModel": 4,
       "drive": 0.62,
       "preset": "Auto-Vibrato Hold / 4"
-    },
-    "3b9754a51dc156a4ff08d874eab795720b5f0c600ce64714a711dfef3b39ea40": {
-      "lufs": -28.629999999999999,
-      "guitarType": 24,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "Auto-Vibrato Hold / 24"
     },
     "3bb3c367804e0ba6c402d8f1a67311d1da71d4fe59c6d1edf16c6b7d86d1d5e3": {
       "lufs": -15.039999999999999,
@@ -2838,13 +2733,6 @@
       "drive": 0.35,
       "preset": "Auto-Vibrato Hold / 2"
     },
-    "3c1762b6c042ca1bf531e489d62b21245170f7d20b37ec5cb364725bda2ddb7a": {
-      "lufs": -42.350000000000001,
-      "guitarType": 4,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Auto-Vibrato Hold / 4"
-    },
     "3c27ad8bff6e8f7a32ce96fac94db7bbbc61424304e3d5e8cc7d941b1fb9f6b2": {
       "lufs": -18.190000000000001,
       "guitarType": 12,
@@ -2859,12 +2747,26 @@
       "drive": 0.25,
       "preset": "Auto-Vibrato Hold / 18"
     },
+    "3ca5a42438f5dc4060a52da026460b08ca8853027b72652a6b045a4db12bba2d": {
+      "lufs": -25.539999999999999,
+      "guitarType": 3,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 3"
+    },
     "3ceba36fd963303205396603d0868faba59aa5df7f8544417f5e8a9eac7eb4fc": {
       "lufs": -19.5,
       "guitarType": 21,
       "ampModel": 0,
       "drive": 0.15,
       "preset": "Auto-Vibrato Hold / 21"
+    },
+    "3d05e0806341ec98925c450fbea786bb1d1baa25a577fb605e6caa67a5da883f": {
+      "lufs": -18.760000000000002,
+      "guitarType": 9,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Auto-Vibrato Hold / 9"
     },
     "3d7d082e4b3e3b6f7584d797554d4a1b133de4afdd895a12dd074b31256ebcc9": {
       "lufs": -16.149999999999999,
@@ -2886,13 +2788,6 @@
       "ampModel": 4,
       "drive": 0.55,
       "preset": "Auto-Vibrato Hold / 20"
-    },
-    "3da91dc64bad5939486787770a9e536969e30b378e9fb4de9337d2ce9b5d8888": {
-      "lufs": -22.289999999999999,
-      "guitarType": 12,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Auto-Vibrato Hold / 12"
     },
     "3dbb6f79ca8e140b966266b56f0287a1ee13f34b40ebc788b16aaf7099467342": {
       "lufs": -19.66,
@@ -2922,13 +2817,6 @@
       "drive": 0.55,
       "preset": "Auto-Vibrato Hold / 13"
     },
-    "3dffe53ca499f043842f5925ecfcdf6a4e74fae6ca440a36259dac374c534247": {
-      "lufs": -22.949999999999999,
-      "guitarType": 10,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "Auto-Vibrato Hold / 10"
-    },
     "3e32cb888be2c3fb99cf591847c166a8f720348bd2037f4702cb6830567b59a1": {
       "lufs": -17.059999999999999,
       "guitarType": 8,
@@ -2949,6 +2837,13 @@
       "ampModel": 7,
       "drive": 0.8,
       "preset": "Auto-Vibrato Hold / 11"
+    },
+    "3e7132780a4061e73156afc00cec704b1261b1bd2aaa0ff6343e9732176b4f01": {
+      "lufs": -21.68,
+      "guitarType": 0,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Auto-Vibrato Hold / 0"
     },
     "3e7d016be35af791465faab417342e8b6849c59862ba71fe5afc0f5cc142270d": {
       "lufs": -15.94,
@@ -2978,13 +2873,6 @@
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 4"
     },
-    "3ecb28fb14d260d52e961f0c350e8d36903ce927d8762dd2164d6ebeeeeb0449": {
-      "lufs": -23.989999999999998,
-      "guitarType": 7,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 7"
-    },
     "3ed63d38ac30f4599750b09f95035fd0b9f2675ce09f731d087d59ce23674097": {
       "lufs": -15.27,
       "guitarType": 4,
@@ -3012,6 +2900,13 @@
       "ampModel": 0,
       "drive": 0.2,
       "preset": "Auto-Vibrato Hold / 6"
+    },
+    "3f5dbc4b1ff0c11237bc85d8c3a83ee5cfa5703e40abd240bac57f6aade8e9ec": {
+      "lufs": -29.039999999999999,
+      "guitarType": 23,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 23"
     },
     "3fb93e818ec64fd8ed54d4b29e85005b584ce3aa1004871fc41d651435b2d5fb": {
       "lufs": -22.800000000000001,
@@ -3118,12 +3013,19 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 3"
     },
-    "41d9248cae0b8eb17999281e693050e0d34eada3e6e8e95a81dd1edbba16ead1": {
-      "lufs": -25.199999999999999,
-      "guitarType": 15,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "Auto-Vibrato Hold / 15"
+    "41b0bbbae787f8ccd19ec912a52377d4fe750b91ddcf7998dd12c8c83a891f99": {
+      "lufs": -26.059999999999999,
+      "guitarType": 2,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 2"
+    },
+    "41df719e9181f1072faec9e74ccc52a37f3585a3a158fe608c6bf14f6b3124ff": {
+      "lufs": -25.780000000000001,
+      "guitarType": 6,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 6"
     },
     "41fbd91d905fece72d88c5a9d99bb3b96d2c52f8b4cf444d8605a47325e2d39c": {
       "lufs": -12.880000000000001,
@@ -3153,13 +3055,6 @@
       "drive": 0.8,
       "preset": "Auto-Vibrato Hold / 22"
     },
-    "423a2e10c53ea912cbe02fab3d0b879bc4d13afa1037e0f6de10c8c82d1add87": {
-      "lufs": -18.449999999999999,
-      "guitarType": 10,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Auto-Vibrato Hold / 10"
-    },
     "423e0d7605775ca1462f0dcbe18fb25ed2591c58ee6cb61875f4e3f1027674f3": {
       "lufs": -13.119999999999999,
       "guitarType": 11,
@@ -3188,6 +3083,20 @@
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 13"
     },
+    "42ad4bc54cd45ea19b6eda8b7d18b8357aefbfe37c32f11b9133444d4c6c71a0": {
+      "lufs": -19.550000000000001,
+      "guitarType": 9,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "Auto-Vibrato Hold / 9"
+    },
+    "42d043e32af6484bf4e53d611078d69a3e9715ba228d2c02dfe477ad0cccf36f": {
+      "lufs": -19.16,
+      "guitarType": 22,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "Auto-Vibrato Hold / 22"
+    },
     "42d51054b34f1fe715b8f035de9e81ae238ea7edc68aeaeea418ff487812e1f9": {
       "lufs": -26.879999999999999,
       "guitarType": 15,
@@ -3209,13 +3118,6 @@
       "drive": 0.2,
       "preset": "Auto-Vibrato Hold / 12"
     },
-    "433cc042f302a0883b22cbd655ffa09868aff4bfc5bbff427825003593f72da9": {
-      "lufs": -28.52,
-      "guitarType": 15,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 15"
-    },
     "434e7b27d364e50898e0d49e05f07c75d4655cfcfeac430c4374438a048edce3": {
       "lufs": -19.100000000000001,
       "guitarType": 17,
@@ -3236,6 +3138,13 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 7"
+    },
+    "4361422367ec7c5c4fb2716f11f6e33f3e4e416d46a6bda524be4f58c9855b28": {
+      "lufs": -22.43,
+      "guitarType": 23,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Auto-Vibrato Hold / 23"
     },
     "437125bc19383a09503451badee62d81e2679dfc36dab3b9620884380adf85bc": {
       "lufs": -22.550000000000001,
@@ -3314,13 +3223,6 @@
       "drive": 0.7,
       "preset": "Auto-Vibrato Hold / 8"
     },
-    "44805530a7bbc7034923b563a2f790a60c2e462a4b6f1c91ef52f6cffce983c7": {
-      "lufs": -25.170000000000002,
-      "guitarType": 6,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "Auto-Vibrato Hold / 6"
-    },
     "4480eae274a063f7c8059919a31180da9f80af25a5a1d179550cc27821d87497": {
       "lufs": -11.949999999999999,
       "guitarType": 5,
@@ -3334,6 +3236,13 @@
       "ampModel": 0,
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 19"
+    },
+    "44b610f7552bc5d6efd825ace6f35c59601fed144e4db15064bcc601c897d69f": {
+      "lufs": -28.0,
+      "guitarType": 23,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Auto-Vibrato Hold / 23"
     },
     "4512c29aff1b3c052c009c4bd4fbba8b145a468050f048270692b3564e78ecb1": {
       "lufs": -19.120000000000001,
@@ -3369,13 +3278,6 @@
       "ampModel": 4,
       "drive": 0.62,
       "preset": "Auto-Vibrato Hold / 12"
-    },
-    "45e1037c4ec73ca418a11a0107633b3b5b16f794cc4e4954634fcab4935d1b5c": {
-      "lufs": -26.16,
-      "guitarType": 4,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "Auto-Vibrato Hold / 4"
     },
     "461c174c7b77f7cc42047fdd0fc950043e9d7287982d2ab63bf68f4447215fd4": {
       "lufs": -21.690000000000001,
@@ -3468,13 +3370,6 @@
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 16"
     },
-    "47688da2eae531d8d900972ae0e882af9b5b6072fca973ba319023da59ac01d9": {
-      "lufs": -18.949999999999999,
-      "guitarType": 1,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Auto-Vibrato Hold / 1"
-    },
     "4769c7b964f06125d1eaafa2c61aa321d1449ccf68d58e4b404194528d38feb4": {
       "lufs": -13.35,
       "guitarType": 10,
@@ -3489,12 +3384,12 @@
       "drive": 0.62,
       "preset": "Auto-Vibrato Hold / 1"
     },
-    "4781b975c2d0604c602f7e50e4d1a1c359892ace0eaa78400fecf26cf8e62916": {
-      "lufs": -24.329999999999998,
-      "guitarType": 1,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 1"
+    "479321d06f009a28c0c9ff6cfb8e892705dd850bb0ef6b2b4c04bb05c1ae4228": {
+      "lufs": -21.289999999999999,
+      "guitarType": 10,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Auto-Vibrato Hold / 10"
     },
     "47ed7719286468c8d27403dcd7e578db4945e5e1744185c1087aff5a7597f520": {
       "lufs": -14.550000000000001,
@@ -3509,13 +3404,6 @@
       "ampModel": 0,
       "drive": 0.2,
       "preset": "Auto-Vibrato Hold / 11"
-    },
-    "47ffaef837199e2fb020da3342546b84298e111cb55c2bb127e0d33ac00121ea": {
-      "lufs": -20.789999999999999,
-      "guitarType": 21,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 21"
     },
     "481a53c44a0a8d07bfe7dd82535842c03a4eb7a80d77c6a9bd1600626d1c99ba": {
       "lufs": -34.850000000000001,
@@ -3552,6 +3440,13 @@
       "drive": 0.64,
       "preset": "Auto-Vibrato Hold / 7"
     },
+    "48bd9459feef3dc9bad77c3df9fbdc36a668e5c65fe6d2174c07125c899d19ee": {
+      "lufs": -18.649999999999999,
+      "guitarType": 2,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Auto-Vibrato Hold / 2"
+    },
     "48daead45f84fd8e5c621acb8e4fb343cbb30342633dafeb7a64ec63fe611862": {
       "lufs": -11.68,
       "guitarType": 0,
@@ -3565,6 +3460,13 @@
       "ampModel": 0,
       "drive": 0.2,
       "preset": "Auto-Vibrato Hold / 5"
+    },
+    "494afbb4603101845ea09e68f7bd0bfede3b0ec0e35d6f0ee8b8a0568aeed8e0": {
+      "lufs": -18.260000000000002,
+      "guitarType": 7,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Auto-Vibrato Hold / 7"
     },
     "49523aa1cde61289d278cd552d2b847c955bc54734b95521907e78777e6086dc": {
       "lufs": -26.300000000000001,
@@ -3580,13 +3482,6 @@
       "drive": 0.55,
       "preset": "Auto-Vibrato Hold / 3"
     },
-    "499ad50e0a820962f01d8353a8f1e86239b623809c1bf9dc2bf03dd5068765b7": {
-      "lufs": -22.59,
-      "guitarType": 23,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "Auto-Vibrato Hold / 23"
-    },
     "49c18b34ed7b9fce24e5c62f74e05c280bb0d9768190b25489911354c47b90aa": {
       "lufs": -19.420000000000002,
       "guitarType": 16,
@@ -3601,6 +3496,13 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 19"
     },
+    "4a19d25f4103305e99c077e0326009e713fa0b0ab7a750f5216db541a0e020a2": {
+      "lufs": -42.950000000000003,
+      "guitarType": 16,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Auto-Vibrato Hold / 16"
+    },
     "4a46a8391659d5703d4f892737efb776872bcb937dae2e55f3038560d94cf55c": {
       "lufs": -14.869999999999999,
       "guitarType": 24,
@@ -3614,6 +3516,13 @@
       "ampModel": 0,
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 15"
+    },
+    "4a6eb605f86591307a148b723661d0a5784487e297385a4501df244ef66a61db": {
+      "lufs": -36.600000000000001,
+      "guitarType": 17,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "Auto-Vibrato Hold / 17"
     },
     "4a85a321d83d751317425fc52bd1e6dbc154026cf6286b1f97c6e4eafaff1c85": {
       "lufs": -14.18,
@@ -3776,13 +3685,6 @@
       "drive": 0.2,
       "preset": "Auto-Vibrato Hold / 6"
     },
-    "4e1b0bb7713ab384132f0c87f0e30601dc2a9e98195f2a0eaf30d262537f42f8": {
-      "lufs": -19.989999999999998,
-      "guitarType": 20,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Auto-Vibrato Hold / 20"
-    },
     "4e1f38ef1f83daf0ba68229a95edd8de376d2c635c5f723c1407a17f91fa488a": {
       "lufs": -15.16,
       "guitarType": 10,
@@ -3810,6 +3712,13 @@
       "ampModel": 3,
       "drive": 0.58,
       "preset": "Auto-Vibrato Hold / 18"
+    },
+    "4eecc0e2a45dae19efcd9c19547c2324267b73083077d334b0a2574386454bfd": {
+      "lufs": -21.170000000000002,
+      "guitarType": 1,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Auto-Vibrato Hold / 1"
     },
     "4f1800820e121e772ca7b1b79ddb5d0c27766da138e707768a09fb5a604f55d4": {
       "lufs": -11.359999999999999,
@@ -3839,12 +3748,12 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 20"
     },
-    "50719075807b3d4d8e9ea71402125f232d82460f314251553d67e5a1f7fd4684": {
-      "lufs": -19.440000000000001,
-      "guitarType": 9,
+    "50257c1dd37cd67b82a5d77ad6b223c082cd01962803379c3c2254b76bdf64cd": {
+      "lufs": -18.359999999999999,
+      "guitarType": 1,
       "ampModel": 1,
       "drive": 0.42,
-      "preset": "Auto-Vibrato Hold / 9"
+      "preset": "Auto-Vibrato Hold / 1"
     },
     "5087e5b325d4c74679a317e81d168e070a0d12c138b47162d9f444bfcebe38ed": {
       "lufs": -17.960000000000001,
@@ -3916,13 +3825,6 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 18"
     },
-    "51b314c6b5dbded5682e19eed74dd5dddce886e6f5356752de4fc0998951919a": {
-      "lufs": -32.549999999999997,
-      "guitarType": 14,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Auto-Vibrato Hold / 14"
-    },
     "51b93cc931b38e26fcdce49d545cba3e5bf0ad3bd6acde4d32c1d82f4e7a4675": {
       "lufs": -24.600000000000001,
       "guitarType": 19,
@@ -3951,20 +3853,6 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 15"
     },
-    "52762416b4e2b4def7b4d502362b96f5f7e20e9056d03ea75d325f2767cccd64": {
-      "lufs": -24.18,
-      "guitarType": 24,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 24"
-    },
-    "528a6bf87b5bae841810e9491ed2cbf41b6bc8af29e6994d5a8403dc76733f8c": {
-      "lufs": -42.039999999999999,
-      "guitarType": 19,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Auto-Vibrato Hold / 19"
-    },
     "52b427611d04333b74c6219487b8530c4ca89a68e6d81b1b4a43b1281074017c": {
       "lufs": -19.859999999999999,
       "guitarType": 7,
@@ -3978,13 +3866,6 @@
       "ampModel": 4,
       "drive": 0.5,
       "preset": "Auto-Vibrato Hold / 9"
-    },
-    "52eccffa97068388171c394012d899c7a25a49d79e52bd0c10467ef84e6fb27d": {
-      "lufs": -30.699999999999999,
-      "guitarType": 8,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Auto-Vibrato Hold / 8"
     },
     "52f879d04465f1d4b5aa5cdb92ec2fda225b05d5dd02cfc09dd66e90c7a5dee6": {
       "lufs": -18.190000000000001,
@@ -4007,6 +3888,13 @@
       "drive": 0.2,
       "preset": "Auto-Vibrato Hold / 13"
     },
+    "53ea99a4bf2333cbdbbcb6bd1c53796b12f6662cf22c9c45913bca154ecbe9d7": {
+      "lufs": -27.960000000000001,
+      "guitarType": 20,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Auto-Vibrato Hold / 20"
+    },
     "53f6dd4d41c77fffe72bc55bee2545fef9f63b85dbc12090876cbf9cda45a8a3": {
       "lufs": -14.76,
       "guitarType": 18,
@@ -4021,20 +3909,6 @@
       "drive": 0.78,
       "preset": "Auto-Vibrato Hold / 7"
     },
-    "541ea39bba10c1002707cfca16a44079ff2cfb1172edc75e8118e1fec8947724": {
-      "lufs": -30.260000000000002,
-      "guitarType": 9,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Auto-Vibrato Hold / 9"
-    },
-    "5446734a6b204b3724add84f4a7bac20ba5e2673477df4190a2bb564123d964c": {
-      "lufs": -28.550000000000001,
-      "guitarType": 5,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Auto-Vibrato Hold / 5"
-    },
     "5463fd27ec3e09d1be71991e84c04b2161782dbe4a0450766828f38efe7777ab": {
       "lufs": -34.600000000000001,
       "guitarType": 13,
@@ -4048,6 +3922,13 @@
       "ampModel": 10,
       "drive": 0.64,
       "preset": "Auto-Vibrato Hold / 8"
+    },
+    "55091a748d1360eb1769474a65fe93bdecf6c2a90aaf6615f51e89de000e3ba7": {
+      "lufs": -26.91,
+      "guitarType": 6,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Auto-Vibrato Hold / 6"
     },
     "5520bc88315a033851941bebfd3c52c9a453ae6512939bfa7a32a4f35477778c": {
       "lufs": -12.18,
@@ -4077,12 +3958,12 @@
       "drive": 0.82,
       "preset": "Auto-Vibrato Hold / 8"
     },
-    "55d4cd4d221c546faca1b1fbdc71ef5ac9ff2c3c11f3efff4860f9fd08828c4b": {
-      "lufs": -20.809999999999999,
-      "guitarType": 18,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Auto-Vibrato Hold / 18"
+    "55df7426ce162ecd0e157d33083e3178d7b70fe67d1d7422e9aef32540290819": {
+      "lufs": -20.260000000000002,
+      "guitarType": 13,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "Auto-Vibrato Hold / 13"
     },
     "55eef93f1bff906c7428423f0f297323145c6a3a813163eb3f9b03247f1bc099": {
       "lufs": -13.619999999999999,
@@ -4119,6 +4000,13 @@
       "drive": 0.7,
       "preset": "Auto-Vibrato Hold / 3"
     },
+    "566ad33769bcc93844dd8977296697298cfefb5f2b57323f5bea85100d0987c3": {
+      "lufs": -29.960000000000001,
+      "guitarType": 16,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 16"
+    },
     "567cf23466ddf60ef79389b346815af58671eaf8d777114bef95f1eb0227e1e1": {
       "lufs": -29.73,
       "guitarType": 14,
@@ -4154,12 +4042,19 @@
       "drive": 0.35,
       "preset": "Auto-Vibrato Hold / 13"
     },
-    "57725c4090bfb128a6234db84a35ac621695688203fda966014a482fbcd04704": {
-      "lufs": -19.609999999999999,
-      "guitarType": 7,
+    "57513ad39a714cd6e0f52a385757a50311bb8ff4bb2a89e5e58f540119b3baeb": {
+      "lufs": -20.120000000000001,
+      "guitarType": 12,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "Auto-Vibrato Hold / 12"
+    },
+    "576486d1cb552ca0bba84fd79bc00ed9d602338237f9f64ab0ddac3fa6bd9dc5": {
+      "lufs": -18.710000000000001,
+      "guitarType": 6,
       "ampModel": 1,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 7"
+      "drive": 0.42,
+      "preset": "Auto-Vibrato Hold / 6"
     },
     "57aba8893e8275f46c6e8a4c91a9a1ddbd2c7f24f0c28d1b19fbdccb73b1908c": {
       "lufs": -15.279999999999999,
@@ -4167,13 +4062,6 @@
       "ampModel": 4,
       "drive": 0.55,
       "preset": "Auto-Vibrato Hold / 2"
-    },
-    "57c421da4b9292ffc1d71f10102bc7a7bf97bf74117ebf9b3c92adb1ff96b13d": {
-      "lufs": -21.329999999999998,
-      "guitarType": 3,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Auto-Vibrato Hold / 3"
     },
     "58138a93c7219fbd6a7e0bf8295ca4a84a1d10ff5dab830335fea391484ac6f0": {
       "lufs": -12.91,
@@ -4209,6 +4097,20 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 11"
+    },
+    "58972cc6d12ed9328a12288d3c873de9a9668fc705bcc4c7f8b7e3405b69f516": {
+      "lufs": -29.18,
+      "guitarType": 11,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 11"
+    },
+    "58a2784f43fe38aa5748cc1aba5b347b19066a2ad0e9558afedd9f9dfbbe38b9": {
+      "lufs": -33.299999999999997,
+      "guitarType": 6,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "Auto-Vibrato Hold / 6"
     },
     "58ec9579cea7271d4f8d7d1b4b83b2e8bbf37dca78e6347a964fa7377ec83fc5": {
       "lufs": -13.06,
@@ -4280,6 +4182,20 @@
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 12"
     },
+    "5a6288995754e08a17cad1dd6b5c4f3eac5ebafa59f1ec8be5afca142d1dc0f3": {
+      "lufs": -21.739999999999998,
+      "guitarType": 24,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Auto-Vibrato Hold / 24"
+    },
+    "5aaa728863a947b5f79e300525815265992ba68a589ae0ecaf64eea71d18082c": {
+      "lufs": -19.93,
+      "guitarType": 24,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "Auto-Vibrato Hold / 24"
+    },
     "5b19f45b34bfe5a0acd27e77063de3a7c587f624009c23f8742574ca4935b4f3": {
       "lufs": -29.43,
       "guitarType": 10,
@@ -4294,13 +4210,6 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 1"
     },
-    "5b8b08a1dc2a5b72c9513015b45236c2dfae58410b909fb2f8de710d8115a3ab": {
-      "lufs": -20.989999999999998,
-      "guitarType": 4,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Auto-Vibrato Hold / 4"
-    },
     "5bae2df53313d07fff8daedbdc0fd69877065df10556a686a49914f19a328843": {
       "lufs": -26.789999999999999,
       "guitarType": 14,
@@ -4314,20 +4223,6 @@
       "ampModel": 0,
       "drive": 0.22,
       "preset": "Auto-Vibrato Hold / 24"
-    },
-    "5c215d1394988f8a319c1da3b62a41e7a3f60dbf773b8647a04e9b738e13a8c3": {
-      "lufs": -26.670000000000002,
-      "guitarType": 0,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Auto-Vibrato Hold / 0"
-    },
-    "5c2f18bfa97ae2934e281843f837cab4bf5ec3497823bea2a08e914484dcc9ea": {
-      "lufs": -21.370000000000001,
-      "guitarType": 6,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Auto-Vibrato Hold / 6"
     },
     "5c30d6aa250a18b95ddfdf71626df4ddbf99f23b76e4ced4a6f809164f058f8c": {
       "lufs": -14.23,
@@ -4364,13 +4259,6 @@
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 19"
     },
-    "5cae24189084d50f59cd8d1cc40618eff6bb6ced53b568a617873655c493b0a7": {
-      "lufs": -18.780000000000001,
-      "guitarType": 7,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Auto-Vibrato Hold / 7"
-    },
     "5ccd1d2c5b81320e53e28ee83cb338cb834de7b6968a7df31adb2dd9cbb386ed": {
       "lufs": -20.100000000000001,
       "guitarType": 4,
@@ -4399,13 +4287,6 @@
       "drive": 0.78,
       "preset": "Auto-Vibrato Hold / 20"
     },
-    "5d6faeef161182180e7118676bfac5d74ffde4f2901cf32812c2b7460d72911d": {
-      "lufs": -26.16,
-      "guitarType": 20,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 20"
-    },
     "5d76bddb945c45fbfc1de1808d80e6a3373f11c0ec2e08983d0efc9c8cb8f4ca": {
       "lufs": -22.210000000000001,
       "guitarType": 5,
@@ -4427,13 +4308,6 @@
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 9"
     },
-    "5dec83033a95016960d300efe716018fcacd5ff84fdb775c89fa1a0255e7a75b": {
-      "lufs": -25.300000000000001,
-      "guitarType": 1,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "Auto-Vibrato Hold / 1"
-    },
     "5dfb08a08f76dd5957a6db7108adde3e3aae21cd0cc97a47db0d70aa356d8cd4": {
       "lufs": -16.27,
       "guitarType": 6,
@@ -4441,19 +4315,19 @@
       "drive": 0.2,
       "preset": "Auto-Vibrato Hold / 6"
     },
+    "5e16eecf5a443f9a416216602a2db8304a7e1d837c8422e4218ce0627c6e5619": {
+      "lufs": -35.600000000000001,
+      "guitarType": 23,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "Auto-Vibrato Hold / 23"
+    },
     "5e4778d52f76272d745165a750ba3f621397c41cf810b25c4382019f93d2a1e4": {
       "lufs": -15.210000000000001,
       "guitarType": 12,
       "ampModel": 4,
       "drive": 0.48,
       "preset": "Auto-Vibrato Hold / 12"
-    },
-    "5e56993f24baadb079fb632ca6822f297b93858f8e710689b4ecafdb8b1d2490": {
-      "lufs": -20.359999999999999,
-      "guitarType": 13,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 13"
     },
     "5e6a55da799929bf720dfaea31a81b2cf6f77a98cc065b787ca60c7def22048f": {
       "lufs": -11.73,
@@ -4510,6 +4384,13 @@
       "ampModel": 11,
       "drive": 0.25,
       "preset": "Auto-Vibrato Hold / 7"
+    },
+    "5f1d54b0b0bcc35acbdab9861c2cda796cddba9fd7d474e2c88c53b5589f61f9": {
+      "lufs": -18.73,
+      "guitarType": 3,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 3"
     },
     "5f5072f1075214be5b885ca0859ba2aa5d6bd57717d655645e1fdf6664061817": {
       "lufs": -31.120000000000001,
@@ -4581,6 +4462,13 @@
       "drive": 0.2,
       "preset": "Auto-Vibrato Hold / 20"
     },
+    "60b07c33576916010f4905e367d37d76e642b69343059fb39e24b4ffca427ec8": {
+      "lufs": -19.760000000000002,
+      "guitarType": 1,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "Auto-Vibrato Hold / 1"
+    },
     "610a71dd331f513b10a7786d3feeb5c9a5304537ff0c63aab98a8270f90073c3": {
       "lufs": -31.809999999999999,
       "guitarType": 21,
@@ -4602,6 +4490,13 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 12"
     },
+    "613fb2428d4f021fa64c7138e6fd43e5c4e1c7e9362c585b398aad0cd94c6549": {
+      "lufs": -21.75,
+      "guitarType": 22,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Auto-Vibrato Hold / 22"
+    },
     "616258d01175691d996f411c16580f175084dfeb11d9e91b7559b66548765348": {
       "lufs": -18.550000000000001,
       "guitarType": 5,
@@ -4615,6 +4510,13 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 24"
+    },
+    "61a4f2d1eb2f44cccff9d8606078396176a0d601fdf3f66ebe2065f18b53194c": {
+      "lufs": -20.789999999999999,
+      "guitarType": 13,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Auto-Vibrato Hold / 13"
     },
     "61f2205278765f61fd2ae063cd8a17a6c43d4a1cdcadb5432149d525dea6c594": {
       "lufs": -11.43,
@@ -4728,13 +4630,6 @@
       "drive": 0.25,
       "preset": "Auto-Vibrato Hold / 7"
     },
-    "63c42cbf7ea27b78bb5f7b5e92f18bf8415b2af8fba96a176c375f9755b82645": {
-      "lufs": -18.829999999999998,
-      "guitarType": 8,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Auto-Vibrato Hold / 8"
-    },
     "63d93c149c18971b0d04bb05c90d7828213ae711e15060e0411b17bf394c1ff2": {
       "lufs": -15.77,
       "guitarType": 24,
@@ -4770,19 +4665,19 @@
       "drive": 0.25,
       "preset": "Auto-Vibrato Hold / 0"
     },
-    "644447ebaa61246fc272197977b00ff069d7f7f1719107b83205d401ca6809b9": {
-      "lufs": -19.77,
-      "guitarType": 12,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 12"
-    },
     "645e7240b43b72f06f29284e4eb70ef1ae7beaa19714252e3aac56ef4ec6ae08": {
       "lufs": -19.399999999999999,
       "guitarType": 23,
       "ampModel": 10,
       "drive": 0.64,
       "preset": "Auto-Vibrato Hold / 23"
+    },
+    "646a51fc507fbad6020c06db3cef2212f586c723f1b94d2640b570a5b24f86d5": {
+      "lufs": -18.550000000000001,
+      "guitarType": 0,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Auto-Vibrato Hold / 0"
     },
     "646f9acf06db5b0a1e9e83bb5e65f6885957aaae5d8e86e38eb76e078d7e9ac8": {
       "lufs": -16.510000000000002,
@@ -4882,6 +4777,13 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 22"
     },
+    "664f9a53e5c6cb23dd76da385a3383a1b835e7b938d342ad95c120678d9ab0d9": {
+      "lufs": -30.829999999999998,
+      "guitarType": 17,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 17"
+    },
     "6665a14c72be08bd89e96e627ec3345925749e2fb767c702bd2b4ef99f808653": {
       "lufs": -15.619999999999999,
       "guitarType": 15,
@@ -4931,19 +4833,26 @@
       "drive": 0.55,
       "preset": "Auto-Vibrato Hold / 20"
     },
-    "676443bcbae20ea79539a06d6b0e728765441e414e7ba39ea33c1fc0939b6377": {
-      "lufs": -26.399999999999999,
-      "guitarType": 22,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "Auto-Vibrato Hold / 22"
-    },
     "676b15b88bb5a995bf5f82d12898895e9154f033d0c0dedeae8fef7d95072fb8": {
       "lufs": -15.859999999999999,
       "guitarType": 0,
       "ampModel": 0,
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 0"
+    },
+    "676ec3408b59592b05976d8468a62d2482e8b14852b3941c6f901ce16e673a20": {
+      "lufs": -19.73,
+      "guitarType": 22,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 22"
+    },
+    "67720a3d5c12b26ff30e9a02a51c88de9dd4c697b9bbf5b153e29b22dee4dba7": {
+      "lufs": -26.329999999999998,
+      "guitarType": 13,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Auto-Vibrato Hold / 13"
     },
     "6790c14e8fb4e6ec298abc06e65a8bd4fbd59718ef96ef9836965a8e5a5c1027": {
       "lufs": -11.789999999999999,
@@ -4980,12 +4889,12 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 20"
     },
-    "680952d85cb1e47732183e2464f283b5444ed5eeed099caeb75d2202e88cfbe6": {
-      "lufs": -19.449999999999999,
-      "guitarType": 3,
+    "683e9a7f17f60b11b6e456286cd483b4ef55687f36199899c6f1f370dff7a0fe": {
+      "lufs": -21.59,
+      "guitarType": 16,
       "ampModel": 1,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 3"
+      "drive": 0.42,
+      "preset": "Auto-Vibrato Hold / 16"
     },
     "6866eafbbfcd5623df41f74d8f908b96e502db286cd240088732d0a2e921fb60": {
       "lufs": -45.590000000000003,
@@ -5049,13 +4958,6 @@
       "ampModel": 4,
       "drive": 0.48,
       "preset": "Auto-Vibrato Hold / 4"
-    },
-    "695d492c5c41698efc2bb9c8c691a6b804943591ef2eef54d3e7208c361ad147": {
-      "lufs": -19.219999999999999,
-      "guitarType": 1,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 1"
     },
     "697af1ecef71a7d19a2235dad2b5efd2a8c576bd95418289535e0ff5a0a9dfbb": {
       "lufs": -31.920000000000002,
@@ -5197,13 +5099,6 @@
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 11"
     },
-    "6b1b3c6cb315421a06d83588954f96e0da5ea866346b6a7b562cf6b3a694466b": {
-      "lufs": -20.629999999999999,
-      "guitarType": 22,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 22"
-    },
     "6b27d78831efaaa95cb7213a06fb550c9f48691e13605114c3474bdae5b636e9": {
       "lufs": -32.659999999999997,
       "guitarType": 23,
@@ -5246,11 +5141,11 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 7"
     },
-    "6b8232819116643296979011ae97180e2cd5cc5eabff8b0a464437e976c50cc9": {
-      "lufs": -28.350000000000001,
+    "6b87365e2b0b1bd07c28ca0bf765c77aa9081d61df2e3582fde9a8cdd138756e": {
+      "lufs": -20.34,
       "guitarType": 16,
-      "ampModel": 11,
-      "drive": 0.36,
+      "ampModel": 9,
+      "drive": 0.85,
       "preset": "Auto-Vibrato Hold / 16"
     },
     "6bb73ff3b3df61a4ed11558e591a8ca04419fc3a0dfe1805ffb4d3dcefe63881": {
@@ -5274,19 +5169,19 @@
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 13"
     },
+    "6c006d85015d1c84b4edb92fbd2a37dacc26c93dfa52ea39d4c1ae6112d49b48": {
+      "lufs": -27.219999999999999,
+      "guitarType": 17,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Auto-Vibrato Hold / 17"
+    },
     "6c496d11fa4aa6c9ce7390508e3593746a836173f479f7bc30852f1282d0e734": {
       "lufs": -13.84,
       "guitarType": 1,
       "ampModel": 5,
       "drive": 0.78,
       "preset": "Auto-Vibrato Hold / 1"
-    },
-    "6cb7598490698450647444825ef3a1264323f2495c8b3f7b9a95cbda2247d0a0": {
-      "lufs": -20.84,
-      "guitarType": 0,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Auto-Vibrato Hold / 0"
     },
     "6d13f960be394326547865058127f1f532536a0539efc862ba1ac17203690cb0": {
       "lufs": -11.699999999999999,
@@ -5302,12 +5197,19 @@
       "drive": 0.7,
       "preset": "Auto-Vibrato Hold / 7"
     },
-    "6d69628d55727bee2b984dbc24074227df5e6808bcb9f77f63bee295f2e0134f": {
-      "lufs": -24.059999999999999,
-      "guitarType": 4,
+    "6d37024303438b5fdc356b58330c13e2a9ef47e7bf55043dc5f6043e1997a953": {
+      "lufs": -19.059999999999999,
+      "guitarType": 21,
       "ampModel": 9,
       "drive": 0.85,
-      "preset": "Auto-Vibrato Hold / 4"
+      "preset": "Auto-Vibrato Hold / 21"
+    },
+    "6d8c8ecf95e6c8a03e2d6db94ce782983fa08085967a037a313199d51548bb94": {
+      "lufs": -18.969999999999999,
+      "guitarType": 24,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 24"
     },
     "6d9014d6bf551c4126decbc801100b9c76fbc2a6e987f0e7244c820edb80f9a7": {
       "lufs": -16.399999999999999,
@@ -5371,6 +5273,20 @@
       "ampModel": 0,
       "drive": 0.2,
       "preset": "Auto-Vibrato Hold / 13"
+    },
+    "6e5afcc5d561e3eebb94b17f0756cda3ab50c4bc4e99bb9338c2327f598cae34": {
+      "lufs": -36.270000000000003,
+      "guitarType": 8,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Auto-Vibrato Hold / 8"
+    },
+    "6e6e54533bd9c29b2b7791927a40c61ce6ece9a245999851851da21977ad3f8d": {
+      "lufs": -35.579999999999998,
+      "guitarType": 6,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Auto-Vibrato Hold / 6"
     },
     "6e842a7247d5e2909f2655963429f2521a8b698d1923376beb674cfaac957d1a": {
       "lufs": -14.67,
@@ -5477,6 +5393,13 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 0"
     },
+    "70eb9efaefab6e93bb09ef8d9224c6f5b07bea18d38d24b7b5c8b1b81cd5994f": {
+      "lufs": -34.530000000000001,
+      "guitarType": 9,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "Auto-Vibrato Hold / 9"
+    },
     "70f768c86ae21109a5e4abdc8b9d8e31fc3cc22fe4070f7781e138eab136a341": {
       "lufs": -15.41,
       "guitarType": 1,
@@ -5490,13 +5413,6 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 16"
-    },
-    "7103af84b7ec1916623f2af4f77bc992b694bbabe9800459ce7335d8e96727b5": {
-      "lufs": -19.27,
-      "guitarType": 4,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 4"
     },
     "713174105d16525dd9c8b462e07a93c9993e1d20f39fda1ce56ab9daf0ee59e2": {
       "lufs": -16.050000000000001,
@@ -5540,13 +5456,6 @@
       "drive": 0.15,
       "preset": "Auto-Vibrato Hold / 17"
     },
-    "725cf27c79925e07023e0d18b460596f9ccfefe81c549ebbceb899d923fb973d": {
-      "lufs": -26.600000000000001,
-      "guitarType": 4,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Auto-Vibrato Hold / 4"
-    },
     "727588e6ede69da6388a19abdf1d10b0a2a817efb43957faf886ea028990ab7d": {
       "lufs": -22.289999999999999,
       "guitarType": 3,
@@ -5560,13 +5469,6 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 22"
-    },
-    "7314dc35918168f58a26bc4ebac70137b98a7401911814c3d8250c9d1c44bace": {
-      "lufs": -21.260000000000002,
-      "guitarType": 12,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Auto-Vibrato Hold / 12"
     },
     "7359d214f1dd9d9692cde8151b649431733e580328b85f0404b5473312f00018": {
       "lufs": -19.43,
@@ -5673,6 +5575,13 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 9"
     },
+    "7525f5629e7709b09156dcc2a05019691e0b93afc66442ddc42437024da1c088": {
+      "lufs": -26.690000000000001,
+      "guitarType": 4,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Auto-Vibrato Hold / 4"
+    },
     "752b6e21504fbdef0a91b70b9fa3ce4e1346004e2304d0fcd5975957361c8756": {
       "lufs": -18.629999999999999,
       "guitarType": 9,
@@ -5687,13 +5596,6 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 19"
     },
-    "75bb68df88cdc0906f2885d2a9b20af13eb14d826bc1633d6b57c6959489659d": {
-      "lufs": -28.219999999999999,
-      "guitarType": 16,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 16"
-    },
     "75c5eb9d6a6c779172f45bf2bc914ae10add949ad65be27c7dbf948821ab1bc5": {
       "lufs": -15.27,
       "guitarType": 5,
@@ -5706,13 +5608,6 @@
       "guitarType": 2,
       "ampModel": 0,
       "drive": 0.22,
-      "preset": "Auto-Vibrato Hold / 2"
-    },
-    "75f526c5257ea73f0b31ec08d37e53a3ffaeb2992de128eec3574be02347b20e": {
-      "lufs": -24.510000000000002,
-      "guitarType": 2,
-      "ampModel": 6,
-      "drive": 0.34,
       "preset": "Auto-Vibrato Hold / 2"
     },
     "7629b0cadfa6b4cf6345ac3d497703e4487f4429638eaba386bfdc82674ae7cc": {
@@ -5736,6 +5631,13 @@
       "drive": 0.62,
       "preset": "Auto-Vibrato Hold / 16"
     },
+    "766953581cc685a7ae59a0c750cd50816d77403d96aa698aac10b967c018b6bf": {
+      "lufs": -27.0,
+      "guitarType": 18,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Auto-Vibrato Hold / 18"
+    },
     "7677790bdedc6104c51c9ee57c5433b475142d07222a3fd38d7ad475197d45c7": {
       "lufs": -27.140000000000001,
       "guitarType": 24,
@@ -5743,12 +5645,12 @@
       "drive": 0.8,
       "preset": "Auto-Vibrato Hold / 24"
     },
-    "76c23356963fc2f82e278fd3c81b55bde2de9325bd283b577c7d99f3fb64bc72": {
-      "lufs": -28.16,
-      "guitarType": 17,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "Auto-Vibrato Hold / 17"
+    "76987a7c4a1ed2d9739f29e341880ba704fe770b5b67615552b874cb1da5369a": {
+      "lufs": -39.009999999999998,
+      "guitarType": 21,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Auto-Vibrato Hold / 21"
     },
     "76c9f95ae4ac6dad1079069ff68f8e51c0ce54c63989d833aa1895ffa9403c96": {
       "lufs": -44.859999999999999,
@@ -5792,13 +5694,6 @@
       "drive": 0.8,
       "preset": "Auto-Vibrato Hold / 0"
     },
-    "78047fe2a0cc7fbde453fbe1a5ee2699d0df3cbbc2325decf4e71b6fa571e441": {
-      "lufs": -40.469999999999999,
-      "guitarType": 10,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Auto-Vibrato Hold / 10"
-    },
     "780c7be5e78d1d8ca0ead78e8719bde6d00947b5d7ab9b1252a193b262aed610": {
       "lufs": -14.210000000000001,
       "guitarType": 13,
@@ -5819,6 +5714,13 @@
       "ampModel": 0,
       "drive": 0.22,
       "preset": "Auto-Vibrato Hold / 4"
+    },
+    "783c81117d5569804e5ef7f521308b2a7f106c8a48908b24a7c1b335187b8e9a": {
+      "lufs": -36.649999999999999,
+      "guitarType": 20,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Auto-Vibrato Hold / 20"
     },
     "7849304790645c731ebac18e9055ce1aff4d2d19f013eedc325d7920500981ff": {
       "lufs": -14.41,
@@ -5924,6 +5826,13 @@
       "ampModel": 5,
       "drive": 0.78,
       "preset": "Auto-Vibrato Hold / 2"
+    },
+    "795c9de9ff938eb3d92aa4188b482752254bdbac2f7d7856f188937e309f1c1c": {
+      "lufs": -19.010000000000002,
+      "guitarType": 12,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 12"
     },
     "799aac378c7cbecf6ed8adefe51566d7d080a60018f8ea5f9d404cc81a89b81d": {
       "lufs": -36.390000000000001,
@@ -6037,13 +5946,6 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 1"
     },
-    "7ccf98a3753e690b7489dce1edecc2671b796ac06b7eb14488a8ba7bdd15822e": {
-      "lufs": -25.710000000000001,
-      "guitarType": 7,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Auto-Vibrato Hold / 7"
-    },
     "7cf8d2f7f267f77975f47d222db80a609c0d1cd7329c9e980a40ea3238428aa2": {
       "lufs": -9.84,
       "guitarType": 6,
@@ -6057,13 +5959,6 @@
       "ampModel": 0,
       "drive": 0.35,
       "preset": "Auto-Vibrato Hold / 1"
-    },
-    "7d50b6a8ad0c39f897f3cafe78ecad5b87085c382ea22b46677dc17a384c0078": {
-      "lufs": -20.969999999999999,
-      "guitarType": 7,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Auto-Vibrato Hold / 7"
     },
     "7d9055fcc161211faebefbed7a0f66d1dfbd7b9c6ea7f6271a9afe4e7adb8cd8": {
       "lufs": -14.69,
@@ -6085,6 +5980,13 @@
       "ampModel": 4,
       "drive": 0.48,
       "preset": "Auto-Vibrato Hold / 24"
+    },
+    "7dd40717d9ec9398f712ddaf1bb5138cb19d3dceb3e3f4e65e204ebe5343dbff": {
+      "lufs": -19.5,
+      "guitarType": 23,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Auto-Vibrato Hold / 23"
     },
     "7e01272b8d54466e614c9b83dfca327d8701bc964cd9f51a5bd178fe723f7625": {
       "lufs": -15.16,
@@ -6205,12 +6107,12 @@
       "drive": 0.2,
       "preset": "Auto-Vibrato Hold / 15"
     },
-    "8047f85116bfcbeae2a5fdf54135ef42c39eec64924abdd6245c196b5fa45a78": {
-      "lufs": -20.41,
-      "guitarType": 17,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 17"
+    "80362ff017920969068925cc33e2463348c57440cbdacc85365b7f8d3441874a": {
+      "lufs": -34.479999999999997,
+      "guitarType": 4,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "Auto-Vibrato Hold / 4"
     },
     "804ed5a41ed3379e08ff46a9f9ad2f7d2834532d04fc24624655c6626f54f98d": {
       "lufs": -19.440000000000001,
@@ -6303,6 +6205,13 @@
       "drive": 0.25,
       "preset": "Auto-Vibrato Hold / 13"
     },
+    "8150a99e3cfeb5aebbc26354adf88f5561d44f72f739452d20a45d11220daa9a": {
+      "lufs": -19.100000000000001,
+      "guitarType": 22,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Auto-Vibrato Hold / 22"
+    },
     "816b2cab2cd84967f689862dc5b208256cc1cc5262a32a4365ca93f25910bd62": {
       "lufs": -15.029999999999999,
       "guitarType": 11,
@@ -6330,13 +6239,6 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 18"
-    },
-    "8236560ef2d51cb518b63d2fe30b1256ed2c48c5ffccd30ee7c1808e72cb461b": {
-      "lufs": -27.379999999999999,
-      "guitarType": 19,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Auto-Vibrato Hold / 19"
     },
     "82543720396eaeef076f6e3a07c42c36cbb60d56dc606fb9b95b820ba077ebeb": {
       "lufs": -54.270000000000003,
@@ -6407,6 +6309,13 @@
       "ampModel": 2,
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 23"
+    },
+    "84036bc9d78e2a80ab370034279ead12cf0f7d9e6cea21472e526a63b0bfb5a6": {
+      "lufs": -20.399999999999999,
+      "guitarType": 18,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "Auto-Vibrato Hold / 18"
     },
     "843a3c641b73f674f7529aab49725897c9eb9cc6b9e4bfd7e069896f67121f9b": {
       "lufs": -35.490000000000002,
@@ -6513,12 +6422,33 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 13"
     },
+    "86598fb37ef52c87c51e619b88af4bcfd5acdbb0aab02e30653616e4cbd23c02": {
+      "lufs": -18.66,
+      "guitarType": 9,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 9"
+    },
     "867d27545c9303ca2ba22c6e64ae4b4dfa2acac258f48750a71bb75376f1d0b4": {
       "lufs": -22.309999999999999,
       "guitarType": 17,
       "ampModel": 0,
       "drive": 0.2,
       "preset": "Auto-Vibrato Hold / 17"
+    },
+    "86b56cae0a49bee5054f3937b519afd1479daf5015e26438f2ba5c850bac71bf": {
+      "lufs": -35.390000000000001,
+      "guitarType": 19,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Auto-Vibrato Hold / 19"
+    },
+    "86c4e8fb472a4e0d5e47eaf6ea229e65298ea230972e4af5654c23e4d40a2ec3": {
+      "lufs": -26.82,
+      "guitarType": 2,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Auto-Vibrato Hold / 2"
     },
     "86d8097de734ba8bdb25ebcd696d65d493474451125ad9a228ed2867cc512877": {
       "lufs": -37.479999999999997,
@@ -6534,12 +6464,12 @@
       "drive": 0.55,
       "preset": "Auto-Vibrato Hold / 23"
     },
-    "86f3f6629882364845ef67930103a7386682107581e9c8e6daa023f0f69cbe02": {
-      "lufs": -28.030000000000001,
-      "guitarType": 11,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "Auto-Vibrato Hold / 11"
+    "86fcc09f7ac25ea99f2fb756b448906be0b5313d32311c9c84c347bbdf5a7726": {
+      "lufs": -27.789999999999999,
+      "guitarType": 16,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Auto-Vibrato Hold / 16"
     },
     "86fe73b177e25d0346d29d7eb7ded4fbc943fb828fa631ad5b2526c3f53fb048": {
       "lufs": -21.489999999999998,
@@ -6561,6 +6491,13 @@
       "ampModel": 8,
       "drive": 0.7,
       "preset": "Auto-Vibrato Hold / 13"
+    },
+    "872ba4e870097da36cb50bc4cf1f0ddd84c5250dbe9eba67de0c3ad09831eb43": {
+      "lufs": -20.190000000000001,
+      "guitarType": 21,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Auto-Vibrato Hold / 21"
     },
     "872e8b2d8bb1aa48ece4a38eae93dca6415dea6422f673ac6cf2a15fd39aade5": {
       "lufs": -41.609999999999999,
@@ -6596,6 +6533,13 @@
       "ampModel": 4,
       "drive": 0.55,
       "preset": "Auto-Vibrato Hold / 4"
+    },
+    "8771d89c9e39bdab384823d55f0b6183cee81d775d4e4db792c99948b2e87824": {
+      "lufs": -36.689999999999998,
+      "guitarType": 11,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "Auto-Vibrato Hold / 11"
     },
     "87ded86ade2338ffa73f3c0bf19585918726546253f5dcf891b842d5456e70e3": {
       "lufs": -19.199999999999999,
@@ -6639,6 +6583,13 @@
       "drive": 0.2,
       "preset": "Auto-Vibrato Hold / 13"
     },
+    "88cfe8a2158a2e640255389871319e490e3d8c97fd708f72bf8b50f5caf8164e": {
+      "lufs": -18.579999999999998,
+      "guitarType": 10,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 10"
+    },
     "88e7c8386f9693b0c61c4c070dff6cfe3d774f5803d3ffac29fb74e94069c4ba": {
       "lufs": -15.67,
       "guitarType": 8,
@@ -6673,13 +6624,6 @@
       "ampModel": 5,
       "drive": 0.62,
       "preset": "Auto-Vibrato Hold / 10"
-    },
-    "8982a3f31765d02e463009497c0171781b405e23a1f39048365443dfe6b56730": {
-      "lufs": -27.079999999999998,
-      "guitarType": 11,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 11"
     },
     "89b323ea7a7fc6d806e0bb3f33a9edb4802d9f2cda92238fa8695a96a7c712fd": {
       "lufs": -15.9,
@@ -6737,6 +6681,13 @@
       "drive": 0.5,
       "preset": "Auto-Vibrato Hold / 15"
     },
+    "8a8162af075bd65cfee59d9c97cfa050c041346192f1cc69af89152e67dfe9f9": {
+      "lufs": -34.399999999999999,
+      "guitarType": 8,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "Auto-Vibrato Hold / 8"
+    },
     "8aabc05d53abb34e9ff92178828880f9b50aff964d432e5e1b11abb474b285e6": {
       "lufs": -15.380000000000001,
       "guitarType": 6,
@@ -6750,13 +6701,6 @@
       "ampModel": 3,
       "drive": 0.58,
       "preset": "Auto-Vibrato Hold / 13"
-    },
-    "8ae590d6cbc185461e99f853ec355e2e7fd51f469da1d3bb42262ae8880bafbd": {
-      "lufs": -27.170000000000002,
-      "guitarType": 19,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 19"
     },
     "8b288743be389ad35347476b973deedd26b5b1ba99f0b045b662572a5a05b375": {
       "lufs": -15.210000000000001,
@@ -6800,20 +6744,6 @@
       "drive": 0.25,
       "preset": "Auto-Vibrato Hold / 12"
     },
-    "8c0cf5398c6f02fdfa3a03d2c9437185964895de3799dc2eeae84cfadae04a9c": {
-      "lufs": -31.190000000000001,
-      "guitarType": 11,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Auto-Vibrato Hold / 11"
-    },
-    "8c1b60b25cd4164163ce18633864a419e8c561eb0bf023f960397ecd95509173": {
-      "lufs": -26.210000000000001,
-      "guitarType": 23,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 23"
-    },
     "8c258d6dd8f612cf2f3b0624a201f850df045d69b7dee13f96eb3ca368c16a22": {
       "lufs": -17.760000000000002,
       "guitarType": 22,
@@ -6828,12 +6758,26 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 15"
     },
+    "8c4eee2250cc079df46ea284ac7358213b2e088860c160605d111ea5c98718b9": {
+      "lufs": -26.920000000000002,
+      "guitarType": 17,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Auto-Vibrato Hold / 17"
+    },
     "8c6f7077581c1edb460da4a2dd598c8bae003e87a0ad308704ee0d9cb6429a9d": {
       "lufs": -17.48,
       "guitarType": 16,
       "ampModel": 5,
       "drive": 0.8,
       "preset": "Auto-Vibrato Hold / 16"
+    },
+    "8c787267c2dfbf83ce4e8da16ec4b38182dabcae5e3452e7ec0984461e4732ca": {
+      "lufs": -18.899999999999999,
+      "guitarType": 19,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "Auto-Vibrato Hold / 19"
     },
     "8c78ea3b248824efbbdd0edfe1c452b3a8ae6674f7f873e1f7b41c27b10c28e9": {
       "lufs": -26.859999999999999,
@@ -6898,6 +6842,27 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 2"
     },
+    "8cf9e2c5ecf66623eba9e4d5d2ba83e4997a614ade5db35abbb86e39e64dc73f": {
+      "lufs": -36.939999999999998,
+      "guitarType": 16,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "Auto-Vibrato Hold / 16"
+    },
+    "8d5a63a9461b32620451ec2adc3cf629096110706fc9e15c91b7d57a23505432": {
+      "lufs": -18.710000000000001,
+      "guitarType": 8,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 8"
+    },
+    "8d8349518d7fe102b9b1972b40882070cc1f9b093b14f1e36a6b195b14a1fc7d": {
+      "lufs": -19.260000000000002,
+      "guitarType": 6,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "Auto-Vibrato Hold / 6"
+    },
     "8dd821b32e1ad89fd69e10fcd9f960da2c956fb3209306403ee71db33e4ecfce": {
       "lufs": -15.6,
       "guitarType": 6,
@@ -6911,13 +6876,6 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 17"
-    },
-    "8e5afc7508aaf1d1b7abb21b41d5c2d4078c91bc4802ebacaeb06176eccff325": {
-      "lufs": -42.240000000000002,
-      "guitarType": 9,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Auto-Vibrato Hold / 9"
     },
     "8e767d799d26c4b7d2ba0eac5b77f3cf1bc8f7677235dddaad8cce52d9930ef3": {
       "lufs": -43.829999999999998,
@@ -6947,12 +6905,12 @@
       "drive": 0.62,
       "preset": "Auto-Vibrato Hold / 7"
     },
-    "8ed43878c9e6e79578294d431a8f493a129cf38ba8eea9f80d90023edcca520f": {
-      "lufs": -26.170000000000002,
-      "guitarType": 9,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "Auto-Vibrato Hold / 9"
+    "8e9b95622d0d40e9b95820f506d9212640f8f85e39865f4101a00508a98422bf": {
+      "lufs": -26.739999999999998,
+      "guitarType": 5,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Auto-Vibrato Hold / 5"
     },
     "8ef7ff3d357dec24b75b25a6d0c8cf9d715cb5873d18037a05390151d3a745cc": {
       "lufs": -15.039999999999999,
@@ -7024,26 +6982,19 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 12"
     },
-    "8fe22c727bbe0dc8e1e6f509cb6488fe15bc2e6c9b4eb1c79eb79373cebf05bb": {
-      "lufs": -39.530000000000001,
-      "guitarType": 24,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Auto-Vibrato Hold / 24"
-    },
-    "8ffcc6736c852f445e160c5d77e694c6ef9d1619f898156c760fa794bf8b1244": {
-      "lufs": -25.0,
-      "guitarType": 13,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "Auto-Vibrato Hold / 13"
-    },
     "9002ed1ea2985e6b36e3dc369cb05c28aafed5aa1a4203fbe6f7aa485a5e0a75": {
       "lufs": -15.609999999999999,
       "guitarType": 1,
       "ampModel": 0,
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 1"
+    },
+    "900315390855cbb7b2abdf129fbfc2fd4e00b83fbe151c2f124ee6646d4f0feb": {
+      "lufs": -19.789999999999999,
+      "guitarType": 17,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "Auto-Vibrato Hold / 17"
     },
     "9050e4da5831021e510aeb1919c5b88f0dad118ddc748785ae4c5b451123c217": {
       "lufs": -13.93,
@@ -7052,12 +7003,26 @@
       "drive": 0.25,
       "preset": "Auto-Vibrato Hold / 24"
     },
+    "90c443fecf1f4166c846e9c09b385494e87403fac8de0cf2bfd67d442de87226": {
+      "lufs": -18.510000000000002,
+      "guitarType": 1,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 1"
+    },
     "90d3e6d278cec8c14689904e8a0be45fddbe45d10efdeb5bc8e40b2cd8751e27": {
       "lufs": -12.050000000000001,
       "guitarType": 24,
       "ampModel": 11,
       "drive": 0.32,
       "preset": "Auto-Vibrato Hold / 24"
+    },
+    "90f3b9517f62781d74523032a281874988af9f7781408a3e1c44ecbc7f817356": {
+      "lufs": -21.829999999999998,
+      "guitarType": 4,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Auto-Vibrato Hold / 4"
     },
     "90fbcc509ff9c287ccf2157c6af2343b2630c65ce847915a7b5b747e463c306d": {
       "lufs": -26.57,
@@ -7101,13 +7066,6 @@
       "drive": 0.55,
       "preset": "Auto-Vibrato Hold / 6"
     },
-    "921926d89347315684fbf3ee4a0fce023610d06844e6deed41e99a69135025de": {
-      "lufs": -26.32,
-      "guitarType": 21,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "Auto-Vibrato Hold / 21"
-    },
     "924aa7526671234bab420271202ec88989e749a691221d57ac58132af3eade10": {
       "lufs": -13.15,
       "guitarType": 12,
@@ -7142,13 +7100,6 @@
       "ampModel": 4,
       "drive": 0.6,
       "preset": "Auto-Vibrato Hold / 0"
-    },
-    "92cc41a4fe5657288e4bb6903795208dbed74ded99b82236d063b60cdbb3ba0d": {
-      "lufs": -26.620000000000001,
-      "guitarType": 20,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "Auto-Vibrato Hold / 20"
     },
     "92e7c00c473ca584a7dfa11aef60a6044581d27f56969dc2784f8a0eea4af91e": {
       "lufs": -16.140000000000001,
@@ -7205,20 +7156,6 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 20"
-    },
-    "93d2ed35713675f56aa357f34a35e17d340d39233ab99c3f801c4dfc7f8bc645": {
-      "lufs": -31.66,
-      "guitarType": 18,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Auto-Vibrato Hold / 18"
-    },
-    "940b7cbc3e26ca47715b38d34d3880c43bae37eb104d61ff506bc31d3c690e03": {
-      "lufs": -23.890000000000001,
-      "guitarType": 9,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "Auto-Vibrato Hold / 9"
     },
     "941d4eb581bad4e05812c3a13fe16ae830b492b38dae9c8d4b83a60b40fc7412": {
       "lufs": -16.09,
@@ -7353,6 +7290,13 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 14"
     },
+    "9656025d2531b9e419a3d537128ed56f8a8cc5804558ac281320a06c485f4de0": {
+      "lufs": -35.539999999999999,
+      "guitarType": 9,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Auto-Vibrato Hold / 9"
+    },
     "9694fb0ef729fbcbe55d47b65df0140d82d448da2569a47a315074d6b1821242": {
       "lufs": -14.960000000000001,
       "guitarType": 24,
@@ -7388,12 +7332,12 @@
       "drive": 0.7,
       "preset": "Auto-Vibrato Hold / 16"
     },
-    "970f34f6f3ff9c4155a2e7ae13122b8a4a2515305eb1a62381652f11ec9f7c75": {
-      "lufs": -52.659999999999997,
-      "guitarType": 14,
+    "97906d16ec815f131e1de17b6e2d9cd8a98fa519e7b4085feca94a4c85234eb7": {
+      "lufs": -36.170000000000002,
+      "guitarType": 7,
       "ampModel": 0,
       "drive": 0.12,
-      "preset": "Auto-Vibrato Hold / 14"
+      "preset": "Auto-Vibrato Hold / 7"
     },
     "97ad614fdd53c28dd64748d840c23d24e9fddbb13a3f1183feeddfdbe6d079a0": {
       "lufs": -26.559999999999999,
@@ -7408,6 +7352,13 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 4"
+    },
+    "97d377d33dbab0a0790015cfa04a7a3b4a0c6b8487dfec57d0bf3cd9f6b8654d": {
+      "lufs": -26.93,
+      "guitarType": 24,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Auto-Vibrato Hold / 24"
     },
     "97decbcc4a14e1a2409bdc2203c946d564778e3ed0f771a71054f853db475046": {
       "lufs": -31.82,
@@ -7430,19 +7381,19 @@
       "drive": 0.28,
       "preset": "Auto-Vibrato Hold / 18"
     },
+    "981fab54d13a6b4591af7e330e87f06fdbe471fb6492f973ff4a723468f9fa42": {
+      "lufs": -21.649999999999999,
+      "guitarType": 3,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Auto-Vibrato Hold / 3"
+    },
     "9828935c1615f8f5ead1d4a62adc64801bffd0988bf49e376be1be1b4ed02ce6": {
       "lufs": -16.120000000000001,
       "guitarType": 20,
       "ampModel": 0,
       "drive": 0.2,
       "preset": "Auto-Vibrato Hold / 20"
-    },
-    "98813c8996e740d3647fa2934c09c7178bad9d7da9222b0c403cf01a3cb29897": {
-      "lufs": -21.059999999999999,
-      "guitarType": 10,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Auto-Vibrato Hold / 10"
     },
     "98dfc852b606b33cf0b6d4e430e1c4c7c7566d046c0ff33380644f2ded491530": {
       "lufs": -22.309999999999999,
@@ -7457,6 +7408,13 @@
       "ampModel": 0,
       "drive": 0.35,
       "preset": "Auto-Vibrato Hold / 8"
+    },
+    "994d98253239c7eefb952d776639aa18f83b871334ba11074be0d0c865e9f179": {
+      "lufs": -21.670000000000002,
+      "guitarType": 12,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Auto-Vibrato Hold / 12"
     },
     "995fe5b5e22c8bd4198265f5ddb764461c652ffb00c0ea70cefe6306d1fa4ed6": {
       "lufs": -15.42,
@@ -7584,13 +7542,6 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 21"
     },
-    "9bd71b767d2265c18f98de00230e9c86122050a910430cdd68cf37beae27c900": {
-      "lufs": -52.409999999999997,
-      "guitarType": 16,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Auto-Vibrato Hold / 16"
-    },
     "9bdb536b333be7071f77d556fa3edcdf48238befbe16ec1fd40049b72a287d18": {
       "lufs": -34.420000000000002,
       "guitarType": 4,
@@ -7612,12 +7563,12 @@
       "drive": 0.8,
       "preset": "Auto-Vibrato Hold / 14"
     },
-    "9c326071bb346ad89bd18836b4a53e46690046cbb145a4107ffea9098f9fce9c": {
-      "lufs": -51.619999999999997,
-      "guitarType": 12,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Auto-Vibrato Hold / 12"
+    "9c32935025fe58b73f742ae085771b9db0bd5df01c72fbd3ad0340bb97869cbd": {
+      "lufs": -27.02,
+      "guitarType": 14,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Auto-Vibrato Hold / 14"
     },
     "9c32c7b9c9b646ea493741bf125e16ba0e752a9659563e58478bd7fe5fbe12e4": {
       "lufs": -18.800000000000001,
@@ -7640,12 +7591,12 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 8"
     },
-    "9c692c32e49056984f3bfccdf9257c500ea14e9bb7ba3ceaee551fa3581afee5": {
-      "lufs": -43.700000000000003,
-      "guitarType": 22,
+    "9c6c736deec4d55acf1651f545248ecfec954399ba47a4b05236e777c94eb73f": {
+      "lufs": -34.770000000000003,
+      "guitarType": 1,
       "ampModel": 0,
       "drive": 0.12,
-      "preset": "Auto-Vibrato Hold / 22"
+      "preset": "Auto-Vibrato Hold / 1"
     },
     "9c7163bf93eeef655fea1878364abd4802820f2df27e78aa39d0448a019ed0e1": {
       "lufs": -23.77,
@@ -7688,6 +7639,20 @@
       "ampModel": 0,
       "drive": 0.2,
       "preset": "Auto-Vibrato Hold / 14"
+    },
+    "9d5ff0fafcd34e038732ac4c2a895cbb7a4b8fc55594ed5b761d2945ecbe4dd7": {
+      "lufs": -19.050000000000001,
+      "guitarType": 0,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 0"
+    },
+    "9d8b835c7a01cd3146b1abc8237e2ee3db963cc70b08259fc9a2c0917ff0eff3": {
+      "lufs": -36.329999999999998,
+      "guitarType": 2,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Auto-Vibrato Hold / 2"
     },
     "9d96e1f2b6f598676e76406c579c4edfe90526f1176cfe9f4595a4ae80b2e763": {
       "lufs": -46.640000000000001,
@@ -7766,13 +7731,6 @@
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 8"
     },
-    "9f8cef6882bfdc1b55d5cb5fe4046393d9a64c08f2bdd1337671e990e587e105": {
-      "lufs": -24.489999999999998,
-      "guitarType": 5,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "Auto-Vibrato Hold / 5"
-    },
     "9fe41533aa2666065538d2207333629cb729f7468f7f2d15014093db82465baf": {
       "lufs": -11.4,
       "guitarType": 8,
@@ -7793,6 +7751,13 @@
       "ampModel": 0,
       "drive": 0.14,
       "preset": "Auto-Vibrato Hold / 11"
+    },
+    "a09a1b83c4cabe8abc32ad1e7c9f7934af5e7d012820c1b46719c3c045ab6ac8": {
+      "lufs": -26.600000000000001,
+      "guitarType": 9,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Auto-Vibrato Hold / 9"
     },
     "a0b2f7b16022a88284b09ac5481bdd9d3385a459908c933ab7604614f8195dbb": {
       "lufs": -13.66,
@@ -7822,13 +7787,6 @@
       "drive": 0.2,
       "preset": "Auto-Vibrato Hold / 22"
     },
-    "a17effd9f0921824840a22adadf404ea32a072b0fcbcee2d8cfab1240d5e51cf": {
-      "lufs": -21.719999999999999,
-      "guitarType": 21,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Auto-Vibrato Hold / 21"
-    },
     "a19e7e01716713734092f6369464f5e1d2ce8f3bbaf788ec99e99d94ac08b522": {
       "lufs": -26.640000000000001,
       "guitarType": 16,
@@ -7856,6 +7814,13 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 9"
+    },
+    "a1e01fd368f32a28b204199f45d7e446b69716edb587eadd9ed6f65fac280545": {
+      "lufs": -25.739999999999998,
+      "guitarType": 24,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 24"
     },
     "a23bdc5c8e80e355b1b21980dfa7af7ea9abafa18b4761039151e02adf719f26": {
       "lufs": -14.06,
@@ -7899,6 +7864,13 @@
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 8"
     },
+    "a32bd9617d16392436a2de285348cbe054bc91bbe07bb9312531d4e33ca5c948": {
+      "lufs": -44.68,
+      "guitarType": 17,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Auto-Vibrato Hold / 17"
+    },
     "a36006d5a575bb35bb79c902edfe0ff971ef1639a287f3172f1fc4d3cd7e5c01": {
       "lufs": -26.149999999999999,
       "guitarType": 21,
@@ -7940,6 +7912,13 @@
       "ampModel": 4,
       "drive": 0.55,
       "preset": "Auto-Vibrato Hold / 5"
+    },
+    "a3e63e1f21968a7a84b2f00ffaf3e0b657cfe69087fa8fe68a4678a31e9b8364": {
+      "lufs": -21.93,
+      "guitarType": 2,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Auto-Vibrato Hold / 2"
     },
     "a3f397c1a0dfc3abd457fb97b15c01de3bc72cb4e833db8f80a2b386dc4d68d3": {
       "lufs": -13.58,
@@ -7983,26 +7962,12 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 13"
     },
-    "a48aa91c5ba756ad2ba4236aa3ee6d93e43873067b666b05435bfa6e985420be": {
-      "lufs": -32.579999999999998,
-      "guitarType": 15,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Auto-Vibrato Hold / 15"
-    },
     "a48c83ae5ae5b5bab611ffa070f34e6749b32c7afe8df8b3429280d92aac9bf2": {
       "lufs": -22.530000000000001,
       "guitarType": 21,
       "ampModel": 0,
       "drive": 0.2,
       "preset": "Auto-Vibrato Hold / 21"
-    },
-    "a49bc80cb82c4e42635cf47f76637ced3e7bd20c2fb848c6938fd74053f9c4c9": {
-      "lufs": -21.02,
-      "guitarType": 13,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Auto-Vibrato Hold / 13"
     },
     "a4ea2ba555afd3d1624dc6246de010223aa685fa92487e76b77dc71c6e623b7b": {
       "lufs": -44.159999999999997,
@@ -8032,19 +7997,12 @@
       "drive": 0.22,
       "preset": "Auto-Vibrato Hold / 5"
     },
-    "a56683424e665bf727384c2ed84e0c7ed21fdf0a7c0c180482f38fdc1a1c74f2": {
-      "lufs": -20.5,
+    "a5af6e9374d81cc9cb4f201803497bc597401c2969b94a68920ca49a06733332": {
+      "lufs": -26.440000000000001,
       "guitarType": 8,
       "ampModel": 7,
       "drive": 0.78,
       "preset": "Auto-Vibrato Hold / 8"
-    },
-    "a5d62daedaef30f0908850ad698634c90e78feee8951951862a812d92f29b4c1": {
-      "lufs": -25.960000000000001,
-      "guitarType": 2,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "Auto-Vibrato Hold / 2"
     },
     "a5df666fe429d6b1b7493637974c1ec8704539511bc93c0aab4632f1000db582": {
       "lufs": -17.469999999999999,
@@ -8058,13 +8016,6 @@
       "guitarType": 18,
       "ampModel": 9,
       "drive": 0.82,
-      "preset": "Auto-Vibrato Hold / 18"
-    },
-    "a5ed2b50b5f37dac6e78694565faafdf6208a03dcf39f654cae6c66914deb8aa": {
-      "lufs": -50.939999999999998,
-      "guitarType": 18,
-      "ampModel": 0,
-      "drive": 0.12,
       "preset": "Auto-Vibrato Hold / 18"
     },
     "a5f1e7890f9965b439bbe763e9c725aa1dc137c2a8cf929d309321c1dda408f7": {
@@ -8095,13 +8046,6 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 10"
     },
-    "a704dc83140b73c05943eb968935dde202dee7a3418c10890a679136741f8414": {
-      "lufs": -31.34,
-      "guitarType": 12,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Auto-Vibrato Hold / 12"
-    },
     "a71c5e4d87d7baaf743d6791cf3400740d054ad8f902db8e441c34112d040981": {
       "lufs": -15.710000000000001,
       "guitarType": 12,
@@ -8130,19 +8074,19 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 5"
     },
+    "a7bf5948af5b2e900b5ddf6c64ddc0ce13b5028e85d1e702aa2743f1f0c3a710": {
+      "lufs": -19.460000000000001,
+      "guitarType": 19,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Auto-Vibrato Hold / 19"
+    },
     "a7c170bd57dc836fe8374b59f1f812703a5c893fff43c329268b87be4c463310": {
       "lufs": -11.300000000000001,
       "guitarType": 20,
       "ampModel": 11,
       "drive": 0.25,
       "preset": "Auto-Vibrato Hold / 20"
-    },
-    "a7c1e93687d59a443366510205e5c4b302fab02a46a63c10d153bdbe00da621c": {
-      "lufs": -26.050000000000001,
-      "guitarType": 8,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "Auto-Vibrato Hold / 8"
     },
     "a7d19f88c9f141d1285e185989677f3ae7823b4777838b77ccf986ecc1b3b331": {
       "lufs": -16.07,
@@ -8157,20 +8101,6 @@
       "ampModel": 0,
       "drive": 0.15,
       "preset": "Auto-Vibrato Hold / 15"
-    },
-    "a823033ab5721465d4ce22110d7ec694c64939d0689acfeadd4180cbfb1a92fe": {
-      "lufs": -21.649999999999999,
-      "guitarType": 24,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Auto-Vibrato Hold / 24"
-    },
-    "a823727a87b4ff78447a408f1ac572b4bb28be205928f00cbf7be272a2c1d828": {
-      "lufs": -22.309999999999999,
-      "guitarType": 19,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Auto-Vibrato Hold / 19"
     },
     "a85acaeb212efaa86827949998503ec74dbee46d523826a2d70c79411d34f84c": {
       "lufs": -26.670000000000002,
@@ -8207,20 +8137,6 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 8"
     },
-    "a988be970a75debc1bd46d9a89841f1c4c26486208a212f9dd95bc23ce336f9c": {
-      "lufs": -20.91,
-      "guitarType": 2,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Auto-Vibrato Hold / 2"
-    },
-    "a989058eb972dbe5444fe56bf80371aa61ce7012dc013436f068b44bc954f20a": {
-      "lufs": -34.579999999999998,
-      "guitarType": 19,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "Auto-Vibrato Hold / 19"
-    },
     "a9a794feab4e72709003cae2fb90324b41a8a0c7185252794c74406b7a888449": {
       "lufs": -15.92,
       "guitarType": 18,
@@ -8248,13 +8164,6 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 14"
-    },
-    "aac130f93370df6dcab2eb50aa216b6fd3723098714269339b6d39b5f6152e42": {
-      "lufs": -19.34,
-      "guitarType": 8,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 8"
     },
     "aaf7c8c67068efb085507a9d8ec47a1e28c986069914578150d2c238878856d6": {
       "lufs": -12.07,
@@ -8284,26 +8193,12 @@
       "drive": 0.82,
       "preset": "Auto-Vibrato Hold / 20"
     },
-    "ab5be982933b61375c3f5bb99483c839797836c92959d67d431b310646ef3d5e": {
-      "lufs": -21.440000000000001,
-      "guitarType": 18,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Auto-Vibrato Hold / 18"
-    },
     "ab785da9c2638025f451a6c036eccf6f9a1e9a7188f455c12f04b7c0420f70fd": {
       "lufs": -33.530000000000001,
       "guitarType": 13,
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 13"
-    },
-    "aba7a39f293dccc4c01536badd33f9be2a92c7dc124cfe59841d2102d538d303": {
-      "lufs": -20.870000000000001,
-      "guitarType": 23,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 23"
     },
     "abba101dd6e8bc4a714fa837cc6bee13e29b87afd1db3f1e4b0865a259ac4ecd": {
       "lufs": -32.939999999999998,
@@ -8389,6 +8284,20 @@
       "drive": 0.68,
       "preset": "Auto-Vibrato Hold / 22"
     },
+    "ad26d0d403493e45d7e50e83c5ac25328b76ab4d0d3b8b217a3ec7fc05d2615d": {
+      "lufs": -19.120000000000001,
+      "guitarType": 4,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Auto-Vibrato Hold / 4"
+    },
+    "ad4531217ebf4c61bd6bbd1c1c8ae876c9867af385311462f6c3a8b397897f29": {
+      "lufs": -26.75,
+      "guitarType": 7,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Auto-Vibrato Hold / 7"
+    },
     "ad49d55d405f221a6b0a5d643b0f248d861a666c5456381f517d581547789067": {
       "lufs": -29.100000000000001,
       "guitarType": 18,
@@ -8403,19 +8312,19 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 12"
     },
+    "ad54b71014c4a8468ab9e6637cdef0c5ff28eb73dad1c6234bcdb146b74e2a19": {
+      "lufs": -39.270000000000003,
+      "guitarType": 0,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Auto-Vibrato Hold / 0"
+    },
     "ad6496b4de77414bc280247f8a7874ee8ad3ead428a1fb4a5d3c50ec0c2b844a": {
       "lufs": -26.07,
       "guitarType": 19,
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 19"
-    },
-    "ad6e3be1826b88728ecfd8248c544af6df449da9970b1a278bf913e60b6230e7": {
-      "lufs": -24.18,
-      "guitarType": 6,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 6"
     },
     "addefc9ea6ee12a80f9a332080e025300b56b5f53cc624d254168d1a5c4bed03": {
       "lufs": -14.26,
@@ -8480,13 +8389,6 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 14"
     },
-    "af13df36d4cf9bb7c1b55a22b89eeb7bad309c70cd1f50732b4f31dc43fe28d4": {
-      "lufs": -27.710000000000001,
-      "guitarType": 13,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 13"
-    },
     "af5dcc814afffa1abc58ad3f4e5b6269bcd1641ade62e0936dcd44dcc4750d57": {
       "lufs": -31.760000000000002,
       "guitarType": 6,
@@ -8500,13 +8402,6 @@
       "ampModel": 5,
       "drive": 0.8,
       "preset": "Auto-Vibrato Hold / 17"
-    },
-    "af872b416bf293edc4e00ea8b4f296c745eacfd3484eb6ed2a09a48e295e8416": {
-      "lufs": -28.239999999999998,
-      "guitarType": 13,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "Auto-Vibrato Hold / 13"
     },
     "afa9cac8d6b02d24d5281d359fef4280e04cb358ad6b255da30a8ee655fb1b26": {
       "lufs": -19.75,
@@ -8592,6 +8487,13 @@
       "drive": 0.2,
       "preset": "Auto-Vibrato Hold / 15"
     },
+    "b15ea4de2a53a6484cf1d4a3cb7b0303ef1e17a44247f0b935ad3b615f670a89": {
+      "lufs": -26.84,
+      "guitarType": 3,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Auto-Vibrato Hold / 3"
+    },
     "b172e93e54f3ae1ddea53b2cac1b2113601872669f343123bd0aef9ce16e1b4c": {
       "lufs": -29.899999999999999,
       "guitarType": 13,
@@ -8619,6 +8521,13 @@
       "ampModel": 10,
       "drive": 0.64,
       "preset": "Auto-Vibrato Hold / 1"
+    },
+    "b1d54a4375f56cba35a61dbe746bb9a10d9d93b3f65742503e6777273d30c461": {
+      "lufs": -27.789999999999999,
+      "guitarType": 9,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 9"
     },
     "b1e1296758cbcdab5bc4f00aadf1214b13b8bfe1f5dba148886f4d5b7f9fb435": {
       "lufs": -38.420000000000002,
@@ -8683,19 +8592,19 @@
       "drive": 0.2,
       "preset": "Auto-Vibrato Hold / 19"
     },
-    "b33a67839fb26ddc4dc748d0c0a26c7733b5edca46bae5a588d9b64aff8806a9": {
-      "lufs": -19.48,
-      "guitarType": 2,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 2"
-    },
     "b33c50adf71a8327f9e29939d4ccc8234dede0df1933aed35b3ebeb69a8d996b": {
       "lufs": -19.440000000000001,
       "guitarType": 3,
       "ampModel": 0,
       "drive": 0.2,
       "preset": "Auto-Vibrato Hold / 3"
+    },
+    "b374272739ed94a0bf7fc123d90ff298f3300cbda763251319dc586103d2e89f": {
+      "lufs": -27.609999999999999,
+      "guitarType": 8,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 8"
     },
     "b3ad7b3a60e1c44de9a43ac00cfd9cd4afc4e6393d347b0f7417e0f5ca8a1fcd": {
       "lufs": -16.780000000000001,
@@ -8704,26 +8613,12 @@
       "drive": 0.48,
       "preset": "Auto-Vibrato Hold / 20"
     },
-    "b3db36f386f5452a1ecd2de7614abf4de15f931f48d1c5d373bb76891cf710e5": {
-      "lufs": -27.32,
-      "guitarType": 20,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Auto-Vibrato Hold / 20"
-    },
     "b418f93bc74baaa49dfc40cebc4b9c5ef725ba9eff5413754feda21ab9773ee3": {
       "lufs": -13.19,
       "guitarType": 12,
       "ampModel": 11,
       "drive": 0.32,
       "preset": "Auto-Vibrato Hold / 12"
-    },
-    "b427388c52c7474af415d3f97681ce2a6c7ceded798f2c185527cd240a3b5f34": {
-      "lufs": -20.84,
-      "guitarType": 11,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Auto-Vibrato Hold / 11"
     },
     "b478111748c33e7e9a656436cbf221569114a459b4a5cd3b1a0ae92bdbb1688c": {
       "lufs": -44.600000000000001,
@@ -8802,19 +8697,19 @@
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 6"
     },
+    "b62b8e53059bc25644f9ee9985e67a4bd101fbf68a1ab4bb79e0df7bfa251123": {
+      "lufs": -34.219999999999999,
+      "guitarType": 2,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "Auto-Vibrato Hold / 2"
+    },
     "b638a27ea1e67ea7f542b9a35df4162e3a92b6e50ae15c4bf0f2afe96e1c5657": {
       "lufs": -16.530000000000001,
       "guitarType": 22,
       "ampModel": 4,
       "drive": 0.48,
       "preset": "Auto-Vibrato Hold / 22"
-    },
-    "b63d45a41e8a305a6e423be9d8776d5e3e1386a4c1a690310442a2e4dfe7e748": {
-      "lufs": -22.25,
-      "guitarType": 20,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "Auto-Vibrato Hold / 20"
     },
     "b6a0bb244812ac05da9038a84571b8f461ae8bafef885c0db1f9d6f288d25b1f": {
       "lufs": -31.129999999999999,
@@ -8829,6 +8724,13 @@
       "ampModel": 4,
       "drive": 0.6,
       "preset": "Auto-Vibrato Hold / 21"
+    },
+    "b7340987a08c2938e41d4372bc7f172872def0432fdfc9f7d9e3e235f22788be": {
+      "lufs": -26.309999999999999,
+      "guitarType": 12,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Auto-Vibrato Hold / 12"
     },
     "b73d9a3631fb0b60b6460d4059f18b91de7c65270aba2cd5b7ebc0c44c6c6bf4": {
       "lufs": -15.02,
@@ -8900,13 +8802,6 @@
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 24"
     },
-    "b8411d2a1a2943dceff06b3c0f69be9f6b027b5d402bbe2c1884e41682b83ac0": {
-      "lufs": -19.539999999999999,
-      "guitarType": 6,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 6"
-    },
     "b86db5400d6368bad36aee38cf4d36b1a016e3e2f9c25aede5b03962b4cd506b": {
       "lufs": -14.460000000000001,
       "guitarType": 4,
@@ -8935,26 +8830,12 @@
       "drive": 0.48,
       "preset": "Auto-Vibrato Hold / 7"
     },
-    "b8b8315cba3b190dce24c48ee0e4e296a7cfddd340efe669694233a8e691a0c2": {
-      "lufs": -24.289999999999999,
-      "guitarType": 17,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "Auto-Vibrato Hold / 17"
-    },
     "b8e9291d5faddcc2a8477064d732dfa51d99a62b61b153e753b6a12fc5793135": {
       "lufs": -12.720000000000001,
       "guitarType": 21,
       "ampModel": 11,
       "drive": 0.28,
       "preset": "Auto-Vibrato Hold / 21"
-    },
-    "b900b6bcea3453946f3d6cb5293b167a5d9413a1c14f761053f00df9bde17de1": {
-      "lufs": -26.030000000000001,
-      "guitarType": 8,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 8"
     },
     "b94837a2d639268a73f2dafdd1f5fdfe84fae72beeb407e6323904f20b09f79f": {
       "lufs": -44.340000000000003,
@@ -8990,6 +8871,13 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 12"
+    },
+    "b9b4e41262489d153bab8b3c68e4627de81e10919f8406defddbb1bc66c6a697": {
+      "lufs": -30.100000000000001,
+      "guitarType": 19,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 19"
     },
     "b9c0d7a736c7ad43658e0b9f058a2bd687b23dec415c0e85fbfa16b34f226b2f": {
       "lufs": -11.0,
@@ -9082,6 +8970,13 @@
       "drive": 0.62,
       "preset": "Auto-Vibrato Hold / 18"
     },
+    "bbac91f3ee8a42bc349db54fca573cc715ce664cd953005e1e9e390d0c5e3769": {
+      "lufs": -20.84,
+      "guitarType": 6,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Auto-Vibrato Hold / 6"
+    },
     "bbb864687a9c3db5e6cebeac1b14a18478b1289b7f60b3d13277ec10789125b8": {
       "lufs": -20.77,
       "guitarType": 5,
@@ -9124,6 +9019,13 @@
       "drive": 0.28,
       "preset": "Auto-Vibrato Hold / 19"
     },
+    "bd0a96d11eb24329a80d739c53b48216c51e469692aec423b6dfd7abe2ff8cd6": {
+      "lufs": -19.440000000000001,
+      "guitarType": 11,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 11"
+    },
     "bd500bedcfb2b53b45f47e5514da6b357a9a0d1b02a680ab87a49d5bba783a15": {
       "lufs": -41.299999999999997,
       "guitarType": 17,
@@ -9152,6 +9054,13 @@
       "drive": 0.62,
       "preset": "Auto-Vibrato Hold / 17"
     },
+    "bdbf7e2db01ea0aafbe01745c2b81099ddc9eb6b6fa0b20dafa273fdff16a3e7": {
+      "lufs": -32.390000000000001,
+      "guitarType": 7,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "Auto-Vibrato Hold / 7"
+    },
     "bdd34c70cd7c82ebf35fd55ca10ba4855fb307d406bb41fa46e03f1b32fecc16": {
       "lufs": -18.239999999999998,
       "guitarType": 5,
@@ -9166,19 +9075,19 @@
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 20"
     },
-    "be35516a22cea377ba176e183b16e125c999846c6a43ce5716cff25736be419b": {
-      "lufs": -25.149999999999999,
-      "guitarType": 16,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "Auto-Vibrato Hold / 16"
-    },
     "be37af16188465f40ea24949e5baacf765807573d9f23299626c763b7c9082ed": {
       "lufs": -15.039999999999999,
       "guitarType": 7,
       "ampModel": 0,
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 7"
+    },
+    "bed26e9e67c203d0061d1561c26311784a8ef2d6e683c66d39c7f5647b1eff44": {
+      "lufs": -41.640000000000001,
+      "guitarType": 11,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Auto-Vibrato Hold / 11"
     },
     "bee28a2fbbab74df5424dce670f7430d2ed9bcecde6041dca308ccd6c38009d0": {
       "lufs": -15.050000000000001,
@@ -9194,12 +9103,19 @@
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 17"
     },
-    "bf031489978ad2ab1dfdb20df1eb323c90662dc208172849e0c23a5eca8a3020": {
-      "lufs": -26.48,
-      "guitarType": 22,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Auto-Vibrato Hold / 22"
+    "bef39b6475954d82e17d6a95404bf7ababa5177448f6694805fe1d4053d18abc": {
+      "lufs": -43.490000000000002,
+      "guitarType": 14,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Auto-Vibrato Hold / 14"
+    },
+    "bef84c70e53b96cc549696897e7630e48c93a5b30142e124d534ea9116e3a219": {
+      "lufs": -18.77,
+      "guitarType": 6,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 6"
     },
     "bf3ae226b7a0b1755cbb8ae03053555273fc7315193890ce3185158e1a6eb007": {
       "lufs": -15.48,
@@ -9306,6 +9222,13 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 3"
     },
+    "c1693af5c2671198a186896b79989c38e2ccae0d409a2a7f15adafde0dbccdaa": {
+      "lufs": -23.73,
+      "guitarType": 5,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Auto-Vibrato Hold / 5"
+    },
     "c18fd3d63b424953134dea10e2db003b76e14319cbfec24c5af0f44dcca16705": {
       "lufs": -25.399999999999999,
       "guitarType": 21,
@@ -9320,6 +9243,13 @@
       "drive": 0.55,
       "preset": "Auto-Vibrato Hold / 13"
     },
+    "c1c7e34f492b96b315498244a319f8ffdf2f03d8cca3499e8850b78a064e5979": {
+      "lufs": -25.219999999999999,
+      "guitarType": 9,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Auto-Vibrato Hold / 9"
+    },
     "c1c87396d38d397c30a03df9f766a618539219d5bdbc63dfd65608443a197e4f": {
       "lufs": -39.359999999999999,
       "guitarType": 17,
@@ -9333,6 +9263,13 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 14"
+    },
+    "c1efee3b8bf48b9f42e1bf20553e7b375f4c143597c2215c6d466337cc62112c": {
+      "lufs": -27.07,
+      "guitarType": 16,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Auto-Vibrato Hold / 16"
     },
     "c22666a542a9d9fdd8dc2a688fba35ebcabd21d1601c507a43a4207170ee3b92": {
       "lufs": -36.109999999999999,
@@ -9355,13 +9292,6 @@
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 5"
     },
-    "c26b7824e4806700263a64952ce5562171213cf2463e2a92bc2b83160019c31c": {
-      "lufs": -40.219999999999999,
-      "guitarType": 1,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Auto-Vibrato Hold / 1"
-    },
     "c285461b462abda07d29463b378b2ce0cdea7b0c774afdd68076ffedbf75ae33": {
       "lufs": -15.15,
       "guitarType": 13,
@@ -9375,6 +9305,13 @@
       "ampModel": 0,
       "drive": 0.22,
       "preset": "Auto-Vibrato Hold / 16"
+    },
+    "c2a727b2d71fa70de477c056160b5899cc74ed5da79448847ea834bcae86af74": {
+      "lufs": -19.260000000000002,
+      "guitarType": 5,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Auto-Vibrato Hold / 5"
     },
     "c2b870891e9c9243b9b832af1c9df5f0871a24eb3aa3d0c9f4542622470dc059": {
       "lufs": -19.199999999999999,
@@ -9397,6 +9334,13 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 6"
     },
+    "c2d81fe847c074ca561e8e3e3a4470417ca847feb6433f5d13d0913cdd20b86d": {
+      "lufs": -18.73,
+      "guitarType": 2,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 2"
+    },
     "c2f1aca5a4ca21118ce576292f4807cd0e2e80d632676723d19bcfddb9f52a25": {
       "lufs": -15.869999999999999,
       "guitarType": 23,
@@ -9417,6 +9361,13 @@
       "ampModel": 4,
       "drive": 0.48,
       "preset": "Auto-Vibrato Hold / 13"
+    },
+    "c30795053e550371aaca4ca7e81d36eb9182e535f06ba48ae72be83016fda24d": {
+      "lufs": -26.739999999999998,
+      "guitarType": 10,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Auto-Vibrato Hold / 10"
     },
     "c3127f7e4bdbe0c7fa67e051aeb5dec79e011e2853a9ebe48c831c1bc390f218": {
       "lufs": -43.939999999999998,
@@ -9537,6 +9488,13 @@
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 16"
     },
+    "c4e71729a943d8eb8a2b89152507fe1331805df22c900aff9758c008b833a02f": {
+      "lufs": -28.649999999999999,
+      "guitarType": 22,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 22"
+    },
     "c4f73e3f0994d857a741e9496fd230253ace6aa39cf07a7eb3cd6c1b9cc23eed": {
       "lufs": -33.219999999999999,
       "guitarType": 3,
@@ -9593,13 +9551,6 @@
       "drive": 0.55,
       "preset": "Auto-Vibrato Hold / 1"
     },
-    "c6260fda0f0c23c6e8739cfcdc921d59ef50fb1c840aa5d61213cd463c41b28a": {
-      "lufs": -19.920000000000002,
-      "guitarType": 5,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Auto-Vibrato Hold / 5"
-    },
     "c6406ac6c1c3cfaec9fc0dbcfa7fa9ea208826666bdf7726f33fc3d7d2cae2da": {
       "lufs": -26.52,
       "guitarType": 11,
@@ -9621,26 +9572,12 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 5"
     },
-    "c6bcec9e0f874da031e964534d2fe8657002a191091010ed4c2663d5e7ab85e9": {
-      "lufs": -20.079999999999998,
-      "guitarType": 21,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "Auto-Vibrato Hold / 21"
-    },
     "c6deadbcd3e3d1646954ab175b6d53113426ce2a330f852a33e50d84a2a7cb2a": {
       "lufs": -13.359999999999999,
       "guitarType": 14,
       "ampModel": 11,
       "drive": 0.32,
       "preset": "Auto-Vibrato Hold / 14"
-    },
-    "c70c3e16684acca08be0518fd86d03adb7bb656af3d0c235f3cb954d721b6816": {
-      "lufs": -21.850000000000001,
-      "guitarType": 15,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Auto-Vibrato Hold / 15"
     },
     "c713457fb47acea2bb142a9a077dbe64aaddb6243749e4190767912e79b41803": {
       "lufs": -20.449999999999999,
@@ -9691,26 +9628,12 @@
       "drive": 0.68,
       "preset": "Auto-Vibrato Hold / 17"
     },
-    "c83814ed27bf4292d0f089bad3ecb40a7dcd0451a7a2b716237f64724d4e0d27": {
-      "lufs": -25.719999999999999,
-      "guitarType": 21,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 21"
-    },
-    "c89b2b78d58fb8f70de4f6a1a4a2577578418a86298acd8d8b21d290c68c5bfa": {
-      "lufs": -24.289999999999999,
-      "guitarType": 8,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "Auto-Vibrato Hold / 8"
-    },
-    "c8a859060dac566fd074e905035ea1ac20321b861cb48a920280dd90456c392f": {
-      "lufs": -22.260000000000002,
-      "guitarType": 16,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Auto-Vibrato Hold / 16"
+    "c863fda626f1ed12869bf5415f7839e8710ca3b83146bd901f5661fb885f702b": {
+      "lufs": -34.810000000000002,
+      "guitarType": 24,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Auto-Vibrato Hold / 24"
     },
     "c902ebf1d34ffbc724115ce9cd6beb82b091107a92f55190ef00e1127606117b": {
       "lufs": -33.030000000000001,
@@ -9768,12 +9691,26 @@
       "drive": 0.8,
       "preset": "Auto-Vibrato Hold / 23"
     },
+    "c9c8c33c88865026aa6e515d418cce0eb4d04a7600beae444e4c92453c04e225": {
+      "lufs": -19.170000000000002,
+      "guitarType": 7,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "Auto-Vibrato Hold / 7"
+    },
     "c9cbcc8057b4414e73594ae9050c40fee3c1c5e296db9ec15c27866d4b0e228b": {
       "lufs": -15.050000000000001,
       "guitarType": 3,
       "ampModel": 5,
       "drive": 0.62,
       "preset": "Auto-Vibrato Hold / 3"
+    },
+    "c9d0dcf0b67a9d07d5f14940f0f52c351a2a131a69095935f474057e6f9987bd": {
+      "lufs": -19.52,
+      "guitarType": 13,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 13"
     },
     "ca46ca195d07c216576ac4f58de70fc7f9bab762e751884f6f8f09d770b572aa": {
       "lufs": -22.120000000000001,
@@ -9788,6 +9725,13 @@
       "ampModel": 4,
       "drive": 0.55,
       "preset": "Auto-Vibrato Hold / 22"
+    },
+    "ca8bc1b93c6af678e2e9d2b7b984c2cc27481295e3a6d242281fa9c2c24734c4": {
+      "lufs": -43.020000000000003,
+      "guitarType": 12,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Auto-Vibrato Hold / 12"
     },
     "ca9a81ff783ddb0b5a74ef86aab145ac5e3bb01c3c2c7530b042eea0b7c88387": {
       "lufs": -15.1,
@@ -9894,11 +9838,32 @@
       "drive": 0.58,
       "preset": "Auto-Vibrato Hold / 19"
     },
+    "cd193d8f6fe4cf3b404fecee99beb83f4145e2fc98ff8b577e70f601f5000989": {
+      "lufs": -20.07,
+      "guitarType": 4,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "Auto-Vibrato Hold / 4"
+    },
     "cd4acb8df177ba151353b08cd471a211ab39f47e0bdf734f041f06dec7ec46a7": {
       "lufs": -37.649999999999999,
       "guitarType": 15,
       "ampModel": 12,
       "drive": 0.05,
+      "preset": "Auto-Vibrato Hold / 15"
+    },
+    "cd55fa502f61b1d75dddfcfc7443c83a7f800032de0167d27be44f5ff58bab33": {
+      "lufs": -18.879999999999999,
+      "guitarType": 3,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Auto-Vibrato Hold / 3"
+    },
+    "cd62495494668ddc76dad2abe76a7aabf0d7e5e4a79d4754ff0df57de2eb9bf6": {
+      "lufs": -27.719999999999999,
+      "guitarType": 15,
+      "ampModel": 2,
+      "drive": 0.26,
       "preset": "Auto-Vibrato Hold / 15"
     },
     "cda4852cdc5df23c346ca1e948cbaf5950800e9e10f7bee70e2cc719dd38dbe2": {
@@ -9943,19 +9908,19 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 10"
     },
-    "ce9b0a87a4f38a7ee73c618ea9384fe7d1cda152d5792381059e40f07d9ded16": {
-      "lufs": -20.780000000000001,
-      "guitarType": 6,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "Auto-Vibrato Hold / 6"
-    },
     "cef8358358a950bfa8e39658f5c93356f5ec83774b194165daa1191b26014736": {
       "lufs": -14.470000000000001,
       "guitarType": 6,
       "ampModel": 0,
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 6"
+    },
+    "cf0922943e0969660a18a9033fd8f497663521182900c6075527925fdc23574b": {
+      "lufs": -27.550000000000001,
+      "guitarType": 14,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Auto-Vibrato Hold / 14"
     },
     "cf8a7553e6a075c5b4e9781225d92adffc5fce3353b2d2d04749c550e13713f0": {
       "lufs": -17.440000000000001,
@@ -9999,6 +9964,13 @@
       "drive": 0.8,
       "preset": "Auto-Vibrato Hold / 3"
     },
+    "cfe2a35b6e65a770ac565a37ed60a9131dcd187f663f04fa9ec0466aa52e15e2": {
+      "lufs": -26.73,
+      "guitarType": 1,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Auto-Vibrato Hold / 1"
+    },
     "d012899e4413aa2b06d64625645034dea66322d6d38ec0723772cd1df3a74b39": {
       "lufs": -16.149999999999999,
       "guitarType": 2,
@@ -10012,6 +9984,13 @@
       "ampModel": 8,
       "drive": 0.7,
       "preset": "Auto-Vibrato Hold / 9"
+    },
+    "d040cd2b170a0f55e008f041cac06f92adc386978f64ed2a224e99c8f43ec0ee": {
+      "lufs": -19.649999999999999,
+      "guitarType": 20,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Auto-Vibrato Hold / 20"
     },
     "d07e0a7be36e19d14f771cd1c04a1684d987ba91eafcee0708bd0d858c6d229b": {
       "lufs": -30.620000000000001,
@@ -10040,13 +10019,6 @@
       "ampModel": 0,
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 19"
-    },
-    "d12c40d417a646a4a0ebf80cefd4c6a2fc95e75d6df18848dca9362d64fdf5a8": {
-      "lufs": -28.640000000000001,
-      "guitarType": 14,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "Auto-Vibrato Hold / 14"
     },
     "d15d2aaba45b8c6a8a3fc0479b4950be433cc469b7b6ef2ee3333da3deaf123a": {
       "lufs": -22.48,
@@ -10174,6 +10146,13 @@
       "drive": 0.2,
       "preset": "Auto-Vibrato Hold / 6"
     },
+    "d36eb0851174d54eb4558eb84d5385bd1fdd69e29aab7a13390e757741772ad5": {
+      "lufs": -19.66,
+      "guitarType": 20,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "Auto-Vibrato Hold / 20"
+    },
     "d37c6693f654203747c93532b10d827f7eb6071f6d7b4dacb091ffd0e1a2817b": {
       "lufs": -18.91,
       "guitarType": 17,
@@ -10187,13 +10166,6 @@
       "ampModel": 4,
       "drive": 0.6,
       "preset": "Auto-Vibrato Hold / 1"
-    },
-    "d39ee704f2724bc8ade9a92a9ebeee7f4abc4b26cc2d3c71ee207a2eaf3ddf8f": {
-      "lufs": -31.190000000000001,
-      "guitarType": 13,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Auto-Vibrato Hold / 13"
     },
     "d3c9fc64185ff98e14c2dc0f2e48c7088f69840df0c3e82b46f21848bb544de1": {
       "lufs": -27.870000000000001,
@@ -10223,6 +10195,13 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 0"
     },
+    "d45638f7ac90960b510b8fa494a9275090d6cc03ebf43c82e09fb2bb24596da5": {
+      "lufs": -35.68,
+      "guitarType": 4,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Auto-Vibrato Hold / 4"
+    },
     "d47c8fcfdda1a099d718d0e70c27b966c427537737e77b092d8aa60e29fb320e": {
       "lufs": -36.159999999999997,
       "guitarType": 0,
@@ -10230,11 +10209,11 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 0"
     },
-    "d531821b7de26c1435a11fbbda2a670d8b5a8de77a53ffb65414d1a394d0aff6": {
-      "lufs": -20.82,
+    "d4a25c1fbdd50d6983ba50ae8630875ed8c85271e5f09a9c6a20ddf76d9d1108": {
+      "lufs": -42.979999999999997,
       "guitarType": 15,
-      "ampModel": 7,
-      "drive": 0.78,
+      "ampModel": 0,
+      "drive": 0.12,
       "preset": "Auto-Vibrato Hold / 15"
     },
     "d56ff5d2d08e52f3c47a4dcc2bf6d24d557f2c5c857535362f50faea615b3f7c": {
@@ -10251,12 +10230,26 @@
       "drive": 0.35,
       "preset": "Auto-Vibrato Hold / 1"
     },
+    "d5f80e34fbf85345629005fbf5ca455e4f001dafc2d0bfae18ec7393e279118e": {
+      "lufs": -21.379999999999999,
+      "guitarType": 15,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Auto-Vibrato Hold / 15"
+    },
     "d6135742f320ac81769ad7cd769fb05f9a00213d47836f0e594a5378d7ff16b5": {
       "lufs": -16.309999999999999,
       "guitarType": 8,
       "ampModel": 0,
       "drive": 0.25,
       "preset": "Auto-Vibrato Hold / 8"
+    },
+    "d61e6f443b097494076c1dd03d64450f41e8f3e2b8fbd647bcd52f835314fee8": {
+      "lufs": -20.710000000000001,
+      "guitarType": 19,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 19"
     },
     "d632a26efef6924b7983b23582f36dd6a47f42e905db1e3eaa5169392d3f3f68": {
       "lufs": -37.439999999999998,
@@ -10328,12 +10321,33 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 15"
     },
+    "d76be07226da5ed1bf1754412962c1a850789785ced78f73092277fd6a20e556": {
+      "lufs": -20.300000000000001,
+      "guitarType": 10,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "Auto-Vibrato Hold / 10"
+    },
     "d76d68ef4fafc6bafa174f4c7002f6f3ef4f03042afb28132ae6c2a0940a88b7": {
       "lufs": -24.379999999999999,
       "guitarType": 8,
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 8"
+    },
+    "d7750e7da6a94be96fd3137716190e0177b026f85d875e206b09c8c362fa87d5": {
+      "lufs": -27.039999999999999,
+      "guitarType": 11,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Auto-Vibrato Hold / 11"
+    },
+    "d7b2e8b511e65ad49cab632acfa9075dbf947f9ab538f1d4477a2d071ba1c5ca": {
+      "lufs": -20.329999999999998,
+      "guitarType": 15,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "Auto-Vibrato Hold / 15"
     },
     "d7d0f5e9c4eb6438a1abaac45152f100e1430d9c160790da22932bfa60b83f8c": {
       "lufs": -18.530000000000001,
@@ -10369,6 +10383,13 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 13"
+    },
+    "d84a56f5f6b7f4e05d4a3add8da7c4495edf949ffdff0fdec146fec037a10da1": {
+      "lufs": -22.18,
+      "guitarType": 17,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Auto-Vibrato Hold / 17"
     },
     "d84e03b8c0bb433c15926a48e98bafac69e4d10dc24f69b497347202202d69c3": {
       "lufs": -15.789999999999999,
@@ -10426,12 +10447,26 @@
       "drive": 0.15,
       "preset": "Auto-Vibrato Hold / 16"
     },
+    "d944fb214987fc6b591c8a3090b32737856238addcbe78f0ed25ca5af31fd56e": {
+      "lufs": -22.120000000000001,
+      "guitarType": 19,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Auto-Vibrato Hold / 19"
+    },
     "d96302d1be3f35cdbb7078be25917b3cd3fcbe4bed1a6dd679720ed7f9d54c98": {
       "lufs": -29.079999999999998,
       "guitarType": 19,
       "ampModel": 7,
       "drive": 0.8,
       "preset": "Auto-Vibrato Hold / 19"
+    },
+    "d9709ea421800d8c520eca1d8988d4921e74093a364002c39bb9f94a3a94879d": {
+      "lufs": -30.079999999999998,
+      "guitarType": 14,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 14"
     },
     "d982664c80be1ba6b1c738f21256d497bdb08260066082d6751b064652d63894": {
       "lufs": -15.09,
@@ -10496,13 +10531,6 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 17"
     },
-    "da5a5a9d5bf771ecb9e34bae28217e98ea7a6622465370eee92853ff2abbb742": {
-      "lufs": -20.510000000000002,
-      "guitarType": 19,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "Auto-Vibrato Hold / 19"
-    },
     "da60c3c3a28342095fe85527aeb5c8569bdb5a98b5e101d8ed6e7f0773405731": {
       "lufs": -33.659999999999997,
       "guitarType": 20,
@@ -10517,12 +10545,12 @@
       "drive": 0.78,
       "preset": "Auto-Vibrato Hold / 14"
     },
-    "daa5dbbbbdc488c7c7066b20f6bc6c59cb1f8f90af5c80acfc568c0b84a4bf77": {
-      "lufs": -19.59,
-      "guitarType": 22,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Auto-Vibrato Hold / 22"
+    "dab6346db90db078e6ebca39e58c9e2abee74149c53ce4e4768ae809a4a99e00": {
+      "lufs": -35.140000000000001,
+      "guitarType": 21,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "Auto-Vibrato Hold / 21"
     },
     "dae408e969eb3be27129e278d05252872d3e37196c01256eef5e56b2c6a9d358": {
       "lufs": -43.060000000000002,
@@ -10531,19 +10559,19 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 13"
     },
+    "db2bdab95463bd79e53e1337a7025350162e5978c9da5b9b2f1471af14aa1a65": {
+      "lufs": -34.159999999999997,
+      "guitarType": 3,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "Auto-Vibrato Hold / 3"
+    },
     "db41b58580171bfe57766b272adf4dd3aadf64bab2aafd4278d0f66974a92eb6": {
       "lufs": -25.309999999999999,
       "guitarType": 6,
       "ampModel": 7,
       "drive": 0.8,
       "preset": "Auto-Vibrato Hold / 6"
-    },
-    "db76f525d2977b1459cd62e5aad54911c358a0ccf210aee77a288acdce7b672a": {
-      "lufs": -20.579999999999998,
-      "guitarType": 16,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 16"
     },
     "db87979d5f79019d81e57a7533a094f16a07f4fb32b87c52c242132e02ce25ef": {
       "lufs": -28.23,
@@ -10572,13 +10600,6 @@
       "ampModel": 5,
       "drive": 0.68,
       "preset": "Auto-Vibrato Hold / 2"
-    },
-    "dbdebc94b26abe7207403a110d6402f68389de16e71f5c38364993f991d0646c": {
-      "lufs": -20.620000000000001,
-      "guitarType": 9,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Auto-Vibrato Hold / 9"
     },
     "dbec71d26611a145d615c065ca733f78be376c55594192d87c20b59ae1035aff": {
       "lufs": -36.079999999999998,
@@ -10685,6 +10706,13 @@
       "drive": 0.25,
       "preset": "Auto-Vibrato Hold / 19"
     },
+    "dd6ccdcf015a173f89fa316bc260b4de0ff1ee9a0a689717fb599a7899243b1e": {
+      "lufs": -36.990000000000002,
+      "guitarType": 23,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Auto-Vibrato Hold / 23"
+    },
     "dd96d3a3f4f6b30fcc7a390e6d6f4dc1a67bcb55e31ef5203ae3c3fae15a770a": {
       "lufs": -43.950000000000003,
       "guitarType": 14,
@@ -10698,6 +10726,13 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 14"
+    },
+    "ddcd8ff128cda7890dd8cc60432e8d3b428ca31addfac5ad3b94bc16de9af15f": {
+      "lufs": -28.649999999999999,
+      "guitarType": 21,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 21"
     },
     "dde8f7c6c64499063681280abf86961ddca7dcbb04a3d4efc386016dba6476f9": {
       "lufs": -13.710000000000001,
@@ -10727,13 +10762,6 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 13"
     },
-    "de9079d47a9c8369c280dbae4c290f000c1211019ac4f91086beb09475e09b67": {
-      "lufs": -19.739999999999998,
-      "guitarType": 0,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 0"
-    },
     "de972135a5c4578092b5b79ece19bf6f539d4a926a6a9c3b4a4e056380140eee": {
       "lufs": -27.27,
       "guitarType": 12,
@@ -10748,12 +10776,19 @@
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 24"
     },
-    "deda2d881887539c80ffe85941ce4169973498d592c8844806bdc77d3315189f": {
-      "lufs": -26.0,
-      "guitarType": 22,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 22"
+    "df2272662228c01e7450e9d3f311707847b82cac5b6774700905b66f9bb26b21": {
+      "lufs": -26.539999999999999,
+      "guitarType": 18,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Auto-Vibrato Hold / 18"
+    },
+    "df3d312798d8ddcc9345f9c4b21fbc615f3215e6df2752f3c4966b41ddd8d3dd": {
+      "lufs": -28.170000000000002,
+      "guitarType": 19,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Auto-Vibrato Hold / 19"
     },
     "df70a384cd18631680392027c6f20eda9a3a02c6f130ef5640eb77bc5f323dff": {
       "lufs": -33.149999999999999,
@@ -10775,6 +10810,13 @@
       "ampModel": 5,
       "drive": 0.68,
       "preset": "Auto-Vibrato Hold / 20"
+    },
+    "dfa1ac0cc103e7f46f8baa4d21658420631f476a054860f08390bfb15540c602": {
+      "lufs": -37.130000000000003,
+      "guitarType": 12,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "Auto-Vibrato Hold / 12"
     },
     "dfa488fb88d5ce5e0ab5bc1119620caf67b0ed255a0f666ab1148e41ad82e3bd": {
       "lufs": -12.720000000000001,
@@ -10818,13 +10860,6 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 11"
     },
-    "e06d4572f7812235af826c3528d5f1d449684b7be2bd395cc4b5952d9adc51a6": {
-      "lufs": -21.870000000000001,
-      "guitarType": 14,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Auto-Vibrato Hold / 14"
-    },
     "e090100aeb046453f06139d355637c8f023f884aa4f95f68a891dc004fb64678": {
       "lufs": -26.84,
       "guitarType": 20,
@@ -10837,20 +10872,6 @@
       "guitarType": 10,
       "ampModel": 11,
       "drive": 0.28,
-      "preset": "Auto-Vibrato Hold / 10"
-    },
-    "e0e159944d7486358833af55d0ad29a223db539a0fd28d364c4203a37ba2a68a": {
-      "lufs": -21.170000000000002,
-      "guitarType": 17,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Auto-Vibrato Hold / 17"
-    },
-    "e10f19da42dd159d78e1c57074fdf90b82321290663bea698c87e8c2c5e7b547": {
-      "lufs": -19.289999999999999,
-      "guitarType": 10,
-      "ampModel": 1,
-      "drive": 0.34,
       "preset": "Auto-Vibrato Hold / 10"
     },
     "e1abc3aa4f87c3484e6b499a641457291cf7447ac1accf4f63a2821186d85256": {
@@ -10888,6 +10909,13 @@
       "drive": 0.15,
       "preset": "Auto-Vibrato Hold / 12"
     },
+    "e22d191b428461a2ffb725a588a6e1bc024b7426cd184b1c9b25fdf119fe7625": {
+      "lufs": -20.280000000000001,
+      "guitarType": 14,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 14"
+    },
     "e235008c7488a367a34e6786086e84ef861a18255f7a9a13224232c8f62575f8": {
       "lufs": -13.98,
       "guitarType": 5,
@@ -10908,6 +10936,13 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 1"
+    },
+    "e3259423784d8f4f24e6a2d2db3c9345672ff11ce4fe9ab4b82e01e6cdfd67ac": {
+      "lufs": -33.829999999999998,
+      "guitarType": 10,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "Auto-Vibrato Hold / 10"
     },
     "e350e5285115c6588db689c83c9526b81d3acda861cc87447cdf0d22d9642b88": {
       "lufs": -33.039999999999999,
@@ -10951,6 +10986,13 @@
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 5"
     },
+    "e3fb0a6445c0646a2cfc6fca7341906be3587e08cccbbde3ed3a792d9df4d6af": {
+      "lufs": -19.850000000000001,
+      "guitarType": 0,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "Auto-Vibrato Hold / 0"
+    },
     "e40d366dc830ae500068225c795fafa49497451a225ce8f36818c5d3b9d18f21": {
       "lufs": -15.199999999999999,
       "guitarType": 15,
@@ -10972,6 +11014,13 @@
       "drive": 0.62,
       "preset": "Auto-Vibrato Hold / 7"
     },
+    "e4d7fef6aea1e77d8030f5fe6dc9d0f13b419fd40f764ba2b157d1f597c1746b": {
+      "lufs": -22.550000000000001,
+      "guitarType": 20,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Auto-Vibrato Hold / 20"
+    },
     "e4d98017d9f95a02884b42b1604a45b7f0eaf95fa9fbeadeff9102c289a3a626": {
       "lufs": -36.740000000000002,
       "guitarType": 14,
@@ -10986,12 +11035,26 @@
       "drive": 0.55,
       "preset": "Auto-Vibrato Hold / 22"
     },
+    "e4f31949ff72d44d2c87512da0b31b6f82aac600e90ac016d949337d32f93b0d": {
+      "lufs": -21.449999999999999,
+      "guitarType": 14,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Auto-Vibrato Hold / 14"
+    },
     "e534d2dd9b13e3b1b08623659f4f4009482c586ea7d21af85e8f3d490bb55dbe": {
       "lufs": -18.390000000000001,
       "guitarType": 18,
       "ampModel": 0,
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 18"
+    },
+    "e55cf05da25b2565ba7fd7a26b633a398facc25091aad114be9c1abf0635ad8d": {
+      "lufs": -20.09,
+      "guitarType": 23,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 23"
     },
     "e58d02c38cb8ec0f771e69c8105ee2f2af9a302099ea851d6fac0a399a210e08": {
       "lufs": -12.84,
@@ -11042,13 +11105,6 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 11"
     },
-    "e6af61eeaa8300a9e6396435164a7aa92d43ff472fde53fc4e7b5d5bee9fcd4f": {
-      "lufs": -22.699999999999999,
-      "guitarType": 17,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Auto-Vibrato Hold / 17"
-    },
     "e6c04b65e01544b73fc089b17d45d31acf7e9a4f34dd5a699bd7a83803ea5110": {
       "lufs": -17.670000000000002,
       "guitarType": 11,
@@ -11056,12 +11112,12 @@
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 11"
     },
-    "e6c311f4ffe49fad92d5fdcf5d98da341fde3f9205768257207cb4450dbf9555": {
-      "lufs": -25.949999999999999,
-      "guitarType": 3,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "Auto-Vibrato Hold / 3"
+    "e6fdd063b698c1ad721b577dbae3b5fafce101627f329a7affe5421295911a76": {
+      "lufs": -36.420000000000002,
+      "guitarType": 5,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Auto-Vibrato Hold / 5"
     },
     "e707e0b346aff91ce3b569d253cec4b5c074018b0117d0fe947b143447539fd4": {
       "lufs": -15.65,
@@ -11076,13 +11132,6 @@
       "ampModel": 0,
       "drive": 0.22,
       "preset": "Auto-Vibrato Hold / 2"
-    },
-    "e8034dff5c173b2f328f5b1f5a5d8871de04daf98ee15cfa85b7c8b645549ce5": {
-      "lufs": -26.18,
-      "guitarType": 10,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Auto-Vibrato Hold / 10"
     },
     "e849a4ef719978596a09f3f1bd13d8c75541dc59daa77539035de4e0502785ee": {
       "lufs": -12.92,
@@ -11105,6 +11154,13 @@
       "drive": 0.2,
       "preset": "Auto-Vibrato Hold / 4"
     },
+    "e8910dedbc8ebfce88c0a629149a5e2870cb111aea7789213d6a3299230ef2f7": {
+      "lufs": -19.879999999999999,
+      "guitarType": 3,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "Auto-Vibrato Hold / 3"
+    },
     "e89a751f64560bb59fb9f342981190b43aa77f9753bf5c6b7a651bbf65128bbc": {
       "lufs": -22.039999999999999,
       "guitarType": 21,
@@ -11119,19 +11175,12 @@
       "drive": 0.8,
       "preset": "Auto-Vibrato Hold / 11"
     },
-    "e8f4ee8f1750362a225fbb41f302538ef38027d81bde41576dc07dc853808ee0": {
-      "lufs": -32.57,
-      "guitarType": 16,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Auto-Vibrato Hold / 16"
-    },
-    "e925ff803ef4fa3f06188014e6e96d2dec0ab0fbaa37bf1e5f068894a5b82fc3": {
-      "lufs": -43.100000000000001,
-      "guitarType": 8,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Auto-Vibrato Hold / 8"
+    "e91d4d8f0dedd3c8a2a476558c1c50d6ddc5aba4430f6965e5782489fec1a0d0": {
+      "lufs": -20.23,
+      "guitarType": 5,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "Auto-Vibrato Hold / 5"
     },
     "e953b579e059856b0b35d452e722966b085127fb26108956b2f0835e9f10b319": {
       "lufs": -14.02,
@@ -11203,12 +11252,12 @@
       "drive": 0.32,
       "preset": "Auto-Vibrato Hold / 0"
     },
-    "eab6938153174dcc06aff1f8027e357517e847b1234a6ffc93d3e4e5d944c5b5": {
-      "lufs": -19.379999999999999,
-      "guitarType": 9,
+    "eac0f452381e9024b8f5be822965e835fddd2ba871378e6fbf01eeeed8dfad1f": {
+      "lufs": -20.920000000000002,
+      "guitarType": 18,
       "ampModel": 1,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 9"
+      "drive": 0.42,
+      "preset": "Auto-Vibrato Hold / 18"
     },
     "eadcb4509556a76fd5858e00faf49a991336465432c41f811ec6c5bada6a390c": {
       "lufs": -13.210000000000001,
@@ -11252,13 +11301,6 @@
       "drive": 0.64,
       "preset": "Auto-Vibrato Hold / 0"
     },
-    "ec040b144ffa606cfd275d11792771319678f12e348ccb9e4d823d490c061ac4": {
-      "lufs": -45.049999999999997,
-      "guitarType": 21,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Auto-Vibrato Hold / 21"
-    },
     "ec410567a9a877f34afa500d60da109abe1c8d14351d9ed6404c8523457fb2af": {
       "lufs": -14.01,
       "guitarType": 8,
@@ -11279,13 +11321,6 @@
       "ampModel": 0,
       "drive": 0.25,
       "preset": "Auto-Vibrato Hold / 1"
-    },
-    "eca9c209c367e802d24c1c8df8020df7524a86b7cf3e206079423779d48cb426": {
-      "lufs": -24.219999999999999,
-      "guitarType": 10,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 10"
     },
     "ecb423dcce2cf50351be2a781e4956789dee3583cf6acf4c63bdfb1ebba3f300": {
       "lufs": -32.359999999999999,
@@ -11308,13 +11343,6 @@
       "drive": 0.7,
       "preset": "Auto-Vibrato Hold / 19"
     },
-    "ed3ed448a14ebec1248735a72074e7e4606193241b26bcecea21bc9424ed41bc": {
-      "lufs": -27.219999999999999,
-      "guitarType": 23,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Auto-Vibrato Hold / 23"
-    },
     "ed408d4b009515d215fcc628c0b9d73fc3713b5b0f5ab5604ba4053c1acbbdf8": {
       "lufs": -17.890000000000001,
       "guitarType": 3,
@@ -11328,13 +11356,6 @@
       "ampModel": 0,
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 1"
-    },
-    "eda19a2244f5061cc1e954ba99869bea06be295b87b4a8fb6df33e540bc22014": {
-      "lufs": -19.079999999999998,
-      "guitarType": 0,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Auto-Vibrato Hold / 0"
     },
     "edacb07efab4c82de22d464b721bcad252cf1794e6ffa40ed4aaa9483bd140fe": {
       "lufs": -15.07,
@@ -11420,26 +11441,12 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 18"
     },
-    "eeb04daff13191a49c1a67eebfbdaa006dc35e6235f4330a471a591ad0e12912": {
-      "lufs": -28.600000000000001,
-      "guitarType": 15,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "Auto-Vibrato Hold / 15"
-    },
     "eeb4dc3d4992b5da3bf242303bab0fbcc408df3e6a8d5ba6a6d1abf57ee36efe": {
       "lufs": -31.989999999999998,
       "guitarType": 4,
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 4"
-    },
-    "eeb99bf4d94074816e89395a2e65314a1c28335ffe0a1bef9bc1f5be34966958": {
-      "lufs": -26.640000000000001,
-      "guitarType": 3,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Auto-Vibrato Hold / 3"
     },
     "eefc47f5f494d0684f9782ed55fca345447686d67cd89290698500234f82076c": {
       "lufs": -17.109999999999999,
@@ -11461,20 +11468,6 @@
       "ampModel": 0,
       "drive": 0.2,
       "preset": "Auto-Vibrato Hold / 10"
-    },
-    "ef5132a7620a23a070f7f23863f77f99908a498f21b0d089f74bbe04e8117df4": {
-      "lufs": -21.420000000000002,
-      "guitarType": 13,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Auto-Vibrato Hold / 13"
-    },
-    "ef823e42024628b02061b23d075cdc7bccf00cefdb7d4d65276e4b18340a98fe": {
-      "lufs": -23.129999999999999,
-      "guitarType": 24,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "Auto-Vibrato Hold / 24"
     },
     "ef89efd463ae405ce0de45ac9bd961256501ae44fdb7b22606df4d3c92963375": {
       "lufs": -29.98,
@@ -11510,13 +11503,6 @@
       "ampModel": 11,
       "drive": 0.28,
       "preset": "Auto-Vibrato Hold / 7"
-    },
-    "efd943127cbf826e19d35641068d563724f98a593f7dda6958925ef9eb0b174c": {
-      "lufs": -19.390000000000001,
-      "guitarType": 5,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 5"
     },
     "effb00868794a27b74d4686dbc85367bf481a1b63d27cbd40ae5254e1680f5f2": {
       "lufs": -16.16,
@@ -11602,13 +11588,6 @@
       "drive": 0.6,
       "preset": "Auto-Vibrato Hold / 6"
     },
-    "f1bddcfa776a0d697534d031e8735680c580d5c4b3be60b52fdb792a72bb15c4": {
-      "lufs": -26.280000000000001,
-      "guitarType": 5,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "Auto-Vibrato Hold / 5"
-    },
     "f1d922d96416e04020b2942d035ad1966dc551ae68e62ba44f493b3bb47257d8": {
       "lufs": -19.379999999999999,
       "guitarType": 17,
@@ -11658,6 +11637,13 @@
       "drive": 0.55,
       "preset": "Auto-Vibrato Hold / 17"
     },
+    "f31fd78e39d4eff764a5cad93c93134b32ed7ef6bb7646720c3c71b3d1796c66": {
+      "lufs": -37.240000000000002,
+      "guitarType": 14,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "Auto-Vibrato Hold / 14"
+    },
     "f327634a7bf6013f23b206b2bb1d03dc33a4bd76fc12b28b932f8b43015ebc77": {
       "lufs": -17.98,
       "guitarType": 8,
@@ -11672,12 +11658,12 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 24"
     },
-    "f3891cc9fedc48a666726b9a74cb2ff26f97cbe5dfd581f28c93c58d613f1022": {
-      "lufs": -25.120000000000001,
-      "guitarType": 14,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "Auto-Vibrato Hold / 14"
+    "f3515c20dfc23d3a0b6be1acc5be01d3fc2b27d95b1cecce1739589a76f5abd2": {
+      "lufs": -29.010000000000002,
+      "guitarType": 20,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 20"
     },
     "f39ae717297528536fb24939a2c4bbc5b74168022ee1d1addac66dfdc5a26da8": {
       "lufs": -21.09,
@@ -11693,19 +11679,19 @@
       "drive": 0.62,
       "preset": "Auto-Vibrato Hold / 5"
     },
+    "f3b183fcd64211a824d7ac08e3ce2c37055f208b1d1cec9f81676587072c3e56": {
+      "lufs": -19.899999999999999,
+      "guitarType": 2,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "Auto-Vibrato Hold / 2"
+    },
     "f3c87af6e4e4e8a0a887004618efe43222500d964232f24df5c359a52228ac0b": {
       "lufs": -24.760000000000002,
       "guitarType": 20,
       "ampModel": 0,
       "drive": 0.14,
       "preset": "Auto-Vibrato Hold / 20"
-    },
-    "f3d6d20ea9f118635779d5de98d4a6789ef234200aadbe09b171da7d3ae4fe63": {
-      "lufs": -26.109999999999999,
-      "guitarType": 1,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Auto-Vibrato Hold / 1"
     },
     "f3ebec3fafbc059ddc346a1732cac8cd4b29b21a716e3a8caa781e31c683f542": {
       "lufs": -14.699999999999999,
@@ -11749,12 +11735,12 @@
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 19"
     },
-    "f55c35fc09fd57270f694edd47abc354f46b9e9cc482686ab9953a31cae36eea": {
-      "lufs": -20.329999999999998,
-      "guitarType": 11,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 11"
+    "f55f14c6b691924b6ad0d28978f53b456ec6fd7e1ddc81a233e1d8750c9336ef": {
+      "lufs": -35.590000000000003,
+      "guitarType": 10,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Auto-Vibrato Hold / 10"
     },
     "f5616e13cdb9379b2b6f155d13adeb06e0379cad6562484da958244a7d51fe56": {
       "lufs": -15.23,
@@ -11762,6 +11748,13 @@
       "ampModel": 0,
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 9"
+    },
+    "f56c240c46f0b4f1cbb1ad9d5ea985defe811ff1e5a0f556e2e55ff042d4c62b": {
+      "lufs": -36.890000000000001,
+      "guitarType": 13,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "Auto-Vibrato Hold / 13"
     },
     "f587cc7149d4fbf20202b9cc23d3fbc8c48c03c8444d146b726cf80c29d18769": {
       "lufs": -23.219999999999999,
@@ -11840,13 +11833,6 @@
       "drive": 0.7,
       "preset": "Auto-Vibrato Hold / 21"
     },
-    "f7f39b7d0f9eaa0f3bc4ca9cb7f85e56f0f8438857f38e3de5ced18200a45c1d": {
-      "lufs": -23.600000000000001,
-      "guitarType": 3,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "Auto-Vibrato Hold / 3"
-    },
     "f80149c7d167248a0b87b4609913ddc6f574865b881ab6f5a8e5dd53e653b296": {
       "lufs": -16.109999999999999,
       "guitarType": 3,
@@ -11867,13 +11853,6 @@
       "ampModel": 9,
       "drive": 0.82,
       "preset": "Auto-Vibrato Hold / 23"
-    },
-    "f83ab75519532bb8a21eb3b85491abf9b8fbab17f2b819b38a7be8b21fe2ca44": {
-      "lufs": -24.02,
-      "guitarType": 0,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Auto-Vibrato Hold / 0"
     },
     "f84a207ceafffe32007fc61c16e89764bba3214fb75dc68ed127fcf80b7f2cb4": {
       "lufs": -12.32,
@@ -11910,19 +11889,19 @@
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 5"
     },
-    "f89cf293b86bde0f1034aa963693d0693a8db4c6645e43cc6f7da83ce67d0948": {
-      "lufs": -21.16,
-      "guitarType": 1,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Auto-Vibrato Hold / 1"
-    },
     "f8ac77ed07e0402b1a473afeff7728e216a1cb713f14b61938436b5bf752d12a": {
       "lufs": -28.52,
       "guitarType": 5,
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 5"
+    },
+    "f8be544039a010b5e9d82e6328d43f735fc30db745e1d21b59e9b914effd5b5a": {
+      "lufs": -25.390000000000001,
+      "guitarType": 7,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 7"
     },
     "f8c8f8fc9098c4dd4071dcce250001e7045301fa6bea17edf20a3353f14140b7": {
       "lufs": -34.869999999999997,
@@ -11938,20 +11917,6 @@
       "drive": 0.55,
       "preset": "Auto-Vibrato Hold / 13"
     },
-    "f8e6c74349591912baa34db326bd6b2f6a1e45100e5cdee6fd20bafb68a66a31": {
-      "lufs": -42.68,
-      "guitarType": 3,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Auto-Vibrato Hold / 3"
-    },
-    "f90bd1fdf082fbe5f8b752cf2371f2415204e3bac11b1c6079944c520e1266a8": {
-      "lufs": -42.700000000000003,
-      "guitarType": 20,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Auto-Vibrato Hold / 20"
-    },
     "f90ddeeb6dcc871945922924d88a5e6c6309ef2a34bb6c6cdbdb121b31cf1587": {
       "lufs": -22.390000000000001,
       "guitarType": 6,
@@ -11966,13 +11931,6 @@
       "drive": 0.8,
       "preset": "Auto-Vibrato Hold / 4"
     },
-    "f9699f8565cac7edb282b1e8f601a699d53734f101288d7a0fbdecb1ec37a552": {
-      "lufs": -26.77,
-      "guitarType": 24,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Auto-Vibrato Hold / 24"
-    },
     "f96ef2c9399477526a76a7181063a61adb95599ca0a5432a2398756053dc2de5": {
       "lufs": -28.370000000000001,
       "guitarType": 10,
@@ -11986,6 +11944,20 @@
       "ampModel": 11,
       "drive": 0.28,
       "preset": "Auto-Vibrato Hold / 5"
+    },
+    "f9a8310486d800c570d2928fa4b3edb7db1f48060e56b24bd6b04295ae2e1999": {
+      "lufs": -35.530000000000001,
+      "guitarType": 20,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "Auto-Vibrato Hold / 20"
+    },
+    "f9d2cefeebe0314e2f3a191bb9796950f8a00d4453a1625599c2273c836a2f00": {
+      "lufs": -26.91,
+      "guitarType": 12,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Auto-Vibrato Hold / 12"
     },
     "fa7c6f8780745633098695e2ab102c5b86c6489e40b311bd944e329705e43944": {
       "lufs": -13.800000000000001,
@@ -12085,6 +12057,13 @@
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 2"
     },
+    "fc0ddda53a8bf52d9591caa9850aa9c9b99e1c7fbf1c64cc7b869238112a8219": {
+      "lufs": -18.91,
+      "guitarType": 7,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 7"
+    },
     "fc2df6aec62bb3097a07020eab8e135f49279a0560156126af26a9fb3b2cd51b": {
       "lufs": -40.659999999999997,
       "guitarType": 11,
@@ -12120,12 +12099,12 @@
       "drive": 0.62,
       "preset": "Auto-Vibrato Hold / 20"
     },
-    "fd33a2b636064ba2ce9c4bb4b12f66e6751f6bc62b90c88292f69376f3af2ba5": {
-      "lufs": -22.949999999999999,
-      "guitarType": 1,
+    "fd6ee75fb1bd6f2250905e68d61b7e41a312573dd680b36d80726fdc5566f0c8": {
+      "lufs": -20.329999999999998,
+      "guitarType": 11,
       "ampModel": 9,
       "drive": 0.85,
-      "preset": "Auto-Vibrato Hold / 1"
+      "preset": "Auto-Vibrato Hold / 11"
     },
     "fd89af703ee8248562846c49576f5a2065f34a9da50507468c4df4c0475405a1": {
       "lufs": -15.6,
@@ -12168,6 +12147,13 @@
       "ampModel": 11,
       "drive": 0.35,
       "preset": "Auto-Vibrato Hold / 17"
+    },
+    "fe5d1c7f3f6101b140a6ccba1cbd6fcdce7fb3f9faf43ffde8ce01690ac5ac61": {
+      "lufs": -18.73,
+      "guitarType": 5,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 5"
     },
     "fe92516910a66d2a8e2175d3d7590979827a7d608d8eb96ef6f55573e5b19082": {
       "lufs": -18.870000000000001,
@@ -12218,6 +12204,13 @@
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 20"
     },
+    "ff64eff65b3bf929177f7de7ff3431c0cf5f028509468eeffa63b2e806eecf32": {
+      "lufs": -17.940000000000001,
+      "guitarType": 10,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Auto-Vibrato Hold / 10"
+    },
     "ff7c28175513ed678c7d23c5967a474c1e5cb6874cff291c94e7387fef38e025": {
       "lufs": -40.82,
       "guitarType": 12,
@@ -12231,6 +12224,13 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Auto-Vibrato Hold / 4"
+    },
+    "ffb76ecb5fe5d844910f3526a25bff7fa2c5c9ac53dc23e218de4e212a3c0c19": {
+      "lufs": -20.140000000000001,
+      "guitarType": 15,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "Auto-Vibrato Hold / 15"
     },
     "ffecd828bdb97827a0fd81565932ec75b582728e46561458fbdd3230bc4727c5": {
       "lufs": -28.039999999999999,
