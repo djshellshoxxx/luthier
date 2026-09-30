@@ -1,4 +1,5 @@
 #include "LiveControls.h"
+#include "../Support/ConfigRecovery.h"
 
 namespace luthier
 {
@@ -571,10 +572,8 @@ bool ExpressionCalibrationSet::load()
 {
     const auto file = getConfigFile();
 
-    if (! file.existsAsFile())
-        return false;
-
-    const auto parsed = juce::JSON::parse (file.loadFileAsString());
+    // SPEC-SWEEP ER-65: an unreadable file is kept aside and reported.
+    const auto parsed = ConfigRecovery::loadObject (file, "LivePerformance");
 
     if (parsed.getDynamicObject() == nullptr)
         return false;

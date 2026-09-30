@@ -1,6 +1,7 @@
 #include "LiveInput.h"
 
 #include "LiveControls.h"
+#include "../Support/ConfigRecovery.h"
 
 namespace luthier
 {
@@ -407,10 +408,8 @@ void LiveActionMap::fromVar (const juce::var& state)
 
 bool LiveActionMap::load()
 {
-    if (! configFile.existsAsFile())
-        return false;
-
-    const auto parsed = juce::JSON::parse (configFile.loadFileAsString());
+    // SPEC-SWEEP ER-65: an unreadable file is kept aside and reported.
+    const auto parsed = ConfigRecovery::loadObject (configFile, "LivePerformance");
 
     if (parsed.getDynamicObject() == nullptr)
         return false;

@@ -1,4 +1,5 @@
 #include "PerformanceSettings.h"
+#include "../Support/ConfigRecovery.h"
 
 namespace luthier
 {
@@ -136,7 +137,7 @@ bool PerformanceSettings::load()
         lastModification = file.getLastModificationTime();
 
         if (! ok)
-            DBG ("performance.json unreadable; using the defaults");
+            ConfigRecovery::setAside (file, "Performance");   // SPEC-SWEEP ER-65
     }
 
     store (v);

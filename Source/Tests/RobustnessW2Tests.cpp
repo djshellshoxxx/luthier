@@ -13,6 +13,8 @@
 #include "../PluginEditor.h"
 #include "../PluginProcessor.h"
 #include "../Support/ErrorLog.h"
+#include "../Support/ConfigRecovery.h"
+#include "../Live/LiveInput.h"
 #include "../UI/AdvancedPanel.h"
 #include "../UI/HeaderBar.h"
 #include "../UI/OwnedFileChooser.h"
@@ -422,4 +424,92 @@ LUTHIER_TEST (Presets, aSaveOverAnotherInstancesChangeWinsAndSaysSo)
             b.deletePreset (i);
 
     file.deleteFile();
+}
+
+//==============================================================================
+/*  SM-62, state-model 11: two instances in one host share nothing but the
+    user-global files - parameters, MIDI Learn (mappings and arming) and a
+    learned CC's effect stay in the instance they belong to. */
+LUTHIER_TEST (StateModel, twoInstancesAreIndependent)
+{
+    LuthierAudioProcessor a, b;
+    a.prepareToPlay (kSr, kBlock);
+    b.prepareToPlay (kSr, kBlock);
+
+    const int bMappings = b.getMidiLearn().getNumMappings();
+
+    a.getMidiLearn().addMapping (ParamIDs::macroDrive, 20);
+    a.getMidiLearn().startLearning (ParamIDs::macroTone);
+
+    CHECK (b.getMidiLearn().getNumMappings() == bMappings);
+    CHECK (b.getMidiLearn().getCcForParameter (ParamIDs::macroDrive) != 20);
+    CHECK (! b.getMidiLearn().isLearning());
+    a.getMidiLearn().cancelLearning();
+
+    auto* driveA = a.getState().getParameter (ParamIDs::macroDrive);
+    auto* driveB = b.getState().getParameter (ParamIDs::macroDrive);
+    driveB->setValueNotifyingHost (0.2f);
+    const float bBefore = driveB->getValue();
+
+    // CC 20 at full into A only.
+    juce::AudioBuffer<float> buffer (a.getTotalNumOutputChannels(), kBlock);
+    juce::MidiBuffer midi;
+    midi.addEvent (juce::MidiMessage::controllerEvent (1, 20, 127), 0);
+
+    for (int i = 0; i < 4; ++i)
+    {
+        buffer.clear();
+        a.processBlock (buffer, midi);
+        midi.clear();
+        buffer.clear();
+        juce::MidiBuffer none;
+        b.processBlock (buffer, none);
+    }
+
+    CHECK_MSG (driveA->getValue() > 0.9f, "the learned CC did not reach its own instance");
+    CHECK_NEAR (driveB->getValue(), bBefore, 1.0e-4);
+
+    // Restoring A's session into B copies it once; they stay separate after.
+    juce::MemoryBlock state;
+    a.getStateInformation (state);
+    b.setStateInformation (state.getData(), (int) state.getSize());
+    driveA->setValueNotifyingHost (0.1f);
+    CHECK (std::abs (driveB->getValue() - 0.1f) > 0.05f);
+}
+
+//==============================================================================
+/*  ER-65/66, error-recovery 10: a settings file that cannot be read is kept
+    aside as .corrupted-<timestamp>, defaults are used, and the window is told;
+    a readable one loads and is left alone. */
+LUTHIER_TEST (ErrorRecovery, aCorruptSettingsFileIsSetAsideAndReported)
+{
+    TempDiagnostics diagnostics;
+    ConfigRecovery::takeRecoveredFiles();
+
+    auto folder = diagnostics.folder.getChildFile ("config");
+    folder.createDirectory();
+    auto file = folder.getChildFile ("live-actions.json");
+
+    file.replaceWithText ("{ \"actions\": [ oops");
+
+    LiveActionMap map;
+    map.setConfigFile (file);
+    CHECK (! map.load());
+    CHECK (! file.exists());
+    CHECK (folder.getNumberOfChildFiles (juce::File::findFiles, "live-actions.json.corrupted-*") == 1);
+    CHECK (ConfigRecovery::takeRecoveredFiles().contains ("live-actions.json"));
+    CHECK (ConfigRecovery::takeRecoveredFiles().isEmpty());   // taken once
+
+    // A newer schema than the reader allows goes the same way.
+    auto versioned = folder.getChildFile ("versioned.json");
+    versioned.replaceWithText ("{ \"schema\": 99 }");
+    CHECK (ConfigRecovery::loadObject (versioned, "Test", 1).isVoid());
+    CHECK (! versioned.exists());
+
+    // A good file loads and stays.
+    auto good = folder.getChildFile ("good.json");
+    good.replaceWithText ("{ \"schema\": 1, \"x\": 2 }");
+    CHECK ((int) ConfigRecovery::loadObject (good, "Test", 1).getProperty ("x", 0) == 2);
+    CHECK (good.existsAsFile());
+    CHECK (ConfigRecovery::takeRecoveredFiles().contains ("versioned.json"));
 }

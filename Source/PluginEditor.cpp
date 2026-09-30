@@ -7,6 +7,7 @@
 #include "Accessibility/Accessibility.h"
 #include "UI/Guitar/StringAnimator.h"   // animated-strings.md 8
 #include "UI/NormalizationOptions.h"   // output-normalization.md 5
+#include "Support/ConfigRecovery.h"
 
 namespace luthier
 {
@@ -1236,6 +1237,16 @@ void LuthierAudioProcessorEditor::pollForNotifications()
         Notification n;
         n.id = "preferences-reset";
         n.message = "Preferences reset (previous file corrupted, backed up).";
+        n.level = Notification::Level::warning;
+        notifications.post (std::move (n));
+    }
+
+    // SPEC-SWEEP ER-65: the same for every other settings file.
+    if (const auto files = ConfigRecovery::takeRecoveredFiles(); ! files.isEmpty())
+    {
+        Notification n;
+        n.id = "settings-reset";
+        n.message = "Settings reset (" + files.joinIntoString (", ") + " was corrupted, backed up).";
         n.level = Notification::Level::warning;
         notifications.post (std::move (n));
     }
