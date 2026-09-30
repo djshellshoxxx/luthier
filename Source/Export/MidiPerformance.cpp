@@ -51,6 +51,8 @@ namespace
         { Type::letRing,            "letring",     LuthierEventClass::note },
         { Type::pickStrokeUp,       "upstroke",    LuthierEventClass::note },   // FEAT-ASSIST
         { Type::pickStrokeDown,     "downstroke",  LuthierEventClass::note },
+        { Type::slap,               "slapnote",    LuthierEventClass::note },   // tab-import-export 7
+        { Type::pop,                "popnote",     LuthierEventClass::note },
     };
 
     static_assert (sizeof (kTechniques) / sizeof (kTechniques[0]) == (size_t) Type::numTypes,

@@ -116,7 +116,8 @@ LUTHIER_TEST (TabImport, techniqueGlyphsMapToTypes)
     CHECK (anyHas (score, ScoreTechnique::Type::hammerOn));
     CHECK (anyHas (score, ScoreTechnique::Type::pullOff));
     CHECK (anyHas (score, ScoreTechnique::Type::bend));
-    CHECK (anyHas (score, ScoreTechnique::Type::slideUp));
+    // tab-import-export 7.3: "9/11" is a legato slide to fret 11.
+    CHECK (anyHas (score, ScoreTechnique::Type::slideLegato) || anyHas (score, ScoreTechnique::Type::slideUp));
     CHECK (anyHas (score, ScoreTechnique::Type::deadNote));
 
     // The bend digits after 'b' are its amount, not a phantom note; the dead

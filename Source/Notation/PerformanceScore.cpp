@@ -37,6 +37,8 @@ const char* getTechniqueName (ScoreTechnique::Type type) noexcept
         case ScoreTechnique::Type::letRing:            return "Let Ring";
         case ScoreTechnique::Type::pickStrokeUp:       return "Up Stroke";
         case ScoreTechnique::Type::pickStrokeDown:     return "Down Stroke";
+        case ScoreTechnique::Type::slap:               return "Slap";
+        case ScoreTechnique::Type::pop:                return "Pop";
         case ScoreTechnique::Type::numTypes:
         default:                                       return "Unknown";
     }

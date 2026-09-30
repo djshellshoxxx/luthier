@@ -114,7 +114,7 @@ time, and that is all. Any player must infer timing. The heuristic used here
 | --- | --- | --- | --- |
 | ASCII / plain text (`.txt`, `.tab`) | ✅ (hardened here) | ✅ (`AsciiTabWriter`) | MUST. Timing inferred by column spacing; techniques parsed. |
 | MusicXML tab (`.xml`, `.musicxml`) | ✅ (reused) | ✅ (reused) | Preferred for reliable playback: real durations. |
-| MIDI (`.mid`) | ✅ (reused, Luthier profile) | ✅ (reused) | Real timing; string/fret via the Luthier profile. |
+| MIDI (`.mid`) | ✅ Luthier profile (reused) + generic files fingered (§8) | ✅ (reused; bends, slides, vibrato as pitch bend, §8.3) | Real timing; string/fret via the Luthier profile, or guessed. |
 | Guitar Pro (`.gp*`) | ❌ deferred | ⚠️ GPIF bundle (existing, best-effort) | See below. |
 
 **Guitar Pro import is deferred.** The binary `.gp3/4/5` and zipped `.gpx/.gp`
@@ -199,6 +199,171 @@ invalid string or with a non-finite/ out-of-range pitch.
   falls back to standard (frets still parse; pitches may be off). A future
   improvement is deriving tuning from the per-string note-name prefixes the
   writer emits.
+
+## 7. Dialect coverage and graceful failure (`AsciiTabReader`)
+
+The ASCII reader lives in `Source/Notation/AsciiTabReader.{h,cpp}`;
+`NotationImporter::readAsciiTab` delegates to it and keeps its
+`TabImportDiagnostics` (`getLastDiagnostics()`). The rule is **read what can be
+read, skip what cannot, and say which**: a page never fails because one line
+of it was odd. `read` returns false only when no note at all was found.
+
+### 7.1 What a page may contain
+
+| Line | Read as |
+| --- | --- |
+| `Tuning: Drop D`, `Tuned down 1/2 step`, `Tuning: DADGAD`, `Tuning: Eb Ab Db Gb Bb Eb`, `Tuning: E2 A2 D3 G3 B3 E4`, `tuning = e B G D A E` | header: a named tuning (drop D/C/C#/B/A, double drop D, DADGAD, open G/D/E/A/C, Eb / D / C# / C standard, half/whole step down, 7- and 8-string, 4/5-string bass, ukulele) or a note list (§7.2) |
+| a bare note list before the first staff with one name per string (`E A D G B e`) | header: the tuning |
+| `Capo: 2`, `Capo on 3rd fret`, `no capo` | header |
+| `Tempo: 120 bpm`, `BPM 96`, `♩ = 80`, `Time: 3/4`, `Tempo: 120 4/4` | header (tempo 20–300, metre N/2,4,8,16) |
+| `e|---`, `D#|---`, `Eb:---`, `E2|---`, `E ---`, `S1|---`, `|---`, `---` | a staff line; the label may be a note name (used for §7.2), a generic label, or nothing |
+| `PM------|`, `P.M. . . .`, `let ring`, `N.H.`, `full  1/2`, `T   T   P`, `~~~` | an annotation above a staff: PM spans palm-mute the notes under them, `let ring` marks them let-ring, the rest is skipped |
+| `Am   G   C` | chord names: skipped (counted) |
+| `x4`, `(x3)`, `play 4 times`, `3x` on the line after a system, or after a system's closing bar | a repeat count for the system (§7.4) |
+| titles, lyrics, comments, anything else | skipped (counted, first 24 listed in `warnings`) |
+
+A staff line is one whose body (after the label) is at least three characters,
+at least a quarter fill (`-` or space) and at least 90% tab glyphs, and either
+carries content (digits, `x`, a bar) or a label. The writer's beat ruler
+(`   1---2---3---4---`), pure separators (`--------`) and rulers with no bar
+are not staff lines. A run of consecutive staff lines is a **system**; the top
+line is string 0. Systems of 4/5/6/7/8/12 lines set the string count (the
+largest wins; unlisted lower strings continue down in fourths); a system with
+fewer lines than the track is read as the top strings and warned about.
+
+### 7.2 Tuning inference
+
+Named tunings come from a table. A note list is read either way round: the
+orientation with the smaller overall span is the one a guitarist wrote
+(`E A D G B E` is 24 semitones low-to-high but 36 the other way), and a
+lowercase first name with an uppercase last (`e B G D A E`) is the high-to-low
+convention. Explicit octaves (`E2`) are taken as written. Without any header,
+the string-name labels of the first full system are the tuning: the top string
+is anchored to the nearest octave of its pitch class around E4 (G2 when a four-
+or five-line set tops out on G, which is a bass), and every lower string is
+the nearest lower octave of its name. Standard is assumed otherwise, and the
+diagnostics say which of the three happened.
+
+### 7.3 Symbols
+
+| Glyph | Technique on the score | Played as (`RiffCompiler` 5.1.3) |
+| --- | --- | --- |
+| `7h9`, `7-h9`, `H` | `hammerOn` on the **arriving** note (9) | HammerOn |
+| `9p7` | `pullOff` on the arriving note | PullOff |
+| `7^9`, `9^7` | hammer or pull by direction | HammerOn / PullOff |
+| `7b`, `7b9`, `7bfull`, `7b1/2`, `7b1 1/2`, `7^` (no digit) | `bend`, value in semitones (target−fret, `full`=2, `1/2`=1; 2 when unstated) | pitch curve |
+| `7b9r7`, `7r` | `bendRelease` (value, secondValue=release) | pitch curve |
+| `7pb9`, `7pb9r7` | `preBend` | pitch curve |
+| `5/7`, `7\5`, `5s7` | `slideLegato` on the departing note, value = target fret; the departing note lasts exactly until the arrival | unpicked Slide arrival, or a glide off when the arrival is missing |
+| `9/`, `9\` | `slideOut` towards five frets up/down | glide off |
+| `/9`, `\9`, `s9` | `slideIn` (from below, or three frets above) | Pluck + glide in |
+| `7~`, `7~~~`, `7v` | `vibrato` (compiler defaults: 5.5 Hz, 30 cents) | vibrato segment |
+| `x`, `X` | `deadNote` | MutedPick |
+| `PM` after a note, `P.M.` span above the staff | `palmMute` | PalmMute |
+| `<12>`, `12*`, `12nh` | `naturalHarmonic` | NaturalHarmonic at the node |
+| `[7]`, `7ah` | `artificialHarmonic` | ArtificialHarmonic |
+| `7ph` | `pinchHarmonic` | PinchHarmonic |
+| `7th` | `tapHarmonic` | Tap |
+| `t12`, `T12`, `8t12`, `12t` | `tap` | Tap |
+| `5S`, `S5` | `slap` (new type, append-only) | BASS_TECH thumb via `Riff::fromScore` |
+| `7P`, `P7` | `pop` (new type, append-only) | BASS_TECH pop |
+| `(7)` | `ghostNote` | ×0.45 velocity |
+| `7tr9` | `trill`, value = the other fret | alternating hammer/pull |
+| `7w` | `whammy` | pitch curve |
+| `7>` / `7.` / `7LR` | `accent` / `staccato` / `letRing` | ×1.2 / half length / let ring |
+| `=7`, `_7` | a tie: the previous note on the string is extended, nothing re-struck | — |
+| `\|:` … `:\|`, `x4` | repeats (§7.4) | — |
+
+Unknown glyphs inside a staff are skipped and counted (`ignoredGlyphs`). A
+digit pair above 24 (`35`) is two notes (`splitFrets`).
+
+### 7.4 Timing, durations and repeats
+
+Within a bar closed by a bar line, the unwidened columns (a two-digit fret's
+second column carries no time, on every string) are mapped to beats: when the
+count divides evenly into 1/2/3/4/6/8/12/16 columns a beat, that grid is used
+(so 16 columns in 4/4 is sixteenths, 12 is triplets); otherwise the bar is
+stretched proportionally. An open bar (no closing line) is four columns a
+beat and may spill into further measures. A note lasts until the next note on
+its string (clamped to a quarter of a beat … four beats), or to the end of its
+bar. `|: … :|` repeats the enclosed bars (twice unless a count says more), a
+bare `x4` repeats the whole system; counts are capped at 16 and a system at
+512 measures.
+
+### 7.5 Diagnostics
+
+`TabImportDiagnostics`: `totalLines`, `staffLines`, `headerLines`,
+`annotationLines`, `skippedLines`, `systems`, `measures`, `notes`,
+`numStrings`, `repeatsUnrolled`, `ignoredGlyphs`, `splitFrets`,
+`tuningFromHeader` / `tuningFromStringNames`, `tempoFromHeader`,
+`timeSignatureFromHeader`, `warnings` (one line each, capped at 24),
+`isPartial()`, and `summary()`: *"Loaded 4 bars, 17 notes (6 strings); 2
+lines skipped; 1 unknown symbol ignored; standard tuning assumed."* The tab
+reader panel shows the summary in the warning colour whenever anything was
+skipped, with the individual warnings as the tooltip.
+
+Adversarial inputs (random bytes, truncated lines, `|||||`, 5000-line files,
+mixed EOLs, unicode, out-of-range frets, absurd repeat counts) are covered by
+`TabImport.fuzzNeverCrashes…` and the `TabDialect` suite; every loop advances,
+every index is bounds-checked (`at()` returns 0 past the end), frets are
+clamped to 36 and strings to `kMaxStrings`.
+
+## 8. MIDI ↔ tab
+
+### 8.1 MIDI → tab (`NotationImporter::readMidi`, `TabFingering`)
+
+`readMidi` reads either MIDI profile through `MidiProfiles::importFromMemory`
+and `MidiPerformance::toScore`. A **Luthier-profile** file carries string and
+fret in its NOTE events and is kept as written. A **generic** file has only
+pitches, so the instrument and the fingering are guessed:
+
+- *Instrument*: a part that goes below E2 and never above C4 is a four-string
+  bass; otherwise a six-string in standard tuning.
+- *Plausibility*: if the channel-to-string read already sounds every pitch
+  (fret 0–24 on its channel's string) on two or more strings — which is what
+  `writeMidi`'s one-track-per-string export produces — those strings are kept.
+- *Fingering* (`TabFingering::assign`): notes in time order; notes starting
+  together are a chord. A single note goes to the string/fret with the lowest
+  cost: distance from the hand position (a running average of recent fretted
+  notes), +0.15 per fret (prefer the low end), +0.5 for an open string, +3 if
+  the string is still sounding. A chord is fingered lowest pitch first, each
+  note on a free string, with +2 per fret beyond a four-fret stretch. One
+  string, one note at a time. A pitch the instrument cannot reach is moved to
+  the nearest string's open note or highest fret and counted
+  (`notesClamped`), and the diagnostics say so.
+
+The diagnostics carry the note and bar counts and a warning that the
+fingering was guessed; the result renders as ASCII tab and plays through
+`Riff::fromScore` like any other score. Only part 0 of a multi-part file is
+read.
+
+### 8.2 Bridges for user-created content (§9)
+
+Everything the user creates already converts to a `PerformanceScore`:
+`Riff::toScore`, `PerformanceCapture::toScore` (the session take),
+`MidiPerformance::fromCapture(...).toScore` (the raw MIDI input) and
+`CompiledRiff::toScore`. `NotationExporter::write` then produces ASCII tab,
+MIDI, MusicXML or Guitar Pro from any of them.
+
+### 8.3 tab → MIDI (`NotationExporter::writeMidi`)
+
+One track per string, string/fret RPN ahead of the notes, CC 68 legato for
+hammer-ons and pull-offs, and pitch bend for everything pitched: bends,
+bend-releases, pre-bends and whammy (curve points), legato / shift / up /
+out slides (a five-point glide over the last quarter of the note, then back to
+centre), slide-ins (a glide over the first quarter) and vibrato (a sine at the
+technique's rate and depth, 8 points a cycle). The RPN range is two semitones,
+so wider glides are clamped. Palm mute, dead notes, harmonics, slap/pop and
+tap have no MIDI expression and are lost (the Luthier profile keeps them).
+
+## 9. Panel (`TabReaderTab`, Practice → TAB)
+
+One button row: **Open…** (tab, MusicXML or MIDI), **Live** (the session take,
+or the MIDI capture fingered, as a score), **Play**, the format box (ASCII tab,
+MusicXML, Guitar Pro, MIDI), **Export…**, the bar window and the status line.
+The status says exactly how much of a page was read (§7.5). `openTab`,
+`openLivePerformance`, `getStatusText` and `getScore` are the test surface
+(`TabPanel` suite).
 
 ## Sources
 

@@ -34,6 +34,7 @@ struct ScoreTechnique
         naturalHarmonic, pinchHarmonic, artificialHarmonic, tapHarmonic,
         tap, vibrato, trill, whammy, ghostNote, accent, staccato, letRing,
         pickStrokeUp, pickStrokeDown,   // auto-articulation.md 9 (FEAT-ASSIST)
+        slap, pop,                      // tab-import-export 7: bass slap (thumb) and pop, append-only
         numTypes
     };
 
