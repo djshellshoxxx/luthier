@@ -859,7 +859,6 @@ juce::var RhythmEngine::toVar() const
     root->setProperty ("voicingDensity", getVoicingDensity());
     root->setProperty ("handSpan", getHandSpan());   // SPEC-SWEEP RE-12
     root->setProperty ("handPosition", getHandPositionHint());
-    root->setProperty ("handSpanFrets", getHandSpanFrets());   // RE-12
 
     /*  No "capoFret" here any more. The capo is a parameter now (ParamIDs::capoFret),
         so it is saved with every other parameter in the same preset, and writing
@@ -900,7 +899,6 @@ void RhythmEngine::fromVar (const juce::var& state)
     setHandSpan (root->hasProperty ("handSpan") ? (int) root->getProperty ("handSpan") : 5);   // SPEC-SWEEP RE-12
     setHandPositionHint ((int) root->getProperty ("handPosition"));
     // RE-12: absent in older saves - keep the default of 5.
-    setHandSpanFrets ((int) (root->hasProperty ("handSpanFrets") ? root->getProperty ("handSpanFrets") : juce::var (5)));
 
     /*  A capo saved by a build that kept one here. It is applied so an old
         session does not silently lose it, and it is not written back: the

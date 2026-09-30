@@ -273,7 +273,6 @@ private:
     std::atomic<int> voicingStyle { (int) VoicingStyle::open };
     std::atomic<int> bassPattern { (int) RubricBassPattern::root };
     std::atomic<double> voicingDensity { 100.0 };
-    std::atomic<int> handSpanFrets { 5 };   // RE-12
     std::atomic<int> handPositionHint { 0 };
     std::atomic<int> handSpan { 5 };   // SPEC-SWEEP RE-12
     // No capoFret here any more: TuningEngine owns the one capo. See setCapoFret.
