@@ -229,3 +229,22 @@ of bdf9f1b (`/home/user/wt/int`) or on the pre-merge sweep tip:
 
 `EBow.theHarmonicChoiceTakesTheString` failed once in the long run. It passes
 when run alone, both here and on bdf9f1b.
+
+## W2 polish pass (installer, qa-polish, accessibility, performance-budget, spec)
+
+Closed or advanced: fretboard keyboard and screen-reader support (A11Y-8); overlay
+names and dialog role (they were announced as "Dialog"); font override and CJK face
+reach `Fonts::ui` (A11Y-40/42); the applied UI scale steps down to fit the screen
+(A11Y-29); all-pickups-off and corrected-tension banners (SP-111/114); five unlabelled
+controls found by the new screen-reader smoke test; macOS file associations, conclusion
+page; Linux absolute-Exec desktop entry, richer MIME file, standalone tarball, `.rpm`;
+Windows What's-new link and `/POLICY`; install-cycle, macOS-uninstall and perf-compare
+tests in CTest; `verify_release.sh`; rollback runbook in RELEASING.
+
+Full run (Combo included, `CodexRobustness` excluded - it aborts with heap corruption in
+the engine before and after this pass): 15 of 1622 failed, none in this pass's code.
+On the base commit the same GUI failures reproduce: `EasyLayout.ampKnobsHaveRoomAtCompactWindowSize`,
+`everyAutomatableParameterHasAVisibleControl` (macro_assign, scrape params), `CQ22`, `CQ10`,
+`irTrimControls...`, `rangeUsesEachMeasuresTimeSignature`. The DSP determinism/silent-preset
+failures are engine-side. `processBlockDoesNotAllocate` failed only in the long run and passes
+alone on both trees.
