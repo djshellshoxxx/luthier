@@ -3243,11 +3243,7 @@ int LuthierEngine::getLatencySamples() const noexcept
     latency += amp.getLatencySamples();
     latency += midi.getLatencySamples();
     latency += master.getLatencySamples();   // performance-budget.md 10.6: the limiter's lookahead
-
-    // SPEC-SWEEP: EN-95 - the master's look-ahead line runs whether the
-    // limiter is on or not, so the main output is always that much later; it
-    // was never reported, and hosts compensated 1.5 ms short.
-    latency += master.getLatencySamples();
+                                             // (SPEC-SWEEP EN-95 added the same term; merged to one)
 
     return latency;
 }
