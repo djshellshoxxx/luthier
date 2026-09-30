@@ -289,6 +289,17 @@ void LuthierEngine::reset() noexcept
         swapPhase = 1.0;
 
     resetRealismB();   // REALISM-B: contacts' display, borrowed damping, stagger, crosstalk
+
+    /*  cpu-quality-modes 2.4's per-string ring-out bookkeeping. Left behind, a
+        string released before the reset stayed "eligible to ring out" against
+        the old note's peak, so at Low its sympathetic ring after the reset was
+        faded to sleep where a fresh instance let it ring: the same session
+        rendered differently depending on what had been played before
+        (BETA_TEST_REPORT B-21, 0.057 apart after a mode switch). */
+    qualityNotePeak.fill (0.0);
+    qualityRingOutEligible.fill (false);
+    qualityLastExcite.fill (0);
+    qualitySilentSamples = 0;
 }
 
 void LuthierEngine::releaseResources()
