@@ -33,6 +33,10 @@ struct PresetInfo
 
     /** gui-techniques-updates.md 7 (TECHNIQUES): the techniques the preset arms, by their arm parameter id. */
     juce::StringArray armedTechniques;
+    // preset-browser-previews.md 5.6 (FEAT-BROWSER): filled in scanFolder.
+    juce::String uid;              ///< the file's uid, or "factory:<name>" for a factory preset
+    juce::String guitarName, family, ampName;
+    juce::Time modified;
 };
 
 //==============================================================================
@@ -241,6 +245,17 @@ public:
 
     bool deletePreset (int index);
 
+    // ==== BEGIN FEAT-BROWSER (preset-browser-previews.md 5.4) ====
+    /** The current preset's uid (written on the first save of a user preset)
+        and its author-chosen preview phrase. Both round-trip. */
+    juce::String getCurrentUid() const { return currentUid; }
+    juce::String getCurrentPreviewPhrase() const { return currentPreviewPhrase; }
+    void setCurrentPreviewPhrase (const juce::String& phraseId) { currentPreviewPhrase = phraseId; }
+
+    /** 2: called after saveAs / saveCurrent's atomic write, with the file. */
+    std::function<void (const juce::File&)> onPresetSaved;
+    // ==== END FEAT-BROWSER ====
+
     /** Import copies the file into the user folder; export writes it anywhere. */
     bool importPreset (const juce::File& source);
     bool exportPreset (const juce::File& destination);
@@ -386,6 +401,9 @@ private:
     ExtraState extra;
 
     bool extraStateValid = false;
+
+    juce::String currentUid, currentPreviewPhrase;   // FEAT-BROWSER (5.4)
+    std::unique_ptr<class PresetFeatureReader> featureReader;   // FEAT-BROWSER (5.6)
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PresetManager)
 };

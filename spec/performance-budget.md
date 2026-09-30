@@ -44,6 +44,7 @@ core.
 | MeterFIFO / display | 0.1 | Peak / RMS calc |
 | Feedback path (when active) | 0.3 | Per ambiguity-resolutions.md 1 |
 | Freeze layer (when active) | 0.2 | Captured-loop synth |
+| Preset preview mix (preset-browser-previews.md 11) | 0.02 | One additive mix of a prepared clip; no allocation or lock. Offline preview renders run on a low-priority worker and pause while a transport runs or CPU relief is on |
 | NoiseEngine::Squeak | 0.4 | 16 generators pool, per string-squeak.md 12 |
 | NoiseEngine::PickClick | 0.15 | Per-note transient synth |
 | NoiseEngine::PickChirp | 0.10 | Wound-string release chirp |

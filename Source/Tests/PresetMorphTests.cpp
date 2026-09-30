@@ -5,6 +5,7 @@
 #include "../PluginProcessor.h"
 #include "../Presets/FactoryPresets.h"
 #include "../UI/Overlays.h"
+#include "../Presets/PresetLibrary.h"   // FEAT-BROWSER
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -275,13 +276,31 @@ LUTHIER_TEST (PresetMorph, theBrowserMorphRowFillsTheSelectedSlot)
     panel.setSize (780, 560);
     panel.overlayShown();
 
+    processor->getPresetLibrary().refreshSynchronously();   // FEAT-BROWSER: the rows are index entries
+    panel.refilter();
+
+    // FEAT-BROWSER: the sidebar's chips ("Acoustic", "Bend"...) share the slot
+    // buttons' initials; the slots are the radio pair "A" / "B".
+    const auto slotButton = [&panel] (const juce::String& letter) -> juce::Button*
+    {
+        juce::Array<juce::Button*> buttons;
+        collectAll<juce::Button> (panel, buttons);
+
+        for (auto* button : buttons)
+            if (button->getRadioGroupId() != 0 && (button->getButtonText() == letter || button->getButtonText().startsWith (letter + ":")))
+                return button;
+
+        return nullptr;
+    };
+
     auto* toggle = buttonStartingWith (panel, "Morph");
-    auto* slotA = buttonStartingWith (panel, "A");
-    auto* slotB = buttonStartingWith (panel, "B");
+    auto* slotA = slotButton ("A");
+    auto* slotB = slotButton ("B");
     auto* load = buttonStartingWith (panel, "Load");
 
     juce::Array<juce::Slider*> sliders;
     collectAll<juce::Slider> (panel, sliders);
+    sliders.removeAllInstancesOf (&panel.getVolumeSlider());   // FEAT-BROWSER: the preview volume is not the morph
 
     CHECK (toggle != nullptr && slotA != nullptr && slotB != nullptr && load != nullptr);
     CHECK (sliders.size() == 1);

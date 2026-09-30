@@ -65,6 +65,9 @@ public:
         if (rangeSource == processor)
             rangeSource = nullptr;
     }
+    /** The processor currently lending its ranges (FEAT-BROWSER: a processor
+        clears it on destruction so the pointer never dangles). */
+    static const juce::AudioProcessor* getProcessorForRanges() noexcept { return rangeSource; }
 
 private:
     static const juce::AudioProcessor* rangeSource;

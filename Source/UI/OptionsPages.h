@@ -33,6 +33,8 @@
 #include "../Updates/Telemetry.h"
 #include "../Updates/UpdateDownloader.h"
 
+#include "PresetBrowser/PresetBrowserOptions.h"   // preset-browser-previews.md 8 (FEAT-BROWSER)
+
 namespace luthier
 {
 
@@ -177,6 +179,7 @@ private:
     juce::ToggleButton assistLabelsToggle { "Show Performance Assist labels" };
 public:
     juce::ToggleButton& getAssistLabelsToggle() noexcept { return assistLabelsToggle; }
+    PresetBrowserAppearanceGroup presetBrowserGroup { processor };   // preset-browser-previews 8
 };
 
 //==============================================================================
@@ -237,6 +240,8 @@ private:
 
     /** global-search.md 7 (FEAT-SEARCH): the "Search" group. */
     std::unique_ptr<juce::Component> searchGroup;
+public:
+    PresetBrowserKeysGroup presetBrowserKeys;   // preset-browser-previews 7.4
 };
 
 //==============================================================================
@@ -583,6 +588,9 @@ private:
     };
 
     FolderListModel folderModel { *this };
+
+public:
+    PresetCacheGroup previewCacheGroup { processor };   // preset-browser-previews 5.2
 };
 
 } // namespace luthier

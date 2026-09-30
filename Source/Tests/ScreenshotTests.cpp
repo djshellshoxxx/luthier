@@ -22,6 +22,7 @@
 #include "../Accessibility/Accessibility.h"
 #include "../UI/AdvancedPanel.h"
 #include "../UI/Overlays.h"
+#include "../Presets/PresetLibrary.h"   // FEAT-BROWSER
 #include "../UI/OptionsPages.h"
 #include "../UI/Theme.h"
 
@@ -178,11 +179,12 @@ namespace
                 if (! key.isValid() || ! editor->keyPressed (key) || ! host->isShowingOverlay())
                     continue;
 
-                // The preset browser's thumbnails render on a worker: let them land.
+                // FEAT-BROWSER: the browser's rows fill from the library index; parse it here.
                 if (auto* browser = dynamic_cast<PresetBrowserPanel*> (host->getCurrentOverlay()))
                 {
-                    render (*browser);   // painting the rows is what queues them
-                    browser->getThumbnails().waitUntilIdle (20000);
+                    processor.getPresetLibrary().refreshSynchronously();
+                    browser->refilter();
+                    render (*browser);
                 }
 
                 s.shoot (*editor, "easy_" + tag + "_overlay_" + action);

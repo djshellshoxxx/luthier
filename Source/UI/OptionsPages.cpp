@@ -1014,11 +1014,15 @@ AppearancePage::AppearancePage (LuthierAudioProcessor& p)
     styleNote (accentNote, Palette::textMuted);
     addAndMakeVisible (accentNote);
 
+    addAndMakeVisible (presetBrowserGroup);   // preset-browser-previews 8
+
     refresh();
 }
 
 void AppearancePage::refresh()
 {
+    presetBrowserGroup.refresh();
+
     const juce::ScopedValueSetter<bool> guard (updatingControls, true);
 
     auto& settings = AccessibilitySettings::get();
@@ -1156,12 +1160,18 @@ void AppearancePage::resized()
     dataStreamToggle.setBounds (bounds.removeFromTop (26).removeFromLeft (300));
     noiseStripToggle.setBounds (bounds.removeFromTop (26).removeFromLeft (300));
     vuToggle.setBounds (bounds.removeFromTop (26).removeFromLeft (300));
+
+    // preset-browser-previews 8: PRESET BROWSER below ACCENT AND LIVE DISPLAYS.
+    bounds.removeFromTop (8);
+    presetBrowserGroup.setBounds (bounds.removeFromTop (PresetBrowserAppearanceGroup::kHeight));
 }
 
 //==============================================================================
 AccessibilityPage::AccessibilityPage (LuthierAudioProcessor& p)
     : OptionsPage (p)
 {
+    addAndMakeVisible (presetBrowserKeys);   // preset-browser-previews 7.4
+
     setWantsKeyboardFocus (true);
 
     searchGroup = std::make_unique<search::SearchOptionsGroup>();   // FEAT-SEARCH
@@ -1432,6 +1442,11 @@ void AccessibilityPage::resized()
 
     bounds.removeFromTop (2);
     rebindHint.setBounds (bounds.removeFromBottom (18));
+
+    // preset-browser-previews 7.4: the browser's own group.
+    presetBrowserKeys.setBounds (bounds.removeFromBottom (PresetBrowserKeysGroup::kHeight));
+    bounds.removeFromBottom (4);
+
     shortcutList.setBounds (bounds);
 }
 
@@ -2648,6 +2663,7 @@ FileLocationsPage::FileLocationsPage (LuthierAudioProcessor& p)
                         juce::dontSendNotification);
 
     addAndMakeVisible (folderList);
+    addAndMakeVisible (previewCacheGroup);   // preset-browser-previews 5.2
     folderList.setModel (&folderModel);
     folderList.setRowHeight (22);
     folderList.setColour (juce::ListBox::backgroundColourId, Palette::panelSunken);
@@ -2700,6 +2716,7 @@ void FileLocationsPage::refresh()
         juce::dontSendNotification);
 
     folderList.updateContent();
+    previewCacheGroup.refresh();
 }
 
 void FileLocationsPage::paint (juce::Graphics& g)
@@ -2768,6 +2785,10 @@ void FileLocationsPage::resized()
     bounds.removeFromTop (Metrics::grid);
 
     formatNote.setBounds (bounds.removeFromBottom (64));
+    bounds.removeFromBottom (Metrics::gridHalf);
+
+    // preset-browser-previews 5.2: "Preview cache: Open / Clear".
+    previewCacheGroup.setBounds (bounds.removeFromBottom (PresetCacheGroup::kHeight));
     bounds.removeFromBottom (Metrics::gridHalf);
 
     folderList.setBounds (bounds);

@@ -616,6 +616,7 @@ the UI.
 |---|---|---|---|---|
 | CPU quality (High / Medium / Low / Auto; cpu-quality-modes) | QualityController, PerformanceSettings | Options -> AUDIO -> QUALITY | Footer `QualityBadge`; Adv Col 3 Master oversampling tooltip | "Cycle CPU quality" (unbound) |
 | Instrument load | Model::GuitarLibrary | Adv Col 1 GUITAR, Preset browser | Header preset | Ctrl+O |
+| Preset previews, tone search, favourites, ratings, Sounds like (preset-browser-previews.md) | Presets/Preview, Presets/Search, PresetLibrary | Preset browser overlay (Easy chip row / Advanced sidebar) | Options -> APPEARANCE -> PRESET BROWSER; Options -> FILE LOCATIONS preview cache; Options -> ACCESSIBILITY "Preset browser" keys | Ctrl+O, then Space / F / S / 0-5 |
 | Save As Guitar | Workshop | Workshop header | - | Ctrl+G |
 | Per-string tuning | TuningEngine | Adv Col 1 GUITAR | Easy: headstock click | - |
 | Capo (fret / partial) | TuningEngine | Adv Col 1 GUITAR, Workshop capo drag | - | - |

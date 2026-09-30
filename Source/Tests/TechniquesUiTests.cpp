@@ -9,6 +9,7 @@
 #include "../UI/AdvancedPanel.h"
 #include "../UI/EasyPanel.h"
 #include "../UI/Overlays.h"
+#include "../Presets/PresetLibrary.h"   // FEAT-BROWSER
 #include "../UI/UiPreferences.h"
 #include "../UI/FretboardComponent.h"
 #include "../UI/Techniques/TechniquesPanel.h"
@@ -566,28 +567,39 @@ LUTHIER_TEST (TechniquesUi, thePresetChipFilters)
 
     CHECK_MSG (arming >= 20, juce::String (arming) + " presets arm a technique");
 
+    // FEAT-BROWSER: the "Uses Techniques" filter lives in PresetSearch::Filters;
+    // the rows are index entries, each carrying the manager's PresetInfo.
     PresetBrowserPanel browser (*processor);
     browser.setSize (780, 560);
     browser.overlayShown();
+    processor->getPresetLibrary().refreshSynchronously();
+    browser.refilter();
 
-    const int all = browser.getNumVisiblePresets();
+    const auto& index = processor->getPresetLibrary().getIndex();
+    const auto visible = [&] { return (int) browser.getResults().size(); };
+    const auto armedOf = [&] (int row) -> const juce::StringArray& { return index[browser.getResults()[(size_t) row]].info.armedTechniques; };
 
-    browser.setTechniqueFilter (true, {});
-    CHECK (browser.getNumVisiblePresets() == arming);
-    CHECK (browser.getNumVisiblePresets() < all);
+    const int all = visible();
 
-    for (int row = 0; row < browser.getNumVisiblePresets(); ++row)
-        CHECK (! manager.getPreset (browser.getVisiblePresetIndex (row))->armedTechniques.isEmpty());
+    browser.getFilters().usesTechniques = true;
+    browser.refilter();
+    CHECK (visible() == arming);
+    CHECK (visible() < all);
 
-    browser.setTechniqueFilter (true, { ParamIDs::tapArmed });
-    const int tapping = browser.getNumVisiblePresets();
+    for (int row = 0; row < visible(); ++row)
+        CHECK (! armedOf (row).isEmpty());
+
+    browser.getFilters().techniques[PresetFeatures::tap] = true;
+    browser.refilter();
+    const int tapping = visible();
     CHECK (tapping > 0 && tapping < arming);
 
     for (int row = 0; row < tapping; ++row)
-        CHECK (manager.getPreset (browser.getVisiblePresetIndex (row))->armedTechniques.contains (ParamIDs::tapArmed));
+        CHECK (armedOf (row).contains (ParamIDs::tapArmed));
 
-    browser.setTechniqueFilter (false, {});
-    CHECK (browser.getNumVisiblePresets() == all);
+    browser.getFilters() = {};
+    browser.refilter();
+    CHECK (visible() == all);
 }
 
 /*  8: the onboarding tour's Techniques stop has anchors to point at. */

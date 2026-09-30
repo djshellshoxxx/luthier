@@ -5,6 +5,7 @@
 #include "Support/ErrorLog.h"
 #include "Model/Guitar/BassDefaults.h"   // MODEL-GAPS
 #include <set>
+#include "Presets/PresetLibrary.h"        // FEAT-BROWSER (preset-browser-previews.md)
 
 /*  The test runner and the offline renderer build this file, so that the things
     only the processor owns - the undo stack, uiState, A/B slots, snapshot recall,
@@ -64,7 +65,13 @@ LuthierAudioProcessor::LuthierAudioProcessor()
       midiLearn (apvts),
       snapshots (*this)
 {
-    FactoryPresets::setProcessorForRanges (this);
+    // preset-browser-previews 3.2 (FEAT-BROWSER): a render instance built on the
+    // preview worker leaves user-global state and the range source alone.
+    const bool offlineConstruction = ScopedOfflineRenderConstruction::flag();
+    offlineRenderInstance = offlineConstruction;
+
+    if (! offlineConstruction || FactoryPresets::getProcessorForRanges() == nullptr)
+        FactoryPresets::setProcessorForRanges (this);
 
     // installer.md 6: the user folder tree, config/plugin.json and the
     // .installed_version marker (first run / upgrade detection).
@@ -126,8 +133,11 @@ LuthierAudioProcessor::LuthierAudioProcessor()
         presetFileLoaded();   // SPEC-SWEEP: SM-46 - the layers a user-facing load clears (A/B compare)
         outputNormalization.notifyConfigurationChanged (true);
     };
-    presets.ensureFactoryPresetsInstalled();
-    presets.refresh();
+    if (! offlineConstruction)   // FEAT-BROWSER: a render instance loads presets by file
+    {
+        presets.ensureFactoryPresetsInstalled();
+        presets.refresh();
+    }
 
     bridge.cachePointers();
     bridge.setModMatrix (&modMatrix);
@@ -140,8 +150,11 @@ LuthierAudioProcessor::LuthierAudioProcessor()
     // practice-tools 12.1: the routine runner drives the processor's own tools,
     // the history is the saved one, and the saved defaults apply at start.
     practiceRunner.setTargets (getPracticeTargets());
-    practiceStats.load();
 
+    if (! offlineConstruction)   // FEAT-BROWSER
+        practiceStats.load();
+
+    if (! offlineConstruction)
     {
         PracticeDefaults defaults;
         juce::String error;
@@ -199,19 +212,22 @@ LuthierAudioProcessor::LuthierAudioProcessor()
 
     // accessibility 9 and updates-telemetry 6: both of these describe the person
     // rather than the sound, so they are user-global too.
-    AccessibilitySettings::get().load();
-    Localisation::get().setLocale (Localisation::get().getLocale());
+    if (! offlineConstruction)   // FEAT-BROWSER: the UI reads these singletons
+    {
+        AccessibilitySettings::get().load();
+        Localisation::get().setLocale (Localisation::get().getLocale());
 
-    telemetry.loadSettings();
-    telemetry.setTransport (createHttpsTransport());
-    license.load();
+        telemetry.loadSettings();
+        telemetry.setTransport (createHttpsTransport());
+        license.load();
 
-    // tone-match 5: the IR folder tree exists before the user goes looking for
-    // somewhere to put a file.
-    IrLibraryPaths::ensureExists();
+        // tone-match 5: the IR folder tree exists before the user goes looking for
+        // somewhere to put a file.
+        IrLibraryPaths::ensureExists();
 
-    // practice-tools 8: yesterday's unsaved session buffers go.
-    SessionRecorder::cleanUpOldTempFiles (SessionRecorder::getTempDirectory());
+        // practice-tools 8: yesterday's unsaved session buffers go.
+        SessionRecorder::cleanUpOldTempFiles (SessionRecorder::getTempDirectory());
+    }
 
     // guitar-workshop 0.6 / host-integration 3: the default guitar's parts are
     // the overlapping parameters' starting values. Written here, before a host
@@ -255,7 +271,8 @@ LuthierAudioProcessor::LuthierAudioProcessor()
 
     // 30 Hz is fast enough for the meters and the data stream, and slow enough
     // that it costs nothing.
-    startTimerHz (30);
+    if (! offlineConstruction)   // FEAT-BROWSER
+        startTimerHz (30);
 }
 
 LuthierAudioProcessor::~LuthierAudioProcessor()
@@ -327,6 +344,8 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     diagnostics.prepare (sampleRate);
 
     killSwitch.prepare (sampleRate);
+    previewPlayer.prepare (sampleRate);   // preset-browser-previews 4.1: a rate change drops the clips
+    previewHeldNotes = 0;
     monitorMix.prepare (sampleRate, samplesPerBlock);
     monitorBuffer.setSize (2, juce::jmax (1, samplesPerBlock), false, true, false);
     monitorBuffer.clear();
@@ -409,6 +428,7 @@ void LuthierAudioProcessor::releaseResources()
     midiOutRouter.reset();
     modMatrix.reset();
     killSwitch.reset();
+    previewPlayer.dropAll();   // preset-browser-previews 4.1
     monitorMix.reset();
 
     metronome.reset();
@@ -1440,6 +1460,19 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
 {
     const int numSamples = buffer.getNumSamples();
 
+    // preset-browser-previews 4.3: the live-activity half of the preview gate,
+    // read before anything consumes the host's MIDI.
+    bool previewLiveNoteOn = false;
+
+    for (const auto metadata : midiMessages)
+    {
+        const auto m = metadata.getMessage();
+
+        if (m.isNoteOn())                                   { ++previewHeldNotes; previewLiveNoteOn = true; }
+        else if (m.isNoteOff())                             previewHeldNotes = juce::jmax (0, previewHeldNotes - 1);
+        else if (m.isAllNotesOff() || m.isAllSoundOff())    previewHeldNotes = 0;
+    }
+
     // ---- routing, before anything reads or writes audio -----------------------
     routing.setActiveLayout (getNegotiatedLayout());
     routing.setSidechainPresent (hasSidechainInput());
@@ -2054,6 +2087,22 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
             mainOut.addFrom (channel, 0, clickBuffer, 0, 0, numSamples);
 
         haveClick = false;   // not on the monitor as well
+    }
+
+    // preset-browser-previews 4.2: the preview mixes into the main output after
+    // the practice block and the click, before the routing distributes - so the
+    // looper, recorder, capture, aux buses and MIDI out never contain it.
+    {
+        bool previewHostPlaying = false;
+
+        if (auto* playHead = getPlayHead())
+            if (auto position = playHead->getPosition())
+                previewHostPlaying = position->getIsPlaying();
+
+        auto mainOut = getBusBuffer (buffer, false, 0);
+        previewPlayer.publishGate (previewHostPlaying, isNonRealtime(), killSwitch.isActive(),
+                                   previewHeldNotes, previewLiveNoteOn);
+        previewPlayer.processBlock (mainOut, numSamples);
     }
 
     routing.distribute (*this, buffer, engine.getTapBuffers(), engine.getNumStrings(),
@@ -2771,6 +2820,7 @@ bool LuthierAudioProcessor::applyCurrentSetlistEntry (bool asUndoStep)
 //==============================================================================
 void LuthierAudioProcessor::panic()
 {
+    previewPlayer.panic();   // preset-browser-previews 4.1
     stopAudition();
 
     // SPEC-SWEEP (UW-5): the engine is the audio thread's; the release happens
@@ -3019,6 +3069,9 @@ juce::MemoryBlock LuthierAudioProcessor::captureStateBlock()
 
 std::unique_ptr<juce::AudioProcessor> LuthierAudioProcessor::createOfflineInstance()
 {
+    // FEAT-BROWSER: built as a render instance, which also skips the user-global
+    // loads and factory writes review R-213 left open, and never starts the timer.
+    const ScopedOfflineRenderConstruction scope;
     auto instance = std::make_unique<LuthierAudioProcessor>();
 
     /*  The exporter builds, renders and destroys this instance on its own
@@ -3030,6 +3083,31 @@ std::unique_ptr<juce::AudioProcessor> LuthierAudioProcessor::createOfflineInstan
     instance->stopTimer();
     return instance;
 }
+
+// ==== BEGIN FEAT-BROWSER (preset-browser-previews.md) ====
+void LuthierAudioProcessor::setOfflineRenderMode()
+{
+    // 3.2: a render instance runs no message-thread work under the render and
+    // never builds a preset library of its own.
+    stopTimer();
+    offlineRenderInstance = true;
+}
+
+PresetLibrary& LuthierAudioProcessor::getPresetLibrary()
+{
+    jassert (! offlineRenderInstance);
+
+    if (presetLibrary == nullptr)
+        presetLibrary = std::make_unique<PresetLibrary> (*this);
+
+    return *presetLibrary;
+}
+
+bool LuthierAudioProcessor::isTuneTransportRunning() const noexcept
+{
+    return tunePlayer.isPlaying();
+}
+// ==== END FEAT-BROWSER ====
 
 //==============================================================================
 void LuthierAudioProcessor::storeToSlot (bool useSlotB)
@@ -3933,6 +4011,12 @@ void LuthierAudioProcessor::serviceExpressionCalibration()
 
 void LuthierAudioProcessor::timerCallback()
 {
+    // preset-browser-previews 4.1 / 3.3: free finished clips, pause background renders.
+    if (presetLibrary != nullptr)
+        presetLibrary->tick();
+    else
+        previewClipPool.collectGarbage (previewPlayer);
+
     // ambiguity-resolutions 5.2: the morph follows its (automatable) slider.
     updatePresetMorph();
 

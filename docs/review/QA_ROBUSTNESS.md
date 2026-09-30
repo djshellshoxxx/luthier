@@ -6,34 +6,7 @@ coordinator to schedule a fix for, not something this suite fixed itself.
 
 ## Summary
 
-17 finding(s) across the runs below.
-
-## Fuzz.everyFactoryPresetAcrossExtremeBuffersAndSampleRates
-
-36 (preset, sample rate, block size) cases run across 36 factory presets, block sizes >= 16 only; 0 findings.
-
-None. Every case ran clean (finite output, bounded level, clean state
-round-trip) for the seeds and presets this run covered.
-
-## Fuzz.presetLoadAtTrulyExtremeBufferSizes
-
-36 (preset, sample rate, safe block size >= 16) switch-while-running cases run across 36 factory presets, plus the permanent critical finding below for block sizes <= 4.
-
-- **CRITICAL: heap corruption** — repro: `prepareToPlay(sr, bs) with bs <= 4, with any preset/config whose cabinet or body differs from the compiled-in default (e.g. "Clean Double-Cut Funk" @ 8000 Hz, block 3 or 4) - order of preset-load vs. prepare does not matter` — process aborts (glibc "corrupted size vs. prev_size" / "munmap_chunk(): invalid pointer" / "free(): invalid pointer", varies between runs) from heap corruption; sometimes only detected thousands of render blocks later. Bisected clean at buffer size 5 and up (soak-tested to 20000 blocks at size 5) - see the comment above this test for the full empirical writeup, what was ruled out, and why a byte-precise root cause needs ASan/valgrind this session could not finish
-
-## Fuzz.randomParameterAndMidiCombosWithReproSeeds
-
-64 random parameter/MIDI seeds run across extreme buffer sizes and sample rates (parameters randomised before the extreme-config prepare); 0 findings.
-
-None. Every case ran clean (finite output, bounded level, clean state
-round-trip) for the seeds and presets this run covered.
-
-## Fuzz.everyFactoryPresetHostStateRoundTrips
-
-36 factory presets round-tripped through getStateInformation/setStateInformation; 0 findings.
-
-None. Every case ran clean (finite output, bounded level, clean state
-round-trip) for the seeds and presets this run covered.
+16 finding(s) across the runs below.
 
 ## Fuzz.randomParameterStatesHostStateRoundTripAtExtremeConfigs
 
