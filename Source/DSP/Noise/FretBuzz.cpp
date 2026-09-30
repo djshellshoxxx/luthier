@@ -119,6 +119,26 @@ double FretBuzz::displacementMm (double level, double u, double pluckPosition) n
     return FretBuzz::kMmPerLevelUnit * juce::jmax (0.0, level) * sum / juce::jmax (1.0e-9, norm);
 }
 
+double FretBuzz::clearanceFor (int stringIndex, double frettedAt, int fret) const noexcept
+{
+    const double base = geometry.clearanceMm (stringIndex, frettedAt, fret);
+
+    if (base > 1.0e8 || ! juce::isPositiveAndBelow (stringIndex, SetupGeometry::kMaxStrings))
+        return base;
+
+    /*  SPEC-SWEEP FB-26: about 0.15 mm of lift per bent semitone at the frets
+        next to the finger, falling through zero three frets up and turning
+        into up to the same amount closer beyond. */
+    const double semitones = juce::jlimit (0.0, 4.0, std::abs (bendCents[(size_t) stringIndex]) / 100.0);
+
+    if (semitones <= 0.0)
+        return base;
+
+    const double lift = 0.15 * semitones;
+    const double distance = (double) fret - frettedAt;
+    return base + lift * juce::jlimit (-1.0, 1.0, 1.0 - 2.0 * (distance - 0.5) / 5.0);
+}
+
 FretBuzz::Contact FretBuzz::sense (int stringIndex, double frettedAt, double level, double pluckPosition) const noexcept
 {
     Contact worst;
@@ -132,7 +152,7 @@ FretBuzz::Contact FretBuzz::sense (int stringIndex, double frettedAt, double lev
 
     for (int fret = (int) std::floor (frettedAt) + 1; fret <= geometry.numFrets; ++fret)
     {
-        const double clearance = geometry.clearanceMm (stringIndex, frettedAt, fret);
+        const double clearance = clearanceFor (stringIndex, frettedAt, fret);   // SPEC-SWEEP FB-26
 
         if (clearance > 1.0e8)
             continue;
@@ -183,7 +203,7 @@ void FretBuzz::process (NoiseEngine& pool, const double* levels, const double* f
 
             for (int fret = 1; fret <= SetupGeometry::kMaxFrets; ++fret)
             {
-                const double clearance = geometry.clearanceMm (s, fretted[s], fret);
+                const double clearance = clearanceFor (s, fretted[s], fret);   // SPEC-SWEEP FB-26
                 float value = -10.0f;
 
                 if (clearance < 1.0e8 && fret <= geometry.numFrets)

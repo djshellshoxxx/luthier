@@ -433,6 +433,19 @@ MatchWizard::MatchWizard (LuthierAudioProcessor& p, Kind k)
         };
         addAndMakeVisible (referenceButton);
 
+        // SPEC-SWEEP TM-28 (tone-match 3): where the fitted filter goes.
+        positionBox.addItem ("Pre-amp", 1);
+        positionBox.addItem ("Post-amp", 2);
+        positionBox.addItem ("Post-master", 3);
+        positionBox.setSelectedId ((int) processor.getEqMatchPosition() + 1, juce::dontSendNotification);
+        positionBox.setTitle ("EQ match position");
+        positionBox.setTooltip ("Where the matched EQ sits: into the amp, after the amp, or at the very end.");
+        positionBox.onChange = [this]
+        {
+            processor.setEqMatchPosition ((LuthierAudioProcessor::EqMatchPosition) juce::jlimit (0, 2, positionBox.getSelectedId() - 1));
+        };
+        addAndMakeVisible (positionBox);
+
         // SPEC-SWEEP TM-25 (tone-match 3): the band to correct over.
         styleSlider (lowBand, 20.0, 2000.0, 1.0, " Hz");
         lowBand.setSkewFactorFromMidPoint (200.0);
@@ -499,7 +512,7 @@ juce::String MatchWizard::getStepText() const
                                 + juce::String (EqMatch::getDescription());
                 case 1:  return "Step 1 of 2: play or drop in the reference passage.";
                 case 2:  return "Step 2 of 2: play the same passage through Luthier.";
-                case 3:  return "Done. The correction filter has been fitted.";
+                case 3:  return "Done. The correction filter has been fitted and is in the chain at the chosen position.";
                 default: return {};
             }
 
@@ -702,8 +715,8 @@ void MatchWizard::advance()
 
                     if (! filter.isEmpty())
                     {
-                        // The fitted filter is an IR like any other, so it goes into
-                        // the second cabinet slot rather than into a special path.
+                        // The fitted filter is an IR like any other; it goes into the
+                        // EQ-match stage at the chosen position (SPEC-SWEEP TM-28).
                         file = IrLibraryPaths::getSpecial()
                                  .getChildFile ("EQ Match " + juce::Time::getCurrentTime().formatted ("%Y%m%d-%H%M")
                                                   + ".wav");
@@ -842,8 +855,11 @@ void MatchWizard::finishAnalysis (const juce::File& file, const juce::String& te
     if (fitted && file.existsAsFile())
     {
         processor.pushUndoState ("Load IR " + file.getFileNameWithoutExtension());   // action-and-undo.md
-        processor.getCabIrSlot (slotIndex).load (file);
-        processor.getCabIrSlot (slotIndex).setEngaged (true);
+
+        // SPEC-SWEEP TM-28: an EQ match goes into its own stage, not a cabinet slot.
+        auto& slot = kind == Kind::eqMatch ? processor.getEqMatchSlot() : processor.getCabIrSlot (slotIndex);
+        slot.load (file);
+        slot.setEngaged (true);
 
         if (kind == Kind::cabMatch)
         {
@@ -941,8 +957,10 @@ void MatchWizard::resized()
         row.removeFromRight (4);
         aggressiveness.setBounds (row);
 
-        // SPEC-SWEEP TM-25.
+        // SPEC-SWEEP TM-25, TM-28.
         auto band = bounds.removeFromBottom (24).reduced (0, 1);
+        positionBox.setBounds (band.removeFromLeft (110));
+        band.removeFromLeft (4);
         lowBand.setBounds (band.removeFromLeft (band.getWidth() / 2 - 2));
         band.removeFromLeft (4);
         highBand.setBounds (band);

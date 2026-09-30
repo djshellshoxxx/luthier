@@ -16,20 +16,20 @@ The setup geometry and sensed buzz are in and well tested: `SetupGeometry::clear
 | FB-10 (§4) | Level min(1, excess/0.3) scaled by fret height | `FretBuzz::levelFor` | SETUP `fretHeight` | `Buzz.fretHeightChangesLevelNotPosition` | DONE |
 | FB-11 (§4) | Envelope 0.5 ms attack, decay tracks excess (buzzes on attack, cleans up) | `process` (setSustainLevel / release) | n/a | `Buzz.buzzStopsAsTheNoteDecays` | DONE |
 | FB-12 (§4) | Injection pre-body, also Aux 8 | `NoiseEngine::processSample` surface path | n/a | `PluginBuses.aux8CarriesThePlayingNoiseAndObeysItsStrip` | DONE |
-| FB-13 (§0.4) | Light buzz 30-40 dB under the note — no level-vs-note test | `levelFor` (-22 dB ref x excess/0.3) | n/a | - | NO-TEST |
+| FB-13 (§0.4) | Light buzz 30-40 dB under the note — no level-vs-note test | `levelFor` (-22 dB ref x excess/0.3) | n/a | `Buzz.lightBuzzSitsThirtyToFortyDecibelsUnder` (level law) | DONE |
 | FB-14 (§0.5, 5) | Sitar mode: continuous grazing contact, threshold bypassed, long decay | `process` sitarMode branch (decay 400 ms) | SETUP `sitarMode` toggle | `Buzz.sitarModeIsContinuous` | DONE |
 | FB-15 (§6) | SETUP group on CHARACTER: action T/B, relief, nut x6, fret height, threshold, sitar, heatmap | `UI/SetupGroup.*` | CHARACTER > SETUP (`CharacterPanel::setupGroup`) | `BuzzUi.setupStylesApplyAsOneStepAndReadModified`, `GuiReach.everyAutomatableParameterHasAVisibleControl` | DONE |
 | FB-16 (§6.1) | Six setup styles, Player-friendly ship default, "(modified)" | `getSetupStyle`; `SetupGroup::applySetupStyle/describeSetupStyle` | SETUP style dropdown | `BuzzUi.setupStylesApplyAsOneStepAndReadModified`, `Buzz.playerFriendlyBuzzesOnlyWhenAttackedHard` | DONE |
 | FB-17 (§6.2) | Heatmap: warning near (within 0.05 mm), accent buzzing, dot glyph | `FretBuzz::getHeat/getBuzzingFret`; `BuzzHeatmap::stateFor/paint` | SETUP `heatmap` | `BuzzUi.heatmapCellsReadInMonochromeTerms`, `Buzz.theHeatmapAgreesWithTheGenerator` | DONE |
-| FB-18 (§6.2) | Heatmap updates at 30 Hz, greys after 2 s stale — implemented, untested | `BuzzHeatmap` (startTimerHz 30, isStale) | SETUP `heatmap` | - | NO-TEST |
+| FB-18 (§6.2) | Heatmap updates at 30 Hz, greys after 2 s stale — implemented, untested | `BuzzHeatmap` (startTimerHz 30, isStale) | SETUP `heatmap` | UiSweepTests (GD-13): `BuzzHeatmap::freshnessFor`, `isStale` | DONE |
 | FB-19 (§7) | Params with stock/advanced ranges in `buzz` family, +16 | `PhysicalRange.cpp` buzz rows | CHARACTER padlock | `Ranges.stockMatchesTheDeclaredRange`, `Ranges.everyPhysicalRangeIsValid` | DONE |
 | FB-20 (§7) | Legacy `fret_action` superseded by the geometry | `LuthierEngine::setSetupGeometry` (in-loop clipper from same setup) | hidden (GuiReach `intentionallyHidden`) | `GuiReach.everyAutomatableParameterHasAVisibleControl` | DONE |
 | FB-21 (§8) | Fret wear: worn fret lower (less buzz there), uneven crown raises neighbours — not implemented | `SetupGeometry::fretWearMm` filled in `LuthierEngine::setSetupGeometry` from `CharacterEngine` | n/a | `Buzz.fretWearMovesTheBuzz` | DONE |
 | FB-22 (§8) | Slide Mode suggests the Slide setup style | `SlideGroup` `useSlideSetup` + low-action warning | CHARACTER > SLIDE | `SlideUi.theSlideGroupAppearsWithSlideModeAndTheTabFitsIt` | DONE |
 | FB-23 (§8) | Bass defaults lower action (Factory low) | `Model/Guitar/BassDefaults.cpp` setupStyle 0 | n/a | `BassTechniques.bassDefaultsApplyOnLoad` | DONE |
 | FB-24 (§8) | Slap/pop drive the string into the frets (clack via buzz generator) | `SlapEngine::makeContactBuzz` with `fretBuzzModel` | n/a | `Slap.theClackIsTheFretBuzzGenerator`, `SlapWiring.theClackComesFromTheBuzzGenerator` | DONE |
-| FB-25 (§8) | Squeak and buzz both fire, no ducking — untested | separate pools | n/a | - | NO-TEST |
-| FB-26 (§8) | Bends lift the string: less buzz at the fretted position, more further up — not implemented (`process` gets `currentFret`, no bend input) | none | n/a | - | MISSING |
+| FB-25 (§8) | Squeak and buzz both fire, no ducking — untested | separate pools | n/a | `Buzz.squeakAndBuzzCoexist` | DONE |
+| FB-26 (§8) | Bends lift the string: less buzz at the fretted position, more further up — not implemented (`process` gets `currentFret`, no bend input) | `FretBuzz::setBendCents` / `clearanceFor` (lift near the finger, closer beyond), fed per block from the interpreter bend | n/a | `Buzz.aBendMovesTheBuzzUpTheNeck` | DONE |
 | FB-T1 (§9) | Test: low action buzzes, high does not | | n/a | `Buzz.lowActionBuzzesAndHighActionDoesNot` | DONE |
 | FB-T2 (§9) | Test: buzz stops as the note decays | | n/a | `Buzz.buzzStopsAsTheNoteDecays` | DONE |
 | FB-T3 (§9) | Test: only frets ahead of the finger | | n/a | `Buzz.onlyFretsAheadOfTheFingerBuzz` | DONE |

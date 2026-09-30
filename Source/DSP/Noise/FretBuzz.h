@@ -113,6 +113,18 @@ public:
 
     void reset() noexcept;
 
+    /*  SPEC-SWEEP FB-26 (fret-buzz.md 8): a bend pushes the string across the
+        frets and lifts it slightly: more clearance just past the finger, less
+        further up. Set each block from the string's bend. Audio thread. */
+    void setBendCents (int stringIndex, double cents) noexcept
+    {
+        if (juce::isPositiveAndBelow (stringIndex, SetupGeometry::kMaxStrings))
+            bendCents[(size_t) stringIndex] = cents;
+    }
+
+    /** The clearance with the bend's lift, mm. */
+    double clearanceFor (int stringIndex, double frettedAt, int fret) const noexcept;
+
     //==========================================================================
     /*  The heatmap's source (6.2): the last block's excess for each string at
         each fret, in mm. Written on the audio thread, read by the UI; each cell
@@ -127,6 +139,7 @@ public:
 
 private:
     SetupGeometry geometry;
+    std::array<double, SetupGeometry::kMaxStrings> bendCents {};   // SPEC-SWEEP FB-26
 
     std::array<int, SetupGeometry::kMaxStrings> generatorIndex {};
     std::array<std::atomic<int>, SetupGeometry::kMaxStrings> buzzingFret {};

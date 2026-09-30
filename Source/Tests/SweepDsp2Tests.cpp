@@ -11,9 +11,11 @@
 
 #include "../DSP/Noise/FretBuzz.h"
 #include "../DSP/Noise/PlayingNoise.h"
+#include "../DSP/Noise/ScrapeEngine.h"
 #include "../LuthierEngine.h"
 #include "../PluginProcessor.h"
 #include "../Practice/Metronome.h"
+#include "../Practice/Looper.h"
 #include "../DSP/Slide/SlideEngine.h"
 #include "../DSP/Effects/PedalsMod.h"
 #include "../DSP/Master/FreezeOverlay.h"
@@ -21,6 +23,9 @@
 #include "../Practice/TimePitchShifter.h"
 #include "../ToneMatch/ToneMatch.h"
 #include "../Export/MidiImportTargets.h"
+#include "../Capture/PerformanceCapture.h"
+#include "../Notation/NotationExport.h"
+#include "../Rhythm/ChordDetector.h"
 #include "../Practice/PracticeRoutineSetup.h"
 #include "../UI/PracticePanel.h"
 #include "../UI/ToneMatchPanel.h"
@@ -1787,4 +1792,1954 @@ LUTHIER_TEST (Buzz, theCentreRisesWithTheContactFret)
     CHECK (low.second >= 3000.0 && low.second <= 6000.0);
     CHECK (high.second >= 3000.0 && high.second <= 6000.0);
     CHECK_MSG (high.second > low.second, "the buzz centre did not rise with the contact fret");
+}
+
+//==============================================================================
+//  host-integration 4: the state envelope
+//==============================================================================
+namespace
+{
+    juce::var stateOf (LuthierAudioProcessor& processor)
+    {
+        juce::MemoryBlock block;
+        processor.getStateInformation (block);
+        return juce::JSON::parse (block.toString());
+    }
+
+    void setState (LuthierAudioProcessor& processor, const juce::var& state)
+    {
+        const auto json = juce::JSON::toString (state, true);
+        processor.setStateInformation (json.toRawUTF8(), (int) json.getNumBytesAsUTF8());
+    }
+}
+
+LUTHIER_TEST (HostState, theStateCarriesAFormatVersion)
+{
+    // HI-20 (host-integration 4).
+    LuthierAudioProcessor processor;
+    const auto state = stateOf (processor);
+    CHECK (state.getDynamicObject() != nullptr);
+    CHECK ((int) state["formatVersion"] == HostStateEnvelope::kFormatVersion);
+}
+
+LUTHIER_TEST (HostState, unknownSectionsSurviveWriteBack)
+{
+    // HI-24 (host-integration 4.1): a later build's blob loads, says so, and
+    // what this build does not know goes back out unchanged.
+    auto folder = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("luthier-state-envelope");
+    folder.deleteRecursively();
+
+    LuthierAudioProcessor processor;
+    processor.getStateEnvelope().setBackupFolder (folder);
+    processor.takeStateNotices();
+
+    auto state = stateOf (processor);
+    state.getDynamicObject()->setProperty ("formatVersion", HostStateEnvelope::kFormatVersion + 1);
+
+    auto* future = new juce::DynamicObject();
+    future->setProperty ("hologram", 42);
+    state.getDynamicObject()->setProperty ("futureSection", juce::var (future));
+
+    setState (processor, state);
+
+    const auto notices = processor.takeStateNotices();
+    CHECK_MSG (notices.joinIntoString (" ").contains ("newer version"), "no notice for a newer session");
+
+    const auto written = stateOf (processor);
+    CHECK ((int) written["futureSection"]["hologram"] == 42);
+    CHECK ((int) written["formatVersion"] == HostStateEnvelope::kFormatVersion);
+
+    // A newer blob is not backed up: nothing migrates it.
+    CHECK (folder.findChildFiles (juce::File::findFiles, false, "*.json").isEmpty());
+    folder.deleteRecursively();
+}
+
+LUTHIER_TEST (HostState, anOldBlobIsBackedUpBeforeMigration)
+{
+    // HI-25 (host-integration 4.2).
+    auto folder = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("luthier-state-backup");
+    folder.deleteRecursively();
+
+    LuthierAudioProcessor processor;
+    processor.getStateEnvelope().setBackupFolder (folder);
+
+    auto state = stateOf (processor);
+    state.getDynamicObject()->removeProperty ("formatVersion");   // as saved before HI-20
+    const auto json = juce::JSON::toString (state, true);
+    processor.setStateInformation (json.toRawUTF8(), (int) json.getNumBytesAsUTF8());
+
+    const auto backups = folder.findChildFiles (juce::File::findFiles, false, "state-backup-*.json");
+    CHECK (backups.size() == 1);
+
+    if (backups.size() == 1)
+        CHECK (backups[0].loadFileAsString() == json);
+
+    // A current blob is not.
+    const auto current = juce::JSON::toString (stateOf (processor), true);
+    processor.setStateInformation (current.toRawUTF8(), (int) current.getNumBytesAsUTF8());
+    CHECK (folder.findChildFiles (juce::File::findFiles, false, "state-backup-*.json").size() == 1);
+
+    // Only the last few are kept.
+    for (int i = 0; i < HostStateEnvelope::kMaxBackups + 3; ++i)
+        processor.setStateInformation (json.toRawUTF8(), (int) json.getNumBytesAsUTF8());
+
+    CHECK (folder.findChildFiles (juce::File::findFiles, false, "state-backup-*.json").size() == HostStateEnvelope::kMaxBackups);
+    folder.deleteRecursively();
+}
+
+//==============================================================================
+//  pick-noise
+//==============================================================================
+LUTHIER_TEST (PickNoise, decayWearAndPositionShapeTheClick)
+{
+    // PN-15 (pick-noise.md 3).
+    PickSettings base;
+    base.wear = 0.0;
+
+    const auto plain = PlayingNoise::makeClick (base, 0, 0.8);
+    CHECK (plain.decayMs >= 3.0 && plain.decayMs <= 15.0);
+    CHECK (plain.subResonanceLevel == 0.0);
+
+    auto sharp = base;
+    sharp.tipRadiusMm = 0.3;
+    CHECK (PlayingNoise::makeClick (sharp, 0, 0.8).decayMs < plain.decayMs);
+
+    auto damped = base;
+    damped.material = Excitation::Material::PickNylon;
+    auto stiff = base;
+    stiff.material = Excitation::Material::PickMetal;
+    CHECK (PlayingNoise::getPickMaterial (damped.material).damping > PlayingNoise::getPickMaterial (stiff.material).damping);
+    CHECK (PlayingNoise::makeClick (damped, 0, 0.8).decayMs < PlayingNoise::makeClick (stiff, 0, 0.8).decayMs);
+
+    auto worn = base;
+    worn.wear = 0.8;
+    const auto wornClick = PlayingNoise::makeClick (worn, 0, 0.8);
+    CHECK (wornClick.subResonanceLevel > 0.0);
+    CHECK (wornClick.decayMs > plain.decayMs);
+
+    auto nearBridge = base, nearNeck = base;
+    nearBridge.pluckPosition = 0.05;
+    nearNeck.pluckPosition = 0.4;
+    CHECK (PlayingNoise::makeClick (nearBridge, 0, 0.8).brightness > PlayingNoise::makeClick (nearNeck, 0, 0.8).brightness);
+}
+
+//==============================================================================
+//  string-scraping
+//==============================================================================
+LUTHIER_TEST (Scrape, aBendStretchesTheWindingSpacing)
+{
+    // SC-22 (string-scraping.md 5): a bent string is under more tension and
+    // its winding is stretched slightly apart - fewer catches over the same path.
+    auto catches = [] (double bendCents)
+    {
+        ScrapeEngine scrape;
+        scrape.prepare (48000.0, 256);
+        scrape.setNumStrings (6);
+        scrape.setScaleLengthMm (648.0);
+
+        StringNoiseInfo info;
+        info.wound = true;
+        info.windingPitchPerMm = 20.0;
+        info.windingDepth = 0.9;
+
+        for (int s = 0; s < 6; ++s)
+            scrape.setString (s, info, 82.41, 0.0, s == 5 ? bendCents : 0.0);
+
+        ScrapeGesture g;
+        g.stringIndex = 5;
+        g.startPositionMm = 100.0;
+        g.endPositionMm = 600.0;
+        g.durationMs = 500.0;
+        scrape.trigger (g);
+
+        for (int b = 0; b < 120; ++b)
+            scrape.processBlock (256);
+
+        return (double) scrape.getCatchCount (5);
+    };
+
+    const double flat = catches (0.0);
+    const double bent = catches (200.0);
+    const double r = std::pow (2.0, 200.0 / 1200.0);
+    const double factor = 1.0 / (1.0 + 0.003 * (r * r - 1.0));
+
+    CHECK (flat > 9000.0);
+    CHECK_MSG (bent < flat, "a bend did not spread the winding");
+    CHECK_NEAR (bent / flat, factor, 0.0005);
+}
+
+//==============================================================================
+//  strum-dynamics
+//==============================================================================
+LUTHIER_TEST (StrumDynamics, aPalmMuteKeepsPitchAndAChuckDoesNot)
+{
+    // SD-18 (strum-dynamics 6.1): a palm-muted note still has its pitch; a
+    // chuck is the hand flat on the strings and has none to speak of. Measured
+    // as the energy that is left at the note's fundamental after the attack.
+    auto render = [] (bool chuck)
+    {
+        LuthierEngine engine;
+        engine.prepare (48000.0, 256);
+        engine.setGuitarType (GuitarType::Dreadnought);
+
+        NoteOnEvent e;
+        e.stringIndex = 4;
+        e.fretPosition = 2.0;
+        e.velocity = 0.8;
+        e.pitchHz = engine.getTuningEngine().computeFrequency (4, 2.0);
+
+        if (chuck)
+            e.chuck = 1.0;
+        else
+            e.technique = Technique::PalmMute;
+
+        engine.getTechniqueEngine().setPalmMuteAmount (0.7);
+        engine.triggerNoteNow (e);
+
+        std::vector<float> out;
+        juce::AudioBuffer<float> buffer (2, 256);
+        juce::MidiBuffer midi;
+
+        for (int b = 0; b < 40; ++b)
+        {
+            buffer.clear();
+            engine.processBlock (buffer, midi);
+            out.insert (out.end(), buffer.getReadPointer (0), buffer.getReadPointer (0) + 256);
+        }
+
+        // Goertzel at the fundamental over 60-200 ms, relative to the whole.
+        const double hz = e.pitchHz;
+        const int from = 2880, to = 9600;
+        double s1 = 0.0, s2 = 0.0, energy = 1.0e-20;
+        const double coeff = 2.0 * std::cos (juce::MathConstants<double>::twoPi * hz / 48000.0);
+
+        for (int i = from; i < to; ++i)
+        {
+            const double s0 = out[(size_t) i] + coeff * s1 - s2;
+            s2 = s1;
+            s1 = s0;
+            energy += (double) out[(size_t) i] * out[(size_t) i];
+        }
+
+        const double power = s1 * s1 + s2 * s2 - coeff * s1 * s2;
+        return power / (energy * (to - from));
+    };
+
+    const double muted = render (false);
+    const double chucked = render (true);
+
+    CHECK_MSG (muted > 0.05, "a palm mute lost its pitch: " + juce::String (muted));
+    CHECK_MSG (chucked < muted * 0.5, "a chuck kept its pitch: " + juce::String (chucked) + " vs " + juce::String (muted));
+}
+
+//==============================================================================
+LUTHIER_TEST (Buzz, squeakAndBuzzCoexist)
+{
+    // SQ-25 / FB-25 (string-squeak.md 10, fret-buzz.md 8): a shift across a
+    // buzzing region produces both, with no ducking.
+    LuthierEngine engine;
+    engine.prepare (48000.0, 256);
+    engine.setGuitarType (GuitarType::Dreadnought);
+    engine.setSetupGeometry (needsATech());
+
+    SqueakSettings always;
+    always.probability = 1.0;
+    always.moisture = 0.0;
+    engine.setSqueak (always);
+
+    const int low = engine.getNumStrings() - 1;
+    juce::AudioBuffer<float> buffer (2, 256);
+    juce::MidiBuffer midi;
+
+    NoteOnEvent pluck;
+    pluck.stringIndex = low;
+    pluck.fretPosition = 1.0;
+    pluck.velocity = 1.0;
+    pluck.pitchHz = engine.getTuningEngine().computeFrequency (low, 1.0);
+    engine.triggerNoteNow (pluck);
+
+    for (int b = 0; b < 4; ++b)
+        engine.processBlock (buffer, midi);
+
+    NoteOnEvent slide = pluck;
+    slide.technique = Technique::Slide;
+    slide.slideFromFret = 1.0;
+    slide.fretPosition = 5.0;
+    slide.slideSeconds = 0.12;
+    slide.pitchHz = engine.getTuningEngine().computeFrequency (low, 5.0);
+    engine.triggerNoteNow (slide);
+
+    for (int b = 0; b < 8; ++b)
+        engine.processBlock (buffer, midi);
+
+    const auto& pool = engine.getPlayingNoise().getPool();
+    CHECK_MSG (pool.getTriggerCount (NoiseClass::squeak) >= 1, "the shift did not squeak");
+    CHECK_MSG (pool.getTriggerCount (NoiseClass::fretBuzz) >= 1, "the hard note on a bad setup did not buzz");
+}
+
+LUTHIER_TEST (Slide, aLowSetupBuzzesUnderTheBar)
+{
+    // SG-17 (slide-guitar.md 5 / fret-buzz.md 8): a bar note on "Needs a tech"
+    // still rattles on the frets underneath.
+    LuthierEngine engine;
+    engine.prepare (48000.0, 256);
+    engine.setGuitarType (GuitarType::Dreadnought);
+    engine.setSetupGeometry (needsATech());
+
+    SlideSettings settings;
+    settings.enabled = true;
+    settings.mode = SlideMode::lapSteel;
+    engine.setSlideSettings (settings);
+    engine.getMidiInterpreter().setPlayingMode (PlayingMode::Mono);
+
+    juce::AudioBuffer<float> buffer (2, 256);
+
+    for (int b = 0; b < 12; ++b)
+    {
+        juce::MidiBuffer midi;
+
+        if (b == 0)
+            midi.addEvent (juce::MidiMessage::noteOn (1, 45, (juce::uint8) 127), 0);
+
+        buffer.clear();
+        engine.processBlock (buffer, midi);
+    }
+
+    CHECK_MSG (engine.getPlayingNoise().getPool().getTriggerCount (NoiseClass::fretBuzz) >= 1,
+               "a hard bar note on a low setup did not buzz");
+}
+
+//==============================================================================
+namespace
+{
+    /** The slot's response to a unit impulse, 8192 samples, at 48 kHz. */
+    std::vector<float> slotImpulseResponse (IrSlot& slot)
+    {
+        std::vector<float> out;
+        juce::AudioBuffer<float> block (2, 512);
+
+        for (int b = 0; b < 16; ++b)
+        {
+            block.clear();
+
+            if (b == 0)
+                block.setSample (0, 0, 1.0f), block.setSample (1, 0, 1.0f);
+
+            slot.process (block.getArrayOfWritePointers(), 2, 512);
+            out.insert (out.end(), block.getReadPointer (0), block.getReadPointer (0) + 512);
+        }
+
+        return out;
+    }
+
+    /** Magnitude in dB per FFT bin (order 13). */
+    std::vector<double> magnitudeDb (const std::vector<float>& x)
+    {
+        juce::dsp::FFT fft (13);
+        std::vector<float> data (16384, 0.0f);
+        std::copy (x.begin(), x.begin() + juce::jmin ((size_t) 8192, x.size()), data.begin());
+        fft.performFrequencyOnlyForwardTransform (data.data());
+
+        std::vector<double> db (4097);
+
+        for (size_t i = 0; i < db.size(); ++i)
+            db[i] = 20.0 * std::log10 (juce::jmax (1.0e-12, (double) data[i]));
+
+        return db;
+    }
+}
+
+LUTHIER_TEST (ToneMatch, irsResampleWithinHalfADb)
+{
+    // TM-2 / TM-41 (tone-match 0.2): an impulse IR at any common rate, loaded
+    // into a 48 kHz slot, stays flat within 0.5 dB up to 0.9 x the lower Nyquist.
+    for (const double rate : { 44100.0, 48000.0, 88200.0, 96000.0, 192000.0 })
+    {
+        juce::WavAudioFormat wav;
+        const auto file = writeIr (wav, ".wav", 0.05, 1, rate, true);
+
+        IrSlot slot;
+        slot.prepare (48000.0, 512);
+        CHECK (slot.load (file));
+        slot.setEngaged (true);
+        slot.setMix (1.0);
+        juce::Thread::sleep (200);   // the convolution swaps its response in off the audio thread
+
+        {
+            juce::AudioBuffer<float> warm (2, 512);
+            warm.clear();
+            slot.process (warm.getArrayOfWritePointers(), 2, 512);
+        }
+
+        const auto db = magnitudeDb (slotImpulseResponse (slot));
+        const double binHz = 48000.0 / 8192.0;
+        const double top = 0.9 * juce::jmin (24000.0, rate * 0.5);
+        const double reference = db[(size_t) std::round (1000.0 / binHz)];
+        double worst = 0.0;
+
+        for (size_t i = (size_t) std::round (50.0 / binHz); i < (size_t) (top / binHz); ++i)
+            worst = juce::jmax (worst, std::abs (db[i] - reference));
+
+        CHECK_MSG (worst < 0.5, juce::String (rate) + " Hz IR deviates " + juce::String (worst, 2) + " dB");
+
+        slot.unload();
+        file.deleteFile();
+    }
+}
+
+LUTHIER_TEST (ToneMatch, sampleRateChangeReResamplesTheIr)
+{
+    // TM-45 (tone-match 0.2): the IR keeps its length in time at a new rate.
+    juce::WavAudioFormat wav;
+    const auto file = writeIr (wav, ".wav", 0.25);
+
+    IrSlot slot;
+    slot.prepare (48000.0, 512);
+    CHECK (slot.load (file));
+    const double ms = slot.getLengthMs();
+
+    slot.prepare (96000.0, 512);
+    CHECK_NEAR (slot.getLengthMs(), ms, 0.5);
+    CHECK (slot.isLoaded());
+
+    slot.setEngaged (true);
+    juce::AudioBuffer<float> block (2, 512);
+
+    for (int b = 0; b < 8; ++b)
+    {
+        for (int i = 0; i < 512; ++i)
+            block.setSample (0, i, (float) std::sin (0.02 * (b * 512 + i))), block.setSample (1, i, block.getSample (0, i));
+
+        slot.process (block.getArrayOfWritePointers(), 2, 512);
+
+        for (int i = 0; i < 512; ++i)
+            CHECK (std::isfinite (block.getSample (0, i)));
+    }
+
+    slot.unload();
+    file.deleteFile();
+}
+
+LUTHIER_TEST (ToneMatch, theLibraryTreeIsCreated)
+{
+    // TM-34 (tone-match 5).
+    IrLibraryPaths::ensureExists();
+
+    for (const auto& folder : { IrLibraryPaths::getRoot(), IrLibraryPaths::getBodies(), IrLibraryPaths::getBodiesAcoustic(),
+                                IrLibraryPaths::getBodiesElectric(), IrLibraryPaths::getCabinets(),
+                                IrLibraryPaths::getCabinetsUser(), IrLibraryPaths::getCabinetsMatch(),
+                                IrLibraryPaths::getRooms(), IrLibraryPaths::getSpecial() })
+        CHECK_MSG (folder.isDirectory(), folder.getFullPathName() + " was not created");
+}
+
+LUTHIER_TEST (ToneMatch, aSavedIrHasItsSidecar)
+{
+    // TM-21 (tone-match 2, 5): saveIr writes a readable WAV and a .json beside it.
+    ImpulseResponse ir;
+    ir.sampleRate = 48000.0;
+    ir.samples.assign (2400, 0.0f);
+    ir.samples[0] = 0.8f;
+    ir.samples[100] = -0.3f;
+
+    IrMetadata metadata;
+    metadata.name = "Sweep test";
+    metadata.type = "cabinet";
+    metadata.tags = { "cab-match" };
+
+    auto dir = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("luthier-saveir");
+    dir.deleteRecursively();
+    dir.createDirectory();
+    const auto file = dir.getChildFile ("Sweep test.wav");
+
+    CHECK (CabMatch::saveIr (ir, file, metadata));
+    CHECK (file.existsAsFile());
+    CHECK (file.withFileExtension ("json").existsAsFile());
+
+    const auto read = IrMetadata::forFile (file);
+    CHECK (read.name == "Sweep test");
+    CHECK (read.tags.contains ("cab-match"));
+
+    IrSlot slot;
+    slot.prepare (48000.0, 512);
+    CHECK (slot.load (file));
+    CHECK_NEAR (slot.getLengthMs(), 50.0, 1.0);
+
+    slot.unload();
+    dir.deleteRecursively();
+}
+
+//==============================================================================
+//  practice-tools: the tests the audit found missing
+//==============================================================================
+namespace
+{
+    juce::AudioBuffer<float> toneBuffer (double hz, int samples, float level = 0.3f)
+    {
+        juce::AudioBuffer<float> audio (2, samples);
+
+        for (int i = 0; i < samples; ++i)
+        {
+            const float v = level * (float) std::sin (juce::MathConstants<double>::twoPi * hz * i / 48000.0);
+            audio.setSample (0, i, v);
+            audio.setSample (1, i, v);
+        }
+
+        return audio;
+    }
+
+    juce::AudioBuffer<float> readWav (const juce::File& file)
+    {
+        juce::AudioFormatManager formats;
+        formats.registerBasicFormats();
+        std::unique_ptr<juce::AudioFormatReader> reader (formats.createReaderFor (file));
+
+        if (reader == nullptr)
+            return {};
+
+        juce::AudioBuffer<float> audio ((int) reader->numChannels, (int) reader->lengthInSamples);
+        reader->read (&audio, 0, audio.getNumSamples(), 0, true, true);
+        return audio;
+    }
+}
+
+LUTHIER_TEST (PracticeLooper, exportWritesAMixdownAndOneStemPerLayer)
+{
+    // PT-21 (practice-tools 2).
+    Looper looper;
+    looper.prepare (48000.0, 10.0);
+    CHECK (looper.loadLayerAudio (0, toneBuffer (220.0, 24000)));
+    CHECK (looper.loadLayerAudio (1, toneBuffer (330.0, 24000, 0.2f)));
+    CHECK (looper.loadLayerAudio (2, toneBuffer (440.0, 24000, 0.1f)));
+
+    auto dir = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("luthier-loop-export");
+    dir.deleteRecursively();
+    dir.createDirectory();
+
+    CHECK (looper.exportMixdown (dir.getChildFile ("mix.wav")));
+    CHECK (looper.exportStems (dir.getChildFile ("stems")));
+
+    const auto stems = dir.getChildFile ("stems").findChildFiles (juce::File::findFiles, false, "*.wav");
+    CHECK (stems.size() == 3);
+
+    const auto mix = readWav (dir.getChildFile ("mix.wav"));
+    CHECK (mix.getNumSamples() == 24000);
+
+    juce::AudioBuffer<float> sum (mix.getNumChannels(), mix.getNumSamples());
+    sum.clear();
+
+    for (const auto& stem : stems)
+    {
+        const auto audio = readWav (stem);
+
+        for (int c = 0; c < sum.getNumChannels(); ++c)
+            sum.addFrom (c, 0, audio, juce::jmin (c, audio.getNumChannels() - 1), 0, juce::jmin (sum.getNumSamples(), audio.getNumSamples()));
+    }
+
+    float worst = 0.0f;
+
+    for (int c = 0; c < sum.getNumChannels(); ++c)
+        for (int i = 0; i < sum.getNumSamples(); ++i)
+            worst = juce::jmax (worst, std::abs (sum.getSample (c, i) - mix.getSample (c, i)));
+
+    CHECK_MSG (worst < 1.0e-4f, "the mixdown is not the sum of its stems: " + juce::String (worst));
+    dir.deleteRecursively();
+}
+
+LUTHIER_TEST (PracticeLooper, aSavedLoopReloadsIdentically)
+{
+    // PT-22 (practice-tools 2).
+    Looper looper;
+    looper.prepare (48000.0, 10.0);
+    CHECK (looper.loadLayerAudio (0, toneBuffer (220.0, 24000)));
+    CHECK (looper.loadLayerAudio (1, toneBuffer (330.0, 24000, 0.2f)));
+    looper.getLayer (1).setPan (-0.4);
+    looper.getLayer (1).setLevelDb (-3.0);
+    looper.getLayer (1).setLowCutHz (150.0);
+    looper.getLayer (0).getMidi().addEvent (juce::MidiMessage::noteOn (1, 40, (juce::uint8) 90), 10.0);
+
+    auto file = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("luthier-loop-save").getChildFile ("take.luthierloop");
+    file.getParentDirectory().deleteRecursively();
+    file.getParentDirectory().createDirectory();
+    CHECK (looper.save (file));
+
+    Looper restored;
+    restored.prepare (48000.0, 10.0);
+    CHECK (restored.load (file));
+
+    CHECK (restored.getLoopLengthSamples() == looper.getLoopLengthSamples());
+    CHECK (restored.getNumRecordedLayers() == 2);
+    CHECK_NEAR (restored.getLayer (1).getPan(), -0.4, 1.0e-6);
+    CHECK_NEAR (restored.getLayer (1).getLevelDb(), -3.0, 1.0e-6);
+    CHECK_NEAR (restored.getLayer (1).getLowCutHz(), 150.0, 1.0e-6);
+    CHECK (restored.getLayer (0).getMidi().getNumEvents() == looper.getLayer (0).getMidi().getNumEvents());
+
+    float worst = 0.0f;
+
+    for (int i = 0; i < 24000; ++i)
+        worst = juce::jmax (worst, std::abs (restored.getLayer (0).readLeft()[i] - looper.getLayer (0).readLeft()[i]));
+
+    CHECK_MSG (worst < 1.0e-4f, "the reloaded audio differs by " + juce::String (worst));
+    file.getParentDirectory().deleteRecursively();
+}
+
+LUTHIER_TEST (PracticeSession, oldTempFilesAreCleanedAfterADay)
+{
+    // PT-48 (practice-tools 8).
+    auto dir = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("luthier-session-tmp");
+    dir.deleteRecursively();
+    dir.createDirectory();
+
+    const auto old = dir.getChildFile ("session-old.wav");
+    const auto fresh = dir.getChildFile ("session-new.wav");
+    old.replaceWithText ("x");
+    fresh.replaceWithText ("y");
+    old.setLastModificationTime (juce::Time::getCurrentTime() - juce::RelativeTime::hours (30));
+
+    SessionRecorder::cleanUpOldTempFiles (dir, 24.0);
+
+    CHECK (! old.existsAsFile());
+    CHECK (fresh.existsAsFile());
+    dir.deleteRecursively();
+}
+
+LUTHIER_TEST (PracticeTrack, levelAndMonoApply)
+{
+    // PT-25 (practice-tools 3): level in dB, and mono sums the sides.
+    auto file = juce::File::createTempFile (".wav");
+    {
+        juce::AudioBuffer<float> audio (2, 48000);
+
+        for (int i = 0; i < 48000; ++i)
+        {
+            audio.setSample (0, i, 0.5f * (float) std::sin (0.05 * i));
+            audio.setSample (1, i, 0.0f);   // hard left
+        }
+
+        juce::WavAudioFormat wav;
+        std::unique_ptr<juce::OutputStream> stream (file.createOutputStream().release());
+        std::unique_ptr<juce::AudioFormatWriter> writer (wav.createWriterFor (stream.get(), 48000.0, 2, 24, {}, 0));
+        stream.release();
+        writer->writeFromAudioSampleBuffer (audio, 0, 48000);
+    }
+
+    auto rmsAt = [&file] (double levelDb, bool mono)
+    {
+        BackingTrackPlayer player;
+        player.prepare (48000.0, 512);
+        player.load (file);
+        player.setLevelDb (levelDb);
+        player.setMonoSum (mono);
+        juce::Thread::sleep (300);
+        player.play();
+
+        juce::AudioBuffer<float> block (2, 512);
+        double l = 0.0, r = 0.0;
+
+        for (int b = 0; b < 20; ++b)
+        {
+            player.processBlock (block, 512);
+
+            if (b >= 4)
+                l += block.getRMSLevel (0, 0, 512), r += block.getRMSLevel (1, 0, 512);
+        }
+
+        player.unload();
+        return std::make_pair (l, r);
+    };
+
+    const auto loud = rmsAt (0.0, false);
+    const auto quiet = rmsAt (-12.0, false);
+    const auto mono = rmsAt (0.0, true);
+
+    CHECK_NEAR (20.0 * std::log10 (quiet.first / loud.first), -12.0, 0.2);
+    CHECK (loud.second < loud.first * 0.01);
+    CHECK_NEAR (mono.first, mono.second, mono.first * 0.01);
+    file.deleteFile();
+}
+
+LUTHIER_TEST (PracticeTrack, loopPointsSnapToZeroCrossingsAndWrap)
+{
+    // PT-27 (practice-tools 3).
+    juce::WavAudioFormat wav;
+    const auto file = writeSine (wav, ".wav", 100.0, 3.0);   // a rising crossing every 10 ms
+
+    BackingTrackPlayer player;
+    player.prepare (48000.0, 512);
+    CHECK (player.load (file));
+
+    player.setLoopSeconds (0.5033, 1.2071);
+    const double start = player.getLoopStartSeconds() * 48000.0;
+    const double end = player.getLoopEndSeconds() * 48000.0;
+
+    // Each end on a rising crossing: a multiple of 480 samples, within a sample.
+    CHECK_MSG (std::abs (start - 480.0 * std::round (start / 480.0)) <= 1.0, "start " + juce::String (start));
+    CHECK_MSG (std::abs (end - 480.0 * std::round (end / 480.0)) <= 1.0, "end " + juce::String (end));
+
+    // And the loop goes round: playing past the end comes back to the start.
+    player.setLoopEnabled (true);
+    player.setPositionSeconds (player.getLoopEndSeconds() - 0.05);
+    juce::Thread::sleep (300);
+    player.play();
+
+    juce::AudioBuffer<float> block (2, 512);
+
+    for (int b = 0; b < 20; ++b)
+        player.processBlock (block, 512);
+
+    CHECK (player.isPlaying());
+    CHECK (player.getPositionSeconds() < player.getLoopEndSeconds());
+    CHECK (player.getPositionSeconds() >= player.getLoopStartSeconds() - 0.01);
+
+    player.unload();
+    file.deleteFile();
+}
+
+LUTHIER_TEST (PracticeTrack, estimatesTheTempoOfAClickTrack)
+{
+    // PT-31 (practice-tools 3): a 100 bpm click.
+    auto file = juce::File::createTempFile (".wav");
+    {
+        const int n = 48000 * 12;
+        juce::AudioBuffer<float> audio (1, n);
+        audio.clear();
+
+        for (int beat = 0; beat * 28800 < n; ++beat)
+            for (int i = 0; i < 480 && beat * 28800 + i < n; ++i)
+                audio.setSample (0, beat * 28800 + i, 0.8f * (float) std::exp (-i / 80.0) * (float) std::sin (0.3 * i));
+
+        juce::WavAudioFormat wav;
+        std::unique_ptr<juce::OutputStream> stream (file.createOutputStream().release());
+        std::unique_ptr<juce::AudioFormatWriter> writer (wav.createWriterFor (stream.get(), 48000.0, 1, 24, {}, 0));
+        stream.release();
+        writer->writeFromAudioSampleBuffer (audio, 0, n);
+    }
+
+    BackingTrackPlayer player;
+    player.prepare (48000.0, 512);
+    CHECK (player.load (file));
+    CHECK_MSG (std::abs (player.getDetectedTempo() - 100.0) <= 1.0,
+               "detected " + juce::String (player.getDetectedTempo()) + " bpm");
+    player.unload();
+    file.deleteFile();
+}
+
+LUTHIER_TEST (ToneMatch, captureSavesThirtyTwoBitFloatWav)
+{
+    // TM-32 (tone-match 4).
+    Capture capture;
+    capture.prepare (48000.0, 2.0);
+    capture.start (0.5);
+
+    const auto audio = toneBuffer (440.0, 24000, 0.4f);
+    capture.processBlock (audio.getArrayOfReadPointers(), 2, 24000);
+    CHECK (capture.isComplete() || capture.getRecordedSamples() == 24000);
+
+    auto file = juce::File::createTempFile (".wav");
+    CHECK (capture.save (file));
+
+    juce::AudioFormatManager formats;
+    formats.registerBasicFormats();
+    std::unique_ptr<juce::AudioFormatReader> reader (formats.createReaderFor (file));
+    CHECK (reader != nullptr);
+
+    if (reader != nullptr)
+    {
+        CHECK (reader->bitsPerSample == 32);
+        CHECK (reader->usesFloatingPointData);
+
+        juce::AudioBuffer<float> back (2, 24000);
+        reader->read (&back, 0, 24000, 0, true, true);
+
+        float worst = 0.0f;
+
+        for (int i = 0; i < 24000; ++i)
+            worst = juce::jmax (worst, std::abs (back.getSample (0, i) - audio.getSample (0, i)));
+
+        CHECK (worst == 0.0f);
+    }
+
+    reader.reset();
+    file.deleteFile();
+}
+
+LUTHIER_TEST (PracticeMetronome, subdivisionsClickAtTheirOwnLevel)
+{
+    // PT-8 (practice-tools 1): each subdivision lands on its grid, and the
+    // subdivision level moves only the off-beat clicks.
+    auto render = [] (ClickSubdivision sub, double subDb)
+    {
+        Metronome m;
+        m.prepare (48000.0, 512);
+        m.setTempo (120.0);   // a beat every 24000 samples
+        m.setSubdivision (sub);
+        m.setSubdivisionLevelDb (subDb);
+        m.setEnabled (true);
+
+        std::vector<float> out (48000 * 2, 0.0f);
+
+        for (int at = 0; at < (int) out.size(); at += 512)
+            m.processBlock (out.data() + at, juce::jmin (512, (int) out.size() - at));
+
+        return out;
+    };
+
+    auto peakNear = [] (const std::vector<float>& x, int at)
+    {
+        float peak = 0.0f;
+
+        for (int i = juce::jmax (0, at - 20); i < juce::jmin ((int) x.size(), at + 600); ++i)
+            peak = juce::jmax (peak, std::abs (x[(size_t) i]));
+
+        return peak;
+    };
+
+    const struct { ClickSubdivision sub; int spacing; } grids[] =
+    {
+        { ClickSubdivision::eighth, 12000 }, { ClickSubdivision::triplet, 8000 },
+        { ClickSubdivision::sixteenth, 6000 }, { ClickSubdivision::dottedEighth, 18000 }
+    };
+
+    for (const auto& g : grids)
+    {
+        const auto x = render (g.sub, -6.0);
+
+        // The first off-beat click is on its grid; midway before it, silence.
+        CHECK_MSG (peakNear (x, g.spacing) > 0.01f, juce::String (getClickSubdivisionName (g.sub)) + ": no click on its grid");
+        CHECK_MSG (peakNear (x, g.spacing / 2) < 1.0e-4f, juce::String (getClickSubdivisionName (g.sub)) + ": a click off its grid");
+    }
+
+    const auto loud = render (ClickSubdivision::eighth, -6.0);
+    const auto soft = render (ClickSubdivision::eighth, -18.0);
+
+    CHECK_NEAR (peakNear (loud, 24000), peakNear (soft, 24000), 1.0e-6);   // the beat is untouched
+    CHECK_NEAR (20.0 * std::log10 (peakNear (soft, 12000) / peakNear (loud, 12000)), -12.0, 0.5);
+}
+
+LUTHIER_TEST (HostState, programsEnumeratePresetsAndLoadByIndex)
+{
+    // HI-45 (host-integration 12).
+    LuthierAudioProcessor processor;
+    auto& presets = processor.getPresetManager();
+
+    CHECK (processor.getNumPrograms() == juce::jmax (1, presets.getNumPresets()));
+    CHECK (presets.getNumPresets() > 1);
+
+    for (int i = 0; i < juce::jmin (5, presets.getNumPresets()); ++i)
+        CHECK (processor.getProgramName (i) == presets.getPreset (i)->name);
+
+    processor.setCurrentProgram (1);
+    CHECK (processor.getCurrentProgram() == 1);
+    CHECK (presets.getCurrentPresetName() == processor.getProgramName (1));
+}
+
+LUTHIER_TEST (HostState, typicalStateIsSmall)
+{
+    // HI-22 / HI-38 (host-integration 4, 9.2): a session is well under 200 KB
+    // for every factory preset (guitar by reference), and under 500 KB always.
+    LuthierAudioProcessor processor;
+    auto& presets = processor.getPresetManager();
+    size_t largest = 0;
+    juce::String largestName;
+
+    for (int i = 0; i < presets.getNumPresets(); ++i)
+    {
+        if (! presets.loadPreset (i))
+            continue;
+
+        juce::MemoryBlock block;
+        processor.getStateInformation (block);
+
+        if (block.getSize() > largest)
+        {
+            largest = block.getSize();
+            largestName = presets.getCurrentPresetName();
+        }
+    }
+
+    CHECK_MSG (largest < 200 * 1024, "the largest state (" + largestName + ") is " + juce::String ((int) (largest / 1024)) + " KB");
+}
+
+LUTHIER_TEST (HostState, aSnapshotRecallAndPresetLoadNotifyTheHost)
+{
+    // HI-16 (host-integration 3.1): the host hears about every parameter a
+    // snapshot or a preset changes.
+    LuthierAudioProcessor processor;
+
+    struct Listener final : public juce::AudioProcessorParameter::Listener
+    {
+        std::set<int> changed;
+        void parameterValueChanged (int index, float) override { changed.insert (index); }
+        void parameterGestureChanged (int, bool) override {}
+    } listener;
+
+    auto& params = processor.getParameters();
+
+    for (auto* p : params)
+        p->addListener (&listener);
+
+    // A snapshot of a different state, recalled.
+    auto* gain = processor.getState().getParameter (ParamIDs::macroCharacter);
+    CHECK (gain != nullptr);
+
+    if (gain != nullptr)
+    {
+        processor.getSnapshots().setCrossfadeMs (0.0);   // applied inside the call
+        gain->setValueNotifyingHost (0.9f);
+        CHECK (processor.captureSnapshot (0, "A", 1));
+        gain->setValueNotifyingHost (0.1f);
+
+        listener.changed.clear();
+        CHECK (processor.recallSnapshot (0));
+        CHECK_MSG (listener.changed.count (gain->getParameterIndex()) == 1, "a snapshot recall did not notify the host");
+    }
+
+    // A preset load.
+    listener.changed.clear();
+    CHECK (processor.getPresetManager().loadPreset (1));
+    CHECK_MSG (! listener.changed.empty(), "a preset load did not notify the host of anything");
+
+    for (auto* p : params)
+        p->removeListener (&listener);
+}
+
+//==============================================================================
+//  bass-techniques
+//==============================================================================
+LUTHIER_TEST (BassTechniques, anImportedBassTechGhostsItsNote)
+{
+    // BT-12 (bass-techniques 10): a BASS_TECH ghost on a note plays it ghosted
+    // when the file is rendered (the looper import); a slap plays it slapped.
+    auto renderWith = [] (const char* tech)
+    {
+        MidiPerformance performance (48000.0);
+        performance.setTempo (120.0);
+        performance.addMessage (0, juce::MidiMessage::noteOn (1, 40, (juce::uint8) 100), 1);
+        performance.addMessage (24000, juce::MidiMessage::noteOff (1, 40), 1);
+
+        if (tech != nullptr)
+            performance.addEvent (LuthierEvent::make (LuthierEventClass::bassTech, 0, 1).set ("tech", tech));
+
+        return MidiImportTargets::render (performance, GuitarType::JazzBass, 48000.0, 1.0);
+    };
+
+    const auto plain = renderWith (nullptr);
+    const auto ghost = renderWith ("ghost");
+    const auto slap = renderWith ("slap");
+    const int n = juce::jmin (24000, plain.getNumSamples());
+
+    const float plainRms = plain.getRMSLevel (0, 0, n);
+    CHECK (plainRms > 0.0f);
+    CHECK_MSG (ghost.getRMSLevel (0, 0, n) < plainRms * 0.6f,
+               "a BASS_TECH ghost was not ghosted: " + juce::String (ghost.getRMSLevel (0, 0, n) / plainRms));
+
+    double difference = 0.0, energy = 0.0;
+
+    for (int i = 0; i < n; ++i)
+    {
+        const double d = slap.getSample (0, i) - plain.getSample (0, i);
+        difference += d * d;
+        energy += (double) plain.getSample (0, i) * plain.getSample (0, i);
+    }
+
+    CHECK_MSG (difference > energy * 0.05, "a BASS_TECH slap sounded like a plain note: " + juce::String (difference / energy));
+}
+
+//==============================================================================
+//  notation-export
+//==============================================================================
+LUTHIER_TEST (Notation, polyphonicMaterialGetsASecondVoice)
+{
+    // NE-10 (notation-export 2.1): a bass note held under a moving melody is
+    // a second voice, in the score, in MusicXML, and back again.
+    PerformanceScore score;
+    score.beginCapture (120.0, 4, 4);
+
+    score.noteStarted (5, 0, 40, 82.4, 0.8, 0.0);   // low E, the whole bar
+
+    const int melody[] = { 64, 67, 69, 67 };
+
+    for (int i = 0; i < 4; ++i)
+    {
+        score.noteStarted (0, melody[i] - 64, melody[i], 440.0, 0.8, (double) i);
+        score.noteEnded (0, i + 1.0);
+    }
+
+    score.noteEnded (5, 4.0);
+    score.endCapture (4.0);
+
+    const auto& measure = score.getTrack (0).measures[0];
+    CHECK_MSG (measure.voices.size() == 2, juce::String ((int) measure.voices.size()) + " voices, expected 2");
+
+    NotationExporter exporter;
+    const auto xml = exporter.renderMusicXml (score);
+    CHECK (xml.contains ("<backup>"));
+    CHECK (xml.contains ("<voice>2</voice>"));
+
+    NotationImporter importer;
+    PerformanceScore back;
+    CHECK (importer.readMusicXml (xml, back));
+    CHECK (back.getTotalNoteCount() == 5);
+
+    const auto notes = back.getTrack (0).measures[0].collectNotes();
+    bool haveBass = false;
+
+    for (const auto* n : notes)
+        haveBass = haveBass || n->midiNote == 40;
+
+    CHECK (haveBass);
+}
+
+LUTHIER_TEST (Notation, midiExportCarriesBendRangeBendsAndLegato)
+{
+    // NE-16 (notation-export 2.4): per-string tracks open with the pitch-bend
+    // range RPN, a bent note has pitch-wheel moves, and a hammer-on is
+    // bracketed by the legato pedal (CC 68).
+    PerformanceScore score;
+    score.beginCapture (120.0, 4, 4);
+
+    score.noteStarted (2, 5, 60, 261.6, 0.8, 0.0);
+    ScoreTechnique bend;
+    bend.type = ScoreTechnique::Type::bend;
+    bend.value = 1.0;
+    bend.curve = { { 0.0, 0.0 }, { 0.5, 1.0 }, { 1.0, 1.0 } };
+    score.addTechnique (2, bend);
+    score.noteEnded (2, 1.0);
+
+    score.noteStarted (1, 5, 64, 329.6, 0.8, 1.0);
+    score.noteEnded (1, 1.5);
+    score.noteStarted (1, 7, 66, 370.0, 0.8, 1.5);
+    score.addTechnique (1, { ScoreTechnique::Type::hammerOn });
+    score.noteEnded (1, 2.0);
+    score.endCapture (4.0);
+
+    const auto file = juce::File::createTempFile (".mid");
+    NotationExporter exporter;
+    CHECK_MSG (exporter.write (score, NotationFormat::midi, file), exporter.getLastError());
+
+    juce::MidiFile midi;
+    {
+        juce::FileInputStream stream (file);
+        CHECK (midi.readFrom (stream));
+    }
+
+    int rpnTracks = 0, noteTracks = 0, wheel = 0, legatoOn = 0, legatoOff = 0;
+
+    for (int t = 0; t < midi.getNumTracks(); ++t)
+    {
+        const auto* track = midi.getTrack (t);
+        bool notes = false, rpn101 = false, rpn100 = false, data6 = false;
+
+        for (int i = 0; i < track->getNumEvents(); ++i)
+        {
+            const auto& m = track->getEventPointer (i)->message;
+            notes = notes || m.isNoteOn();
+
+            if (m.isController() && m.getTimeStamp() <= 0.0)
+            {
+                rpn101 = rpn101 || (m.getControllerNumber() == 101 && m.getControllerValue() == 0);
+                rpn100 = rpn100 || (m.getControllerNumber() == 100 && m.getControllerValue() == 0);
+                data6 = data6 || m.getControllerNumber() == 6;
+            }
+
+            if (m.isPitchWheel() && m.getPitchWheelValue() != 8192)
+                ++wheel;
+
+            if (m.isController() && m.getControllerNumber() == 68)
+                (m.getControllerValue() >= 64 ? legatoOn : legatoOff)++;
+        }
+
+        noteTracks += notes ? 1 : 0;
+        rpnTracks += (notes && rpn101 && rpn100 && data6) ? 1 : 0;
+    }
+
+    CHECK (noteTracks >= 2);
+    CHECK_MSG (rpnTracks == noteTracks, "a string track does not set its bend range at tick 0");
+    CHECK_MSG (wheel > 0, "the bend has no pitch-wheel movement");
+    CHECK_MSG (legatoOn >= 1 && legatoOff >= 1, "the hammer-on is not bracketed by CC 68");
+    file.deleteFile();
+}
+
+LUTHIER_TEST (BassTechniques, aCapturedStrikeCarriesItsForceAndContact)
+{
+    // BT-24 (midi-export 9): BASS_TECH keeps the strike's force and fret contact.
+    LuthierEngine engine;
+    engine.prepare (48000.0, 256);
+    engine.setGuitarType (GuitarType::JazzBass);
+
+    PerformanceCapture capture;
+    capture.prepare (48000.0);
+    engine.setPerformanceCapture (&capture);
+
+    CaptureClock clock;
+    clock.sampleRate = 48000.0;
+    capture.beginBlock (clock);
+
+    auto note = [&engine] (int s, double fret, double velocity, int type)
+    {
+        NoteOnEvent e;
+        e.stringIndex = s;
+        e.fretPosition = fret;
+        e.velocity = velocity;
+        e.pitchHz = engine.getTuningEngine().computeFrequency (s, fret);
+        e.bassTechnique = type;
+        return e;
+    };
+
+    engine.triggerNoteNow (note (3, 5.0, 1.0, 1));
+    engine.triggerNoteNow (note (1, 7.0, 0.3, 1));
+
+    juce::AudioBuffer<float> buffer (2, 256);
+    juce::MidiBuffer midi;
+    engine.processBlock (buffer, midi);
+    engine.setPerformanceCapture (nullptr);
+    capture.drain();
+
+    std::vector<double> forces;
+
+    for (const auto& ev : capture.getEvents())
+    {
+        if (ev.event.eventClass != LuthierEventClass::bassTech)
+            continue;
+
+        CHECK (ev.event.has ("force"));
+        CHECK (ev.event.has ("contact"));
+        CHECK_NEAR (ev.event.getReal ("contact"), engine.getSlapEngine().getSettings().fretContact, 0.01);
+        forces.push_back (ev.event.getReal ("force"));
+    }
+
+    CHECK (forces.size() == 2);
+
+    if (forces.size() == 2)
+        CHECK_MSG (forces[0] > forces[1], "a harder slap was not captured with more force");
+}
+
+LUTHIER_TEST (SlapWiring, aStringUnderTheSlideBarIsNotSlapped)
+{
+    // SS-22 (string-slap-technique.md, technique-cascade 3.4): the bar holds
+    // the string, and the thumb cannot get at it - no clack there.
+    auto clacks = [] (bool slideOn)
+    {
+        LuthierEngine engine;
+        engine.prepare (48000.0, 256);
+        engine.setGuitarType (GuitarType::JazzBass);
+
+        SlideSettings settings;
+        settings.enabled = slideOn;
+        settings.mode = SlideMode::lapSteel;
+        engine.setSlideSettings (settings);
+
+        const int low = engine.getNumStrings() - 1;
+
+        if (slideOn)
+            engine.getSlideEngine().noteOn (low, engine.getNumStrings());
+
+        NoteOnEvent e;
+        e.stringIndex = low;
+        e.fretPosition = 3.0;
+        e.velocity = 1.0;
+        e.pitchHz = engine.getTuningEngine().computeFrequency (low, 3.0);
+        e.bassTechnique = 1;   // a thumb slap
+        e.technique = slideOn ? Technique::SlideGuitar : Technique::Pluck;
+        engine.triggerNoteNow (e);
+
+        return engine.getPlayingNoise().getPool().getTriggerCount (NoiseClass::fretBuzz);
+    };
+
+    CHECK_MSG (clacks (false) >= 1, "a thumb slap off the bar did not clack");
+    CHECK_MSG (clacks (true) == 0, "a string under the bar was slapped");
+}
+
+LUTHIER_TEST (StrumDynamics, upStrokesChirpMoreAndClickLess)
+{
+    // SD-5 (strum-dynamics 2.1): the same strike as part of a down-stroke and
+    // of an up-stroke - up has more chirp and less click.
+    auto levels = [] (int direction)
+    {
+        LuthierEngine engine;
+        engine.prepare (48000.0, 256);
+        engine.setGuitarType (GuitarType::Stratocaster);   // picked (an acoustic defaults to fingers)
+
+        NoteOnEvent e;
+        e.stringIndex = 5;   // wound, so it chirps
+        e.fretPosition = 0.0;
+        e.velocity = 0.8;
+        e.pitchHz = engine.getTuningEngine().computeFrequency (5, 0.0);
+        e.strumDirection = direction;
+        engine.triggerNoteNow (e);
+
+        auto& pool = engine.getPlayingNoise().getPool();
+        return std::make_pair (activeLevel (pool, NoiseClass::pickClick), activeLevel (pool, NoiseClass::pickChirp));
+    };
+
+    const auto down = levels (1);
+    const auto up = levels (-1);
+    const auto none = levels (0);
+
+    CHECK (down.first > 0.0 && up.second > 0.0);
+    CHECK_MSG (up.first < down.first, "the up-stroke clicked no less than the down-stroke");
+    CHECK_MSG (up.second > down.second, "the up-stroke chirped no more than the down-stroke");
+
+    // The stroke's angle is for that strike only: the next plain note is as before.
+    CHECK (none.first > up.first && none.first < down.first);
+}
+
+LUTHIER_TEST (Controllers, mpeTrafficIsDetected)
+{
+    // HI-37 (host-integration 9.1): notes on member channels 2 and 3 with
+    // per-channel bend, while MPE is off, raise the suggestion once.
+    LuthierEngine engine;
+    engine.prepare (48000.0, 256);
+    auto& midi = engine.getMidiInterpreter();
+    midi.setPlayingMode (PlayingMode::Poly);
+    midi.setMpeEnabled (false);
+
+    juce::AudioBuffer<float> buffer (2, 256);
+
+    auto play = [&] (std::initializer_list<juce::MidiMessage> messages)
+    {
+        juce::MidiBuffer in;
+
+        for (const auto& m : messages)
+            in.addEvent (m, 0);
+
+        buffer.clear();
+        engine.processBlock (buffer, in);
+    };
+
+    // An ordinary keyboard on channel 1 bending: not MPE.
+    play ({ juce::MidiMessage::noteOn (1, 60, (juce::uint8) 100), juce::MidiMessage::pitchWheel (1, 9000) });
+    CHECK (! midi.takeMpeTrafficDetected());
+
+    // One member channel alone: not yet.
+    play ({ juce::MidiMessage::noteOn (2, 64, (juce::uint8) 100), juce::MidiMessage::pitchWheel (2, 9000) });
+    CHECK (! midi.takeMpeTrafficDetected());
+
+    // Two member channels with notes, and a per-channel bend.
+    play ({ juce::MidiMessage::noteOn (3, 67, (juce::uint8) 100), juce::MidiMessage::pitchWheel (3, 7000) });
+    CHECK (midi.takeMpeTrafficDetected());
+    CHECK (! midi.takeMpeTrafficDetected());   // said once
+
+    // With MPE on, nothing to suggest.
+    midi.setMpeEnabled (true);
+    play ({ juce::MidiMessage::noteOn (4, 60, (juce::uint8) 100), juce::MidiMessage::controllerEvent (4, 74, 90) });
+    CHECK (! midi.takeMpeTrafficDetected());
+}
+
+LUTHIER_TEST (Slide, vibratoMovesTheBar)
+{
+    // SG-12 (slide-guitar.md 3.2): bar vibrato is a movement, so the same
+    // travel is more cents higher up the neck, and scales with the travel.
+    const double low = SlideEngine::vibratoCents (1.0, 3.0, 648.0);
+    const double high = SlideEngine::vibratoCents (1.0, 15.0, 648.0);
+
+    CHECK (SlideEngine::vibratoCents (0.0, 7.0, 648.0) == 0.0);
+    CHECK (high > low * 1.9);
+    CHECK_NEAR (SlideEngine::vibratoCents (2.0, 7.0, 648.0), 2.0 * SlideEngine::vibratoCents (1.0, 7.0, 648.0), 1.0e-9);
+
+    // 1 mm at the 12th fret of a 648 mm scale: 1200/ln2 x 1/324 cents.
+    CHECK_NEAR (SlideEngine::vibratoCents (1.0, 12.0, 648.0), 1200.0 / std::log (2.0) / 324.0, 1.0e-6);
+}
+
+LUTHIER_TEST (Slide, frictionFollowsMaterialAndSpeed)
+{
+    // SG-14 (slide-guitar.md 5.1): the bar's friction noise is amount x
+    // material friction x speed - silent at amount 0, louder on steel than
+    // glass, and louder for a fast move than a slow one.
+    auto noiseOf = [] (SlideMaterial material, double amount, double seconds)
+    {
+        auto render = [&] (double noise)
+        {
+            LuthierEngine engine;
+            engine.prepare (48000.0, 256);
+            engine.setGuitarType (GuitarType::Dreadnought);
+
+            SlideSettings settings;
+            settings.enabled = true;
+            settings.mode = SlideMode::lapSteel;
+            settings.noiseAmount = noise;
+            engine.setSlideSettings (settings);
+
+            SlideBar bar;
+            bar.material = material;
+            engine.getSlideEngine().setBar (bar);
+
+            NoteOnEvent first;
+            first.stringIndex = 5;
+            first.fretPosition = 3.0;
+            first.technique = Technique::SlideGuitar;
+            first.pitchHz = engine.getTuningEngine().computeFrequency (5, 3.0);
+            engine.triggerNoteNow (first);
+
+            NoteOnEvent move = first;
+            move.slideFromFret = 3.0;
+            move.fretPosition = 10.0;
+            move.slideSeconds = seconds;
+            move.pitchHz = engine.getTuningEngine().computeFrequency (5, 10.0);
+            engine.triggerNoteNow (move);
+
+            std::vector<float> out;
+            juce::AudioBuffer<float> buffer (2, 256);
+            juce::MidiBuffer midi;
+
+            for (int b = 0; b < 40; ++b)
+            {
+                buffer.clear();
+                engine.processBlock (buffer, midi);
+                out.insert (out.end(), buffer.getReadPointer (0), buffer.getReadPointer (0) + 256);
+            }
+
+            return out;
+        };
+
+        const auto with = render (amount);
+        const auto without = render (0.0);
+        double energy = 0.0;
+
+        for (size_t i = 0; i < with.size(); ++i)
+            energy += (double) (with[i] - without[i]) * (with[i] - without[i]);
+
+        return energy;
+    };
+
+    CHECK (noiseOf (SlideMaterial::glass, 0.0, 0.2) == 0.0);
+
+    const double glass = noiseOf (SlideMaterial::glass, 1.0, 0.2);
+    const double steel = noiseOf (SlideMaterial::steel, 1.0, 0.2);
+    const double slow = noiseOf (SlideMaterial::steel, 1.0, 0.4);
+
+    CHECK (glass > 0.0);
+    CHECK_MSG ((steel > glass) == (getSlideMaterial (SlideMaterial::steel).friction > getSlideMaterial (SlideMaterial::glass).friction),
+               "friction noise does not follow the material");
+    CHECK_MSG (steel > slow, "a fast move was no noisier than a slow one");
+}
+
+LUTHIER_TEST (Slide, aShortBarCoversFewerStrings)
+{
+    // SG-6 (slide-guitar.md 2): 40 mm at 10.5 mm spacing reaches 4 strings.
+    SlideEngine slide;
+    slide.prepare (48000.0);
+
+    SlideSettings settings;
+    settings.enabled = true;
+    settings.mode = SlideMode::bottleneck;
+    slide.setSettings (settings);
+
+    SlideBar bar;
+    bar.lengthMm = 40.0;
+    slide.setBar (bar);
+
+    CHECK (slide.noteOn (0, 6));
+    CHECK (slide.noteOn (3, 6));
+    CHECK_MSG (! slide.noteOn (5, 6), "a 40 mm bar reached six strings");
+
+    bar.lengthMm = 70.0;
+    slide.setBar (bar);
+    CHECK (slide.noteOn (5, 6));
+}
+
+LUTHIER_TEST (Slide, diameterShapesTheContact)
+{
+    // SG-6: a fatter bar absorbs less and clanks lower.
+    auto make = [] (double diameter)
+    {
+        auto slide = std::make_unique<SlideEngine>();
+        slide->prepare (48000.0);
+
+        SlideSettings settings;
+        settings.enabled = true;
+        settings.mode = SlideMode::lapSteel;
+        slide->setSettings (settings);
+
+        SlideBar bar;
+        bar.diameterMm = diameter;
+        slide->setBar (bar);
+        slide->noteOn (2, 6);
+        return slide;
+    };
+
+    const auto thin = make (15.0), fat = make (30.0);
+    CHECK (fat->sustainScale (2) > thin->sustainScale (2));
+    CHECK (fat->makeClank (2, 0.8).startHz < thin->makeClank (2, 0.8).startHz);
+}
+
+LUTHIER_TEST (NoisePool, clickIsExcitationAndTheRestAreSurface)
+{
+    // PN-6 (pick-noise.md 1): the click excites the string (so it rides the
+    // instrument); chirp and squeak are surface noise.
+    auto route = [] (const NoiseEvent& event)
+    {
+        NoiseEngine pool;
+        pool.prepare (48000.0);
+        pool.trigger (event);
+
+        std::array<double, 6> excitation {}, surface {};
+        double e = 0.0, s = 0.0;
+
+        for (int i = 0; i < 2000; ++i)
+        {
+            pool.processSample (excitation.data(), surface.data(), 6);
+            e += std::abs (excitation[(size_t) event.stringIndex]);
+            s += std::abs (surface[(size_t) event.stringIndex]);
+        }
+
+        return std::make_pair (e, s);
+    };
+
+    PickSettings pick;
+    const auto click = route (PlayingNoise::makeClick (pick, 2, 0.8));
+    CHECK (click.first > 0.0);
+    CHECK (click.second == 0.0);
+
+    StringNoiseInfo wound;
+    wound.wound = true;
+    wound.windingPitchPerMm = 6.5;
+    wound.windingDepth = 1.0;
+
+    const auto chirp = route (PlayingNoise::makeChirp (pick, wound, 2, 0.8));
+    CHECK (chirp.first == 0.0);
+    CHECK (chirp.second > 0.0);
+
+    SqueakSettings squeak;
+    const auto sq = route (PlayingNoise::makeSqueak (squeak, wound, 2, 120.0, 0.25, 5.0));
+    CHECK (sq.first == 0.0);
+    CHECK (sq.second > 0.0);
+}
+
+LUTHIER_TEST (PickNoise, noiseRidesTheInstrument)
+{
+    // PN-T5 (pick-noise.md 1, 9): the same click through two instruments comes
+    // out differently coloured; with every pick amount at 0 the noise path
+    // changes nothing, sample for sample.
+    auto render = [] (GuitarType type, double clickAmount, double chirpAmount)
+    {
+        LuthierEngine engine;
+        engine.prepare (48000.0, 256);
+        engine.setGuitarType (type);
+        engine.setUseFingers (false);
+
+        PickSettings pick;
+        pick.clickAmount = clickAmount;
+        pick.chirpAmount = chirpAmount;
+        pick.scrapeAmount = 0.0;
+        engine.setPickNoise (pick);
+
+        NoteOnEvent e;
+        e.stringIndex = 1;
+        e.velocity = 0.8;
+        e.pitchHz = engine.getTuningEngine().computeFrequency (1, 0.0);
+        engine.triggerNoteNow (e);
+
+        std::vector<float> out;
+        juce::AudioBuffer<float> buffer (2, 256);
+        juce::MidiBuffer midi;
+
+        for (int b = 0; b < 4; ++b)
+        {
+            buffer.clear();
+            engine.processBlock (buffer, midi);
+            out.insert (out.end(), buffer.getReadPointer (0), buffer.getReadPointer (0) + 256);
+        }
+
+        return out;
+    };
+
+    auto centroid = [] (const std::vector<float>& x)
+    {
+        // Spectral centroid of the first 10 ms by zero-crossing density: a
+        // crude proxy that is enough to tell two colourings apart.
+        int crossings = 0;
+
+        for (size_t i = 1; i < 480; ++i)
+            crossings += ((x[i - 1] <= 0.0f) != (x[i] <= 0.0f)) ? 1 : 0;
+
+        return (double) crossings;
+    };
+
+    auto clickOnly = [&] (GuitarType type)
+    {
+        const auto with = render (type, 1.0, 0.0);
+        const auto without = render (type, 0.0, 0.0);
+        std::vector<float> difference (with.size());
+
+        for (size_t i = 0; i < with.size(); ++i)
+            difference[i] = with[i] - without[i];
+
+        return difference;
+    };
+
+    const auto dread = clickOnly (GuitarType::Dreadnought);
+    const auto strat = clickOnly (GuitarType::Stratocaster);
+
+    double dreadEnergy = 0.0, stratEnergy = 0.0;
+
+    for (size_t i = 0; i < 480; ++i)
+        dreadEnergy += (double) dread[i] * dread[i], stratEnergy += (double) strat[i] * strat[i];
+
+    CHECK (dreadEnergy > 0.0 && stratEnergy > 0.0);
+    // Different instruments colour the click differently: their first 10 ms,
+    // each normalised, are far from the same waveform.
+    double cross = 0.0;
+
+    for (size_t i = 0; i < 480; ++i)
+        cross += (double) dread[i] * strat[i];
+
+    const double correlation = cross / std::sqrt (dreadEnergy * stratEnergy);
+    juce::ignoreUnused (centroid);
+    CHECK_MSG (correlation < 0.9, "the click sounds the same through a dreadnought and a Stratocaster (correlation "
+                                    + juce::String (correlation, 3) + ")");
+
+    // Zero is silent and free: two renders at all-zero are identical.
+    const auto a = render (GuitarType::Stratocaster, 0.0, 0.0);
+    const auto b = render (GuitarType::Stratocaster, 0.0, 0.0);
+    CHECK (a == b);
+}
+
+LUTHIER_TEST (Buzz, aBendMovesTheBuzzUpTheNeck)
+{
+    // FB-26 (fret-buzz.md 8): a bend lifts the string next to the finger and
+    // brings it closer further up.
+    FretBuzz buzz;
+    buzz.setGeometry (needsATech());
+
+    const int s = 2;
+    const double near0 = buzz.clearanceFor (s, 5.0, 6);
+    const double far0 = buzz.clearanceFor (s, 5.0, 12);
+
+    buzz.setBendCents (s, 200.0);
+    CHECK (buzz.clearanceFor (s, 5.0, 6) > near0 + 0.1);
+    CHECK (buzz.clearanceFor (s, 5.0, 12) < far0 - 0.1);
+
+    // Unbent strings are untouched.
+    CHECK_NEAR (buzz.clearanceFor (s + 1, 5.0, 6), buzz.getGeometry().clearanceMm (s + 1, 5.0, 6), 1.0e-12);
+}
+
+LUTHIER_TEST (Buzz, lightBuzzSitsThirtyToFortyDecibelsUnder)
+{
+    // FB-13 (fret-buzz.md 0.4): a light contact (0.05-0.1 mm of excess) buzzes
+    // 30-40 dB under the note; a hard one comes up to about 22 dB under.
+    FretBuzz buzz;
+    SetupGeometry g;
+    g.fretHeight = 1.0;
+    buzz.setGeometry (g);
+
+    for (const double excess : { 0.05, 0.075, 0.1 })
+    {
+        const double db = gainToDb (buzz.levelFor (excess) / PlayingNoise::kNoteReference);
+        CHECK_MSG (db <= -30.0 && db >= -40.0, juce::String (excess) + " mm buzzes at " + juce::String (db, 1) + " dB");
+    }
+
+    CHECK_NEAR (gainToDb (buzz.levelFor (0.3) / PlayingNoise::kNoteReference), -22.0, 0.01);
+    CHECK (buzz.levelFor (0.0) == 0.0);
+}
+
+LUTHIER_TEST (MidiExport, captureCarriesTheLiveNoiseEvents)
+{
+    // MX-1 (midi-export 6): what the live MIDI out sends as PICK (and SQUEAK,
+    // BUZZ, CLANK) is in the captured take, and survives a Luthier export.
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+
+    if (auto* type = processor.getState().getParameter (ParamIDs::guitarType))
+        type->setValueNotifyingHost (type->convertTo0to1 ((float) (int) GuitarType::Stratocaster));
+
+    juce::AudioBuffer<float> buffer (juce::jmax (2, processor.getTotalNumOutputChannels()), 512);
+
+    for (int b = 0; b < 20; ++b)
+    {
+        juce::MidiBuffer midi;
+
+        if (b == 4)
+            midi.addEvent (juce::MidiMessage::noteOn (1, 52, (juce::uint8) 110), 10);
+
+        buffer.clear();
+        processor.processBlock (buffer, midi);
+    }
+
+    processor.drainPerformanceCapture();
+    const auto take = processor.getPerformanceCapture().toPerformance (48000.0);
+    CHECK_MSG (take.countEvents (LuthierEventClass::pick) >= 1, "the take has no PICK event");
+
+    auto file = juce::File::createTempFile (".mid");
+    MidiExportOptions options;
+    options.profile = MidiProfile::luthier;
+    juce::String error;
+    CHECK_MSG (MidiProfiles::exportToFile (take, options, file, &error), error);
+
+    MidiPerformance back (48000.0);
+    CHECK (MidiProfiles::importFromFile (file, back, 48000.0).ok);
+    CHECK (back.countEvents (LuthierEventClass::pick) == take.countEvents (LuthierEventClass::pick));
+    file.deleteFile();
+}
+
+LUTHIER_TEST (Notation, chordExtractionOnAHundredProgressions)
+{
+    // NE-37 (notation-export 4): 100 four-chord progressions of common
+    // qualities, voiced as a guitarist would (root in the bass, the rest
+    // spread above), named right at least 95 % of the time.
+    struct Quality { const char* suffix; std::vector<int> intervals; };
+
+    const Quality qualities[] =
+    {
+        { "", { 0, 4, 7 } }, { "m", { 0, 3, 7 } }, { "7", { 0, 4, 7, 10 } }, { "maj7", { 0, 4, 7, 11 } },
+        { "m7", { 0, 3, 7, 10 } }, { "dim", { 0, 3, 6 } }, { "sus4", { 0, 5, 7 } }, { "sus2", { 0, 2, 7 } },
+        { "m7b5", { 0, 3, 6, 10 } }, { "aug", { 0, 4, 8 } }
+    };
+
+    ChordDetector detector;
+    detector.prepare (48000.0);
+    juce::Random random (0x37);
+    int right = 0, total = 0;
+    juce::StringArray wrong;
+
+    for (int progression = 0; progression < 100; ++progression)
+    {
+        for (int chord = 0; chord < 4; ++chord)
+        {
+            const int root = random.nextInt (12);
+            const auto& q = qualities[random.nextInt ((int) std::size (qualities))];
+
+            // Bass note in the low register, then the chord tones above it,
+            // one voicing in three doubling the root an octave up.
+            const int bass = 40 + ((root - 40 % 12) + 12) % 12;
+            std::vector<int> notes { bass };
+
+            for (size_t i = 1; i < q.intervals.size(); ++i)
+                notes.push_back (bass + 12 + q.intervals[i]);
+
+            if (random.nextInt (3) == 0)
+                notes.push_back (bass + 12);
+
+            const auto symbol = detector.detect (notes.data(), (int) notes.size());
+            const auto expected = juce::String (getPitchClassName (root)) + q.suffix;
+
+            ++total;
+
+            if (symbol.toString() == expected)
+                ++right;
+            else if (wrong.size() < 8)
+                wrong.add (expected + " read as " + symbol.toString());
+        }
+    }
+
+    CHECK_MSG (right >= total * 95 / 100,
+               juce::String (right) + " of " + juce::String (total) + " right: " + wrong.joinIntoString ("; "));
+}
+
+LUTHIER_TEST (Notation, guitarProCarriesDiagramsAndWhammy)
+{
+    // NE-12 / NE-13 (notation-export 2.2): one diagram per chord, from the
+    // voicing played; whammy as beat properties; the other note techniques.
+    PerformanceScore score;
+    score.beginCapture (120.0, 4, 4);
+
+    // An open C chord (x32010), then G (320003), then C again.
+    const int open[6] = { 64, 59, 55, 50, 45, 40 };
+    auto chord = [&] (const int* frets, double beat)
+    {
+        for (int s = 0; s < 6; ++s)
+            if (frets[s] >= 0)
+                score.noteStarted (s, frets[s], open[s] + frets[s], 440.0, 0.8, beat);
+
+        for (int s = 0; s < 6; ++s)
+            if (frets[s] >= 0)
+                score.noteEnded (s, beat + 1.0);
+    };
+
+    const int c[6] = { 0, 1, 0, 2, 3, -1 };
+    const int g[6] = { 3, 0, 0, 0, 2, 3 };
+    score.addChordSymbol (0.0, "C");
+    chord (c, 0.0);
+    score.addChordSymbol (1.0, "G");
+    chord (g, 1.0);
+    score.addChordSymbol (2.0, "C");
+    chord (c, 2.0);
+
+    score.noteStarted (0, 5, 69, 880.0, 0.8, 3.0);
+    ScoreTechnique whammy;
+    whammy.type = ScoreTechnique::Type::whammy;
+    whammy.curve = { { 0.0, 0.0 }, { 0.5, -1.0 }, { 1.0, 0.0 } };
+    score.addTechnique (0, whammy);
+    score.addTechnique (0, { ScoreTechnique::Type::letRing });
+    score.noteEnded (0, 4.0);
+    score.endCapture (4.0);
+
+    NotationExporter exporter;
+    NotationExportOptions options;
+    options.chordDiagrams = true;
+    const auto xml = exporter.renderGuitarProXml (score, options);
+
+    CHECK (xml.contains ("<Property name=\"DiagramCollection\">"));
+    CHECK (xml.contains ("name=\"C\"") && xml.contains ("name=\"G\""));
+
+    int items = 0;
+
+    for (int i = xml.indexOf ("<Item "); i >= 0; i = xml.indexOf (i + 1, "<Item "))
+        ++items;
+
+    CHECK_MSG (items == 2, juce::String (items) + " diagrams for two chords");
+
+    // The C diagram has the five strings it was played on; the G all six.
+    const auto cItem = xml.fromFirstOccurrenceOf ("name=\"C\"", false, false).upToFirstOccurrenceOf ("</Item>", false, false);
+    const auto gItem = xml.fromFirstOccurrenceOf ("name=\"G\"", false, false).upToFirstOccurrenceOf ("</Item>", false, false);
+    CHECK (juce::StringArray::fromTokens (cItem, "\n", "").size() > 0);
+    CHECK (cItem.contains ("<Fret string=\"1\" fret=\"3\"/>"));   // C on the A string (GPIF counts up from the low E)
+    CHECK (gItem.contains ("<Fret string=\"0\" fret=\"3\"/>"));
+
+    // Beats reference the diagrams; the second C reuses the first.
+    CHECK (xml.contains ("<Chord>0</Chord>") && xml.contains ("<Chord>1</Chord>"));
+
+    CHECK (xml.contains ("<Property name=\"WhammyBar\"><Enable/></Property>"));
+    CHECK (xml.contains ("WhammyBarMiddleValue\"><Float>-50.00</Float>"));
+    CHECK (! xml.contains ("<!-- whammy"));
+    CHECK (xml.contains ("<Property name=\"LetRing\">"));
+}
+
+LUTHIER_TEST (Notation, aGraceHammerIsAGraceNote)
+{
+    // NE-9 (notation-export 2.1): a quick hammered ornament is a grace note
+    // slurred into its target, and reads back as the same two notes.
+    PerformanceScore score;
+    score.beginCapture (120.0, 4, 4);
+    score.noteStarted (2, 5, 60, 261.6, 0.8, 0.0);
+    score.noteEnded (2, 0.125);
+    score.noteStarted (2, 7, 62, 293.7, 0.8, 0.125);
+    score.addTechnique (2, { ScoreTechnique::Type::hammerOn });
+    score.noteEnded (2, 1.0);
+    score.noteStarted (2, 5, 60, 261.6, 0.8, 1.0);   // an ordinary note after it
+    score.noteEnded (2, 2.0);
+    score.endCapture (4.0);
+
+    NotationExporter exporter;
+    const auto xml = exporter.renderMusicXml (score);
+
+    CHECK (xml.contains ("<grace"));
+    CHECK (xml.contains ("<slur type=\"start\"/>") && xml.contains ("<slur type=\"stop\"/>"));
+    CHECK (xml.indexOf ("<grace") == xml.lastIndexOf ("<grace"));   // one grace, not the ordinary note
+
+    NotationImporter importer;
+    PerformanceScore back;
+    CHECK (importer.readMusicXml (xml, back));
+    CHECK (back.getTotalNoteCount() == 3);
+
+    const auto notes = back.getTrack (0).measures[0].collectNotes();
+
+    if (notes.size() == 3)
+    {
+        CHECK (notes[0]->midiNote == 60 && notes[0]->durationBeats < 0.25);
+        CHECK (notes[1]->midiNote == 62 && notes[1]->hasTechnique (ScoreTechnique::Type::hammerOn));
+        CHECK_NEAR (notes[1]->startBeat, 0.125, 0.01);
+        CHECK_NEAR (notes[2]->startBeat, 1.0, 1.0e-6);
+    }
+}
+
+LUTHIER_TEST (Notation, guitarProRoundTripsStringsAndFrets)
+{
+    // NE-4 / NE-34 (notation-export 2.2): a .gp written by Luthier reads back
+    // note for note - timing, string, fret and the techniques GPIF carries -
+    // with chords as one beat, not an arpeggio.
+    PerformanceScore score;
+    score.beginCapture (100.0, 4, 4);
+
+    const int open[6] = { 64, 59, 55, 50, 45, 40 };
+
+    // A chord on beat 0, then a bent note, a hammer-on, a palm mute, a rest, a slide.
+    for (int s = 2; s < 5; ++s)
+        score.noteStarted (s, 2, open[s] + 2, 440.0, 0.8, 0.0);
+
+    for (int s = 2; s < 5; ++s)
+        score.noteEnded (s, 1.0);
+
+    ScoreTechnique bend;
+    bend.type = ScoreTechnique::Type::bend;
+    bend.value = 1.0;
+    score.noteStarted (1, 8, open[1] + 8, 440.0, 0.8, 1.0);
+    score.addTechnique (1, bend);
+    score.noteEnded (1, 2.0);
+
+    score.noteStarted (1, 10, open[1] + 10, 440.0, 0.8, 2.0);
+    score.addTechnique (1, { ScoreTechnique::Type::hammerOn });
+    score.noteEnded (1, 2.5);
+
+    score.noteStarted (5, 0, open[5], 440.0, 0.8, 2.5);
+    score.addTechnique (5, { ScoreTechnique::Type::palmMute });
+    score.noteEnded (5, 3.0);
+
+    score.noteStarted (0, 12, open[0] + 12, 440.0, 0.8, 3.5);
+    score.addTechnique (0, { ScoreTechnique::Type::slideUp });
+    score.noteEnded (0, 4.0);
+    score.endCapture (4.0);
+
+    const auto file = juce::File::createTempFile (".gp");
+    NotationExporter exporter;
+    CHECK_MSG (exporter.write (score, NotationFormat::guitarPro, file), exporter.getLastError());
+    CHECK (NotationImporter::canRead (file));
+
+    NotationImporter importer;
+    PerformanceScore back;
+    CHECK_MSG (importer.read (file, back), importer.getLastError());
+
+    const auto a = score.getTrack (0).measures[0].collectNotes();
+    const auto b = back.getTrack (0).measures[0].collectNotes();
+    CHECK_MSG (a.size() == b.size(), juce::String ((int) b.size()) + " notes back of " + juce::String ((int) a.size()));
+
+    for (size_t i = 0; i < juce::jmin (a.size(), b.size()); ++i)
+    {
+        CHECK_MSG (a[i]->stringIndex == b[i]->stringIndex && a[i]->fret == b[i]->fret && a[i]->midiNote == b[i]->midiNote,
+                   "note " + juce::String ((int) i) + " moved");
+        CHECK_NEAR (b[i]->startBeat, a[i]->startBeat, 1.0e-6);
+
+        for (const auto& t : a[i]->techniques)
+            CHECK_MSG (b[i]->hasTechnique (t.type), "note " + juce::String ((int) i) + " lost " + getTechniqueName (t.type));
+    }
+
+    if (b.size() >= 4)
+        CHECK_NEAR (b[3]->findTechnique (ScoreTechnique::Type::bend) != nullptr ? b[3]->findTechnique (ScoreTechnique::Type::bend)->value : 0.0, 1.0, 1.0e-6);
+
+    CHECK (back.getMeta().tempoBpm > 99.0 && back.getMeta().tempoBpm < 101.0);
+    file.deleteFile();
+}
+
+LUTHIER_TEST (ToneMatch, cabinetSlotsReplaceTheirOwnMic)
+{
+    // TM-7 (tone-match 1): cab slot 1 replaces mic 1, slot 2 mic 2 - so with
+    // the second mic out of use, slot 2 changes nothing.
+    juce::WavAudioFormat wav;
+    const auto file = writeIr (wav, ".wav", 0.1);
+
+    IrSlot slotA, slotB;
+
+    for (auto* slot : { &slotA, &slotB })
+    {
+        slot->prepare (48000.0, 512);
+        CHECK (slot->load (file));
+        slot->setMix (1.0);
+    }
+
+    juce::Thread::sleep (300);
+
+    auto render = [&] (bool engageA, bool engageB)
+    {
+        slotA.setEngaged (engageA);
+        slotB.setEngaged (engageB);
+
+        LuthierEngine engine;
+        engine.prepare (48000.0, 512);
+        engine.setGuitarType (GuitarType::Stratocaster);
+        engine.getCabinetEngine().setEnabled (true);
+        engine.getCabinetEngine().setDualMicEnabled (false);
+        engine.getCabinetEngine().setUserIrSlots (&slotA, &slotB);
+
+        NoteOnEvent e;
+        e.stringIndex = 3;
+        e.fretPosition = 2.0;
+        e.pitchHz = engine.getTuningEngine().computeFrequency (3, 2.0);
+        engine.triggerNoteNow (e);
+
+        std::vector<float> out;
+        juce::AudioBuffer<float> buffer (2, 512);
+        juce::MidiBuffer midi;
+
+        for (int b = 0; b < 20; ++b)
+        {
+            buffer.clear();
+            engine.processBlock (buffer, midi);
+            out.insert (out.end(), buffer.getReadPointer (0), buffer.getReadPointer (0) + 512);
+        }
+
+        return out;
+    };
+
+    const auto none = render (false, false);
+    const auto onlyB = render (false, true);
+    const auto onlyA = render (true, false);
+
+    double diffB = 0.0, diffA = 0.0, energy = 0.0;
+
+    for (size_t i = 0; i < none.size(); ++i)
+    {
+        diffB = juce::jmax (diffB, (double) std::abs (onlyB[i] - none[i]));
+        diffA += (double) (onlyA[i] - none[i]) * (onlyA[i] - none[i]);
+        energy += (double) none[i] * none[i];
+    }
+
+    CHECK (energy > 0.0);
+    CHECK_MSG (diffB == 0.0, "cab slot 2 changed the sound with the second mic off");
+    CHECK_MSG (diffA > energy * 0.01, "cab slot 1 did not replace mic 1");
+
+    slotA.unload();
+    slotB.unload();
+    file.deleteFile();
+}
+
+LUTHIER_TEST (ToneMatch, theEqMatchSitsWhereItIsPut)
+{
+    // TM-28 (tone-match 3): the fitted filter at pre-amp, post-amp or
+    // post-master changes the sound at each, and its place and file travel
+    // with the preset.
+    juce::WavAudioFormat wav;
+    const auto file = writeIr (wav, ".wav", 0.05);
+
+    auto render = [&file] (int position, bool engaged)
+    {
+        LuthierAudioProcessor processor;
+        processor.prepareToPlay (48000.0, 512);
+
+        auto& slot = processor.getEqMatchSlot();
+        slot.load (file);
+        slot.setMix (1.0);
+        slot.setEngaged (engaged);
+        processor.setEqMatchPosition ((LuthierAudioProcessor::EqMatchPosition) position);
+        juce::Thread::sleep (200);
+
+        juce::AudioBuffer<float> buffer (juce::jmax (2, processor.getTotalNumOutputChannels()), 512);
+        std::vector<float> out;
+
+        for (int b = 0; b < 30; ++b)
+        {
+            juce::MidiBuffer midi;
+
+            if (b == 2)
+                midi.addEvent (juce::MidiMessage::noteOn (1, 52, (juce::uint8) 110), 0);
+
+            buffer.clear();
+            processor.processBlock (buffer, midi);
+            out.insert (out.end(), buffer.getReadPointer (0), buffer.getReadPointer (0) + 512);
+        }
+
+        return out;
+    };
+
+    const auto dry = render (1, false);
+    double energy = 0.0;
+
+    for (auto v : dry)
+        energy += (double) v * v;
+
+    CHECK (energy > 0.0);
+
+    for (int position = 0; position < 3; ++position)
+    {
+        const auto wet = render (position, true);
+        double diff = 0.0;
+
+        for (size_t i = 0; i < dry.size(); ++i)
+            diff += (double) (wet[i] - dry[i]) * (wet[i] - dry[i]);
+
+        CHECK_MSG (diff > energy * 0.001, "the EQ match at position " + juce::String (position) + " changed nothing");
+    }
+
+    // The preset keeps it.
+    LuthierAudioProcessor processor;
+    processor.getEqMatchSlot().load (file);
+    processor.setEqMatchPosition (LuthierAudioProcessor::EqMatchPosition::preAmp);
+
+    juce::MemoryBlock block;
+    processor.getStateInformation (block);
+
+    LuthierAudioProcessor restored;
+    restored.setStateInformation (block.getData(), (int) block.getSize());
+    CHECK (restored.getEqMatchPosition() == LuthierAudioProcessor::EqMatchPosition::preAmp);
+    CHECK (restored.getEqMatchSlot().isLoaded());
+
+    file.deleteFile();
 }

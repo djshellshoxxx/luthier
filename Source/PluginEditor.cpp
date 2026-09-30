@@ -1256,6 +1256,17 @@ void LuthierAudioProcessorEditor::pollForNotifications()
         notifications.post (std::move (n));
     }
 
+    // ---- SPEC-SWEEP HI-37: an MPE controller while MPE is off ----------------
+    if (processor.getEngine().getMidiInterpreter().takeMpeTrafficDetected())
+    {
+        Notification n;
+        n.id = "mpe-detected";
+        n.message = "This controller is sending MPE. Turn on MPE in the controller settings "
+                    "so each note gets its own bend and slide.";
+        n.level = Notification::Level::info;
+        notifications.post (std::move (n));
+    }
+
     // ---- SPEC-SWEEP: SM-46 - what a load did to the layers around it --------
     for (const auto& message : processor.takeStateNotices())
     {

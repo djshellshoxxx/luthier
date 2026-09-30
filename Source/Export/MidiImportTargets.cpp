@@ -91,6 +91,12 @@ juce::AudioBuffer<float> MidiImportTargets::render (const MidiPerformance& perfo
     size_t next = 0;
     juce::AudioBuffer<float> buffer (2, block);
 
+    // SPEC-SWEEP BT-12 (bass-techniques 10): the file's BASS_TECH events name
+    // the technique of the note they sit on; the engine is told before the
+    // block that plays it.
+    const auto& events = performance.getEvents();
+    size_t nextEvent = 0;
+
     for (juce::int64 at = 0; at < length; at += block)
     {
         const int n = (int) juce::jmin ((juce::int64) block, length - at);
@@ -102,6 +108,20 @@ juce::AudioBuffer<float> MidiImportTargets::render (const MidiPerformance& perfo
                 midi.addEvent (messages[next].message, (int) juce::jmax ((juce::int64) 0, messages[next].sample - at));
 
             ++next;
+        }
+
+        while (nextEvent < events.size() && events[nextEvent].sample < at + n)
+        {
+            const auto& event = events[nextEvent++];
+
+            if (event.eventClass != LuthierEventClass::bassTech)
+                continue;
+
+            const auto tech = event.get ("tech");
+            const int type = (tech == "slap" || tech == "thump") ? 1 : tech == "pop" ? 2 : tech == "ghost" ? 3 : -1;
+
+            if (type >= 0)
+                engine.setNextBassTechnique ((int) event.getInt ("str"), type);
         }
 
         buffer.setSize (2, n, false, false, true);

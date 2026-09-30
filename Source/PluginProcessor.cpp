@@ -142,6 +142,11 @@ LuthierAudioProcessor::LuthierAudioProcessor()
     // where the body is.
     engine.setBodyIrSlot (&bodyIr);
 
+    // SPEC-SWEEP TM-7 (tone-match 1): the cabinet pair replace mic 1 and mic 2
+    // inside the cabinet, rather than convolving the finished output in series.
+    engine.getCabinetEngine().setUserIrSlots (&cabIr[0], &cabIr[1]);
+    engine.setEqMatchSlot (&eqMatchSlot);   // SPEC-SWEEP TM-28
+
     // practice-tools 12.1: the routine runner drives the processor's own tools,
     // the history is the saved one, and the saved defaults apply at start.
     practiceRunner.setTargets (getPracticeTargets());
@@ -360,6 +365,8 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     for (auto& slot : cabIr)
         slot.prepare (sampleRate, samplesPerBlock);
 
+    eqMatchSlot.prepare (sampleRate, samplesPerBlock);   // SPEC-SWEEP TM-28
+
     capture.prepare (sampleRate);
 
     samplePosition = 0;
@@ -424,6 +431,8 @@ void LuthierAudioProcessor::releaseResources()
 
     for (auto& slot : cabIr)
         slot.reset();
+
+    eqMatchSlot.reset();   // SPEC-SWEEP TM-28
 }
 
 bool LuthierAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -1887,6 +1896,31 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
 
     jamWasEnabled = jamOn;
 
+    /*  SPEC-SWEEP MX-1 (midi-export 6): the block's noise events - the ones
+        the live MIDI out sends as PICK, SQUEAK, BUZZ and CLANK - go into the
+        take as well, so an exported take carries them. */
+    {
+        const auto& pool = engine.getNoisePool();
+
+        for (int i = 0; i < pool.getNumBlockTriggers(); ++i)
+        {
+            const auto& t = pool.getBlockTrigger (i);
+            using Kind = PerformanceCapture::NoiseKind;
+
+            switch (t.noiseClass)
+            {
+                case NoiseClass::pickClick:  performanceCapture.noiseEvent (t.offset, Kind::pick, t.stringIndex, t.durationMs, t.level); break;
+                case NoiseClass::squeak:     performanceCapture.noiseEvent (t.offset, Kind::squeakShift, t.stringIndex, t.durationMs, t.level); break;
+                case NoiseClass::pickScrape: performanceCapture.noiseEvent (t.offset, Kind::squeakDrag, t.stringIndex, t.durationMs, t.level); break;
+                case NoiseClass::fretBuzz:   performanceCapture.noiseEvent (t.offset, Kind::buzz, t.stringIndex, t.durationMs, t.level); break;
+                case NoiseClass::clank:      performanceCapture.noiseEvent (t.offset, Kind::clank, t.stringIndex, t.durationMs, t.level); break;
+                case NoiseClass::pickChirp:
+                case NoiseClass::numClasses:
+                default:                     break;
+            }
+        }
+    }
+
     // 6.1: what the engine actually played - string, fret and technique, after
     // voicing - is reported by the engine itself from triggerNote (MODEL-GAPS).
 
@@ -1894,18 +1928,17 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
     soundingPublisher.publish (engine, samplePosition, soundingNotes);
 
     // ---- tone match ----------------------------------------------------------------
-    /*  tone-match 1: a user cabinet IR replaces the model's, so it goes on the
-        main output after the engine has produced it.
-
-        The body IR slot is handled inside the engine, where the body is; this is
-        the cabinet pair, which is the last thing before the master and therefore
-        the last thing this can reach. */
+    /*  tone-match 1: the IR slots run inside the engine - the body slot where
+        the body is, the cabinet pair in place of the cabinet's two mics
+        (SPEC-SWEEP TM-6, TM-7). What is left here is the capture. */
     {
         auto mainOut = getBusBuffer (buffer, false, 0);
 
-        for (auto& slot : cabIr)
-            slot.process (mainOut.getArrayOfWritePointers(),
-                          mainOut.getNumChannels(), numSamples);
+        // (SPEC-SWEEP TM-7: the cabinet slots now run inside the cabinet.)
+
+        // SPEC-SWEEP TM-28: the EQ-match filter at the end of the chain.
+        if (getEqMatchPosition() == EqMatchPosition::postMaster)
+            eqMatchSlot.process (mainOut.getArrayOfWritePointers(), mainOut.getNumChannels(), numSamples);
 
         // SPEC-SWEEP TM-17: a Cab Match pass starts its capture in the block
         // its test signal starts, so both share sample zero.
@@ -3511,6 +3544,9 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     if (auto* morph = apvts.getRawParameterValue (ParamIDs::presetMorphPosition))
         root->setProperty ("presetMorphPosition", (double) morph->load());
 
+    // SPEC-SWEEP HI-20/HI-24: the format version, and a later build's sections.
+    stateEnvelope.stamp (*root);
+
     const auto json = juce::JSON::toString (juce::var (root), false);
 
     destData.reset();
@@ -3590,6 +3626,19 @@ void LuthierAudioProcessor::restoreState (const void* data, int sizeInBytes, Res
 
     if (root == nullptr)
         return;
+
+    // SPEC-SWEEP HI-20/24/25 (host-integration 4): read the version, keep what
+    // a later build wrote, and back up an older blob before migrating it. Only
+    // for a host restore: an A/B or undo swap is this build's own blob, and
+    // must not replace the host's kept sections or write backups.
+    if (scope == RestoreScope::full)
+    {
+        const auto reading = stateEnvelope.read (*root, json);
+
+        if (reading.newer)
+            stateNotices.addIfNotAlreadyThere ("This session was saved by a newer version of Luthier. "
+                                               "What this version does not know is kept and saved back unchanged.");
+    }
 
     if (root->hasProperty ("preset"))
         presets.fromVar (root->getProperty ("preset"));

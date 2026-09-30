@@ -326,7 +326,8 @@ const std::vector<LuthierFieldSpec>& getFields (LuthierEventClass eventClass) no
     static const std::vector<LuthierFieldSpec> bassTech
     {
         { "tech", "pluck", false }, { "str", "-1", false },
-        { "pos", "0.5", false }, { "force", "0.8", false }
+        { "pos", "0.5", false }, { "force", "0.8", false },
+        { "contact", "0.8", false }   // SPEC-SWEEP BT-24: the fret contact (slap_fret_contact)
     };
 
     static const std::vector<LuthierFieldSpec> ranges

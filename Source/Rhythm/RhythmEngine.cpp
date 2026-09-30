@@ -422,6 +422,7 @@ void RhythmEngine::emitNote (int stringIndex, double velocity, bool muted, doubl
     on.chuck = chuck;
     on.strikerMaterial = strikerMaterial;
     on.finger = finger;   // REALISM-B: fingerstyle-attack.md 3, the pattern's finger reaches the string
+    on.strumDirection = emitStrumDirection;   // SPEC-SWEEP SD-5
 
     if (tuning != nullptr)
         on.pitchHz = tuning->computeFrequency (stringIndex, found->fretPosition, 0.0);
@@ -568,6 +569,7 @@ void RhythmEngine::scheduleStrum (const StrumStep& step, double sourceSps, int s
         request.missScale = h.amount;   // humanise off is a hand that never misses
 
         const int planned = gesture.plan (settings, request, strikes.data(), (int) strikes.size());
+        emitStrumDirection = downward ? 1 : -1;   // SPEC-SWEEP SD-5: the strikes below are this stroke's
 
         // SPEC-SWEEP (RE-18, rhythm-engine 2): a rake drags muted across the
         // strings and lands on its target - the last string it strikes - open
@@ -598,6 +600,8 @@ void RhythmEngine::scheduleStrum (const StrumStep& step, double sourceSps, int s
                       muted && ! isRakeTarget, chuckAmount,
                       strikerMaterial, (int) std::round (juce::jmax (0.0, offset)), out);
         }
+
+        emitStrumDirection = 0;   // SPEC-SWEEP SD-5
 
         // REALISM-B, string-interaction.md 6: muted strings inside the STRUM
         // mask and the strum's span are struck too. Skipped entirely at 0.

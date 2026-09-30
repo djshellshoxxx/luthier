@@ -25,7 +25,7 @@
       "preset": "Microtonal Just / 10"
     },
     "0030b1444b304983c1875eef4f8f6a4b064124fa16af714f8444fe26085445f1": {
-      "lufs": -22.780000000000001,
+      "lufs": -22.68,
       "guitarType": 19,
       "ampModel": 1,
       "drive": 0.34,
@@ -60,7 +60,7 @@
       "preset": "Microtonal Just / 9"
     },
     "024e53b29dff0c575df6e4a06a0be33207d66fbe2c496c18770072809440ef30": {
-      "lufs": -33.869999999999997,
+      "lufs": -33.990000000000002,
       "guitarType": 21,
       "ampModel": 12,
       "drive": 0.05,
@@ -200,14 +200,14 @@
       "preset": "Microtonal Just / 14"
     },
     "06e8a5f073117f4345b505792ada465db89b54823e18337cdfba22c6b267f49f": {
-      "lufs": -42.729999999999997,
+      "lufs": -42.82,
       "guitarType": 22,
       "ampModel": 0,
       "drive": 0.12,
       "preset": "Microtonal Just / 22"
     },
     "07432e1866c49a1821631a6767e8c81ff4087801fe1ed9ad607b80216734a59c": {
-      "lufs": -22.25,
+      "lufs": -22.219999999999999,
       "guitarType": 19,
       "ampModel": 7,
       "drive": 0.78,
@@ -235,7 +235,7 @@
       "preset": "Microtonal Just / 14"
     },
     "08002e8a2f437b3f2ebefb5e5bb653cd927808f008a13f9974c54c67b0f4bf26": {
-      "lufs": -22.120000000000001,
+      "lufs": -22.129999999999999,
       "guitarType": 20,
       "ampModel": 0,
       "drive": 0.16,
@@ -256,7 +256,7 @@
       "preset": "Microtonal Just / 11"
     },
     "08dc869204767ba72505e08d7e466d0920857767d5f2305cd6fb0b3d92d9cd67": {
-      "lufs": -34.43,
+      "lufs": -34.340000000000003,
       "guitarType": 19,
       "ampModel": 12,
       "drive": 0.05,
@@ -270,7 +270,7 @@
       "preset": "Microtonal Just / 15"
     },
     "09dd644ddd80415e8256c6a286532f2f625808c8ec82ff39be4c5b60f2155e1c": {
-      "lufs": -29.41,
+      "lufs": -29.57,
       "guitarType": 20,
       "ampModel": 12,
       "drive": 0.05,
@@ -508,7 +508,7 @@
       "preset": "Microtonal Just / 6"
     },
     "10f629eb612823671d234dc94c6e0c4b8067aed2f22a51225dd0805ee5e1a456": {
-      "lufs": -33.600000000000001,
+      "lufs": -33.840000000000003,
       "guitarType": 23,
       "ampModel": 12,
       "drive": 0.05,
@@ -529,14 +529,14 @@
       "preset": "Microtonal Just / 13"
     },
     "1131c266b2796a275097f059945cb0d2cc641a94af3f93b15830af7c9c0e3eb9": {
-      "lufs": -15.48,
+      "lufs": -15.470000000000001,
       "guitarType": 23,
       "ampModel": 8,
       "drive": 0.7,
       "preset": "Microtonal Just / 23"
     },
     "11bc7034fa1d38fa24528a4838466aaa8702a3668d913ef5b69a5f1e6b90d0ec": {
-      "lufs": -22.399999999999999,
+      "lufs": -22.420000000000002,
       "guitarType": 23,
       "ampModel": 0,
       "drive": 0.16,
@@ -571,7 +571,7 @@
       "preset": "Microtonal Just / 4"
     },
     "1210bdfe536dab93266a4ddaf809b75adb661956dccafce08e565c4b21456e38": {
-      "lufs": -10.619999999999999,
+      "lufs": -10.609999999999999,
       "guitarType": 22,
       "ampModel": 11,
       "drive": 0.25,
@@ -718,7 +718,7 @@
       "preset": "Microtonal Just / 7"
     },
     "16f5b129794097f7d94fc52673b82b3f004c582c936f2e3ecee65b08a5da3ca6": {
-      "lufs": -31.140000000000001,
+      "lufs": -31.190000000000001,
       "guitarType": 22,
       "ampModel": 12,
       "drive": 0.05,
@@ -732,7 +732,7 @@
       "preset": "Microtonal Just / 14"
     },
     "176a9d3bade4dc8843f2de437e19c4fec50c7102a44c09e27c3800f16b24f08d": {
-      "lufs": -18.66,
+      "lufs": -18.670000000000002,
       "guitarType": 23,
       "ampModel": 4,
       "drive": 0.48,
@@ -767,7 +767,7 @@
       "preset": "Microtonal Just / 13"
     },
     "18705eda3e41bad89add197396106514b2a77e2570558b35356cc638f781ffd1": {
-      "lufs": -34.210000000000001,
+      "lufs": -34.18,
       "guitarType": 21,
       "ampModel": 12,
       "drive": 0.05,
@@ -816,7 +816,7 @@
       "preset": "Microtonal Just / 2"
     },
     "19a8ca893b8c2214252a851b3e3e2eb4390353f2b24bd6cfde5a5bf0dd01bd22": {
-      "lufs": -36.270000000000003,
+      "lufs": -36.299999999999997,
       "guitarType": 21,
       "ampModel": 12,
       "drive": 0.05,
@@ -851,7 +851,7 @@
       "preset": "Microtonal Just / 7"
     },
     "1a860cd009f1515720736c35cc85953514218b444d0678c093b1caf12efe269d": {
-      "lufs": -13.17,
+      "lufs": -13.16,
       "guitarType": 19,
       "ampModel": 11,
       "drive": 0.32,
@@ -984,7 +984,7 @@
       "preset": "Microtonal Just / 0"
     },
     "1f0b72fb2be1ac61a50e0574db398b0d2260cd3d8ed17f9457aeaa5b715a6f22": {
-      "lufs": -15.550000000000001,
+      "lufs": -15.539999999999999,
       "guitarType": 21,
       "ampModel": 8,
       "drive": 0.7,
@@ -1005,7 +1005,7 @@
       "preset": "Microtonal Just / 9"
     },
     "1f760c0b557b37f9d17b3563d5a8677d71cb94b3a4766a61b2fe6a4286d0c9e6": {
-      "lufs": -41.740000000000002,
+      "lufs": -42.0,
       "guitarType": 19,
       "ampModel": 0,
       "drive": 0.12,
@@ -1019,7 +1019,7 @@
       "preset": "Microtonal Just / 8"
     },
     "1febc8f12981fc195c4221db840d173d2390e7a4e5ff970902e1b1123b84b9ad": {
-      "lufs": -33.439999999999998,
+      "lufs": -33.049999999999997,
       "guitarType": 22,
       "ampModel": 12,
       "drive": 0.05,
@@ -1082,7 +1082,7 @@
       "preset": "Microtonal Just / 13"
     },
     "21c60b04da8196ded775bd9e2528e7bd2c5251f31b058d3d8ec67c883a807e30": {
-      "lufs": -34.75,
+      "lufs": -34.789999999999999,
       "guitarType": 23,
       "ampModel": 12,
       "drive": 0.05,
@@ -1145,7 +1145,7 @@
       "preset": "Microtonal Just / 6"
     },
     "248d24d241a924064d46446ae3b9a67f63e617cdbf32e95c7ba5056129c83ad8": {
-      "lufs": -12.199999999999999,
+      "lufs": -12.279999999999999,
       "guitarType": 23,
       "ampModel": 12,
       "drive": 0.05,
@@ -1166,7 +1166,7 @@
       "preset": "Microtonal Just / 10"
     },
     "267a39c820d29c6675368c639865afe9d504ec9981fe8402251ec4cbbfb50b86": {
-      "lufs": -30.02,
+      "lufs": -29.59,
       "guitarType": 19,
       "ampModel": 12,
       "drive": 0.05,
@@ -1187,7 +1187,7 @@
       "preset": "Microtonal Just / 6"
     },
     "2725a0bc126677151d8617c5d22199c89a6e5fd19af5f03ccf341ce9ef48a3a1": {
-      "lufs": -12.52,
+      "lufs": -12.59,
       "guitarType": 23,
       "ampModel": 11,
       "drive": 0.32,
@@ -1215,7 +1215,7 @@
       "preset": "Microtonal Just / 1"
     },
     "287330871282b682d9960fb05f96f0060b0193c14782288e1b377b11ca12d49e": {
-      "lufs": -24.870000000000001,
+      "lufs": -24.899999999999999,
       "guitarType": 19,
       "ampModel": 12,
       "drive": 0.05,
@@ -1299,7 +1299,7 @@
       "preset": "Microtonal Just / 7"
     },
     "2c6be1ef88617f1198f3aefe7bc0e3cedd1a28a3d96f10b12a26a0ab93c332fe": {
-      "lufs": -42.409999999999997,
+      "lufs": -42.509999999999998,
       "guitarType": 23,
       "ampModel": 0,
       "drive": 0.12,
@@ -1327,7 +1327,7 @@
       "preset": "Microtonal Just / 4"
     },
     "2c8293dd6d3bcd99575bac157f3acf719b8f156d9a14ae3ed6b733cfc6a64e73": {
-      "lufs": -38.850000000000001,
+      "lufs": -38.920000000000002,
       "guitarType": 21,
       "ampModel": 12,
       "drive": 0.05,
@@ -1502,7 +1502,7 @@
       "preset": "Microtonal Just / 16"
     },
     "33aa695623775ab4fe20fd6e188d2429ef1d180692dd98d6601445c2f458bcff": {
-      "lufs": -26.370000000000001,
+      "lufs": -26.34,
       "guitarType": 23,
       "ampModel": 6,
       "drive": 0.34,
@@ -1544,7 +1544,7 @@
       "preset": "Microtonal Just / 15"
     },
     "365e0e06fd93b37e0853092d4f9444cda6e7a7ef2c9aa8a57169d8302a2cc505": {
-      "lufs": -15.470000000000001,
+      "lufs": -15.460000000000001,
       "guitarType": 20,
       "ampModel": 8,
       "drive": 0.7,
@@ -1572,7 +1572,7 @@
       "preset": "Microtonal Just / 16"
     },
     "379d02efc3e7e047d2746eb9168d688cbbfeace3db8c7bdc89a5178372777788": {
-      "lufs": -26.109999999999999,
+      "lufs": -26.18,
       "guitarType": 22,
       "ampModel": 6,
       "drive": 0.34,
@@ -1628,14 +1628,14 @@
       "preset": "Microtonal Just / 10"
     },
     "3be980060154a573ffbaedbbee1e66615995b17689d9a4f4c9a962aad5130ecf": {
-      "lufs": -23.690000000000001,
+      "lufs": -23.699999999999999,
       "guitarType": 23,
       "ampModel": 3,
       "drive": 0.58,
       "preset": "Microtonal Just / 23"
     },
     "3c48326f7c88d3a3d023ad36bf863d7c0c618684188a281f258c692310747bae": {
-      "lufs": -11.92,
+      "lufs": -11.94,
       "guitarType": 20,
       "ampModel": 11,
       "drive": 0.28,
@@ -1726,7 +1726,7 @@
       "preset": "Microtonal Just / 10"
     },
     "4188f867990d206a9b3dee6fece8c802c7faf795457621cdb85820fd773f3516": {
-      "lufs": -14.01,
+      "lufs": -13.960000000000001,
       "guitarType": 23,
       "ampModel": 0,
       "drive": 0.35,
@@ -1943,7 +1943,7 @@
       "preset": "Microtonal Just / 5"
     },
     "4cb9bb0d018e372e8f37bba229b947f7e790852260a89d41df70ffb894b8b7d1": {
-      "lufs": -34.920000000000002,
+      "lufs": -34.439999999999998,
       "guitarType": 23,
       "ampModel": 12,
       "drive": 0.05,
@@ -1971,7 +1971,7 @@
       "preset": "Microtonal Just / 18"
     },
     "4e05a040c2c15cac3787517ea85920d185a440a032002671fcbde3178aa97311": {
-      "lufs": -34.359999999999999,
+      "lufs": -34.390000000000001,
       "guitarType": 20,
       "ampModel": 12,
       "drive": 0.05,
@@ -2027,7 +2027,7 @@
       "preset": "Microtonal Just / 2"
     },
     "500faf54d0016dfa8e59507389d36d6f889e8045f93704dcc583e001ddc4459d": {
-      "lufs": -28.710000000000001,
+      "lufs": -28.66,
       "guitarType": 19,
       "ampModel": 12,
       "drive": 0.05,
@@ -2048,7 +2048,7 @@
       "preset": "Microtonal Just / 8"
     },
     "50a3a8abab4fe3bedc8e64b9c1512a19a3d2fec7051674f6d76e7cedb702ba25": {
-      "lufs": -27.390000000000001,
+      "lufs": -27.52,
       "guitarType": 20,
       "ampModel": 12,
       "drive": 0.05,
@@ -2125,14 +2125,14 @@
       "preset": "Microtonal Just / 11"
     },
     "539d15d81f1156962838b6e621e3a41f2c26bf6f00ca8f048f01d0103973fe0a": {
-      "lufs": -26.309999999999999,
+      "lufs": -26.34,
       "guitarType": 22,
       "ampModel": 11,
       "drive": 0.36,
       "preset": "Microtonal Just / 22"
     },
     "540d221dc2705f441cfcefad19556d4a80a7aad398305ae4f709dddab6c4df80": {
-      "lufs": -12.449999999999999,
+      "lufs": -12.470000000000001,
       "guitarType": 21,
       "ampModel": 11,
       "drive": 0.28,
@@ -2146,7 +2146,7 @@
       "preset": "Microtonal Just / 0"
     },
     "55094172ec62771b8d2acd674efeb3acbadef6360ec2f578794797a50dd7bacb": {
-      "lufs": -21.829999999999998,
+      "lufs": -21.84,
       "guitarType": 21,
       "ampModel": 1,
       "drive": 0.34,
@@ -2174,14 +2174,14 @@
       "preset": "Microtonal Just / 12"
     },
     "562203591477f1194173a7cb1b6f551a27f80b25a367fa81fb368ea40d551742": {
-      "lufs": -25.940000000000001,
+      "lufs": -25.949999999999999,
       "guitarType": 19,
       "ampModel": 3,
       "drive": 0.58,
       "preset": "Microtonal Just / 19"
     },
     "566fef22294a851792d7d7af5a469a7215d7ef1d2af182ebac21a9ba583ee1ad": {
-      "lufs": -16.809999999999999,
+      "lufs": -16.640000000000001,
       "guitarType": 19,
       "ampModel": 4,
       "drive": 0.62,
@@ -2363,7 +2363,7 @@
       "preset": "Microtonal Just / 14"
     },
     "5de0661269f5818bdffa4623d2f7159e30488934f351e71597157432f2dc5c83": {
-      "lufs": -27.329999999999998,
+      "lufs": -27.280000000000001,
       "guitarType": 19,
       "ampModel": 6,
       "drive": 0.34,
@@ -2384,7 +2384,7 @@
       "preset": "Microtonal Just / 6"
     },
     "5e20415d6c1819263035bba9688b90d7908fbca7828347cd74e12c0069931976": {
-      "lufs": -28.5,
+      "lufs": -28.52,
       "guitarType": 20,
       "ampModel": 2,
       "drive": 0.26,
@@ -2412,21 +2412,21 @@
       "preset": "Microtonal Just / 12"
     },
     "5f8214abf59c5e10c178bbe5774a3de382610f799543343d67869147077f3d4b": {
-      "lufs": -13.710000000000001,
+      "lufs": -13.699999999999999,
       "guitarType": 21,
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Microtonal Just / 21"
     },
     "5fe9abc13c9a88d2544ec72c1ea04e836daa3000c0aae8ad91a4f97b7057805c": {
-      "lufs": -18.280000000000001,
+      "lufs": -18.25,
       "guitarType": 23,
       "ampModel": 9,
       "drive": 0.82,
       "preset": "Microtonal Just / 23"
     },
     "607988ed8ff6a97838622cbf8f38bcf142f24e36f2eb4c3750ae85ee904bd38d": {
-      "lufs": -11.98,
+      "lufs": -11.99,
       "guitarType": 23,
       "ampModel": 11,
       "drive": 0.28,
@@ -2440,7 +2440,7 @@
       "preset": "Microtonal Just / 8"
     },
     "60cd3b0f2486cae6766082d6fac0237c0352454c4623d5549c44826655a12db3": {
-      "lufs": -22.850000000000001,
+      "lufs": -22.84,
       "guitarType": 19,
       "ampModel": 0,
       "drive": 0.14,
@@ -2489,7 +2489,7 @@
       "preset": "Microtonal Just / 2"
     },
     "628c3db58b1b88ab50f2802d2daf904408916fb03b4a4ec5f525c1a057b2df5b": {
-      "lufs": -28.760000000000002,
+      "lufs": -28.789999999999999,
       "guitarType": 21,
       "ampModel": 2,
       "drive": 0.26,
@@ -2503,21 +2503,21 @@
       "preset": "Microtonal Just / 16"
     },
     "629ae5aa34d7b26eb4ffda034f98f7264151514ed88f0a9ee55cd65495d5242d": {
-      "lufs": -22.210000000000001,
+      "lufs": -22.190000000000001,
       "guitarType": 22,
       "ampModel": 7,
       "drive": 0.78,
       "preset": "Microtonal Just / 22"
     },
     "62a7bfcd8a720c667172251a840a1b29f77085755d043d6159856e8a7a683ada": {
-      "lufs": -11.94,
+      "lufs": -11.93,
       "guitarType": 22,
       "ampModel": 11,
       "drive": 0.48,
       "preset": "Microtonal Just / 22"
     },
     "62a8078bdb263ba2d3453da45fbdd666d1e6bb9def8aec2030ee3372359acf09": {
-      "lufs": -15.25,
+      "lufs": -15.19,
       "guitarType": 22,
       "ampModel": 5,
       "drive": 0.68,
@@ -2531,7 +2531,7 @@
       "preset": "Microtonal Just / 13"
     },
     "637fc4981c176a094da0eb3f4904f65d8baeba5e2a73197c8c7637abab045e76": {
-      "lufs": -21.940000000000001,
+      "lufs": -21.949999999999999,
       "guitarType": 20,
       "ampModel": 1,
       "drive": 0.34,
@@ -2587,14 +2587,14 @@
       "preset": "Microtonal Just / 14"
     },
     "6601a29ddbf3e50218abb2d0d90b475e5e3ac54fb1f7fd1a8df1d774a790f6ca": {
-      "lufs": -30.539999999999999,
+      "lufs": -30.59,
       "guitarType": 23,
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Microtonal Just / 23"
     },
     "6700e49c7549390822807c88a87922e7e2035a5afe92879cf6ba5dea079b66b6": {
-      "lufs": -22.260000000000002,
+      "lufs": -22.25,
       "guitarType": 20,
       "ampModel": 7,
       "drive": 0.78,
@@ -2706,7 +2706,7 @@
       "preset": "Microtonal Just / 24"
     },
     "6aa5f5e0aef13cdfca67033c26c93aa4cd3e1d66a020543e6102ab9e40581d2f": {
-      "lufs": -14.949999999999999,
+      "lufs": -14.94,
       "guitarType": 23,
       "ampModel": 5,
       "drive": 0.68,
@@ -2762,14 +2762,14 @@
       "preset": "Microtonal Just / 12"
     },
     "6cb08bf10baff0c3e3729e7ad57a5f1a93aa2bc6ec23808f5287a15e1e00e274": {
-      "lufs": -13.18,
+      "lufs": -13.210000000000001,
       "guitarType": 19,
       "ampModel": 0,
       "drive": 0.35,
       "preset": "Microtonal Just / 19"
     },
     "6cc1cbffe7da816fc28bea2cb665375549ad640844c2878493e3b7ef552504f0": {
-      "lufs": -15.35,
+      "lufs": -15.48,
       "guitarType": 21,
       "ampModel": 0,
       "drive": 0.35,
@@ -2818,7 +2818,7 @@
       "preset": "Microtonal Just / 10"
     },
     "6edddf997adaa3a4e90a8cc2a48d3f5b8a3e205952cc0c7d86cc0d632263666e": {
-      "lufs": -12.57,
+      "lufs": -12.640000000000001,
       "guitarType": 20,
       "ampModel": 11,
       "drive": 0.32,
@@ -2860,7 +2860,7 @@
       "preset": "Microtonal Just / 7"
     },
     "71f086ba7ec7e1e162c72574f1034985e8693c638e6c491a94940f93e0bd2a2a": {
-      "lufs": -31.809999999999999,
+      "lufs": -31.84,
       "guitarType": 21,
       "ampModel": 12,
       "drive": 0.05,
@@ -2874,7 +2874,7 @@
       "preset": "Microtonal Just / 5"
     },
     "736881d47880e9007fc96cb135df9e875635f9194b3d820b6a7665cb7f78eca5": {
-      "lufs": -17.850000000000001,
+      "lufs": -17.859999999999999,
       "guitarType": 21,
       "ampModel": 4,
       "drive": 0.48,
@@ -2993,7 +2993,7 @@
       "preset": "Microtonal Just / 1"
     },
     "79abe1a44388f62050b3456e9521e3c33580e6c01f01e559af05a281ebd78107": {
-      "lufs": -26.27,
+      "lufs": -26.300000000000001,
       "guitarType": 21,
       "ampModel": 11,
       "drive": 0.36,
@@ -3007,7 +3007,7 @@
       "preset": "Microtonal Just / 11"
     },
     "79fac9d681f510a74d063ed32b85bcd43a5ef2ca17f4f3a52d137895d12092dd": {
-      "lufs": -19.989999999999998,
+      "lufs": -19.98,
       "guitarType": 19,
       "ampModel": 0,
       "drive": 0.2,
@@ -3070,7 +3070,7 @@
       "preset": "Microtonal Just / 2"
     },
     "7cc7e70196f47d1513ea9555ea3fde4848d6253170f85eb61d0cab8ecfd66e54": {
-      "lufs": -32.869999999999997,
+      "lufs": -32.780000000000001,
       "guitarType": 20,
       "ampModel": 12,
       "drive": 0.05,
@@ -3105,7 +3105,7 @@
       "preset": "Microtonal Just / 11"
     },
     "7df51fc5eff2a6317719d45d9cd1fb77efc1736be9295f4dbd7f28347396c4ab": {
-      "lufs": -8.359999999999999,
+      "lufs": -8.4,
       "guitarType": 19,
       "ampModel": 12,
       "drive": 0.05,
@@ -3175,7 +3175,7 @@
       "preset": "Microtonal Just / 6"
     },
     "80b1ffddead19abc97a0cc7fc11e570af8cb4699ef0c2fc0476c61eb59e2a629": {
-      "lufs": -12.210000000000001,
+      "lufs": -12.19,
       "guitarType": 20,
       "ampModel": 11,
       "drive": 0.48,
@@ -3210,7 +3210,7 @@
       "preset": "Microtonal Just / 10"
     },
     "820f8c7b2038ca0226bbd30dcf340a84892b5b725d3e02d6c025bc05335fa595": {
-      "lufs": -24.219999999999999,
+      "lufs": -24.25,
       "guitarType": 19,
       "ampModel": 10,
       "drive": 0.64,
@@ -3245,7 +3245,7 @@
       "preset": "Microtonal Just / 14"
     },
     "84b5498c835c050d61582b72a897b55c0b5fd79515f12ab32962da8a9bdc3da9": {
-      "lufs": -30.239999999999998,
+      "lufs": -30.170000000000002,
       "guitarType": 20,
       "ampModel": 12,
       "drive": 0.05,
@@ -3259,7 +3259,7 @@
       "preset": "Microtonal Just / 12"
     },
     "857f86066c35702eb0f5f5e47f9648765c23f10a47926ea0639545dc292ee5fe": {
-      "lufs": -17.16,
+      "lufs": -17.120000000000001,
       "guitarType": 20,
       "ampModel": 4,
       "drive": 0.62,
@@ -3273,14 +3273,14 @@
       "preset": "Microtonal Just / 1"
     },
     "8586dabc90223e85919b5ce0ec954ea302d06af6f08461b54416b3311d35b669": {
-      "lufs": -30.539999999999999,
+      "lufs": -30.530000000000001,
       "guitarType": 22,
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Microtonal Just / 22"
     },
     "86304c242bf5e973978eedb404086f6a359bc21030c15f601ae5251dca7e69d3": {
-      "lufs": -15.6,
+      "lufs": -15.59,
       "guitarType": 22,
       "ampModel": 8,
       "drive": 0.7,
@@ -3406,7 +3406,7 @@
       "preset": "Microtonal Just / 5"
     },
     "8ad79e35070c8c5028817dc2ebf9839b1c52bb4a0cc632576f066e5f12f286fb": {
-      "lufs": -35.090000000000003,
+      "lufs": -35.119999999999997,
       "guitarType": 22,
       "ampModel": 12,
       "drive": 0.05,
@@ -3434,14 +3434,14 @@
       "preset": "Microtonal Just / 0"
     },
     "8b833ebf8340f2ed5217f9efec988ab9cfe1ace94323908878951aaf1130d009": {
-      "lufs": -21.629999999999999,
+      "lufs": -21.719999999999999,
       "guitarType": 23,
       "ampModel": 0,
       "drive": 0.2,
       "preset": "Microtonal Just / 23"
     },
     "8b85b7382e6b14aa1ed262838ea4f664dbbba327a5ab7a6f526da2f176ec5040": {
-      "lufs": -22.66,
+      "lufs": -22.719999999999999,
       "guitarType": 22,
       "ampModel": 0,
       "drive": 0.16,
@@ -3490,7 +3490,7 @@
       "preset": "Microtonal Just / 2"
     },
     "8e4027dbafc0d1cc1a2bdcb572c50d1c865d7876f93c077ae9ed455d598db2e8": {
-      "lufs": -12.59,
+      "lufs": -12.65,
       "guitarType": 22,
       "ampModel": 11,
       "drive": 0.32,
@@ -3525,7 +3525,7 @@
       "preset": "Microtonal Just / 10"
     },
     "90726e053196794a458393e19af01941852d1ee1a416cd1b7a2417a125107463": {
-      "lufs": -12.24,
+      "lufs": -12.220000000000001,
       "guitarType": 23,
       "ampModel": 11,
       "drive": 0.48,
@@ -3567,14 +3567,14 @@
       "preset": "Microtonal Just / 18"
     },
     "921b65bd76080c18e548408d9cfec2efcde6d9e4ca51c13474fb86b1eb8288ac": {
-      "lufs": -29.510000000000002,
+      "lufs": -29.550000000000001,
       "guitarType": 21,
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Microtonal Just / 21"
     },
     "9246d535c48f2543bba715d8c319ac7c81e83687b64a5ac2acf5dda2693831b5": {
-      "lufs": -23.829999999999998,
+      "lufs": -23.84,
       "guitarType": 21,
       "ampModel": 3,
       "drive": 0.58,
@@ -3630,7 +3630,7 @@
       "preset": "Microtonal Just / 23"
     },
     "94948fa0b77ae80f1f3009dfa214fa9076f72e13156eca3575e3f5f66959246c": {
-      "lufs": -37.450000000000003,
+      "lufs": -37.200000000000003,
       "guitarType": 22,
       "ampModel": 12,
       "drive": 0.05,
@@ -3693,7 +3693,7 @@
       "preset": "Microtonal Just / 18"
     },
     "96b37a6c20aac7db7fbdd88b1889b3ee0f420e04cb3385a538c5d908f5b9239c": {
-      "lufs": -11.01,
+      "lufs": -10.98,
       "guitarType": 21,
       "ampModel": 11,
       "drive": 0.25,
@@ -3763,7 +3763,7 @@
       "preset": "Microtonal Just / 6"
     },
     "993d8ebd148b6592a7589c8d70719707320657970c9c254b61d3ae1150634f28": {
-      "lufs": -18.850000000000001,
+      "lufs": -18.859999999999999,
       "guitarType": 20,
       "ampModel": 4,
       "drive": 0.48,
@@ -3784,7 +3784,7 @@
       "preset": "Microtonal Just / 13"
     },
     "9a1ea2743d576c3697c11e74a21444801efef76645d7f941505b8a4f9b4019b8": {
-      "lufs": -25.949999999999999,
+      "lufs": -26.010000000000002,
       "guitarType": 19,
       "ampModel": 12,
       "drive": 0.05,
@@ -3812,14 +3812,14 @@
       "preset": "Microtonal Just / 6"
     },
     "9ba24cb251009526fa0f487b1646edb229e43d4898df5d01d855f204e86bcf87": {
-      "lufs": -15.01,
+      "lufs": -15.1,
       "guitarType": 22,
       "ampModel": 0,
       "drive": 0.35,
       "preset": "Microtonal Just / 22"
     },
     "9bc6bbfdb3cbb0de622e39b38c16d04ae29a74f77091135161b39c30a202bd6b": {
-      "lufs": -29.870000000000001,
+      "lufs": -29.98,
       "guitarType": 23,
       "ampModel": 12,
       "drive": 0.05,
@@ -3840,7 +3840,7 @@
       "preset": "Microtonal Just / 11"
     },
     "9d1ba92b2be483afcb531990c4620101606f140646a814b7045cb39f1eacc2f5": {
-      "lufs": -21.100000000000001,
+      "lufs": -21.079999999999998,
       "guitarType": 23,
       "ampModel": 10,
       "drive": 0.64,
@@ -3854,7 +3854,7 @@
       "preset": "Microtonal Just / 2"
     },
     "9d23da15d6ef4acc302d6636ac8fcaf3d7f985f8e13ff66beac3c05adfd3556b": {
-      "lufs": -22.25,
+      "lufs": -22.260000000000002,
       "guitarType": 20,
       "ampModel": 9,
       "drive": 0.85,
@@ -3910,7 +3910,7 @@
       "preset": "Microtonal Just / 7"
     },
     "9ea9b3f66ce14378369ac1ce5e35dc29506494d8dece9d3cf7f47e8c71260288": {
-      "lufs": -26.510000000000002,
+      "lufs": -26.539999999999999,
       "guitarType": 20,
       "ampModel": 11,
       "drive": 0.36,
@@ -3966,7 +3966,7 @@
       "preset": "Microtonal Just / 10"
     },
     "a003ccb01776505968ca68076200248c75e3f9c09253386b0dbb7859f1320388": {
-      "lufs": -22.77,
+      "lufs": -22.789999999999999,
       "guitarType": 19,
       "ampModel": 0,
       "drive": 0.16,
@@ -3987,7 +3987,7 @@
       "preset": "Microtonal Just / 0"
     },
     "a0720d6f0ef4bc04abd2d4f7867e6c06235b63c83cd4f55d4458e51c31a9d0c1": {
-      "lufs": -21.120000000000001,
+      "lufs": -21.149999999999999,
       "guitarType": 20,
       "ampModel": 0,
       "drive": 0.2,
@@ -4050,7 +4050,7 @@
       "preset": "Microtonal Just / 7"
     },
     "a33506af996ece27b07254d833e88f6d31e137de94ffec755a192d79adbfea2a": {
-      "lufs": -21.719999999999999,
+      "lufs": -21.75,
       "guitarType": 21,
       "ampModel": 7,
       "drive": 0.78,
@@ -4064,7 +4064,7 @@
       "preset": "Microtonal Just / 11"
     },
     "a3a4faea2773d3f90bf617fabdda63b761053d625a2bc85899e65d2c7a9966b0": {
-      "lufs": -11.51,
+      "lufs": -11.5,
       "guitarType": 21,
       "ampModel": 11,
       "drive": 0.48,
@@ -4085,7 +4085,7 @@
       "preset": "Microtonal Just / 10"
     },
     "a3d69846dd77db52dedd3624ae9e5a8e7524434b7bff6262c043c733e8a195be": {
-      "lufs": -37.329999999999998,
+      "lufs": -36.920000000000002,
       "guitarType": 20,
       "ampModel": 12,
       "drive": 0.05,
@@ -4106,7 +4106,7 @@
       "preset": "Microtonal Just / 10"
     },
     "a4c56003633e8110e5a2c6f97becd0918580a76b48506e8483007bebd48c61bd": {
-      "lufs": -34.700000000000003,
+      "lufs": -34.189999999999998,
       "guitarType": 20,
       "ampModel": 12,
       "drive": 0.05,
@@ -4141,14 +4141,14 @@
       "preset": "Microtonal Just / 11"
     },
     "a6b913bfa3b90c432dba2848ac0538b74177ed4fae6e42b862f854a3bdb3393c": {
-      "lufs": -22.59,
+      "lufs": -22.609999999999999,
       "guitarType": 23,
       "ampModel": 9,
       "drive": 0.85,
       "preset": "Microtonal Just / 23"
     },
     "a6cb345f404b89a929ed282d08da7dc637d7282a1f0f08411a58eb207e5207cf": {
-      "lufs": -28.550000000000001,
+      "lufs": -28.48,
       "guitarType": 19,
       "ampModel": 12,
       "drive": 0.05,
@@ -4190,7 +4190,7 @@
       "preset": "Microtonal Just / 14"
     },
     "a8105cba025dd98e478380e3e01bb502bbf1893ef30ac789b31ed433579101d0": {
-      "lufs": -30.5,
+      "lufs": -30.629999999999999,
       "guitarType": 22,
       "ampModel": 12,
       "drive": 0.05,
@@ -4274,7 +4274,7 @@
       "preset": "Microtonal Just / 10"
     },
     "ad77a3221c1fe849e727fd14c74dc90bb484ab24a953acb67bcca19c8dd31128": {
-      "lufs": -34.460000000000001,
+      "lufs": -34.520000000000003,
       "guitarType": 19,
       "ampModel": 11,
       "drive": 0.36,
@@ -4295,7 +4295,7 @@
       "preset": "Microtonal Just / 5"
     },
     "ae191cc3edea6a11e2b107ac5f1e8f6bfb77bc27c08c45dfd74480ca9185c9b6": {
-      "lufs": -20.890000000000001,
+      "lufs": -20.879999999999999,
       "guitarType": 20,
       "ampModel": 1,
       "drive": 0.42,
@@ -4316,7 +4316,7 @@
       "preset": "Microtonal Just / 20"
     },
     "aec61f4dd617b5673e7905b702b522e526f5ade50bf97c6fcfd169d64b08306c": {
-      "lufs": -17.690000000000001,
+      "lufs": -17.699999999999999,
       "guitarType": 20,
       "ampModel": 9,
       "drive": 0.82,
@@ -4330,7 +4330,7 @@
       "preset": "Microtonal Just / 13"
     },
     "afe8171d4cd519b9eaf1a0fa33fccc5972a9688a1f87ea220a1315a0efcfa948": {
-      "lufs": -21.359999999999999,
+      "lufs": -21.329999999999998,
       "guitarType": 22,
       "ampModel": 10,
       "drive": 0.64,
@@ -4358,7 +4358,7 @@
       "preset": "Microtonal Just / 0"
     },
     "b0fe338c61533b20475a44ea07b0ac6596425b13f9c23a3a70375c965d5f2d73": {
-      "lufs": -13.24,
+      "lufs": -13.26,
       "guitarType": 19,
       "ampModel": 11,
       "drive": 0.28,
@@ -4484,7 +4484,7 @@
       "preset": "Microtonal Just / 12"
     },
     "b6f33d53cdbc441bd1b7a23474d2b98be456a0415ce7f16dcb28be14d67cf371": {
-      "lufs": -20.969999999999999,
+      "lufs": -20.949999999999999,
       "guitarType": 20,
       "ampModel": 10,
       "drive": 0.64,
@@ -4519,21 +4519,21 @@
       "preset": "Microtonal Just / 4"
     },
     "b8841f9b0c97bcbb2a00dfbd11ef408bd477b1d33d805342b29658a10b3302d7": {
-      "lufs": -44.210000000000001,
+      "lufs": -44.280000000000001,
       "guitarType": 21,
       "ampModel": 0,
       "drive": 0.12,
       "preset": "Microtonal Just / 21"
     },
     "b8e28330f6cb6785e9e5b2ac3208f351ba5dfbe4d13fede9e6b8c36c640b1368": {
-      "lufs": -33.530000000000001,
+      "lufs": -33.759999999999998,
       "guitarType": 20,
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Microtonal Just / 20"
     },
     "b918d134a7c55e0db0bdb8218a9a5cb04a26af333cfa8966eb45a626a6156928": {
-      "lufs": -31.84,
+      "lufs": -31.899999999999999,
       "guitarType": 21,
       "ampModel": 12,
       "drive": 0.05,
@@ -4554,7 +4554,7 @@
       "preset": "Microtonal Just / 8"
     },
     "b9518dcf490b24ae643f308855fe2eee0c738db830093fea832c4d7f0baaac96": {
-      "lufs": -27.91,
+      "lufs": -27.920000000000002,
       "guitarType": 22,
       "ampModel": 2,
       "drive": 0.26,
@@ -4617,7 +4617,7 @@
       "preset": "Microtonal Just / 0"
     },
     "bcb014e53c12e543ff53e7b7cb2f74f34ee3a90a27ec790945d1d65ebc1b5dbf": {
-      "lufs": -20.91,
+      "lufs": -20.890000000000001,
       "guitarType": 21,
       "ampModel": 10,
       "drive": 0.64,
@@ -4715,7 +4715,7 @@
       "preset": "Microtonal Just / 9"
     },
     "c164d80773834e8a6c0c235182bfa7a95a535567c6029c0d03347c9c1d3a08a2": {
-      "lufs": -22.469999999999999,
+      "lufs": -22.489999999999998,
       "guitarType": 23,
       "ampModel": 7,
       "drive": 0.78,
@@ -4743,7 +4743,7 @@
       "preset": "Microtonal Just / 9"
     },
     "c285bd23caa1c882c3d2700e7e002cb3f57f7c305b2337600447faf258923f55": {
-      "lufs": -10.81,
+      "lufs": -10.800000000000001,
       "guitarType": 20,
       "ampModel": 11,
       "drive": 0.25,
@@ -4757,7 +4757,7 @@
       "preset": "Microtonal Just / 17"
     },
     "c32cec47a52566545c16adfe729e8a60251d1844f501a49cfe28e425c5ba34cf": {
-      "lufs": -36.25,
+      "lufs": -36.450000000000003,
       "guitarType": 23,
       "ampModel": 12,
       "drive": 0.05,
@@ -4876,7 +4876,7 @@
       "preset": "Microtonal Just / 14"
     },
     "c6b767fb660a156b0cc6ec0d242e3943795a8fc297d2ec5cc42152203919ebda": {
-      "lufs": -23.030000000000001,
+      "lufs": -22.940000000000001,
       "guitarType": 20,
       "ampModel": 0,
       "drive": 0.14,
@@ -4911,7 +4911,7 @@
       "preset": "Microtonal Just / 15"
     },
     "c805b6411ab890e9bb2296d0dfce8794bd54842a5cce0ede8108e992cc115a19": {
-      "lufs": -12.18,
+      "lufs": -12.16,
       "guitarType": 22,
       "ampModel": 12,
       "drive": 0.05,
@@ -4925,14 +4925,14 @@
       "preset": "Microtonal Just / 11"
     },
     "c859f4273ac3e2ca4b90bfff1445aa0484d533489d997fcea13b3a70b91988a0": {
-      "lufs": -31.420000000000002,
+      "lufs": -31.550000000000001,
       "guitarType": 19,
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Microtonal Just / 19"
     },
     "c895b7fd6d3cf7b740032e2b785374a3dfe2539ffdd24b650eb8bf6268c81767": {
-      "lufs": -37.020000000000003,
+      "lufs": -36.729999999999997,
       "guitarType": 23,
       "ampModel": 12,
       "drive": 0.05,
@@ -4946,14 +4946,14 @@
       "preset": "Microtonal Just / 3"
     },
     "c8dc54baea1e006b9193fab2a99ca0c4c04a7b22291e8004525b419719bb4f37": {
-      "lufs": -32.880000000000003,
+      "lufs": -32.799999999999997,
       "guitarType": 22,
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Microtonal Just / 22"
     },
     "c8e5babf1e17bb923bc7b55440df9f39b75f642e214c8fe7d29e15217300a065": {
-      "lufs": -12.07,
+      "lufs": -12.08,
       "guitarType": 22,
       "ampModel": 11,
       "drive": 0.28,
@@ -4974,7 +4974,7 @@
       "preset": "Microtonal Just / 17"
     },
     "c9e64d2e4e5d4ab7a9c9cfb8efcfdc1a40a7a2985f3db9557de61754a6bc4014": {
-      "lufs": -25.98,
+      "lufs": -26.039999999999999,
       "guitarType": 21,
       "ampModel": 6,
       "drive": 0.34,
@@ -4988,7 +4988,7 @@
       "preset": "Microtonal Just / 10"
     },
     "ca50c8a724045dd3b62774a964d84ea1ed630417338ca17da37166ffc7a651b2": {
-      "lufs": -24.489999999999998,
+      "lufs": -24.550000000000001,
       "guitarType": 19,
       "ampModel": 12,
       "drive": 0.05,
@@ -5016,7 +5016,7 @@
       "preset": "Microtonal Just / 5"
     },
     "caf5a498b0ec6b1820dd4cba5c30f25ec53c04c9574c167612650d6acbb6c38d": {
-      "lufs": -10.84,
+      "lufs": -10.83,
       "guitarType": 23,
       "ampModel": 11,
       "drive": 0.25,
@@ -5037,7 +5037,7 @@
       "preset": "Microtonal Just / 8"
     },
     "cb873ae5042a40f69e44ab85d39644d81237732ea00eb0c8ec7ad8e5c023d7e7": {
-      "lufs": -26.559999999999999,
+      "lufs": -26.600000000000001,
       "guitarType": 23,
       "ampModel": 11,
       "drive": 0.36,
@@ -5065,14 +5065,14 @@
       "preset": "Microtonal Just / 6"
     },
     "cc1542c00ab4afc8985be4931f099c6b44805d6456de1a9620756678d4a87d10": {
-      "lufs": -35.530000000000001,
+      "lufs": -35.670000000000002,
       "guitarType": 20,
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Microtonal Just / 20"
     },
     "cc8c1084576e58ea9a7737f2f2b29d717ec6c7992d937deef99eb935a142bc90": {
-      "lufs": -21.52,
+      "lufs": -21.559999999999999,
       "guitarType": 22,
       "ampModel": 9,
       "drive": 0.85,
@@ -5093,7 +5093,7 @@
       "preset": "Microtonal Just / 2"
     },
     "cd3c78774c5aa54d44bd10d72bba35bfd5c3e1d104919004eabc9608d1405cb7": {
-      "lufs": -28.390000000000001,
+      "lufs": -28.5,
       "guitarType": 22,
       "ampModel": 12,
       "drive": 0.05,
@@ -5142,7 +5142,7 @@
       "preset": "Microtonal Just / 2"
     },
     "cfb3b3eeb104c8a69c25c1cfb5c4915309614671b18a74f4afd7a8c789a6a422": {
-      "lufs": -30.469999999999999,
+      "lufs": -30.52,
       "guitarType": 20,
       "ampModel": 12,
       "drive": 0.05,
@@ -5170,7 +5170,7 @@
       "preset": "Microtonal Just / 6"
     },
     "d226ca4aa770d50515beaa48ecc6ac82f896d1528be4f4662f4d3fb6c53b9ccb": {
-      "lufs": -16.670000000000002,
+      "lufs": -16.699999999999999,
       "guitarType": 22,
       "ampModel": 4,
       "drive": 0.62,
@@ -5184,7 +5184,7 @@
       "preset": "Microtonal Just / 17"
     },
     "d28d2e689e908cf38d0e7c03c0a35d2e22c7d2dbe7aa7cd59631c4ee8d0730da": {
-      "lufs": -17.690000000000001,
+      "lufs": -17.710000000000001,
       "guitarType": 21,
       "ampModel": 9,
       "drive": 0.82,
@@ -5226,7 +5226,7 @@
       "preset": "Microtonal Just / 7"
     },
     "d3dc8b8064ed2318205a234c1602c3ad418b9658ee6559ef7fe8c6101acc6615": {
-      "lufs": -32.549999999999997,
+      "lufs": -32.710000000000001,
       "guitarType": 19,
       "ampModel": 12,
       "drive": 0.05,
@@ -5254,14 +5254,14 @@
       "preset": "Microtonal Just / 5"
     },
     "d4a2e367e485dec7801e1e4bb867c5939e0b389a965a5effc054d0ec991d8d9f": {
-      "lufs": -28.68,
+      "lufs": -28.690000000000001,
       "guitarType": 19,
       "ampModel": 2,
       "drive": 0.26,
       "preset": "Microtonal Just / 19"
     },
     "d4d29792035b7ebf2dd737c10af087e0fa1dff19a71e734b3cd7bf596f9016a6": {
-      "lufs": -21.859999999999999,
+      "lufs": -21.93,
       "guitarType": 22,
       "ampModel": 0,
       "drive": 0.2,
@@ -5289,7 +5289,7 @@
       "preset": "Microtonal Just / 8"
     },
     "d60c5262eba04d35d4d715a935ba961e566dd5ca16ebcb3362b1bf7abfea00cb": {
-      "lufs": -15.199999999999999,
+      "lufs": -15.210000000000001,
       "guitarType": 21,
       "ampModel": 5,
       "drive": 0.68,
@@ -5359,7 +5359,7 @@
       "preset": "Microtonal Just / 10"
     },
     "d980525a3afef27b5703cbeaaa7bcb8d0a10c343c7f6a7aefae8285de1e5baa3": {
-      "lufs": -11.449999999999999,
+      "lufs": -11.48,
       "guitarType": 21,
       "ampModel": 11,
       "drive": 0.32,
@@ -5380,7 +5380,7 @@
       "preset": "Microtonal Just / 4"
     },
     "d9d218e258c2bdb9eccb4c6f1540c72cac733254ccd2b0c7fba277ca7c93d53f": {
-      "lufs": -27.18,
+      "lufs": -27.219999999999999,
       "guitarType": 23,
       "ampModel": 12,
       "drive": 0.05,
@@ -5422,14 +5422,14 @@
       "preset": "Microtonal Just / 9"
     },
     "dbaaf7cf572b44d707c9d356396ffcfff51ebe85933a61a42498e69dc608b350": {
-      "lufs": -29.649999999999999,
+      "lufs": -29.75,
       "guitarType": 21,
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Microtonal Just / 21"
     },
     "dbec00e3d654a639ff162857ceb637a22f8c795bd3014a6ee01b0a696c50493e": {
-      "lufs": -37.719999999999999,
+      "lufs": -37.880000000000003,
       "guitarType": 22,
       "ampModel": 12,
       "drive": 0.05,
@@ -5443,7 +5443,7 @@
       "preset": "Microtonal Just / 8"
     },
     "dcf9cc9d42cf8374cbda8098621248dac8422a06d77b33aab46863660aca3e27": {
-      "lufs": -26.859999999999999,
+      "lufs": -26.890000000000001,
       "guitarType": 20,
       "ampModel": 12,
       "drive": 0.05,
@@ -5520,7 +5520,7 @@
       "preset": "Microtonal Just / 4"
     },
     "dfb7b52d1bf66764605dc3f5c251f7c121eda50d2c2e59c3b7421972bd9d8ce6": {
-      "lufs": -27.710000000000001,
+      "lufs": -27.829999999999998,
       "guitarType": 23,
       "ampModel": 12,
       "drive": 0.05,
@@ -5562,7 +5562,7 @@
       "preset": "Microtonal Just / 19"
     },
     "e19c9c2c3d6bf6ef4173a068f911c6e5c84c9b66679b5f9b16505bc58e301d7c": {
-      "lufs": -30.579999999999998,
+      "lufs": -30.5,
       "guitarType": 23,
       "ampModel": 12,
       "drive": 0.05,
@@ -5611,7 +5611,7 @@
       "preset": "Microtonal Just / 4"
     },
     "e32f038e913ef0bd35961cf9f485dc5e04b901f9ea4b9323371b85ad86bf236b": {
-      "lufs": -23.039999999999999,
+      "lufs": -23.109999999999999,
       "guitarType": 23,
       "ampModel": 0,
       "drive": 0.14,
@@ -5625,14 +5625,14 @@
       "preset": "Microtonal Just / 12"
     },
     "e3f0b99895439c6b72907e101ddf478d918a3cc8d52676b61f0c2ec9632a0fac": {
-      "lufs": -18.640000000000001,
+      "lufs": -18.66,
       "guitarType": 19,
       "ampModel": 4,
       "drive": 0.48,
       "preset": "Microtonal Just / 19"
     },
     "e4231d45361d06857101a3d1df891908c01a896d68d66b89e25666c74e04b0b1": {
-      "lufs": -21.120000000000001,
+      "lufs": -21.129999999999999,
       "guitarType": 23,
       "ampModel": 1,
       "drive": 0.42,
@@ -5681,7 +5681,7 @@
       "preset": "Microtonal Just / 17"
     },
     "e6abe919cbfd99049e45b602b85bb5e3c67fe3e3767f6ce0d3c412100d279b29": {
-      "lufs": -25.870000000000001,
+      "lufs": -25.91,
       "guitarType": 19,
       "ampModel": 12,
       "drive": 0.05,
@@ -5758,7 +5758,7 @@
       "preset": "Microtonal Just / 10"
     },
     "eabb98ec90dba0509ba1ac648cd36106ddff34ed7203306aec33c3dfa95e65d6": {
-      "lufs": -41.909999999999997,
+      "lufs": -42.009999999999998,
       "guitarType": 20,
       "ampModel": 0,
       "drive": 0.12,
@@ -5800,7 +5800,7 @@
       "preset": "Microtonal Just / 18"
     },
     "ec8178b290730db0ef309fe2ac808f0f8ddfe07eba007905c51260b91079ba60": {
-      "lufs": -20.539999999999999,
+      "lufs": -20.530000000000001,
       "guitarType": 22,
       "ampModel": 1,
       "drive": 0.42,
@@ -5828,7 +5828,7 @@
       "preset": "Microtonal Just / 8"
     },
     "ed52a7bafe5e19a56f47da99f51ffe17c7fc611c4b0490975acd3f0c66d88ddc": {
-      "lufs": -12.06,
+      "lufs": -12.029999999999999,
       "guitarType": 19,
       "ampModel": 11,
       "drive": 0.48,
@@ -5863,7 +5863,7 @@
       "preset": "Microtonal Just / 8"
     },
     "f118ca09594a5851563df1436a6e8444678fef13ca8acabaf1e407179c090308": {
-      "lufs": -20.510000000000002,
+      "lufs": -20.539999999999999,
       "guitarType": 19,
       "ampModel": 9,
       "drive": 0.85,
@@ -5912,7 +5912,7 @@
       "preset": "Microtonal Just / 10"
     },
     "f2903a14f83f3db40dcb9a309c30fb8e12e4a3b35cf1ed96178327beb7a664fb": {
-      "lufs": -22.800000000000001,
+      "lufs": -22.84,
       "guitarType": 21,
       "ampModel": 0,
       "drive": 0.14,
@@ -6024,7 +6024,7 @@
       "preset": "Microtonal Just / 19"
     },
     "f6d4f7c7b34a0dc2b6187a8987f3f881b385d6d6e2be9fcbeb6ed77d452bcea8": {
-      "lufs": -28.420000000000002,
+      "lufs": -28.43,
       "guitarType": 23,
       "ampModel": 2,
       "drive": 0.26,
@@ -6066,14 +6066,14 @@
       "preset": "Microtonal Just / 15"
     },
     "f8eb45df37e923b79073e5164dbe95a449582b38d2af65d8e8bcce52c7e84821": {
-      "lufs": -37.659999999999997,
+      "lufs": -37.200000000000003,
       "guitarType": 21,
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Microtonal Just / 21"
     },
     "f92e8ef289bf0a01cdd52d6585dc665ab9bb77a784d74d041fb901c90aff79b0": {
-      "lufs": -18.52,
+      "lufs": -18.530000000000001,
       "guitarType": 22,
       "ampModel": 4,
       "drive": 0.48,
@@ -6108,7 +6108,7 @@
       "preset": "Microtonal Just / 16"
     },
     "f9e9d999a4d7666c9ff97cd8f5ac5968083f4f9115238bebc85e1dbd587fd16a": {
-      "lufs": -17.68,
+      "lufs": -17.670000000000002,
       "guitarType": 22,
       "ampModel": 9,
       "drive": 0.82,
@@ -6129,7 +6129,7 @@
       "preset": "Microtonal Just / 5"
     },
     "fa57c7a57873be96a1a6cd7b80853841afa4d93d254586250730cdcc6cfb06e1": {
-      "lufs": -23.66,
+      "lufs": -23.789999999999999,
       "guitarType": 22,
       "ampModel": 0,
       "drive": 0.14,
@@ -6178,7 +6178,7 @@
       "preset": "Microtonal Just / 3"
     },
     "fb2d040e927316f7af0b2057654cf19f117d7440c6333fde2d86abd6f3d7e431": {
-      "lufs": -21.960000000000001,
+      "lufs": -22.010000000000002,
       "guitarType": 23,
       "ampModel": 1,
       "drive": 0.34,
@@ -6199,7 +6199,7 @@
       "preset": "Microtonal Just / 4"
     },
     "fbacf54e330a07387beb7ea9bbbcb9340803a43237b5e79f0691e90e738cfe13": {
-      "lufs": -39.420000000000002,
+      "lufs": -39.030000000000001,
       "guitarType": 21,
       "ampModel": 12,
       "drive": 0.05,
@@ -6213,7 +6213,7 @@
       "preset": "Microtonal Just / 11"
     },
     "fc3e02f92a25cea85898e9618db4153dd54516e9ff63290041ccdde5eacde58f": {
-      "lufs": -31.879999999999999,
+      "lufs": -31.890000000000001,
       "guitarType": 21,
       "ampModel": 12,
       "drive": 0.05,
@@ -6269,7 +6269,7 @@
       "preset": "Microtonal Just / 2"
     },
     "ffaa6ae905bf65bf20275a68140ea3b7d0b32be9cbcd23dbb41bee24a18c38e1": {
-      "lufs": -30.300000000000001,
+      "lufs": -30.329999999999998,
       "guitarType": 22,
       "ampModel": 12,
       "drive": 0.05,

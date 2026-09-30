@@ -23,6 +23,7 @@
 #include "Live/Setlist.h"
 #include "Live/TapTempo.h"
 #include "Live/MidiClockTempo.h"   // SPEC-SWEEP HI-32
+#include "Support/HostStateEnvelope.h"   // SPEC-SWEEP HI-20
 #include "Live/LiveControls.h"
 #include "Live/LiveInput.h"   // SPEC-SWEEP: LP-11 / LP-33 / LP-34
 #include "Practice/Metronome.h"
@@ -299,6 +300,17 @@ public:
 
     IrSlot& getBodyIrSlot() noexcept    { return bodyIr; }
     IrSlot& getCabIrSlot (int index) noexcept { return cabIr[(size_t) juce::jlimit (0, 1, index)]; }
+
+    /*  SPEC-SWEEP TM-28 (tone-match 3): the EQ-match filter and its place in
+        the chain - pre-amp, post-amp or post-master - saved with the preset. */
+    enum class EqMatchPosition { preAmp = 0, postAmp, postMaster, numPositions };
+    IrSlot& getEqMatchSlot() noexcept { return eqMatchSlot; }
+    void setEqMatchPosition (EqMatchPosition p) noexcept
+    {
+        eqMatchPosition.store ((int) p, std::memory_order_relaxed);
+        engine.setEqMatchPosition ((int) p);
+    }
+    EqMatchPosition getEqMatchPosition() const noexcept { return (EqMatchPosition) eqMatchPosition.load (std::memory_order_relaxed); }
     Capture& getCapture() noexcept     { return capture; }
     /** SPEC-SWEEP TM-17: the Cab Match test signal, played out of Aux 1 (or the main out). */
     TestSignalPlayer& getCabMatchSignal() noexcept { return cabMatchSignal; }
@@ -413,6 +425,9 @@ public:
         did to the layers around it ("A/B cleared by preset load."). Taken once
         by the editor. */
     juce::StringArray takeStateNotices();
+
+    /** SPEC-SWEEP HI-20/24/25: the state blob's version, kept sections and backups. */
+    HostStateEnvelope& getStateEnvelope() noexcept { return stateEnvelope; }
 
     /** SPEC-SWEEP: FF-35/SM-31 - the same, for warnings (a refused setlist). */
     juce::StringArray takeStateWarnings();
@@ -870,6 +885,8 @@ private:
     // --- tone match ---------------------------------------------------------------------
     IrSlot bodyIr;
     std::array<IrSlot, 2> cabIr;
+    IrSlot eqMatchSlot;                              // SPEC-SWEEP TM-28
+    std::atomic<int> eqMatchPosition { (int) EqMatchPosition::postAmp };
     Capture capture;
     TestSignalPlayer cabMatchSignal;                 // SPEC-SWEEP TM-17
     juce::AudioBuffer<float> testSignalBuffer;       // SPEC-SWEEP TM-17
@@ -917,6 +934,7 @@ private:
     // SPEC-SWEEP: SM-46 - what a user-facing preset load clears (state-model 8.1).
     void presetFileLoaded();
     juce::StringArray stateNotices, stateWarnings;
+    HostStateEnvelope stateEnvelope;   // SPEC-SWEEP HI-20
 
     /** Resolves a preset's reference to a guitar file: user, then factory. */
     static juce::File resolveGuitarReference (const juce::String& reference);

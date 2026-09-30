@@ -94,6 +94,12 @@ struct NoteOnEvent
         is still struck as its technique says; this only adds the travel. */
     double shiftFromFret = -1.0;
     double shiftSeconds  = 0.0;
+
+    /** SPEC-SWEEP SD-5 (strum-dynamics 2.1): the stroke this strike is part of -
+        +1 a down-strum, -1 an up-strum, 0 not a strum. A down-stroke meets the
+        string at a steeper angle (harder, brighter, more click), an up-stroke
+        at a shallower one (softer, more chirp, less click). */
+    int    strumDirection = 0;
 };
 
 struct NoteOffEvent

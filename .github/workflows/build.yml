@@ -2,7 +2,8 @@
 #
 # Called per push by ci-cadence.yml (Linux every push, Windows every 3rd and
 # macOS every 15th successful Linux build: plugin targets + LuthierTests +
-# LuthierRender, unit tests, pluginval at strictness 5, clap-validator). On
+# LuthierRender, unit tests, pluginval at strictness 5 - 10 on a push to main
+# or master, which is a merge (SPEC-SWEEP HI-43) - clap-validator). On
 # manual dispatch: any platforms, LTO on and pluginval at strictness 10.
 # release.yml calls this workflow with package=true to build the installers
 # from the same jobs.
@@ -66,7 +67,9 @@ env:
   # default to the same. Under workflow_call github.event_name is the caller's
   # (a tag push for release.yml), so the release run is recognised by its
   # package input instead.
-  STRICTNESS: ${{ ((github.event_name == 'push' || github.event_name == 'pull_request') && !inputs.package) && 5 || (inputs.strictness || 10) }}
+  # SPEC-SWEEP HI-43 (host-integration 10): a push to main or master - a
+  # merge - validates at strictness 10; other pushes and pull requests at 5.
+  STRICTNESS: ${{ ((github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master')) && !inputs.package) && 5 || (inputs.strictness || 10) }}
   LTO: ${{ ((github.event_name == 'push' || github.event_name == 'pull_request') && !inputs.package) && 'OFF' || ((github.event_name == 'schedule' || inputs.lto) && 'ON' || 'OFF') }}
   BUILD_DIR: build-ci
   DIST_DIR: dist
