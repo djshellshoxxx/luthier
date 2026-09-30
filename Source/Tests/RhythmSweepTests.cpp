@@ -153,7 +153,12 @@ LUTHIER_TEST (RhythmPatterns, processBlockDoesNotAllocate)
 
     int noteOns = 0;
 
-    for (int block = 8; block < 3000; ++block)
+    // Render until the writer has really raced it: on a loaded machine 3000
+    // blocks can finish before the other thread is even scheduled.
+    const auto giveUpAt = juce::Time::getMillisecondCounter() + 20000;
+
+    for (int block = 8; block < 3000
+           || (published.load() <= 10 && juce::Time::getMillisecondCounter() < giveUpAt); ++block)
     {
         out.clear();
         fixture.engine.processBlock (kBlock, fixture.transportAt (block), out);
