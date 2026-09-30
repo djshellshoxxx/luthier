@@ -1,4 +1,5 @@
 #include "MicPlacementMigration.h"
+#include "ExactRestore.h"
 #include "../Parameters.h"
 
 namespace luthier
@@ -283,7 +284,7 @@ namespace MicPlacementMigration
             for (const char* id : { kIds[mic].position, kIds[mic].distance })
                 if (obj->hasProperty (id))
                     if (auto* p = state.getParameter (id))
-                        p->setValueNotifyingHost ((float) juce::jlimit (0.0, 1.0, (double) obj->getProperty (id)));
+                        ExactRestore::applyNormalised (*p, (double) obj->getProperty (id));
     }
 
     void keepPlacementPlausible (juce::AudioProcessorValueTreeState& state, const juce::StringArray& locked)

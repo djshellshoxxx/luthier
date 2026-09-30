@@ -3,6 +3,7 @@
 #include "Search/PresetFeatures.h"   // FEAT-BROWSER
 #include "FactoryPresets.h"
 #include "MicPlacementMigration.h"   // mic-placement.md 4
+#include "ExactRestore.h"
 #include "../Support/IrLibrary.h"
 #include "../Support/ErrorLog.h"
 #include "../UI/UiPreferences.h"   // REALISM-C
@@ -460,15 +461,16 @@ juce::var PresetManager::toVar (const juce::String& name,
             if (withId->paramID != ParamIDs::presetMorphPosition
                   && ! ParamIDs::isJamTransient (withId->paramID))   // FEAT-JAM: jam-mode 10
             {
-                // Store the normalised value exactly as get() reports it. Load
-                // applies it back with setValueNotifyingHost (a normalised set,
-                // no plain-value round trip), so (float) of this double restores
-                // the identical value: save -> load -> save is stable, and a
+                // Store the normalised value exactly as get() reports it, so a
                 // reload reproduces get() to the bit (clap-validator
                 // state-reproducibility). An earlier fixed-point nudge through
                 // convertFrom0to1/convertTo0to1 shifted skewed params by up to a
-                // float ULP away from get(), which that validator flags.
-                const double v = (double) withId->getValue();
+                // float ULP away from get(), which that validator flags. The
+                // skewed-range drift is corrected on the load side instead
+                // (ExactRestore.h); only a value no load could reproduce (a
+                // constructor default on a skewed range) is stored where the
+                // parameter reads it back, so save -> load -> save is stable.
+                const double v = ExactRestore::storable (*withId, withId->getValue());
 
                 params->setProperty (withId->paramID, v);
             }
@@ -663,7 +665,8 @@ bool PresetManager::fromVar (const juce::var& data)
             "midi_mappings", "rhythm_engine", "tone_match",
             "jam",   // FEAT-JAM (jam-mode 12)
             MicPlacementMigration::kLegacyBlockKey,   // mic-placement.md 4
-            "techniques"   // TECHNIQUES: engine-technique-layer.md 7
+            "techniques",   // TECHNIQUES: engine-technique-layer.md 7 (a missing comma here once
+                            // fused it with "uid", so both were re-saved first as unknown keys)
             "uid", "previewPhrase"   // preset-browser-previews 5.4 (FEAT-BROWSER)
         };
 
@@ -747,8 +750,10 @@ bool PresetManager::fromVar (const juce::var& data)
                       && ! ParamIDs::isJamTransient (withId->paramID)   // FEAT-JAM
                       && ! (keepOnLoad != nullptr && keepOnLoad (withId->paramID)))
                 {
-                    const double v = (double) params->getProperty (withId->paramID);
-                    withId->setValueNotifyingHost ((float) juce::jlimit (0.0, 1.0, v));
+                    // ExactRestore.h: applied so that getValue() reads the stored
+                    // value back to the bit even through a skewed range, which
+                    // keeps save -> load -> save byte-identical.
+                    ExactRestore::applyNormalised (*withId, (double) params->getProperty (withId->paramID));
                 }
                 else if (! params->hasProperty (withId->paramID) && ! keepsValueWhenAbsent (withId->paramID)
                            && ! (keepOnLoad != nullptr && keepOnLoad (withId->paramID)))   // merge: FEAT-JAM's keep-on-load wins
