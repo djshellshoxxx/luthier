@@ -2195,6 +2195,7 @@ PracticePanel::PracticePanel (LuthierAudioProcessor& p)
     practiceLevel.setValue (0.0, juce::dontSendNotification);
     practiceLevel.setTooltip ("Master level for the practice tools. Does not affect the "
                               "plugin's own output.");
+    AccessibleSetup::configureSlider (practiceLevel, "Practice level", " dB");   // A11Y-47
     addAndMakeVisible (practiceLevel);
 
     tapButton.setTooltip ("Tap tempo. The same global tap the header uses.");

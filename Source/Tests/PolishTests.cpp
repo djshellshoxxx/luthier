@@ -177,7 +177,7 @@ LUTHIER_TEST (Overlay, everyRouteDismissesAndOnlyOneIsUp)
     if (close != nullptr)
     {
         CHECK (close->isVisible());
-        close->triggerClick();
+        close->onClick();
         CHECK (! host.isShowingOverlay());
     }
 
@@ -362,6 +362,21 @@ LUTHIER_TEST (Localisation, theOptionsPageChoosesLocaleAndFallback)
     Orca read for it. */
 namespace
 {
+    // isShowing() needs a desktop peer, which a headless editor has not got.
+    bool visibleUnder (juce::Component& root, juce::Component& c)
+    {
+        for (auto* p = &c; p != nullptr; p = p->getParentComponent())
+        {
+            if (! p->isVisible())
+                return false;
+
+            if (p == &root)
+                return true;
+        }
+
+        return false;
+    }
+
     struct A11yScan
     {
         int checked = 0;
@@ -376,15 +391,23 @@ namespace
                                          || dynamic_cast<juce::Slider*> (child) != nullptr
                                          || dynamic_cast<juce::TextEditor*> (child) != nullptr;
 
-                if (interactive && child->isShowing() && child->getWidth() > 0 && child->getHeight() > 0
-                    && ! child->isAccessibilityIgnored())
+                if (interactive && visibleUnder (root, *child) && child->getWidth() > 0 && child->getHeight() > 0
+                    && child->isAccessible())
                 {
                     ++checked;
 
-                    if (auto* handler = child->getAccessibilityHandler())
+                    // A fresh handler answers the same questions the platform would ask.
+                    if (auto handler = child->createAccessibilityHandler())
                     {
                         if (handler->getTitle().isEmpty())
-                            unnamed.add (where + ": " + juce::String (typeid (*child).name()) + " \"" + child->getName() + "\"");
+                            {
+                            juce::String chain;
+                            for (auto* p = child->getParentComponent(); p != nullptr && p != &root; p = p->getParentComponent())
+                                chain << " < " << juce::String (typeid (*p).name()) << "(" << p->getName() << ")";
+
+                            unnamed.add (where + ": " + juce::String (typeid (*child).name()) + " \"" + child->getName()
+                                         + "\" at " + child->getBounds().toString() + chain);
+                        }
                     }
                 }
 
