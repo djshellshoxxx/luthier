@@ -82,6 +82,8 @@ void LuthierAudioProcessor::writePresetBlocks (juce::DynamicObject& root) const
         irs->setProperty ("body", bodyIr.toVar());
         irs->setProperty ("cab1", cabIr[0].toVar());
         irs->setProperty ("cab2", cabIr[1].toVar());
+        irs->setProperty ("eq", eqMatchSlot.toVar());                       // SPEC-SWEEP TM-28
+        irs->setProperty ("eqPosition", (int) getEqMatchPosition());
 
         root.setProperty (PresetBlockKeys::toneMatch, juce::var (irs));
     }
@@ -123,6 +125,15 @@ void LuthierAudioProcessor::readPresetBlocks (const juce::DynamicObject& root)
         bodyIr.fromVar (irs->getProperty ("body"));
         cabIr[0].fromVar (irs->getProperty ("cab1"));
         cabIr[1].fromVar (irs->getProperty ("cab2"));
+
+        // SPEC-SWEEP TM-28: absent in older presets - no filter, post-amp.
+        if (irs->hasProperty ("eq"))
+            eqMatchSlot.fromVar (irs->getProperty ("eq"));
+        else
+            eqMatchSlot.unload();
+
+        setEqMatchPosition ((EqMatchPosition) juce::jlimit (0, 2, irs->hasProperty ("eqPosition")
+                                                                     ? (int) irs->getProperty ("eqPosition") : 1));
     }
 
     /*  live-performance 1: a preset saved before snapshots existed has none,

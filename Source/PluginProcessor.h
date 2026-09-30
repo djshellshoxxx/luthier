@@ -267,6 +267,17 @@ public:
 
     IrSlot& getBodyIrSlot() noexcept    { return bodyIr; }
     IrSlot& getCabIrSlot (int index) noexcept { return cabIr[(size_t) juce::jlimit (0, 1, index)]; }
+
+    /*  SPEC-SWEEP TM-28 (tone-match 3): the EQ-match filter and its place in
+        the chain - pre-amp, post-amp or post-master - saved with the preset. */
+    enum class EqMatchPosition { preAmp = 0, postAmp, postMaster, numPositions };
+    IrSlot& getEqMatchSlot() noexcept { return eqMatchSlot; }
+    void setEqMatchPosition (EqMatchPosition p) noexcept
+    {
+        eqMatchPosition.store ((int) p, std::memory_order_relaxed);
+        engine.setEqMatchPosition ((int) p);
+    }
+    EqMatchPosition getEqMatchPosition() const noexcept { return (EqMatchPosition) eqMatchPosition.load (std::memory_order_relaxed); }
     Capture& getCapture() noexcept     { return capture; }
     /** SPEC-SWEEP TM-17: the Cab Match test signal, played out of Aux 1 (or the main out). */
     TestSignalPlayer& getCabMatchSignal() noexcept { return cabMatchSignal; }
@@ -696,6 +707,8 @@ private:
     // --- tone match ---------------------------------------------------------------------
     IrSlot bodyIr;
     std::array<IrSlot, 2> cabIr;
+    IrSlot eqMatchSlot;                              // SPEC-SWEEP TM-28
+    std::atomic<int> eqMatchPosition { (int) EqMatchPosition::postAmp };
     Capture capture;
     TestSignalPlayer cabMatchSignal;                 // SPEC-SWEEP TM-17
     juce::AudioBuffer<float> testSignalBuffer;       // SPEC-SWEEP TM-17

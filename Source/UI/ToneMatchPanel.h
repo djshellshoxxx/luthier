@@ -135,6 +135,7 @@ private:
     juce::TextButton preserveDynamics { "Preserve dynamics" };
 
     // SPEC-SWEEP TM-25 (tone-match 3): the band the EQ match corrects over.
+    juce::ComboBox positionBox;   // SPEC-SWEEP TM-28: where the fitted filter sits
     juce::Slider lowBand { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
     juce::Slider highBand { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
 

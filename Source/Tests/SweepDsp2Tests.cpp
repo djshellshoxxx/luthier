@@ -3670,3 +3670,76 @@ LUTHIER_TEST (ToneMatch, cabinetSlotsReplaceTheirOwnMic)
     slotB.unload();
     file.deleteFile();
 }
+
+LUTHIER_TEST (ToneMatch, theEqMatchSitsWhereItIsPut)
+{
+    // TM-28 (tone-match 3): the fitted filter at pre-amp, post-amp or
+    // post-master changes the sound at each, and its place and file travel
+    // with the preset.
+    juce::WavAudioFormat wav;
+    const auto file = writeIr (wav, ".wav", 0.05);
+
+    auto render = [&file] (int position, bool engaged)
+    {
+        LuthierAudioProcessor processor;
+        processor.prepareToPlay (48000.0, 512);
+
+        auto& slot = processor.getEqMatchSlot();
+        slot.load (file);
+        slot.setMix (1.0);
+        slot.setEngaged (engaged);
+        processor.setEqMatchPosition ((LuthierAudioProcessor::EqMatchPosition) position);
+        juce::Thread::sleep (200);
+
+        juce::AudioBuffer<float> buffer (juce::jmax (2, processor.getTotalNumOutputChannels()), 512);
+        std::vector<float> out;
+
+        for (int b = 0; b < 30; ++b)
+        {
+            juce::MidiBuffer midi;
+
+            if (b == 2)
+                midi.addEvent (juce::MidiMessage::noteOn (1, 52, (juce::uint8) 110), 0);
+
+            buffer.clear();
+            processor.processBlock (buffer, midi);
+            out.insert (out.end(), buffer.getReadPointer (0), buffer.getReadPointer (0) + 512);
+        }
+
+        return out;
+    };
+
+    const auto dry = render (1, false);
+    double energy = 0.0;
+
+    for (auto v : dry)
+        energy += (double) v * v;
+
+    CHECK (energy > 0.0);
+
+    for (int position = 0; position < 3; ++position)
+    {
+        const auto wet = render (position, true);
+        double diff = 0.0;
+
+        for (size_t i = 0; i < dry.size(); ++i)
+            diff += (double) (wet[i] - dry[i]) * (wet[i] - dry[i]);
+
+        CHECK_MSG (diff > energy * 0.001, "the EQ match at position " + juce::String (position) + " changed nothing");
+    }
+
+    // The preset keeps it.
+    LuthierAudioProcessor processor;
+    processor.getEqMatchSlot().load (file);
+    processor.setEqMatchPosition (LuthierAudioProcessor::EqMatchPosition::preAmp);
+
+    juce::MemoryBlock block;
+    processor.getStateInformation (block);
+
+    LuthierAudioProcessor restored;
+    restored.setStateInformation (block.getData(), (int) block.getSize());
+    CHECK (restored.getEqMatchPosition() == LuthierAudioProcessor::EqMatchPosition::preAmp);
+    CHECK (restored.getEqMatchSlot().isLoaded());
+
+    file.deleteFile();
+}

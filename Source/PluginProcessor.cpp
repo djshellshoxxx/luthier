@@ -111,6 +111,7 @@ LuthierAudioProcessor::LuthierAudioProcessor()
     // SPEC-SWEEP TM-7 (tone-match 1): the cabinet pair replace mic 1 and mic 2
     // inside the cabinet, rather than convolving the finished output in series.
     engine.getCabinetEngine().setUserIrSlots (&cabIr[0], &cabIr[1]);
+    engine.setEqMatchSlot (&eqMatchSlot);   // SPEC-SWEEP TM-28
 
     // practice-tools 12.1: the routine runner drives the processor's own tools,
     // the history is the saved one, and the saved defaults apply at start.
@@ -305,6 +306,8 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     for (auto& slot : cabIr)
         slot.prepare (sampleRate, samplesPerBlock);
 
+    eqMatchSlot.prepare (sampleRate, samplesPerBlock);   // SPEC-SWEEP TM-28
+
     capture.prepare (sampleRate);
 
     samplePosition = 0;
@@ -356,6 +359,8 @@ void LuthierAudioProcessor::releaseResources()
 
     for (auto& slot : cabIr)
         slot.reset();
+
+    eqMatchSlot.reset();   // SPEC-SWEEP TM-28
 }
 
 bool LuthierAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -1518,6 +1523,10 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
         auto mainOut = getBusBuffer (buffer, false, 0);
 
         // (SPEC-SWEEP TM-7: the cabinet slots now run inside the cabinet.)
+
+        // SPEC-SWEEP TM-28: the EQ-match filter at the end of the chain.
+        if (getEqMatchPosition() == EqMatchPosition::postMaster)
+            eqMatchSlot.process (mainOut.getArrayOfWritePointers(), mainOut.getNumChannels(), numSamples);
 
         // SPEC-SWEEP TM-17: a Cab Match pass starts its capture in the block
         // its test signal starts, so both share sample zero.

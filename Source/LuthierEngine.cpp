@@ -130,6 +130,7 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
     instrumentBuffer.assign ((size_t) maxBlock, 0.0);
     preCircuitBuffer.assign ((size_t) maxBlock, 0.0);   // MODEL-GAPS: Aux 1 pre-circuit
     bodyIrInput.assign ((size_t) maxBlock, 0.0f);       // SPEC-SWEEP TM-6
+    eqMatchScratch.assign ((size_t) maxBlock, 0.0f);    // SPEC-SWEEP TM-28
     bodyBuffer.setSize (1, maxBlock, false, true, true);
     workBuffer.setSize (2, maxBlock, false, true, true);
     wetDryBuffer.setSize (2, maxBlock, false, true, true);
@@ -2994,6 +2995,21 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
         preEffects.processStereo (dl.data(), dr.data(), numSamples);
 
+        // SPEC-SWEEP TM-28: the EQ-match filter, into the amp.
+        const bool eqMatchHere = eqMatchSlot != nullptr && eqMatchSlot->isEngaged()
+                                 && numSamples <= (int) eqMatchScratch.size();
+
+        if (eqMatchHere && eqMatchPosition.load (std::memory_order_relaxed) == 0)
+        {
+            for (int i = 0; i < numSamples; ++i)
+                eqMatchScratch[(size_t) i] = (float) ((dl[(size_t) i] + dr[(size_t) i]) * 0.5);
+
+            eqMatchSlot->processReplacing (eqMatchScratch.data(), eqMatchScratch.data(), numSamples);
+
+            for (int i = 0; i < numSamples; ++i)
+                dl[(size_t) i] = dr[(size_t) i] = (double) eqMatchScratch[(size_t) i];
+        }
+
         // ---- 6. amp (mono) ----------------------------------------------------
         for (int i = 0; i < numSamples; ++i)
         {
@@ -3046,6 +3062,10 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
             wl[i] = (float) dl[(size_t) i];
             wr[i] = (float) dr[(size_t) i];
         }
+
+        // SPEC-SWEEP TM-28: the EQ-match filter after the amp, before the cabinet.
+        if (eqMatchHere && eqMatchPosition.load (std::memory_order_relaxed) == 1)
+            eqMatchSlot->process (workBuffer.getArrayOfWritePointers(), 2, numSamples);
 
         if (wantWetTap)
             taps.writeAuxDifference (AuxBus::wetFx, wl, wr,
