@@ -75,3 +75,35 @@ jobs:
           path: |
             build/perf.log
             build/perf-dashboard.json
+
+  # qa-polish: AddressSanitizer build of the test runner. A separate build tree
+  # with -fsanitize=address catches heap/stack overflows, use-after-free and
+  # leaks that a plain Release build misses. Combo is skipped: it is the long
+  # combinatorial suite and times out under ASan's slowdown.
+  asan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up
+        run: |
+          sudo -E scripts/setup_linux.sh
+          sudo chown -R "$USER" .
+
+      - name: Configure ASan build
+        run: |
+          cmake -S . -B build-asan -G Ninja -DCMAKE_BUILD_TYPE=Debug \
+                -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+                -DLUTHIER_LTO=OFF \
+                -DCMAKE_C_FLAGS="-fsanitize=address -fno-omit-frame-pointer" \
+                -DCMAKE_CXX_FLAGS="-fsanitize=address -fno-omit-frame-pointer"
+
+      - name: Build LuthierTests (ASan)
+        run: ninja -C build-asan -j4 LuthierTests
+
+      - name: Run tests under ASan (skip Combo)
+        env:
+          ASAN_OPTIONS: "detect_leaks=1:abort_on_error=1:halt_on_error=1"
+        run: |
+          xvfb-run -a build-asan/LuthierTests_artefacts/Debug/LuthierTests --skip=Combo

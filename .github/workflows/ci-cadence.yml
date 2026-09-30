@@ -68,14 +68,14 @@ jobs:
           # [ $((n % 3)) -eq 0 ] && windows=true    # PAUSED
           # [ $((n % 15)) -eq 0 ] && macos=true     # PAUSED
           [ $((n % 3)) -eq 0 ] && windows=true   # beta: Windows re-enabled (PR #9)
-          macos=false     # PAUSED until project complete
+          macos=true      # public repo: macOS runners are free, build every push/PR
           echo "number=$n" >> "$GITHUB_OUTPUT"
           echo "windows=$windows" >> "$GITHUB_OUTPUT"
           echo "macos=$macos" >> "$GITHUB_OUTPUT"
           {
             echo "### Successful Linux build #$n"
-            echo "- Windows this time: $windows (PAUSED until project complete)"
-            echo "- macOS this time: $macos (PAUSED until project complete)"
+            echo "- Windows this time: $windows (every 3rd Linux build)"
+            echo "- macOS this time: $macos (public repo: enabled)"
           } >> "$GITHUB_STEP_SUMMARY"
           echo "$n" > marker.txt
       - uses: actions/upload-artifact@v4

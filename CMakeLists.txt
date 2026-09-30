@@ -18,6 +18,15 @@ option(LUTHIER_BUILD_CLI   "Build the offline batch-render CLI"  ON)
 # it off on ordinary pushes, where it doubles the link time and defeats the
 # compiler cache, and keeps it on for nightly and release builds.
 option(LUTHIER_LTO         "Link-time optimise the plugin targets" ON)
+# Optional crash reporting via sentry-native. OFF by default: when OFF, nothing
+# below fires and Source/Support/CrashReporting.cpp compiles to no-ops (see that
+# file and docs/infra/SETTINGS_CHECKLIST.md). Turn on with:
+#   -DLUTHIER_ENABLE_SENTRY=ON -DSENTRY_DSN=$SENTRY_DSN
+# The DSN is never hardcoded; it is read here from the SENTRY_DSN cache/env var.
+option(LUTHIER_ENABLE_SENTRY "Compile in opt-in sentry-native crash reporting" OFF)
+if (LUTHIER_ENABLE_SENTRY AND (NOT DEFINED SENTRY_DSN OR SENTRY_DSN STREQUAL ""))
+    set(SENTRY_DSN "$ENV{SENTRY_DSN}")
+endif()
 
 add_subdirectory(ThirdParty/JUCE)
 
@@ -128,6 +137,22 @@ target_link_libraries(Luthier PRIVATE
 
 if (LUTHIER_LTO)
     target_link_libraries(Luthier PUBLIC juce::juce_recommended_lto_flags)
+endif()
+
+# Opt-in crash reporting (scaffold). Only fires when LUTHIER_ENABLE_SENTRY=ON;
+# the default build never enters this block, so CrashReporting.cpp stays a no-op.
+if (LUTHIER_ENABLE_SENTRY)
+    target_compile_definitions(Luthier PRIVATE
+        LUTHIER_ENABLE_SENTRY=1
+        LUTHIER_SENTRY_DSN="${SENTRY_DSN}")
+    # To finish wiring sentry-native, fetch/find it and link, e.g.:
+    #   find_package(sentry CONFIG REQUIRED)
+    #   target_link_libraries(Luthier PRIVATE sentry::sentry)
+    if (SENTRY_DSN STREQUAL "")
+        message(WARNING "LUTHIER_ENABLE_SENTRY is ON but SENTRY_DSN is empty; reporting stays disabled at runtime.")
+    else()
+        message(STATUS "Luthier: sentry crash reporting compiled in (DSN provided via SENTRY_DSN).")
+    endif()
 endif()
 
 if (LUTHIER_HAS_CLAP)
