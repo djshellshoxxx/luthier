@@ -1383,7 +1383,7 @@ namespace
     {
         double e = 0.0, d = 0.0;
 
-        for (size_t i = juce::jmax<size_t> (from, 1); i < juce::jmin (to, x.size()); ++i)
+        for (size_t i = juce::jmax (from, (size_t) 1); i < juce::jmin (to, x.size()); ++i)
         {
             e += (double) x[i] * x[i];
             d += ((double) x[i] - x[i - 1]) * ((double) x[i] - x[i - 1]);
