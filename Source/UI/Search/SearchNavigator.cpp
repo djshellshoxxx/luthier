@@ -22,6 +22,7 @@
 #include "../StringInteractionGroup.h"
 #include "../MidiOutPanel.h"
 #include "../HelpContent.h"
+#include "../Techniques/TechniquesPanel.h"   // gui-techniques-updates.md 1 (TECHNIQUES sub-tabs)
 
 namespace luthier::search
 {
@@ -383,6 +384,27 @@ void SearchNavigator::tagSurfaces()
         tagGroup (findFirst<RightHandGroup> (*panel),         "group:CHARACTER:RIGHT HAND", "Right hand");
         tagGroup (findFirst<StringInteractionGroup> (*panel), "group:CHARACTER:STRING INTERACTION", "String interaction");
     }
+
+    // The TECHNIQUES tab (gui-techniques-updates.md 1) is a vertical rail of
+    // sub-tab pages, only the selected one visible. Tag each page with the
+    // opener that selects its sub-tab, so navigating to a control inside a page
+    // that is not on show reveals it - the chain walk opens the workspace tab
+    // and then this sub-tab before the control is scrolled to and focused.
+    for (int i = 0; i < adv.getNumWorkspaceTabs(); ++i)
+        if (auto* tech = dynamic_cast<TechniquesPanel*> (adv.getWorkspacePanel (i)))
+            for (int s = 0; s < tech->getNumSubTabs(); ++s)
+            {
+                const juce::String name (TechniquesPanel::getSubTabName (s));
+
+                if (auto* page = tech->getPage (s))
+                    SearchAnchors::tag (*page, "subtab:techniques:" + name, [tech, s] { tech->showSubTab (s); }, name);
+
+                // The arm pill sits beside the pages (a direct child of the
+                // panel), and shows only while its own sub-tab is selected, so
+                // it needs the same opener to be reached (scrape_armed etc.).
+                if (auto* pill = tech->getArmPill (s))
+                    SearchAnchors::tag (*pill, "subtab:techniques:" + name, [tech, s] { tech->showSubTab (s); }, name);
+            }
 }
 
 void SearchNavigator::registerActions()

@@ -1,5 +1,6 @@
 #include "TechniqueMirrors.h"
 #include "../../PluginProcessor.h"
+#include "../Search/LiveControls.h"   // SearchAnchors (global-search.md 3.2)
 
 namespace luthier
 {
@@ -45,6 +46,20 @@ TechniqueMirrors::TechniqueMirrors (LuthierAudioProcessor& p)
     addWide (slideExpander, Metrics::buttonHeight);
     addWide (slideFlow, 1);   // re-measured in resized()
     slideFlow.setVisible (false);
+
+    // global-search.md 3.2: the slide mirrors live in this collapsed section, so
+    // search must be able to open it to reveal a control the navigator lands on
+    // (slide_pos_source and the rest of the SLIDE CONTROLS mirrors).
+    search::SearchAnchors::tag (slideFlow, "subtab:character:SLIDE CONTROLS", [this]
+    {
+        if (! slideExpander.getToggleState())
+        {
+            slideExpander.setToggleState (true, juce::dontSendNotification);
+
+            if (slideExpander.onClick != nullptr)
+                slideExpander.onClick();
+        }
+    }, "Slide controls");
 }
 
 } // namespace luthier

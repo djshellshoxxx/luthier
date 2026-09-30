@@ -333,7 +333,7 @@ const std::vector<PlaceDef>& PlaceProvider::catalogue()
 
         // gui-integration 4.4: column 4's tabs.
         for (const char* tab : { "WORKSHOP", "MOD", "RHYTHM", "TUNE", "JAM", "RIFFS", "LIVE", "ROUTING", "TONE MATCH",   // JAM: FEAT-JAM; RIFFS: FEAT-RIFFS
-                                 "CHARACTER", "PRACTICE", "NOTATION", "MIDI OUT", "CONTROLLERS", "HELP" })
+                                 "CHARACTER", "PRACTICE", "NOTATION", "MIDI OUT", "CONTROLLERS", "TECHNIQUES", "HELP" })   // TECHNIQUES: gui-techniques-updates.md 0.2
             v.push_back ({ juce::String ("place:tab:") + tab, capitalised (tab) + " tab", "Advanced > Column 4",
                            location ({ LocationStep::make (T::mode, "Advanced"), LocationStep::make (T::workspaceTab, tab) }),
                            tab, Gate::none });
