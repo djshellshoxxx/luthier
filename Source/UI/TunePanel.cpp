@@ -247,7 +247,11 @@ juce::PopupMenu TuneSectionStrip::buildMenu (int sectionIndex) const
     menu.addItem (renameItem, "Rename...");
     menu.addItem (duplicateItem, "Duplicate");
     menu.addItem (varyItem, "Vary", section != nullptr);   // 3.3
-    menu.addItem (deleteItem, "Delete", section != nullptr);
+    // SPEC-SWEEP ER-48: the last section cannot go, and the item says why.
+    const bool canDelete = section != nullptr && tune.getNumSections() > 1;
+    menu.addItem (deleteItem, canDelete || section == nullptr ? juce::String ("Delete")
+                                                              : juce::String ("Delete (a tune must have at least one section)"),
+                  canDelete);
     menu.addSeparator();
 
     // 3.3: "Repeat count (x1, x2, x4, custom)".

@@ -485,7 +485,8 @@ int Tune::addSection (TuneSection section, int insertAt)
 
 bool Tune::removeSection (int index)
 {
-    if (! isValidSection (index))
+    // SPEC-SWEEP ER-48, error-recovery 6: "A tune must have at least one section."
+    if (! isValidSection (index) || getNumSections() <= 1)
         return false;
 
     const auto name = arrangement.sections[(size_t) index].name;
