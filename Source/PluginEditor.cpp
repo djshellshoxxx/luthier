@@ -1301,7 +1301,7 @@ void LuthierAudioProcessorEditor::pollForNotifications()
             Notification n;
             n.id = "preset-save";
             n.message = saveError;
-            n.level = Notification::Level::warning;
+            n.level = Notification::Level::error;   // SPEC-SWEEP ER-81: the user's work did not land
             notifications.post (std::move (n));
         }
     }

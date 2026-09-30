@@ -46,7 +46,10 @@ namespace luthier
 /** One thing the plugin wants to tell the user about. */
 struct Notification
 {
-    enum class Level { info, warning };
+    /*  SPEC-SWEEP ER-81, error-recovery 14: "errors > warnings > info". The
+        queue shows the most severe waiting banner next (in arrival order within
+        a level); an error is drawn in the clip red. */
+    enum class Level { info, warning, error };
 
     /*  Identity, not text. Two postings with the same id are the same piece of
         news said twice - a licence countdown that ticked, a crash report noticed

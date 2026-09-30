@@ -17,6 +17,7 @@
 #include "../Live/LiveInput.h"
 #include "../UI/AdvancedPanel.h"
 #include "../UI/HeaderBar.h"
+#include "../UI/Notifications.h"
 #include "../UI/OwnedFileChooser.h"
 #include "../Tune/TuneModel.h"
 
@@ -667,4 +668,39 @@ LUTHIER_TEST (Presets, aDamagedOldPresetNeverChangesTheFileOnDisk)
         file.loadFileAsData (after);
         CHECK_MSG (before == after, "loading " + file.getFileName() + " rewrote it");
     }
+}
+
+//==============================================================================
+/*  ER-81, error-recovery 14: errors before warnings before info; arrival
+    order within a level. */
+LUTHIER_TEST (Editor, bannersShowTheMostSevereFirst)
+{
+    NotificationCentre centre;
+    centre.setSize (600, NotificationCentre::preferredHeight);
+
+    auto make = [] (const char* id, Notification::Level level)
+    {
+        Notification n;
+        n.id = id;
+        n.message = id;
+        n.level = level;
+        return n;
+    };
+
+    centre.post (make ("first-info", Notification::Level::info));        // shown at once
+    centre.post (make ("second-info", Notification::Level::info));
+    centre.post (make ("a-warning", Notification::Level::warning));
+    centre.post (make ("an-error", Notification::Level::error));
+    centre.post (make ("another-error", Notification::Level::error));
+
+    juce::StringArray order { centre.getCurrentId() };
+
+    while (centre.getNumQueued() > 0)
+    {
+        centre.dismissCurrent();
+        order.add (centre.getCurrentId());
+    }
+
+    CHECK_MSG (order.joinIntoString (",") == "first-info,an-error,another-error,a-warning,second-info",
+               order.joinIntoString (","));
 }
