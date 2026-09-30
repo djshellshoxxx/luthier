@@ -727,3 +727,66 @@ LUTHIER_TEST (Workshop, anInvalidGuitarSaveIsRefusedWithItsReason)
     CHECK (processor.getLastGuitarSaveError().contains ("name"));
     CHECK (PartLibrary::getUserGuitarsFolder().getNumberOfChildFiles (juce::File::findFiles) == before);
 }
+
+//==============================================================================
+/*  SM-50, state-model 8.2: a snapshot recall during A/B compare replaces the
+    selected slot - switching away stores the recalled state, not the old one. */
+LUTHIER_TEST (StateModel, aRecallDuringCompareReplacesTheSelectedSlot)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    auto* drive = processor.getState().getParameter (ParamIDs::macroDrive);
+    drive->setValueNotifyingHost (0.5f);
+    CHECK (processor.captureSnapshot (0));
+
+    drive->setValueNotifyingHost (0.2f);   // A
+    processor.setSlotBActive (true);
+    drive->setValueNotifyingHost (0.8f);   // B
+    processor.setSlotBActive (false);
+    CHECK_NEAR (drive->getValue(), 0.2, 0.01);
+
+    CHECK (processor.recallSnapshot (0));   // into A
+    processor.getSnapshots().advance (1.0);
+    CHECK_NEAR (drive->getValue(), 0.5, 0.02);
+
+    processor.setSlotBActive (true);
+    CHECK_NEAR (drive->getValue(), 0.8, 0.01);
+    processor.setSlotBActive (false);
+    CHECK_MSG (std::abs (drive->getValue() - 0.5f) < 0.02f, "A went back to its pre-recall state");
+}
+
+/*  SM-7, state-model 1: the per-instance UI state - mode, tab, Live, Slide
+    Mode (a parameter), the Practice drawer, the bench slots - survives the host. */
+LUTHIER_TEST (StateModel, theInstancesUiStateSurvivesTheHost)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    auto& ui = processor.getUiState();
+    ui.advancedMode = true;
+    ui.advancedTab = 3;
+    ui.practiceDrawerOpen = true;
+    ui.liveMode = true;
+    ui.benchSlots[0] = juce::var ("bench-a");
+
+    if (auto* slide = processor.getState().getParameter (ParamIDs::slideGuitar))
+        slide->setValueNotifyingHost (1.0f);
+
+    juce::MemoryBlock state;
+    processor.getStateInformation (state);
+
+    LuthierAudioProcessor restored;
+    restored.prepareToPlay (kSr, kBlock);
+    restored.setStateInformation (state.getData(), (int) state.getSize());
+
+    const auto& r = restored.getUiState();
+    CHECK (r.advancedMode);
+    CHECK (r.advancedTab == 3);
+    CHECK (r.practiceDrawerOpen);
+    CHECK (r.liveMode);
+    CHECK (r.benchSlots[0].toString() == "bench-a");
+
+    auto* slide = restored.getState().getParameter (ParamIDs::slideGuitar);
+    CHECK (slide != nullptr && slide->getValue() > 0.5f);
+}
