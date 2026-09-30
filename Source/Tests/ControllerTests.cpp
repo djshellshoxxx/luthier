@@ -767,48 +767,12 @@ LUTHIER_TEST (Controllers, chordGroupsSoundOneWindowAfterTheyWerePlayed)
 }
 
 //==============================================================================
-// CT-7: ParameterBridge::applyToEngine used to rewrite setMpeEnabled/
-// setPitchBendRange from the mpe_enabled/bend_range parameters on every block,
-// undoing an MPE profile's flag and 48-semitone member bend the instant the next
-// block ran. ControllersPage::applySelectedProfile now pushes the profile's
-// values into those parameters, so the bridge re-applies the same thing.
-LUTHIER_TEST (Controllers, anMpeProfileSurvivesTheParameterBridge)
-{
-    LuthierAudioProcessor processor;
-    processor.prepareToPlay (48000.0, 128);
-
-    ControllersPage page (processor);
-    page.setSize (400, 500);
-
-    ControllerProfileLibrary library;
-    library.refresh();
-    const int index = library.indexOf ("roli-seaboard");
-    CHECK (index >= 0);
-
-    // Simulate choosing the Seaboard MPE profile in the combo box.
-    bool foundBox = false;
-
-    for (int i = 0; i < page.getNumChildComponents(); ++i)
-    {
-        if (auto* box = dynamic_cast<juce::ComboBox*> (page.getChildComponent (i)))
-        {
-            box->setSelectedId (index + 1, juce::sendNotificationSync);
-            foundBox = true;
-        }
-    }
-
-    CHECK (foundBox);
-    CHECK (processor.getEngine().getMidiInterpreter().isMpeEnabled());
-    CHECK_NEAR (processor.getEngine().getMidiInterpreter().getPitchBendRange(), 48.0, 1.0e-6);
-
-    // The bug: a block used to run the bridge straight from the (still Generic)
-    // mpe_enabled/bend_range parameters and stomp on what the profile just set.
-    processor.getParameterBridge().applyToEngine();
-
-    CHECK (processor.getEngine().getMidiInterpreter().isMpeEnabled());
-    CHECK_NEAR (processor.getEngine().getMidiInterpreter().getPitchBendRange(), 48.0, 1.0e-6);
-    CHECK (processor.getControllerProfileId() == "roli-seaboard");
-}
+// CT-7 (anMpeProfileSurvivesTheParameterBridge) lived here as a gaps-host copy
+// that expected a ControllersPage combo selection to reach the interpreter
+// synchronously. The integration/SPEC-SWEEP merge made a profile publish through
+// ControllerStage and apply on the audio thread's next block, so the canonical
+// version - which renders a block before it checks - is in ControllerSweepTests.
+// The stale duplicate is removed to end the name collision.
 
 //==============================================================================
 // CT-2: the chosen profile used to live only in the ControllersPage combo box,
@@ -918,84 +882,11 @@ LUTHIER_TEST (Controllers, mpeMasterChannelNotesAreIgnored)
 }
 
 //==============================================================================
-// CT-9: LinnStrument's "Guitar mode" (rowsAsStrings) used to be stored but
-// never applied - the profile stayed in MPE mode regardless of the toggle.
-LUTHIER_TEST (Controllers, linnstrumentGuitarModeMapsRowsToStrings)
-{
-    ControllerProfileLibrary library;
-    const int index = library.indexOf ("linnstrument");
-    CHECK (index >= 0);
-
-    if (index < 0)
-        return;
-
-    auto profile = library.getProfile (index);
-    CHECK (profile.mode == ControllerMode::mpe);   // its normal, non-Guitar-mode behaviour
-
-    profile.rowsAsStrings = true;
-
-    InterpreterFixture fixture;
-    ControllerProfileLibrary::apply (profile, fixture.interpreter);
-
-    CHECK (! fixture.interpreter.isMpeEnabled());
-    CHECK (fixture.interpreter.getPlayingMode() == PlayingMode::GuitarController);
-
-    for (int s = 0; s < 6; ++s)
-        CHECK_MSG (fixture.interpreter.getChannelForString (s) == 2 + s,
-                   "string " + juce::String (s) + " went to channel "
-                     + juce::String (fixture.interpreter.getChannelForString (s)));
-
-    int64_t position = 0;
-
-    // Channel 2 (row 1, high string) plays string 0.
-    CHECK (fixture.noteOnString (2, 64, position) == 0);
-}
-
-//==============================================================================
-// CT-10: Osmose's non-linear key-travel curve was stored on the profile but
-// never applied - the interpreter turned its pitch bend into cents linearly.
-LUTHIER_TEST (Controllers, osmoseBendFollowsTheCurveThroughTheInterpreter)
-{
-    ControllerProfileLibrary library;
-    const int index = library.indexOf ("osmose");
-    CHECK (index >= 0);
-
-    if (index < 0)
-        return;
-
-    const auto& profile = library.getProfile (index);
-    CHECK (profile.pitchCurve.size() >= 2);
-
-    InterpreterFixture fixture;
-    ControllerProfileLibrary::apply (profile, fixture.interpreter);
-
-    const int memberChannel = profile.mpeFirstMemberChannel;
-    const int wheelValue = 8192 + 3277;   // an arbitrary partial bend upward
-
-    // The same integer-quantised value the interpreter itself will decode, so
-    // the expected figure below isn't thrown off by rounding.
-    const double normalised = ((double) wheelValue - 8192.0) / 8192.0;
-
-    juce::MidiBuffer midi;
-    midi.addEvent (juce::MidiMessage::pitchWheel (memberChannel, wheelValue), 0);
-
-    PlayEventQueue out;
-    int64_t position = 0;
-    fixture.interpreter.processBlock (midi, 256, position, out);
-
-    CHECK (out.getNumBends() == 1);
-
-    if (out.getNumBends() == 1)
-    {
-        const double expectedNormalised = profile.applyPitchCurve (normalised);
-        const double expectedCents = expectedNormalised * profile.memberPitchBendSemis * 100.0;
-
-        // The raw (uncurved) figure the bug would have produced, for contrast.
-        const double linearCents = normalised * profile.memberPitchBendSemis * 100.0;
-
-        CHECK_MSG (std::abs (expectedCents - linearCents) > 1.0,
-                   "the curve fixture is too close to linear to distinguish the two");
-
-        CHECK_NEAR (out.getBend (0).cents, expectedCents, 1.0);
-    }
-}
+// CT-9 (linnstrumentGuitarModeMapsRowsToStrings) and CT-10
+// (osmoseBendFollowsTheCurveThroughTheInterpreter) were gaps-host copies whose
+// expectations the integration/SPEC-SWEEP merge superseded: guitar-mode rows now
+// map to channels 1..6 (this copy still expected the old 2..7), and a member
+// channel's bend needs an active note to route to its string (this copy sent a
+// wheel with no preceding note-on). The canonical versions are in
+// ControllerSweepTests. The stale duplicates are removed to end the name
+// collisions.
