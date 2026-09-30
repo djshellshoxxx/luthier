@@ -1,47 +1,47 @@
 ## piano-roll-chord-display.md
 
-Nothing of this spec (added 2026-09-24) is on this checkout: no piano roll strip, no on-screen keyboard or UI keyboard state in the processor, no chord name on the guitar, no Visual aids options; only the building blocks it names exist (`Rhythm/ChordDetector`, `LuthierEngine::getStringActivity`, `RubricVoicer`, Options General "Show tooltips on hover"). The visual branch has just started (e401027, 2026-09-24 16:39, "groundwork ... wired up in following commits"): `Support/SoundingNotes` (double-buffered atomic snapshot, not yet published by the engine), `UI/ChordNameFader` (0.35 peak, 60 ms in, 30 ms burst, 1.2 s hold, 0.8 s out, 60 ms crossfade, reduced motion) and `UI/VisualAids` (the four user preferences), with no tests and no UI. Owner gaps: the strip, keyboard play/latch/fingering, range, naming and placement, UiState fields, the Options section and every PR/CD/OP test.
+The piano roll strip and chord-name display are implemented on this checkout: `Support/SoundingNotes` + `SoundingNotesPublisher` (published by `LuthierEngine::publishSoundingNotes`), `UI/PianoRollStrip` + `PianoRollModel` (Advanced under the fretboard, Easy under the illustration), `UI/ChordNameOverlay` + `ChordNameFader` (drawn in `GuitarBodyComponent`), `UI/VisualAids` + `VisualAidsSection` (Options General) and the UiState piano fields; tests are in `Source/Tests/PianoRollTests.cpp`. Gaps: no test for strip layout/labels/computer-keys/bend tick and no 2 ms repaint-budget test.
 
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
-| PR-0a (§0.1, §7) | Display reads never allocate/lock on audio thread; publish ≤ 12 stores + 1 atomic increment | (visual) `Support/SoundingNotes::publish` (not yet called) | n/a | - | OWNED |
-| PR-0b (§0.1, §3) | Key play uses the existing on-screen keyboard MIDI path (ordinary MIDI ch 1) — no UI keyboard state exists here | - | - | - | OWNED |
-| PR-0c (§0.2, §2) | Show what sounds (incl. voicer/rhythm notes) from engine string activity | (visual) `SoundingNotes` frame (bits, per-string note, start sample) | - | - | OWNED |
-| PR-1 (§1) | Strip: keyboard 18-28 px + 4 s right-to-left roll 40-80 px | - | - | - | OWNED |
-| PR-2 (§1) | Range follows tuning + capo, lowest open string to highest last fret, padded to octaves; out-of-range keys dimmed but live | - | - | - | OWNED |
-| PR-3 (§1) | Colours: lit key = string colour 85 %, 150 ms release fade; bars 60 %, length = duration | - | - | - | OWNED |
-| PR-4 (§1) | C octave labels; middle C marked | - | - | - | OWNED |
-| PR-5 (§1) | Advanced: collapsible strip under the fretboard in col 2, 72 px default, drag 40-140 px, state in UiState | - | - | - | OWNED |
-| PR-6 (§1) | Easy: 56 px strip under the illustration | - | - | - | OWNED |
-| PR-7 (§1) | Strip header: ROLL/KEYS toggle, Latch, Show fingering | - | - | - | OWNED |
-| PR-8 (§2) | SoundingNotes snapshot: 128-bit set + per-string note/start, double-buffered, atomic sequence, audio only stores | (visual) `Support/SoundingNotes` | n/a | - | OWNED |
-| PR-9 (§2) | 30 Hz UI drain; 250 ms staleness clears keys | - | - | - | OWNED |
-| PR-10 (§2) | Slide/bend moves the key at the semitone crossing; roll bar tick when bent > 20 c | (visual) `SoundingNotes` bendCents | - | - | OWNED |
-| PR-11 (§3) | Click/drag glissando; velocity 40-110 by click height; notes into processor UI keyboard state, fretboard shows landing | - | - | - | OWNED |
-| PR-12 (§3) | Latch: clicks toggle held set; Play/Enter sends one chord (rhythm engine strums, else crossing-speed strum); Clear/Escape | - | - | - | OWNED |
-| PR-13 (§3) | Show fingering: RubricVoicer voicing as hollow ghost dots on the fretboard overlay; unreachable key x + tooltip "below this guitar's range" | - | - | - | OWNED |
-| PR-14 (§3) | Computer keyboard A-L / W-P / Z-X only while the strip has focus | - | - | - | OWNED |
-| CD-1 (§4) | Naming via ChordDetector: one PC note name (key-signature spelling; Bb/Eb flats), two PCs power chord "E5" or "C E", three+ chord symbol or PC list below confidence floor | `Rhythm/ChordDetector` (exists) | - | - | OWNED |
-| CD-2 (§4) | Placement: centred over lower bout in GuitarBodyComponent (Easy + Advanced), display face, 12 % height clamped 28-96 px, text colour, peak 0.35, drawn in live overlay pass | - | - | - | OWNED |
-| CD-3 (§4) | Timing: 60 ms in, 30 ms burst merge, hold ≤ 1.2 s, 0.8 s out, 60 ms crossfade, legato/bend updates in place | (visual) `UI/ChordNameFader` constants + `update/getOpacity` | - | - | OWNED |
-| CD-4 (§4) | Reduced motion: no fades | (visual) `ChordNameFader::setReducedMotion` | - | - | OWNED |
-| CD-5 (§4) | "Announce chord names": polite announcement ≤ 1 per 1.5 s | (visual) `VisualAids::announceChordNames` (pref only) | - | - | OWNED |
-| OP-1 (§5, §0.3) | Options > General "Visual aids": chord names (on), announce (off, gated), piano roll per mode (Adv on / Easy off), roll shows Keys / Keys+Roll; UiPreferences, saved at once, not preset/param | (visual) `UI/VisualAids` getters/setters | - (no Options controls yet) | - | OWNED |
-| ST-1 (§6) | UiState pianoRollExpanded / pianoRollHeight / pianoLatch / pianoShowFingering; latched set in plugin state, not presets; not undoable | - | n/a | - | OWNED |
-| PF-1 (§7) | Roll repaints dirty region at 30 Hz within 2 ms at 1920x1080 | - | - | - | OWNED |
-| T-PR01 (§8) | Test: chord lights exactly its keys within 2 frames in string colours (incl. voicer notes) | | | - | OWNED |
-| T-PR02 (§8) | Test: release clears keys by 200 ms | | | - | OWNED |
-| T-PR03 (§8) | Test: key click -> keyboard-state note-on, engine sounds it | | | - | OWNED |
-| T-PR04 (§8) | Test: Latch C E G + Play strums C major | | | - | OWNED |
-| T-PR05 (§8) | Test: Show fingering ghost dots match RubricVoicer | | | - | OWNED |
-| T-PR06 (§8) | Test: range follows Drop D and capo 2 | | | - | OWNED |
-| T-PR07 (§8) | Test: no allocation from snapshot publish | | | - | OWNED |
-| T-CD01 (§8) | Test: "G#", "G", "Am7", "E5" | | | - | OWNED |
-| T-CD02 (§8) | Test: peak 0.35 ± 0.02 in 80 ms, hold ≤ 1.2 s, 0 by 2.1 s | | | - | OWNED |
-| T-CD03 (§8) | Test: 25 ms strum -> one name | | | - | OWNED |
-| T-CD04 (§8) | Test: option off -> nothing drawn, no detection | | | - | OWNED |
-| T-CD05 (§8) | Test: reduced motion no intermediate opacities | | | - | OWNED |
-| T-OP01 (§8) | Test: options persist across editor/processor, not in presets | | | - | OWNED |
-| T-OP02 (§8) | Test: every control reachable in both modes with focus and SR labels | | | - | OWNED |
+| PR-0a (§0.1, §7) | Display reads never allocate/lock on audio thread; publish ≤ 12 stores + 1 atomic increment | `Support/SoundingNotes`, `Support/SoundingNotesPublisher`, `LuthierEngine::publishSoundingNotes` (double-buffered atomic publish, no alloc) | n/a | `PianoRoll::publishingTheSnapshotDoesNotAllocate` | DONE |
+| PR-0b (§0.1, §3) | Key play uses the on-screen keyboard MIDI path (ordinary MIDI ch 1) | `LuthierAudioProcessor::playKeyboardNote` (existing on-screen keyboard MIDI path) | `UI/PianoRollStrip` `pressKey` | `PianoRoll::clickingAKeyPlaysTheGuitar` | DONE |
+| PR-0c (§0.2, §2) | Show what sounds (incl. voicer/rhythm notes) from engine string activity | `Support/SoundingNotes`, `Support/SoundingNotesPublisher`, `LuthierEngine::publishSoundingNotes` frame (bits, per-string note, start sample); `UI/PianoRollModel` | `UI/PianoRollStrip` | `PianoRoll::aChordLightsItsSoundingKeysInTheStringsColours` | DONE |
+| PR-1 (§1) | Strip: keyboard 18-28 px + 4 s right-to-left roll 40-80 px | `UI/PianoRollModel` (kRollSeconds 4 s) | `UI/PianoRollStrip` keys + roll paint | - | NO-TEST |
+| PR-2 (§1) | Range follows tuning + capo, lowest open string to highest last fret, padded to octaves; out-of-range keys dimmed but live | `UI/PianoRollModel` range from tuning + capo; unreachable keys dimmed but live | `UI/PianoRollStrip` | `PianoRoll::theRangeFollowsTuningAndCapo` | DONE |
+| PR-3 (§1) | Colours: lit key = string colour 85 %, 150 ms release fade; bars 60 %, length = duration | `UI/PianoRollModel` string colours, release fade | `UI/PianoRollStrip` paint (accent 0.6 bars) | `PianoRoll::aChordLightsItsSoundingKeysInTheStringsColours`, `releasingClearsTheKeysWithin200ms` | DONE |
+| PR-4 (§1) | C octave labels; middle C marked | n/a | `UI/PianoRollStrip` paint (C labels, middle C marked, PianoRollStrip.cpp ~700) | - | NO-TEST |
+| PR-5 (§1) | Advanced: collapsible strip under the fretboard in col 2, 72 px default, drag 40-140 px, state in UiState | `LuthierAudioProcessor::UiState` pianoRollExpanded/pianoRollHeight (40-140) | `UI/AdvancedPanel` pianoRoll under fretboard, collapse arrow + drag handle in `PianoRollStrip::mouseDrag` | no layout test; state round trip only in `VisualAids::theOptionsPersistAndStayOutOfPresets` | NO-TEST |
+| PR-6 (§1) | Easy: 56 px strip under the illustration | n/a | `UI/EasyPanel` pianoRoll (`kEasyHeight`) under the illustration | - | NO-TEST |
+| PR-7 (§1) | Strip header: ROLL/KEYS toggle, Latch, Show fingering | n/a | `UI/PianoRollStrip` mode/latch/fingering buttons (getModeButton/getLatchButton/getFingeringButton) | `VisualAids::everyControlIsReachableFocusableAndNamed` | DONE |
+| PR-8 (§2) | SoundingNotes snapshot: 128-bit set + per-string note/start, double-buffered, atomic sequence, audio only stores | `Support/SoundingNotes`, `Support/SoundingNotesPublisher`, `LuthierEngine::publishSoundingNotes` | n/a | `PianoRoll::publishingTheSnapshotDoesNotAllocate` (snapshot fields incl. bendCents/startSample checked) | DONE |
+| PR-9 (§2) | 30 Hz UI drain; 250 ms staleness clears keys | `UI/PianoRollModel` + strip `tick` 30 Hz drain, 250 ms stale | `UI/PianoRollStrip` | `PianoRoll::releasingClearsTheKeysWithin200ms` (stale case) | DONE |
+| PR-10 (§2) | Slide/bend moves the key at the semitone crossing; roll bar tick when bent > 20 c | `UI/PianoRollModel` kBendTickCents (20 c) tick, slide/bend key move via SoundingNotes bendCents | `UI/PianoRollStrip` | - | NO-TEST |
+| PR-11 (§3) | Click/drag glissando; velocity 40-110 by click height; notes into processor UI keyboard state, fretboard shows landing | `processor.playKeyboardNote` | `UI/PianoRollStrip` `mouseDown/mouseDrag` glissando, velocity by click height, fretboard landing via `onGhostDots` | `PianoRoll::clickingAKeyPlaysTheGuitar` | DONE |
+| PR-12 (§3) | Latch: clicks toggle held set; Play/Enter sends one chord (rhythm engine strums, else crossing-speed strum); Clear/Escape | `PianoRollStrip::playLatched / clearLatched`; rhythm engine strum | `UI/PianoRollStrip` Latch button, Return/Escape | `PianoRoll::latchedKeysPlayAsOneStrummedChord` | DONE |
+| PR-13 (§3) | Show fingering: RubricVoicer voicing as hollow ghost dots on the fretboard overlay; unreachable key x + tooltip "below this guitar's range" | `RubricVoicer` voicing | `UI/PianoRollStrip` ghost dots to `FretboardComponent::GhostDot`, unreachable key tooltip | `PianoRoll::showFingeringDrawsTheVoicersShapeBeforeItSounds` | DONE |
+| PR-14 (§3) | Computer keyboard A-L / W-P / Z-X only while the strip has focus | n/a | `UI/PianoRollStrip` `keyPressed`/ key polling (A-L / W-P / Z-X) while focused | - | NO-TEST |
+| CD-1 (§4) | Naming via ChordDetector: one PC note name (key-signature spelling; Bb/Eb flats), two PCs power chord "E5" or "C E", three+ chord symbol or PC list below confidence floor | `UI/ChordNaming`, `Rhythm/ChordDetector` | `UI/ChordNameOverlay` | `ChordName::singleNotesPowerChordsAndChordsAreNamed` | DONE |
+| CD-2 (§4) | Placement: centred over lower bout in GuitarBodyComponent (Easy + Advanced), display face, 12 % height clamped 28-96 px, text colour, peak 0.35, drawn in live overlay pass | n/a | `UI/ChordNameOverlay::lowerBout`, drawn by `UI/GuitarBodyComponent` (Easy + Advanced) | `ChordName::sizedFromTheIllustrationAndAnnouncedPolitely` | DONE |
+| CD-3 (§4) | Timing: 60 ms in, 30 ms burst merge, hold ≤ 1.2 s, 0.8 s out, 60 ms crossfade, legato/bend updates in place | `UI/ChordNameFader` constants + update/getOpacity | `UI/ChordNameOverlay` | `ChordName::fadesInHoldsAndFadesOut`, `aStrumIsOneName` | DONE |
+| CD-4 (§4) | Reduced motion: no fades | `ChordNameFader::setReducedMotion` | `UI/ChordNameOverlay` | `ChordName::reducedMotionHasNoFades` | DONE |
+| CD-5 (§4) | "Announce chord names": polite announcement ≤ 1 per 1.5 s | `UI/VisualAids::announceChordNames` | `UI/ChordNameOverlay` polite announcement | `ChordName::sizedFromTheIllustrationAndAnnouncedPolitely` | DONE |
+| OP-1 (§5, §0.3) | Options > General "Visual aids": chord names (on), announce (off, gated), piano roll per mode (Adv on / Easy off), roll shows Keys / Keys+Roll; UiPreferences, saved at once, not preset/param | `UI/VisualAids` getters/setters, UiPreferences | `UI/VisualAidsSection` in `OptionsPages` General | `VisualAids::theOptionsPersistAndStayOutOfPresets` | DONE |
+| ST-1 (§6) | UiState pianoRollExpanded / pianoRollHeight / pianoLatch / pianoShowFingering; latched set in plugin state, not presets; not undoable | `LuthierAudioProcessor::UiState` pianoRollExpanded/Height/pianoLatch/pianoShowFingering/pianoLatchedNotes in `getStateInformation`, not presets | n/a | `VisualAids::theOptionsPersistAndStayOutOfPresets` | DONE |
+| PF-1 (§7) | Roll repaints dirty region at 30 Hz within 2 ms at 1920x1080 | n/a | `UI/PianoRollStrip` repaints dirty region only (`repaint (keysArea.getUnion (rollArea))`) | - | NO-TEST |
+| T-PR01 (§8) | Test: chord lights exactly its keys within 2 frames in string colours (incl. voicer notes) | see feature rows | n/a | `PianoRoll::aChordLightsItsSoundingKeysInTheStringsColours` in `Tests/PianoRollTests.cpp` | DONE |
+| T-PR02 (§8) | Test: release clears keys by 200 ms | see feature rows | n/a | `PianoRoll::releasingClearsTheKeysWithin200ms` in `Tests/PianoRollTests.cpp` | DONE |
+| T-PR03 (§8) | Test: key click -> keyboard-state note-on, engine sounds it | see feature rows | n/a | `PianoRoll::clickingAKeyPlaysTheGuitar` in `Tests/PianoRollTests.cpp` | DONE |
+| T-PR04 (§8) | Test: Latch C E G + Play strums C major | see feature rows | n/a | `PianoRoll::latchedKeysPlayAsOneStrummedChord` in `Tests/PianoRollTests.cpp` | DONE |
+| T-PR05 (§8) | Test: Show fingering ghost dots match RubricVoicer | see feature rows | n/a | `PianoRoll::showFingeringDrawsTheVoicersShapeBeforeItSounds` in `Tests/PianoRollTests.cpp` | DONE |
+| T-PR06 (§8) | Test: range follows Drop D and capo 2 | see feature rows | n/a | `PianoRoll::theRangeFollowsTuningAndCapo` in `Tests/PianoRollTests.cpp` | DONE |
+| T-PR07 (§8) | Test: no allocation from snapshot publish | see feature rows | n/a | `PianoRoll::publishingTheSnapshotDoesNotAllocate` in `Tests/PianoRollTests.cpp` | DONE |
+| T-CD01 (§8) | Test: "G#", "G", "Am7", "E5" | see feature rows | n/a | `ChordName::singleNotesPowerChordsAndChordsAreNamed` in `Tests/PianoRollTests.cpp` | DONE |
+| T-CD02 (§8) | Test: peak 0.35 ± 0.02 in 80 ms, hold ≤ 1.2 s, 0 by 2.1 s | see feature rows | n/a | `ChordName::fadesInHoldsAndFadesOut` in `Tests/PianoRollTests.cpp` | DONE |
+| T-CD03 (§8) | Test: 25 ms strum -> one name | see feature rows | n/a | `ChordName::aStrumIsOneName` in `Tests/PianoRollTests.cpp` | DONE |
+| T-CD04 (§8) | Test: option off -> nothing drawn, no detection | see feature rows | n/a | `ChordName::offMeansNoDrawingAndNoDetection` in `Tests/PianoRollTests.cpp` | DONE |
+| T-CD05 (§8) | Test: reduced motion no intermediate opacities | see feature rows | n/a | `ChordName::reducedMotionHasNoFades` in `Tests/PianoRollTests.cpp` | DONE |
+| T-OP01 (§8) | Test: options persist across editor/processor, not in presets | see feature rows | n/a | `VisualAids::theOptionsPersistAndStayOutOfPresets` in `Tests/PianoRollTests.cpp` | DONE |
+| T-OP02 (§8) | Test: every control reachable in both modes with focus and SR labels | see feature rows | n/a | `VisualAids::everyControlIsReachableFocusableAndNamed` in `Tests/PianoRollTests.cpp` | DONE |
 
-<!-- counts DONE=0 NO-GUI=0 NO-TEST=0 PARTIAL=0 MISSING=0 OWNED=39 -->
+<!-- counts DONE=32 NO-GUI=0 NO-TEST=7 PARTIAL=0 MISSING=0 DEFERRED=0 OWNED=0 -->

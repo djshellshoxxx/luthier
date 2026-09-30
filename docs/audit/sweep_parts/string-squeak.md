@@ -1,6 +1,6 @@
 ## string-squeak.md
 
-The generated squeak is in place: `PlayingNoise::makeSqueak` / `onShift` implement winding pitch x speed with a glide, wound-only, min travel, the level formula, the per-winding table, the deterministic probability roll, moisture/pressure and age roughness; the six parameters, style dropdown ("Natural (modified)") and noise-event strip sit in CHARACTER > STRING NOISE (`NoiseGroups`). Gaps: only the legacy legato slide (and the hybrid-slide fretted fallback) triggers a squeak - ChordVoicer revoices, score/tab position changes and imported MIDI slide events do not; fret wear does not raise squeak; the winding selector edits `string_material` rather than mirroring the Workshop string part; bend/vibrato, factory-sweep and no-allocation tests are missing. The degradation-step-4 pool halving exists (`NoiseEngine::setDegraded`) but is only wired to the relief ladder on the visual branch.
+The generated squeak is in place: `PlayingNoise::makeSqueak` / `onShift` implement winding pitch x speed with a glide, wound-only, min travel, the level formula, the per-winding table, the deterministic probability roll, moisture/pressure and age roughness; the six parameters, style dropdown ("Natural (modified)") and noise-event strip sit in CHARACTER > STRING NOISE (`NoiseGroups`). Gaps: only the legacy legato slide (and the hybrid-slide fretted fallback) triggers a squeak - ChordVoicer revoices, score/tab position changes and imported MIDI slide events do not; fret wear does not raise squeak; the winding selector edits `string_material` rather than mirroring the Workshop string part; bend/vibrato, factory-sweep and no-allocation tests are missing. The degradation-step-4 pool halving exists (`NoiseEngine::setDegraded`) and is wired through the quality profile (`noiseDegraded` at Low).
 
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
@@ -34,7 +34,7 @@ The generated squeak is in place: `PlayingNoise::makeSqueak` / `onShift` impleme
 | SQ-28 (§10) | String age multiplies roughness up to 1.4 — continuous `AgingFactors::roughness` (REALISM-A) | `StringAging` roughness -> `StringNoiseInfo::fromSpec` ageRoughness | Advanced STRINGS "Age (h)"; CHARACTER STRING AGING | `StringAging.SA13_squeakReconciliation` | DONE |
 | SQ-29 (§11) | MIDI export SQUEAK class (string, start, end, dur, level); Generic drops it | `Export/LuthierMidiEvents.cpp` squeak fields; `PluginProcessor.cpp` sysEx push | MIDI OUT panel | `MidiExport.everyEventClassRoundTripsWithEveryField`, `MidiExport.genericProfileIsPlainMidi` | DONE |
 | SQ-30 (§12) | 16-generator squeak pool, textures once per material | `NoiseEngine::kPoolSizes` | n/a | `NoisePool.aFullPoolStealsTheOldest` | DONE |
-| SQ-31 (§12) | Degradation step 4 halves pool to 8 — `setDegraded` exists and is tested, but nothing calls it here; on visual: `CpuRelief::halveNoisePools` step drives `playingNoise.getPool().setDegraded` | `NoiseEngine::setDegraded` | n/a | `NoisePool.aFullPoolStealsTheOldest` | OWNED |
+| SQ-31 (§12) | Degradation step 4 halves pool to 8 | `NoiseEngine::setDegraded`; `LuthierEngine::setQualityLevel` (`LuthierEngineQuality.cpp` 61) applies `QualityProfile::noiseDegraded` at Low | n/a | `NoisePool.aFullPoolStealsTheOldest`, `CpuQuality.noisePoolsHalveAtLowAndNeverUnderLoadAtHigh` | DONE |
 | SQ-T1 (§13) | Test: plain never squeaks, sweep every factory guitar — unit check only, no factory sweep | `makeSqueak` | n/a | `Squeak.noFactoryGuitarSqueaksOnAPlainString` | DONE |
 | SQ-T2 (§13) | Test: pitch tracks speed and winding (1.95 kHz +/-10 %, x2) | | n/a | `Squeak.pitchTracksSpeedAndWinding` | DONE |
 | SQ-T3 (§13) | Test: glide >= 15 % | | n/a | `Squeak.pitchTracksSpeedAndWinding` | DONE |
@@ -46,4 +46,4 @@ The generated squeak is in place: `PlayingNoise::makeSqueak` / `onShift` impleme
 | SQ-T9 (§13) | Test: zero is free over 10 000 shifts | | n/a | `Squeak.zeroIsFreeAndSlideModeSuppressesIt` | DONE |
 | SQ-T10 (§13) | Test: no allocation on the audio thread — missing | n/a | n/a | `Squeak.noAllocationOnTheAudioThread` | DONE |
 
-<!-- counts DONE=37 NO-GUI=0 NO-TEST=1 PARTIAL=2 MISSING=0 OWNED=1 -->
+<!-- counts DONE=38 NO-GUI=0 NO-TEST=1 PARTIAL=2 MISSING=0 OWNED=0 -->

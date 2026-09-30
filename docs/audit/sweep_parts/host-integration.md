@@ -1,12 +1,12 @@
 ## host-integration.md
 
-The core host surface is in place and tested: VST3/AU/Standalone (plus optional CLAP) targets, bus layouts A-D with the sidechain and Aux 8, latency reporting through `setLatencySamples`, program enumeration, the Ableton post-restore program-change swallow, transport/tempo follow with free-run, and CI running pluginval (strictness 5 per push, 10 nightly). Real defects remain: `NEEDS_MIDI_OUTPUT FALSE` in CMakeLists.txt means VST3/AU expose no MIDI-out port although `producesMidi()` is true; a mono main output is accepted; there are no parameter groups/VST3 units, no localised parameter names, no version tag or unknown-section preservation in the (JSON) state blob and no pre-migration blob backup; host time signature/isRecording/sample rate are not consumed by the rhythm engine; `docs/HOST_COMPATIBILITY.md` does not exist. The visual branch adds the 32-instance, bus-layout-change and allocation/lock stress tests.
+The core host surface is in place and tested: VST3/AU/Standalone (plus optional CLAP) targets, bus layouts A-D with the sidechain and Aux 8, latency reporting through `setLatencySamples`, program enumeration, the Ableton post-restore program-change swallow, transport/tempo follow with free-run, and CI running pluginval (strictness 5 per push, 10 nightly). `NEEDS_MIDI_OUTPUT` is now TRUE. Real defects remain: there are no parameter groups/VST3 units, no localised parameter names, no version tag or unknown-section preservation in the (JSON) state blob and no pre-migration blob backup; host time signature/isRecording/sample rate are not consumed by the rhythm engine; `docs/HOST_COMPATIBILITY.md` does not exist. The 32-instance, bus-layout-change and allocation/lock stress tests are now merged. (NEEDS_MIDI_OUTPUT is now TRUE; see HI-2 / HI-31.)
 
 W2 robustness pass: HI-16/20/22/24/25/38/54 closed (state format version, newer-blob preservation, older-blob backup, size and host-notify tests, `docs/HOST_COMPATIBILITY.md`). HI-14/47 (parameter groups) are left: grouping changes the flattened parameter order some hosts index automation by, which the append-only rule forbids without a migration plan. HI-29 is with the host BPM/transport owners.
 
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
-| HI-1 (§0.2) | No blocking calls on audio thread, no stdout — no alloc/lock trap here (engine uses tryLock on `engineLock`) | `PluginProcessor.cpp:processBlock` | n/a | `WorkshopSwap::noFileIsTouchedFromTheAudioThreadDuringASwap` (file only) | OWNED |
+| HI-1 (§0.2) | No blocking calls or allocation on the audio thread, no stdout - engine uses tryLock on `engineLock`; allocation and pthread lock traps in the suite | `PluginProcessor.cpp:processBlock` | n/a | `Engine::fiveMinutesOfPlaybackNeitherAllocatesNorLocks`, `ThreadProbe::theLockTrapSeesALock`, `WorkshopSwap::noFileIsTouchedFromTheAudioThreadDuringASwap` | DONE |
 | HI-2 (§0.3) | Announce every capability — MIDI out not announced (`NEEDS_MIDI_OUTPUT FALSE`) | `NEEDS_MIDI_OUTPUT TRUE` | n/a | `PluginBuses.midiOutputIsAnnounced` | DONE |
 | HI-3 (§0.4) | Host transport wins; internal free-run when stopped | `PluginProcessor.cpp:processBlock` (`tapTempo.getEffectiveBpm`, `setTransportPosition`) | n/a | `RhythmPatterns::silentWhenStoppedUnlessFreeRunning`, `TunePlayer::theHostWinsWhenItPlaysAndTheClockRunsWhenItDoesNot`, `LiveTapTempo::respectsRangeSnapAndHostPriority` | DONE |
 | HI-4 (§0.5) | Layout/param/latency changes only at documented moments | `PluginProcessor.cpp:updateLatency` (prepare + per block) | n/a | `HostState::aSessionSurvivesThePrepareThatFollowsIt` | DONE |
@@ -17,7 +17,7 @@ W2 robustness pass: HI-16/20/22/24/25/38/54 closed (state format version, newer-
 | HI-9 (§2) | Layouts A-D (8 stereo aux incl. Aux 8, 12 mono per-string) and any subset | `PluginProcessor.cpp:buildBusesProperties`, `isBusesLayoutSupported` | ADVANCED > ROUTING tab | `Routing::everyLayoutRendersCleanly`, `PluginBuses::perStringLayoutPutsEachStringOnItsOwnBus`, `PluginBuses::aux8NoiseIsDeclaredLastSoNoBusNumberMoved` | DONE |
 | HI-10 (§2) | Mono main output rejected — accepted (`main != mono` branch) | `isBusesLayoutSupported` stereo-only main | n/a | `PluginBuses.monoMainOutputIsRefused` | DONE |
 | HI-11 (§2) | Optional stereo sidechain on every layout | `buildBusesProperties` `.withInput("Sidechain")` | ROUTING tab sidechain-to-amp | `Routing::sidechainToAmpReplacesTheInstrument` | DONE |
-| HI-12 (§2) | Bus layout change mid-play re-prepares without crash — no test here | JUCE + `prepareToPlay` | n/a | - (visual `Stress::busLayoutChangesMidPlay`) | OWNED |
+| HI-12 (§2) | Bus layout change mid-play re-prepares without crash | JUCE + `prepareToPlay` | n/a | `Stress::busLayoutChangesMidPlay` | DONE |
 | HI-13 (§3) | APVTS single source; count stable; stable IDs, range, default, text converters | `Parameters.cpp:createLayout` | n/a | `Parameters::everyParameterHasAUniqueIdAndSaneDefault`, `Parameters::everyParameterTextRoundTrips`, `HostState::parameterTextRoundTripsStably` | DONE |
 | HI-14 (§3) | Parameters grouped by ParameterCategory — flat layout, no `AudioProcessorParameterGroup` | `Parameters.cpp:createLayout` | n/a | - | MISSING |
 | HI-15 (§3) | Display names translated per locale — hard-coded English | `Parameters.cpp` | n/a | - | MISSING |
@@ -40,7 +40,7 @@ W2 robustness pass: HI-16/20/22/24/25/38/54 closed (state format version, newer-
 | HI-32 (§7) | MIDI clock / transport / SysEx accepted — Luthier SysEx read; MIDI clock not followed | `Live/MidiClockTempo` in `processSlice` (host stopped) | n/a | `LiveTapTempo.midiClockDrivesTheTempoWhenTheHostIsStopped` | DONE |
 | HI-33 (§7) | MPE full support | `Controllers/ControllerProfile` MPE mode, MidiInterpreter | Options > Controllers | `StrumDynamics::mpePassesThrough`, `Controllers::applyingAProfileConfiguresTheInterpreter` | DONE |
 | HI-34 (§7) | Sample-accurate MIDI in/out timestamps | `MidiOutRouter` | n/a | `Routing::midiOutPassThroughIsSampleExact`, `MidiExport::liveMidiOutKeepsTenThousandEventsOnTheirSample` | DONE |
-| HI-35 (§8) | Instances fully independent, no shared state beyond settings/content — untested here | per-instance members | n/a | - (visual `Stress::thirtyTwoInstancesRenderInTurn`) | OWNED |
+| HI-35 (§8) | Instances fully independent, no shared state beyond settings/content | per-instance members | n/a | `Stress::thirtyTwoInstancesRenderInTurn` | DONE |
 | HI-36 (§9.1) | Ableton: first program change after state restore swallowed | `setCurrentProgram`, `ignoreNextProgramChange` | n/a | `StateModel::aProgramChangeRightAfterAStateRestoreDoesNotWipeIt` | DONE |
 | HI-37 (§9.1) | Ableton MPE auto-detect from channel-1-plus-member traffic — no auto-detect; MPE is a chosen profile | - | n/a | - | MISSING |
 | HI-38 (§9.2) | Logic: state < 500 KB via guitar file refs — refs used when saved; every factory preset measured < 200 KB | `getStateInformation` preset guitar ref | n/a | `WorkshopPresets::saveAsGuitarWritesAFileAndPointsThePresetAtIt`, `HostState::everyFactoryPresetsSessionIsUnder200KB` | DONE |
@@ -55,10 +55,10 @@ W2 robustness pass: HI-16/20/22/24/25/38/54 closed (state format version, newer-
 | HI-47 (§14.1) | VST3 units per Column-4 tab / Easy strip — needs parameter groups | - | n/a | - | MISSING |
 | HI-48 (§14.2-14.3) | AU cocoa view standard; state chunk + typed params | JUCE wrappers | n/a | CI auval/pluginval | DONE |
 | HI-49 (§15) | Test: SR change / block size change mid-play | engine prepare | n/a | `Engine::sampleRateChangesAreSurvived`, `Engine::blockSizeChangesAreSurvived` | DONE |
-| HI-50 (§15) | Test: 32 instances, bus layout change mid-play | - | n/a | - (visual `Stress::thirtyTwoInstancesRenderInTurn`, `Stress::busLayoutChangesMidPlay`) | OWNED |
+| HI-50 (§15) | Test: 32 instances, bus layout change mid-play | `Tests/RobustnessTests.cpp` | n/a | `Stress::thirtyTwoInstancesRenderInTurn`, `Stress::busLayoutChangesMidPlay` | DONE |
 | HI-51 (§15) | Test: host format switching VST3 -> AU -> VST3 (macOS) — manual host test | - | n/a | - | MISSING |
 | HI-52 (§15) | Test: transport follow play/stop/seek with rhythm engine and tune builder together | processBlock transport | n/a | `TunePlayer::theHostWinsWhenItPlaysAndTheClockRunsWhenItDoesNot` (tune only) | PARTIAL |
 | HI-53 (§15) | Test: state round trip in every host; MIDI I/O in every host | - | n/a | `Combo::sessionStateRoundTripReproducesAudio` (in-process only) | PARTIAL |
 | HI-54 (§16) | `docs/HOST_COMPATIBILITY.md` documents every §9 quirk (status per quirk; open ones point at their rows) (W2 `claude/luthier-w2-robustness`) | `docs/HOST_COMPATIBILITY.md` | n/a | - | DONE |
 
-<!-- counts DONE=36 NO-TEST=1 PARTIAL=6 MISSING=7 OWNED=4 -->
+<!-- counts DONE=40 NO-TEST=1 PARTIAL=6 MISSING=7 -->

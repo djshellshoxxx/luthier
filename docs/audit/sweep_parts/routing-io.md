@@ -1,6 +1,6 @@
 ## routing-io.md
 
-The routing engine is complete: all four layouts are advertised (plus the Aux 8 noise bus of DECISIONS.md), the aux taps, per-string buses, mute/solo/trim, sidechain-to-amp, the four MIDI-out sources and the ROUTING workspace tab all exist, and five of the six spec tests are present. Gaps: there is no sidechain-compressor pedal; the layout "selector" is a read-only label of the negotiated layout; routing state is saved only in the host session, not in `.luthierpreset` files (`PresetManager::toVar` writes no `routing` block), so §9 "per-preset" is not met. The latency impulse test, the limiter-lookahead latency term and the panel-vs-host latency check are on the visual branch.
+The routing engine is complete: all four layouts are advertised (plus the Aux 8 noise bus of DECISIONS.md), the aux taps, per-string buses, mute/solo/trim, sidechain-to-amp, the four MIDI-out sources and the ROUTING workspace tab all exist, and five of the six spec tests are present. Gaps: there is no sidechain-compressor pedal; the layout "selector" is a read-only label of the negotiated layout; routing state is saved only in the host session, not in `.luthierpreset` files (`PresetManager::toVar` writes no `routing` block), so §9 "per-preset" is not met. The latency impulse test, the limiter-lookahead latency term and the panel-vs-host latency check are now merged (`Latency::*`).
 
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
@@ -25,14 +25,14 @@ The routing engine is complete: all four layouts are advertised (plus the Aux 8 
 | RIO-19 (§6) | MIDI out: per-string activity NoteOn/Off | `StringActivityQueue`, `MidiOutRouter` | ROUTING `midiStringActivity` | `Routing::stringActivityIsSampleAccurate` | DONE |
 | RIO-20 (§6) | MIDI out: macro CC broadcast, CC# assignable | `MidiOutConfig::macroCc` | ROUTING `macroCc[]` combos | `MidiExport::liveMidiOutKeepsTenThousandEventsOnTheirSample`, `MidiOutPanel::liveSwitchesAreTheRoutingPanelsSwitches` | DONE |
 | RIO-21 (§6) | Silently no-ops on hosts without MIDI out — host behaviour, untested | JUCE `MidiBuffer` | n/a | - | NO-TEST |
-| RIO-22 (§7) | Main-out latency = OS group delay + convolution + limiter lookahead — lookahead/oversampler real delay not reported here | `PluginProcessor::updateRoutingLatencyReport` | n/a | `Routing::perOutputLatencyIsConsistent` (ordering only) | OWNED |
+| RIO-22 (§7) | Main-out latency = OS group delay + convolution + limiter lookahead (master.getLatencySamples adds the lookahead) | `LuthierEngine::getLatencySamples` (body+cabinet+effects+amp+midi+master), `PluginProcessor::updateRoutingLatencyReport` | n/a | `Latency::anImpulseArrivesWhenReported`, `Latency::oversamplerReportsItsGroupDelay`, `Routing::perOutputLatencyIsConsistent` | DONE |
 | RIO-23 (§7) | Per-output latency (DI, pre-cab, per-string); single-value hosts get main | `LuthierEngine::getLatencySamples(AuxBus)`, `setLatencySamples` | n/a | `Routing::perOutputLatencyIsConsistent` | DONE |
 | RIO-24 (§8) | ROUTING panel in Advanced Column 4 tab strip | `UI/AdvancedPanel.cpp:buildWorkspace` | ADVANCED > ROUTING tab | `Editor::everyWorkspaceTabSelectsAndPaints` | DONE |
 | RIO-25 (§8) | Layout selector listing host-supported layouts — only a read-only label of the negotiated layout | `RoutingMatrix::getActiveLayout` | ROUTING `RoutingPanel::layoutLabel` | - | PARTIAL |
 | RIO-26 (§8) | Aux strips: mute, solo, gain, meter (8 strips incl. Aux 8) | `RoutingMatrix` mute/solo/gain/meter | ROUTING `AuxStrip` | `Routing::muteAndSoloResolveTogether` | DONE |
 | RIO-27 (§8) | Compact per-string strip shown only for Layout C/D — visibility untested | `RoutingMatrix::setPerStringMuted/GainDb` | ROUTING `PerStringStrip` | - | NO-TEST |
 | RIO-28 (§8) | MIDI out enable + source checkboxes + CC-mapping table | `MidiOutConfig` | ROUTING `midiOutEnable`, `midiPassThrough`..., `macroCc[]` | `MidiOutPanel::liveSwitchesAreTheRoutingPanelsSwitches` | DONE |
-| RIO-29 (§8) | Latency readout per active output — no test here (visual adds panel==host check, Aux 8 line) | `RoutingMatrix::getLatencyReport` | ROUTING `RoutingPanel::latencyLabel` | - | OWNED |
+| RIO-29 (§8) | Latency readout per active output; panel value checked against the host-reported value | `RoutingMatrix::getLatencyReport` | ROUTING `RoutingPanel::latencyLabel` | `Latency::dspLatencyIsWithinBudget` (host == panel mainOut, per-output budgets) | DONE |
 | RIO-30 (§9) | Layout not stored; aux mute/solo/gain restored from the preset — `routing` block in `.luthierpreset` (absent = defaults) | `RoutingMatrix::toVar/fromVar` via `Presets/PresetBlocks.cpp` | n/a | `Presets::processorBlocksTravelInThePresetFile`, `Routing::stateRoundTrips`, `Routing::loadingClearsPreviousState` | DONE |
 | RIO-31 (§9) | MIDI-out assignments per-preset | same as RIO-30 | n/a | `Presets::processorBlocksTravelInThePresetFile` | DONE |
 | RIO-32 (§9) | Sidechain-to-amp per-preset | same as RIO-30 | n/a | `Presets::processorBlocksTravelInThePresetFile` | DONE |
@@ -41,6 +41,6 @@ The routing engine is complete: all four layouts are advertised (plus the Aux 8 
 | RIO-T3 (§10) | Test: sum of per-string outs = main pre-body within -80 dBFS | n/a | n/a | `Routing::perStringOutputsSumToPreBody` | DONE |
 | RIO-T4 (§10) | Test: 10 000-event MIDI pass-through fuzz, 0-sample error | n/a | n/a | `Routing::midiOutPassThroughIsSampleExact` | DONE |
 | RIO-T5 (§10) | Test: sidechain-to-amp routes correctly | n/a | n/a | `Routing::sidechainToAmpReplacesTheInstrument` | DONE |
-| RIO-T6 (§10) | Test: reported main latency = measured impulse latency within 1 sample — here only ordering is checked; on visual: `Latency::anImpulseArrivesWhenReported` | n/a | n/a | `Routing::perOutputLatencyIsConsistent` (ordering) | OWNED |
+| RIO-T6 (§10) | Test: reported main latency = measured impulse latency within 1 sample (amp path, cabinet/room off) | n/a | n/a | `Latency::anImpulseArrivesWhenReported`, `Routing::perOutputLatencyIsConsistent` | DONE |
 
-<!-- counts DONE=22 NO-GUI=0 NO-TEST=6 PARTIAL=1 MISSING=1 OWNED=2 -->
+<!-- counts DONE=30 NO-GUI=0 NO-TEST=6 PARTIAL=1 MISSING=1 DEFERRED=0 -->
