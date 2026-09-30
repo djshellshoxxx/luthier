@@ -297,13 +297,25 @@ public:
     void openScore (const PerformanceScore& newScore, const juce::String& title);
     juce::String getScoreTitle() const { return scoreTitle; }
 
+    /** tab-import-export 9: what the player just played, as a score in the
+        reader - the session take (PerformanceCapture) when it has notes, else
+        the raw MIDI capture fingered by TabFingering - so it can be shown,
+        played and exported in any format. False when nothing was played. */
+    bool openLivePerformance();
+
+    /** The status line, for tests: "Loaded 4 bars, 17 notes (6 strings); 2 lines skipped". */
+    juce::String getStatusText() const { return statusLabel.getText(); }
+
 private:
     /** FEAT2-TAB: compiles the parsed score and plays it through the engine's
         RiffPlayer (the audition path). Toggles the button between Play and Stop. */
     void togglePlay();
 
+    void showStatus (const juce::String& text, bool warning);
+
     juce::TextButton openButton { "Open..." }, exportButton { "Export..." };
     juce::TextButton playButton { "Play" };
+    juce::TextButton liveButton { "Live" };
     juce::Label statusLabel;
     juce::TextEditor tabView;
     juce::ComboBox formatBox;
