@@ -28,7 +28,9 @@
  #include <dlfcn.h>
 #endif
 
+#if ! JUCE_MAC
 namespace juce::detail { bool dispatchNextMessageOnSystemQueue (bool returnIfNoPendingMessages); }
+#endif
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -124,9 +126,14 @@ namespace
 
             const double t0 = threadCpuSeconds();
 
+           #if JUCE_MAC
+            // JUCE's mac backend has no exported single-message dispatcher.
+            juce::MessageManager::getInstance()->runDispatchLoopUntil (1);
+           #else
             for (int i = 0; i < 50; ++i)
                 if (! juce::detail::dispatchNextMessageOnSystemQueue (true))
                     break;
+           #endif
 
             dispatching += threadCpuSeconds() - t0;
             juce::Thread::sleep (2);
