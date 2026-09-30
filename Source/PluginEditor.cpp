@@ -1295,6 +1295,16 @@ void LuthierAudioProcessorEditor::pollForNotifications()
         }
     }
 
+    // ---- SPEC-SWEEP: ER-22 - a save that overwrote another instance's ------------
+    if (const auto notice = processor.getPresetManager().takeSaveNotice(); notice.isNotEmpty())
+    {
+        Notification n;
+        n.id = "preset-save-concurrent";
+        n.message = notice;
+        n.level = Notification::Level::warning;
+        notifications.post (std::move (n));
+    }
+
     // ---- installer.md 8: a load that migrated an old file ----------------------
     /*  "A subtle info banner on the first affected load": one per window, not
         one per migrated preset, however many old presets are browsed. */

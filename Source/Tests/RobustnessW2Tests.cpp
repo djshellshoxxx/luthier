@@ -381,3 +381,45 @@ LUTHIER_TEST (TuneBuilder, theLastSectionCannotBeRemoved)
     CHECK (! tune.removeSection (0));
     CHECK (tune.getNumSections() == 1);
 }
+
+//==============================================================================
+/*  ER-22, error-recovery 2: two instances save the same preset - the later
+    save wins and says it overwrote another change. */
+LUTHIER_TEST (Presets, aSaveOverAnotherInstancesChangeWinsAndSaysSo)
+{
+    TempDiagnostics diagnostics;
+
+    LuthierAudioProcessor first, second;
+    first.prepareToPlay (kSr, kBlock);
+    second.prepareToPlay (kSr, kBlock);
+
+    auto& a = first.getPresetManager();
+    auto& b = second.getPresetManager();
+    const juce::String name ("W2 Concurrent Save Test");
+
+    CHECK (a.saveAs (name, "User"));
+    CHECK (a.takeSaveNotice().isEmpty());
+
+    const auto file = a.getCurrentPresetFile();
+    CHECK (file.existsAsFile());
+    CHECK (b.loadPreset (file));
+
+    // Nobody else touched it: a plain save.
+    CHECK (b.saveCurrent());
+    CHECK (b.takeSaveNotice().isEmpty());
+
+    // The first window saves in between (a later modification time) ...
+    CHECK (a.saveCurrent());
+    file.setLastModificationTime (juce::Time::getCurrentTime() + juce::RelativeTime::seconds (30));
+
+    // ... and the second one's save wins, and says so.
+    CHECK (b.saveCurrent());
+    CHECK (b.takeSaveNotice().contains ("overwrote another change"));
+    CHECK (b.takeSaveNotice().isEmpty());   // taken once
+
+    for (int i = 0; i < b.getNumPresets(); ++i)
+        if (const auto* info = b.getPreset (i); info != nullptr && info->file == file)
+            b.deletePreset (i);
+
+    file.deleteFile();
+}

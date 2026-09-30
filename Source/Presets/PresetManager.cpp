@@ -1147,6 +1147,7 @@ bool PresetManager::loadPreset (const juce::File& file)
 
     currentName = file.getFileNameWithoutExtension();
     currentFile = file;
+    currentFileStamp = file.getLastModificationTime();   // SPEC-SWEEP: ER-22
     applyExtraState();
 
     // file-formats 2 (MODEL-GAPS): a migrated file's original is kept.
@@ -1440,9 +1441,12 @@ bool PresetManager::saveCurrent()
 
     captureExtraState();
     stampSaveTime();   // SPEC-SWEEP: FF-20
+    noteConcurrentChange (info->file);   // SPEC-SWEEP: ER-22
 
     if (writeToFile (info->file, toVar (info->name, info->category, info->description, info->tags)))
     {
+        currentFile = info->file;
+        currentFileStamp = info->file.getLastModificationTime();
         modified = false;
         sendChangeMessage();
         return true;
@@ -1466,10 +1470,16 @@ bool PresetManager::saveAs (const juce::String& name, const juce::String& catego
 
     captureExtraState();
     stampSaveTime();   // SPEC-SWEEP: FF-20
+    noteConcurrentChange (file);   // SPEC-SWEEP: ER-22
 
     if (! writeToFile (file, toVar (name, safeCategory, description, tags)))
+    {
+        saveNotice.clear();
         return false;
+    }
 
+    currentFile = file;
+    currentFileStamp = file.getLastModificationTime();
     currentName = name;
     currentCategory = safeCategory;
     modified = false;
@@ -1487,6 +1497,33 @@ bool PresetManager::saveAs (const juce::String& name, const juce::String& catego
 
     sendChangeMessage();
     return true;
+}
+
+void PresetManager::noteConcurrentChange (const juce::File& file)
+{
+    /*  Only the file this instance loaded or last saved: its modification time
+        moved without us, so another instance (or window) saved it in between.
+        The later save wins, as error-recovery 2 says, and the earlier version
+        is in the backup folder (backupBeforeOverwrite). */
+    saveNotice.clear();
+
+    if (file != currentFile || ! file.existsAsFile() || currentFileStamp == juce::Time())
+        return;
+
+    if (file.getLastModificationTime() == currentFileStamp)
+        return;
+
+    saveNotice = "Saved " + file.getFileNameWithoutExtension()
+                   + "; overwrote another change made since it was opened (the earlier version is in Backups).";
+
+    ErrorLog::write (ErrorLog::Severity::warn, "PresetSystem", "CONCURRENT_SAVE",
+                     "The preset changed on disk since it was loaded; the later save won",
+                     [&]
+                     {
+                         auto* context = new juce::DynamicObject();
+                         context->setProperty ("path", file.getFullPathName());
+                         return juce::var (context);
+                     }());
 }
 
 bool PresetManager::deletePreset (int index)
