@@ -513,3 +513,158 @@ LUTHIER_TEST (ErrorRecovery, aCorruptSettingsFileIsSetAsideAndReported)
     CHECK (good.existsAsFile());
     CHECK (ConfigRecovery::takeRecoveredFiles().contains ("versioned.json"));
 }
+
+//==============================================================================
+namespace
+{
+    struct ChangeCounter : juce::AudioProcessorListener
+    {
+        void audioProcessorParameterChanged (juce::AudioProcessor*, int, float) override { ++changes; }
+        void audioProcessorChanged (juce::AudioProcessor*, const ChangeDetails&) override {}
+        int changes = 0;
+    };
+}
+
+/*  HI-16, host-integration 3.1: a preset load and a snapshot recall change
+    parameters through the host notification path, so automation lanes and
+    the host's generic editor follow. */
+LUTHIER_TEST (HostState, presetLoadsAndSnapshotRecallsNotifyTheHost)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    auto& presets = processor.getPresetManager();
+    CHECK (presets.getNumPresets() >= 2);
+
+    ChangeCounter counter;
+    processor.addListener (&counter);
+
+    CHECK (presets.loadPreset (1));
+    CHECK_MSG (counter.changes > 0, "a preset load changed parameters without telling the host");
+
+    auto* drive = processor.getState().getParameter (ParamIDs::macroDrive);
+    drive->setValueNotifyingHost (0.1f);
+    CHECK (processor.captureSnapshot (0));
+    drive->setValueNotifyingHost (0.9f);
+
+    counter.changes = 0;
+    CHECK (processor.recallSnapshot (0));
+    processor.getSnapshots().advance (1.0);   // past the 30 ms crossfade
+    CHECK_MSG (counter.changes > 0, "a snapshot recall changed parameters without telling the host");
+    CHECK_NEAR (drive->getValue(), 0.1, 0.02);
+
+    processor.removeListener (&counter);
+}
+
+/*  HI-22 / HI-38, host-integration 4 and 9.2: a typical session is under
+    200 KB (Logic's 500 KB comfortably), for every factory preset. */
+LUTHIER_TEST (HostState, everyFactoryPresetsSessionIsUnder200KB)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    auto& presets = processor.getPresetManager();
+    size_t largest = 0;
+    juce::String largestName;
+
+    for (int i = 0; i < presets.getNumPresets(); ++i)
+    {
+        const auto* info = presets.getPreset (i);
+
+        if (info == nullptr || ! info->isFactory || ! presets.loadPreset (i))
+            continue;
+
+        juce::MemoryBlock state;
+        processor.getStateInformation (state);
+
+        if (state.getSize() > largest)
+        {
+            largest = state.getSize();
+            largestName = info->name;
+        }
+    }
+
+    CHECK (largest > 0);
+    CHECK_MSG (largest < 200 * 1024, largestName + " saves " + juce::String ((int) (largest / 1024)) + " KB");
+}
+
+/*  IR-26, input-routing 6: the sidechain is an input, never an output. With
+    nothing consuming it, loud sidechain audio leaves the main output silent. */
+LUTHIER_TEST (InputRouting, anUnconsumedSidechainNeverReachesTheMainOutput)
+{
+    LuthierAudioProcessor processor;
+
+    auto layout = processor.getBusesLayout();
+    CHECK (layout.inputBuses.size() >= 1);
+
+    if (layout.inputBuses.isEmpty())
+        return;
+
+    layout.inputBuses.getReference (0) = juce::AudioChannelSet::stereo();
+    CHECK (processor.setBusesLayout (layout));
+    processor.prepareToPlay (kSr, kBlock);
+
+    const int channels = juce::jmax (processor.getTotalNumInputChannels(), processor.getTotalNumOutputChannels());
+    juce::AudioBuffer<float> buffer (channels, kBlock);
+    juce::MidiBuffer midi;
+    juce::Random rng (0x5c);
+    float peak = 0.0f;
+
+    for (int block = 0; block < 20; ++block)
+    {
+        auto sidechain = processor.getBusBuffer (buffer, true, 0);
+
+        for (int ch = 0; ch < sidechain.getNumChannels(); ++ch)
+            for (int i = 0; i < kBlock; ++i)
+                sidechain.setSample (ch, i, rng.nextFloat() * 1.6f - 0.8f);
+
+        processor.processBlock (buffer, midi);
+
+        if (block >= 4)
+        {
+            auto main = processor.getBusBuffer (buffer, false, 0);
+            peak = juce::jmax (peak, main.getMagnitude (0, kBlock));
+        }
+    }
+
+    CHECK_MSG (peak < 1.0e-3f, "the sidechain leaked to the main output at " + juce::String (peak));
+}
+
+/*  ER-15 / ER-17, error-recovery 1: a damaged older preset either loads
+    (migrating in memory) or is refused before anything is applied; either
+    way the file on disk is byte-for-byte what it was. */
+LUTHIER_TEST (Presets, aDamagedOldPresetNeverChangesTheFileOnDisk)
+{
+    TempDiagnostics diagnostics;
+
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    auto folder = diagnostics.folder.getChildFile ("presets");
+    folder.createDirectory();
+
+    const char* bodies[] =
+    {
+        // an old (pre-`schema`) preset whose values are the wrong types
+        R"({"format":"LuthierPreset","schemaVersion":1,"name":"Old","parameters":{"macro_drive":"loud","pickup_position_0":[1,2]},"strings":{"numStrings":"six","detuneCents":"x"}})",
+        // the same with a truncated tail
+        R"({"format":"LuthierPreset","schemaVersion":1,"name":"Old","parameters":{"macro_drive":0.5,)",
+        // a structurally odd block
+        R"({"format":"LuthierPreset","schemaVersion":1,"parameters":[],"strings":7,"ranges":"wide","routing":null})"
+    };
+
+    for (const auto* body : bodies)
+    {
+        auto file = folder.getNonexistentChildFile ("Damaged", PresetManager::kFileExtension, false);
+        file.replaceWithText (body);
+        juce::MemoryBlock before;
+        file.loadFileAsData (before);
+
+        processor.getPresetManager().loadPreset (file);
+        render (processor, 1);
+
+        juce::MemoryBlock after;
+        file.loadFileAsData (after);
+        CHECK_MSG (before == after, "loading " + file.getFileName() + " rewrote it");
+    }
+}
