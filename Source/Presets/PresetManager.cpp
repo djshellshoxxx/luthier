@@ -49,8 +49,6 @@ PresetManager::PresetManager (juce::AudioProcessor& p,
         shipped != juce::File() && ! searchFolders.contains (shipped))
         searchFolders.add (shipped);
 
-    ensureFactoryPresetsInstalled();
-
     // file-formats 13: the retention sweep runs once, at startup.
     pruneOldBackups();
 
@@ -58,7 +56,10 @@ PresetManager::PresetManager (juce::AudioProcessor& p,
     // startup sweep (error-recovery 12).
     ErrorLog::pruneOldLogs (kBackupRetentionDays);
 
-    refresh();
+    // performance-budget.md 5.1 (QA-2.4): the factory-bank install and the
+    // folder scan are deferred to the first list read (ensureScanned), so they
+    // are not paid during instantiation. At construction the range source is not
+    // even set yet, so an eager writeAll here would no-op anyway.
 }
 
 PresetManager::~PresetManager() = default;
@@ -196,6 +197,11 @@ void PresetManager::ensureFactoryPresetsInstalled()
 //==============================================================================
 void PresetManager::refresh()
 {
+    // The scan can only find the factory bank if it is on disk; installing it
+    // here (rather than in the constructor) keeps that cost out of instantiation
+    // and off any path that never opens the browser. writeAll is idempotent.
+    ensureFactoryPresetsInstalled();
+
     presets.clear();
 
     const auto factoryFolder = getFactoryPresetFolder();
@@ -229,7 +235,21 @@ void PresetManager::refresh()
         }
     }
 
+    // Released last, so a concurrent audio-thread isScanned() only sees `true`
+    // once `presets` is fully built.
+    scanned.store (true);
     sendChangeMessage();
+}
+
+void PresetManager::ensureScanned() const
+{
+    if (scanned.load())
+        return;
+
+    // The readers are const, but the object never is: this is a lazy fill of
+    // state that construction used to build eagerly. refresh() installs the
+    // factory bank and sets `scanned`.
+    const_cast<PresetManager*> (this)->refresh();
 }
 
 void PresetManager::scanFolder (const juce::File& folder, bool factory)
@@ -320,6 +340,8 @@ void PresetManager::scanFolder (const juce::File& folder, bool factory)
 //==============================================================================
 const PresetInfo* PresetManager::getPreset (int index) const noexcept
 {
+    ensureScanned();
+
     if (! juce::isPositiveAndBelow (index, presets.size()))
         return nullptr;
 
@@ -328,6 +350,8 @@ const PresetInfo* PresetManager::getPreset (int index) const noexcept
 
 int PresetManager::indexOfPreset (const juce::String& name) const noexcept
 {
+    ensureScanned();
+
     int userMatch = -1;
 
     for (int i = 0; i < presets.size(); ++i)
@@ -361,6 +385,8 @@ int PresetManager::indexOfPreset (const juce::String& name) const noexcept
 
 juce::Array<int> PresetManager::getPresetsInCategory (const juce::String& category) const
 {
+    ensureScanned();
+
     juce::Array<int> result;
 
     for (int i = 0; i < presets.size(); ++i)
@@ -372,6 +398,8 @@ juce::Array<int> PresetManager::getPresetsInCategory (const juce::String& catego
 
 juce::StringArray PresetManager::getCategories() const
 {
+    ensureScanned();
+
     juce::StringArray categories;
 
     for (const auto& p : presets)
@@ -1245,6 +1273,8 @@ bool PresetManager::keepsValueWhenAbsent (const juce::String& paramId)
 
 bool PresetManager::loadNext()
 {
+    ensureScanned();
+
     if (presets.isEmpty())
         return false;
 
@@ -1253,6 +1283,8 @@ bool PresetManager::loadNext()
 
 bool PresetManager::loadPrevious()
 {
+    ensureScanned();
+
     if (presets.isEmpty())
         return false;
 
