@@ -342,7 +342,7 @@ namespace
           "- Live MIDI out: the same switches as ROUTING's; change them on either tab." },
 
         // TECHNIQUES workstream: gui-techniques-updates.md 1.
-        { "techniques", "TECHNIQUES", "TECHNIQUES|techniques tab|mute grid|tapping|two-hand tapping|microtonal|cascade|pre-bend|slap technique|string scraping",
+        { "techniques", "TECHNIQUES", "TECHNIQUES|techniques tab|arm techniques",
           "Six playing techniques you arm and shape, one sub-tab each down the left, and CASCADE to see how they combine.\n\n"
           "- SCRAPE: the pick or a nail dragged along the wound strings. Keyswitch 12, a CC or the button.\n"
           "- SLIDE: Slide Mode's controls - what moves the bar (mod wheel, pitch bend, MPE Y, a CC, the fretboard), "

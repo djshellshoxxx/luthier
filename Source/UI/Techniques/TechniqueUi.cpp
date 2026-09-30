@@ -238,6 +238,11 @@ TechniquePill::~TechniquePill()
     stopTimer();
 }
 
+juce::String TechniquePill::getLearnParameterId() const
+{
+    return TechniqueTable::get (slot).armParameterId;
+}
+
 juce::String TechniquePill::getAccessibleName() const
 {
     return juce::String (TechniqueTable::get (slot).spokenName) + " technique, " + (armed ? "armed" : "not armed");

@@ -456,6 +456,19 @@ namespace
                 adv->setWorkspaceTab (t);
                 editor->resized();
                 scanView (context + "/Advanced/" + adv->getWorkspaceTabName (t), root, p, rec, walk, operated);
+
+                // The TECHNIQUES tab is a rail of sub-tabs (SCRAPE, SLIDE, SLAP,
+                // MUTE, TAP, BEND, CASCADE); a rail button switches between them,
+                // so each sub-tab's controls are only on screen while it is shown.
+                // Walk every sub-tab, as a user reaches them.
+                if (auto* tech = adv->getTechniquesPanel(); tech != nullptr && tech->isVisible())
+                    for (int st = 0; st < tech->getNumSubTabs(); ++st)
+                    {
+                        tech->showSubTab (st);
+                        editor->resized();
+                        scanView (context + "/Advanced/TECHNIQUES/" + juce::String (TechniquesPanel::getSubTabName (st)),
+                                  root, p, rec, walk, operated);
+                    }
             }
 
             key ("toggleSlideMode"); scanView (context + "/Advanced+Slide", root, p, rec, walk, operated); key ("toggleSlideMode");

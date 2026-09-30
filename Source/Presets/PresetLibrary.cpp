@@ -241,7 +241,14 @@ bool PresetLibrary::renamePreset (int entry, const juce::String& newName)
     auto json = juce::JSON::parse (e.info.file.loadFileAsString());
 
     if (auto* o = json.getDynamicObject())
+    {
         o->setProperty ("name", newName.trim());
+
+        // FF-20: the meta block's name is read first, so a rename that only
+        // touched the flat key would not show. Keep the two in step.
+        if (auto* meta = o->getProperty ("meta").getDynamicObject())
+            meta->setProperty ("name", newName.trim());
+    }
     else
         return false;
 

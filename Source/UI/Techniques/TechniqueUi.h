@@ -88,11 +88,17 @@ namespace TechniqueUndo
     callbacks. */
 class TechniquePill : public juce::Component,
                       public juce::SettableTooltipClient,
+                      public LearnTarget,
                       private juce::Timer
 {
 public:
     TechniquePill (LuthierAudioProcessor& processor, TechniqueSlot slot);
     ~TechniquePill() override;
+
+    /*  The pill is the technique's arm switch (gui-techniques-updates 2): it is
+        the one visible control for the arm parameter, so global search and the
+        reachability walk find it here. */
+    juce::String getLearnParameterId() const override;
 
     std::function<void (TechniqueSlot)> onHold;       ///< long-press: the popover
     std::function<void (TechniqueSlot)> onOpenSubTab; ///< right-click / Enter
