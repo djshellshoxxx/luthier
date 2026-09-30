@@ -293,7 +293,16 @@ private:
         int64_t startedAt = 0;
         int64_t releaseDueAt = -1;
         bool releaseWasLetRing = false;
+
+        /*  The key went up while a pedal held the string open: it is still
+            ringing, and lifting the pedal is what releases it. */
+        bool pedalRinging = false;
+        int  pedalRingingNote = -1;
     };
+
+    /** Releases (damps) a string left ringing by a pedal, if nothing else still
+        holds it open. */
+    void releasePedalRinging (int stringIndex, int blockOffset, PlayEventQueue& out) noexcept;
 
     void handleNoteOn (int midiNote, int channel, double velocity,
                        int64_t timestamp, int blockOffset, PlayEventQueue& out) noexcept;

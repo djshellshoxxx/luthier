@@ -51,6 +51,10 @@ public:
 
     void processBlock (juce::AudioBuffer<float>& buffer) noexcept;
 
+    /** jam-mode.md 7 (FEAT-JAM): applies this block's ramp again, to a signal
+        mixed in after processBlock (the Jam band), without advancing it. */
+    void applyBlockRamp (juce::AudioBuffer<float>& buffer, int numSamples) const noexcept;
+
     /** The current gain, for tests and for the UI. */
     double getGain() const noexcept { return gain; }
 
@@ -58,6 +62,7 @@ private:
     double sr = 44100.0;
     double gain = 1.0;
     double step = 1.0;
+    double blockStartGain = 1.0, blockTarget = 1.0;   ///< FEAT-JAM: the last block's ramp
 
     std::atomic<bool> active { false };
 

@@ -349,6 +349,10 @@ void AudioExporter::run()
         return;
     }
 
+    // output-normalization.md 4.6: an export is non-realtime, so a calibration
+    // request waits for its result rather than depending on worker timing.
+    processor->setNonRealtime (true);
+
     if (state.getSize() > 0)
         processor->setStateInformation (state.getData(), (int) state.getSize());
 
@@ -357,6 +361,7 @@ void AudioExporter::run()
     const int numChannels = juce::jlimit (1, 2, options.numChannels);
 
     processor->setPlayConfigDetails (0, numChannels, sr, blockSize);
+    processor->setNonRealtime (true);   // cpu-quality-modes 2.6: an offline render, so High
     processor->prepareToPlay (sr, blockSize);
 
     const double musicSeconds = juce::jmax (0.25, sequence.getEndTime());

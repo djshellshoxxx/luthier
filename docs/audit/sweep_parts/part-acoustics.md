@@ -33,7 +33,7 @@
 | PA-27 (§4) | frets.count: playable range | `d.spec.maxFrets` | WORKSHOP inspector | `PartAcoustics::fretCountAndNutSlotsReachTheSetup` | DONE |
 | PA-28 (§4) | nut.material brightness, open strings only | `nutMaterialBrightness`; `LuthierEngine.cpp` (fret<=0 -> nut factor) | WORKSHOP part swap | `PartAcoustics::fretboardFretsAndNutSetTheirBrightness`, `PartAcoustics::aReferenceGuitarSoundsLikeTheEngineDefault` (bone only) | DONE |
 | PA-29 (§4) | nut.slot_depths_mm: open-string clearance | `d.setup.nutDepth` | WORKSHOP setup strip | `PartAcoustics::fretCountAndNutSlotsReachTheSetup` | DONE |
-| PA-30 (§4) | nut.friction: tuning stability under bends | on realism-c: `d.nutFriction` (tuning-stability) | - | - | OWNED |
+| PA-30 (§4) | nut.friction: tuning stability under bends | `d.nutFriction` -> `LuthierEngine` `TuningHardware::nutFriction` -> `StabilityModel` | Workshop inspector derived figures | `TuningStability.nutBinding`, `RealismUi.theWorkshopInspectorShowsTheDerivedFigures` | DONE |
 | PA-31 (§5) | bridge.mass_g: termination impedance and sustain | `terminationMassG` -> `sustainScale` | WORKSHOP inspector | `PartAcoustics::theMappingIsMonotonic` | DONE |
 | PA-32 (§5) | bridge.coupling | `couplingFraction` -> `spec.couplingAmount` | WORKSHOP inspector | `PartAcoustics::couplingsMultiply` | DONE |
 | PA-33 (§5) | bridge.type preset mass/coupling table — the part files match the table, but `mapSpec` falls back to 100 g / 0.55 whatever the type, and no test checks the files | `Resources/Parts/Bridges/*.luthierpart` | WORKSHOP part swap | `bridgeTypeDefaults` fallback in `mapSpec`; `PartAcoustics::aBridgeTypeSetsItsDefaults` (the factory parts state their own values, several off-table, so only the fallback is tested) | DONE |
@@ -76,4 +76,4 @@
 | PA-T10 (§11) | Test: mapping runs once per swap | - | n/a | `WorkshopSwap::aSwapMapsOnceNotPerBlock` | DONE |
 | PA-T11 (§11) | Test: determinism | - | n/a | `PartAcoustics::theMappingIsDeterministic` | DONE |
 
-<!-- counts DONE=57 NO-GUI=0 NO-TEST=1 PARTIAL=5 MISSING=7 OWNED=1 -->
+<!-- counts DONE=58 NO-GUI=0 NO-TEST=1 PARTIAL=5 MISSING=7 OWNED=0 -->

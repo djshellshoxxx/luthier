@@ -21,12 +21,17 @@
     them in tab order and shows one at a time.
 */
 
+#include "QualityOptions.h"   // cpu-quality-modes
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "Theme.h"
 #include "Widgets.h"
+#include "VisualAidsSection.h"   // animated-strings.md 5
+#include "NormalizationOptions.h"   // output-normalization.md 5.1
+#include "AudioPathView.h"
 #include "../Controllers/ControllerProfile.h"
 #include "../Updates/Telemetry.h"
+#include "../Updates/UpdateDownloader.h"
 
 namespace luthier
 {
@@ -68,8 +73,13 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
+    /** cpu-quality-modes 5: the QUALITY section. */
+    QualityOptions& getQualityOptions() noexcept { return quality; }
+
 private:
     LuthierChoice oversampling { "Oversampling" };
+    QualityOptions quality { processor };   // cpu-quality-modes 5
+    int deviceTop = 118, sidechainTop = 236;
 
     // noise-floor.md 3: the user-global default mains region (REALISM-C).
     juce::ComboBox mainsRegion;
@@ -77,6 +87,12 @@ private:
 
     juce::TextButton deviceButton { "Where are the device settings?" };
     juce::Label deviceNote, sidechainNote, latencyLabel;
+
+    // output-normalization.md 5.1: under Oversampling, in its own group.
+    NormalizationOptionsGroup normalization { processor };
+
+public:
+    NormalizationOptionsGroup& getNormalizationGroup() noexcept { return normalization; }
 };
 
 //==============================================================================
@@ -120,11 +136,40 @@ public:
 private:
     juce::ComboBox paletteBox, scaleBox;
     juce::ToggleButton reducedMotionToggle { "Reduced motion" };
+    juce::Label lowMotionNote;   // cpu-quality-modes 5
     juce::ToggleButton tooltipsToggle { "Show tooltips on hover" };
 
-    juce::Label contrastLabel, pendingLabel;
+    // gui-integration 5 / visual-polish.md 5: the accent, the data stream, the noise strip.
+    juce::ComboBox accentBox;
+    juce::ToggleButton dataStreamToggle { "Scrolling data stream in the footer" };
+    juce::ToggleButton noiseStripToggle { "Noise-event strip (CHARACTER)" };
+    juce::ToggleButton vuToggle { "VU meter (Easy window)" };
+
+    // piano-roll-chord-display.md 5: "Visual aids", beside Show tooltips.
+    juce::ToggleButton chordNamesToggle { "Show chord names on the guitar" };
+    juce::ToggleButton announceChordsToggle { "Announce chord names" };
+    juce::ToggleButton pianoRollAdvancedToggle { "Show piano roll (Advanced)" };
+    juce::ToggleButton pianoRollEasyToggle { "Show piano roll (Easy)" };
+    juce::ComboBox pianoRollShowsBox;
+
+public:
+    juce::ToggleButton& getChordNamesToggle() noexcept { return chordNamesToggle; }
+    juce::ToggleButton& getAnnounceChordsToggle() noexcept { return announceChordsToggle; }
+    juce::ToggleButton& getPianoRollToggle (bool advanced) noexcept { return advanced ? pianoRollAdvancedToggle : pianoRollEasyToggle; }
+    juce::ComboBox& getPianoRollShowsBox() noexcept { return pianoRollShowsBox; }
+private:
+
+    juce::Label contrastLabel, accentNote;
 
     bool updatingControls = false;
+
+public:
+    /** animated-strings.md 5 / piano-roll-chord-display.md 5: VISUAL AIDS, directly
+        under the tooltips / reduced-motion row. */
+    VisualAidsSection visualAids;
+
+private:
+    int accentTop = 300;   ///< where ACCENT AND LIVE DISPLAYS starts, below VISUAL AIDS
 };
 
 //==============================================================================
@@ -138,6 +183,10 @@ class AccessibilityPage final : public OptionsPage
 {
 public:
     explicit AccessibilityPage (LuthierAudioProcessor& processor);
+
+    /** gui-integration 16 item 13: the table filtered to one action's row. */
+    void filterShortcuts (const juce::String& text)  { searchBox.setText (text, true); }
+    juce::String getShortcutFilter() const            { return searchBox.getText(); }
 
     void refresh() override;
     void paint (juce::Graphics&) override;
@@ -263,6 +312,7 @@ private:
 
     juce::Slider heelDeadZone { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
     juce::Slider toeDeadZone { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+    juce::Label heelLabel { {}, "Heel dead zone" }, toeLabel { {}, "Toe dead zone" };
 
     juce::ListBox calibratedList;
     juce::Array<int> calibratedCcs;
@@ -308,9 +358,11 @@ public:
         the confirmation's own callback. Returns the clamp count. */
     int setAllFamilies (bool advanced);
 
+    /** The summary row's Clamp button (advanced-ranges.md 6.2 item 4). Public for tests. */
+    void clampOne (const juce::String& parameterId);
+
 private:
     void masterToggled();
-    void clampOne (const juce::String& parameterId);
 
     juce::ToggleButton masterToggle { "Advanced ranges for this preset" };
     juce::ToggleButton warningToggle { "Always show marked values as warning colour" };
@@ -359,6 +411,15 @@ private:
     juce::ToggleButton betaToggle { "Include beta releases" };
     juce::TextButton checkNowButton { "Check now" };
     juce::Label updateStatus, policyLabel, changelogNote;
+
+    // installer.md 5.1: the release notes open in the browser; the installer
+    // downloads to Downloads and is never launched.
+    juce::TextButton releaseNotesButton { "Release notes" };
+    juce::TextButton downloadButton { "Download" };
+    juce::String changelogUrl, downloadUrl;
+    UpdateDownloader downloader;
+
+    void startDownload();
 
     juce::TextEditor releaseNotes;
 
@@ -434,6 +495,8 @@ private:
     juce::TextButton debugWindowButton { "Open the debug window" };
     juce::ToggleButton crashLogToggle { "Create a log file if Luthier crashes" };
     juce::ToggleButton recorderToggle { "Keep the last hour of audio for the session recorder" };
+    juce::ToggleButton emergencyDropToggle;   // cpu-quality-modes 5 / 7 (E3)
+    juce::ToggleButton undoDepthToggle { "Show undo depth in the footer" };   // action-and-undo.md 12
 
     juce::TextButton troubleshootButton { "Export troubleshooting file" };
     juce::TextButton openFolderButton { "Open diagnostics folder" };
@@ -441,6 +504,17 @@ private:
     juce::TextButton restoreFirstRunButton { "Restore first-run experience" };
 
     juce::Label explanation, recorderNote, mirrorNote;
+
+    // output-normalization.md 5.4: the stage on the audio path, with its gain.
+    juce::Label normalizationLines;
+
+    /** gui-integration 20: "What's on the audio path right now", with section 5's flags mirror. */
+    std::unique_ptr<AudioPathView> audioPath;
+
+public:
+    AudioPathView* getAudioPathView() const noexcept { return audioPath.get(); }
+
+private:
 };
 
 //==============================================================================
@@ -449,8 +523,7 @@ private:
     Every user data folder, with a button that opens it, plus the preset search
     path: the folders Luthier scans, and the buttons that add to or rescan them.
 
-    ~/Documents/Luthier/Guitars/ and /Parts/ are in the section's list and are
-    not here, because the Workshop that would write them does not exist yet.
+    ~/Documents/Luthier/Guitars/ and /Parts/ have their own buttons.
 */
 class FileLocationsPage final : public OptionsPage
 {
@@ -466,6 +539,8 @@ private:
     juce::TextButton openRenderFolder { "Open render folder" };
     juce::TextButton openFactoryFolder { "Open factory preset folder" };
     juce::TextButton openDiagnosticsFolder { "Open diagnostics folder" };
+    juce::TextButton openGuitarsFolder { "Open guitars folder" };   // gui-integration 5
+    juce::TextButton openPartsFolder { "Open parts folder" };
     juce::TextButton addFolderButton { "Add a preset folder..." };
     juce::TextButton rescanButton { "Rescan presets" };
     juce::TextButton removeFolderButton { "Remove folder" };   // SPEC-SWEEP (spec.md SP-108)

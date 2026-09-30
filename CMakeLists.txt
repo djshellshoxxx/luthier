@@ -86,7 +86,9 @@ target_compile_definitions(Luthier PUBLIC
     JUCE_REPORT_APP_USAGE=0
     JUCE_STRICT_REFCOUNTEDPOINTER=1
     JUCE_MODAL_LOOPS_PERMITTED=0
-    JUCE_SILENCE_XCODE_15_LINKER_WARNING=1)
+    JUCE_SILENCE_XCODE_15_LINKER_WARNING=1
+    # installer.md 1.3 / 13.6: Source/StandaloneApp.cpp opens files it is given.
+    JUCE_USE_CUSTOM_PLUGIN_STANDALONE_APP=1)
 
 target_include_directories(Luthier PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/Source")
 
@@ -175,7 +177,7 @@ set(LUTHIER_ENGINE_SOURCES ${LUTHIER_SOURCES})
 list(FILTER LUTHIER_ENGINE_SOURCES EXCLUDE REGEX "Source/UI/")
 # SPEC-SWEEP: UiPreferences (juce_core only) is engine code too - PresetManager reads it (REALISM-C).
 list(APPEND LUTHIER_ENGINE_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/Source/UI/UiPreferences.cpp")
-list(FILTER LUTHIER_ENGINE_SOURCES EXCLUDE REGEX "PluginEditor[A-Za-z]*\.(cpp|h)$")   # SPEC-SWEEP: + PluginEditorTune/Onboarding
+list(FILTER LUTHIER_ENGINE_SOURCES EXCLUDE REGEX "PluginEditor[A-Za-z]*\.(cpp|h)$")   # SPEC-SWEEP: + PluginEditorTune; FEAT-NORMALIZE: + PluginEditorOnboarding
 
 # The UI, as its own list. The renderer does not want it - it renders offline and
 # has no window - but the test runner does. With Source/UI out of every target
@@ -183,7 +185,7 @@ list(FILTER LUTHIER_ENGINE_SOURCES EXCLUDE REGEX "PluginEditor[A-Za-z]*\.(cpp|h)
 # LuthierAudioProcessorEditor, and the panels could be verified only by opening
 # the plugin in a host by hand.
 set(LUTHIER_UI_SOURCES ${LUTHIER_SOURCES})
-list(FILTER LUTHIER_UI_SOURCES INCLUDE REGEX "Source/UI/|PluginEditor[A-Za-z]*\.(cpp|h)$")
+list(FILTER LUTHIER_UI_SOURCES INCLUDE REGEX "Source/UI/|PluginEditor[A-Za-z]*\.(cpp|h)$")   # FEAT-NORMALIZE: PluginEditorOnboarding.cpp too
 list(FILTER LUTHIER_UI_SOURCES EXCLUDE REGEX "Source/UI/UiPreferences\.cpp$")
 
 set(LUTHIER_CONSOLE_DEFS
@@ -253,7 +255,10 @@ if (LUTHIER_BUILD_CLI)
 
     target_sources(LuthierRender PRIVATE
                    ${LUTHIER_ENGINE_SOURCES}
-                   "${CMAKE_CURRENT_SOURCE_DIR}/Tools/RenderCli.cpp")
+                   "${CMAKE_CURRENT_SOURCE_DIR}/Tools/RenderCli.cpp"
+                   # PresetManager reads UiPreferences (plain file I/O, no UI);
+                   # FEAT-NORMALIZE restored the renderer's link after that landed.
+                   "${CMAKE_CURRENT_SOURCE_DIR}/Source/UI/UiPreferences.cpp")
 
     target_include_directories(LuthierRender PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/Source")
     target_compile_definitions(LuthierRender PRIVATE ${LUTHIER_CONSOLE_DEFS})
@@ -275,4 +280,72 @@ if (LUTHIER_BUILD_CLI)
                      -DMIDI=${CMAKE_CURRENT_SOURCE_DIR}/Tools/testdata/two_bars.mid
                      -DOUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/render-cli-smoke
                      -P ${CMAKE_CURRENT_SOURCE_DIR}/scripts/render_cli_smoke.cmake)
+endif()
+
+#==============================================================================
+# Install and packaging (installer.md 3, 4, 10)
+#
+# Linux: `cpack` in the build tree makes Luthier-<version>-linux-x64.tar.gz and
+# luthier_<version>_amd64.deb. The layout is installer.md 3.1's:
+#   VST3        <prefix>/lib/vst3/Luthier.vst3
+#   standalone  <prefix>/bin/luthier
+#   content     <prefix>/share/luthier        (IrLibrary looks there)
+#   desktop     <prefix>/share/applications/luthier.desktop
+#   MIME        <prefix>/share/mime/packages/luthier.xml (the six associations)
+#   icons       <prefix>/share/icons/hicolor/{128x128,512x512}/apps/luthier.png
+# SOURCE_DATE_EPOCH, when set, makes the archives reproducible (installer.md 10).
+#==============================================================================
+if (UNIX AND NOT APPLE)
+    set(LUTHIER_ARTEFACTS "${CMAKE_CURRENT_BINARY_DIR}/Luthier_artefacts/$<CONFIG>")
+
+    # The bundle's own copy of Resources (the build's convenience) is left out:
+    # the package ships the content once, in share/luthier, where IrLibrary
+    # finds it from the plugin too.
+    install(DIRECTORY "${LUTHIER_ARTEFACTS}/VST3/Luthier.vst3"
+            DESTINATION lib/vst3 USE_SOURCE_PERMISSIONS COMPONENT main
+            REGEX "/Luthier.vst3/Resources(/|$)" EXCLUDE)
+    install(PROGRAMS "${LUTHIER_ARTEFACTS}/Standalone/Luthier"
+            DESTINATION bin RENAME luthier COMPONENT main)
+    install(DIRECTORY "${LUTHIER_RESOURCES}/"
+            DESTINATION share/luthier COMPONENT main
+            PATTERN "*.ico" EXCLUDE)
+    install(FILES packaging/linux/luthier.desktop DESTINATION share/applications COMPONENT main)
+    install(FILES packaging/linux/luthier.xml DESTINATION share/mime/packages COMPONENT main)
+    install(FILES Resources/icon.png DESTINATION share/icons/hicolor/512x512/apps RENAME luthier.png COMPONENT main)
+    install(FILES Resources/icon_small.png DESTINATION share/icons/hicolor/128x128/apps RENAME luthier.png COMPONENT main)
+    install(FILES THIRD_PARTY_LICENCES.txt DESTINATION share/doc/luthier COMPONENT main)
+    install(PROGRAMS packaging/linux/install.sh packaging/linux/uninstall.sh
+            DESTINATION . COMPONENT tarball)
+
+    set(CPACK_PACKAGE_NAME "luthier")
+    set(CPACK_PACKAGE_VENDOR "Luthier Audio")
+    set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+    set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Physically modelled guitar and bass instrument (VST3 and standalone)")
+    set(CPACK_PACKAGE_CONTACT "Luthier Audio <support@luthier.audio>")
+    set(CPACK_GENERATOR "TGZ;DEB")
+    set(CPACK_PROJECT_CONFIG_FILE "${CMAKE_CURRENT_SOURCE_DIR}/packaging/linux/CPackProjectConfig.cmake")
+
+    # One package per generator, whatever the components.
+    set(CPACK_ARCHIVE_COMPONENT_INSTALL ON)
+    set(CPACK_DEB_COMPONENT_INSTALL ON)
+    set(CPACK_COMPONENTS_GROUPING ALL_COMPONENTS_IN_ONE)
+
+    # installer.md 3 names.
+    set(CPACK_ARCHIVE_FILE_NAME "Luthier-${PROJECT_VERSION}-linux-x64")
+    set(CPACK_PACKAGE_FILE_NAME "Luthier-${PROJECT_VERSION}-linux-x64")
+    set(CPACK_DEBIAN_FILE_NAME "luthier_${PROJECT_VERSION}_amd64.deb")
+    # The top-level folder (tarball only) is set per generator in CPackProjectConfig.cmake.
+
+    # installer.md 3.3: ALSA always; JACK or PipeWire for low latency; X11
+    # (JUCE opens libX11 and friends at run time, so they are named here).
+    set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "amd64")
+    set(CPACK_DEBIAN_PACKAGE_SECTION "sound")
+    set(CPACK_DEBIAN_PACKAGE_DEPENDS
+        "libasound2 | libasound2t64, libfreetype6, libfontconfig1, libx11-6, libxext6, libxrandr2, libxinerama1, libxcursor1, libatomic1, libstdc++6, libc6")
+    set(CPACK_DEBIAN_PACKAGE_RECOMMENDS "pipewire-jack | libjack-jackd2-0 | libjack0")
+    set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
+        "${CMAKE_CURRENT_SOURCE_DIR}/packaging/linux/postinst;${CMAKE_CURRENT_SOURCE_DIR}/packaging/linux/postrm")
+    set(CPACK_DEBIAN_PACKAGE_CONTROL_STRICT_PERMISSION ON)
+
+    include(CPack)
 endif()

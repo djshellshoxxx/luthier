@@ -199,7 +199,9 @@ mirror)
 ## 11. Voice count and CPU % (footer)
 
 - Source: `StringEngine::active_voice_count` and
-  `AudioProcessor::cpu_load_rolling_1s`.
+  `AudioProcessor::cpu_load_rolling_1s`. CPU % now comes from
+  `CpuLoadMonitor` (cpu-quality-modes 4), its 200 ms mean, shown by
+  `QualityBadge` at 4 Hz.
 - Audio schedule: per block.
 - UI drain: 4 Hz (footer updates need not be smooth).
 - Stale after: 5 s.

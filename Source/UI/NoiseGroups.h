@@ -10,6 +10,7 @@
     (pick-noise.md 8, strum-dynamics.md 5).
 */
 
+#include "AnimationPolicy.h"   // cpu-quality-modes 6
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Widgets.h"
 #include "../DSP/Noise/NoiseEngine.h"
@@ -46,6 +47,16 @@ public:
 
     static juce::Colour colourFor (NoiseClass c);
 
+    /** Options -> Appearance's switch for the strip (gui-integration 5). */
+    static bool isEnabledByUser();
+    static void setEnabledByUser (bool enabled);
+
+    /** The timer's work, for tests. */
+    void timerCallbackForTest() { timerCallback(); }
+
+    /** What the reduced-motion count shows: events per kind in the window. */
+    std::array<int, (size_t) NoiseClass::numClasses> getClassCounts() const;
+
 private:
     void timerCallback() override;
 
@@ -54,8 +65,15 @@ private:
     LuthierAudioProcessor& processor;
     juce::Array<Tick> shown;
     double lastEventTime = -1.0e9;
+    std::array<int, (size_t) NoiseClass::numClasses> shownCounts {};
+    juce::uint32 lastStaticPaint = 0;
+    int reliefTick = 0;   ///< performance-budget.md 8 step 1: every other tick under CPU load
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (NoiseEventStrip)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::Decorative, "NoiseEventStrip", {}, [this] { if (pollNow() > 0) repaint(); } };
 };
 
 //==============================================================================

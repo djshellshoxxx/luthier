@@ -47,7 +47,7 @@ GAPS.md is the old gap list against gui-integration §19. The file says it is th
 | GAP-41 (A5) | Shortcut registry is the only source; defaults match §17 (Ctrl+O browser, Ctrl+Shift+R reset, A/B, Live, Practice, Options bound); Ctrl+Shift+/ opens the table; each binding has a catalog description | `Accessibility.cpp:490-560` | Options > ACCESSIBILITY | `Accessibility::shortcutDefaultsMatchTheCanonicalTable`, `Accessibility::everyShortcutHasADescriptionInTheCatalog` | DONE |
 | GAP-42 (A5) | `S` Slide and `Ctrl+G` Save As Guitar in the registry | `Accessibility.cpp:499,539` | keys | `Accessibility::shortcutDefaultsMatchTheCanonicalTable` | DONE |
 | GAP-43 (A5) | `W` toggles the Workshop — not in HEAD's registry | - | keys | - | OWNED |
-| GAP-44 (A5) | `Ctrl+T` New Tune — not in HEAD's registry | - | keys | - | OWNED |
+| GAP-44 (A5) | `Ctrl+T` New Tune in the shortcut registry | `AccessibilitySettings` `newTune` | keys | `TuneIntegration.ctrlTIsInTheShortcutRegistryAndOpensTheTuneTab` | DONE |
 | GAP-45 (A5) | `Ctrl+N` loads factory Init (pushes undo first); `Ctrl+Alt+E` reveals the preset file or says there is none | `PresetManager::indexOfPreset`, `getCurrentPresetFile` | keys | `Editor::newPresetLoadsInitAndRevealSaysSoWhenThereIsNoFile` | DONE |
 | GAP-46 (A5) | `Ctrl+[` / `Ctrl+]` step col 4 tabs, Advanced only, wrapping | `AdvancedPanel::stepWorkspaceTab` | keys | `Editor::theWorkspaceTabShortcutsStepTheTabsInAdvancedModeOnly` | DONE |
 | GAP-47 (A5) | Digit keys recall snapshots positionally (outside the registry); Escape fixed and not rebindable — Escape is tested, the digit keys are not | `PluginEditor.cpp:534,758` | keys | `Editor::everyOverlayShortcutOpensItsOwnOverlayAndEscapeClosesIt` (Escape only) | NO-TEST |
@@ -60,4 +60,4 @@ GAPS.md is the old gap list against gui-integration §19. The file says it is th
 | GAP-54 (Fixed) | `chordWindow` has a canonical Advanced Performance home; Options MIDI is a mirror | `AdvancedPanel.cpp:911` | Adv Performance; Options > MIDI | `GuiReach::everyAutomatableParameterHasAVisibleControl` | DONE |
 | GAP-55 (Not audited) | ui-wiring, onboarding, perf, qa, installer, tune-builder, midi-export, gi 20-22 audited — now `docs/spec-coverage.md` and this sweep | `docs/spec-coverage.md`, `docs/audit/sweep_parts/*` | n/a | n/a | DONE |
 
-<!-- counts DONE=43 NO-GUI=0 NO-TEST=2 PARTIAL=1 MISSING=2 OWNED=7 -->
+<!-- counts DONE=44 NO-GUI=0 NO-TEST=2 PARTIAL=1 MISSING=2 OWNED=6 -->

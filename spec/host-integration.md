@@ -145,6 +145,13 @@ blob to the plugin's diagnostics folder before overwriting.
   `updateHostDisplay` so hosts can recompute delay compensation.
 - Per-output latency (routing-io.md 7): reported via the JUCE bus
   latency API where the host supports it.
+- CPU quality (cpu-quality-modes 2.2) never changes the reported latency:
+  a capped stage is padded to the nominal factor's latency.
+- `setNonRealtime` (cpu-quality-modes 2.6): Luthier overrides it and also
+  checks `isNonRealtime()` in `prepareToPlay` and each `processBlock`. An
+  offline render runs at High (with "Always render offline at High", and
+  always under Auto), switched hard, so bounces are bit-identical whatever
+  the live level.
 
 ## 6. Transport follow
 

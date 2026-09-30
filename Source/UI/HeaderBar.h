@@ -9,9 +9,11 @@
     The output LED lives here too, in the top-left corner, as the theme requires.
 */
 
+#include "AnimationPolicy.h"   // cpu-quality-modes 6
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Widgets.h"
 #include "RangesUi.h"
+#include "NormalizationBadge.h"   // output-normalization.md 5.1
 
 namespace luthier
 {
@@ -95,6 +97,13 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
+    /*  action-and-undo.md 1 / 9: File -> "Undo history...". The newest 20
+        entries, newest first; each item's id is 1 + the undos that reach the
+        state before it, and a boundary entry sits under a separator. */
+    static juce::PopupMenu buildUndoHistoryMenu (const LuthierAudioProcessor& processor);
+    static void applyUndoHistoryChoice (LuthierAudioProcessor& processor, int result);
+    void showUndoHistory();
+
 private:
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
     void timerCallback() override;
@@ -107,6 +116,13 @@ private:
     LuthierAudioProcessor& processor;
 
     OutputLed led;
+
+public:
+    /** output-normalization.md 5.1: the badge beside the output LED. */
+    NormalizationBadge& getNormalizationBadge() noexcept { return normalizationBadge; }
+
+private:
+    NormalizationBadge normalizationBadge { processor };
 
     LuthierChoice guitarSelector, tuningSelector;
 
@@ -131,6 +147,10 @@ private:
     bool advancedAvailable = true;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HeaderBar)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "HeaderBar" };
 };
 
 } // namespace luthier

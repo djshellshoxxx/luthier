@@ -50,7 +50,7 @@ The preset load/refuse path (named banner, session untouched, JSON-lines error l
 | ER-44 (§5) | Invalid `.luthierguitar` save refused with reason, stays unsaved — generic failure banner, no validation reason | `LuthierAudioProcessor::saveGuitarAs` | banner "save-guitar" | - | PARTIAL |
 | ER-45 (§6) | Malformed progression -> offending token highlighted, "Cannot parse: reason" status line | `Tune/TuneHarmony` parse errors; `TunePanel` underline | TUNE tab progression field | `TunePanel::theProgressionFieldWritesTheSectionAndShowsErrorsWhereTheyAre`, `TuneBuilder::malformedShorthandIsRefusedWithANamedError` | DONE |
 | ER-46 (§6) | Melody generation produces no notes -> keep previous melody + banner | `Tune/TuneMelody` | TUNE tab | - | MISSING |
-| ER-47 (§6) | Hum capture low confidence -> "Could not detect pitch reliably" banner, no notes — capture itself is on tune-help (no banner there yet) | (tune-help) `Tune/TuneHumCapture` | TUNE tab | (tune-help: `HumCapture::thePitchTrackerFindsAVoicesPitchAndDoubtsNoise`) | OWNED |
+| ER-47 (§6) | Hum capture low confidence -> "Could not detect pitch reliably" banner, no notes — low-confidence frames give no notes, but no banner is shown | `Tune/TuneHumCapture.*` (frames under `kMinConfidence` dropped) | TUNE tab SING | `HumCapture.thePitchTrackerFindsAVoicesPitchAndDoubtsNoise` | PARTIAL |
 | ER-48 (§6) | Removing the last section refused, "A tune must have at least one section" — `Tune::removeSection` allows it | `Tune/TuneModel.cpp:removeSection` | TUNE section menu Delete | - | MISSING |
 | ER-49 (§6) | Loop lookahead exceeds RAM -> loop best effort, log, "loop tail truncated" indicator | - | - | - | MISSING |
 | ER-50 (§7) | Snapshot recall during preset load queued; discarded with info banner if load fails — both run serially on the message thread; no discard banner | `PluginProcessor::recallSnapshot` | Live strip | - | PARTIAL |
@@ -89,4 +89,4 @@ The preset load/refuse path (named banner, session untouched, JSON-lines error l
 | ER-83 (§15) | Every failure mode has a fixture in `Tests/Fixtures/Errors/<section>` and a test | - | - | - | MISSING |
 | ER-84 (§15) | Bug-bash "break the plugin" pass maps every symptom to a response | - | - | - | MISSING |
 
-<!-- counts DONE=29 NO-GUI=1 NO-TEST=3 PARTIAL=20 MISSING=23 OWNED=8 -->
+<!-- counts DONE=29 NO-GUI=1 NO-TEST=3 PARTIAL=21 MISSING=23 OWNED=7 -->

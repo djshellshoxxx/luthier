@@ -334,6 +334,16 @@ LUTHIER_TEST (Controllers, cc11MovesTheMasterLevel)
 {
     LuthierAudioProcessor processor;
     processor.prepareToPlay (kSr, kBlock);
+
+    // An expression calibration for CC 11 in the user's config (another test or
+    // the Options page may have saved one) would reshape the CC; this checks
+    // the plain mapping, so it runs without one and puts it back after.
+    auto& expression = processor.getExpression();
+    const bool hadEleven = expression.has (11);
+    const auto previousEleven = expression.get (11);
+    expression.remove (11);
+    processor.serviceExpressionCalibration();
+
     renderBlocks (processor, 2);
 
     auto& bus = processor.getEngine().getMasterBus();
@@ -363,6 +373,9 @@ LUTHIER_TEST (Controllers, cc11MovesTheMasterLevel)
 
     CHECK_NEAR (interp.takeMacroTarget (MidiTarget::Drive), 1.0f, 1.0e-3);
     CHECK (interp.takeMacroTarget (MidiTarget::Drive) < 0.0f);   // taken once
+
+    if (hadEleven)
+        expression.set (previousEleven);
 }
 
 /*  PT-23 (docs/PLAYING_TECHNIQUES.md: aftertouch "can be switched to bend"). */

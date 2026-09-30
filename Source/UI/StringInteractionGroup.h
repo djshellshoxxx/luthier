@@ -6,6 +6,7 @@
     muted-string thump. A small strip shows which strings the palm covers.
 */
 
+#include "AnimationPolicy.h"   // cpu-quality-modes 6
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Widgets.h"
 
@@ -43,6 +44,10 @@ private:
                   thump { "Muted-string thump" };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (StringInteractionGroup)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "StringInteractionGroup" };
 };
 
 } // namespace luthier

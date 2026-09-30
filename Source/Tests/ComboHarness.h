@@ -26,6 +26,7 @@
 #include <map>
 #include <random>
 #include <thread>
+#include <iomanip>
 
 namespace luthier::combo
 {
@@ -169,7 +170,10 @@ struct RenderStats
     double peak = 0.0;
     double maxWindowRms = 0.0;      ///< loudest 20 ms window up to the release
     double tailRms = 0.0;           ///< last 300 ms of the render
+    double earlierTailRms = 0.0;    ///< the 300 ms one second before that: the tail must still be falling
     double idleRms = 0.0;           ///< the same rig with nothing played, just before: its noise floor
+    double stringPeak = 0.0;        ///< loudest string (StringEngine level) up to the release
+    double stringEnd = 0.0;         ///< loudest string in the last block: did the strings themselves die?
     int subnormals = 0;
     double meanBlockMs = 0.0;
     double maxBlockMs = 0.0;
@@ -300,16 +304,19 @@ struct Rig
         return stats;
     }
 
-    /** The lowest note the current guitar can sound: its lowest open string. */
+    /** The lowest note the current guitar can sound: its lowest open string, or
+        the capo on it (nothing is fretted at or behind a capo, RubricVoicer 4.5,
+        so a capo at 12 moves the floor up an octave). */
     int lowestPlayableNote()
     {
         auto& engine = processor->getEngine();
-        const auto open = PerformanceCapture::getOpenNotes (engine.getTuningEngine(), engine.getNumStrings());
+        auto& tuning = engine.getTuningEngine();
+        const auto open = PerformanceCapture::getOpenNotes (tuning, engine.getNumStrings());
         int lowest = 127;
 
         for (int s = 0; s < engine.getNumStrings(); ++s)
             if (open[(size_t) s] > 0)
-                lowest = juce::jmin (lowest, open[(size_t) s]);
+                lowest = juce::jmin (lowest, open[(size_t) s] + tuning.getCapoFretFor (s));
 
         return lowest == 127 ? 0 : lowest;
     }
@@ -392,6 +399,19 @@ struct Rig
                 ++tailBlocks;
             }
 
+            {
+                auto& engine = processor->getEngine();
+                double loudest = 0.0;
+
+                for (int st = 0; st < engine.getNumStrings(); ++st)
+                    loudest = juce::jmax (loudest, engine.getString (st).getLevel());
+
+                if (pos < releasedAt)
+                    stats.stringPeak = juce::jmax (stats.stringPeak, loudest);
+
+                stats.stringEnd = loudest;
+            }
+
             const int outChannels = juce::jmin (2, buffer.getNumChannels());
 
             for (int i = 0; i < n; ++i)
@@ -433,6 +453,7 @@ struct Rig
 
         const int tailLen = juce::jmin (total, (int) (0.3 * kSr));
         stats.tailRms = windowRms (stats.mono, total - tailLen, tailLen);
+        stats.earlierTailRms = windowRms (stats.mono, juce::jmax (0, total - tailLen - (int) kSr), tailLen);
 
         return stats;
     }
@@ -519,6 +540,16 @@ struct Verdict
     double cpuCeilingPercent = 60.0;
     bool checkIdleFloor = true;     ///< off for random rigs, whose noise controls are random too
 
+    /*  The idle floor is judged against the rig's own playing level, not an
+        absolute level. A real amp with gain and master both on 10 turns a
+        single coil's mains hum into a buzz almost as loud as a played chord -
+        the preamp's small-signal gain applies to the hum in full while the
+        chord saturates - which is why players of such rigs use a gate. So an
+        absolute ceiling (formerly -30 dBFS) fails physically honest extremes.
+        Any rig: the floor may not reach the playing level (0 dB). A shipped
+        factory sound: 20 dB under it (CombinationTests sets that). */
+    double minSnrDb = 0.0;
+
     juce::String judge (const RenderStats& s) const
     {
         juce::StringArray why;
@@ -537,18 +568,60 @@ struct Verdict
 
         if (expectDecay && s.finite && s.maxWindowRms > 1.0e-4)
         {
-            // -60 dBFS (the default rig's hum floor is -68), or 30 dB under the
-            // note, or within 3 dB of the rig's own idle floor.
-            const bool quietEnough = s.tailRms < 1.0e-3 || s.tailRms < s.maxWindowRms * 0.0316
-                                     || (s.idleRms > 0.0 && s.tailRms < s.idleRms * 1.41);
+            /*  What a real guitar does after a note-off: the released string is
+                damped within a few hundred ms (sustain-and-decay SUS-08, checked
+                string by string in Combo.releasedStringIsDampedQuickly), but the
+                open strings it excited through the bridge keep ringing at their
+                own T60 - several seconds - 20-40 dB under the note until a hand
+                mutes them (engine.md 5.6, string-interaction 0.2). So the mix is
+                not asked to vanish; it is asked to be clearly down (20 dB under
+                the note, or under -60 dBFS, or at the rig's own floor) and still
+                falling (2 dB over the last second: a 12-string's coupled courses ring
+                that long). Formerly 30 dB, which failed
+                physically honest sympathetic ring.
+
+                A partial that matches exactly rings louder than that at the
+                output. Measured on "J-Style Fingerstyle" (E3 on the G string):
+                the open A's third partial is 2 cents from the note and rings
+                23 dB under it at the string, the open E 31 dB under; the pickup
+                and amp weight the low strings, so the mix tail reads 18 dB down.
+                A high-gain amp compresses the same ring further (15 dB down on
+                a 7-string through the British 800). Both fall at the open
+                strings' own T60 (4-11 dB/s). So a tail 15 dB down that is
+                falling by at least 3 dB a second (T60 under 20 s: strings
+                dying, not a note held or fed) also passes.
+
+                A saturated amp holds the output up while the strings die: on
+                "Tapping Etude" (JCM800, gain 0.68) and "Single-Cut Crunch"
+                (Plexi) the tail stays at the note's level and pitch (E3, 165
+                Hz) while every string has fallen 45-60 dB, because the amp
+                clips anything above its knee to the same level - high-gain
+                sustain, and why such players mute the strings they are not
+                playing. The output alone cannot judge that; the strings can.
+                So when the strings themselves fell 30 dB from their loudest
+                before the release, the tail is the amp's, not a note left
+                ringing, and it passes. A released string that keeps ringing
+                (B-03) still fails: its own level does not fall. */
+            const bool atFloor = s.tailRms < 1.0e-3 || (s.idleRms > 0.0 && s.tailRms < s.idleRms * 1.41);
+            const bool down    = s.tailRms < s.maxWindowRms * 0.1;
+            const bool falling = s.earlierTailRms <= 0.0 || s.tailRms < s.earlierTailRms * 0.794;
+            const bool deepDown = s.tailRms < s.maxWindowRms * 0.05;   // 26 dB under: decayed, falling or not
+            const bool ringingDown = s.tailRms < s.maxWindowRms * 0.178                 // 15 dB under the note
+                                  && s.earlierTailRms > 0.0 && s.tailRms < s.earlierTailRms * 0.708;   // 3 dB in the last second
+            const bool stringsDied = s.stringPeak > 0.0 && s.stringEnd < s.stringPeak * 0.0316;   // 30 dB at the strings
+            const bool quietEnough = atFloor || deepDown || (down && falling) || ringingDown || stringsDied;
             if (! quietEnough)
                 why.add ("does not decay after release (tail " + juce::String (juce::Decibels::gainToDecibels (s.tailRms), 1)
-                         + " dBFS vs note " + juce::String (juce::Decibels::gainToDecibels (s.maxWindowRms), 1) + " dBFS)");
+                         + " dBFS vs note " + juce::String (juce::Decibels::gainToDecibels (s.maxWindowRms), 1) + " dBFS, "
+                         + juce::String (juce::Decibels::gainToDecibels (s.earlierTailRms), 1) + " dBFS a second earlier; strings "
+                         + juce::String (juce::Decibels::gainToDecibels (s.stringEnd / juce::jmax (1.0e-12, s.stringPeak)), 1) + " dB from their peak)");
         }
 
-        if (checkIdleFloor && s.idleRms > 0.0316)
+        if (checkIdleFloor && s.idleRms > 1.0e-3 && s.maxWindowRms > 1.0e-4   // below -60 dBFS nobody hears it
+            && juce::Decibels::gainToDecibels (s.maxWindowRms / s.idleRms) < minSnrDb)
             why.add ("loud idle noise floor: " + juce::String (juce::Decibels::gainToDecibels (s.idleRms), 1)
-                     + " dBFS with nothing played");
+                     + " dBFS with nothing played, " + juce::String (juce::Decibels::gainToDecibels (s.maxWindowRms / s.idleRms), 1)
+                     + " dB under the playing level (minimum " + juce::String (minSnrDb, 0) + ")");
 
         if (s.cpuPercent > cpuCeilingPercent)
             why.add ("CPU " + juce::String (s.cpuPercent, 1) + "% of real time > " + juce::String (cpuCeilingPercent, 0) + "%");

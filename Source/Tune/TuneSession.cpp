@@ -256,8 +256,12 @@ void TuneSession::rebuildTimeline()
     auto options = midiOptions;
     options.improvisePass = juce::jmax (0, player->getPass());
 
-    player->setTimeline (std::make_unique<TuneTimeline> (TuneTimeline::build (tune, options)),
-                         tune.meta.tempoBpm, tune.getBeatsPerBar());
+    auto timeline = std::make_unique<TuneTimeline> (TuneTimeline::build (tune, options));
+
+    if (onTimelineBuilt != nullptr)   // FEAT-JAM
+        onTimelineBuilt (*timeline);
+
+    player->setTimeline (std::move (timeline), tune.meta.tempoBpm, tune.getBeatsPerBar());
 }
 
 void TuneSession::service()

@@ -9,7 +9,7 @@ Guitars (27 files, which cover all 15 named ones), parts (148, with the spec's t
 | FC-3 (§0.3) | Difficulty ladder: easy, medium and showcase per category | - | - | - | MISSING |
 | FC-4 (§0.4) | At least 2 presets per genre (12 guitar + bass genres) — no reggae, latin, indie or punk; bass funk/reggae/punk/jazz missing | `FactoryPresets.cpp` | preset browser | - | MISSING |
 | FC-5 (§0.5) | Every factory guitar playable at every factory preset; a preset with no guitar picks a suitable one — fallback by type exists; no cross-product test | guitar-block fallback in `PluginProcessor` | n/a | `WorkshopPresets::aMissingGuitarFileFallsBackToItsType` | PARTIAL |
-| FC-6 (§0.6, §4) | 6 factory tunes that loop and sound finished (Fingerstyle Etude … Funk Slap Groove) | on tune-help: `Resources/Tunes/Examples/01-06*.luthiertune` | TUNE tab | on tune-help | OWNED |
+| FC-6 (§0.6, §4) | 6 factory tunes that loop and sound finished (Fingerstyle Etude … Funk Slap Groove) | `Resources/Tunes/Examples/01-06*.luthiertune`, `TuneExamples::buildExampleTunes` | TUNE New -> Example tunes | `SampleContent.theSixExampleTunesAreValidAndShipAsBuilt`, `SampleContent.anExampleTuneOpensFromTheTuneTabAndPlays` | DONE |
 | FC-7 (§0.7) | No copyrighted third-party audio, MIDI or images — IRs synthesised; `THIRD_PARTY_LICENCES` on visual | `scripts/make_irs.py` | n/a | n/a | DONE |
 | FC-8 (§0.8, §13) | Factory content ≤ 200 MB compressed, as a gate — Resources is 31 MB; no automated gate | - | n/a | - | NO-TEST |
 | FC-9 (§1) | The 36 named presets (Fresh Strings Clean … Jazz Walking Bass) — only "Modern Metal Chug" and "Flamenco Rasgueado" match | `FactoryPresets.cpp` | preset browser | - | MISSING |
@@ -20,7 +20,7 @@ Guitars (27 files, which cover all 15 named ones), parts (148, with the spec's t
 | FC-14 (§6) | ~28 `.luthierkit` files with voicer, humanize, pick style, setup style and noise style — compiled in; no pick/setup/noise style fields | `Rhythm/GenreKit.cpp` | RHYTHM tab kit selector | `GenreKits::factoryKitsAreWellFormed`, `GenreKits::everyKitResolvesEveryPatternItNames` | PARTIAL |
 | FC-15 (§7) | 10 example setlists that reference only factory presets | - | - | - | MISSING |
 | FC-16 (§8) | 6 royalty-free backing tracks in `Resources/Practice/BackingTracks/` | - | - | - | MISSING |
-| FC-17 (§9) | 12 example MIDI clips, one per genre kit | on tune-help: `Resources/Examples/01-12*.mid` (not in `MIDI/`) | - | on tune-help | OWNED |
+| FC-17 (§9) | 12 example MIDI clips, one per genre kit | `Resources/Examples/01-12*.mid` (not in `MIDI/`), `TuneExamples::buildMidiClips` | - | `SampleContent.theTwelveMidiClipsShipAndPlay` | DONE |
 | FC-18 (§10) | 720 IRs (216 body + 504 cab), deterministic generator | `Resources/BodyIRs`, `Resources/CabIRs`, `scripts/make_irs.py` | TONE MATCH tab | - (no test counts or loads the shipped IRs) | NO-TEST |
 | FC-19 (§11) | Post-release `.luthiercontent` packs — format on visual; packs are post-release | on visual: `Updates/ContentPackage` | - | on visual: `ContentPackage.*` | OWNED |
 | FC-20 (§12) | Every user-facing name in the locale catalog — preset/guitar/part names not catalogued | `Accessibility/Localisation.cpp` | n/a | - | PARTIAL |
@@ -28,9 +28,9 @@ Guitars (27 files, which cover all 15 named ones), parts (148, with the spec's t
 | FC-22 (§12) | Guitar names `[Style] [Family]`; part names state the physical fact; tune names < 32 chars — no test | `Resources/Guitars`, `Resources/Parts`, `Resources/Tunes/Templates` | n/a | - | NO-TEST |
 | FC-23 (§13) | Load every factory preset in every host: no crash, no missing-reference banner — in-process only; banner not asserted | - | n/a | `Presets::everyFactoryPresetLoadsWithoutAMissingReference` | DONE |
 | FC-24 (§13) | Every factory guitar matches its spectrum-delta fixture within 0.2 dB — `SpectrumDelta` exists; no fixtures | `Workshop/SpectrumDelta.cpp` | n/a | on visual: `Workshop::everyFactoryGuitarRoundTripsInAudio` (null test, not fixtures) | MISSING |
-| FC-25 (§13) | Every factory tune plays end to end without dropouts | on tune-help (tunes) | - | - | OWNED |
+| FC-25 (§13) | Every factory tune plays end to end without dropouts — tunes ship and one plays from the TUNE tab; no test renders every tune end to end | `Resources/Tunes/Examples` | - | - | NO-TEST |
 | FC-26 (§13) | Every factory setlist loads and every step resolves | - | - | - | MISSING |
 | FC-27 (§13) | Every backing track streams at 48 kHz without dropouts | - | - | - | MISSING |
 | FC-28 (§13) | Legal review sign-off recorded for every named entry | - | n/a | - | MISSING |
 
-<!-- counts DONE=5 NO-GUI=0 NO-TEST=4 PARTIAL=5 MISSING=10 OWNED=4 -->
+<!-- counts DONE=7 NO-GUI=0 NO-TEST=5 PARTIAL=5 MISSING=10 OWNED=1 -->

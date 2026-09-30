@@ -30,7 +30,7 @@ void EffectsChain::prepare (double sampleRate, int maxBlockSize)
         }
     }
 
-    setOversamplingFactor (oversamplingFactor);
+    setOversamplingFactor (effectiveFactor, oversamplingFactor, false);
     retired.clear();
 }
 
@@ -65,7 +65,8 @@ void EffectsChain::setSlotType (int slot, PedalType type)
         replacement->setBypassed (slots[(size_t) slot].bypassed);
         replacement->setMix (slots[(size_t) slot].mix);
 
-        replacement->setOversamplingFactor (oversamplingFactor);   // SPEC-SWEEP JG-4: virtual, no cast
+        // SPEC-SWEEP JG-4: virtual, no cast (cpu-quality-modes 2.2 effective/nominal pair).
+        replacement->setOversamplingFactor (effectiveFactor, oversamplingFactor, false);
     }
 
     {
@@ -229,14 +230,15 @@ void EffectsChain::setExpression (double value) noexcept
             slot.pedal->setExpression (expression);
 }
 
-void EffectsChain::setOversamplingFactor (int factor) noexcept
+void EffectsChain::setOversamplingFactor (int effective, int nominal, bool crossfade) noexcept
 {
-    oversamplingFactor = juce::jlimit (1, 8, factor);
+    oversamplingFactor = juce::jlimit (1, 8, nominal);
+    effectiveFactor = juce::jlimit (1, oversamplingFactor, effective);
 
     // SPEC-SWEEP JG-4: a virtual call rather than a dynamic_cast per slot.
     for (auto& slot : slots)
         if (slot.pedal != nullptr)
-            slot.pedal->setOversamplingFactor (oversamplingFactor);
+            slot.pedal->setOversamplingFactor (effectiveFactor, oversamplingFactor, crossfade);
 }
 
 int EffectsChain::getLatencySamples() const noexcept

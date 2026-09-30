@@ -2,6 +2,8 @@
 #include "PhysicalRange.h"
 #include "Rhythm/StrumGesture.h"
 #include "Presets/RealismStyles.h"   // REALISM-C
+#include "Jam/JamStyle.h"
+#include "Jam/JamEdition.h"   // FEAT-JAM   // FEAT-JAM
 
 namespace luthier
 {
@@ -898,6 +900,44 @@ APVTS::ParameterLayout Parameters::createLayout()
     add (floatParam  (ParamIDs::tuneTempoDrift,     "Tune Tempo Drift",  -10.0f, 10.0f, 0.0f, 1.0f, "%"));
     // ==== END TUNE-HELP-ONBOARDING params ====
 
+    // ==== BEGIN FEAT-JAM params ====
+    // jam-mode.md 10: the band's 34, appended in table order, never reordered.
+    // jam_kit_tuning and jam_kit_damping are physical (RangeFamily::jam).
+    add (boolParam   (ParamIDs::jamEnabled,        "Jam Enabled", false));
+    add (boolParam   (ParamIDs::jamPlay,           "Jam Play", false));
+    add (boolParam   (ParamIDs::jamFillNow,        "Jam Fill Now", false));
+    add (choiceParam (ParamIDs::jamStyle,          "Jam Style", JamStyleLibrary::getStyleChoiceNames(), 0));
+    add (choiceParam (ParamIDs::jamVariation,      "Jam Variation", { "A", "B" }, 0));
+    add (std::make_unique<juce::AudioParameterInt> (pid (ParamIDs::jamIntensity), "Jam Intensity", 1, 5, 3));
+    add (choiceParam (ParamIDs::jamFillEvery,      "Jam Fill Every", { "Off", "2 bars", "4 bars", "8 bars", "16 bars" }, 3));
+    add (choiceParam (ParamIDs::jamFollow,         "Jam Follow", { "Tight", "Natural", "Relaxed", "Bar" }, 1));
+    add (boolParam   (ParamIDs::jamPredict,        "Jam Predict", true));
+    add (choiceParam (ParamIDs::jamChordSource,    "Jam Chord Source", { "Auto", "Live", "Tune" }, 0));
+    add (choiceParam (ParamIDs::jamStartMode,      "Jam Start Mode", { "Auto", "Host Transport", "First Note", "Count-In", "Tap In" }, 0));
+    add (std::make_unique<juce::AudioParameterInt> (pid (ParamIDs::jamCountInBars), "Jam Count In Bars", 0, 2, 1));
+    add (boolParam   (ParamIDs::jamStopOnSilence,  "Jam Stop On Silence", true));
+    add (std::make_unique<juce::AudioParameterInt> (pid (ParamIDs::jamSilenceBars), "Jam Silence Bars", 1, 8, 2));
+    add (boolParam   (ParamIDs::jamEnding,         "Jam Ending", true));
+    add (boolParam   (ParamIDs::jamDynamicsFollow, "Jam Dynamics Follow", true));
+    add (floatParam  (ParamIDs::jamSwing,          "Jam Swing", -50.0f, 50.0f, 0.0f, 1.0f, "%"));
+    add (floatParam  (ParamIDs::jamHumanise,       "Jam Humanise", 0.0f, 100.0f, 50.0f, 1.0f, "%"));
+    add (choiceParam (ParamIDs::jamKit,            "Jam Kit", { "Studio", "Vintage", "Arena", "Jazz", "Machine" }, 0));
+    add (boolParam   (ParamIDs::jamKitAuto,        "Jam Kit Auto", true));
+    add (floatParam  (ParamIDs::jamKitTuning,      "Jam Kit Tuning", -6.0f, 6.0f, 0.0f, 0.5f, "st"));
+    add (floatParam  (ParamIDs::jamKitDamping,     "Jam Kit Damping", 10.0f, 90.0f, 40.0f, 1.0f, "%"));
+    add (floatParam  (ParamIDs::jamKitRoom,        "Jam Kit Room", 0.0f, 100.0f, 25.0f, 1.0f, "%"));
+    add (floatParam  (ParamIDs::jamKitWidth,       "Jam Kit Width", 0.0f, 100.0f, 70.0f, 1.0f, "%"));
+    add (choiceParam (ParamIDs::jamKitPerspective, "Jam Kit Perspective", { "Audience", "Drummer" }, 0));
+    add (choiceParam (ParamIDs::jamBassVoice,      "Jam Bass Voice", { "Auto", "Finger", "Pick", "Muted Pick", "Upright" }, 0));
+    add (floatParam  (ParamIDs::jamBassTone,       "Jam Bass Tone", 0.0f, 1.0f, 0.5f));
+    add (floatParam  (ParamIDs::jamVolume,         "Jam Volume", -60.0f, 6.0f, -6.0f, 1.0f, "dB"));
+    add (floatParam  (ParamIDs::jamBalance,        "Jam Balance", -1.0f, 1.0f, 0.0f));
+    add (floatParam  (ParamIDs::jamDrumsPan,       "Jam Drums Pan", -1.0f, 1.0f, 0.0f));
+    add (floatParam  (ParamIDs::jamBassPan,        "Jam Bass Pan", -1.0f, 1.0f, 0.0f));
+    add (boolParam   (ParamIDs::jamDrumsMute,      "Jam Drums Mute", false));
+    add (boolParam   (ParamIDs::jamBassMute,       "Jam Bass Mute", false));
+    add (choiceParam (ParamIDs::jamOutput,         "Jam Output", { "Main", "Separate", "Main + Separate" }, 0));
+    // ==== END FEAT-JAM params ====
     // ==== BEGIN SPEC-SWEEP params ====
     add (floatParam  (ParamIDs::snapshotMorph, "Snapshot Morph", 0.0f, 1.0f, 0.0f));   // LP-16
     // ==== END SPEC-SWEEP params ====
@@ -924,7 +964,7 @@ void ParameterBridge::parameterValueChanged (int parameterIndex, float)
     ++writeSerial;
 
     // When, for writtenSinceGuitarType(). Never 0, which means "never written".
-    if (juce::isPositiveAndBelow (parameterIndex, numLastWrite))
+    if (juce::isPositiveAndBelow (parameterIndex, numLastWrite) && stampingWrites.load (std::memory_order_relaxed))
         lastWrite[(size_t) parameterIndex].store (juce::jmax ((juce::uint32) 1, juce::Time::getMillisecondCounter()),
                                                   std::memory_order_relaxed);
 
@@ -1205,6 +1245,61 @@ float ParameterBridge::value (const juce::String& id) const noexcept
 
     return modMatrix->apply (parameterIndex (id), base);
 }
+
+// ==== BEGIN FEAT-JAM params ====
+JamSettings ParameterBridge::readJam() const noexcept
+{
+    // jam-mode 10. Read through value(), so modulation and automation apply.
+    JamSettings j;
+    j.enabled        = value (ParamIDs::jamEnabled) > 0.5f;
+    j.play           = value (ParamIDs::jamPlay) > 0.5f;
+    j.fillNow        = value (ParamIDs::jamFillNow) > 0.5f;
+    j.style          = juce::roundToInt (value (ParamIDs::jamStyle));
+    j.variation      = juce::roundToInt (value (ParamIDs::jamVariation));
+    j.intensity      = juce::roundToInt (value (ParamIDs::jamIntensity));
+    j.fillEvery      = juce::roundToInt (value (ParamIDs::jamFillEvery));
+    j.follow         = juce::roundToInt (value (ParamIDs::jamFollow));
+    j.predict        = value (ParamIDs::jamPredict) > 0.5f;
+    j.chordSource    = juce::roundToInt (value (ParamIDs::jamChordSource));
+    j.startMode      = juce::roundToInt (value (ParamIDs::jamStartMode));
+    j.countInBars    = juce::roundToInt (value (ParamIDs::jamCountInBars));
+    j.stopOnSilence  = value (ParamIDs::jamStopOnSilence) > 0.5f;
+    j.silenceBars    = juce::roundToInt (value (ParamIDs::jamSilenceBars));
+    j.ending         = value (ParamIDs::jamEnding) > 0.5f;
+    j.dynamicsFollow = value (ParamIDs::jamDynamicsFollow) > 0.5f;
+    j.swing          = value (ParamIDs::jamSwing);
+    j.humanise       = value (ParamIDs::jamHumanise);
+    j.kit            = juce::roundToInt (value (ParamIDs::jamKit));
+    j.kitAuto        = value (ParamIDs::jamKitAuto) > 0.5f;
+    j.kitTuning      = value (ParamIDs::jamKitTuning);
+    j.kitDamping     = value (ParamIDs::jamKitDamping);
+    j.kitRoom        = value (ParamIDs::jamKitRoom);
+    j.kitWidth       = value (ParamIDs::jamKitWidth);
+    j.perspective    = juce::roundToInt (value (ParamIDs::jamKitPerspective));
+    j.bassVoice      = juce::roundToInt (value (ParamIDs::jamBassVoice));
+    j.bassTone       = value (ParamIDs::jamBassTone);
+    j.volumeDb       = value (ParamIDs::jamVolume);
+    j.balance        = value (ParamIDs::jamBalance);
+    j.drumsPan       = value (ParamIDs::jamDrumsPan);
+    j.bassPan        = value (ParamIDs::jamBassPan);
+    j.drumsMute      = value (ParamIDs::jamDrumsMute) > 0.5f;
+    j.bassMute       = value (ParamIDs::jamBassMute) > 0.5f;
+    j.output         = juce::roundToInt (value (ParamIDs::jamOutput));
+
+    // jam-mode 15: a Free build plays the nearest Free choice and keeps the stored value.
+    if constexpr (JamEdition::kIsFree)
+    {
+        j.style = JamEdition::nearestFree (JamEdition::Item::style, j.style);
+        j.kit = JamEdition::nearestFree (JamEdition::Item::kit, j.kit);
+        j.bassVoice = JamEdition::nearestFree (JamEdition::Item::bassVoice, j.bassVoice);
+        j.output = JamEdition::nearestFree (JamEdition::Item::output, j.output);
+        j.kitTuning = 0.0;
+        j.kitDamping = 40.0;
+    }
+
+    return j;
+}
+// ==== END FEAT-JAM params ====
 
 //==============================================================================
 void ParameterBridge::applyToEngine() noexcept
@@ -1671,11 +1766,6 @@ void ParameterBridge::applyToEngine() noexcept
     }
     // ==== END REALISM-C params ====
 
-    // ==== BEGIN SPEC-SWEEP params ====
-    // snapshot_morph (LP-16) is read by LuthierAudioProcessor::updateSnapshotMorph
-    // on the message thread; the morph writes parameters, so it cannot run here.
-    // ==== END SPEC-SWEEP params ====
-
     // ---- structural change detection ---------------------------------------------
     const bool structural = readStructuralValues() || ! structuralInitialised;
 
@@ -1747,6 +1837,11 @@ void ParameterBridge::applyToEngine() noexcept
         engine.setStringInteraction (interaction);
     }
     // ==== END REALISM-B params ====
+
+    // ==== BEGIN SPEC-SWEEP params ====
+    // snapshot_morph (LP-16) is read by LuthierAudioProcessor::updateSnapshotMorph
+    // on the message thread; the morph writes parameters, so it cannot run here.
+    // ==== END SPEC-SWEEP params ====
 }
 
 bool ParameterBridge::readStructuralValues() noexcept

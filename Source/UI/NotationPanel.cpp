@@ -304,12 +304,12 @@ NotationPanel::NotationPanel (LuthierAudioProcessor& p)
 
     setSize (320, getPreferredHeight());
     refresh();
-    startTimerHz (10);
+    motion.startTimerHz (*this, 10);
 }
 
 NotationPanel::~NotationPanel()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 //==============================================================================
@@ -509,6 +509,8 @@ int NotationPanel::getPreferredHeight() const
 
 void NotationPanel::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     LuthierLookAndFeel::drawSectionHeader (g, captureHeader, "CAPTURE");
     LuthierLookAndFeel::drawSectionHeader (g, tabHeader, "LIVE TAB");
     LuthierLookAndFeel::drawSectionHeader (g, exportHeader, "EXPORT");

@@ -75,6 +75,16 @@ public:
     std::function<juce::var()> captureGuitarBlock;
     std::function<void (const juce::var&)> onGuitarBlockLoaded;
 
+    /** jam-mode.md 12 (FEAT-JAM): the preset's optional `jam` block, supplied on
+        save and handed over on every load (void when a preset has none, which
+        means defaults). Message thread. */
+    std::function<juce::var()> captureJamBlock;
+    std::function<void (const juce::var&)> onJamBlockLoaded;
+
+    /** FEAT-JAM (jam-mode 11): a parameter a load leaves as it is - a preset
+        load never stops a playing band. Null keeps every parameter. */
+    std::function<bool (const juce::String&)> keepOnLoad;
+
     /** After a load has written its pedal types and their parameters, so the
         pedals can be built with the loaded settings rather than their defaults
         (ParameterBridge::adoptPedalTypesFromParameters). */
@@ -91,16 +101,18 @@ public:
     std::function<void (juce::DynamicObject&)> capturePresetBlocks;
     std::function<void (const juce::DynamicObject&)> onPresetBlocksLoaded;
 
-    /*  SPEC-SWEEP: SM-46. Called after loadPreset (File) succeeds - a load the
-        user asked for - but not from fromVar, which undo, A/B and the host
-        session go through as well. */
-    std::function<void()> onPresetFileLoaded;
-
     /*  SPEC-SWEEP: PF-14. Parameters a preset's `parameters` block leaves out
         are reset to their defaults on load, except these, which belong to the
         layers above the preset (the morph slider; Slide Mode persists across a
-        load, state-model.md 8.1). */
+        load, state-model.md 8.1; jam-mode 10's performance controls). */
     static bool keepsValueWhenAbsent (const juce::String& paramId);
+
+    /** output-normalization.md 4.4: after a preset file loaded (message thread).
+        Called after loadPreset (File) succeeds - a load the user asked for - but
+        not from fromVar, which undo, A/B and the host session go through as
+        well. (Merge: this is also SPEC-SWEEP SM-46's hook; the sweep's own
+        onPresetFileLoaded duplicated it and was dropped.) */
+    std::function<void()> onPresetLoaded;
 
     /** Called around a whole load (fromVar), so the processor can fade its output
         out before the first parameter moves and back in after the last. Without
@@ -201,6 +213,17 @@ public:
         atomicity tests: 1 = the temp file cannot be opened (a read-only folder
         or a full disk), 2 = the rename over the target fails. Reset after use. */
     static std::atomic<int> failNextWriteForTesting;
+    /*  installer.md 8: "User sees a subtle info banner on the first affected
+        load." A load that had to migrate something (a derived ranges block, a
+        pre-parts guitar name, retired parameters) bumps the generation and says
+        what; the window polls it like lastLoadError. Message thread. */
+    void noteMigration (const juce::String& what) { lastMigration = what; ++migrationGeneration; }
+    juce::uint32 getMigrationGeneration() const noexcept { return migrationGeneration; }
+    juce::String getLastMigration() const { return lastMigration; }
+
+    /** installer.md 8: <presets root>/Backup/<yyyy-mm-dd>/ for a file inside a
+        Presets tree; the file's own folder's Backup otherwise. */
+    static juce::File backupFolderFor (const juce::File& target);
 
     /** Saves over the current user preset, or falls back to Save As behaviour if
         the current preset is a factory one. */
@@ -306,6 +329,9 @@ private:
 
     /** SPEC-SWEEP: ER-12/13 - why fromVar refused, as the end of a sentence. */
     juce::String lastRefusal;
+
+    juce::String lastMigration;            // installer.md 8
+    juce::uint32 migrationGeneration = 0;
 
     /** Where the current preset came from. Empty until something is loaded. */
     juce::File currentFile;

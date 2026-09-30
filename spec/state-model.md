@@ -314,7 +314,11 @@ Persisted (survive plugin close):
   IRs, factory content, user-global config).
 - Host-saved plugin state (parameters, mod matrix, snapshot bank,
   midi mappings, ranges, guitar reference, uiState VT).
-- Per-plugin-instance uiState (which tab was open, etc.).
+- Per-plugin-instance uiState (which tab was open, etc.), including
+  `qualityOverride` (`global` | `high` | `medium` | `low` | `auto`;
+  cpu-quality-modes 3): saved with the host session, never in a preset or
+  snapshot, and kept by Reset. The global CPU quality itself is user-global
+  config (`config/performance.json`).
 
 Not persisted (lost on close):
 - Undo stack.

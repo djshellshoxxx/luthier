@@ -194,6 +194,7 @@ AccessibilitySettings& AccessibilitySettings::get()
 AccessibilitySettings::AccessibilitySettings()
 {
     colours = buildPalette (PaletteId::defaultDark);
+    baseColours = colours;
     buildDefaultShortcuts();
 }
 
@@ -322,6 +323,8 @@ void AccessibilitySettings::setPalette (PaletteId id)
     if (! colours.loadFrom (file))
         colours = buildPalette (palette);
 
+    baseColours = colours;
+    applyAccent();
     sendChangeMessage();
 }
 
@@ -330,8 +333,81 @@ bool AccessibilitySettings::loadPaletteFromFile (const juce::File& file)
     if (! colours.loadFrom (file))
         return false;
 
+    baseColours = colours;
+    applyAccent();
     sendChangeMessage();
     return true;
+}
+
+//==============================================================================
+juce::StringArray AccessibilitySettings::getAccentNames()
+{
+    return { "Aged brass", "Tube amber", "Jewel red", "Seafoam green", "Sonic blue", "Pearl ivory" };
+}
+
+double AccessibilitySettings::accentContrast (juce::Colour c, const PaletteColours& p) noexcept
+{
+    double worst = 21.0;
+
+    for (auto bg : { p.background, p.panel, p.panelRaised, p.panelSunken })
+        worst = juce::jmin (worst, PaletteColours::contrastRatio (c, bg));
+
+    return worst;
+}
+
+juce::Colour AccessibilitySettings::accentFor (int choice, const PaletteColours& p, juce::Colour guitarFinish)
+{
+    static const juce::uint32 bases[kNumAccents] = { 0, 0xffe8913a, 0xffd2574a, 0xff5fb39a, 0xff6ca6d9, 0xffdcd0b4 };
+
+    juce::Colour c = choice == kFollowGuitar ? guitarFinish.withAlpha (1.0f)
+                   : juce::isPositiveAndBelow (choice, kNumAccents) && choice > 0 ? juce::Colour (bases[choice])
+                                                                                  : p.accent;
+
+    // Toward the text colour until it reads on every background: lighter on a
+    // dark palette, darker on the Light one (visual-polish.md 5, accessibility 10).
+    for (int i = 0; i < 40 && accentContrast (c, p) < 4.5; ++i)
+        c = c.interpolatedWith (p.textPrimary, 0.1f);
+
+    return c;
+}
+
+void AccessibilitySettings::applyAccent()
+{
+    colours = baseColours;
+
+    if (accentChoice == 0)
+        return;
+
+    const auto a = accentFor (accentChoice, baseColours, guitarAccent);
+    colours.accent = a;
+    colours.accentBright = a.interpolatedWith (baseColours.textPrimary, 0.3f);
+    colours.accentDim = a.interpolatedWith (baseColours.background, 0.45f);
+}
+
+void AccessibilitySettings::setAccent (int choice)
+{
+    choice = choice == kFollowGuitar ? kFollowGuitar : juce::jlimit (0, kNumAccents - 1, choice);
+
+    if (choice == accentChoice)
+        return;
+
+    accentChoice = choice;
+    applyAccent();
+    sendChangeMessage();
+}
+
+void AccessibilitySettings::setGuitarAccentSource (juce::Colour finish)
+{
+    if (finish == guitarAccent)
+        return;
+
+    guitarAccent = finish;
+
+    if (accentChoice == kFollowGuitar)
+    {
+        applyAccent();
+        sendChangeMessage();
+    }
 }
 
 juce::File AccessibilitySettings::getThemeDirectory()
@@ -497,11 +573,20 @@ void AccessibilitySettings::buildDefaultShortcuts()
     add ("toggleAdvanced",   "accessibility.shortcut.toggleAdvanced",   KP (KP::tabKey));
     add ("toggleLiveMode",   "accessibility.shortcut.toggleLiveMode",   KP ('l', 0, 0));
     add ("toggleSlideMode",  "accessibility.shortcut.toggleSlideMode",  KP ('s', 0, 0));
+    add ("toggleWorkshop",   "accessibility.shortcut.toggleWorkshop",   KP ('w', 0, 0));   // gui-integration 17 (VISUAL-WORKSHOP-QA)
     add ("togglePractice",   "accessibility.shortcut.togglePractice",   KP ('d', 0, 0));
+
+    // output-normalization.md 9: rebindable, unbound by default.
+    add ("toggleNormalization", "accessibility.shortcut.toggleNormalization", KP());
 
     add ("panic",            "accessibility.shortcut.panic",            KP ('p', 0, 0));
     add ("tapTempo",         "accessibility.shortcut.tapTempo",         KP ('t', 0, 0));
     add ("killSwitch",       "accessibility.shortcut.killSwitch",       KP ('\\', 0, 0));
+
+    // FEAT-JAM (jam-mode 8.2): the band - start/stop, fill, arm.
+    add ("jamStartStop",     "accessibility.shortcut.jamStartStop",     KP ('j', 0, 0));
+    add ("jamFill",          "accessibility.shortcut.jamFill",          KP ('j', shift, 0));
+    add ("jamArm",           "accessibility.shortcut.jamArm",           KP ('j', alt, 0));
 
     add ("previousItem",     "accessibility.shortcut.previousItem",     KP ('[', 0, 0));
     add ("nextItem",         "accessibility.shortcut.nextItem",         KP (']', 0, 0));
@@ -517,6 +602,10 @@ void AccessibilitySettings::buildDefaultShortcuts()
 
     add ("undo",             "accessibility.shortcut.undo",             KP ('z', cmd, 0));
     add ("redo",             "accessibility.shortcut.redo",             KP ('z', cmd | shift, 0));
+    add ("undoAcrossBoundary", "accessibility.shortcut.undoAcrossBoundary", KP ('z', cmd | alt, 0));   // action-and-undo.md 9
+   #if ! JUCE_MAC
+    add ("redoAlt",          "accessibility.shortcut.redoAlt",          KP ('y', cmd, 0));   // action-and-undo.md 9: Ctrl-Y
+   #endif
 
     add ("save",             "accessibility.shortcut.save",             KP ('s', cmd, 0));
     add ("saveAs",           "accessibility.shortcut.saveAs",           KP ('s', cmd | shift, 0));
@@ -561,6 +650,11 @@ void AccessibilitySettings::buildDefaultShortcuts()
         not exist yet; when tune-builder lands, that binding takes it and audition
         moves. */
     add ("audition",         "accessibility.shortcut.audition",         KP (KP::spaceKey));
+
+    // animated-strings.md 8: rebindable, unbound by default.
+    add ("toggleStringAnimation", "accessibility.shortcut.toggleStringAnimation", KP());
+    // cpu-quality-modes 5: rebindable, unbound by default.
+    add ("cycleCpuQuality",  "quality.shortcut.cycle",                  KP());
 }
 
 bool AccessibilitySettings::rebind (const juce::String& actionId, const juce::KeyPress& key)
@@ -569,7 +663,7 @@ bool AccessibilitySettings::rebind (const juce::String& actionId, const juce::Ke
     // rebind table shows the clash, which is what accessibility 2's "full rebind
     // table" needs to be usable.
     for (const auto& binding : shortcuts)
-        if (binding.id != actionId && binding.key == key)
+        if (binding.id != actionId && key.isValid() && binding.key == key)   // unbound never clashes
             return false;
 
     for (auto& binding : shortcuts)
@@ -609,7 +703,7 @@ void AccessibilitySettings::resetAllShortcuts()
 juce::String AccessibilitySettings::findAction (const juce::KeyPress& key) const
 {
     for (const auto& binding : shortcuts)
-        if (binding.key == key)
+        if (binding.key.isValid() && binding.key == key)
             return binding.id;
 
     return {};
@@ -641,6 +735,7 @@ juce::var AccessibilitySettings::toVar() const
     auto* root = new juce::DynamicObject();
 
     root->setProperty ("palette", (int) palette);
+    root->setProperty ("accent", accentChoice);   // visual-polish.md 5
     root->setProperty ("uiScale", uiScale);
     root->setProperty ("reducedMotion", reducedMotion);
     root->setProperty ("verbosity", (int) verbosity);
@@ -671,6 +766,7 @@ void AccessibilitySettings::fromVar (const juce::var& state)
     setPalette ((PaletteId) juce::jlimit (0, (int) PaletteId::numPalettes - 1,
                                           (int) root->getProperty ("palette")));
 
+    setAccent (root->hasProperty ("accent") ? (int) root->getProperty ("accent") : 0);
     setUiScale (root->hasProperty ("uiScale") ? (double) root->getProperty ("uiScale") : 1.0);
     setReducedMotion ((bool) root->getProperty ("reducedMotion"));
 

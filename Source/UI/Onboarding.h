@@ -43,6 +43,7 @@
     Everything here is message thread.
 */
 
+#include "AnimationPolicy.h"   // cpu-quality-modes 6
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "Theme.h"
@@ -359,6 +360,10 @@ private:
     std::map<juce::String, double> firstSeenMs;   ///< pulse key -> when first on screen
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (DiscoveryLayer)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::Decorative, "DiscoveryLayer", [this] { repaint(); }, [this] { update(); } };
 };
 
 //==============================================================================

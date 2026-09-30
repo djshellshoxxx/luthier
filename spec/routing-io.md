@@ -51,6 +51,12 @@ routing get D.
 | Aux 5 | Room mic only | post-room |
 | Aux 6 | Wet effects only (reverb/delay tails) | post-post-fx |
 | Aux 7 | Monitor bus (see live-performance.md) | monitor path |
+| Aux 9 "Jam Drums" | The Jam band's drums (jam-mode.md 7), with `jam_output` Separate or Main + Separate | post Jam mixer |
+| Aux 10 "Jam Bass" | The Jam band's bass (jam-mode.md 7) | post Jam mixer |
+
+Aux 9 and 10 are appended after every existing bus (Aux 8 noise and the
+per-string buses keep their numbers). On Layout A or C, Separate falls back
+to the main output with a notice.
 
 Each aux bus has its own gain trim in the routing panel. Muted aux buses
 do not process their tap point (skip the render).
