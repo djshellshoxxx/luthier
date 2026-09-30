@@ -28,7 +28,39 @@ public:
         double rangeMin = 0.0;
         double rangeMax = 1.0;
         bool   inverted = false;
+        bool   global = false;     ///< SPEC-SWEEP UW-29: kept across presets, in the user's settings
     };
+
+    /*  SPEC-SWEEP (UW-29, ui-wiring 8): a mapping can be global - saved in the
+        user's settings rather than the session or preset, and merged under
+        whatever a loaded preset maps (a preset's own mapping for the same
+        parameter or source wins). */
+    void setMappingGlobal (const juce::String& parameterId, bool isGlobal);
+    bool isMappingGlobal (const juce::String& parameterId) const;
+    static juce::File getGlobalMappingsFile();
+    static void setGlobalMappingsFileForTesting (const juce::File& file);
+
+    /*  SPEC-SWEEP (IR-4, input-routing 1.1 step 2): what a mapping listens to.
+        `Mapping::ccNumber` is a source key: 0-127 are CCs (as they always were,
+        so saved maps keep their meaning), then program changes, channel
+        pressure, poly aftertouch per note, and notes. */
+    static constexpr int kProgramBase     = 128;   ///< + program number
+    static constexpr int kChannelPressure = 256;
+    static constexpr int kPolyBase        = 257;   ///< + note
+    static constexpr int kNoteBase        = 385;   ///< + note
+    static constexpr int kNumSources      = 513;
+
+    /** The source key a message maps to (value 0..1 in @p value), or -1. Notes
+        count only when @p includeNotes; a note-off is value 0. */
+    static int sourceKeyFor (const juce::MidiMessage& message, double& value, bool includeNotes) noexcept;
+
+    /** "CC 7", "Program 12", "Pressure", "Poly AT C3", "Note C3". */
+    static juce::String describeSource (int key);
+
+    /** Options > MIDI "Learn notes too": whether a note can be learned (and a
+        note mapping plays its parameter). Off by default: notes play. */
+    void setLearnNotes (bool shouldLearnNotes) noexcept { learnNotes.store (shouldLearnNotes); }
+    bool getLearnNotes() const noexcept { return learnNotes.load(); }
 
     explicit MidiLearnManager (juce::AudioProcessorValueTreeState& state);
     ~MidiLearnManager() override;
@@ -134,7 +166,13 @@ private:
     };
 
     juce::SpinLock tableLock;
-    std::array<LookupEntry, 128> lookup {};
+    std::array<LookupEntry, kNumSources> lookup {};   // SPEC-SWEEP IR-4: every source kind
+    std::atomic<bool> learnNotes { false };
+
+    juce::Array<Mapping> globalMappings;   // SPEC-SWEEP UW-29, under `lock`
+    void loadGlobalMappings();
+    void saveGlobalMappings() const;
+    void mergeGlobalMappings();   // under `lock`
 
     /** A CC caught while learning, handed to the message thread (-1 = none). */
     std::atomic<int> learnedCc { -1 };

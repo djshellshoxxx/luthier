@@ -2288,7 +2288,7 @@ void LuthierEngine::applySwapFade (juce::AudioBuffer<float>& buffer) noexcept
     // Idle with a fade in progress only happens when a change applied without
     // parking (no audio running then); the fade-in finishes regardless.
     const bool out = state == swapFadingOut;
-    const double step = 1.0 / juce::jmax (1.0, kSwapFadeSeconds * sr);
+    const double step = 1.0 / juce::jmax (1.0, nextSwapFade.load (std::memory_order_relaxed) * sr);   // SPEC-SWEEP UW-25
 
     const int numSamples = buffer.getNumSamples();
     const int numChannels = buffer.getNumChannels();
@@ -2302,6 +2302,9 @@ void LuthierEngine::applySwapFade (juce::AudioBuffer<float>& buffer) noexcept
 
         for (int c = 0; c < numChannels; ++c)
             buffer.getWritePointer (c)[i] *= gain;
+
+        if (! out && swapPhase < 1.0)
+            ++fadeInCounter;
     }
 
     if (out && swapPhase <= 0.0)
@@ -2314,6 +2317,11 @@ void LuthierEngine::applySwapFade (juce::AudioBuffer<float>& buffer) noexcept
     {
         int expected = swapFadingIn;
         swapState.compare_exchange_strong (expected, swapIdle, std::memory_order_acq_rel);
+
+        // SPEC-SWEEP (UW-25): a one-off fade length is spent.
+        lastFadeInSamples.store (fadeInCounter + 1, std::memory_order_relaxed);
+        fadeInCounter = 0;
+        nextSwapFade.store (kSwapFadeSeconds, std::memory_order_relaxed);
     }
 }
 

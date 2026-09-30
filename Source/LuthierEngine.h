@@ -97,6 +97,14 @@ public:
     /** The fade either side of a structural change, each way. */
     static constexpr double kSwapFadeSeconds = 0.005;
 
+    /** SPEC-SWEEP (UW-25, ui-wiring 6.3): the fade for the next structural
+        change only (each way), then back to kSwapFadeSeconds. Ending an
+        audition returns to the committed guitar over 30 ms. */
+    void setNextSwapFadeSeconds (double seconds) noexcept { nextSwapFade.store (juce::jlimit (0.001, 0.2, seconds)); }
+
+    /** Samples the last fade back in took (tests). */
+    int getLastSwapFadeInSamples() const noexcept { return lastFadeInSamples.load (std::memory_order_relaxed); }
+
     /** Loads a factory instrument: body, strings, pickups, tuning, amp and cab. */
     void setGuitarType (GuitarType type);
     GuitarType getGuitarType() const noexcept { return guitarType; }
@@ -939,6 +947,9 @@ private:
     void applySwapFade (juce::AudioBuffer<float>& buffer) noexcept;
 
     enum SwapState : int { swapIdle = 0, swapFadingOut, swapParked, swapFadingIn };
+    std::atomic<double> nextSwapFade { kSwapFadeSeconds };   // SPEC-SWEEP UW-25
+    std::atomic<int> lastFadeInSamples { 0 };
+    int fadeInCounter = 0;
     std::atomic<int> swapState { swapIdle };
     std::atomic<juce::Thread::ThreadID> audioThreadId { nullptr };
     std::atomic<juce::uint32> lastProcessMs { 0 };

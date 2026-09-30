@@ -119,19 +119,28 @@ ControllersPage::ControllersPage (LuthierAudioProcessor& p)
         if (! juce::isPositiveAndBelow (index, library.getNumProfiles()))
             return;
 
-        auto profile = library.getProfile (index);
-
-        profile.latencyMsMeasured = latencySlider.getValue();
-        profile.pitchDeadZoneCents = deadZoneSlider.getValue();
-        profile.minimumNoteDurationMs = minimumNoteSlider.getValue();
-        profile.rowsAsStrings = guitarModeToggle.getToggleState();
-
-        library.save (profile);
+        library.save (getEditedProfile());   // SPEC-SWEEP CT-19: with the checked bend range
 
         wizardLabel.setText ("Saved to your Controllers folder.", juce::dontSendNotification);
     };
 
     addAndMakeVisible (saveProfileButton);
+
+    // SPEC-SWEEP (CT-19)
+    styleNote (bendCheckLabel, Palette::textPrimary);
+    bendCheckLabel.setText ("Check bend range: bend fully up and read the note here.", juce::dontSendNotification);
+    addAndMakeVisible (bendCheckLabel);
+
+    bendRangeStepper.setRange (1.0, 96.0, 1.0);
+    bendRangeStepper.setTextValueSuffix (" st bend");
+    bendRangeStepper.setTooltip ("The controller's pitch-bend range. Step it until a full bend reads "
+                                 "the note your controller is set to reach.");
+    bendRangeStepper.onValueChange = [this]
+    {
+        if (! updatingControls)
+            processor.applyControllerProfile (getEditedProfile());
+    };
+    addAndMakeVisible (bendRangeStepper);
 
     // SPEC-SWEEP (PT-23): controllers.md 2 / PLAYING_TECHNIQUES "it can be
     // switched to bend". Saved with the session.
@@ -142,6 +151,36 @@ ControllersPage::ControllersPage (LuthierAudioProcessor& p)
     addAndMakeVisible (aftertouchBendToggle);
 
     refresh();
+}
+
+ControllerProfile ControllersPage::getEditedProfile() const
+{
+    const int index = profileBox.getSelectedId() - 1;
+
+    if (! juce::isPositiveAndBelow (index, library.getNumProfiles()))
+        return {};
+
+    auto profile = library.getProfile (index);
+
+    profile.latencyMsMeasured = latencySlider.getValue();
+    profile.pitchDeadZoneCents = deadZoneSlider.getValue();
+    profile.minimumNoteDurationMs = minimumNoteSlider.getValue();
+    profile.rowsAsStrings = guitarModeToggle.getToggleState();
+
+    // SPEC-SWEEP (CT-19): the stepper is the range the profile's mode uses.
+    const double bend = bendRangeStepper.getValue();
+
+    if (profile.mode == ControllerMode::mpe)
+        profile.memberPitchBendSemis = bend;
+    else
+        profile.pitchBendSemis = bend;
+
+    if (profile.mode == ControllerMode::perChannel)
+        for (auto& routing : profile.perString)
+            if (routing.channel > 0)
+                routing.pitchBendSemis = bend;
+
+    return profile;
 }
 
 void ControllersPage::applySelectedProfile()
@@ -258,6 +297,39 @@ void ControllersPage::refresh()
 
     guitarModeToggle.setEnabled (profile.id == "linnstrument");
 
+    // SPEC-SWEEP (CT-19): the stepper shows the profile's range when the profile
+    // changes; the readout follows the last string played and its bend.
+    if (index != lastBendProfile)
+    {
+        bendRangeStepper.setValue (profile.mode == ControllerMode::mpe ? profile.memberPitchBendSemis
+                                                                       : profile.pitchBendSemis,
+                                   juce::dontSendNotification);
+        lastBendProfile = index;
+    }
+
+    {
+        auto& interp = processor.getEngine().getMidiInterpreter();
+        int note = -1, string = -1;
+
+        for (int s = 0; s < interp.getNumStrings() && note < 0; ++s)
+            if (interp.getStringMidiNote (s) >= 0)
+            {
+                note = interp.getStringMidiNote (s);
+                string = s;
+            }
+
+        if (note >= 0)
+        {
+            const double cents = interp.getStringBendCents (string);
+            const int bentTo = note + (int) std::lround (cents / 100.0);
+
+            bendCheckLabel.setText ("Playing " + juce::MidiMessage::getMidiNoteName (note, true, true, 4)
+                                      + ", bent to " + juce::MidiMessage::getMidiNoteName (bentTo, true, true, 4)
+                                      + " (" + juce::String (cents / 100.0, 1) + " st)",
+                                    juce::dontSendNotification);
+        }
+    }
+
     // ---- the wizard's own readout -------------------------------------------------
     // SPEC-SWEEP (CT-11): the notes the processor measured against the click.
     if (wizard.isRunning() && processor.isLatencyWizardListening())
@@ -346,6 +418,12 @@ void ControllersPage::resized()
     guitarModeToggle.setBounds (bounds.removeFromTop (24));
     bounds.removeFromTop (4);
     aftertouchBendToggle.setBounds (bounds.removeFromTop (24));   // SPEC-SWEEP PT-23
+    bounds.removeFromTop (4);
+    {   // SPEC-SWEEP CT-19
+        auto r = bounds.removeFromTop (24);
+        bendRangeStepper.setBounds (r.removeFromRight (130));
+        bendCheckLabel.setBounds (r);
+    }
 
     // ---- wizard, pinned to the bottom -------------------------------------------
     auto wizardArea = getLocalBounds().removeFromBottom (96);
@@ -807,12 +885,21 @@ MidiPage::MidiPage (LuthierAudioProcessor& p)
     bankSelectToggle.onClick = [this] { processor.setBankSelectChoosesPreset (bankSelectToggle.getToggleState()); };
     addAndMakeVisible (bankSelectToggle);
 
+    // SPEC-SWEEP (IR-4): MIDI Learn takes CCs, program changes, pressure and
+    // poly aftertouch; notes only when asked, because a learned note stops
+    // playing the string.
+    learnNotesToggle.setTooltip ("On: MIDI Learn also takes a note (a pad or a key as a switch). "
+                                 "Off: notes always play the guitar.");
+    learnNotesToggle.onClick = [this] { processor.getMidiLearn().setLearnNotes (learnNotesToggle.getToggleState()); };
+    addAndMakeVisible (learnNotesToggle);
+
     refresh();
 }
 
 void MidiPage::refresh()
 {
     bankSelectToggle.setToggleState (processor.doesBankSelectChoosePreset(), juce::dontSendNotification);   // IR-14
+    learnNotesToggle.setToggleState (processor.getMidiLearn().getLearnNotes(), juce::dontSendNotification);   // IR-4
 
     const bool standalone =
         (processor.wrapperType == juce::AudioProcessor::wrapperType_Standalone);
@@ -866,6 +953,8 @@ void MidiPage::resized()
     learnLabel.setBounds (bounds.removeFromTop (32));
     bounds.removeFromTop (4);
     clearLearnButton.setBounds (bounds.removeFromTop (Metrics::buttonHeight).removeFromLeft (220));
+    bounds.removeFromTop (4);
+    learnNotesToggle.setBounds (bounds.removeFromTop (24));   // SPEC-SWEEP IR-4
 }
 
 //==============================================================================

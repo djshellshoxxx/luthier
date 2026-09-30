@@ -1453,6 +1453,10 @@ void ParameterBridge::applyToEngine() noexcept
     hum.amount = macroHumanize;
     interp.setHumanisation (hum);
 
+    // SPEC-SWEEP (RE-5): one humanise source - the macro scales the rhythm
+    // engine's (kit) feel too, 1 at the macro's default of 0.4.
+    engine.getRhythmEngine().setHumaniseScale (macroHumanize / 0.4);
+
     // ---- strum (strum-dynamics.md 7) --------------------------------------------
     {
         auto& rhythm = engine.getRhythmEngine();

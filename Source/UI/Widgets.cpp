@@ -48,8 +48,10 @@ juce::PopupMenu buildParameterContextMenu (LuthierAudioProcessor& processor,
 
     if (mappedCc >= 0)
     {
-        menu.addItem (5, "MIDI Learn (mapped to CC " + juce::String (mappedCc) + ")");
+        menu.addItem (5, "MIDI Learn (mapped to " + MidiLearnManager::describeSource (mappedCc) + ")");   // SPEC-SWEEP IR-4
         menu.addItem (6, "Clear MIDI mapping");
+        menu.addItem (12, "Keep this mapping for every preset", true,
+                      midiLearn.isMappingGlobal (parameterId));   // SPEC-SWEEP UW-29
     }
     else
     {
@@ -274,6 +276,10 @@ void applyParameterMenuResult (int result,
             case 6:
                 processor.pushUndoAction ("Remove MIDI mapping", "midi-mapping-delete", {});   // action-and-undo.md 3.12
                 learn.removeMappingForParameter (parameterId);
+                break;
+
+            case 12:   // SPEC-SWEEP UW-29
+                learn.setMappingGlobal (parameterId, ! learn.isMappingGlobal (parameterId));
                 break;
 
             case 7:

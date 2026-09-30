@@ -188,14 +188,11 @@ artificial harmonic an octave up rather than producing a dead note.
 
 ### Pinch harmonic
 
-The thumb grazes the string just after the pick, exciting one upper partial. The
-partial chosen rises with velocity:
-
-```
-partial = 2 + floor(velocity * 3)
-```
-
-so a light pinch gives the 2nd and a hard one the 5th. The excitation is shorter
+The thumb grazes the string just after the pick, a few millimetres toward the
+neck, and the partial that sounds is the one with a node where the thumb lands.
+So the partial follows the pick position, not the velocity: moving the pick
+(CC 70, Pick Position) sweeps it, which is the "pinch sweep" players do. The
+excitation is shorter
 and steeper than a natural harmonic's, and it is band-passed less tightly - a pinch
 is a dirtier thing than a node touch.
 

@@ -95,7 +95,16 @@ public:
     void mouseMove (const juce::MouseEvent&) override;
     void mouseExit (const juce::MouseEvent&) override;
 
+    // SPEC-SWEEP (KS-23/KS-24): the right-click menu split from showing it
+    // (1 mute, 2 select, 3 capo here, 4 remove capo, 100+ scale, 200+ root),
+    // the last click's velocity, and where a string/fret/lane point is.
+    juce::PopupMenu buildContextMenu (int stringIndex, int fret);
+    void applyContextMenuResult (int stringIndex, int fret, int result);
+    double getLastClickVelocity() const noexcept { return lastClickVelocity; }
+    juce::Point<int> pointOnString (int stringIndex, int fret, float withinLane) const;
+
 private:
+    double lastClickVelocity = 0.0;   // SPEC-SWEEP KS-23
     void timerCallback() override;
 
     /** Fret positions follow the real rule: each fret sits at

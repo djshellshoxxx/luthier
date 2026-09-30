@@ -6,6 +6,10 @@
 #include "TestFramework.h"
 
 #include "../PluginProcessor.h"
+#include "../Controllers/ControllerProfile.h"
+#include "../Live/MidiClockTransport.h"
+#include "../Rhythm/Patterns.h"
+#include "../Export/LuthierMidiEvents.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -279,4 +283,472 @@ LUTHIER_TEST (MidiLearn, everyCcLearnsWithinOneBlock)
     }
 
     CHECK_MSG (failures == 0, juce::String (failures) + " CCs did not learn and drive within a block");
+}
+
+/*  IR-5 (input-routing 1 step 3): the controller profile stage sits before the
+    interpreter - a hex pickup's channels land on their strings, and the note
+    moves earlier by the profile's latency budget. */
+LUTHIER_TEST (InputRouting, profileStageRemapsChannelsAndTime)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    ControllerProfileLibrary library;
+    const int gk = library.indexOf ("roland-gk");
+    CHECK (gk >= 0);
+
+    if (gk < 0)
+        return;
+
+    auto profile = library.getProfile (gk);
+    profile.latencyMsMeasured = 4.0;   // 192 samples
+    processor.applyControllerProfile (profile);
+    renderEmpty (processor, 1);
+
+    const int arrivesAt = 300;
+    juce::MidiBuffer midi;
+    midi.addEvent (juce::MidiMessage::noteOn (13, 55, 0.8f), arrivesAt);   // GK channel 13 = string 2
+    render (processor, midi);
+
+    CHECK (processor.getEngine().getMidiInterpreter().getStringMidiNote (2) == 55);
+
+    const auto& activity = processor.getEngine().getStringActivity();
+    int onsetAt = -1;
+
+    for (int i = 0; i < activity.size(); ++i)
+        if (activity[i].isNoteOn && activity[i].stringIndex == 2)
+            onsetAt = activity[i].sampleOffset;
+
+    CHECK_MSG (onsetAt >= 0 && onsetAt <= arrivesAt - 150,
+               "the note sounded at " + juce::String (onsetAt) + ", arrived at " + juce::String (arrivesAt));
+}
+
+/*  IR-16 (input-routing 1.6): with the host stopped, MIDI clock drives the
+    rhythm engine - Start plays it from the top, Stop silences it, and Song
+    Position relocates it. */
+LUTHIER_TEST (InputRouting, midiClockDrivesTheRhythmEngineWhenTheHostIsStopped)
+{
+    // ---- the transport follower on its own ----------------------------------------
+    {
+        MidiClockTransport t;
+        t.prepare (kSr);
+
+        const int perClock = (int) (60.0 / 120.0 * kSr / 24.0);   // 1000 samples at 120 bpm
+        juce::MidiBuffer midi;
+        midi.addEvent (juce::MidiMessage::midiStart(), 0);
+
+        for (int c = 0; c < 48; ++c)
+            midi.addEvent (juce::MidiMessage::midiClock(), c * perClock);
+
+        t.process (midi, 48 * perClock, 0);
+        CHECK (t.isRunning (47 * perClock));
+        CHECK_NEAR (t.getPpqAt (47 * perClock, 120.0), 47.0 / 24.0, 1.0e-9);
+
+        midi.clear();
+        midi.addEvent (juce::MidiMessage::songPositionPointer (16), 0);   // bar 2 in 4/4
+        t.process (midi, 1, 48 * perClock);
+        CHECK_NEAR (t.getPpqAt (48 * perClock, 120.0), 4.0, 1.0e-9);
+
+        midi.clear();
+        midi.addEvent (juce::MidiMessage::midiStop(), 0);
+        t.process (midi, 1, 49 * perClock);
+        CHECK (! t.isRunning (49 * perClock));
+    }
+
+    // ---- through the processor -----------------------------------------------------
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    auto& rhythm = processor.getEngine().getRhythmEngine();
+    PatternLibrary patterns;
+    const auto strums = patterns.findByKind (RhythmPattern::Kind::strum);
+    CHECK (! strums.isEmpty());
+
+    if (strums.isEmpty())
+        return;
+
+    rhythm.setPattern (patterns.getPattern (strums[0]));
+    rhythm.setFreeRun (false);   // stopped host, no free-run: only the clock can drive it
+    rhythm.setEnabled (true);
+
+    const double perClock = 60.0 / 120.0 * kSr / 24.0;
+    double nextClock = 0.0;
+    juce::int64 position = 0;
+
+    auto block = [&] (bool clockOn, bool start, bool stop)
+    {
+        juce::MidiBuffer midi;
+
+        if (position == 0)
+            for (int n : { 48, 52, 55 })
+                midi.addEvent (juce::MidiMessage::noteOn (1, n, 0.8f), 0);
+
+        if (start) midi.addEvent (juce::MidiMessage::midiStart(), 0);
+        if (stop)  midi.addEvent (juce::MidiMessage::midiStop(), 0);
+
+        while (clockOn && nextClock < (double) (position + kBlock))
+        {
+            midi.addEvent (juce::MidiMessage::midiClock(), (int) (nextClock - (double) position));
+            nextClock += perClock;
+        }
+
+        if (! clockOn)
+            nextClock = (double) (position + kBlock);
+
+        render (processor, midi);
+        position += kBlock;
+        return rhythm.isDriving();
+    };
+
+    // No clock: the stopped host keeps the engine silent.
+    bool drove = false;
+
+    for (int i = 0; i < 20; ++i)
+        drove = block (false, false, false) || drove;
+
+    CHECK_MSG (! drove, "the rhythm engine drove with the host stopped and no clock");
+
+    // Start and a steady clock: it plays.
+    block (true, true, false);
+
+    for (int i = 0; i < 100; ++i)
+        drove = block (true, false, false) || drove;
+
+    CHECK_MSG (drove, "MIDI clock did not drive the rhythm engine");
+
+    // Stop: it goes quiet again.
+    block (true, false, true);
+    bool droveAfterStop = false;
+
+    for (int i = 0; i < 20; ++i)
+        droveAfterStop = block (true, false, false) || droveAfterStop;
+
+    CHECK_MSG (! droveAfterStop, "the rhythm engine kept driving after MIDI Stop");
+}
+
+//==============================================================================
+/*  IR-4 (input-routing 1.1 step 2): MIDI Learn takes program changes, poly
+    aftertouch and channel pressure as well as CCs. */
+LUTHIER_TEST (MidiLearn, learnsPcAftertouchAndPressure)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+    auto& learn = processor.getMidiLearn();
+
+    struct Case { juce::MidiMessage message; int key; const char* param; };
+
+    const Case cases[] = {
+        { juce::MidiMessage::programChange (1, 7),              MidiLearnManager::kProgramBase + 7, ParamIDs::ampGain },
+        { juce::MidiMessage::aftertouchChange (1, 60, 90),      MidiLearnManager::kPolyBase + 60,   ParamIDs::ampTreble },
+        { juce::MidiMessage::channelPressureChange (1, 90),     MidiLearnManager::kChannelPressure, ParamIDs::ampBass },
+    };
+
+    for (const auto& c : cases)
+    {
+        learn.startLearning (c.param);
+
+        juce::MidiBuffer midi;
+        midi.addEvent (c.message, 0);
+        render (processor, midi);
+        learn.dispatchPendingLearn();
+
+        CHECK_MSG (learn.getCcForParameter (c.param) == c.key,
+                   juce::String (c.param) + " learned " + MidiLearnManager::describeSource (learn.getCcForParameter (c.param)));
+    }
+
+    // Mapped, they drive their parameters.
+    auto* bass = processor.getState().getParameter (ParamIDs::ampBass);
+    juce::MidiBuffer midi;
+    midi.addEvent (juce::MidiMessage::channelPressureChange (1, 127), 0);
+    render (processor, midi);
+    CHECK_NEAR (bass->getValue(), 1.0f, 1.0e-3);
+
+    midi.clear();
+    midi.addEvent (juce::MidiMessage::channelPressureChange (1, 0), 0);
+    render (processor, midi);
+    CHECK_NEAR (bass->getValue(), 0.0f, 1.0e-3);
+
+    // And they survive the session round trip.
+    juce::MemoryBlock state;
+    processor.getStateInformation (state);
+    LuthierAudioProcessor restored;
+    restored.setStateInformation (state.getData(), (int) state.getSize());
+    CHECK (restored.getMidiLearn().getCcForParameter (ParamIDs::ampTreble) == MidiLearnManager::kPolyBase + 60);
+}
+
+/*  IR-4: notes are learned only when "Learn notes too" is on; otherwise the
+    note plays and the learn waits for a controller. */
+LUTHIER_TEST (MidiLearn, notesAreLearnedOnlyWhenAllowed)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+    auto& learn = processor.getMidiLearn();
+
+    learn.startLearning (ParamIDs::ampGain);
+
+    juce::MidiBuffer midi;
+    midi.addEvent (juce::MidiMessage::noteOn (1, 60, 0.8f), 0);
+    render (processor, midi);
+    learn.dispatchPendingLearn();
+
+    CHECK (learn.isLearning());
+    CHECK (learn.getCcForParameter (ParamIDs::ampGain) < 0);
+
+    learn.setLearnNotes (true);
+    midi.clear();
+    midi.addEvent (juce::MidiMessage::noteOn (1, 62, 0.8f), 0);
+    render (processor, midi);
+    learn.dispatchPendingLearn();
+
+    CHECK (learn.getCcForParameter (ParamIDs::ampGain) == MidiLearnManager::kNoteBase + 62);
+    CHECK (MidiLearnManager::describeSource (MidiLearnManager::kNoteBase + 62).startsWith ("Note"));
+}
+
+/*  IR-9 (input-routing 1 step 8): with the practice drawer open, the trainers
+    hear the player's notes, and the notes still play. */
+LUTHIER_TEST (InputRouting, practiceToolsHearNotesWithoutConsumingThem)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+    processor.setPracticePanelOpen (true);
+
+    juce::MidiBuffer midi;
+    midi.addEvent (juce::MidiMessage::noteOn (1, 57, 0.8f), 0);
+    render (processor, midi);
+
+    int heard = -1;
+    CHECK (processor.getPracticeNoteFeed().pop (heard));
+    CHECK (heard == 57);
+
+    bool sounding = false;
+    auto& interp = processor.getEngine().getMidiInterpreter();
+
+    for (int s = 0; s < processor.getEngine().getNumStrings(); ++s)
+        sounding = sounding || interp.getStringMidiNote (s) == 57;
+
+    CHECK_MSG (sounding, "the note the trainer heard did not also play");
+}
+
+//==============================================================================
+/*  IR-15 (input-routing 1.5): Luthier SysEx arriving at the plugin drives its
+    non-parameter state - a CHARACTER seed and environment, a SNAPSHOT recall,
+    a RANGES unlock - and other SysEx is ignored. */
+LUTHIER_TEST (InputRouting, luthierSysExDrivesACharacterEventAndOthersAreIgnored)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    auto send = [&processor] (const LuthierEvent& e)
+    {
+        juce::MidiBuffer midi;
+        midi.addEvent (LuthierEvents::encodeSysEx (e, {}), 0);
+        render (processor, midi);
+        return processor.serviceInboundSysEx();
+    };
+
+    // CHARACTER: seed, then environment.
+    auto seed = LuthierEvent::make (LuthierEventClass::character, 0);
+    seed.set ("what", "seed").set ("seed", "123456789");
+    CHECK (send (seed) == 1);
+    CHECK (processor.getEngine().getCharacterEngine().getSeed() == 123456789ull);
+
+    auto environment = LuthierEvent::make (LuthierEventClass::character, 0);
+    environment.set ("what", "environment").set ("temp", "31").set ("humidity", "72");
+    CHECK (send (environment) == 1);
+    CHECK (processor.getEngine().getCharacterEngine().getTemperature() == Temperature::warm);
+    CHECK (processor.getEngine().getCharacterEngine().getHumidity() == Humidity::humid);
+
+    // SNAPSHOT: recall slot 1.
+    processor.getSnapshots().setCrossfadeMs (0.0);
+    CHECK (processor.captureSnapshot (0, "A"));
+    CHECK (processor.captureSnapshot (1, "B"));
+    CHECK (processor.recallSnapshot (0));
+
+    auto snap = LuthierEvent::make (LuthierEventClass::snapshot, 0);
+    snap.setInt ("slot", 1);
+    CHECK (send (snap) == 1);
+    CHECK (processor.getSnapshots().getCurrentSnapshot() == 1);
+
+    // RANGES: unlock amp_gain past its stock top and set it there.
+    auto range = LuthierEvent::make (LuthierEventClass::ranges, 0);
+    range.set ("param", ParamIDs::ampGain).setInt ("on", 1).set ("value", "1.5");
+    CHECK (send (range) == 1);
+    CHECK (processor.getRanges().isParameterAdvanced (ParamIDs::ampGain));
+
+    if (auto* gain = processor.getState().getRawParameterValue (ParamIDs::ampGain))
+        CHECK_NEAR (gain->load(), 1.5f, 0.01f);
+
+    // Someone else's SysEx: nothing queued, nothing changed.
+    const juce::uint8 foreign[] = { 0x43, 0x10, 0x4c, 0x00, 0x00, 0x7e, 0x00 };
+    juce::MidiBuffer midi;
+    midi.addEvent (juce::MidiMessage::createSysExMessage (foreign, (int) sizeof (foreign)), 0);
+    render (processor, midi);
+    CHECK (processor.serviceInboundSysEx() == 0);
+    CHECK (processor.getEngine().getCharacterEngine().getSeed() == 123456789ull);
+}
+
+/*  IR-1 (input-routing 1): the chain's order, observed from its ends.
+    MIDI-out pass-through (1) sees the raw event even when MIDI Learn (2) then
+    consumes it, so the interpreter (4) never does; and a controller profile's
+    stage (3) has already moved a note to its string before the interpreter. */
+LUTHIER_TEST (InputRouting, consumersSeeEventsInTheDocumentedOrder)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    MidiOutConfig cfg;
+    cfg.enabled = true;
+    cfg.passThrough = true;
+    processor.getRouting().setMidiOutConfig (cfg);
+
+    auto& interp = processor.getEngine().getMidiInterpreter();
+    processor.getMidiLearn().startLearning (ParamIDs::ampGain);
+
+    juce::MidiBuffer midi;
+    midi.addEvent (juce::MidiMessage::controllerEvent (1, 1, 100), 0);
+    render (processor, midi);
+
+    bool echoed = false;
+
+    for (const auto m : midi)
+        echoed = echoed || (m.getMessage().isControllerOfType (1) && m.getMessage().getControllerValue() == 100);
+
+    CHECK_MSG (echoed, "pass-through (step 1) did not see the event MIDI Learn consumed");
+    CHECK_MSG (interp.getVibratoDepth() == 0.0, "the interpreter (step 4) saw an event MIDI Learn (step 2) consumed");
+    processor.getMidiLearn().dispatchPendingLearn();
+    CHECK (processor.getMidiLearn().getCcForParameter (ParamIDs::ampGain) == 1);
+
+    // Step 3 before step 4: the hex profile's channel decides the string.
+    ControllerProfileLibrary library;
+    const int gk = library.indexOf ("roland-gk");
+
+    if (gk >= 0)
+    {
+        processor.applyControllerProfile (library.getProfile (gk));
+        renderEmpty (processor, 1);
+
+        midi.clear();
+        midi.addEvent (juce::MidiMessage::noteOn (16, 45, 0.8f), 0);   // GK channel 16 = string 5
+        render (processor, midi);
+        CHECK (interp.getStringMidiNote (5) == 45);
+    }
+}
+
+namespace
+{
+    /** A host at a settable position and transport state. */
+    struct MovablePlayHead final : public juce::AudioPlayHead
+    {
+        double bpm = 120.0, ppq = 0.0;
+        bool playing = false;
+
+        juce::Optional<PositionInfo> getPosition() const override
+        {
+            PositionInfo info;
+            info.setBpm (bpm);
+            info.setIsPlaying (playing);
+            info.setPpqPosition (ppq);
+            info.setTimeSignature (juce::AudioPlayHead::TimeSignature { 4, 4 });
+            return info;
+        }
+    };
+}
+
+/*  IR-24 (input-routing 7): host start, stop and relocation resync the practice
+    click - it sits on the host's beat grid while the host plays. */
+LUTHIER_TEST (InputRouting, transportStartStopAndRepositionResyncRhythmTuneAndMetronome)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+    processor.setPracticePanelOpen (true);
+
+    MovablePlayHead host;
+    processor.setPlayHead (&host);
+
+    auto& metronome = processor.getMetronome();
+    metronome.setEnabled (true);
+
+    const double blockBeats = (double) kBlock / kSr * host.bpm / 60.0;
+
+    auto blockAt = [&] (double ppq)
+    {
+        host.ppq = ppq;
+        juce::MidiBuffer none;
+        render (processor, none);
+    };
+
+    // Stopped host: the click free-runs from wherever it was.
+    renderEmpty (processor, 5);
+
+    // Host starts mid-bar, at beat 2.5 (0-based): the click is there.
+    host.playing = true;
+    blockAt (2.5);
+    CHECK_NEAR (metronome.getBeatPhase(), std::fmod (2.5 + blockBeats, 1.0), 0.02);
+
+    // ... and the next click is beat 4 of the bar, when the host gets there.
+    double ppq = 2.5 + blockBeats;
+
+    while (ppq < 3.0)
+    {
+        blockAt (ppq);
+        ppq += blockBeats;
+    }
+
+    CHECK (metronome.getCurrentBeat() == 3);
+
+    // Relocation to bar 3 beat 1 (ppq 8): the grid jumps with it.
+    blockAt (8.0);
+    CHECK (metronome.getCurrentBeat() == 0);
+    CHECK (metronome.getCurrentBar() == 2);
+    CHECK_NEAR (metronome.getBeatPhase(), blockBeats, 0.02);
+
+    processor.setPlayHead (nullptr);
+}
+
+/*  UW-29 (ui-wiring 8): a mapping kept "for every preset" lives in the user's
+    settings and comes back under whatever a newly loaded state maps. */
+LUTHIER_TEST (MidiLearn, aGlobalMappingSurvivesAPresetLoad)
+{
+    const auto file = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                        .getChildFile ("luthier-midi-global-test.json");
+    file.deleteFile();
+    MidiLearnManager::setGlobalMappingsFileForTesting (file);
+
+    {
+        LuthierAudioProcessor processor;
+        auto& learn = processor.getMidiLearn();
+        learn.addMapping (ParamIDs::ampGain, 88);
+        learn.setMappingGlobal (ParamIDs::ampGain, true);
+        CHECK (learn.isMappingGlobal (ParamIDs::ampGain));
+        CHECK (file.existsAsFile());
+
+        // A state with a different map of its own: the global one joins it.
+        LuthierAudioProcessor other;
+        other.getMidiLearn().clearAllMappings();
+        other.getMidiLearn().addMapping (ParamIDs::ampBass, 22);
+
+        juce::MemoryBlock state;
+        other.getStateInformation (state);
+
+        processor.setStateInformation (state.getData(), (int) state.getSize());
+        CHECK (learn.getCcForParameter (ParamIDs::ampBass) == 22);
+        CHECK_MSG (learn.getCcForParameter (ParamIDs::ampGain) == 88, "the global mapping did not survive the load");
+    }
+
+    // A new instance starts with it; a state that maps the same CC elsewhere wins.
+    {
+        LuthierAudioProcessor probe;
+        MidiLearnManager direct (probe.getState());
+        CHECK_MSG (direct.getNumMappings() == 1, "a directly built manager has " + juce::String (direct.getNumMappings()));
+
+        LuthierAudioProcessor fresh;
+        CHECK (fresh.getMidiLearn().getCcForParameter (ParamIDs::ampGain) == 88);
+
+        fresh.getMidiLearn().setMappingGlobal (ParamIDs::ampGain, false);
+        LuthierAudioProcessor after;
+        CHECK (after.getMidiLearn().getCcForParameter (ParamIDs::ampGain) < 0);
+    }
+
+    MidiLearnManager::setGlobalMappingsFileForTesting ({});
+    file.deleteFile();
 }

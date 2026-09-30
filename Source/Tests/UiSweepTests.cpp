@@ -18,6 +18,7 @@
 #include "../UI/PracticePanel.h"
 #include "../UI/NextStrumArrow.h"
 #include "../UI/Overlays.h"
+#include "../UI/PedalRack.h"
 #include "../Live/Setlist.h"
 #include "../Rhythm/Patterns.h"
 #include "../Accessibility/Accessibility.h"
@@ -781,3 +782,421 @@ LUTHIER_TEST (Editor, pageKeysStepTheSetlist)
     CHECK (player.getPosition() == 0);
 }
 
+
+/*  KS-27 / IR-17 (docs/KEYBOARD_SHORTCUTS.md "In an overlay"): every overlay
+    closes by Escape (covered elsewhere), by a click outside it on the scrim,
+    and by its Close button. A click inside the panel does not close it. */
+LUTHIER_TEST (Editor, overlaysCloseFromTheScrimAndTheirCloseButton)
+{
+    EditorFixture f;
+    CHECK (f.editor != nullptr);
+
+    OverlayHost* host = nullptr;
+
+    std::function<void (juce::Component&)> find = [&] (juce::Component& c)
+    {
+        for (auto* child : c.getChildren())
+        {
+            if (auto* h = dynamic_cast<OverlayHost*> (child))
+                host = h;
+
+            if (host == nullptr)
+                find (*child);
+        }
+    };
+
+    find (*f.editor);
+    CHECK (host != nullptr);
+
+    if (host == nullptr)
+        return;
+
+    auto click = [host] (juce::Point<float> p)
+    {
+        auto source = juce::Desktop::getInstance().getMainMouseSource();
+        host->mouseDown (juce::MouseEvent (source, p, {}, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, host, host,
+                                           juce::Time::getCurrentTime(), p, juce::Time::getCurrentTime(), 1, false));
+    };
+
+    // ---- the scrim --------------------------------------------------------------
+    CHECK (f.press (shortcutFor ("help")));
+    CHECK (host->isShowingOverlay());
+
+    auto* panel = host->getCurrentOverlay();
+    CHECK (panel != nullptr);
+
+    if (panel != nullptr)
+    {
+        click (panel->getBounds().getCentre().toFloat());
+        CHECK_MSG (host->isShowingOverlay(), "a click inside the panel closed it");
+    }
+
+    click ({ 2.0f, 2.0f });
+    CHECK_MSG (! host->isShowingOverlay(), "a click on the scrim did not close the overlay");
+
+    // ---- the Close button -------------------------------------------------------
+    CHECK (f.press (shortcutFor ("options")));
+    CHECK (host->isShowingOverlay());
+
+    juce::TextButton* close = nullptr;
+
+    if (auto* shown = host->getCurrentOverlay())
+        for (auto* child : shown->getChildren())
+            if (auto* b = dynamic_cast<juce::TextButton*> (child); b != nullptr && b->getButtonText() == "Close")
+                close = b;
+
+    CHECK (close != nullptr && close->onClick != nullptr);
+
+    if (close != nullptr && close->onClick != nullptr)
+    {
+        close->onClick();
+        CHECK_MSG (! host->isShowingOverlay(), "the Close button did not close the overlay");
+    }
+}
+
+/*  KS-19 (docs/KEYBOARD_SHORTCUTS.md "On any control"): Shift + drag is coarse,
+    Ctrl/Cmd + drag ultra-fine, a plain drag in between. */
+LUTHIER_TEST (Widgets, modifierDragSensitivity)
+{
+    LuthierAudioProcessor processor;
+    LuthierKnob knob ("Gain");
+    knob.attachTo (processor, ParamIDs::ampGain);
+    knob.setSize (LuthierKnob::preferredWidthFor (LuthierKnob::Size::Normal),
+                  LuthierKnob::preferredHeightFor (LuthierKnob::Size::Normal));
+
+    auto& slider = knob.getSlider();
+
+    auto dragBy = [&slider] (juce::ModifierKeys extra, float pixelsUp)
+    {
+        slider.setValue (slider.getMinimum() + 0.25 * (slider.getMaximum() - slider.getMinimum()),
+                         juce::sendNotificationSync);
+        const double before = slider.getValue();
+
+        auto source = juce::Desktop::getInstance().getMainMouseSource();
+        const juce::Point<float> start ((float) slider.getWidth() / 2.0f, (float) slider.getHeight() / 2.0f);
+        const auto mods = extra.withFlags (juce::ModifierKeys::leftButtonModifier);
+        const auto now = juce::Time::getCurrentTime();
+
+        slider.mouseDown (juce::MouseEvent (source, start, mods, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                                            &slider, &slider, now, start, now, 1, false));
+
+        for (int step = 1; step <= 4; ++step)
+        {
+            const juce::Point<float> p (start.x, start.y - pixelsUp * (float) step / 4.0f);
+            slider.mouseDrag (juce::MouseEvent (source, p, mods, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                                                &slider, &slider, now, start, now, 1, true));
+        }
+
+        slider.mouseUp (juce::MouseEvent (source, { start.x, start.y - pixelsUp }, mods, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                                          &slider, &slider, now, start, now, 1, true));
+
+        return std::abs (slider.getValue() - before);
+    };
+
+    const double normal = dragBy ({}, 20.0f);
+    const double coarse = dragBy (juce::ModifierKeys::shiftModifier, 20.0f);
+    const double fine = dragBy (juce::ModifierKeys::commandModifier, 20.0f);
+
+    CHECK_MSG (normal > 0.0, "a plain drag did not move the knob");
+    CHECK_MSG (coarse > normal, "Shift was not coarser: " + juce::String (coarse) + " vs " + juce::String (normal));
+    CHECK_MSG (fine < normal && fine > 0.0, "Ctrl/Cmd was not finer: " + juce::String (fine) + " vs " + juce::String (normal));
+}
+
+/*  KS-26 (docs/KEYBOARD_SHORTCUTS.md "In the pedal rack"): dragging a slot onto
+    another moves that pedal there, with its settings, in the parameters. */
+LUTHIER_TEST (PedalRack, dragOntoAnotherSlotReorders)
+{
+    LuthierAudioProcessor processor;
+    PedalRack rack (processor, false);
+    CHECK (rack.getNumSlots() >= 2);
+
+    auto& state = processor.getState();
+    auto* type0 = state.getParameter (ParamIDs::slotType (false, 0));
+    auto* type1 = state.getParameter (ParamIDs::slotType (false, 1));
+    auto* mix0 = state.getParameter (ParamIDs::slotMix (false, 0));
+
+    type0->setValueNotifyingHost (type0->convertTo0to1 (1.0f));
+    type1->setValueNotifyingHost (type1->convertTo0to1 (2.0f));
+    mix0->setValueNotifyingHost (0.3f);
+
+    const float a = type0->getValue(), b = type1->getValue();
+
+    auto* slot = rack.getSlot (0);
+    CHECK (slot != nullptr && slot->onReorderRequested != nullptr);
+
+    if (slot == nullptr || slot->onReorderRequested == nullptr)
+        return;
+
+    slot->onReorderRequested (0, 1);   // what a drag released over slot 1 calls
+
+    CHECK_NEAR (type1->getValue(), a, 1.0e-6);
+    CHECK_NEAR (type0->getValue(), b, 1.0e-6);
+    CHECK_NEAR (state.getParameter (ParamIDs::slotMix (false, 1))->getValue(), 0.3f, 1.0e-6);
+}
+
+/*  KS-25 (docs/KEYBOARD_SHORTCUTS.md "On the guitar illustration"): clicking the
+    switch advances the selector, clicking the bridge pickup selects it, and a
+    drag on a knob moves the guitar's volume or tone. */
+LUTHIER_TEST (Editor, illustrationClicksSelectPickupAndStepSwitch)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    GuitarBodyComponent body (processor);
+    body.setVisible (true);
+    body.setSize (300, 620);
+
+    auto source = juce::Desktop::getInstance().getMainMouseSource();
+
+    auto event = [&body, &source] (juce::Point<float> p, juce::Point<float> down, bool dragged)
+    {
+        return juce::MouseEvent (source, p, juce::ModifierKeys (juce::ModifierKeys::leftButtonModifier),
+                                 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, &body, &body, juce::Time::getCurrentTime(),
+                                 down, juce::Time::getCurrentTime(), 1, dragged);
+    };
+
+    // Sweep the illustration for the regions by what they say about themselves.
+    juce::Point<float> selector { -1.0f, -1.0f }, bridgePickup { -1.0f, -1.0f };
+    juce::Array<juce::Point<float>> controls;
+    double nearestSaddleMm = 1.0e9;
+
+    for (int y = 2; y < body.getHeight(); y += 3)
+        for (int x = 2; x < body.getWidth(); x += 3)
+        {
+            const juce::Point<float> p ((float) x, (float) y);
+            body.mouseMove (event (p, p, false));
+            const auto text = body.getTooltip();
+
+            if (text.startsWith ("Click the switch"))
+                selector = p;
+            else if (text.startsWith ("Drag a knob"))
+                controls.add (p);
+            else if (text.contains ("mm from the saddle"))
+            {
+                const double mm = text.fromFirstOccurrenceOf (" at ", false, false).getDoubleValue();
+
+                if (mm < nearestSaddleMm)
+                {
+                    nearestSaddleMm = mm;
+                    bridgePickup = p;
+                }
+            }
+        }
+
+    auto* selectorParam = processor.getState().getParameter (ParamIDs::pickupSelector);
+    CHECK (selectorParam != nullptr);
+
+    if (selectorParam == nullptr)
+        return;
+
+    // ---- the switch -------------------------------------------------------------
+    if (selector.x >= 0.0f)
+    {
+        const float before = selectorParam->getValue();
+        body.mouseDown (event (selector, selector, false));
+        body.mouseUp (event (selector, selector, false));
+        CHECK_MSG (selectorParam->getValue() != before, "clicking the switch did not move the selector");
+    }
+
+    // ---- the bridge pickup ------------------------------------------------------
+    CHECK (bridgePickup.x >= 0.0f);
+
+    if (bridgePickup.x >= 0.0f)
+    {
+        body.mouseDown (event (bridgePickup, bridgePickup, false));
+        body.mouseUp (event (bridgePickup, bridgePickup, false));
+
+        if (auto* choice = dynamic_cast<juce::AudioParameterChoice*> (selectorParam))
+            CHECK_MSG (choice->getIndex() == (int) PickupSelector::Bridge,
+                       "clicking the bridge pickup left the selector at " + juce::String (choice->getIndex()));
+    }
+
+    // ---- a knob -----------------------------------------------------------------
+    auto* volume = processor.getState().getParameter (ParamIDs::guitarVolume);
+    auto* tone = processor.getState().getParameter (ParamIDs::guitarTone);
+    volume->setValueNotifyingHost (0.5f);
+    tone->setValueNotifyingHost (0.5f);
+
+    bool moved = false;
+
+    for (const auto& p : controls)
+    {
+        body.mouseDown (event (p, p, false));
+        body.mouseDrag (event ({ p.x, p.y + 30.0f }, p, true));
+        body.mouseUp (event ({ p.x, p.y + 30.0f }, p, true));
+
+        if (volume->getValue() < 0.45f || tone->getValue() < 0.45f)
+        {
+            moved = true;
+            break;
+        }
+    }
+
+    CHECK_MSG (moved, "no drag on the illustration's controls moved volume or tone");
+}
+
+/*  KS-14: Ctrl+Shift+E on a guitar edited since it was loaded has no file to
+    show, and says so in a banner rather than opening the wrong folder. */
+LUTHIER_TEST (Editor, guitarFileShortcuts)
+{
+    EditorFixture f;
+    auto* editor = dynamic_cast<LuthierAudioProcessorEditor*> (f.editor.get());
+    CHECK (editor != nullptr);
+
+    if (editor == nullptr)
+        return;
+
+    // Edit the guitar: a different bridge from the library.
+    auto& library = f.processor.getPartLibrary();
+    const auto current = f.processor.getCurrentGuitar().get (GuitarSlot::bridge);
+
+    for (const auto& part : library.getParts (getSlotPartType (GuitarSlot::bridge)))
+        if (current == nullptr || part->name != current->name)
+        {
+            f.processor.getBench().fit (GuitarSlot::bridge, part);
+            break;
+        }
+
+    CHECK (f.processor.isGuitarEdited());
+
+    editor->getNotifications().clear();
+    CHECK (f.press (shortcutFor ("revealGuitar")));
+    CHECK_MSG (editor->getNotifications().getCurrentId() == "reveal-guitar",
+               "the banner was '" + editor->getNotifications().getCurrentId() + "'");
+}
+
+/*  KS-21 (docs/KEYBOARD_SHORTCUTS.md "Right-click"): every control's menu offers
+    Enter value, Reset, Copy, Paste, MIDI Learn, Lock and Randomise, and Reset
+    and Lock do what they say. */
+LUTHIER_TEST (Editor, rightClickOffersTheDocumentedItems)
+{
+    LuthierAudioProcessor processor;
+    const juce::String id (ParamIDs::ampTreble);
+
+    juce::StringArray items;
+    const auto menu = buildParameterContextMenu (processor, id);   // the iterator keeps a reference
+    juce::PopupMenu::MenuItemIterator it (menu, true);
+
+    while (it.next())
+        items.add (it.getItem().text);
+
+    for (const char* wanted : { "Enter value", "Reset to default", "Copy value", "Paste value",
+                                "MIDI Learn", "Lock", "Randomise this control" })
+    {
+        bool found = false;
+
+        for (const auto& item : items)
+            found = found || item.startsWith (wanted);
+
+        CHECK_MSG (found, juce::String ("the right-click menu has no '") + wanted + "'");
+    }
+
+    auto* param = processor.getState().getParameter (id);
+    juce::Component owner;
+
+    param->setValueNotifyingHost (0.9f);
+    applyParameterMenuResult (2, owner, processor, id);   // Reset to default
+    CHECK_NEAR (param->getValue(), param->getDefaultValue(), 1.0e-6);
+
+    CHECK (! processor.isParameterLocked (id));
+    applyParameterMenuResult (7, owner, processor, id);   // Lock
+    CHECK (processor.isParameterLocked (id));
+}
+
+/*  KS-13: Ctrl+S saves over the current user preset (the parameter change is
+    in the file afterwards and the preset is no longer modified). */
+LUTHIER_TEST (Editor, ctrlSSavesTheCurrentUserPreset)
+{
+    EditorFixture f;
+    auto& presets = f.processor.getPresetManager();
+
+    const auto name = "Sweep KS13 " + juce::String (juce::Random::getSystemRandom().nextInt (1000000));
+    CHECK (presets.saveAs (name, "User"));
+
+    const auto* info = presets.getPreset (presets.getCurrentPresetIndex());
+    const auto file = info != nullptr ? info->file : juce::File();
+    CHECK_MSG (file.existsAsFile(), "saveAs left no file for " + name);
+
+    auto* treble = f.processor.getState().getParameter (ParamIDs::ampTreble);
+    const float wanted = treble->getValue() > 0.5f ? 0.1f : 0.9f;
+    treble->setValueNotifyingHost (wanted);
+    presets.markModified();
+
+    CHECK (f.press (shortcutFor ("save")));
+    CHECK (! presets.isCurrentPresetModified());
+    CHECK (presets.getLastSaveError().isEmpty());
+
+    // Move away, then reload the file: the saved value comes back.
+    treble->setValueNotifyingHost (0.5f);
+    CHECK (presets.loadPreset (file));
+    CHECK_NEAR (treble->getValue(), wanted, 0.01);
+
+    const auto backups = PresetManager::backupFolderFor (file);
+    backups.getChildFile (file.getFileName()).deleteFile();
+    file.deleteFile();
+}
+
+/*  KS-23: a click on the fretboard plays the string, and higher in the lane is
+    harder. KS-24: right-click mutes or selects the string, sets and removes the
+    capo (the capo parameter) and picks the scale overlay and its root. */
+LUTHIER_TEST (Editor, fretboardClicksAndItsMenu)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    FretboardComponent board (processor);
+    board.setSize (900, 220);
+
+    auto click = [&board] (juce::Point<int> p)
+    {
+        auto source = juce::Desktop::getInstance().getMainMouseSource();
+        const auto pf = p.toFloat();
+        const juce::MouseEvent e (source, pf, {}, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                                  &board, &board, juce::Time::getCurrentTime(), pf,
+                                  juce::Time::getCurrentTime(), 1, false);
+        board.mouseDown (e);
+        board.mouseUp (e);
+    };
+
+    const int string = 2, fret = 3;
+
+    click (board.pointOnString (string, fret, 0.1f));
+    const double high = board.getLastClickVelocity();
+    CHECK (board.getSelectedString() == string);
+
+    click (board.pointOnString (string, fret, 0.9f));
+    const double low = board.getLastClickVelocity();
+
+    CHECK_MSG (high > low + 0.3, "top of the lane " + juce::String (high, 2)
+                                   + ", bottom " + juce::String (low, 2));
+
+    juce::Array<int> ids;
+    const auto menu = board.buildContextMenu (string, fret);
+    juce::PopupMenu::MenuItemIterator it (menu, true);
+
+    while (it.next())
+        if (it.getItem().itemID != 0)
+            ids.add (it.getItem().itemID);
+
+    for (int id : { 1, 2, 3, 4, 100, 101, 200, 211 })
+        CHECK_MSG (ids.contains (id), "the fretboard menu has no item " + juce::String (id));
+
+    board.applyContextMenuResult (4, fret, 1);
+    CHECK (board.isStringMuted (4));
+    board.applyContextMenuResult (4, fret, 1);
+    CHECK (! board.isStringMuted (4));
+
+    board.applyContextMenuResult (1, fret, 2);
+    CHECK (board.getSelectedString() == 1);
+
+    auto* capo = processor.getState().getParameter (ParamIDs::capoFret);
+    board.applyContextMenuResult (string, 5, 3);
+    CHECK_NEAR (capo->getValue() * 12.0f, 5.0f, 0.01f);
+    board.applyContextMenuResult (string, 5, 4);
+    CHECK_NEAR (capo->getValue(), 0.0f, 1.0e-6f);
+
+    board.applyContextMenuResult (string, fret, 101);
+    CHECK ((int) board.getScaleOverlay() == 1);
+    board.applyContextMenuResult (string, fret, 207);
+    CHECK (board.getScaleRoot() == 7);
+}

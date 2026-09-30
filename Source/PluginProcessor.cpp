@@ -316,6 +316,7 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     sliceMidiOut.ensureSize (8192);
     liveMidiKept.ensureSize (8192);
     controllerScratch.ensureSize (8192);   // SPEC-SWEEP CT-4
+    clockTransport.prepare (sampleRate);   // SPEC-SWEEP IR-16
     captureStringCount = -1;   // re-sent at the next drain
     diagnostics.prepare (sampleRate);
 
@@ -892,6 +893,11 @@ void LuthierAudioProcessor::auditionGuitar (const WorkshopGuitar* candidate)
 {
     if (! partsGuitarLoaded)
         return;
+
+    // SPEC-SWEEP (UW-25, ui-wiring 6.3): ending an audition returns to the
+    // committed guitar over 30 ms rather than the 5 ms a part swap uses.
+    if (candidate == nullptr)
+        engine.setNextSwapFadeSeconds (0.030);
 
     // The engine plays the candidate; nothing else learns of it.
     engine.applyWorkshopGuitar (mapSpec (candidate != nullptr ? *candidate : currentGuitar), engine.getGuitarType());
@@ -1539,6 +1545,26 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
         }
 
         engine.setTransportPosition (ppq, playing);
+        blockHostPlaying = playing && hasPosition;   // SPEC-SWEEP IR-24
+        blockHostPpq = ppq;
+
+        /*  SPEC-SWEEP (IR-16): with the host stopped, a running MIDI clock
+            (start / continue / stop / song position) drives the grid, at the
+            clock's own tempo (HI-32 above). Position read before this block's
+            messages move it, so the block starts where the last one ended. */
+        {
+            const double clockBpm = midiClockBpm.load (std::memory_order_relaxed);
+            const bool clockWasRunning = clockTransport.isRunning (samplePosition);
+            const double clockPpq = clockTransport.getPpqAt (samplePosition, clockBpm);
+
+            clockTransport.process (midiMessages, numSamples, samplePosition);
+
+            // Only the engine's grid follows it; the tune player keeps its
+            // own clock, as it does whenever the host is stopped.
+            if (! playing && clockWasRunning && clockBpm > 0.0)
+                engine.setTransportPosition (clockPpq, true);
+        }
+
         engine.setHostTimeSeconds (hostSeconds, playing && hostSeconds >= 0.0);
 
         /*  tune-builder 3.6 and 8: the tune plays against the host's clock
@@ -1602,6 +1628,10 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
     // live-performance 2: program change and bank select drive the live surface,
     // and are consumed so nothing downstream sees them as musical events.
     handleLiveMidi (midiMessages);
+
+    // SPEC-SWEEP (IR-15): Luthier SysEx is queued for the message thread to
+    // decode and apply; it stays in the stream (nothing downstream plays it).
+    sysExIn.capture (midiMessages);
 
     // SPEC-SWEEP (CT-4 / IR-5): the controller stage - the chosen profile's
     // latency budget moves the block's events earlier (never before the block).
@@ -1952,6 +1982,9 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
         {
             metronome.followTempo (blockTempo);   // SPEC-SWEEP PT-6
             metronome.followTimeSignature (hostTimeSigNumerator, hostTimeSigDenominator);   // SPEC-SWEEP HI-29
+
+            if (blockHostPlaying)
+                metronome.lockToHostPosition (blockHostPpq);   // SPEC-SWEEP IR-24
             metronome.processBlock (clickBuffer.getWritePointer (0), numSamples);
 
             // 11: the click goes quiet while the band's drums are heard (the
@@ -3424,6 +3457,7 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 
     root->setProperty ("aftertouchBends", doesAftertouchBend());   // SPEC-SWEEP PT-23
     root->setProperty ("bankSelectsPreset", doesBankSelectChoosePreset());   // SPEC-SWEEP IR-14
+    root->setProperty ("midiLearnNotes", midiLearn.getLearnNotes());          // SPEC-SWEEP IR-4
     root->setProperty ("liveMode", uiState.liveMode);
 
     // tuning-stability.md 7 (REALISM-C): the strings' wear and the capo
@@ -3659,6 +3693,9 @@ void LuthierAudioProcessor::restoreState (const void* data, int sizeInBytes, Res
     bridge.applyAllNow();
     initialStateApplied = true;
 
+    // SPEC-SWEEP (IR-4)
+    midiLearn.setLearnNotes (root->hasProperty ("midiLearnNotes") && (bool) root->getProperty ("midiLearnNotes"));
+
     // SPEC-SWEEP (IR-14)
     setBankSelectChoosesPreset (! root->hasProperty ("bankSelectsPreset") || (bool) root->getProperty ("bankSelectsPreset"));
 
@@ -3829,6 +3866,7 @@ void LuthierAudioProcessor::timerCallback()
     serviceJam();   // FEAT-JAM
 
     serviceExpressionCalibration();   // SPEC-SWEEP IR-11 / LP-34
+    serviceInboundSysEx();            // SPEC-SWEEP IR-15
 
     // SPEC-SWEEP (CT-14, controllers 5): a note a string could not reach was
     // clipped into range rather than dropped; the diagnostic log says so.
@@ -3939,6 +3977,80 @@ double LuthierAudioProcessor::humidityPercent (Humidity h) noexcept
         case Humidity::normal:
         case Humidity::numHumidities:
         default:              return 45.0;
+    }
+}
+
+//==============================================================================
+// SPEC-SWEEP (IR-15, input-routing 1.5): inbound Luthier SysEx.
+int LuthierAudioProcessor::serviceInboundSysEx()
+{
+    return sysExIn.drain ([this] (const LuthierEvent& e) { applyInboundLuthierEvent (e); });
+}
+
+void LuthierAudioProcessor::applyInboundLuthierEvent (const LuthierEvent& event)
+{
+    switch (event.eventClass)
+    {
+        case LuthierEventClass::character:
+        {
+            auto& character = engine.getCharacterEngine();
+
+            if (event.get ("what") == "seed")
+            {
+                character.setSeed ((uint64_t) event.get ("seed").getLargeIntValue());
+            }
+            else if (event.get ("what") == "environment")
+            {
+                const double celsius = event.getReal ("temp");
+                const double humidity = event.getReal ("humidity");
+
+                auto nearestTemperature = Temperature::room;
+                auto nearestHumidity = Humidity::normal;
+
+                for (auto t : { Temperature::cold, Temperature::room, Temperature::warm })
+                    if (std::abs (temperatureCelsius (t) - celsius) < std::abs (temperatureCelsius (nearestTemperature) - celsius))
+                        nearestTemperature = t;
+
+                for (auto h : { Humidity::dry, Humidity::normal, Humidity::humid })
+                    if (std::abs (humidityPercent (h) - humidity) < std::abs (humidityPercent (nearestHumidity) - humidity))
+                        nearestHumidity = h;
+
+                character.setTemperature (nearestTemperature);
+                character.setHumidity (nearestHumidity);
+            }
+            break;
+        }
+
+        case LuthierEventClass::snapshot:
+        {
+            const int slot = (int) event.getInt ("slot");
+
+            if (juce::isPositiveAndBelow (slot, snapshots.getNumSnapshots()))
+                recallSnapshot (slot);
+            break;
+        }
+
+        case LuthierEventClass::ranges:
+        {
+            const auto param = event.get ("param");
+
+            if (param.isNotEmpty() && apvts.getParameter (param) != nullptr)
+            {
+                auto state = ranges;
+                state.setUnlockedIndividually (param, event.getInt ("on") != 0);
+                setRanges (state);
+
+                if (event.getInt ("on") != 0 && event.has ("value"))
+                    if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (apvts.getParameter (param)))
+                        p->setValueNotifyingHost (p->convertTo0to1 ((float) event.getReal ("value")));
+            }
+            break;
+        }
+
+        default:
+            // Performance classes (NOTE, STRUM, ...) describe playing, which the
+            // MIDI itself carries; WORKSHOP needs the part library (not wired).
+            break;
     }
 }
 
