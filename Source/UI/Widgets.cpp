@@ -689,7 +689,7 @@ void LuthierKnob::paint (juce::Graphics& g)
     if (showValue)
     {
         g.setColour (accent);
-        g.setFont (Fonts::mono (12.0f));
+        g.setFont (Fonts::mono (13.0f));   // theme.md: values render 13-14px
 
         juce::String text;
 
@@ -935,6 +935,37 @@ void LuthierKnob::KnobSlider::mouseExit (const juce::MouseEvent& e)
     owner.repaint();
 }
 
+bool LuthierKnob::KnobSlider::keyPressed (const juce::KeyPress& key)
+{
+    // Not key == KeyPress::rightKey: that operator refuses to match at all
+    // once any modifier is down (see juce_KeyPress.cpp), which is exactly the
+    // JUCE default this override exists to get past. The key code alone is
+    // what identifies "an arrow key", modifiers or not.
+    const int code = key.getKeyCode();
+    const bool isArrow = code == juce::KeyPress::rightKey || code == juce::KeyPress::upKey
+                        || code == juce::KeyPress::leftKey || code == juce::KeyPress::downKey;
+
+    if (! isArrow)
+        return juce::Slider::keyPressed (key);
+
+    const auto mods = key.getModifiers();
+
+    // Plain arrows: JUCE's own single-interval step is already correct.
+    if (! mods.isShiftDown() && ! mods.isCommandDown() && ! mods.isCtrlDown())
+        return juce::Slider::keyPressed (key);
+
+    double interval = getInterval();
+
+    if (interval <= 0.0)
+        interval = (getMaximum() - getMinimum()) / 100.0;
+
+    interval *= mods.isShiftDown() ? 0.1 : 10.0;   // Shift fine, Ctrl/Cmd coarse
+
+    const bool increase = (code == juce::KeyPress::rightKey || code == juce::KeyPress::upKey);
+    setValue (getValue() + (increase ? interval : -interval), juce::sendNotificationSync);
+    return true;
+}
+
 //==============================================================================
 //  LuthierChoice
 //==============================================================================
@@ -1102,6 +1133,10 @@ LuthierSlider::LuthierSlider (const juce::String& text, bool isVertical)
     slider.setSliderStyle (vertical ? juce::Slider::LinearVertical : juce::Slider::LinearHorizontal);
     slider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 62, 18);
     slider.setColour (juce::Slider::textBoxTextColourId, Palette::textPrimary);
+
+    // theme.md: a vertical-drag control shows the vertical-resize cursor, even
+    // when the track itself is drawn horizontally.
+    slider.setMouseCursor (juce::MouseCursor::UpDownResizeCursor);
 }
 
 LuthierSlider::~LuthierSlider()
@@ -1216,12 +1251,33 @@ std::unique_ptr<juce::AccessibilityHandler> LevelMeter::createAccessibilityHandl
                                                          juce::AccessibilityHandler::Interfaces { std::make_unique<PeakValue> (*this) });
 }
 
-void LevelMeter::timerCallback()
+void LevelMeter::refresh()
 {
     if (processor == nullptr)
         return;
 
     const auto& master = processor->getEngine().getMasterBus();
+    const double now = juce::Time::getMillisecondCounterHiRes();
+
+    // gui-engine-dataflow.md 5: no new block for kStaleAfterMs -> -inf, rather
+    // than decaying from whatever the last real peak happened to be.
+    const auto blocks = master.getProcessedBlockCount();
+    if (blocks != lastBlockCount)
+    {
+        lastBlockCount = blocks;
+        lastBlockChangeMs = now;
+    }
+
+    stale = (now - lastBlockChangeMs) > kStaleAfterMs;
+
+    if (stale)
+    {
+        levelL = levelR = peakHoldL = peakHoldR = 0.0f;
+        holdCountL = holdCountR = 0;
+        displayPeakDb = -100.0f;
+        repaint();
+        return;
+    }
 
     auto toNormalised = [] (double linear)
     {
@@ -1286,16 +1342,16 @@ void LevelMeter::paint (juce::Graphics& g)
         {
             // Smooth gradient rather than visible LED segments.
             juce::Rectangle<int> filled = horizontal
-                ? area.withWidth (juce::roundToInt (area.getWidth() * level))
-                : area.withTop (area.getBottom() - juce::roundToInt (area.getHeight() * level));
+                ? barArea.withWidth (juce::roundToInt (barArea.getWidth() * level))
+                : barArea.withTop (barArea.getBottom() - juce::roundToInt (barArea.getHeight() * level));
 
             juce::ColourGradient gradient (
                 LuthierLookAndFeel::meterColourFor (0.0f),
-                horizontal ? (float) area.getX() : (float) area.getCentreX(),
-                horizontal ? (float) area.getCentreY() : (float) area.getBottom(),
+                horizontal ? (float) barArea.getX() : (float) barArea.getCentreX(),
+                horizontal ? (float) barArea.getCentreY() : (float) barArea.getBottom(),
                 LuthierLookAndFeel::meterColourFor (1.0f),
-                horizontal ? (float) area.getRight() : (float) area.getCentreX(),
-                horizontal ? (float) area.getCentreY() : (float) area.getY(),
+                horizontal ? (float) barArea.getRight() : (float) barArea.getCentreX(),
+                horizontal ? (float) barArea.getCentreY() : (float) barArea.getY(),
                 false);
 
             gradient.addColour (0.55, LuthierLookAndFeel::meterColourFor (0.55f));
@@ -1310,9 +1366,26 @@ void LevelMeter::paint (juce::Graphics& g)
             g.setColour (LuthierLookAndFeel::meterColourFor (hold));
 
             if (horizontal)
-                g.fillRect (area.getX() + juce::roundToInt (area.getWidth() * hold), area.getY(), 1, area.getHeight());
+                g.fillRect (barArea.getX() + juce::roundToInt (barArea.getWidth() * hold), barArea.getY(), 1, barArea.getHeight());
             else
-                g.fillRect (area.getX(), area.getBottom() - juce::roundToInt (area.getHeight() * hold), area.getWidth(), 1);
+                g.fillRect (barArea.getX(), barArea.getBottom() - juce::roundToInt (barArea.getHeight() * hold), barArea.getWidth(), 1);
+        }
+
+        if (hold >= 0.999f)
+        {
+            g.setColour (Palette::clip);
+            constexpr float t = 3.0f;
+
+            if (horizontal)
+            {
+                g.fillRect ((float) area.getRight() - 1.0f, (float) area.getY(), 1.0f, t);
+                g.fillRect ((float) area.getRight() - 1.0f, (float) area.getBottom() - t, 1.0f, t);
+            }
+            else
+            {
+                g.fillRect ((float) area.getX(), (float) area.getY(), t, 1.0f);
+                g.fillRect ((float) area.getRight() - t, (float) area.getY(), t, 1.0f);
+            }
         }
     };
 
@@ -1382,7 +1455,7 @@ void OutputLed::setSource (LuthierAudioProcessor* p)
     processor = p;
 }
 
-void OutputLed::timerCallback()
+void OutputLed::refresh()
 {
     tick (juce::Time::getMillisecondCounterHiRes());
 }
@@ -1404,12 +1477,10 @@ void OutputLed::tick (double nowMs)
     const bool stale = nowMs - lastFreshMs > kStaleMs;
     const double db = stale ? -200.0 : bus.getPeakDb();
 
-    // -inf is the dark grey; brightness rises toward white as the level nears 0 dB.
-    const float target = (float) juce::jlimit (0.0, 1.0, (db + 48.0) / 48.0);
-
-    // cpu-quality-modes 6: at Low no decay, and the clip LED latches (for a
-    // second after the level drops back) instead of pulsing.
-    if (AnimationPolicy::get().isReadoutStepped())
+    // gui-engine-dataflow.md 3: no new block for kStaleAfterMs -> unlit, not
+    // whatever the last real peak happened to be.
+    const auto blocks = master.getProcessedBlockCount();
+    if (blocks != lastBlockCount)
     {
         brightness = stale ? 0.0f : target;
 

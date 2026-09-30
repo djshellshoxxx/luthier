@@ -650,6 +650,40 @@ void AdvancedPanel::buildColumn1()
              "Locking tremolo only: the spring cavity ringing as the bar snaps back");
     addKnob (transposeLock, "Transpose", ParamIDs::transposeLock,
              "Transposing-tremolo detente: locks the bar at a whole number of semitones");
+
+    // GI-7 / GI-35: absent on a hardtail, not merely greyed.
+    bridgeType->getComboBox().addListener (this);
+    updateBridgeVisibility();
+}
+
+void AdvancedPanel::comboBoxChanged (juce::ComboBox* box)
+{
+    if (bridgeType != nullptr && box == &bridgeType->getComboBox())
+        updateBridgeVisibility();
+}
+
+void AdvancedPanel::updateBridgeVisibility()
+{
+    // Same test as GuitarBodyComponent's WhammyPopover::isWhammyFitted:
+    // bridgeTypeNames() index 0 is "Fixed / Hardtail", everything past it has
+    // an arm. Read through the parameter, not the engine, so this agrees with
+    // what the Bridge control is showing at the instant it changes.
+    bool hasWhammy = false;
+
+    if (auto* param = processor.getState().getParameter (ParamIDs::bridgeType))
+        if (auto* choice = dynamic_cast<juce::AudioParameterChoice*> (param))
+            hasWhammy = choice->getIndex() > 0;
+
+    for (auto* c : { static_cast<juce::Component*> (whammyPos.get()),
+                     static_cast<juce::Component*> (whammyDown.get()),
+                     static_cast<juce::Component*> (whammyUp.get()),
+                     static_cast<juce::Component*> (whammySprings.get()),
+                     static_cast<juce::Component*> (transposeLock.get()) })
+        if (c != nullptr)
+            c->setVisible (hasWhammy);
+
+    if (columns[0] != nullptr)
+        columns[0]->layout (columns[0]->getWidth());
 }
 
 //==============================================================================

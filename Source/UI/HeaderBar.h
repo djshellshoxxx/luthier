@@ -83,6 +83,11 @@ public:
 
     void refreshPresetDisplay();
 
+    /** theme.md 30/31: the preset name and A/B compare buttons, for tests. */
+    juce::Button& getPresetNameButton() noexcept { return presetName; }
+    juce::Button& getCompareAButton() noexcept { return compareA; }
+    juce::Button& getCompareBButton() noexcept { return compareB; }
+
     /** onboarding 3 and 4 (TUNE-HELP-ONBOARDING): the header controls the tour
         and the first-week hints point at, by id. nullptr for an unknown id. */
     juce::Component* getTourTarget (const juce::String& id) noexcept

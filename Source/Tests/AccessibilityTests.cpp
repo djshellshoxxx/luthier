@@ -12,6 +12,9 @@
 
 #include "../Accessibility/Accessibility.h"
 #include "../Accessibility/Localisation.h"
+#include "../UI/Widgets.h"
+#include "../PluginProcessor.h"
+#include "../Parameters.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -674,4 +677,130 @@ LUTHIER_TEST (Accessibility, noTwoShortcutsShareADefaultKey)
             CHECK_MSG (! (shortcuts[i].key.isValid() && shortcuts[i].key == shortcuts[j].key),   // unbound never clashes
                        shortcuts[i].id + " and " + shortcuts[j].id
                          + " both default to " + shortcuts[i].key.getTextDescription());
+}
+
+//==============================================================================
+// GAPS-GUI batch 2: accessibility.md section 2 and 3 rows.
+//==============================================================================
+
+/*  A11Y-14: JUCE's own Slider::keyPressed refuses every modified arrow key
+    outright, so Shift/Ctrl never reached the knob at all. */
+LUTHIER_TEST (Accessibility, arrowKeysStepFineAndCoarse)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+
+    LuthierKnob knob ("Gain");
+    knob.attachTo (processor, ParamIDs::ampGain);
+    auto& slider = knob.getSlider();
+
+    const double mid = (slider.getMinimum() + slider.getMaximum()) * 0.5;
+
+    auto stepFrom = [&] (juce::ModifierKeys mods)
+    {
+        slider.setValue (mid, juce::dontSendNotification);
+        slider.keyPressed (juce::KeyPress (juce::KeyPress::rightKey, mods, 0));
+        return slider.getValue() - mid;
+    };
+
+    const double plain = stepFrom (juce::ModifierKeys());
+    const double fine = stepFrom (juce::ModifierKeys (juce::ModifierKeys::shiftModifier));
+    const double coarse = stepFrom (juce::ModifierKeys (juce::ModifierKeys::commandModifier));
+
+    CHECK_MSG (plain > 0.0, "a plain right arrow did not move the value");
+    CHECK_MSG (fine > 0.0 && fine < plain,
+               "Shift did not make the step finer (" + juce::String (fine, 6) + " vs " + juce::String (plain, 6) + ")");
+    CHECK_MSG (coarse > plain,
+               "Ctrl/Cmd did not make the step coarser (" + juce::String (coarse, 6) + " vs " + juce::String (plain, 6) + ")");
+}
+
+namespace
+{
+    void feedMasterBusLevelForShapeTest (LuthierAudioProcessor& processor, float level)
+    {
+        juce::AudioBuffer<float> buffer (2, 512);
+        for (int i = 0; i < 512; ++i)
+        {
+            buffer.setSample (0, i, level);
+            buffer.setSample (1, i, level);
+        }
+        processor.getEngine().getMasterBus().processBlock (buffer);
+    }
+}
+
+/*  A11Y-25: colour is not the only signal on the level meter - a narrower
+    strip below -18 dBFS, and a bracket glyph once the held peak reaches
+    0 dBFS. */
+LUTHIER_TEST (Accessibility, theMeterChangesShapeNotOnlyColour)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+    processor.getEngine().getMasterBus().setLimiterEnabled (false);
+
+    LevelMeter meter;
+    meter.setSource (&processor);
+    meter.setBounds (0, 0, 40, 140);
+
+    auto render = [&]
+    {
+        juce::Image image (juce::Image::ARGB, 40, 140, true);
+        juce::Graphics g (image);
+        meter.paintEntireComponent (g, false);
+        return image;
+    };
+
+    // The meter's own background (panelSunken) fills the whole component, so
+    // alpha alone cannot tell the bar from empty track - only colour can.
+    auto litWidthAtRow = [] (const juce::Image& image, int y, int x0, int x1)
+    {
+        int left = -1, right = -1;
+        for (int x = x0; x < x1; ++x)
+        {
+            const auto c = image.getPixelAt (x, y);
+            if (c.getAlpha() > 10 && c != Palette::panelSunken)
+            {
+                if (left < 0) left = x;
+                right = x;
+            }
+        }
+        return (left < 0) ? 0 : (right - left + 1);
+    };
+
+    // Quiet: well under -18 dBFS. Both bars still fill near the bottom, so
+    // the width difference there is shape, not just "some level vs none".
+    feedMasterBusLevelForShapeTest (processor, 0.05f);
+    meter.refresh();
+    const int quietWidth = litWidthAtRow (render(), 135, 0, 20);
+
+    // Loud: near 0 dBFS.
+    feedMasterBusLevelForShapeTest (processor, 0.95f);
+    meter.refresh();
+    const int loudWidth = litWidthAtRow (render(), 135, 0, 20);
+
+    CHECK_MSG (loudWidth > quietWidth, "a loud reading is not visibly wider than a quiet one ("
+                                          + juce::String (loudWidth) + " vs " + juce::String (quietWidth) + " px)");
+
+    // Push well over 0 dBFS and hold there for the bracket.
+    for (int i = 0; i < 3; ++i)
+    {
+        feedMasterBusLevelForShapeTest (processor, 2.0f);
+        meter.refresh();
+    }
+
+    // The bracket sits right at the top of each channel's track, exactly
+    // where a fully-lit bar also reaches once the peak holds at or above
+    // 0 dBFS - between them, that row now carries the clip colour, which it
+    // never does for a bar that stops just short of the top (see quiet/loud
+    // above, neither of which reaches this row at all).
+    const auto clipped = render();
+    int clipColouredPixels = 0;
+    for (int x = 0; x < 40; ++x)
+        for (int y = 12; y < 17; ++y)
+        {
+            const auto c = clipped.getPixelAt (x, y);
+            if (c.getAlpha() > 10 && c != Palette::panelSunken)
+                ++clipColouredPixels;
+        }
+
+    CHECK_MSG (clipColouredPixels > 0, "no overload marking reaches the top of the track once the peak holds above 0 dBFS");
 }

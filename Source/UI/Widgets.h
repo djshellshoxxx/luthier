@@ -412,7 +412,7 @@ public:
     }
 
 private:
-    void timerCallback() override;
+    void timerCallback() override { refresh(); }
 
     LuthierAudioProcessor* processor = nullptr;
     bool horizontal = false;
@@ -421,6 +421,10 @@ private:
     float peakHoldL = 0.0f, peakHoldR = 0.0f;
     int holdCountL = 0, holdCountR = 0;
     float displayPeakDb = -100.0f;
+    bool stale = true;
+
+    std::uint32_t lastBlockCount = 0;
+    double lastBlockChangeMs = -1.0e12;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LevelMeter)
 
@@ -459,7 +463,7 @@ public:
     float getBrightness() const noexcept { return brightness; }
 
 private:
-    void timerCallback() override;
+    void timerCallback() override { refresh(); }
 
     LuthierAudioProcessor* processor = nullptr;
     float brightness = 0.0f;
@@ -468,6 +472,10 @@ private:
     double lastFreshMs = -1.0e9;
     juce::uint32 lastBlockCount = 0;
     double clipLatchedAtMs = -1.0e12;   // cpu-quality-modes 6
+
+    // gui-engine-dataflow.md 3 and 8: unlit after 100 ms with no new block.
+    std::uint32_t lastBlockCount = 0;
+    double lastBlockChangeMs = -1.0e12;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OutputLed)
 
