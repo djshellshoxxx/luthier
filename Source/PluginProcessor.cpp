@@ -284,6 +284,14 @@ LuthierAudioProcessor::~LuthierAudioProcessor()
 //==============================================================================
 void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
+    // SPEC-SWEEP (UW-5): commands the message thread queued for the audio
+    // thread (a panic from Reset, a string mute or detune) are applied now,
+    // before the engine is prepared, rather than on the first block after it -
+    // where a stale panic landed on the first note played after a reset and
+    // made that render differ from every later one (Combo.determinism,
+    // Combo.history). Audio is not running during prepare.
+    engineCommands.drain ([this] (const EngineCommand& c) { applyEngineCommand (c); });
+
     currentSampleRate = sampleRate;
     currentBlockSize = samplesPerBlock;
 
