@@ -499,6 +499,76 @@ PerformanceScore Riff::toScore (const juce::String& title) const
     return score;
 }
 
+Riff Riff::fromScore (const PerformanceScore& score, int trackIndex)
+{
+    Riff r;
+
+    const int tracks = juce::jmax (1, score.getNumTracks());
+    const auto& track = score.getTrack (juce::jlimit (0, tracks - 1, trackIndex));
+    const auto& meta = score.getMeta();
+
+    r.meta.name = meta.title.isNotEmpty() ? meta.title : juce::String ("Imported Tab");
+    r.meta.origin = "imported";
+    r.tempoBpm = juce::jlimit (kMinTempo, kMaxTempo, meta.tempoBpm > 0.0 ? meta.tempoBpm : 120.0);
+    r.meterNumerator = juce::jlimit (1, 32, meta.timeSignatureNumerator);
+    r.meterDenominator = (meta.timeSignatureDenominator == 2 || meta.timeSignatureDenominator == 4
+                           || meta.timeSignatureDenominator == 8 || meta.timeSignatureDenominator == 16)
+                          ? meta.timeSignatureDenominator : 4;
+    r.tuningName = meta.tuningName;
+    r.scale = "chromatic";
+
+    const int numStrings = juce::jlimit (1, kMaxStrings, track.numStrings);
+    r.capo = juce::jlimit (0, 24, track.capoFret);
+    r.instrument = numStrings <= 4 ? "bass4" : "guitar6";
+    r.tuning.assign ((size_t) numStrings, 0);
+    for (int s = 0; s < numStrings; ++s)
+        r.tuning[(size_t) s] = track.tuning[(size_t) s];
+
+    const double bar = r.getBeatsPerBar();
+    double start = 0.0;
+
+    for (const auto& measure : track.measures)
+    {
+        for (const auto& voice : measure.voices)
+        {
+            for (const auto& note : voice.notes)
+            {
+                if (! juce::isPositiveAndBelow (note.stringIndex, numStrings))
+                    continue;
+                if ((int) r.notes.size() >= kMaxNotes)
+                    break;
+
+                auto copy = note;
+                copy.startBeat = juce::jmax (0.0, start + note.startBeat);
+                copy.fret = juce::jlimit (0, kMaxFret, note.fret);
+
+                if (copy.startBeat >= kMaxBeats)
+                    continue;
+
+                r.notes.push_back (std::move (copy));
+            }
+        }
+
+        start += (measure.timeSignatureNumerator > 0 && measure.timeSignatureDenominator > 0)
+                   ? (double) juce::jlimit (1, 32, measure.timeSignatureNumerator) * 4.0
+                       / (double) juce::jlimit (1, 32, measure.timeSignatureDenominator)
+                   : bar;
+    }
+
+    // Whole bars, clamped to the riff limit, at least one bar.
+    double totalBeats = 0.0;
+    for (const auto& note : r.notes)
+        totalBeats = juce::jmax (totalBeats, note.startBeat + juce::jmax (0.0625, note.durationBeats));
+
+    const int bars = juce::jmax (1, (int) std::ceil (juce::jmin (totalBeats, kMaxBeats) / bar - 1.0e-6));
+    r.lengthBeats = juce::jmin (kMaxBeats, (double) bars * bar);
+
+    r.updatePitches();
+    r.techniques = r.computeTechniques();
+
+    return r;
+}
+
 //==============================================================================
 namespace
 {

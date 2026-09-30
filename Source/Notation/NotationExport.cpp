@@ -1056,14 +1056,104 @@ bool NotationImporter::read (const juce::File& file, PerformanceScore& destinati
     return readAsciiTab (text, destination);
 }
 
+namespace
+{
+    // FEAT2-TAB: alternate tunings recognised from a "Tuning:" header. Open
+    // MIDI notes, highest string first, and the string count. An unmatched name
+    // leaves the score's default standard tuning untouched (see tab-import-export 6).
+    struct TabTuning { const char* match; int count; int notes[kMaxStrings]; };
+
+    const TabTuning* matchTuning (const juce::String& lower)
+    {
+        static const TabTuning table[] = {
+            { "drop d",   6, { 64, 59, 55, 50, 45, 38 } },
+            { "drop c",   6, { 62, 57, 53, 48, 43, 36 } },
+            { "dadgad",   6, { 62, 57, 55, 50, 45, 38 } },
+            { "open g",   6, { 62, 59, 55, 50, 43, 38 } },
+            { "open d",   6, { 62, 57, 54, 50, 45, 38 } },
+            { "half step",6, { 63, 58, 54, 49, 44, 39 } },
+            { "eb standard",6,{ 63, 58, 54, 49, 44, 39 } },
+            { "bass",     4, { 43, 38, 33, 28 } },
+            { "standard", 6, { 64, 59, 55, 50, 45, 40 } },
+        };
+
+        for (const auto& t : table)
+            if (lower.contains (t.match))
+                return &t;
+
+        return nullptr;
+    }
+}
+
 bool NotationImporter::readAsciiTab (const juce::String& text, PerformanceScore& destination)
 {
     lastError.clear();
 
+    // fromLines handles \n, \r\n and lone \r, which is one axis of the fuzz test.
     const auto lines = juce::StringArray::fromLines (text);
 
     destination.clear();
-    destination.beginCapture (120.0, 4, 4);
+
+    /*  Header scan (tab-import-export 1, 4): tuning, tempo, metre and capo may
+        appear above the staff in any order, or not at all. Read them before the
+        staff so the strings are pitched correctly. Everything is clamped. */
+    double tempo = 120.0;
+    int numerator = 4, denominator = 4;
+    int capo = 0;
+    juce::String tuningName ("Standard");
+    std::array<int, kMaxStrings> tuning { { 64, 59, 55, 50, 45, 40, 0, 0, 0, 0, 0, 0 } };
+    int headerStrings = 6;
+
+    for (const auto& raw : lines)
+    {
+        const auto line = raw.trim();
+        const auto lower = line.toLowerCase();
+
+        if (lower.startsWith ("tuning:"))
+        {
+            const auto value = line.substring (7).trim();
+            tuningName = value.isNotEmpty() ? value : tuningName;
+
+            if (const auto* t = matchTuning (value.toLowerCase()))
+            {
+                headerStrings = juce::jlimit (1, kMaxStrings, t->count);
+                for (int s = 0; s < kMaxStrings; ++s)
+                    tuning[(size_t) s] = s < t->count ? t->notes[s] : 0;
+            }
+        }
+        else if (lower.startsWith ("tempo:"))
+        {
+            const auto value = line.substring (6);
+            tempo = juce::jlimit (20.0, 300.0, value.getDoubleValue() > 0.0 ? value.getDoubleValue() : 120.0);
+
+            const int slash = value.indexOfChar ('/');
+            if (slash > 0 && slash + 1 < value.length())
+            {
+                numerator = juce::jlimit (1, 32, value.substring (0, slash)
+                                                     .retainCharacters ("0123456789").getIntValue());
+                denominator = value.substring (slash + 1).retainCharacters ("0123456789").getIntValue();
+                if (! (denominator == 2 || denominator == 4 || denominator == 8 || denominator == 16))
+                    denominator = 4;
+            }
+        }
+        else if (lower.startsWith ("capo:"))
+        {
+            capo = juce::jlimit (0, 24, line.substring (5).retainCharacters ("0123456789").getIntValue());
+        }
+    }
+
+    destination.beginCapture (tempo, numerator, denominator);
+
+    {
+        auto& track = destination.getTrack (0);
+        track.tuning = tuning;
+        track.capoFret = capo;
+        track.numStrings = juce::jlimit (1, kMaxStrings, headerStrings);
+        destination.getMeta().tuningName = tuningName;
+    }
+
+    const double beatsPerMeasure = (double) juce::jmax (1, numerator) * 4.0
+                                     / (double) juce::jmax (1, denominator);
 
     /*  ASCII tab has no agreed grammar, so this reads the shape that actually
         appears: blocks of consecutive lines that contain a '|' and are mostly
@@ -1129,6 +1219,13 @@ bool NotationImporter::readAsciiTab (const juce::String& text, PerformanceScore&
                             widened[(size_t) c + 1] = true;
                 }
 
+                // A system's line count is its string count (clamped).
+                {
+                    auto& track = destination.getTrack (0);
+                    track.numStrings = juce::jmax (track.numStrings,
+                                                   juce::jlimit (1, kMaxStrings, numLines));
+                }
+
                 for (int line = 0; line < numLines; ++line)
                 {
                     const auto& content = lines[blockStart + line];
@@ -1141,14 +1238,13 @@ bool NotationImporter::readAsciiTab (const juce::String& text, PerformanceScore&
                     int column = content.indexOfChar ('|');
                     column = (column >= 0) ? column + 1 : 0;
 
-                    // Beats count from the bar line before the note, in its
-                    // own measure: counting from the line's start added each
-                    // bar line and the writer's pad column as time, half a beat
-                    // a measure.
+                    // Beats count from the bar line before the note, in its own
+                    // measure: counting from the line's start would add each bar
+                    // line and the writer's pad column as time.
                     int barInLine = 0;
                     int measureColumn = column;
 
-                    for (int c = column; c < content.length(); ++c)
+                    for (int c = column; c < content.length();)
                     {
                         const auto character = content[c];
 
@@ -1156,44 +1252,145 @@ bool NotationImporter::readAsciiTab (const juce::String& text, PerformanceScore&
                         {
                             ++barInLine;
                             measureColumn = c + 1;
+                            ++c;
                             continue;
                         }
 
-                        if (! juce::CharacterFunctions::isDigit (character))
-                            continue;
+                        const bool isDead  = (character == 'x' || character == 'X');
+                        const bool isDigit = juce::CharacterFunctions::isDigit (character);
 
-                        // A two-digit fret is two characters, and reading them
-                        // separately would turn fret 12 into frets 1 and 2.
-                        int fret = character - '0';
-                        int consumed = 1;
-
-                        if (c + 1 < content.length()
-                              && juce::CharacterFunctions::isDigit (content[c + 1]))
+                        if (! isDead && ! isDigit)
                         {
-                            fret = fret * 10 + (content[c + 1] - '0');
-                            consumed = 2;
+                            ++c;
+                            continue;
                         }
 
-                        // Columns to beats: four columns to a beat, which is what
-                        // the writer uses.
+                        // Columns to beats: four unwidened columns to a beat,
+                        // which is what the writer uses. Bounds-checked (fuzz).
                         int slots = 0;
-
-                        for (int k = measureColumn; k < c; ++k)
+                        for (int k = measureColumn; k < c && k < (int) widened.size(); ++k)
                             if (! widened[(size_t) k])
                                 ++slots;
 
-                        const double beat = (double) (measureNumber + barInLine) * 4.0
+                        const double beat = (double) (measureNumber + barInLine) * beatsPerMeasure
                                               + (double) slots / 4.0;
 
+                        std::vector<ScoreTechnique> techniques;
+                        bool openedAngle = false;
+
+                        // Prefix wrappers immediately to the left of the token
+                        // (tab-import-export 1): <harmonic>, [harmonic], (ghost),
+                        // /slide-in, =tie. A '-' or bar line ends the run at once.
+                        for (int p = c - 1; p >= column; --p)
+                        {
+                            const auto pc = content[p];
+                            if (pc == '<')      { techniques.push_back ({ ScoreTechnique::Type::naturalHarmonic }); openedAngle = true; }
+                            else if (pc == '[')  techniques.push_back ({ ScoreTechnique::Type::artificialHarmonic });
+                            else if (pc == '(')  techniques.push_back ({ ScoreTechnique::Type::ghostNote });
+                            else if (pc == '/')  techniques.push_back ({ ScoreTechnique::Type::slideIn });
+                            else if (pc == '=')  { /* tie mark: parsed, not stored */ }
+                            else break;
+                        }
+
+                        int fret = 0;
+
+                        if (isDead)
+                        {
+                            techniques.push_back ({ ScoreTechnique::Type::deadNote });
+                            ++c;
+                        }
+                        else
+                        {
+                            fret = character - '0';
+                            ++c;
+
+                            // A two-digit fret is two characters; reading them
+                            // separately would turn 12 into 1 and 2.
+                            if (c < content.length() && juce::CharacterFunctions::isDigit (content[c]))
+                            {
+                                fret = fret * 10 + (content[c] - '0');
+                                ++c;
+                            }
+                        }
+
+                        fret = juce::jlimit (0, 36, fret);   // clamp to the instrument
+
+                        // Suffix techniques, stopping at fill, bar lines, space or
+                        // the next note. Unknown glyphs are skipped, never fatal.
+                        while (c < content.length())
+                        {
+                            const auto s    = content[c];
+                            const auto next = (c + 1 < content.length()) ? content[c + 1] : (juce::juce_wchar) 0;
+
+                            if (s == '-' || s == '|' || s == ':' || s == ' ' || s == '\t'
+                                 || juce::CharacterFunctions::isDigit (s) || s == 'x' || s == 'X')
+                                break;
+
+                            if (s == '>' && openedAngle) { openedAngle = false; ++c; continue; }
+                            if (s == ']' || s == ')')     { ++c; continue; }
+
+                            if (s == 'p' && next == 'b') { techniques.push_back ({ ScoreTechnique::Type::preBend }); c += 2; continue; }
+                            if (s == 'P' && next == 'M') { techniques.push_back ({ ScoreTechnique::Type::palmMute }); c += 2; continue; }
+                            if (s == 't' && next == 'r') { techniques.push_back ({ ScoreTechnique::Type::trill });   c += 2; continue; }
+                            if (s == 'L' && next == 'R') { techniques.push_back ({ ScoreTechnique::Type::letRing }); c += 2; continue; }
+
+                            ScoreTechnique tech;
+                            bool have = true;
+
+                            switch ((int) s)
+                            {
+                                case 'b':  tech.type = ScoreTechnique::Type::bend;        break;
+                                case 'r':  tech.type = ScoreTechnique::Type::bendRelease; break;
+                                case 'h':  tech.type = ScoreTechnique::Type::hammerOn;    break;
+                                case 'p':  tech.type = ScoreTechnique::Type::pullOff;     break;
+                                case '/':  tech.type = ScoreTechnique::Type::slideUp;     break;
+                                case '\\': tech.type = ScoreTechnique::Type::slideDown;   break;
+                                case '~':  tech.type = ScoreTechnique::Type::vibrato;     break;
+                                case 't':  tech.type = ScoreTechnique::Type::tap;         break;
+                                case 'w':  tech.type = ScoreTechnique::Type::whammy;      break;
+                                case '>':  tech.type = ScoreTechnique::Type::accent;      break;
+                                case '.':  tech.type = ScoreTechnique::Type::staccato;    break;
+                                default:   have = false;                                  break;
+                            }
+
+                            ++c;
+
+                            if (! have)
+                                continue;                    // unknown glyph: skip
+
+                            // Digits after a bend glyph are its amount/target, not
+                            // a new note.
+                            if (tech.type == ScoreTechnique::Type::bend
+                                 || tech.type == ScoreTechnique::Type::bendRelease
+                                 || tech.type == ScoreTechnique::Type::preBend)
+                            {
+                                int target = 0, digits = 0;
+                                while (c < content.length() && juce::CharacterFunctions::isDigit (content[c]))
+                                {
+                                    target = target * 10 + (content[c] - '0');
+                                    ++c;
+                                    ++digits;
+                                }
+                                if (digits > 0)
+                                    tech.value = juce::jlimit (0.0, 24.0,
+                                                               (double) (target > fret ? target - fret : target));
+                            }
+
+                            techniques.push_back (tech);
+                        }
+
                         const auto& track = destination.getTrack (0);
-                        const int open = track.tuning[(size_t) juce::jlimit (0, kMaxStrings - 1, stringIndex)];
+                        const int open = track.tuning[(size_t) juce::jlimit (0, kMaxStrings - 1, stringIndex)]
+                                           + track.capoFret;
+                        const int midi = juce::jlimit (0, 127, open + fret);
 
-                        destination.noteStarted (stringIndex, fret, open + fret,
-                                                 440.0, 0.8, beat);
+                        destination.noteStarted (stringIndex, fret, midi, 440.0, 0.8, beat);
+
+                        for (const auto& tech : techniques)
+                            destination.addTechnique (stringIndex, tech);
+
                         destination.noteEnded (stringIndex, beat + 0.25);
-
                         ++totalNotes;
-                        c += consumed - 1;
                     }
                 }
 
@@ -1212,7 +1409,7 @@ bool NotationImporter::readAsciiTab (const juce::String& text, PerformanceScore&
         }
     }
 
-    destination.endCapture ((double) (measureNumber + 1) * 4.0);
+    destination.endCapture ((double) (measureNumber + 1) * beatsPerMeasure);
 
     if (totalNotes == 0)
     {
