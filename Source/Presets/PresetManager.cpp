@@ -424,7 +424,8 @@ juce::var PresetManager::toVar (const juce::String& name,
     // saving it would make loading a morph slot drag the slider back.
     for (auto* p : processor.getParameters())
         if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (p))
-            if (withId->paramID != ParamIDs::presetMorphPosition)
+            if (withId->paramID != ParamIDs::presetMorphPosition
+                  && ! ParamIDs::isJamTransient (withId->paramID))   // FEAT-JAM: jam-mode 10
             {
                 // Written as it reads back: a skewed range turns a normalised
                 // value into a plain one and back with a float's error, so
@@ -458,6 +459,10 @@ juce::var PresetManager::toVar (const juce::String& name,
     // guitar-workshop.md 8: which guitar, and the whole guitar if it was edited.
     if (captureGuitarBlock != nullptr)
         root->setProperty ("guitar", captureGuitarBlock());
+
+    // jam-mode.md 12 (FEAT-JAM): the band's style file, rhythm-kit link and seed.
+    if (captureJamBlock != nullptr)
+        root->setProperty ("jam", captureJamBlock());
 
     // ---- per-string extras ----------------------------------------------------
     auto* strings = new juce::DynamicObject();
@@ -622,7 +627,8 @@ bool PresetManager::fromVar (const juce::var& data)
             // to the front of the next save, so save -> load -> save differed).
             "ranges", "guitar", "midiMap",
             // SPEC-SWEEP: the spec's spellings of the processor blocks.
-            "midi_mappings", "rhythm_engine", "tone_match"
+            "midi_mappings", "rhythm_engine", "tone_match",
+            "jam"   // FEAT-JAM (jam-mode 12)
         };
 
         auto* preserved = new juce::DynamicObject();
@@ -651,6 +657,13 @@ bool PresetManager::fromVar (const juce::var& data)
             ranges because there was nothing else to save them against. */
         const bool hasRangesBlock = obj->hasProperty ("ranges");
 
+        // installer.md 8: what this load had to migrate, for the info banner.
+        juce::StringArray migrations;
+
+        if (! hasRangesBlock && obj->hasProperty ("pluginVersion")
+              && obj->getProperty ("pluginVersion").toString() != JucePlugin_VersionString)
+            migrations.add ("ranges");
+
         // guitar-workshop.md 9: retired placement parameters, kept for the guitar.
         for (int slot = 0; slot < 3; ++slot)
         {
@@ -664,6 +677,7 @@ bool PresetManager::fromVar (const juce::var& data)
             {
                 // Their old ranges: 0.02-0.48 linear, and 1-6 mm skewed to 3.5.
                 legacy.present = true;
+                migrations.addIfNotAlreadyThere ("pickup placements");
                 legacy.positionFraction = juce::jmap ((double) params->getProperty (positionId), 0.02, 0.48);
 
                 juce::NormalisableRange<float> heightRange (1.0f, 6.0f);
@@ -686,12 +700,15 @@ bool PresetManager::fromVar (const juce::var& data)
         {
             if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (p))
             {
-                if (params->hasProperty (withId->paramID) && withId->paramID != ParamIDs::presetMorphPosition)
+                if (params->hasProperty (withId->paramID) && withId->paramID != ParamIDs::presetMorphPosition
+                      && ! ParamIDs::isJamTransient (withId->paramID)   // FEAT-JAM
+                      && ! (keepOnLoad != nullptr && keepOnLoad (withId->paramID)))
                 {
                     const double v = (double) params->getProperty (withId->paramID);
                     withId->setValueNotifyingHost ((float) juce::jlimit (0.0, 1.0, v));
                 }
-                else if (! params->hasProperty (withId->paramID) && ! keepsValueWhenAbsent (withId->paramID))
+                else if (! params->hasProperty (withId->paramID) && ! keepsValueWhenAbsent (withId->paramID)
+                           && ! (keepOnLoad != nullptr && keepOnLoad (withId->paramID)))   // merge: FEAT-JAM's keep-on-load wins
                 {
                     /*  SPEC-SWEEP: PF-14 (docs/PRESET_FORMAT.md): a key the file
                         leaves out means that parameter's default, not whatever
@@ -714,6 +731,8 @@ bool PresetManager::fromVar (const juce::var& data)
         {
             if (auto* amount = apvts.getParameter (ParamIDs::feedbackAmount))
                 amount->setValueNotifyingHost (amount->convertTo0to1 (50.0f));
+
+            migrations.add ("feedback");
         }
 
         /*  strum-dynamics.md 1.1: live chords cross at strum_crossing_sps. A
@@ -729,6 +748,7 @@ bool PresetManager::fromVar (const juce::var& data)
                 const double ms = oldSpeed->convertFrom0to1 ((float) juce::jlimit (0.0, 1.0, (double) params->getProperty (ParamIDs::strumSpeed)));
                 const double sps = ms > 0.0 ? 1000.0 / ms : 800.0;
                 crossing->setValueNotifyingHost (crossing->convertTo0to1 ((float) juce::jlimit (20.0, 800.0, sps)));
+                migrations.add ("strum speed");
             }
         }
 
@@ -801,6 +821,8 @@ bool PresetManager::fromVar (const juce::var& data)
 
             if (auto* old = apvts.getParameter (ParamIDs::doublerOn))
                 old->setValueNotifyingHost (0.0f);
+
+            migrations.add ("doubler");
         }
 
         if (onPedalTypesLoaded != nullptr)
@@ -820,6 +842,9 @@ bool PresetManager::fromVar (const juce::var& data)
                 ranges.applyTo (apvts);
             }
         }
+
+        if (! migrations.isEmpty())
+            noteMigration (migrations.joinIntoString (", "));
     }
 
     // ---- per-string extras -------------------------------------------------------
@@ -884,6 +909,8 @@ bool PresetManager::fromVar (const juce::var& data)
     // capoComp cleared, every offset cleared.
     if (auto* age = dynamic_cast<juce::AudioParameterChoice*> (apvts.getParameter (ParamIDs::stringAge)))
         engine.getStabilityModel().beginPresetLoad ((StringAge) juce::jlimit (0, (int) StringAge::NumAges - 1, age->getIndex()));
+    if (onJamBlockLoaded != nullptr)   // FEAT-JAM: a missing block means defaults
+        onJamBlockLoaded (obj->getProperty ("jam"));
 
     // SPEC-SWEEP: SM-1/SM-16/FF-24..29 - after the parameters and the guitar,
     // so a snapshot bank or a mod route lands on the preset it belongs to.
@@ -1131,11 +1158,11 @@ bool PresetManager::loadPreset (const juce::File& file)
 
     modified = false;
 
-    // SPEC-SWEEP: SM-46 - the layers a user-facing load clears (A/B compare).
-    if (onPresetFileLoaded != nullptr)
-        onPresetFileLoaded();
-
     sendChangeMessage();
+
+    if (onPresetLoaded != nullptr)
+        onPresetLoaded();   // output-normalization.md 4.4
+
     return true;
 }
 
@@ -1143,9 +1170,12 @@ bool PresetManager::keepsValueWhenAbsent (const juce::String& paramId)
 {
     // SPEC-SWEEP: PF-14. The morph slider is a performance control, and Slide
     // Mode persists across a load (state-model.md 8.1).
+    // Merge: jam-mode 10's performance controls (jam_play, jam_fill_now) are
+    // never in a preset, so a load leaves them alone too.
     return paramId == ParamIDs::presetMorphPosition
         || paramId == ParamIDs::slideGuitar
-        || paramId == ParamIDs::slideMode;
+        || paramId == ParamIDs::slideMode
+        || ParamIDs::isJamTransient (paramId);
 }
 
 bool PresetManager::loadNext()
@@ -1166,6 +1196,23 @@ bool PresetManager::loadPrevious()
 }
 
 //==============================================================================
+juce::File PresetManager::backupFolderFor (const juce::File& target)
+{
+    // installer.md 8: ~/Documents/Luthier/Presets/Backup/<yyyy-mm-dd>/. The
+    // root is the nearest ancestor called Presets (a user preset lives in
+    // Presets/User/<category>/); outside any Presets tree, beside the file.
+    for (auto dir = target.getParentDirectory(); ; dir = dir.getParentDirectory())
+    {
+        if (dir.getFileName() == "Presets")
+            return dir.getChildFile ("Backup");
+
+        if (dir.getParentDirectory() == dir)
+            break;
+    }
+
+    return target.getParentDirectory().getChildFile ("Backup");
+}
+
 void PresetManager::backupBeforeOverwrite (const juce::File& target)
 {
     /*  file-formats 13.4: the version being replaced is kept, filed by the day it
@@ -1180,7 +1227,7 @@ void PresetManager::backupBeforeOverwrite (const juce::File& target)
 
     const auto today = juce::Time::getCurrentTime().formatted ("%Y-%m-%d");
 
-    auto folder = target.getParentDirectory().getChildFile ("Backup").getChildFile (today);
+    auto folder = backupFolderFor (target).getChildFile (today);
 
     if (! folder.createDirectory())
         return;
@@ -1252,7 +1299,11 @@ std::atomic<int> PresetManager::failNextWriteForTesting { 0 };
 
 void PresetManager::pruneOldBackups()
 {
-    for (const auto& root : { getUserPresetFolder(), getFactoryPresetFolder() })
+    // installer.md 8: Presets/Backup is the current place; the two below it
+    // are where earlier builds filed backups. SPEC-SWEEP PF-7: each root's
+    // per-category Backup folders (where earlier builds filed a user preset's
+    // backup) are swept too.
+    for (const auto& root : { getUserPresetFolder().getParentDirectory(), getUserPresetFolder(), getFactoryPresetFolder() })
         pruneOldBackupsUnder (root, juce::Time::getCurrentTime());
 }
 
@@ -1523,9 +1574,18 @@ void PresetManager::resetToDefaults()
     if (auto* mains = apvts.getParameter (ParamIDs::noiseMainsHz))
         mains->setValueNotifyingHost (mains->convertTo0to1 (defaultMainsRegionIs50Hz() ? 1.0f : 0.0f));
 
-    // The default guitar type's factory guitar, as shipped, under the defaults.
+    // The default guitar type's factory guitar, as shipped: its parts win over the
+    // layout defaults just written (a reset used to leave an X-braced spruce top
+    // and 500k pots on the default solid-body, BETA_TEST_REPORT B-05).
     if (onGuitarBlockLoaded != nullptr)
-        onGuitarBlockLoaded ({});
+    {
+        auto* block = new juce::DynamicObject();
+        block->setProperty ("partsWin", true);
+        onGuitarBlockLoaded (juce::var (block));
+    }
+
+    if (onJamBlockLoaded != nullptr)   // FEAT-JAM
+        onJamBlockLoaded ({});
 
     currentName = "Init";
     currentCategory = "User";
@@ -1553,7 +1613,8 @@ bool PresetManager::isRandomisable (const juce::String& paramId)
 
     // tune-builder 14 (TUNE-HELP-ONBOARDING): the tune's timeline controls are
     // not part of a sound.
-    return ! excluded.contains (paramId) && ! paramId.startsWith ("tune_");
+    return ! excluded.contains (paramId) && ! paramId.startsWith ("tune_")
+        && ! ParamIDs::isJamTransient (paramId);   // FEAT-JAM
 }
 
 void PresetManager::randomise (uint64_t seed, const juce::StringArray& lockedParameters,

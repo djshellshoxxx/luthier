@@ -14,6 +14,7 @@
     but these controls ever calls applyStyle.
 */
 
+#include "AnimationPolicy.h"   // cpu-quality-modes 6
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Widgets.h"
 
@@ -85,6 +86,10 @@ private:
     bool updating = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (RightHandGroup)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "RightHandGroup" };
 };
 
 //==============================================================================

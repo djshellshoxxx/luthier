@@ -81,7 +81,7 @@ The Easy layout, the four-column Advanced layout, the 13 Col-4 tabs, the Options
 | GI-75 (§9) | Live Mode: 44 px hit targets, locks Advanced toggle | - | `LiveStrip::kTouchTargetHeight`, `HeaderBar::updateModeButtonEnablement` | `LiveStripUi::everyTargetIsTouchSized` | DONE |
 | GI-76 (§9) | Live Mode suppresses tooltips (all; see sweep-notes/ui.md) | `PluginEditor::timerCallback` | all tooltips suppressed in Live Mode | - | NO-TEST |
 | GI-77 (§10) | Practice drawer 32-360 px, collapsed bpm/loop/track, 8 tabs | `Practice/*` | `UI/PracticePanel.cpp` | `PracticeRoutine::toolsAreInTheDrawersTabOrder`, `PracticeDrawer::aRoutineStartAsksForTheDrawerOnce` | DONE |
-| GI-78 (§1/§10) | Drawer expanded state persists per preset | - | - | on tune-help (5911597) | OWNED |
+| GI-78 (§1/§10) | Drawer expanded state persists per preset — kept in plugin state, not per preset | `UiState::practiceDrawerOpen` | Practice drawer | `ReturningUser.thePracticeDrawerComesBackAsItWasLeft` | PARTIAL |
 | GI-79 (§11.1) | Mod arcs: 4 px outside, 2 px, per-source colour, segmented — single secondary-colour arc | `ModMatrix::getOffsetFor` | `Widgets.cpp:LuthierKnob::paint` | - | PARTIAL |
 | GI-80 (§11.2) | Drag source card onto control -> 25% route, Escape cancels | `ModMatrix` | - | on visual: `DragToModulate::aDroppedSourceRoutesAt25PercentAsOneEntry` (960e25c) | OWNED |
 | GI-81 (§11.2) | Right-click any control -> Modulate submenu | `ModMatrix` | `Widgets.cpp:showParameterMenu` | `Editor::rightClickOffersModulationAndBuildsTheRoute` | DONE |
@@ -105,7 +105,7 @@ The Easy layout, the four-column Advanced layout, the 13 Col-4 tabs, the Options
 | GI-99 (§17) | Overlay/mode shortcuts: Tab, L, D, S, Ctrl+, , Ctrl+O, Ctrl+Shift+S, F1, Ctrl+] / Ctrl+[ | `PluginEditor::keyPressed` | - | `Editor::everyOverlayShortcutOpensItsOwnOverlayAndEscapeClosesIt`, `Editor::theWorkspaceTabShortcutsStepTheTabsInAdvancedModeOnly`, `HelpTab::f1AndTheHeaderOpenHelpOnThePanelYouAreIn` | DONE |
 | GI-100 (§17) | Action shortcuts: P, \ , [ ], 1-9, Shift+1-9, T, Ctrl+L, Ctrl+S/N/R/Shift+R, Ctrl+/, Ctrl+Z/Shift+Z, Ctrl+?, PgUp/PgDn, Ctrl+G, Ctrl+Alt+E, Ctrl+Shift+E — dispatch untested (kill toggles, not hold) | `PluginEditor::keyPressed` | - | `Editor::newPresetLoadsInitAndRevealSaysSoWhenThereIsNoFile` (Ctrl+N/Ctrl+Alt+E only) | NO-TEST |
 | GI-101 (§17) | W toggles Workshop | - | - | on visual: `toggleWorkshop` (9f67749) | OWNED |
-| GI-102 (§17) | Ctrl+T new tune; Space play/pause (TUNE-focused per DECISIONS) | `TunePlayer` | `TunePanel::keyPressed` | `TunePanel::theTransportAndSpaceDriveThePlayer`; Ctrl+T on tune-help (2327622) | OWNED |
+| GI-102 (§17) | Ctrl+T new tune; Space play/pause (TUNE-focused per DECISIONS) | `TunePlayer`; `AccessibilitySettings` `newTune` | `TunePanel::keyPressed` | `TunePanel.theTransportAndSpaceDriveThePlayer`, `TuneIntegration.ctrlTIsInTheShortcutRegistryAndOpensTheTuneTab` | DONE |
 | GI-103 (§17) | Ctrl+E context-aware export (tune / preset / take) — always the audio ExportPanel outside a focused TUNE tab | `AudioExporter` | `PluginEditor` `export` -> `exportPanel` | - | PARTIAL |
 | GI-104 (§18) | Undo stack of 64 — code 200 per action-and-undo.md 2 | `PluginProcessor::kMaxUndoSteps` | header Undo/Redo | `Undo::stepsOneActionAtATimeBothWays` | PARTIAL |
 | GI-105 (§18) | Undo groups within 200 ms; boundaries at snapshot/preset/guitar/setlist need a modifier to cross | `PluginProcessor` undo | - | on visual: `Undo::gesturesGroupWithin200ms`, `Undo::aPresetLoadIsABoundary` (a816101) | OWNED |
@@ -127,7 +127,7 @@ The Easy layout, the four-column Advanced layout, the 13 Col-4 tabs, the Options
 | GI-121 (§19) | Workshop parts drawer via right-click illustration part; guided build rail | `Workshop` | - | - (workshop-ui owned by visual) | OWNED |
 | GI-122 (§19) | Bass slap/pop/ghost/double thump/alternation: RHYTHM (bass) + CHARACTER | `DSP/Slap`, `BassStepGrid` | `SlapGroup`, `BassGridGroup` | `BassTechniques::theSlapGroupIsShownOnlyOnABass`, `BassTechniques::autoGhostingFiresBelowTheThresholdOnly` | DONE |
 | GI-123 (§19) | Tune builder: progression, piano roll, section strip | `Tune/*` | `TunePanel` | `TunePanel::theProgressionFieldWritesTheSectionAndShowsErrorsWhereTheyAre`, `TunePanel::thePianoRollDrawsSnappedLockedNotesAndDeletesThem` | DONE |
-| GI-124 (§19) | Tune: melody generators, templates (File -> New Tune), bass/layers, export dialog | `Tune/*` | - | on tune-help (24f14d9, 5e9f8df, bf8eca0) | OWNED |
+| GI-124 (§19) | Tune: melody generators, templates (File -> New Tune), bass/layers, export dialog | `Tune/*`, `Support/TuneExport.*` | TUNE tab; `UI/TuneLayersStrip.*`, `UI/TuneExportDialog.*` | `TuneEditing.theBassAndLayerRowsEditTheSection`, `TuneIntegration.theExportDialogWritesEachDestinationFromOneScreen`, `TuneBuilder.*` | DONE |
 | GI-125 (§19) | MIDI export profile, drag-out, SysEx, PPQ | `Export/MidiProfiles.cpp` | `MidiOutPanel` | `MidiOutPanel::liveEventsAndWorkshopChangesGoOutAsLuthierSysEx` | DONE |
 | GI-126 (§19) | Updates / telemetry / crash / licence / privacy | `Updates/*` | `UpdatesPage`, `PrivacyPage`, banners | `Telemetry::everythingIsOffByDefault` | DONE |
 | GI-127 (§20) | `?` icon on every multi-row panel opening pinned Help | `HelpContent` | - | on visual: `PanelHelp::everyPanelsQuestionMarkOpensItsOwnTopic` (94f3de6) | OWNED |
@@ -149,4 +149,4 @@ The Easy layout, the four-column Advanced layout, the 13 Col-4 tabs, the Options
 | GI-143 (§22) | Test: Slide toggle 100x during playback, no click, correct panels | `SlideEngine` | - | `Slide::switchingModeMidNoteIsClean` (1x); on visual `Stress::slideAndAdvancedRangeTogglesMidPlay` | OWNED |
 | GI-144 (§22) | Test: warning arc appears past stock max and disappears on return | - | `LuthierKnob` | `RangesUi::controlsFollowASwappedRangeAndMarkTheValue` | DONE |
 
-<!-- counts DONE=65 NO-GUI=0 NO-TEST=5 PARTIAL=34 MISSING=9 OWNED=31 DEFERRED=0 -->
+<!-- counts DONE=67 NO-GUI=0 NO-TEST=5 PARTIAL=35 MISSING=9 OWNED=28 DEFERRED=0 -->

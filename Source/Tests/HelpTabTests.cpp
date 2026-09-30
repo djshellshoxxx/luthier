@@ -41,7 +41,7 @@ namespace
         theWorkspaceTopicNamesEveryTabThatExists catches it from the real strip. */
     const char* const kCanonicalTabs[] =
     {
-        "WORKSHOP", "MOD", "RHYTHM", "TUNE", "LIVE", "ROUTING", "TONE MATCH", "CHARACTER",
+        "WORKSHOP", "MOD", "RHYTHM", "TUNE", "JAM", "LIVE", "ROUTING", "TONE MATCH", "CHARACTER",
         "PRACTICE", "NOTATION", "MIDI OUT", "CONTROLLERS", "HELP"
     };
 

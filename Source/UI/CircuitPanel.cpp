@@ -13,12 +13,12 @@ CircuitResponseView::CircuitResponseView (LuthierAudioProcessor& p)
     setTitle ("Circuit response");
     setInterceptsMouseClicks (false, false);
     refresh();
-    startTimerHz (kRefreshHz);   // SPEC-SWEEP GD-2
+    motion.startTimerHz (*this, kRefreshHz);   // SPEC-SWEEP GD-2 rate, through cpu-quality-modes 6's motion switch
 }
 
 CircuitResponseView::~CircuitResponseView()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 bool CircuitResponseView::refresh()
@@ -59,6 +59,8 @@ void CircuitResponseView::resized()
 
 void CircuitResponseView::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     auto bounds = getLocalBounds().toFloat();
 
     g.setColour (Palette::panelSunken);

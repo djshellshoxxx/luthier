@@ -31,7 +31,7 @@ The generated squeak is in place: `PlayingNoise::makeSqueak` / `onShift` impleme
 | SQ-25 (§10) | Fret-buzz coexists, no ducking | separate pools in `NoiseEngine` | n/a | `Buzz.squeakAndBuzzCoexist` | DONE |
 | SQ-26 (§10) | Slide Mode replaces finger squeak on barred strings | `LuthierEngine` `!slide.isUnderBar(s)`; `SqueakSettings::slideMode` | n/a | `Squeak.zeroIsFreeAndSlideModeSuppressesIt`, `Slide.squeakStopsUnderTheBarButNotBesideIt` | DONE |
 | SQ-27 (§10) | Fret wear raises squeak slightly — not implemented | `LuthierEngine::triggerNote` scales roughness by fret wear | n/a | `Squeak.fretWearRaisesSqueak` | DONE |
-| SQ-28 (§10) | String age multiplies roughness up to 1.4 — 3-step (1/1.15/1.4) here, untested; on realism-a: continuous `AgingFactors::roughness` into `StringNoiseInfo::fromSpec`, test SA13 | `StringNoiseInfo::fromSpec` ageRoughness | Advanced STRINGS age | (branch) `SA13` | OWNED |
+| SQ-28 (§10) | String age multiplies roughness up to 1.4 — continuous `AgingFactors::roughness` (REALISM-A) | `StringAging` roughness -> `StringNoiseInfo::fromSpec` ageRoughness | Advanced STRINGS "Age (h)"; CHARACTER STRING AGING | `StringAging.SA13_squeakReconciliation` | DONE |
 | SQ-29 (§11) | MIDI export SQUEAK class (string, start, end, dur, level); Generic drops it | `Export/LuthierMidiEvents.cpp` squeak fields; `PluginProcessor.cpp` sysEx push | MIDI OUT panel | `MidiExport.everyEventClassRoundTripsWithEveryField`, `MidiExport.genericProfileIsPlainMidi` | DONE |
 | SQ-30 (§12) | 16-generator squeak pool, textures once per material | `NoiseEngine::kPoolSizes` | n/a | `NoisePool.aFullPoolStealsTheOldest` | DONE |
 | SQ-31 (§12) | Degradation step 4 halves pool to 8 — `setDegraded` exists and is tested, but nothing calls it here; on visual: `CpuRelief::halveNoisePools` step drives `playingNoise.getPool().setDegraded` | `NoiseEngine::setDegraded` | n/a | `NoisePool.aFullPoolStealsTheOldest` | OWNED |
@@ -46,4 +46,4 @@ The generated squeak is in place: `PlayingNoise::makeSqueak` / `onShift` impleme
 | SQ-T9 (§13) | Test: zero is free over 10 000 shifts | | n/a | `Squeak.zeroIsFreeAndSlideModeSuppressesIt` | DONE |
 | SQ-T10 (§13) | Test: no allocation on the audio thread — missing | n/a | n/a | `Squeak.noAllocationOnTheAudioThread` | DONE |
 
-<!-- counts DONE=29 NO-GUI=0 NO-TEST=6 PARTIAL=3 MISSING=1 OWNED=2 -->
+<!-- counts DONE=37 NO-GUI=0 NO-TEST=1 PARTIAL=2 MISSING=0 OWNED=1 -->

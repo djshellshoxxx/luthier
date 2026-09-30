@@ -18,11 +18,14 @@
     Advanced column-4 WORKSHOP tab and the Easy-mode overlay.
 */
 
+#include "NormalizationOptions.h"   // output-normalization.md 5.4
+#include "AnimationPolicy.h"   // cpu-quality-modes 6
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Widgets.h"
 #include "Overlays.h"
 #include "FirstEncounterHint.h"
 #include "Guitar/GuitarRenderer.h"
+#include "Guitar/IllustrationMotion.h"
 #include "../Workshop/SpectrumDelta.h"
 
 namespace luthier
@@ -77,6 +80,30 @@ public:
 
     float getZoom() const noexcept { return zoom; }
 
+    /** workshop-ui.md 2: the pick shows on the bench while its tool is in use
+        (the drawer's Pick category, or the pick selected). */
+    void setPickShown (bool shown);
+    bool isPickShown() const noexcept { return pickShown; }
+
+    /** The overlay the bench paints now: capo, slide and pick from the parameters. */
+    GuitarOverlay currentOverlay() const;
+
+    /*  guitar-illustration.md 14: while a spectrum delta is being auditioned the
+        body tints warm where the candidate adds energy, cool where it takes it
+        away; the tint fades within 500 ms of the audition ending. Under reduced
+        motion it is a static label instead. `db` is the mean change. */
+    void setAuditionTint (float db, const juce::String& label);
+    void endAuditionTint();
+    float getTintAlpha (double nowMs) const noexcept;
+    juce::String getTintLabel() const { return tintLabel; }
+    static constexpr double kTintFadeMs = 500.0;
+
+    /** Where the slide rests on the bench when no note holds it (fret). */
+    float getSlideRestFret() const noexcept { return slideRestFret; }
+
+    /** Section 16's sentence for an accessory region. */
+    juce::String describeAccessory (GuitarRegion region) const;
+
 private:
     void timerCallback() override;
     GuitarRegion regionAt (juce::Point<float> px, int* stringIndex = nullptr) const;
@@ -98,13 +125,43 @@ private:
     int selectedString = -1;
 
     // Drag state
-    enum class Drag { none, pickup, saddle, pan };
+    enum class Drag { none, pickup, saddle, pan, nut, pick, pickRotate, slide, slideRotate, capo };
     Drag drag = Drag::none;
     int dragIndex = -1;
     juce::Point<float> dragStartMm;
-    double dragStartValue = 0.0;
+    double dragStartValue = 0.0, dragStartValue2 = 0.0;
+
+    // The accessories (workshop-ui.md 4): parameters, dragged with a gesture each.
+    bool pickShown = false;
+    float slideRestFret = 7.0f;
+    GuitarRegion accessoryAt (juce::Point<float> px, bool* onHandle = nullptr) const;
+    void beginParameterGesture (const char* id);
+    void endParameterGestures();
+    void setParameterPlain (const char* id, double plain);
+    double getParameterPlain (const char* id) const;
+    juce::StringArray gestureIds;
+    double lastOverlaySignature = 0.0;
+    float tintDb = 0.0f;
+    double tintEndedMs = -1.0;
+    bool tintActive = false;
+    juce::String tintLabel;
+
+    // guitar-illustration.md 12.1 / 16: committed changes crossfade over 250 ms,
+    // or under reduced motion change at once with the changed parts outlined.
+    SceneCrossfade fade;
+    std::array<bool, (size_t) GuitarRegion::numRegions> changedParts {};
+
+public:
+    bool isCrossfading() const noexcept { return fade.isActive (juce::Time::getMillisecondCounterHiRes()); }
+    bool isOutliningChanges() const noexcept { return std::find (changedParts.begin(), changedParts.end(), true) != changedParts.end(); }
+private:
+    double scaleMm() const;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BenchIllustration)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::Transition, "BenchIllustration", {}, [this] { rebuild (false); } };
 };
 
 //==============================================================================
@@ -134,7 +191,7 @@ public:
     const juce::Array<PartPtr>& getDrawerParts() const noexcept { return drawerParts; }
 
     /** A card clicked (fits) or Alt-hovered (auditions). */
-    void clickCard (int index);
+    void clickCard (int index, bool ontoSelectedString = false);
     void hoverCard (int index, bool altDown);
 
     /** The slot a card in the current category goes into. */
@@ -145,6 +202,10 @@ public:
         the second change go straight through. */
     bool switchFamily (const juce::String& family, bool confirmed);
     bool familyConfirmedThisSession = false;
+
+    /*  Section 3.3: with a string selected, the inspector's "string gauge",
+        "string wound" and "string material" rows edit that string's override. */
+    static constexpr const char* kStringFieldPrefix = "#string.";
 
     /** Section 5: edits one field of the selected part (a user copy of it). */
     bool editInspectorField (const juce::String& field, const juce::String& text);
@@ -160,6 +221,9 @@ public:
     /** Waits (pumping nothing) for the spectrum worker's newest result; tests only. */
     bool waitForSpectrum (int timeoutMs);
 
+    /*  Section 10: the spectrum delta reaches a screen reader as its summary
+        sentence, announced when a new result lands. The last one, for tests. */
+    juce::String getLastAnnouncement() const { return lastAnnouncement; }
     /** onboarding.md 9 (TUNE-HELP-ONBOARDING): the one-time hint under the
         bench header, first session only. The timer calls it while on screen. */
     bool showFirstEncounterHintIfDue();
@@ -175,6 +239,8 @@ private:
     void refreshInspector();
     void refreshDrawer();
     void requestSpectrum (int pickupIndex = -1, double positionMm = 0.0);
+    void takeSpectrum (SpectrumDelta::Result&& result);
+    juce::String lastAnnouncement;
     void paintSpectrum (juce::Graphics&, juce::Rectangle<int> area);
     void paintDrawer (juce::Graphics&, juce::Rectangle<int> area);
     void paintInspector (juce::Graphics&, juce::Rectangle<int> area);
@@ -196,10 +262,30 @@ private:
 
     juce::Label title, guitarName;
     juce::TextButton saveAsButton { "Save As Guitar" };
+
+    // output-normalization.md 5.4: the bench's muted note while normalization is on.
+    NormalizationCaption normalizationNote { processor, "workshop.normalization.note" };
+
+public:
+    NormalizationCaption& getNormalizationNote() noexcept { return normalizationNote; }
+
+private:
     juce::OwnedArray<juce::TextButton> slotButtons;
     juce::OwnedArray<juce::TextButton> categoryButtons;
     juce::TextButton swapButton { "Swap" }, revertButton { "Revert" }, savePartButton { "Save as user part" };
     juce::ToggleButton autoZoomToggle { "Auto-zoom" };
+
+    /*  Section 1's narrow layouts: below 900 points the inspector is a drawer
+        beside the illustration while a part is selected; below 700 the drawer's
+        categories are a dropdown. */
+public:
+    static constexpr int kWideBench = 900, kNarrowBench = 700;
+    bool isInspectorCollapsed() const noexcept { return inspectorCollapsed; }
+    bool isInspectorShowing() const noexcept { return ! inspectorArea.isEmpty(); }
+    bool areCategoriesADropdown() const noexcept { return categoryBox.isVisible(); }
+private:
+    juce::ComboBox categoryBox;
+    bool inspectorCollapsed = false;
 
     std::unique_ptr<LuthierKnob> actionTreble, actionBass, relief;
     juce::OwnedArray<LuthierKnob> nutDepths;

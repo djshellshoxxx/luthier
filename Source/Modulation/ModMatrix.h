@@ -144,6 +144,20 @@ public:
     /** Control rate in samples, as modulation-matrix 0.1 defines it: a
         thirty-second of the block size, floored at 128. */
     int getControlRateSamples() const noexcept { return controlRateSamples; }
+
+    /*  cpu-quality-modes 2.1: at Low the routes are evaluated every
+        `multiplier` control ticks (a ~5 ms staircase before destination
+        smoothing). Sources still tick at the base rate, so LFO and sequencer
+        timing never changes, and it stays 1 while any LFO runs above
+        `fastLfoHz`. Audio thread; takes effect at the next tick. */
+    void setControlIntervalMultiplier (int multiplier, double fastLfoHz) noexcept
+    {
+        intervalMultiplier = juce::jlimit (1, 8, multiplier);
+        intervalFastLfoHz = fastLfoHz;
+    }
+
+    /** The interval the routes are evaluated at right now, in samples. */
+    int getEffectiveControlInterval() const noexcept { return controlRateSamples * lastEffectiveMultiplier; }
     double getControlRateHz() const noexcept { return controlRateHz; }
 
     /*  SPEC-SWEEP: PR-44 / AR-15 - advanced-ranges.md 2.1: the `modulation`
@@ -320,6 +334,10 @@ private:
     std::atomic<bool> anyRoutes { false };
 
     int samplesUntilTick = 0;
+
+    // cpu-quality-modes
+    int intervalMultiplier = 1, tickCounter = 0, lastEffectiveMultiplier = 1;
+    double intervalFastLfoHz = 20.0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ModMatrix)
 };

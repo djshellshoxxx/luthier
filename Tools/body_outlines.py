@@ -2484,6 +2484,16 @@ def superstrat_inline6():
 
 
 @head
+def reverse_inline6():
+    # guitar-illustration.md 6's reverse 6-in-line: the pointed in-line head mirrored across
+    # the strings, so its tuners run along the treble edge and the low E post is the far one.
+    outline, posts, keys = pointy(204.0, 6, (40, -18.5))
+    mirrored = [k.mirrored() for k in reversed(outline)]
+    return Head("reverse_inline6", "inlineReverse", mirrored,
+                [(a, -b) for (a, b) in reversed(posts)], [(a, -b) for (a, b) in reversed(keys)], (14, 10))
+
+
+@head
 def inline7():
     # Seven-string pointed in-line headstock.
     outline, posts, keys = pointy(226.0, 7, (38, -19.5), slant=6.5, spacing=21.0)

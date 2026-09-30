@@ -25,6 +25,10 @@
 #include "AmpFacePanel.h"
 #include "PanelHelpButton.h"
 #include "NextStrumArrow.h"   // SPEC-SWEEP GD-10
+#include "NormalizationBadge.h"   // output-normalization.md 5.1
+#include "StageTouches.h"
+#include "PianoRollStrip.h"
+#include "JamWidgets.h"   // FEAT-JAM
 
 namespace luthier
 {
@@ -113,6 +117,9 @@ public:
     juce::String getRhythmHintText() const { return rhythmHintLabel.getText(); }    // SPEC-SWEEP RE-38
     void refreshRhythmStripForTest() { refreshRhythmStrip(); }                        // SPEC-SWEEP RE-38
 
+    /** For tests: the strip's JAM group (FEAT-JAM). */
+    JamStripGroup* getJamGroup() noexcept { return jamGroup.get(); }
+
     /** 3.5's dice: a random genre kit. */
     void rollRhythmDice();
 
@@ -157,8 +164,30 @@ private:
     juce::TextButton resetButton { "Reset" };
 
     LevelMeter meter;
+
+    // visual-polish.md 4 (VISUAL-WORKSHOP-QA): the VU needle and the room light.
+    VuMeter vuMeter;
+    RoomLight roomLight;
+    juce::Rectangle<int> ampCardArea;
+
+    // piano-roll-chord-display.md 1: under the guitar, 56 px (Options -> Visual aids).
+    PianoRollStrip pianoRoll { processor, false };
+
+public:
+    VuMeter& getVuMeter() noexcept { return vuMeter; }
+    RoomLight& getRoomLight() noexcept { return roomLight; }
+    PianoRollStrip& getPianoRoll() noexcept { return pianoRoll; }
+    juce::Rectangle<int> getAmpCardArea() const noexcept { return ampCardArea; }
+private:
     juce::Label chordLabel;
     double lastChordMs = -1.0e9;   // SPEC-SWEEP GD-9
+
+public:
+    /** output-normalization.md 5.1: the badge under the level meter. */
+    NormalizationBadge& getNormalizationBadge() noexcept { return normalizationBadge; }
+
+private:
+    NormalizationBadge normalizationBadge { processor };
 
     // ---- rhythm strip (3.5) ------------------------------------------------------------
     juce::Label rhythmLabel { {}, "Rhythm" };
@@ -168,6 +197,7 @@ private:
     juce::TextButton rhythmEnableButton { "OFF" };
     juce::Label rhythmHintLabel, rhythmReadout;
     std::unique_ptr<NextStrumArrow> nextStrumArrow;   // SPEC-SWEEP GD-10
+    std::unique_ptr<JamStripGroup> jamGroup;   // FEAT-JAM: jam-mode 8.2, at the strip's right end
 
     // ---- rig strip (3.2) ---------------------------------------------------------------
     LuthierKnob guitarVolumeKnob { "Volume", LuthierKnob::Size::Small };
@@ -181,10 +211,10 @@ private:
     AmpFacePanel ampFace { processor, AmpFacePanel::Style::card };
 
     LuthierChoice cabModel { "Cab" }, mic1 { "Mic 1" }, mic2 { "Mic 2" };
-    LuthierKnob micBlend { "Blend", LuthierKnob::Size::Small };
+    LuthierKnob micBlend { "Blend", LuthierKnob::Size::Normal };
 
     LuthierChoice roomSize { "Room" };
-    LuthierKnob roomMix { "Wet/Dry", LuthierKnob::Size::Small };
+    LuthierKnob roomMix { "Wet/Dry", LuthierKnob::Size::Normal };
 
     juce::Rectangle<int> rigArea, playingArea, toneArea, rhythmArea;
     juce::Array<std::pair<juce::Rectangle<int>, juce::String>> rigCards;

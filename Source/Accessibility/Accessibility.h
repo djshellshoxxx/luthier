@@ -14,6 +14,7 @@
     and is checked.
 */
 
+#include <atomic>
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include <array>
@@ -128,6 +129,27 @@ public:
     static bool writeBuiltInPalettes (const juce::File& directory);
 
     //==========================================================================
+    /*  proposals/visual-polish.md 5 (approved; VISUAL-WORKSHOP-QA): the user's
+        accent. Choice 0 is the palette's own (the aged brass); 1-5 are five
+        others; kFollowGuitar takes it from the guitar's finish. Every choice is
+        adjusted per palette until it meets 4.5:1 on the backgrounds text sits on. */
+    static constexpr int kNumAccents = 6;
+    static constexpr int kFollowGuitar = -1;
+    static juce::StringArray getAccentNames();          ///< the six, in order; "Follow the guitar" is separate
+
+    void setAccent (int choice);
+    int getAccent() const noexcept { return accentChoice; }
+
+    /** The guitar's finish colour, for kFollowGuitar (the editor keeps it current). */
+    void setGuitarAccentSource (juce::Colour finish);
+
+    /** A choice's colour on a palette, adjusted to 4.5:1 (the guitar's finish for kFollowGuitar). */
+    static juce::Colour accentFor (int choice, const PaletteColours& palette, juce::Colour guitarFinish);
+
+    /** The lowest contrast of `c` against the backgrounds text sits on in `palette`. */
+    static double accentContrast (juce::Colour c, const PaletteColours& palette) noexcept;
+
+    //==========================================================================
     void setUiScale (double scale);
     double getUiScale() const noexcept { return uiScale; }
 
@@ -157,8 +179,18 @@ public:
         (accessibility 5). */
     int getAnimationMs (int normalMs) const noexcept
     {
+        // cpu-quality-modes 4: AnimationPolicy (UI) decides once it exists;
+        // it combines Reduced motion with the CPU quality level.
+        if (auto* hook = animationMsHook.load (std::memory_order_relaxed))
+            return hook (normalMs);
+
         return reducedMotion ? 0 : normalMs;
     }
+
+    /** cpu-quality-modes 4: set by AnimationPolicy, which lives in the UI
+        sources the headless renderer does not link. */
+    using AnimationMsHook = int (*) (int) noexcept;
+    static inline std::atomic<AnimationMsHook> animationMsHook { nullptr };
 
     //==========================================================================
     void setVerbosity (Verbosity v);
@@ -214,6 +246,10 @@ private:
 
     PaletteId palette = PaletteId::defaultDark;
     PaletteColours colours;
+    PaletteColours baseColours;        ///< the palette before the accent choice
+    int accentChoice = 0;
+    juce::Colour guitarAccent { 0xff7a2e1b };
+    void applyAccent();
 
     double uiScale = 1.0;
     bool reducedMotion = false;

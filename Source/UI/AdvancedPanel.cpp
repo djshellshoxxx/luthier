@@ -300,6 +300,12 @@ AdvancedPanel::AdvancedPanel (LuthierAudioProcessor& p)
     addAndMakeVisible (fretboard);
     fretboard.setCompact (true);
 
+    // piano-roll-chord-display.md 1: the piano roll, directly under the fretboard.
+    pianoRoll = std::make_unique<PianoRollStrip> (processor, true);
+    pianoRoll->setFretboard (&fretboard);
+    pianoRoll->onLayoutChanged = [this] { resized(); repaint(); };
+    addChildComponent (*pianoRoll);
+
     fretboard.onStringSelected = [this] (int s) { setSelectedString (s); };
     guitarBody.onPickupSelected = [this] (int) {};
 
@@ -335,6 +341,23 @@ AdvancedPanel::AdvancedPanel (LuthierAudioProcessor& p)
 AdvancedPanel::~AdvancedPanel() = default;
 
 //==============================================================================
+void AdvancedPanel::setOversamplingNote (const juce::String& note)   // cpu-quality-modes 5
+{
+    if (oversampling == nullptr)
+        return;
+
+    juce::String text ("Oversampling for the nonlinear stages. Higher is cleaner and costs more CPU.");
+
+    if (note.isNotEmpty())
+        text << " " << note;
+
+    oversampling->setTooltip (text);
+
+    for (auto* child : oversampling->getChildren())
+        if (auto* client = dynamic_cast<juce::SettableTooltipClient*> (child))
+            client->setTooltip (text);
+}
+
 void AdvancedPanel::setSelectedString (int index)
 {
     selectedString = juce::jlimit (0, kMaxStrings - 1, index);
@@ -1129,6 +1152,7 @@ void AdvancedPanel::buildWorkspace()
     modMatrixPanel  = std::make_unique<ModMatrixPanel> (processor);
     rhythmPanel     = std::make_unique<RhythmPanel> (processor);
     tunePanel       = std::make_unique<TunePanel> (processor, processor.getTunePlayer(), processor.getTuneSession());
+    jamPanel        = std::make_unique<JamPanel> (processor);   // FEAT-JAM
     livePanel       = std::make_unique<LivePanel> (processor);
     routingPanel    = std::make_unique<RoutingPanel> (processor);
     toneMatchPanel  = std::make_unique<ToneMatchPanel> (processor);
@@ -1145,6 +1169,7 @@ void AdvancedPanel::buildWorkspace()
         { "MOD",         modMatrixPanel.get() },
         { "RHYTHM",      rhythmPanel.get() },
         { "TUNE",        tunePanel.get() },
+        { "JAM",         jamPanel.get() },   // FEAT-JAM: jam-mode 8.1, between TUNE and LIVE
         { "LIVE",        livePanel.get() },
         { "ROUTING",     routingPanel.get() },
         { "TONE MATCH",  toneMatchPanel.get() },
@@ -1170,6 +1195,11 @@ void AdvancedPanel::buildWorkspace()
                                                    RangeFamily::strings, RangeFamily::environment, RangeFamily::body });
         else if (juce::String (tab.name) == "MOD")   // SPEC-SWEEP: AR-15, the modulation family
             made = new RangesUi::RangeTabButton (tab.name, processor, { RangeFamily::modulation });
+        else if (juce::String (tab.name) == "JAM")   // FEAT-JAM: kit tuning and damping (jam-mode 10)
+            made = new RangesUi::RangeTabButton (tab.name, processor, { RangeFamily::jam });
+        else if (juce::String (tab.name) == "WORKSHOP")   // gui-integration 21: the bench's setup strip, pick and slide
+            made = new RangesUi::RangeTabButton (tab.name, processor,
+                                                 { RangeFamily::buzz, RangeFamily::pick, RangeFamily::slide });
         else
             made = new juce::TextButton (tab.name);
 
@@ -1304,7 +1334,7 @@ void AdvancedPanel::paint (juce::Graphics& g)
     g.fillAll (Palette::background);
 
     auto bounds = getLocalBounds().reduced (Metrics::windowPadding, Metrics::grid);
-    const int stripHeight = juce::roundToInt (bounds.getHeight() * 0.25f);
+    const int stripHeight = getGuitarStripHeight (bounds.getHeight());
     auto columnsArea = bounds.withTrimmedTop (stripHeight + Metrics::grid);
 
     g.setColour (Palette::edge);
@@ -1316,16 +1346,31 @@ void AdvancedPanel::paint (juce::Graphics& g)
         g, { bounds.getX(), bounds.getY() + stripHeight + 2, bounds.getWidth(), 1 });
 }
 
+int AdvancedPanel::getGuitarStripHeight (int boundsHeight) const
+{
+    const int rollHeight = pianoRoll != nullptr && pianoRoll->isWanted() ? pianoRoll->getPreferredHeight() + Metrics::gridHalf : 0;
+    return juce::roundToInt ((float) boundsHeight * 0.25f) + rollHeight;
+}
+
 void AdvancedPanel::resized()
 {
     auto bounds = getLocalBounds().reduced (Metrics::windowPadding, Metrics::grid);
 
     // ---- the compressed guitar strip ---------------------------------------------
-    const int stripHeight = juce::roundToInt (bounds.getHeight() * 0.25f);
+    const int stripHeight = getGuitarStripHeight (bounds.getHeight());
     auto strip = bounds.removeFromTop (stripHeight);
 
     auto guitarArea = strip.removeFromLeft (juce::jmin (260, strip.getWidth() / 3));
     guitarBody.setBounds (guitarArea);
+
+    // piano-roll-chord-display.md 1: the roll under the fretboard, its full width.
+    if (pianoRoll != nullptr)
+    {
+        pianoRoll->setVisible (pianoRoll->isWanted());
+
+        if (pianoRoll->isVisible())
+            pianoRoll->setBounds (strip.removeFromBottom (pianoRoll->getPreferredHeight()).reduced (Metrics::grid, 0));
+    }
 
     fretboard.setBounds (strip.reduced (Metrics::grid, Metrics::gridHalf));
 
@@ -1389,25 +1434,52 @@ void AdvancedPanel::resized()
     // ---- column 4: the tab strip, then whichever panel it selected ------------------
     workspaceLeft = bounds.getX();
 
-    auto tabStrip = bounds.removeFromTop (Metrics::buttonHeight);
-    workspaceTabStrip = tabStrip;
-
-    // gui-integration 20: the workspace's ? at the end of the tab strip.
-    workspaceHelp.setBounds (tabStrip.removeFromRight (Metrics::buttonHeight)
+    // gui-integration 20: the workspace's ? at the end of the (first) tab row.
+    workspaceHelp.setBounds (bounds.withHeight (Metrics::buttonHeight).removeFromRight (Metrics::buttonHeight)
                                      .withSizeKeepingCentre (PanelHelpButton::kSize + 2, PanelHelpButton::kSize + 2));
-    tabStrip.removeFromRight (Metrics::gridHalf);
+    const int tabsRight = bounds.getRight() - Metrics::buttonHeight - Metrics::gridHalf;
+    workspaceTabStrip = bounds.withHeight (Metrics::buttonHeight).withRight (tabsRight);
 
     if (! workspaceTabs.isEmpty())
     {
+        /*  The strip wraps onto more rows when one row would clip the names
+            (TODO V screenshots: at 1280 the tabs read "NE MATC", "HARACTE").
+            A tab wants its widest name plus padding. */
         const int gap = Metrics::gridHalf;
-        const int width = (tabStrip.getWidth() - gap * (workspaceTabs.size() - 1))
-                            / workspaceTabs.size();
+        const int count = workspaceTabs.size();
+        const auto font = Fonts::ui (11.0f, true);
+        const int available = tabsRight - bounds.getX();
+        int wanted = 0;
 
         for (auto* tab : workspaceTabs)
+            wanted = juce::jmax (wanted, juce::roundToInt (font.getStringWidthFloat (tab->getButtonText().toUpperCase())) + 14);
+
+        const int perRowMax = juce::jmax (1, (available + gap) / (wanted + gap));
+        const int rows = (count + perRowMax - 1) / perRowMax;
+        const int perRow = (count + rows - 1) / rows;
+        int next = 0;
+
+        for (int r = 0; r < rows; ++r)
         {
-            tab->setBounds (tabStrip.removeFromLeft (width));
-            tabStrip.removeFromLeft (gap);
+            auto tabStrip = bounds.removeFromTop (Metrics::buttonHeight).withRight (tabsRight);
+            const int inRow = juce::jmin (perRow, count - next);
+            const int width = (tabStrip.getWidth() - gap * (perRow - 1)) / perRow;
+
+            for (int i = 0; i < inRow; ++i)
+            {
+                workspaceTabs[next++]->setBounds (tabStrip.removeFromLeft (width));
+                tabStrip.removeFromLeft (gap);
+            }
+
+            workspaceTabStrip = workspaceTabStrip.getUnion (tabStrip.withX (workspaceTabStrip.getX()));
+
+            if (r < rows - 1)
+                bounds.removeFromTop (2);
         }
+    }
+    else
+    {
+        bounds.removeFromTop (Metrics::buttonHeight);
     }
 
     bounds.removeFromTop (Metrics::gridHalf);
@@ -1417,11 +1489,30 @@ void AdvancedPanel::resized()
     // The panel keeps whatever height it asked for and takes the viewport's
     // width, so the workspace scrolls vertically exactly as a column does. The
     // bench fills the space instead: it is one surface, not a list.
+    /*  Panels that size themselves (a preferred height from their content) keep
+        it; the rest fill the viewport. They used to keep "whatever height they
+        had", which for panels that never set one was the 80-point floor, so they
+        rendered as a sliver (TODO V screenshots). */
     if (auto* panel = workspaceViewport.getViewedComponent())
-        panel->setSize (juce::jmax (80, workspaceViewport.getMaximumVisibleWidth()),
-                        workshop ? juce::jmax (560, workspaceViewport.getMaximumVisibleHeight())
-                                 : panel == helpTab.get() ? juce::jmax (360, workspaceViewport.getMaximumVisibleHeight())
-                                                          : juce::jmax (80, panel->getHeight()));
+    {
+        const int visible = workspaceViewport.getMaximumVisibleHeight();
+        int height = juce::jmax (80, visible);
+
+        if (workshop)
+            height = juce::jmax (440, visible);   // the bench fits a 1280x800 window without scrolling (TODO V)
+        else if (panel == helpTab.get())
+            height = juce::jmax (360, visible);
+        else if (auto* p = dynamic_cast<TunePanel*> (panel))                 height = juce::jmax (visible, p->getPreferredHeight());
+        else if (auto* p = dynamic_cast<JamPanel*> (panel))                  height = juce::jmax (visible, p->getPreferredHeightFor (workspaceViewport.getMaximumVisibleWidth()));   // FEAT-JAM
+        else if (auto* p = dynamic_cast<MidiOutPanel*> (panel))              height = juce::jmax (visible, p->getPreferredHeight());
+        else if (auto* p = dynamic_cast<NotationPanel*> (panel))             height = juce::jmax (visible, p->getPreferredHeight());
+        else if (auto* p = dynamic_cast<PracticeSetupPanel*> (panel))        height = juce::jmax (visible, p->getPreferredHeight());
+        else if (auto* p = dynamic_cast<RhythmPanel*> (panel))               height = juce::jmax (visible, p->preferredHeight());   // issues.md 8: the STRUM group's lower rows
+        else if (panel == characterPanel.get() || panel == controllersPage.get())
+            height = juce::jmax (80, panel->getHeight());
+
+        panel->setSize (juce::jmax (80, workspaceViewport.getMaximumVisibleWidth()), height);
+    }
 }
 
 } // namespace luthier

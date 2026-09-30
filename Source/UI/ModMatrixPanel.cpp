@@ -86,6 +86,20 @@ ModSourceCard::ModSourceCard (LuthierAudioProcessor& p)
     phaseSlider.setTooltip ("LFO start phase: where a retrigger restarts it");
     seqRateSlider.setTooltip ("The sequencer's own step rate, used when Sync is off");
 
+    // Every slider row says what it is (TODO V screenshots: seven unlabelled bars).
+    for (auto [s, name] : { std::pair<juce::Slider*, const char*> { &rateSlider, "Rate" }, { &depthSlider, "Depth" },
+                            { &symmetrySlider, "Symmetry" }, { &smoothingSlider, "Smoothing" }, { &delaySlider, "Delay" },
+                            { &attackSlider, "Attack" }, { &holdSlider, "Hold" }, { &decaySlider, "Decay" },
+                            { &sustainSlider, "Sustain" }, { &releaseSlider, "Release" }, { &lengthSlider, "Length" },
+                            { &swingSlider, "Swing" }, { &followerAttackSlider, "Attack" }, { &followerReleaseSlider, "Release" },
+                            { &thresholdSlider, "Threshold" },
+                            { &phaseSlider, "Phase" }, { &seqRateSlider, "Rate" } })   // + SPEC-SWEEP's two
+    {
+        s->setName (name);
+        s->setTitle (name);
+        s->setTextBoxStyle (juce::Slider::TextBoxRight, false, 64, 18);
+    }
+
     // Rate is logarithmic: an LFO spends most of its useful life under 10 Hz.
     rateSlider.setSkewFactorFromMidPoint (2.0);
     attackSlider.setSkewFactorFromMidPoint (0.2);
@@ -164,12 +178,12 @@ ModSourceCard::ModSourceCard (LuthierAudioProcessor& p)
     history.fill (0.0f);
 
     setSlot (ModSourceSlots::lfoBase);
-    startTimerHz (20);
+    motion.startTimerHz (*this, 20);
 }
 
 ModSourceCard::~ModSourceCard()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 void ModSourceCard::setSlot (int newSlot)
@@ -411,9 +425,40 @@ void ModSourceCard::timerCallback()
     repaint (scopeBounds);
 }
 
+juce::var ModSourceCard::dragDescriptionFor (int s)
+{
+    return juce::String (kModSourceDragPrefix) + juce::String (s);
+}
+
+void ModSourceCard::mouseDrag (const juce::MouseEvent& e)
+{
+    // Only from the header row, where nothing else takes the mouse.
+    if (e.getMouseDownY() > 16 || e.getDistanceFromDragStart() < 4)
+        return;
+
+    if (auto* container = juce::DragAndDropContainer::findParentDragContainerFor (this))
+        if (! container->isDragAndDropActive())
+        {
+            auto ghost = createComponentSnapshot (getLocalBounds().withHeight (juce::jmin (getHeight(), 70)));
+            ghost.multiplyAllAlphas (0.6f);
+            container->startDragging (dragDescriptionFor (slot), this, juce::ScaledImage (ghost), true);
+        }
+}
+
 void ModSourceCard::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     auto bounds = getLocalBounds();
+
+    // Each visible slider's name, in the space its row leaves on the left.
+    g.setFont (Fonts::ui (11.0f));
+    g.setColour (Palette::textMuted);
+
+    for (auto* child : getChildren())
+        if (auto* s = dynamic_cast<juce::Slider*> (child); s != nullptr && s->isVisible() && s->getName().isNotEmpty())
+            g.drawText (s->getName(), juce::Rectangle<int> (0, s->getY(), kLabelWidth - 4, s->getHeight()),
+                        juce::Justification::centredLeft, true);
 
     auto header = bounds.removeFromTop (16);
 
@@ -474,9 +519,11 @@ void ModSourceCard::resized()
     scopeBounds = bounds.removeFromTop (34).reduced (0, 2);
     bounds.removeFromTop (2);
 
-    const int rowHeight = 18;
+    const int rowHeight = kRowHeight;
 
-    auto nextRow = [&bounds, rowHeight] { return bounds.removeFromTop (rowHeight).reduced (0, 1); };
+    // A slider's row leaves its label's width free on the left (paint draws it).
+    auto nextRow = [&bounds, rowHeight] { return bounds.removeFromTop (rowHeight).reduced (0, 2); };
+    auto sliderRow = [&nextRow] { return nextRow().withTrimmedLeft (kLabelWidth); };
 
     auto placePair = [&nextRow] (juce::Component& a, juce::Component& b)
     {
@@ -491,21 +538,21 @@ void ModSourceCard::resized()
         case SourceKind::lfo:
             placePair (shapeBox, retriggerBox);
             placePair (syncButton, bipolarButton);
-            rateSlider.setBounds (nextRow());
-            phaseSlider.setBounds (nextRow());   // SPEC-SWEEP: MM-14
+            rateSlider.setBounds (sliderRow());
+            phaseSlider.setBounds (sliderRow());   // SPEC-SWEEP: MM-14
             divisionBox.setBounds (nextRow());
-            depthSlider.setBounds (nextRow());
-            symmetrySlider.setBounds (nextRow());
-            smoothingSlider.setBounds (nextRow());
+            depthSlider.setBounds (sliderRow());
+            symmetrySlider.setBounds (sliderRow());
+            smoothingSlider.setBounds (sliderRow());
             break;
 
         case SourceKind::envelope:
-            delaySlider.setBounds (nextRow());
-            attackSlider.setBounds (nextRow());
-            holdSlider.setBounds (nextRow());
-            decaySlider.setBounds (nextRow());
-            sustainSlider.setBounds (nextRow());
-            releaseSlider.setBounds (nextRow());
+            delaySlider.setBounds (sliderRow());
+            attackSlider.setBounds (sliderRow());
+            holdSlider.setBounds (sliderRow());
+            decaySlider.setBounds (sliderRow());
+            sustainSlider.setBounds (sliderRow());
+            releaseSlider.setBounds (sliderRow());
 
             // SPEC-SWEEP: MM-18 / MM-19 / MM-20.
             placePair (envRetriggerBox, loopModeBox);
@@ -521,17 +568,17 @@ void ModSourceCard::resized()
         case SourceKind::sequencer:
             placePair (directionBox, syncButton);
             divisionBox.setBounds (nextRow());
-            seqRateSlider.setBounds (nextRow());   // SPEC-SWEEP: MM-23
-            lengthSlider.setBounds (nextRow());
-            swingSlider.setBounds (nextRow());
+            seqRateSlider.setBounds (sliderRow());   // SPEC-SWEEP: MM-23
+            lengthSlider.setBounds (sliderRow());
+            swingSlider.setBounds (sliderRow());
             break;
 
         case SourceKind::follower:
             placePair (followerSourceBox, detectionBox);
             placePair (followerStringBox, followerLogButton);   // SPEC-SWEEP: MM-25
-            followerAttackSlider.setBounds (nextRow());
-            followerReleaseSlider.setBounds (nextRow());
-            thresholdSlider.setBounds (nextRow());
+            followerAttackSlider.setBounds (sliderRow());
+            followerReleaseSlider.setBounds (sliderRow());
+            thresholdSlider.setBounds (sliderRow());
             break;
 
         case SourceKind::plain:
@@ -682,14 +729,19 @@ void ModRouteTable::cellClicked (int row, int columnId, const juce::MouseEvent& 
         return;
 
     auto& matrix = processor.getModMatrix();
+    const auto routeName = cached[(size_t) row].sourceId + " -> " + cached[(size_t) row].destinationId;
 
     switch (columnId)
     {
         case ColumnId::enabled:
+            processor.pushUndoAction ((cached[(size_t) row].enabled ? "Turn off route " : "Turn on route ") + routeName,
+                                      "mod-route-edit", {});   // action-and-undo.md 3.6
             matrix.setRouteEnabled (row, ! cached[(size_t) row].enabled);
             break;
 
         case ColumnId::remove:
+            processor.pushUndoAction ("Remove " + cached[(size_t) row].sourceId + " from "
+                                        + cached[(size_t) row].destinationId, "mod-route-delete", {});   // 3.6
             matrix.removeRoute (row);
             break;
 
@@ -702,6 +754,7 @@ void ModRouteTable::cellClicked (int row, int columnId, const juce::MouseEvent& 
         {
             const auto next = (ModCurve) (((int) cached[(size_t) row].curve + 1)
                                             % (int) ModCurve::numCurves);
+            processor.pushUndoAction ("Change curve of " + routeName, "mod-route-edit", routeName);   // 3.6
             matrix.setRouteCurve (row, next);
             break;
         }
@@ -720,6 +773,14 @@ void ModRouteTable::applyTypedValue (int row, bool isOffset, float value)
 {
     auto& matrix = processor.getModMatrix();
     const float v = juce::jlimit (-1.0f, 1.0f, value);
+
+    // action-and-undo.md 3.6 (integration's depth edit), for depth and offset alike.
+    if (juce::isPositiveAndBelow (row, (int) cached.size()))
+    {
+        const auto routeName = cached[(size_t) row].sourceId + " -> " + cached[(size_t) row].destinationId;
+        processor.pushUndoAction ((isOffset ? "Change offset of " : "Change depth of ") + routeName,
+                                  "mod-route-edit", routeName);
+    }
 
     if (isOffset)
         matrix.setRouteOffset (row, v);
@@ -799,6 +860,7 @@ ModMatrixPanel::ModMatrixPanel (LuthierAudioProcessor& p)
 
     clearButton.onClick = [this]
     {
+        processor.pushUndoAction ("Clear all modulation routes", "mod-route-delete", {});   // action-and-undo.md 3.6
         processor.getModMatrix().clearRoutes();
         routeTable->refresh();
 
@@ -878,6 +940,10 @@ void ModMatrixPanel::showAddRouteMenu()
         route.destinationId = byItemId[result - 1];
         route.depth = 0.33f;
         route.enabled = true;
+
+        if (auto* p = processor.getState().getParameter (route.destinationId))   // action-and-undo.md 3.6
+            processor.pushUndoAction ("Add " + modSourceDisplayName (card->getSlot()) + " to " + p->getName (64)
+                                        + " depth 0.33", "mod-route-create", {});
 
         processor.getModMatrix().addRoute (route);
         routeTable->refresh();

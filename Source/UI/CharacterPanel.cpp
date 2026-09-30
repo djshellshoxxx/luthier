@@ -367,12 +367,12 @@ CharacterPanel::CharacterPanel (LuthierAudioProcessor& p)
         addAndMakeVisible (*label);
 
     refreshFromEngine();
-    startTimerHz (4);
+    motion.startTimerHz (*this, 4);
 }
 
 CharacterPanel::~CharacterPanel()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 CharacterEngine& CharacterPanel::character()
@@ -395,6 +395,7 @@ void CharacterPanel::buildControls()
 
     newCharacterButton.onClick = [this]
     {
+        processor.pushUndoAction ("New character", "character-edit", "reroll");   // action-and-undo.md 3.15
         character().reroll();
         refreshFromEngine();
         deadSpotMap->refresh();
@@ -408,8 +409,11 @@ void CharacterPanel::buildControls()
     enableToggle->getButton().setClickingTogglesState (true);
     enableToggle->getButton().onClick = [this]
     {
-        if (! updatingControls)
-            character().setEnabled (enableToggle->getButton().getToggleState());
+        if (updatingControls)
+            return;
+
+        processor.pushUndoAction ("Turn character on/off", "character-edit", "enabled");   // action-and-undo.md 3.15
+        character().setEnabled (enableToggle->getButton().getToggleState());
     };
 
     enableToggle->setTooltip ("All of the instrument's physical imperfections at once.");
@@ -421,15 +425,20 @@ void CharacterPanel::buildControls()
     // Easy's macro and this slider are one control, automatable and saved.
     amountSlider.onValueChange = [this]
     {
-        if (! updatingControls)
-            if (auto* p = processor.getState().getParameter (ParamIDs::macroCharacter))
-                p->setValueNotifyingHost (juce::jlimit (0.0f, 1.0f, (float) (amountSlider.getValue() * 0.01)));
+        if (updatingControls)
+            return;
+
+        if (auto* p = processor.getState().getParameter (ParamIDs::macroCharacter))
+        {
+            processor.pushUndoAction ("Change character amount", "character-edit", "amount");   // action-and-undo.md 3.15
+            p->setValueNotifyingHost (juce::jlimit (0.0f, 1.0f, (float) (amountSlider.getValue() * 0.01)));
+        }
     };
     addAndMakeVisible (amountSlider);
 
     // ---- maps -----------------------------------------------------------------------
     refretButton.setTooltip ("New frets: clears the whole wear map.");
-    refretButton.onClick = [this] { character().refret(); fretWearMap->refresh(); };
+    refretButton.onClick = [this] { processor.pushUndoAction ("Refret", "character-edit", "refret"); character().refret(); fretWearMap->refresh(); };
     addAndMakeVisible (refretButton);
 
     // ---- tuners ---------------------------------------------------------------------
@@ -437,8 +446,11 @@ void CharacterPanel::buildControls()
     loosenessSlider.setTooltip ("How badly the machine heads hold their tuning.");
     loosenessSlider.onValueChange = [this]
     {
-        if (! updatingControls)
-            character().setTunerLooseness (loosenessSlider.getValue());
+        if (updatingControls)
+            return;
+
+        processor.pushUndoAction ("Change tuner looseness", "character-edit", "looseness");   // action-and-undo.md 3.15
+        character().setTunerLooseness (loosenessSlider.getValue());
     };
     addAndMakeVisible (loosenessSlider);
 
@@ -467,8 +479,11 @@ void CharacterPanel::buildControls()
     potLinearitySlider.setTooltip ("How far the volume pot's taper has worn from nominal.");
     potLinearitySlider.onValueChange = [this]
     {
-        if (! updatingControls)
-            character().setPotLinearityAmount (potLinearitySlider.getValue() * 0.01);
+        if (updatingControls)
+            return;
+
+        processor.pushUndoAction ("Change pot wear", "character-edit", "potLinearity");   // action-and-undo.md 3.15
+        character().setPotLinearityAmount (potLinearitySlider.getValue() * 0.01);
     };
     addAndMakeVisible (potLinearitySlider);
 
@@ -477,8 +492,11 @@ void CharacterPanel::buildControls()
                                "marked value.");
     capDriftSlider.onValueChange = [this]
     {
-        if (! updatingControls)
-            character().setCapacitorDriftRange (capDriftSlider.getValue() * 0.01);
+        if (updatingControls)
+            return;
+
+        processor.pushUndoAction ("Change capacitor drift", "character-edit", "capDrift");   // action-and-undo.md 3.15
+        character().setCapacitorDriftRange (capDriftSlider.getValue() * 0.01);
     };
     addAndMakeVisible (capDriftSlider);
 
@@ -487,8 +505,11 @@ void CharacterPanel::buildControls()
                            "Off by default, because it will surprise you.");
     jackToggle.onClick = [this]
     {
-        if (! updatingControls)
-            character().setJackIntermittentEnabled (jackToggle.getToggleState());
+        if (updatingControls)
+            return;
+
+        processor.pushUndoAction ("Toggle intermittent jack", "character-edit", "jack");   // action-and-undo.md 3.15
+        character().setJackIntermittentEnabled (jackToggle.getToggleState());
     };
     addAndMakeVisible (jackToggle);
 
@@ -496,8 +517,11 @@ void CharacterPanel::buildControls()
     boneNutToggle.setTooltip ("Bone damps the string less than a synthetic nut.");
     boneNutToggle.onClick = [this]
     {
-        if (! updatingControls)
-            character().setBoneNut (boneNutToggle.getToggleState());
+        if (updatingControls)
+            return;
+
+        processor.pushUndoAction ("Toggle bone nut", "character-edit", "boneNut");   // action-and-undo.md 3.15
+        character().setBoneNut (boneNutToggle.getToggleState());
     };
     addAndMakeVisible (boneNutToggle);
 
@@ -507,8 +531,11 @@ void CharacterPanel::buildControls()
                               "a lower air resonance and less high-frequency damping.");
     bodyAgeSlider.onValueChange = [this]
     {
-        if (! updatingControls)
-            character().setBodyAge (bodyAgeSlider.getValue());
+        if (updatingControls)
+            return;
+
+        processor.pushUndoAction ("Change body age", "character-edit", "bodyAge");   // action-and-undo.md 3.15
+        character().setBodyAge (bodyAgeSlider.getValue());
     };
     addAndMakeVisible (bodyAgeSlider);
 
@@ -520,6 +547,7 @@ void CharacterPanel::buildControls()
     allFreshButton.setTooltip ("A machine-perfect instrument: no wear of any kind.");
     allFreshButton.onClick = [this]
     {
+        processor.pushUndoAction ("Character: all fresh", "character-edit", "allFresh");   // action-and-undo.md 3.15
         character().setAllFresh();
         refreshFromEngine();
         deadSpotMap->refresh();
@@ -529,6 +557,7 @@ void CharacterPanel::buildControls()
     allOldButton.setTooltip ("A well-used one, for comparison.");
     allOldButton.onClick = [this]
     {
+        processor.pushUndoAction ("Character: all old", "character-edit", "allOld");   // action-and-undo.md 3.15
         character().setAllOld();
         refreshFromEngine();
         deadSpotMap->refresh();
@@ -621,6 +650,8 @@ int CharacterPanel::preferredHeight() const
 
 void CharacterPanel::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     g.setColour (Palette::panel);
     g.fillRoundedRectangle (getLocalBounds().toFloat(), 4.0f);
 

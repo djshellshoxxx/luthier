@@ -6,6 +6,7 @@
 #include "Parameters.h"
 #include "Presets/PresetManager.h"
 #include "Support/MidiLearn.h"
+#include "Support/UndoHistory.h"
 #include "Support/MidiCapture.h"
 #include "Capture/PerformanceCapture.h"
 #include "Presets/PresetMorph.h"
@@ -43,6 +44,11 @@
 #include "Controllers/ControllerStage.h"   // SPEC-SWEEP CT-2/CT-7
 #include "Support/CommandQueue.h"         // SPEC-SWEEP UW-5
 #include "Live/ExpressionStage.h"          // SPEC-SWEEP IR-11
+#include "Jam/JamEngine.h"   // FEAT-JAM
+#include "Support/OutputNormalization.h"   // output-normalization.md
+#include "Support/QualityController.h"   // cpu-quality-modes
+#include "Support/InstallLayout.h"
+#include "Support/SoundingNotesPublisher.h"
 
 namespace luthier
 {
@@ -61,6 +67,9 @@ public:
     void releaseResources() override;
     bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+
+    /** cpu-quality-modes 2.6: an offline bounce renders at High. Any thread. */
+    void setNonRealtime (bool isNonRealtime) noexcept override;
 
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override { return ! LUTHIER_HEADLESS; }
@@ -87,6 +96,15 @@ public:
 
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
+
+    /*  output-normalization.md 6: undo, redo and A/B recall restore the sound
+        only; the host restores everything, the normalization setting included. */
+    enum class RestoreScope { full, soundOnly };
+    void restoreState (const void* data, int sizeInBytes, RestoreScope scope);
+
+    /** output-normalization.md: the switch, the target, the calibration. */
+    OutputNormalization& getOutputNormalization() noexcept { return outputNormalization; }
+    OutputNormalization::Status getNormalizationStatus() const { return outputNormalization.getStatus(); }
 
     //==========================================================================
     LuthierEngine&      getEngine() noexcept        { return engine; }
@@ -204,6 +222,16 @@ public:
         clock, so this returns before the fade has finished. */
     bool recallSnapshot (int index);
 
+    /*  action-and-undo.md 3.7: the UI's save and recall, each one entry
+        ("Save snapshot [i] [name]", "Recall snapshot [i] [name]"). MIDI and
+        setlist recalls use recallSnapshot and push nothing. */
+    bool captureSnapshotAsUserAction (int index, const juce::String& label = {});
+    bool recallSnapshotAsUserAction (int index);
+    void renameSnapshotAsUserAction (int index, const juce::String& label);
+    void setSnapshotColourAsUserAction (int index, int colourTag);
+    /** `removeSlot` erases the slot (the bank shifts); false empties it in place. */
+    void deleteSnapshotAsUserAction (int index, bool removeSlot);
+
     void nextSnapshot();
     void previousSnapshot();
 
@@ -222,10 +250,11 @@ public:
 
     /** Loads a setlist file and moves to its first entry. */
     bool loadSetlist (const juce::File& file);
+    const juce::File& getSetlistFile() const noexcept { return setlistFile; }
 
     /** Applies the setlist's current entry - its preset and its snapshot - and
         pre-loads the one after it. */
-    bool applyCurrentSetlistEntry();
+    bool applyCurrentSetlistEntry (bool asUndoStep = true);   // action-and-undo.md 3.10
 
     //==========================================================================
     // The practice tools (practice-tools.md).
@@ -366,6 +395,16 @@ public:
     void setCapoPart (const PartPtr& capo);
     PartPtr getCapoPart() const noexcept { return capoPart; }
 
+    /*  The fitted slide (guitar-workshop.md 2, the drawer's Slide card): the
+        engine plays its material, mass and size (slide-guitar.md 2.1). Travels
+        in the preset's guitar block like the capo; nullptr is the engine's own
+        default bar, which is what a preset without one gets (VISUAL-WORKSHOP-QA). */
+    void setSlidePart (const PartPtr& slidePart);
+    PartPtr getSlidePart() const noexcept { return slidePart; }
+
+    /** A slide part's bar as the engine takes it; the default bar for nullptr. */
+    static SlideBar slideBarFor (const Part* slidePart);
+
     /** "Factory/<Family>/<Name>.luthierguitar" or "User/<Name>.luthierguitar". */
     const juce::String& getGuitarReference() const noexcept { return guitarReference; }
 
@@ -430,6 +469,17 @@ public:
     void releasePreviewNote (int stringIndex);
 
     //==========================================================================
+    // piano-roll-chord-display.md 2-3: what the strings sound (published by the
+    // audio thread every block) and notes played from the piano roll's keys,
+    // which reach the engine as channel 1 MIDI like any other note.
+    const SoundingNotes& getSoundingNotes() const noexcept { return soundingNotes; }
+    void playKeyboardNote (int midiNote, float velocity);
+    void releaseKeyboardNote (int midiNote);
+    /** Every note-on at the same sample, so the interpreter strums them as one chord. */
+    void playKeyboardChord (const juce::Array<int>& midiNotes, float velocity);
+    void releaseKeyboardChord (const juce::Array<int>& midiNotes);
+
+    //==========================================================================
     /** Releases every string and clears all state. The Panic button. */
     void panic();
 
@@ -477,6 +527,50 @@ public:
         audio thread and feeds the calibration wizard what the pedal sent. The
         processor's timer calls it; so can a test. Message thread. */
     void serviceExpressionCalibration();
+    // Jam mode (jam-mode.md, FEAT-JAM): the band beside the metronome and looper.
+
+    JamEngine&        getJam() noexcept        { return jam; }
+    JamStyleLibrary&  getJamStyles() noexcept  { return jamStyles; }
+
+    /** START / STOP as the J key, the pills and the button (2.1, 2.2). Not
+        undoable (12): transport, like tap tempo. */
+    void jamStartStop();
+    void jamFill();
+
+    /** Alt+J: arms (jam_enabled on) or disarms the band. */
+    void jamArmToggle();
+
+    /** The preset's `jam` block (12). */
+    juce::var getJamBlock() const;
+    void setJamBlock (const juce::var& block);
+
+    /** Picks a user style file (12): one undo entry, "jam-style-file". A
+        malformed file falls back (13) and the warning is returned. */
+    juce::String loadJamStyleFile (const juce::File& file);
+    const juce::String& getJamStyleRef() const noexcept { return jamStyleRef; }
+    const juce::String& getJamStyleWarning() const noexcept { return jamStyleWarning; }
+
+    bool isJamRhythmKitLinked() const noexcept { return jamLinkRhythmKit; }
+    void setJamRhythmKitLinked (bool linked);
+
+    /** 11: "Metronome goes quiet while the band plays", a user preference the
+        editor mirrors here (default on). */
+    void setJamSilencesMetronome (bool silences) noexcept { jamSilencesMetronome.store (silences, std::memory_order_relaxed); }
+    bool doesJamSilenceMetronome() const noexcept { return jamSilencesMetronome.load (std::memory_order_relaxed); }
+
+    /** 8.4: Separate was asked for and the layout has no aux (A or C). */
+    bool isJamSeparateFallingBack() const noexcept { return jamSeparateFallback.load (std::memory_order_relaxed); }
+
+    /** 11: the tune's percussion layer is being replaced by the Jam drums. */
+    bool isTunePercussionReplacedByJam() const noexcept { return jamReplacesPercussion.load (std::memory_order_relaxed); }
+
+    /** The Jam's message-thread work: jam_play mirrored to the band's state,
+        jam_fill_now reset, the linked rhythm kit, garbage (the timer's; tests
+        call it). */
+    void serviceJam();
+
+    /** Tune percussion note-ons that reached the engine so far (JM-42). */
+    int getTunePercussionToEngine() const noexcept { return tunePercussionToEngine.load (std::memory_order_relaxed); }
 
     /** Restores every parameter, the MIDI map and the UI state to defaults. */
     void resetEverything();
@@ -524,15 +618,40 @@ public:
 
         JUCE_DECLARE_NON_COPYABLE (ScopedUndoAction)
     };
-    bool canUndo() const noexcept { return undoPosition >= 0; }
+    bool canUndo() const noexcept { return undoHistory.canUndo(); }
 
     /** How many actions can be undone (tests, and the Edit menu's count). */
-    int getNumUndoSteps() const noexcept { return undoPosition + 1; }
-    bool canRedo() const noexcept { return undoPosition + 1 < undoStack.size(); }
+    int getNumUndoSteps() const noexcept { return undoHistory.getNumUndoSteps(); }
+    bool canRedo() const noexcept { return undoHistory.canRedo(); }
     void undo();
     void redo();
+
+    // ---- action-and-undo.md 1, 4, 5, 9, 12 (the stack lives in Support/UndoHistory) ----
+    /** An entry with a class and target, so repeats within 200 ms group (4). */
+    void pushUndoAction (const juce::String& description, const juce::String& actionClass,
+                         const juce::String& target);
+    /** A state boundary (5): preset / guitar load, family switch, setlist step. */
+    void pushUndoBoundary (const juce::String& description, const juce::String& actionClass = {});
+    /** An entry for state outside the blob: undo/redo call the functions. */
+    void pushUndoCallback (const juce::String& description, const juce::String& actionClass,
+                           const juce::String& target, std::function<void()> undoFn,
+                           std::function<void()> redoFn);
+    bool isUndoStoppedAtBoundary() const noexcept { return undoHistory.isStoppedAtBoundary(); }
+    /** Ctrl-Alt-Z: one undo that may cross a boundary. */
+    void undoAcrossBoundary();
+    int getNumRedoSteps() const noexcept { return undoHistory.getNumRedoSteps(); }
+    /** Newest first; stepsBack undos reach the state before each entry. */
+    juce::Array<UndoHistory::Item> getUndoHistory (int maxItems = UndoHistory::kMaxEntries) const { return undoHistory.getHistory (maxItems); }
+    /** Undoes `steps` entries, crossing boundaries (the history list's click). */
+    void undoSteps (int steps);
+    void setUndoClock (std::function<double()> clock) { undoHistory.setClock (std::move (clock)); }
     juce::String getUndoDescription() const;
     juce::String getRedoDescription() const;
+
+    /*  action-and-undo.md 3.8: a preset load from the UI - one entry named
+        "Load preset [name]", the load, then the engine update. */
+    bool loadPresetAsUserAction (int index);
+    bool stepPresetAsUserAction (bool forward);
 
     //==========================================================================
     // UI state that belongs with the plugin rather than with the editor.
@@ -554,9 +673,30 @@ public:
 
         /** workshop-ui.md 7: the bench's eight A/B guitars, workspace not preset. */
         std::array<juce::var, 8> benchSlots;
+
+        /** cpu-quality-modes 3: this instance's CPU quality, or the global one. */
+        QualityOverride qualityOverride = QualityOverride::Global;
+        // piano-roll-chord-display.md 6: session state, not preset data.
+        bool pianoRollExpanded = true;
+        int  pianoRollHeight = 72;
+        bool pianoLatch = false;
+        bool pianoShowFingering = false;
+        juce::Array<int> pianoLatchedNotes;
     };
 
     UiState& getUiState() noexcept { return uiState; }
+
+    //==========================================================================
+    // cpu-quality-modes: the CPU quality level and Luthier's own load.
+    QualityController& getQualityController() noexcept { return qualityController; }
+    const CpuLoadMonitor& getCpuLoadMonitor() const noexcept { return cpuLoad; }
+    CpuLoadMonitor& getCpuLoadMonitorForTesting() noexcept { return cpuLoad; }   // CQ-19 E3
+
+    /** Sets uiState.qualityOverride and applies it (not undoable: 9). */
+    void setQualityOverride (QualityOverride o);
+
+    /** The level the engine last applied, and whether E3 is armed. */
+    QualityLevel getAppliedQualityLevel() const noexcept { return (QualityLevel) appliedQuality.load (std::memory_order_relaxed); }
 
     /** Host tempo, updated each block. */
     double getHostTempo() const noexcept { return hostTempo.load(); }
@@ -566,6 +706,10 @@ public:
 
     /** Factory used by the exporter to make an offline instance. */
     static std::unique_ptr<juce::AudioProcessor> createOfflineInstance();
+
+    /** installer.md 6: what the constructor's first-run check found (first run,
+        or the version this install upgraded from). */
+    const InstallLayout::Result& getInstallLayoutResult() const noexcept { return installLayoutResult; }
 
 private:
     /** The advertised bus layout. A static member because BusesProperties is
@@ -644,6 +788,16 @@ public:
 
 private:
     ModMatrix modMatrix;
+
+    // cpu-quality-modes: declared before anything that reads them.
+    CpuLoadMonitor cpuLoad;
+    QualityController qualityController { cpuLoad };
+    std::atomic<int> appliedQuality { -1 };
+    int lastAppliedQuality = -1;
+    bool lastNonRealtime = false;
+    juce::int64 samplesSinceStringDrop = 0;
+    void applyQualityForBlock (bool forceHard) noexcept;
+    void stampBlockLoad (double busySeconds, int numSamples) noexcept;
     PatternLibrary patternLibrary;
     GenreKitLibrary genreKits;
 
@@ -678,6 +832,27 @@ private:
         monitor aux bus, because it must not be summed into the main output: the
         whole point of it is that the audience does not hear it. */
     juce::AudioBuffer<float> monitorBuffer;
+
+    // --- jam mode (FEAT-JAM) ---------------------------------------------------------
+    JamStyleLibrary jamStyles;
+    JamEngine jam;
+    juce::MidiBuffer jamNotes, jamTuneBass, jamScratch;
+    juce::AudioBuffer<float> jamMain;
+    juce::String jamStyleRef, jamStyleWarning;
+    bool jamLinkRhythmKit = false;
+    int jamLinkedStyle = -1;
+    std::atomic<bool> jamSilencesMetronome { true }, jamSeparateFallback { false }, jamReplacesPercussion { false };
+    std::atomic<bool> jamTuneHasBass { false };
+    std::atomic<int> tunePercussionToEngine { 0 };
+    std::atomic<double> jamBlockWallMs { 0.0 };
+    bool jamWasEnabled = false;
+    int jamMirrorState = -1;
+    double jamMirrorSince = 0.0;
+    int jamLooperState = 0;
+    std::atomic<float>* jamOutputRaw = nullptr;   ///< looked up once: a lookup by ID allocates
+
+    void onJamTimeline (const TuneTimeline& timeline);
+    void mixJam (juce::AudioBuffer<float>& mainOut, int numSamples) noexcept;
 
     // --- practice tools ---------------------------------------------------------------
     Metronome metronome;
@@ -736,6 +911,7 @@ private:
     bool loadGuitarFrom (const juce::String& reference, const juce::var& override,
                          GuitarType type, bool writeParameters);
     void writeGuitarParameters (const DerivedAcoustics& derived);
+    bool guitarLoadKeepsHostWrites = false;   ///< only a type load defers to the host's writes
 
     /** strum-dynamics 4 / bass-techniques 8: moves the strum parameters still on
         one family's defaults to the other's. */
@@ -761,7 +937,9 @@ private:
     static juce::File resolveGuitarReference (const juce::String& reference);
 
     PartLibrary partLibrary;
+    InstallLayout::Result installLayoutResult;   // installer.md 6
     PartPtr capoPart;
+    PartPtr slidePart;   // VISUAL-WORKSHOP-QA: the fitted slide
     WorkshopGuitar currentGuitar;
     WorkshopBench bench { *this };
     bool partsGuitarLoaded = false;
@@ -783,6 +961,17 @@ private:
         and are the refinements to keep, so the load must not overwrite them
         with the guitar's own values. */
     bool guitarParametersFromState = false;
+
+    /*  A factory preset or a reset names its guitar's parts as the winners
+        (guitar block "partsWin") and lists the recipe values to restore over
+        them ("keep", parameter id -> normalised). Applied after the parts are
+        written, then cleared. Message thread. */
+    juce::NamedValueSet pendingGuitarKeep;
+
+    /** Set with partsWin: the parts are written even over values the preset or
+        reset has just written (which the writtenSinceGuitarType guard would
+        otherwise take for the host's). Cleared after the load. */
+    bool guitarPartsWin = false;
 
     /*  live-performance 2: a program change or bank select arrives on the audio
         thread, but acting on either can allocate - a snapshot recall walks the
@@ -886,6 +1075,10 @@ private:
     juce::MidiBuffer previewMidi;
     juce::CriticalSection previewLock;
 
+    // --- piano-roll-chord-display.md 2 ---------------------------------------------
+    SoundingNotes soundingNotes;
+    SoundingNotesPublisher soundingPublisher;
+
     // --- A/B and undo -------------------------------------------------------------
     juce::MemoryBlock slotA, slotB;
     bool slotBActive = false;
@@ -902,26 +1095,18 @@ private:
     void parameterValueChanged (int parameterIndex, float newValue) override;
     void parameterGestureChanged (int parameterIndex, bool gestureIsStarting) override;
 
-    struct UndoEntry
-    {
-        /** The state before the action. */
-        juce::MemoryBlock state;
+    void undoOnce (bool crossBoundary);
 
-        /** The state after it, filled in when the action is undone. */
-        juce::MemoryBlock redoState;
-
-        juce::String description;
-    };
-
-    void addUndoEntry (UndoEntry&& entry);
+    /*  action-and-undo.md 3.17 / 7: restores an entry's state but leaves the
+        session layers (view, Live Mode, A/B, locks, tune, metronome) alone. */
+    void applyUndoState (const juce::MemoryBlock& state);
+    bool restoringForUndo = false;
 
     bool gestureUndoSuppressed = false;
 
-    juce::Array<UndoEntry> undoStack;
-    int undoPosition = -1;
-
-    /** action-and-undo.md 2. */
-    static constexpr int kMaxUndoSteps = 200;
+    UndoHistory undoHistory;   // action-and-undo.md
+    juce::File setlistFile;    // ui-wiring 17: the loaded setlist's reference
+    double gestureStartMs = 0.0;
 
     /*  The state as it was when the current gesture started, held until the
         gesture ends and we know whether anything actually changed. */
@@ -964,6 +1149,9 @@ private:
     std::array<float, kLatencyFifo> latencyMeasurements {};
     void captureLatencyMeasurements (const juce::MidiBuffer& midi) noexcept;
     void applyEngineCommand (const EngineCommand& command) noexcept;
+    // output-normalization.md: declared last, so every parameter and the engine
+    // exist when its change tracker is built.
+    OutputNormalization outputNormalization { *this };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LuthierAudioProcessor)
 };

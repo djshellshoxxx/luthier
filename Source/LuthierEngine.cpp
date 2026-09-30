@@ -11,6 +11,9 @@ LuthierEngine::LuthierEngine()
 {
     spec = GuitarLibrary::get (guitarType);
 
+    partsStringMaterial.fill (-1);   // workshop-ui.md 3.3: no string overrides until a parts guitar sets them
+    partsStringWound.fill (-1);
+
     for (int i = 0; i < kMaxStrings; ++i)
     {
         strings[(size_t) i].setIndex (i);
@@ -19,6 +22,8 @@ LuthierEngine::LuthierEngine()
         stringMidiNote[(size_t) i] = -1;
         vibratoAmount[(size_t) i] = 0.0;
     }
+
+    resetSoundingState();   // animated-strings.md 4.1
 }
 
 LuthierEngine::~LuthierEngine()
@@ -116,8 +121,10 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
     postEffects.setPosition (EffectsChain::Position::PostAmp);
     cabinet.prepare (sr, maxBlock);
     room.prepare (sr, maxBlock);
+    setOversamplingFactor (oversamplingFactor);   // performance-budget.md 7: the rate's effective factor
     secret.prepare (sr);
     master.prepare (sr, maxBlock);
+
     freezeOverlay.prepare (sr, 2);
 
     // --- scratch --------------------------------------------------------------
@@ -253,6 +260,10 @@ void LuthierEngine::reset() noexcept
     numScheduled = 0;
     samplePosition = 0;
 
+    // animated-strings.md 4.1: the display snapshot forgets the last render too.
+    resetSoundingState();
+    publishSoundingNotes();
+
     // The tone strip's ramps land where they are heading, like every smoother.
     inputGainNow = inputGainTarget.load (std::memory_order_relaxed);
     outputMixNow = outputMixTarget.load (std::memory_order_relaxed);
@@ -334,6 +345,9 @@ void LuthierEngine::setGuitarType (GuitarType type)
     if (hasPartsOverride)
         customGauges.fill (0.0);
 
+    partsStringMaterial.fill (-1);   // workshop-ui.md 3.3: a compiled type has no string overrides
+    partsStringWound.fill (-1);
+
     hasPartsOverride = false;
     partsSustain = fretBrightnessFactor = nutBrightnessFactor = magnetSustain = 1.0;
 
@@ -358,7 +372,13 @@ void LuthierEngine::applyWorkshopGuitar (const DerivedAcoustics& d, GuitarType s
     hasPartsOverride = true;
 
     for (int i = 0; i < kMaxStrings; ++i)
+    {
         customGauges[(size_t) i] = i < (int) d.gaugesIn.size() ? d.gaugesIn[(size_t) i] : 0.0;
+
+        // workshop-ui.md 3.3: per-string overrides.
+        partsStringMaterial[(size_t) i] = i < (int) d.stringMaterialOverride.size() ? d.stringMaterialOverride[(size_t) i] : -1;
+        partsStringWound[(size_t) i] = i < (int) d.stringWoundOverride.size() ? d.stringWoundOverride[(size_t) i] : -1;
+    }
 
     partsBody = d.body;
 
@@ -853,15 +873,19 @@ void LuthierEngine::refreshStringPhysics()
     {
         const double openHz = tuning.getEffectiveOpenFrequency (i);
 
+        // workshop-ui.md 3.3: a parts guitar may override one string's material or winding.
         // string-aging.md 5: the spec is always Fresh; the set's age comes
         // from StringAging, per string, as multipliers on the string.
-        auto s = StringMaterials::computeSpec (spec.stringMaterial,
+        const int materialOverride = partsStringMaterial[(size_t) i];
+
+        auto s = StringMaterials::computeSpec (materialOverride >= 0 ? (StringMaterial) materialOverride : spec.stringMaterial,
                                                spec.stringGauge,
                                                StringAge::Fresh,
                                                i,
                                                openHz,
                                                spec.scaleLengthMm,
-                                               customGauges[(size_t) i]);
+                                               customGauges[(size_t) i],
+                                               partsStringWound[(size_t) i]);
 
         // Validator check 1: a tuning that would need an impossible tension is
         // corrected, and the correction is logged.
@@ -1070,12 +1094,24 @@ void LuthierEngine::setVibratoShape (Lfo::Shape s) noexcept
         vibratoLfo[(size_t) i].setShape (s);
 }
 
+int LuthierEngine::effectiveOversamplingFactor (int userFactor, double sampleRate) noexcept
+{
+    int factor = juce::jlimit (1, 8, userFactor);
+
+    if (sampleRate > 176400.0 + 1.0)
+        factor /= 4;
+    else if (sampleRate > 96000.0 + 1.0)
+        factor /= 2;
+
+    return juce::jmax (1, factor);
+}
+
 void LuthierEngine::setOversamplingFactor (int factor) noexcept
 {
+    // cpu-quality-modes 2.2: this is the nominal factor; the quality level
+    // caps what actually runs (LuthierEngineQuality.cpp).
     oversamplingFactor = juce::jlimit (1, 8, factor);
-    amp.setOversamplingFactor (oversamplingFactor);
-    preEffects.setOversamplingFactor (oversamplingFactor);
-    postEffects.setOversamplingFactor (oversamplingFactor);
+    applyOversamplingForQuality (true);
 }
 
 void LuthierEngine::setTempoBpm (double bpm) noexcept
@@ -1104,6 +1140,15 @@ void LuthierEngine::panic() noexcept
     scrape.stopAll();
     slap.reset();
     numScheduled = 0;
+
+    // qa-polish.md 2.3 (the state fuzz): a playing-noise voice and the
+    // sympathetic coupling's memory outlived a panic and kept the strings
+    // sounding; a panic silences them too.
+    playingNoise.reset();
+    coupling.reset();
+    noteSustainScale.fill (1.0);
+    bridgeOutputs.fill (0.0);
+    couplingInputs.fill (0.0);
     resetRealismB();   // REALISM-B: string-interaction.md 9, panic clears the runtime flags
 }
 
@@ -1467,6 +1512,14 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
 
     lastExcitation[(size_t) s] = p;   // REALISM-B: for the tests (FA-09)
     str.excite (p);
+    qualityNoteOn (s);   // cpu-quality-modes 2.4
+
+    // animated-strings.md 4.1: where and how this note is stopped, for the display.
+    noteStartSample[(size_t) s] = blockStartSample + activeSampleOffset;
+    notePluckPosition[(size_t) s] = (float) p.pluckPosition;
+    noteStopKind[(size_t) s] = slide.isUnderBar (s) ? SoundingNotes::slide
+                             : e.technique == Technique::Tap ? SoundingNotes::tapped
+                             : fret > 0.0 ? SoundingNotes::fretted : SoundingNotes::open;
 
     {
         const juce::int64 now = blockStartSample + activeSampleOffset;
@@ -1665,6 +1718,11 @@ void LuthierEngine::playSlapStrike (const SlapStrike& strike, double pitchHz, do
         str.snapToFrequency (pitchHz);
 
     str.excite (p);
+    qualityNoteOn (s);   // cpu-quality-modes 2.4
+
+    // animated-strings.md 4.1: a slap's strike restarts the display's envelope too.
+    noteStartSample[(size_t) s] = blockStartSample + activeSampleOffset;
+    notePluckPosition[(size_t) s] = (float) p.pluckPosition;
 
     if (! fretless)
     {
@@ -1840,6 +1898,7 @@ void LuthierEngine::applyNoteOff (const NoteOffEvent& e) noexcept
     // sustain-and-decay.md 5: open strings, a bar and a fretless neck do not sag.
     const double releaseFret = (fretless || slide.isUnderBar (s)) ? 0.0 : currentFret[(size_t) s];
     strings[(size_t) s].release (e.letRing || ebowHolds, releaseFret);
+    qualityNoteOff (s, e.letRing || ebowHolds);   // cpu-quality-modes 2.4
     slide.noteOff (s);
     stringMidiNote[(size_t) s] = -1;
 
@@ -2067,6 +2126,12 @@ void LuthierEngine::updatePerBlockModulation (int numSamples) noexcept
             const double slideVibrato = SlideEngine::vibratoCents (vib / 10.0, contact, spec.scaleLengthMm);
             const double raw = contact + (bend + whammyCents + slideVibrato) / 100.0;
 
+            // animated-strings.md 4.1: the display stops the string at the contact; the
+            // bar's vibrato and the whammy are not a push across the neck (2.4).
+            slideStopFret[(size_t) s] = contact;
+            fingerBendCents[(size_t) s] = bend;
+            pitchOffsetCents[(size_t) s] = (contact - currentFret[(size_t) s]) * 100.0 + bend + whammyCents + slideVibrato;
+
             hz = tuning.computeFrequency (s, slide.assist (s, raw, numSamples), 0.0);
         }
         else
@@ -2074,6 +2139,10 @@ void LuthierEngine::updatePerBlockModulation (int numSamples) noexcept
             hz = tuning.computeFrequency (s, currentFret[(size_t) s],
                                           bend + whammyCents + vib + magnetDetuneCents + scrape.getPitchOffsetCents (s)
                                             + environment.fretCents (s, currentFret[(size_t) s]));   // environment.md 2.5
+
+            slideStopFret[(size_t) s] = -1.0;           // animated-strings.md 4.1
+            fingerBendCents[(size_t) s] = bend + vib;   // finger bend and vibrato only (2.4)
+            pitchOffsetCents[(size_t) s] = bend + whammyCents + vib;
         }
 
         strings[(size_t) s].setTargetFrequency (hz);
@@ -2437,6 +2506,8 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
     const auto startTicks = juce::Time::getHighResolutionTicks();
 
+    qualityPerBlock();   // cpu-quality-modes 2.4: exemptions, ring-out, the ringing cap
+
     blockStartSample = samplePosition;
     lastSubBlockNumSamples = numSamples;
 
@@ -2656,13 +2727,31 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         std::array<double, kMaxStrings> hz {}, levels {};
         std::array<bool, kMaxStrings> wound {};
 
+        // Above the note, the loop locks on the string's own partial 2^bias,
+        // which dispersion stretches a little sharp of the plain multiple: the
+        // note handed over is scaled so that note * 2^bias lands on it.
+        const int bias = feedbackLoop.getSettings().octaveBias;
+        const int partial = bias > 0 ? (1 << bias) : 1;
+
         for (int s = 0; s < numStrings; ++s)
         {
-            hz[(size_t) s] = strings[(size_t) s].getCurrentFrequency();
-            levels[(size_t) s] = strings[(size_t) s].getLevel();
+            auto& str = strings[(size_t) s];
+            double stretch = 1.0;
+
+            if (partial > 1)
+            {
+                const double first = str.getPartialFrequency (1);
+                stretch = first > 0.0 ? str.getPartialFrequency (partial) / ((double) partial * first) : 1.0;
+            }
+
+            hz[(size_t) s] = str.getCurrentFrequency() * stretch;
+            levels[(size_t) s] = str.getLevel();
             wound[(size_t) s] = stringSpecs[(size_t) s].wound;
         }
 
+        // What lies between the strings and the amp's output that is the
+        // plug-in's latency, not the room's (FeedbackLoop::setProcessingLatency).
+        feedbackLoop.setProcessingLatency (preEffects.getLatencySamples() + amp.getLatencySamples());
         feedbackLoop.beginBlock (hz.data(), levels.data(), wound.data(), numStrings);
     }
 
@@ -2749,7 +2838,6 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         const double bodyDrive = slap.isBodyTapSounding() ? slap.nextBodyDrive() : 0.0;
         slapBodyDrive[(size_t) i] = bodyDrive;
 
-        const double fbAmp = feedbackOn ? feedbackLoop.delayedAmp (i) : 0.0;
         double fbSum = 0.0;
 
         coupling.process (bridgeOutputs.data(), couplingInputs.data());
@@ -2799,7 +2887,7 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
             // through the air, at this string's own note.
             if (feedbackOn)
             {
-                const double fb = feedbackLoop.process (s, fbAmp);
+                const double fb = feedbackLoop.process (s, i);
                 couplingIn += fb;
                 fbSum += fb;
             }
@@ -2930,6 +3018,10 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         // noise-floor.md 2.3 / 2.4: the passive hiss at the EMF, the cable after the pots.
         if (noiseFloorOn)
             instrument += noiseFloor.circuitInSample (i);
+
+        // performance-budget.md 4: the pre-circuit DI is the pickup signal
+        // itself (or the re-amped sidechain, which has no guitar circuit).
+        preCircuitBuffer[(size_t) i] = sidechainToAmp ? sanitise (readSidechain (i)) : sanitise (instrument);
 
         instrument = circuit.process (instrument);
 
@@ -3183,6 +3275,8 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     }
 
 
+    qualityAfterBlock (buffer);   // cpu-quality-modes 2.5: silence for a hard switch
+
     samplePosition += numSamples;
 
     // ---- CPU estimate ----------------------------------------------------------
@@ -3191,8 +3285,14 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     const double budget = (double) numSamples / sr;
     const double instant = (budget > 0.0) ? (elapsed / budget) * 100.0 : 0.0;
 
+    publishSoundingNotes();   // animated-strings.md 4.1: immediately before the CPU estimate
+
     cpuEstimate.store (cpuEstimate.load (std::memory_order_relaxed) * 0.9 + instant * 0.1,
                        std::memory_order_relaxed);
+
+    // performance-budget.md 8's relief ladder is superseded by cpu-quality-modes
+    // 7: the processor's CpuLoadMonitor feeds QualityController (E1 / E2) and
+    // the audio-thread E3 drop; the noise pools halve only at Low.
 }
 
 //==============================================================================
@@ -3206,6 +3306,7 @@ int LuthierEngine::getLatencySamples() const noexcept
     latency += postEffects.getLatencySamples();
     latency += amp.getLatencySamples();
     latency += midi.getLatencySamples();
+    latency += master.getLatencySamples();   // performance-budget.md 10.6: the limiter's lookahead
 
     return latency;
 }
@@ -3258,12 +3359,15 @@ int LuthierEngine::getPerStringLatencySamples() const noexcept
 }
 
 //==============================================================================
+/*  animated-strings.md 4.1: these two used to read the audio thread's plain
+    doubles from the message thread, a data race. They read the published
+    snapshot's atomics now, so they are the values as of the last sub-block. */
 double LuthierEngine::getStringLevel (int i) const noexcept
 {
     if (! juce::isPositiveAndBelow (i, kMaxStrings))
         return 0.0;
 
-    return strings[(size_t) i].getLevel();
+    return (double) soundingNotes.readLevel (i);
 }
 
 double LuthierEngine::getStringFrequency (int i) const noexcept
@@ -3287,7 +3391,62 @@ double LuthierEngine::getStringFret (int i) const noexcept
     if (! juce::isPositiveAndBelow (i, kMaxStrings))
         return 0.0;
 
-    return currentFret[(size_t) i];
+    return (double) soundingNotes.readFret (i);
+}
+
+//==============================================================================
+void LuthierEngine::resetSoundingState() noexcept
+{
+    noteStartSample.fill (-1);
+    notePluckPosition.fill (0.16f);
+    noteStopKind.fill (SoundingNotes::open);
+    slideStopFret.fill (-1.0);
+    fingerBendCents.fill (0.0);
+    pitchOffsetCents.fill (0.0);
+}
+
+/*  animated-strings.md 4.1. Once per sub-block, whatever the display settings and
+    whether or not an editor exists, so the toggle cannot change the audio thread.
+    Relaxed stores inside the seqlock; nothing here allocates, locks or waits. */
+void LuthierEngine::publishSoundingNotes() noexcept
+{
+    std::array<int, kMaxStrings> notes {}, bends {};
+    std::array<std::int64_t, kMaxStrings> starts {};
+    std::array<SoundingNotes::Motion, kMaxStrings> motion {};
+
+    for (int s = 0; s < kMaxStrings; ++s)
+    {
+        const bool live = s < numStrings;
+        const auto& str = strings[(size_t) s];
+
+        // piano-roll-chord-display 2: the key is the nearest semitone to what sounds.
+        const int held = live ? stringMidiNote[(size_t) s] : -1;
+        const double offset = pitchOffsetCents[(size_t) s];
+        const int shift = std::isfinite (offset) ? (int) std::round (offset / 100.0) : 0;
+        notes[(size_t) s] = held >= 0 ? juce::jlimit (0, 127, held + shift) : -1;
+        bends[(size_t) s] = held >= 0 ? juce::jlimit (-50, 50, (int) std::round (offset - 100.0 * shift)) : 0;
+        starts[(size_t) s] = juce::jmax ((int64_t) 0, noteStartSample[(size_t) s]);
+
+        // animated-strings 4.1: the string as the block left it.
+        double level = live ? str.getLevel() : 0.0;
+        if (! std::isfinite (level))
+            level = 0.0;
+
+        const double underBar = slideStopFret[(size_t) s];
+        auto& m = motion[(size_t) s];
+        m.level = (float) level;
+        m.stopFret = (float) (tuning.getCapoFretFor (s) + (underBar >= 0.0 ? underBar : currentFret[(size_t) s]));
+        m.pushCents = (float) fingerBendCents[(size_t) s];
+        m.pluckPosition = notePluckPosition[(size_t) s];
+        m.fret = (float) currentFret[(size_t) s];
+        m.exciteSample = noteStartSample[(size_t) s];
+        m.damping = (uint8_t) str.getDamping();
+        m.harmonicPartial = (uint8_t) juce::jlimit (0, 255, str.getHarmonicPartial());
+        m.stopKind = underBar >= 0.0 ? (uint8_t) SoundingNotes::slide : noteStopKind[(size_t) s];
+    }
+
+    soundingNotes.publish (notes.data(), bends.data(), starts.data(), numStrings, motion.data(), samplePosition, sr);
+    soundingPublishCount.fetch_add (1, std::memory_order_relaxed);
 }
 
 double LuthierEngine::getStringTensionNewtons (int i) const noexcept

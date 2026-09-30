@@ -51,6 +51,12 @@ void ToneStack::prepare (double sampleRate) noexcept
     reset();
 }
 
+void ToneStack::setSampleRateKeepingState (double sampleRate) noexcept
+{
+    sr = sampleRate;
+    recompute();
+}
+
 void ToneStack::setComponents (const ToneStackComponents& c) noexcept
 {
     components = c;
