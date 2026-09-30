@@ -113,7 +113,14 @@ Technique TechniqueEngine::decide (int stringIndex,
         // ---- legato inference -------------------------------------------------
         const double elapsedMs = (double) (timestampSamples - state.lastNoteSample) * 1000.0 / sr;
 
-        if (slideEnabled && (slideMode || elapsedMs < legatoWindowMs))
+        // two-hand-tapping.md 5 (TECHNIQUES): armed tapping reads a soft, quick
+        // note as a hammer-on or pull-off first.
+        if (hammerOnWindowMs > 0.0 && hammerOnEnabled && elapsedMs < hammerOnWindowMs
+            && velocity < legatoVelocity && std::abs (newFret - state.fret) >= 0.05)
+        {
+            result = (newFret > state.fret) ? Technique::HammerOn : Technique::PullOff;
+        }
+        else if (slideEnabled && (slideMode || elapsedMs < legatoWindowMs))
         {
             result = Technique::Slide;
             slideFromFret = state.fret;

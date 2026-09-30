@@ -108,6 +108,7 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
     stability.setSeed ((juce::uint32) (character.getSeed() ^ (character.getSeed() >> 32)) ^ 0x57AB1Eu);
     noiseFloor.prepare (sr, maxBlock);            // noise-floor.md 4
     noiseFloor.setSeed (character.getSeed());
+    techniqueLayer.prepare (sr);   // TECHNIQUES: engine-technique-layer.md 1
     slapBodyDrive.assign ((size_t) maxBlock, 0.0);
     noteSustainScale.fill (1.0);
     playingNoise.setSeed ((juce::uint32) (character.getSeed() ^ (character.getSeed() >> 32)));
@@ -184,6 +185,8 @@ void LuthierEngine::reset() noexcept
     noiseFloor.reset();
     stability.reset();                            // tuning-stability.md 0.4
     techniqueTriggers.reset();
+    techniqueLayer.reset();   // TECHNIQUES
+    lastStrikeSample.fill (std::numeric_limits<juce::int64>::min() / 2);
     scrapeWasActive.fill (false);
     ebowWasDriving.fill (false);
     feedbackWasOn = false;
@@ -1449,6 +1452,9 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
     if (slapStrike.ghost)
         SlapEngine::applyGhostDamping (str, slap.getSettings().ghostDamping);
 
+    // TECHNIQUES: muting-rhythm.md 4 (the strike's mute), microtonal-bends 4, cascade.
+    techniqueStrike (e, s, slapStrike.strike);
+
     // ---- build the excitation ---------------------------------------------------
     // strum-dynamics 5: a strum's striker stands in for the pick on this
     // strike only; -1 is the player's own pick.
@@ -1893,6 +1899,14 @@ void LuthierEngine::applyNoteOff (const NoteOffEvent& e) noexcept
 
     // An E-Bow on explicitly chosen strings keeps them going after the note is
     // released; on "held strings" (mask 0) releasing is exactly what lets go.
+    // two-hand-tapping.md 0.2 (TECHNIQUES): a held tap keeps the string sounding.
+    if (techniqueNoteOff (s))
+    {
+        slide.noteOff (s);
+        stringMidiNote[(size_t) s] = -1;
+        return;
+    }
+
     const auto& ebow = ebowDriver.getSettings();
     const bool ebowHolds = ebow.enabled && (ebow.stringMask & (1 << s)) != 0;
 
@@ -2166,7 +2180,8 @@ void LuthierEngine::updatePerBlockModulation (int numSamples) noexcept
         // the auto pitch curve, from absolute time, ride the vibrato's path.
         assistPerBlockCents (s, numSamples, vib);
 
-        const double bend = midi.getStringBendCents (s) + riffBendCents[(size_t) s];   // riff-library 5.3
+        const double bend = techniqueBendCents (s, midi.getStringBendCents (s))   // TECHNIQUES: microtonal-bends.md
+                          + riffBendCents[(size_t) s];   // riff-library 5.3
         const double whammyCents = whammy.getCentOffset (s);
 
         double hz;
@@ -2177,10 +2192,11 @@ void LuthierEngine::updatePerBlockModulation (int numSamples) noexcept
                 touches it, slant included; vibrato moves the bar (depth read
                 as tenths of a millimetre of travel, 3.2); and the intonation
                 assist pulls the result toward equal temperament. */
-            const double barFret = slide.advanceBar (s, currentFret[(size_t) s], numSamples);
+            // slide-technique-controls.md 3 (TECHNIQUES): a source or a gesture may drive the bar.
+            const double barFret = slide.controlledBarFret (s, slide.advanceBar (s, currentFret[(size_t) s], numSamples));
             const double contact = slide.contactFret (s, barFret, numStrings, spec.scaleLengthMm);
             const double slideVibrato = SlideEngine::vibratoCents (vib / 10.0, contact, spec.scaleLengthMm);
-            const double raw = contact + (bend + whammyCents + slideVibrato) / 100.0;
+            const double raw = contact + (bend + whammyCents + slideVibrato + slide.getControlVibratoCents()) / 100.0;
 
             // animated-strings.md 4.1: the display stops the string at the contact; the
             // bar's vibrato and the whammy are not a push across the neck (2.4).
@@ -2192,7 +2208,7 @@ void LuthierEngine::updatePerBlockModulation (int numSamples) noexcept
         }
         else
         {
-            hz = tuning.computeFrequency (s, currentFret[(size_t) s],
+            hz = tuning.computeFrequency (s, techniqueFret (s),   // TECHNIQUES: a held tap sets the length
                                           bend + whammyCents + vib + magnetDetuneCents + scrape.getPitchOffsetCents (s)
                                             + environment.fretCents (s, currentFret[(size_t) s]));   // environment.md 2.5
 
@@ -2635,6 +2651,9 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     slap.setInstrument (numStrings, spec.scaleLengthMm, spec.maxFrets, spec.category == GuitarCategory::Bass);
     slap.processBlock (numSamples, samplePosition, techniqueTriggers);
 
+    // engine-technique-layer.md 2, steps 2b-2c (TECHNIQUES): cascade, controls, tap, bend.
+    techniqueBeginBlock (numSamples, played);
+
     rhythm.handleMidi (played, samplePosition);
     rhythm.setBassFamily (spec.category == GuitarCategory::Bass);   // bass-techniques 9 (MODEL-GAPS)
 
@@ -2664,10 +2683,13 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         // When the rhythm engine is driving, its stream replaces the
         // interpreter's note events; the interpreter's bends and controllers
         // still apply, because those are the player's hands, not the pattern's.
+        // muting-rhythm.md 4 (TECHNIQUES): each note leaves with its mute.
+        techniqueStampEvents (rhythm.isDriving() ? rhythmEvents : events, rhythm.isDriving());
         scheduleEvents (rhythm.isDriving() ? rhythmEvents : events, numSamples);
     }
     else
     {
+        techniqueStampEvents (events, false);   // TECHNIQUES: muting-rhythm.md 4
         scheduleEvents (events, numSamples);
     }
 
@@ -2678,6 +2700,7 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     {
         assistSetContext (false);   // FEAT-ASSIST: direct notes (the Tune melody) are assisted
         midi.processBlock (*directForSubBlock, numSamples, samplePosition, directEvents);
+        techniqueStampEvents (directEvents, false);   // TECHNIQUES: muting-rhythm.md 4
         scheduleEvents (directEvents, numSamples);
     }
 

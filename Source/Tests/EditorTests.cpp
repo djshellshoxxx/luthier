@@ -585,7 +585,7 @@ LUTHIER_TEST (Editor, everyWorkspaceTabSelectsAndPaints)
     // 11 puts PRACTICE between CHARACTER and NOTATION.
     // riff-library 7.1 puts RIFFS between TUNE (JAM) and LIVE.
     const juce::StringArray tabNames { "WORKSHOP", "MOD", "RHYTHM", "TUNE", "JAM", "RIFFS", "LIVE", "ROUTING", "TONE MATCH",
-                                       "CHARACTER", "PRACTICE", "NOTATION", "MIDI OUT", "CONTROLLERS", "HELP" };
+                                       "CHARACTER", "PRACTICE", "NOTATION", "MIDI OUT", "CONTROLLERS", "TECHNIQUES", "HELP" };   // gui-techniques-updates.md 0.2
 
     CHECK_MSG (panel.getNumWorkspaceTabs() == tabNames.size(),
                "expected " + juce::String (tabNames.size()) + " workspace tabs, found "

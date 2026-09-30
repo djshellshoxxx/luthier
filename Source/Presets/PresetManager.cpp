@@ -1,4 +1,5 @@
 #include "PresetManager.h"
+#include "TechniquePresets.h"   // TECHNIQUES
 #include "FactoryPresets.h"
 #include "MicPlacementMigration.h"   // mic-placement.md 4
 #include "../Support/IrLibrary.h"
@@ -284,6 +285,11 @@ void PresetManager::scanFolder (const juce::File& folder, bool factory)
                 if (meta->getProperty ("description").toString().isNotEmpty()) info.description = meta->getProperty ("description").toString();
                 if (meta->getProperty ("category").toString().isNotEmpty())    info.category = meta->getProperty ("category").toString();
             }
+            // gui-techniques-updates.md 7 (TECHNIQUES): which techniques it arms.
+            if (auto* params = obj->getProperty ("parameters").getDynamicObject())
+                for (const auto& id : getTechniqueArmParameterIds())
+                    if (params->hasProperty (id) && (double) params->getProperty (id) > 0.5)
+                        info.armedTechniques.add (id);
         }
 
         presets.add (info);
@@ -461,6 +467,9 @@ juce::var PresetManager::toVar (const juce::String& name,
     // jam-mode.md 12 (FEAT-JAM): the band's style file, rhythm-kit link and seed.
     if (captureJamBlock != nullptr)
         root->setProperty ("jam", captureJamBlock());
+    // TECHNIQUES: engine-technique-layer.md 7.
+    if (captureTechniquesBlock != nullptr)
+        root->setProperty ("techniques", captureTechniquesBlock());
 
     // ---- per-string extras ----------------------------------------------------
     auto* strings = new juce::DynamicObject();
@@ -627,7 +636,8 @@ bool PresetManager::fromVar (const juce::var& data)
             // SPEC-SWEEP: the spec's spellings of the processor blocks.
             "midi_mappings", "rhythm_engine", "tone_match",
             "jam",   // FEAT-JAM (jam-mode 12)
-            MicPlacementMigration::kLegacyBlockKey   // mic-placement.md 4
+            MicPlacementMigration::kLegacyBlockKey,   // mic-placement.md 4
+            "techniques"   // TECHNIQUES: engine-technique-layer.md 7
         };
 
         auto* preserved = new juce::DynamicObject();
@@ -935,6 +945,8 @@ bool PresetManager::fromVar (const juce::var& data)
     // so a snapshot bank or a mod route lands on the preset it belongs to.
     if (onPresetBlocksLoaded != nullptr)
         onPresetBlocksLoaded (*obj);
+    if (onTechniquesBlockLoaded != nullptr)   // TECHNIQUES: engine-technique-layer.md 6-7
+        onTechniquesBlockLoaded (obj->getProperty ("techniques"));
 
     currentName = obj->getProperty ("name").toString();
     currentCategory = obj->getProperty ("category").toString();
@@ -1605,6 +1617,9 @@ void PresetManager::resetToDefaults()
 
     if (onJamBlockLoaded != nullptr)   // FEAT-JAM
         onJamBlockLoaded ({});
+
+    if (onTechniquesBlockLoaded != nullptr)   // TECHNIQUES
+        onTechniquesBlockLoaded ({});
 
     currentName = "Init";
     currentCategory = "User";

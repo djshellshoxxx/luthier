@@ -33,6 +33,7 @@
 #include "JamWidgets.h"   // FEAT-JAM
 
 #include "PerformanceAssistUi.h"   // auto-articulation.md 7.1 (FEAT-ASSIST)
+#include "Techniques/TechniquePillRow.h"   // gui-techniques-updates.md 2 (TECHNIQUES)
 
 namespace luthier
 {
@@ -108,6 +109,9 @@ public:
     std::function<void()> onOpenAssistRhythmTab;
     AssistPill& getAssistPill() noexcept { return *assistPill; }
     AssistStyleBox& getAssistStyleBox() noexcept { return *assistStyle; }
+    /** gui-techniques-updates.md 2: a pill's right-click opens its TECHNIQUES sub-tab in Advanced mode. */
+    std::function<void (int subTab)> onOpenTechniqueSubTab;
+    TechniquePillRow& getTechniquePills() noexcept { return *techniquePills; }
 
     void paint (juce::Graphics&) override;
     void resized() override;
@@ -177,6 +181,8 @@ private:
     // auto-articulation.md 7.1 (FEAT-ASSIST): the mode column's second row.
     std::unique_ptr<AssistPill> assistPill;
     std::unique_ptr<AssistStyleBox> assistStyle;
+    // gui-techniques-updates.md 2 (TECHNIQUES): the pill row, its own component.
+    std::unique_ptr<TechniquePillRow> techniquePills;
 
     // ---- tone strip (3.4) --------------------------------------------------------------
     LuthierKnob inputKnob  { "Input",   LuthierKnob::Size::Small };

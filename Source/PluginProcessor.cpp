@@ -107,6 +107,10 @@ LuthierAudioProcessor::LuthierAudioProcessor()
                         "midi-learn", {});
     };
 
+    // TECHNIQUES: engine-technique-layer.md 7, the preset's technique block.
+    presets.captureTechniquesBlock = [this] { return engine.getTechniqueLayer().toVar(); };
+    presets.onTechniquesBlockLoaded = [this] (const juce::var& block) { engine.getTechniqueLayer().fromVar (block); };
+
     // A preset's pedals come with their settings; build them keeping those.
     presets.onPedalTypesLoaded = [this] { bridge.adoptPedalTypesFromParameters(); };
 

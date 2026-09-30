@@ -138,6 +138,17 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
 
     workshopOverlay.getPanel().onSaveAsGuitar = [this] { showSaveGuitarDialog(); };
 
+    // gui-techniques-updates.md 2 (TECHNIQUES): a pill's right-click opens its sub-tab in Advanced mode.
+    easyPanel.onOpenTechniqueSubTab = [this] (int subTab)
+    {
+        setAdvancedMode (true);
+        header.setAdvancedMode (advancedMode);
+
+        if (advancedMode && advancedPanel.setWorkspaceTabNamed ("TECHNIQUES"))
+            if (auto* techniques = advancedPanel.getTechniquesPanel())
+                techniques->showSubTab (subTab);
+    };
+
     if (auto* bench = advancedPanel.getWorkshopPanel())
         bench->onSaveAsGuitar = [this] { showSaveGuitarDialog(); };
     header.onOpenOptions = [this] { performAction ("options"); };

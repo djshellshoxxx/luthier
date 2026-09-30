@@ -32,6 +32,9 @@ enum class TechniqueId
 {
     scrape = 0,
     slap,
+    tap,     ///< two-hand-tapping.md 3 (TECHNIQUES)
+    bend,    ///< microtonal-bends.md 2: the pre-bend trigger
+    slide,   ///< slide-technique-controls.md 1: the scripted-gesture trigger
     numTechniques
 };
 
@@ -47,6 +50,9 @@ namespace TechniqueKeyswitch
     inline constexpr int ghost     = 16;   ///< 1: ghost mode's modifier keyswitch
     inline constexpr int bodyTap   = 17;   ///< a body tap, whatever the slap type
     inline constexpr int palmSlap  = 18;   ///< a palm slap, whatever the slap type
+    inline constexpr int tap       = 19;   ///< two-hand-tapping.md 3: held, the notes under it are taps
+    inline constexpr int preBend   = 20;   ///< microtonal-bends.md 2: the next note starts pre-bent
+    inline constexpr int slideGesture = 21; ///< slide-technique-controls.md 1: runs the scripted slide
 }
 
 /** How a technique is fired (string-scraping.md 2, string-slap-technique.md 1). */
@@ -99,6 +105,12 @@ struct TechniqueTriggerConfig
 
     int continuousCc = -1;           ///< a controller whose every value is reported
     bool continuousAftertouch = false;
+
+    /*  two-hand-tapping.md 3 (TECHNIQUES): with TriggerSource::keyswitch, the
+        notes played while the main keyswitch is held are the technique's -
+        taken out and reported as kCaptureRole events (their note-offs too,
+        whenever they arrive). */
+    bool captureNotesWhileHeld = false;
 };
 
 //==============================================================================
@@ -106,6 +118,7 @@ class TechniqueTriggers
 {
 public:
     static constexpr int kContinuousRole = 15;
+    static constexpr int kCaptureRole = 14;   ///< a note captured under a held keyswitch (TECHNIQUES)
     static constexpr int kMaxEvents = 128;
     static constexpr int kMaxRoles = 8;
 
@@ -145,6 +158,10 @@ private:
 
     /** Per technique: bit r = role r pressed, bit 8 + r = role r let go. */
     std::array<std::atomic<juce::uint32>, (size_t) kTechniques> requests {};
+
+    /** Notes taken under a held keyswitch, by channel * 128 + note, so their note-offs are taken too. */
+    std::array<std::array<bool, 16 * 128>, (size_t) kTechniques> captured {};
+    int capturingTechnique (const juce::uint8* d, int n) const noexcept;
 
     std::array<GestureEvent, kMaxEvents> events {};
     int numEvents = 0;

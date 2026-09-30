@@ -1,5 +1,6 @@
 #include "MuteGroup.h"
 #include "../PluginProcessor.h"
+#include "Techniques/TechniqueUi.h"
 
 namespace luthier
 {
@@ -30,16 +31,7 @@ namespace
 
     float plainOf (LuthierAudioProcessor& p, const char* id)
     {
-        if (auto* param = dynamic_cast<juce::RangedAudioParameter*> (p.getState().getParameter (id)))
-            return param->convertFrom0to1 (param->getValue());
-
-        return 0.0f;
-    }
-
-    void writePlain (LuthierAudioProcessor& p, const char* id, float plain)
-    {
-        if (auto* param = dynamic_cast<juce::RangedAudioParameter*> (p.getState().getParameter (id)))
-            param->setValueNotifyingHost (param->convertTo0to1 (plain));
+        return TechniqueUndo::getPlain (p, id);
     }
 }
 
@@ -211,8 +203,8 @@ MuteGroup::MuteGroup (LuthierAudioProcessor& p)
     addAndMakeVisible (presetBox);
 
     liveGrid.getNumCells = [] { return kLiveMuteSteps; };
-    liveGrid.getCell = [this] (int i) { return rhythm().getLiveMuteStep (i); };
-    liveGrid.setCell = [this] (int i, MuteType t) { rhythm().setLiveMuteStep (i, t); };
+    liveGrid.getCell = [this] (int i) { return processor.getEngine().getTechniqueLayer().mute.getLiveStep (i); };
+    liveGrid.setCell = [this] (int i, MuteType t) { TechniqueUndo::paintLiveMuteStep (processor, i, t); };
     liveGrid.setBrush (MuteType::palmHeavy);
     liveGrid.setTooltip ("The live mute grid: a bar of sixteenths, locked to the host, that mutes what you "
                          "play when the rhythm engine is not. Click or drag to paint.");
@@ -252,18 +244,12 @@ MuteGroup::~MuteGroup()
     stopTimer();
 }
 
-RhythmEngine& MuteGroup::rhythm()
-{
-    return processor.getEngine().getRhythmEngine();
-}
-
 void MuteGroup::applyPreset (int index)
 {
-    const auto& preset = getMuteGridPreset (index);
-
-    for (int i = 0; i < kLiveMuteSteps; ++i)
-        rhythm().setLiveMuteStep (i, muteTypeFromLetter (preset.cells[i]));
-
+    // One undo entry for the whole groove (mute-grid-paint).
+    processor.pushUndoState ("Mute grid preset " + juce::String (getMuteGridPreset (index).name));
+    TechniqueUndo::resetMergeWindow();
+    processor.getEngine().getTechniqueLayer().mute.applyGridPreset (index);
     refresh();
 }
 
@@ -276,7 +262,8 @@ void MuteGroup::timerCallback()
 {
     // The step the live grid is on, from the engine (gui-engine-dataflow: a
     // live indicator, drained at the panel's rate).
-    liveGrid.setPlayingCell (rhythm().getLiveMuteStepPlaying());
+    liveGrid.setPlayingCell (processor.getEngine().getTechniqueLayer().mute.getPlayingStep());
+    liveGrid.repaint();
 }
 
 void MuteGroup::resized()
@@ -351,9 +338,13 @@ void EasyMuteButton::write (int state)
 
     state = juce::jlimit (0, 3, state);
 
-    writePlain (processor, ParamIDs::muteArmed, state > 0 ? 1.0f : 0.0f);
-    writePlain (processor, ParamIDs::muteMasterMode,
-                state > 0 ? (float) ((int) modes[state] + 1) : 0.0f);
+    // One technique-arm entry for the pair of writes.
+    const LuthierAudioProcessor::ScopedUndoAction undo (processor, state > 0 ? "Arm Mute technique" : "Disarm Mute technique");
+
+    for (auto [id, plain] : { std::pair<const char*, float> { ParamIDs::muteArmed, state > 0 ? 1.0f : 0.0f },
+                              { ParamIDs::muteMasterMode, state > 0 ? (float) ((int) modes[state] + 1) : 0.0f } })
+        if (auto* param = dynamic_cast<juce::RangedAudioParameter*> (processor.getState().getParameter (id)))
+            param->setValueNotifyingHost (param->convertTo0to1 (plain));
 
     refresh();
 }

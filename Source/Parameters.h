@@ -567,6 +567,77 @@ namespace ParamIDs
     inline constexpr const char* acMicBlend     = "ac_mic_blend";
     inline constexpr int kNumMicPlacementParams = 25;
     // ==== END FEAT-MIC params ====
+    // ==== BEGIN TECHNIQUES params ====
+    // muting-rhythm.md 3
+    inline constexpr const char* muteArmed          = "mute_armed";
+    inline constexpr const char* muteMasterMode     = "mute_master_mode";
+    inline constexpr const char* mutePalmPosition   = "mute_palm_position";
+    inline constexpr const char* mutePalmPressure   = "mute_palm_pressure";
+    inline constexpr const char* muteFrettingStyle  = "mute_fretting_style";
+    inline constexpr const char* muteChukaSource    = "mute_chuka_source";
+    inline constexpr const char* muteHumanise       = "mute_humanise";
+    inline constexpr const char* muteGhostVelocity  = "mute_ghost_velocity";
+
+    // two-hand-tapping.md 3
+    inline constexpr const char* tapArmed           = "tap_armed";
+    inline constexpr const char* tapSource          = "tap_source";
+    inline constexpr const char* tapChannel         = "tap_channel";
+    inline constexpr const char* tapStrengthCurve   = "tap_strength_curve";
+    inline constexpr const char* tapAutoPullOff     = "tap_auto_pulloff";
+    inline constexpr const char* tapHammerThreshold = "tap_hammer_threshold";
+    inline constexpr const char* tapFlick           = "tap_flick";
+    inline constexpr const char* tapDuration        = "tap_duration";
+    inline constexpr const char* tapMaxConcurrent   = "tap_max_concurrent";
+    inline constexpr const char* tapFretSnap        = "tap_fret_snap";
+
+    // microtonal-bends.md 2
+    inline constexpr const char* bendArmed          = "bend_armed";
+    inline constexpr const char* bendGlobalSource   = "bend_global_source";
+    inline constexpr const char* bendGlobalCc       = "bend_global_cc";
+    inline constexpr const char* bendGlobalRange    = "bend_global_range";
+    inline constexpr const char* bendStringSource   = "bend_string_source";
+    inline constexpr const char* bendStringCc       = "bend_string_cc";
+    juce::String bendStringRange (int stringNumber);   ///< 1-6: "bend_string_range_1" ...
+    inline constexpr const char* bendVibratoSource  = "bend_vibrato_source";
+    inline constexpr const char* bendVibratoRate    = "bend_vibrato_rate";
+    inline constexpr const char* bendVibratoDepth   = "bend_vibrato_depth";
+    inline constexpr const char* bendVibratoOnset   = "bend_vibrato_onset";
+    inline constexpr const char* bendQuantise       = "bend_quantise";
+    inline constexpr const char* bendSnap           = "bend_snap";
+    inline constexpr const char* bendPreBendAmount  = "bend_prebend_amount";
+    inline constexpr const char* bendPreBendTrigger = "bend_prebend_trigger";
+    inline constexpr const char* bendPreBendCc      = "bend_prebend_cc";
+    inline constexpr const char* bendPreBendRelease = "bend_prebend_release";
+    inline constexpr const char* bendCurve          = "bend_curve";
+    inline constexpr const char* bendReleaseCurve   = "bend_release_curve";
+
+    // slide-technique-controls.md 1
+    inline constexpr const char* slidePosSource       = "slide_pos_source";
+    inline constexpr const char* slidePosCc           = "slide_pos_cc";
+    inline constexpr const char* slidePosMode         = "slide_pos_mode";
+    inline constexpr const char* slidePosRange        = "slide_pos_range";
+    inline constexpr const char* slideSlantSource     = "slide_slant_source";
+    inline constexpr const char* slideSlantCc         = "slide_slant_cc";
+    inline constexpr const char* slidePressureSource  = "slide_pressure_source";
+    inline constexpr const char* slidePressureCc      = "slide_pressure_cc";
+    inline constexpr const char* slideContact         = "slide_contact";
+    inline constexpr const char* slideSpeedLimit      = "slide_speed_limit";
+    inline constexpr const char* slideAutoVibrato     = "slide_auto_vibrato";
+    inline constexpr const char* slideAutoVibDepth    = "slide_auto_vib_depth";
+    inline constexpr const char* slideAutoVibRate     = "slide_auto_vib_rate";
+    inline constexpr const char* slideGestureTrigger  = "slide_gesture_trigger";
+    inline constexpr const char* slideGestureCc       = "slide_gesture_cc";
+    inline constexpr const char* slideGestureFrom     = "slide_gesture_from";
+    inline constexpr const char* slideGestureTo       = "slide_gesture_to";
+    inline constexpr const char* slideGestureTime     = "slide_gesture_time";
+    inline constexpr const char* slideGestureCurve    = "slide_gesture_curve";
+    inline constexpr const char* slideGestureSlantStart = "slide_gesture_slant_start";
+    inline constexpr const char* slideGestureSlantEnd = "slide_gesture_slant_end";
+    inline constexpr const char* slideGesturePressure = "slide_gesture_pressure";
+
+    /** The count this block adds (64), for the integration test's arithmetic. */
+    inline constexpr int kTechniquesParamCount = 64;
+    // ==== END TECHNIQUES params ====
 }
 
 //==============================================================================

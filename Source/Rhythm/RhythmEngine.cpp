@@ -423,6 +423,12 @@ void RhythmEngine::emitNote (int stringIndex, double velocity, bool muted, doubl
     on.strikerMaterial = strikerMaterial;
     on.finger = finger;   // REALISM-B: fingerstyle-attack.md 3, the pattern's finger reaches the string
 
+    // muting-rhythm.md 4 (TECHNIQUES): the step's mute travels with its note.
+    on.muteType = (int) pendingMute.type;
+    on.mutePressure = pendingMute.pressure;
+    on.mutePositionMm = pendingMute.positionMm;
+    on.stepDynamic = pendingDynamic;
+
     if (tuning != nullptr)
         on.pitchHz = tuning->computeFrequency (stringIndex, found->fretPosition, 0.0);
 
@@ -829,13 +835,19 @@ int RhythmEngine::processBlock (int numSamples, const RhythmTransport& transport
                 ghost.dynamic = step.dynamic * 0.35;
 
                 const int ghostOffset = juce::jmax (0, sampleOffset - (int) (0.035 * sr));
+                pendingMute = MuteStep {};
+                pendingDynamic = ghost.dynamic;
                 scheduleStrum (ghost, crossingSps, ghostOffset, out);
             }
 
+            pendingMute = pattern.getMuteStep (stepInPattern);   // muting-rhythm.md 4
+            pendingDynamic = step.dynamic;
             scheduleStrum (step, crossingSps, sampleOffset, out);
         }
         else
         {
+            pendingMute = pattern.getMuteStep (stepInPattern);   // muting-rhythm.md 4
+            pendingDynamic = -1.0;
             scheduleFingerpick (pattern.getFingerpickStep (stepInPattern), sampleOffset, out);
         }
 

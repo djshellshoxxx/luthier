@@ -120,6 +120,13 @@ struct NoteOnEvent
 
     // explicitArticulation (auto-articulation.md 5) is riff-library 5.1's field above.
     // ==== END FEAT-ASSIST fields ====
+    // muting-rhythm.md 2-4 (TECHNIQUES): the strike's mute, a MuteType index
+    // (0 open), with the step's own palm pressure / position or -1 for the
+    // defaults, and the pattern step's dynamic (-1 when not from a pattern).
+    int    muteType       = 0;
+    double mutePressure   = -1.0;
+    double mutePositionMm = -1.0;
+    double stepDynamic    = -1.0;
 };
 
 struct NoteOffEvent

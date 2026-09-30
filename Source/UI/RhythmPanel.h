@@ -206,6 +206,10 @@ private:
 
     // --- pattern editors ------------------------------------------------------------
     std::unique_ptr<StrumGrid> strumGrid;
+
+    // gui-techniques-updates.md 6 / muting-rhythm.md 7 (TECHNIQUES): the pattern's Mute Row.
+    std::unique_ptr<class MuteGridEditor> muteRow;
+    juce::Label muteRowLabel;
     std::unique_ptr<FingerpickGrid> fingerpickGrid;
 
     // --- feel ---------------------------------------------------------------------

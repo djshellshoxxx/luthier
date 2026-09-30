@@ -21,6 +21,7 @@ namespace luthier
 
 class LuthierAudioProcessor;
 class AssistLabelOverlay;   // FEAT-ASSIST: auto-articulation.md 7.3
+class TechniqueOverlay;   // TECHNIQUES: gui-techniques-updates.md 4
 
 //==============================================================================
 enum class ScaleOverlay
@@ -93,6 +94,10 @@ public:
     void resized() override;
     void mouseDown (const juce::MouseEvent&) override;
     void mouseUp (const juce::MouseEvent&) override;
+    void mouseDrag (const juce::MouseEvent&) override;   // TECHNIQUES: slide / bend drags
+
+    /** gui-techniques-updates.md 4: the technique overlays (TECHNIQUES). */
+    TechniqueOverlay* getTechniqueOverlay() const noexcept { return techniqueOverlay.get(); }
     void mouseMove (const juce::MouseEvent&) override;
     void mouseExit (const juce::MouseEvent&) override;
 
@@ -229,6 +234,10 @@ private:
     int ticksSinceLooksCheck = 1000;
 
     StringAnimator animator;
+    // TECHNIQUES: the overlay layers 33+ draw with the board's own geometry.
+    friend class TechniqueOverlay;
+    std::unique_ptr<TechniqueOverlay> techniqueOverlay;
+    int dragStartY = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (FretboardComponent)
 };

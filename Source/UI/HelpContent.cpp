@@ -153,7 +153,7 @@ namespace
         { "workspace", "Column 4: The Workspace", "workspace|Column 4|tabs",
           "Column 4 is a tab strip with one panel behind each tab. The tabs, in order:\n\n"
           "WORKSHOP, MOD, RHYTHM, TUNE, JAM, RIFFS, LIVE, ROUTING, TONE MATCH, CHARACTER, PRACTICE, NOTATION, MIDI OUT, "
-          "CONTROLLERS, HELP.\n\n"
+          "CONTROLLERS, TECHNIQUES, HELP.\n\n"
           "Each has its own topic in this list. {key:previousWorkspaceTab} and {key:nextWorkspaceTab} step "
           "through them, wrapping at the ends, and the tab you had open last is the one that opens next time. "
           "WORKSHOP is different from the others: it takes over columns 3 and 4, and the tab strip stays so "
@@ -341,6 +341,23 @@ namespace
           "track. Hold Alt while dragging for Generic.\n"
           "- Live MIDI out: the same switches as ROUTING's; change them on either tab." },
 
+        // TECHNIQUES workstream: gui-techniques-updates.md 1.
+        { "techniques", "TECHNIQUES", "TECHNIQUES|techniques tab|mute grid|tapping|two-hand tapping|microtonal|cascade|pre-bend|slap technique|string scraping",
+          "Six playing techniques you arm and shape, one sub-tab each down the left, and CASCADE to see how they combine.\n\n"
+          "- SCRAPE: the pick or a nail dragged along the wound strings. Keyswitch 12, a CC or the button.\n"
+          "- SLIDE: Slide Mode's controls - what moves the bar (mod wheel, pitch bend, MPE Y, a CC, the fretboard), "
+          "absolute or relative, speed limit, which strings it touches, auto-vibrato, and a scripted slide on keyswitch 21.\n"
+          "- SLAP: thumb slap, pop, palm slap, body tap; keyswitches 15-18.\n"
+          "- MUTE: a master mute mode, a sixteen-step live mute grid locked to the host, chuka and ghost notes. "
+          "The RHYTHM tab's pattern has its own Mute Row.\n"
+          "- TAP: two-hand tapping from MIDI channel 2, keyswitch 19 or the fretboard; auto pull-off and hammer-ons.\n"
+          "- BEND: bend sources, per-string ranges, vibrato, quantise to quarter-tones, EDOs or a loaded .scl/.tun "
+          "scale, and pre-bend on keyswitch 20.\n"
+          "- CASCADE: techniques down, strings across. Two techniques that cannot share a string show a red slash "
+          "on their pill; slide always wins the strings under the bar.\n\n"
+          "In Easy mode the Playing strip has a pill per technique: click to arm, hold for its main controls, "
+          "right-click for this tab." },
+
         { "controllers", "CONTROLLERS", "CONTROLLERS|controller|controllers|MPE|guitar controller|latency",
           "Setting up the thing you play Luthier with.\n\n"
           "- Profile: presets for MPE keyboards, hex-pickup guitar systems and MIDI guitars. Its notes say "
@@ -349,7 +366,7 @@ namespace
           "length can then be fine-tuned.\n"
           "- Save as my profile keeps your adjustments." },
 
-        { "techniques", "Playing Techniques", "TECHNIQUES|techniques|technique|articulations|CC map",
+        { "playing-techniques", "Playing Techniques", "playing techniques|technique|articulations|CC map",
           "Technique is inferred from what you play, in this order:\n\n"
           "- Palm mute: CC 67.\n"
           "- Pinch harmonic: CC 72.\n"

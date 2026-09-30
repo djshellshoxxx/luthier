@@ -30,6 +30,9 @@ struct PresetInfo
     juce::StringArray tags;
     juce::File file;
     bool isFactory = false;
+
+    /** gui-techniques-updates.md 7 (TECHNIQUES): the techniques the preset arms, by their arm parameter id. */
+    juce::StringArray armedTechniques;
 };
 
 //==============================================================================
@@ -131,6 +134,11 @@ public:
 
     /** Where the last load filed its migration backup; empty when it made none. */
     juce::File getLastMigrationBackup() const { return lastMigrationBackup; }
+    /*  TECHNIQUES (engine-technique-layer.md 7): the preset's `techniques`
+        block - the live mute grid, the custom bend scale, the drawn curve.
+        Handed a void var on a preset without one (6: defaults) and on Init. */
+    std::function<juce::var()> captureTechniquesBlock;
+    std::function<void (const juce::var&)> onTechniquesBlockLoaded;
 
     /** Deletes backups older than kBackupRetentionDays. Called once on startup. */
     static void pruneOldBackups();
