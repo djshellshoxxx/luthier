@@ -19,3 +19,9 @@ This ledger records one bounded section per audit pass. It is evidence for coord
 - Onboarding sample content is incomplete: add two tune templates and six original/cleared backing tracks in the content workstream, then add count/parse/playability coverage. This is beta-visible and should be resolved before community testing.
 
 - The first-run implementation resolves its renamed Vintage Single-Cut guitar and has 36 presets, but the advertised preset catalogue is stale. Reconcile `onboarding.md`, `factory-content.md`, help copy and the bank before beta; then pin the chosen 36-entry manifest in a focused test.
+
+## Resolution (2026-09-30, branch `claude/luthier-w2-content`)
+
+- **Content gap closed.** Twelve tune templates ship (added Pop four-chord in G and Funk groove in E). Six original backing tracks ship as FLAC in `Resources/Practice/BackingTracks/` (13.4 MB), rendered by LuthierRender through `scripts/make_backing_tracks.py` (guitar and bass are Luthier; the drum kit is synthesised), so there is no licensing issue. They appear under Practice > Track > `Factory...` (`BackingTrackLibrary`). `SampleContent::theTwelveTuneTemplatesShipParseAndPlay` and `theSixBackingTracksShipAndPlay` pin counts, parsing and playable audio.
+- **Catalogue drift closed by reconciling the docs to the code.** `spec/onboarding.md` and `spec/factory-content.md` now document the shipped 36 presets and the first-run `Single-Cut Crunch` on `Vintage Single-Cut`; `SampleContent::theFactoryBankIsTheDocumentedThirtySix` pins the manifest.
+- Still open: help-copy sweep for the old "Modern Overdrive" wording outside spec/docs, and factory rows FC-3/4/13/14/15/18/20/24/26/28 in `docs/audit/SPEC_SWEEP.md`.

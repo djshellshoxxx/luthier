@@ -13,14 +13,14 @@ Usage (after building LuthierRender):
         --out Resources/Practice/BackingTracks
 
 Output is deterministic for a given Luthier build (fixed random seed, no timestamps).
-Each track is a 44.1 kHz 16-bit stereo FLAC loop, about 30-50 s, so the whole set is a
+Each track is a 32 kHz 16-bit stereo FLAC loop, about 30-50 s, so the whole set is a
 few megabytes.
 """
 import argparse, os, struct, subprocess, sys, tempfile
 import numpy as np
 import soundfile as sf
 
-SR = 44100
+SR = 32000
 PPQ = 480
 
 # --- guitar voicings (MIDI note numbers, low string to high) -------------------------------
@@ -36,7 +36,7 @@ V = {
 }
 ROOT = {"A7": 33, "D7": 38, "E7": 28, "G": 31, "D": 38, "Em": 28, "C": 36, "Am": 33, "F": 29,
         "E9": 28, "A9": 33, "Cmaj7": 36, "Fmaj7": 29, "G6": 31, "Am7": 33,
-        "D5": 38, "Bb5": 34, "C5": 36, "F5": 41, "A5": 33, "Em5": 28, "G5": 31}
+        "D5h": 38, "D5": 38, "Bb5": 34, "C5": 36, "F5": 41, "A5": 33, "Em5": 28, "G5": 31}
 
 
 # --- a tiny SMF writer -------------------------------------------------------------------

@@ -271,7 +271,7 @@ playing generated MIDI through factory presets; the drum kit is synthesised),
 so nothing is third-party. `scripts/make_backing_tracks.py` regenerates them.
 Under `Resources/Practice/BackingTracks/`, listed by the Practice drawer's
 track tab (`Factory...`) and `Practice/BackingTrackLibrary`. Each is a
-44.1 kHz 16-bit stereo FLAC loop of 30-60 s (whole set well under 15 MB).
+32 kHz 16-bit stereo FLAC loop of 30-60 s (whole set well under 15 MB).
 
 1. 12-Bar Blues in A (120 bpm, shuffle, 24 bars)
 2. Pop I-V-vi-IV in G (100 bpm, 16 bars)

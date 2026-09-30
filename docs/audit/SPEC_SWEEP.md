@@ -201,7 +201,7 @@ DECISIONS.md is the log of judgement calls. Most of them are in the code and tes
 | DEC-38 (C-09) | Guitar change parks the audio for 5 ms each way; notes that arrive while parked are queued | `LuthierAudioProcessor` park/fade | n/a | `WorkshopSwap::aNotePlayedWhileParkedIsKeptNotDropped`, `WorkshopSwap::aPartSwapDuringANoteIsClickFree` | DONE |
 | DEC-39 (C-09, TODO 6e) | Part swaps that keep the string count: off-thread build, block-boundary swap | `LuthierEngine::swapPartsAtBlockBoundary` | n/a | `PartSwap::aSwapKeepingTheStructureIsTakenAtABlockBoundaryWithoutSilence`, `PartSwap::aStructuralChangeIsNotALiveSwap` | DONE |
 | DEC-40 (engine 1) | Per-string arrays index 0 = high E; partial capo mask `[F,F,T,T,T,F]` | `TuningEngine::setCapoStringMask` | Workshop capo part | `WorkshopCapo::aPartialCapoClampsOnlyItsStrings` | DONE |
-| DEC-41 (C-16) | Ship ten tune templates | `Resources/Tunes/Templates` (10) | TUNE new tune | `TuneBuilder::theTenTemplatesLoadInOrderAndAreValid` | DONE |
+| DEC-41 (C-16) | Ship twelve tune templates (ten from tune-builder plus Pop four-chord in G and Funk groove in E, per onboarding 6) | `Resources/Tunes/Templates` (12) | TUNE new tune | `SampleContent::theTwelveTuneTemplatesShipParseAndPlay` | DONE |
 | DEC-42 (C-19) | Genre kits become `.luthierkit` files (magic `luthier.kit`) — kits load and save as `*.json` with no magic | `Rhythm/GenreKit.cpp` `GenreKitLibrary::scanDirectory ("*.json")`, `saveTo` | RHYTHM kit menu | `GenreKits::kitsRoundTripThroughJson` | PARTIAL |
 | DEC-43 (C-32) | Column-4 strip has 14 tabs, TECHNIQUES before HELP — HEAD has 13 | `AdvancedPanel.cpp:1039` tabs | col 4 | `Editor::everyWorkspaceTabSelectsAndPaints` | OWNED |
 | DEC-44 (vp 1, gi 5/6/11.2) | Illustration: lighting (flat in High contrast), burst along the outline, strings over the neck, no bolt dots, fanned frets when tagged — only lighting is asserted | `UI/Guitar/GuitarRenderer` | Easy + Advanced guitar | `GuitarIllustration::highContrastHasNoLighting` (others only `contactSheetForReview`) | NO-TEST |
@@ -1674,21 +1674,21 @@ Guitars (27 files, which cover all 15 named ones), parts (148, with the spec's t
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
 | FC-1 (§0.1) | No trademarks in shipped names — "Fuzz Face Lead" is now "Germanium Fuzz Lead", "Modern LP Wiring" is "Modern Single-Cut Wiring" (old names aliased); legal sign-off is FC-28 | `Presets/FactoryPresets.cpp` (`renamedPreset`, retired list), `PartLibrary::renamedFactoryPart`, `Resources/Parts/Wiring`, `Tools/trademark_scan.py` | n/a | `Trademarks::noFactoryPresetPartOrGuitarNamesABrand`, `Trademarks::oldNamesStillLoad`, `Trademarks::sourceTreeHasNoUnmarkedBrandNames` | DONE |
-| FC-2 (§0.2, §1) | Tonal spread: 36 presets covering the map — 36 entries including Init, Dry Instrument and Physics Showcase, not the spec list | `FactoryPresets.cpp` recipes | preset browser | `Presets::everyFactoryPresetLoadsAndPlays` | PARTIAL |
+| FC-2 (§0.2, §1) | Reconciled 2026-09-30: spec/factory-content §1 now documents the shipped 36 (incl. Init, Dry Instrument, Physics Showcase); the never-built list is retired | `FactoryPresets.cpp` recipes | preset browser | `SampleContent::theFactoryBankIsTheDocumentedThirtySix` | DONE |
 | FC-3 (§0.3) | Difficulty ladder: easy, medium and showcase per category | - | - | - | MISSING |
 | FC-4 (§0.4) | At least 2 presets per genre (12 guitar + bass genres) — no reggae, latin, indie or punk; bass funk/reggae/punk/jazz missing | `FactoryPresets.cpp` | preset browser | - | MISSING |
 | FC-5 (§0.5) | Every factory guitar playable at every factory preset; a preset with no guitar picks a suitable one — fallback by type exists; no cross-product test | guitar-block fallback in `PluginProcessor` | n/a | `WorkshopPresets::aMissingGuitarFileFallsBackToItsType` | PARTIAL |
 | FC-6 (§0.6, §4) | 6 factory tunes that loop and sound finished (Fingerstyle Etude … Funk Slap Groove) | on tune-help: `Resources/Tunes/Examples/01-06*.luthiertune` | TUNE tab | on tune-help | OWNED |
 | FC-7 (§0.7) | No copyrighted third-party audio, MIDI or images — IRs synthesised; `THIRD_PARTY_LICENCES` on visual | `scripts/make_irs.py` | n/a | n/a | DONE |
 | FC-8 (§0.8, §13) | Factory content ≤ 200 MB compressed, as a gate — Resources is 31 MB; no automated gate | - | n/a | - | NO-TEST |
-| FC-9 (§1) | The 36 named presets (Fresh Strings Clean … Jazz Walking Bass) — only "Modern Metal Chug" and "Flamenco Rasgueado" match | `FactoryPresets.cpp` | preset browser | - | MISSING |
-| FC-10 (§1) | "Modern Overdrive" is the default first-run preset | - | - | - | MISSING |
+| FC-9 (§1) | Reconciled 2026-09-30: the spec's table IS the shipped 36; names pinned by test | `FactoryPresets.cpp` | preset browser | `SampleContent::theFactoryBankIsTheDocumentedThirtySix` | DONE |
+| FC-10 (§1) | Reconciled 2026-09-30: first-run default is "Single-Cut Crunch" on Vintage Single-Cut (spec/onboarding §1 and factory-content §1 say so) | - | - | `SampleContent::theFactoryBankIsTheDocumentedThirtySix`, `Onboarding::*` | DONE |
 | FC-11 (§2) | 15 named factory guitars with designed finishes and distinct parts ("Selmer-Style" ships as "Gypsy Jazz"; 12 extras) | `Resources/Guitars/*` (27) | WORKSHOP / guitar selector | `Workshop::everyFactoryGuitarLoadsAndRoundTrips` | DONE |
 | FC-12 (§3) | ~90 parts across the named categories, names per list (brand names replaced: Kluson -> Vintage Keystone, Floyd -> Locking Double Tremolo, EMG -> Active …) | `Resources/Parts` (148), `Tools/generate_factory_parts.py` | WORKSHOP bench | `Workshop::theFactoryLibraryIsThere` | DONE |
 | FC-13 (§5) | ~28 rhythm patterns incl. bass (Walking, Tumbao, Root-Fifth, Dub, Motown, One-Drop, Punk Pick) — 39 guitar patterns compiled in; 4 bass step grids; Walking, Latin Tumbao, Reggae One-Drop, Punk Pick and Dub Bass missing; no shipped `.luthierpattern` files | `Rhythm/Patterns.cpp` factory list, `Rhythm/BassStepGrid.cpp` | RHYTHM tab | `RhythmPatterns::factoryPatternsAreWellFormed` | PARTIAL |
 | FC-14 (§6) | ~28 `.luthierkit` files with voicer, humanize, pick style, setup style and noise style — compiled in; no pick/setup/noise style fields | `Rhythm/GenreKit.cpp` | RHYTHM tab kit selector | `GenreKits::factoryKitsAreWellFormed`, `GenreKits::everyKitResolvesEveryPatternItNames` | PARTIAL |
 | FC-15 (§7) | 10 example setlists that reference only factory presets | - | - | - | MISSING |
-| FC-16 (§8) | 6 royalty-free backing tracks in `Resources/Practice/BackingTracks/` | - | - | - | MISSING |
+| FC-16 (§8) | 6 original FLAC loops (blues A, pop G, minor rock E, funk E9, ballad C, metal drop D) rendered by LuthierRender via `scripts/make_backing_tracks.py`; `BackingTrackLibrary`; Practice > Track > Factory... menu | `Practice/BackingTrackLibrary`, `Resources/Practice/BackingTracks/` | - | `SampleContent::theSixBackingTracksShipAndPlay` | DONE |
 | FC-17 (§9) | 12 example MIDI clips, one per genre kit | on tune-help: `Resources/Examples/01-12*.mid` (not in `MIDI/`) | - | on tune-help | OWNED |
 | FC-18 (§10) | 720 IRs (216 body + 504 cab), deterministic generator | `Resources/BodyIRs`, `Resources/CabIRs`, `scripts/make_irs.py` | TONE MATCH tab | - (no test counts or loads the shipped IRs) | NO-TEST |
 | FC-19 (§11) | Post-release `.luthiercontent` packs — format on visual; packs are post-release | on visual: `Updates/ContentPackage` | - | on visual: `ContentPackage.*` | OWNED |
@@ -1699,7 +1699,7 @@ Guitars (27 files, which cover all 15 named ones), parts (148, with the spec's t
 | FC-24 (§13) | Every factory guitar matches its spectrum-delta fixture within 0.2 dB — `SpectrumDelta` exists; no fixtures | `Workshop/SpectrumDelta.cpp` | n/a | on visual: `Workshop::everyFactoryGuitarRoundTripsInAudio` (null test, not fixtures) | MISSING |
 | FC-25 (§13) | Every factory tune plays end to end without dropouts | on tune-help (tunes) | - | - | OWNED |
 | FC-26 (§13) | Every factory setlist loads and every step resolves | - | - | - | MISSING |
-| FC-27 (§13) | Every backing track streams at 48 kHz without dropouts | - | - | - | MISSING |
+| FC-27 (§13) | Each track loads and streams through BackingTrackPlayer (32 kHz files, played at 48 kHz) and renders audible blocks; a true underrun stress test is still open | - | - | `SampleContent::theSixBackingTracksShipAndPlay` | PARTIAL |
 | FC-28 (§13) | Legal review sign-off recorded for every named entry | - | n/a | - | MISSING |
 
 <details><summary>Work list (factory-content)</summary>
@@ -3383,7 +3383,7 @@ On this checkout only the pieces that predate the workstream are DONE: first-run
 | OB-14 (§6) | Tune templates (12 in spec; ten per DECISIONS C-16) | `Tune/TuneTemplates.cpp` | TUNE NEW | `TuneBuilder::theTenTemplatesLoadInOrderAndAreValid` | DONE |
 | OB-15 (§6) | Six example tunes | (tune-help) `TuneExamples::buildExampleTunes`, `Resources/Tunes/Examples` | (tune-help) TUNE New -> Example tunes | (tune-help) `SampleContent::theSixExampleTunesAreValidAndShipAsBuilt`, `SampleContent::anExampleTuneOpensFromTheTuneTabAndPlays` | OWNED |
 | OB-16 (§6) | Twelve example MIDI clips in `Resources/Examples` | (tune-help) `TuneExamples::buildMidiClips` | n/a | (tune-help) `SampleContent::theTwelveMidiClipsShipAndPlay` | OWNED |
-| OB-17 (§6) | Six royalty-free backing tracks — owner defers | - | - | - | OWNED |
+| OB-17 (§6) | Six original backing tracks landed 2026-09-30 (owner's size worry: 13.4 MB total, FLAC) | `Resources/Practice/BackingTracks/`, `BackingTrackLibrary` | - | `SampleContent::theSixBackingTracksShipAndPlay` | DONE |
 | OB-18 (§6) | Ten example setlists | (tune-help) `TuneExamples::installExampleSetlists` | LIVE setlist | (tune-help) `SampleContent::theTenExampleSetlistsInstallOnceOverTheFactoryBank` | OWNED |
 | OB-19 (§6) | The tour as a reusable walkthrough | (tune-help) `TourOverlay` | (tune-help) Help -> Take the tour | (tune-help) `Onboarding::theBannerAndHelpBothStartTheTour` | OWNED |
 | OB-20 (§7) | Advanced-range explainer, once, exact text — implemented here but untested; re-armed by Restore on tune-help | `UI/RangesUi.cpp:showExplainerIfFirstTime` | popover on first past-stock drag | (tune-help) `FirstRun::theRangeExplainerSaysSectionSevensWords` | OWNED |

@@ -42,7 +42,12 @@ juce::String BackingTrackLibrary::getDisplayName (const juce::File& file)
         && juce::CharacterFunctions::isDigit (name[1]) && name[2] == '-')
         name = name.substring (3);
 
-    return name.replaceCharacter ('-', ' ').toTitleCase();
+    auto words = juce::StringArray::fromTokens (name.replaceCharacter ('-', ' '), " ", "");
+
+    for (auto& word : words)
+        word = word.substring (0, 1).toUpperCase() + word.substring (1);
+
+    return words.joinIntoString (" ");
 }
 
 } // namespace luthier

@@ -406,5 +406,5 @@ LUTHIER_TEST (SampleContent, theFactoryBankIsTheDocumentedThirtySix)
     CHECK (electric == 17 && acoustic + classical == 9 && bass == 5 && utility == 5);
 
     // The first-run preset the onboarding spec names is in the bank.
-    CHECK (FactoryPresets::getPreset (2).name == juce::String ("Single-Cut Crunch"));
+    CHECK (juce::String (FactoryPresets::getPreset (2).name) == "Single-Cut Crunch");
 }
