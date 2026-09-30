@@ -21,6 +21,13 @@ concurrency:
   group: codeql-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # CodeQL must observe every compilation to build its database, so ccache is
+  # disabled here (a cache hit would skip the compiler and leave the DB empty).
+  # It also avoids the root-owned ccache dir that setup_linux.sh's sudo run
+  # created, which broke the build with "ccache: error: Permission denied".
+  CCACHE_DISABLE: '1'
+
 jobs:
   analyze:
     name: Analyze (C/C++)
@@ -38,6 +45,11 @@ jobs:
         run: |
           sudo -E scripts/setup_linux.sh
           sudo chown -R "$USER" .
+          # setup_linux.sh bakes ccache in as the CMake compiler launcher when
+          # ccache is installed. Clear both launchers so ninja invokes the
+          # compilers directly, which CodeQL can trace (and which avoids the
+          # root-owned ccache dir permission error).
+          cmake -B build -DCMAKE_C_COMPILER_LAUNCHER= -DCMAKE_CXX_COMPILER_LAUNCHER=
 
       - name: Build LuthierTests
         run: ninja -C build -j2 LuthierTests
