@@ -31,6 +31,39 @@ namespace luthier
 class LuthierAudioProcessor;
 
 //==============================================================================
+/** The Gater's live LED. It sits on the face's LED spot and, on its own
+    timer, reads the pedal's gateOpenness atomic (the gain the audio thread's
+    last block ended on) and glows in proportion: bright while the gate is
+    open, dark while it is shut, so it flashes and fades in time with the
+    chop. It only ever reads; the audio thread only ever writes. */
+class GateLed : public juce::Component,
+                private juce::Timer
+{
+public:
+    GateLed (LuthierAudioProcessor& processor, bool postChain, int slotIndex);
+    ~GateLed() override;
+
+    /** The openness the LED last drew, 0-1 (for the tests). */
+    float getShownOpenness() const noexcept { return shown; }
+
+    /** What the timer does: reads the atomic and repaints when it moved. */
+    void refresh();
+
+    void paint (juce::Graphics&) override;
+    void visibilityChanged() override;
+
+private:
+    void timerCallback() override { refresh(); }
+
+    LuthierAudioProcessor& processor;
+    bool postChain;
+    int slotIndex;
+    float shown = 0.0f;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GateLed)
+};
+
+//==============================================================================
 class PedalSlotComponent : public juce::Component,
                            private juce::Timer
 {
@@ -63,6 +96,7 @@ public:
     LuthierKnob* getParameterKnob (int index) const noexcept { return paramKnobs[index]; }
     LuthierKnob& getMixKnob() noexcept { return mixKnob; }
     LuthierToggle& getBypassToggle() noexcept { return bypassToggle; }
+    GateLed& getGateLed() noexcept { return gateLed; }
     int getFaceRenderCount() const noexcept { return faceRenders; }
 
     /** What the timer does: follows the type and bypass. */
@@ -113,6 +147,9 @@ private:
     LuthierKnob mixKnob { "Mix", LuthierKnob::Size::Small };
 
     juce::OwnedArray<LuthierKnob> paramKnobs;
+
+    // Shown only when the slot holds a Gater; it overlays the face's LED spot.
+    GateLed gateLed;
 
     PedalType cachedType = PedalType::None;
     bool shownBypass = false;
