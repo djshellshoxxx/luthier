@@ -12,7 +12,7 @@ TUNE-HELP has landed on this checkout: the export dialog (audio with stems, MIDI
 | TB-6 (§1) | Meta: title, artist, tempo, time sig, key, mode, swing, feel — no artist / time-signature control; swing only via the kit (KIT button) | `Tune/TuneModel.h:TuneMeta` | TUNE header title/tempo/key/mode; KIT button sets swing | `TunePanel.theHeaderEditsTitleTempoKeyAndSavesAndLoads` | PARTIAL |
 | TB-7 (§1) | Sections carry length, chords, rhythm, kit, melody, bass, layers | `Tune/TuneModel.h:TuneSection` | TUNE section strip | `TuneBuilder::timelinePutsChordsMelodyBassAndSectionsOnTheBeat` | DONE |
 | TB-8 (§1) | Setlist of section refs with repeats | `TuneArrangement::setlist` | section right-click Repeat, `TuneSectionStrip::buildMenu` | `TuneBuilder::editsKeepNamesUniqueAndTheSetlistInStep`, `TunePanel::theSectionStripsMenuRenamesDuplicatesRepeatsTagsLinksAndDeletes` | DONE |
-| TB-9 (§1) | Variations (A/B arrangements) — `TuneVariation` model struct only; no UI or playback | `Tune/TuneModel.h:TuneVariation` | - | - | MISSING |
+| TB-9 (§1) | Variations (A/B arrangements) — model plus `storeVariation`/`swapWithVariation` API, exercised only by one test; no UI or playback | `Tune/TuneModel.h:TuneVariation`, `Tune::storeVariation/swapWithVariation` | - | `TuneBuilder.transposeMovesChordsKeyAndAbsoluteMelodyAndIsReversible` (incidental) | PARTIAL |
 | TB-10 (§1.1) | ChordCell fields and shorthand parsing | `Tune/TuneTheory.cpp:parseProgression` | progression field | `TuneBuilder::shorthandParsesToTheExpectedCells` | DONE |
 | TB-11 (§1.1) | Underspecified last cell holds to fill | `resolveChordSpans` | n/a | `TuneBuilder::chordSpansRepeatAShortProgressionAndHoldAnUnderspecifiedLastCell` | DONE |
 | TB-12 (§1.2) | MelodyTrack `string_hint`, `articulation_default` — model fields only; no control, `TunePlayer` ignores the string hint | `MelodyTrack::stringHint` | - | - | PARTIAL |
@@ -92,4 +92,4 @@ TUNE-HELP has landed on this checkout: the export dialog (audio with stems, MIDI
 | TB-T9 (§15) | Hum fixture: 95 % pitch, rhythm on grid | `TuneHumCapture` | n/a | `HumCapture.aHummedMelodyIsTranscribedToTheSemitoneAndTheGrid` | DONE |
 | TB-T10 (§15) | Standalone relaunch loads and plays the last tune | plugin state | n/a | `TuneIntegration.aRelaunchLoadsTheLastTuneAndPlaysIt` | DONE |
 
-<!-- counts -->
+<!-- counts DONE=76 NO-GUI=1 NO-TEST=1 PARTIAL=8 MISSING=1 DEFERRED=0 -->

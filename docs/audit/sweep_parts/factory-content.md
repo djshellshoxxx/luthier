@@ -1,6 +1,6 @@
 ## factory-content.md
 
-Guitars (27 files, which cover all 15 named ones), parts (148, with the spec's trademark names replaced by neutral ones) and IRs (720) ship and meet or exceed the spec. Pattern and kit content is compiled in (39 patterns, 27 guitar kits and 4 bass kits), not shipped as files. The factory preset bank is still the older 36-entry set, not the spec's 36 named presets: "Modern Overdrive" (the first-run default) does not exist, there is no difficulty ladder, and reggae, latin, indie and punk have no presets. The 6 factory tunes and the 12 example MIDI clips are on the tune-help branch. None of these exist: example setlists, backing tracks, the spectrum-delta fixtures and the legal/size gates.
+Guitars (27 files, which cover all 15 named ones), parts (148, with the spec's trademark names replaced by neutral ones) and IRs (720) ship and meet or exceed the spec. Pattern and kit content is compiled in (39 patterns, 27 guitar kits and 4 bass kits), not shipped as files. The factory preset bank is still the older 36-entry set, not the spec's 36 named presets: "Modern Overdrive" (the first-run default) does not exist, there is no difficulty ladder, and reggae, latin, indie and punk have no presets. The 6 factory tunes (`Resources/Tunes/Examples`) and the 12 example MIDI clips (`Resources/Examples`) ship. None of these exist: example setlists, backing tracks, the spectrum-delta fixtures and the legal/size gates.
 
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
@@ -22,7 +22,7 @@ Guitars (27 files, which cover all 15 named ones), parts (148, with the spec's t
 | FC-16 (§8) | 6 royalty-free backing tracks in `Resources/Practice/BackingTracks/` | - | - | - | MISSING |
 | FC-17 (§9) | 12 example MIDI clips, one per genre kit | `Resources/Examples/01-12*.mid` (not in `MIDI/`), `TuneExamples::buildMidiClips` | - | `SampleContent.theTwelveMidiClipsShipAndPlay` | DONE |
 | FC-18 (§10) | 720 IRs (216 body + 504 cab), deterministic generator | `Resources/BodyIRs`, `Resources/CabIRs`, `scripts/make_irs.py` | TONE MATCH tab | - (no test counts or loads the shipped IRs) | NO-TEST |
-| FC-19 (§11) | Post-release `.luthiercontent` packs — format on visual; packs are post-release | on visual: `Updates/ContentPackage` | - | on visual: `ContentPackage.*` | OWNED |
+| FC-19 (§11) | Post-release `.luthiercontent` packs — signed-package format and installer implemented; nothing in the UI or file-open path calls it | `Updates/ContentPackage.*` | - | `ContentPackage.aSignedPackageInstallsIntoItsFolder`, `ContentPackage.aBadOrMissingSignatureIsRefused` | NO-GUI |
 | FC-20 (§12) | Every user-facing name in the locale catalog — preset/guitar/part names not catalogued | `Accessibility/Localisation.cpp` | n/a | - | PARTIAL |
 | FC-21 (§12) | Preset names are noun phrases about tone or use — "Fretless Mwah" and "Octave Fuzz Stoner" borderline; not checked | `FactoryPresets.cpp` | n/a | - | NO-TEST |
 | FC-22 (§12) | Guitar names `[Style] [Family]`; part names state the physical fact; tune names < 32 chars — no test | `Resources/Guitars`, `Resources/Parts`, `Resources/Tunes/Templates` | n/a | - | NO-TEST |
@@ -33,4 +33,4 @@ Guitars (27 files, which cover all 15 named ones), parts (148, with the spec's t
 | FC-27 (§13) | Every backing track streams at 48 kHz without dropouts | - | - | - | MISSING |
 | FC-28 (§13) | Legal review sign-off recorded for every named entry | - | n/a | - | MISSING |
 
-<!-- counts DONE=7 NO-GUI=0 NO-TEST=5 PARTIAL=5 MISSING=10 OWNED=1 -->
+<!-- counts DONE=7 NO-GUI=1 NO-TEST=5 PARTIAL=5 MISSING=10 DEFERRED=0 -->

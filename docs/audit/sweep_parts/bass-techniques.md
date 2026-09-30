@@ -43,4 +43,4 @@ With model-gaps merged, bass techniques are largely complete here: `SlapEngine` 
 | BT-T11 (§12) | Test: headroom, full slap every string < 0 dBFS limiter off | | n/a | `BassTechniques.aFullSlapOnEveryStringHasHeadroom` | DONE |
 | BT-T12 (§12) | Test: BASS_TECH round-trips; Generic velocities keep slap/ghost distinction — Luthier part only via capture + format tests; Generic untested | | n/a | `BassTechniques.aStrikeIsCapturedAsBassTech` | PARTIAL |
 
-<!-- counts DONE=31 NO-GUI=0 NO-TEST=0 PARTIAL=6 MISSING=1 OWNED=0 -->
+<!-- counts DONE=33 NO-GUI=0 NO-TEST=0 PARTIAL=5 MISSING=0 OWNED=0 -->

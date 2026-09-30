@@ -5,7 +5,7 @@ REALISM-C has landed on this checkout: attack transient, longitudinal ping, two-
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
 | SUS-1 (§0.2-0.3, 1) | Legacy single-T60 model kept as the slow stage; neutral values skip code (bit-identical); 32-sample tick | `DSP/String/StringEngine.cpp:updateLoopCoefficients` (legacy); `updateShapeTick` | n/a | `SustainDecay.legacyIsBitIdentical` | DONE |
-| SUS-2 (§1) | `sustain_scale` and per-note sustain scale keep working and scale the slow stage — param attached to the Sustain knob but never applied; owner defers | per-note `StringEngine::setSustainScale` works; `sustain_scale` unread in `ParameterBridge` | ADVANCED Col 1 "Sustain" knob, `AdvancedPanel::sustain` | - | PARTIAL |
+| SUS-2 (§1) | `sustain_scale` and per-note sustain scale keep working and scale the slow stage - per-note works; `ParamIDs::sustainScale` is read only by the range table, the CHARACTER T60 readout (`RealismGroupsC.cpp`) and the knob, never applied to the engine in `ParameterBridge` | per-note `StringEngine::setSustainScale` works; `sustain_scale` unread in `ParameterBridge` | ADVANCED Col 1 "Sustain" knob, `AdvancedPanel::sustain` | - | PARTIAL |
 | SUS-3 (§2.1) | Brightness overshoot b(t); hammer/pull restart at 0.5 strength | loop cutoff × b(t) in `updateLoopCoefficients` | n/a | `SustainDecay.brightnessOvershoot` | DONE |
 | SUS-4 (§2.2) | Longitudinal ping at f_L and 2f_L, fret-scaled, pre-body (owner: τ 15 ms) | `onShapeExcite`, `updateShapeConstants` | n/a | `SustainDecay.longitudinalPing` | DONE |
 | SUS-5 (§3) | Two-stage decay m(t), knee at 10log10(1-a) | `updateShapeTick` | n/a | `SustainDecay.twoStageKnee`, `SustainDecay.kneeDepth` | DONE |
