@@ -258,6 +258,11 @@ LUTHIER_TEST (Riffs, catalogMeetsTheCoverageTable)
         if (token == "upstroke" || token == "downstroke")
             continue;
 
+        // tab-import-export 7.3: slap/pop note techniques come from imported
+        // tabs; factory riffs carry slap and pop as BASS_TECH events instead.
+        if (token == "slapnote" || token == "popnote")
+            continue;
+
         const int least = (token == "artificial" || token == "tapharm" || token == "whammy") ? 2 : 3;
         CHECK_MSG (technique[token] >= least, token + " in " + juce::String (technique[token]) + " items");
     }

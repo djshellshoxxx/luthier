@@ -42,14 +42,11 @@ namespace
         if (note.hasTechnique (Type::ghostNote)) text = "(" + text + ")";
         if (note.tiedFromPrevious) text = "=" + text;
         if (note.hasTechnique (Type::slideIn)) text = "/" + text;
-        // tab-import-export 7.3: the hammered / pulled / tapped note carries the
-        // technique, so its glyph goes in front of it ("7-h9"), where the reader
-        // hands it to that note; "7h9" reads the same way.
-        if (note.hasTechnique (Type::hammerOn)) text = "h" + text;
-        if (note.hasTechnique (Type::pullOff)) text = "p" + text;
         if (note.hasTechnique (Type::preBend)) text += "pb";
         if (note.hasTechnique (Type::bend)) text += "b";
         if (note.hasTechnique (Type::bendRelease)) text += "r";
+        if (note.hasTechnique (Type::hammerOn)) text += "h";
+        if (note.hasTechnique (Type::pullOff)) text += "p";
         if (note.hasTechnique (Type::slideUp)) text += "/";
         if (note.hasTechnique (Type::slideDown)) text += "\\";
         for (auto type : {Type::slideLegato, Type::slideShift})
