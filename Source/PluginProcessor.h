@@ -479,6 +479,10 @@ public:
         Message thread. */
     void stopAllPlayers();
 
+    /** panic() without the engine command: the players, the audition, the jam
+        band and the preview MIDI. resetEverything panics the engine itself. */
+    void stopEverythingButTheEngine();
+
     //==========================================================================
     // SPEC-SWEEP (UW-5 / CB-17): the UI's writes to audio-thread state go
     // through this queue and are applied at the top of the next block.

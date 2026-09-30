@@ -2726,12 +2726,17 @@ void LuthierAudioProcessor::stopAllPlayers()
 
 void LuthierAudioProcessor::panic()
 {
-    stopAudition();
-    stopAllPlayers();
-
     // SPEC-SWEEP (UW-5): the engine is the audio thread's; the release happens
     // at the top of the next block rather than under its feet.
     postEngineCommand (EngineCommand::make (EngineCommand::Type::panic));
+
+    stopEverythingButTheEngine();
+}
+
+void LuthierAudioProcessor::stopEverythingButTheEngine()
+{
+    stopAudition();
+    stopAllPlayers();
 
     // jam-mode 2.2 (FEAT-JAM): a 5 ms choke of the band, jam_play off, Armed.
     jam.requestPanic();
@@ -2891,8 +2896,11 @@ void LuthierAudioProcessor::resetEverything()
     pushUndoState ("Reset everything");
 
     // RESET & STOP (B-14, PR #2): everything that makes or re-feeds sound on
-    // its own first, then every setting back to its default.
-    panic();
+    // its own first, then every setting back to its default. The engine's
+    // panic runs below with its reset rather than queued for a later block,
+    // where it would land after the new settings (a render right after Reset
+    // must equal the next one - Combo.renderIsDeterministicAfterReset).
+    stopEverythingButTheEngine();
     engine.getRhythmEngine().setEnabled (false);
     sessionRecorder.setEnabled (false);
     killSwitch.setActive (false);
@@ -2913,6 +2921,7 @@ void LuthierAudioProcessor::resetEverything()
         // than reset strings and filters under a render. With no audio thread
         // running (tests, offline) the reset simply applies.
         const LuthierEngine::ScopedStructuralChange change (engine);
+        engine.panic();
         engine.reset();
     }
 
