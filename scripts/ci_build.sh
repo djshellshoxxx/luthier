@@ -109,6 +109,8 @@ do_build() {
     local targets
     read -r -a targets <<< "$(build_targets)"
     step "Building ${targets[*]} with $JOBS jobs"
+    # -k 0: keep going after a failed compile so one CI run surfaces every
+    # compiler error, not just the first. A successful build is unaffected.
     cmake --build "$BUILD_DIR" --config "$CONFIG" --parallel "$JOBS" --target "${targets[@]}" -- -k 0
 
     if [ "$PLATFORM" = macos ]; then
