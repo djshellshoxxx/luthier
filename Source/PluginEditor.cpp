@@ -342,8 +342,12 @@ void LuthierAudioProcessorEditor::showSaveGuitarDialog()
                 safeThis->notifications.post ({ "save-guitar", tr ("workshop.saveGuitar.saved", { { "name", name } }),
                                                 Notification::Level::info });
             else
-                safeThis->notifications.post ({ "save-guitar", tr ("workshop.saveGuitar.failed"),
-                                                Notification::Level::warning });
+                safeThis->notifications.post ({ "save-guitar",
+                                                // SPEC-SWEEP ER-44: the reason, when there is one.
+                                                safeThis->processor.getLastGuitarSaveError().isNotEmpty()
+                                                    ? safeThis->processor.getLastGuitarSaveError()
+                                                    : tr ("workshop.saveGuitar.failed"),
+                                                Notification::Level::error });
         }), true);
 }
 

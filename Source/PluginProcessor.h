@@ -377,6 +377,13 @@ public:
         file. Returns the file, or an empty File if the write failed. */
     juce::File saveGuitarAs (const juce::String& name, bool bundleParts = false);
 
+    /*  SPEC-SWEEP ER-44, error-recovery 5: why the last saveGuitarAs refused or
+        failed, as a sentence the banner shows; empty after a save that worked. */
+    juce::String getLastGuitarSaveError() const { return lastGuitarSaveError; }
+
+    /** What makes a guitar unsaveable (an empty required slot, no strings), or empty. */
+    static juce::String describeGuitarSaveProblem (const WorkshopGuitar& guitar);
+
     /*  guitar-workshop.md 7: saves a fitted part's current fields as a user
         part under `name`, rescans the library and fits the saved part in its
         slot. Returns the saved part, or nullptr if the slot is empty or the
@@ -943,6 +950,7 @@ private:
     WorkshopGuitar currentGuitar;
     WorkshopBench bench { *this };
     bool partsGuitarLoaded = false;
+    juce::String lastGuitarSaveError;   // SPEC-SWEEP ER-44
     bool strumFamilyIsBass = false;   ///< strum-dynamics 4: the family the strum parameters' defaults follow
     juce::StringArray guitarNotices;
 

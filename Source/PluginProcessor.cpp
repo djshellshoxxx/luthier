@@ -937,15 +937,48 @@ bool LuthierAudioProcessor::switchGuitarFamily (const juce::String& family)
     return true;
 }
 
+juce::String LuthierAudioProcessor::describeGuitarSaveProblem (const WorkshopGuitar& guitar)
+{
+    for (int i = 0; i < kNumGuitarSlots; ++i)
+    {
+        const auto slot = (GuitarSlot) i;
+
+        if (isSlotRequired (slot) && guitar.get (slot) == nullptr)
+            return "the " + juce::String (getSlotId (slot)) + " slot is empty. Fit a part there first.";
+    }
+
+    if (guitar.getStringCount() < 1)
+        return "the neck and the bridge take no strings between them.";
+
+    return {};
+}
+
 juce::File LuthierAudioProcessor::saveGuitarAs (const juce::String& name, bool bundleParts)
 {
     const auto safeName = juce::File::createLegalFileName (name.trim());
 
-    if (safeName.isEmpty() || ! partsGuitarLoaded)
-        return {};
+    // SPEC-SWEEP ER-44, error-recovery 5: an invalid guitar is refused with its
+    // reason and stays unsaved; nothing is written.
+    lastGuitarSaveError.clear();
+
+    auto refuse = [this] (const juce::String& reason, const char* code)
+    {
+        lastGuitarSaveError = reason;
+        ErrorLog::write (ErrorLog::Severity::warn, "Workshop", code, reason);
+        return juce::File();
+    };
+
+    if (! partsGuitarLoaded)
+        return refuse ("There is no Workshop guitar to save. Open one in the Workshop first.", "GUITAR_SAVE_NO_GUITAR");
+
+    if (safeName.isEmpty())
+        return refuse ("A guitar needs a name to be saved.", "GUITAR_SAVE_NO_NAME");
 
     auto guitar = currentGuitar;
     guitar.name = name.trim();
+
+    if (const auto problem = describeGuitarSaveProblem (guitar); problem.isNotEmpty())
+        return refuse ("Cannot save " + guitar.name + ": " + problem, "GUITAR_SAVE_INVALID");
 
     const auto folder = PartLibrary::getUserGuitarsFolder();
     folder.createDirectory();
@@ -953,11 +986,9 @@ juce::File LuthierAudioProcessor::saveGuitarAs (const juce::String& name, bool b
     const auto file = folder.getChildFile (safeName + WorkshopGuitar::kExtension);
 
     if (! guitar.save (file))
-    {
-        ErrorLog::write (ErrorLog::Severity::warn, "Workshop", "GUITAR_SAVE_FAILED",
-                         "Could not write " + file.getFullPathName());
-        return {};
-    }
+        return refuse ("Could not write " + file.getFileName() + " to " + folder.getFullPathName()
+                         + " (permission denied or disk full). Nothing was changed.",
+                       "GUITAR_SAVE_FAILED");
 
     /*  6: "Bundle parts" writes the referenced parts beside the guitar, in
         their category folders, so the folder is shareable on its own. */

@@ -20,6 +20,7 @@
 #include "../UI/Notifications.h"
 #include "../UI/OwnedFileChooser.h"
 #include "../Tune/TuneModel.h"
+#include "../Model/Workshop/PartLibrary.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -703,4 +704,26 @@ LUTHIER_TEST (Editor, bannersShowTheMostSevereFirst)
 
     CHECK_MSG (order.joinIntoString (",") == "first-info,an-error,another-error,a-warning,second-info",
                order.joinIntoString (","));
+}
+
+//==============================================================================
+/*  ER-44, error-recovery 5: an invalid guitar is refused with a reason and
+    nothing is written; the factory guitar itself is valid. */
+LUTHIER_TEST (Workshop, anInvalidGuitarSaveIsRefusedWithItsReason)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+    CHECK (processor.hasPartsGuitar());
+
+    auto guitar = processor.getCurrentGuitar();
+    CHECK (LuthierAudioProcessor::describeGuitarSaveProblem (guitar).isEmpty());
+
+    guitar.parts[(size_t) GuitarSlot::neck] = nullptr;
+    const auto problem = LuthierAudioProcessor::describeGuitarSaveProblem (guitar);
+    CHECK_MSG (problem.contains ("neck"), "reason: " + problem);
+
+    const auto before = PartLibrary::getUserGuitarsFolder().getNumberOfChildFiles (juce::File::findFiles);
+    CHECK (processor.saveGuitarAs ("   ") == juce::File());
+    CHECK (processor.getLastGuitarSaveError().contains ("name"));
+    CHECK (PartLibrary::getUserGuitarsFolder().getNumberOfChildFiles (juce::File::findFiles) == before);
 }
