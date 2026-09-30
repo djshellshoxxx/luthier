@@ -1,6 +1,6 @@
 ## body-coupling.md
 
-REALISM-A has landed on this checkout: `DSP/Coupling/BodyCouplingBank.*`, the wave-impedance bridge return, tap injection, the five parameters, the `body` family, the Advanced Coupling knob and the BODY COUPLING group with mode list, wolf map and Tap, with `BodyCoupling.BC01..BC13` registered (amended numbers recorded in the spec). Still open: the Workshop body-inspector mirror (BC-17), the factory re-voicing pass (BC-20; presets load at 0) and the `spec/performance-budget.md` row (BC-22).
+REALISM-A has landed on this checkout: `DSP/Coupling/BodyCouplingBank.*`, the wave-impedance bridge return, tap injection, the five parameters, the `body` family, the Advanced Coupling knob and the BODY COUPLING group with mode list, wolf map and Tap, with `BodyCoupling.BC01..BC13` registered (amended numbers recorded in the spec). Still open (re-verified, unchanged): the Workshop body-inspector mirror (BC-17), the factory re-voicing pass (BC-20; presets load at 0) and the `spec/performance-budget.md` row (BC-22).
 
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
@@ -20,12 +20,12 @@ REALISM-A has landed on this checkout: `DSP/Coupling/BodyCouplingBank.*`, the wa
 | BC-14 (§5) | CHARACTER BODY COUPLING group after SETUP: scales, modes, mode list | n/a | `UI/RealismGroups.*:BodyCouplingGroup`, `BodyModeList` | `RealismUi.theCharacterPanelCarriesTheGroups` | DONE |
 | BC-15 (§5) | Wolf map strings × frets 0-19, warning colour > 30 % + dot glyph | `BodyCouplingBank::wolfMap/predictedLoss` | `WolfMap` | `BodyCoupling.BC11_theWolfMapIsHonest` | DONE |
 | BC-16 (§5) | Tap button fires one body tap | `requestBodyTap` | BODY COUPLING Tap | `BodyCoupling.BC06_BC09_aTapRingsTheStringsNearAMode` | DONE |
-| BC-17 (§5) | Workshop body inspector mirrors mode list and wolf map — owner defers | none | none (owner deferred) | - | MISSING |
+| BC-17 (§5) | Workshop body inspector mirrors mode list and wolf map - not implemented (no coupling reference in `UI/WorkshopPanel.cpp`); mirror lives only in CHARACTER BODY COUPLING group | none | none (owner deferred) | - | MISSING |
 | BC-18 (§5) | CHARACTER padlock covers `body` | n/a | `RangeTabButton` families | `BodyCoupling.BC12_legacyLoadIsOff` | DONE |
 | BC-19 (§6) | Bank derived not stored; legacy load writes 0 | `PresetManager::fromVar` REALISM-A block | n/a | `BodyCoupling.BC12_legacyLoadIsOff` | DONE |
-| BC-20 (§6) | Factory presets re-voiced with coupling on (listening pass) — owner defers; factory files omit the key so load at 0 | none | n/a | - | MISSING |
+| BC-20 (§6) | Factory presets re-voiced with coupling on (listening pass) - not done; factory files omit the key so load at 0 (`BodyCoupling.BC12_legacyLoadIsOff`) | none | n/a | - | MISSING |
 | BC-21 (§7) | Smoothing 20 ms amount, 0.2 %/block freq slew, 0.05 % redesign threshold | `processSample`, `beginBlock` | n/a | `BodyCoupling.BC04_offIsBitIdentical` | DONE |
-| BC-22 (§7) | Budget (spec 0.08, owner amended 0.1 units), no audio alloc — perf-budget.md row not added | `design` message-thread only | n/a | `BodyCoupling.BC13_budgetAndSafety` | PARTIAL |
+| BC-22 (§7) | Budget (spec 0.08, owner amended 0.1 units), no audio alloc - `BodyCoupling.BC13_budgetAndSafety` exists; spec/performance-budget.md has no BodyCoupling row | `DSP/Coupling/BodyCouplingBank.*` (`design` message-thread only) | n/a | `BodyCoupling.BC13_budgetAndSafety` | PARTIAL |
 | BC-23 (§8 BC-01) | Passivity | - | n/a | `BodyCoupling.BC01_theBankIsPassive` | DONE |
 | BC-24 (§8 BC-02) | Wolf on an acoustic | - | n/a | `BodyCoupling.BC02_aWolfOnAnAcoustic` | DONE |
 | BC-25 (§8 BC-03) | Solidbody is mild | - | n/a | `BodyCoupling.BC03_aSolidbodyIsMild` | DONE |

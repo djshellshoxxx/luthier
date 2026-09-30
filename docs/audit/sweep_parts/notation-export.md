@@ -50,4 +50,4 @@
 | NE-44 (§7.1) | Capture test: live TAB shows what was played | | n/a | `Capture::theLiveTabShowsWhatWasPlayed` | DONE |
 | NE-45 (§7.1) | Capture test: Luthier-profile MIDI export round-trips note list | | n/a | `Capture::aCapturedPhraseRoundTripsThroughLuthierMidi` | DONE |
 
-<!-- counts DONE=32 NO-GUI=0 NO-TEST=4 PARTIAL=6 MISSING=3 OWNED=0 -->
+<!-- counts DONE=32 NO-GUI=0 NO-TEST=4 PARTIAL=6 MISSING=3 DEFERRED=0 -->

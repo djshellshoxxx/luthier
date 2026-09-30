@@ -5,7 +5,7 @@ REALISM-C has landed on this checkout: `DSP/Noise/NoiseFloor.*` with every injec
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
 | NF-1 (§1, 2.1) | Existing hum kept (ID, range, default 0.12, constant 0.0022, pre-circuit) | `DSP/Pickup/PickupEngine.cpp:processStrings` | ADVANCED amp column "Amp Buzz" knob, `AdvancedPanel::ampBuzz` | `NoiseFloor.humCalibration` | DONE |
-| NF-2 (§1, 5) | Display name "Single-coil Hum"; Advanced knob relabelled mirror — branch renames the param but AdvancedPanel label still "Amp Buzz" | (branch) `Parameters.cpp` renamed | `AdvancedPanel.cpp` `addKnob(ampBuzz, "Amp Buzz")` unchanged on branch | - | PARTIAL |
+| NF-2 (§1, 5) | Display name "Single-coil Hum"; Advanced knob relabelled mirror - `Parameters.cpp` names the param "Single-coil Hum" but `AdvancedPanel.cpp` still `addKnob(ampBuzz, "Amp Buzz")` | `Parameters.cpp:549` (renamed, same ID) | `AdvancedPanel.cpp:837` label still "Amp Buzz" | - | PARTIAL |
 | NF-3 (§0.1, 2, 4) | Sources injected where they enter (pickup, circuit-in, DI, amp-in); acoustic gets hiss + cable only | `DSP/Noise/NoiseFloor.*` taps in `LuthierEngine::processSubBlock` | n/a | `NoiseFloor.aHumbuckerCancelsHumButNotAGroundLoop`, `NoiseFloor.theVolumeKnobActsOnHumOnly` | DONE |
 | NF-4 (§0.2) | Own module, not the NoiseEngine pool | `NoiseFloor` class | n/a | n/a (structure) | DONE |
 | NF-5 (§0.3) | Deterministic from character seed; reset reseeds | `NoiseFloor::reset/setSeed` | n/a | `NoiseFloor.rendersAreDeterministic` | DONE |
@@ -13,7 +13,7 @@ REALISM-C has landed on this checkout: `DSP/Noise/NoiseFloor.*` with every injec
 | NF-7 (§2) | Shared mains phase accumulator, phase-locked with hum | `NoiseFloor` mains phase | n/a | `NoiseFloor.aHumbuckerCancelsHumButNotAGroundLoop` | DONE |
 | NF-8 (§2.1) | Position gain g_angle × g_dist, bit-identical at 0°/1 m | `NoiseFloor::positionGain`, `PickupEngine::setHumPositionGain` | NOISE FLOOR position pad | `NoiseFloor.positionScalesTheHum` | DONE |
 | NF-9 (§2.1) | `noise_mains_hz` drives setMainsFrequency (today hard-coded 60) | `ParameterBridge::applyToEngine` | NOISE FLOOR 50/60 switch | `NoiseFloor.regionSetsTheHumFrequency` | DONE |
-| NF-10 (§2.1) | Hum calibration -40±6 dB; out-of-window goes in DECISIONS.md, constant unchanged (measured -58 dB, recorded in spec text only) — spec/DECISIONS.md entry not written | - | n/a | `NoiseFloor.humCalibration`, `NoiseFloor.calibrationIsLogged` | PARTIAL |
+| NF-10 (§2.1) | Hum calibration -40+-6 dB; out-of-window goes in DECISIONS.md, constant unchanged (measured -58 dB, in spec text only) - no matching entry in spec/DECISIONS.md | - | n/a | `NoiseFloor.humCalibration`, `NoiseFloor.calibrationIsLogged` | PARTIAL |
 | NF-11 (§2.2) | Fluorescent buzz (2×mains impulses, 3.5 kHz BP) | `NoiseFloor::beginBlock` | Guitar row | `NoiseFloor.fluorescentSpectrum` | DONE |
 | NF-12 (§2.3) | Passive Johnson hiss from live R, before circuit | `johnsonVoltsRms`, `hissResistance` | Guitar row | `NoiseFloor.passiveHissIsPhysical` | DONE |
 | NF-13 (§2.4) | Cable movement rolls/events, 4 voices, q per CableQuality, after circuit | `onNoteOn`, `startCableEvent` | Guitar row | `NoiseFloor.cableMovementRollsAndScales` | DONE |

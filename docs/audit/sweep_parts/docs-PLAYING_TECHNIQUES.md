@@ -36,4 +36,4 @@ The technique model matches the doc closely: the priority order, excitation leng
 | PT-30 (Humanise) | Six independent controls (timing, velocity, detune, attack, noise, strum); macro scales all; zero is machine-perfect | `Parameters.cpp:~1244 hum.*`, `MidiInterpreter humanise` | Advanced Humanise, Easy Humanize | `RhythmPatterns::humanisationIsDeterministic`, `StrumDynamics::humanisedTimingMovesTheWholeGesture` | DONE |
 | PT-31 (Realism detune) | Per-string fixed detune stored in preset | `ParamIDs::realismDetune` | Advanced Tuning Realism | `ReviewRegression::aPresetWithoutAStringsBlockClearsThePreviousDetune` | DONE |
 
-<!-- counts DONE=22 NO-GUI=0 NO-TEST=4 PARTIAL=3 MISSING=2 OWNED=0 -->
+<!-- counts DONE=26 NO-GUI=0 NO-TEST=4 PARTIAL=1 MISSING=0 OWNED=0 -->

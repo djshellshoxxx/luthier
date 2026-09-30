@@ -6,17 +6,17 @@ These are generic JUCE rules. Checked against the code, most of them hold. What 
 - `dynamic_cast` still runs in `EffectsChain::setOversamplingFactor`, which the parameter bridge can reach.
 - An IR path outside the library root falls back to an absolute path.
 - Factory presets are compiled into code rather than shipped as BinaryData.
-- `setBufferedToImage` is never used.
+- `setBufferedToImage` is used only by `AnimationPolicy` at motion Off.
 - Unused output channels are cleared per bus rather than at the top of `processBlock`.
-- The tests use a custom harness, not `juce::UnitTest` (it is equivalent, with 832 tests).
+- The tests use a custom harness, not `juce::UnitTest` (it is equivalent, with about 1611 tests).
 
-The audio-thread allocation / lock rules are being closed on visual. The context7 rule and the host test matrix are process items and cannot be checked in code. JUCE is pinned to tag 8.0.10 by script, not as a submodule.
+The audio-thread allocation / lock rules now hold and are tested (`Engine::fiveMinutesOfPlaybackNeitherAllocatesNorLocks`; only try-locks remain). The context7 rule and the host test matrix are process items and cannot be checked in code. JUCE is pinned to tag 8.0.10 by script, not as a submodule.
 
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
 | JG-1 (§1) | Query context7 before writing or reviewing JUCE code — a workflow rule, not checkable in code | n/a | n/a | - | PARTIAL |
-| JG-2 (§2) | No allocation, `std::function` assignment or container growth on the audio thread; pre-size in `prepareToPlay` — counter defined for tests; the full audio-thread trap and fixes are on visual | `LuthierAudioProcessor::prepareToPlay`, `CMakeLists.txt:205` | n/a | `Circuit::sweepingEveryControlDoesNotAllocate`, `Capture::capturingTenThousandNotesDoesNotAllocate`, `PracticeGaps::theSessionRecorderTakesMidiWithoutAllocating` | OWNED |
-| JG-3 (§2) | No locks on the audio thread — HEAD uses `ScopedTryLock` / `SpinLock` try in `EffectsChain`, `BodyEngine`, `CabinetEngine`, `TunePlayer`; the no-blocking-lock work is on visual | `DSP/Effects/EffectsChain.cpp`, `DSP/Body/BodyEngine.cpp`, `ConvolutionInstaller.h` | n/a | `StateModel::loadingAPresetWhileRenderingProducesNoGarbage` | OWNED |
+| JG-2 (§2) | No allocation, `std::function` assignment or container growth on the audio thread; pre-size in `prepareToPlay` - allocation trap covers the whole processor | `LuthierAudioProcessor::prepareToPlay`, `CMakeLists.txt` | n/a | `Engine::fiveMinutesOfPlaybackNeitherAllocatesNorLocks`, `Circuit::sweepingEveryControlDoesNotAllocate`, `Capture::capturingTenThousandNotesDoesNotAllocate`, `PracticeGaps::theSessionRecorderTakesMidiWithoutAllocating` | DONE |
+| JG-3 (§2) | No locks on the audio thread - blocking locks trapped (pthread_mutex_lock interposed); only try-locks remain in `EffectsChain`, `BodyEngine`, `CabinetEngine`, `TunePlayer`, processor | `DSP/Effects/EffectsChain.cpp`, `DSP/Body/BodyEngine.cpp`, `ConvolutionInstaller.h`, `PluginProcessor.cpp` ScopedTryLock | n/a | `Engine::fiveMinutesOfPlaybackNeitherAllocatesNorLocks`, `ThreadProbe::theLockTrapSeesALock`, `StateModel::loadingAPresetWhileRenderingProducesNoGarbage` | DONE |
 | JG-4 (§2) | `Pedal::setOversamplingFactor` is virtual (no-op default, DrivePedalBase overrides); `EffectsChain` no longer dynamic_casts | `EffectsChain.cpp:238` | n/a | `Effects::oversamplingChangeReachesEveryDrivePedal` | DONE |
 | JG-5 (§2 / §5) | No GUI calls from the audio thread; `parameterChanged` marshals via `AsyncUpdater`; editor polls on timers | `ParameterBridge : AsyncUpdater` (`Parameters.h:430`) | n/a | CI pluginval "Open editor whilst processing"; `Editor::itLaysOutAndPaintsAcrossItsResizeRange` | DONE |
 | JG-6 (§3) | DSP code free of GUI headers | `Source/DSP` (includes `juce_dsp` only, `DspCommon.h:12`) | n/a | builds headless (`LUTHIER_HEADLESS=1` render target) | DONE |
@@ -35,14 +35,14 @@ The audio-thread allocation / lock rules are being closed on visual. The context
 | JG-19 (§6) | Oversampling factor is a parameter | `ParamIDs::oversample`, `LuthierEngine::setOversamplingFactor` | Options AUDIO; Advanced | `Combo::pairwiseAcrossMajorSettings` | DONE |
 | JG-20 (§6) | MIDI processed at its sample position | `processSlice` slicing | n/a | `MidiExport::liveMidiOutKeepsTenThousandEventsOnTheirSample`, `Controllers::chordGroupsSoundOneWindowAfterTheyWerePlayed` | DONE |
 | JG-21 (§7) | Background → audio by building off-thread and swapping atomically | `LuthierEngine::swapPartsAtBlockBoundary`, `ConvolutionInstaller.h` | n/a | `PartSwap::aSwapKeepingTheStructureIsTakenAtABlockBoundaryWithoutSilence`, `WorkshopSwap::noFileIsTouchedFromTheAudioThreadDuringASwap` | DONE |
-| JG-22 (§8) | Cache expensive drawables; 30 Hz timers pull meter data; `setBufferedToImage` for expensive, rarely changing components — faces are cached; `setBufferedToImage` is used nowhere | `UI/Faces` image cache; timers 4-30 Hz | all panels | `FacesIntegration::facesAreDrawnOnceAndAgainOnlyWhenTheyChange` | PARTIAL |
+| JG-22 (§8) | Cache expensive drawables; 30 Hz timers pull meter data - faces are cached; `setBufferedToImage` is used only by `AnimationPolicy` at motion Off | `UI/Faces` image cache; timers 4-30 Hz | all panels | `FacesIntegration::facesAreDrawnOnceAndAgainOnlyWhenTheyChange` | PARTIAL |
 | JG-23 (§8) | DAW-driven resize handled cleanly; editor size restored from state | `PluginEditor.cpp:145,182` (`uiState.editorWidth`) | window | `Editor::theProcessorHandsOverAnEditorAtItsDocumentedSize`, `Editor::itLaysOutAndPaintsAcrossItsResizeRange` | DONE |
 | JG-24 (§9) | `juce::UnitTest` suites for every DSP class — a custom `LUTHIER_TEST` harness is used instead (equivalent) | `Tests/TestFramework.h` | n/a | 832 registered | DONE |
-| JG-25 (§9 / §12) | pluginval `--strictness-level 10` in CI on every PR — push / PR run strictness 5; 10 only nightly / dispatch / release | `.github/workflows/build.yml:75` | n/a | CI pluginval | PARTIAL |
+| JG-25 (§9 / §12) | pluginval `--strictness-level 10` in CI on every PR - push / PR run strictness 5 (build.yml); 10 on manual dispatch, release and `scripts/pluginval.sh` | `.github/workflows/build.yml:75` | n/a | CI pluginval | PARTIAL |
 | JG-26 (§9) | Test in Reaper, Ableton Live, FL Studio, Cubase, Logic; auval on macOS | - | - | - | MISSING |
-| JG-27 (§10) | Never store absolute paths in state — `IrLibraryPaths::toPresetPath` falls back to the full path for an IR outside the library root | `ToneMatch` `toPresetPath` (`getFullPathName`) | n/a | - | PARTIAL |
+| JG-27 (§10) | Never store absolute paths in state — `IrLibraryPaths::toPresetPath` falls back to the full path for an IR outside the library root | `ToneMatch` `toPresetPath` (`getFullPathName`) | n/a | `ToneMatch::*` (ToneMatchTests.cpp:471-494 toPresetPath) | PARTIAL |
 | JG-28 (§10) | Factory presets shipped as BinaryData / ValueTree — compiled into `FactoryPresets.cpp` (still in the binary; no BinaryData) | `Presets/FactoryPresets.cpp` | preset browser | `Presets::everyFactoryPresetLoadsAndPlays` | DONE |
 | JG-29 (§11) | VST3 parameter count and IDs locked once shipped; new params appended | `Parameters.cpp` | n/a | `Parameters::everyParameterHasAUniqueIdAndSaneDefault` (exact count 453) | DONE |
 | JG-30 (§11) | AAX only with PACE — not built | `CMakeLists.txt:35` | n/a | n/a | DONE |
 
-<!-- counts DONE=21 NO-GUI=0 NO-TEST=0 PARTIAL=5 MISSING=2 OWNED=2 -->
+<!-- counts DONE=23 NO-GUI=0 NO-TEST=0 PARTIAL=5 MISSING=2 OWNED=0 -->

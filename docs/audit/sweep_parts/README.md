@@ -1,6 +1,6 @@
 ## README.md
 
-spec/README.md is the product front page: build instructions, content counts, architecture, DSP rules and deliberate deviations. Most counts and build claims hold on this checkout (AU is now added on macOS, CI runs pluginval, the allocation counter is compiled into the tests). Still false: the pedal count (22, not 21), the stale `DSP/Cable/` layout, "all three interpolators selectable", the "scrolling data stream unchanged" claim, the missing `THIRD_PARTY_LICENCES.txt` (both on visual), and the "byte-identical" IR regeneration (`make_irs.py` seeds from Python's randomised `hash()`).
+spec/README.md is the product front page: build instructions, content counts, architecture, DSP rules and deliberate deviations. Most counts and build claims hold on this checkout (AU is now added on macOS, CI runs pluginval, the allocation counter is compiled into the tests). Still false: the pedal count (22, not 21), the stale `DSP/Cable/` layout, "all three interpolators selectable", the "scrolling data stream unchanged" claim, and the "byte-identical" IR regeneration (`make_irs.py` seeds from Python's randomised `hash()`).
 
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
@@ -16,7 +16,7 @@ spec/README.md is the product front page: build instructions, content counts, ar
 | RM-10 (Arch) | Signal chain MidiInterpreter→Technique→Tuning→String×N+Coupling→Body→Pickup→Circuit→FX→Amp→Cab→Room→Master | `LuthierEngine.cpp:process` | n/a | `Engine::aNoteProducesSound`, `Circuit::theEngineRunsThroughTheCircuit` | DONE |
 | RM-11 (Layout) | Source layout: `DSP/Cable/` dropped; Circuit/Feedback/Noise/Slap/Slide and the top-level feature dirs listed; diagram says GuitarCircuit | `Source/DSP/Circuit`, spec/README.md | n/a | - | DONE |
 | RM-12 (Rule 1) | All internal DSP is double | `Source/DSP/*` | n/a | `StringEngine::survivesExtremeParameters` | DONE |
-| RM-13 (Rule 2) | No alloc/lock/file I/O in processBlock — only module-level alloc checks; try-locks remain | `PluginProcessor::processBlock` | n/a | `Circuit::sweepingEveryControlDoesNotAllocate`, `TunePlayer::rendersWithoutAllocating` | OWNED |
+| RM-13 (Rule 2) | No alloc/lock/file I/O in processBlock - whole-processor allocation and lock trap; only try-locks remain | `PluginProcessor::processBlock` | n/a | `Engine::fiveMinutesOfPlaybackNeitherAllocatesNorLocks`, `Circuit::sweepingEveryControlDoesNotAllocate`, `TunePlayer::rendersWithoutAllocating` | DONE |
 | RM-14 (Rules 3,7) | DC blocker + NaN guard per recursive stage; ScopedNoDenormals + flushing | `DspCommon.h`, `PluginProcessor.cpp:999`, `LuthierEngine.cpp:1832` | n/a | `Common::dcBlockerRemovesOffset`, `Engine::fastSlidesProduceNoNansOrDenormals` | DONE |
 | RM-15 (Rules 4,5,6) | Smoothed params, 5 ms discrete crossfade, SR recomputed in prepare, times in s/Hz | `DspCommon.h:ExpSmoother/LinSmoother`, `prepareToPlay` | n/a | `Engine::sampleRateChangesAreSurvived`, `PresetMorph::aFourSecondSweepDoesNotClick` | DONE |
 | RM-16 (Rules 8-10) | reset() on every module, isolation, nonlinear stages oversampled 4x default | `Parameters.cpp:661 oversample default 2 (=4x)`, `Oversampler.h` | col 3 Master Oversampling; Options AUDIO | `Common::oversamplingSuppressesAliasing`, `Combo::renderIsDeterministicAfterReset` | DONE |
@@ -33,10 +33,10 @@ spec/README.md is the product front page: build instructions, content counts, ar
 | RM-27 (Dev) | Lagrange5 used; README now says all three are implemented and tested, not selectable | `FractionalDelayLine.h:Interpolation` | n/a (developer choice) | `DelayLine::allInterpolatorsPreserveLevel` | DONE |
 | RM-28 (Dev) | Damping as cutoff; per-string positional comb; per-sample coupling; core-diameter inharmonicity | `StringEngine::setDamping`, `PickupEngine`, `CouplingMatrix` | n/a | `StringEngine::palmMuteShortensAndDarkens`, `Pickup::positionCombNullsTheExpectedHarmonic`, `Coupling::aStruckStringRingsItsNeighbour`, `StringPhysics::woundStringsAreLessStiffThanTheirDiameterSuggests` | DONE |
 | RM-29 (Dev) | Cutaway drawn not clipped; signature notch; output LED | `PluginEditor.cpp:345 drawSignatureNotch`, `HeaderBar::led` | window | `Theme::controlsRenderInEveryPaletteAndRepeatExactly` | DONE |
-| RM-30 (Dev) | Theme structure unchanged "including the scrolling data stream" — `DataStreamDisplay` built but never shown | `UI/Widgets.cpp:DataStreamDisplay` | none | - | OWNED |
-| RM-31 (Licence) | `THIRD_PARTY_LICENCES.txt` beside the plugin — file absent; HelpContent.cpp:449 cites it | - | Help > About | - | OWNED |
+| RM-30 (Dev) | Theme structure unchanged including the scrolling data stream - `DataStreamDisplay` shown in the editor and switchable in Options | `UI/Widgets.cpp:DataStreamDisplay` | `PluginEditor.cpp:68`, Options > APPEARANCE | `DataStream::itKeeps200StopsAfter500msAndHonoursReducedMotion` | DONE |
+| RM-31 (Licence) | `THIRD_PARTY_LICENCES.txt` beside the plugin - present in `Resources/` and installed | `Resources/THIRD_PARTY_LICENCES.txt`, `CMakeLists.txt:316` | Help > About (`HelpContent.cpp:629`) | `Legal::thirdPartyLicencesNameEveryBundledDependency` | DONE |
 | RM-32 (Licence) | Help > About shows licence text | `UI/HelpContent.cpp` | HELP tab | `HelpTab::theContentCoversWhatIncludeMdAsksFor` | DONE |
 
-Notes: RM-13 on visual: "Audio thread: no allocation, no blocking lock" and "QA: allocation trap live". RM-30 on visual: `PluginEditor.h:145 DataStreamDisplay dataStream` + Options > Appearance switch, `AppearanceTests`. RM-31 on visual: `THIRD_PARTY_LICENCES.txt` and `Resources/THIRD_PARTY_LICENCES.txt` (287 lines).
+Notes: RM-13, RM-30 and RM-31 landed and are tested (`Engine::fiveMinutesOfPlaybackNeitherAllocatesNorLocks`, `DataStream::*`, `Legal::thirdPartyLicencesNameEveryBundledDependency`).
 
-<!-- counts DONE=29 NO-GUI=0 NO-TEST=0 PARTIAL=0 MISSING=0 OWNED=3 -->
+<!-- counts DONE=32 NO-GUI=0 NO-TEST=0 PARTIAL=0 MISSING=0 OWNED=0 -->

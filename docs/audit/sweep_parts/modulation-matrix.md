@@ -1,6 +1,6 @@
 ## modulation-matrix.md
 
-The engine is complete: 8 LFOs, 4 DAHDSR envelopes, 2 step sequencers, 2 followers, note/CC/14-bit/random/macro sources, compiled lock-free routes (8 per destination), discrete destinations and all five spec tests. The MOD tab is thinner than the engine. It has no route Offset column. The LFO phase and breakpoint shape, the envelope retrigger, stage curves and loop mode, the sequencer's step grid and internal rate, and the follower's string index and log curve have no controls. There are no per-source colours. The matrix is not written to `.luthierpreset` files (session state and snapshots only), so preset load neither restores nor resets it. Per-string, rhythm, pan and snapshot-morph destinations do not exist as parameters. Drag-to-modulate is on the visual branch.
+The engine is complete: 8 LFOs, 4 DAHDSR envelopes, 2 step sequencers, 2 followers, note/CC/14-bit/random/macro sources, compiled lock-free routes (8 per destination), discrete destinations and all five spec tests. The MOD tab is thinner than the engine. It has no route Offset column. The LFO phase and breakpoint shape, the envelope retrigger, stage curves and loop mode, the sequencer's step grid and internal rate, and the follower's string index and log curve have no controls. There are no per-source colours. The matrix travels in `.luthierpreset` files (a `modulation` block) and is reset on preset load. Per-string, rhythm, pan and snapshot-morph destinations do not exist as parameters. Drag-to-modulate is merged.
 
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
@@ -9,11 +9,11 @@ The engine is complete: 8 LFOs, 4 DAHDSR envelopes, 2 step sequencers, 2 followe
 | MM-3 (§0.3, §3) | Additive over base, (v*depth+offset)*range, clamped to range | `ModMatrix::apply` | n/a | `Modulation::routeModulatesItsDestination` | DONE |
 | MM-4 (§0.4) | Up to 8 sources per destination | `ModMatrix::addRoute` (kMaxRoutesPerDestination) | Modulate menu disables when full | `Modulation::destinationAcceptsEightSourcesAndNoMore` | DONE |
 | MM-5 (§0.4, §3) | Per-route depth and offset -100..+100% (engine) | `ModRoute::depth/offset` | see MM-40 | `Modulation::presetRoundTripIsExact` | DONE |
-| MM-6 (§0.5) | Sources reset on preset load — `PresetManager::loadPreset` never touches the matrix (only session restore / `fromVar` resets) | `ModMatrix::fromVar` -> `reset()` | n/a | - | PARTIAL |
+| MM-6 (§0.5) | Sources reset on preset load — `loadPreset` reads the `modulation` block (absent = empty matrix) and `fromVar` resets | `Presets/PresetBlocks.cpp:readPresetBlocks` -> `ModMatrix::fromVar` -> `reset()` | n/a | `Presets.processorBlocksTravelInThePresetFile` | DONE |
 | MM-7 (§0.5) | Sources reset on snapshot recall (snapshot's matrix `fromVar` resets) — untested | `PluginProcessor::applySnapshotModules` | n/a | - | NO-TEST |
 | MM-8 (§0.5) | Sources reset on transport start — only LFOs in on-transport/grid retrigger and sequencers restart; envelopes/followers/random/free LFOs do not | `ModMatrix::updateSources` (`transportJustStarted`) | n/a | - | PARTIAL |
 | MM-9 (§0.5, §1.1) | Free-running LFO as per-source option — untested | `ModLfo::Retrigger::freeRun` | ADVANCED > MOD, LFO card `retriggerBox` | - | NO-TEST |
-| MM-10 (§0.6, §6) | Matrix stored as compact route array under `modulation` in every preset — only in host session state and snapshots; `PresetManager::toVar` writes no `modulation` | `ModMatrix::toVar`; `PluginProcessor::getStateInformation` | n/a | `Modulation::presetRoundTripIsExact` (matrix only) | PARTIAL |
+| MM-10 (§0.6, §6) | Matrix stored as compact route array under `modulation` in every preset | `Presets/PresetBlocks.cpp:writePresetBlocks`; `ModMatrix::toVar` | n/a | `Presets.processorBlocksTravelInThePresetFile`, `Modulation.presetRoundTripIsExact` | DONE |
 | MM-11 (§1.1) | LFO x8, 8 shapes incl S+H, random smooth, custom | `Modulation/ModSources.cpp:ModLfo` | MOD LFO card `shapeBox` | `Modulation::lfoFrequencyIsAccurate`, `Modulation::sampleAndHoldHoldsForAWholeCycle` | DONE |
 | MM-12 (§1.1) | LFO custom 8-point breakpoint editor — engine only | `ModLfo::setBreakpoint` | - | - | NO-GUI |
 | MM-13 (§1.1) | LFO rate 0.01-40 Hz or tempo-synced 1/32T..8 bars incl dotted/triplet | `ModLfo`, `ModSyncDivision` | MOD LFO card `rateSlider`, `syncButton`, `divisionBox` | `Modulation::syncedLfoFollowsTheHost`, `Modulation::lfoFrequencyIsAccurate` | DONE |
@@ -48,7 +48,7 @@ The engine is complete: 8 LFOs, 4 DAHDSR envelopes, 2 step sequencers, 2 followe
 | MM-42 (§5) | MOD tab in Advanced Column 4 | `UI/ModMatrixPanel.cpp` | ADVANCED > MOD tab | `Editor::everyWorkspaceTabSelectsAndPaints` | DONE |
 | MM-43 (§5) | Left-third source pool / right two-thirds table — stacked vertically (documented in ModMatrixPanel.h) | n/a | MOD `ModMatrixPanel::resized` | - | PARTIAL |
 | MM-44 (§5) | Add-route button — untested | `ModMatrix::addRoute` | MOD `ModMatrixPanel::addButton` | - | NO-TEST |
-| MM-45 (§5) | Drag a source card onto a control creates a route — on visual: `ModSourceCard::mouseDrag`, `DragToModulate::aDroppedSourceRoutesAt25PercentAsOneEntry` | - | - | - | OWNED |
+| MM-45 (§5) | Drag a source card onto a control creates a route (25 % depth, one undo entry) | `ModSourceCard::mouseDrag` (drag source) | MOD source cards -> any attached knob or slider (`UI/Widgets.h` DragAndDropTarget) | `DragToModulate.aDroppedSourceRoutesAt25PercentAsOneEntry` | DONE |
 | MM-46 (§5) | Right-click any control -> Modulate submenu creates a route | `UI/Widgets.cpp` kModulateMenuBase | any `AttachedKnob` right-click | `Editor::rightClickOffersModulationAndBuildsTheRoute` | DONE |
 | MM-47 (§5, §7) | Depth arc drawn around modulated controls — untested | `Widgets.cpp` "modulation arc" paint | every `AttachedKnob` | - | NO-TEST |
 | MM-48 (§5) | Per-source user colour tag; routes and arcs inherit; defaults alternate accents — arc is always `Palette::secondary` | - | - | - | MISSING |
@@ -57,8 +57,8 @@ The engine is complete: 8 LFOs, 4 DAHDSR envelopes, 2 step sequencers, 2 followe
 | MM-51 (§7) | Automation moves base/control; modulation does not move the control; both stack — untested | `ParameterBridge` reads param then `ModMatrix::apply` | knob + arc | - | NO-TEST |
 | MM-T1 (§8) | Test: each source's expected output (LFO freq, EG times, S+H hold) | n/a | n/a | `Modulation::lfoFrequencyIsAccurate`, `Modulation::envelopeStageTimesAreAccurate`, `Modulation::sampleAndHoldHoldsForAWholeCycle` | DONE |
 | MM-T2 (§8) | Test: 1000-route stress under CPU budget | n/a | n/a | `Modulation::thousandRouteStressTest` | DONE |
-| MM-T3 (§8) | Test: preset round trip byte-identical routes — done at `ModMatrix::toVar` level, not through a saved preset file (see MM-10) | n/a | n/a | `Modulation::presetRoundTripIsExact` | PARTIAL |
+| MM-T3 (§8) | Test: preset round trip keeps routes — through a saved preset file | n/a | n/a | `Modulation.presetRoundTripIsExact`, `Presets.processorBlocksTravelInThePresetFile` | DONE |
 | MM-T4 (§8) | Test: 5-option selector changes at 1/5..4/5 | n/a | n/a | `Modulation::discreteDestinationsStepAtBoundaries` | DONE |
 | MM-T5 (§8) | Test: seeded random renders byte-identical | n/a | n/a | `Modulation::randomSourcesAreDeterministic` | DONE |
 
-<!-- counts DONE=29 NO-GUI=2 NO-TEST=8 PARTIAL=11 MISSING=5 OWNED=1 -->
+<!-- counts DONE=33 NO-GUI=2 NO-TEST=8 PARTIAL=8 MISSING=5 DEFERRED=0 -->

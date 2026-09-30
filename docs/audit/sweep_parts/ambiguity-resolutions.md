@@ -1,6 +1,6 @@
 ## ambiguity-resolutions.md
 
-All seven resolutions are implemented, reachable and tested on this checkout: the physical per-string feedback loop (`FeedbackLoop`) with its five knobs and LED in Advanced Column 3 SUSTAIN, Freeze (`FreezeOverlay`) and E-Bow (`EBowDriver`) rows beside it, the Doubler pedal (post-amp, pre-cab, per DECISIONS "enable" = slot bypass), the rubric voicer with every weight, style bias, transition, capo and determinism rule, preset morph in the browser, pattern-supplied `crossing_sps`, and `Resources/Guitars/migration.json` with the banner. Small gaps: at distance 0 the loop keeps its one-block delay rather than truncating to a same-block filter, freeze level bottoms out at -60 dB rather than -inf, and the Doubler's pitch/HP/LP defaults are unasserted; shipping the migration table through content updates is on the visual branch.
+All seven resolutions are implemented, reachable and tested on this checkout: the physical per-string feedback loop (`FeedbackLoop`) with its five knobs and LED in Advanced Column 3 SUSTAIN, Freeze (`FreezeOverlay`) and E-Bow (`EBowDriver`) rows beside it, the Doubler pedal (post-amp, pre-cab, per DECISIONS "enable" = slot bypass), the rubric voicer with every weight, style bias, transition, capo and determinism rule, preset morph in the browser, pattern-supplied `crossing_sps`, and `Resources/Guitars/migration.json` with the banner. Small gaps: at distance 0 the loop keeps its one-block delay rather than truncating to a same-block filter, freeze level bottoms out at -60 dB rather than -inf, and the Doubler's pitch/HP/LP defaults are unasserted; the migration table ships through content updates (`Guitars/migration.json` is an allowed content file).
 
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
@@ -39,6 +39,6 @@ All seven resolutions are implemented, reachable and tested on this checkout: th
 | AR-33 (§8) | Feedback / freeze / E-Bow params are modulation destinations; Doubler takes MIDI Learn and mod matrix | `ModMatrix` (any APVTS parameter) | right-click Modulate / Learn | `Modulation.routeModulatesItsDestination` | DONE |
 | AR-34 (§8) | Chord voicer changes reach notation output | `ChordVoicer` -> capture -> `PerformanceScore` | n/a | `Capture.techniquesBendsChordsAndMetersReachTheScore` | DONE |
 | AR-35 (§8) | Snapshot recall during a morph cancels it | `PresetMorph` / snapshots | n/a | `PresetMorph.aSnapshotRecallCancelsTheMorph` | DONE |
-| AR-36 (§8) | Migration table is part of the installer content-update path — on visual: `ContentPackage::isAllowedDataFile("Guitars/migration.json")`, `ContentPackageTests` | none here | n/a | (branch) `ContentPackageTests` | OWNED |
+| AR-36 (§8) | Migration table is part of the installer content-update path - `Guitars/migration.json` is an allowed content file | `ContentPackage::isAllowedDataFile`, `PartLibrary.cpp:524` | n/a | `ContentPackage::pathTraversalAndCodeAreRefused` | DONE |
 
-<!-- counts DONE=32 NO-GUI=0 NO-TEST=1 PARTIAL=2 MISSING=0 OWNED=1 -->
+<!-- counts DONE=34 NO-GUI=0 NO-TEST=0 PARTIAL=2 MISSING=0 OWNED=0 -->
