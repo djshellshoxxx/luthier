@@ -459,6 +459,12 @@ const std::map<juce::String, juce::String>& Localisation::getBuiltInEnglish()
         { "accessibility.shortcut.abCompare",       "A/B compare" },
         { "accessibility.shortcut.randomise",       "Randomise" },
         { "accessibility.shortcut.resetAll",        "Reset all" },
+        // PR #2: the string roll on the NOTATION tab.
+        { "stringRoll.lane.title",          "String {n} ({note})" },
+        { "stringRoll.lane.help",           "Press to pluck the string. Higher in the lane is higher up the neck." },
+        { "stringRoll.lane.tooltip",        "String {n} ({note}), fret {fret} - click to pluck" },
+        { "stringRoll.empty.captureOff",    "Capture is off - switch it on and the strings you pluck appear here" },
+        { "stringRoll.empty.play",          "Play something - the strings you pluck appear here" },
         { "accessibility.shortcut.midiLearnArm",    "Arm MIDI Learn" },
         { "accessibility.shortcut.export",          "Open export" },
         { "accessibility.shortcut.newTune",         "New tune" },
