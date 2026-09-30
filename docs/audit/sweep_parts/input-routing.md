@@ -2,6 +2,8 @@
 
 Only the outer shape of the MIDI chain is in place: MIDI-out pass-through is captured first, then MIDI Learn, then program change / CC0, then the interpreter, technique layer and rhythm engine inside `LuthierEngine`. MIDI Learn does not consume what it learns (`processMidi` takes a `const MidiBuffer&`) and learns CCs only; there is no controller-profile stage, practice tools are not fed MIDI, expression calibration is never applied, incoming Luthier SysEx and MIDI clock/Start/Stop/SPP are ignored, and there is no Diagnostics fixture injection or `Tests/InputRouting/` suite. The only root file-drop is `.mid`/`.midi` (plus the IR slot); an extension router exists on the visual branch (`FileOpenRouter`, standalone open) but is not wired to drops. Keyboard handling works: shortcuts go through the rebind registry with clash refusal, and JUCE gives focused text fields the keys.
 
+W2 robustness pass: IR-26 tested. IR-4/9/15/16/28/29/30 are feature work (learn beyond CC, practice taps, inbound SysEx, MIDI clock, fixture injection) and stay open.
+
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
 | IR-1 (§0.1, §1) | Fixed consumer order export -> learn -> profile -> interpreter -> technique -> rhythm -> tune -> practice -> strings — no profile stage; practice absent; tune chord channel merged after learn (DECISIONS "TUNE in the plugin") | `PluginProcessor::processSlice` (1074, 1149-1180), `LuthierEngine` | n/a | - | PARTIAL |
@@ -29,10 +31,10 @@ Only the outer shape of the MIDI chain is in place: MIDI-out pass-through is cap
 | IR-23 (§3.3) | IME honoured; no shortcuts during composition — JUCE TextEditor; untested | JUCE `TextEditor` | text fields | - | NO-TEST |
 | IR-24 (§5) | Host transport: rhythm start/stop/reposition, tune sync, tap defers, metronome grid, recorder regardless — metronome not transport-synced | `processSlice` playhead read, `RhythmTransport` | n/a | `RhythmPatterns::silentWhenStoppedUnlessFreeRunning`, `LiveTapTempo::respectsRangeSnapAndHostPriority` | PARTIAL |
 | IR-25 (§6) | Sidechain consumers: followers, sidechain compressor, sidechain-to-amp, EQ/cab match — no sidechain compressor pedal | `ModEnvelopeFollower`, `engine.setSidechainToAmp`, ToneMatch capture | ROUTING, MOD | `Routing::sidechainToAmpReplacesTheInstrument` | PARTIAL |
-| IR-26 (§6) | Sidechain never reaches main path unless consumed — untested | `processSlice` sidechainCopy | n/a | - | NO-TEST |
+| IR-26 (§6) | Sidechain never reaches main path unless consumed | `processSlice` sidechainCopy | n/a | `InputRouting::anUnconsumedSidechainNeverReachesTheMainOutput` | DONE |
 | IR-27 (§7) | Standalone audio input: sidechain, sung melody, trainer input — sung-melody capture is on tune-help (`humCapture`, tune-builder 13); no trainer input here | - | - | - | PARTIAL |
 | IR-28 (§8) | Options > Diagnostics "Inject fixture MIDI / audio" at chain front | - | - | - | MISSING |
 | IR-29 (§9) | `Tests/InputRouting/` suite for every consumer / veto rule | - | n/a | - | MISSING |
 | IR-30 (§9) | 60 s scripted integration session | - | n/a | - | MISSING |
 
-<!-- counts DONE=7 NO-GUI=0 NO-TEST=6 PARTIAL=9 MISSING=8 OWNED=0 -->
+<!-- counts DONE=12 NO-TEST=4 PARTIAL=7 MISSING=7 -->
