@@ -170,6 +170,7 @@ each.
 | `pick` | Pick thickness, tip radius, bevel, angle, wear, click and chirp amounts (`pick-noise.md`) |
 | `slide` | Slide mass, pressure, slant, noise and clank amounts (`slide-guitar.md`) |
 | `modulation` | LFO rate, envelope times, sequencer rate, follower attack/release |
+| `mic` | (mic-placement.md, FEAT-MIC) Cabinet mic distance and angle, acoustic mic distance and angle (`mic_dist`, `mic_angle`, `ac_mic_dist`, `ac_mic_angle` and their `_2`): stock 0-100 cm / 0-90 deg (acoustic 0-100 cm), advanced 0-200 cm / 0-180 deg (acoustic 0-300 cm) |
 
 Parameters not in a family are non-physical and have a single range. The
 instrument's own geometry - scale length, string gauge, pickup position -
@@ -285,7 +286,8 @@ Schema is fixed by `file-formats.md`:
 ```
 
 - `families` maps each of the seven keys to `"stock"` or `"advanced"`.
-  An absent key reads as `"stock"`.
+  An absent key reads as `"stock"`. (mic-placement.md, FEAT-MIC): an
+  eighth key, `"mic"`, follows the same rule.
 - `per_control_unlocks` is an array of parameter IDs that are advanced
   regardless of their family's mode. A control listed here in a family that
   is already advanced is redundant and is dropped on save.

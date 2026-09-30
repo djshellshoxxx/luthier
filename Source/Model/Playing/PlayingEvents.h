@@ -71,6 +71,16 @@ struct NoteOnEvent
         imported BASS_TECH event) names for this note, as a BassStepType index;
         -1 lets the slap's own triggers decide. Inert on a guitar. */
     int    bassTechnique = -1;
+
+    /** riff-library 5.1: the palm-mute depth this note asks for, 0 to 1; -1
+        uses TechniqueEngine::getPalmMuteAmount(). Read at the PalmMute
+        damping switch in LuthierEngine::triggerNote. */
+    double palmMuteDepth = -1.0;
+
+    /** riff-library 5.1 / 5.4: the note's string, fret and technique were
+        chosen explicitly (a riff note, or an imported Luthier-profile NOTE):
+        auto-articulation must leave it alone. */
+    bool   explicitArticulation = false;
     /*  harmonic-realism.md 4.1: where the harmonic is touched, as a fret
         (fractional), or -1 for a note that is not touched. The string is
         tuned to the stopped fret (fretPosition, the open string for a natural
@@ -94,6 +104,29 @@ struct NoteOnEvent
         is still struck as its technique says; this only adds the travel. */
     double shiftFromFret = -1.0;
     double shiftSeconds  = 0.0;
+    // ==== BEGIN FEAT-ASSIST fields ====
+    // auto-articulation.md 4.2: what Performance Assist decided. The defaults
+    // leave today's behaviour alone.
+    juce::uint16 autoRules = 0;             ///< aa_rules bits that fired on this note
+    double attackBrightnessScale = 1.0;     ///< 3.5 / 3.7: on Excitation::Params::brightness
+    double attackNoiseScale = 1.0;          ///< 3.5 / 3.7: on Excitation::Params::noiseAmount
+    double palmMuteAmount = -1.0;           ///< 3.6: -1 uses the controller amount
+    bool   upStroke = false;                ///< 3.7
+    int    autoOrnament = 0;                ///< 3.8: 1 bend-into half, 2 whole, 3 slide-in
+    juce::int64 arrivalSample = 0;          ///< when the key went down
+    int    muteLiftSamples = -1;            ///< 3.6: the mute lifts this long after the note, if still held
+    bool   autoAccent = false;              ///< 3.5: captured with an accent mark
+    juce::uint16 autoStrumMask = 0;         ///< 3.7: a strum's struck strings, on its first note
+
+    // explicitArticulation (auto-articulation.md 5) is riff-library 5.1's field above.
+    // ==== END FEAT-ASSIST fields ====
+    // muting-rhythm.md 2-4 (TECHNIQUES): the strike's mute, a MuteType index
+    // (0 open), with the step's own palm pressure / position or -1 for the
+    // defaults, and the pattern step's dynamic (-1 when not from a pattern).
+    int    muteType       = 0;
+    double mutePressure   = -1.0;
+    double mutePositionMm = -1.0;
+    double stepDynamic    = -1.0;
 };
 
 struct NoteOffEvent

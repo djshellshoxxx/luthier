@@ -986,7 +986,8 @@ void LuthierChoice::resized()
 {
     auto bounds = getLocalBounds();
 
-    if (labelVisible && labelText.isNotEmpty())
+    // Too short for both: the box keeps the row and the label goes (paint agrees).
+    if (labelVisible && labelText.isNotEmpty() && bounds.getHeight() >= labelHeight + 16)
         bounds.removeFromTop (labelHeight);
 
     box.setBounds (bounds);
@@ -994,7 +995,7 @@ void LuthierChoice::resized()
 
 void LuthierChoice::paint (juce::Graphics& g)
 {
-    if (! labelVisible || labelText.isEmpty())
+    if (! labelVisible || labelText.isEmpty() || getHeight() < labelHeight + 16)
         return;
 
     g.setColour (Palette::textMuted);

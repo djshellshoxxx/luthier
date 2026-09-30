@@ -59,7 +59,11 @@ const std::vector<std::pair<const char*, const char*>>& AnimationPolicy::getPoll
         { "LuthierKnob",           "the shared 30 Hz ModArcHub: a knob repaints only when its modulation arc or learn pulse changes" },
         { "LiveActionButton",      "10 Hz: the CC assignment text of a live action" },
         { "MorphSetupPanel",       "6 Hz: morph slot labels and enables" },
-        { "MonitorSetupPanel",     "6 Hz: monitor-mix control sync" }
+        { "MonitorSetupPanel",     "6 Hz: monitor-mix control sync" },
+        { "SearchHighlighter",     "the 900 ms pulse runs only when mayAnimate (Transition); otherwise one tick ends the static ring" },   // FEAT-SEARCH (INTEGRATE-2)
+        { "SearchNavigator",       "40 ms one-shot: waits for the SLIDE group to appear after Slide Mode is switched on" },               // FEAT-SEARCH (INTEGRATE-2)
+        { "MicHandle",             "closes a 200 ms nudge undo group; its 60 ms snap ease runs only when mayAnimate (Transition)" },       // FEAT-MIC (INTEGRATE-2)
+        { "NormalizationCaption",  "4 Hz: shows or hides with the normalization switch; static text" }   // fix-cross
     };
 
     return list;

@@ -22,6 +22,15 @@ const char* getLogCategoryName (LogCategory c) noexcept
     }
 }
 
+juce::String getFullVersionString()
+{
+#if defined (LUTHIER_BUILD_STRING)
+    return juce::String (JucePlugin_VersionString) + "+" + LUTHIER_BUILD_STRING;
+#else
+    return juce::String (JucePlugin_VersionString) + "+dev";
+#endif
+}
+
 //==============================================================================
 Diagnostics::Diagnostics() = default;
 
@@ -292,7 +301,7 @@ juce::String Diagnostics::buildTroubleshootingReport (const juce::String& settin
       << " LUTHIER TROUBLESHOOTING REPORT\n"
       << "================================================================\n"
       << "Generated:        " << juce::Time::getCurrentTime().toString (true, true) << "\n"
-      << "Plugin version:   " << JucePlugin_VersionString << "\n"
+      << "Plugin version:   " << getFullVersionString() << "\n"
       << "Plugin format:    " << (info.pluginFormat.isNotEmpty() ? info.pluginFormat : juce::String ("unknown")) << "\n"
       << "\n"
       << "---- HOST ------------------------------------------------------\n"

@@ -1,6 +1,7 @@
 #include "NotationPanel.h"
 #include "CaptureRanges.h"   // MODEL-GAPS
 #include "MidiExportDefaults.h"
+#include "AdvancedPanel.h"   // riff-library 7.1: Save as riff opens the RIFFS tab
 #include "../PluginProcessor.h"
 #include "../Presets/PresetManager.h"
 #include "../Accessibility/Accessibility.h"
@@ -204,6 +205,24 @@ NotationPanel::NotationPanel (LuthierAudioProcessor& p)
     AccessibleSetup::configureButton (clearButton, "Clear take");
     addAndMakeVisible (clearButton);
 
+    // riff-library 7.1 / 7.4: the capture's marked region (or last bars) as a user riff.
+    saveAsRiffButton.setTooltip ("Save the marked region, or the last two bars, as a riff in the library");
+    saveAsRiffButton.onClick = [this]
+    {
+        if (auto* advanced = findParentComponentOfClass<AdvancedPanel>())
+        {
+            advanced->setWorkspaceTabNamed ("RIFFS");
+
+            if (auto* riffs = advanced->getRiffsPanel())
+            {
+                riffs->ensureLibraryLoaded();
+                riffs->openSaveDialog();
+            }
+        }
+    };
+    AccessibleSetup::configureButton (saveAsRiffButton, "Save as riff");
+    addAndMakeVisible (saveAsRiffButton);
+
     // --- live tab ---------------------------------------------------------------------
     showTab = makeToggle ("SHOW TAB", "Show the last bars of what you played as tab.", [this] { resized(); refresh(); });
     showTab->getButton().setToggleState (true, juce::dontSendNotification);
@@ -289,6 +308,12 @@ NotationPanel::NotationPanel (LuthierAudioProcessor& p)
                                 [] {});
     chordDiagrams->getButton().setToggleState (true, juce::dontSendNotification);
 
+    // Task X (notation-export.md 2.1): MusicXML's own option, a real staff
+    // instead of a TAB staff - the ASCII/GP tab lane already owns tab.
+    staffNotation = makeToggle ("STAFF NOTATION", "MusicXML: write a standard staff (noteheads, no tab) "
+                                                  "instead of a TAB staff.", [this] { updatePreview(); });
+    staffNotation->getButton().setToggleState (false, juce::dontSendNotification);
+
     previewView.setMultiLine (true);
     previewView.setReadOnly (true);
     previewView.setFont (Fonts::mono (10.0f));
@@ -345,6 +370,9 @@ NotationExportOptions NotationPanel::currentOptions() const
     options.lineWidth = (int) lineWidth.getValue();
     options.chordDiagrams = chordDiagrams->getButton().getToggleState();
     options.density = (NotationExportOptions::SymbolDensity) juce::jlimit (0, 2, densityBox.getSelectedId() - 1);
+    options.staffMode = staffNotation->getButton().getToggleState()
+                           ? NotationExportOptions::StaffMode::standardStaff
+                           : NotationExportOptions::StaffMode::tabStaff;
     return options;
 }
 
@@ -400,6 +428,7 @@ void NotationPanel::updatePreview()
 
     lineWidth.setVisible (format == NotationFormat::asciiTab);
     chordDiagrams->setVisible (format == NotationFormat::guitarPro);
+    staffNotation->setVisible (format == NotationFormat::musicXml);
     lastSeconds.setVisible (rangeBox.getSelectedId() == 2);
     markInButton.setVisible (rangeBox.getSelectedId() == CaptureRanges::markedRegion);
     markOutButton.setVisible (rangeBox.getSelectedId() == CaptureRanges::markedRegion);
@@ -543,7 +572,7 @@ void NotationPanel::resized()
 
     captureHeader = bounds.removeFromTop (kHeader);
     split (row(), { offButton.get(), rollingButton.get(), armedButton.get() });
-    split (row(), { &rollingMinutes, &clearButton });
+    split (row(), { &rollingMinutes, &clearButton, &saveAsRiffButton });
     statusBounds = bounds.removeFromTop (32);
     bounds.removeFromTop (Metrics::grid);
 
@@ -566,9 +595,11 @@ void NotationPanel::resized()
     {
         auto r = row();
 
-        // The format's own option: ASCII's line width or Guitar Pro's diagrams.
+        // The format's own option: ASCII's line width, Guitar Pro's diagrams,
+        // or MusicXML's staff/tab choice.
         lineWidth.setBounds (r.reduced (1));
         chordDiagrams->setBounds (r.reduced (1));
+        staffNotation->setBounds (r.reduced (1));
     }
 
     previewView.setBounds (bounds.removeFromTop (110));

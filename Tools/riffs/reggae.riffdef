@@ -1,0 +1,229 @@
+defaults author L origin original date 2026-09-24
+
+# ---------------------------------------------------------------- riffs
+
+riff reggae.riff.muted-doubling-riff-1 "Muted Doubling Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key A dorian   tempo 76   meter 4/4   feel laid_back
+  difficulty 2   tags one-drop doubling muted   free yes
+  chords 0:Am 4:D 8:Am 12:G
+  play:
+    q: r e: 5.0pm' 5.3pm' 4.2pm' 5.3pm' q: 5.0pm |
+    q: r e: 4.0pm' 4.4pm' 3.2pm' 4.4pm' q: 4.0pm |
+    q: r e: 5.0pm' 5.3pm' 5.5pm' 4.2pm' q: 5.3pm |
+    q: r e: 6.3pm' 5.0pm' 5.2pm' 5.3pm' q: 5.0pm |
+
+riff reggae.riff.picked-scratch-riff-1 "Picked Scratch Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key D aeolian   tempo 74   meter 4/4   feel laid_back
+  difficulty 3   tags picking scratch muted
+  chords 0:Dm 4:Gm 8:Dm 12:A
+  play:
+    e: 3.x s: 3.7pm 2.6pm e: 1.5' 1.x e: 2.6pm s: 3.7pm 3.x e: 2.6' r |
+    e: 3.x s: 3.7pm 2.8pm e: 1.6' 1.x e: 2.8pm s: 1.6pm 3.x e: 3.7' r |
+    e: 3.x s: 2.6pm 1.5pm e: 3.7' 2.x e: 1.5pm s: 2.6pm 3.x e: 3.7' r |
+    e: 3.x s: 3.6pm 2.5pm e: 1.5' 1.x q: [xxx655]' r |
+
+riff reggae.riff.offbeat-octave-riff-1 "Offbeat Octave Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key A aeolian   tempo 138   meter 4/4   feel straight
+  difficulty 3   tags octaves offbeat
+  chords 0:Am 8:F 12:Am
+  play:
+    e: r [x3x5xx]' r [x5x7xx]' q: [x7x9xx] e: [x5x7xx]' [x3x5xx]' |
+    e: r [x0x2xx]' r [x3x5xx]' h: [x5x7xx] |
+    e: r [5x7xxx]' r [8-x-10-x-x-x]' q: [10-x-12-x-x-x] e: [8-x-10-x-x-x]' [7x9xxx]' |
+    q: [5x7xxx] e: r [x0x2xx]' q: [x3x5xx]' [x0x2xx] |
+
+riff reggae.riff.ska-horn-line-riff-1 "Ska Horn-Line Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key C ionian   tempo 180   meter 4/4   feel driving
+  difficulty 4   tags ska unison-line
+  chords 0:C 4:G 8:Am 12:C
+  play:
+    e: 3.5 3.5' r 2.5 q: 2.3 e: 2.5 3.5 |
+    e: 3.7 r 3.5 3.7 2.5 2.6 q: 2.8 |
+    e: 1.5 1.3' r 2.8 q: 2.6 e: 2.5 2.3 |
+    e: 3.4 3.5 2.3 2.5 q: 3.5 r |
+
+# ---------------------------------------------------------------- licks
+
+riff reggae.lick.dub-echo-lick-1 "Dub Echo Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key A aeolian   tempo 70   meter 4/4   feel laid_back
+  difficulty 2   tags dub sparse   free yes
+  chords 0:Am 8:Am 12:Am
+  play:
+    q: r e: 2.10/in 1.8 q.: 1.5~ e: 2.8 |
+    q: 2.10 e: 2.8 3.9 q.: 3.7~ e: r |
+    q: r e: 1.5/in 1.8 q: 1.10~ e: 1.8 1.5 |
+    h.: 2.10~ q: r |
+
+riff reggae.lick.rootsy-hammer-lick-1 "Rootsy Hammer Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key E minor_pentatonic   tempo 80   meter 4/4   feel laid_back
+  difficulty 3   tags roots pentatonic
+  chords 0:Em 8:Am 12:Em
+  play:
+    e: 3.7 h3.9 2.8 q: 1.7 e: 2.8 3.9 3.7 |
+    q: 4.9 e: 4.7 h4.9 3.7 3.9 q: 2.8 |
+    e: 2.8 h2.10 1.7 1.10 q: 1.12 e: 1.10 2.10 |
+    e: 2.8 2.10 3.9 3.7 h: 5.7 |
+
+riff reggae.lick.ska-double-stop-lick-1 "Ska Double-Stop Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key G ionian   tempo 140   meter 4/4   feel driving
+  difficulty 3   tags ska sixths double-stops
+  chords 0:G 4:C 8:G 12:D7 14:G
+  play:
+    e: [xxx4x3]' [xxx5x5]' q: [xxx7x7]! e: [xxx5x5] [xxx4x3] q: [xxx2x2] |
+    e: r [xxx0x0]' [xxx2x2]' [xxx4x3]' q: [xxx7x7]! [xxx4x3] |
+    e: [xxx9x8] [xxx7x7] [xxx9x8] [x-x-x-11-x-10] q: [x-x-x-12-x-12]! e: [x-x-x-11-x-10] [xxx9x8] |
+    q: [xxx5x5] [xxx2x2] h: [xxx4x3] |
+
+riff reggae.lick.lovers-melody-lick-1 "Lovers Melody Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key F ionian   tempo 76   meter 4/4   feel laid_back
+  difficulty 4   tags sweet melody sixteenths
+  chords 0:F 4:Dm 8:Bb 12:C
+  play:
+    s: 2.6 2.8g 1.5 2.8 e: 1.5 1.6 q: 1.8~ s: 1.6 1.5 2.8 2.6 |
+    e.: 2.5 s: 2.6 e: 3.7 s: 3.5g 3.7 q: 2.6 e: r 2.8 |
+    s: 1.5 1.8 1.5g 2.8 e: 1.6 1.5 s: 1.3 2.8 2.6 2.8 q: 1.5~ |
+    e: 2.8 2.6 3.7 3.5 h: 2.6 |
+
+# ---------------------------------------------------------------- strums
+
+riff reggae.strum.one-drop-skank-1 "One-Drop Skank 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key A dorian   tempo 72   meter 4/4   feel laid_back
+  difficulty 1   tags skank one-drop backbeat   free yes
+  chords 0:Am 4:D 8:Am 12:Em 14:D
+  play:
+    q: r D[xxx555]' r D[x-x-x-9-10-8]' |
+    q: r D[xxx775]' r D[x-x-x-11-10-10]' |
+    q: r D[x-x-x-9-10-8]' r e: D[xxx555]' U[xxx555]' |
+    q: r D[xxx987]' r D[xxx775]' |
+
+riff reggae.strum.ska-upstroke-chop-1 "Ska Upstroke Chop 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key C ionian   tempo 168   meter 4/4   feel driving
+  difficulty 1   tags ska upstroke offbeat   free yes
+  chords 0:C 4:F 6:G 8:Am 10:F 12:G 14:C
+  play:
+    e: r U[x-x-10-9-8-x]' r U[x-x-10-9-8-x]' r U[x-x-10-9-8-x]' r U[x-x-10-9-8-x]' |
+    e: r U[x-x-10-10-10-x]' r U[x-x-10-10-10-x]' r U[x-x-12-12-12-x]' r U[x-x-12-12-12-x]' |
+    e: r U[xx755x]' r U[xx755x]' r U[x-x-10-10-10-x]' r U[x-x-10-10-10-x]' |
+    e: r U[x-x-12-12-12-x]' r U[x-x-12-12-12-x]' q: D[x-x-10-9-8-x] r |
+
+riff reggae.strum.doubled-chop-skank-1 "Doubled Chop Skank 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key G aeolian   tempo 76   meter 4/4   feel laid_back
+  difficulty 2   tags skank double-chop
+  chords 0:Gm 4:Cm 8:Eb 10:F 12:Gm 14:D
+  play:
+    q: r s: D[xxx786]' U[xxx786]' e: r q: r s: D[xxx786]' U[xxx786]' e: r |
+    q: r s: D[xxx543]' U[xxx543]' e: r q: r s: D[xxx543]' U[xxx543]' e: r |
+    q: r s: D[xxx886]' U[xxx886]' e: r q: r s: D[x-x-x-10-10-8]' U[x-x-x-10-10-8]' e: r |
+    q: r s: D[xxx786]' U[xxx786]' e: r q: r e: D[xxx775]' U[xxx775]' |
+
+riff reggae.strum.rocksteady-skank-1 "Rocksteady Skank 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key D dorian   tempo 84   meter 4/4   feel laid_back
+  difficulty 2   tags rocksteady seventh-chords
+  chords 0:Dm7 4:G7 8:Dm7 12:F 14:G7
+  play:
+    q: r e: D[xx7565]! r q: r e: D[xx7565]! U[xx7565]' |
+    q: r e: D[xx9767]! r q: r e: D[xx9767]! U[xx9767]' |
+    q: r e: D[xx7565]! r q: r e: D[xx9787]! U[xx7565]' |
+    q: r e: D[x-x-10-10-10-8]! r q: r e: D[xx9767]! U[xx9767]' |
+
+riff reggae.strum.muted-chuck-skank-1 "Muted Chuck Skank 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key E aeolian   tempo 80   meter 4/4   feel laid_back
+  difficulty 2   tags skank chuck
+  chords 0:Em 4:C 6:D 8:Am 10:Bm 12:Em
+  play:
+    e: r D[xxx987]' Dx[xxx987] U[xxx987]' r D[xxx987]' Dx[xxx987] U[xxx987]' |
+    e: r D[xxx553]' Dx[xxx553] r r D[xxx775]' Dx[xxx775] U[xxx775]' |
+    e: r D[xxx555]' Dx[xxx555] U[xxx555]' r D[xxx432]' Dx[xxx432] U[xxx432]' |
+    e: r D[xxx987]' Dx[xxx987] r q: r D[xxx987]' |
+
+riff reggae.strum.steppers-chop-1 "Steppers Chop 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key D aeolian   tempo 138   meter 4/4   feel driving
+  difficulty 3   tags steppers sixteenths
+  chords 0:Dm 4:Bb 8:C 10:A7 12:Dm
+  play:
+    e: r U[xxx765]' s: r U[xxx765]' r U[xxx765]'g e: r U[xxx765]' s: r D[xxx765]' U[xxx765]' r |
+    e: r U[xxx331]' s: r U[xxx331]' r U[xxx331]'g e: r U[xxx331]' s: r D[xxx331]' U[xxx331]' r |
+    e: r U[xxx553]' s: r U[xxx553]' r U[xxx553]'g e: r U[xxx653]' s: r D[xxx653]' U[xxx653]' r |
+    e: r U[xxx765]' s: r U[xxx765]' D[xxx765]' U[xxx765]' q: D[xxx765]' r |
+
+# ---------------------------------------------------------------- bass
+
+riff reggae.bass.one-drop-root-bass-1 "One-Drop Root Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key A dorian   tempo 72   meter 4/4   feel laid_back
+  difficulty 1   tags one-drop roots   free yes
+  chords 0:Am 4:D 8:Am 12:D
+  play:
+    q: r e: 3.0 3.0 q: 2.2 e: 3.0 4.3 |
+    q: r e: 2.0 2.0 q: 4.5 e: 2.0 3.2 |
+    q: r e: 3.0 3.3 q: 2.2 e: 2.0 2.2 |
+    q: r e: 2.0 2.4 h: 2.0 |
+
+riff reggae.bass.steppers-pulse-bass-1 "Steppers Pulse Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key E aeolian   tempo 140   meter 4/4   feel driving
+  difficulty 1   tags steppers pulse
+  chords 0:Em 8:C 12:D
+  play:
+    q: 4.0 4.0 e: 2.2 2.0 q: 3.2 |
+    q: 4.0 4.0 e: 4.3 3.0 q: 3.2 |
+    q: 3.3 3.3 e: 2.2 3.3 q: 2.0 |
+    q: 2.0 2.0 e: 3.0 3.2 q: 2.2 |
+
+riff reggae.bass.rocksteady-walk-bass-1 "Rocksteady Walk Bass 1"
+  type bass   instrument bass5   tuning standard   capo 0
+  key G ionian   tempo 90   meter 4/4   feel laid_back
+  difficulty 2   tags rocksteady walking
+  chords 0:G 4:Em 8:C 12:D
+  play:
+    e: 4.3 r 3.2 4.3 q: 2.0 e: 3.2 3.0 |
+    e: 4.0 r 4.3 4.0 q: 3.2 e: 2.2 2.0 |
+    e: 3.3 r 2.2 3.3 q: 1.0 e: 2.2 2.0 |
+    e: 2.0 r 3.0 5.3 q: 4.2 e: 3.0 5.3 |
+
+riff reggae.bass.dub-sub-bass-1 "Dub Sub Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key D aeolian   tempo 66   meter 4/4   feel half_time
+  difficulty 2   tags dub sub
+  chords 0:Dm 8:Gm 12:A
+  play:
+    h: 2.0 e: r 3.x q: 3.3 |
+    q.: 2.0 e: 2.3 q: 1.2 3.3 |
+    h: 4.3 e: r 4.x q: 3.1 |
+    q.: 3.0 e: 3.4 h: 2.0 |
+
+riff reggae.bass.ska-walking-bass-1 "Ska Walking Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key C ionian   tempo 170   meter 4/4   feel driving
+  difficulty 3   tags ska walking
+  chords 0:C 4:Am 8:F 12:G
+  play:
+    q: 3.3 2.2 1.0 1.2 |
+    q: 3.0 3.3 2.2 2.3 |
+    q: 2.3 1.2 1.5 1.2 |
+    q: 4.3 3.2 2.0 e: 3.1 3.2 |
+
+riff reggae.bass.syncopated-roots-bass-1 "Syncopated Roots Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key G aeolian   tempo 80   meter 4/4   feel laid_back
+  difficulty 4   tags syncopated roots
+  chords 0:Gm 4:Cm 8:Gm 12:D7
+  play:
+    e.: 4.3 s: 4.3g e: r 2.0 s: 3.1 3.0 e: 4.3 q: r |
+    e.: 3.3 s: 3.3g e: r 2.1 s: 1.0 2.3 e: 3.3 q: r |
+    e.: 4.3 s: 3.0 e: 3.1 2.0 s: 2.3 2.0 e: 3.1 q: 3.0 |
+    e.: 2.0 s: 2.0g e: r 4.2 s: 3.0 3.3 e: 2.0 3.x r |

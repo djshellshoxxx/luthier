@@ -66,6 +66,11 @@ struct QualityProfile
     /** Idle-string sleep (2.4). */
     bool idleSleep = false;
 
+    /** mic-placement.md 5 (INTEGRATE-2): while a mic moves, its placement model
+        is re-evaluated on every Nth 32-sample control step (the cabinet's two
+        stages and the acoustic mic model). A static mic never evaluates. */
+    int micEvaluateEvery = 1;
+
     /** Ring-out truncation of released strings: dB below the note's peak at
         which the tail fades to sleep (0 = off), and the most strings allowed
         to ring out at once (0 = no limit). */
@@ -107,6 +112,7 @@ struct QualityProfile
             p.noiseDegraded = true;
             p.modIntervalMultiplier = 2;
             p.idleSleep = true;
+            p.micEvaluateEvery = 2;
             p.ringOutDb = -60.0;
             p.maxRingingOut = 8;
             p.motion = MotionLevel::Off;

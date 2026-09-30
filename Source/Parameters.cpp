@@ -1,9 +1,12 @@
 #include "Parameters.h"
 #include "PhysicalRange.h"
+#include "DSP/Amp/MicPlacement.h"   // FEAT-MIC
 #include "Rhythm/StrumGesture.h"
 #include "Presets/RealismStyles.h"   // REALISM-C
 #include "Jam/JamStyle.h"
 #include "Jam/JamEdition.h"   // FEAT-JAM   // FEAT-JAM
+
+#include "Support/Edition.h"   // FEAT-ASSIST: auto-articulation.md 11
 
 namespace luthier
 {
@@ -48,6 +51,10 @@ const char* macroByIndex (int index) noexcept
     {
         return chainPrefix (post, slot) + "_p" + juce::String (param);
     }
+
+    // ==== BEGIN TECHNIQUES params ====
+    juce::String bendStringRange (int stringNumber) { return "bend_string_range_" + juce::String (stringNumber); }
+    // ==== END TECHNIQUES params ====
 }
 
 //==============================================================================
@@ -133,6 +140,15 @@ namespace
             pid (id), name, choices, juce::jlimit (0, juce::jmax (0, choices.size() - 1), def));
     }
 
+    /*  FEAT-ASSIST (auto-articulation.md 6): aa_rules is a bitmask, and a
+        bitmask has no meaningful value between two settings - a snapshot
+        morph switches it at the midpoint, as it does a choice. */
+    struct AssistRulesParameter : juce::AudioParameterInt
+    {
+        using juce::AudioParameterInt::AudioParameterInt;
+        bool isDiscrete() const override { return true; }
+    };
+
     std::unique_ptr<juce::AudioParameterBool> boolParam (const juce::String& id,
                                                          const juce::String& name,
                                                          bool def)
@@ -142,6 +158,25 @@ namespace
 }
 
 //==============================================================================
+AutoArticulationSettings Parameters::effectiveAssistSettings (bool enabled, int style, float amountPercent,
+                                                              int rules, Edition edition) noexcept
+{
+    // FEAT-ASSIST (auto-articulation.md 11): what Free plays for a Pro value.
+    AutoArticulationSettings s;
+    s.enabled = enabled;
+    s.style = juce::jlimit (0, AutoArticulationStyles::kNumStyles - 1, style);
+    s.amount = juce::jlimit (0.0, 1.0, (double) amountPercent / 100.0);
+    s.rules = rules & AssistRule::all;
+
+    if (edition == Edition::free)
+    {
+        s.style = AutoArticulationStyles::nearestFreeStyle (s.style);
+        s.rules = AssistRule::all;
+    }
+
+    return s;
+}
+
 juce::StringArray Parameters::guitarTypeNames()
 {
     juce::StringArray names;
@@ -941,6 +976,140 @@ APVTS::ParameterLayout Parameters::createLayout()
     // ==== BEGIN SPEC-SWEEP params ====
     add (floatParam  (ParamIDs::snapshotMorph, "Snapshot Morph", 0.0f, 1.0f, 0.0f));   // LP-16
     // ==== END SPEC-SWEEP params ====
+    // ==== BEGIN FEAT-ASSIST params ====
+    // auto-articulation.md 6, appended. Not physical: no PhysicalRange. In Free
+    // aa_rules is non-automatable with the " (Pro)" suffix (11).
+    add (boolParam   (ParamIDs::aaEnabled, "Performance Assist", false));
+    add (choiceParam (ParamIDs::aaStyle,   "Assist Style", AutoArticulationStyles::getNames(), 0));
+    add (floatParam  (ParamIDs::aaAmount,  "Assist Amount", 0.0f, 100.0f, 60.0f, 1.0f, "%"));
+    {
+        const bool pro = Editions::isPro();
+        add (std::make_unique<AssistRulesParameter> (pid (ParamIDs::aaRules),
+                                                        juce::String ("Assist Rules") + (pro ? "" : Editions::kProSuffix),
+                                                        0, AssistRule::all, AssistRule::all,
+                                                        juce::AudioParameterIntAttributes().withAutomatable (pro)));
+    }
+    // ==== END FEAT-ASSIST params ====
+    // ==== BEGIN FEAT-MIC params ====
+    // mic-placement.md 7, in the table's order. Distances and angles are
+    // PhysicalRanges in the `mic` family (PhysicalRange.cpp); these are the
+    // stock declarations.
+    add (floatParam  (ParamIDs::micX,          "Mic 1 X",           -1.4f, 1.4f, 0.35f, 1.0f, "u"));
+    add (floatParam  (ParamIDs::micY,          "Mic 1 Y",           -1.4f, 1.4f, 0.0f,  1.0f, "u"));
+    add (floatParam  (ParamIDs::micDist,       "Mic 1 Distance",     0.0f, 100.0f, 2.5f, 0.4f, "cm"));
+    add (floatParam  (ParamIDs::micAngle,      "Mic 1 Angle",        0.0f, 90.0f, 0.0f,  1.0f, "deg"));
+    add (std::make_unique<juce::AudioParameterInt> (pid (ParamIDs::micSpeaker), "Mic 1 Speaker", 1, 8, 1));
+    add (boolParam   (ParamIDs::micRear,       "Mic 1 Rear",         false));
+    add (floatParam  (ParamIDs::micX2,         "Mic 2 X",           -1.4f, 1.4f, 0.35f, 1.0f, "u"));
+    add (floatParam  (ParamIDs::micY2,         "Mic 2 Y",           -1.4f, 1.4f, 0.0f,  1.0f, "u"));
+    add (floatParam  (ParamIDs::micDist2,      "Mic 2 Distance",     0.0f, 100.0f, 15.0f, 0.4f, "cm"));
+    add (floatParam  (ParamIDs::micAngle2,     "Mic 2 Angle",        0.0f, 90.0f, 45.0f, 1.0f, "deg"));
+    add (std::make_unique<juce::AudioParameterInt> (pid (ParamIDs::micSpeaker2), "Mic 2 Speaker", 1, 8, 1));
+    add (boolParam   (ParamIDs::micRear2,      "Mic 2 Rear",         false));
+    add (choiceParam (ParamIDs::micTofMode,    "Mic Time of Flight", { "Aligned", "Physical" }, 0));
+    add (boolParam   (ParamIDs::micLevelMatch, "Mic Level Match",    true));
+    add (floatParam  (ParamIDs::acMicMix,      "Pickup / Mic Mix",   0.0f, 1.0f, 0.0f));
+    add (floatParam  (ParamIDs::acMicAlong,    "Ac Mic 1 Along",     0.0f, 4.0f, 3.6f));
+    add (floatParam  (ParamIDs::acMicAcross,   "Ac Mic 1 Across",   -1.0f, 1.0f, 0.0f));
+    add (floatParam  (ParamIDs::acMicDist,     "Ac Mic 1 Distance",  0.0f, 100.0f, 20.0f, 0.4f, "cm"));
+    add (floatParam  (ParamIDs::acMicAngle,    "Ac Mic 1 Angle",     0.0f, 90.0f, 15.0f, 1.0f, "deg"));
+    add (boolParam   (ParamIDs::acMic2On,      "Ac Mic 2",           false));
+    add (floatParam  (ParamIDs::acMicAlong2,   "Ac Mic 2 Along",     0.0f, 4.0f, 1.2f));
+    add (floatParam  (ParamIDs::acMicAcross2,  "Ac Mic 2 Across",   -1.0f, 1.0f, -0.4f));
+    add (floatParam  (ParamIDs::acMicDist2,    "Ac Mic 2 Distance",  0.0f, 100.0f, 30.0f, 0.4f, "cm"));
+    add (floatParam  (ParamIDs::acMicAngle2,   "Ac Mic 2 Angle",     0.0f, 90.0f, 0.0f,  1.0f, "deg"));
+    add (floatParam  (ParamIDs::acMicBlend,    "Ac Mic Blend",       0.0f, 1.0f, 0.5f));
+    // ==== END FEAT-MIC params ====
+    // ==== BEGIN TECHNIQUES params ====
+    // Appended (automation is indexed). Every default leaves an existing
+    // preset sounding as it did: each technique is disarmed, and the slide's
+    // new controls default to "no source" (engine-technique-layer.md 6).
+    {
+        auto intParam = [] (const char* id, const char* name, int lo, int hi, int def)
+        {
+            return std::make_unique<juce::AudioParameterInt> (pid (id), name, lo, hi, def);
+        };
+
+        const juce::StringArray sources { "None", "Mod Wheel", "Pitch Bend", "MPE Y", "Expression",
+                                          "Custom CC", "Fretboard Drag", "Aftertouch", "MPE Z" };
+
+        // muting-rhythm.md 3 (8)
+        add (boolParam   (ParamIDs::muteArmed,         "Mute Armed", false));
+        add (choiceParam (ParamIDs::muteMasterMode,    "Mute Master Mode",
+                          { "Off", "Open", "Palm Mute Light", "Palm Mute Heavy", "Palm Mute Extreme",
+                            "Ghost", "Chuka", "Fret Mute" }, 0));
+        add (floatParam  (ParamIDs::mutePalmPosition,  "Palm Position", 5.0f, 100.0f, 35.0f, 1.0f, "mm"));
+        add (floatParam  (ParamIDs::mutePalmPressure,  "Palm Pressure", 0.0f, 1.0f, 0.5f));
+        add (choiceParam (ParamIDs::muteFrettingStyle, "Fretting-Hand Mute", { "Rock Spread", "Classical Fingertip" }, 0));
+        add (choiceParam (ParamIDs::muteChukaSource,   "Chuka Source", { "Pattern Only", "Soft Strums" }, 1));
+        add (floatParam  (ParamIDs::muteHumanise,      "Mute Humanise", 0.0f, 1.0f, 0.0f));
+        add (floatParam  (ParamIDs::muteGhostVelocity, "Ghost Note Level", 0.0f, 1.0f, 0.4f));
+
+        // two-hand-tapping.md 3 (10)
+        add (boolParam   (ParamIDs::tapArmed,          "Tap Armed", false));
+        add (choiceParam (ParamIDs::tapSource,         "Tap Trigger", { "MIDI Channel", "Keyswitch", "Fretboard" }, 0));
+        add (intParam    (ParamIDs::tapChannel,        "Tap Channel", 1, 16, 2));
+        add (floatParam  (ParamIDs::tapStrengthCurve,  "Tap Strength Curve", -1.0f, 1.0f, 0.0f));
+        add (boolParam   (ParamIDs::tapAutoPullOff,    "Auto Pull-Off", true));
+        add (intParam    (ParamIDs::tapHammerThreshold, "Hammer-On Threshold", 1, 127, 40));
+        add (floatParam  (ParamIDs::tapFlick,          "Tap Release Flick", 0.0f, 1.0f, 0.5f));
+        add (floatParam  (ParamIDs::tapDuration,       "Tap Duration", 10.0f, 2000.0f, 200.0f, 0.2f, "ms"));
+        add (floatParam  (ParamIDs::tapMaxConcurrent,  "Max Taps Per String", 1.0f, 4.0f, 2.0f));
+        add (boolParam   (ParamIDs::tapFretSnap,       "Tap Fret Snap", true));
+
+        // microtonal-bends.md 2 (26)
+        const juce::StringArray curves { "Linear", "Exponential", "Drawn" };
+        add (boolParam   (ParamIDs::bendArmed,         "Bend Armed", false));
+        add (choiceParam (ParamIDs::bendGlobalSource,  "Global Bend Source", { "Pitch Bend", "Expression", "Custom CC" }, 0));
+        add (intParam    (ParamIDs::bendGlobalCc,      "Global Bend CC", 0, 127, 20));
+        add (floatParam  (ParamIDs::bendGlobalRange,   "Global Bend Range", 0.0f, 2400.0f, 200.0f, 0.2f, "ct"));
+        add (choiceParam (ParamIDs::bendStringSource,  "Per-String Bend Source", { "None", "MPE Pitch Bend", "MPE Y", "Custom CC" }, 2));
+        add (intParam    (ParamIDs::bendStringCc,      "Per-String Bend CC", 0, 127, 21));
+
+        for (int n = 1; n <= 6; ++n)
+            add (floatParam (ParamIDs::bendStringRange (n), "Bend Range String " + juce::String (n),
+                             0.0f, 1200.0f, 200.0f, 0.25f, "ct"));
+
+        add (choiceParam (ParamIDs::bendVibratoSource, "Vibrato Source", { "Off", "LFO", "Aftertouch", "MPE Z" }, 1));
+        add (floatParam  (ParamIDs::bendVibratoRate,   "Bend Vibrato Rate", 3.0f, 10.0f, 6.0f, 1.0f, "Hz"));
+        add (floatParam  (ParamIDs::bendVibratoDepth,  "Bend Vibrato Depth", 5.0f, 50.0f, 20.0f, 1.0f, "ct"));
+        add (floatParam  (ParamIDs::bendVibratoOnset,  "Vibrato Onset Delay", 0.0f, 1000.0f, 200.0f, 0.3f, "ms"));
+        add (choiceParam (ParamIDs::bendQuantise,      "Bend Quantise",
+                          { "None", "Quarter-Tone", "Semitone", "24-EDO", "22-EDO", "31-EDO", "53-EDO", "Custom Scale" }, 0));
+        add (floatParam  (ParamIDs::bendSnap,          "Bend Snap Strength", 0.0f, 1.0f, 1.0f));
+        add (floatParam  (ParamIDs::bendPreBendAmount, "Pre-Bend Amount", -1200.0f, 1200.0f, -200.0f, 1.0f, "ct"));
+        add (choiceParam (ParamIDs::bendPreBendTrigger, "Pre-Bend Trigger", { "Keyswitch", "CC" }, 0));
+        add (intParam    (ParamIDs::bendPreBendCc,     "Pre-Bend CC", 0, 127, 22));
+        add (floatParam  (ParamIDs::bendPreBendRelease, "Pre-Bend Release", 10.0f, 2000.0f, 300.0f, 0.25f, "ms"));
+        add (choiceParam (ParamIDs::bendCurve,         "Bend Curve", curves, 0));
+        add (choiceParam (ParamIDs::bendReleaseCurve,  "Release Curve", curves, 0));
+
+        // slide-technique-controls.md 1 (22)
+        add (choiceParam (ParamIDs::slidePosSource,    "Slide Position Source",
+                          { "None", "Mod Wheel", "Pitch Bend", "MPE Y", "Expression", "Custom CC", "Fretboard Drag" }, 0));
+        add (intParam    (ParamIDs::slidePosCc,        "Slide Position CC", 0, 127, 16));
+        add (choiceParam (ParamIDs::slidePosMode,      "Slide Position Mode", { "Absolute", "Relative" }, 0));
+        add (floatParam  (ParamIDs::slidePosRange,     "Slide Relative Range", 1.0f, 24.0f, 12.0f, 1.0f, "frets"));
+        add (choiceParam (ParamIDs::slideSlantSource,  "Slide Slant Source", sources, 0));
+        add (intParam    (ParamIDs::slideSlantCc,      "Slide Slant CC", 0, 127, 17));
+        add (choiceParam (ParamIDs::slidePressureSource, "Slide Pressure Source", sources, 0));
+        add (intParam    (ParamIDs::slidePressureCc,   "Slide Pressure CC", 0, 127, 18));
+        add (choiceParam (ParamIDs::slideContact,      "Slide Contact Strings", { "All Strings", "Bass 3", "Treble 3" }, 0));
+        add (floatParam  (ParamIDs::slideSpeedLimit,   "Slide Speed Limit", 100.0f, 9600.0f, 4800.0f, 0.5f, "ct/s"));
+        add (boolParam   (ParamIDs::slideAutoVibrato,  "Slide Auto-Vibrato", false));
+        add (floatParam  (ParamIDs::slideAutoVibDepth, "Auto-Vibrato Depth", 0.0f, 50.0f, 10.0f, 1.0f, "ct"));
+        add (floatParam  (ParamIDs::slideAutoVibRate,  "Auto-Vibrato Rate", 1.0f, 10.0f, 5.0f, 1.0f, "Hz"));
+        add (choiceParam (ParamIDs::slideGestureTrigger, "Slide Gesture Trigger", { "Keyswitch", "CC" }, 0));
+        add (intParam    (ParamIDs::slideGestureCc,    "Slide Gesture CC", 0, 127, 23));
+        add (floatParam  (ParamIDs::slideGestureFrom,  "Slide Gesture From", 0.0f, 24.0f, 0.0f, 1.0f, "fret"));
+        add (floatParam  (ParamIDs::slideGestureTo,    "Slide Gesture To", 0.0f, 24.0f, 12.0f, 1.0f, "fret"));
+        add (floatParam  (ParamIDs::slideGestureTime,  "Slide Gesture Time", 10.0f, 5000.0f, 500.0f, 0.2f, "ms"));
+        add (choiceParam (ParamIDs::slideGestureCurve, "Slide Gesture Curve", { "Linear", "Ease In", "Ease Out", "Ease In-Out" }, 3));
+        add (floatParam  (ParamIDs::slideGestureSlantStart, "Gesture Slant Start", -30.0f, 30.0f, 0.0f, 1.0f, "deg"));
+        add (floatParam  (ParamIDs::slideGestureSlantEnd, "Gesture Slant End", -30.0f, 30.0f, 0.0f, 1.0f, "deg"));
+        add (floatParam  (ParamIDs::slideGesturePressure, "Gesture Pressure", 0.0f, 1.0f, 0.7f));
+    }
+    // ==== END TECHNIQUES params ====
 
     return layout;
 }
@@ -1582,10 +1751,18 @@ void ParameterBridge::applyToEngine() noexcept
         // The Tone macro turns the guitar's own tone control as well as the amp.
         circuit.tone = juce::jlimit (0.0, 1.0, value (ParamIDs::guitarTone) * (0.45 + macroTone * 1.1));
 
+        // CW-16, character-wear.md 5: an aged volume pot's linearity error - a
+        // no-op when Character is off or the pot amount is zero.
+        circuit.volume = engine.getCharacterEngine().applyPotTaper (circuit.volume);
+
         circuit.volumePot = value (ParamIDs::circuitVolumePot);
         circuit.tonePot   = value (ParamIDs::circuitTonePot);
         circuit.toneCap   = value (ParamIDs::circuitToneCap) * 1.0e-9;
         circuit.taper     = (PotTaper) (int) value (ParamIDs::circuitPotTaper);
+
+        // CW-17, character-wear.md 5: tone-cap value drift, +/-5% by seed.
+        if (engine.getCharacterEngine().isEnabled())
+            circuit.toneCap *= engine.getCharacterEngine().getCapacitorDrift();
 
         circuit.bleed            = (TrebleBleed) (int) value (ParamIDs::circuitTrebleBleed);
         circuit.bleedResistance  = value (ParamIDs::circuitBleedR);
@@ -1766,6 +1943,184 @@ void ParameterBridge::applyToEngine() noexcept
     }
     // ==== END REALISM-C params ====
 
+    // ==== BEGIN FEAT-ASSIST params ====
+    // auto-articulation.md 4.2 / 11: the four parameters, with Free's
+    // effective values (a Pro style plays as its nearest Free one, the rules
+    // are all on). The stored values are never rewritten (editions.md 5.1).
+    engine.setAutoArticulation (Parameters::effectiveAssistSettings (
+        value (ParamIDs::aaEnabled) > 0.5f, (int) value (ParamIDs::aaStyle),
+        value (ParamIDs::aaAmount), (int) value (ParamIDs::aaRules), Editions::current()));
+    // ==== END FEAT-ASSIST params ====
+    // ==== BEGIN FEAT-MIC params ====
+    // mic-placement.md 5: placement is continuous and block-rate, through
+    // value() so the mod matrix applies. It never reloads an IR.
+    {
+        const auto placement = [this] (const char* x, const char* y, const char* d, const char* a,
+                                       const char* speaker, const char* rear) noexcept
+        {
+            // A float parameter holds 0.35 as 0.34999999: quantised far below
+            // anything audible, the anchor lands exactly on the anchor, and the
+            // stage is bit-transparent there (mic-placement.md 0.2).
+            const auto q = [] (double v, double step) noexcept { return std::round (v / step) * step; };
+
+            MicPlacement p;
+            p.x = q (value (x), 1.0e-5);
+            p.y = q (value (y), 1.0e-5);
+            p.distCm = q (value (d), 1.0e-4);
+            p.angleDeg = q (value (a), 1.0e-4);
+            p.speaker = juce::jlimit (1, 8, (int) std::lround (value (speaker)));
+            p.rear = value (rear) > 0.5f;
+            return p;
+        };
+
+        const auto p1 = placement (ParamIDs::micX, ParamIDs::micY, ParamIDs::micDist, ParamIDs::micAngle,
+                                   ParamIDs::micSpeaker, ParamIDs::micRear);
+        const auto p2 = placement (ParamIDs::micX2, ParamIDs::micY2, ParamIDs::micDist2, ParamIDs::micAngle2,
+                                   ParamIDs::micSpeaker2, ParamIDs::micRear2);
+
+        const auto tof = value (ParamIDs::micTofMode) > 0.5f ? TofMode::Physical : TofMode::Aligned;
+        const bool levelMatch = value (ParamIDs::micLevelMatch) > 0.5f;
+        const bool roomOn = value (ParamIDs::roomOn) > 0.5f;
+        const auto material = (RoomMaterial) juce::jlimit (0, (int) RoomMaterial::NumMaterials - 1,
+                                                           (int) value (ParamIDs::roomMaterial));
+
+        cab.setMicPlacement (0, p1);
+        cab.setMicPlacement (1, p2);
+        cab.setTimeOfFlightMode (tof);
+        cab.setLevelMatch (levelMatch);
+        cab.setRoomMaterialForFloor (material, roomOn);
+
+        auto& ac = engine.getAcousticMicModel();
+        ac.setPlacement (0, { value (ParamIDs::acMicAlong), value (ParamIDs::acMicAcross),
+                              value (ParamIDs::acMicDist), value (ParamIDs::acMicAngle) });
+        ac.setPlacement (1, { value (ParamIDs::acMicAlong2), value (ParamIDs::acMicAcross2),
+                              value (ParamIDs::acMicDist2), value (ParamIDs::acMicAngle2) });
+        ac.setMicType (0, (MicType) juce::jlimit (0, (int) MicType::NumMics - 1, (int) value (ParamIDs::micType)));
+        ac.setMicType (1, (MicType) juce::jlimit (0, (int) MicType::NumMics - 1, (int) value (ParamIDs::micType2)));
+        ac.setSecondMicOn (value (ParamIDs::acMic2On) > 0.5f);
+        ac.setBlend (value (ParamIDs::acMicBlend));
+        ac.setTimeOfFlightMode (tof);
+        ac.setLevelMatch (levelMatch);
+        ac.setFloorReflectivity (MicPlacementModel::floorRhoFor ((int) material, roomOn));
+
+        const double mix = juce::jlimit (0.0, 1.0, (double) value (ParamIDs::acMicMix));
+        engine.setAcousticMicMix (mix);
+
+        // The room hears what the close mics hear: their blend-weighted distance.
+        double closeM = MicPlacementModel::kAnchorDistCm * 0.01;
+
+        if (engine.getGuitarSpec().category == GuitarCategory::Acoustic)
+        {
+            closeM += mix * (ac.getWeightedDistanceM() - closeM);
+        }
+        else if (value (ParamIDs::cabOn) > 0.5f)
+        {
+            const double blend = value (ParamIDs::dualMic) > 0.5f ? (double) value (ParamIDs::micBlend) : 0.0;
+            closeM = 0.01 * ((1.0 - blend) * p1.distCm + blend * p2.distCm);
+        }
+
+        roomEngine.setCloseMicDistance (closeM);
+    }
+    // ==== END FEAT-MIC params ====
+    // ==== BEGIN TECHNIQUES params ====
+    {
+        auto choice = [this] (const char* id, int count) { return juce::jlimit (0, count - 1, juce::roundToInt (value (id))); };
+        auto integer = [this] (const char* id) { return juce::roundToInt (value (id)); };
+
+        // muting-rhythm.md 3
+        MuteSettings mute;
+        mute.armed          = value (ParamIDs::muteArmed) > 0.5f;
+        mute.masterMode     = choice (ParamIDs::muteMasterMode, (int) MuteType::numTypes + 1) - 1;   // 0 is Off
+        mute.palmPositionMm = value (ParamIDs::mutePalmPosition);
+        mute.palmPressure   = value (ParamIDs::mutePalmPressure);
+        mute.frettingStyle  = (FrettingMuteStyle) choice (ParamIDs::muteFrettingStyle, (int) FrettingMuteStyle::numStyles);
+        mute.chukaSource    = (ChukaSource) choice (ParamIDs::muteChukaSource, (int) ChukaSource::numSources);
+        mute.humanise       = value (ParamIDs::muteHumanise);
+        mute.ghostVelocity  = value (ParamIDs::muteGhostVelocity);
+        engine.setMuteSettings (mute);
+        engine.getTechniqueLayer().mute.setChuckDamping (value (ParamIDs::chuckDamping));
+
+        // two-hand-tapping.md 3
+        TapSettings tap;
+        tap.armed             = value (ParamIDs::tapArmed) > 0.5f;
+        tap.source            = (TapSource) choice (ParamIDs::tapSource, (int) TapSource::numSources);
+        tap.channel           = integer (ParamIDs::tapChannel);
+        tap.strengthCurve     = value (ParamIDs::tapStrengthCurve);
+        tap.autoPullOff       = value (ParamIDs::tapAutoPullOff) > 0.5f;
+        tap.hammerOnThreshold = integer (ParamIDs::tapHammerThreshold);
+        tap.lateralFlick      = value (ParamIDs::tapFlick);
+        tap.defaultDurationMs = value (ParamIDs::tapDuration);
+        tap.maxConcurrent     = integer (ParamIDs::tapMaxConcurrent);
+        tap.fretSnap          = value (ParamIDs::tapFretSnap) > 0.5f;
+        engine.setTapSettings (tap);
+
+        // 5: armed, left-hand legato within 150 ms under the threshold is a
+        // hammer-on or pull-off. Disarmed, the legato rules are as they were.
+        auto& legato = engine.getTechniqueEngine();
+        legato.setLegatoVelocityThreshold (tap.armed ? tap.hammerOnThreshold / 127.0 : 0.63);
+
+        legato.setHammerOnWindowMs (tap.armed ? TapSettings::kHammerOnWindowMs : 0.0);
+
+        // microtonal-bends.md 2
+        BendSettings bend;
+        bend.armed = value (ParamIDs::bendArmed) > 0.5f;
+
+        static const ControlSource globalSources[] = { ControlSource::pitchBend, ControlSource::expression, ControlSource::customCc };
+        bend.globalSource     = globalSources[choice (ParamIDs::bendGlobalSource, 3)];
+        bend.globalCc         = integer (ParamIDs::bendGlobalCc);
+        bend.globalRangeCents = value (ParamIDs::bendGlobalRange);
+        bend.stringSource     = (StringBendSource) choice (ParamIDs::bendStringSource, (int) StringBendSource::numSources);
+        bend.stringCcBase     = integer (ParamIDs::bendStringCc);
+
+        static const juce::String rangeIds[6] = { ParamIDs::bendStringRange (1), ParamIDs::bendStringRange (2),
+                                                  ParamIDs::bendStringRange (3), ParamIDs::bendStringRange (4),
+                                                  ParamIDs::bendStringRange (5), ParamIDs::bendStringRange (6) };
+
+        for (int n = 0; n < kMaxStrings; ++n)
+            bend.stringRangeCents[(size_t) n] = value (rangeIds[juce::jlimit (0, 5, n)]);
+
+        bend.vibratoSource     = (VibratoSource) choice (ParamIDs::bendVibratoSource, (int) VibratoSource::numSources);
+        bend.vibratoRateHz     = value (ParamIDs::bendVibratoRate);
+        bend.vibratoDepthCents = value (ParamIDs::bendVibratoDepth);
+        bend.vibratoOnsetMs    = value (ParamIDs::bendVibratoOnset);
+        bend.quantise          = (BendQuantise) choice (ParamIDs::bendQuantise, (int) BendQuantise::numModes);
+        bend.snap              = value (ParamIDs::bendSnap);
+        bend.preBendCents      = value (ParamIDs::bendPreBendAmount);
+        bend.preBendOnCc       = choice (ParamIDs::bendPreBendTrigger, 2) == 1;
+        bend.preBendCc         = integer (ParamIDs::bendPreBendCc);
+        bend.preBendReleaseMs  = value (ParamIDs::bendPreBendRelease);
+        bend.bendCurve         = (BendCurve) choice (ParamIDs::bendCurve, (int) BendCurve::numCurves);
+        bend.releaseCurve      = (BendCurve) choice (ParamIDs::bendReleaseCurve, (int) BendCurve::numCurves);
+        engine.setBendSettings (bend);
+
+        // slide-technique-controls.md 1
+        SlideControlSettings sc;
+        sc.positionSource  = (ControlSource) choice (ParamIDs::slidePosSource, 7);
+        sc.positionCc      = integer (ParamIDs::slidePosCc);
+        sc.relative        = choice (ParamIDs::slidePosMode, 2) == 1;
+        sc.relativeRangeFrets = value (ParamIDs::slidePosRange);
+        sc.slantSource     = (ControlSource) choice (ParamIDs::slideSlantSource, (int) ControlSource::numSources);
+        sc.slantCc         = integer (ParamIDs::slideSlantCc);
+        sc.pressureSource  = (ControlSource) choice (ParamIDs::slidePressureSource, (int) ControlSource::numSources);
+        sc.pressureCc      = integer (ParamIDs::slidePressureCc);
+        sc.contactMask     = slideContactMaskFor (choice (ParamIDs::slideContact, 3), engine.getNumStrings());
+        sc.speedLimitCentsPerSecond = value (ParamIDs::slideSpeedLimit);
+        sc.autoVibrato     = value (ParamIDs::slideAutoVibrato) > 0.5f;
+        sc.autoVibratoDepthCents = value (ParamIDs::slideAutoVibDepth);
+        sc.autoVibratoRateHz = value (ParamIDs::slideAutoVibRate);
+        sc.gestureOnCc     = choice (ParamIDs::slideGestureTrigger, 2) == 1;
+        sc.gestureCc       = integer (ParamIDs::slideGestureCc);
+        sc.gesture.fromFret = value (ParamIDs::slideGestureFrom);
+        sc.gesture.toFret  = value (ParamIDs::slideGestureTo);
+        sc.gesture.durationMs = value (ParamIDs::slideGestureTime);
+        sc.gesture.curve   = (SlideCurve) choice (ParamIDs::slideGestureCurve, (int) SlideCurve::numCurves);
+        sc.gesture.slantStartDegrees = value (ParamIDs::slideGestureSlantStart);
+        sc.gesture.slantEndDegrees = value (ParamIDs::slideGestureSlantEnd);
+        sc.gesture.pressure = value (ParamIDs::slideGesturePressure);
+        engine.setSlideControls (sc);
+    }
+    // ==== END TECHNIQUES params ====
+
     // ---- structural change detection ---------------------------------------------
     const bool structural = readStructuralValues() || ! structuralInitialised;
 
@@ -1871,11 +2226,15 @@ bool ParameterBridge::readStructuralValues() noexcept
     structural |= changed (lastCabType,        (int) value (ParamIDs::cabType));
     structural |= changed (lastSpeaker,        (int) value (ParamIDs::cabSpeaker));
     structural |= changed (lastMicType,        (int) value (ParamIDs::micType));
-    structural |= changed (lastMicPos,         (int) value (ParamIDs::micPosition));
-    structural |= changed (lastMicDist,        (int) value (ParamIDs::micDistance));
+    // mic-placement.md 4: the legacy position and distance are no longer
+    // structural. Only the Acoustic DI, which has no speaker to place a mic
+    // on, still voices itself from them (FEAT-MIC decision).
+    const bool legacyMicStructural = (lastCabType == (int) CabinetType::AcousticDI);
+    structural |= changed (lastMicPos,         (int) value (ParamIDs::micPosition)) && legacyMicStructural;
+    structural |= changed (lastMicDist,        (int) value (ParamIDs::micDistance)) && legacyMicStructural;
     structural |= changed (lastMicType2,       (int) value (ParamIDs::micType2));
-    structural |= changed (lastMicPos2,        (int) value (ParamIDs::micPosition2));
-    structural |= changed (lastMicDist2,       (int) value (ParamIDs::micDistance2));
+    structural |= changed (lastMicPos2,        (int) value (ParamIDs::micPosition2)) && legacyMicStructural;
+    structural |= changed (lastMicDist2,       (int) value (ParamIDs::micDistance2)) && legacyMicStructural;
     structural |= changed (lastRoomSize,       (int) value (ParamIDs::roomSize));
     structural |= changed (lastRoomMaterial,   (int) value (ParamIDs::roomMaterial));
     structural |= changed (lastBridgeType,     (int) value (ParamIDs::bridgeType));

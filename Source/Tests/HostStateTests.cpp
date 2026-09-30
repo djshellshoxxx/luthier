@@ -6,6 +6,7 @@
 
 #include "../PluginProcessor.h"
 #include "../Parameters.h"
+#include "../Presets/ExactRestore.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -76,6 +77,96 @@ LUTHIER_TEST (HostState, anUnpreparedInstanceSavesTheSameStateAsAPreparedOne)
     auto unprepared = std::make_unique<LuthierAudioProcessor>();
 
     CHECK (sameState (asText (saveState (*prepared)), asText (saveState (*unprepared)), "luthier-unprepared"));
+}
+
+//==============================================================================
+/*  ExactRestore.h, for every ranged parameter, skewed ranges included:
+
+      - A value that arrived through a set (a host's plain write, or a raw
+        normalised one as a hand-edited preset holds) is stored exactly as
+        getValue() reports it - what clap-validator compares after a reload -
+        and a restore reads it back to the bit. The direct setValueNotifyingHost
+        path drifts by a float ULP on skewed ranges, which made save -> restore
+        -> save differ.
+
+      - A constructor default never went through the round trip and can be
+        unreachable; it is stored where the parameter reads it back, and that
+        restores exactly too.
+
+    Either way the plain value moves by at most a few plain-range ULPs (three
+    on tap_duration's 10-2000 ms range: 0.0002 ms), so nothing audible or
+    displayed changes. */
+LUTHIER_TEST (HostState, aRestoredNormalisedValueReadsBackExactly)
+{
+    auto ulpsApart = [] (float a, float b)
+    {
+        long n = 0;
+        for (float x = a; x != b && n < 64; x = std::nextafter (x, b))
+            ++n;
+        return n;
+    };
+
+    LuthierAudioProcessor p;
+    juce::Random rng (0x5EED);
+    juce::StringArray inexact, moved, rewritten, defaultsMoved;
+    int checked = 0;
+
+    for (auto* param : p.getParameters())
+    {
+        auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (param);
+
+        if (ranged == nullptr || ParamIDs::isJamTransient (ranged->getParameterID()))
+            continue;
+
+        // A bool keeps the normalised float it is given, so a raw draw reads
+        // back as itself; the helper leaves it alone. Floats are the subject.
+        const bool isFloat = dynamic_cast<juce::AudioParameterFloat*> (param) != nullptr;
+        long worstUlps = 0, worstPlainUlps = 0, worstDefaultUlps = 0;
+
+        for (int k = -1; k < 256; ++k)
+        {
+            // k = -1: the constructor default, untouched. Even draws: what a
+            // host wrote as a plain value. Odd draws: a raw normalised value.
+            if (k >= 0)
+                ranged->setValueNotifyingHost (k % 2 == 0 || ! isFloat
+                                                   ? ranged->convertTo0to1 (ranged->convertFrom0to1 (rng.nextFloat()))
+                                                   : rng.nextFloat());
+
+            const float live = ranged->getValue();
+            const double stored = ExactRestore::storable (*ranged, live);   // what toVar writes
+
+            if (k >= 0 && (float) stored != live)
+                rewritten.add (ranged->getParameterID());
+            else if (k < 0)
+                worstDefaultUlps = ulpsApart ((float) stored, live);
+
+            ranged->setValueNotifyingHost (rng.nextFloat());   // scramble
+            ExactRestore::applyNormalised (*ranged, stored);
+            ++checked;
+
+            worstUlps = std::max (worstUlps, ulpsApart (ranged->getValue(), (float) stored));
+            worstPlainUlps = std::max (worstPlainUlps,
+                                       ulpsApart (ranged->convertFrom0to1 (ranged->getValue()),
+                                                  ranged->convertFrom0to1 (live)));
+        }
+
+        if (worstUlps > 0)
+            inexact.add (ranged->getParameterID() + " (" + juce::String (worstUlps) + " ulp)");
+
+        if (worstPlainUlps > 4)
+            moved.add (ranged->getParameterID() + " (" + juce::String (worstPlainUlps) + " plain ulp)");
+
+        if (worstDefaultUlps > 4)
+            defaultsMoved.add (ranged->getParameterID() + " (" + juce::String (worstDefaultUlps) + " ulp)");
+    }
+
+    rewritten.removeDuplicates (false);
+
+    CHECK (checked > 0);
+    CHECK_MSG (rewritten.isEmpty(), "a set value was not stored as getValue() reports it: " + rewritten.joinIntoString (", "));
+    CHECK_MSG (inexact.isEmpty(), "restored values not read back exactly: " + inexact.joinIntoString (", "));
+    CHECK_MSG (moved.isEmpty(), "restore moved the plain value by more than 4 ulps: " + moved.joinIntoString (", "));
+    CHECK_MSG (defaultsMoved.isEmpty(), "a default was stored more than 4 ulps away: " + defaultsMoved.joinIntoString (", "));
 }
 
 LUTHIER_TEST (HostState, theMorphSliderAndTheCharacterAmountAreSaved)
@@ -219,4 +310,168 @@ LUTHIER_TEST (HostState, theSameParametersGiveTheSameStateHoweverTheyArrived)
         second->getParameters()[i]->setValueNotifyingHost (values[(size_t) i]);
 
     CHECK (sameState (asText (saveState (*first)), asText (saveState (*second)), "luthier-arrival"));
+}
+
+//==============================================================================
+// HI-8: the version string must name the exact build, not just "1.0.0", so a
+// support thread can tell two builds with the same marketing version apart.
+LUTHIER_TEST (HostState, versionCarriesABuildString)
+{
+    const auto full = getFullVersionString();
+
+    CHECK (full.startsWith (JucePlugin_VersionString));
+    CHECK (full.contains ("+"));
+    CHECK (full.fromLastOccurrenceOf ("+", false, false).isNotEmpty());
+}
+
+//==============================================================================
+// HI-20: the root JSON now carries a format version, so a later build can tell
+// an old blob apart from one of its own.
+LUTHIER_TEST (HostState, theStateCarriesAFormatVersion)
+{
+    LuthierAudioProcessor p;
+    p.prepareToPlay (48000.0, 256);
+
+    const auto saved = saveState (p);
+    const auto parsed = juce::JSON::parse (asText (saved));
+    auto* root = parsed.getDynamicObject();
+
+    CHECK (root != nullptr);
+    CHECK (root != nullptr && root->hasProperty ("formatVersion"));
+    CHECK (root != nullptr
+           && (int) root->getProperty ("formatVersion") == LuthierAudioProcessor::kCurrentStateFormatVersion);
+}
+
+//==============================================================================
+// HI-24: a root-level key this build does not recognise (a section a newer
+// build added) used to vanish silently on the next save. It now travels
+// through unchanged.
+LUTHIER_TEST (HostState, unknownSectionsSurviveWriteBack)
+{
+    LuthierAudioProcessor p;
+    p.prepareToPlay (48000.0, 256);
+
+    auto saved = juce::JSON::parse (asText (saveState (p)));
+    auto* root = saved.getDynamicObject();
+    CHECK (root != nullptr);
+
+    if (root == nullptr)
+        return;
+
+    // Simulate a newer build's blob: a section this one has never heard of,
+    // plus a format version ahead of what it understands.
+    root->setProperty ("futureFeature", juce::var (juce::String ("keep-me")));
+    root->setProperty ("formatVersion", LuthierAudioProcessor::kCurrentStateFormatVersion + 1);
+
+    const auto withExtra = juce::JSON::toString (saved, false);
+
+    LuthierAudioProcessor restored;
+    restored.prepareToPlay (48000.0, 256);
+    restored.setStateInformation (withExtra.toRawUTF8(), (int) withExtra.getNumBytesAsUTF8());
+
+    CHECK (restored.getUnknownHostSections().contains ("futureFeature"));
+    CHECK (restored.getUnknownHostSections()["futureFeature"].toString() == "keep-me");
+
+    // A newer-than-understood format version raises one banner.
+    const auto notices = restored.takeGuitarNotices();
+    CHECK (! notices.isEmpty());
+
+    const auto reSaved = juce::JSON::parse (asText (saveState (restored)));
+    auto* reRoot = reSaved.getDynamicObject();
+
+    CHECK (reRoot != nullptr && reRoot->hasProperty ("futureFeature"));
+    CHECK (reRoot != nullptr && reRoot->getProperty ("futureFeature").toString() == "keep-me");
+}
+
+//==============================================================================
+// HI-25: loading a blob older than the current format used to migrate it in
+// place with nothing kept of the original.
+LUTHIER_TEST (HostState, anOldBlobIsBackedUpBeforeMigration)
+{
+    LuthierAudioProcessor p;
+    p.prepareToPlay (48000.0, 256);
+
+    auto saved = juce::JSON::parse (asText (saveState (p)));
+    auto* root = saved.getDynamicObject();
+    CHECK (root != nullptr);
+
+    if (root == nullptr)
+        return;
+
+    root->removeProperty ("formatVersion");   // a pre-versioning blob
+
+    const auto old = juce::JSON::toString (saved, false);
+
+    auto before = Diagnostics::getDiagnosticsFolder().findChildFiles (
+        juce::File::findFiles, false, "state-backup-*.json");
+
+    LuthierAudioProcessor restored;
+    restored.prepareToPlay (48000.0, 256);
+    restored.setStateInformation (old.toRawUTF8(), (int) old.getNumBytesAsUTF8());
+
+    auto after = Diagnostics::getDiagnosticsFolder().findChildFiles (
+        juce::File::findFiles, false, "state-backup-*.json");
+
+    CHECK (after.size() > before.size());
+
+    for (auto& f : after)
+        if (! before.contains (f))
+            f.deleteFile();
+}
+
+//==============================================================================
+// QA-48: bypassed output must be bit-identical to no plugin at all. Luthier is
+// an instrument with no main input, so that means silence - not whatever the
+// buffer already held (the JUCE default merely passes the buffer through).
+LUTHIER_TEST (HostState, bypassOutputsSilence)
+{
+    LuthierAudioProcessor p;
+    p.prepareToPlay (48000.0, 256);
+
+    juce::AudioBuffer<float> buffer (p.getTotalNumOutputChannels(), 256);
+    juce::MidiBuffer midi;
+    midi.addEvent (juce::MidiMessage::noteOn (1, 60, 0.8f), 0);
+
+    for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+        buffer.getWritePointer (ch)[0] = 0.5f;   // garbage the JUCE default would pass through
+
+    p.processBlockBypassed (buffer, midi);
+
+    for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+        CHECK_NEAR (buffer.getMagnitude (ch, 0, buffer.getNumSamples()), 0.0f, 1.0e-9f);
+}
+
+//==============================================================================
+// HI-45: getNumPrograms/getProgramName/setCurrentProgram enumerate and load
+// the preset bank by index (host-integration.md section 12), untested before.
+LUTHIER_TEST (HostState, programsEnumerateFactoryPresetsAndLoadByIndex)
+{
+    LuthierAudioProcessor p;
+    p.prepareToPlay (48000.0, 256);
+
+    const int factoryCount = p.getPresetManager().getNumPresets();
+    CHECK_MSG (factoryCount > 1, "no factory presets to enumerate, so this proves nothing");
+
+    if (factoryCount <= 1)
+        return;
+
+    CHECK (p.getNumPrograms() == factoryCount);
+
+    for (int i = 0; i < factoryCount; ++i)
+    {
+        const auto* info = p.getPresetManager().getPreset (i);
+        CHECK (info != nullptr);
+
+        if (info == nullptr)
+            continue;
+
+        CHECK (p.getProgramName (i) == info->name);
+    }
+
+    p.setCurrentProgram (factoryCount - 1);
+    CHECK (p.getCurrentProgram() == factoryCount - 1);
+    CHECK (p.getPresetManager().getCurrentPresetIndex() == factoryCount - 1);
+
+    p.setCurrentProgram (0);
+    CHECK (p.getCurrentProgram() == 0);
 }

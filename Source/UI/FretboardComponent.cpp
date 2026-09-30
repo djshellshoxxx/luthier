@@ -1,4 +1,6 @@
 #include "FretboardComponent.h"
+#include "PerformanceAssistUi.h"   // FEAT-ASSIST
+#include "Techniques/TechniqueOverlay.h"
 #include "../PluginProcessor.h"
 #include "../Accessibility/Accessibility.h"
 
@@ -61,6 +63,17 @@ FretboardComponent::FretboardComponent (LuthierAudioProcessor& p)
     liveNote.fill (-1);
 
     setTooltip ("Click a fret to hear that note. Right-click for string options.");
+    // auto-articulation.md 7.3 (FEAT-ASSIST): a label sits where the live note's dot does.
+    assistLabels = std::make_unique<AssistLabelOverlay> (processor, *this, [this] (int s, double fret)
+    {
+        const float x = (fret < 0.05) ? fretX (0.0) - 6.0f : (fretX (juce::jmax (0.0, fret - 1.0)) + fretX (fret)) * 0.5f;
+        return juce::Point<float> (x, stringY (s));
+    });
+
+    // gui-techniques-updates.md 4 (TECHNIQUES): the technique overlays, on top.
+    techniqueOverlay = std::make_unique<TechniqueOverlay> (processor, *this);
+    addAndMakeVisible (*techniqueOverlay);
+
     motion.startTimerHz (*this, kRefreshHz);   // SPEC-SWEEP GD-2 rate, via cpu-quality-modes 6
 }
 
@@ -395,6 +408,9 @@ void FretboardComponent::resized()
 
     if (! compact)
         boardArea.removeFromBottom (14);   // fret number row
+
+    if (techniqueOverlay != nullptr)
+        techniqueOverlay->setBounds (getLocalBounds());   // TECHNIQUES
 }
 
 float FretboardComponent::fretX (double fret) const
@@ -876,6 +892,12 @@ void FretboardComponent::mouseDown (const juce::MouseEvent& e)
     if (isStringMuted (s))
         return;
 
+    // two-hand-tapping.md 3 (TECHNIQUES): the fretboard tap layer taps instead of picking.
+    dragStartY = e.y;
+
+    if (TechniqueOverlay::handleMouseDown (processor, s, fretAtX ((float) e.x), numFrets))
+        return;
+
     setSelectedString (s);
 
     if (onStringSelected)
@@ -903,6 +925,14 @@ void FretboardComponent::mouseUp (const juce::MouseEvent&)
         processor.releasePreviewNote (playingString);
         playingString = -1;
     }
+
+    TechniqueOverlay::handleMouseUp (processor);   // TECHNIQUES
+}
+
+// TECHNIQUES: slide-technique-controls.md 1 / microtonal-bends.md 0.2, the fretboard drags.
+void FretboardComponent::mouseDrag (const juce::MouseEvent& e)
+{
+    TechniqueOverlay::handleMouseDrag (processor, fretAtX ((float) e.x), (float) (dragStartY - e.y), numFrets);
 }
 
 } // namespace luthier

@@ -152,6 +152,14 @@ jobs:
         shell: pwsh
         run: scripts/ci_build.ps1 -Step deps
 
+      # riff-library RL-01: the committed factory riffs are exactly the
+      # generator's output (it validates the content as it goes).
+      - name: Factory riffs are up to date
+        if: runner.os == 'Linux'
+        run: |
+          python3 Tools/generate_factory_riffs.py
+          git diff --exit-code Resources/Riffs
+
       # ---------------------------------------------------------- build
       - name: Configure and build (Unix)
         id: build_unix

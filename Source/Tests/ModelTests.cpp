@@ -105,6 +105,57 @@ LUTHIER_TEST (Tuning, everyPresetProducesSaneFrequencies)
     }
 }
 
+LUTHIER_TEST (Tuning, everyFactoryPresetIsWithinOneTenthCent)
+{
+    // Independent MIDI-note targets catch a wrong preset entry as well as a
+    // frequency-conversion regression. String 0 is the highest course.
+    struct Expected { TuningPreset preset; std::initializer_list<int> notes; };
+    const Expected expected[] = {
+        { TuningPreset::Standard,       { 64, 59, 55, 50, 45, 40 } },
+        { TuningPreset::DropD,          { 64, 59, 55, 50, 45, 38 } },
+        { TuningPreset::DropC,          { 62, 57, 53, 48, 43, 36 } },
+        { TuningPreset::DropB,          { 61, 56, 52, 47, 42, 35 } },
+        { TuningPreset::DADGAD,         { 62, 57, 55, 50, 45, 38 } },
+        { TuningPreset::OpenG,          { 62, 59, 55, 50, 43, 38 } },
+        { TuningPreset::OpenD,          { 62, 57, 54, 50, 45, 38 } },
+        { TuningPreset::OpenE,          { 64, 59, 56, 52, 47, 40 } },
+        { TuningPreset::OpenC,          { 64, 60, 55, 48, 43, 36 } },
+        { TuningPreset::HalfStepDown,   { 63, 58, 54, 49, 44, 39 } },
+        { TuningPreset::FullStepDown,   { 62, 57, 53, 48, 43, 38 } },
+        { TuningPreset::Nashville,      { 64, 59, 67, 62, 57, 52 } },
+        { TuningPreset::SevenString,    { 64, 59, 55, 50, 45, 40, 35 } },
+        { TuningPreset::EightString,    { 64, 59, 55, 50, 45, 40, 35, 30 } },
+        { TuningPreset::BaritoneB,      { 59, 54, 50, 45, 40, 35 } },
+        { TuningPreset::BassStandard,   { 43, 38, 33, 28 } },
+        { TuningPreset::BassFiveString, { 43, 38, 33, 28, 23 } }
+    };
+
+    TuningEngine tuning;
+    tuning.prepare (kSr);
+    tuning.randomiseRealismDetune (0.0, 1);
+
+    for (const auto& entry : expected)
+    {
+        tuning.setTuningPreset (entry.preset);
+        CHECK_MSG (TuningEngine::getPresetStringCount (entry.preset) == (int) entry.notes.size(),
+                   juce::String (TuningEngine::getTuningPresetName (entry.preset)) + " string count changed");
+
+        int stringIndex = 0;
+        for (int midiNote : entry.notes)
+        {
+            tuning.setIntonationSlope (stringIndex, 0.0);
+            const double actual = tuning.computeFrequency (stringIndex, 0.0, 0.0);
+            const double reference = 440.0 * std::pow (2.0, (midiNote - 69) / 12.0);
+            const double errorCents = centsBetween (actual, reference);
+            CHECK_MSG (std::abs (errorCents) < 0.1,
+                       juce::String (TuningEngine::getTuningPresetName (entry.preset))
+                       + " string " + juce::String (stringIndex)
+                       + " differs by " + juce::String (errorCents, 5) + " cents");
+            ++stringIndex;
+        }
+    }
+}
+
 LUTHIER_TEST (Tuning, twelfthFretIsAnOctave)
 {
     TuningEngine t;

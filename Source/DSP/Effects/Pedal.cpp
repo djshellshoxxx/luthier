@@ -187,6 +187,7 @@ const char* Pedal::getTypeName (PedalType t) noexcept
         case PedalType::GraphicEQ:      return "Graphic EQ";
         case PedalType::ParametricEQ:   return "Parametric EQ";
         case PedalType::Doubler:        return "Doubler";
+        case PedalType::Gater:          return "Gater";
         case PedalType::NumTypes:
         default:                        return "Empty";
     }
@@ -222,6 +223,7 @@ bool Pedal::isPostAmpPedal (PedalType t) noexcept
     switch (t)
     {
         case PedalType::Doubler:        // ambiguity-resolutions 3: post-amp, pre-cab
+        case PedalType::Gater:          // a rhythmic gate sits in the loop, like the tremolo
         case PedalType::Chorus:
         case PedalType::Phaser:
         case PedalType::Flanger:
@@ -268,6 +270,7 @@ std::unique_ptr<Pedal> Pedal::create (PedalType t)
         case PedalType::GraphicEQ:      return std::make_unique<GraphicEqPedal>();
         case PedalType::ParametricEQ:   return std::make_unique<ParametricEqPedal>();
         case PedalType::Doubler:        return std::make_unique<DoublerPedal>();
+        case PedalType::Gater:          return std::make_unique<GaterPedal>();
 
         case PedalType::None:
         case PedalType::NumTypes:

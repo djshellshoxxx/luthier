@@ -294,3 +294,56 @@ mechanically). Distinct marker names keep merges clean.
 DEFERRED off the overnight batch (touch the parameter/automation core broadly;
 higher conflict risk with running Claude helpers — do later, serialized):
 midi-learn, randomize+A/B. Claude may take these once the gap helpers settle.
+
+## Windows UN-PAUSED for beta (2026-09-29, owner via PR #9)
+
+Owner's beta plan (docs/plans/BETA_LINUX_WINDOWS.md, merged from PR #9) SUPERSEDES
+the earlier Windows pause FOR BETA WORK. Beta targets: Linux x86-64 VST3/CLAP/
+standalone + Windows x64 VST3/standalone (Windows CLAP optional). macOS is STILL
+last (paused until after beta). Follow the plan's critical path; do not make
+tab-export, new instruments, licensing, or edition-splitting beta prerequisites.
+Windows CI lane re-enabled in ci-cadence.yml (still subject to the Actions budget;
+use an authorized local Windows build if Actions stays blocked).
+
+## PERF-AUDIT — LAST, low priority, ultra token-lean (2026-09-29, owner)
+
+Owner concern: large codebase may get sluggish; wants ONE agent to find
+speed/efficiency wins WITHOUT breaking anything. LOWEST priority — the
+coordinator launches this ONLY after everything else is done: mega-merge
+landed, beta shipped, all audits/beta clean, editions handled. Never run it
+concurrently with feature/merge work.
+
+When launched (ONE Sonnet helper, branch claude/luthier-perf-audit, TERSE_MODE,
+low effort, token-lean — grep/targeted reads only, NEVER whole-tree reads):
+- Focus on the HOT path first: audio thread (processBlock and everything it
+  calls), per-block/per-sample loops, allocations/locks/virtual calls/denormals
+  in DSP, redundant recomputation, unnecessary copies, oversized buffers.
+- Then non-hot wins: build time, obvious O(n^2), repeated work in UI timers.
+- Deliver docs/audit/PERF_AUDIT.md: ranked findings (file:line | cost | fix |
+  risk | measured or estimated gain). APPLY ONLY changes that are clearly safe,
+  behaviour-identical, and test-covered; everything risky stays a proposal.
+- HARD RULE: no behaviour or audio change; do not weaken/skip tests; full Linux
+  suite must stay green; measure before/after where feasible. If a fix can't be
+  proven safe, propose it, don't apply it.
+- Token budget: keep it to one pass; report + safe micro-fixes only; stop when
+  the report is written and the safe fixes are green.
+
+## BUDGET HOLD (2026-09-29): both Claude and Codex constrained
+
+State: Claude seven-day limit = rejected/overage (resets ~2026-09-30); ChatGPT
+Codex low on credits. MEGA-MERGE (Opus) was stopped/archived — it was rate-
+rejected and only burning retries; DO NOT restart it. Consolidation is NOT
+handed to Codex (its credits are low).
+
+Plan while constrained:
+- Do NOT spawn new Claude helpers or send Codex the large beta task now.
+- Codex, if it has any credits, should ONLY finish + push its in-flight lane and
+  write docs/handoff/CODEX_REMAINING.md, then stop. Nothing bigger.
+- Verified done and safe: Fable feedback fix exists on claude/luthier-fable-
+  feedback (VERIFY it carries the commits before trusting; git showed 0 ahead).
+- WHEN CLAUDE WEEKLY RESETS: the coordinator itself does consolidation -> beta
+  (per docs/plans/BETA_LINUX_WINDOWS.md) on one branch, single-threaded, token-
+  lean. No parallel fleet until budget is healthy. Cap Opus sessions at 1-2.
+
+## Merge recipe available (2026-09-29)
+Replay consolidation from docs/handoff/CODEX_MERGE_CHECKPOINT.md (Codex mapped it but could not push; codex/luthier-beta is NOT on origin). Resume at integrate-2 conflicts, then remaining deltas, then beta.

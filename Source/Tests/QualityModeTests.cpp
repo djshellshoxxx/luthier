@@ -79,6 +79,9 @@ LUTHIER_TEST (CpuQuality, CQ01_profileTableMatchesTheSpec)
     CHECK (h.modIntervalMultiplier == 1 && m.modIntervalMultiplier == 1 && l.modIntervalMultiplier == 2);
     CHECK (h.modFastLfoHz == 20.0);
 
+    // Mic placement (INTEGRATE-2): a moving mic evaluates every other step at Low.
+    CHECK (h.micEvaluateEvery == 1 && m.micEvaluateEvery == 1 && l.micEvaluateEvery == 2);
+
     // Sleep and ring-out.
     CHECK (! h.idleSleep && m.idleSleep && l.idleSleep);
     CHECK (h.ringOutDb == 0.0 && m.ringOutDb == -80.0 && l.ringOutDb == -60.0);
@@ -531,8 +534,13 @@ LUTHIER_TEST (CpuQuality, CQ10_aRingingNoteKeepsItsStagesUntilReExcited)
         }
     }
 
+    // The re-excite of a ringing string is a voice steal: the new note is
+    // plucked, and takes its stages, after the 5 ms fade (FIX-CROSS item 4).
     str.excite (Excitation::Params {});
-    str.processSample (0.0);
+
+    for (int i = 0; i < (int) (0.010 * kSr); ++i)
+        str.processSample (0.0);
+
     CHECK (str.getLatchedDispersionStages() == 8);
     CHECK (str.getActiveDispersionStages() > stagesAtLow);
 }

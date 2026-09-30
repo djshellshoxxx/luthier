@@ -21,6 +21,7 @@ void TechniqueTriggers::configure (TechniqueId technique, const TechniqueTrigger
     {
         held[t].fill (false);
         triggerCcDown[t] = auxCcDown[t] = false;
+        captured[t].fill (false);
     }
 }
 
@@ -36,6 +37,9 @@ void TechniqueTriggers::reset() noexcept
 
     triggerCcDown.fill (false);
     auxCcDown.fill (false);
+
+    for (auto& c : captured)
+        c.fill (false);
 
     for (auto& r : requests)
         r.store (0);
@@ -105,7 +109,22 @@ bool TechniqueTriggers::takes (const juce::uint8* d, int n) const noexcept
             return true;
     }
 
-    return false;
+    return capturingTechnique (d, n) >= 0;
+}
+
+int TechniqueTriggers::capturingTechnique (const juce::uint8* d, int n) const noexcept
+{
+    // TECHNIQUES (two-hand-tapping.md 3): a note captured under a held keyswitch.
+    if (n < 3 || d[0] >= 0xf0 || ((d[0] & 0xf0) != 0x90 && (d[0] & 0xf0) != 0x80))
+        return -1;
+
+    const int index = (d[0] & 0x0f) * 128 + (d[1] & 0x7f);
+
+    for (int t = 0; t < kTechniques; ++t)
+        if (configs[(size_t) t].armed && captured[(size_t) t][(size_t) index])
+            return t;
+
+    return -1;
 }
 
 const juce::MidiBuffer& TechniqueTriggers::process (const juce::MidiBuffer& in, juce::MidiBuffer& filtered) noexcept
@@ -170,6 +189,33 @@ const juce::MidiBuffer& TechniqueTriggers::process (const juce::MidiBuffer& in, 
             {
                 const double velocity = noteOn ? d[2] / 127.0 : 0.0;
 
+                // TECHNIQUES: notes under a held keyswitch belong to the technique.
+                if (c.captureNotesWhileHeld && c.source == TriggerSource::keyswitch)
+                {
+                    bool isKeyswitch = false;
+
+                    for (const auto& other : configs)
+                        for (auto ks : other.keyswitches)
+                            isKeyswitch = isKeyswitch || (other.armed && ks >= 0 && d[1] == ks);
+
+                    const auto index = (size_t) ((channel - 1) * 128 + (d[1] & 0x7f));
+
+                    if (! isKeyswitch && noteOn && held[(size_t) t][0])
+                    {
+                        captured[(size_t) t][index] = true;
+                        push ({ technique, kCaptureRole, true, offset, velocity, d[1] });
+                        anyTaken = true;
+                        continue;
+                    }
+
+                    if (! isKeyswitch && noteOff && captured[(size_t) t][index])
+                    {
+                        push ({ technique, kCaptureRole, false, offset, 0.0, d[1] });
+                        anyTaken = true;
+                        continue;
+                    }
+                }
+
                 for (int role = 0; role < (int) c.keyswitches.size(); ++role)
                     if (c.keyswitches[(size_t) role] >= 0 && d[1] == c.keyswitches[(size_t) role]
                         && (role > 0 || c.source == TriggerSource::keyswitch))
@@ -216,6 +262,17 @@ const juce::MidiBuffer& TechniqueTriggers::process (const juce::MidiBuffer& in, 
     for (const auto m : in)
         if (! takes (m.data, m.numBytes))
             filtered.addEvent (m.data, m.numBytes, m.samplePosition);
+
+    // A captured note's note-off has now been taken; let it go.
+    for (const auto m : in)
+    {
+        const auto* d = m.data;
+
+        if (m.numBytes >= 3 && d[0] < 0xf0
+            && ((d[0] & 0xf0) == 0x80 || ((d[0] & 0xf0) == 0x90 && d[2] == 0)))
+            for (auto& c : captured)
+                c[(size_t) ((d[0] & 0x0f) * 128 + (d[1] & 0x7f))] = false;
+    }
 
     return filtered;
 }

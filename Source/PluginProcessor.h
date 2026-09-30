@@ -4,12 +4,14 @@
 
 #include "LuthierEngine.h"
 #include "Parameters.h"
+#include "Model/Playing/AssistDecisionLog.h"   // FEAT-ASSIST
 #include "Presets/PresetManager.h"
 #include "Support/MidiLearn.h"
 #include "Support/UndoHistory.h"
 #include "Support/MidiCapture.h"
 #include "Capture/PerformanceCapture.h"
 #include "Presets/PresetMorph.h"
+#include "Presets/MicPlacementMigration.h"   // mic-placement.md 4
 #include "Tune/TuneSession.h"
 #include "Tune/TuneHumCapture.h"
 #include "Support/AudioExporter.h"
@@ -46,8 +48,10 @@
 #include "Jam/JamEngine.h"   // FEAT-JAM
 #include "Support/OutputNormalization.h"   // output-normalization.md
 #include "Support/QualityController.h"   // cpu-quality-modes
+#include "Riffs/RiffLibrary.h"   // riff-library 4
 #include "Support/InstallLayout.h"
 #include "Support/SoundingNotesPublisher.h"
+#include "Presets/Preview/PreviewPlayer.h"   // preset-browser-previews.md 4
 
 namespace luthier
 {
@@ -66,6 +70,14 @@ public:
     void releaseResources() override;
     bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+
+    /** qa-polish QA-48: Luthier is an instrument with no main input, so "bypassed
+        output bit-identical to no plugin" means silence, not whatever the buffer
+        already held. */
+    void processBlockBypassed (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&) override
+    {
+        buffer.clear();
+    }
 
     /** cpu-quality-modes 2.6: an offline bounce renders at High. Any thread. */
     void setNonRealtime (bool isNonRealtime) noexcept override;
@@ -93,8 +105,18 @@ public:
     const juce::String getProgramName (int index) override;
     void changeProgramName (int index, const juce::String& newName) override;
 
+    // host-integration HI-20/HI-24/HI-25: the root JSON's format version. Bumped
+    // whenever a root-level key's meaning changes in a way an older build could
+    // not read correctly.
+    static constexpr int kCurrentStateFormatVersion = 1;
+
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
+
+    /** HI-24: root-level keys this build did not recognise on the last load,
+        kept so a save writes them straight back rather than silently dropping
+        a newer build's data. */
+    juce::NamedValueSet getUnknownHostSections() const noexcept { return unknownHostSections; }
 
     /*  output-normalization.md 6: undo, redo and A/B recall restore the sound
         only; the host restores everything, the normalization setting included. */
@@ -108,6 +130,10 @@ public:
     //==========================================================================
     LuthierEngine&      getEngine() noexcept        { return engine; }
     juce::AudioProcessorValueTreeState& getState() noexcept { return apvts; }
+
+    /** mic-placement.md 4: follows a session still automating the legacy mic
+        Position / Distance. */
+    MicLegacyAutomation& getMicLegacyAutomation() noexcept { return *micLegacyAutomation; }
     PresetManager&      getPresetManager() noexcept { return presets; }
     MidiLearnManager&   getMidiLearn() noexcept     { return midiLearn; }
     MidiCapture&        getMidiCapture() noexcept   { return midiCapture; }
@@ -137,6 +163,9 @@ public:
     TunePlayer&  getTunePlayer() noexcept  { return tunePlayer; }
     TuneSession& getTuneSession() noexcept { return tuneSession; }
 
+    /** riff-library 4: the riff index, shared by the RIFFS tab and the Easy
+        drawer. Nothing loads until one of them first opens. */
+    RiffLibrary& getRiffLibrary() noexcept { return riffLibrary; }
     /** tune-builder 13: sung / hummed melody capture from the audio input (TUNE-HELP-ONBOARDING). */
     TuneHumCapture& getHumCapture() noexcept { return humCapture; }
 
@@ -644,6 +673,8 @@ public:
     struct UiState
     {
         bool advancedMode = false;
+        bool micGrilleVisible = true;   // mic-placement.md 6.5 (per window, not preset data)
+        int  micFocusedHandle = 0;      // mic-placement.md 6.5
         bool liveMode = false;
         bool tooltipsEnabled = true;
         int  selectedString = 0;
@@ -661,12 +692,18 @@ public:
 
         /** cpu-quality-modes 3: this instance's CPU quality, or the global one. */
         QualityOverride qualityOverride = QualityOverride::Global;
+        /** riff-library 8: the riff browser's per-instance view state
+            (selection, filters, audition settings, Drag-as, drawer), saved
+            with the host project and never in a preset. RiffUiState reads it. */
+        juce::var riffs;
         // piano-roll-chord-display.md 6: session state, not preset data.
         bool pianoRollExpanded = true;
         int  pianoRollHeight = 72;
         bool pianoLatch = false;
         bool pianoShowFingering = false;
         juce::Array<int> pianoLatchedNotes;
+        /** auto-articulation.md 8 (FEAT-ASSIST): the RHYTHM tab's PLAYING group. */
+        bool playingGroupCollapsed = false;
     };
 
     UiState& getUiState() noexcept { return uiState; }
@@ -682,6 +719,9 @@ public:
 
     /** The level the engine last applied, and whether E3 is armed. */
     QualityLevel getAppliedQualityLevel() const noexcept { return (QualityLevel) appliedQuality.load (std::memory_order_relaxed); }
+    /** auto-articulation.md 7 (FEAT-ASSIST): what Performance Assist decided,
+        drained from the engine's feed by whichever view is showing it. */
+    AssistDecisionLog& getAssistLog() noexcept { return assistLog; }
 
     /** Host tempo, updated each block. */
     double getHostTempo() const noexcept { return hostTempo.load(); }
@@ -695,12 +735,47 @@ public:
     /** installer.md 6: what the constructor's first-run check found (first run,
         or the version this install upgraded from). */
     const InstallLayout::Result& getInstallLayoutResult() const noexcept { return installLayoutResult; }
+    // ==== BEGIN FEAT-BROWSER (preset-browser-previews.md) ====
+    /** 3.2: an instance that renders previews. Stops the UI timer and the
+        library hooks, so the offline instance never touches the live one's
+        recent list or runs message-thread work under the render. */
+    void setOfflineRenderMode();
+
+    /** Constructing inside this scope makes a render instance: it skips the
+        user-global loads (accessibility, locale, telemetry, licence, practice
+        history), the factory-bank scan and the UI timer, so one can be built on
+        the preview worker without touching state the UI reads. */
+    struct ScopedOfflineRenderConstruction
+    {
+        ScopedOfflineRenderConstruction()  { flag() = true; }
+        ~ScopedOfflineRenderConstruction() { flag() = false; }
+        static bool& flag() noexcept { static thread_local bool f = false; return f; }
+    };
+    bool isOfflineRenderInstance() const noexcept { return offlineRenderInstance; }
+
+    /** Resolves a preset's guitar reference the way a load does (5.1 hash). */
+    static juce::File resolveGuitarFile (const juce::String& reference) { return resolveGuitarReference (reference); }
+
+    /** 4.1: the preview player and the clips it may hold (message thread adds). */
+    PreviewPlayer&   getPreviewPlayer() noexcept   { return previewPlayer; }
+    PreviewClipPool& getPreviewClipPool() noexcept { return previewClipPool; }
+
+    /** 3.3 / 5.6: the preset index and the render service, created lazily on
+        the message thread so an offline instance never starts a worker. */
+    class PresetLibrary& getPresetLibrary();
+    bool hasPresetLibrary() const noexcept { return presetLibrary != nullptr; }
+
+    /** 4.3: whether the tune transport is running (it blocks previews). */
+    bool isTuneTransportRunning() const noexcept;
+    // ==== END FEAT-BROWSER ====
 
 private:
     /** The advertised bus layout. A static member because BusesProperties is
         protected in AudioProcessor, and because it is needed in the constructor's
         initialiser list, before any instance exists. */
     static BusesProperties buildBusesProperties();
+
+    AssistDecisionLog assistLog;   // FEAT-ASSIST: session state, never saved
 
     void timerCallback() override;
     void updateLatency();
@@ -731,6 +806,7 @@ private:
     ParameterBridge bridge;
     PresetManager presets;
     MidiLearnManager midiLearn;
+    std::unique_ptr<MicLegacyAutomation> micLegacyAutomation;   // mic-placement.md 4
     MidiCapture midiCapture;
     PerformanceCapture performanceCapture;
     bool tabDotsOnFretboard = false;   // MODEL-GAPS
@@ -791,6 +867,7 @@ private:
     // it); everything else goes to the engine as direct notes.
     TunePlayer tunePlayer;
     TuneSession tuneSession;
+    RiffLibrary riffLibrary;   // riff-library 4
     TuneHumCapture humCapture;
     std::atomic<int> pendingTuneSection { -1 };
     std::atomic<int> tuneStateBoundaries { 0 };
@@ -1048,7 +1125,16 @@ private:
     void fadeOutBeforeStructuralChange();
     void fadeInAfterStructuralChange();
     AuditionPhrase::Type auditionType = AuditionPhrase::Type::MajorScale;
-    juce::MidiMessageSequence auditionSequence;
+    /*  riff-library (FEAT-RIFFS fix b): startAudition used to rebuild the
+        sequence on the message thread while the audio thread read it. It is
+        now built into a fresh object and handed over as TunePlayer does: a
+        waiting slot under a SpinLock, taken by the audio thread with a
+        ScopedTryLock, the displaced one retired for the timer to free. */
+    juce::SpinLock auditionLock;
+    std::shared_ptr<const juce::MidiMessageSequence> auditionWaiting;      // guarded by auditionLock
+    std::shared_ptr<const juce::MidiMessageSequence> auditionRetired;      // guarded by auditionLock
+    bool auditionHasWaiting = false;                                        // guarded by auditionLock
+    std::shared_ptr<const juce::MidiMessageSequence> auditionSequence;     // audio thread only
     int auditionEventIndex = 0;
     double auditionPositionSeconds = 0.0;
     double auditionEndSeconds = 0.0;
@@ -1113,6 +1199,7 @@ private:
     int gestureParameterIndex = -1;
 
     juce::StringArray lockedParameters;
+    juce::NamedValueSet unknownHostSections;   // host-integration HI-24
 
     // SPEC-SWEEP (UW-5, CT-2/CT-4/CT-7)
     CommandQueue<EngineCommand, 128> engineCommands;
@@ -1134,6 +1221,14 @@ private:
     // output-normalization.md: declared last, so every parameter and the engine
     // exist when its change tracker is built.
     OutputNormalization outputNormalization { *this };
+
+    // ==== BEGIN FEAT-BROWSER (preset-browser-previews.md 4.1 / 4.2) ====
+    PreviewClipPool previewClipPool;          // before the player: outlives it
+    PreviewPlayer previewPlayer;
+    std::unique_ptr<class PresetLibrary> presetLibrary;     // after the player: goes first
+    bool offlineRenderInstance = false;
+    int previewHeldNotes = 0;                 // audio thread: live notes held (4.3)
+    // ==== END FEAT-BROWSER ====
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LuthierAudioProcessor)
 };

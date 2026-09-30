@@ -358,8 +358,6 @@ LUTHIER_TEST (FingerstyleAttack, FA07_restDampsTheNeighbour)
         if (strike)
             e->triggerNoteNow (note (*e, struck, 2.0));
 
-        const auto after = renderString (*e, watched, 0.03);
-
         /*  DECISION (REALISM-B): measured over the 10 ms window that ends
             three of the neighbour's periods plus 10 ms after the stroke
             (30 ms on the open D), not "within 10 ms".
@@ -369,6 +367,12 @@ LUTHIER_TEST (FingerstyleAttack, FA07_restDampsTheNeighbour)
             half periods of the open D. */
         const double period = e->getString (watched).getCurrentDelaySamples();
         const auto at = (size_t) juce::jmax (960.0, 3.0 * period + 480.0);
+
+        // Rendered at least that far: a fixed 30 ms is 1536 samples, and the
+        // low E's window ends at 2229 - the read ran off the end of the
+        // buffer (ASan, BETA_TEST_REPORT B-22).
+        const auto after = renderString (*e, watched, juce::jmax (0.03, (double) at / kSr + 0.005));
+        jassert (after.size() >= at);
         // The neighbour's own partials, Hann-windowed over the 10 ms before
         // then: the output DC blocker's slow tail (a killed loop's removed
         // offset, below 10 Hz) is not the string ringing.

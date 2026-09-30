@@ -61,6 +61,51 @@ LUTHIER_TEST (Ranges, everyPhysicalRangeIsValid)
 }
 
 //==============================================================================
+/*  advanced-ranges.md 0.6: unlocking a family changes the ranges of existing
+    parameters, never the host-visible parameter roster or its order. */
+LUTHIER_TEST (Ranges, changingRangesKeepsParameterCountAndOrder)
+{
+    LuthierAudioProcessor processor;
+    auto& parameters = processor.getParameters();
+    const int originalCount = parameters.size();
+    CHECK_MSG (originalCount > 0, "the processor has no parameters");
+
+    juce::StringArray originalIds;
+    for (auto* parameter : parameters)
+    {
+        auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (parameter);
+        CHECK_MSG (ranged != nullptr, "a parameter has no stable host ID");
+        if (ranged != nullptr)
+            originalIds.add (ranged->getParameterID());
+    }
+
+    CHECK_MSG (originalIds.size() == originalCount, "could not capture every parameter ID");
+
+    auto checkRoster = [&] (const juce::String& stage)
+    {
+        const auto& current = processor.getParameters();
+        CHECK_MSG (current.size() == originalCount, stage + " changed the parameter count");
+
+        for (int index = 0; index < juce::jmin (current.size(), originalIds.size()); ++index)
+        {
+            auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (current[index]);
+            CHECK_MSG (ranged != nullptr && ranged->getParameterID() == originalIds[index],
+                       stage + " changed parameter ID/order at index " + juce::String (index));
+        }
+    };
+
+    RangeState advanced;
+    for (int i = 0; i < (int) RangeFamily::numFamilies; ++i)
+        advanced.setFamilyAdvanced ((RangeFamily) i, true);
+
+    advanced.applyTo (processor.getState());
+    checkRoster ("unlocking all families");
+
+    RangeState().applyTo (processor.getState());
+    checkRoster ("locking all families again");
+}
+
+//==============================================================================
 /*  advanced-ranges.md 1.0: stock is the range the parameter already ships
     with.
 

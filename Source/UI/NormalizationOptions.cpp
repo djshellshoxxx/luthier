@@ -107,12 +107,12 @@ NormalizationOptionsGroup::NormalizationOptionsGroup (LuthierAudioProcessor& p)
     setFocusContainerType (juce::Component::FocusContainerType::keyboardFocusContainer);
 
     refresh();
-    startTimerHz (10);   // 5.2: the readout refreshes at 10 Hz
+    motion.startTimerHz (*this, 10);   // 5.2: the readout refreshes at 10 Hz
 }
 
 NormalizationOptionsGroup::~NormalizationOptionsGroup()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 void NormalizationOptionsGroup::refresh()

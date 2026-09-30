@@ -27,6 +27,9 @@
 #include "../Source/Rhythm/GenreKit.h"
 #include "../Source/PluginProcessor.h"                      // output-normalization.md 4.4
 #include "../Source/Support/NormalizationCalibrator.h"      // output-normalization.md 4.4
+#include "../Source/Riffs/RiffLibrary.h"        // riff-library 2.3: --export-riffs
+#include "../Source/Riffs/RiffDestinations.h"
+#include "../Source/Presets/Preview/FactoryPreviews.h"   // preset-browser-previews.md 2 (FEAT-BROWSER)
 
 using namespace luthier;
 
@@ -118,6 +121,9 @@ struct Options
 
     // output-normalization.md 4.4: build Resources/NormalizationFactory.json.
     juce::File calibrateFactoryTo;
+    juce::File exportRiffsTo;          ///< riff-library 2.3
+    bool riffsGeneric = false;
+    juce::File renderPreviewsTo;   // preset-browser-previews.md 2
 };
 
 void printUsage()
@@ -147,9 +153,16 @@ void printUsage()
         "  --tempo <bpm>            for tempo-synced effects, default 120\n"
         "  --normalise [dBFS]       normalise the result, default target -1 dBFS\n"
         "\n"
+        "PRESET PREVIEWS\n"
+        "  --render-previews <dir>  render every factory preset's preview into\n"
+        "                           <dir>/Previews (Ogg + previews.json) and write\n"
+        "                           <dir>/descriptor-calibration.json\n"
+        "\n"
         "INFORMATION\n"
         "  --calibrate-factory <f>  measure every factory preset x guitar type for output\n"
         "                           normalization and write the factory table (4.4)\n"
+        "  --export-riffs <dir>     write every factory riff as a .mid file, by genre\n"
+        "  --profile luthier|generic  the .mid profile for --export-riffs, default luthier\n"
         "  --list-presets           list every preset that can be loaded\n"
         "  --list-guitars           list every instrument\n"
         "  --list-phrases           list the built-in audition phrases\n"
@@ -188,6 +201,9 @@ bool parseArguments (int argc, char* argv[], Options& options)
         else if (arg == "--list-guitars")              options.listGuitars = true;
         else if (arg == "--list-phrases")              options.listPhrases = true;
         else if (arg == "--calibrate-factory")         options.calibrateFactoryTo = juce::File::getCurrentWorkingDirectory().getChildFile (next (i));
+        else if (arg == "--export-riffs")              options.exportRiffsTo = juce::File::getCurrentWorkingDirectory().getChildFile (next (i));
+        else if (arg == "--profile")                   options.riffsGeneric = next (i).equalsIgnoreCase ("generic");
+        else if (arg == "--render-previews")           options.renderPreviewsTo = juce::File::getCurrentWorkingDirectory().getChildFile (next (i));
         else if (arg == "--write-rhythm-resources")    options.writeRhythmResourcesTo = juce::File::getCurrentWorkingDirectory().getChildFile (next (i));
         else if (arg == "--normalise" || arg == "--normalize")
         {
@@ -243,6 +259,51 @@ int listPresets (RenderHost& host)
     sections 6 and 7 also want them on disk as editable files, and this writes
     that copy from the same tables, so the two can never drift apart.
 */
+/*  riff-library 2.3: batch .mid packs, for marketing and review, through the
+    same C++ path as the drag-out (RiffDestinations::writeDragFile). */
+int exportRiffs (const juce::File& root, bool generic)
+{
+    RiffLibrary library;
+    library.setFolders (RiffLibrary::getDefaultFactoryFolder(), {}, {});
+    library.loadIndexNow();
+
+    if (library.isFactoryMissing() || library.getNumEntries() == 0)
+    {
+        std::cerr << "Factory riffs not found beside the renderer." << std::endl;
+        return 1;
+    }
+
+    int written = 0;
+
+    for (int i = 0; i < library.getNumEntries(); ++i)
+    {
+        const auto* entry = library.getEntry (i);
+        const auto riff = library.getRiff (entry->id);
+
+        if (riff == nullptr)
+        {
+            std::cerr << "Unreadable: " << entry->file.getFullPathName() << std::endl;
+            continue;
+        }
+
+        const auto compiled = RiffCompiler::compile (*riff, {}, GuitarSpecSummary::forRiff (*riff));
+        const int genre = RiffVocabulary::indexOfGenre (riff->genre);
+        const auto folder = root.getChildFile (genre >= 0 ? RiffVocabulary::genres()[(size_t) genre].folder : "User");
+
+        juce::String error;
+        const auto file = RiffDestinations::writeDragFile (*riff, *compiled, generic ? MidiProfile::generic : MidiProfile::luthier,
+                                                          folder, 960, 0.0, &error);
+
+        if (file == juce::File())
+            std::cerr << "Could not write " << riff->meta.id << ": " << error << std::endl;
+        else
+            ++written;
+    }
+
+    std::cout << written << " riffs written to " << root.getFullPathName() << std::endl;
+    return written == library.getNumEntries() ? 0 : 1;
+}
+
 int writeRhythmResources (const juce::File& root)
 {
     const auto patternDirectory = root.getChildFile ("Rhythm");
@@ -721,6 +782,30 @@ int main (int argc, char* argv[])
         return 0;
     }
 
+    // preset-browser-previews.md 2: the factory previews, through the plugin's own
+    // PreviewRenderer (a headless LuthierAudioProcessor per preset), so the CLI
+    // and the plugin render identically.
+    if (options.renderPreviewsTo != juce::File())
+    {
+        PreviewRenderer renderer;
+        const auto bank = FactoryPreviews::renderBank (renderer, [] (int done, int total, const juce::String& name)
+        {
+            std::cout << "  [" << (done + 1) << "/" << total << "] " << name << std::endl;
+        });
+
+        juce::String error;
+
+        if (! FactoryPreviews::write (bank, options.renderPreviewsTo, error))
+        {
+            std::cerr << "Could not write the previews: " << error << std::endl;
+            return 1;
+        }
+
+        std::cout << "Wrote " << bank.size() << " previews to "
+                  << options.renderPreviewsTo.getChildFile ("Previews").getFullPathName() << std::endl;
+        return 0;
+    }
+
     RenderHost host;
 
     if (options.listPresets) return listPresets (host);
@@ -736,6 +821,9 @@ int main (int argc, char* argv[])
 
     if (options.writeRhythmResourcesTo != juce::File())
         return writeRhythmResources (options.writeRhythmResourcesTo);
+
+    if (options.exportRiffsTo != juce::File())
+        return exportRiffs (options.exportRiffsTo, options.riffsGeneric);
 
     if (options.outputFile == juce::File())
     {
