@@ -229,3 +229,23 @@ of bdf9f1b (`/home/user/wt/int`) or on the pre-merge sweep tip:
 
 `EBow.theHarmonicChoiceTakesTheString` failed once in the long run. It passes
 when run alone, both here and on bdf9f1b.
+
+## Merges of round 2 and integration 718f2b0; known failures on the sweep tip
+
+Round-2 worker branches (ui, rtmidi, dsp1, dsp2) and integration 718f2b0 are
+merged. Fret wear reached the buzz twice (dsp1 CW-12's per-note multiplier and
+dsp2 FB-21's worn-crown geometry); the engine now feeds only the geometry, which
+also lets the worn fret itself clear. `NormalizationFactory.json` and the golden
+hashes were regenerated for the merged audio.
+
+Failing on the sweep tip, and why:
+
+| Test | Also fails on pure integration 718f2b0? | Note |
+|---|---|---|
+| `Combo.*` (auditor-owned) | yes | unchanged ownership |
+| `GuiReach.everyAutomatableParameterHasAVisibleControl` | yes | `macro_assign_a/b`, `scrape_*`, `slap_*` (their controls are on the unmerged techniques branch); `pickup_blend` is fixed here |
+| `HostState.aSessionSurvivesThePrepareThatFollowsIt` | yes | came with 718f2b0 (it dropped the fixed-point nudge; skewed parameters now move by one float step on a restore + prepare) |
+| `CpuQualityUi.CQ10`, `CQ13`, `CQ22` | yes | CQ22 lists NormalizationBadge / NormalizationOptions / JamPill |
+| `CpuQuality.CQ12_everyFactoryPresetAtEveryLevel` | yes | CPU-time ordering; a different preset set fails on each run under load |
+| `EBow.theHarmonicChoiceTakesTheString` | intermittent | passes alone and in its suite; its own comment records it as a known intermittent |
+| `Normalization.ON03_ON04_FactoryCombinationsLandOnTarget` | no (passes there) | `p34_g22` lands at -16.95 LUFS against -18 +-1. The render calibration (fresh processor, calibration mode, fixed play head) measures the phrase 1.05 dB quieter than the live instance plays it; on integration the same gap is 0.75 dB. Live and state-restored instances render identically (-21.39 both), so the gap is inside the calibration render, not state fidelity; the sweep's sound changes (strum direction, pickups, part acoustics) moved this combination 0.3 dB and exposed it. Left for FEAT-NORMALIZE: widen the stimulus/tolerance or find what the calibration render does differently. |
