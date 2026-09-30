@@ -16,6 +16,7 @@ them with a search box. The defaults are below.
 | `Escape` | Close whatever overlay is open - not rebindable, on purpose |
 | `Space` | Start or stop the audition phrase |
 | `Tab` | Switch between Easy and Advanced |
+| `S` | Slide Mode on or off |
 | `L` | Live Mode on or off |
 | `D` | Open or close the Practice drawer |
 | `P` | Panic - stop every string immediately |
@@ -39,6 +40,7 @@ them with a search box. The defaults are below.
 |---|---|
 | `Ctrl + N` | New preset (loads Init) |
 | `Ctrl + O` | Preset browser |
+| `Ctrl + N` | New preset (loads Init) |
 | `Ctrl + S` | Save the current preset |
 | `Ctrl + Shift + S` | Save As |
 | `Ctrl + G` | Save the guitar as a `.luthierguitar` file |
@@ -53,6 +55,12 @@ them with a search box. The defaults are below.
 | `Ctrl + /` | A / B compare |
 | `Ctrl + ,` | Options |
 | `Ctrl + D` | Debug tools |
+
+## Advanced mode
+
+| Key | Action |
+|---|---|
+| `Ctrl + [` / `Ctrl + ]` | Previous / next workspace tab |
 
 ## On any control
 

@@ -291,7 +291,13 @@ electromagnetically at its own resonance.
 The engine feeds a small amount of each ringing string's own output back into it,
 but **only while its level is below a target**. Above that, driving stops. The loop
 gain never reaches unity, so this sustains indefinitely without any possibility of
-runaway - which a simple "set the loss to 1.0" implementation could not promise.
+runaway.
+
+### Freeze
+
+Captures a window of the audio (typically 200-1000 ms) and loops it indefinitely.
+Switch it on again to capture a new window. Use it to sustain a riff or chord while
+you play over the top.
 
 ---
 

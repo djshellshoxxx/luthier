@@ -23,6 +23,8 @@ The macOS installer writes to the system `/Library` folders. A bundle copied by 
 into your own `~/Library/Audio/Plug-Ins/...` works too. The CLAP rows apply to
 builds that include CLAP.
 
+**On macOS,** the installer writes to the system `/Library/` folder. You can also hand-copy the plugin bundle to `~/Library/Audio/Plug-Ins/` (your user Library) if you prefer not to use the installer.
+
 `Luthier.vst3` is a **folder**, not a file. Copy the whole thing, not its contents.
 
 **Rescan.** Most hosts cache their plugin list:

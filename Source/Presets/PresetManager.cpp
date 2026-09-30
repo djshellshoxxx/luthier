@@ -427,24 +427,15 @@ juce::var PresetManager::toVar (const juce::String& name,
             if (withId->paramID != ParamIDs::presetMorphPosition
                   && ! ParamIDs::isJamTransient (withId->paramID))   // FEAT-JAM: jam-mode 10
             {
-                // Written as it reads back: a skewed range turns a normalised
-                // value into a plain one and back with a float's error, so
-                // save -> load -> save must store the value after that trip.
-                double v = (double) withId->getValue();
-
-                if (auto* ranged = dynamic_cast<juce::AudioParameterFloat*> (withId))
-                {
-                    // A few passes reach the value the trip leaves alone.
-                    for (int pass = 0; pass < 8; ++pass)
-                    {
-                        const double next = (double) ranged->convertTo0to1 (ranged->convertFrom0to1 ((float) v));
-
-                        if (next == v)
-                            break;
-
-                        v = next;
-                    }
-                }
+                // Store the normalised value exactly as get() reports it. Load
+                // applies it back with setValueNotifyingHost (a normalised set,
+                // no plain-value round trip), so (float) of this double restores
+                // the identical value: save -> load -> save is stable, and a
+                // reload reproduces get() to the bit (clap-validator
+                // state-reproducibility). An earlier fixed-point nudge through
+                // convertFrom0to1/convertTo0to1 shifted skewed params by up to a
+                // float ULP away from get(), which that validator flags.
+                const double v = (double) withId->getValue();
 
                 params->setProperty (withId->paramID, v);
             }

@@ -38,8 +38,8 @@ someone else's preset does not quietly strip it.
 
 **Files that are not presets are refused.** The `magic` marker is checked before
 anything is applied, so a JSON file that happens to parse is not half-loaded.
-Presets written before the marker was named carry `"format": "luthierpreset"`
-instead and are still accepted.
+Older presets written before the marker was named carry `"format": "luthierpreset"`
+instead and are still accepted for backward compatibility.
 
 ---
 

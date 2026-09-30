@@ -112,6 +112,10 @@ as they do on the instrument.
 To the right, a scrolling readout shows what is happening inside the plugin - MIDI,
 parameter changes, engine events. It stops when nothing is happening.
 
+Under the illustration (and under the fretboard in Advanced), an optional **piano roll**
+strip shows the notes that are sounding as keys and a short scrolling roll, and the
+chord they make is named on the illustration. Turn either on in Options > Appearance.
+
 ### Middle band - the macros
 
 | Macro | What it does |
@@ -122,7 +126,7 @@ parameter changes, engine events. It stops when nothing is happening.
 | **Tone** | global tone, dark to bright. Moves the guitar's tone control and the amp's treble together. |
 | **Space** | room and ambience. |
 | **Humanize** | timing, velocity, tuning and attack variation. At zero the plugin is machine-perfect. |
-| **Character** | dead spots, tuner drift, fret wear, body age and string noise together - the amount on the CHARACTER tab, which has each one on its own. |
+| **Character** | dead spots, tuner drift, fret wear, aged electronics (pots, tone cap, jack), body age and string noise together - the amount on the CHARACTER tab, which has each one on its own. |
 
 Under each: a **dice** (randomise just this one) and a **padlock** (exclude it from
 Randomise).

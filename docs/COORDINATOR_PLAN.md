@@ -1,5 +1,9 @@
 # Coordinator plan: finish, beta-test, fork (product-owner order, 2026-09-26)
 
+## Linux and Windows community beta path (2026-09-28, product owner)
+
+The product owner now wants the fastest credible community beta on **Linux and Windows**, before the Free/Pro fork and before the full expansion wave. Follow [the Linux and Windows beta release plan](plans/BETA_LINUX_WINDOWS.md) for scope, blocker gates, platform builds, portable packaging, and clean-host testing. This newer direction supersedes the Windows pause below **for beta work only**; macOS remains deferred. The coordinator still owns merges and must verify the beta gates before publishing either platform build.
+
 ## Phase 1: every helper finishes
 Merge into `claude/luthier-cloud-session-5lzlix` once each branch reports done and green:
 
@@ -155,3 +159,191 @@ Each: body/part acoustics model, workshop graphical image (guitar-illustration.m
 
 Sequencing: A + B-specs + C-research start now. Implementation follows its spec;
 audit + beta follow implementation. Coordinator check-in expands each wave.
+
+## Expression/effects access — DO NOT duplicate; enforce ease-of-use (2026-09-26, owner)
+
+The system the owner asked for already exists in the specs — do NOT build a
+parallel one:
+- Auto "appropriate effects" with one knob + style names = **Performance
+  Assist / Auto Articulation** (spec/auto-articulation.md): `aa_amount`
+  0-100% (the wet/dry-style knob), `aa_style` named by genre (Clean/Pop,
+  Blues, Rock, Metal, Jazz, Country, Fingerstyle, Bass). It auto-applies
+  slide on interval/octave jumps, legato, vibrato, palm mute, ornaments —
+  scaled by amount, biased by style. Explicit input always overrides.
+- Manual per-technique triggers exist via the Playing strip (gui-integration
+  3.3), keyswitch, CC, and MPE (spec/controllers.md, per-technique specs).
+- MIDI round-trip exists BOTH ways: spec/midi-export.md is "MIDI EXPORT AND
+  IMPORT" — Luthier profile is lossless (every technique/event class
+  round-trips), Generic profile imports as a PerformanceScore; File -> Import
+  -> MIDI or drag-drop.
+
+REQUIREMENT for GAPS-GUI + the beta/accuracy owners (why the owner "saw no
+way in the GUI"): make this EASY and DISCOVERABLE, and confirm it fires
+effects APPROPRIATELY. Acceptance:
+1. Performance Assist Amount + Style is a first-class, obvious control in
+   Easy mode (not buried); every automatable technique/effect param has a
+   visible control (Combo test everyAutomatableParameterHasAVisibleControl).
+2. Each noise/technique effect (slap, scrape, squeak, pick noise, buzz,
+   slide) has a discoverable manual trigger AND, where musically valid,
+   participates in Performance Assist; where auto is NOT musically valid for
+   an effect, it stays manual-only (do not force auto).
+3. Appropriateness is validated by the auto-articulation tests plus the
+   accuracy audits (existing instruments/parts, and effects). Report any
+   technique that fires at the wrong time as an accuracy finding.
+No new spec or engine for this — verification + GUI wiring only.
+
+## Single-coil hum — surface in Options; DO NOT duplicate (2026-09-26, owner)
+
+Owner wants an Options switch for pickup/mains hum on electric + bass, level
+adjustable, audibly dynamic as played. This ALREADY EXISTS as the noise-floor
+model — do NOT build a new hum engine:
+- Engine: PickupEngine mains hum = fundamental + 0.35×3rd + 0.15×5th, scaled
+  by `noise_amp_buzz` × single-coil share; humbucker = exactly 0; volume knob
+  and amp gain change it; region via `noise_mains_hz` (50/60). Spec:
+  spec/noise-floor.md 2.1. Applies to bass single-coils too (J-bass hums,
+  split-P cancels) — correct as-is.
+REQUIREMENT (GUI + verify only; assign a Sonnet implementer via check-in):
+1. Add an easy **Options -> AUDIO** switch "Single-coil hum" + a level control
+   (bind to `noise_amp_buzz`; region toggle 50/60 Hz bound to `noise_mains_hz`),
+   discoverable, with a one-line caption ("Realistic single-coil/mains hum;
+   humbuckers cancel it"). Default OFF so factory presets are unchanged.
+2. Works for electric AND bass guitars (already does via single-coil share).
+3. Confirm noise-floor.md 2.x sources are actually built; if only the legacy
+   `noise_amp_buzz` exists, the plain hum satisfies the owner's fallback
+   ("just a background hum will do") — the extended sources are a realism bonus,
+   not a blocker.
+4. Tests: the Options switch toggles the hum (NF-style level check); humbucker
+   still gives 0; 50 vs 60 Hz changes the fundamental.
+No new spec/engine. Additive GUI note in spec/noise-floor.md marking the
+Options surface.
+
+## Finger squeak — make it audible/discoverable (2026-09-26, owner)
+
+Owner cannot hear finger squeaks. Spec exists (spec/string-squeak.md) and is
+implemented (squeakAmount ~0.25, squeakMinTravel 1.5 frets). Root cause of
+"can't hear it": (1) it triggers ONLY on a legato position shift (finger not
+lifted); a normal new pluck at a new position is NOT a trigger, so ordinary
+plucked MIDI produces none; (2) honest level is 20-30 dB below the note.
+DO NOT rewrite the model. Assign effects-audit + a Sonnet implementer:
+1. Verify a legato/slide shift of >= squeak_min_travel actually produces
+   audible squeak on wound strings, across string types (wound vs plain: plain
+   strings squeak little/none — correct). Add a test that measures squeak
+   present on a legato shift and ~0 on a plain string.
+2. Make the squeak DISCOVERABLE and TURN-UP-ABLE: ensure squeakAmount (and
+   min-travel) have a reachable GUI control (Character/Realism area per
+   gui-integration.md), so a user who wants more can raise it well above the
+   realistic default without editing automation.
+3. Ensure Performance Assist legato/slide rules actually generate the
+   sustained position shifts that trigger squeak, so enabling Assist yields
+   audible finger noise during normal playing.
+4. Keep honest magnitudes as the DEFAULT; the control lets the owner exaggerate.
+No new spec/engine. If any of 1-3 is genuinely missing in code (not just quiet),
+that is a bug to fix, not a tuning tweak.
+
+## Windows + macOS PAUSED (2026-09-26, owner)
+
+Hold ALL Windows and macOS work until the project is fully complete; build
+cross-platform versions only at the very end.
+- CI: ci-cadence.yml gate forced windows=false, macos=false (revert note in
+  the file). Linux is the only CI platform for now.
+- Helpers: do NOT spawn Windows/macOS build/test/packaging work. Task #8
+  (macOS build) stays deferred. Cross-platform verification is the final step
+  before release, after everything else is done, audited and tested.
+- Linux Standalone + VST3 + CLAP remain the working targets.
+
+## Credit-resilience: finish everything across usage resets (2026-09-26, owner)
+
+The whole job (all workers, full beta test, full audit) must COMPLETE even if
+we hit the weekly usage limit mid-flight. Design:
+- The coordinator check-in is RECURRING (cron), so it keeps firing and
+  auto-resumes after each usage-limit reset without manual re-arming.
+- Every check-in: for EACH tracked worker call get_session. If a worker is
+  failed / stalled / stopped at a usage limit / idle with work still left in
+  its coverage or handoff, restart a FRESH session on the SAME model + branch,
+  told to continue from its branch state and handoff note (never lose progress;
+  branches hold committed work). Do this after each reset for any that stalled.
+- The auditor and beta tester KEEP LOOPING until everything is audited and
+  tested: every existing + new instrument, every effect/technique, every
+  feature spec, GUI reachability, state save/restore, Standalone/VST3/CLAP
+  (Linux only for now). Only stop when the coverage/audit docs show all items
+  verified with no open findings.
+- Do NOT declare the project done while any worker has remaining rows, any
+  audit/beta item is unverified, or any open finding stands.
+
+## External agent (ChatGPT/Codex) collaboration (2026-09-26, owner)
+
+An external agent collaborates via the repo. See docs/helpers/EXTERNAL_AGENT_BRIEF.md.
+Coordinator each check-in: `git fetch` also lists `codex/luthier-*` branches;
+treat a green, up-to-date codex branch exactly like a helper branch — Linux
+build + test, then merge into integration (coordinator is the ONLY merger).
+External agent owns: feature implementations once specced (ui-scaling, tuner,
+midi-learn, randomize+ab, tab-export, amp-cab-ir) + light instruments (tenor,
+acoustic bass, extended-range bass). Claude owns hard DSP, merges, audits,
+beta, editions. No overlap; same parameter-marker / CRLF / no-Win-Mac rules.
+
+## Codex-owned lanes (2026-09-26) — coordinator must NOT assign these to Claude
+
+Codex is running an overnight batch on these branches. Do NOT spawn Claude
+implementers for them; the coordinator only reviews + Linux-tests + merges the
+resulting codex/* branches (one at a time; resolve param-marker/sum conflicts
+mechanically). Distinct marker names keep merges clean.
+- codex/luthier-tab-export      (marker FEAT2-TAB)   — ASCII + MusicXML/GP tab export
+- codex/luthier-amp-cab-ir      (marker FEAT2-AMP)   — amp/cab section + user IR loader
+- codex/luthier-tuner           (marker FEAT2-TUNER) — tuner + global tuning reference
+- codex/luthier-ui-scaling      (marker FEAT2-UISCALE)— resizable/scalable UI
+DEFERRED off the overnight batch (touch the parameter/automation core broadly;
+higher conflict risk with running Claude helpers — do later, serialized):
+midi-learn, randomize+A/B. Claude may take these once the gap helpers settle.
+
+## Windows UN-PAUSED for beta (2026-09-29, owner via PR #9)
+
+Owner's beta plan (docs/plans/BETA_LINUX_WINDOWS.md, merged from PR #9) SUPERSEDES
+the earlier Windows pause FOR BETA WORK. Beta targets: Linux x86-64 VST3/CLAP/
+standalone + Windows x64 VST3/standalone (Windows CLAP optional). macOS is STILL
+last (paused until after beta). Follow the plan's critical path; do not make
+tab-export, new instruments, licensing, or edition-splitting beta prerequisites.
+Windows CI lane re-enabled in ci-cadence.yml (still subject to the Actions budget;
+use an authorized local Windows build if Actions stays blocked).
+
+## PERF-AUDIT — LAST, low priority, ultra token-lean (2026-09-29, owner)
+
+Owner concern: large codebase may get sluggish; wants ONE agent to find
+speed/efficiency wins WITHOUT breaking anything. LOWEST priority — the
+coordinator launches this ONLY after everything else is done: mega-merge
+landed, beta shipped, all audits/beta clean, editions handled. Never run it
+concurrently with feature/merge work.
+
+When launched (ONE Sonnet helper, branch claude/luthier-perf-audit, TERSE_MODE,
+low effort, token-lean — grep/targeted reads only, NEVER whole-tree reads):
+- Focus on the HOT path first: audio thread (processBlock and everything it
+  calls), per-block/per-sample loops, allocations/locks/virtual calls/denormals
+  in DSP, redundant recomputation, unnecessary copies, oversized buffers.
+- Then non-hot wins: build time, obvious O(n^2), repeated work in UI timers.
+- Deliver docs/audit/PERF_AUDIT.md: ranked findings (file:line | cost | fix |
+  risk | measured or estimated gain). APPLY ONLY changes that are clearly safe,
+  behaviour-identical, and test-covered; everything risky stays a proposal.
+- HARD RULE: no behaviour or audio change; do not weaken/skip tests; full Linux
+  suite must stay green; measure before/after where feasible. If a fix can't be
+  proven safe, propose it, don't apply it.
+- Token budget: keep it to one pass; report + safe micro-fixes only; stop when
+  the report is written and the safe fixes are green.
+
+## BUDGET HOLD (2026-09-29): both Claude and Codex constrained
+
+State: Claude seven-day limit = rejected/overage (resets ~2026-09-30); ChatGPT
+Codex low on credits. MEGA-MERGE (Opus) was stopped/archived — it was rate-
+rejected and only burning retries; DO NOT restart it. Consolidation is NOT
+handed to Codex (its credits are low).
+
+Plan while constrained:
+- Do NOT spawn new Claude helpers or send Codex the large beta task now.
+- Codex, if it has any credits, should ONLY finish + push its in-flight lane and
+  write docs/handoff/CODEX_REMAINING.md, then stop. Nothing bigger.
+- Verified done and safe: Fable feedback fix exists on claude/luthier-fable-
+  feedback (VERIFY it carries the commits before trusting; git showed 0 ahead).
+- WHEN CLAUDE WEEKLY RESETS: the coordinator itself does consolidation -> beta
+  (per docs/plans/BETA_LINUX_WINDOWS.md) on one branch, single-threaded, token-
+  lean. No parallel fleet until budget is healthy. Cap Opus sessions at 1-2.
+
+## Merge recipe available (2026-09-29)
+Replay consolidation from docs/handoff/CODEX_MERGE_CHECKPOINT.md (Codex mapped it but could not push; codex/luthier-beta is NOT on origin). Resume at integrate-2 conflicts, then remaining deltas, then beta.
