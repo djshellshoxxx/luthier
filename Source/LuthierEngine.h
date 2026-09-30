@@ -187,6 +187,8 @@ public:
 
     /** Part swaps taken at a block boundary since prepare, for the tests. */
     int getLivePartSwapCount() const noexcept { return livePartSwaps.load (std::memory_order_relaxed); }
+    /** RT-SAFETY P1: MIDI events trimmed by the bounded slice copies (0 in any real session). */
+    int getMidiOverflowDropCount() const noexcept { return midiOverflowDrops.load (std::memory_order_relaxed); }
 
     /** A parts guitar's pickup as its part describes it (engine slot order). */
     const PickupSpec& getPartsPickup (int slot) const noexcept
@@ -398,6 +400,9 @@ public:
     /** Host transport position, for the rhythm engine's grid. */
     void setTransportPosition (double ppqPosition, bool isPlaying) noexcept
     {
+        if (! std::isfinite (ppqPosition))   // RT-SAFETY P2: keep the last valid position
+            ppqPosition = hostPpq;
+
         hostPpq = ppqPosition;
         hostPlaying = isPlaying;
     }
@@ -475,6 +480,9 @@ public:
     /** environment.md 3.4: the host's playhead, seconds, when it is playing. */
     void setHostTimeSeconds (double seconds, bool isPlaying) noexcept
     {
+        if (! std::isfinite (seconds))   // RT-SAFETY P2: "the host does not say"
+            seconds = -1.0, isPlaying = false;
+
         hostTimeSeconds = seconds;
         hostTimePlaying = isPlaying;
     }
@@ -669,6 +677,8 @@ private:
     const juce::MidiBuffer* directMidi = nullptr;      ///< for the current processBlock
     const juce::MidiBuffer* directForSubBlock = nullptr;
     juce::MidiBuffer directSlice;
+    juce::MidiBuffer oversizeSliceMidi;                ///< RT-SAFETY P1: sized in prepare()
+    std::atomic<int> midiOverflowDrops { 0 };          ///< events BoundedMidi trimmed
     RhythmEngine rhythm;
     CharacterEngine character;
 
@@ -764,6 +774,11 @@ private:
     std::vector<double> magneticBuffer;
     std::vector<double> instrumentBuffer;
     std::vector<double> preCircuitBuffer;         ///< MODEL-GAPS: Aux 1's pre-circuit tap
+    // RT-SAFETY (CODEX_RTSAFETY P1): the pedalboard's stereo pair and the hidden
+    // effect's pair, sized in prepare() to maxBlock (were static thread_local,
+    // which grew on the audio thread on first use).
+    std::vector<double> pedalScratchL, pedalScratchR;
+    std::vector<double> secretScratchL, secretScratchR;
     std::atomic<bool> auxDiPreCircuit { false };
     juce::AudioBuffer<float> bodyBuffer;
     juce::AudioBuffer<float> workBuffer;
@@ -949,6 +964,7 @@ private:
     {
         DerivedAcoustics derived;
         GuitarType standsFor = GuitarType::Custom;
+        BodyEngine::ModalBank bodyBank;   ///< RT-SAFETY P0: built on the message thread
     };
 
     std::atomic<PendingPartSwap*> pendingPartSwap { nullptr };

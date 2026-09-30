@@ -106,7 +106,7 @@ public:
 
     /** What the caller's MidiBuffers should be given with ensureSize: a full
         release of every note on every channel fits, with room to spare. */
-    static constexpr int kRecommendedMidiBytes = 32 * 1024;
+    static constexpr int kRecommendedMidiBytes = 64 * 1024;   // RT-SAFETY P1: generous
 
     TunePlayer();
     ~TunePlayer();

@@ -140,47 +140,75 @@ void BodyEngine::setOutputGainDb (double db) noexcept
 }
 
 //==============================================================================
-void BodyEngine::rebuildModalBank()
+void BodyEngine::buildModalBank (const BodyConfig& cfg, ModalBank& out, std::vector<BodyMode>& scratch)
 {
-    const juce::ScopedLock sl (rebuildLock);
+    BodyModels::buildModes (cfg, scratch);
 
-    BodyModels::buildModes (config, buildScratch);
+    out.count = juce::jmin ((int) scratch.size(), BodyModels::kMaxModes);
 
-    stagedCount = juce::jmin ((int) buildScratch.size(), BodyModels::kMaxModes);
-
-    for (int i = 0; i < stagedCount; ++i)
-        stagedModes[(size_t) i] = buildScratch[(size_t) i];
+    for (int i = 0; i < out.count; ++i)
+        out.modes[(size_t) i] = scratch[(size_t) i];
 
     // cpu-quality-modes 2.1: the modal cap's order - the eight lowest modes,
     // then the rest by the energy each passes of a plucked string's signal:
     // gain squared times bandwidth (f / Q), times the string's spectrum,
     // which falls at least 6 dB an octave (1 / f squared in power).
+    std::array<int, BodyModels::kMaxModes> order {};
+    const auto& modes = out.modes;
+
+    for (int i = 0; i < out.count; ++i)
+        order[(size_t) i] = i;
+
+    std::sort (order.begin(), order.begin() + out.count, [&modes] (int a, int b)
     {
-        std::array<int, BodyModels::kMaxModes> order {};
+        return modes[(size_t) a].frequencyHz < modes[(size_t) b].frequencyHz;
+    });
 
-        for (int i = 0; i < stagedCount; ++i)
-            order[(size_t) i] = i;
+    const int kept = juce::jmin (out.count, QualityProfile().bodyModesAlwaysKept);
 
-        std::sort (order.begin(), order.begin() + stagedCount, [this] (int a, int b)
-        {
-            return stagedModes[(size_t) a].frequencyHz < stagedModes[(size_t) b].frequencyHz;
-        });
+    auto energy = [&modes] (int i)
+    {
+        const auto& m = modes[(size_t) i];
+        return m.gain * m.gain / (juce::jmax (20.0, m.frequencyHz) * juce::jmax (0.5, m.q));
+    };
 
-        const int kept = juce::jmin (stagedCount, QualityProfile().bodyModesAlwaysKept);
+    std::stable_sort (order.begin() + kept, order.begin() + out.count,
+                      [&energy] (int a, int b) { return energy (a) > energy (b); });
 
-        auto energy = [this] (int i)
-        {
-            const auto& m = stagedModes[(size_t) i];
-            return m.gain * m.gain / (juce::jmax (20.0, m.frequencyHz) * juce::jmax (0.5, m.q));
-        };
+    out.priority = order;
+}
 
-        std::stable_sort (order.begin() + kept, order.begin() + stagedCount,
-                          [&energy] (int a, int b) { return energy (a) > energy (b); });
+void BodyEngine::rebuildModalBank()
+{
+    // Message thread only: the audio thread merely try-locks this, and takes a
+    // live part swap's bank prebuilt (applyPrebuiltBank), never this path.
+    const juce::ScopedLock sl (rebuildLock);
 
-        stagedPriority = order;
-    }
+    ModalBank bank;
+    buildModalBank (config, bank, buildScratch);
 
+    stagedCount = bank.count;
+
+    for (int i = 0; i < stagedCount; ++i)
+        stagedModes[(size_t) i] = bank.modes[(size_t) i];
+
+    stagedPriority = bank.priority;
     stagedReady.store (true);
+}
+
+void BodyEngine::applyPrebuiltBank (const BodyConfig& cfg, const ModalBank& bank) noexcept
+{
+    // A bank staged earlier by the message thread is older than this one.
+    stagedReady.store (false);
+
+    config = cfg;
+    numActiveModes = juce::jlimit (0, BodyModels::kMaxModes, bank.count);
+
+    for (int i = 0; i < numActiveModes; ++i)
+        activeModes[(size_t) i] = bank.modes[(size_t) i];
+
+    activePriority = bank.priority;
+    applyRuntimeScaling (true);
 }
 
 void BodyEngine::applyStagedBank() noexcept
@@ -203,6 +231,7 @@ void BodyEngine::applyStagedBank() noexcept
     for (int i = 0; i < numActiveModes; ++i)
         activeModes[(size_t) i] = stagedModes[(size_t) i];
 
+    activePriority = stagedPriority;
     applyRuntimeScaling (true);
 }
 
@@ -238,7 +267,7 @@ void BodyEngine::applyRuntimeScaling (bool force) noexcept
         resonators[(size_t) i].set (f, q, m.gain);
     }
 
-    modePriority = stagedPriority;
+    modePriority = activePriority;   // the installed bank's, not one staged since
     updateModeRun (true);   // a new bank starts at its cap
 }
 

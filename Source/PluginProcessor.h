@@ -48,6 +48,7 @@
 #include "Support/QualityController.h"   // cpu-quality-modes
 #include "Support/InstallLayout.h"
 #include "Support/SoundingNotesPublisher.h"
+#include "Support/HostClockGuard.h"   // RT-SAFETY P2
 
 namespace luthier
 {
@@ -66,6 +67,14 @@ public:
     void releaseResources() override;
     bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+
+    /** RT-SAFETY: invalid host clock fields replaced, and MIDI events a bounded
+        copy trimmed (both 0 in a well-behaved session). */
+    int getRejectedHostClockCount() const noexcept { return hostClock.getRejectedCount(); }
+    int getMidiOverflowDropCount() const noexcept
+    {
+        return midiOverflowDrops.load (std::memory_order_relaxed) + engine.getMidiOverflowDropCount();
+    }
 
     /** cpu-quality-modes 2.6: an offline bounce renders at High. Any thread. */
     void setNonRealtime (bool isNonRealtime) noexcept override;
@@ -986,6 +995,8 @@ private:
     int hostTimeSigNumerator = 0, hostTimeSigDenominator = 0;   // SPEC-SWEEP HI-29: 0 = the host gave none
 
     double currentSampleRate = 44100.0;
+    HostClockGuard hostClock;                    ///< RT-SAFETY P2: every PlayHead read goes through it
+    std::atomic<int> midiOverflowDrops { 0 };     ///< RT-SAFETY P1: events BoundedMidi trimmed
     bool initialStateApplied = false;   ///< the bridge has built the instrument once (prepare or save)
     int currentBlockSize = 512;
 

@@ -71,6 +71,23 @@ public:
     /** Rebuilds the modal bank from a body configuration. Safe to call from the
         message thread: the new bank is staged and swapped in on the audio thread. */
     void setBodyConfig (const BodyConfig& cfg);
+
+    /** RT-SAFETY (CODEX_RTSAFETY P0): a modal bank built ahead of time, fixed
+        size, so handing it to the audio thread is a bounded copy. */
+    struct ModalBank
+    {
+        std::array<BodyMode, BodyModels::kMaxModes> modes {};
+        std::array<int, BodyModels::kMaxModes> priority {};
+        int count = 0;
+    };
+
+    /** Builds a body's bank (modes and the quality cap's priority order).
+        Allocates (in @p scratch) and sorts: message thread or worker only. */
+    static void buildModalBank (const BodyConfig& cfg, ModalBank& out, std::vector<BodyMode>& scratch);
+
+    /** Audio thread, at a block boundary: installs a bank built by
+        buildModalBank for @p cfg. No lock, no allocation, no sort. */
+    void applyPrebuiltBank (const BodyConfig& cfg, const ModalBank& bank) noexcept;
     const BodyConfig& getBodyConfig() const noexcept { return config; }
 
     /** Loads a body IR from a file. Asynchronous inside juce::dsp::Convolution;
@@ -187,6 +204,7 @@ private:
     // --- cpu-quality-modes ----------------------------------------------------
     IrVariants irVariants;
     std::array<int, BodyModels::kMaxModes> modePriority {}, stagedPriority {};
+    std::array<int, BodyModels::kMaxModes> activePriority {};   ///< the installed bank's order
     int modeCap = BodyModels::kMaxModes;
     int modeRunCount = BodyModels::kMaxModes;   ///< modes processed (priority order)
     int modeTarget = BodyModels::kMaxModes;     ///< where a ramp ends

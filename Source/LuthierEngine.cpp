@@ -1,4 +1,5 @@
 #include "LuthierEngine.h"
+#include "Support/BoundedMidi.h"
 #include "Capture/PerformanceCapture.h"
 #include "ToneMatch/ToneMatch.h"   // SPEC-SWEEP TM-6
 
@@ -102,6 +103,8 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
     scrape.prepare (sr, maxBlock);
     scrapeMidi.ensureSize (8192);
     techniqueMidi.ensureSize (8192);
+    oversizeSliceMidi.ensureSize ((size_t) BoundedMidi::kReserveBytes);   // RT-SAFETY P1
+    directSlice.ensureSize ((size_t) BoundedMidi::kReserveBytes);
     slap.prepare (sr);
     stability.prepare (sr);                       // tuning-stability.md 5
     stability.setSeed ((juce::uint32) (character.getSeed() ^ (character.getSeed() >> 32)) ^ 0x57AB1Eu);
@@ -136,6 +139,10 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
     jackRampCoeff = 1.0 - std::exp (-1.0 / (0.003 * sr));   // SPEC-SWEEP: CW-18, 2-5 ms ramps
     instrumentBuffer.assign ((size_t) maxBlock, 0.0);
     preCircuitBuffer.assign ((size_t) maxBlock, 0.0);   // MODEL-GAPS: Aux 1 pre-circuit
+    pedalScratchL.assign ((size_t) maxBlock, 0.0);      // RT-SAFETY P1: never grown in rendering
+    pedalScratchR.assign ((size_t) maxBlock, 0.0);
+    secretScratchL.assign ((size_t) maxBlock, 0.0);     // sized whether or not the effect is on
+    secretScratchR.assign ((size_t) maxBlock, 0.0);
     bodyIrInput.assign ((size_t) maxBlock, 0.0f);       // SPEC-SWEEP TM-6
     bodyBuffer.setSize (1, maxBlock, false, true, true);
     workBuffer.setSize (2, maxBlock, false, true, true);
@@ -462,7 +469,14 @@ bool LuthierEngine::swapPartsAtBlockBoundary (const DerivedAcoustics& d, GuitarT
     // The last swap's leftovers, handed back by the audio thread.
     delete retiredPartSwap.exchange (nullptr, std::memory_order_acq_rel);
 
-    auto* swap = new PendingPartSwap { d, standsFor };
+    // RT-SAFETY (CODEX_RTSAFETY P0): everything derived that allocates or sorts
+    // is built here, on the message thread; the audio thread only copies it.
+    auto* swap = new PendingPartSwap { d, standsFor, {} };
+    {
+        std::vector<BodyMode> scratch;
+        BodyEngine::buildModalBank (d.body, swap->bodyBank, scratch);
+    }
+
     delete pendingPartSwap.exchange (swap, std::memory_order_acq_rel);   // one never taken
 
     // The block boundary: bounded, like the park, so a stalled host cannot hang the UI.
@@ -556,7 +570,9 @@ void LuthierEngine::applyPartSwapLive (const PendingPartSwap& swap) noexcept
 
     aging.markDirty();
 
-    body.setBodyConfig (partsBody);
+    // RT-SAFETY P0: the bank was built and sorted on the message thread; this
+    // is a bounded copy with no lock (setBodyConfig locked and allocated).
+    body.applyPrebuiltBank (partsBody, swap.bodyBank);
     body.setAmount (bodyAmount);
 
     for (int i = 0; i < PickupEngine::kMaxPickups; ++i)
@@ -1114,6 +1130,9 @@ void LuthierEngine::setOversamplingFactor (int factor) noexcept
 
 void LuthierEngine::setTempoBpm (double bpm) noexcept
 {
+    if (! std::isfinite (bpm) || bpm <= 0.0)   // RT-SAFETY P2: keep the last valid tempo
+        return;
+
     tempoBpm = bpm;
     preEffects.setTempoBpm (bpm);
     postEffects.setTempoBpm (bpm);
@@ -2230,9 +2249,10 @@ void LuthierEngine::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
     // allocating would be worse, and truncating would drop audio.
     const int numChannels = buffer.getNumChannels();
 
-    juce::MidiBuffer sliceMidi;
-    sliceMidi.ensureSize (2048);
-    directSlice.ensureSize (2048);
+    // RT-SAFETY P1: both slice buffers are members sized in prepare(); the
+    // copies below never grow them (BoundedMidi's overflow policy keeps
+    // note-offs and drops the rest of a burst no controller sends).
+    auto& sliceMidi = oversizeSliceMidi;
 
     for (int offset = 0; offset < numSamples;)
     {
@@ -2250,7 +2270,8 @@ void LuthierEngine::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
             const int position = metadata.samplePosition;
 
             if (position >= offset && position < offset + count)
-                sliceMidi.addEvent (metadata.getMessage(), position - offset);
+                if (! BoundedMidi::add (sliceMidi, metadata.data, metadata.numBytes, position - offset))
+                    midiOverflowDrops.fetch_add (1, std::memory_order_relaxed);
         }
 
         // The direct notes are sliced the same way.
@@ -2259,7 +2280,8 @@ void LuthierEngine::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
         if (directMidi != nullptr)
             for (const auto metadata : *directMidi)
                 if (metadata.samplePosition >= offset && metadata.samplePosition < offset + count)
-                    directSlice.addEvent (metadata.getMessage(), metadata.samplePosition - offset);
+                    if (! BoundedMidi::add (directSlice, metadata.data, metadata.numBytes, metadata.samplePosition - offset))
+                        midiOverflowDrops.fetch_add (1, std::memory_order_relaxed);
 
         directForSubBlock = &directSlice;
 
@@ -3030,9 +3052,11 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
     {
         // The pedalboard is stereo-capable but the guitar is mono up to here.
-        static thread_local std::vector<double> dl, dr;
-
-        if ((int) dl.size() < numSamples) { dl.resize ((size_t) numSamples); dr.resize ((size_t) numSamples); }
+        // RT-SAFETY P1: engine-owned, sized to maxBlock in prepare(); processBlock
+        // splits anything larger, so this never grows here.
+        auto& dl = pedalScratchL;
+        auto& dr = pedalScratchR;
+        jassert ((int) dl.size() >= numSamples && (int) dr.size() >= numSamples);
 
         for (int i = 0; i < numSamples; ++i)
         {
@@ -3134,9 +3158,9 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     // ---- 8b. the hidden effect --------------------------------------------------
     if (secret.isEnabled())
     {
-        static thread_local std::vector<double> sl, sr2;
-
-        if ((int) sl.size() < numSamples) { sl.resize ((size_t) numSamples); sr2.resize ((size_t) numSamples); }
+        auto& sl = secretScratchL;     // RT-SAFETY P1: pre-sized in prepare()
+        auto& sr2 = secretScratchR;
+        jassert ((int) sl.size() >= numSamples && (int) sr2.size() >= numSamples);
 
         for (int i = 0; i < numSamples; ++i)
         {

@@ -1,4 +1,5 @@
 #include "PluginProcessor.h"
+#include "Support/BoundedMidi.h"   // RT-SAFETY P1
 #include "Updates/CrashWriter.h"   // SPEC-SWEEP: UT-16
 #include "Workshop/FamilyDefaults.h"   // guitar-illustration.md 12.3 (VISUAL-WORKSHOP-QA)
 #include "Presets/FactoryPresets.h"
@@ -269,6 +270,11 @@ LuthierAudioProcessor::~LuthierAudioProcessor()
 //==============================================================================
 void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
+    // RT-SAFETY P2 (CODEX_RTSAFETY): a host rate that is not finite and positive
+    // is refused; the last valid one (or the default) stands in for it.
+    sampleRate = HostClockGuard::validSampleRate (sampleRate, currentSampleRate);
+    samplesPerBlock = samplesPerBlock > 0 ? samplesPerBlock : juce::jmax (1, currentBlockSize);
+
     currentSampleRate = sampleRate;
     currentBlockSize = samplesPerBlock;
 
@@ -313,10 +319,13 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     for (auto* tuneBuffer : { &tuneToEngine, &tuneToMidiOut, &tuneDirect })
         tuneBuffer->ensureSize (TunePlayer::kRecommendedMidiBytes);
 
-    sliceMidi.ensureSize (8192);
-    sliceMidiOut.ensureSize (8192);
-    liveMidiKept.ensureSize (8192);
-    controllerScratch.ensureSize (8192);   // SPEC-SWEEP CT-4
+    // RT-SAFETY P1 (CODEX_RTSAFETY): generous, so dense host MIDI fits; the
+    // slice copies are bounded by what is reserved here.
+    sliceMidi.ensureSize ((size_t) BoundedMidi::kReserveBytes);
+    sliceMidiOut.ensureSize ((size_t) BoundedMidi::kReserveBytes);
+    liveMidiKept.ensureSize ((size_t) BoundedMidi::kReserveBytes);
+    controllerScratch.ensureSize ((size_t) BoundedMidi::kReserveBytes);   // SPEC-SWEEP CT-4
+    previewMidi.ensureSize (8192);
     captureStringCount = -1;   // re-sent at the next drain
     diagnostics.prepare (sampleRate);
 
@@ -1338,16 +1347,25 @@ void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
         juce::AudioBuffer<float> slice (buffer.getArrayOfWritePointers(),
                                         buffer.getNumChannels(), offset, count);
 
+        // RT-SAFETY P1: bounded copies into buffers sized in prepareToPlay;
+        // an overflow keeps note-offs (BoundedMidi) and never allocates.
         sliceMidi.clear();
-        sliceMidi.addEvents (midiMessages, offset, count, -offset);
+        midiOverflowDrops += BoundedMidi::addEvents (sliceMidi, BoundedMidi::kReserveBytes, midiMessages, offset, count, -offset);
 
         processSlice (slice, sliceMidi);
 
-        sliceMidiOut.addEvents (sliceMidi, 0, count, offset);
+        midiOverflowDrops += BoundedMidi::addEvents (sliceMidiOut, BoundedMidi::kReserveBytes, sliceMidi, 0, count, offset);
         offset += count;
     }
 
-    midiMessages.swapWith (sliceMidiOut);
+    // Copied back rather than swapped (as handleLiveMidi does), so our pre-sized
+    // storage stays ours and is never replaced by the host's smaller one.
+    midiMessages.clear();
+
+    for (const auto metadata : sliceMidiOut)
+        midiMessages.addEvent (metadata.data, metadata.numBytes, metadata.samplePosition);
+
+    sliceMidiOut.clear();
     applyDeclick (buffer);
 }
 
@@ -1482,9 +1500,8 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
     // Host tempo, for tempo-synced delays and tremolo.
     bool hostPlaying = false;
 
-    if (auto* playHead = getPlayHead())
-    {
-        if (auto position = playHead->getPosition())
+    {   // RT-SAFETY P2: the host clock, validated (HostClockGuard)
+        if (auto position = hostClock.read (getPlayHead()))
         {
             if (auto bpm = position->getBpm())
                 hostTempo.store (*bpm);
@@ -1515,9 +1532,8 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
         double hostSeconds = -1.0;   // environment.md 3.4 (REALISM-A)
         bool playing = false, hasPosition = false;
 
-        if (auto* playHead = getPlayHead())
-        {
-            if (auto position = playHead->getPosition())
+        {   // RT-SAFETY P2: the host clock, validated (HostClockGuard)
+            if (auto position = hostClock.read (getPlayHead()))
             {
                 playing = position->getIsPlaying();
 
@@ -1753,9 +1769,8 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
         clock.sampleRate = currentSampleRate;
         clock.bpm = hostTempo.load();
 
-        if (auto* playHead = getPlayHead())
-        {
-            if (auto position = playHead->getPosition())
+        {   // RT-SAFETY P2: the host clock, validated (HostClockGuard)
+            if (auto position = hostClock.read (getPlayHead()))
             {
                 clock.transportPlaying = position->getIsPlaying();
 
@@ -1796,9 +1811,8 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
         JamEngine::BlockContext ctx;
         ctx.latency = reportedLatency;
 
-        if (auto* playHead = getPlayHead())
-        {
-            if (auto position = playHead->getPosition())
+        {   // RT-SAFETY P2: the host clock, validated (HostClockGuard)
+            if (auto position = hostClock.read (getPlayHead()))
             {
                 ctx.hasPlayHead = true;
                 ctx.hostPlaying = position->getIsPlaying();
@@ -2124,7 +2138,7 @@ void LuthierAudioProcessor::feedModulationSources (const juce::MidiBuffer& midi)
 {
     for (const auto metadata : midi)
     {
-        const auto message = metadata.getMessage();
+        const auto message = BoundedMidi::inspect (metadata);
 
         if (message.isNoteOn())
         {
@@ -2172,9 +2186,8 @@ void LuthierAudioProcessor::buildModBlockContext (const juce::AudioBuffer<float>
     context.positionBeats = -1.0;
     context.transportRunning = false;
 
-    if (auto* playHead = getPlayHead())
-    {
-        if (auto position = playHead->getPosition())
+    {   // RT-SAFETY P2: the host clock, validated (HostClockGuard)
+        if (auto position = hostClock.read (getPlayHead()))
         {
             context.transportRunning = position->getIsPlaying();
 
@@ -2230,7 +2243,7 @@ void LuthierAudioProcessor::logMidiForDiagnostics (const juce::MidiBuffer& midi)
 
     for (const auto metadata : midi)
     {
-        const auto m = metadata.getMessage();
+        const auto m = BoundedMidi::inspect (metadata);
 
         if (m.isNoteOn())
             diagnostics.logValue (LogCategory::Midi,
@@ -2417,8 +2430,8 @@ void LuthierAudioProcessor::handleLiveMidi (juce::MidiBuffer& midi) noexcept
     bool any = false;
 
     for (const auto metadata : midi)
-        if (isLiveControl (metadata.getMessage()) || isLiveAction (metadata.getMessage()))
-            any = true;
+        if (const auto m = BoundedMidi::inspect (metadata); isLiveControl (m) || isLiveAction (m))
+            any = true;   // RT-SAFETY P1: inspect() never copies a long SysEx to the heap
 
     if (! any)
         return;
@@ -2430,7 +2443,7 @@ void LuthierAudioProcessor::handleLiveMidi (juce::MidiBuffer& midi) noexcept
 
     for (const auto metadata : midi)
     {
-        const auto message = metadata.getMessage();
+        const auto message = BoundedMidi::inspect (metadata);   // RT-SAFETY P1
 
         // live-performance 2: program change is the snapshot index.
         if (message.isProgramChange())
@@ -2454,7 +2467,9 @@ void LuthierAudioProcessor::handleLiveMidi (juce::MidiBuffer& midi) noexcept
             && liveActions.handleController (message.getControllerNumber(), message.getControllerValue()))
             continue;
 
-        kept.addEvent (message, metadata.samplePosition);
+        // The raw bytes, so a SysEx passes through whole and nothing is allocated.
+        if (! BoundedMidi::add (kept, metadata.data, metadata.numBytes, metadata.samplePosition))
+            midiOverflowDrops.fetch_add (1, std::memory_order_relaxed);
     }
 
     // SPEC-SWEEP (input-routing RT safety): copied back rather than swapped, so
@@ -2811,7 +2826,7 @@ void LuthierAudioProcessor::captureLatencyMeasurements (const juce::MidiBuffer& 
 
     for (const auto metadata : midi)
     {
-        if (! metadata.getMessage().isNoteOn())
+        if (! BoundedMidi::inspect (metadata).isNoteOn())
             continue;
 
         double phase = phaseAtStart + (double) metadata.samplePosition / samplesPerBeat;
