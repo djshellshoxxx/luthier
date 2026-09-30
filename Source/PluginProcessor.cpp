@@ -3495,7 +3495,6 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     root->setProperty ("aftertouchBends", doesAftertouchBend());   // SPEC-SWEEP PT-23
     root->setProperty ("bankSelectsPreset", doesBankSelectChoosePreset());   // SPEC-SWEEP IR-14
     root->setProperty ("liveMode", uiState.liveMode);
-    root->setProperty ("controllerProfile", controllerProfileId);   // controllers.md 0.2/CT-2
 
     // host-integration HI-20: the root format's version, so an older build can
     // tell a blob apart from one it understands and back it up before migrating.

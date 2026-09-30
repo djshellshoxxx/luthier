@@ -598,11 +598,6 @@ public:
     bool isParameterLocked (const juce::String& paramId) const;
     juce::StringArray getLockedParameters() const { return lockedParameters; }
 
-    // controllers.md 0.2/CT-2: which controller profile is active, so it can be
-    // restored across a session (the profile itself lives in ControllerProfileLibrary).
-    void setControllerProfileId (const juce::String& id) { controllerProfileId = id; }
-    juce::String getControllerProfileId() const noexcept { return controllerProfileId; }
-
     //==========================================================================
     // A/B compare and undo, both owned by the processor so they survive the editor.
 
@@ -1170,7 +1165,6 @@ private:
     int gestureParameterIndex = -1;
 
     juce::StringArray lockedParameters;
-    juce::String controllerProfileId;   // controllers.md 0.2/CT-2
     juce::NamedValueSet unknownHostSections;   // host-integration HI-24
 
     // SPEC-SWEEP (UW-5, CT-2/CT-4/CT-7)
