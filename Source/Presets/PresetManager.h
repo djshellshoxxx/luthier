@@ -205,6 +205,10 @@ public:
         forget. Cleared by the next load that succeeds. */
     juce::String getLastLoadError() const { return lastLoadError; }
 
+    /** Why the last fromVar refused, as the tail of a sentence ("was made by a
+        newer Luthier version. Update to open."), or empty. */
+    juce::String getLastRefusal() const { return lastRefusal; }
+
     /*  SPEC-SWEEP: ER-19/20/21. Why the last save failed, in a sentence, or
         empty if it worked. Polled by the window like getLastLoadError. */
     juce::String getLastSaveError() const { return lastSaveError; }

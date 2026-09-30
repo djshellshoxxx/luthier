@@ -118,6 +118,7 @@ LuthierAudioProcessor::LuthierAudioProcessor()
     // event, and a cached gain rides the load.
     presets.onPresetLoaded = [this]
     {
+        refusedPresetBlock = juce::var();   // SPEC-SWEEP HI-24: the user chose another sound
         presetFileLoaded();   // SPEC-SWEEP: SM-46 - the layers a user-facing load clears (A/B compare)
         outputNormalization.notifyConfigurationChanged (true);
     };
@@ -3451,6 +3452,8 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     if (auto* morph = apvts.getRawParameterValue (ParamIDs::presetMorphPosition))
         root->setProperty ("presetMorphPosition", (double) morph->load());
 
+    writeStateFormat (*root);   // SPEC-SWEEP HI-20/24: last, so it sees every section above
+
     const auto json = juce::JSON::toString (juce::var (root), false);
 
     destData.reset();
@@ -3522,17 +3525,33 @@ void LuthierAudioProcessor::restoreState (const void* data, int sizeInBytes, Res
     if (data == nullptr || sizeInBytes <= 0)
         return;
 
-    const juce::String json (juce::CharPointer_UTF8 (static_cast<const char*> (data)),
-                             (size_t) sizeInBytes);
+    // SPEC-SWEEP (HI-53): by bytes, not characters - a name with an accent in
+    // it made the old character count read past the end of the host's buffer.
+    const auto json = stateBlobToText (data, sizeInBytes);
 
     const auto parsed = juce::JSON::parse (json);
     auto* root = parsed.getDynamicObject();
 
     if (root == nullptr)
+    {
+        // error-recovery 0.2: never silently degrade. The session is left as it
+        // is, and the blob is kept so the project can still be recovered.
+        if (scope == RestoreScope::full)
+            reportUnreadableState (data, sizeInBytes);
+
         return;
+    }
+
+    if (scope == RestoreScope::full)
+        readStateFormat (*root, data, sizeInBytes);   // SPEC-SWEEP HI-24/25
 
     if (root->hasProperty ("preset"))
-        presets.fromVar (root->getProperty ("preset"));
+    {
+        const bool loaded = presets.fromVar (root->getProperty ("preset"));
+
+        if (scope == RestoreScope::full)
+            noteRestoredPresetBlock (root->getProperty ("preset"), loaded);
+    }
 
     if (root->hasProperty ("midiLearn"))
         midiLearn.fromVar (root->getProperty ("midiLearn"));

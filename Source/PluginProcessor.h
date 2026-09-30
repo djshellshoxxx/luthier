@@ -101,6 +101,16 @@ public:
     enum class RestoreScope { full, soundOnly };
     void restoreState (const void* data, int sizeInBytes, RestoreScope scope);
 
+    /*  SPEC-SWEEP HI-20/24/25 (host-integration 4, 4.1, 4.2): the host blob's
+        format version. A newer blob keeps the sections this build cannot read
+        (and a preset block it refused) for the write-back; an older one is
+        copied to the diagnostics folder before it is migrated. */
+    static constexpr int kStateFormatVersion = 1;
+    static juce::File getStateBackupFolder();
+
+    /** The blob as text: byte-counted, and empty when it is not valid UTF-8. */
+    static juce::String stateBlobToText (const void* data, int sizeInBytes);
+
     /** output-normalization.md: the switch, the target, the calibration. */
     OutputNormalization& getOutputNormalization() noexcept { return outputNormalization; }
     OutputNormalization::Status getNormalizationStatus() const { return outputNormalization.getStatus(); }
@@ -914,6 +924,14 @@ private:
     // SPEC-SWEEP: SM-46 - what a user-facing preset load clears (state-model 8.1).
     void presetFileLoaded();
     juce::StringArray stateNotices, stateWarnings;
+
+    // SPEC-SWEEP HI-20/24/25 (HostStateFormat.cpp).
+    void writeStateFormat (juce::DynamicObject& root) const;
+    void readStateFormat (const juce::DynamicObject& root, const void* data, int sizeInBytes);
+    void noteRestoredPresetBlock (const juce::var& block, bool loaded);
+    void reportUnreadableState (const void* data, int sizeInBytes);
+    juce::var newerStateSections;   // top-level sections of a newer blob, written back as they came
+    juce::var refusedPresetBlock;   // a newer build's preset, written back until another preset loads
 
     /** Resolves a preset's reference to a guitar file: user, then factory. */
     static juce::File resolveGuitarReference (const juce::String& reference);
