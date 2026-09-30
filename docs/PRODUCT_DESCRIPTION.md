@@ -97,7 +97,7 @@ Polyphony is 6 strings by default (7–12 for extended range), 12 for 12-string 
 
 - **Easy and Advanced modes**. One column for beginners and live tweaks, four columns for deep sound design. Workshop for visual guitar building. Everything undoable, MIDI learnable, randomizable.
 
-- **Accessibility**. Screen reader, keyboard-only navigation, color-blind palettes, UI scale 50–200%, high contrast, safe mode, panic button, kill switch.
+- **Accessibility**. Screen reader, keyboard-only navigation, color-blind palettes, UI scale 75–200%, high contrast, safe mode, panic button, kill switch.
 
 - **Cross-platform**. VST3, AU, CLAP, Standalone on Windows, macOS, Linux. Tested in Ableton, Logic, Cubase, Studio One, Reaper, FL, Bitwig, Pro Tools.
 

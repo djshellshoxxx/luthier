@@ -425,7 +425,7 @@ A complete, organized list of Luthier's features and capabilities, grouped by ca
 - Keyboard-only navigation: full control without mouse
 - Tab order: logical control focus flow
 - Color-vision modes: three color-blind palettes (not color-dependent alone)
-- UI scale: 50% to 200% adjustable
+- UI scale: 75% to 200% adjustable
 - High contrast mode option
 - Kill switch and panic button (safety)
 - Crash recovery and safe mode (reliability)
