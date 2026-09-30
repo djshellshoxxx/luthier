@@ -216,6 +216,14 @@ public:
 
     void setAllowOpenStrings (bool allow) noexcept { allowOpen = allow; }
 
+    /** Strings already sounding a held note, one bit per string index. Such a
+        string is out of play: the search may neither fret it nor count it as
+        muted (it is not muted, it is ringing), and the single-note placer
+        skips it. MidiInterpreter sets this from what it holds before every
+        chord group and clears it after; reset() clears it too. */
+    void setOccupiedStrings (uint16_t mask) noexcept { occupiedStrings = mask; }
+    uint16_t getOccupiedStrings() const noexcept { return occupiedStrings; }
+
     //==========================================================================
     void setStyle (RubricStyle s) noexcept;
     RubricStyle getStyle() const noexcept { return style; }
@@ -346,6 +354,7 @@ private:
     bool allowOpen = true;
     int maxSounding = kMaxStrings;
     int rootOverride = -1;
+    uint16_t occupiedStrings = 0;
 
     RubricStyle style = RubricStyle::open;
     RubricBassPattern bassPattern = RubricBassPattern::root;
@@ -359,6 +368,9 @@ private:
     std::array<int, kMaxStrings> slotString {};
     std::array<int, kMaxStrings> slotCapo {};
     std::array<int, kMaxStrings> slotHighest {};
+    std::array<bool, kMaxStrings> slotOccupied {};
+    /** occupiedBelow[k]: how many of slots 0..k-1 are occupied, for the bound. */
+    std::array<int, kMaxStrings + 1> occupiedBelow {};
     std::array<std::array<int, kFretTableSize>, kMaxStrings> pitchAt {};
 
     // ---- the request -------------------------------------------------------------
