@@ -918,7 +918,7 @@ LUTHIER_TEST (Jam, JM07_defaultLevelSitsWithTheGuitar)
                 sum += (double) b.left[i] * b.left[i];
             }
 
-            rms[part] = std::sqrt (sum / (double) juce::jmax<size_t> (1, b.left.size()));
+            rms[part] = std::sqrt (sum / (double) std::max<size_t> (1, b.left.size()));
         }
 
         const auto name = juce::String (JamStyleLibrary::getFactoryStyleName (style));

@@ -107,7 +107,7 @@ function Step-Build {
     $targets = @('Luthier_VST3', 'Luthier_Standalone', 'LuthierTests', 'LuthierRender')
     if (Test-Path 'ThirdParty/clap-juce-extensions') { $targets += 'Luthier_CLAP' }
     Write-Step "Building $($targets -join ' ') with $Jobs jobs"
-    Invoke-Checked 'Build' { cmake --build $BuildDir --config $Config --parallel $Jobs --target @targets }
+    Invoke-Checked 'Build' { cmake --build $BuildDir --config $Config --parallel $Jobs --target @targets -- -k 0 }
 }
 
 function Step-Test {

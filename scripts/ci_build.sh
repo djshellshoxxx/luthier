@@ -109,7 +109,7 @@ do_build() {
     local targets
     read -r -a targets <<< "$(build_targets)"
     step "Building ${targets[*]} with $JOBS jobs"
-    cmake --build "$BUILD_DIR" --config "$CONFIG" --parallel "$JOBS" --target "${targets[@]}"
+    cmake --build "$BUILD_DIR" --config "$CONFIG" --parallel "$JOBS" --target "${targets[@]}" -- -k 0
 
     if [ "$PLATFORM" = macos ]; then
         # Resources are copied into each bundle after JUCE has signed it, which
