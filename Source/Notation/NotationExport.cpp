@@ -222,6 +222,11 @@ juce::String NotationExporter::renderMusicXml (const PerformanceScore& score,
     const auto& meta = score.getMeta();
     const auto& track = score.getTrack (0);
 
+    // Task X (notation-export.md 2.1): a standard staff, no tab, for the
+    // reader who does not read fret numbers - decided once, used both in the
+    // attributes block below and per note.
+    const bool standardStaff = options.staffMode == NotationExportOptions::StaffMode::standardStaff;
+
     int firstMeasure = 0, lastMeasure = 0;
     resolveRange (score, track, options, firstMeasure, lastMeasure);
 
@@ -265,39 +270,55 @@ juce::String NotationExporter::renderMusicXml (const PerformanceScore& score,
                 << "        <key><fifths>0</fifths></key>\n"
                 << "        <time><beats>" << measure.timeSignatureNumerator
                 << "</beats><beat-type>" << measure.timeSignatureDenominator
-                << "</beat-type></time>\n"
-                << "        <clef><sign>TAB</sign><line>5</line></clef>\n"
-                << "        <staff-details>\n"
-                << "          <staff-lines>" << track.numStrings << "</staff-lines>\n";
+                << "</beat-type></time>\n";
 
-            // notation-export 2.1: the tuning is part of the staff, or the frets
-            // mean nothing on reimport.
-            for (int s = 0; s < track.numStrings; ++s)
+            if (standardStaff)
             {
-                juce::String step;
-                int alter = 0, octave = 0;
+                // Guitar standard notation is treble clef sounding an octave
+                // below what is printed - clef-octave-change - or a written
+                // middle C would sit in the guitar's low-string territory.
+                // Real staff notation, no tab: no staff-details/tuning, that
+                // block exists to make fret numbers meaningful and there are
+                // none here.
+                xml << "        <clef><sign>G</sign><line>2</line>"
+                       "<clef-octave-change>-1</clef-octave-change></clef>\n";
+            }
+            else
+            {
+                xml << "        <clef><sign>TAB</sign><line>5</line></clef>\n"
+                    << "        <staff-details>\n"
+                    << "          <staff-lines>" << track.numStrings << "</staff-lines>\n";
 
-                // MusicXML numbers strings from the lowest, the opposite of the
-                // score's own convention, so the tuning is written in reverse.
-                const int scoreString = track.numStrings - 1 - s;
+                // notation-export 2.1: the tuning is part of the staff, or the frets
+                // mean nothing on reimport.
+                for (int s = 0; s < track.numStrings; ++s)
+                {
+                    juce::String step;
+                    int alter = 0, octave = 0;
 
-                PerformanceScore::getMusicXmlPitch (track.tuning[(size_t) scoreString],
-                                                    step, alter, octave);
+                    // MusicXML numbers strings from the lowest, the opposite of the
+                    // score's own convention, so the tuning is written in reverse.
+                    const int scoreString = track.numStrings - 1 - s;
 
-                xml << "          <staff-tuning line=\"" << (s + 1) << "\">"
-                    << "<tuning-step>" << step << "</tuning-step>";
+                    PerformanceScore::getMusicXmlPitch (track.tuning[(size_t) scoreString],
+                                                        step, alter, octave);
 
-                if (alter != 0)
-                    xml << "<tuning-alter>" << alter << "</tuning-alter>";
+                    xml << "          <staff-tuning line=\"" << (s + 1) << "\">"
+                        << "<tuning-step>" << step << "</tuning-step>";
 
-                xml << "<tuning-octave>" << octave << "</tuning-octave></staff-tuning>\n";
+                    if (alter != 0)
+                        xml << "<tuning-alter>" << alter << "</tuning-alter>";
+
+                    xml << "<tuning-octave>" << octave << "</tuning-octave></staff-tuning>\n";
+                }
+
+                if (track.capoFret > 0)
+                    xml << "          <capo>" << track.capoFret << "</capo>\n";
+
+                xml << "        </staff-details>\n";
             }
 
-            if (track.capoFret > 0)
-                xml << "          <capo>" << track.capoFret << "</capo>\n";
-
-            xml << "        </staff-details>\n"
-                << "      </attributes>\n"
+            xml << "      </attributes>\n"
                 << "      <direction placement=\"above\">\n"
                 << "        <direction-type><metronome><beat-unit>quarter</beat-unit>"
                 << "<per-minute>" << juce::String (meta.tempoBpm, 1)
@@ -377,7 +398,11 @@ juce::String NotationExporter::renderMusicXml (const PerformanceScore& score,
 
                 juce::String step;
                 int alter = 0, octave = 0;
-                PerformanceScore::getMusicXmlPitch (note.midiNote, step, alter, octave);
+
+                // The standard staff writes a note an octave higher than it
+                // sounds, matching the clef's clef-octave-change above.
+                PerformanceScore::getMusicXmlPitch (standardStaff ? note.midiNote + 12 : note.midiNote,
+                                                    step, alter, octave);
 
                 xml << "      <note>\n";
 
@@ -399,81 +424,88 @@ juce::String NotationExporter::renderMusicXml (const PerformanceScore& score,
                     xml << "        <dot/>\n";
 
                 // ---- technical: string, fret, and the techniques ------------------
-                xml << "        <notations>\n"
-                    << "          <technical>\n"
-                    // MusicXML numbers strings from 1 = the highest, as the
-                    // score indexes them from 0 = the highest.
-                    << "            <string>" << (note.stringIndex + 1)
-                    << "</string>\n"
-                    << "            <fret>" << note.fret << "</fret>\n";
+                // The standard staff has no fret numbers to hang these on, so
+                // it skips the whole <technical> group (Task X: distinct from
+                // the ASCII/GP tab lane, which is where this detail belongs).
+                xml << "        <notations>\n";
 
-                for (const auto& technique : note.techniques)
+                if (! standardStaff)
                 {
-                    switch (technique.type)
+                    xml << "          <technical>\n"
+                        // MusicXML numbers strings from 1 = the highest, as the
+                        // score indexes them from 0 = the highest.
+                        << "            <string>" << (note.stringIndex + 1)
+                        << "</string>\n"
+                        << "            <fret>" << note.fret << "</fret>\n";
+
+                    for (const auto& technique : note.techniques)
                     {
-                        case ScoreTechnique::Type::bend:
-                            xml << "            <bend><bend-alter>"
-                                << juce::String (technique.value, 2)
-                                << "</bend-alter></bend>\n";
-                            break;
+                        switch (technique.type)
+                        {
+                            case ScoreTechnique::Type::bend:
+                                xml << "            <bend><bend-alter>"
+                                    << juce::String (technique.value, 2)
+                                    << "</bend-alter></bend>\n";
+                                break;
 
-                        case ScoreTechnique::Type::bendRelease:
-                            xml << "            <bend><bend-alter>"
-                                << juce::String (technique.value, 2)
-                                << "</bend-alter><release/></bend>\n";
-                            break;
+                            case ScoreTechnique::Type::bendRelease:
+                                xml << "            <bend><bend-alter>"
+                                    << juce::String (technique.value, 2)
+                                    << "</bend-alter><release/></bend>\n";
+                                break;
 
-                        case ScoreTechnique::Type::preBend:
-                            xml << "            <bend><bend-alter>"
-                                << juce::String (technique.value, 2)
-                                << "</bend-alter><pre-bend/></bend>\n";
-                            break;
+                            case ScoreTechnique::Type::preBend:
+                                xml << "            <bend><bend-alter>"
+                                    << juce::String (technique.value, 2)
+                                    << "</bend-alter><pre-bend/></bend>\n";
+                                break;
 
-                        case ScoreTechnique::Type::hammerOn:
-                            xml << "            <hammer-on type=\"start\"/>\n";
-                            break;
+                            case ScoreTechnique::Type::hammerOn:
+                                xml << "            <hammer-on type=\"start\"/>\n";
+                                break;
 
-                        case ScoreTechnique::Type::pullOff:
-                            xml << "            <pull-off type=\"start\"/>\n";
-                            break;
+                            case ScoreTechnique::Type::pullOff:
+                                xml << "            <pull-off type=\"start\"/>\n";
+                                break;
 
-                        case ScoreTechnique::Type::palmMute:
-                            xml << "            <other-technical>palm-mute</other-technical>\n";
-                            break;
+                            case ScoreTechnique::Type::palmMute:
+                                xml << "            <other-technical>palm-mute</other-technical>\n";
+                                break;
 
-                        case ScoreTechnique::Type::naturalHarmonic:
-                            xml << "            <harmonic><natural/></harmonic>\n";
-                            break;
+                            case ScoreTechnique::Type::naturalHarmonic:
+                                xml << "            <harmonic><natural/></harmonic>\n";
+                                break;
 
-                        case ScoreTechnique::Type::artificialHarmonic:
-                        case ScoreTechnique::Type::pinchHarmonic:
-                        case ScoreTechnique::Type::tapHarmonic:
-                            xml << "            <harmonic><artificial/></harmonic>\n";
-                            break;
+                            case ScoreTechnique::Type::artificialHarmonic:
+                            case ScoreTechnique::Type::pinchHarmonic:
+                            case ScoreTechnique::Type::tapHarmonic:
+                                xml << "            <harmonic><artificial/></harmonic>\n";
+                                break;
 
-                        case ScoreTechnique::Type::tap:
-                            xml << "            <tap/>\n";
-                            break;
+                            case ScoreTechnique::Type::tap:
+                                xml << "            <tap/>\n";
+                                break;
 
-                        case ScoreTechnique::Type::deadNote:
-                            xml << "            <other-technical>dead-note</other-technical>\n";
-                            break;
+                            case ScoreTechnique::Type::deadNote:
+                                xml << "            <other-technical>dead-note</other-technical>\n";
+                                break;
 
-                        // auto-articulation.md 9 (FEAT-ASSIST): pick strokes.
-                        case ScoreTechnique::Type::pickStrokeUp:
-                            xml << "            <up-bow/>\n";
-                            break;
+                            // auto-articulation.md 9 (FEAT-ASSIST): pick strokes.
+                            case ScoreTechnique::Type::pickStrokeUp:
+                                xml << "            <up-bow/>\n";
+                                break;
 
-                        case ScoreTechnique::Type::pickStrokeDown:
-                            xml << "            <down-bow/>\n";
-                            break;
+                            case ScoreTechnique::Type::pickStrokeDown:
+                                xml << "            <down-bow/>\n";
+                                break;
 
-                        default:
-                            break;
+                            default:
+                                break;
+                        }
                     }
-                }
 
-                xml << "          </technical>\n";
+                    xml << "          </technical>\n";
+                }
 
                 for (const auto& technique : note.techniques)
                 {
