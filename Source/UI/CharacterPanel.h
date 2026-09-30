@@ -51,6 +51,9 @@ public:
     void mouseDown (const juce::MouseEvent&) override;
     void mouseDrag (const juce::MouseEvent&) override;
 
+    /** SPEC-SWEEP: CW-29 - the wheel over a spot widens or narrows it (2-5 frets). */
+    void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
+
     static constexpr int rowHeight = 16;
     static constexpr int numFretsShown = 22;
     static constexpr int preferredHeight = rowHeight * 6 + 18;

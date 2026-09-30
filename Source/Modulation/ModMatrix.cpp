@@ -238,6 +238,7 @@ void ModMatrix::prepare (double newSampleRate, int newBlockSize,
     destinations.assign ((size_t) numParameters, {});
     currentOffsets = std::vector<std::atomic<float>> ((size_t) numParameters);
     targetOffsets = std::vector<std::atomic<float>> ((size_t) numParameters);
+    rampStart.assign ((size_t) numParameters, 0.0f);   // SPEC-SWEEP: MM-2
     destinationModulated = std::vector<std::atomic<bool>> ((size_t) numParameters);
 
     parameterIndexById.clear();
@@ -287,6 +288,18 @@ void ModMatrix::resetEnvelopes() noexcept
         e.reset();
 }
 
+void ModMatrix::resetSources() noexcept
+{
+    for (auto& l : lfos)       l.reset();
+    for (auto& e : envelopes)  e.reset();
+    for (auto& s : sequencers) s.reset();
+    for (auto& f : followers)  f.reset();
+
+    randomSource.reset();
+    noteTriggerTicks = 0;
+    samplesUntilTick = 0;
+}
+
 void ModMatrix::reset() noexcept
 {
     for (auto& l : lfos)       l.reset();
@@ -305,6 +318,8 @@ void ModMatrix::reset() noexcept
         targetOffsets[i].store (0.0f);
     }
 
+    std::fill (rampStart.begin(), rampStart.end(), 0.0f);   // SPEC-SWEEP: MM-2
+
     lastNotePitch = 0.5;
     lastNoteVelocity = 0.0;
     notesHeldCount = 0;
@@ -321,6 +336,12 @@ void ModMatrix::reset() noexcept
 int ModMatrix::setModulationRangeAdvanced (bool advanced) noexcept
 {
     modulationAdvanced = advanced;
+
+    // SPEC-SWEEP: AR-12 - every caller has just applied a RangeState, so the
+    // parameters' live ranges may have moved: modulation sweeps the live range
+    // (advanced-ranges.md 1.4), not the one it saw at prepare.
+    refreshDestinationRanges();
+
     int clamped = 0;
 
     for (auto& l : lfos)       clamped += l.setAdvancedRange (advanced);
@@ -329,6 +350,26 @@ int ModMatrix::setModulationRangeAdvanced (bool advanced) noexcept
     for (auto& f : followers)  clamped += f.setAdvancedRange (advanced);
 
     return clamped;
+}
+
+void ModMatrix::refreshDestinationRanges() noexcept
+{
+    if (apvts == nullptr)
+        return;
+
+    const auto& parameters = apvts->processor.getParameters();
+
+    for (int i = 0; i < juce::jmin (parameters.size(), (int) destinations.size()); ++i)
+    {
+        if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (parameters[i]))
+        {
+            const auto& range = ranged->getNormalisableRange();
+            auto& info = destinations[(size_t) i];
+            info.minimum = range.start;
+            info.maximum = range.end;
+            info.range = juce::jmax (1.0e-9f, range.end - range.start);
+        }
+    }
 }
 
 void ModMatrix::releaseResources()
@@ -700,6 +741,18 @@ void ModMatrix::updateSources (const ModBlockContext& context) noexcept
 
         for (auto& s : sequencers)
             s.transportStarted();
+
+        /*  SPEC-SWEEP: MM-8 - modulation-matrix 0.5: transport start resets the
+            envelopes, followers and random sources too. An LFO restarts per its
+            own retrigger mode; a free-running one is exempt, since 1.1 makes
+            free-run a per-source choice (DECISIONS note in sweep-notes). */
+        for (auto& e : envelopes)
+            e.reset();
+
+        for (auto& f : followers)
+            f.reset();
+
+        randomSource.reset();
     }
 
     // A new bar redraws the per-bar random value.
@@ -899,6 +952,22 @@ void ModMatrix::applySourceEdit (const ModSourceEdit& e) noexcept
             break;
         }
 
+        // SPEC-SWEEP: MM-12 / MM-22.
+        case ModSourceEdit::Kind::lfoBreakpoint:
+            getLfo (e.index).setBreakpoint (e.subIndex, e.pointValue);
+            break;
+
+        case ModSourceEdit::Kind::seqStep:
+        {
+            ModStepSequencer::Step step;
+            step.value = juce::jlimit (-1.0, 1.0, e.pointValue);
+            step.gate = e.stepGate;
+            step.slide = e.stepSlide;
+            step.probability = juce::jlimit (0.0, 1.0, e.stepProbability);
+            getSequencer (e.index).setStep (e.subIndex, step);
+            break;
+        }
+
         case ModSourceEdit::Kind::none:
         default:
             break;
@@ -907,6 +976,10 @@ void ModMatrix::applySourceEdit (const ModSourceEdit& e) noexcept
 
 void ModMatrix::processBlock (int numSamples, const ModBlockContext& context) noexcept
 {
+    // SPEC-SWEEP: MM-6 / MM-7 - a preset or snapshot load asked for a restart.
+    if (sourceResetPending.exchange (false, std::memory_order_acq_rel))
+        resetSources();
+
     // SPEC-SWEEP (UW-5): the message thread applies edits itself only while no
     // block runs; if it is doing so now, this block keeps the last offsets.
     const juce::SpinLock::ScopedTryLockType idleGuard (idleApplyLock);
@@ -948,9 +1021,16 @@ void ModMatrix::processBlock (int numSamples, const ModBlockContext& context) no
 
             // Clear only the destinations this table touches. Zeroing all three
             // hundred parameters every tick would cost more than the routing.
-            if (evaluateRoutes)
-                for (int destination : table.touchedDestinations)
+            // SPEC-SWEEP: MM-2 - each ramp starts where the last one got to
+            // (every tick, so a held target on a skipped Low-quality tick stays
+            // flat); the targets are only rebuilt when the routes run.
+            for (int destination : table.touchedDestinations)
+            {
+                rampStart[(size_t) destination] = currentOffsets[(size_t) destination].load (std::memory_order_relaxed);
+
+                if (evaluateRoutes)
                     targetOffsets[(size_t) destination].store (0.0f, std::memory_order_relaxed);
+            }
 
             if (evaluateRoutes)
             for (const auto& route : table.routes)
@@ -979,24 +1059,28 @@ void ModMatrix::processBlock (int numSamples, const ModBlockContext& context) no
                             std::memory_order_relaxed);
             }
 
-            // modulation-matrix 0.2: destinations step toward the new target
-            // rather than jumping, which is what keeps a slow LFO on a filter
-            // cutoff free of zipper noise.
-            for (int destination : table.touchedDestinations)
-            {
-                const auto target = targetOffsets[(size_t) destination].load (std::memory_order_relaxed);
-                const auto current = currentOffsets[(size_t) destination].load (std::memory_order_relaxed);
-
-                currentOffsets[(size_t) destination].store (current + (target - current) * 0.5f,
-                                                            std::memory_order_relaxed);
-            }
-
             samplesUntilTick = controlRateSamples;
         }
 
         const int step = juce::jmin (remaining, samplesUntilTick);
         samplesUntilTick -= step;
         remaining -= step;
+
+        /*  modulation-matrix 0.2: destinations interpolate linearly between
+            ticks, from where they were at the tick to the new target, which
+            they reach exactly at the next tick. That keeps a slow LFO on a
+            filter cutoff free of zipper noise. (SPEC-SWEEP: MM-2 - this was a
+            one-pole halving per tick, which never arrived.) */
+        const float progress = 1.0f - (float) samplesUntilTick / (float) juce::jmax (1, controlRateSamples);
+        const auto& table = tables[(size_t) liveTable.load (std::memory_order_acquire)];
+
+        for (int destination : table.touchedDestinations)
+        {
+            const float start = rampStart[(size_t) destination];
+            const float target = targetOffsets[(size_t) destination].load (std::memory_order_relaxed);
+            currentOffsets[(size_t) destination].store (start + (target - start) * progress,
+                                                        std::memory_order_relaxed);
+        }
     }
 }
 
@@ -1327,7 +1411,9 @@ void ModMatrix::fromVar (const juce::var& state)
     setRoutes (loaded);
 
     // modulation-matrix 0.5: sources are stateful and reset on preset load.
-    reset();
+    // SPEC-SWEEP: MM-6 - at the next block, on the audio thread that ticks
+    // them; resetting here raced the audio thread.
+    sourceResetPending.store (true, std::memory_order_release);
 }
 
 } // namespace luthier

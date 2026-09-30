@@ -223,6 +223,22 @@ namespace
         return 0.75;                         // bone
     }
 
+    // SPEC-SWEEP: PA-33 - part-acoustics.md 5's bridge-type table.
+    struct BridgeDefaults { double massG, coupling; };
+
+    BridgeDefaults bridgeTypeDefaults (const juce::String& type)
+    {
+        if (type == "tune_o_matic")                         return { 95.0,  0.55 };
+        if (type == "hardtail" || type == "wraparound")     return { 110.0, 0.70 };
+        if (type == "vintage_tremolo")                      return { 165.0, 0.45 };
+        if (type == "two_point_tremolo")                    return { 150.0, 0.48 };
+        if (type == "floyd_rose")                           return { 320.0, 0.30 };
+        if (type == "bigsby")                               return { 480.0, 0.35 };
+        if (type == "pin_bridge" || type == "tie_block")    return { 28.0,  0.92 };
+        if (type == "resonator_spider")                     return { 45.0,  0.88 };
+        return { 100.0, 0.55 };   // unknown: the reference
+    }
+
     // part-acoustics.md 3: joint coupling.
     double jointCoupling (const juce::String& joint)
     {
@@ -306,6 +322,7 @@ bool DerivedAcoustics::operator== (const DerivedAcoustics& o) const
         && same (airResonanceHz, o.airResonanceHz) && same (airResonanceQ, o.airResonanceQ)
         && same (finishDampingDb, o.finishDampingDb) && same (body.scaleWidth, o.body.scaleWidth)
         && same (body.resonanceTrim, o.body.resonanceTrim) && same (body.age, o.body.age)
+        && same (body.topLossScale, o.body.topLossScale) && same (body.backLossScale, o.body.backLossScale)
         && same (body.scaleDepth, o.body.scaleDepth) && same (body.topThicknessMm, o.body.topThicknessMm)
         && wiring == o.wiring
         && same (setup.actionTreble, o.setup.actionTreble) && same (setup.fretHeight, o.setup.fretHeight);
@@ -385,15 +402,34 @@ DerivedAcoustics mapSpec (const WorkshopGuitar& g)
     if (top != nullptr)
         d.body.topThicknessMm = top->number ("thickness_mm", 0.0);
 
-    // Density overriding the table (2) moves the modes as sqrt(E / rho).
+    /*  SPEC-SWEEP: PA-7 / PA-8 - the 1 table drives the body. The modal model
+        works from its own coarser wood list; the radiating part's wood (the
+        top when there is one, else the body) moves every mode by
+        sqrt((E / rho)_table / (E / rho)_engine), and a density override moves
+        it further. The loss factor follows the table the same way, per plate.
+        Before this only a density override moved anything. */
     {
+        const Part* radiator = top != nullptr ? top : body;
+        const auto radiatorId = radiator != nullptr ? radiator->text ("wood", radiator == top ? "maple_hard" : "alder")
+                                                    : juce::String ("alder");
         WoodData wood {};
 
-        if (body != nullptr && lookUpWood (body->text ("wood", "alder"), wood))
+        if (radiator != nullptr && lookUpWood (radiatorId, wood))
         {
-            const double density = body->number ("density_kg_m3", wood.densityKgM3);
-            d.body.resonanceTrim = juce::jlimit (0.7, 1.4, std::sqrt (wood.densityKgM3 / juce::jmax (100.0, density)));
+            const auto& engine = BodyModels::getWood (engineWood (radiatorId));
+            const double density = radiator->number ("density_kg_m3", wood.densityKgM3);
+            const double tableSpeed = wood.youngsGPa * 1.0e9 / juce::jmax (100.0, density);
+            const double engineSpeed = engine.youngsModulusPa / juce::jmax (100.0, engine.densityKgM3);
+
+            d.body.resonanceTrim = juce::jlimit (0.7, 1.4, std::sqrt (tableSpeed / juce::jmax (1.0, engineSpeed)));
+            d.body.topLossScale = wood.lossTangent / juce::jmax (1.0e-5, engine.lossFactor);
         }
+
+        WoodData back {};
+        const auto backId = str (body, "wood", "alder");
+
+        if (body != nullptr && lookUpWood (backId, back))
+            d.body.backLossScale = back.lossTangent / juce::jmax (1.0e-5, BodyModels::getWood (engineWood (backId)).lossFactor);
     }
 
     d.body.age = juce::jlimit (0.0, 1.0, 0.3 + 0.7 * g.finish.aging);
@@ -434,8 +470,12 @@ DerivedAcoustics mapSpec (const WorkshopGuitar& g)
     d.body.modeGainDb = (chambering == "acoustic") ? 0.0 : d.bodyGainDb;
 
     // ---- termination: masses add, couplings multiply (10) ------------------------------------
-    d.terminationMassG = num (bridge, "mass_g", 100.0) + num (tail, "mass_g", 0.0) + num (guard, "mass_g", 0.0);
-    d.couplingFraction = jointCoupling (str (neck, "joint", "bolt")) * num (bridge, "coupling", 0.55);
+    // SPEC-SWEEP: PA-33 - 5: a bridge that states no mass or coupling takes
+    // its type's row, not one number for every bridge.
+    const auto bridgeDefaults = bridgeTypeDefaults (str (bridge, "type", "tune_o_matic"));
+
+    d.terminationMassG = num (bridge, "mass_g", bridgeDefaults.massG) + num (tail, "mass_g", 0.0) + num (guard, "mass_g", 0.0);
+    d.couplingFraction = jointCoupling (str (neck, "joint", "bolt")) * num (bridge, "coupling", bridgeDefaults.coupling);
 
     // 5: heavier is less lossy and sustains more. Normalised to a 100 g
     // tune-o-matic, a gentle cube root so a 480 g Bigsby is not magic; then

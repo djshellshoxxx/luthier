@@ -662,10 +662,11 @@ LUTHIER_TEST (Routing, perOutputLatencyIsConsistent)
     CHECK_MSG (preCab <= mic, "pre-cab latency exceeded the cabinet tap's");
     CHECK_MSG (mic <= main, "a tap reported more latency than the main output");
 
-    // The room, wet and monitor taps are at the end of the chain, so they carry
-    // the main output's latency exactly.
-    CHECK (engine.getLatencySamples (AuxBus::roomMic) == main);
-    CHECK (engine.getLatencySamples (AuxBus::wetFx) == main);
+    // The room and wet taps are at the end of the chain but ahead of the
+    // master's look-ahead line; the monitor is post-master, so it carries the
+    // main output's latency exactly (SPEC-SWEEP: EN-95).
+    CHECK (engine.getLatencySamples (AuxBus::roomMic) == main - engine.getMasterBus().getLatencySamples());
+    CHECK (engine.getLatencySamples (AuxBus::wetFx) == main - engine.getMasterBus().getLatencySamples());
     CHECK (engine.getLatencySamples (AuxBus::monitor) == main);
 }
 

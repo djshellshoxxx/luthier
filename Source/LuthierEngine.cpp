@@ -3251,6 +3251,7 @@ int LuthierEngine::getLatencySamples() const noexcept
     latency += amp.getLatencySamples();
     latency += midi.getLatencySamples();
     latency += master.getLatencySamples();   // performance-budget.md 10.6: the limiter's lookahead
+                                             // (SPEC-SWEEP EN-95 added the same term; merged to one)
 
     return latency;
 }
@@ -3289,9 +3290,13 @@ int LuthierEngine::getLatencySamples (AuxBus bus) const noexcept
 
         case AuxBus::roomMic:
         case AuxBus::wetFx:
+            // The end of the chain, but ahead of the master's look-ahead line
+            // (SPEC-SWEEP: EN-95).
+            return getLatencySamples() - master.getLatencySamples();
+
         case AuxBus::monitor:
         default:
-            // These sit at or after the end of the chain.
+            // Post-master: the main output's.
             return getLatencySamples();
     }
 }

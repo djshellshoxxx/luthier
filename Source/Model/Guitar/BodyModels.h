@@ -112,6 +112,8 @@ struct BodyConfig
     double airQOverride   = 0.0;   ///< PA-14: that mode's Q; 0 = the shape's
     double modeGainDb     = 0.0;   ///< PA-15: chambering's gain on the body modes, against solid
     double topDampingDb   = 0.0;   ///< PA-56: finish damping on the top modes (<= 0), Q x0.92 at -0.5 dB
+    double topLossScale   = 1.0;   ///< PA-8: the part table's tan(delta) over the engine wood's, top plate
+    double backLossScale  = 1.0;   ///< PA-8: the same for the back
 };
 
 //==============================================================================

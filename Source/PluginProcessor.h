@@ -218,6 +218,9 @@ public:
         modules that do not live in the parameter tree. */
     bool captureSnapshot (int index, const juce::String& label = {}, int colourTag = -1);
 
+    /** SPEC-SWEEP: MM-49 - whether a snapshot carries the mod matrix. */
+    bool setSnapshotIncludesModulation (int index, bool includes);
+
     /** Recalls a snapshot. The crossfade is carried by the audio thread's own
         clock, so this returns before the fade has finished. */
     bool recallSnapshot (int index);
@@ -1000,6 +1003,7 @@ private:
     /** The macro parameters' values, looked up once: a lookup by ID builds a
         String, which is an allocation the audio thread must not make. */
     std::array<std::atomic<float>*, ParamIDs::kNumMacros> macroValues {};
+    std::array<int, ParamIDs::kNumMacros> macroParamIndex {};   // SPEC-SWEEP: MM-29, index into getParameters()
 
     void processSlice (juce::AudioBuffer<float>&, juce::MidiBuffer&);
     int reportedLatency = 0;

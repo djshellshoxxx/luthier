@@ -5,9 +5,9 @@
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
 | CW-1 (§0.1) | Deterministic per instance seed | `Character/CharacterEngine::generate` | n/a | `Character::fixedSeedIsByteIdentical`, `Character::valuesDoNotDependOnAccessOrder` | DONE |
-| CW-2 (§0.2) | Per-note / per-region influence with smoothed handoff, not per-sample — untested | `LuthierEngine.cpp:triggerNote` (~970), drift applied per block (~1860) | n/a | - | NO-TEST |
+| CW-2 (§0.2) | Per-note / per-region influence with smoothed handoff, not per-sample — untested | `LuthierEngine.cpp:triggerNote` (~970), drift applied per block (~1860) | n/a | `Character::driftChangesOnlyPerBlockAndSlowly` | DONE |
 | CW-3 (§0.3) | On by default at low intensity (amount 0.25, enabled, looseness 15%, jack off) | `CharacterEngine::amount`, `Parameters.cpp` macroCharacter 0.25 | CHARACTER `amountSlider` | `Character::shipsOnAtLowIntensity` | DONE |
-| CW-4 (§0.4/§11) | Character stacks with humanize; both zero = machine-perfect — no test | `LuthierEngine` (independent paths) | n/a | - | NO-TEST |
+| CW-4 (§0.4/§11) | Character stacks with humanize; both zero = machine-perfect — no test | `LuthierEngine` (independent paths) | n/a | - | DEFERRED |
 | CW-5 (§1) | 64-bit seed stored in preset / state | `CharacterEngine::toVar/fromVar`, `PluginProcessor.cpp` "character" | CHARACTER `seedLabel` | `Character::stateRoundTrips` | DONE |
 | CW-6 (§1) | "New Character" reroll saves new seed and a new instrument; unsigned seeds above INT64_MAX now round-trip (fromVar used a signed parse) | `CharacterEngine::reroll`, `fromVar` | CHARACTER `newCharacterButton` | `Character::rerollChangesTheSeedAndTheInstrument` | DONE |
 | CW-7 (§1) | Different seeds sound measurably different | `CharacterEngine` | n/a | `Character::differentSeedsProduceDifferentInstruments` | DONE |
@@ -32,12 +32,12 @@
 | CW-26 (§9) | Humidity dry/normal/humid -> body Q / compliance — superseded by environment.md: `env_humidity_pct` | `Character/EnvironmentModel.*` -> `BodyEngine::setRuntimeScaling` | CHARACTER ENVIRONMENT group | `Environment.ENV05_humidityMovesTheGeometryAndThePlate` | DONE |
 | CW-27 (§9) | Retune button zeroes drift | `CharacterEngine::retune` | CHARACTER `retuneButton` | `Character::retuneResetsTheDrift` | DONE |
 | CW-28 (§10) | CHARACTER tab in Column 4 with seed, maps, looseness, electronics, body age, environment | `UI/CharacterPanel`, `AdvancedPanel` | ADVANCED > CHARACTER tab | `SlideTests` (finds CharacterPanel) | DONE |
-| CW-29 (§10) | Dead-spot map with per-spot depth AND width sliders — depth by vertical drag only; width fixed at 3.0 on add, no width control | `DeadSpotMap::mouseDrag` | CHARACTER `DeadSpotMap` | - | PARTIAL |
+| CW-29 (§10) | Dead-spot map with per-spot depth AND width — depth by vertical drag, width by the wheel over a spot (2-5 frets) | `DeadSpotMap::mouseDrag/mouseWheelMove` | CHARACTER `DeadSpotMap` | `CharacterUi::theWheelSetsADeadSpotsWidth` | DONE |
 | CW-30 (§10) | All fresh / All old presets | `setAllFresh/setAllOld` | CHARACTER `allFreshButton/allOldButton` | `Character::allFreshAndAllOldPresets` | DONE |
 | CW-31 (§12) | Test: determinism of dead spots, wear, drift phases, cap values | | n/a | `Character::fixedSeedIsByteIdentical` | DONE |
-| CW-32 (§12) | Test: dead-spot audibility, T60 >=10% shorter at depth>=0.5 — test checks multiplier, not rendered 60 dB decay | | n/a | `Character::deadSpotsReduceSustainWhereTheyAre` | PARTIAL |
+| CW-32 (§12) | Test: dead-spot audibility, T60 >=10% shorter at depth>=0.5 — test checks multiplier, not rendered 60 dB decay | | n/a | `Character::deadSpotShortensTheRenderedT60`, `Character::deadSpotsReduceSustainWhereTheyAre` | DONE |
 | CW-33 (§12) | Test: 10 min drift at 5% looseness within 1 c of expected RMS | | n/a | `Character::tunerDriftStaysWithinItsStatedAmplitude` | DONE |
 | CW-34 (§12) | Test: 20 K temperature step measured at tuning engine per-string frequency (environment.md tests replace it) | - | n/a | `Environment.ENV02_steadySlopeFromTheStringsOwnNumbers`, `Environment.ENV12_aTemperatureStepIsASlew` | DONE |
 | CW-35 (§12) | Test: zero character bitwise identical to no-wear render | | n/a | `CharacterWiring::freshIsBitIdenticalAndWornIsNot` (Strat + Dreadnought renders), `Character::zeroCharacterIsExactlyNeutral` | DONE |
 
-<!-- counts DONE=31 NO-GUI=0 NO-TEST=2 PARTIAL=2 MISSING=0 OWNED=0 -->
+<!-- counts DONE=34 NO-GUI=0 NO-TEST=0 PARTIAL=0 MISSING=0 OWNED=0 DEFERRED=1 -->

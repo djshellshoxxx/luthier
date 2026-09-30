@@ -168,6 +168,10 @@ public:
     int setModulationRangeAdvanced (bool advanced) noexcept;
     bool isModulationRangeAdvanced() const noexcept { return modulationAdvanced; }
 
+    /** SPEC-SWEEP: AR-12 - re-reads each destination's live range after a
+        range-mode change (called by setModulationRangeAdvanced). */
+    void refreshDestinationRanges() noexcept;
+
     //==========================================================================
     // Routes. Message thread only.
 
@@ -253,6 +257,9 @@ public:
     juce::var toVar() const;
     void fromVar (const juce::var& state);
 
+    /** SPEC-SWEEP: MM-6 - true between a load and the block that restarts the sources. */
+    bool isSourceResetPending() const noexcept { return sourceResetPending.load (std::memory_order_acquire); }
+
 private:
     struct CompiledRoute
     {
@@ -303,6 +310,13 @@ private:
     ModRandomSource randomSource;
     bool modulationAdvanced = false;   // SPEC-SWEEP: PR-44
 
+    /*  SPEC-SWEEP: MM-6 / MM-7 - modulation-matrix 0.5: loading a preset or
+        recalling a snapshot restarts every source. fromVar runs on the message
+        thread and the sources tick on the audio thread, so it only asks; the
+        next processBlock does it. */
+    std::atomic<bool> sourceResetPending { false };
+    void resetSources() noexcept;
+
     std::array<std::atomic<float>, ModSourceSlots::count> sourceValues;
 
     // Note-derived and controller state, written from the audio thread.
@@ -319,6 +333,10 @@ private:
     std::vector<DestinationInfo> destinations;
     std::vector<std::atomic<float>> currentOffsets;
     std::vector<std::atomic<float>> targetOffsets;
+
+    /** SPEC-SWEEP: MM-2 - where each destination's linear ramp started at the
+        last tick. Audio thread only. */
+    std::vector<float> rampStart;
     std::vector<std::atomic<bool>> destinationModulated;
 
     juce::HashMap<juce::String, int> parameterIndexById;

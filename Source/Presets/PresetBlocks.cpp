@@ -103,6 +103,9 @@ void LuthierAudioProcessor::readPresetBlocks (const juce::DynamicObject& root)
         return defaults != nullptr ? defaults->getProperty (key) : juce::var();
     };
 
+    // SPEC-SWEEP: PR-44 - the preset's ranges are in by now; the modulation
+    // family's clamps must follow them before the sources are set.
+    modMatrix.setModulationRangeAdvanced (ranges.isFamilyAdvanced (RangeFamily::modulation));
     modMatrix.fromVar (pick (PresetBlockKeys::modulation));
 
     // The one block whose absence keeps the current state (see the writer).

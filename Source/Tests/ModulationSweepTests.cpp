@@ -9,6 +9,8 @@
 #include "../PhysicalRange.h"
 #include "../PluginProcessor.h"
 #include "../UI/ModMatrixPanel.h"
+#include "../UI/ModSourceEditors.h"
+#include "../Modulation/ModSourceEdit.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -183,4 +185,301 @@ LUTHIER_TEST (ModMatrixUi, theRouteTableEditsDepthAndOffset)
     juce::Graphics g (image);
     for (int column = 1; column <= 7; ++column)
         table.paintCell (g, 0, column, 50, 20, false);
+}
+
+//==============================================================================
+/*  SPEC-SWEEP: MM-7 - recalling a snapshot restarts the sources, like a
+    preset load (modulation-matrix 0.5). */
+LUTHIER_TEST (Modulation, recallingASnapshotResetsTheSources)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+
+    processor.getSnapshots().setCrossfadeMs (0.0);   // recall inside the call
+    CHECK (processor.captureSnapshot (0, "A", 1));
+
+    auto& m = processor.getModMatrix();
+    m.getEnvelope (0).setAttackSeconds (0.01);
+    m.noteOn (60, 1.0);
+
+    ModBlockContext context;
+    for (int i = 0; i < 20; ++i)
+        m.processBlock (512, context);
+
+    CHECK (m.getEnvelope (0).isActive());
+
+    CHECK (processor.recallSnapshot (0));
+
+    // Snapshot recall may be applied on the message thread straight away or
+    // queued; either way the matrix restarts at its next block.
+    juce::AudioBuffer<float> buffer (2, 512);
+    juce::MidiBuffer midi;
+    for (int i = 0; i < 4; ++i)
+    {
+        buffer.clear();
+        processor.processBlock (buffer, midi);
+    }
+
+    CHECK (! m.getEnvelope (0).isActive());
+}
+
+//==============================================================================
+/*  SPEC-SWEEP: MM-T3 - modulation-matrix 8: a matrix saved in a preset file
+    and loaded back is the same matrix, byte for byte. */
+LUTHIER_TEST (Modulation, aPresetFileCarriesTheMatrixExactly)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+    auto& matrix = processor.getModMatrix();
+    auto& presets = processor.getPresetManager();
+
+    for (const char* destination : { "amp_gain", "amp_bass", "amp_treble" })
+    {
+        ModRoute route;
+        route.sourceId = "lfo1";
+        route.destinationId = destination;
+        route.depth = 0.3f;
+        route.offset = -0.1f;
+        route.curve = ModCurve::sCurve;
+        CHECK (matrix.addRoute (route));
+    }
+
+    matrix.getLfo (0).setRateHz (3.25);
+    matrix.getEnvelope (1).setAttackSeconds (0.75);
+    matrix.getSequencer (0).setInternalRateHz (6.5);
+
+    const auto before = juce::JSON::toString (matrix.toVar(), true);
+
+    auto file = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                  .getNonexistentChildFile ("luthier-mm-t3", PresetManager::kFileExtension, false);
+    file.replaceWithText (juce::JSON::toString (presets.toVar ("MM-T3"), false));
+
+    matrix.clearRoutes();
+    matrix.getLfo (0).setRateHz (1.0);
+
+    CHECK (presets.loadPreset (file));
+    const auto after = juce::JSON::toString (matrix.toVar(), true);
+    file.deleteFile();
+
+    CHECK_MSG (before == after, "the matrix changed through a preset file:\n" + before + "\nvs\n" + after);
+}
+
+//==============================================================================
+/*  SPEC-SWEEP: MM-12 / MM-22 - the breakpoint editor and the step grid write
+    their sources through the matrix's edit queue. */
+namespace
+{
+    juce::MouseEvent mouseAt (juce::Component& c, float x, float y, juce::ModifierKeys mods = {})
+    {
+        return juce::MouseEvent (juce::Desktop::getInstance().getMainMouseSource(), { x, y }, mods,
+                                 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, &c, &c, juce::Time::getCurrentTime(),
+                                 { x, y }, juce::Time::getCurrentTime(), 1, false);
+    }
+}
+
+LUTHIER_TEST (ModMatrixUi, draggingABreakpointWritesTheLfo)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+    auto& matrix = processor.getModMatrix();
+
+    LfoBreakpointEditor editor;
+    editor.setSize (140, LfoBreakpointEditor::preferredHeight);
+    editor.getPoint = [&matrix] (int i) { return matrix.getLfo (2).getBreakpoint (i); };
+    editor.setPoint = [&matrix] (int i, double v)
+    {
+        ModSourceEdit e;
+        e.kind = ModSourceEdit::Kind::lfoBreakpoint;
+        e.index = 2;
+        e.subIndex = i;
+        e.pointValue = v;
+        matrix.postSourceEdit (e);
+    };
+
+    // Point 3 sits at x = 60 (140 / 7 per point); the top is +1.
+    editor.mouseDown (mouseAt (editor, 60.0f, 0.0f));
+    CHECK_NEAR (matrix.getLfo (2).getBreakpoint (3), 1.0, 1.0e-6);
+
+    editor.mouseDrag (mouseAt (editor, 61.0f, (float) editor.getHeight() * 0.75f));
+    CHECK_NEAR (matrix.getLfo (2).getBreakpoint (3), -0.5, 1.0e-6);
+    CHECK_NEAR (matrix.getLfo (2).getBreakpoint (4), matrix.getLfo (0).getBreakpoint (4), 1.0e-12);   // neighbours untouched
+
+    juce::Image image (juce::Image::ARGB, 140, LfoBreakpointEditor::preferredHeight, true);
+    juce::Graphics g (image);
+    editor.paintEntireComponent (g, false);
+}
+
+LUTHIER_TEST (ModMatrixUi, theStepGridWritesSteps)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+    auto& matrix = processor.getModMatrix();
+    auto& seq = matrix.getSequencer (1);
+
+    StepGridEditor grid;
+    grid.setSize (160, StepGridEditor::preferredHeight);   // 16 steps of 10 px
+    grid.getLength = [&seq] { return seq.getLength(); };
+    grid.getStep = [&seq] (int i) { return seq.getStep (i); };
+    grid.setStep = [&matrix] (int i, const ModStepSequencer::Step& s)
+    {
+        ModSourceEdit e;
+        e.kind = ModSourceEdit::Kind::seqStep;
+        e.index = 1;
+        e.subIndex = i;
+        e.pointValue = s.value;
+        e.stepGate = s.gate;
+        e.stepSlide = s.slide;
+        e.stepProbability = s.probability;
+        matrix.postSourceEdit (e);
+    };
+
+    CHECK (seq.getLength() == 16);
+
+    const float barHeight = (float) (StepGridEditor::preferredHeight - StepGridEditor::probabilityRowHeight);
+
+    // Step 4: drag to the top.
+    grid.mouseDown (mouseAt (grid, 45.0f, 0.0f));
+    CHECK_NEAR (seq.getStep (4).value, 1.0, 1.0e-6);
+
+    // Drag it down to a quarter below centre.
+    grid.mouseDrag (mouseAt (grid, 45.0f, barHeight * 0.625f));
+    CHECK_NEAR (seq.getStep (4).value, -0.25, 1.0e-6);
+
+    // Cmd/Ctrl-click toggles the gate, Alt-click the slide.
+    const bool gateBefore = seq.getStep (7).gate;
+    grid.mouseDown (mouseAt (grid, 75.0f, 10.0f, juce::ModifierKeys (juce::ModifierKeys::commandModifier)));
+    CHECK (seq.getStep (7).gate != gateBefore);
+
+    const bool slideBefore = seq.getStep (7).slide;
+    grid.mouseDown (mouseAt (grid, 75.0f, 10.0f, juce::ModifierKeys (juce::ModifierKeys::altModifier)));
+    CHECK (seq.getStep (7).slide != slideBefore);
+
+    // The bottom strip is probability: 30 % of the way across step 9.
+    const double valueBefore = seq.getStep (9).value;
+    grid.mouseDown (mouseAt (grid, 93.0f, (float) StepGridEditor::preferredHeight - 3.0f));
+    CHECK_NEAR (seq.getStep (9).probability, 0.3, 1.0e-3);
+    CHECK_NEAR (seq.getStep (9).value, valueBefore, 1.0e-12);   // value untouched
+
+    // And the matrix saves what the grid wrote.
+    ModMatrix copy;
+    copy.fromVar (matrix.toVar());
+    CHECK_NEAR (copy.getSequencer (1).getStep (4).value, -0.25, 1.0e-6);
+
+    juce::Image image (juce::Image::ARGB, 160, StepGridEditor::preferredHeight, true);
+    juce::Graphics g (image);
+    grid.paintEntireComponent (g, false);
+}
+
+//==============================================================================
+/*  SPEC-SWEEP: MM-29 - modulation-matrix 1.7: a macro can be modulated, and
+    then modulates with its modulated value. An LFO on Assign A (macro 7) makes
+    the macro-7 source move although nobody touches the knob. */
+LUTHIER_TEST (Modulation, aMacroCanBeModulatedAndModulate)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+    auto& m = processor.getModMatrix();
+
+    m.getLfo (0).setRateHz (4.0);
+
+    ModRoute intoMacro;
+    intoMacro.sourceId = "lfo1";
+    intoMacro.destinationId = ParamIDs::macroAssignA;
+    intoMacro.depth = 0.5f;
+    CHECK (m.addRoute (intoMacro));
+
+    ModRoute outOfMacro;
+    outOfMacro.sourceId = "macro7";
+    outOfMacro.destinationId = ParamIDs::ampGain;
+    outOfMacro.depth = 1.0f;
+    CHECK (m.addRoute (outOfMacro));
+
+    if (auto* knob = processor.getState().getParameter (ParamIDs::macroAssignA))
+        knob->setValueNotifyingHost (0.5f);
+
+    float lo = 1.0e9f, hi = -1.0e9f;
+
+    for (int b = 0; b < 60; ++b)
+    {
+        juce::AudioBuffer<float> buffer (processor.getTotalNumOutputChannels(), 512);
+        buffer.clear();
+        juce::MidiBuffer midi;
+        processor.processBlock (buffer, midi);
+
+        const float v = m.getSourceValue (ModSourceSlots::macroBase + 6);
+        lo = juce::jmin (lo, v);
+        hi = juce::jmax (hi, v);
+    }
+
+    CHECK_MSG (hi - lo > 0.2f, "the macro-7 source only moved " + juce::String (hi - lo, 3) + " under an LFO");
+}
+
+/*  SPEC-SWEEP: MM-51 - modulation-matrix 7: automation moves the parameter,
+    modulation moves only what the engine hears, and the two stack. */
+LUTHIER_TEST (Modulation, automationAndModulationStack)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+    auto& m = processor.getModMatrix();
+
+    auto* gain = dynamic_cast<juce::AudioParameterFloat*> (processor.getState().getParameter (ParamIDs::ampGain));
+    CHECK (gain != nullptr);
+    if (gain == nullptr) return;
+
+    int index = -1;
+    for (int i = 0; i < processor.getParameters().size(); ++i)
+        if (processor.getParameters()[i] == gain) index = i;
+
+    ModRoute route;
+    route.sourceId = "macro1";
+    route.destinationId = ParamIDs::ampGain;
+    route.depth = 0.2f;
+    CHECK (m.addRoute (route));
+    m.setMacroValue (0, 1.0);
+
+    ModBlockContext context;
+    for (int i = 0; i < 16; ++i)
+        m.processBlock (512, context);
+
+    const float span = gain->getNormalisableRange().getRange().getLength();
+
+    *gain = 0.3f;
+    CHECK_NEAR (m.apply (index, gain->get()), 0.3f + 0.2f * span, 1.0e-3f);
+    CHECK_NEAR (gain->get(), 0.3f, 1.0e-6f);   // the knob is where automation put it
+
+    *gain = 0.5f;
+    CHECK_NEAR (m.apply (index, gain->get()) - m.apply (index, 0.3f), 0.2f, 1.0e-3f);
+}
+
+//==============================================================================
+/*  SPEC-SWEEP: MM-49 - a "preset-level only" snapshot leaves the matrix alone
+    on recall, and the flag survives the snapshot's round trip. */
+LUTHIER_TEST (Live, aPresetLevelOnlySnapshotLeavesTheMatrixAlone)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+    processor.getSnapshots().setCrossfadeMs (0.0);
+    auto& m = processor.getModMatrix();
+
+    CHECK (processor.captureSnapshot (0, "No routes"));
+    CHECK (processor.captureSnapshot (1, "Level only"));
+    CHECK (processor.setSnapshotIncludesModulation (1, false));
+
+    ModRoute route;
+    route.sourceId = "macro1";
+    route.destinationId = ParamIDs::ampGain;
+    route.depth = 0.5f;
+    CHECK (m.addRoute (route));
+
+    // The preset-level snapshot keeps the route that exists now...
+    CHECK (processor.recallSnapshot (1));
+    CHECK (m.getNumRoutes() == 1);
+
+    // ...the full one brings back its empty matrix.
+    CHECK (processor.recallSnapshot (0));
+    CHECK (m.getNumRoutes() == 0);
+
+    const auto restored = Snapshot::fromVar (processor.getSnapshots().getSnapshot (1).toVar());
+    CHECK (! restored.includesModulation);
+    CHECK (Snapshot::fromVar (processor.getSnapshots().getSnapshot (0).toVar()).includesModulation);
 }

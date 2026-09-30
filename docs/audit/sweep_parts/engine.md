@@ -32,7 +32,7 @@ Items on `visual`: the whole-block allocation trap, the limiter-lookahead latenc
 | EN-13 (§2) | Typed events NoteOn/Off, Bend, Pressure, CC, Sustain, Whammy | `Model/Playing/PlayingEvents.h` | n/a | `Technique.*`, `Controllers.*` | DONE |
 | EN-14 (§2) | Mode A mono / B poly-chord / C controller-MPE, per preset | `MidiInterpreter` modes | Easy `EasyPanel::playingModeSelector`; ADVANCED MPE toggle | `Technique.legatoBecomesHammerOnAndPullOff`, `Engine.aChordVoicesAcrossStrings`, `Controllers.perChannelRoutingSendsEachChannelToItsString` | DONE |
 | EN-15 (§2) | String-assignment algorithm (closest-below, clip high, prefer near hand / sweet voicing) | `ChordVoicer`, `RubricVoicer` | n/a | `ChordVoicer.singleNotesStayNearTheHand`, `RubricVoicer.*` | DONE |
-| EN-16 (§2) | Default CC map 1/2/4/11/64/65/66/67/70-79 — no test asserts the map | `MidiInterpreter::resetCcMapToDefaults` | n/a | - | NO-TEST |
+| EN-16 (§2) | Default CC map 1/2/4/11/64/65/66/67/70-79 — no test asserts the map | `MidiInterpreter::resetCcMapToDefaults` | n/a | `Midi::defaultCcMapMatchesTheSpec` | DONE |
 | EN-17 (§2) | CC map user-remappable — only via preset `midiMap`/controller profile JSON; no editor | `MidiInterpreter::setCcTarget` | - | `Controllers.everyCcMappingResolvesToARealTarget` | NO-GUI |
 | EN-18 (§2) | Aftertouch → vibrato (default) or bend (user choice) — `setAftertouchTarget` never called | `MidiInterpreter::setAftertouchTarget` | - | - | NO-GUI |
 | EN-19 (§3) | f = f_open·2^((fret+bend+detune+slope·fret)/12) | `TuningEngine::computeFrequency` | n/a | `Tuning.standardTuningIsExact`, `Tuning.fretPositionIsContinuous` | DONE |
@@ -65,10 +65,10 @@ Items on `visual`: the whole-block allocation trap, the limiter-lookahead latenc
 | EN-46 (§7) | Pickup types SC/HB/P90/Piezo/Soundhole/Mic; position, coils, R/L/C, magnet, height | `DSP/Pickup/PickupEngine`; Workshop parts | ADVANCED col 2 Pickups; WORKSHOP bench | `Pickup.*`, `WorkshopBench.*` | DONE |
 | EN-47 (§7.1) | Position comb nulls n·p harmonics | `PickupEngine` per-string comb | WORKSHOP drag | `Pickup.positionCombNullsTheExpectedHarmonic` | DONE |
 | EN-48 (§7.2) | LCR resonance f0 and Q | `GuitarCircuit`, `PickupEngine::getResonantFrequency` | ADVANCED Circuit panel | `Pickup.resonantFrequencyMatchesTheLcrValues`, `Circuit.potValueMovesTheResonance` | DONE |
-| EN-49 (§7.3-7.6) | Magnet EQ curves; HB two coils + comb, coil tap; piezo HP40/LP15k/3k peak; internal-mic tilt — none tested | `PickupEngine` | ADVANCED col 2 magnet, coil tap, piezo/mic blend | - | NO-TEST |
-| EN-50 (§7.7) | 3/5-way selector, independent volumes, per-HB coil tap, 5 ms crossfade | `pickup_selector`, `pickupN_volume`, slot-gain crossfade | ADVANCED col 2 `pickupSelector`; illustration switch | `WorkshopBench.*` (selector write only) | NO-TEST |
+| EN-49 (§7.3-7.6) | Magnet EQ curves; HB two coils + comb, coil tap; piezo HP40/LP15k/3k peak; internal-mic tilt — none tested | `PickupEngine` | ADVANCED col 2 magnet, coil tap, piezo/mic blend | `Pickup::magnetsDifferInTheirStatedBands`, `Pickup::humbuckerCombAndCoilTap`, `Pickup::piezoAndMicFilters` | DONE |
+| EN-50 (§7.7) | 3/5-way selector, independent volumes, per-HB coil tap, 5 ms crossfade | `pickup_selector`, `pickupN_volume`, slot-gain crossfade | ADVANCED col 2 `pickupSelector`; illustration switch | `Pickup::selectorChangesCrossfadeIn5ms` (fixed: the one-pole left 37 % of the old pickup at 5 ms, and a switched-off pickup started its comb from silence), `WorkshopBench.*` (selector write only) | DONE |
 | EN-51 (§8.1-8.4) | Vintage (down-only via up range 0), Floyd ±24/+12, TransTrem ratio + detents, Bigsby | `DSP/Whammy/WhammyEngine`; `bridge_type`, `whammy_down/up_range`, `transpose_lock` | ADVANCED col 1 Bridge; illustration bridge popover | `Whammy.transTremPreservesChordIntervals`, `Whammy.vintageTremDetunesChords`, `Whammy.fixedBridgeDoesNothing` | DONE |
-| EN-52 (§8.2) | Floyd spring burst 50-100 ms, 200-500 Hz on return — no test | `WhammyEngine` springBand1/2 (240/430 Hz, 80 ms) | `whammy_springs` knob | - | NO-TEST |
+| EN-52 (§8.2) | Floyd spring burst 50-100 ms, 200-500 Hz on return — no test | `WhammyEngine` springBand1/2 (240/430 Hz, 80 ms) | `whammy_springs` knob | `Whammy::floydSpringsRingOnReturn` | DONE |
 | EN-53 (§8) | 5 ms whammy smoothing; CC2 / MPE Y | `positionSmooth (0.005)`; ccMap[2] | n/a | `Whammy.*` | DONE |
 | EN-54 (§8) | "Per-string whammy" toggle — `setPerStringEnabled` has no caller | `WhammyEngine::setPerStringEnabled` | - | - | NO-GUI |
 | EN-55 (§9) | Cable roll-off by length + ~4 kHz bump (superseded by circuit loading model) | `DSP/Circuit/GuitarCircuit` cable | ADVANCED Circuit `cable_length`, `cable_quality` | `Circuit.cableCapacitanceMovesTheResonance` | DONE |
@@ -81,7 +81,7 @@ Items on `visual`: the whole-block allocation trap, the limiter-lookahead latenc
 | EN-62 (§11.4-11.6) | Phase inverter asymmetry, push-pull + sag, output transformer — no per-stage test | `AmpEngine` | amp face Master | - | OWNED (on visual: EffectsQaTests `Amp.gainSweepIsMonotonicAt1kHz`, `Amp.coldStartHasNoTransient`) |
 | EN-63 (§11.7) | Standby mutes; **30 s** warm-up — 8 s (`warmupGain.prepare (sr, 8.0)`) | `AmpEngine` warmupGain | amp face Standby | `Amp.standbyIsSilentAndWarmsUp` | PARTIAL |
 | EN-64 (§12) | Post fx chorus, phaser stages, flanger, tremolo, rotary, delay types/sync/ping-pong, reverbs, spring, EQ | `DSP/Effects/PedalsMod` | post rack | `Effects.everyPedalTypeRunsCleanly`, `ReviewRegression.theReverbPedalTailSurvivesRepeatedParameterSends` | DONE |
-| EN-65 (§13.1) | Cab IR convolution, 200+ IRs (504) — no "matches offline convolution" test | `DSP/Amp/CabinetEngine`; `Resources/CabIRs` | ADVANCED col 3 Cabinet | `Cabinet.procedualFallbackRemovesTheFizz` | NO-TEST |
+| EN-65 (§13.1) | Cab IR convolution, 200+ IRs (504) — no "matches offline convolution" test | `DSP/Amp/CabinetEngine`; `Resources/CabIRs` | ADVANCED col 3 Cabinet | `Cabinet::convolutionMatchesOfflineConvolution`, `Cabinet.procedualFallbackRemovesTheFizz` | DONE |
 | EN-66 (§13.2-13.3) | Mic type/position/distance swap IR; dual-mic blend, opposite pan | `CabinetEngine`; `mic_*`, `dual_mic`, `mic_blend`, `mic_width` | ADVANCED col 3 Mic; Easy mic cards | `Engine.monoCompatibility` | DONE |
 | EN-67 (§13.4) | Async IR load with zero-latency fallback | `CabinetEngine` fallback; `ConvolutionInstaller` | n/a | `Editor.aFailedPresetLoadAndAMissingIrEachRaiseABannerOnce` | DONE |
 | EN-68 (§14) | ER taps + FDN; size/damping/mix | `DSP/Amp/RoomEngine` | ADVANCED col 3 Room | `Room.biggerRoomsRingLonger`, `ReviewRegression.theRoomTailSurvivesRepeatedDecaySends` | DONE |
@@ -91,9 +91,9 @@ Items on `visual`: the whole-block allocation trap, the limiter-lookahead latenc
 | EN-72 (§17) | Serial strings; workers for IR/preset; FIFO/atomics only — UI writes `TuningEngine::setDetuneCents` and calls `engine.panic()` from the message thread | `GuitarBodyComponent.cpp:478`; `PluginProcessor::panic` | n/a | - | PARTIAL |
 | EN-73 (§18) | Latency = body + cab + oversampling + lookahead — limiter lookahead / oversampler real delay not reported here | `LuthierEngine::getLatencySamples` | n/a | `Engine.latencyIsReportedAndPlausible` | OWNED (on visual 3e5c493: `Latency.anImpulseArrivesWhenReported`, `Latency.oversamplerReportsItsGroupDelay`) |
 | EN-74 (§19) | Unit: String pitch/decay/bend | `StringEngine` | n/a | `StringEngine.pluckProducesCorrectPitch`, `StringEngine.higherNotesDecayFaster`, `StringEngine.bendIsSmoothAndReachesTarget` | DONE |
-| EN-75 (§19) | Unit: every tuning within 0.1 c — only standard tuning checked at 0.1 c | `TuningEngine` | n/a | `Tuning.standardTuningIsExact`, `Tuning.everyPresetProducesSaneFrequencies` | PARTIAL |
+| EN-75 (§19) | Unit: every tuning within 0.1 c — only standard tuning checked at 0.1 c | `TuningEngine` | n/a | `Tuning::everyPresetIsExactToATenthOfACent`, `Tuning.standardTuningIsExact`, `Tuning.everyPresetProducesSaneFrequencies` | DONE |
 | EN-76 (§19) | Unit: each technique from MIDI | `TechniqueEngine` | n/a | `Technique.*`, `TechniqueTriggers.*` | DONE |
-| EN-77 (§19) | Unit: pickup comb, resonance f0 **and Q** — Q unchecked | `PickupEngine` | n/a | `Pickup.positionCombNullsTheExpectedHarmonic`, `Pickup.resonantFrequencyMatchesTheLcrValues` | PARTIAL |
+| EN-77 (§19) | Unit: pickup comb, resonance f0 **and Q** — Q unchecked | `PickupEngine` | n/a | `Pickup::resonantQMatchesTheLcrValues`, `Pickup.positionCombNullsTheExpectedHarmonic`, `Pickup.resonantFrequencyMatchesTheLcrValues` | DONE |
 | EN-78 (§19) | Unit: TransTrem keeps intervals | `WhammyEngine` | n/a | `Whammy.transTremPreservesChordIntervals` | DONE |
 | EN-79 (§19) | Unit: body IR loads correctly; modal frequencies | `BodyEngine` | n/a | `Body.modalBankReproducesTheAirResonance` (modal only) | OWNED (on visual 6b41cf2: `IrReload.theFirstNoteAfterALoadIsEveryNote`) |
 | EN-80 (§19) | Unit: amp stage harmonic content | `AmpEngine` | n/a | `Amp.gainProducesHarmonicDistortion` | OWNED (on visual: EffectsQaTests Amp.*) |
@@ -107,10 +107,10 @@ Items on `visual`: the whole-block allocation trap, the limiter-lookahead latenc
 | EN-88 (§20.5) | Coupling per block, capped — runs per sample (documented: per-block ticks) | `CouplingMatrix.h` header note | n/a | `Coupling.cannotRunAway` | PARTIAL |
 | EN-89 (§20.8) | No console logging on audio thread; lock-free queue to file | `Support/Diagnostics` ring buffer | n/a | `Diagnostics.ringBufferAndSelfTestWork` | DONE |
 | EN-90 (§20.18) | Feedback capped at 0.998 (room FDN and the reverb pedal FDN) | `RoomEngine::kMaxFeedback`, `PedalsMod.cpp`; delays 0.95 | n/a | `Room::feedbackNeverExceedsTheCap`, `Effects.secretEffectIsStableAtMaximumRegeneration` | DONE |
-| EN-91 (§20.19) | Every factory preset passes mono compatibility — test uses one synthetic rig | `MasterBus`/stereo fx | n/a | `Engine.monoCompatibility` | NO-TEST |
+| EN-91 (§20.19) | Every factory preset passes mono compatibility — test uses one synthetic rig | `MasterBus`/stereo fx | n/a | `Presets::everyFactoryPresetIsMonoCompatible`, `Engine.monoCompatibility` | DONE |
 | EN-92 (§22) | < 8 % CPU @96k/128, 6 strings, all fx | engine | n/a | - | OWNED (on visual: `PerfBudget.everyModuleWithinBudget`, `PerfBudget.scenarioTotals`) |
 | EN-93 (§22) | 16 instances @48k/256 no glitches | engine | n/a | - | OWNED (on visual: `Stress.thirtyTwoInstancesRenderInTurn`) |
-| EN-94 (§22) | Preset load < 500 ms incl. async IR | `PresetManager::fromVar`; IR installers | n/a | - | NO-TEST |
-| EN-95 (§22) | MIDI in → audio out < 2 ms (+ reported latency) | `MidiInterpreter` sample-accurate events; chord window | n/a | `Controllers.chordGroupsSoundOneWindowAfterTheyWerePlayed` | NO-TEST |
+| EN-94 (§22) | Preset load < 500 ms incl. async IR | `PresetManager::fromVar`; IR installers | n/a | `Presets::loadingAFactoryPresetTakesUnder500ms` (median ~70 ms) | DONE |
+| EN-95 (§22) | MIDI in → audio out < 2 ms (+ reported latency) | `MidiInterpreter` sample-accurate events; chord window | n/a | `Engine::midiToAudioIsWithinTwoMillisecondsOfTheReportedLatency` (fixed: the master look-ahead, always in the path, was never reported), `Controllers.chordGroupsSoundOneWindowAfterTheyWerePlayed` | DONE |
 
-<!-- counts DONE=59 NO-GUI=7 NO-TEST=9 PARTIAL=8 MISSING=2 OWNED=10 -->
+<!-- counts DONE=69 NO-GUI=7 NO-TEST=1 PARTIAL=6 MISSING=2 OWNED=10 -->

@@ -226,7 +226,9 @@ void BodyModels::buildModes (const BodyConfig& cfg, std::vector<BodyMode>& dest)
         // "double resonance" in the low end.
         // SPEC-SWEEP: PA-14 - an override is the final frequency, so undo the
         // trim addMode applies; its Q replaces the Helmholtz mode's.
-        const double airBase = cfg.airHzOverride > 0.0 ? airHz / juce::jmax (0.1, cfg.resonanceTrim) : airHz;
+        // (computeAirResonance already includes the trim, so it is undone here
+        // too: it used to be applied twice to the air pair.)
+        const double airBase = airHz / juce::jmax (0.1, cfg.resonanceTrim);
         const double airQ = cfg.airQOverride > 0.0 ? cfg.airQOverride : 16.0;
 
         addMode (airBase, airQ * ageQ, 1.00, true);
@@ -260,7 +262,9 @@ void BodyModels::buildModes (const BodyConfig& cfg, std::vector<BodyMode>& dest)
 
         // Q from the wood's loss factor: less internal damping means a longer,
         // more singing resonance.
-        const double q = (1.0 / juce::jmax (1.0e-4, topWood.lossFactor)) * 0.42 * ageQ * finishQ;
+        // SPEC-SWEEP: PA-8 - the part table's loss when the body came from parts.
+        const double q = (1.0 / juce::jmax (1.0e-4, topWood.lossFactor * juce::jlimit (0.25, 4.0, cfg.topLossScale)))
+                         * 0.42 * ageQ * finishQ;
 
         // Higher modes radiate less efficiently.
         const double gain = 0.95 / (1.0 + 0.55 * (double) i);
@@ -279,7 +283,8 @@ void BodyModels::buildModes (const BodyConfig& cfg, std::vector<BodyMode>& dest)
                                              backWood.youngsModulusPa, backWood.densityKgM3)
                          * 1.12;   // the back is stiffer and less loaded than the top
 
-        const double q = (1.0 / juce::jmax (1.0e-4, backWood.lossFactor)) * 0.35 * ageQ;
+        const double q = (1.0 / juce::jmax (1.0e-4, backWood.lossFactor * juce::jlimit (0.25, 4.0, cfg.backLossScale)))
+                         * 0.35 * ageQ;   // SPEC-SWEEP: PA-8
         const double gain = 0.45 / (1.0 + 0.6 * (double) i);
 
         addMode (f, q, gain);

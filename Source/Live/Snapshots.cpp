@@ -3,6 +3,7 @@
 #include "../Support/ConfigChangeTracker.h"   // output-normalization.md 3.2
 
 #include "../Parameters.h"
+#include "../PhysicalRange.h"   // SPEC-SWEEP: AR-21
 
 namespace luthier
 {
@@ -103,6 +104,12 @@ juce::var Snapshot::toVar() const
     object->setProperty ("colour", colourTag);
     object->setProperty ("parameters", parameters);
 
+    if (physicalPlain.getDynamicObject() != nullptr)   // SPEC-SWEEP: AR-21
+        object->setProperty ("physical", physicalPlain);
+
+    if (! includesModulation)                           // SPEC-SWEEP: MM-49
+        object->setProperty ("includesModulation", false);
+
     if (modMatrix.getDynamicObject() != nullptr) object->setProperty ("modMatrix", modMatrix);
     if (rhythm.getDynamicObject() != nullptr)    object->setProperty ("rhythm", rhythm);
     if (bypasses.getDynamicObject() != nullptr)  object->setProperty ("bypasses", bypasses);
@@ -126,6 +133,9 @@ Snapshot Snapshot::fromVar (const juce::var& state)
                                        (int) object->getProperty ("colour"));
 
     snapshot.parameters = object->getProperty ("parameters");
+    snapshot.physicalPlain = object->getProperty ("physical");   // SPEC-SWEEP: AR-21
+    snapshot.includesModulation = ! object->hasProperty ("includesModulation")
+                                    || (bool) object->getProperty ("includesModulation");   // SPEC-SWEEP: MM-49
     snapshot.modMatrix  = object->getProperty ("modMatrix");
     snapshot.rhythm     = object->getProperty ("rhythm");
     snapshot.bypasses   = object->getProperty ("bypasses");
@@ -200,6 +210,16 @@ bool SnapshotBank::capture (int index, const juce::String& label, int colourTag)
                 parameters->setProperty (withId->paramID, (double) withId->getValue());
 
     snapshot.parameters = juce::var (parameters);
+
+    // SPEC-SWEEP: AR-21 - and the physical ones as plain values.
+    auto* plain = new juce::DynamicObject();
+
+    for (auto* p : processor.getParameters())
+        if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (p))
+            if (! isNeverSnapshotted (ranged->paramID) && RangeRegistry::find (ranged->paramID) != nullptr)
+                plain->setProperty (ranged->paramID, (double) ranged->convertFrom0to1 (ranged->getValue()));
+
+    snapshot.physicalPlain = juce::var (plain);
 
     if (label.isNotEmpty())
         snapshot.label = label.substring (0, Snapshot::kMaxLabelLength);
@@ -284,7 +304,7 @@ bool SnapshotBank::recall (int index)
     if (crossfadeMs <= 0.0)
     {
         // No crossfade asked for: apply it outright and be done inside this call.
-        applyBlend (recallFrom, target.parameters, 1.0, false);
+        applyBlend (recallFrom, liveParameters (target), 1.0, false);
         applyNonParameterState (target);
 
         recallActive = false;
@@ -315,7 +335,7 @@ void SnapshotBank::advance (double secondsElapsed)
 
     const auto& target = getSnapshot (recallTarget);
 
-    applyBlend (recallFrom, target.parameters, recallPosition, false);
+    applyBlend (recallFrom, liveParameters (target), recallPosition, false);
 
     // live-performance 1: bypass changes land on the crossfade midpoint, and the
     // rest of the non-parameter state goes with them.
@@ -333,6 +353,34 @@ void SnapshotBank::advance (double secondsElapsed)
 }
 
 //==============================================================================
+juce::var SnapshotBank::liveParameters (const Snapshot& snapshot) const
+{
+    auto* plain = snapshot.physicalPlain.getDynamicObject();
+    auto* stored = snapshot.parameters.getDynamicObject();
+
+    if (plain == nullptr || stored == nullptr)
+        return snapshot.parameters;
+
+    auto* resolved = new juce::DynamicObject();
+
+    for (const auto& property : stored->getProperties())
+        resolved->setProperty (property.name, property.value);
+
+    for (auto* p : processor.getParameters())
+    {
+        auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (p);
+
+        if (ranged == nullptr || ! plain->hasProperty (ranged->paramID))
+            continue;
+
+        const auto& range = ranged->getNormalisableRange();
+        const float value = juce::jlimit (range.start, range.end, (float) (double) plain->getProperty (ranged->paramID));
+        resolved->setProperty (ranged->paramID, (double) range.convertTo0to1 (value));
+    }
+
+    return juce::var (resolved);
+}
+
 void SnapshotBank::applyBlend (const juce::var& from, const juce::var& to, double blend,
                                bool honourExclusions)
 {
@@ -439,7 +487,7 @@ void SnapshotBank::setMorphPosition (double position)
     const double shaped = applyMorphCurve (morphPosition, morphCurve,
                                            bezier[0], bezier[1], bezier[2], bezier[3]);
 
-    applyBlend (a.parameters, b.parameters, shaped, true);
+    applyBlend (liveParameters (a), liveParameters (b), shaped, true);
 }
 
 void SnapshotBank::setParameterExcludedFromMorph (const juce::String& parameterId, bool excluded)

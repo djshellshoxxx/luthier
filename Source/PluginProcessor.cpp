@@ -70,7 +70,18 @@ LuthierAudioProcessor::LuthierAudioProcessor()
     installLayoutResult = InstallLayout::ensure (InstallLayout::defaultRoot(), JucePlugin_VersionString);
 
     for (int m = 0; m < ParamIDs::kNumMacros; ++m)
+    {
         macroValues[(size_t) m] = apvts.getRawParameterValue (ParamIDs::macroByIndex (m));
+
+        // SPEC-SWEEP: MM-29 - where the macro sits in the parameter list, so its
+        // modulated value (not only the knob's) can feed the macro source.
+        macroParamIndex[(size_t) m] = -1;
+        const auto& all = getParameters();
+        for (int i = 0; i < all.size(); ++i)
+            if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (all[i]))
+                if (withId->paramID == ParamIDs::macroByIndex (m))
+                    macroParamIndex[(size_t) m] = i;
+    }
 
     // notation-export 6.1 (MODEL-GAPS): the engine reports what it plays - string,
     // fret and technique - straight to the capture.
@@ -2187,9 +2198,13 @@ void LuthierAudioProcessor::feedModulationSources (const juce::MidiBuffer& midi)
         }
     }
 
+    /*  modulation-matrix 1.7: a macro can itself be modulated, and then it
+        modulates with its modulated value (SPEC-SWEEP: MM-29). The offset is
+        the one the matrix computed last block, so a macro routed into itself
+        is a one-block feedback, not a loop within a tick. */
     for (int m = 0; m < ParamIDs::kNumMacros; ++m)
         if (auto* raw = macroValues[(size_t) m])
-            modMatrix.setMacroValue (m, (double) raw->load());
+            modMatrix.setMacroValue (m, (double) modMatrix.apply (macroParamIndex[(size_t) m], raw->load()));
 }
 
 void LuthierAudioProcessor::buildModBlockContext (const juce::AudioBuffer<float>& output,
@@ -2531,7 +2546,9 @@ bool LuthierAudioProcessor::captureSnapshot (int index, const juce::String& labe
     // it, so that a snapshot is the whole instrument rather than just its knobs.
     auto snapshot = snapshots.getSnapshot (index);
 
-    snapshot.modMatrix = modMatrix.toVar();
+    // SPEC-SWEEP: MM-49 - a preset-level-only snapshot leaves the matrix out,
+    // and applySnapshotModules skips an empty one.
+    snapshot.modMatrix = snapshot.includesModulation ? modMatrix.toVar() : juce::var();
     snapshot.rhythm = engine.getRhythmEngine().toVar();
 
     // The character engine rides along in the blob the bank keeps for whatever
@@ -2546,6 +2563,20 @@ bool LuthierAudioProcessor::captureSnapshot (int index, const juce::String& labe
         snapshot.bypasses = juce::var (extras);
     }
 
+    return snapshots.setSnapshot (index, snapshot);
+}
+
+bool LuthierAudioProcessor::setSnapshotIncludesModulation (int index, bool includes)
+{
+    // SPEC-SWEEP: MM-49 - turning it on takes the matrix as it is now; off
+    // drops the stored one.
+    auto snapshot = snapshots.getSnapshot (index);
+
+    if (snapshot.isEmpty())
+        return false;
+
+    snapshot.includesModulation = includes;
+    snapshot.modMatrix = includes ? modMatrix.toVar() : juce::var();
     return snapshots.setSnapshot (index, snapshot);
 }
 
