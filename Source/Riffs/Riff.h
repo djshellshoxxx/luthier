@@ -166,6 +166,13 @@ struct Riff
     /** The riff as a one-track score, measures at the riff's metre. */
     PerformanceScore toScore (const juce::String& title = {}) const;
 
+    /** FEAT2-TAB: the inverse of toScore, so an imported tab can be compiled and
+        played through the RiffPlayer. Takes one track of a parsed score, flattens
+        its measures into absolute-beat notes, and carries over tuning, capo,
+        tempo and metre. Everything is clamped to the riff's limits (kMaxNotes,
+        kMaxBeats, kMaxFret) so the result is always safe to compile. */
+    static Riff fromScore (const PerformanceScore& score, int trackIndex = 0);
+
     //==========================================================================
     /** The canonical `.luthierriff` bytes. */
     juce::String toJson() const;

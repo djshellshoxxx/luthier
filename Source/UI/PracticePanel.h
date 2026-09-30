@@ -298,7 +298,12 @@ public:
     juce::String getScoreTitle() const { return scoreTitle; }
 
 private:
+    /** FEAT2-TAB: compiles the parsed score and plays it through the engine's
+        RiffPlayer (the audition path). Toggles the button between Play and Stop. */
+    void togglePlay();
+
     juce::TextButton openButton { "Open..." }, exportButton { "Export..." };
+    juce::TextButton playButton { "Play" };
     juce::Label statusLabel;
     juce::TextEditor tabView;
     juce::ComboBox formatBox;
