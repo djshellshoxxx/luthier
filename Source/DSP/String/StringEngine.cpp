@@ -1033,6 +1033,31 @@ void StringEngine::updateLoopCoefficients() noexcept
     t60 = juce::jlimit (0.01, 60.0, t60);
 
     loopGain = std::exp (-kT60Constant * loopSamples / (t60 * sr));
+
+    /*  B-15: ageing dulls a string - fewer upper partials - it does not silence
+        its fundamental. The loop filter's magnitude at f0 is part of the loop
+        gain (a one-pole at 400 Hz costs a 200 Hz note 10 % a pass, 35 dB a
+        second), so an aged bass note, whose cutoff fell toward its own pitch,
+        died in a few periods (G3 at -52 dBFS against -12 fresh). The loss the
+        ageing added at f0 is given back; the loss at the partials above stays,
+        which is the dulling. Fresh strings (agingBrightness 1) are untouched. */
+    if (agingBrightness < 0.999)
+    {
+        const double w0 = constants::kTwoPi * f0 / sr;
+        auto magnitudeAt = [w0] (double cutoffHz, double srate)
+        {
+            const double pole = std::exp (-constants::kTwoPi * cutoffHz / srate);
+            return (1.0 - pole) / std::abs (1.0 - pole * std::polar (1.0, -w0));
+        };
+
+        const double freshCutoff = juce::jlimit (120.0, sr * 0.48, cutoff / juce::jmax (0.05, agingBrightness));
+        const double agedMagnitude = magnitudeAt (loopCutoffHz, sr);
+        const double freshMagnitude = magnitudeAt (freshCutoff, sr);
+
+        if (agedMagnitude > 1.0e-6 && freshMagnitude > agedMagnitude)
+            loopGain *= juce::jmin (1.5, freshMagnitude / agedMagnitude);
+    }
+
     loopGain = juce::jlimit (0.0, kMaxLoopGain, loopGain);
 
     // The contacts' comb spacing follows the pitch, at this rate and no faster.

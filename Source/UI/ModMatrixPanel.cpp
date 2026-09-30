@@ -858,6 +858,13 @@ ModMatrixPanel::ModMatrixPanel (LuthierAudioProcessor& p)
     addButton.onClick = [this] { showAddRouteMenu(); };
     addAndMakeVisible (addButton);
 
+    macro7Knob.attachTo (processor, ParamIDs::macroAssignA,
+                         "Macro 7: a knob of your own. It does nothing until a modulation route uses it as a source.");
+    macro8Knob.attachTo (processor, ParamIDs::macroAssignB,
+                         "Macro 8: a knob of your own. It does nothing until a modulation route uses it as a source.");
+    addAndMakeVisible (macro7Knob);
+    addAndMakeVisible (macro8Knob);
+
     clearButton.onClick = [this]
     {
         processor.pushUndoAction ("Clear all modulation routes", "mod-route-delete", {});   // action-and-undo.md 3.6
@@ -960,7 +967,9 @@ int ModMatrixPanel::preferredHeight() const
              + Metrics::gridHalf
              + 160                              // route table
              + Metrics::buttonHeight
-             + 16;                              // summary
+             + 16                               // summary
+             + Metrics::gridHalf
+             + LuthierKnob::preferredHeightFor (LuthierKnob::Size::Small);   // macros 7 and 8
 }
 
 void ModMatrixPanel::paint (juce::Graphics&)
@@ -986,6 +995,12 @@ void ModMatrixPanel::resized()
     }
 
     summaryLabel.setBounds (bounds.removeFromTop (16));
+
+    bounds.removeFromTop (Metrics::gridHalf);
+    auto knobs = bounds.removeFromTop (LuthierKnob::preferredHeightFor (LuthierKnob::Size::Small));
+    const int knobWidth = juce::jmin (96, knobs.getWidth() / 2);
+    macro7Knob.setBounds (knobs.removeFromLeft (knobWidth));
+    macro8Knob.setBounds (knobs.removeFromLeft (knobWidth));
 }
 
 } // namespace luthier

@@ -1337,6 +1337,52 @@ LUTHIER_TEST (Combo, cpuPerFactoryPreset)
 }
 
 //==============================================================================
+/*  B-13: idle used to cost as much as playing because nothing was skipped.
+    A string that nothing has reached for 100 ms and that is below -100 dBFS now
+    sleeps at every quality level, and the render must not change beyond the
+    noise floor (below -80 dBFS here, far above the sleep level). */
+LUTHIER_TEST (Combo, idleStringsSleepAndTheRenderIsUnchanged)
+{
+    auto run = [] (bool sleepOn, RenderStats& idle, RenderStats& busy, int& sleeping)
+    {
+        Rig rig;
+        auto& presets = rig.p().getPresetManager();
+        presets.loadPreset (presets.indexOfPreset ("Strummed Dreadnought"));
+        rig.apply();
+
+        auto& engine = rig.p().getEngine();
+
+        for (int s = 0; s < engine.getNumStrings(); ++s)
+            engine.getString (s).setSleepEnabled (sleepOn);
+
+        rig.processSilence (40);   // 213 ms
+        sleeping = engine.getSleepingStringCount();
+        idle = rig.renderEvents ({}, 0, 1.0);
+        busy = rig.render (Phrase::chord, 0.5);
+    };
+
+    RenderStats idleOn, busyOn, idleOff, busyOff;
+    int sleepingOn = 0, sleepingOff = 0;
+    run (true, idleOn, busyOn, sleepingOn);
+    run (false, idleOff, busyOff, sleepingOff);
+
+    CHECK_MSG (sleepingOn >= 6, "idle strings did not sleep: " + juce::String (sleepingOn));
+    CHECK (sleepingOff == 0);
+
+    double worst = 0.0;
+    const size_t n = juce::jmin (busyOn.mono.size(), busyOff.mono.size());
+    CHECK (n > 0);
+
+    for (size_t i = 0; i < n; ++i)
+        worst = juce::jmax (worst, (double) std::abs (busyOn.mono[i] - busyOff.mono[i]));
+
+    CHECK_MSG (worst < 1.0e-4, "sleeping changed the render by " + juce::String (worst));
+
+    std::cout << "    idle cpu: strings asleep " << juce::String (idleOn.cpuPercent, 1) << "%, awake "
+              << juce::String (idleOff.cpuPercent, 1) << "%; playing " << juce::String (busyOn.cpuPercent, 1) << "%\n";
+}
+
+//==============================================================================
 /*  A pitch below the instrument's range is dropped, never mis-sounded: a
     Nashville high-strung set cannot play E2 (its low strings are an octave up),
     and the voicer drops what no string can sound. What it must not do is drop

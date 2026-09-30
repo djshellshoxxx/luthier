@@ -1387,7 +1387,8 @@ void LuthierAudioProcessorEditor::openHelp (const juce::String& topic)
 bool LuthierAudioProcessorEditor::isInterestedInFileDrag (const juce::StringArray& files)
 {
     for (const auto& f : files)
-        if (MidiImportTargets::isMidiFile (juce::File (f)))
+        if (MidiImportTargets::isMidiFile (juce::File (f))
+            || FileOpenRouter::route (f) != FileOpenRouter::Target::unknown)
             return true;
 
     return false;
@@ -1401,6 +1402,24 @@ void LuthierAudioProcessorEditor::filesDropped (const juce::StringArray& files, 
             importMidiFile (juce::File (f));
             return;
         }
+
+    // Glue: every other Luthier file type goes through the router the
+    // standalone's double-click uses.
+    for (const auto& f : files)
+    {
+        if (FileOpenRouter::route (f) == FileOpenRouter::Target::unknown)
+            continue;
+
+        juce::String error;
+        const bool ok = FileOpenRouter::open (processor, juce::File (f), error);
+
+        Notification n;
+        n.id = "file-drop";
+        n.message = ok ? "Opened " + juce::File (f).getFileName() : error;
+        n.level = ok ? Notification::Level::info : Notification::Level::warning;
+        notifications.post (std::move (n));
+        return;
+    }
 }
 
 void LuthierAudioProcessorEditor::importMidiFile (const juce::File& file, std::optional<MidiImportTarget> target)

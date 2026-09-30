@@ -174,6 +174,10 @@ private:
     juce::TextButton clearButton { "CLEAR ALL" };
     juce::Label summaryLabel;
 
+    // Glue: the two user macros (macro_assign_a / _b) are modulation sources with no other home.
+    LuthierKnob macro7Knob { "Macro 7", LuthierKnob::Size::Small };
+    LuthierKnob macro8Knob { "Macro 8", LuthierKnob::Size::Small };
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ModMatrixPanel)
 };
 

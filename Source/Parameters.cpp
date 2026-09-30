@@ -1435,8 +1435,24 @@ void ParameterBridge::applyToEngine() noexcept
 
     // ---- performance -------------------------------------------------------------
     auto& interp = engine.getMidiInterpreter();
-    interp.setMpeEnabled (value (ParamIDs::mpeEnabled) > 0.5f);
-    interp.setPitchBendRange (value (ParamIDs::bendRange));
+    // Glue: pushed on change only, so a controller profile's MPE / bend range
+    // (ControllerStage::applyPending) is not overwritten every block.
+    {
+        const float mpe = value (ParamIDs::mpeEnabled);
+        const float bend = value (ParamIDs::bendRange);
+
+        if (mpe != lastMpeEnabled)
+        {
+            interp.setMpeEnabled (mpe > 0.5f);
+            lastMpeEnabled = mpe;
+        }
+
+        if (bend != lastBendRange)
+        {
+            interp.setPitchBendRange (bend);
+            lastBendRange = bend;
+        }
+    }
     // strum-dynamics 1.1 source 4: live chords cross at the plugin-global
     // velocity, which strum_speed (ms per string) used to set.
     interp.setStrumSpeedMs (1000.0 / juce::jmax (1.0, (double) value (ParamIDs::strumCrossingSps)));

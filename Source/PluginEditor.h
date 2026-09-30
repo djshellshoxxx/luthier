@@ -13,6 +13,7 @@
 #include "UI/Overlays.h"
 #include "UI/Notifications.h"
 #include "Export/MidiImportTargets.h"   // midi-export 5 (MODEL-GAPS)
+#include "Support/FileOpenRouter.h"   // root file drop
 #include "UI/Onboarding.h"
 #include "UI/QualityBadge.h"   // cpu-quality-modes
 
