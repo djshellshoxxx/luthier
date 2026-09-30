@@ -1122,8 +1122,13 @@ void LuthierEngine::setTempoBpm (double bpm) noexcept
 //==============================================================================
 void LuthierEngine::panic() noexcept
 {
+    // live-performance 9.1: all notes off on every string, and nothing left
+    // waiting to sound.
     PlayEventQueue q;
     midi.allNotesOff (q);
+    events.clear();
+    rhythmEvents.clear();
+    directEvents.clear();
 
     for (int i = 0; i < numStrings; ++i)
     {
@@ -1132,6 +1137,30 @@ void LuthierEngine::panic() noexcept
         vibratoAmount[(size_t) i] = 0.0;
         stringMidiNote[(size_t) i] = -1;
     }
+
+    // B-14 (PR #2, RESET & STOP): the rhythm engine's held chord and pending
+    // strums go too - a free-running engine otherwise strums its remembered
+    // chord straight back in. Whether it is enabled is a setting (9.6).
+    rhythm.reset();
+    technique.reset();
+
+    // live-performance 9.2 - 9.4: every tail - the body's and the cabinet's
+    // resonances, the circuit, the effects, the amp's DC, the room, the freeze.
+    // Every reset here is lock-free or a try-lock: this runs at the top of the
+    // audio callback (the command queue), never waiting on the message thread.
+    body.reset();
+    pickups.reset();
+    circuit.reset();
+    secret.reset();
+    fretBuzzModel.reset();
+    preEffects.resetFromAudioThread();
+    amp.reset();
+    postEffects.resetFromAudioThread();
+    cabinet.reset();
+    room.reset();
+    master.reset();
+    freezeOverlay.reset();
+    stringOutputs.fill (0.0);
 
     feedbackLoop.reset();
     ebowDriver.reset();

@@ -465,8 +465,19 @@ public:
     void releaseKeyboardChord (const juce::Array<int>& midiNotes);
 
     //==========================================================================
-    /** Releases every string and clears all state. The Panic button. */
+    /** Releases every string and clears all state. The Panic button.
+
+        B-14 / GAPS "Stop everything" (PR #2's RESET & STOP): Panic also stops
+        everything that would start the sound again on its own - the tune
+        player, the looper, the backing track, the metronome, a practice
+        routine, the rhythm engine's free-run (which plays the PRACTICE
+        progression) and the jam band. Parameters are left alone
+        (live-performance 9.5 / 9.6); that is resetEverything's job. */
     void panic();
+
+    /** Panic's transport half on its own: stops the players listed above.
+        Message thread. */
+    void stopAllPlayers();
 
     //==========================================================================
     // SPEC-SWEEP (UW-5 / CB-17): the UI's writes to audio-thread state go
@@ -557,8 +568,14 @@ public:
     /** Tune percussion note-ons that reached the engine so far (JM-42). */
     int getTunePercussionToEngine() const noexcept { return tunePercussionToEngine.load (std::memory_order_relaxed); }
 
-    /** Restores every parameter, the MIDI map and the UI state to defaults. */
+    /** Restores every parameter, the MIDI map and the UI state to defaults,
+        and stops everything that plays (RESET & STOP): Panic's players, plus
+        the rhythm engine, the session recorder and the kill switch. One undo
+        step. The engine reset runs with the audio thread parked. */
     void resetEverything();
+
+    /** PR #2's name for the same action. */
+    void resetAndStop() { resetEverything(); }
 
     /** The destructive reset in the debug panel: defaults plus removing caches. */
     void hardResetAndClearCaches();

@@ -76,7 +76,7 @@ HeaderBar::HeaderBar (LuthierAudioProcessor& p)
 
     // ---- panic --------------------------------------------------------------------
     addAndMakeVisible (panicButton);
-    panicButton.setTooltip ("Stop every string immediately and clear all held notes");
+    panicButton.setTooltip ("Stop every string immediately, clear all held notes, and stop the tune, looper, backing track, metronome and progression");
     panicButton.setColour (juce::TextButton::textColourOffId, Palette::warning);
     panicButton.onClick = [this] { processor.panic(); };
 

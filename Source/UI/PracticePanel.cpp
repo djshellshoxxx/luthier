@@ -1899,6 +1899,12 @@ ProgressionTab::ProgressionTab (LuthierAudioProcessor& p)
 
 void ProgressionTab::refresh()
 {
+    // Panic and Reset stop the progression (B-14); the button follows.
+    {
+        const auto& rhythm = processor.getEngine().getRhythmEngine();
+        playButton.setToggleState (rhythm.isEnabled() && rhythm.isFreeRunning(), juce::dontSendNotification);
+    }
+
     const auto& progression = processor.getProgressionLooper();
 
     if (progression.getNumChords() == 0)
