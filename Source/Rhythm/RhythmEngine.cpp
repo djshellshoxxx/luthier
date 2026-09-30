@@ -590,6 +590,10 @@ void RhythmEngine::scheduleStrum (const StrumStep& step, double sourceSps, int s
             if (strike.missed)
                 continue;
 
+            // RE-18, muting-rhythm.md: a rake mutes the strings it drags across but
+            // rings the last one it reaches - its target.
+            const bool strikeIsMuted = muted && ! (step.type == StrumType::rake && i == planned - 1);
+
             const double offset = gestureOffset + strokeOffsetMs * 0.001 * sr + strike.timeSeconds * sr;
             const bool isRakeTarget = (i == rakeTarget);
 
@@ -855,6 +859,7 @@ juce::var RhythmEngine::toVar() const
     root->setProperty ("voicingDensity", getVoicingDensity());
     root->setProperty ("handSpan", getHandSpan());   // SPEC-SWEEP RE-12
     root->setProperty ("handPosition", getHandPositionHint());
+    root->setProperty ("handSpanFrets", getHandSpanFrets());   // RE-12
 
     /*  No "capoFret" here any more. The capo is a parameter now (ParamIDs::capoFret),
         so it is saved with every other parameter in the same preset, and writing
@@ -894,6 +899,8 @@ void RhythmEngine::fromVar (const juce::var& state)
     setVoicingDensity ((double) root->getProperty ("voicingDensity"));
     setHandSpan (root->hasProperty ("handSpan") ? (int) root->getProperty ("handSpan") : 5);   // SPEC-SWEEP RE-12
     setHandPositionHint ((int) root->getProperty ("handPosition"));
+    // RE-12: absent in older saves - keep the default of 5.
+    setHandSpanFrets ((int) (root->hasProperty ("handSpanFrets") ? root->getProperty ("handSpanFrets") : juce::var (5)));
 
     /*  A capo saved by a build that kept one here. It is applied so an old
         session does not silently lose it, and it is not written back: the

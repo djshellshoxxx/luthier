@@ -34,7 +34,7 @@ public:
     };
 
     /** Bumped when generated factory files change meaning; older generated files
-        (never user edits) are rewritten by writeAll. 2: the guitar block. 3: Fuzz Face Lead's hum. */
+        (never user edits) are rewritten by writeAll. 2: the guitar block. 3: the fuzz lead's hum. */
     static constexpr int kFactoryRevision = 3;
 
     static int getNumPresets() noexcept;

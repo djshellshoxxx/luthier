@@ -2107,6 +2107,31 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
         if (auto* raw = macroValues[(size_t) m])
             midiOutRouter.setMacroValue (m, raw->load());
 
+    // RE-41, rhythm-engine.md 9: the RHYTHM source was carrying nothing because
+    // nobody converted the engine's PlayEvents into MIDI for it.
+    {
+        auto& rhythmBuffer = midiOutRouter.getRhythmBuffer();
+        const auto& rhythmEvents = engine.getRhythmEvents();
+        const int lastSample = juce::jmax (0, numSamples - 1);
+
+        for (int i = 0; i < rhythmEvents.getNumNoteOns(); ++i)
+        {
+            const auto& e = rhythmEvents.getNoteOn (i);
+            rhythmBuffer.addEvent (juce::MidiMessage::noteOn (juce::jlimit (1, 16, e.stringIndex + 1),
+                                                              juce::jlimit (0, 127, e.midiNote),
+                                                              (float) juce::jlimit (0.0, 1.0, e.velocity)),
+                                   juce::jlimit (0, lastSample, e.sampleOffset));
+        }
+
+        for (int i = 0; i < rhythmEvents.getNumNoteOffs(); ++i)
+        {
+            const auto& e = rhythmEvents.getNoteOff (i);
+            rhythmBuffer.addEvent (juce::MidiMessage::noteOff (juce::jlimit (1, 16, e.stringIndex + 1),
+                                                               juce::jlimit (0, 127, e.midiNote)),
+                                   juce::jlimit (0, lastSample, e.sampleOffset));
+        }
+    }
+
     midiOutRouter.emit (midiMessages, midiOutConfig, engine.getStringActivity(), numSamples);
 
     // midi-export 10 / tune-builder 8: the tune's parts, when MIDI out carries them.
