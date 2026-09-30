@@ -1,3 +1,8 @@
-# The canonical-form test compares these byte-for-byte with TuneFile::toJson (LF);
-# Git for Windows would otherwise check them out as CRLF.
-*.luthiertune text eol=lf
+# Factory data files are LF and several tests compare them byte-for-byte with
+# what the code writes back (TuneFile::toJson, riff/part/guitar save, and
+# generate_factory_riffs.py --check). Git for Windows would otherwise check them
+# out as CRLF (core.autocrlf), so they would read as non-canonical on Windows only.
+*.luthiertune  text eol=lf
+*.luthierriff  text eol=lf
+*.luthierpart  text eol=lf
+*.luthierguitar text eol=lf
