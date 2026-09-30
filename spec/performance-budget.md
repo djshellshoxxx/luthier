@@ -33,7 +33,8 @@ core.
 | PreEffectsChain (8 slots) | 1.0 | Average pedal cost |
 | AmpEngine | 1.5 | 4x oversampled |
 | PostEffectsChain (8 slots) | 1.0 | Same as pre |
-| CabinetEngine (2 mics) | 0.4 | Convolution |
+| CabinetEngine (2 mics) | 0.5 | Convolution; mic-placement.md 11 (FEAT-MIC): 0.4 before the placement stage (<= 0.05 per mic) and ToF delay |
+| AcousticMicModel (2 mics) | 0.12 | mic-placement.md 11 (FEAT-MIC); 0 at `ac_mic_mix` 0 |
 | RoomEngine | 0.3 | Convolution |
 | MasterBus | 0.15 | Limiter, metering |
 | MidiInterpreter + Technique | 0.05 | Message thread mostly |
@@ -43,6 +44,7 @@ core.
 | MeterFIFO / display | 0.1 | Peak / RMS calc |
 | Feedback path (when active) | 0.3 | Per ambiguity-resolutions.md 1 |
 | Freeze layer (when active) | 0.2 | Captured-loop synth |
+| Preset preview mix (preset-browser-previews.md 11) | 0.02 | One additive mix of a prepared clip; no allocation or lock. Offline preview renders run on a low-priority worker and pause while a transport runs or CPU relief is on |
 | NoiseEngine::Squeak | 0.4 | 16 generators pool, per string-squeak.md 12 |
 | NoiseEngine::PickClick | 0.15 | Per-note transient synth |
 | NoiseEngine::PickChirp | 0.10 | Wound-string release chirp |

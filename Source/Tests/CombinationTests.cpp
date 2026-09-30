@@ -1096,7 +1096,15 @@ LUTHIER_TEST (Combo, everyParameterSurvivesTheSessionStateRoundTrip)
 
         for (auto* prm : source.p().getParameters())
             if (auto* r = dynamic_cast<juce::RangedAudioParameter*> (prm))
-                r->setValueNotifyingHost (r->convertTo0to1 (r->convertFrom0to1 (uni (rng))));
+            {
+                const float v = uni (rng);   // drawn for every parameter, so the sequence is kept
+
+                // FEAT-ASSIST: the hidden legacy doubler_on is left off - B-07's
+                // migration moves it into a post-amp slot on load, which the
+                // comparison below already excludes for doubler_on itself.
+                if (r->getParameterID() != ParamIDs::doublerOn)
+                    r->setValueNotifyingHost (r->convertTo0to1 (r->convertFrom0to1 (v)));
+            }
 
         // FEAT-JAM: doubler_on is legacy (excluded below) and every load
         // migrates it into a Doubler pedal in a post slot; left on at random it
@@ -1104,6 +1112,13 @@ LUTHIER_TEST (Combo, everyParameterSurvivesTheSessionStateRoundTrip)
         // Jam parameters moved every later round's random draws.
         if (auto* legacy = source.param (ParamIDs::doublerOn))
             legacy->setValueNotifyingHost (0.0f);
+
+        // doubler_on is legacy: loading it on migrates to a Doubler pedal in an
+        // empty post slot, which rewrites that slot. Whether a round hits it
+        // depended on the seed's draw landing there (FEAT-MIC's appended
+        // parameters moved the draws), so it is held off here.
+        if (auto* legacyDoubler = source.param (ParamIDs::doublerOn))
+            legacyDoubler->setValueNotifyingHost (0.0f);
 
         source.apply();
 
@@ -1605,5 +1620,304 @@ LUTHIER_TEST (Combo, liftingTheSustainPedalReleasesItsNotes)
         CHECK_MSG (damped >= 2 && open == 0,
                    juce::String (type) + ": after pedal-up " + juce::String (damped) + " played strings damped, "
                      + juce::String (open) + " still open");
+    }
+}
+
+//==============================================================================
+/*  auto-articulation.md AA-42 (FEAT-ASSIST): Performance Assist on, crossed with
+    Slide Mode, feedback, the E-Bow, whammy, capo 5, drop D, a 12-string and a
+    5-string bass, in all eight styles, every ComboHarness phrase: the output is
+    finite, bounded and present, and every note the capture saw lies on a
+    string of the instrument, between its nut (or capo) and its last fret. */
+LUTHIER_TEST (Combo, performanceAssistAcrossContexts)
+{
+    FindingLog log { "Combo.performanceAssist" };
+
+    struct Context
+    {
+        const char* name;
+        std::function<void (Rig&)> setup;
+    };
+
+    const std::vector<Context> contexts =
+    {
+        { "slide mode", [] (Rig& r) { r.setIndex (ParamIDs::slideGuitar, 1); } },
+        { "feedback",   [] (Rig& r) { r.setPlain (ParamIDs::feedbackAmount, 60.0f); } },
+        { "e-bow",      [] (Rig& r) { r.setIndex (ParamIDs::ebowEnable, 1); } },
+        { "whammy",     [] (Rig& r) { r.setNormalised (ParamIDs::whammyPos, 0.8f); } },
+        { "capo 5",     [] (Rig& r) { r.setIndex (ParamIDs::capoFret, 5); } },
+        { "drop D",     [] (Rig& r) { r.setIndex (ParamIDs::tuningPreset, (int) TuningPreset::DropD); } },
+        { "12-string",  [] (Rig& r) { r.setIndex (ParamIDs::guitarType, (int) GuitarType::TwelveString); } },
+        { "5-string",   [] (Rig& r) { r.setIndex (ParamIDs::guitarType, (int) GuitarType::FiveStringBass); } },
+    };
+
+    const int styles = juce::jmax (1, (int) std::round (AutoArticulationStyles::kNumStyles * juce::jmin (1.0, scale())));
+
+    for (const auto& context : contexts)
+    {
+        for (int style = 0; style < styles; ++style)
+        {
+            for (int ph = 0; ph < (int) Phrase::numPhrases; ++ph)
+            {
+                Rig rig;
+                rig.p().resetEverything();
+                context.setup (rig);
+                rig.setIndex (ParamIDs::aaEnabled, 1);
+                rig.setIndex (ParamIDs::aaStyle, style);
+                rig.setIndex (ParamIDs::playingMode, ph % 2 == 0 ? (int) PlayingMode::Mono : (int) PlayingMode::Poly);
+                rig.apply();
+                rig.processSilence (2);
+
+                const auto stats = rig.render ((Phrase) ph, 1.0);
+                const juce::String label = juce::String (context.name) + " style=" + AutoArticulationStyles::get (style).name
+                                         + " phrase=" + phraseName ((Phrase) ph);
+
+                Verdict v;
+                v.expectDecay = false;        // an E-Bow, feedback and a slide sustain by design
+                v.checkIdleFloor = false;
+                judgeAndLog (ctx, log, rig, label, stats, v);
+
+                // Every captured note is on a string, inside its range.
+                auto& capture = rig.p().getPerformanceCapture();
+                capture.drain();
+                auto& tuning = rig.p().getEngine().getTuningEngine();
+                const int strings = rig.p().getEngine().getNumStrings();
+
+                for (const auto& note : capture.getNotes())
+                {
+                    ++ctx.checks;
+                    const bool inRange = note.stringIndex >= 0 && note.stringIndex < strings && note.fret >= -1.0e-6
+                                         && note.fret <= tuning.getHighestPlayableFret (note.stringIndex) + 1.0e-6;
+
+                    if (! inRange)
+                    {
+                        const auto why = "note " + juce::String (note.midiNote) + " on string " + juce::String (note.stringIndex)
+                                       + " fret " + juce::String (note.fret, 2) + " is outside the string";
+                        ctx.fail (why + " | " + label);
+                        log.add (label, why);
+                    }
+                }
+            }
+        }
+    }
+
+    log.flush();
+}
+/*  The features that landed after the first round, in pairwise combination
+    with each other and with the rig: jam mode (enabled, playing, style,
+    intensity, start mode, kit), output normalization on/off, the three CPU
+    quality levels, and the structural choices they interact with. A separate
+    test so the first round's rows and seed stay reproducible. Every eighth
+    row with the band stopped also round-trips the session state into a fresh
+    instance and compares the audio (jam_play is transient by design, B-20). */
+LUTHIER_TEST (Combo, newFeaturesPairwise)
+{
+    Rig rig;
+    FindingLog log { "Combo.newFeatures" };
+
+    std::vector<Factor> factors;
+    auto addAll = [&] (const juce::String& id)
+    {
+        if (rig.param (id) == nullptr) { CHECK_MSG (false, "missing parameter " + id); return; }
+        factors.push_back ({ id, allLevels (rig, id), {} });
+    };
+    auto addFloat = [&] (const juce::String& id, std::vector<float> plains)
+    {
+        if (rig.param (id) == nullptr) { CHECK_MSG (false, "missing parameter " + id); return; }
+        std::vector<int> lv;
+        for (int i = 0; i < (int) plains.size(); ++i) lv.push_back (i);
+        factors.push_back ({ id, lv, std::move (plains) });
+    };
+
+    addAll (ParamIDs::guitarType);
+    addAll (ParamIDs::ampModel);
+    addAll (ParamIDs::pickupSelector);
+    addAll (ParamIDs::oversample);
+    addAll (ParamIDs::playingMode);
+    addAll (ParamIDs::freezeEnable);
+    addFloat (ParamIDs::feedbackAmount, { 0.0f, 50.0f });
+    addAll (ParamIDs::jamEnabled);
+    addAll (ParamIDs::jamPlay);
+    addAll (ParamIDs::jamStyle);
+    addFloat (ParamIDs::jamIntensity, { 1.0f, 3.0f, 5.0f });
+    addAll (ParamIDs::jamStartMode);
+    addAll (ParamIDs::jamKit);
+
+    // Not parameters: the quality level (forced, as Options -> AUDIO would pin
+    // it) and the normalization switch. Marked by their ids.
+    factors.push_back ({ "special:quality", { 0, 1, 2 }, {} });
+    factors.push_back ({ "special:normalize", { 0, 1 }, {} });
+
+    {
+        Factor f;
+        for (int i = 0; i < (int) Phrase::numPhrases; ++i) f.levels.push_back (i);
+        factors.push_back (f);
+    }
+
+    std::vector<int> sizes;
+    for (auto& f : factors) sizes.push_back ((int) f.levels.size());
+
+    constexpr uint32_t seed = 20260926;
+    auto rows = allPairs (sizes, seed);
+    const int limit = juce::jmax (1, (int) std::round (rows.size() * scale()));
+    std::cout << "    new-feature pairwise: " << factors.size() << " factors, " << rows.size()
+              << " rows (running " << limit << "), seed " << seed << std::endl;
+
+    int roundTrips = 0;
+
+    for (int r = 0; r < limit; ++r)
+    {
+        const auto& row = rows[(size_t) r];
+        Config config;
+        int quality = 0;
+        bool normalize = false;
+
+        for (size_t f = 0; f < factors.size(); ++f)
+        {
+            const auto& fac = factors[f];
+            const int level = fac.levels[(size_t) row[f]];
+
+            if (fac.id.isEmpty())                     config.phrase = (Phrase) level;
+            else if (fac.id == "special:quality")     quality = level;
+            else if (fac.id == "special:normalize")   normalize = level != 0;
+            else if (! fac.plains.empty())            config.plains.push_back ({ fac.id, fac.plains[(size_t) level] });
+            else                                      config.indices.push_back ({ fac.id, level });
+        }
+
+        static const char* qualityNames[] = { "High", "Medium", "Low" };
+        config.extra = juce::String ("quality=") + qualityNames[quality] + " normalize=" + (normalize ? "on" : "off")
+                     + " row=" + juce::String (r) + " seed=" + juce::String ((int) seed);
+
+        rig.p().resetEverything();
+        rig.p().getQualityController().forceLevelForTesting (quality);
+        rig.p().getOutputNormalization().setEnabled (normalize);
+        config.applyTo (rig);
+        rig.processSilence (2);
+
+        const auto stats = rig.render (config.phrase, 2.5);
+
+        const bool bandPlaying = rig.param (ParamIDs::jamEnabled)->getValue() > 0.5f
+                              && (rig.param (ParamIDs::jamPlay)->getValue() > 0.5f
+                                  || rig.param (ParamIDs::jamStartMode)->getCurrentValueAsText() == "First Note"
+                                  || rig.param (ParamIDs::jamStartMode)->getCurrentValueAsText() == "Auto");
+
+        Verdict v;
+        // The band keeps time after the guitar stops (until jam_silence_bars
+        // of silence, then its ending): its tail is music, not a stuck note.
+        v.expectDecay = ! holdsSound (rig) && ! slotHoldsSound (rig) && ! bandPlaying;
+        judgeAndLog (ctx, log, rig, config.describe (rig), stats, v);
+
+        // State round trip, band stopped (jam_play is restored off by design).
+        if (r % 8 == 0 && rig.param (ParamIDs::jamPlay)->getValue() < 0.5f)
+        {
+            ++roundTrips;
+            juce::MemoryBlock blob;
+            rig.p().getStateInformation (blob);
+
+            Rig copy;
+            copy.p().getQualityController().forceLevelForTesting (quality);
+            copy.p().setStateInformation (blob.getData(), (int) blob.getSize());
+            copy.apply();
+
+            auto play = [] (Rig& x)
+            {
+                x.p().releaseResources();
+                x.p().prepareToPlay (kSr, kBlock);
+                x.p().reset();
+                x.apply();
+                return x.render (Phrase::chord, 0.5).mono;
+            };
+
+            const auto a = play (rig);
+            const auto b = play (copy);
+            double maxDiff = 0.0;
+
+            for (size_t i = 0; i < juce::jmin (a.size(), b.size()); ++i)
+                maxDiff = juce::jmax (maxDiff, (double) std::abs (a[i] - b[i]));
+
+            CHECK_MSG (maxDiff < 1.0e-3 && copy.p().getNormalizationStatus().enabled == normalize,
+                       "state round trip differs: audio max diff " + juce::String (maxDiff, 6)
+                         + ", normalization " + (copy.p().getNormalizationStatus().enabled ? "on" : "off")
+                         + " | " + config.describe (rig));
+        }
+
+        rig.p().getQualityController().forceLevelForTesting (-1);
+        rig.p().getOutputNormalization().setEnabled (false);
+        rig.quiet();
+    }
+
+    std::cout << "    new-feature state round trips: " << roundTrips << std::endl;
+    log.flush();
+}
+
+//==============================================================================
+/*  B-21: at a reduced CPU quality level the ring-out bookkeeping survived a
+    reset, so what had been played before changed the next render (a Poly
+    chord, then Guitar Controller mode: 0.057 apart from a fresh instance at
+    Low). Also the release stagger's generator (string-interaction 0.3): a
+    released chord renders the same twice after a reset. */
+LUTHIER_TEST (Combo, qualityLevelsForgetWhatWasPlayedAtReset)
+{
+    auto choose = [] (Rig& r, const char* id, const char* text)
+    {
+        auto* c = dynamic_cast<juce::AudioParameterChoice*> (r.param (id));
+        r.setIndex (id, c != nullptr ? c->choices.indexOf (text) : 0);
+    };
+
+    auto restart = [] (Rig& r)
+    {
+        r.p().releaseResources();
+        r.p().prepareToPlay (kSr, kBlock);
+        r.p().reset();
+        r.apply();
+    };
+
+    for (int level = 0; level <= 2; ++level)
+    {
+        auto setUp = [&] (Rig& r)
+        {
+            r.p().resetEverything();
+            r.p().getQualityController().forceLevelForTesting (level);
+            choose (r, ParamIDs::playingMode, "Guitar Controller");
+            r.apply();
+        };
+
+        Rig played;
+        played.p().resetEverything();
+        played.p().getQualityController().forceLevelForTesting (level);
+        choose (played, ParamIDs::playingMode, "Poly / Chord");
+        played.apply();
+        played.processSilence (2);
+        played.render (Phrase::chord, 1.0);
+        played.quiet();
+        setUp (played);
+
+        Rig fresh;
+        setUp (fresh);
+
+        restart (played);
+        restart (fresh);
+        const auto a = played.render (Phrase::chord, 0.5).mono;
+        const auto b = fresh.render (Phrase::chord, 0.5).mono;
+
+        double maxDiff = 0.0;
+        for (size_t i = 0; i < juce::jmin (a.size(), b.size()); ++i)
+            maxDiff = juce::jmax (maxDiff, (double) std::abs (a[i] - b[i]));
+
+        CHECK_MSG (maxDiff == 0.0, "quality level " + juce::String (level) + ": a Poly chord before the reset changed "
+                                     "the Guitar Controller render by " + juce::String (maxDiff, 6));
+
+        // The same released chord twice, each after a reset.
+        choose (fresh, ParamIDs::playingMode, "Poly / Chord");
+        fresh.apply();
+        restart (fresh);
+        const auto first = fresh.render (Phrase::chord, 1.0).mono;
+        restart (fresh);
+        const auto second = fresh.render (Phrase::chord, 1.0).mono;
+
+        CHECK_MSG (first == second, "quality level " + juce::String (level) + ": a released chord renders differently after a reset");
+
+        played.p().getQualityController().forceLevelForTesting (-1);
+        fresh.p().getQualityController().forceLevelForTesting (-1);
     }
 }

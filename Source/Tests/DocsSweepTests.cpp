@@ -116,11 +116,12 @@ LUTHIER_TEST (Presets, midiTargetValuesAreStable)
     CHECK ((int) MidiTarget::Attack == 21);
 }
 
-/*  README RM-6: "22 pedals (21 effects plus the Doubler)". */
+/*  README RM-6: "23 pedals (21 effects plus the Doubler and the Gater)". */
 LUTHIER_TEST (Effects, pedalCountMatchesTheReadme)
 {
-    CHECK ((int) PedalType::NumTypes - 1 == 22);
+    CHECK ((int) PedalType::NumTypes - 1 == 23);
     CHECK ((int) PedalType::Doubler == 22);
+    CHECK ((int) PedalType::Gater == 23);
 }
 
 /*  JUCE_CLAUDE_GUIDELINES JG-4: the oversampling factor reaches every drive

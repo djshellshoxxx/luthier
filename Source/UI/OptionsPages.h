@@ -33,6 +33,8 @@
 #include "../Updates/Telemetry.h"
 #include "../Updates/UpdateDownloader.h"
 
+#include "PresetBrowser/PresetBrowserOptions.h"   // preset-browser-previews.md 8 (FEAT-BROWSER)
+
 namespace luthier
 {
 
@@ -139,6 +141,9 @@ private:
     juce::Label lowMotionNote;   // cpu-quality-modes 5
     juce::ToggleButton tooltipsToggle { "Show tooltips on hover" };
 
+    // mic-placement.md 6.5 (FEAT-MIC): UiPreferences, not preset data.
+    juce::ToggleButton micSnapToggle { "Snap mics to landmarks" };
+    juce::ToggleButton micPlotToggle { "Show mic response plot" };
     // gui-integration 5 / visual-polish.md 5: the accent, the data stream, the noise strip.
     juce::ComboBox accentBox;
     juce::ToggleButton dataStreamToggle { "Scrolling data stream in the footer" };
@@ -170,6 +175,11 @@ public:
 
 private:
     int accentTop = 300;   ///< where ACCENT AND LIVE DISPLAYS starts, below VISUAL AIDS
+    // auto-articulation.md 7.4 (FEAT-ASSIST): Visual aids.
+    juce::ToggleButton assistLabelsToggle { "Show Performance Assist labels" };
+public:
+    juce::ToggleButton& getAssistLabelsToggle() noexcept { return assistLabelsToggle; }
+    PresetBrowserAppearanceGroup presetBrowserGroup { processor };   // preset-browser-previews 8
 };
 
 //==============================================================================
@@ -227,6 +237,11 @@ private:
 
     /** Catches the key press for a rebind. */
     bool keyPressed (const juce::KeyPress& key) override;
+
+    /** global-search.md 7 (FEAT-SEARCH): the "Search" group. */
+    std::unique_ptr<juce::Component> searchGroup;
+public:
+    PresetBrowserKeysGroup presetBrowserKeys;   // preset-browser-previews 7.4
 };
 
 //==============================================================================
@@ -545,6 +560,16 @@ private:
     juce::TextButton rescanButton { "Rescan presets" };
     juce::TextButton removeFolderButton { "Remove folder" };   // SPEC-SWEEP (spec.md SP-108)
 
+    // riff-library 7.1: "Riffs folder", and the audition-on-select switch.
+    juce::TextButton chooseRiffsFolder { "Choose riffs folder..." }, openRiffsFolder { "Open riffs folder" };
+    juce::ToggleButton auditionOnSelect { "Riffs: audition on select" };
+
+public:
+    juce::Button& getAuditionOnSelectToggle() noexcept { return auditionOnSelect; }
+    static juce::File getRiffsUserFolder();
+
+private:
+
     juce::Label pathLabel, formatNote;
     juce::ListBox folderList;
 
@@ -563,6 +588,9 @@ private:
     };
 
     FolderListModel folderModel { *this };
+
+public:
+    PresetCacheGroup previewCacheGroup { processor };   // preset-browser-previews 5.2
 };
 
 } // namespace luthier

@@ -19,6 +19,8 @@
 namespace luthier
 {
 
+namespace search { class SearchNavigator; }   // global-search.md (FEAT-SEARCH)
+
 //==============================================================================
 class LuthierAudioProcessorEditor : public juce::AudioProcessorEditor,
                                     public juce::DragAndDropContainer,   // gui-integration 11.2: drag-to-modulate
@@ -94,6 +96,20 @@ public:
     QualityBadge& getQualityBadge() noexcept { return qualityBadge; }
     QualityEditorLink& getQualityLink() noexcept { return qualityLink; }
 
+    /*  global-search.md 4.3 (FEAT-SEARCH): every command, once. This is the body
+        keyPressed used to have, moved as-is: a shortcut, a header button and the
+        search palette all run a command through here, so none of them has its
+        own copy of "save" or "panic". Returns false for an unknown id or when
+        the command did not apply (a tab step in Easy Mode). */
+    bool performAction (const juce::String& actionId);
+
+    /** global-search.md 3.1: this window's search (index, palette, navigator). */
+    search::SearchNavigator& getSearch() noexcept { return *searchNav; }
+
+    /*  global-search.md 8: where search providers register. A feature adds its
+        provider here, after the defaults:
+            getSearch().getIndex().addProvider (std::make_unique<MyProvider> (...)); */
+    void buildSearchProviders();
     //==========================================================================
     // onboarding.md 2-4 (TUNE-HELP-ONBOARDING; PluginEditorOnboarding.cpp).
 
@@ -117,7 +133,17 @@ public:
         Returns the tab's panel, or nullptr when it cannot be shown. */
     TunePanel* openNewTune();
 
+    // ==== BEGIN FEAT-ASSIST ====
+    /** auto-articulation.md 7.5: the PLAYING group's ?. */
+    void openHelpTopic (const juce::String& topic) { openHelp (topic); }
+
+    /** 7.1: the AUTO popover's "More in RHYTHM tab" - Advanced, RHYTHM. */
+    void openAssistInRhythmTab();
+    // ==== END FEAT-ASSIST ====
+
 private:
+    friend class search::SearchNavigator;   // FEAT-SEARCH: navigation reaches the panels
+
     void timerCallback() override;
 
     /** accessibility.md 6: a palette change reaches every panel at once. */
@@ -191,6 +217,7 @@ private:
     SaveAsPanel saveAsPanel;
     ChordAndTabPanel chordPanel;
     WorkshopOverlay workshopOverlay;
+    MicPlacementOverlay micPlacementOverlay;   // mic-placement.md 6.3 (FEAT-MIC)
     SecretPanel secretPanel;
 
     // onboarding.md 2-4 (TUNE-HELP-ONBOARDING).
@@ -233,6 +260,9 @@ private:
 
     /** The palette this window's components were last coloured with. */
     PaletteColours shownPalette;
+
+    /** global-search.md (FEAT-SEARCH). Last, so it is destroyed first. */
+    std::unique_ptr<search::SearchNavigator> searchNav;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LuthierAudioProcessorEditor)
 };

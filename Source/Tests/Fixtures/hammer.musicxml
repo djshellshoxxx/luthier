@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0">
+  <part id="P1">
+    <measure number="1">
+      <attributes>
+        <divisions>4</divisions>
+        <staff-details><staff-lines>6</staff-lines></staff-details>
+      </attributes>
+      <note>
+        <pitch><step>G</step><octave>2</octave></pitch>
+        <duration>4</duration>
+        <notations>
+          <technical>
+            <string>6</string>
+            <fret>3</fret>
+            <hammer-on>H</hammer-on>
+          </technical>
+        </notations>
+      </note>
+    </measure>
+  </part>
+</score-partwise>

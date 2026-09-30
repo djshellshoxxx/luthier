@@ -365,8 +365,11 @@ AmpFaceLayout layoutAmpFace (juce::Rectangle<float> bounds, AmpModel model, bool
     {
         if (tall || inner.getHeight() > inner.getWidth() * 0.4f)
         {
-            // A card-sized combo (the Easy rig strip) gives the knobs more of the face (TODO 2h).
-            l.faceplate = inner.removeFromTop (juce::jmax (34.0f, inner.getHeight() * (tall ? 0.66f : 0.58f)));
+            // A card-sized combo (the Easy rig strip) gives the knobs more of the
+            // face: a switchless card (no switch column) hands the faceplate more
+            // of the height so two rows of knobs keep their size on a small window.
+            const float tallShare = withSwitches ? 0.66f : 0.78f;
+            l.faceplate = inner.removeFromTop (juce::jmax (34.0f, inner.getHeight() * (tall ? tallShare : 0.58f)));
             inner.removeFromTop (border * 0.6f);
             l.grille = inner;
 

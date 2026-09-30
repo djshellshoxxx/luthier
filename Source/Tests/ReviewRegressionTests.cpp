@@ -335,7 +335,7 @@ LUTHIER_TEST (ReviewRegression, anOverdubIsHeardOnceAndWrapsWithTheLoop)
 
     // 1 kHz at 48 kHz: a 48-sample period, which divides the 21-block loop, so
     // every pass of the overdub lands in phase with the last.
-    auto render = [&] (int blocks, float amplitude, int n = 512)
+    auto render = [&] (int blocks, float amplitude, int n = 512)   // = block; GCC rejects a local in a default argument
     {
         for (int b = 0; b < blocks; ++b)
         {

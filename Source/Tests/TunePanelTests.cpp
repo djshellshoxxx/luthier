@@ -191,6 +191,22 @@ LUTHIER_TEST (TunePanel, theSectionStripsMenuRenamesDuplicatesRepeatsTagsLinksAn
     CHECK (strip.buildMenu (0).getNumItems() > 0);
 }
 
+LUTHIER_TEST (TunePanel, deletingTheOnlySectionPostsARefusalWithoutAnEdit)
+{
+    Fixture f;
+    auto& strip = f.panel->getSectionStrip();
+    int refusals = 0;
+    strip.onLastSectionDeleteRefused = [&refusals] { ++refusals; };
+
+    const auto before = f.session.getTune().arrangement;
+    const int undoSteps = f.session.getNumUndoSteps();
+    strip.performMenuItem (0, TuneSectionStrip::deleteItem);
+
+    CHECK (refusals == 1);
+    CHECK (f.session.getTune().arrangement == before);
+    CHECK (f.session.getNumUndoSteps() == undoSteps);
+}
+
 LUTHIER_TEST (TunePanel, theRhythmStripSetsTheSectionsKitFeelStrumAndOn)
 {
     Fixture f;

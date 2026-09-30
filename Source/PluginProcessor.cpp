@@ -2,8 +2,11 @@
 #include "Updates/CrashWriter.h"   // SPEC-SWEEP: UT-16
 #include "Workshop/FamilyDefaults.h"   // guitar-illustration.md 12.3 (VISUAL-WORKSHOP-QA)
 #include "Presets/FactoryPresets.h"
+#include "Presets/ExactRestore.h"   // a stored normalised value, restored so it reads back exactly
 #include "Support/ErrorLog.h"
 #include "Model/Guitar/BassDefaults.h"   // MODEL-GAPS
+#include <set>
+#include "Presets/PresetLibrary.h"        // FEAT-BROWSER (preset-browser-previews.md)
 
 /*  The test runner and the offline renderer build this file, so that the things
     only the processor owns - the undo stack, uiState, A/B slots, snapshot recall,
@@ -63,7 +66,13 @@ LuthierAudioProcessor::LuthierAudioProcessor()
       midiLearn (apvts),
       snapshots (*this)
 {
-    FactoryPresets::setProcessorForRanges (this);
+    // preset-browser-previews 3.2 (FEAT-BROWSER): a render instance built on the
+    // preview worker leaves user-global state and the range source alone.
+    const bool offlineConstruction = ScopedOfflineRenderConstruction::flag();
+    offlineRenderInstance = offlineConstruction;
+
+    if (! offlineConstruction || FactoryPresets::getProcessorForRanges() == nullptr)
+        FactoryPresets::setProcessorForRanges (this);
 
     // installer.md 6: the user folder tree, config/plugin.json and the
     // .installed_version marker (first run / upgrade detection).
@@ -106,6 +115,10 @@ LuthierAudioProcessor::LuthierAudioProcessor()
                         "midi-learn", {});
     };
 
+    // TECHNIQUES: engine-technique-layer.md 7, the preset's technique block.
+    presets.captureTechniquesBlock = [this] { return engine.getTechniqueLayer().toVar(); };
+    presets.onTechniquesBlockLoaded = [this] (const juce::var& block) { engine.getTechniqueLayer().fromVar (block); };
+
     // A preset's pedals come with their settings; build them keeping those.
     presets.onPedalTypesLoaded = [this] { bridge.adoptPedalTypesFromParameters(); };
 
@@ -121,11 +134,15 @@ LuthierAudioProcessor::LuthierAudioProcessor()
         presetFileLoaded();   // SPEC-SWEEP: SM-46 - the layers a user-facing load clears (A/B compare)
         outputNormalization.notifyConfigurationChanged (true);
     };
-    presets.ensureFactoryPresetsInstalled();
-    presets.refresh();
+    if (! offlineConstruction)   // FEAT-BROWSER: a render instance loads presets by file
+    {
+        presets.ensureFactoryPresetsInstalled();
+        presets.refresh();
+    }
 
     bridge.cachePointers();
     bridge.setModMatrix (&modMatrix);
+    micLegacyAutomation = std::make_unique<MicLegacyAutomation> (apvts);   // mic-placement.md 4
 
     // SPEC-SWEEP TM-6 (tone-match 1): the body IR slot runs inside the engine,
     // where the body is.
@@ -134,8 +151,11 @@ LuthierAudioProcessor::LuthierAudioProcessor()
     // practice-tools 12.1: the routine runner drives the processor's own tools,
     // the history is the saved one, and the saved defaults apply at start.
     practiceRunner.setTargets (getPracticeTargets());
-    practiceStats.load();
 
+    if (! offlineConstruction)   // FEAT-BROWSER
+        practiceStats.load();
+
+    if (! offlineConstruction)
     {
         PracticeDefaults defaults;
         juce::String error;
@@ -193,19 +213,22 @@ LuthierAudioProcessor::LuthierAudioProcessor()
 
     // accessibility 9 and updates-telemetry 6: both of these describe the person
     // rather than the sound, so they are user-global too.
-    AccessibilitySettings::get().load();
-    Localisation::get().setLocale (Localisation::get().getLocale());
+    if (! offlineConstruction)   // FEAT-BROWSER: the UI reads these singletons
+    {
+        AccessibilitySettings::get().load();
+        Localisation::get().setLocale (Localisation::get().getLocale());
 
-    telemetry.loadSettings();
-    telemetry.setTransport (createHttpsTransport());
-    license.load();
+        telemetry.loadSettings();
+        telemetry.setTransport (createHttpsTransport());
+        license.load();
 
-    // tone-match 5: the IR folder tree exists before the user goes looking for
-    // somewhere to put a file.
-    IrLibraryPaths::ensureExists();
+        // tone-match 5: the IR folder tree exists before the user goes looking for
+        // somewhere to put a file.
+        IrLibraryPaths::ensureExists();
 
-    // practice-tools 8: yesterday's unsaved session buffers go.
-    SessionRecorder::cleanUpOldTempFiles (SessionRecorder::getTempDirectory());
+        // practice-tools 8: yesterday's unsaved session buffers go.
+        SessionRecorder::cleanUpOldTempFiles (SessionRecorder::getTempDirectory());
+    }
 
     // guitar-workshop 0.6 / host-integration 3: the default guitar's parts are
     // the overlapping parameters' starting values. Written here, before a host
@@ -249,7 +272,8 @@ LuthierAudioProcessor::LuthierAudioProcessor()
 
     // 30 Hz is fast enough for the meters and the data stream, and slow enough
     // that it costs nothing.
-    startTimerHz (30);
+    if (! offlineConstruction)   // FEAT-BROWSER
+        startTimerHz (30);
 }
 
 LuthierAudioProcessor::~LuthierAudioProcessor()
@@ -321,6 +345,8 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     diagnostics.prepare (sampleRate);
 
     killSwitch.prepare (sampleRate);
+    previewPlayer.prepare (sampleRate);   // preset-browser-previews 4.1: a rate change drops the clips
+    previewHeldNotes = 0;
     monitorMix.prepare (sampleRate, samplesPerBlock);
     monitorBuffer.setSize (2, juce::jmax (1, samplesPerBlock), false, true, false);
     monitorBuffer.clear();
@@ -403,6 +429,7 @@ void LuthierAudioProcessor::releaseResources()
     midiOutRouter.reset();
     modMatrix.reset();
     killSwitch.reset();
+    previewPlayer.dropAll();   // preset-browser-previews 4.1
     monitorMix.reset();
 
     metronome.reset();
@@ -751,7 +778,7 @@ bool LuthierAudioProcessor::loadGuitarForType (GuitarType type)
                 continue;
 
             if (const auto* value = keep.getVarPointer (p->getParameterID()))
-                p->setValueNotifyingHost ((float) juce::jlimit (0.0, 1.0, (double) *value));
+                ExactRestore::applyNormalised (*p, (double) *value);   // reads back to the bit (ExactRestore.h)
         }
     }
 
@@ -1434,6 +1461,19 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
 {
     const int numSamples = buffer.getNumSamples();
 
+    // preset-browser-previews 4.3: the live-activity half of the preview gate,
+    // read before anything consumes the host's MIDI.
+    bool previewLiveNoteOn = false;
+
+    for (const auto metadata : midiMessages)
+    {
+        const auto m = metadata.getMessage();
+
+        if (m.isNoteOn())                                   { ++previewHeldNotes; previewLiveNoteOn = true; }
+        else if (m.isNoteOff())                             previewHeldNotes = juce::jmax (0, previewHeldNotes - 1);
+        else if (m.isAllNotesOff() || m.isAllSoundOff())    previewHeldNotes = 0;
+    }
+
     // ---- routing, before anything reads or writes audio -----------------------
     routing.setActiveLayout (getNegotiatedLayout());
     routing.setSidechainPresent (hasSidechainInput());
@@ -1779,6 +1819,11 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
     {
         auto mainOut = getBusBuffer (buffer, false, 0);
 
+        // mic-placement.md 9: a user IR in a cab slot has its placement baked
+        // in, so that mic's placement stage stands aside.
+        for (int slot = 0; slot < 2; ++slot)
+            engine.getCabinetEngine().setPlacementBypassed (slot, cabIr[(size_t) slot].isEngaged());
+
         if (engineLock.isLocked())
             engine.processBlock (mainOut, midiMessages);
         else
@@ -2045,6 +2090,22 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
         haveClick = false;   // not on the monitor as well
     }
 
+    // preset-browser-previews 4.2: the preview mixes into the main output after
+    // the practice block and the click, before the routing distributes - so the
+    // looper, recorder, capture, aux buses and MIDI out never contain it.
+    {
+        bool previewHostPlaying = false;
+
+        if (auto* playHead = getPlayHead())
+            if (auto position = playHead->getPosition())
+                previewHostPlaying = position->getIsPlaying();
+
+        auto mainOut = getBusBuffer (buffer, false, 0);
+        previewPlayer.publishGate (previewHostPlaying, isNonRealtime(), killSwitch.isActive(),
+                                   previewHeldNotes, previewLiveNoteOn);
+        previewPlayer.processBlock (mainOut, numSamples);
+    }
+
     routing.distribute (*this, buffer, engine.getTapBuffers(), engine.getNumStrings(),
                         engine.getNoiseBusData());
 
@@ -2100,6 +2161,31 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
     for (int m = 0; m < ParamIDs::kNumMacros; ++m)
         if (auto* raw = macroValues[(size_t) m])
             midiOutRouter.setMacroValue (m, raw->load());
+
+    // RE-41, rhythm-engine.md 9: the RHYTHM source was carrying nothing because
+    // nobody converted the engine's PlayEvents into MIDI for it.
+    {
+        auto& rhythmBuffer = midiOutRouter.getRhythmBuffer();
+        const auto& rhythmEvents = engine.getRhythmEvents();
+        const int lastSample = juce::jmax (0, numSamples - 1);
+
+        for (int i = 0; i < rhythmEvents.getNumNoteOns(); ++i)
+        {
+            const auto& e = rhythmEvents.getNoteOn (i);
+            rhythmBuffer.addEvent (juce::MidiMessage::noteOn (juce::jlimit (1, 16, e.stringIndex + 1),
+                                                              juce::jlimit (0, 127, e.midiNote),
+                                                              (float) juce::jlimit (0.0, 1.0, e.velocity)),
+                                   juce::jlimit (0, lastSample, e.sampleOffset));
+        }
+
+        for (int i = 0; i < rhythmEvents.getNumNoteOffs(); ++i)
+        {
+            const auto& e = rhythmEvents.getNoteOff (i);
+            rhythmBuffer.addEvent (juce::MidiMessage::noteOff (juce::jlimit (1, 16, e.stringIndex + 1),
+                                                               juce::jlimit (0, 127, e.midiNote)),
+                                   juce::jlimit (0, lastSample, e.sampleOffset));
+        }
+    }
 
     midiOutRouter.emit (midiMessages, midiOutConfig, engine.getStringActivity(), numSamples);
 
@@ -2253,10 +2339,16 @@ void LuthierAudioProcessor::startAudition (AuditionPhrase::Type type)
     auditionType = type;
     uiState.auditionType = type;
 
-    auditionSequence = AuditionPhrase::build (type, hostTempo.load());
-    auditionEndSeconds = auditionSequence.getEndTime() + 0.25;
-    auditionEventIndex = 0;
-    auditionPositionSeconds = 0.0;
+    // Built here, handed over whole: the audio thread never sees it half-made.
+    auto sequence = std::make_shared<const juce::MidiMessageSequence> (AuditionPhrase::build (type, hostTempo.load()));
+    std::shared_ptr<const juce::MidiMessageSequence> displaced;
+
+    {
+        const juce::SpinLock::ScopedLockType sl (auditionLock);
+        displaced = std::move (auditionWaiting);
+        auditionWaiting = std::move (sequence);
+        auditionHasWaiting = true;
+    }
 
     auditionActive.store (true);
 
@@ -2280,13 +2372,34 @@ void LuthierAudioProcessor::processAuditionMidi (juce::MidiBuffer& midi, int num
     if (! auditionActive.load() || numSamples <= 0)
         return;
 
+    // A new phrase comes in at the block boundary; the old one is retired for
+    // the timer to free, so nothing is freed here.
+    {
+        const juce::SpinLock::ScopedTryLockType sl (auditionLock);
+
+        if (sl.isLocked() && auditionHasWaiting && auditionRetired == nullptr)
+        {
+            auditionRetired = std::move (auditionSequence);
+            auditionSequence = std::move (auditionWaiting);
+            auditionHasWaiting = false;
+            auditionEventIndex = 0;
+            auditionPositionSeconds = 0.0;
+            auditionEndSeconds = auditionSequence != nullptr ? auditionSequence->getEndTime() + 0.25 : 0.0;
+        }
+    }
+
+    if (auditionSequence == nullptr)
+        return;
+
+    const auto& phrase = *auditionSequence;
+
     const double blockSeconds = (double) numSamples / currentSampleRate;
     const double blockStart = auditionPositionSeconds;
     const double blockEnd = blockStart + blockSeconds;
 
-    while (auditionEventIndex < auditionSequence.getNumEvents())
+    while (auditionEventIndex < phrase.getNumEvents())
     {
-        const auto* event = auditionSequence.getEventPointer (auditionEventIndex);
+        const auto* event = phrase.getEventPointer (auditionEventIndex);
 
         if (event == nullptr)
         {
@@ -2708,10 +2821,12 @@ bool LuthierAudioProcessor::applyCurrentSetlistEntry (bool asUndoStep)
 //==============================================================================
 void LuthierAudioProcessor::panic()
 {
+    previewPlayer.panic();   // preset-browser-previews 4.1
     stopAudition();
 
     // SPEC-SWEEP (UW-5): the engine is the audio thread's; the release happens
-    // at the top of the next block rather than under its feet.
+    // at the top of the next block rather than under its feet. The deferred
+    // panic command also stops the riff player (riff-library 5.3).
     postEngineCommand (EngineCommand::make (EngineCommand::Type::panic));
 
     // jam-mode 2.2 (FEAT-JAM): a 5 ms choke of the band, jam_play off, Armed.
@@ -2736,6 +2851,7 @@ void LuthierAudioProcessor::applyEngineCommand (const EngineCommand& command) no
     switch (command.type)
     {
         case EngineCommand::Type::panic:
+            engine.getRiffPlayer().stop();   // riff-library 5.3: stop the riff on panic (RT-safe: two atomic stores)
             engine.panic();
             break;
 
@@ -2954,6 +3070,9 @@ juce::MemoryBlock LuthierAudioProcessor::captureStateBlock()
 
 std::unique_ptr<juce::AudioProcessor> LuthierAudioProcessor::createOfflineInstance()
 {
+    // FEAT-BROWSER: built as a render instance, which also skips the user-global
+    // loads and factory writes review R-213 left open, and never starts the timer.
+    const ScopedOfflineRenderConstruction scope;
     auto instance = std::make_unique<LuthierAudioProcessor>();
 
     /*  The exporter builds, renders and destroys this instance on its own
@@ -2965,6 +3084,31 @@ std::unique_ptr<juce::AudioProcessor> LuthierAudioProcessor::createOfflineInstan
     instance->stopTimer();
     return instance;
 }
+
+// ==== BEGIN FEAT-BROWSER (preset-browser-previews.md) ====
+void LuthierAudioProcessor::setOfflineRenderMode()
+{
+    // 3.2: a render instance runs no message-thread work under the render and
+    // never builds a preset library of its own.
+    stopTimer();
+    offlineRenderInstance = true;
+}
+
+PresetLibrary& LuthierAudioProcessor::getPresetLibrary()
+{
+    jassert (! offlineRenderInstance);
+
+    if (presetLibrary == nullptr)
+        presetLibrary = std::make_unique<PresetLibrary> (*this);
+
+    return *presetLibrary;
+}
+
+bool LuthierAudioProcessor::isTuneTransportRunning() const noexcept
+{
+    return tunePlayer.isPlaying();
+}
+// ==== END FEAT-BROWSER ====
 
 //==============================================================================
 void LuthierAudioProcessor::storeToSlot (bool useSlotB)
@@ -3371,6 +3515,8 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     ui->setProperty ("editorHeight", uiState.editorHeight);
     ui->setProperty ("auditionType", (int) uiState.auditionType);
 
+    if (! uiState.riffs.isVoid())
+        ui->setProperty ("riffs", uiState.riffs);   // riff-library 8
     // ui-wiring 17 / workshop-ui 7: the bench's A/B slots are workspace - in
     // the plugin state, not in presets, and not restored by undo ("ui" is a
     // session layer there).
@@ -3399,6 +3545,8 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 
     ui->setProperty ("practiceDrawerOpen", uiState.practiceDrawerOpen);   // onboarding 11
     ui->setProperty ("qualityOverride", qualityOverrideKey (uiState.qualityOverride));   // cpu-quality-modes 3
+
+    ui->setProperty ("playingGroupCollapsed", uiState.playingGroupCollapsed);   // FEAT-ASSIST
     root->setProperty ("ui", juce::var (ui));
 
     // ui-wiring 17: the setlist reference, with its entries inline so a missing
@@ -3431,6 +3579,15 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     root->setProperty ("bankSelectsPreset", doesBankSelectChoosePreset());   // SPEC-SWEEP IR-14
     root->setProperty ("liveMode", uiState.liveMode);
 
+    // host-integration HI-20: the root format's version, so an older build can
+    // tell a blob apart from one it understands and back it up before migrating.
+    root->setProperty ("formatVersion", (int) kCurrentStateFormatVersion);
+
+    // HI-24: write back whatever a newer build's section this one did not
+    // recognise on load, instead of quietly dropping it.
+    for (const auto& section : unknownHostSections)
+        root->setProperty (section.name, section.value);
+
     // tuning-stability.md 7 (REALISM-C): the strings' wear and the capo
     // compensation are the session's, not the preset's. (REALISM-A's aging and
     // environment ride in the preset's character block: PresetBlocks.cpp.)
@@ -3450,6 +3607,16 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     // session keeps it even though a preset (which it morphs between) does not.
     if (auto* morph = apvts.getRawParameterValue (ParamIDs::presetMorphPosition))
         root->setProperty ("presetMorphPosition", (double) morph->load());
+
+    // jam-mode 10 (FEAT-JAM): jam_play and jam_fill_now stay out of preset files
+    // (PresetManager excludes isJamTransient params), but CLAP's state-reproducibility
+    // check needs every host parameter to survive save/reload. Persist their current
+    // values at the full-state level; restoreState reads them back and re-baselines
+    // the jam engine so the restored jam_play never starts the band.
+    if (auto* p = apvts.getParameter (ParamIDs::jamPlay))
+        root->setProperty ("jamPlayValue", (double) p->getValue());
+    if (auto* p = apvts.getParameter (ParamIDs::jamFillNow))
+        root->setProperty ("jamFillNowValue", (double) p->getValue());
 
     const auto json = juce::JSON::toString (juce::var (root), false);
 
@@ -3531,6 +3698,48 @@ void LuthierAudioProcessor::restoreState (const void* data, int sizeInBytes, Res
     if (root == nullptr)
         return;
 
+    // host-integration HI-20/HI-24/HI-25, full host restores only: undo/redo and
+    // A/B recall replay a `soundOnly` slice of this same state and are not "an
+    // older or newer build's blob" in the sense those rows mean.
+    if (scope == RestoreScope::full)
+    {
+        const int formatVersion = root->hasProperty ("formatVersion")
+                                     ? (int) root->getProperty ("formatVersion") : 0;
+
+        // HI-25: an older (or pre-versioning) blob is about to be migrated by
+        // whatever below reads it under today's assumptions. Keep the original.
+        if (formatVersion < kCurrentStateFormatVersion)
+        {
+            const auto stamp = juce::Time::getCurrentTime().formatted ("%Y%m%d-%H%M%S");
+            Diagnostics::getDiagnosticsFolder()
+                .getChildFile ("state-backup-" + stamp + ".json")
+                .replaceWithText (json);
+        }
+
+        // HI-24: keep whatever root-level key this build does not recognise
+        // (a newer build's section) so the next save writes it straight back
+        // instead of quietly dropping it, and warn once when the blob names a
+        // format version newer than this build understands.
+        static const std::set<juce::String> knownRootKeys {
+            "preset", "midiLearn", "ui", "setlist", "lockedParameters", "slotBActive",
+            "routing", "modulation", "rhythm", "snapshots", "liveMode", "controllerProfile",
+            "character", "stability", "toneMatch", "metronome", "clickToMain", "normalization",
+            "tune", "presetMorphPosition", "formatVersion",
+            "jamPlayValue", "jamFillNowValue"   // jam-mode 10 (FEAT-JAM)
+        };
+
+        unknownHostSections.clear();
+
+        for (const auto& prop : root->getProperties())
+            if (knownRootKeys.find (prop.name.toString()) == knownRootKeys.end())
+                unknownHostSections.set (prop.name, prop.value);
+
+        if (formatVersion > kCurrentStateFormatVersion)
+            guitarNotices.addIfNotAlreadyThere (
+                "This session was saved by a newer version of Luthier. Some settings "
+                "may not carry over.");
+    }
+
     if (root->hasProperty ("preset"))
         presets.fromVar (root->getProperty ("preset"));
 
@@ -3543,6 +3752,7 @@ void LuthierAudioProcessor::restoreState (const void* data, int sizeInBytes, Res
         uiState.tooltipsEnabled = ui->hasProperty ("tooltipsEnabled") ? (bool) ui->getProperty ("tooltipsEnabled") : true;
         uiState.selectedString = (int) ui->getProperty ("selectedString");
         uiState.advancedTab = (int) ui->getProperty ("advancedTab");
+        uiState.playingGroupCollapsed = (bool) ui->getProperty ("playingGroupCollapsed");   // FEAT-ASSIST
         uiState.easterEggFound = ui->getProperty ("easterEggFound");
         uiState.editorWidth = juce::jmax (900, (int) ui->getProperty ("editorWidth"));
         uiState.editorHeight = juce::jmax (540, (int) ui->getProperty ("editorHeight"));
@@ -3550,6 +3760,9 @@ void LuthierAudioProcessor::restoreState (const void* data, int sizeInBytes, Res
             0, (int) AuditionPhrase::Type::NumTypes - 1, (int) ui->getProperty ("auditionType"));
         auditionType = uiState.auditionType;
 
+        // riff-library 8: the riff browser's view; audition is never restored playing.
+        uiState.riffs = ui->getProperty ("riffs");
+        engine.getRiffPlayer().stop();
         if (auto* bench = ui->getProperty ("benchSlots").getArray())   // ui-wiring 17
             for (int i = 0; i < juce::jmin (bench->size(), (int) uiState.benchSlots.size()); ++i)
                 uiState.benchSlots[(size_t) i] = bench->getReference (i);
@@ -3684,11 +3897,34 @@ void LuthierAudioProcessor::restoreState (const void* data, int sizeInBytes, Res
         if (auto* morph = apvts.getParameter (ParamIDs::presetMorphPosition))
             morph->setValueNotifyingHost (morph->convertTo0to1 ((float) (double) root->getProperty ("presetMorphPosition")));
 
-    // jam-mode 10 (FEAT-JAM): opening a project never starts the band.
-    for (auto* id : { ParamIDs::jamPlay, ParamIDs::jamFillNow })
-        if (auto* p = apvts.getParameter (id))
-            if (p->getValue() > 0.5f)
-                p->setValueNotifyingHost (0.0f);
+    // jam-mode 10 (FEAT-JAM): the two transient Jam parameters round-trip through
+    // the host state so CLAP's state-reproducibility check passes, but opening a
+    // project never starts the band. A full host restore reads the saved values
+    // back (getParameter()->getValue() then matches immediately, before any block)
+    // and re-baselines the jam engine's edge detector so the restored jam_play is
+    // not read as a rising edge; the 200 ms mirror later normalises jam_play to the
+    // stopped band. Undo/redo and A/B (soundOnly) simply keep the band stopped.
+    if (scope == RestoreScope::full)
+    {
+        auto restoreJamTransient = [this, root] (const char* id, const char* key)
+        {
+            if (auto* p = apvts.getParameter (id))
+                p->setValueNotifyingHost (root->hasProperty (key)
+                                              ? juce::jlimit (0.0f, 1.0f, (float) (double) root->getProperty (key))
+                                              : 0.0f);
+        };
+
+        restoreJamTransient (ParamIDs::jamPlay, "jamPlayValue");
+        restoreJamTransient (ParamIDs::jamFillNow, "jamFillNowValue");
+        jam.baselineNextEdges();
+    }
+    else
+    {
+        for (auto* id : { ParamIDs::jamPlay, ParamIDs::jamFillNow })
+            if (auto* p = apvts.getParameter (id))
+                if (p->getValue() > 0.5f)
+                    p->setValueNotifyingHost (0.0f);
+    }
     // output-normalization.md 6: the host path restores the setting (a state
     // without the key loads off); undo, redo and A/B keep the live one. Either
     // way the sound just changed, which is a configuration event.
@@ -3810,8 +4046,26 @@ void LuthierAudioProcessor::serviceExpressionCalibration()
 
 void LuthierAudioProcessor::timerCallback()
 {
+    // preset-browser-previews 4.1 / 3.3: free finished clips, pause background renders.
+    if (presetLibrary != nullptr)
+        presetLibrary->tick();
+    else
+        previewClipPool.collectGarbage (previewPlayer);
+
     // ambiguity-resolutions 5.2: the morph follows its (automatable) slider.
     updatePresetMorph();
+
+    // What the audio thread retired: the audition phrase, the riff player's riffs.
+    {
+        std::shared_ptr<const juce::MidiMessageSequence> done;
+
+        {
+            const juce::SpinLock::ScopedLockType sl (auditionLock);
+            done = std::move (auditionRetired);
+        }
+    }
+
+    engine.getRiffPlayer().collectGarbage();   // riff-library 5.3
 
     // live-performance 1: an in-flight snapshot recall, on the audio clock.
     snapshots.advancePending();

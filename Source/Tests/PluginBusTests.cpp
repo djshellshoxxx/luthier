@@ -140,3 +140,36 @@ LUTHIER_TEST (PluginBuses, aux8CarriesThePlayingNoiseAndObeysItsStrip)
     restored.fromVar (old);
     CHECK (! restored.isAuxMuted (kNoiseAux));
 }
+
+//==============================================================================
+// HI-2/HI-31: NEEDS_MIDI_OUTPUT was FALSE although producesMidi() is true (the
+// MidiOutRouter feeds a real MIDI-out path), so VST3/AU exposed no MIDI-out port
+// in any host. CMakeLists.txt now announces it.
+LUTHIER_TEST (PluginBuses, midiOutputIsAnnounced)
+{
+    LuthierAudioProcessor processor;
+    CHECK (processor.producesMidi());
+
+#if defined (JucePlugin_ProducesMidiOutput)
+    CHECK (JucePlugin_ProducesMidiOutput == 1);
+#else
+    CHECK_MSG (false, "JucePlugin_ProducesMidiOutput is not defined");
+#endif
+}
+
+//==============================================================================
+// HI-10: host-integration.md section 2 requires the main output to be stereo;
+// a mono main out used to be accepted and silently summed.
+LUTHIER_TEST (PluginBuses, monoMainOutputIsRefused)
+{
+    LuthierAudioProcessor processor;
+
+    auto layout = processor.getBusesLayout();
+    CHECK (layout.outputBuses.size() > 0);
+
+    layout.outputBuses.getReference (0) = juce::AudioChannelSet::mono();
+    CHECK (! processor.checkBusesLayoutSupported (layout));
+
+    layout.outputBuses.getReference (0) = juce::AudioChannelSet::stereo();
+    CHECK (processor.checkBusesLayoutSupported (layout));
+}

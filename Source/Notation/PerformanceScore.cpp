@@ -35,6 +35,10 @@ const char* getTechniqueName (ScoreTechnique::Type type) noexcept
         case ScoreTechnique::Type::accent:             return "Accent";
         case ScoreTechnique::Type::staccato:           return "Staccato";
         case ScoreTechnique::Type::letRing:            return "Let Ring";
+        case ScoreTechnique::Type::pickStrokeUp:       return "Up Stroke";
+        case ScoreTechnique::Type::pickStrokeDown:     return "Down Stroke";
+        case ScoreTechnique::Type::slap:               return "Slap";
+        case ScoreTechnique::Type::pop:                return "Pop";
         case ScoreTechnique::Type::numTypes:
         default:                                       return "Unknown";
     }
@@ -227,6 +231,17 @@ void PerformanceScore::addTechnique (int stringIndex, const ScoreTechnique& tech
 
     if (juce::isPositiveAndBelow (index, (int) captured.size()))
         captured[(size_t) index].note.techniques.push_back (technique);
+}
+
+void PerformanceScore::setAutoRules (int stringIndex, juce::uint16 rules)
+{
+    if (! juce::isPositiveAndBelow (stringIndex, kMaxStrings))
+        return;
+
+    const int index = soundingIndex[(size_t) stringIndex];
+
+    if (juce::isPositiveAndBelow (index, (int) captured.size()))
+        captured[(size_t) index].note.autoRules = rules;
 }
 
 void PerformanceScore::addChordSymbol (double beat, const juce::String& symbol)

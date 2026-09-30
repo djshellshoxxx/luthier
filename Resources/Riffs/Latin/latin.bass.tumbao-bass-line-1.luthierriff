@@ -1,0 +1,53 @@
+{
+ "bass_tech": [],
+ "magic": "luthier.riff",
+ "meta": {
+  "author": "L",
+  "created": "2026-09-24T00:00:00Z",
+  "id": "latin.bass.tumbao-bass-line-1",
+  "modified": "2026-09-24T00:00:00Z",
+  "name": "Tumbao Bass Line 1",
+  "notes": "",
+  "origin": "original",
+  "tags": ["tumbao","son","anticipated"],
+  "version_created": "1.3.0",
+  "version_modified": "1.3.0"
+ },
+ "notes": [
+  {"beat":1.5,"dur":1.5,"fret":3,"str":3,"tech":[],"vel":0.8},
+  {"beat":3,"dur":2,"fret":5,"str":1,"tech":[],"vel":0.8},
+  {"beat":5.5,"dur":1.5,"fret":5,"str":2,"tech":[],"vel":0.8},
+  {"beat":7,"dur":2,"fret":3,"str":2,"tech":[],"vel":0.8},
+  {"beat":9.5,"dur":1.5,"fret":2,"str":1,"tech":[],"vel":0.8},
+  {"beat":11,"dur":2,"fret":3,"str":3,"tech":[],"vel":0.8},
+  {"beat":13.5,"dur":1.5,"fret":3,"str":1,"tech":[],"vel":0.8},
+  {"beat":15,"dur":1,"fret":3,"str":2,"tech":[],"vel":0.8}
+ ],
+ "riff": {
+  "capo": 0,
+  "chords": [
+   {"beat":0,"symbol":"C"},
+   {"beat":4,"symbol":"G7"},
+   {"beat":8,"symbol":"C"},
+   {"beat":12,"symbol":"G7"}
+  ],
+  "difficulty": 2,
+  "feel": "straight",
+  "genre": "latin",
+  "instrument": "bass4",
+  "key": {
+   "root": "C",
+   "scale": "ionian"
+  },
+  "length_beats": 16,
+  "meter": [4,4],
+  "techniques": [],
+  "tempo_bpm": 180,
+  "tuning": [43,38,33,28],
+  "tuning_name": "Standard",
+  "type": "bass"
+ },
+ "schema": 1,
+ "source": "q: r e: r 4.3 q: ~ q: 2.5 | q: ~ e: r 3.5 q: ~ q: 3.3 | q: ~ e: r 2.2 q: ~ q: 4.3 | q: ~ e: r 2.3 q: ~ q: 3.3 |",
+ "strums": []
+}

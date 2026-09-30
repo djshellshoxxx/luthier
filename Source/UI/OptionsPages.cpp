@@ -1,4 +1,5 @@
 #include "OptionsPages.h"
+#include "Search/SearchOptionsGroup.h"   // global-search.md 7 (FEAT-SEARCH)
 #include "FirstRun.h"
 #include "RangesUi.h"
 #include "UiPreferences.h"   // REALISM-C
@@ -9,6 +10,7 @@
 #include "StageTouches.h"
 #include "UiPreferences.h"
 #include "VisualAids.h"
+#include "PerformanceAssistUi.h"   // FEAT-ASSIST
 
 namespace luthier
 {
@@ -872,6 +874,13 @@ void MidiPage::resized()
 AppearancePage::AppearancePage (LuthierAudioProcessor& p)
     : OptionsPage (p)
 {
+    // auto-articulation.md 7.4 (FEAT-ASSIST): a UiPreferences entry, not preset data.
+    assistLabelsToggle.setTooltip ("Label Performance Assist's decisions on the fretboard: H, P, slides, vibrato, "
+                                   "palm mutes, strokes and bends. The PLAYING group's list fills either way.");
+    assistLabelsToggle.setToggleState (AssistUi::showLabels(), juce::dontSendNotification);
+    assistLabelsToggle.onClick = [this] { AssistUi::setShowLabels (assistLabelsToggle.getToggleState()); };
+    addAndMakeVisible (assistLabelsToggle);
+
     for (int i = 0; i < (int) PaletteId::numPalettes; ++i)
         paletteBox.addItem (getPaletteName ((PaletteId) i), i + 1);
 
@@ -928,6 +937,13 @@ AppearancePage::AppearancePage (LuthierAudioProcessor& p)
 
     addAndMakeVisible (tooltipsToggle);
 
+    // mic-placement.md 6.5 (FEAT-MIC).
+    micSnapToggle.setButtonText (tr ("mic.options.snap"));
+    micPlotToggle.setButtonText (tr ("mic.options.plot"));
+    micSnapToggle.onClick = [this] { UiPreferences::get().setBool ("mic.snapToLandmarks", micSnapToggle.getToggleState()); };
+    micPlotToggle.onClick = [this] { UiPreferences::get().setBool ("mic.showResponsePlot", micPlotToggle.getToggleState()); };
+    addAndMakeVisible (micSnapToggle);
+    addAndMakeVisible (micPlotToggle);
     // piano-roll-chord-display.md 5: user preferences, saved at once, not preset data.
     chordNamesToggle.setTooltip ("The chord or note sounding, written faintly on the guitar's body, then fading");
     chordNamesToggle.onClick = [this]
@@ -998,11 +1014,15 @@ AppearancePage::AppearancePage (LuthierAudioProcessor& p)
     styleNote (accentNote, Palette::textMuted);
     addAndMakeVisible (accentNote);
 
+    addAndMakeVisible (presetBrowserGroup);   // preset-browser-previews 8
+
     refresh();
 }
 
 void AppearancePage::refresh()
 {
+    presetBrowserGroup.refresh();
+
     const juce::ScopedValueSetter<bool> guard (updatingControls, true);
 
     auto& settings = AccessibilitySettings::get();
@@ -1022,6 +1042,8 @@ void AppearancePage::refresh()
     lowMotionNote.setVisible (lowNoteWanted);
     tooltipsToggle.setToggleState (processor.getUiState().tooltipsEnabled,
                                    juce::dontSendNotification);
+    micSnapToggle.setToggleState (UiPreferences::get().getBool ("mic.snapToLandmarks", true), juce::dontSendNotification);
+    micPlotToggle.setToggleState (UiPreferences::get().getBool ("mic.showResponsePlot", true), juce::dontSendNotification);
 
     chordNamesToggle.setToggleState (VisualAids::showChordNames(), juce::dontSendNotification);
     announceChordsToggle.setToggleState (VisualAids::announceChordNamesSetting(), juce::dontSendNotification);
@@ -1110,6 +1132,17 @@ void AppearancePage::resized()
     }
     bounds.removeFromTop (2);
     pianoRollShowsBox.setBounds (bounds.removeFromTop (24).removeFromLeft (260));
+    bounds.removeFromTop (2);
+    // auto-articulation.md 7.4 (FEAT-ASSIST): Show Performance Assist labels, the
+    // last row of VISUAL AIDS.
+    assistLabelsToggle.setBounds (bounds.removeFromTop (26).removeFromLeft (300));
+    bounds.removeFromTop (4);
+    {
+        auto row = bounds.removeFromTop (22);   // mic-placement.md 6.5 (FEAT-MIC)
+        micSnapToggle.setBounds (row.removeFromLeft (260));
+        row.removeFromLeft (8);
+        micPlotToggle.setBounds (row.removeFromLeft (220));
+    }
 
     bounds.removeFromTop (4);
     contrastLabel.setBounds (bounds.removeFromTop (18));
@@ -1127,13 +1160,22 @@ void AppearancePage::resized()
     dataStreamToggle.setBounds (bounds.removeFromTop (26).removeFromLeft (300));
     noiseStripToggle.setBounds (bounds.removeFromTop (26).removeFromLeft (300));
     vuToggle.setBounds (bounds.removeFromTop (26).removeFromLeft (300));
+
+    // preset-browser-previews 8: PRESET BROWSER below ACCENT AND LIVE DISPLAYS.
+    bounds.removeFromTop (8);
+    presetBrowserGroup.setBounds (bounds.removeFromTop (PresetBrowserAppearanceGroup::kHeight));
 }
 
 //==============================================================================
 AccessibilityPage::AccessibilityPage (LuthierAudioProcessor& p)
     : OptionsPage (p)
 {
+    addAndMakeVisible (presetBrowserKeys);   // preset-browser-previews 7.4
+
     setWantsKeyboardFocus (true);
+
+    searchGroup = std::make_unique<search::SearchOptionsGroup>();   // FEAT-SEARCH
+    addAndMakeVisible (*searchGroup);
 
     for (int i = 0; i < (int) AccessibilitySettings::Verbosity::numLevels; ++i)
         verbosityBox.addItem (AccessibilitySettings::getVerbosityName (
@@ -1354,14 +1396,20 @@ void AccessibilityPage::refresh()
     }
 
     fontBox.setSelectedId (fontId, juce::dontSendNotification);
+
+    if (auto* group = dynamic_cast<search::SearchOptionsGroup*> (searchGroup.get()))   // FEAT-SEARCH
+        group->refresh();
 }
+
+/** FEAT-SEARCH: the room the Search group takes above the shortcut table. */
+static constexpr int kSearchGroupSpace = 60;
 
 void AccessibilityPage::paint (juce::Graphics& g)
 {
     auto bounds = getLocalBounds();
 
     drawHeading (g, bounds.removeFromTop (18), "SCREEN READER AND TEXT");
-    drawHeading (g, { 0, 76, getWidth(), 18 }, "KEYBOARD SHORTCUTS");
+    drawHeading (g, { 0, 76 + kSearchGroupSpace, getWidth(), 18 }, "KEYBOARD SHORTCUTS");
 }
 
 void AccessibilityPage::resized()
@@ -1378,8 +1426,11 @@ void AccessibilityPage::resized()
         fontBox.setBounds (row.removeFromLeft (220));
     }
 
+    // ---- search (global-search.md 7, FEAT-SEARCH) ---------------------------------------
+    searchGroup->setBounds (0, 56, getWidth(), search::SearchOptionsGroup::preferredHeight);
+
     // ---- shortcuts ---------------------------------------------------------------------
-    bounds = getLocalBounds().withTrimmedTop (96);
+    bounds = getLocalBounds().withTrimmedTop (96 + kSearchGroupSpace);
 
     {
         auto row = bounds.removeFromTop (26);
@@ -1391,6 +1442,11 @@ void AccessibilityPage::resized()
 
     bounds.removeFromTop (2);
     rebindHint.setBounds (bounds.removeFromBottom (18));
+
+    // preset-browser-previews 7.4: the browser's own group.
+    presetBrowserKeys.setBounds (bounds.removeFromBottom (PresetBrowserKeysGroup::kHeight));
+    bounds.removeFromBottom (4);
+
     shortcutList.setBounds (bounds);
 }
 
@@ -2291,8 +2347,10 @@ DiagnosticsPage::DiagnosticsPage (LuthierAudioProcessor& p)
     };
 
     addAndMakeVisible (troubleshootButton);
-    troubleshootButton.setTooltip ("Writes a file describing the build, the host and the "
-                                   "current state, for a support thread.");
+    // host-integration HI-8: names the exact build (version + git SHA / CI run),
+    // not just the marketing version, so a support thread can tell builds apart.
+    troubleshootButton.setTooltip ("Writes a file describing the build (" + getFullVersionString()
+                                   + "), the host and the current state, for a support thread.");
     troubleshootButton.onClick = [this]
     {
         processor.getPresetManager().captureExtraState();
@@ -2560,6 +2618,35 @@ FileLocationsPage::FileLocationsPage (LuthierAudioProcessor& p)
         }
     };
 
+    // riff-library 7.1: where user riffs live, and whether selecting one plays it.
+    addAndMakeVisible (chooseRiffsFolder);
+    chooseRiffsFolder.onClick = [this]
+    {
+        chooser = std::make_unique<juce::FileChooser> ("Choose the folder for your riffs", getRiffsUserFolder());
+        chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectDirectories,
+                              [this] (const juce::FileChooser& fc)
+        {
+            if (fc.getResult().isDirectory())
+            {
+                UiPreferences::get().setString ("riffs.userFolder", fc.getResult().getFullPathName());
+                refresh();
+            }
+        });
+    };
+
+    addAndMakeVisible (openRiffsFolder);
+    openRiffsFolder.onClick = []
+    {
+        const auto folder = getRiffsUserFolder();
+        folder.createDirectory();
+        folder.revealToUser();
+    };
+
+    addAndMakeVisible (auditionOnSelect);
+    auditionOnSelect.setToggleState (UiPreferences::get().getBool ("riffs.auditionOnSelect", false), juce::dontSendNotification);
+    auditionOnSelect.onClick = [this] { UiPreferences::get().setBool ("riffs.auditionOnSelect", auditionOnSelect.getToggleState()); };
+    auditionOnSelect.setTooltip ("Selecting a riff in the library plays it");
+
     addAndMakeVisible (pathLabel);
     pathLabel.setFont (Fonts::ui (11.0f));
     pathLabel.setColour (juce::Label::textColourId, Palette::textMuted);
@@ -2576,6 +2663,7 @@ FileLocationsPage::FileLocationsPage (LuthierAudioProcessor& p)
                         juce::dontSendNotification);
 
     addAndMakeVisible (folderList);
+    addAndMakeVisible (previewCacheGroup);   // preset-browser-previews 5.2
     folderList.setModel (&folderModel);
     folderList.setRowHeight (22);
     folderList.setColour (juce::ListBox::backgroundColourId, Palette::panelSunken);
@@ -2608,6 +2696,13 @@ void FileLocationsPage::FolderListModel::paintListBoxItem (int row, juce::Graphi
                 juce::Justification::centredLeft, true);
 }
 
+juce::File FileLocationsPage::getRiffsUserFolder()
+{
+    const auto chosen = UiPreferences::get().getString ("riffs.userFolder", {});
+    return chosen.isNotEmpty() && juce::File::isAbsolutePath (chosen) ? juce::File (chosen)
+                                                                       : RiffLibrary::getDefaultUserFolder();
+}
+
 void FileLocationsPage::refresh()
 {
     pathLabel.setText (
@@ -2616,10 +2711,12 @@ void FileLocationsPage::refresh()
         "Renders        " + PresetManager::getRenderFolder().getFullPathName() + "\n"
         "Diagnostics    " + Diagnostics::getDiagnosticsFolder().getFullPathName() + "\n"
         "Guitars        " + PartLibrary::getUserGuitarsFolder().getFullPathName() + "\n"
-        "Parts          " + PartLibrary::getUserPartsFolder().getFullPathName(),
+        "Parts          " + PartLibrary::getUserPartsFolder().getFullPathName() + "\n"
+        "Riffs          " + getRiffsUserFolder().getFullPathName(),
         juce::dontSendNotification);
 
     folderList.updateContent();
+    previewCacheGroup.refresh();
 }
 
 void FileLocationsPage::paint (juce::Graphics& g)
@@ -2627,7 +2724,7 @@ void FileLocationsPage::paint (juce::Graphics& g)
     auto bounds = getLocalBounds();
 
     drawHeading (g, bounds.removeFromTop (18), "WHERE LUTHIER KEEPS THINGS");
-    drawHeading (g, { 0, 232, getWidth(), 18 }, "PRESET SEARCH PATH");
+    drawHeading (g, { 0, 240, getWidth(), 18 }, "PRESET SEARCH PATH");
 }
 
 void FileLocationsPage::resized()
@@ -2636,7 +2733,7 @@ void FileLocationsPage::resized()
 
     bounds.removeFromTop (20);
 
-    pathLabel.setBounds (bounds.removeFromTop (100));
+    pathLabel.setBounds (bounds.removeFromTop (114));
     bounds.removeFromTop (Metrics::gridHalf);
 
     {
@@ -2661,7 +2758,19 @@ void FileLocationsPage::resized()
         openPartsFolder.setBounds (row.removeFromLeft (180));
     }
 
-    bounds = getLocalBounds().withTrimmedTop (254);
+    bounds.removeFromTop (Metrics::gridHalf);
+
+    {
+        auto row = bounds.removeFromTop (Metrics::buttonHeight - 4);   // riff-library 7.1
+
+        chooseRiffsFolder.setBounds (row.removeFromLeft (170));
+        row.removeFromLeft (Metrics::gridHalf);
+        openRiffsFolder.setBounds (row.removeFromLeft (150));
+        row.removeFromLeft (Metrics::gridHalf);
+        auditionOnSelect.setBounds (row.removeFromLeft (220));
+    }
+
+    bounds = getLocalBounds().withTrimmedTop (262);
 
     {
         auto row = bounds.removeFromTop (Metrics::buttonHeight);
@@ -2676,6 +2785,10 @@ void FileLocationsPage::resized()
     bounds.removeFromTop (Metrics::grid);
 
     formatNote.setBounds (bounds.removeFromBottom (64));
+    bounds.removeFromBottom (Metrics::gridHalf);
+
+    // preset-browser-previews 5.2: "Preview cache: Open / Clear".
+    previewCacheGroup.setBounds (bounds.removeFromBottom (PresetCacheGroup::kHeight));
     bounds.removeFromBottom (Metrics::gridHalf);
 
     folderList.setBounds (bounds);

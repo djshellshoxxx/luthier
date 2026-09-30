@@ -43,6 +43,12 @@ numbered, because what it should be called is a release decision.
   out of tune, panned away from the original, with a mirror-image second take
   in stereo, and its own tone filters. It replaces the old Doubler switch
   (which sat after the cabinet); presets that used it get the pedal.
+- **A Gater pedal** - a rhythmic (trance) gate in the post-amp rack: a clock
+  opens and shuts the signal in a stutter rhythm. Rate is a note division of
+  the host tempo (or Free), Size the fraction of each cycle the gate is open,
+  Shape runs from hard square edges to raised-cosine fades, and Frequency is
+  the free-running clock in Hz. Its LED on the rack flashes with the gate.
+  No new host parameters: it uses the slot's own.
 - **Preset morph** (`ambiguity-resolutions.md` 5) - turn on Morph in the
   preset browser, load a preset into A and another into B, and the slider
   blends between them: knob settings glide, switches and pedal choices change

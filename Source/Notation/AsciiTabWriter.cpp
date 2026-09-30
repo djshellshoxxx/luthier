@@ -270,16 +270,25 @@ juce::String AsciiTabWriter::renderWindow (const ScoreTrack& track, int first, i
 juce::String AsciiTabWriter::render (const PerformanceScore& score, const NotationExportOptions& options)
 {
     const int width = juce::jlimit (40, 400, options.lineWidth);
-    juce::String out;
-    appendText (out, score.getMeta().title, width);
-    if (score.getMeta().artist.isNotEmpty()) appendText (out, score.getMeta().artist, width);
-    appendText (out, "Tuning: " + score.getMeta().tuningName, width);
-    appendText (out, "Tempo: " + juce::String (score.getMeta().tempoBpm, 0) + " bpm    "
-                     + juce::String (score.getMeta().timeSignatureNumerator) + "/"
-                     + juce::String (score.getMeta().timeSignatureDenominator), width);
-    out << "\n";
     const bool ranged = std::isfinite (options.lengthBeats) && options.lengthBeats > 0.0;
     const double from = std::isfinite (options.fromBeat) ? juce::jmax (0.0, options.fromBeat) : 0.0;
+
+    juce::String out;
+
+    // A ranged request is an excerpt (like renderAsciiTabWindow), so it carries
+    // only the tab itself, not the whole-piece header. Emitting the header here
+    // also folded piece metadata - the tempo among it - into an excerpt that
+    // asked for a single span of bars.
+    if (! ranged)
+    {
+        appendText (out, score.getMeta().title, width);
+        if (score.getMeta().artist.isNotEmpty()) appendText (out, score.getMeta().artist, width);
+        appendText (out, "Tuning: " + score.getMeta().tuningName, width);
+        appendText (out, "Tempo: " + juce::String (score.getMeta().tempoBpm, 0) + " bpm    "
+                         + juce::String (score.getMeta().timeSignatureNumerator) + "/"
+                         + juce::String (score.getMeta().timeSignatureDenominator), width);
+        out << "\n";
+    }
     for (int t = 0; t < score.getNumTracks(); ++t)
     {
         const auto& track = score.getTrack (t);

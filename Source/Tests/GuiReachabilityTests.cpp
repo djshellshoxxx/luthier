@@ -31,6 +31,7 @@
 #include "../UI/GuitarBodyComponent.h"
 #include "../UI/RightHandGroup.h"
 #include "../UI/RealismGroupsC.h"
+#include "../UI/Search/ParameterVisibility.h"   // FEAT-SEARCH
 
 #include <set>
 
@@ -40,25 +41,12 @@ using namespace luthier::combo;
 
 namespace
 {
-    /*  Parameters with no visible control on purpose. Each needs a reason a
-        reviewer would accept; anything not here that has no control fails. */
+    /*  Parameters with no visible control on purpose. The list lives in
+        ParameterVisibility.h so the search index leaves out exactly the same
+        ones (global-search.md 2, FEAT-SEARCH). */
     const std::map<juce::String, juce::String>& intentionallyHidden()
     {
-        static const std::map<juce::String, juce::String> m
-        {
-            { "feedback_on",        "superseded by feedback_amount (ambiguity-resolutions 1.2); kept for automation indices" },
-            { "feedback_threshold", "superseded by the physical feedback loop (ambiguity-resolutions 1.2)" },
-            { "feedback_speed",     "superseded by the physical feedback loop (ambiguity-resolutions 1.2)" },
-            { "fret_action",        "superseded by the setup geometry (DECISIONS.md, fret-buzz 7); inert, kept for automation indices" },
-            { "doubler_on",         "legacy engine doubler: a load migrates it to a Doubler pedal (PresetManager::fromVar)" },
-            { "doubler_amount",     "legacy engine doubler; the Doubler pedal's own knobs replace it" },
-            { "strum_speed",        "superseded by strum_crossing_sps (strum-dynamics 7); kept for automation indices" },
-            { "string_age",         "legacy: read only at a preset load, mapped to string_age_hours (string-aging 1) and the stability spread (tuning-stability 7)" },
-            { "tune_feel_mod",      "a modulation destination for the tune's timeline (tune-builder 14), reached from the MOD matrix" },
-            { "tune_tempo_drift",   "a modulation destination for the tune's timeline (tune-builder 14), reached from the MOD matrix" },
-        };
-
-        return m;
+        return ParameterVisibility::intentionallyHidden();
     }
 
     template <typename T>
@@ -468,6 +456,19 @@ namespace
                 adv->setWorkspaceTab (t);
                 editor->resized();
                 scanView (context + "/Advanced/" + adv->getWorkspaceTabName (t), root, p, rec, walk, operated);
+
+                // The TECHNIQUES tab is a rail of sub-tabs (SCRAPE, SLIDE, SLAP,
+                // MUTE, TAP, BEND, CASCADE); a rail button switches between them,
+                // so each sub-tab's controls are only on screen while it is shown.
+                // Walk every sub-tab, as a user reaches them.
+                if (auto* tech = adv->getTechniquesPanel(); tech != nullptr && tech->isVisible())
+                    for (int st = 0; st < tech->getNumSubTabs(); ++st)
+                    {
+                        tech->showSubTab (st);
+                        editor->resized();
+                        scanView (context + "/Advanced/TECHNIQUES/" + juce::String (TechniquesPanel::getSubTabName (st)),
+                                  root, p, rec, walk, operated);
+                    }
             }
 
             key ("toggleSlideMode"); scanView (context + "/Advanced+Slide", root, p, rec, walk, operated); key ("toggleSlideMode");
@@ -570,6 +571,16 @@ namespace
                     if (c != nullptr)
                         for (int i = 0; i < c->choices.size(); ++i)
                             if (c->choices[i].containsIgnoreCase ("bass")) { r.setIndex (ParamIDs::guitarType, i); break; }
+                } },
+            // FEAT-MIC (mic-placement.md 6.1): the external mics' controls are
+            // shown on an acoustic guitar, with its second mic on.
+            { "acoustic", [] (Rig& r)
+                {
+                    auto* c = dynamic_cast<juce::AudioParameterChoice*> (r.param (ParamIDs::guitarType));
+                    if (c != nullptr)
+                        for (int i = 0; i < c->choices.size(); ++i)
+                            if (c->choices[i].containsIgnoreCase ("dread")) { r.setIndex (ParamIDs::guitarType, i); break; }
+                    r.setIndex (ParamIDs::acMic2On, 1);
                 } },
             { "whammy+slide+slap", [] (Rig& r)
                 {

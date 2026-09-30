@@ -45,6 +45,7 @@ enum class RangeFamily
     // ==== END REALISM-A range families ====
 
     jam,            ///< jam-mode.md 10: jam_kit_tuning, jam_kit_damping (FEAT-JAM)
+    mic,            // mic-placement.md 7 (FEAT-MIC)
     numFamilies,
 
     /** Returned for a parameter that has no PhysicalRange. */
