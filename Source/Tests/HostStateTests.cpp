@@ -6,6 +6,7 @@
 
 #include "../PluginProcessor.h"
 #include "../Parameters.h"
+#include "../Presets/ExactRestore.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -76,6 +77,96 @@ LUTHIER_TEST (HostState, anUnpreparedInstanceSavesTheSameStateAsAPreparedOne)
     auto unprepared = std::make_unique<LuthierAudioProcessor>();
 
     CHECK (sameState (asText (saveState (*prepared)), asText (saveState (*unprepared)), "luthier-unprepared"));
+}
+
+//==============================================================================
+/*  ExactRestore.h, for every ranged parameter, skewed ranges included:
+
+      - A value that arrived through a set (a host's plain write, or a raw
+        normalised one as a hand-edited preset holds) is stored exactly as
+        getValue() reports it - what clap-validator compares after a reload -
+        and a restore reads it back to the bit. The direct setValueNotifyingHost
+        path drifts by a float ULP on skewed ranges, which made save -> restore
+        -> save differ.
+
+      - A constructor default never went through the round trip and can be
+        unreachable; it is stored where the parameter reads it back, and that
+        restores exactly too.
+
+    Either way the plain value moves by at most a few plain-range ULPs (three
+    on tap_duration's 10-2000 ms range: 0.0002 ms), so nothing audible or
+    displayed changes. */
+LUTHIER_TEST (HostState, aRestoredNormalisedValueReadsBackExactly)
+{
+    auto ulpsApart = [] (float a, float b)
+    {
+        long n = 0;
+        for (float x = a; x != b && n < 64; x = std::nextafter (x, b))
+            ++n;
+        return n;
+    };
+
+    LuthierAudioProcessor p;
+    juce::Random rng (0x5EED);
+    juce::StringArray inexact, moved, rewritten, defaultsMoved;
+    int checked = 0;
+
+    for (auto* param : p.getParameters())
+    {
+        auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (param);
+
+        if (ranged == nullptr || ParamIDs::isJamTransient (ranged->getParameterID()))
+            continue;
+
+        // A bool keeps the normalised float it is given, so a raw draw reads
+        // back as itself; the helper leaves it alone. Floats are the subject.
+        const bool isFloat = dynamic_cast<juce::AudioParameterFloat*> (param) != nullptr;
+        long worstUlps = 0, worstPlainUlps = 0, worstDefaultUlps = 0;
+
+        for (int k = -1; k < 256; ++k)
+        {
+            // k = -1: the constructor default, untouched. Even draws: what a
+            // host wrote as a plain value. Odd draws: a raw normalised value.
+            if (k >= 0)
+                ranged->setValueNotifyingHost (k % 2 == 0 || ! isFloat
+                                                   ? ranged->convertTo0to1 (ranged->convertFrom0to1 (rng.nextFloat()))
+                                                   : rng.nextFloat());
+
+            const float live = ranged->getValue();
+            const double stored = ExactRestore::storable (*ranged, live);   // what toVar writes
+
+            if (k >= 0 && (float) stored != live)
+                rewritten.add (ranged->getParameterID());
+            else if (k < 0)
+                worstDefaultUlps = ulpsApart ((float) stored, live);
+
+            ranged->setValueNotifyingHost (rng.nextFloat());   // scramble
+            ExactRestore::applyNormalised (*ranged, stored);
+            ++checked;
+
+            worstUlps = std::max (worstUlps, ulpsApart (ranged->getValue(), (float) stored));
+            worstPlainUlps = std::max (worstPlainUlps,
+                                       ulpsApart (ranged->convertFrom0to1 (ranged->getValue()),
+                                                  ranged->convertFrom0to1 (live)));
+        }
+
+        if (worstUlps > 0)
+            inexact.add (ranged->getParameterID() + " (" + juce::String (worstUlps) + " ulp)");
+
+        if (worstPlainUlps > 4)
+            moved.add (ranged->getParameterID() + " (" + juce::String (worstPlainUlps) + " plain ulp)");
+
+        if (worstDefaultUlps > 4)
+            defaultsMoved.add (ranged->getParameterID() + " (" + juce::String (worstDefaultUlps) + " ulp)");
+    }
+
+    rewritten.removeDuplicates (false);
+
+    CHECK (checked > 0);
+    CHECK_MSG (rewritten.isEmpty(), "a set value was not stored as getValue() reports it: " + rewritten.joinIntoString (", "));
+    CHECK_MSG (inexact.isEmpty(), "restored values not read back exactly: " + inexact.joinIntoString (", "));
+    CHECK_MSG (moved.isEmpty(), "restore moved the plain value by more than 4 ulps: " + moved.joinIntoString (", "));
+    CHECK_MSG (defaultsMoved.isEmpty(), "a default was stored more than 4 ulps away: " + defaultsMoved.joinIntoString (", "));
 }
 
 LUTHIER_TEST (HostState, theMorphSliderAndTheCharacterAmountAreSaved)

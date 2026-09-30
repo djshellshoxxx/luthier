@@ -2,6 +2,7 @@
 #include "Updates/CrashWriter.h"   // SPEC-SWEEP: UT-16
 #include "Workshop/FamilyDefaults.h"   // guitar-illustration.md 12.3 (VISUAL-WORKSHOP-QA)
 #include "Presets/FactoryPresets.h"
+#include "Presets/ExactRestore.h"   // a stored normalised value, restored so it reads back exactly
 #include "Support/ErrorLog.h"
 #include "Model/Guitar/BassDefaults.h"   // MODEL-GAPS
 #include <set>
@@ -777,7 +778,7 @@ bool LuthierAudioProcessor::loadGuitarForType (GuitarType type)
                 continue;
 
             if (const auto* value = keep.getVarPointer (p->getParameterID()))
-                p->setValueNotifyingHost ((float) juce::jlimit (0.0, 1.0, (double) *value));
+                ExactRestore::applyNormalised (*p, (double) *value);   // reads back to the bit (ExactRestore.h)
         }
     }
 
