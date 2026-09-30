@@ -43,16 +43,16 @@ GateLed::GateLed (LuthierAudioProcessor& p, bool post, int slot)
 
 GateLed::~GateLed()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 void GateLed::visibilityChanged()
 {
-    // Only a Gater slot pays for the timer.
+    // Only a Gater slot pays for the timer, at the rate the motion policy allows.
     if (isVisible())
-        startTimerHz (30);
+        motion.startTimerHz (*this, 30);
     else
-        stopTimer();
+        motion.stopTimer();
 }
 
 void GateLed::refresh()
@@ -76,6 +76,8 @@ void GateLed::refresh()
 
 void GateLed::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);
+
     const auto m = faces::Materials::current();
     const auto area = getLocalBounds().toFloat();
     const auto centre = area.getCentre();

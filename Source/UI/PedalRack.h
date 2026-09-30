@@ -22,6 +22,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Widgets.h"
+#include "AnimationPolicy.h"
 #include "Faces/PedalFace.h"
 #include "../DSP/Effects/EffectsChain.h"
 
@@ -59,6 +60,9 @@ private:
     bool postChain;
     int slotIndex;
     float shown = 0.0f;
+
+    // cpu-quality-modes 6: the motion switch drives the timer (a live readout).
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "GateLed" };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GateLed)
 };
