@@ -1,0 +1,6 @@
+- [TX-1.4 (§1.4)] effort M — TuneToScore must reuse capture note model (Codex lane)
+- [TX-4.1 (§4.1)] effort S — add one-click Tab button and 'From written tune / live take' picker (Codex lane)
+- [TX-4.2 (§4.2)] effort S — add tune-source option (Codex lane)
+- [TX-4.3 (§4.3)] effort S — add empty-tune and empty-ring messages
+- [TX-5 (§5)] effort S — re-check after TuneToScore lands
+- [TX-T2 (§6 TABX-07)] effort S — run TuneToScore output through the same round-trip tests

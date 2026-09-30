@@ -1,0 +1,9 @@
+- [US-0 (§0)] effort S — scale steps exist; confirm six steps match spec (100..)
+- [US-1 (§1)] effort M — move/mirror storage to ui.json `ui_scale_pct`; corrupt/off-step tests (UISC-01..03)
+- [US-3 (§3)] effort M — host-refusal fallback with one-time banner; first-paint parity (UISC-04, 07)
+- [US-4 (§4)] effort S — add UISC-10 test
+- [US-5 (§5)] effort S — verify broadcast and reset-to-defaults (UISC-05, 09)
+- [US-6 (§6)] effort S — wire to scale key
+- [US-T1 (§7 UISC-01..03)] effort S — add round-trip, corrupt, snap tests
+- [US-T2 (§7 UISC-04..07)] effort M — needs two-editor and rejecting-host harness
+- [US-T3 (§7 UISC-08..10)] effort S — add tests

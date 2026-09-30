@@ -24,6 +24,7 @@ decisions and the fix log are in `docs/coverage/SPEC-SWEEP.md`.
 | [action-and-undo](#action-and-undomd) | 10 | 0 | 3 | 0 | 3 | 26 | 0 | 42 | 24% |
 | [advanced-ranges](#advanced-rangesmd) | 36 | 0 | 5 | 1 | 1 | 3 | 0 | 46 | 78% |
 | [ambiguity-resolutions](#ambiguity-resolutionsmd) | 33 | 0 | 0 | 1 | 0 | 1 | 1 | 36 | 92% |
+| [amp-cab-ir](#amp-cab-irmd) | 0 | 0 | 0 | 1 | 0 | 11 | 0 | 12 | 0% |
 | [animated-strings](#animated-stringsmd) | 0 | 0 | 0 | 0 | 0 | 23 | 0 | 23 | 0% |
 | [auto-articulation](#auto-articulationmd) | 0 | 0 | 0 | 0 | 0 | 31 | 0 | 31 | 0% |
 | [bass-techniques](#bass-techniquesmd) | 34 | 0 | 0 | 3 | 0 | 0 | 1 | 38 | 89% |
@@ -58,6 +59,7 @@ decisions and the fix log are in `docs/coverage/SPEC-SWEEP.md`.
 | [mic-placement](#mic-placementmd) | 1 | 0 | 0 | 0 | 0 | 23 | 0 | 24 | 4% |
 | [microtonal-bends](#microtonal-bendsmd) | 0 | 0 | 0 | 0 | 0 | 28 | 0 | 28 | 0% |
 | [midi-export](#midi-exportmd) | 33 | 0 | 0 | 5 | 0 | 0 | 0 | 38 | 87% |
+| [midi-learn](#midi-learnmd) | 2 | 2 | 0 | 9 | 0 | 0 | 0 | 13 | 15% |
 | [modulation-matrix](#modulation-matrixmd) | 41 | 0 | 3 | 8 | 3 | 1 | 0 | 56 | 73% |
 | [muting-rhythm](#muting-rhythmmd) | 0 | 0 | 0 | 0 | 0 | 26 | 0 | 26 | 0% |
 | [noise-floor](#noise-floormd) | 40 | 0 | 1 | 2 | 0 | 0 | 0 | 43 | 93% |
@@ -71,6 +73,7 @@ decisions and the fix log are in `docs/coverage/SPEC-SWEEP.md`.
 | [practice-tools](#practice-toolsmd) | 44 | 0 | 7 | 6 | 7 | 0 | 0 | 64 | 69% |
 | [preset-browser-previews](#preset-browser-previewsmd) | 1 | 0 | 0 | 0 | 0 | 37 | 0 | 38 | 3% |
 | [qa-polish](#qa-polishmd) | 18 | 0 | 1 | 14 | 9 | 36 | 0 | 78 | 23% |
+| [randomize-and-ab](#randomize-and-abmd) | 4 | 0 | 0 | 10 | 2 | 0 | 0 | 16 | 25% |
 | [rhythm-engine](#rhythm-enginemd) | 43 | 0 | 0 | 4 | 0 | 0 | 0 | 47 | 91% |
 | [riff-library](#riff-librarymd) | 0 | 0 | 0 | 0 | 0 | 29 | 0 | 29 | 0% |
 | [routing-io](#routing-iomd) | 31 | 0 | 2 | 1 | 1 | 3 | 0 | 38 | 82% |
@@ -85,12 +88,15 @@ decisions and the fix log are in `docs/coverage/SPEC-SWEEP.md`.
 | [string-squeak](#string-squeakmd) | 38 | 0 | 0 | 2 | 0 | 1 | 0 | 41 | 93% |
 | [strum-dynamics](#strum-dynamicsmd) | 33 | 0 | 0 | 0 | 0 | 0 | 1 | 34 | 97% |
 | [sustain-and-decay](#sustain-and-decaymd) | 33 | 0 | 1 | 1 | 0 | 0 | 0 | 35 | 94% |
+| [tab-export](#tab-exportmd) | 0 | 0 | 0 | 6 | 0 | 8 | 0 | 14 | 0% |
 | [technique-cascade](#technique-cascademd) | 1 | 0 | 0 | 0 | 0 | 16 | 0 | 17 | 6% |
 | [theme](#thememd) | 12 | 0 | 6 | 15 | 1 | 1 | 0 | 35 | 34% |
 | [tone-match](#tone-matchmd) | 34 | 0 | 4 | 5 | 2 | 0 | 0 | 45 | 76% |
 | [tune-builder](#tune-buildermd) | 76 | 1 | 1 | 7 | 2 | 0 | 0 | 87 | 87% |
+| [tuner-and-tuning-reference](#tuner-and-tuning-referencemd) | 0 | 0 | 1 | 3 | 0 | 11 | 0 | 15 | 0% |
 | [tuning-stability](#tuning-stabilitymd) | 44 | 0 | 0 | 1 | 1 | 0 | 0 | 46 | 96% |
 | [two-hand-tapping](#two-hand-tappingmd) | 0 | 0 | 0 | 0 | 0 | 24 | 0 | 24 | 0% |
+| [ui-scaling](#ui-scalingmd) | 1 | 0 | 4 | 5 | 0 | 0 | 0 | 10 | 10% |
 | [ui-wiring](#ui-wiringmd) | 30 | 0 | 3 | 17 | 5 | 7 | 0 | 62 | 48% |
 | [updates-telemetry](#updates-telemetrymd) | 22 | 0 | 0 | 4 | 2 | 3 | 0 | 31 | 71% |
 | [volume-knob-interaction](#volume-knob-interactionmd) | 31 | 0 | 0 | 1 | 1 | 1 | 1 | 35 | 89% |
@@ -102,9 +108,7 @@ decisions and the fix log are in `docs/coverage/SPEC-SWEEP.md`.
 | [docs-PRESET_FORMAT](#docs-preset_formatmd) | 25 | 0 | 0 | 0 | 0 | 0 | 0 | 25 | 100% |
 | [docs-TROUBLESHOOTING](#docs-troubleshootingmd) | 18 | 0 | 4 | 0 | 0 | 0 | 2 | 24 | 75% |
 | [docs-USER_MANUAL](#docs-user_manualmd) | 50 | 0 | 8 | 0 | 0 | 1 | 1 | 60 | 83% |
-| **Total** | **2272** | **13** | **106** | **334** | **170** | **842** | **24** | **3761** | **60%** |
-
-Not yet audited: amp-cab-ir, midi-learn, randomize-and-ab, tab-export, tuner-and-tuning-reference, ui-scaling
+| **Total** | **2279** | **15** | **111** | **368** | **172** | **872** | **24** | **3841** | **59%** |
 
 ## CLAUDE_CODE_BRIEF.md
 
@@ -895,6 +899,31 @@ All seven resolutions are implemented, reachable and tested on this checkout: th
 
 - [AR-5] DEFERRED (dsp2 agrees) - effort S — DEFER: 1.1 requires the amp output "delayed by one block to break the same-block loop"; the engine keeps that one-block minimum at distance 0 (DECISIONS: "delayed one block plus distance / 343"). A true same-block filter would reintroduce the zero-delay loop 1.1 forbids. Record in spec/DECISIONS.md that distance 0 means "no acoustic delay beyond the block".
 - [AR-10] PARTIAL: the floor is silent (dsp2); the knob still reads "-60.0" rather than "-inf"
+
+</details>
+
+## amp-cab-ir.md
+
+Amp and cab bypass switches plus a quick IR picker on the CAB panel. Codex-owned lane (no branch on origin carries it; no `amp_bypass`/`cab_bypass` parameter exists on this checkout). Only the canonical IR slot editors in the TONE MATCH panel exist today.
+
+| Req | Summary | Engine location | GUI location | Test | Status |
+|---|---|---|---|---|---|
+| AC-0 (§0) | Ground rules, scope, no audio-path change beyond bypass | - | - | - | OWNED |
+| AC-1 (§1) | Amp bypass (AmpEngine skipped, crossfade, state freeze) | - | - | - | OWNED |
+| AC-2 (§2) | Cab bypass (cab stage skipped before RoomEngine) | - | - | - | OWNED |
+| AC-3 (§3) | Where the switches live (CAB/AMP panels, rig strip) | - | - | - | OWNED |
+| AC-4 (§4) | Quick IR picker on CAB panel mirroring the canonical slot | `Source/UI/ToneMatchPanel.cpp:IrSlotEditor` (cabSlot1/2, bodySlot) | TONE MATCH tab only, `IrSlotEditor`; no CAB-panel combo | `ToneMatch::cabinetSlotsReplaceTheirOwnMic`, `ToneMatch::anEngagedBodyIrChangesTheSound` | PARTIAL |
+| AC-5 (§5) | CPU-quality awareness, latency constant, Auto independent | - | - | - | OWNED |
+| AC-6 (§6) | Serialization, undo, accessibility of the switches | - | - | - | OWNED |
+| AC-7 (§7) | Interactions with other specs | - | - | - | OWNED |
+| AC-8 (§8) | Failure modes | - | - | - | OWNED |
+| AC-T1 (§9 RIG-01..06) | Bypass signal path, click-free, state freeze, latency, CPU | - | - | - | OWNED |
+| AC-T2 (§9 RIG-07..09) | Picker mirror, Mix knob identity, acoustic retitle | - | - | - | OWNED |
+| AC-T3 (§9 RIG-10..13) | Auto-quality independence, serialization, undo, a11y | - | - | - | OWNED |
+
+<details><summary>Work list (amp-cab-ir)</summary>
+
+- [AC-4 (§4)] effort M — add CAB-panel IR combo + shared Mix knob bound to the same slot/param as IrSlotEditor; acoustic 'Body IR' retitle (Codex lane)
 
 </details>
 
@@ -3052,6 +3081,42 @@ The codec is complete: 18 event classes with text + SysEx redundancy, Luthier/Ge
 
 </details>
 
+## midi-learn.md
+
+Unified MIDI Learn: sources (CC/PC/pressure/notes/MPE), two entry points, mapping list, global vs preset, ranges, serialization. Deferred feature, no owner; a substantial base exists (`MidiLearnManager`, arm overlay, global mappings) so most rows are PARTIAL. Missing: MPE dimensions, burst resolution, mappings popover with Clear all / Save-all-as-global.
+
+| Req | Summary | Engine location | GUI location | Test | Status |
+|---|---|---|---|---|---|
+| ML-0 (§0) | Ground rules (no audio-thread alloc, one control one mapping) | `Source/Support/MidiLearn.h:MidiLearnManager` | - | `MidiLearn::learningDoesNotAllocateOrLockOnTheAudioThread` | PARTIAL |
+| ML-1 (§1) | Sources: CC, PC, aftertouch, pressure, notes, MPE dims | `MidiLearnManager::sourceKeyFor`, `describeSource` | - | `MidiLearn::learnsPcAftertouchAndPressure`, `MidiLearn::notesAreLearnedOnlyWhenAllowed` | PARTIAL |
+| ML-2.1 (§2.1) | Header arm then click | `MidiLearnManager::setArmed/claimArmedLearn/expireIfIdle` | Header arm button, `MidiLearnArmLayer` (Overlays.h), `LuthierAudioProcessorEditor::setMidiLearnArmed` | `MidiLearn::armingIsSeparateFromLearningUntilAControlClaimsIt`, `Editor::ctrlLArmsMidiLearn`, `MidiLearn::armedButtonAndTargetPulse` | DONE |
+| ML-2.2 (§2.2) | Direct per-control right-click learn | `MidiLearnManager::startLearning` | `Widgets.cpp` context menu item 5 'MIDI Learn' | `MidiLearn::mapsAndUnmapsCleanly` | DONE |
+| ML-2.3 (§2.3) | Catching the source: burst resolve, 20 s timeout, status text | `MidiLearnManager::handleAsyncUpdate/expireIfIdle` | status banner in editor | `MidiLearn::armingTimesOutAfterThirtySeconds`, `MidiLearn::everyCcLearnsWithinOneBlock` | PARTIAL |
+| ML-3 (§3) | Mapping list popover, Clear all, Save-all-as-global | `MidiLearnManager::clearAllMappings/getNumMappings` | none found (no mappings popover) | - | NO-GUI |
+| ML-4 (§4) | Global vs preset mappings, preset wins on conflict | `MidiLearnManager::setMappingGlobal/isMappingGlobal/getGlobalMappingsFile/mergeGlobalMappings` | Widgets.cpp context menu global toggle | `MidiLearn::aGlobalMappingSurvivesAPresetLoad` | PARTIAL |
+| ML-5 (§5) | Ranges, invert, modulation interaction with advanced ranges | `MidiLearnManager::setMappingRange` | none (no range editor) | - | NO-GUI |
+| ML-6 (§6) | Serialization (midi_mappings, mpe_dimension), undo, a11y | `MidiLearnManager::toVar/fromVar`, `PresetBlocks.cpp midiMappings` | - | `LiveInput::assignmentsRoundTripThroughTheirConfigFile` (other file) | PARTIAL |
+| ML-7 (§7) | Failure modes | `MidiLearnManager::cancelLearning` | - | `MidiLearn::disarmingCancelsAnInFlightLearn`, `Stress::midiLearnArmDisarmHundredTimes` | PARTIAL |
+| ML-T1 (§8 LEARN-01..05) | Entry-point parity, all params learnable, CC catch, burst, timeout | see ML-2 | - | `MidiLearn::everyCcLearnsWithinOneBlock`, `MidiLearn::armingTimesOutAfterThirtySeconds` | PARTIAL |
+| ML-T2 (§8 LEARN-06..08) | MPE aggregation, note-class toggle, one-control-one-mapping | - | - | `MidiLearn::notesAreLearnedOnlyWhenAllowed` | PARTIAL |
+| ML-T3 (§8 LEARN-09..14) | Global/preset resolution, serialization, range, undo, popover, a11y | - | - | `MidiLearn::aGlobalMappingSurvivesAPresetLoad` | PARTIAL |
+
+<details><summary>Work list (midi-learn)</summary>
+
+- [ML-0 (§0)] effort S — DEFERRED (coordinator plan: serialized after the gap helpers) — verify one-control-one-mapping replacement and same-source-two-controls rule (LEARN-08)
+- [ML-1 (§1)] effort L — DEFERRED (coordinator plan: serialized after the gap helpers) — add MPE dimension sources (slide/pressure/pitch) with Highest/Lowest/Most recent/Mean aggregation and hold-last
+- [ML-2.3 (§2.3)] effort S — DEFERRED (coordinator plan: serialized after the gap helpers) — timeout is 30 s in code vs 20 s in spec (reconcile); add larger-swing burst resolution within 150 ms
+- [ML-3 (§3)] effort M — DEFERRED (coordinator plan: serialized after the gap helpers) — build mappings popover: rows with source/target, global glyph, Clear all, Save all as global, empty state
+- [ML-4 (§4)] effort S — DEFERRED (coordinator plan: serialized after the gap helpers) — assert preset-overrides-global resolution and midi_mappings.json round trip (LEARN-09/10)
+- [ML-5 (§5)] effort M — DEFERRED (coordinator plan: serialized after the gap helpers) — per-mapping min/max/invert editor in popover; re-scale on family widening (LEARN-11)
+- [ML-6 (§6)] effort M — DEFERRED (coordinator plan: serialized after the gap helpers) — add mpe_dimension field, undo entries for learn/delete/Clear all (LEARN-12), announcements (LEARN-14)
+- [ML-7 (§7)] effort S — DEFERRED (coordinator plan: serialized after the gap helpers) — cover sustain skip / conflict / missing target messages
+- [ML-T1 (§8 LEARN-01..05)] effort S — DEFERRED (coordinator plan: serialized after the gap helpers) — add LEARN-01 parity, LEARN-02 all-params and LEARN-04 burst tests
+- [ML-T2 (§8 LEARN-06..08)] effort M — DEFERRED (coordinator plan: serialized after the gap helpers) — LEARN-06 needs MPE feature; add LEARN-07/08 tests
+- [ML-T3 (§8 LEARN-09..14)] effort M — DEFERRED (coordinator plan: serialized after the gap helpers) — add LEARN-10..14 tests once popover/undo exist
+
+</details>
+
 ## modulation-matrix.md
 
 The engine is complete: 8 LFOs, 4 DAHDSR envelopes, 2 step sequencers, 2 followers, note/CC/14-bit/random/macro sources, compiled lock-free routes (8 per destination), discrete destinations and all five spec tests. The MOD tab is thinner than the engine. It has no route Offset column. The LFO phase and breakpoint shape, the envelope retrigger, stage curves and loop mode, the sequencer's step grid and internal rate, and the follower's string index and log curve have no controls. There are no per-source colours. The matrix is not written to `.luthierpreset` files (session state and snapshots only), so preset load neither restores nor resets it. Per-string, rhythm, pan and snapshot-morph destinations do not exist as parameters. Drag-to-modulate is on the visual branch.
@@ -3926,6 +3991,46 @@ This spec is a ship-gate checklist, and a large part of it is process: the host 
 - [QA-76 (§11)] effort S — DEFER: legal. Replace `packaging/common/EULA.txt` and publish the refund policy (the product owner's task per RELEASING.md §7).
 - [QA-77 (§12)] effort S — DEFER: human process. Add the 30-minute check and the Workshop from-scratch round trip to SHIP_GATE. The round trip could also be automated as `WorkshopPresets::aGuitarBuiltFromATemplateSurvivesReopen`.
 - [QA-78 (§13)] effort M — rollback/hotfix runbook written (RELEASING 10); the monitoring SLA is process, the manifest-driven banner is open (IN-43).
+
+</details>
+
+## randomize-and-ab.md
+
+Randomize (category/amount/distribution/locks) and A/B compare slots. Deferred feature, no owner. Basic randomise (locks, respects-stock) and A/B slots with copy exist in `LuthierAudioProcessor`; category scope, Amount, triangular distribution, popover and per-field diff flip are missing.
+
+| Req | Summary | Engine location | GUI location | Test | Status |
+|---|---|---|---|---|---|
+| RA-0 (§0) | Ground rules, no audio-thread work | `PluginProcessor.cpp:LuthierAudioProcessor::randomiseParameters` | - | `Presets::randomiseNeverProducesSomethingBroken` | PARTIAL |
+| RA-1.1 (§1.1) | Randomize categories (Tone, etc.) | `PresetManager::randomise` (all params, no categories) | none (no category popover) | - | MISSING |
+| RA-1.2 (§1.2) | Amount control | - | - | - | MISSING |
+| RA-1.3 (§1.3) | Musical distribution (triangular around current, within live range) | `PresetManager::randomise` | - | `Presets::randomiseRespectsLocks` | PARTIAL |
+| RA-1.4 (§1.4) | Locks | `LuthierAudioProcessor::setParameterLocked/isParameterLocked` | `Widgets.cpp` menu 'Lock (exclude from randomise)' | `Presets::randomiseRespectsLocks` | DONE |
+| RA-1.5 (§1.5) | Never touches structure (guitar, tuning, ranges, mappings, rack, uiState) | `PresetManager::randomise`, `randomiseRespectsStock` (`RangesUi::kRandomiseInStockKey`) | Options toggle `randomiseToggle` | `Presets::randomiseNeverProducesSomethingBroken` | PARTIAL |
+| RA-2.1 (§2.1) | A/B slot contents | `LuthierAudioProcessor::storeToSlot/recallSlot` | HeaderBar `compareA/compareB` | `Presets::abSlotsCompareAndCopyTheCurrentOneAcross` | DONE |
+| RA-2.2 (§2.2) | Active slot | `isSlotBActive/setSlotBActive` | HeaderBar A/B buttons highlight | `Editor::abButtonsHighlightTheActiveSlot` | DONE |
+| RA-2.3 (§2.3) | Flipping: diff-only, click-free | `recallSlot` (whole-state recall) | HeaderBar, `abCompare` shortcut | `Editor::undoRedoAndABKeysReachTheProcessor` | PARTIAL |
+| RA-2.4 (§2.4) | Copy A>B and Reset both | `LuthierAudioProcessor::copyAtoB` | HeaderBar `copyAB` | `Presets::abSlotsCompareAndCopyTheCurrentOneAcross` | PARTIAL |
+| RA-2.5 (§2.5) | What A/B does not do; transient, not saved | processor slots not serialized | - | `Editor::abCompareIsTransientAndNotSaved`, `StateModel::aPresetLoadClearsABCompareWithABanner` | DONE |
+| RA-3 (§3) | UI: randomise popover, A/B strip | `HeaderBar.cpp` randomise button; `EasyPanel` randomiseButton | HeaderBar, EasyPanel; no popover | `Editor::randomiseAndResetKeys`, `Onboarding::theRandomiseTooltipShowsOnTheFirstHoverOnly` | PARTIAL |
+| RA-4 (§4) | Undo: one multi-target 'randomize' entry; flips not in history | `randomiseParameters` -> `pushUndoState("Randomise")` | - | `UndoSweep` none specific | PARTIAL |
+| RA-5 (§5) | Interactions with other specs | - | - | - | PARTIAL |
+| RA-T1 (§6 RAND-01..06) | Category scope, distribution, stock range, structure, undo, popover state | - | - | `Presets::randomiseNeverProducesSomethingBroken`, `Presets::randomiseRespectsLocks` | PARTIAL |
+| RA-T2 (§6 AB-01..07) | Load resets, diff-only swap, click-free flip, copy/reset, save-active-only, undo independence, session boundary | - | - | `Presets::abSlotsCompareAndCopyTheCurrentOneAcross`, `StateModel::aPresetLoadClearsABCompareWithABanner`, `Editor::abCompareIsTransientAndNotSaved` | PARTIAL |
+
+<details><summary>Work list (randomize-and-ab)</summary>
+
+- [RA-0 (§0)] effort S — DEFERRED (coordinator plan: serialized after the gap helpers) — confirm worker/message-thread only and deterministic seed option
+- [RA-1.1 (§1.1)] effort M — DEFERRED (coordinator plan: serialized after the gap helpers) — category list + popover toggles; restrict randomise to enabled categories
+- [RA-1.2 (§1.2)] effort S — DEFERRED (coordinator plan: serialized after the gap helpers) — Amount slider scaling spread
+- [RA-1.3 (§1.3)] effort M — DEFERRED (coordinator plan: serialized after the gap helpers) — move to triangular-around-current with Amount spread, clamp to live range
+- [RA-1.5 (§1.5)] effort S — DEFERRED (coordinator plan: serialized after the gap helpers) — add RAND-04 test across all category combos
+- [RA-2.3 (§2.3)] effort M — DEFERRED (coordinator plan: serialized after the gap helpers) — flip only writes differing fields (AB-02) and crossfades pedal/guitar changes (AB-03)
+- [RA-2.4 (§2.4)] effort S — DEFERRED (coordinator plan: serialized after the gap helpers) — add Reset both to last-loaded preset
+- [RA-3 (§3)] effort M — DEFERRED (coordinator plan: serialized after the gap helpers) — randomise popover with categories/Amount/respects-stock; persist session choices
+- [RA-4 (§4)] effort S — DEFERRED (coordinator plan: serialized after the gap helpers) — label entry 'randomize' multi-target; add RAND-05 and AB-06 tests
+- [RA-5 (§5)] effort S — DEFERRED (coordinator plan: serialized after the gap helpers) — verify ranges/midi-learn/snapshot interactions when category scope lands
+- [RA-T1 (§6 RAND-01..06)] effort M — DEFERRED (coordinator plan: serialized after the gap helpers) — add RAND-01..06 tests with the features
+- [RA-T2 (§6 AB-01..07)] effort M — DEFERRED (coordinator plan: serialized after the gap helpers) — add AB-02, AB-03, AB-05, AB-06 tests
 
 </details>
 
@@ -4862,6 +4967,38 @@ REALISM-C has landed on this checkout: attack transient, longitudinal ping, two-
 
 </details>
 
+## tab-export.md
+
+TuneToScore: convert a written Tune into PerformanceScore and export ASCII tab / MusicXML / GP / combined print page. Codex-owned lane (origin/codex/luthier-tab-export, luthier-notation-export). This checkout has the Notation exporters (`Source/Notation`) and the TUNE export dialog, but no `TuneToScore`, print page or one-click Tab button.
+
+| Req | Summary | Engine location | GUI location | Test | Status |
+|---|---|---|---|---|---|
+| TX-0 (§0) | Ground rules | `Source/Notation/PerformanceScore.h` | - | - | OWNED |
+| TX-1.1 (§1.1) | TuneToScore inputs | - | - | - | OWNED |
+| TX-1.2 (§1.2) | Per-section conversion (voicings, strum expansion, melody, layers) | - | - | - | OWNED |
+| TX-1.3 (§1.3) | What it does not resolve | - | - | - | OWNED |
+| TX-1.4 (§1.4) | Relationship to PerformanceCapture | `Source/Capture/PerformanceCapture.cpp` | - | `Capture::recordsVoicedNotesNotMidi` | PARTIAL |
+| TX-2 (§2) | 'If feasible' resolution | - | - | - | OWNED |
+| TX-3 (§3) | Combined print page (PDF/PNG) | - | - | - | OWNED |
+| TX-4.1 (§4.1) | TUNE tab Tab button, source picker | - | `TuneExportDialog.h`; no Tab button / source picker | `TuneIntegration::theExportDialogWritesEachDestinationFromOneScreen` | PARTIAL |
+| TX-4.2 (§4.2) | Notation export dialog source picker | `Source/Notation/NotationExport.cpp` | `NotationPanel.h`, `Overlays.h exportTabButton` | `Notation::asciiTabColumnsAlign`, `Notation::musicXmlRoundTrips`, `Notation::guitarProRoundTripsStringsAndFrets` | PARTIAL |
+| TX-4.3 (§4.3) | Empty and error states | `NotationExport.cpp` | - | `Notation::anEmptyScoreIsRefusedWithAReason` | PARTIAL |
+| TX-5 (§5) | Interactions with other specs | `TuneIntegration::notationAndProjectExportKeepSectionsChordsAndTheBundle` | - | `TuneIntegration::notationAndProjectExportKeepSectionsChordsAndTheBundle` | PARTIAL |
+| TX-T1 (§6 TABX-01..06) | Determinism, voicing parity, strum, technique, sections, layers | - | - | - | OWNED |
+| TX-T2 (§6 TABX-07) | Format parity via existing exporters | `Source/Notation/NotationExport.cpp` | - | `Notation::asciiTabRoundTrips`, `Notation::musicXmlRoundTrips` | PARTIAL |
+| TX-T3 (§6 TABX-08..12) | Print page, source picker, one-click, worker thread, empty fallback | - | - | - | OWNED |
+
+<details><summary>Work list (tab-export)</summary>
+
+- [TX-1.4 (§1.4)] effort M — TuneToScore must reuse capture note model (Codex lane)
+- [TX-4.1 (§4.1)] effort S — add one-click Tab button and 'From written tune / live take' picker (Codex lane)
+- [TX-4.2 (§4.2)] effort S — add tune-source option (Codex lane)
+- [TX-4.3 (§4.3)] effort S — add empty-tune and empty-ring messages
+- [TX-5 (§5)] effort S — re-check after TuneToScore lands
+- [TX-T2 (§6 TABX-07)] effort S — run TuneToScore output through the same round-trip tests
+
+</details>
+
 ## technique-cascade.md
 
 This checkout has only ad-hoc pairwise cascade among scrape, slap and slide (`ScrapeEngine::preempt`, `SlapEngine::preempt`, slide string blocking in `LuthierEngine`), of which the 10 ms graceful preemption is DONE (`Scrape.aPreemptedScrapeFadesOutInTenMilliseconds`); there is no CascadeResolver, matrix, conflict UI or combined preset. The techniques branch has the work: `DSP/Techniques/CascadeResolver` (class table, matrix, priority rules, conflict messages), `TechniqueLayer::stages` order, six combined presets, red-slash pills and 10 `Cascade.*` tests including a 10 000-gesture fuzz (spot-checked). Owner gaps: the combined-preset "saved reference" is a second render rather than a stored reference and covers a short phrase, not 30 s; the preemption test measures an amplitude fade, not the spectral-discontinuity criterion; no test of the ~2.5 % all-six / 1 % body-tap CPU budget; body tap does not drive BodyCoupling directly (stage 7).
@@ -5150,6 +5287,37 @@ TUNE-HELP has landed on this checkout: the export dialog (audio with stems, MIDI
 
 </details>
 
+## tuner-and-tuning-reference.md
+
+Tuning reference (A4) parameter plus a tuner utility (reference + live mode). Codex-owned lane (no dedicated branch found; `origin/codex/verify-factory-tunings` is adjacent). This checkout has a `concertA` parameter (415-466 Hz, `ParamIDs::concertA`) with a knob on the guitar body panel, but no `tuning_reference_hz` name, tuner popover or live pitch tracker.
+
+| Req | Summary | Engine location | GUI location | Test | Status |
+|---|---|---|---|---|---|
+| TN-0 (§0) | Ground rules | - | - | - | OWNED |
+| TN-1.1 (§1.1) | tuning_reference_hz parameter | `Source/Parameters.cpp:ParamIDs::concertA` | `GuitarBodyComponent::concertA` knob | - | PARTIAL |
+| TN-1.2 (§1.2) | Where it applies (TuningEngine, capture) | `PerformanceCapture.cpp` uses `tuning.getConcertA()` | - | - | PARTIAL |
+| TN-1.3 (§1.3) | What does not move | - | - | - | OWNED |
+| TN-2.1 (§2.1) | Reference-mode tuner (needles at 0, Play tone) | - | - | - | OWNED |
+| TN-2.2 (§2.2) | Live mode pitch tracking | - | - | - | OWNED |
+| TN-2.3 (§2.3) | Accuracy and latency | - | - | - | OWNED |
+| TN-3.1 (§3.1) | Canonical location (popover, headstock, Options mirror) | - | - | - | OWNED |
+| TN-3.2 (§3.2) | Behaviour | - | - | - | OWNED |
+| TN-3.3 (§3.3) | Empty and error states | - | - | - | OWNED |
+| TN-4 (§4) | Serialization, undo, accessibility | concertA is an APVTS param (saved) | - | - | PARTIAL |
+| TN-5 (§5) | Interactions with other specs | - | - | - | OWNED |
+| TN-T1 (§6 TUNE-01..03) | Reference scaling, intervals, temperament/capo | - | - | - | NO-TEST |
+| TN-T2 (§6 TUNE-04..10) | Tuner readout, play, tracking, low confidence, smoothing, zero cost | - | - | - | OWNED |
+| TN-T3 (§6 TUNE-11..12) | GUI reachability, accessibility | - | - | - | OWNED |
+
+<details><summary>Work list (tuner-and-tuning-reference)</summary>
+
+- [TN-1.1 (§1.1)] effort S — spec id `tuning_reference_hz` and range (430-450?) vs `concertA` 415-466 Hz: reconcile names/range, add Options AUDIO mirror
+- [TN-1.2 (§1.2)] effort S — add TUNE-01..03 scaling/interval tests
+- [TN-4 (§4)] effort S — uiState for live mode; announcement text for needles
+- [TN-T1 (§6 TUNE-01..03)] effort S — add tests against concertA (Codex lane)
+
+</details>
+
 ## tuning-stability.md
 
 REALISM-C has landed on this checkout: `Model/Playing/StabilityModel.*` with all six mechanisms, Retune string/all/auto, session state, the 8 parameters, the CHARACTER TUNING STABILITY group with offset strip, Easy headstock badges and Workshop inspector figures, with 16 `TuningStability.*` tests and the §19 row. Still open: Retune as a MIDI Learn action target (TS-19) and a dedicated whammy return-error test (TS-12).
@@ -5246,6 +5414,37 @@ No tapping exists on this checkout: no TapEngine, no `tap_*` parameters, no tap 
 - [TH-17] OWNER-GAP effort M — MIDI export of taps: once the capture has a technique path, write tap hand/strength/pull-off as a Luthier SysEx field and, in the generic profile, as channel-2 note-ons with mapped velocity (midi-export.md); test `MidiExport.tapsExportOnChannelTwo`. Do together with MR-18 / MB-14 (TECHNIQUES.md defers all three for the same reason).
 - [TH-13] OWNER-GAP effort S — after realism-b merges `UI/RightHandGroup`, move the Tapping part of `UI/Techniques/TechniqueMirrors` into `RightHandGroup` as a "Tapping" section (strength curve, lateral flick, auto pull-off) and drop it from the CHARACTER foot; extend `TechniquesUi.theCharacterMirrorsAttachTheSameParameters` to find the controls under the Right Hand group.
 - [TH-16] OWNER-GAP DEFER: Eight-Finger Tap ships at 4 taps/string because factory presets store stock-range values and 8 is the advanced range (TECHNIQUES.md Decisions); revisit only if the range family's stock max is raised to 8.
+
+</details>
+
+## ui-scaling.md
+
+Persisted UI scale (six steps) in ui.json with per-format resize behaviour. Codex-owned lane (no branch found). The feature largely exists under another name: `AccessibilitySettings` holds the scale (accessibility.json, not `ui_scale_pct` in ui.json), with an Options selector and editor `setScaleFactor`. Per-format resize refusal banner and cross-editor broadcast are unverified.
+
+| Req | Summary | Engine location | GUI location | Test | Status |
+|---|---|---|---|---|---|
+| US-0 (§0) | Ground rules | `Source/Accessibility/Accessibility.h:kScales` | - | `Accessibility::uiScaleStepsAndFontFloor` | PARTIAL |
+| US-1 (§1) | Storage: ui_scale_pct in ui.json, nearest-step snap, corrupt fallback | `Accessibility.cpp:AccessibilitySettings::setUiScale` (nearest step); `UiPreferences` owns ui.json | - | `Accessibility::uiScaleStepsAndFontFloor` | PARTIAL |
+| US-2 (§2) | Where it is set (Options selector) | `OptionsPages.cpp scaleBox` | Options page, `AccessibilitySettings::setUiScale` | `Accessibility::uiScaleStepsAndFontFloor` | DONE |
+| US-3 (§3) | Per-format resize behaviour, refusal banner | `PluginEditor.cpp:setScaleFactor` (line ~44, ~606), `setResizable` | editor | - | PARTIAL |
+| US-4 (§4) | Independence from preset/session state | `AccessibilitySettings` global singleton | - | - | NO-TEST |
+| US-5 (§5) | Interactions (same-process broadcast, reset to defaults) | `AccessibilitySettings` change notification; `PluginEditor.cpp:605` | Diagnostics reset | - | PARTIAL |
+| US-6 (§6) | Failure modes | `UiPreferences` corrupt-file handling | - | - | PARTIAL |
+| US-T1 (§7 UISC-01..03) | Round trip, corrupt, off-step snap | - | - | `Accessibility::uiScaleStepsAndFontFloor` (steps only) | NO-TEST |
+| US-T2 (§7 UISC-04..07) | New instance parity, broadcast, cross-process, resize refusal | - | - | - | NO-TEST |
+| US-T3 (§7 UISC-08..10) | No audio-thread, reset, preset independence | - | - | - | NO-TEST |
+
+<details><summary>Work list (ui-scaling)</summary>
+
+- [US-0 (§0)] effort S — scale steps exist; confirm six steps match spec (100..)
+- [US-1 (§1)] effort M — move/mirror storage to ui.json `ui_scale_pct`; corrupt/off-step tests (UISC-01..03)
+- [US-3 (§3)] effort M — host-refusal fallback with one-time banner; first-paint parity (UISC-04, 07)
+- [US-4 (§4)] effort S — add UISC-10 test
+- [US-5 (§5)] effort S — verify broadcast and reset-to-defaults (UISC-05, 09)
+- [US-6 (§6)] effort S — wire to scale key
+- [US-T1 (§7 UISC-01..03)] effort S — add round-trip, corrupt, snap tests
+- [US-T2 (§7 UISC-04..07)] effort M — needs two-editor and rejecting-host harness
+- [US-T3 (§7 UISC-08..10)] effort S — add tests
 
 </details>
 

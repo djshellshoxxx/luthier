@@ -1,0 +1,4 @@
+- [TN-1.1 (§1.1)] effort S — spec id `tuning_reference_hz` and range (430-450?) vs `concertA` 415-466 Hz: reconcile names/range, add Options AUDIO mirror
+- [TN-1.2 (§1.2)] effort S — add TUNE-01..03 scaling/interval tests
+- [TN-4 (§4)] effort S — uiState for live mode; announcement text for needles
+- [TN-T1 (§6 TUNE-01..03)] effort S — add tests against concertA (Codex lane)
