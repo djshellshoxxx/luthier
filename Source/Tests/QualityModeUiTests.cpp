@@ -28,6 +28,10 @@
  #include <dlfcn.h>
 #endif
 
+#if JUCE_MAC
+ #include <CoreFoundation/CoreFoundation.h>
+#endif
+
 #if ! JUCE_MAC
 namespace juce::detail { bool dispatchNextMessageOnSystemQueue (bool returnIfNoPendingMessages); }
 #endif
@@ -127,8 +131,10 @@ namespace
             const double t0 = threadCpuSeconds();
 
            #if JUCE_MAC
-            // JUCE's mac backend has no exported single-message dispatcher.
-            juce::MessageManager::getInstance()->runDispatchLoopUntil (1);
+            // JUCE's mac backend has no exported single-message dispatcher
+            // (and runDispatchLoopUntil needs JUCE_MODAL_LOOPS_PERMITTED); its
+            // message queue is a CFRunLoop source, so spin that directly.
+            CFRunLoopRunInMode (kCFRunLoopDefaultMode, 0.001, false);
            #else
             for (int i = 0; i < 50; ++i)
                 if (! juce::detail::dispatchNextMessageOnSystemQueue (true))
