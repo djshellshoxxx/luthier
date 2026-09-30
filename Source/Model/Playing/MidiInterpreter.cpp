@@ -88,6 +88,10 @@ void MidiInterpreter::reset() noexcept
     // starts from the old preset's last value and does not repeat.
     expressionValue = 0.5;
     pickPosition = 0.5;
+    // SPEC-SWEEP PT-21: CC 11 scales the master gain, so a stale value makes the
+    // first render after a fresh engine differ from every later one (the whole
+    // preset renders 4.15 dB apart). Back to unity like the controllers above.
+    masterLevel.store (1.0, std::memory_order_relaxed);
     globalBendCents = 0.0;
     activeNoteCount = 0;
     lastMonoString = -1;

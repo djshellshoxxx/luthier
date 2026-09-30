@@ -98,7 +98,10 @@ TechniquesPanel::TechniquesPanel (LuthierAudioProcessor& p)
     for (auto& page : pages)
         holder.addChildComponent (*page);
 
-    showSubTab (juce::jlimit (0, kNumSubTabs - 1, UiPreferences::get().getInt (kSubTabPreferenceKey, 0)));
+    // Restore the last sub-tab without writing it back: persisting here would
+    // create the preferences file during construction, which the first-run
+    // check reads as "not a fresh install" (Onboarding).
+    showSubTab (juce::jlimit (0, kNumSubTabs - 1, UiPreferences::get().getInt (kSubTabPreferenceKey, 0)), false);
 }
 
 TechniquesPanel::~TechniquesPanel() = default;
@@ -113,7 +116,7 @@ TechniquePill* TechniquesPanel::getArmPill (int index) const noexcept
     return armPills[index];
 }
 
-void TechniquesPanel::showSubTab (int index)
+void TechniquesPanel::showSubTab (int index, bool persist)
 {
     shown = juce::jlimit (0, kNumSubTabs - 1, index);
 
@@ -126,7 +129,9 @@ void TechniquesPanel::showSubTab (int index)
             pill->setVisible (i == shown);
     }
 
-    UiPreferences::get().setInt (kSubTabPreferenceKey, shown);
+    if (persist)
+        UiPreferences::get().setInt (kSubTabPreferenceKey, shown);
+
     resized();
 }
 

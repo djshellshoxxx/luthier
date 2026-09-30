@@ -35,7 +35,7 @@ public:
 
     int getNumSubTabs() const noexcept { return kNumSubTabs; }
     int getSubTab() const noexcept { return shown; }
-    void showSubTab (int index);
+    void showSubTab (int index, bool persist = true);
 
     /** Selects the sub-tab of a technique (the pills' right-click). */
     void showTechnique (TechniqueSlot slot) { showSubTab ((int) slot); }

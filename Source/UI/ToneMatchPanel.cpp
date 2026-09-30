@@ -384,10 +384,11 @@ void IrSlotEditor::resized()
     predelay.setBounds (row (20));
 
     {
+        // SPEC-SWEEP TM-11: the start/end trims share one row.
         auto r = row (20);
-        startTrim.setBounds (r.removeFromLeft (r.getWidth() / 2).reduced (0, 1));
+        startTrim.setBounds (r.removeFromLeft (r.getWidth() / 2 - 2));
         r.removeFromLeft (4);
-        endTrim.setBounds (r.reduced (0, 1));
+        endTrim.setBounds (r);
     }
 
     {
@@ -395,14 +396,6 @@ void IrSlotEditor::resized()
         reverseButton.setBounds (r.removeFromRight (80));
         r.removeFromRight (4);
         mix.setBounds (r);
-    }
-
-    {
-        // SPEC-SWEEP TM-11.
-        auto r = row (20);
-        startTrim.setBounds (r.removeFromLeft (r.getWidth() / 2 - 2));
-        r.removeFromLeft (4);
-        endTrim.setBounds (r);
     }
 }
 
