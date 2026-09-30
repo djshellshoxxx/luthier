@@ -249,3 +249,30 @@ Failing on the sweep tip, and why:
 | `CpuQuality.CQ12_everyFactoryPresetAtEveryLevel` | yes | CPU-time ordering; a different preset set fails on each run under load |
 | `EBow.theHarmonicChoiceTakesTheString` | intermittent | passes alone and in its suite; its own comment records it as a known intermittent |
 | `Normalization.ON03_ON04_FactoryCombinationsLandOnTarget` | no (passes there) | `p34_g22` lands at -16.95 LUFS against -18 +-1. The render calibration (fresh processor, calibration mode, fixed play head) measures the phrase 1.05 dB quieter than the live instance plays it; on integration the same gap is 0.75 dB. Live and state-restored instances render identically (-21.39 both), so the gap is inside the calibration render, not state fidelity; the sweep's sound changes (strum direction, pickups, part acoustics) moved this combination 0.3 dB and exposed it. Left for FEAT-NORMALIZE: widen the stimulus/tolerance or find what the calibration render does differently. |
+
+## Final state of the sweep
+
+Counts over every spec file and feature-stating doc (`docs/audit/SPEC_SWEEP.md`):
+
+| Status | Before (first full audit, 3761 rows) | After (3841 rows; 80 from the six specs added during the sweep) |
+|---|---|---|
+| DONE | 1424 | 2279 |
+| OWNED | 1276 | 872 |
+| PARTIAL | 448 | 368 |
+| MISSING | 256 | 172 |
+| NO-TEST | 325 | 111 |
+| NO-GUI | 32 | 15 |
+| DEFERRED | 0 | 24 |
+
+Most of the OWNED drop is REALISM-A/B/C and TUNE-HELP landing and being
+re-verified here. VISUAL, FEAT-STRINGS/JAM/NORMALIZE/CPU landed too, but their
+OWNED rows were not re-verified (the coordinator's budget hold said no new
+helpers); they are the next thing to convert. What is left unowned is listed per
+spec in the `.fixes.md` work lists: about 245 small, 190 medium and 21 large
+items, plus DEFERRED rows with reasons.
+
+Found and fixed while verifying the merged tip: Reset queued a panic that fired
+on the first block after `prepareToPlay` and damped the first note of the next
+render (`Combo.renderIsDeterministicAfterReset`,
+`Combo.renderDoesNotDependOnWhatWasPlayedBefore`); queued engine commands are now
+applied in `prepareToPlay`.
