@@ -276,3 +276,11 @@ on the first block after `prepareToPlay` and damped the first note of the next
 render (`Combo.renderIsDeterministicAfterReset`,
 `Combo.renderDoesNotDependOnWhatWasPlayedBefore`); queued engine commands are now
 applied in `prepareToPlay`.
+
+Final full suite on the tip (37c1c90 + docs): 8 of 1728 tests fail. Seven fail
+the same way on pure integration 718f2b0: `Combo.everyFactoryPresetPlaysEveryPhrase`,
+`Combo.snapshotsAndPresetMorph`, `GuiReach.everyAutomatableParameterHasAVisibleControl`,
+`HostState.aSessionSurvivesThePrepareThatFollowsIt`, `CpuQuality.CQ10`, `CQ12`,
+`CpuQualityUi.CQ22`. The eighth, `Normalization.ON03_ON04`, is the 0.05 LU miss
+analysed above (left for FEAT-NORMALIZE). Luthier_VST3, Luthier_Standalone and
+LuthierTests build.
