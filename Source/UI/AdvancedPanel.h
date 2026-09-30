@@ -44,6 +44,68 @@ namespace luthier
 
 class LuthierAudioProcessor;
 class ControllersPage;
+
+//==============================================================================
+/*  spec/issues.md ISS-7 (PR #2): a Viewport that says when there is more.
+
+    A column that is taller than its window gives no sign of it beyond a thin
+    scrollbar, and users read the bottom of the visible part as the bottom of
+    the column. This viewport overlays a fading strip with an accent chevron at
+    whichever end has content beyond it, with a tooltip saying how to get
+    there; clicking the strip pages the view. The wheel is left alone, so it
+    still reaches the Viewport underneath. */
+class ScrollHintViewport : public juce::Viewport
+{
+public:
+    explicit ScrollHintViewport (const juce::String& componentName = {});
+    ~ScrollHintViewport() override;
+
+    /** The strip's height at each end. */
+    static constexpr int hintHeight = 18;
+
+    /** The glyph's half-width: the only part of a strip that takes a click.
+        The fade either side is a look, and a control scrolled under it must
+        still get the mouse. */
+    static constexpr int hintGlyphHalfWidth = 14;
+
+    void resized() override;
+    void visibleAreaChanged (const juce::Rectangle<int>& newVisibleArea) override;
+
+    /** Content that grows or shrinks without a scroll (a workspace tab
+        switching, a group unfolding) moves the bottom hint too. */
+    void viewedComponentChanged (juce::Component* newComponent) override;
+
+    /** True while the hint at that end is on show, for the tests. */
+    bool isTopHintShowing() const noexcept;
+    bool isBottomHintShowing() const noexcept;
+
+    /** Scrolls by 80% of the visible height, up or down. */
+    void pageBy (int direction);
+
+private:
+    class OverflowChevron;
+
+    void updateHints();
+
+    /*  Watches the viewed component's size. A member, not a second base:
+        juce::Viewport is already (privately) a ComponentListener, so deriving
+        from it again makes `this` an ambiguous ComponentListener* on GCC, and
+        an override of componentMovedOrResized here would become the final
+        overrider for Viewport's own listener too, cutting off its
+        updateVisibleArea() when the content resizes. */
+    struct ContentWatcher : public juce::ComponentListener
+    {
+        explicit ContentWatcher (ScrollHintViewport& viewport) : owner (viewport) {}
+        void componentMovedOrResized (juce::Component&, bool wasMoved, bool wasResized) override;
+        ScrollHintViewport& owner;
+    };
+
+    std::unique_ptr<OverflowChevron> topHint, bottomHint;
+    juce::Component::SafePointer<juce::Component> watchedContent;
+    ContentWatcher contentWatcher { *this };
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ScrollHintViewport)
+};
 class MidiOutPanel;
 class NotationPanel;
 
@@ -245,12 +307,12 @@ private:
 
     // Columns 1 to 3. Column 4 is the workspace below, which is not a Column:
     // it shows one panel at a time rather than stacking them.
-    juce::Viewport viewports[3];
+    ScrollHintViewport viewports[3];
     std::unique_ptr<Column> columns[3];
 
     juce::OwnedArray<juce::TextButton> workspaceTabs;
     juce::Array<juce::Component*> workspacePanels;
-    juce::Viewport workspaceViewport;
+    ScrollHintViewport workspaceViewport;
     int workspaceTab = 0;
 
     // gui-integration 20: the workspace panel's ?, at the end of the tab strip.

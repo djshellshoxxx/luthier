@@ -1159,9 +1159,95 @@ void LuthierLookAndFeel::drawScrollbar (juce::Graphics& g, juce::ScrollBar&, int
         ? juce::Rectangle<int> (x + 2, thumbStart, width - 4, thumbSize)
         : juce::Rectangle<int> (thumbStart, y + 2, thumbSize, height - 4);
 
-    g.setColour (isMouseDown ? Palette::accent
-                             : (isMouseOver ? Palette::edgeBright.brighter (0.2f) : Palette::edgeBright));
-    g.fillRoundedRectangle (thumb.toFloat(), 2.0f);
+    /*  ISS-7 (PR #2): accent at every state, dimmed at rest. The edge-coloured
+        thumb vanished into the track, and a scrollbar nobody can see is a
+        column nobody knows scrolls. */
+    g.setColour (isMouseDown ? Palette::accentBright
+                             : (isMouseOver ? Palette::accent : Palette::accentDim));
+    g.fillRoundedRectangle (thumb.toFloat(), 3.0f);
+
+    g.setColour (Palette::edge);
+    g.drawRoundedRectangle (thumb.toFloat().reduced (0.5f), 3.0f, 1.0f);
+}
+
+void LuthierLookAndFeel::drawScrollbarButton (juce::Graphics& g, juce::ScrollBar&, int width, int height,
+                                              int buttonDirection, bool, bool isMouseOverButton,
+                                              bool isButtonDown)
+{
+    juce::Rectangle<int> area (0, 0, width, height);
+
+    g.setColour (Palette::panelSunken);
+    g.fillRect (area);
+
+    if (isMouseOverButton || isButtonDown)
+    {
+        g.setColour (Palette::accent.withAlpha (isButtonDown ? 0.30f : 0.15f));
+        g.fillRoundedRectangle (area.reduced (1).toFloat(), 2.0f);
+    }
+
+    const float half = juce::jlimit (2.0f, 4.0f, (float) juce::jmin (width, height) * 0.3f);
+
+    drawChevron (g, area.toFloat().getCentre(), half, buttonDirection,
+                 isButtonDown ? Palette::accentBright : Palette::accent);
+}
+
+void LuthierLookAndFeel::drawChevron (juce::Graphics& g, juce::Point<float> c, float halfWidth,
+                                      int direction, juce::Colour colour, float thickness)
+{
+    const float depth = halfWidth * 1.125f;
+    const float back = halfWidth * 0.5f;
+
+    juce::Path arrow;
+
+    switch (direction & 3)
+    {
+        case 0:   // up
+            arrow.startNewSubPath (c.x - halfWidth, c.y + back);
+            arrow.lineTo (c.x, c.y - (depth - back));
+            arrow.lineTo (c.x + halfWidth, c.y + back);
+            break;
+
+        case 1:   // right
+            arrow.startNewSubPath (c.x - back, c.y - halfWidth);
+            arrow.lineTo (c.x + (depth - back), c.y);
+            arrow.lineTo (c.x - back, c.y + halfWidth);
+            break;
+
+        case 3:   // left
+            arrow.startNewSubPath (c.x + back, c.y - halfWidth);
+            arrow.lineTo (c.x - (depth - back), c.y);
+            arrow.lineTo (c.x + back, c.y + halfWidth);
+            break;
+
+        case 2:   // down
+        default:
+            arrow.startNewSubPath (c.x - halfWidth, c.y - back);
+            arrow.lineTo (c.x, c.y + (depth - back));
+            arrow.lineTo (c.x + halfWidth, c.y - back);
+            break;
+    }
+
+    g.setColour (colour);
+    g.strokePath (arrow, juce::PathStrokeType (thickness, juce::PathStrokeType::curved,
+                                               juce::PathStrokeType::rounded));
+}
+
+void LuthierLookAndFeel::getIdealPopupMenuItemSize (const juce::String& text, bool isSeparator,
+                                                    int standardMenuItemHeight,
+                                                    int& idealWidth, int& idealHeight)
+{
+    juce::LookAndFeel_V4::getIdealPopupMenuItemSize (text, isSeparator, standardMenuItemHeight,
+                                                     idealWidth, idealHeight);
+
+    if (! isSeparator)
+        idealHeight = juce::jmax (minimumPopupItemHeight, idealHeight);
+}
+
+juce::PopupMenu::Options LuthierLookAndFeel::getOptionsForComboBoxPopupMenu (juce::ComboBox& box,
+                                                                             juce::Label& label)
+{
+    return juce::LookAndFeel_V4::getOptionsForComboBoxPopupMenu (box, label)
+             .withStandardItemHeight (juce::jmax (minimumPopupItemHeight, label.getHeight()));
 }
 
 //==============================================================================

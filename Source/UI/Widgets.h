@@ -145,6 +145,39 @@ struct LearnPulse
     static bool isOnNow() noexcept { return isOn (juce::Time::getMillisecondCounterHiRes()); }
 };
 
+//==============================================================================
+/*  spec/issues.md ISS-7 (PR #2): a slider that lets the mouse wheel through to
+    the enclosing Viewport.
+
+    juce::Slider consumes every wheel event over it, which in a scrolling column
+    of controls means the column stops scrolling wherever the pointer happens to
+    rest on a control - and Advanced mode is mostly control. Here the wheel
+    scrolls unless Ctrl (Cmd on macOS) is held, in which case it nudges the
+    value exactly as a plain juce::Slider would. Viewport ignores a wheel with
+    Ctrl held, so the two never fight over one event. */
+class WheelPassSlider : public juce::Slider
+{
+public:
+    WheelPassSlider() = default;
+    explicit WheelPassSlider (const juce::String& componentName) : juce::Slider (componentName) {}
+    WheelPassSlider (juce::Slider::SliderStyle style, juce::Slider::TextEntryBoxPosition textBox)
+        : juce::Slider (style, textBox) {}
+
+    /** True when this wheel event should change the value rather than scroll. */
+    static bool wheelAdjustsValue (const juce::MouseEvent& e) noexcept
+    {
+        return e.mods.isCtrlDown() || e.mods.isCommandDown();
+    }
+
+    void mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel) override
+    {
+        if (wheelAdjustsValue (e))
+            juce::Slider::mouseWheelMove (e, wheel);
+        else
+            juce::Component::mouseWheelMove (e, wheel);
+    }
+};
+
 class LuthierKnob : public juce::Component,
                     public juce::SettableTooltipClient,
                     public LearnTarget,
@@ -234,6 +267,9 @@ private:
         void mouseDrag (const juce::MouseEvent&) override;
         void mouseEnter (const juce::MouseEvent&) override;
         void mouseExit (const juce::MouseEvent&) override;
+
+        /** As WheelPassSlider: the wheel scrolls the column unless Ctrl is held (ISS-7). */
+        void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
 
         /** SPEC-SWEEP: A11Y-14 - arrows step 1% of the range, Shift 0.1%,
             Ctrl/Cmd 10%; Home/End go to the ends. */

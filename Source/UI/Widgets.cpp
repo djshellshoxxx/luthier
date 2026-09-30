@@ -928,6 +928,22 @@ void LuthierKnob::KnobSlider::mouseEnter (const juce::MouseEvent& e)
     owner.repaint();
 }
 
+void LuthierKnob::KnobSlider::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel)
+{
+    /*  ISS-7 (PR #2): a knob sits in a scrolling column, and a wheel that
+        stopped the column dead whenever the pointer crossed a knob made the
+        columns feel stuck. Ctrl+wheel keeps the nudge. */
+    if (WheelPassSlider::wheelAdjustsValue (e))
+    {
+        juce::Slider::mouseWheelMove (e, wheel);
+        owner.repaint();
+    }
+    else
+    {
+        juce::Component::mouseWheelMove (e, wheel);
+    }
+}
+
 void LuthierKnob::KnobSlider::mouseExit (const juce::MouseEvent& e)
 {
     juce::Slider::mouseExit (e);
