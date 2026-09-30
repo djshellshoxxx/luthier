@@ -17,6 +17,8 @@
 #include "../Model/Playing/TechniqueEngine.h"
 #include "../Model/Playing/ChordVoicer.h"
 #include "../Model/Playing/RubricVoicer.h"
+#include "../PluginProcessor.h"
+#include "../UI/OptionsPages.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -762,4 +764,238 @@ LUTHIER_TEST (Controllers, chordGroupsSoundOneWindowAfterTheyWerePlayed)
     CHECK (offsets.isEmpty());
     offsets = block ({}, 8192 + 256);
     CHECK (offsets.size() == 1 && offsets[0] == 220 + window - 256);
+}
+
+//==============================================================================
+// CT-7: ParameterBridge::applyToEngine used to rewrite setMpeEnabled/
+// setPitchBendRange from the mpe_enabled/bend_range parameters on every block,
+// undoing an MPE profile's flag and 48-semitone member bend the instant the next
+// block ran. ControllersPage::applySelectedProfile now pushes the profile's
+// values into those parameters, so the bridge re-applies the same thing.
+LUTHIER_TEST (Controllers, anMpeProfileSurvivesTheParameterBridge)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 128);
+
+    ControllersPage page (processor);
+    page.setSize (400, 500);
+
+    ControllerProfileLibrary library;
+    library.refresh();
+    const int index = library.indexOf ("roli-seaboard");
+    CHECK (index >= 0);
+
+    // Simulate choosing the Seaboard MPE profile in the combo box.
+    bool foundBox = false;
+
+    for (int i = 0; i < page.getNumChildComponents(); ++i)
+    {
+        if (auto* box = dynamic_cast<juce::ComboBox*> (page.getChildComponent (i)))
+        {
+            box->setSelectedId (index + 1, juce::sendNotificationSync);
+            foundBox = true;
+        }
+    }
+
+    CHECK (foundBox);
+    CHECK (processor.getEngine().getMidiInterpreter().isMpeEnabled());
+    CHECK_NEAR (processor.getEngine().getMidiInterpreter().getPitchBendRange(), 48.0, 1.0e-6);
+
+    // The bug: a block used to run the bridge straight from the (still Generic)
+    // mpe_enabled/bend_range parameters and stomp on what the profile just set.
+    processor.getParameterBridge().applyToEngine();
+
+    CHECK (processor.getEngine().getMidiInterpreter().isMpeEnabled());
+    CHECK_NEAR (processor.getEngine().getMidiInterpreter().getPitchBendRange(), 48.0, 1.0e-6);
+    CHECK (processor.getControllerProfileId() == "roli-seaboard");
+}
+
+//==============================================================================
+// CT-2: the chosen profile used to live only in the ControllersPage combo box,
+// so reopening the editor after a session round trip always fell back to
+// Generic MIDI. It now travels in the processor's state.
+LUTHIER_TEST (Controllers, theChosenProfileSurvivesTheSessionRoundTrip)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 128);
+
+    {
+        ControllersPage page (processor);
+        page.setSize (400, 500);
+
+        ControllerProfileLibrary library;
+        library.refresh();
+        const int index = library.indexOf ("roli-seaboard");
+        CHECK (index >= 0);
+
+        for (int i = 0; i < page.getNumChildComponents(); ++i)
+            if (auto* box = dynamic_cast<juce::ComboBox*> (page.getChildComponent (i)))
+                box->setSelectedId (index + 1, juce::sendNotificationSync);
+    }
+
+    CHECK (processor.getControllerProfileId() == "roli-seaboard");
+
+    juce::MemoryBlock saved;
+    processor.getStateInformation (saved);
+
+    LuthierAudioProcessor restored;
+    restored.prepareToPlay (48000.0, 128);
+    restored.setStateInformation (saved.getData(), (int) saved.getSize());
+
+    CHECK (restored.getControllerProfileId() == "roli-seaboard");
+
+    // Reopening the page selects and re-applies it rather than resetting to
+    // Generic MIDI (id 1).
+    ControllersPage page (restored);
+    page.setSize (400, 500);
+
+    CHECK (restored.getEngine().getMidiInterpreter().isMpeEnabled());
+}
+
+//==============================================================================
+// CT-16: channel pressure on a per-channel controller's channel drives that
+// string's vibrato, not every string's.
+LUTHIER_TEST (Controllers, pressureOnAChannelVibratesOnlyItsString)
+{
+    ControllerProfileLibrary library;
+    const int gk = library.indexOf ("roland-gk");
+    CHECK (gk >= 0);
+
+    if (gk < 0)
+        return;
+
+    InterpreterFixture fixture;
+    ControllerProfileLibrary::apply (library.getProfile (gk), fixture.interpreter);
+
+    // roland-gk maps string index 2 (the third string) to channel 13.
+    CHECK (fixture.interpreter.getChannelForString (2) == 13);
+
+    juce::MidiBuffer midi;
+    midi.addEvent (juce::MidiMessage::channelPressureChange (13, 100), 0);
+
+    PlayEventQueue out;
+    int64_t position = 0;
+    fixture.interpreter.processBlock (midi, 256, position, out);
+
+    CHECK (out.getNumPressures() == 1);
+
+    if (out.getNumPressures() == 1)
+    {
+        const auto& e = out.getPressure (0);
+        CHECK (e.stringIndex == 2);
+        CHECK_NEAR (e.value, 100.0 / 127.0, 1.0e-6);
+    }
+}
+
+//==============================================================================
+// CT-17: in MPE mode, the master channel (default 1) carries zone-wide
+// messages only. A note-on there used to fall through to the same per-channel
+// routing as a member channel and get voiced on whatever string channel 1
+// mapped to.
+LUTHIER_TEST (Controllers, mpeMasterChannelNotesAreIgnored)
+{
+    ControllerProfileLibrary library;
+    const int mpe = library.indexOf ("roli-seaboard");
+    CHECK (mpe >= 0);
+
+    if (mpe < 0)
+        return;
+
+    InterpreterFixture fixture;
+    const auto& profile = library.getProfile (mpe);
+    ControllerProfileLibrary::apply (profile, fixture.interpreter);
+
+    CHECK (fixture.interpreter.isMpeEnabled());
+    CHECK (fixture.interpreter.getMpeMasterChannel() == profile.mpeMasterChannel);
+
+    int64_t position = 0;
+    const int master = profile.mpeMasterChannel;
+
+    CHECK (fixture.noteOnString (master, 52, position) == -1);
+
+    // A member channel still plays normally.
+    CHECK (fixture.noteOnString (profile.mpeFirstMemberChannel, 52, position) >= 0);
+}
+
+//==============================================================================
+// CT-9: LinnStrument's "Guitar mode" (rowsAsStrings) used to be stored but
+// never applied - the profile stayed in MPE mode regardless of the toggle.
+LUTHIER_TEST (Controllers, linnstrumentGuitarModeMapsRowsToStrings)
+{
+    ControllerProfileLibrary library;
+    const int index = library.indexOf ("linnstrument");
+    CHECK (index >= 0);
+
+    if (index < 0)
+        return;
+
+    auto profile = library.getProfile (index);
+    CHECK (profile.mode == ControllerMode::mpe);   // its normal, non-Guitar-mode behaviour
+
+    profile.rowsAsStrings = true;
+
+    InterpreterFixture fixture;
+    ControllerProfileLibrary::apply (profile, fixture.interpreter);
+
+    CHECK (! fixture.interpreter.isMpeEnabled());
+    CHECK (fixture.interpreter.getPlayingMode() == PlayingMode::GuitarController);
+
+    for (int s = 0; s < 6; ++s)
+        CHECK_MSG (fixture.interpreter.getChannelForString (s) == 2 + s,
+                   "string " + juce::String (s) + " went to channel "
+                     + juce::String (fixture.interpreter.getChannelForString (s)));
+
+    int64_t position = 0;
+
+    // Channel 2 (row 1, high string) plays string 0.
+    CHECK (fixture.noteOnString (2, 64, position) == 0);
+}
+
+//==============================================================================
+// CT-10: Osmose's non-linear key-travel curve was stored on the profile but
+// never applied - the interpreter turned its pitch bend into cents linearly.
+LUTHIER_TEST (Controllers, osmoseBendFollowsTheCurveThroughTheInterpreter)
+{
+    ControllerProfileLibrary library;
+    const int index = library.indexOf ("osmose");
+    CHECK (index >= 0);
+
+    if (index < 0)
+        return;
+
+    const auto& profile = library.getProfile (index);
+    CHECK (profile.pitchCurve.size() >= 2);
+
+    InterpreterFixture fixture;
+    ControllerProfileLibrary::apply (profile, fixture.interpreter);
+
+    const int memberChannel = profile.mpeFirstMemberChannel;
+    const int wheelValue = 8192 + 3277;   // an arbitrary partial bend upward
+
+    // The same integer-quantised value the interpreter itself will decode, so
+    // the expected figure below isn't thrown off by rounding.
+    const double normalised = ((double) wheelValue - 8192.0) / 8192.0;
+
+    juce::MidiBuffer midi;
+    midi.addEvent (juce::MidiMessage::pitchWheel (memberChannel, wheelValue), 0);
+
+    PlayEventQueue out;
+    int64_t position = 0;
+    fixture.interpreter.processBlock (midi, 256, position, out);
+
+    CHECK (out.getNumBends() == 1);
+
+    if (out.getNumBends() == 1)
+    {
+        const double expectedNormalised = profile.applyPitchCurve (normalised);
+        const double expectedCents = expectedNormalised * profile.memberPitchBendSemis * 100.0;
+
+        // The raw (uncurved) figure the bug would have produced, for contrast.
+        const double linearCents = normalised * profile.memberPitchBendSemis * 100.0;
+
+        CHECK_MSG (std::abs (expectedCents - linearCents) > 1.0,
+                   "the curve fixture is too close to linear to distinguish the two");
+
+        CHECK_NEAR (out.getBend (0).cents, expectedCents, 1.0);
+    }
 }

@@ -4,6 +4,7 @@
 #include "Presets/FactoryPresets.h"
 #include "Support/ErrorLog.h"
 #include "Model/Guitar/BassDefaults.h"   // MODEL-GAPS
+#include <set>
 
 /*  The test runner and the offline renderer build this file, so that the things
     only the processor owns - the undo stack, uiState, A/B slots, snapshot recall,
@@ -3494,6 +3495,16 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     root->setProperty ("aftertouchBends", doesAftertouchBend());   // SPEC-SWEEP PT-23
     root->setProperty ("bankSelectsPreset", doesBankSelectChoosePreset());   // SPEC-SWEEP IR-14
     root->setProperty ("liveMode", uiState.liveMode);
+    root->setProperty ("controllerProfile", controllerProfileId);   // controllers.md 0.2/CT-2
+
+    // host-integration HI-20: the root format's version, so an older build can
+    // tell a blob apart from one it understands and back it up before migrating.
+    root->setProperty ("formatVersion", (int) kCurrentStateFormatVersion);
+
+    // HI-24: write back whatever a newer build's section this one did not
+    // recognise on load, instead of quietly dropping it.
+    for (const auto& section : unknownHostSections)
+        root->setProperty (section.name, section.value);
 
     // tuning-stability.md 7 (REALISM-C): the strings' wear and the capo
     // compensation are the session's, not the preset's. (REALISM-A's aging and
@@ -3594,6 +3605,47 @@ void LuthierAudioProcessor::restoreState (const void* data, int sizeInBytes, Res
 
     if (root == nullptr)
         return;
+
+    // host-integration HI-20/HI-24/HI-25, full host restores only: undo/redo and
+    // A/B recall replay a `soundOnly` slice of this same state and are not "an
+    // older or newer build's blob" in the sense those rows mean.
+    if (scope == RestoreScope::full)
+    {
+        const int formatVersion = root->hasProperty ("formatVersion")
+                                     ? (int) root->getProperty ("formatVersion") : 0;
+
+        // HI-25: an older (or pre-versioning) blob is about to be migrated by
+        // whatever below reads it under today's assumptions. Keep the original.
+        if (formatVersion < kCurrentStateFormatVersion)
+        {
+            const auto stamp = juce::Time::getCurrentTime().formatted ("%Y%m%d-%H%M%S");
+            Diagnostics::getDiagnosticsFolder()
+                .getChildFile ("state-backup-" + stamp + ".json")
+                .replaceWithText (json);
+        }
+
+        // HI-24: keep whatever root-level key this build does not recognise
+        // (a newer build's section) so the next save writes it straight back
+        // instead of quietly dropping it, and warn once when the blob names a
+        // format version newer than this build understands.
+        static const std::set<juce::String> knownRootKeys {
+            "preset", "midiLearn", "ui", "setlist", "lockedParameters", "slotBActive",
+            "routing", "modulation", "rhythm", "snapshots", "liveMode", "controllerProfile",
+            "character", "stability", "toneMatch", "metronome", "clickToMain", "normalization",
+            "tune", "presetMorphPosition", "formatVersion"
+        };
+
+        unknownHostSections.clear();
+
+        for (const auto& prop : root->getProperties())
+            if (knownRootKeys.find (prop.name.toString()) == knownRootKeys.end())
+                unknownHostSections.set (prop.name, prop.value);
+
+        if (formatVersion > kCurrentStateFormatVersion)
+            guitarNotices.addIfNotAlreadyThere (
+                "This session was saved by a newer version of Luthier. Some settings "
+                "may not carry over.");
+    }
 
     if (root->hasProperty ("preset"))
         presets.fromVar (root->getProperty ("preset"));

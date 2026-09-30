@@ -2332,8 +2332,10 @@ DiagnosticsPage::DiagnosticsPage (LuthierAudioProcessor& p)
     };
 
     addAndMakeVisible (troubleshootButton);
-    troubleshootButton.setTooltip ("Writes a file describing the build, the host and the "
-                                   "current state, for a support thread.");
+    // host-integration HI-8: names the exact build (version + git SHA / CI run),
+    // not just the marketing version, so a support thread can tell builds apart.
+    troubleshootButton.setTooltip ("Writes a file describing the build (" + getFullVersionString()
+                                   + "), the host and the current state, for a support thread.");
     troubleshootButton.onClick = [this]
     {
         processor.getPresetManager().captureExtraState();

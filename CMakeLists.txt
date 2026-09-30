@@ -32,6 +32,31 @@ else()
     set(LUTHIER_HAS_CLAP FALSE)
 endif()
 
+# host-integration HI-8: LUTHIER_VERSION major.minor.patch plus a build string,
+# so a bug report names the exact build rather than just "1.0.0". CI sets
+# LUTHIER_BUILD_STRING itself (e.g. a run number); locally it falls back to the
+# git short SHA, or "dev" outside a git checkout.
+if(NOT DEFINED LUTHIER_BUILD_STRING OR LUTHIER_BUILD_STRING STREQUAL "")
+    if(DEFINED ENV{LUTHIER_BUILD_STRING} AND NOT "$ENV{LUTHIER_BUILD_STRING}" STREQUAL "")
+        set(LUTHIER_BUILD_STRING "$ENV{LUTHIER_BUILD_STRING}")
+    else()
+        find_package(Git QUIET)
+        set(LUTHIER_BUILD_STRING "dev")
+        if(GIT_EXECUTABLE)
+            execute_process(
+                COMMAND "${GIT_EXECUTABLE}" rev-parse --short=8 HEAD
+                WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+                OUTPUT_VARIABLE LUTHIER_GIT_SHA
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+                ERROR_QUIET
+                RESULT_VARIABLE LUTHIER_GIT_RESULT)
+            if(LUTHIER_GIT_RESULT EQUAL 0 AND NOT LUTHIER_GIT_SHA STREQUAL "")
+                set(LUTHIER_BUILD_STRING "${LUTHIER_GIT_SHA}")
+            endif()
+        endif()
+    endif()
+endif()
+
 set(LUTHIER_FORMATS VST3 Standalone)
 if (APPLE)
     list(APPEND LUTHIER_FORMATS AU)
@@ -78,6 +103,7 @@ target_sources(Luthier PRIVATE ${LUTHIER_SOURCES})
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/Source" FILES ${LUTHIER_SOURCES})
 
 target_compile_definitions(Luthier PUBLIC
+    LUTHIER_BUILD_STRING="${LUTHIER_BUILD_STRING}"
     LUTHIER_HEADLESS=0
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
@@ -190,6 +216,7 @@ list(FILTER LUTHIER_UI_SOURCES INCLUDE REGEX "Source/UI/|PluginEditor[A-Za-z]*\.
 list(FILTER LUTHIER_UI_SOURCES EXCLUDE REGEX "Source/UI/UiPreferences\.cpp$")
 
 set(LUTHIER_CONSOLE_DEFS
+    LUTHIER_BUILD_STRING="${LUTHIER_BUILD_STRING}"
     LUTHIER_HEADLESS=1
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
@@ -199,7 +226,10 @@ set(LUTHIER_CONSOLE_DEFS
     JUCE_MODAL_LOOPS_PERMITTED=0
     JUCE_STRICT_REFCOUNTEDPOINTER=1
     JucePlugin_Name="Luthier"
-    JucePlugin_VersionString="${PROJECT_VERSION}")
+    JucePlugin_VersionString="${PROJECT_VERSION}"
+    # host-integration HI-2/HI-31: mirrors the real plugin targets' NEEDS_MIDI_OUTPUT,
+    # so PluginBuses::midiOutputIsAnnounced can see the same macro they build with.
+    JucePlugin_ProducesMidiOutput=1)
 
 # SPEC-SWEEP PT-24 (practice-tools 3): the TRACK tab offers MP3, so JUCE's own
 # decoder (part of juce_audio_formats, no LGPL code) is switched on.

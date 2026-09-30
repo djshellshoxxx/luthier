@@ -220,3 +220,167 @@ LUTHIER_TEST (HostState, theSameParametersGiveTheSameStateHoweverTheyArrived)
 
     CHECK (sameState (asText (saveState (*first)), asText (saveState (*second)), "luthier-arrival"));
 }
+
+//==============================================================================
+// HI-8: the version string must name the exact build, not just "1.0.0", so a
+// support thread can tell two builds with the same marketing version apart.
+LUTHIER_TEST (HostState, versionCarriesABuildString)
+{
+    const auto full = getFullVersionString();
+
+    CHECK (full.startsWith (JucePlugin_VersionString));
+    CHECK (full.contains ("+"));
+    CHECK (full.fromLastOccurrenceOf ("+", false, false).isNotEmpty());
+}
+
+//==============================================================================
+// HI-20: the root JSON now carries a format version, so a later build can tell
+// an old blob apart from one of its own.
+LUTHIER_TEST (HostState, theStateCarriesAFormatVersion)
+{
+    LuthierAudioProcessor p;
+    p.prepareToPlay (48000.0, 256);
+
+    const auto saved = saveState (p);
+    const auto parsed = juce::JSON::parse (asText (saved));
+    auto* root = parsed.getDynamicObject();
+
+    CHECK (root != nullptr);
+    CHECK (root != nullptr && root->hasProperty ("formatVersion"));
+    CHECK (root != nullptr
+           && (int) root->getProperty ("formatVersion") == LuthierAudioProcessor::kCurrentStateFormatVersion);
+}
+
+//==============================================================================
+// HI-24: a root-level key this build does not recognise (a section a newer
+// build added) used to vanish silently on the next save. It now travels
+// through unchanged.
+LUTHIER_TEST (HostState, unknownSectionsSurviveWriteBack)
+{
+    LuthierAudioProcessor p;
+    p.prepareToPlay (48000.0, 256);
+
+    auto saved = juce::JSON::parse (asText (saveState (p)));
+    auto* root = saved.getDynamicObject();
+    CHECK (root != nullptr);
+
+    if (root == nullptr)
+        return;
+
+    // Simulate a newer build's blob: a section this one has never heard of,
+    // plus a format version ahead of what it understands.
+    root->setProperty ("futureFeature", juce::var (juce::String ("keep-me")));
+    root->setProperty ("formatVersion", LuthierAudioProcessor::kCurrentStateFormatVersion + 1);
+
+    const auto withExtra = juce::JSON::toString (saved, false);
+
+    LuthierAudioProcessor restored;
+    restored.prepareToPlay (48000.0, 256);
+    restored.setStateInformation (withExtra.toRawUTF8(), (int) withExtra.getNumBytesAsUTF8());
+
+    CHECK (restored.getUnknownHostSections().contains ("futureFeature"));
+    CHECK (restored.getUnknownHostSections()["futureFeature"].toString() == "keep-me");
+
+    // A newer-than-understood format version raises one banner.
+    const auto notices = restored.takeGuitarNotices();
+    CHECK (! notices.isEmpty());
+
+    const auto reSaved = juce::JSON::parse (asText (saveState (restored)));
+    auto* reRoot = reSaved.getDynamicObject();
+
+    CHECK (reRoot != nullptr && reRoot->hasProperty ("futureFeature"));
+    CHECK (reRoot != nullptr && reRoot->getProperty ("futureFeature").toString() == "keep-me");
+}
+
+//==============================================================================
+// HI-25: loading a blob older than the current format used to migrate it in
+// place with nothing kept of the original.
+LUTHIER_TEST (HostState, anOldBlobIsBackedUpBeforeMigration)
+{
+    LuthierAudioProcessor p;
+    p.prepareToPlay (48000.0, 256);
+
+    auto saved = juce::JSON::parse (asText (saveState (p)));
+    auto* root = saved.getDynamicObject();
+    CHECK (root != nullptr);
+
+    if (root == nullptr)
+        return;
+
+    root->removeProperty ("formatVersion");   // a pre-versioning blob
+
+    const auto old = juce::JSON::toString (saved, false);
+
+    auto before = Diagnostics::getDiagnosticsFolder().findChildFiles (
+        juce::File::findFiles, false, "state-backup-*.json");
+
+    LuthierAudioProcessor restored;
+    restored.prepareToPlay (48000.0, 256);
+    restored.setStateInformation (old.toRawUTF8(), (int) old.getNumBytesAsUTF8());
+
+    auto after = Diagnostics::getDiagnosticsFolder().findChildFiles (
+        juce::File::findFiles, false, "state-backup-*.json");
+
+    CHECK (after.size() > before.size());
+
+    for (auto& f : after)
+        if (! before.contains (f))
+            f.deleteFile();
+}
+
+//==============================================================================
+// QA-48: bypassed output must be bit-identical to no plugin at all. Luthier is
+// an instrument with no main input, so that means silence - not whatever the
+// buffer already held (the JUCE default merely passes the buffer through).
+LUTHIER_TEST (HostState, bypassOutputsSilence)
+{
+    LuthierAudioProcessor p;
+    p.prepareToPlay (48000.0, 256);
+
+    juce::AudioBuffer<float> buffer (p.getTotalNumOutputChannels(), 256);
+    juce::MidiBuffer midi;
+    midi.addEvent (juce::MidiMessage::noteOn (1, 60, 0.8f), 0);
+
+    for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+        buffer.getWritePointer (ch)[0] = 0.5f;   // garbage the JUCE default would pass through
+
+    p.processBlockBypassed (buffer, midi);
+
+    for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+        CHECK_NEAR (buffer.getMagnitude (ch, 0, buffer.getNumSamples()), 0.0f, 1.0e-9f);
+}
+
+//==============================================================================
+// HI-45: getNumPrograms/getProgramName/setCurrentProgram enumerate and load
+// the preset bank by index (host-integration.md section 12), untested before.
+LUTHIER_TEST (HostState, programsEnumerateFactoryPresetsAndLoadByIndex)
+{
+    LuthierAudioProcessor p;
+    p.prepareToPlay (48000.0, 256);
+
+    const int factoryCount = p.getPresetManager().getNumPresets();
+    CHECK_MSG (factoryCount > 1, "no factory presets to enumerate, so this proves nothing");
+
+    if (factoryCount <= 1)
+        return;
+
+    CHECK (p.getNumPrograms() == factoryCount);
+
+    for (int i = 0; i < factoryCount; ++i)
+    {
+        const auto* info = p.getPresetManager().getPreset (i);
+        CHECK (info != nullptr);
+
+        if (info == nullptr)
+            continue;
+
+        CHECK (p.getProgramName (i) == info->name);
+    }
+
+    p.setCurrentProgram (factoryCount - 1);
+    CHECK (p.getCurrentProgram() == factoryCount - 1);
+    CHECK (p.getPresetManager().getCurrentPresetIndex() == factoryCount - 1);
+
+    p.setCurrentProgram (0);
+    CHECK (p.getCurrentProgram() == 0);
+}

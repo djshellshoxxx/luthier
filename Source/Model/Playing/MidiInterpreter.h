@@ -131,6 +131,13 @@ public:
     /** Per-string bend range, for guitar controller mode. */
     void setStringBendRange (int stringIndex, double semitones) noexcept;
 
+    /** controllers.md 1 (CT-10): a continuous-pitch controller's non-linear
+        physical response (e.g. Osmose), copied from the active profile so
+        per-note/per-string bend can undo it. An empty curve (fewer than two
+        points) restores a plain linear response. Message thread only; the
+        audio thread only ever reads the fixed array this fills. */
+    void setPitchCurve (const std::vector<double>& curve) noexcept;
+
     //==========================================================================
     /*  Which MIDI channel drives which string in guitar-controller mode
         (controllers.md section 4).
