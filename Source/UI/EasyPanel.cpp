@@ -706,7 +706,7 @@ void EasyPanel::resized()
 
         preRack.setBounds (card (0.085f, "Pre-effects"));
 
-        auto amp = card (0.42f, "Amp");
+        auto amp = card (0.40f, "Amp");   // the six shares sum to 1, so the Room card keeps its row
         {
             ampCardArea = amp;
             ampModel.setBounds (amp.removeFromTop (26));
@@ -750,7 +750,7 @@ void EasyPanel::resized()
             }
         }
 
-        auto room = card (0.12f, "Room");   // 0.13 before FEAT-MIC's pad
+        auto room = card (0.10f, "Room");   // 0.13 before FEAT-MIC's pad
         {
             roomLight.setBounds (rigCards.getLast().first);
             roomSize.setBounds (room.removeFromLeft (room.getWidth() / 2));
@@ -765,7 +765,9 @@ void EasyPanel::resized()
     bounds.removeFromBottom (Metrics::gridHalf);
     toneArea = bounds.removeFromBottom (stripH);
     bounds.removeFromBottom (Metrics::gridHalf);
-    playingArea = bounds.removeFromBottom (stripH);
+    // gui-techniques-updates.md 2 (TECHNIQUES): the Playing strip grows by its
+    // pill row, so the mode column keeps its height at the window's minimum.
+    playingArea = bounds.removeFromBottom (stripH + TechniquePillRow::preferredHeight);
     bounds.removeFromBottom (Metrics::gridHalf);
 
     // 3.1: the guitar, with the level meter and the chord beside it.
