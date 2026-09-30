@@ -3,6 +3,9 @@
 #include "MidiOutPanel.h"        // MODEL-GAPS: the drag-out take
 #include "MidiExportDefaults.h"
 #include "../DSP/Common/DspCommon.h"   // SPEC-SWEEP PT-39: hzToMidi
+#include "../Riffs/Riff.h"             // FEAT2-TAB: play an imported tab
+#include "../Riffs/RiffCompiler.h"
+#include "../Riffs/RiffDestinations.h"
 
 namespace luthier
 {
@@ -1739,6 +1742,41 @@ void TabReaderTab::openScore (const PerformanceScore& newScore, const juce::Stri
 }
 
 //==============================================================================
+void TabReaderTab::togglePlay()
+{
+    auto& player = processor.getEngine().getRiffPlayer();
+
+    if (player.isPlaying() || player.isWaiting())
+    {
+        player.stop();
+        playButton.setButtonText ("Play");
+        return;
+    }
+
+    if (score.getTotalNoteCount() == 0)
+    {
+        statusLabel.setText ("Open a tab first.", juce::dontSendNotification);
+        statusLabel.setColour (juce::Label::textColourId, Palette::warning);
+        return;
+    }
+
+    // FEAT2-TAB: the parsed score becomes a riff, compiled against the loaded
+    // instrument and handed to the audition player - the same path riffs use.
+    const auto riff = Riff::fromScore (score);
+    const auto guitar = RiffDestinations::guitarSummary (processor);
+
+    player.setCompiled (RiffCompiler::compile (riff, RiffPlaySettings{}, guitar), true);
+    player.setClockMode (RiffPlayer::ClockMode::own);
+    player.setAbsoluteBpm (score.getMeta().tempoBpm);
+    player.setLooping (true);
+    player.play();
+
+    playButton.setButtonText ("Stop");
+    statusLabel.setText ("Playing " + scoreTitle, juce::dontSendNotification);
+    statusLabel.setColour (juce::Label::textColourId, Palette::textMuted);
+}
+
+//==============================================================================
 TabReaderTab::TabReaderTab (LuthierAudioProcessor& p)
     : PracticeTab (p)
 {
@@ -1788,8 +1826,12 @@ TabReaderTab::TabReaderTab (LuthierAudioProcessor& p)
         });
     };
 
+    playButton.setTooltip ("Play the imported tab through the engine.");
+    playButton.onClick = [this] { togglePlay(); };
+
     addAndMakeVisible (openButton);
     addAndMakeVisible (exportButton);
+    addAndMakeVisible (playButton);
 
     for (int i = 0; i < (int) NotationFormat::numFormats; ++i)
         formatBox.addItem (getNotationFormatName ((NotationFormat) i), i + 1);
@@ -1845,6 +1887,7 @@ void TabReaderTab::resized()
         RowLayout r { bounds.removeFromTop (Metrics::buttonHeight) };
 
         openButton.setBounds (r.take (76));
+        playButton.setBounds (r.take (58));
         formatBox.setBounds (r.take (120));
         exportButton.setBounds (r.take (80));
         barsSlider.setBounds (r.take (130));
