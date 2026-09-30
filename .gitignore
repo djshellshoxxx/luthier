@@ -16,3 +16,4 @@ build-asan/
 # Also match symlinks (a trailing slash only matches directories).
 ThirdParty/JUCE
 ThirdParty/clap-juce-extensions
+.claude/worktrees/
