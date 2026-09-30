@@ -874,6 +874,18 @@ ModMatrixPanel::ModMatrixPanel (LuthierAudioProcessor& p)
     summaryLabel.setText (juce::String (processor.getModMatrix().getNumRoutes()) + " route(s)",
                           juce::dontSendNotification);
     addAndMakeVisible (summaryLabel);
+
+    // The spare user macros (7/8): their own knobs, so they are visible and
+    // automatable and can then be used as MOD sources on the routes below.
+    userMacroHeading.setText ("USER MACROS", juce::dontSendNotification);
+    userMacroHeading.setFont (Fonts::sectionHeader());
+    userMacroHeading.setColour (juce::Label::textColourId, Palette::accent);
+    addAndMakeVisible (userMacroHeading);
+
+    userMacroA.attachTo (processor, ParamIDs::macroAssignA, "Spare macro A: a value you can route from as a MOD source.");
+    userMacroB.attachTo (processor, ParamIDs::macroAssignB, "Spare macro B: a value you can route from as a MOD source.");
+    addAndMakeVisible (userMacroA);
+    addAndMakeVisible (userMacroB);
 }
 
 ModMatrixPanel::~ModMatrixPanel() = default;
@@ -955,7 +967,8 @@ void ModMatrixPanel::showAddRouteMenu()
 
 int ModMatrixPanel::preferredHeight() const
 {
-    return 22                                   // source selector
+    return 16 + 48 + Metrics::gridHalf         // user macros heading + knobs
+             + 22                               // source selector
              + ModSourceCard::preferredHeight
              + Metrics::gridHalf
              + 160                              // route table
@@ -970,6 +983,15 @@ void ModMatrixPanel::paint (juce::Graphics&)
 void ModMatrixPanel::resized()
 {
     auto bounds = getLocalBounds();
+
+    // The spare user macros sit above the source selector.
+    userMacroHeading.setBounds (bounds.removeFromTop (16));
+    {
+        auto row = bounds.removeFromTop (48);
+        userMacroA.setBounds (row.removeFromLeft (row.getWidth() / 2).reduced (2, 0));
+        userMacroB.setBounds (row.reduced (2, 0));
+    }
+    bounds.removeFromTop (Metrics::gridHalf);
 
     sourceSelector.setBounds (bounds.removeFromTop (22).reduced (0, 1));
     card->setBounds (bounds.removeFromTop (ModSourceCard::preferredHeight));

@@ -1481,7 +1481,12 @@ bool PresetManager::writeToFile (const juce::File& file, const juce::var& data) 
 void PresetManager::stampSaveTime()
 {
     // SPEC-SWEEP: FF-20. `created` survives every later save.
-    metaModified = juce::Time::getCurrentTime().toISO8601 (true);
+    // FEAT-BROWSER (preset-browser-previews 5.4): re-saving an unchanged preset
+    // keeps its `modified` time, so save -> load -> save is byte-identical. The
+    // time is stamped only when there are unsaved edits, or when the file never
+    // had one (an older file, or a brand-new preset).
+    if (modified || metaModified.isEmpty())
+        metaModified = juce::Time::getCurrentTime().toISO8601 (true);
 
     if (metaCreated.isEmpty())
         metaCreated = metaModified;
