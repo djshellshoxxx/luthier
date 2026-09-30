@@ -3607,6 +3607,16 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     if (auto* morph = apvts.getRawParameterValue (ParamIDs::presetMorphPosition))
         root->setProperty ("presetMorphPosition", (double) morph->load());
 
+    // jam-mode 10 (FEAT-JAM): jam_play and jam_fill_now stay out of preset files
+    // (PresetManager excludes isJamTransient params), but CLAP's state-reproducibility
+    // check needs every host parameter to survive save/reload. Persist their current
+    // values at the full-state level; restoreState reads them back and re-baselines
+    // the jam engine so the restored jam_play never starts the band.
+    if (auto* p = apvts.getParameter (ParamIDs::jamPlay))
+        root->setProperty ("jamPlayValue", (double) p->getValue());
+    if (auto* p = apvts.getParameter (ParamIDs::jamFillNow))
+        root->setProperty ("jamFillNowValue", (double) p->getValue());
+
     const auto json = juce::JSON::toString (juce::var (root), false);
 
     destData.reset();
@@ -3713,7 +3723,8 @@ void LuthierAudioProcessor::restoreState (const void* data, int sizeInBytes, Res
             "preset", "midiLearn", "ui", "setlist", "lockedParameters", "slotBActive",
             "routing", "modulation", "rhythm", "snapshots", "liveMode", "controllerProfile",
             "character", "stability", "toneMatch", "metronome", "clickToMain", "normalization",
-            "tune", "presetMorphPosition", "formatVersion"
+            "tune", "presetMorphPosition", "formatVersion",
+            "jamPlayValue", "jamFillNowValue"   // jam-mode 10 (FEAT-JAM)
         };
 
         unknownHostSections.clear();
@@ -3885,11 +3896,34 @@ void LuthierAudioProcessor::restoreState (const void* data, int sizeInBytes, Res
         if (auto* morph = apvts.getParameter (ParamIDs::presetMorphPosition))
             morph->setValueNotifyingHost (morph->convertTo0to1 ((float) (double) root->getProperty ("presetMorphPosition")));
 
-    // jam-mode 10 (FEAT-JAM): opening a project never starts the band.
-    for (auto* id : { ParamIDs::jamPlay, ParamIDs::jamFillNow })
-        if (auto* p = apvts.getParameter (id))
-            if (p->getValue() > 0.5f)
-                p->setValueNotifyingHost (0.0f);
+    // jam-mode 10 (FEAT-JAM): the two transient Jam parameters round-trip through
+    // the host state so CLAP's state-reproducibility check passes, but opening a
+    // project never starts the band. A full host restore reads the saved values
+    // back (getParameter()->getValue() then matches immediately, before any block)
+    // and re-baselines the jam engine's edge detector so the restored jam_play is
+    // not read as a rising edge; the 200 ms mirror later normalises jam_play to the
+    // stopped band. Undo/redo and A/B (soundOnly) simply keep the band stopped.
+    if (scope == RestoreScope::full)
+    {
+        auto restoreJamTransient = [this, root] (const char* id, const char* key)
+        {
+            if (auto* p = apvts.getParameter (id))
+                p->setValueNotifyingHost (root->hasProperty (key)
+                                              ? juce::jlimit (0.0f, 1.0f, (float) (double) root->getProperty (key))
+                                              : 0.0f);
+        };
+
+        restoreJamTransient (ParamIDs::jamPlay, "jamPlayValue");
+        restoreJamTransient (ParamIDs::jamFillNow, "jamFillNowValue");
+        jam.baselineNextEdges();
+    }
+    else
+    {
+        for (auto* id : { ParamIDs::jamPlay, ParamIDs::jamFillNow })
+            if (auto* p = apvts.getParameter (id))
+                if (p->getValue() > 0.5f)
+                    p->setValueNotifyingHost (0.0f);
+    }
     // output-normalization.md 6: the host path restores the setting (a state
     // without the key loads off); undo, redo and A/B keep the live one. Either
     // way the sound just changed, which is a configuration event.
