@@ -1,6 +1,8 @@
 #include "RhythmEngine.h"
 #include "MutedThump.h"   // REALISM-B: string-interaction.md 6
 
+#include <algorithm>   // std::sort / std::min: GCC does not pull it in transitively (PR #2)
+
 namespace luthier
 {
 
