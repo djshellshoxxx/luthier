@@ -786,10 +786,11 @@ LUTHIER_TEST (RhythmPatterns, swingDelaysTheOffbeats)
     CHECK_MSG (straight >= 0 && swung >= 0, "the offbeat grid step was never scheduled");
     CHECK_MSG (swung > straight, "swing did not delay the offbeat");
 
-    // RhythmEngine.cpp's swing formula: beatPosition += (swing - 0.5) * 2 * stepBeats * 0.5,
-    // stepBeats = 1/4 at sixteenth-note subdivision.
+    // RhythmEngine.cpp's swing formula: beatPosition += (swing - 0.5) * 2 * stepBeats,
+    // stepBeats = 1/4 at sixteenth-note subdivision (so 0.66 is a triplet feel and
+    // 0.75 a dotted feel - the offbeat lands at swing x the pair).
     const double perBeat = samplesPerBeatAt (120.0);
-    const double expectedDelta = (0.66 - 0.5) * 2.0 * 0.25 * 0.5 * perBeat;
+    const double expectedDelta = (0.66 - 0.5) * 2.0 * 0.25 * perBeat;
 
     CHECK_MSG (std::llabs ((swung - straight) - (int64_t) std::llround (expectedDelta)) <= 1,
                "swing delay was " + juce::String ((int) (swung - straight))
