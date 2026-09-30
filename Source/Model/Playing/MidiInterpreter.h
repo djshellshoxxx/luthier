@@ -136,7 +136,6 @@ public:
         per-note/per-string bend can undo it. An empty curve (fewer than two
         points) restores a plain linear response. Message thread only; the
         audio thread only ever reads the fixed array this fills. */
-    void setPitchCurve (const std::vector<double>& curve) noexcept;
 
     //==========================================================================
     /*  Which MIDI channel drives which string in guitar-controller mode

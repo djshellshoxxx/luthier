@@ -148,35 +148,6 @@ void MidiInterpreter::setStringBendRange (int stringIndex, double semitones) noe
         stringBendRange[(size_t) stringIndex] = juce::jlimit (0.5, 96.0, semitones);
 }
 
-//==============================================================================
-void MidiInterpreter::setPitchCurve (const std::vector<double>& curve) noexcept
-{
-    pitchCurvePoints = juce::jmin ((int) curve.size(), (int) pitchCurve.size());
-
-    for (int i = 0; i < pitchCurvePoints; ++i)
-        pitchCurve[(size_t) i] = (float) curve[(size_t) i];
-}
-
-double MidiInterpreter::applyPitchCurve (double normalised) const noexcept
-{
-    if (pitchCurvePoints < 2)
-        return normalised;
-
-    const double clamped = juce::jlimit (-1.0, 1.0, normalised);
-    const double magnitude = std::abs (clamped);
-    const double sign = (clamped < 0.0) ? -1.0 : 1.0;
-
-    const double position = magnitude * (double) (pitchCurvePoints - 1);
-    const int lower = juce::jlimit (0, pitchCurvePoints - 1, (int) position);
-    const int upper = juce::jmin (pitchCurvePoints - 1, lower + 1);
-    const double fraction = position - (double) lower;
-
-    const double value = (double) pitchCurve[(size_t) lower]
-                           + ((double) pitchCurve[(size_t) upper] - (double) pitchCurve[(size_t) lower]) * fraction;
-
-    return sign * value;
-}
-
 void MidiInterpreter::resetChannelMap() noexcept
 {
     // The default convention: channel 1 is the high E, and the strings run
