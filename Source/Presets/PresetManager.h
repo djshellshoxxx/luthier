@@ -164,10 +164,19 @@ public:
     ~PresetManager() override;
 
     //==========================================================================
-    /** Rescans every registered folder. Safe to call from the message thread. */
+    /** Rescans every registered folder. Safe to call from the message thread.
+        Installs the factory bank first, and marks the library scanned so the
+        lazy first-scan is not repeated. */
     void refresh();
 
-    int getNumPresets() const noexcept { return presets.size(); }
+    /*  performance-budget.md 5.1 (QA-2.4): the folder scan - reading and
+        feature-parsing every preset file - is deferred out of construction to
+        the first time the list is actually read (a browser open, a host program
+        query, or a search). isScanned() lets the audio thread's program-change
+        path see whether that first scan has happened without triggering it. */
+    bool isScanned() const noexcept { return scanned.load(); }
+
+    int getNumPresets() const noexcept { ensureScanned(); return presets.size(); }
     const PresetInfo* getPreset (int index) const noexcept;
 
     /** The index of the preset with this name, or -1. Case-insensitive, and it
@@ -343,6 +352,11 @@ public:
     static bool isRandomisable (const juce::String& paramId);
 
 private:
+    /*  Runs the deferred first scan if it has not happened yet. Called by every
+        list reader; message thread. const because the readers are, but the scan
+        it performs is a lazy fill of state that is logically already there. */
+    void ensureScanned() const;
+
     void scanFolder (const juce::File& folder, bool factory);
     bool writeToFile (const juce::File& file, const juce::var& data) const;
 
@@ -386,6 +400,11 @@ private:
 
     juce::Array<PresetInfo> presets;
     juce::Array<juce::File> searchFolders;
+
+    /*  False until the first scan has populated `presets` (see refresh /
+        ensureScanned). Atomic so the audio thread's isScanned() guard reads it
+        without a data race with the message thread that sets it. */
+    std::atomic<bool> scanned { false };
 
     int currentIndex = -1;
     juce::String currentName { "Init" };
