@@ -154,7 +154,9 @@ Vertical stack of module cards, top to bottom:
 2. **Pre-effects rack** (compact, 8 slots)
 3. **Amp** (large: model, gain, bass, mid, treble, presence, master)
 4. **Post-effects rack** (compact, 8 slots)
-5. **Cabinet** (model, mic 1, mic 2, blend)
+5. **Cabinet** (model, mic 1, mic 2, blend; (mic-placement.md, FEAT-MIC): plus the
+   bright <-> warm / close <-> far mic pad, which opens the placement
+   overlay, and on acoustics a Pickup <-> Mic knob in place of the mics)
 6. **Room** (size, wet/dry)
 
 Each effect slot is a click target that opens the pedal's full controls
@@ -244,6 +246,11 @@ tab strip at the top.
 - **AMP**: model, tone controls, sag, bright, bias, master.
 - **POST-EFFECTS RACK**: 8 slots.
 - **CAB**: model, mic 1, mic 2, blend, phase, delay.
+  (mic-placement.md, FEAT-MIC): the legacy position / distance combos are replaced by the
+  mic placement view (cabinet face with draggable mic handles, speaker
+  thumbnails, response plot and an expand button that opens the placement
+  editor over Columns 3 and 4). On an acoustic guitar the section reads
+  MICS and shows the body with the external mic handles.
 - **ROOM**: model, size, dampening, wet/dry.
 - **SUSTAIN** (from ambiguity-resolutions.md 2): Freeze row (enable,
   capture ms, level, attack, release, tonal LP / HP). E-Bow row (enable,
@@ -609,6 +616,7 @@ the UI.
 |---|---|---|---|---|
 | CPU quality (High / Medium / Low / Auto; cpu-quality-modes) | QualityController, PerformanceSettings | Options -> AUDIO -> QUALITY | Footer `QualityBadge`; Adv Col 3 Master oversampling tooltip | "Cycle CPU quality" (unbound) |
 | Instrument load | Model::GuitarLibrary | Adv Col 1 GUITAR, Preset browser | Header preset | Ctrl+O |
+| Preset previews, tone search, favourites, ratings, Sounds like (preset-browser-previews.md) | Presets/Preview, Presets/Search, PresetLibrary | Preset browser overlay (Easy chip row / Advanced sidebar) | Options -> APPEARANCE -> PRESET BROWSER; Options -> FILE LOCATIONS preview cache; Options -> ACCESSIBILITY "Preset browser" keys | Ctrl+O, then Space / F / S / 0-5 |
 | Save As Guitar | Workshop | Workshop header | - | Ctrl+G |
 | Per-string tuning | TuningEngine | Adv Col 1 GUITAR | Easy: headstock click | - |
 | Capo (fret / partial) | TuningEngine | Adv Col 1 GUITAR, Workshop capo drag | - | - |
@@ -627,6 +635,8 @@ the UI.
 | Post-effects rack | PostEffectsChain | Adv Col 3 POST-FX | Easy rig strip | - |
 | Amp model / tone / sag | AmpEngine | Adv Col 3 AMP | Easy rig strip | - |
 | Cabinet, mic 1, mic 2 | CabinetEngine | Adv Col 3 CAB | Easy rig strip | - |
+| Mic placement (x, y, distance, angle, speaker, rear, ToF, level match) (mic-placement.md, FEAT-MIC) | CabinetEngine `MicPlacementStage` | Adv Col 3 CAB placement view + editor | Easy Cabinet card mic pad + overlay | - |
+| Acoustic external mics (mic-placement.md, FEAT-MIC) | AcousticMicModel | Adv Col 3 MICS (acoustic) | Easy Cabinet card Pickup <-> Mic | - |
 | Room | RoomEngine | Adv Col 3 ROOM | Easy rig strip | - |
 | Feedback simulation | AmpEngine | Adv Col 3 SUSTAIN (feedback readout) | - | - |
 | Freeze | MasterBus overlay | Adv Col 3 SUSTAIN | - | - |
@@ -680,6 +690,7 @@ the UI.
 | Character seed / dead spots / fret wear / tuner drift / body age / environment | CharacterWear | Col 4 CHARACTER | Easy character macro | - |
 | String squeak amount / probability / material / style | StringNoise | Col 4 CHARACTER -> STRING NOISE | Easy character macro (amount only) | - |
 | Pick material / thickness / tip / bevel / angle / wear / click / chirp / scrape | PickNoise | Col 4 CHARACTER -> PICK | - | - |
+| Harmonic contact / offsets / mapping | StringEngine contacts | Col 4 CHARACTER -> PICK -> HARMONICS | - | - |
 | Fret buzz thresholds / setup style / sitar mode / heatmap | FretBuzz | Col 4 CHARACTER -> SETUP | Workshop setup strip | - |
 | Slide material / mass / wall / pressure / slant / noise / clank | SlideEngine | Col 4 CHARACTER -> SLIDE (Slide Mode only), Workshop slide part | Header S | S |
 | Guitar circuit visualiser | GuitarCircuit | Adv Col 2 CIRCUIT, Col 4 CHARACTER -> CIRCUIT | - | - |

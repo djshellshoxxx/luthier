@@ -17,11 +17,18 @@
 #include "../Common/ConvolutionInstaller.h"
 #include "../Common/IrVariants.h"
 #include "../../Support/QualityProfile.h"
+#include "RoomEngine.h"
 #include <atomic>
 #include <memory>
 
 namespace luthier
 {
+
+// mic-placement.md 5: the continuous placement stage (MicPlacement.h).
+struct MicPlacement;
+class MicPlacementStage;
+class SlewedDelayLine;
+enum class TofMode;
 
 //==============================================================================
 enum class CabinetType
@@ -102,6 +109,32 @@ public:
     void setPhaseAlignMm (double mm) noexcept;
 
     //==========================================================================
+    /*  mic-placement.md 5. Each mic's convolution holds its anchor IR; where the
+        mic actually is - over which speaker, how far, at what angle, in front
+        or behind - is a continuous stage after it. None of these ever reloads
+        an IR (MP-13). */
+    void setMicPlacement (int slot, const MicPlacement& placement) noexcept;
+    const MicPlacement& getMicPlacement (int slot) const noexcept;
+
+    void setTimeOfFlightMode (TofMode mode) noexcept;
+    TofMode getTimeOfFlightMode() const noexcept { return tofMode; }
+
+    void setLevelMatch (bool on) noexcept;
+    void setRoomMaterialForFloor (RoomMaterial material, bool roomOn) noexcept;
+
+    /** A user IR in this slot has its placement baked in: the stage passes
+        the signal through unchanged (mic-placement.md 9). */
+    void setPlacementBypassed (int slot, bool bypassed) noexcept;
+    bool isPlacementBypassed (int slot) const noexcept;
+
+    MicPlacementStage& getPlacementStage (int slot) noexcept;
+    const SlewedDelayLine& getTofLine (int slot) const noexcept;
+
+    /** The anchor copy of a configuration: Cap Edge, close. The Acoustic DI
+        keeps its own choices, which pick its voicing rather than a place. */
+    static CabinetConfig anchorConfig (const CabinetConfig& cfg) noexcept;
+
+    //==========================================================================
     bool loadImpulseResponse (int slot, const juce::File& file);
     void loadImpulseResponse (int slot, const float* samples, int numSamples, double irSampleRate);
     bool hasImpulseResponse (int slot) const noexcept;
@@ -121,11 +154,7 @@ public:
     int getLatencySamples() const noexcept;
 
     /** cpu-quality-modes 2.3: each mic's IR variant for the level. Audio thread. */
-    void setQualityLevel (const QualityProfile& profile, bool hard) noexcept
-    {
-        pathA.variants.setLevel ((int) profile.level, hard);
-        pathB.variants.setLevel ((int) profile.level, hard);
-    }
+    void setQualityLevel (const QualityProfile& profile, bool hard) noexcept;
 
     const IrVariants& getIrVariants (int slot) const noexcept { return slot == 0 ? pathA.variants : pathB.variants; }
 
@@ -178,6 +207,11 @@ private:
         // and a sharp roll-off above it.
         Biquad lowShelf, bodyPeak, presencePeak, topRoll, topRoll2, highpass;
 
+        // mic-placement.md 5: the placement stage and the time-of-arrival line.
+        std::unique_ptr<MicPlacementStage> stage;
+        std::unique_ptr<SlewedDelayLine> tof;
+        bool userIrBypass = false;
+
         void prepareFallback (double sr, const CabinetConfig& cfg) noexcept;
         void resetFallback() noexcept;
         inline double processFallback (double x) noexcept
@@ -194,6 +228,7 @@ private:
     };
 
     void rebuildFallbacks() noexcept;
+    void updateStageVoice (MicPath& path, const CabinetConfig& cfg) noexcept;
 
     double sr = 44100.0;
     int maxBlock = 512;
@@ -207,6 +242,7 @@ private:
 
     ExpSmoother blendSmooth, widthSmooth;
     double phaseAlignMm = 0.0;
+    TofMode tofMode {};
 
     // Delay line for the mic-B time-of-flight alignment.
     std::vector<double> alignBuffer;

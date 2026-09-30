@@ -33,6 +33,9 @@ enum class PedalType
     // ambiguity-resolutions.md 3, appended so saved slot indices keep meaning.
     Doubler,
 
+    // Rhythmic gate (trance gate), appended for the same reason.
+    Gater,
+
     NumTypes
 };
 

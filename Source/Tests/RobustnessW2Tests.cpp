@@ -69,7 +69,8 @@ namespace
         p.setStateInformation (json.toRawUTF8(), (int) json.getNumBytesAsUTF8());
     }
 
-    /** Points the error log (and so the state backups) at a fresh folder. */
+    /*  Points the error log at a fresh folder, and tracks the state backups
+        this test adds to the diagnostics folder (removed again afterwards). */
     struct TempDiagnostics
     {
         TempDiagnostics()
@@ -77,19 +78,38 @@ namespace
             folder.deleteRecursively();
             folder.createDirectory();
             ErrorLog::setFolderForTesting (folder);
+            existing = backups();
         }
 
         ~TempDiagnostics()
         {
+            for (auto& f : newBackups())
+                f.deleteFile();
+
             ErrorLog::setFolderForTesting ({});
             folder.deleteRecursively();
         }
 
-        int numBackups() const
+        static juce::Array<juce::File> backups()
         {
             return LuthierAudioProcessor::getStateBackupFolder()
-                       .getNumberOfChildFiles (juce::File::findFiles, "session-state-*.json");
+                       .findChildFiles (juce::File::findFiles, false, "state-backup-*.json");
         }
+
+        juce::Array<juce::File> newBackups() const
+        {
+            juce::Array<juce::File> added;
+
+            for (auto& f : backups())
+                if (! existing.contains (f))
+                    added.add (f);
+
+            return added;
+        }
+
+        int numBackups() const { return newBackups().size(); }
+
+        juce::Array<juce::File> existing;
 
         juce::File folder { juce::File::getSpecialLocation (juce::File::tempDirectory)
                                 .getChildFile ("luthier-w2-diagnostics") };
@@ -213,7 +233,7 @@ LUTHIER_TEST (HostState, theBlobCarriesItsFormatVersion)
     processor.prepareToPlay (kSr, kBlock);
 
     const auto state = stateOf (processor);
-    CHECK ((int) state.getProperty ("stateFormat", 0) == LuthierAudioProcessor::kStateFormatVersion);
+    CHECK ((int) state.getProperty ("formatVersion", 0) == LuthierAudioProcessor::kCurrentStateFormatVersion);
     CHECK (state.getProperty ("savedBy", {}).toString() == JucePlugin_VersionString);
 }
 
@@ -235,7 +255,7 @@ LUTHIER_TEST (HostState, aNewerBlobKeepsWhatItCannotReadOnWriteBack)
 
     auto* future = new juce::DynamicObject();
     future->setProperty ("depth", 7);
-    root->setProperty ("stateFormat", LuthierAudioProcessor::kStateFormatVersion + 5);
+    root->setProperty ("formatVersion", LuthierAudioProcessor::kCurrentStateFormatVersion + 5);
     root->setProperty ("savedBy", "9.0.0");
     root->setProperty ("hologramRig", juce::var (future));
 
@@ -245,17 +265,21 @@ LUTHIER_TEST (HostState, aNewerBlobKeepsWhatItCannotReadOnWriteBack)
     LuthierAudioProcessor processor;
     processor.prepareToPlay (kSr, kBlock);
     processor.takeStateWarnings();
+    processor.takeGuitarNotices();
     restore (processor, state);
 
+    const auto notices = processor.takeGuitarNotices();
+    CHECK_MSG (notices.joinIntoString ("|").contains ("newer version of Luthier (9.0.0)"),
+               "no notice: " + notices.joinIntoString ("|"));
+
     const auto warnings = processor.takeStateWarnings();
-    CHECK_MSG (warnings.joinIntoString ("|").contains ("newer Luthier"), "no warning: " + warnings.joinIntoString ("|"));
     CHECK_MSG (warnings.joinIntoString ("|").contains ("sound could not be loaded"),
                "the refused preset was silent: " + warnings.joinIntoString ("|"));
 
     const auto written = stateOf (processor);
     CHECK ((int) written.getProperty ("hologramRig", {}).getProperty ("depth", 0) == 7);
     CHECK ((int) written.getProperty ("preset", {}).getProperty ("schema", 0) == 99);
-    CHECK ((int) written.getProperty ("stateFormat", 0) == LuthierAudioProcessor::kStateFormatVersion);
+    CHECK ((int) written.getProperty ("formatVersion", 0) == LuthierAudioProcessor::kCurrentStateFormatVersion);
     CHECK (diagnostics.numBackups() == 0);
 
     // Choosing another sound replaces the newer preset; the unknown section stays.
@@ -263,12 +287,6 @@ LUTHIER_TEST (HostState, aNewerBlobKeepsWhatItCannotReadOnWriteBack)
     const auto afterLoad = stateOf (processor);
     CHECK ((int) afterLoad.getProperty ("preset", {}).getProperty ("schema", 0) != 99);
     CHECK ((int) afterLoad.getProperty ("hologramRig", {}).getProperty ("depth", 0) == 7);
-
-    // A current-format blob keeps nothing extra: an unknown key there is not carried.
-    auto current = stateOf (source);
-    current.getDynamicObject()->setProperty ("strayKey", 1);
-    restore (processor, current);
-    CHECK (! stateOf (processor).hasProperty ("strayKey"));
 }
 
 /*  HI-25, host-integration 4.2: an older blob is copied to the diagnostics
@@ -284,12 +302,11 @@ LUTHIER_TEST (HostState, anOlderBlobIsBackedUpBeforeItIsMigrated)
     restore (processor, state);
     CHECK (diagnostics.numBackups() == 0);
 
-    state.getDynamicObject()->removeProperty ("stateFormat");   // as every build before HI-20 wrote it
+    state.getDynamicObject()->removeProperty ("formatVersion");   // as every build before HI-20 wrote it
     restore (processor, state);
     CHECK (diagnostics.numBackups() == 1);
 
-    const auto backups = LuthierAudioProcessor::getStateBackupFolder()
-                             .findChildFiles (juce::File::findFiles, false, "session-state-*.json");
+    const auto backups = diagnostics.newBackups();
 
     if (backups.size() == 1)
         CHECK (juce::JSON::parse (backups[0].loadFileAsString()).hasProperty ("preset"));

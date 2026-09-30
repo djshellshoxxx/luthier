@@ -17,6 +17,8 @@
 #include "../Model/Playing/TechniqueEngine.h"
 #include "../Model/Playing/ChordVoicer.h"
 #include "../Model/Playing/RubricVoicer.h"
+#include "../PluginProcessor.h"
+#include "../UI/OptionsPages.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -763,3 +765,128 @@ LUTHIER_TEST (Controllers, chordGroupsSoundOneWindowAfterTheyWerePlayed)
     offsets = block ({}, 8192 + 256);
     CHECK (offsets.size() == 1 && offsets[0] == 220 + window - 256);
 }
+
+//==============================================================================
+// CT-7 (anMpeProfileSurvivesTheParameterBridge) lived here as a gaps-host copy
+// that expected a ControllersPage combo selection to reach the interpreter
+// synchronously. The integration/SPEC-SWEEP merge made a profile publish through
+// ControllerStage and apply on the audio thread's next block, so the canonical
+// version - which renders a block before it checks - is in ControllerSweepTests.
+// The stale duplicate is removed to end the name collision.
+
+//==============================================================================
+// CT-2: the chosen profile used to live only in the ControllersPage combo box,
+// so reopening the editor after a session round trip always fell back to
+// Generic MIDI. It now travels in the processor's state.
+LUTHIER_TEST (Controllers, theChosenProfileSurvivesTheSessionRoundTrip)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 128);
+
+    {
+        ControllersPage page (processor);
+        page.setSize (400, 500);
+
+        ControllerProfileLibrary library;
+        library.refresh();
+        const int index = library.indexOf ("roli-seaboard");
+        CHECK (index >= 0);
+
+        for (int i = 0; i < page.getNumChildComponents(); ++i)
+            if (auto* box = dynamic_cast<juce::ComboBox*> (page.getChildComponent (i)))
+                box->setSelectedId (index + 1, juce::sendNotificationSync);
+    }
+
+    CHECK (processor.getControllerProfileId() == "roli-seaboard");
+
+    juce::MemoryBlock saved;
+    processor.getStateInformation (saved);
+
+    LuthierAudioProcessor restored;
+    restored.prepareToPlay (48000.0, 128);
+    restored.setStateInformation (saved.getData(), (int) saved.getSize());
+
+    CHECK (restored.getControllerProfileId() == "roli-seaboard");
+
+    // Reopening the page selects and re-applies it rather than resetting to
+    // Generic MIDI (id 1).
+    ControllersPage page (restored);
+    page.setSize (400, 500);
+
+    CHECK (restored.getEngine().getMidiInterpreter().isMpeEnabled());
+}
+
+//==============================================================================
+// CT-16: channel pressure on a per-channel controller's channel drives that
+// string's vibrato, not every string's.
+LUTHIER_TEST (Controllers, pressureOnAChannelVibratesOnlyItsString)
+{
+    ControllerProfileLibrary library;
+    const int gk = library.indexOf ("roland-gk");
+    CHECK (gk >= 0);
+
+    if (gk < 0)
+        return;
+
+    InterpreterFixture fixture;
+    ControllerProfileLibrary::apply (library.getProfile (gk), fixture.interpreter);
+
+    // roland-gk maps string index 2 (the third string) to channel 13.
+    CHECK (fixture.interpreter.getChannelForString (2) == 13);
+
+    juce::MidiBuffer midi;
+    midi.addEvent (juce::MidiMessage::channelPressureChange (13, 100), 0);
+
+    PlayEventQueue out;
+    int64_t position = 0;
+    fixture.interpreter.processBlock (midi, 256, position, out);
+
+    CHECK (out.getNumPressures() == 1);
+
+    if (out.getNumPressures() == 1)
+    {
+        const auto& e = out.getPressure (0);
+        CHECK (e.stringIndex == 2);
+        CHECK_NEAR (e.value, 100.0 / 127.0, 1.0e-6);
+    }
+}
+
+//==============================================================================
+// CT-17: in MPE mode, the master channel (default 1) carries zone-wide
+// messages only. A note-on there used to fall through to the same per-channel
+// routing as a member channel and get voiced on whatever string channel 1
+// mapped to.
+LUTHIER_TEST (Controllers, mpeMasterChannelNotesAreIgnored)
+{
+    ControllerProfileLibrary library;
+    const int mpe = library.indexOf ("roli-seaboard");
+    CHECK (mpe >= 0);
+
+    if (mpe < 0)
+        return;
+
+    InterpreterFixture fixture;
+    const auto& profile = library.getProfile (mpe);
+    ControllerProfileLibrary::apply (profile, fixture.interpreter);
+
+    CHECK (fixture.interpreter.isMpeEnabled());
+    CHECK (fixture.interpreter.getMpeMasterChannel() == profile.mpeMasterChannel);
+
+    int64_t position = 0;
+    const int master = profile.mpeMasterChannel;
+
+    CHECK (fixture.noteOnString (master, 52, position) == -1);
+
+    // A member channel still plays normally.
+    CHECK (fixture.noteOnString (profile.mpeFirstMemberChannel, 52, position) >= 0);
+}
+
+//==============================================================================
+// CT-9 (linnstrumentGuitarModeMapsRowsToStrings) and CT-10
+// (osmoseBendFollowsTheCurveThroughTheInterpreter) were gaps-host copies whose
+// expectations the integration/SPEC-SWEEP merge superseded: guitar-mode rows now
+// map to channels 1..6 (this copy still expected the old 2..7), and a member
+// channel's bend needs an active note to route to its string (this copy sent a
+// wheel with no preceding note-on). The canonical versions are in
+// ControllerSweepTests. The stale duplicates are removed to end the name
+// collisions.

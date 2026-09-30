@@ -363,7 +363,11 @@ LUTHIER_TEST (JamPlugin, JM35_presetsSnapshotsAndHostState)
     CHECK (! snapshot.parameters.getDynamicObject()->hasProperty (ParamIDs::jamFillNow));
     CHECK (snapshot.bypasses.getProperty ("jam", {}).isObject());
 
-    // A host-state reload restores them off.
+    // jam-mode 10: a host-state reload round-trips the transients (CLAP state
+    // reproducibility). Here the preset round-trip above already reset both to off
+    // (presets exclude them), so the saved - and restored - value is off, and a
+    // stale jam_play the fresh instance held is overwritten by the restore. Either
+    // way the band never starts. (JamState::JM10 covers a saved value of on.)
     juce::MemoryBlock state;
     b.p->getStateInformation (state);
     Plugin restored;
@@ -371,7 +375,56 @@ LUTHIER_TEST (JamPlugin, JM35_presetsSnapshotsAndHostState)
     restored.p->setStateInformation (state.getData(), (int) state.getSize());
     CHECK (restored.get (ParamIDs::jamPlay) < 0.5f);
     CHECK (restored.get (ParamIDs::jamFillNow) < 0.5f);
+    CHECK (! restored.p->getJam().isBandRunning());
     CHECK (restored.p->getJam().getSeed() == 1234);
+}
+
+LUTHIER_TEST (JamState, JM10_transientsRoundTripWithoutStartingTheBand)
+{
+    /*  jam-mode 10 (FEAT-JAM), option 1: jam_play and jam_fill_now must survive a
+        host save/reload (clap-validator checks getParameter()->getValue() right
+        after setStateInformation, before any processBlock) - yet a restored
+        jam_play must never read as a rising edge that starts the band.
+
+        The fixture host is not playing (host = false): a playing host would start
+        the band through its transport regardless of jam_play, which is a separate,
+        legitimate path; here we isolate the jam_play edge. Deterministic: no
+        real-time sleeps; the 200 ms mirror runs only from the (unpumped) timer, so
+        the restored value holds across the processed blocks below. */
+    for (const char* transient : { ParamIDs::jamPlay, ParamIDs::jamFillNow })
+    {
+        Plugin source { false };
+        source.set (ParamIDs::jamEnabled, 1.0f);
+        source.set (transient, 1.0f);
+
+        juce::MemoryBlock state;
+        source.p->getStateInformation (state);
+
+        Plugin restored { false };
+
+        // Warm up so the engine's edge detector already holds jam_play = false
+        // (haveSettings true): this is the live-reload case the re-baseline guards,
+        // where a fresh restored jam_play = 1 would otherwise read as a rising edge.
+        restored.run (0.25);
+        CHECK_MSG (! restored.p->getJam().isBandRunning(), "the band ran before the reload");
+
+        restored.p->setStateInformation (state.getData(), (int) state.getSize());
+
+        // (a) the value round-trips immediately after load, before any block.
+        CHECK_MSG (restored.get (transient) > 0.5f,
+                   juce::String (transient) + " did not round-trip through host state");
+        CHECK_MSG (restored.get (ParamIDs::jamEnabled) > 0.5f, "jam_enabled did not round-trip");
+        CHECK_MSG (! restored.p->getJam().isBandRunning(), "the band was running immediately after load");
+
+        // (b) the restored value does not start the band once blocks run: the edge
+        // detector was re-baselined, so jam_play is not seen as a rising edge.
+        restored.run (1.0);
+        CHECK_MSG (restored.p->getJam().getState() != JamState::counting
+                       && restored.p->getJam().getState() != JamState::playing,
+                   juce::String ("a restored ") + transient + " started the band");
+        CHECK_MSG (! restored.p->getJam().isBandRunning(),
+                   juce::String ("a restored ") + transient + " left the band running");
+    }
 }
 
 LUTHIER_TEST (JamPlugin, JM36_jamParametersAreTheLast34InTableOrder)
@@ -385,6 +438,10 @@ LUTHIER_TEST (JamPlugin, JM36_jamParametersAreTheLast34InTableOrder)
     const int n = params.size();
     CHECK (n > ParamIDs::kNumJamParameters);
 
+    // INTEGRATE-2: the 34 were last when FEAT-JAM landed; workstreams merged
+    // after it (FEAT-ASSIST, FEAT-MIC) append their own blocks behind them. The
+    // rule is the append-only one: one contiguous block in table order, and no
+    // jam_ parameter anywhere else.
     int first = -1;
 
     for (int i = 0; i < n && first < 0; ++i)
@@ -407,10 +464,6 @@ LUTHIER_TEST (JamPlugin, JM36_jamParametersAreTheLast34InTableOrder)
         if (i < first || i >= first + ParamIDs::kNumJamParameters)
             if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (params[i]))
                 CHECK_MSG (! withId->paramID.startsWith ("jam_"), withId->paramID + " sits outside the Jam block");
-
-    // Only the SPEC-SWEEP block (currently snapshot_morph) follows it.
-    CHECK_MSG (n - (first + ParamIDs::kNumJamParameters) == 1,
-               juce::String (n - (first + ParamIDs::kNumJamParameters)) + " parameters follow the Jam block");
 }
 
 //==============================================================================

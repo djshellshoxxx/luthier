@@ -99,7 +99,7 @@ body, woods, bracing, scale length, pickups, string set, tuning and default rig.
 **12 string materials** and eleven gauge sets, with tension, mass, inharmonicity,
 sustain and brightness all computed from the wire rather than looked up.
 
-**22 pedals** (21 effects plus the Doubler) across two eight-slot, reorderable racks - one before the amp, one in
+**23 pedals** (21 effects plus the Doubler and the Gater) across two eight-slot, reorderable racks - one before the amp, one in
 the effects loop.
 
 **13 amplifiers** with real passive tone stacks, cascaded valve stages, push-pull
@@ -158,7 +158,7 @@ Source/
     Pickup/       positional comb plus the electrical model
     Circuit/      GuitarCircuit: volume/tone pots, cap, treble bleed, buffer, cable
     Whammy/       hardtail, vintage, locking and transposing tremolos, vintage vibrato
-    Effects/      pedal base class, 22 pedals, the racks, the hidden effect
+    Effects/      pedal base class, 23 pedals, the racks, the hidden effect
     Amp/          preamp, tone stack, power amp, cabinet, room
     Feedback/     amp-to-string feedback loop and the E-Bow driver
     Noise/        fret buzz and mechanical playing noise

@@ -485,7 +485,8 @@ int Tune::addSection (TuneSection section, int insertAt)
 
 bool Tune::removeSection (int index)
 {
-    // SPEC-SWEEP ER-48, error-recovery 6: "A tune must have at least one section."
+    // error-recovery 6: a tune must keep a playable section. Refusing before
+    // any mutation also preserves its setlist and rhythm links.
     if (! isValidSection (index) || getNumSections() <= 1)
         return false;
 

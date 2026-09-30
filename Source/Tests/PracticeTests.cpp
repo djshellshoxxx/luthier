@@ -773,6 +773,10 @@ LUTHIER_TEST (PracticeTrainers, earTrainerPosesAnswerableQuestions)
             }
         }
     }
+
+    // PT-38: five named progressions plus ten more.
+    CHECK_MSG (EarTrainer::kNumProgressions == 15,
+               "expected 15 progressions, found " + juce::String (EarTrainer::kNumProgressions));
 }
 
 //==============================================================================

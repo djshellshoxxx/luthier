@@ -1,51 +1,53 @@
-/*  SPEC-SWEEP HI-20/24/25: the host state blob's format version
-    (host-integration.md 4, 4.1, 4.2; error-recovery.md 0.2, 0.3).
+/*  The host state blob's format version: host-integration.md 4, 4.1, 4.2
+    (HI-20/24/25); error-recovery.md 0.2, 0.3. One implementation, used by
+    getStateInformation / restoreState.
 
-    - Every blob carries `stateFormat` (kStateFormatVersion) and `savedBy`.
-    - A newer blob: the sections this build does not read are kept and written
-      back unchanged, a preset block it refused (a newer preset schema) is
-      written back until the user loads another preset, and the user is told.
-    - An older blob (no `stateFormat` = 0): copied to the diagnostics folder
-      before it is migrated, so the project can be taken back to the build that
-      made it.
-    - A blob that is not a Luthier state at all: kept there too, and said.
+    - Every blob carries `formatVersion` (kCurrentStateFormatVersion) and
+      `savedBy` (the build that wrote it).
+    - A root-level key this build does not recognise is kept and written back
+      unchanged (getUnknownHostSections). A blob from a newer format raises one
+      notice, and a preset block this build refused (a newer preset schema) is
+      written back until the user loads another preset.
+    - An older blob (no `formatVersion` = 0) is copied to the diagnostics folder
+      as `state-backup-<stamp>.json` before it is migrated.
+    - A blob that is not a Luthier state at all changes nothing, is kept there
+      as `state-backup-<stamp>-unreadable.json`, and is reported.
+    The newest 20 backups are kept.
 
     Message thread (the host's state calls), like the rest of restoreState.
 */
 
 #include "PluginProcessor.h"
+#include "Support/Diagnostics.h"
 #include "Support/ErrorLog.h"
+
+#include <set>
 
 namespace luthier
 {
 
 namespace
 {
-    // The top-level keys getStateInformation writes or restoreState reads;
-    // anything else in a newer blob is a section this build does not know.
-    const char* const kKnownStateKeys[] =
-    {
-        "preset", "midiLearn", "ui", "setlist", "lockedParameters", "slotBActive", "controllerProfile",
-        "aftertouchBends", "bankSelectsPreset", "liveMode", "stability", "metronome", "clickToMain",
-        "normalization", "tune", "presetMorphPosition", "stateFormat", "savedBy",
-        // read only, from sessions saved before the preset blocks (SM-1)
-        "routing", "modulation", "rhythm", "snapshots", "character", "toneMatch"
-    };
-
-    bool isKnownStateKey (const juce::Identifier& key)
-    {
-        for (const auto* known : kKnownStateKeys)
-            if (key.toString() == known)
-                return true;
-
-        return false;
-    }
-
     constexpr int kMaxStateBackups = 20;
+
+    bool isKnownRootKey (const juce::Identifier& key)
+    {
+        static const std::set<juce::String> known
+        {
+            "preset", "midiLearn", "ui", "setlist", "lockedParameters", "slotBActive",
+            "routing", "modulation", "rhythm", "snapshots", "liveMode", "controllerProfile",
+            "character", "stability", "toneMatch", "metronome", "clickToMain", "normalization",
+            "tune", "presetMorphPosition", "formatVersion", "savedBy",
+            "aftertouchBends", "bankSelectsPreset",
+            "jamPlayValue", "jamFillNowValue"   // jam-mode 10 (FEAT-JAM)
+        };
+
+        return known.count (key.toString()) > 0;
+    }
 
     void pruneStateBackups (const juce::File& folder)
     {
-        auto files = folder.findChildFiles (juce::File::findFiles, false, "session-state-*.json");
+        auto files = folder.findChildFiles (juce::File::findFiles, false, "state-backup-*.json");
 
         if (files.size() <= kMaxStateBackups)
             return;
@@ -57,7 +59,7 @@ namespace
             files.getReference (i).deleteFile();
     }
 
-    juce::File backUpBlob (const void* data, int sizeInBytes, const juce::String& why)
+    juce::File backUpBlob (const void* data, int sizeInBytes, const juce::String& suffix)
     {
         auto folder = LuthierAudioProcessor::getStateBackupFolder();
 
@@ -65,7 +67,7 @@ namespace
             return {};
 
         const auto stamp = juce::Time::getCurrentTime().formatted ("%Y%m%d-%H%M%S");
-        auto file = folder.getNonexistentChildFile ("session-state-" + stamp + "-" + why, ".json", false);
+        auto file = folder.getNonexistentChildFile ("state-backup-" + stamp + suffix, ".json", false);
 
         if (! file.replaceWithData (data, (size_t) sizeInBytes))
             return {};
@@ -78,8 +80,7 @@ namespace
 //==============================================================================
 juce::File LuthierAudioProcessor::getStateBackupFolder()
 {
-    // The error log's folder, so a test that points the log elsewhere moves this too.
-    return ErrorLog::getFolder().getChildFile ("StateBackups");
+    return Diagnostics::getDiagnosticsFolder();
 }
 
 juce::String LuthierAudioProcessor::stateBlobToText (const void* data, int sizeInBytes)
@@ -102,14 +103,14 @@ juce::String LuthierAudioProcessor::stateBlobToText (const void* data, int sizeI
 //==============================================================================
 void LuthierAudioProcessor::writeStateFormat (juce::DynamicObject& root) const
 {
-    root.setProperty ("stateFormat", kStateFormatVersion);
+    root.setProperty ("formatVersion", (int) kCurrentStateFormatVersion);
     root.setProperty ("savedBy", JucePlugin_VersionString);
 
-    // host-integration 4.1: "save preserves the unknown sections on write-back".
-    if (auto* sections = newerStateSections.getDynamicObject())
-        for (const auto& section : sections->getProperties())
-            if (! root.hasProperty (section.name))
-                root.setProperty (section.name, section.value);
+    // HI-24: whatever root-level section this build did not recognise on load
+    // goes back out unchanged (keys written above win).
+    for (const auto& section : unknownHostSections)
+        if (! root.hasProperty (section.name))
+            root.setProperty (section.name, section.value);
 
     if (! refusedPresetBlock.isVoid())
         root.setProperty ("preset", refusedPresetBlock);
@@ -117,56 +118,51 @@ void LuthierAudioProcessor::writeStateFormat (juce::DynamicObject& root) const
 
 void LuthierAudioProcessor::readStateFormat (const juce::DynamicObject& root, const void* data, int sizeInBytes)
 {
-    const auto formatValue = root.getProperty ("stateFormat");
-    const int format = formatValue.isVoid() ? 0 : (int) formatValue;
+    const auto versionValue = root.getProperty ("formatVersion");
+    const int formatVersion = versionValue.isVoid() ? 0 : (int) versionValue;
+    const auto savedBy = root.getProperty ("savedBy").toString();
 
-    newerStateSections = juce::var();
     refusedPresetBlock = juce::var();
+    unknownHostSections.clear();
 
-    if (format > kStateFormatVersion)
+    for (const auto& section : root.getProperties())
+        if (! isKnownRootKey (section.name))
+            unknownHostSections.set (section.name, section.value);
+
+    if (formatVersion < kCurrentStateFormatVersion)
     {
-        auto* kept = new juce::DynamicObject();
-
-        for (const auto& section : root.getProperties())
-            if (! isKnownStateKey (section.name))
-                kept->setProperty (section.name, section.value);
-
-        newerStateSections = juce::var (kept);
-
-        const auto savedBy = root.getProperty ("savedBy").toString();
-
-        ErrorLog::write (ErrorLog::Severity::warn, "HostState", "NEWER_STATE_FORMAT",
-                         "Session state was saved by a newer version of Luthier",
-                         [&]
-                         {
-                             auto* context = new juce::DynamicObject();
-                             context->setProperty ("state_format", format);
-                             context->setProperty ("supported_format", kStateFormatVersion);
-                             context->setProperty ("saved_by", savedBy);
-                             context->setProperty ("kept_sections", kept->getProperties().size());
-                             return juce::var (context);
-                         }());
-
-        stateWarnings.addIfNotAlreadyThere ("This project was saved by a newer Luthier"
-                                            + (savedBy.isNotEmpty() ? " (" + savedBy + ")" : juce::String())
-                                            + ". Settings this version does not know are kept but not used; "
-                                              "update Luthier to use them.");
-    }
-    else if (format < kStateFormatVersion)
-    {
-        // host-integration 4.2: "back up the old blob to the diagnostics folder
-        // before overwriting".
-        const auto backup = backUpBlob (data, sizeInBytes, "format" + juce::String (format));
+        // HI-25: "back up the old blob to the diagnostics folder before overwriting".
+        const auto backup = backUpBlob (data, sizeInBytes, {});
 
         ErrorLog::write (ErrorLog::Severity::info, "HostState", "OLDER_STATE_MIGRATED",
                          "Session state from an older format was migrated; the original was kept",
                          [&]
                          {
                              auto* context = new juce::DynamicObject();
-                             context->setProperty ("state_format", format);
+                             context->setProperty ("format_version", formatVersion);
                              context->setProperty ("backup", backup.getFullPathName());
                              return juce::var (context);
                          }());
+    }
+    else if (formatVersion > kCurrentStateFormatVersion)
+    {
+        // HI-24: "warn the user" - once.
+        ErrorLog::write (ErrorLog::Severity::warn, "HostState", "NEWER_STATE_FORMAT",
+                         "Session state was saved by a newer version of Luthier",
+                         [&]
+                         {
+                             auto* context = new juce::DynamicObject();
+                             context->setProperty ("format_version", formatVersion);
+                             context->setProperty ("supported_format", kCurrentStateFormatVersion);
+                             context->setProperty ("saved_by", savedBy);
+                             context->setProperty ("kept_sections", unknownHostSections.size());
+                             return juce::var (context);
+                         }());
+
+        guitarNotices.addIfNotAlreadyThere ("This session was saved by a newer version of Luthier"
+                                            + (savedBy.isNotEmpty() ? " (" + savedBy + ")" : juce::String())
+                                            + ". Some settings may not carry over; the ones this version "
+                                              "does not know are kept.");
     }
 }
 
@@ -197,7 +193,7 @@ void LuthierAudioProcessor::noteRestoredPresetBlock (const juce::var& block, boo
 
 void LuthierAudioProcessor::reportUnreadableState (const void* data, int sizeInBytes)
 {
-    const auto backup = backUpBlob (data, sizeInBytes, "unreadable");
+    const auto backup = backUpBlob (data, sizeInBytes, "-unreadable");
 
     ErrorLog::write (ErrorLog::Severity::error, "HostState", "STATE_UNREADABLE",
                      "The host's saved state is not a Luthier session; nothing was changed",

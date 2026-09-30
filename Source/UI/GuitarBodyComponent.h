@@ -243,6 +243,12 @@ private:
     double dragStartValue = 0.0;
     int dragStartY = 0;
 
+    // auto-articulation.md 7.3 (FEAT-ASSIST): the labels on Easy mode's fretboard.
+    std::unique_ptr<class AssistLabelOverlay> assistLabels;
+public:
+    AssistLabelOverlay* getAssistLabels() const noexcept { return assistLabels.get(); }
+private:
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GuitarBodyComponent)
 };
 

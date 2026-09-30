@@ -136,7 +136,8 @@ Legend:
 | Pre / post effects racks | `gui-integration.md` 3.2 | Free-limited | 4 + 4 slots (Pro 8 + 8) |
 | Pedals | `Pedal.h` | Free-limited | 15 of 22: Compressor, Noise Gate, Wah, Overdrive, Distortion, Fuzz, Boost, Volume, Chorus, Phaser, Tremolo, Delay, Reverb, Spring Reverb, Graphic EQ. Pro adds Envelope Filter, Octaver, Pitch Shifter, Flanger, Rotary, Parametric EQ, Doubler |
 | Cabinet: model, 2 mics, blend, phase, delay | `gui-integration.md` 4.3 | Both | |
-| Factory IRs | `factory-content.md` 10 | Free-limited | 1 body IR per free guitar family, and per cabinet the on-axis and off-axis positions of the two most used mics (~130 IRs of 720); Pro ships all 720 |
+| Mic placement, acoustic external mics (mic-placement.md, FEAT-MIC) | `mic-placement.md` | Both | Continuous placement is a DSP stage on the anchor IR, so it needs no extra IRs |
+| Factory IRs | `factory-content.md` 10 | Free-limited | 1 body IR per free guitar family, and per cabinet the on-axis and off-axis positions of the two most used mics (~130 IRs of 720); Pro ships all 720. (mic-placement.md, FEAT-MIC): placement needs only each cabinet/speaker's Cap Edge 2.5 cm anchor IR; the other positions are browsable user-IR content |
 | Room | `gui-integration.md` 4.3 | Both | |
 | Tone strip: input, output, wet / dry, width | `gui-integration.md` 3.4 | Both | |
 | User IR loader | `tone-match.md` 1 | Free-limited | One user IR in cab slot 1 (WAV, up to 1 s); body IR and cab 2 user slots Pro |
@@ -148,6 +149,7 @@ Legend:
 |---|---|---|---|
 | Factory presets | `factory-content.md` 1 | Free-limited | The 16 of 36 that need only Free features: 1, 2, 3, 4, 7, 10, 11, 14, 17, 21, 22, 27, 29, 31, 32, 35 (renumbered in the Free browser). The other 20 appear in the browser under "Luthier Pro" with a lock and a 20-second audio demo (4.3) |
 | User presets: save, load, browse, tags, favourites | `file-formats.md`, `state-model.md` | Both | Unlimited |
+| Preset previews, tone search and auto-tags, ratings, Sounds like | `preset-browser-previews.md` 12 | Both | Free previews its 16 presets, the user's, and the 20 Pro presets from shipped clips (locked, upsell on load); local renders use Free's effective values. `scripts/render_demos.sh` calls `scripts/render_previews.sh` (preset-browser-previews.md 2). |
 | A/B compare, undo / redo, randomize, reset | `gui-integration.md` 2, `action-and-undo.md` | Both | Randomize draws only from Free features |
 | Easy Mode | `gui-integration.md` 3 | Both | Full |
 | Advanced Mode columns 1-3 | `gui-integration.md` 4.1-4.3 | Both | With the per-control limits above |

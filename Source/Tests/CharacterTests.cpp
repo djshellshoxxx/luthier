@@ -777,3 +777,70 @@ LUTHIER_TEST (Character, nutMaterialChangesDamping)
     CHECK (std::abs (bone - 1.0) < 0.1);
     CHECK (std::abs (synthetic - 1.0) < 0.1);
 }
+
+//==============================================================================
+/*  CW-9, character-wear 2: a dead spot is weighted toward the body's air
+    resonance - a note near it loses more sustain than the same spot at a note
+    far from it. */
+LUTHIER_TEST (Character, deadSpotLossIsWorseNearBodyResonance)
+{
+    CharacterEngine engine;
+    engine.setSeed (0x9ull);
+    engine.setAmount (1.0);
+    engine.setEnabled (true);
+
+    DeadSpot spot;
+    spot.fret = 7;
+    spot.depth = 0.6;
+    spot.width = 3.0;
+    engine.setDeadSpot (0, 0, spot);
+
+    const double bodyResonanceHz = 110.0;
+    const double nearHz = bodyResonanceHz;                 // right on it
+    const double farHz  = bodyResonanceHz * 4.0;            // two octaves away
+
+    const double atResonance = engine.getSustainMultiplier (0, (double) spot.fret, nearHz, bodyResonanceHz);
+    const double awayFromResonance = engine.getSustainMultiplier (0, (double) spot.fret, farHz, bodyResonanceHz);
+
+    CHECK_MSG (atResonance < awayFromResonance,
+               "a note at the body resonance did not lose more sustain than one two octaves away");
+
+    // Without a body resonance hint at all, the spot still applies its base loss.
+    const double noHint = engine.getSustainMultiplier (0, (double) spot.fret);
+    CHECK (noHint < 1.0);
+}
+
+//==============================================================================
+/*  CW-21, character-wear 7: nut slot wear dampens the open string.
+    LuthierEngine.cpp applies (1 - getNutDamping(s)) * getNutMaterialDamping() to
+    the fret-0 sustain scale, so a worn nut must read as strictly less than a
+    fresh (disabled) one for every string that has any wear at all. */
+LUTHIER_TEST (Character, nutWearDampensTheOpenString)
+{
+    CharacterEngine engine;
+    engine.setSeed (0x21ull);
+    engine.setAmount (1.0);
+    engine.setEnabled (true);
+
+    bool anyWorn = false;
+
+    for (int s = 0; s < 6; ++s)
+    {
+        const double damping = engine.getNutDamping (s);
+        CHECK (damping >= 0.0 && damping <= 0.08);
+
+        if (damping > 0.0)
+            anyWorn = true;
+
+        // The multiplier LuthierEngine actually applies at fret 0.
+        const double openSustain = 1.0 - damping;
+        CHECK_MSG (openSustain <= 1.0, "nut wear made the open string louder, not softer");
+    }
+
+    CHECK_MSG (anyWorn, "no string had any nut wear to compare against");
+
+    engine.setEnabled (false);
+
+    for (int s = 0; s < 6; ++s)
+        CHECK_MSG (engine.getNutDamping (s) == 0.0, "a disabled Character still reported nut wear");
+}

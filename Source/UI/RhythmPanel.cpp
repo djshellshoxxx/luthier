@@ -1,5 +1,8 @@
 #include "RhythmPanel.h"
 #include "../PluginProcessor.h"
+#include "../PluginEditor.h"   // FEAT-ASSIST: the PLAYING group's ?
+#include "MuteGroup.h"                  // TECHNIQUES: the Mute Row
+#include "Techniques/TechniqueUi.h"
 
 namespace luthier
 {
@@ -598,6 +601,23 @@ RhythmPanel::RhythmPanel (LuthierAudioProcessor& p)
     fingerpickGrid->onPatternEdited = [this] { refreshFromEngine(); };
 
     addAndMakeVisible (*strumGrid);
+
+    // gui-techniques-updates.md 6 (TECHNIQUES): the Mute Row, one cell per step.
+    // A pattern without mute_type shows all open; painting writes the pattern.
+    muteRow = std::make_unique<MuteGridEditor>();
+    muteRow->getNumCells = [this] { return processor.getEngine().getRhythmEngine().getPattern().getLength(); };
+    muteRow->getCell = [this] (int i) { return processor.getEngine().getRhythmEngine().getPattern().getMuteStep (i).type; };
+    muteRow->setCell = [this] (int i, MuteType t) { TechniqueUndo::paintPatternMuteStep (processor, i, t); };
+    muteRow->setBrush (MuteType::palmHeavy);
+    muteRow->setTooltip ("Mute Row: each step's mute (muting-rhythm). Click or drag paints palm mute heavy; "
+                         "right-click a cell for any type.");
+    AccessibleSetup::configureDescriptive (*muteRow, "Mute Row", "The pattern's mute type per step");
+    addAndMakeVisible (*muteRow);
+
+    muteRowLabel.setText ("MUTE ROW", juce::dontSendNotification);
+    muteRowLabel.setFont (Fonts::ui (10.0f, true));
+    muteRowLabel.setColour (juce::Label::textColourId, Palette::textMuted);
+    addAndMakeVisible (muteRowLabel);
     addAndMakeVisible (*fingerpickGrid);
 
     buildFeelControls();
@@ -608,6 +628,22 @@ RhythmPanel::RhythmPanel (LuthierAudioProcessor& p)
 
     // bass-techniques 9 (MODEL-GAPS): the bass step grid appears on a bass, and
     // the panel grows or shrinks by its height.
+    // auto-articulation.md 7.2 (FEAT-ASSIST): PLAYING, above the enable row.
+    playingGroup = std::make_unique<PerformanceAssistGroup> (processor);
+    playingGroup->onLayoutChanged = [this]
+    {
+        if (getHeight() > 0)
+            setSize (getWidth(), preferredHeight());
+
+        resized();
+    };
+    playingGroup->onHelp = [this]
+    {
+        if (auto* editor = findParentComponentOfClass<LuthierAudioProcessorEditor>())
+            editor->openHelpTopic ("performance-assist");
+    };
+    addAndMakeVisible (*playingGroup);
+
     bassGridGroup = std::make_unique<BassGridGroup> (processor);
     addChildComponent (*bassGridGroup);
     bassGridGroup->onShownChanged = [this]
@@ -1059,6 +1095,7 @@ void RhythmPanel::refreshFromEngine()
     ghostSlider.setValue (humanise.ghostPercent, juce::dontSendNotification);
 
     strumGrid->refresh();
+    muteRow->repaint();   // TECHNIQUES
     fingerpickGrid->refresh();
     strumGroup->refresh();
     bassGridGroup->refresh();
@@ -1070,6 +1107,7 @@ void RhythmPanel::timerCallback()
     const int step = rhythm().getCurrentStep();
 
     strumGrid->setPlayingStep (step);
+    muteRow->setPlayingCell (step);   // TECHNIQUES
     fingerpickGrid->setPlayingStep (step);
 
     indicators->refresh();
@@ -1090,11 +1128,13 @@ void RhythmPanel::timerCallback()
 //==============================================================================
 int RhythmPanel::preferredHeight() const
 {
-    return 14 + Metrics::buttonHeight            // enable row
+    return (playingGroup != nullptr ? playingGroup->preferredHeight() + 4 : 0)   // PLAYING (FEAT-ASSIST)
+         + 14 + Metrics::buttonHeight            // enable row
          + 16 + 26                               // genre heading + kit row
          + 12                                    // rig hint
          + 16 + 26 + 22 + 22 + 22 + 26           // voicing heading + controls (+ hand span, RE-12)
          + 16 + 24 + 2 + StrumGrid::preferredHeight   // strum grid (+ length/grid row, RE-22)
+         + 14 + MuteGridEditor::preferredHeight + 2   // Mute Row (TECHNIQUES)
          + 16 + FingerpickGrid::preferredHeight  // fingerpick grid
          + 16 + 22 * 5                           // feel heading + five sliders
          + StrumGroup::preferredHeight + 4       // STRUM group
@@ -1125,6 +1165,10 @@ void RhythmPanel::resized()
         bounds.removeFromTop (gap);
         return r;
     };
+
+    // ---- PLAYING (auto-articulation.md 7.2, FEAT-ASSIST) ----------------------------
+    if (playingGroup != nullptr)
+        playingGroup->setBounds (row (playingGroup->preferredHeight(), 4));
 
     // ---- enable ------------------------------------------------------------------
     {
@@ -1168,6 +1212,8 @@ void RhythmPanel::resized()
         subdivisionBox.setBounds (r);
     }
     strumGrid->setBounds (row (StrumGrid::preferredHeight));
+    muteRowLabel.setBounds (row (14, 0));                          // TECHNIQUES
+    muteRow->setBounds (row (MuteGridEditor::preferredHeight));
 
     pickHeading.setBounds (row (16));
     fingerpickGrid->setBounds (row (FingerpickGrid::preferredHeight));

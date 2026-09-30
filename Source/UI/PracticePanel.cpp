@@ -3,6 +3,11 @@
 #include "MidiOutPanel.h"        // MODEL-GAPS: the drag-out take
 #include "MidiExportDefaults.h"
 #include "../DSP/Common/DspCommon.h"   // SPEC-SWEEP PT-39: hzToMidi
+#include "../Riffs/Riff.h"             // FEAT2-TAB: play an imported tab
+#include "../Riffs/RiffCompiler.h"
+#include "../Riffs/RiffDestinations.h"
+#include "../Notation/TabFingering.h"  // tab-import-export 9: the MIDI capture as tab
+#include "../Export/MidiPerformance.h"
 
 namespace luthier
 {
@@ -799,7 +804,9 @@ TrackTab::TrackTab (LuthierAudioProcessor& p)
         chooser = std::make_unique<juce::FileChooser> (
             "Open a backing track",
             juce::File::getSpecialLocation (juce::File::userMusicDirectory),
-            "*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg");
+            // PT-24: no MP3 reader is registered (registerBasicFormats() does not
+            // include one), so offering *.mp3 here just invites a load that fails.
+            "*.wav;*.aif;*.aiff;*.flac;*.ogg");
 
         chooser->launchAsync (juce::FileBrowserComponent::openMode
                                 | juce::FileBrowserComponent::canSelectFiles,
@@ -1412,6 +1419,26 @@ void ScaleTab::refresh()
     repaint();
 }
 
+void ScaleTab::applyCustomIntervals()
+{
+    juce::StringArray tokens;
+    tokens.addTokens (customIntervalsEditor.getText(), " ,", "");
+    tokens.removeEmptyStrings();
+
+    std::array<int, ScaleTrainer::kMaxIntervals> intervals {};
+    int count = 0;
+
+    for (const auto& token : tokens)
+    {
+        if (count >= ScaleTrainer::kMaxIntervals)
+            break;
+
+        intervals[(size_t) count++] = token.getIntValue();
+    }
+
+    trainer().setCustomIntervals (intervals.data(), count);
+}
+
 void ScaleTab::resized()
 {
     auto bounds = getLocalBounds().reduced (Metrics::gridHalf);
@@ -1675,6 +1702,13 @@ void EarTab::resized()
 }
 
 //==============================================================================
+void TabReaderTab::showStatus (const juce::String& text, bool warning)
+{
+    statusLabel.setText (text, juce::dontSendNotification);
+    statusLabel.setColour (juce::Label::textColourId, warning ? Palette::warning : Palette::textMuted);
+    statusLabel.setTooltip (text);
+}
+
 bool TabReaderTab::openTab (const juce::File& file, const juce::File& libraryFile)
 {
     const bool read = importer.read (file, score);
@@ -1689,20 +1723,116 @@ bool TabReaderTab::openTab (const juce::File& file, const juce::File& libraryFil
         juce::String error;
         library.save (libraryFile, error);
 
-        statusLabel.setText (juce::String (score.getTotalNoteCount()) + " notes from "
-                               + file.getFileName(),
-                             juce::dontSendNotification);
+        scoreTitle = file.getFileNameWithoutExtension();
 
-        statusLabel.setColour (juce::Label::textColourId, Palette::textMuted);
+        /*  tab-import-export 7: a page that was only partly readable is still
+            opened, and the status says what was skipped ("Loaded 3 bars, 12
+            notes (6 strings); 2 lines skipped") in the warning colour, so the
+            player knows the tab is not all there. The details are the tooltip. */
+        const auto& d = importer.getLastDiagnostics();
+        auto text = (d.notes > 0 ? d.summary() : juce::String (score.getTotalNoteCount()) + " notes.")
+                      + " - " + file.getFileName();
+
+        if (! d.warnings.isEmpty())
+            text += "\n" + d.warnings.joinIntoString ("\n");
+
+        showStatus (text, d.isPartial());
     }
     else
     {
-        statusLabel.setText (importer.getLastError(), juce::dontSendNotification);
-        statusLabel.setColour (juce::Label::textColourId, Palette::warning);
+        showStatus (importer.getLastError(), true);
     }
 
     refresh();
     return read;
+}
+
+bool TabReaderTab::openLivePerformance()
+{
+    // tab-import-export 9: the session take is already a score (notation-export 6).
+    auto& take = processor.getPerformanceCapture();
+    processor.drainPerformanceCapture();
+
+    PerformanceScore live;
+    juce::String source;
+
+    if (! take.getNotes().empty())
+    {
+        take.toScore (live);
+        source = "live take";
+    }
+    else
+    {
+        // No engine take (capture off, or MIDI went straight out): the MIDI
+        // capture holds the input as played, pitches only, so it is fingered.
+        const double rate = processor.getSampleRate() > 0.0 ? processor.getSampleRate() : 48000.0;
+        const auto performance = MidiPerformance::fromCapture (processor.getMidiCapture(), rate,
+                                                               processor.getHostTempo());
+        performance.toScore (live);
+
+        if (live.getTotalNoteCount() > 0 && ! TabFingering::isPlausible (live))
+            TabFingering::assign (live);
+
+        source = "MIDI capture (fingering guessed)";
+    }
+
+    if (live.getTotalNoteCount() == 0)
+    {
+        showStatus ("Nothing has been played yet. Play something, then press Live.", true);
+        return false;
+    }
+
+    live.getMeta().title = "Live performance";
+    openScore (live, "Live performance");
+    showStatus (juce::String (live.getTotalNoteCount()) + " notes from the " + source
+                  + " - Export writes it as tab, MIDI, MusicXML or Guitar Pro.", false);
+    return true;
+}
+
+void TabReaderTab::openScore (const PerformanceScore& newScore, const juce::String& title)
+{
+    // riff-library 6.4: a riff opened with Learn It.
+    score = newScore;
+    scoreTitle = title;
+    statusLabel.setText (title + " - " + juce::String (score.getTotalNoteCount()) + " notes",
+                         juce::dontSendNotification);
+    statusLabel.setColour (juce::Label::textColourId, Palette::textMuted);
+    refresh();
+}
+
+//==============================================================================
+void TabReaderTab::togglePlay()
+{
+    auto& player = processor.getEngine().getRiffPlayer();
+
+    if (player.isPlaying() || player.isWaiting())
+    {
+        player.stop();
+        playButton.setButtonText ("Play");
+        return;
+    }
+
+    if (score.getTotalNoteCount() == 0)
+    {
+        statusLabel.setText ("Open a tab first.", juce::dontSendNotification);
+        statusLabel.setColour (juce::Label::textColourId, Palette::warning);
+        return;
+    }
+
+    // FEAT2-TAB: the parsed score becomes a riff, compiled against the loaded
+    // instrument and handed to the audition player - the same path riffs use.
+    const auto riff = Riff::fromScore (score);
+    const auto guitar = RiffDestinations::guitarSummary (processor);
+
+    player.setCompiled (RiffCompiler::compile (riff, RiffPlaySettings{}, guitar), true);
+    player.setClockMode (RiffPlayer::ClockMode::own);
+    player.setAbsoluteBpm (score.getMeta().tempoBpm);
+    player.setLooping (true);
+    player.play();
+
+    playButton.setButtonText ("Stop");
+    statusLabel.setText ("Playing " + scoreTitle, juce::dontSendNotification);
+    statusLabel.setColour (juce::Label::textColourId, Palette::textMuted);
 }
 
 //==============================================================================
@@ -1711,10 +1841,11 @@ TabReaderTab::TabReaderTab (LuthierAudioProcessor& p)
 {
     openButton.onClick = [this]
     {
+        // tab-import-export 8: MIDI files open as tab too.
         chooser = std::make_unique<juce::FileChooser> (
-            "Open tablature",
+            "Open tablature or MIDI",
             juce::File::getSpecialLocation (juce::File::userDocumentsDirectory),
-            "*.txt;*.tab;*.musicxml;*.xml");
+            "*.txt;*.tab;*.musicxml;*.xml;*.mid;*.midi");
 
         chooser->launchAsync (juce::FileBrowserComponent::openMode
                                 | juce::FileBrowserComponent::canSelectFiles,
@@ -1748,15 +1879,32 @@ TabReaderTab::TabReaderTab (LuthierAudioProcessor& p)
             NotationExportOptions options;
             options.lineWidth = 80;
 
-            statusLabel.setText (exporter.write (score, format, fc.getResult(), options)
-                                   ? ("Exported to " + fc.getResult().getFileName())
-                                   : exporter.getLastError(),
-                                 juce::dontSendNotification);
+            if (score.getTotalNoteCount() == 0)
+            {
+                showStatus ("Nothing to export: open a tab or press Live first.", true);
+                return;
+            }
+
+            const bool ok = exporter.write (score, format, fc.getResult(), options);
+            showStatus (ok ? ("Exported " + juce::String (getNotationFormatName (format)) + " to "
+                                + fc.getResult().getFileName())
+                           : exporter.getLastError(),
+                        ! ok);
         });
     };
 
+    playButton.setTooltip ("Play the imported tab through the engine.");
+    playButton.onClick = [this] { togglePlay(); };
+
+    openButton.setTooltip ("Open ASCII tab, MusicXML or a MIDI file (fingered as tab).");
+    exportButton.setTooltip ("Write the shown score in the chosen format: ASCII tab, MIDI, MusicXML or Guitar Pro.");
+    liveButton.setTooltip ("Show what you just played as tab, ready to play back or export.");
+    liveButton.onClick = [this] { openLivePerformance(); };
+
     addAndMakeVisible (openButton);
     addAndMakeVisible (exportButton);
+    addAndMakeVisible (playButton);
+    addAndMakeVisible (liveButton);
 
     for (int i = 0; i < (int) NotationFormat::numFormats; ++i)
         formatBox.addItem (getNotationFormatName ((NotationFormat) i), i + 1);
@@ -1811,10 +1959,12 @@ void TabReaderTab::resized()
     {
         RowLayout r { bounds.removeFromTop (Metrics::buttonHeight) };
 
-        openButton.setBounds (r.take (76));
-        formatBox.setBounds (r.take (120));
-        exportButton.setBounds (r.take (80));
-        barsSlider.setBounds (r.take (130));
+        openButton.setBounds (r.take (70));
+        liveButton.setBounds (r.take (46));
+        playButton.setBounds (r.take (54));
+        formatBox.setBounds (r.take (112));
+        exportButton.setBounds (r.take (74));
+        barsSlider.setBounds (r.take (116));
         statusLabel.setBounds (r.rest());
     }
 

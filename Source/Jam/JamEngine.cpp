@@ -500,6 +500,12 @@ void JamEngine::applySettingsEdges() noexcept
         return;
     }
 
+    // jam-mode 10: a host-state restore re-baselines the detector so the restored
+    // jam_play / jam_fill_now are not read as rising edges (the band stays stopped
+    // on load; the 200 ms mirror then normalises jam_play to the stopped band).
+    if (restoreBaseline.exchange (false, std::memory_order_acq_rel))
+        previousSettings = settings;
+
     // jam_play: rising starts (from Armed or during an ending), falling stops
     // a counting or playing band. The processor mirrors the state back into
     // the parameter, so an edge that only confirms the state does nothing.

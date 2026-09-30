@@ -17,6 +17,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "Theme.h"
+#include "AnimationPolicy.h"
 #include "Notifications.h"
 #include "../Support/OutputNormalization.h"
 
@@ -60,6 +61,9 @@ private:
     void timerCallback() override { refresh(); }
 
     LuthierAudioProcessor& processor;
+
+    // cpu-quality-modes 6: the gain readout (5.2) is a live readout.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "NormalizationOptionsGroup" };
 
     juce::ToggleButton toggle;
     juce::Label targetLabel;

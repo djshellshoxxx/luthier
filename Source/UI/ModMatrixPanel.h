@@ -174,6 +174,13 @@ private:
     juce::TextButton clearButton { "CLEAR ALL" };
     juce::Label summaryLabel;
 
+    // The two spare, user-assignable macros (7 and 8). The other seven macros
+    // are the Easy strip's; these live here, at the head of the MOD panel, so
+    // they too have a visible, automatable control (modulation-matrix 1.7).
+    juce::Label userMacroHeading;
+    LuthierKnob userMacroA { "Macro A", LuthierKnob::Size::Small };
+    LuthierKnob userMacroB { "Macro B", LuthierKnob::Size::Small };
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ModMatrixPanel)
 };
 

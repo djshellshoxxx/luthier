@@ -30,7 +30,12 @@ namespace
     const char* const kPerformancePrefixes[] =
     {
         "vibrato_", "freeze_", "ebow_", "feedback_", "hum_",
-        "scrape_", "slap_", "pop_", "ghost_", "double_thump_"
+        "scrape_", "slap_", "pop_", "ghost_", "double_thump_",
+
+        // auto-articulation.md (FEAT-ASSIST): Performance Assist decides how the
+        // notes played are articulated - a playing gesture, rendered at its
+        // default (off) in the reference render.
+        "aa_"
     };
 
     // 3.1, Mix: forced neutral in the reference render.

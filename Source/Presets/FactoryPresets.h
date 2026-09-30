@@ -31,10 +31,13 @@ public:
         const char* tags;          ///< Comma separated.
         const Entry* entries;
         int numEntries;
+
+        /** TECHNIQUES: the preset's techniques block as JSON (engine-technique-layer.md 7), or empty. */
+        const char* techniques = "";
     };
 
     /** Bumped when generated factory files change meaning; older generated files
-        (never user edits) are rewritten by writeAll. 2: the guitar block. 3: Fuzz Face Lead's hum. */
+        (never user edits) are rewritten by writeAll. 2: the guitar block. 3: the fuzz lead's hum. */
     static constexpr int kFactoryRevision = 3;
 
     static int getNumPresets() noexcept;
@@ -62,6 +65,9 @@ public:
         if (rangeSource == processor)
             rangeSource = nullptr;
     }
+    /** The processor currently lending its ranges (FEAT-BROWSER: a processor
+        clears it on destruction so the pointer never dangles). */
+    static const juce::AudioProcessor* getProcessorForRanges() noexcept { return rangeSource; }
 
 private:
     static const juce::AudioProcessor* rangeSource;

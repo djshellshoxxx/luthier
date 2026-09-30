@@ -74,12 +74,23 @@ namespace
 juce::AudioBuffer<float> MidiImportTargets::render (const MidiPerformance& performance, GuitarType guitar,
                                                     double sampleRate, double maxSeconds)
 {
+    return render (performance, guitar, sampleRate, maxSeconds, AutoArticulationSettings {});
+}
+
+juce::AudioBuffer<float> MidiImportTargets::render (const MidiPerformance& performance, GuitarType guitar,
+                                                    double sampleRate, double maxSeconds,
+                                                    const AutoArticulationSettings& assist)
+{
     constexpr int block = 512;
 
     LuthierEngine engine;
     engine.prepare (sampleRate, block);
     engine.setGuitarType (guitar);
     engine.reset();
+
+    // FEAT-ASSIST (auto-articulation.md 5): Luthier-profile NOTE events are pre-articulated.
+    engine.setAutoArticulation (assist);
+    engine.setAssistPreArticulated (performance.countEvents (LuthierEventClass::note) > 0);
 
     // The notes and a second of ring-out, up to the looper's length.
     const auto length = (juce::int64) juce::jmin ((double) performance.getLengthInSamples() + sampleRate,
@@ -176,7 +187,8 @@ MidiImportOutcome MidiImportTargets::importPerformance (LuthierAudioProcessor& p
             }
 
             const double rate = processor.getSampleRate() > 0.0 ? processor.getSampleRate() : 48000.0;
-            const auto audio = render (performance, processor.getEngine().getGuitarType(), rate, Looper::kMaxLoopSeconds);
+            const auto audio = render (performance, processor.getEngine().getGuitarType(), rate, Looper::kMaxLoopSeconds,
+                                       processor.getEngine().getMidiInterpreter().getAutoArticulation());   // FEAT-ASSIST
 
             outcome.ok = looper.loadLayerAudio (looper.getActiveLayer(), audio);
             outcome.message = outcome.ok ? name + " is on looper layer " + juce::String (looper.getActiveLayer() + 1) + "."

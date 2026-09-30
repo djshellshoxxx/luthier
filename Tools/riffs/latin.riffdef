@@ -1,0 +1,219 @@
+defaults author L origin original date 2026-09-24
+
+# ---------------------------------------------------------------- riffs
+
+riff latin.riff.montuno-octave-riff-1 "Montuno Octave Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key C ionian   tempo 180   meter 4/4   feel straight
+  difficulty 3   tags montuno son
+  chords 0:C 4:G7
+  play:
+    e: 3.5 1.3 2.5 2.3 h2.5 1.3 3.5 2.5 |
+    e: 3.4 2.6 1.3 2.3 2.6 r 3.4 2.5 |
+
+riff latin.riff.cumbia-picked-riff-1 "Cumbia Picked Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key A aeolian   tempo 100   meter 4/4   feel straight
+  difficulty 2   tags cumbia single-note   free yes
+  chords 0:Am 4:E7
+  play:
+    e: 2.1 p2.0 3.2 2.1 q: 1.0 e: 2.1 p2.0 |
+    e: 2.3 p2.0 3.1 2.0 q: 1.0 e: 2.0 3.2 |
+
+riff latin.riff.bossa-thumb-riff-1 "Bossa Thumb Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key F ionian   tempo 130   meter 4/4   feel straight
+  difficulty 2   tags bossa fingerstyle
+  chords 0:Fmaj7 4:Gm7 6:C7
+  play:
+    q: [6.1 4.2 3.2 2.1]lr e: r [4.2 3.2 2.1]lr q: 5.3 e: [4.2 3.2 2.1]lr r |
+    q: [6.3 4.3 3.3 2.3]lr e: r [4.3 3.3 2.3]lr q: [5.3 4.2 3.3 2.1]lr e: r [4.2 3.3 2.1]lr |
+
+riff latin.riff.phrygian-descent-riff-1 "Phrygian Descent Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key E phrygian   tempo 108   meter 4/4   feel straight
+  difficulty 3   tags flamenco andalusian-cadence
+  chords 0:Am 2:G 4:F 6:E
+  play:
+    s: 4.3 p4.2 5.3 5.0 e: 4.2 r s: 4.0 5.3 p5.2 6.3 e: 4.0 r |
+    s: 4.3 5.3 p5.0 6.1 e: 4.3 r s: 4.2 p4.0 5.2 6.0 e: 3.1 r |
+
+# ---------------------------------------------------------------- licks
+
+riff latin.lick.flamenco-trill-lick-1 "Flamenco Trill Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key A harmonic_minor   tempo 100   meter 4/4   feel straight
+  difficulty 4   tags flamenco falseta
+  chords 0:E 4:F 6:E
+  play:
+    e: 1.0 q.: 1.1tr3 t16: 1.0 1.1 1.0 2.3 2.1 2.0 e: 3.2 3.1 |
+    t16: 3.2 3.1 3.2 4.3 4.2 4.0 e: 5.3 5.2 h: 6.0 |
+
+riff latin.lick.bossa-slide-melody-1 "Bossa Slide Melody 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key G ionian   tempo 128   meter 4/4   feel straight
+  difficulty 3   tags bossa melodic
+  chords 0:Gmaj7 4:Am7 6:D7
+  play:
+    e: r 3.4/7 q: 3.7 e: 2.7 q: 1.7 e: 2.8 |
+    e: 1.5 2.8 q: 2.5 e: r 3.7 q: 2.7~ |
+
+riff latin.lick.samba-staccato-lick-1 "Samba Staccato Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key D ionian   tempo 96   meter 4/4   feel straight
+  difficulty 3   tags samba syncopated
+  chords 0:D 4:A7
+  play:
+    s: 2.3' r 1.2 2.3' r 1.5' r 1.2' e: 2.3' 3.4 s: r 2.3 2.5' r |
+    s: 2.2' r 1.0 2.2' r 1.3' r 1.0' e: 2.2' 3.2 q: 2.3 |
+
+riff latin.lick.son-tres-lick-1 "Son Tres Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key G ionian   tempo 176   meter 4/4   feel straight
+  difficulty 3   tags son tres
+  chords 0:G 2:D7 4:G
+  play:
+    e: 3.2 h3.4 2.3 3.4 3.5 2.3 1.2 2.3 |
+    e: 2.1 h2.3 3.4 3.2 q: 3.0 r |
+
+# ---------------------------------------------------------------- strums
+
+riff latin.strum.bossa-brush-strum-1 "Bossa Brush Strum 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key D dorian   tempo 132   meter 4/4   feel straight
+  difficulty 2   tags bossa comping
+  chords 0:Dm7 3:G7 7.5:Cmaj7 11:A7 15.5:Dm7
+  play:
+    q.: D[x5756x]cv60 D[x5756x]cv60 q: U[3x343x]cv60 |
+    e: r q: D[3x343x]cv60 e: D[3x343x]cv60 q: r e: r U[x3545x]cv60 |
+    q.: D[x3545x]cv60 D[x3545x]cv60 q: U[5x565x]cv60 |
+    e: r q: D[5x565x]cv60 e: D[5x565x]cv60 q: r e: r U[x5756x]cv60 |
+
+riff latin.strum.bossa-pulse-strum-1 "Bossa Pulse Strum 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key F ionian   tempo 124   meter 4/4   feel straight
+  difficulty 2   tags bossa syncopated   free yes
+  chords 0:Fmaj7 4:Gm7 6:C7 8:Am7 10.5:D7 12:Gm7 14.5:C7
+  play:
+    e: D[1x221x] r r U[1x221x] r D[1x221x] U[1x221x] r |
+    e: D[3x333x] r r U[3x333x] D[x-3-5-3-5-x] r U[x-3-5-3-5-x] r |
+    e: D[x02010] r U[x02010] r r D[xx0212] U[xx0212] r |
+    e: D[3x333x] r r U[3x333x] r D[x-3-5-3-5-x] U[x-3-5-3-5-x] U[x-3-5-3-5-x] |
+
+riff latin.strum.samba-chuck-strum-1 "Samba Chuck Strum 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key A ionian   tempo 100   meter 4/4   feel straight
+  difficulty 3   tags samba sixteenths
+  chords 0:A6 4:E7 7.5:A6
+  play:
+    s: D[x02222] r Dx[x02222] U[4.2 3.2 2.2] r U[4.2 3.2 2.2] Dx[x02222] U[4.2 3.2 2.2] e: D[x02222] Dx[x02222] s: r U[4.2 3.2 2.2] D[x02222] r |
+    s: D[020100] r Dx[020100] U[4.0 3.1 2.0] r U[4.0 3.1 2.0] Dx[020100] U[4.0 3.1 2.0] e: D[020100] r s: Dx[020100] U[4.0 3.1 2.0] D[x02222] U[4.2 3.2 2.2] |
+
+riff latin.strum.rasgueado-flourish-1 "Rasgueado Flourish 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key E phrygian   tempo 100   meter 3/4   feel straight
+  difficulty 4   tags flamenco rasgueado
+  chords 0:Am 3:G 6:F 9:E
+  play:
+    t16: D[x02210]cv300 D[x02210]cv300 D[x02210]cv300 D[x02210]cv300 U[x02210]cv300 D[x02210]cv300 q: D[x02210]!cv120 e: r U[x02210]cv250 |
+    t16: D[320003]cv300 D[320003]cv300 D[320003]cv300 D[320003]cv300 U[320003]cv300 D[320003]cv300 q: D[320003]!cv120 e: r U[320003]cv250 |
+    t16: D[133211]cv300 D[133211]cv300 D[133211]cv300 D[133211]cv300 U[133211]cv300 D[133211]cv300 q: D[133211]!cv120 e: r U[133211]cv250 |
+    t16: D[022100]cv300 D[022100]cv300 D[022100]cv300 D[022100]cv300 U[022100]cv300 D[022100]cv300 h: D[022100]!cv80 |
+
+riff latin.strum.rumba-flamenca-strum-1 "Rumba Flamenca Strum 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key E phrygian   tempo 104   meter 4/4   feel straight
+  difficulty 3   tags flamenco rumba
+  chords 0:Am 2:G 4:F 6:E
+  play:
+    e: D[x02210] s: D[x02210] U[x02210] e: r U[x02210] e: D[320003] s: D[320003] U[320003] e: r U[320003] |
+    e: D[133211] s: D[133211] U[133211] e: r U[133211] q: D[022100] s: U[022100] D[022100] U[022100] r |
+
+riff latin.strum.cumbia-upstroke-strum-1 "Cumbia Upstroke Strum 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key D aeolian   tempo 92   meter 4/4   feel straight
+  difficulty 1   tags cumbia offbeat   free yes
+  chords 0:Dm 4:A7
+  play:
+    q: D[xx0231] e: Dx[xx0231] U[3.7 2.6 1.5] q: D[xx0231] e: Dx[xx0231] U[3.7 2.6 1.5] |
+    q: D[x02020] e: Dx[x02020] U[3.6 2.8 1.5] D[x02020] U[3.6 2.8 1.5] Dx[x02020] U[3.6 2.8 1.5] |
+
+riff latin.strum.son-clave-strum-1 "Son Clave Strum 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key G ionian   tempo 104   meter 4/4   feel straight
+  difficulty 2   tags son clave
+  chords 0:G 2:C 4:D7 6:G
+  play:
+    q.: D[320003] e: U[320003] e: r U[x32010] D[x32010] U[x32010] |
+    e: r D[xx0212] U[xx0212] r q: D[xx0212] e: D[320003] U[320003] |
+
+riff latin.strum.bolero-ringing-strum-1 "Bolero Ringing Strum 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key E harmonic_minor   tempo 80   meter 4/4   feel straight
+  difficulty 1   tags bolero ballad   free yes
+  chords 0:Em 2:Am 4:B7 6:Em 8:Am 10:B7 12:Em
+  play:
+    q: D[022000]lr e: D[022000]lr U[022000]lr q: D[5.0 4.2 3.2 2.1]lr U[5.0 4.2 3.2 2.1]lr |
+    q: D[x21202]lr e: D[x21202]lr U[x21202]lr h: D[022000]lrcv40 |
+    q: D[x02210]lr e: D[x02210]lr U[x02210]lr q: D[x21202]lr U[x21202]lr |
+    h.: D[022000]lrcv40 q: r |
+
+# ---------------------------------------------------------------- bass
+
+riff latin.bass.bossa-root-fifth-bass-1 "Bossa Root-Fifth Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key D dorian   tempo 132   meter 4/4   feel straight
+  difficulty 1   tags bossa root-fifth   free yes
+  chords 0:Dm7 4:G7 8:Cmaj7 12:A7
+  play:
+    q.: 3.5 e: 4.5 q.: 4.5 e: 4.4 | q.: 4.3 e: 3.5 q.: 3.5 e: 3.4 |
+    q.: 3.3 e: 4.3 q.: 4.3 e: 4.4 | q.: 4.5 e: 4.0 q.: 4.0 e: 3.4 |
+
+riff latin.bass.samba-surdo-bass-1 "Samba Surdo Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key A ionian   tempo 100   meter 4/4   feel straight
+  difficulty 2   tags samba
+  chords 0:A 4:E7
+  play:
+    e.: 3.0 s: 4.0 q: 4.0 e.: 3.0 s: 3.4 q: 2.2 |
+    e.: 4.0 s: 3.2 q: 3.2 e.: 2.0 s: 4.4 q: 4.4 |
+
+riff latin.bass.tumbao-bass-line-1 "Tumbao Bass Line 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key C ionian   tempo 180   meter 4/4   feel straight
+  difficulty 2   tags tumbao son anticipated
+  chords 0:C 4:G7 8:C 12:G7
+  play:
+    q: r e: r 4.3 q: ~ q: 2.5 |
+    q: ~ e: r 3.5 q: ~ q: 3.3 |
+    q: ~ e: r 2.2 q: ~ q: 4.3 |
+    q: ~ e: r 2.3 q: ~ q: 3.3 |
+
+riff latin.bass.cumbia-bass-line-1 "Cumbia Bass Line 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key D aeolian   tempo 96   meter 4/4   feel straight
+  difficulty 1   tags cumbia root-fifth
+  chords 0:Dm 4:A7
+  play:
+    q: 3.5 e: 4.5 4.5 q: 3.5 e: 2.3 2.2 |
+    q: 3.0 e: 4.0 4.0 q: 3.0 e: 3.4 4.5 |
+
+riff latin.bass.low-b-montuno-bass-1 "Low-B Montuno Bass 1"
+  type bass   instrument bass5   tuning standard   capo 0
+  key A harmonic_minor   tempo 100   meter 4/4   feel straight
+  difficulty 3   tags montuno five-string anticipated
+  chords 0:Am 4:Dm 8:E7 12:Am
+  play:
+    q: 4.5 e: r 5.5 q: ~ e: r 5.3 |
+    q: ~ e: r 4.5 q: ~ e: r 4.0 |
+    q: ~ e: r 5.0 5.4 5.5 r 4.5 |
+    q: ~ e: r 5.5 q: 5.8 e: 5.9 r |
+
+riff latin.bass.phrygian-bass-cadence-1 "Phrygian Bass Cadence 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key E phrygian   tempo 104   meter 4/4   feel straight
+  difficulty 2   tags flamenco andalusian-cadence
+  chords 0:Am 2:G 4:F 6:E
+  play:
+    q.: 3.0 e: 2.2 q: 4.3 e: 2.0 4.3 |
+    q.: 4.1 e: 3.3 q: 4.0 e: 3.2 4.0 |

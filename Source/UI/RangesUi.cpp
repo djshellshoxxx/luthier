@@ -107,6 +107,7 @@ juce::String familyDisplayName (RangeFamily family)
         case RangeFamily::environment: return "Environment";   // REALISM-A
         case RangeFamily::body:        return "Body";          // REALISM-A
         case RangeFamily::jam:        return "Jam kit";   // FEAT-JAM
+        case RangeFamily::mic:        return "Mic";   // mic-placement.md 7
         case RangeFamily::numFamilies:
         default:                      return {};
     }

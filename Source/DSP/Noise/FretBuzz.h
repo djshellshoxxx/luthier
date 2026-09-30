@@ -102,6 +102,10 @@ public:
     /*  Runs sense() for every string and starts, updates or releases each
         string's buzz generator in `pool`. `levels`, `fretted` and
         `fundamentalHz` are per string. Audio thread, once a block. */
+    /*  CW-12, character-wear.md 3: a worn fret sits lower than its neighbour, so
+        the string grazes it more easily. `wornMultiplier`, one per string
+        (1 = fresh, higher = more worn - CharacterEngine::getFretBuzzMultiplier),
+        nudges that string's contact closer to buzzing; null skips the bias. */
     void process (NoiseEngine& pool, const double* levels, const double* fretted,
                   const double* fundamentalHz, int numStrings, double pluckPosition,
                   const double* wearMultiplier = nullptr) noexcept;

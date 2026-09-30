@@ -46,6 +46,11 @@ public:
     juce::String getString (const juce::String& key, const juce::String& fallback) const;
     void setString (const juce::String& key, const juce::String& value);
 
+    /** FEAT-BROWSER (preset-browser-previews 7.4 / 8): whether a key is set, and
+        forgetting one so its getter's fallback applies again. */
+    bool has (const juce::String& key) const;
+    void remove (const juce::String& key);
+
     static juce::File getConfigFile();
 
     /** Drops everything and forgets the file's contents. The file itself is left

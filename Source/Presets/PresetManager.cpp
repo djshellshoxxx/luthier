@@ -1,5 +1,9 @@
 #include "PresetManager.h"
+#include "TechniquePresets.h"   // TECHNIQUES
+#include "Search/PresetFeatures.h"   // FEAT-BROWSER
 #include "FactoryPresets.h"
+#include "MicPlacementMigration.h"   // mic-placement.md 4
+#include "ExactRestore.h"
 #include "../Support/IrLibrary.h"
 #include "../Support/ErrorLog.h"
 #include "../UI/UiPreferences.h"   // REALISM-C
@@ -283,7 +287,31 @@ void PresetManager::scanFolder (const juce::File& folder, bool factory)
                 if (meta->getProperty ("description").toString().isNotEmpty()) info.description = meta->getProperty ("description").toString();
                 if (meta->getProperty ("category").toString().isNotEmpty())    info.category = meta->getProperty ("category").toString();
             }
+            // gui-techniques-updates.md 7 (TECHNIQUES): which techniques it arms.
+            if (auto* params = obj->getProperty ("parameters").getDynamicObject())
+                for (const auto& id : getTechniqueArmParameterIds())
+                    if (params->hasProperty (id) && (double) params->getProperty (id) > 0.5)
+                        info.armedTechniques.add (id);
+            // preset-browser-previews 5.4 / 5.6 (FEAT-BROWSER): the uid keys
+            // favourites and ratings; the gear names feed search.
+            info.uid = obj->getProperty ("uid").toString();
+
+            if (info.uid.isEmpty() && factory)
+                info.uid = "factory:" + info.name;
+
+            if (featureReader == nullptr)
+                featureReader = std::make_unique<PresetFeatureReader> (processor);
+
+            if (obj->getProperty ("parameters").getDynamicObject() != nullptr)
+            {
+                const auto features = featureReader->read (parsed);
+                info.guitarName = features.guitarName;
+                info.ampName = features.ampName;
+                info.family = PresetFeatures::getFamilyName (features.family);
+            }
         }
+
+        info.modified = file.getLastModificationTime();
 
         presets.add (info);
     }
@@ -416,6 +444,12 @@ juce::var PresetManager::toVar (const juce::String& name,
 
         root->setProperty ("meta", juce::var (meta));
     }
+    // preset-browser-previews 5.4 (FEAT-BROWSER): optional, beside the name.
+    if (currentUid.isNotEmpty() && ! currentUid.startsWith ("factory:"))
+        root->setProperty ("uid", currentUid);
+
+    if (currentPreviewPhrase.isNotEmpty())
+        root->setProperty ("previewPhrase", currentPreviewPhrase);
 
     // ---- parameters ----------------------------------------------------------
     auto* params = new juce::DynamicObject();
@@ -427,29 +461,27 @@ juce::var PresetManager::toVar (const juce::String& name,
             if (withId->paramID != ParamIDs::presetMorphPosition
                   && ! ParamIDs::isJamTransient (withId->paramID))   // FEAT-JAM: jam-mode 10
             {
-                // Written as it reads back: a skewed range turns a normalised
-                // value into a plain one and back with a float's error, so
-                // save -> load -> save must store the value after that trip.
-                double v = (double) withId->getValue();
-
-                if (auto* ranged = dynamic_cast<juce::AudioParameterFloat*> (withId))
-                {
-                    // A few passes reach the value the trip leaves alone.
-                    for (int pass = 0; pass < 8; ++pass)
-                    {
-                        const double next = (double) ranged->convertTo0to1 (ranged->convertFrom0to1 ((float) v));
-
-                        if (next == v)
-                            break;
-
-                        v = next;
-                    }
-                }
+                // Store the normalised value exactly as get() reports it, so a
+                // reload reproduces get() to the bit (clap-validator
+                // state-reproducibility). An earlier fixed-point nudge through
+                // convertFrom0to1/convertTo0to1 shifted skewed params by up to a
+                // float ULP away from get(), which that validator flags. The
+                // skewed-range drift is corrected on the load side instead
+                // (ExactRestore.h); only a value no load could reproduce (a
+                // constructor default on a skewed range) is stored where the
+                // parameter reads it back, so save -> load -> save is stable.
+                const double v = ExactRestore::storable (*withId, withId->getValue());
 
                 params->setProperty (withId->paramID, v);
             }
 
-    root->setProperty ("parameters", juce::var (params));
+    // mic-placement.md 4: the nearest discrete Position / Distance goes into
+    // the file for an older Luthier to read; the live parameters are untouched.
+    juce::var written (params);
+    MicPlacementMigration::mirror (written, apvts);
+
+    root->setProperty ("parameters", written);
+    root->setProperty (MicPlacementMigration::kLegacyBlockKey, MicPlacementMigration::captureLiveLegacy (apvts));
 
     /*  advanced-ranges.md 4: which families this preset has unlocked. Written
         beside the parameters because it is what makes their normalised values
@@ -463,6 +495,9 @@ juce::var PresetManager::toVar (const juce::String& name,
     // jam-mode.md 12 (FEAT-JAM): the band's style file, rhythm-kit link and seed.
     if (captureJamBlock != nullptr)
         root->setProperty ("jam", captureJamBlock());
+    // TECHNIQUES: engine-technique-layer.md 7.
+    if (captureTechniquesBlock != nullptr)
+        root->setProperty ("techniques", captureTechniquesBlock());
 
     // ---- per-string extras ----------------------------------------------------
     auto* strings = new juce::DynamicObject();
@@ -628,7 +663,11 @@ bool PresetManager::fromVar (const juce::var& data)
             "ranges", "guitar", "midiMap",
             // SPEC-SWEEP: the spec's spellings of the processor blocks.
             "midi_mappings", "rhythm_engine", "tone_match",
-            "jam"   // FEAT-JAM (jam-mode 12)
+            "jam",   // FEAT-JAM (jam-mode 12)
+            MicPlacementMigration::kLegacyBlockKey,   // mic-placement.md 4
+            "techniques",   // TECHNIQUES: engine-technique-layer.md 7 (a missing comma here once
+                            // fused it with "uid", so both were re-saved first as unknown keys)
+            "uid", "previewPhrase"   // preset-browser-previews 5.4 (FEAT-BROWSER)
         };
 
         auto* preserved = new juce::DynamicObject();
@@ -696,6 +735,13 @@ bool PresetManager::fromVar (const juce::var& data)
         ranges = incoming;
         ranges.applyTo (apvts);
 
+        // mic-placement.md 4: an older file's discrete mic placement gains its
+        // continuous values, converted through the ranges just applied.
+        {
+            auto stored = obj->getProperty ("parameters");
+            MicPlacementMigration::apply (stored, apvts);
+        }
+
         for (auto* p : processor.getParameters())
         {
             if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (p))
@@ -704,8 +750,10 @@ bool PresetManager::fromVar (const juce::var& data)
                       && ! ParamIDs::isJamTransient (withId->paramID)   // FEAT-JAM
                       && ! (keepOnLoad != nullptr && keepOnLoad (withId->paramID)))
                 {
-                    const double v = (double) params->getProperty (withId->paramID);
-                    withId->setValueNotifyingHost ((float) juce::jlimit (0.0, 1.0, v));
+                    // ExactRestore.h: applied so that getValue() reads the stored
+                    // value back to the bit even through a skewed range, which
+                    // keeps save -> load -> save byte-identical.
+                    ExactRestore::applyNormalised (*withId, (double) params->getProperty (withId->paramID));
                 }
                 else if (! params->hasProperty (withId->paramID) && ! keepsValueWhenAbsent (withId->paramID)
                            && ! (keepOnLoad != nullptr && keepOnLoad (withId->paramID)))   // merge: FEAT-JAM's keep-on-load wins
@@ -721,6 +769,11 @@ bool PresetManager::fromVar (const juce::var& data)
                 }
             }
         }
+
+        // mic-placement.md 4: the live legacy values this build saved beside
+        // the mirror, so a round trip restores exactly what was there.
+        if (obj->hasProperty (MicPlacementMigration::kLegacyBlockKey))
+            MicPlacementMigration::restoreLiveLegacy (obj->getProperty (MicPlacementMigration::kLegacyBlockKey), apvts);
 
         /*  ambiguity-resolutions.md 1: a preset from before the physical loop
             switched feedback on with feedback_on, which no longer does anything;
@@ -781,6 +834,14 @@ bool PresetManager::fromVar (const juce::var& data)
                 setPlain (ParamIDs::bodyCouplingAmount, 0.0f);
         }
         // ==== END REALISM-A legacy load ====
+
+        /*  auto-articulation.md 8 (FEAT-ASSIST): a preset from before Performance
+            Assist has no aa_* keys and loads with the defaults - off, which is
+            the sound it was saved with - whatever the last preset had. */
+        for (const char* id : { ParamIDs::aaEnabled, ParamIDs::aaStyle, ParamIDs::aaAmount, ParamIDs::aaRules })
+            if (! params->hasProperty (id))
+                if (auto* p = apvts.getParameter (id))
+                    p->setValueNotifyingHost (p->getDefaultValue());
 
         /*  ambiguity-resolutions.md 3: the doubler became a post-amp pedal. A
             preset that had the old engine doubler on gets a Doubler in its first
@@ -916,9 +977,13 @@ bool PresetManager::fromVar (const juce::var& data)
     // so a snapshot bank or a mod route lands on the preset it belongs to.
     if (onPresetBlocksLoaded != nullptr)
         onPresetBlocksLoaded (*obj);
+    if (onTechniquesBlockLoaded != nullptr)   // TECHNIQUES: engine-technique-layer.md 6-7
+        onTechniquesBlockLoaded (obj->getProperty ("techniques"));
 
     currentName = obj->getProperty ("name").toString();
     currentCategory = obj->getProperty ("category").toString();
+    currentUid = obj->getProperty ("uid").toString();                       // FEAT-BROWSER (5.4)
+    currentPreviewPhrase = obj->getProperty ("previewPhrase").toString();
 
     // SPEC-SWEEP: FF-20 - `meta` first, the flat keys for files from before it.
     {
@@ -1422,7 +1487,12 @@ bool PresetManager::writeToFile (const juce::File& file, const juce::var& data) 
 void PresetManager::stampSaveTime()
 {
     // SPEC-SWEEP: FF-20. `created` survives every later save.
-    metaModified = juce::Time::getCurrentTime().toISO8601 (true);
+    // FEAT-BROWSER (preset-browser-previews 5.4): re-saving an unchanged preset
+    // keeps its `modified` time, so save -> load -> save is byte-identical. The
+    // time is stamped only when there are unsaved edits, or when the file never
+    // had one (an older file, or a brand-new preset).
+    if (modified || metaModified.isEmpty())
+        metaModified = juce::Time::getCurrentTime().toISO8601 (true);
 
     if (metaCreated.isEmpty())
         metaCreated = metaModified;
@@ -1443,12 +1513,22 @@ bool PresetManager::saveCurrent()
     stampSaveTime();   // SPEC-SWEEP: FF-20
     noteConcurrentChange (info->file);   // SPEC-SWEEP: ER-22
 
+    // preset-browser-previews 5.4: a uid on the first save of a user preset.
+    if (currentUid.isEmpty() || currentUid.startsWith ("factory:"))
+        currentUid = info->uid.isNotEmpty() && ! info->uid.startsWith ("factory:") ? info->uid
+                                                                                   : juce::Uuid().toString();
+
     if (writeToFile (info->file, toVar (info->name, info->category, info->description, info->tags)))
     {
         currentFile = info->file;
         currentFileStamp = info->file.getLastModificationTime();
         modified = false;
+        const auto savedFile = info->file;
         sendChangeMessage();
+
+        if (onPresetSaved)
+            onPresetSaved (savedFile);   // 2: a high-priority preview render
+
         return true;
     }
 
@@ -1472,10 +1552,23 @@ bool PresetManager::saveAs (const juce::String& name, const juce::String& catego
     stampSaveTime();   // SPEC-SWEEP: FF-20
     noteConcurrentChange (file);   // SPEC-SWEEP: ER-22
 
-    if (! writeToFile (file, toVar (name, safeCategory, description, tags)))
+    // preset-browser-previews 5.4: a new file gets a new uid; saving over an
+    // existing one keeps its uid, so its favourite and rating stay with it.
     {
-        saveNotice.clear();
-        return false;
+        const auto previousUid = currentUid;
+        juce::String existingUid;
+
+        if (file.existsAsFile())
+            existingUid = juce::JSON::parse (file.loadFileAsString()).getProperty ("uid", {}).toString();
+
+        currentUid = existingUid.isNotEmpty() ? existingUid : juce::Uuid().toString();
+
+        if (! writeToFile (file, toVar (name, safeCategory, description, tags)))
+        {
+            currentUid = previousUid;
+            saveNotice.clear();   // SPEC-SWEEP: ER-22 - nothing was written
+            return false;
+        }
     }
 
     currentFile = file;
@@ -1496,6 +1589,10 @@ bool PresetManager::saveAs (const juce::String& name, const juce::String& catego
     }
 
     sendChangeMessage();
+
+    if (onPresetSaved)
+        onPresetSaved (file);   // preset-browser-previews 2 (FEAT-BROWSER)
+
     return true;
 }
 
@@ -1624,6 +1721,9 @@ void PresetManager::resetToDefaults()
     if (onJamBlockLoaded != nullptr)   // FEAT-JAM
         onJamBlockLoaded ({});
 
+    if (onTechniquesBlockLoaded != nullptr)   // TECHNIQUES
+        onTechniquesBlockLoaded ({});
+
     currentName = "Init";
     currentCategory = "User";
     currentIndex = -1;
@@ -1710,6 +1810,11 @@ void PresetManager::randomise (uint64_t seed, const juce::StringArray& lockedPar
 
         p->setValueNotifyingHost ((float) v);
     }
+
+    // mic-placement.md 9 (FEAT-MIC): respecting stock ranges keeps each mic on
+    // the cone (u <= 1) and within 30 cm, where a real session puts it.
+    if (respectStockRanges)
+        MicPlacementMigration::keepPlacementPlausible (apvts, lockedParameters);
 
     currentName = "Random";
     modified = true;
