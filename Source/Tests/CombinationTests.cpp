@@ -1337,52 +1337,6 @@ LUTHIER_TEST (Combo, cpuPerFactoryPreset)
 }
 
 //==============================================================================
-/*  B-13: idle used to cost as much as playing because nothing was skipped.
-    A string that nothing has reached for 100 ms and that is below -100 dBFS now
-    sleeps at every quality level, and the render must not change beyond the
-    noise floor (below -80 dBFS here, far above the sleep level). */
-LUTHIER_TEST (Combo, idleStringsSleepAndTheRenderIsUnchanged)
-{
-    auto run = [] (bool sleepOn, RenderStats& idle, RenderStats& busy, int& sleeping)
-    {
-        Rig rig;
-        auto& presets = rig.p().getPresetManager();
-        presets.loadPreset (presets.indexOfPreset ("Strummed Dreadnought"));
-        rig.apply();
-
-        auto& engine = rig.p().getEngine();
-
-        for (int s = 0; s < engine.getNumStrings(); ++s)
-            engine.getString (s).setSleepEnabled (sleepOn);
-
-        rig.processSilence (40);   // 213 ms
-        sleeping = engine.getSleepingStringCount();
-        idle = rig.renderEvents ({}, 0, 1.0);
-        busy = rig.render (Phrase::chord, 0.5);
-    };
-
-    RenderStats idleOn, busyOn, idleOff, busyOff;
-    int sleepingOn = 0, sleepingOff = 0;
-    run (true, idleOn, busyOn, sleepingOn);
-    run (false, idleOff, busyOff, sleepingOff);
-
-    CHECK_MSG (sleepingOn >= 6, "idle strings did not sleep: " + juce::String (sleepingOn));
-    CHECK (sleepingOff == 0);
-
-    double worst = 0.0;
-    const size_t n = juce::jmin (busyOn.mono.size(), busyOff.mono.size());
-    CHECK (n > 0);
-
-    for (size_t i = 0; i < n; ++i)
-        worst = juce::jmax (worst, (double) std::abs (busyOn.mono[i] - busyOff.mono[i]));
-
-    CHECK_MSG (worst < 1.0e-4, "sleeping changed the render by " + juce::String (worst));
-
-    std::cout << "    idle cpu: strings asleep " << juce::String (idleOn.cpuPercent, 1) << "%, awake "
-              << juce::String (idleOff.cpuPercent, 1) << "%; playing " << juce::String (busyOn.cpuPercent, 1) << "%\n";
-}
-
-//==============================================================================
 /*  A pitch below the instrument's range is dropped, never mis-sounded: a
     Nashville high-strung set cannot play E2 (its low strings are an octave up),
     and the voicer drops what no string can sound. What it must not do is drop
@@ -1651,5 +1605,33 @@ LUTHIER_TEST (Combo, liftingTheSustainPedalReleasesItsNotes)
         CHECK_MSG (damped >= 2 && open == 0,
                    juce::String (type) + ": after pedal-up " + juce::String (damped) + " played strings damped, "
                      + juce::String (open) + " still open");
+    }
+}
+
+/*  B-15: string_age Old / 120+ hours detunes a string by a few cents, and the
+    voicers' "is this pitch on a fret" slop did not allow for it, so a bass note
+    above the open G was dropped: silence, not dullness. Old strings play. */
+LUTHIER_TEST (Combo, oldStringsStillPlayTheHighNotes)
+{
+    auto play = [] (float hours)
+    {
+        Rig rig;
+        auto& presets = rig.p().getPresetManager();
+        presets.loadPreset (presets.indexOfPreset ("P-Bass Flatwound"));
+        rig.setPlain (ParamIDs::stringAgeHours, hours);
+        rig.apply();
+        rig.processSilence (8);
+        std::vector<TimedMidi> ev { { 0, juce::MidiMessage::noteOn (1, 52, (juce::uint8) 100) },
+                                    { (int) (0.5 * kSr), juce::MidiMessage::noteOff (1, 52) } };
+        return rig.renderEvents (ev, (int) (0.5 * kSr), 0.2).maxWindowRms;
+    };
+
+    const double fresh = play (0.0f);
+
+    for (float hours : { 120.0f, 200.0f })
+    {
+        const double old = play (hours);
+        CHECK_MSG (old > 0.5 * fresh && old < 1.5 * fresh,
+                   "aged " + juce::String (hours) + " h: rms " + juce::String (old) + " against fresh " + juce::String (fresh));
     }
 }

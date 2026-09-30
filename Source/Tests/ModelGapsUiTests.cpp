@@ -521,7 +521,8 @@ LUTHIER_TEST (ModelGapsUi, characterSeedAndEnvironmentGoOutAsTheyChange)
         CHECK (stated[0].get ("what") == "seed");
         CHECK (stated[0].get ("seed") == juce::String ((juce::uint64) character.getSeed()));
         CHECK (stated[1].get ("what") == "environment");
-        CHECK_NEAR (stated[1].getReal ("temp"), LuthierAudioProcessor::temperatureCelsius (character.getTemperature()), 1.0e-6);
+        // Glue: the environment is env_temperature_c now, not the legacy enum.
+        CHECK_NEAR (stated[1].getReal ("temp"), processor.getEngine().getEnvironment().getInputs().temperatureC, 1.0e-6);
     }
 
     // ... then only when they change.
@@ -531,7 +532,9 @@ LUTHIER_TEST (ModelGapsUi, characterSeedAndEnvironmentGoOutAsTheyChange)
     const auto seed = run (2);
     CHECK (seed.size() == 1 && seed[0].get ("seed") == "4815162342");
 
-    character.setTemperature (Temperature::warm);
+    if (auto* temperature = dynamic_cast<juce::RangedAudioParameter*> (processor.getState().getParameter (ParamIDs::envTemperatureC)))
+        temperature->setValueNotifyingHost (temperature->convertTo0to1 (32.0f));
+
     const auto env = run (2);
     CHECK (env.size() == 1 && std::abs (env[0].getReal ("temp") - 32.0) < 1.0e-6);
 }

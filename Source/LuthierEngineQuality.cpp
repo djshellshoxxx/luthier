@@ -50,10 +50,7 @@ void LuthierEngine::applyQuality (const QualityProfile& profile, bool hardSwitch
     {
         // Latched per note in excite(): a ringing note keeps its stage count.
         str.setDispersionRule (profile.fourStageFromHz, profile.twoStageFromHz);
-        // B-13: a string 100 dB down that nothing reaches sleeps at every level (that
-        // is below any noise floor, so High is not degraded by it); `idleSleep`
-        // is what the level adds - the ring-out truncation policy above it.
-        str.setSleepEnabled (true);
+        str.setSleepEnabled (profile.idleSleep);
     }
 
     body.setQualityLevel (profile, hardSwitch);

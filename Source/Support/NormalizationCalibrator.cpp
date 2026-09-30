@@ -473,6 +473,10 @@ juce::String NormalizationCalibrator::canonicalSoundState (const NormalizationSo
         strings->removeProperty ("realismDetuneCents");
     }
 
+    // B-07: the save format's migration marker is not configuration either.
+    if (auto* preset = structural.getProperty ("preset", {}).getDynamicObject())
+        preset->removeProperty ("doublerMigrated");
+
     root->setProperty ("structural", structural);
 
     if (state.rateFamily != 1)

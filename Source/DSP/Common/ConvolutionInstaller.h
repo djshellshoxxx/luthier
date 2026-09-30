@@ -40,7 +40,7 @@ namespace luthier::ConvolutionInstaller
                                     int settleSamples = 0)
     {
         juce::AudioBuffer<float> silence (juce::jmax (1, numChannels),
-                                          juce::jlimit (16, 4096, blockSize));
+                                          juce::jlimit (1, 4096, blockSize));   // never above the prepared block: a 1-sample host block overran the mixer at 16
 
         const auto deadline = juce::Time::getMillisecondCounter() + (juce::uint32) timeoutMs;
 
