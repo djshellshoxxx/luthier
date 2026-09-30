@@ -105,6 +105,12 @@ namespace
                 l.cap = KnobCap::chromeDome; l.led = m.ledAmber;
                 l.band = true; l.bandColour = m.brass; break;
 
+            // The rhythmic gate: a dark hammertone box with a cool LED that the
+            // rack drives live from the gate (PedalRack's GateLed).
+            case PedalType::Gater:
+                l.colour = m.tolexBlack.interpolatedWith (p.accent, 0.25f); l.finish = Finish::hammertone;
+                l.cap = KnobCap::witchHat; l.led = m.ledCool; break;
+
             case PedalType::None:
             case PedalType::NumTypes:
             default:
@@ -247,7 +253,8 @@ KnobCap knobCapFor (PedalType type) noexcept
         case PedalType::Delay:
         case PedalType::ParametricEQ:   return KnobCap::chromeSkirt;
         case PedalType::Fuzz:
-        case PedalType::Tremolo:        return KnobCap::witchHat;
+        case PedalType::Tremolo:
+        case PedalType::Gater:          return KnobCap::witchHat;
         case PedalType::Flanger:
         case PedalType::Doubler:        return KnobCap::chromeDome;
         case PedalType::RotarySpeaker:  return KnobCap::chickenHead;
