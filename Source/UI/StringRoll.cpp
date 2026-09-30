@@ -139,7 +139,7 @@ StringRollComponent::StringRollComponent (LuthierAudioProcessor& p)
 
 StringRollComponent::~StringRollComponent()
 {
-    stopTimer();
+    motion.stopTimer();
 
     for (auto& ancestor : watchedAncestors)
         if (ancestor != nullptr)
@@ -191,12 +191,12 @@ void StringRollComponent::updateTimerState()
     if (visible && ! isTimerRunning())
     {
         runningHz = wantedRefreshHz();
-        startTimerHz (runningHz);
+        motion.startTimerHz (*this, runningHz);   // cpu-quality-modes 6
         refresh();   // what happened while it was hidden, now rather than a tick later
     }
     else if (! visible && isTimerRunning())
     {
-        stopTimer();
+        motion.stopTimer();
     }
 }
 
@@ -237,7 +237,7 @@ void StringRollComponent::timerCallback()
     if (hz != runningHz)
     {
         runningHz = hz;
-        startTimerHz (hz);
+        motion.startTimerHz (*this, hz);
     }
 
     refresh();

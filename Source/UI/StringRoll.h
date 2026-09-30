@@ -23,6 +23,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "Theme.h"
+#include "AnimationPolicy.h"   // cpu-quality-modes 6
 
 #include <array>
 
@@ -122,6 +123,10 @@ private:
     int visibleNotes = 0;
 
     int hoverString = -1, hoverFret = -1;
+
+    // cpu-quality-modes 6 (CQ-22): the refresh timer runs at the rate the CPU
+    // quality policy allows.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "StringRollComponent" };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (StringRollComponent)
 };
