@@ -6,3 +6,7 @@
 *.luthierriff  text eol=lf
 *.luthierpart  text eol=lf
 *.luthierguitar text eol=lf
+# Generated riff catalogue and guitar migration data are LF (checked byte-for-byte by
+# generate_factory_riffs.py --check); other JSON under Resources is deliberately left alone.
+Resources/Riffs/*.json text eol=lf
+Resources/Guitars/*.json text eol=lf
