@@ -93,7 +93,7 @@ JamPill::JamPill (LuthierAudioProcessor& p, Mode m)
 
 JamPill::~JamPill()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 void JamPill::mouseDown (const juce::MouseEvent& e)

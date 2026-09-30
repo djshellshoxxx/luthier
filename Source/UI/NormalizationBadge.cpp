@@ -11,12 +11,12 @@ NormalizationBadge::NormalizationBadge (LuthierAudioProcessor& p)
     setMouseCursor (juce::MouseCursor::PointingHandCursor);
     setVisible (false);
     refresh();
-    startTimerHz (10);
+    motion.startTimerHz (*this, 10);
 }
 
 NormalizationBadge::~NormalizationBadge()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 void NormalizationBadge::refresh()
