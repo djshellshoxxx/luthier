@@ -1,7 +1,10 @@
 #include "NotationExport.h"
 #include "AsciiTabWriter.h" // FEAT2-TAB
+#include "TabFingering.h"  // tab-import-export 8
+#include "../Export/MidiProfiles.h"
 
 #include <algorithm>
+#include <cmath>
 
 namespace luthier
 {
@@ -682,11 +685,64 @@ bool NotationExporter::writeMidi (const PerformanceScore& score, const juce::Fil
                     startTicks);
 
                 // Bends and whammy both become pitch bend, which is all MIDI has.
+                // tab-import-export 8.3: so do slides (a glide over the last
+                // quarter of the note, or into it) and vibrato (a sine), within
+                // the two-semitone range the RPN declared.
+                const auto wheelFor = [] (double semitones)
+                {
+                    return juce::jlimit (0, 16383, 8192 + (int) (juce::jlimit (-2.0, 2.0, semitones) / 2.0 * 8192.0));
+                };
+
                 for (const auto& technique : note->techniques)
                 {
-                    const bool isBend = technique.type == ScoreTechnique::Type::bend
-                                          || technique.type == ScoreTechnique::Type::whammy
-                                          || technique.type == ScoreTechnique::Type::preBend;
+                    using T = ScoreTechnique::Type;
+                    const bool isBend = technique.type == T::bend || technique.type == T::whammy
+                                          || technique.type == T::preBend || technique.type == T::bendRelease;
+
+                    if (technique.type == T::slideLegato || technique.type == T::slideShift
+                         || technique.type == T::slideUp || technique.type == T::slideOut)
+                    {
+                        const double target = technique.value > 0.0 ? technique.value
+                                            : (technique.type == T::slideOut ? note->fret - 5.0 : note->fret + 5.0);
+                        const double semis = target - (double) note->fret;
+                        const double from = startTicks + 0.75 * note->durationBeats * ticksPerQuarter;
+
+                        for (int k = 0; k <= 4; ++k)
+                            sequence.addEvent (juce::MidiMessage::pitchWheel (channel, wheelFor (semis * k / 4.0)),
+                                               from + (endTicks - from) * k / 4.0);
+
+                        sequence.addEvent (juce::MidiMessage::pitchWheel (channel, 8192), endTicks);
+                        continue;
+                    }
+
+                    if (technique.type == T::slideIn)
+                    {
+                        const double origin = technique.value > 0.0 ? technique.value : juce::jmax (0.0, note->fret - 3.0);
+                        const double semis = origin - (double) note->fret;
+                        const double to = startTicks + 0.25 * note->durationBeats * ticksPerQuarter;
+
+                        for (int k = 0; k <= 4; ++k)
+                            sequence.addEvent (juce::MidiMessage::pitchWheel (channel, wheelFor (semis * (4 - k) / 4.0)),
+                                               startTicks + (to - startTicks) * k / 4.0);
+                        continue;
+                    }
+
+                    if (technique.type == T::vibrato)
+                    {
+                        const double rateHz = technique.value > 0.0 ? technique.value : 5.5;
+                        const double depthSemis = (technique.secondValue > 0.0 ? technique.secondValue : 30.0) / 100.0;
+                        const double ticksPerSecond = ticksPerQuarter * juce::jmax (1.0, meta.tempoBpm) / 60.0;
+                        const double step = ticksPerSecond / (rateHz * 8.0);
+                        const double from = startTicks + 0.25 * note->durationBeats * ticksPerQuarter;
+
+                        int k = 0;
+                        for (double at = from; at < endTicks && k < 192; at += step, ++k)
+                            sequence.addEvent (juce::MidiMessage::pitchWheel (
+                                channel, wheelFor (depthSemis * std::sin (juce::MathConstants<double>::twoPi * k / 8.0))), at);
+
+                        sequence.addEvent (juce::MidiMessage::pitchWheel (channel, 8192), endTicks);
+                        continue;
+                    }
 
                     if (! isBend)
                         continue;
@@ -1024,7 +1080,8 @@ bool NotationImporter::canRead (const juce::File& file)
     // parsed. `.gp5`, `.gp` and `.ptb` are binary and proprietary, and are
     // reported as unsupported rather than failed.
     return extension == ".txt" || extension == ".tab"
-        || extension == ".musicxml" || extension == ".xml";
+        || extension == ".musicxml" || extension == ".xml"
+        || extension == ".mid" || extension == ".midi";
 }
 
 bool NotationImporter::read (const juce::File& file, PerformanceScore& destination)
@@ -1048,6 +1105,9 @@ bool NotationImporter::read (const juce::File& file, PerformanceScore& destinati
         return false;
     }
 
+    if (extension == ".mid" || extension == ".midi")
+        return readMidi (file, destination);
+
     const auto text = file.loadFileAsString();
 
     if (extension == ".musicxml" || extension == ".xml")
@@ -1056,373 +1116,124 @@ bool NotationImporter::read (const juce::File& file, PerformanceScore& destinati
     return readAsciiTab (text, destination);
 }
 
-namespace
-{
-    // FEAT2-TAB: alternate tunings recognised from a "Tuning:" header. Open
-    // MIDI notes, highest string first, and the string count. An unmatched name
-    // leaves the score's default standard tuning untouched (see tab-import-export 6).
-    struct TabTuning { const char* match; int count; int notes[kMaxStrings]; };
-
-    const TabTuning* matchTuning (const juce::String& lower)
-    {
-        static const TabTuning table[] = {
-            { "drop d",   6, { 64, 59, 55, 50, 45, 38 } },
-            { "drop c",   6, { 62, 57, 53, 48, 43, 36 } },
-            { "dadgad",   6, { 62, 57, 55, 50, 45, 38 } },
-            { "open g",   6, { 62, 59, 55, 50, 43, 38 } },
-            { "open d",   6, { 62, 57, 54, 50, 45, 38 } },
-            { "half step",6, { 63, 58, 54, 49, 44, 39 } },
-            { "eb standard",6,{ 63, 58, 54, 49, 44, 39 } },
-            { "bass",     4, { 43, 38, 33, 28 } },
-            { "standard", 6, { 64, 59, 55, 50, 45, 40 } },
-        };
-
-        for (const auto& t : table)
-            if (lower.contains (t.match))
-                return &t;
-
-        return nullptr;
-    }
-}
-
-bool NotationImporter::readAsciiTab (const juce::String& text, PerformanceScore& destination)
+//==============================================================================
+bool NotationImporter::readMidi (const juce::File& file, PerformanceScore& destination)
 {
     lastError.clear();
+    lastDiagnostics = {};
 
-    // fromLines handles \n, \r\n and lone \r, which is one axis of the fuzz test.
-    const auto lines = juce::StringArray::fromLines (text);
+    juce::MemoryBlock bytes;
 
-    destination.clear();
-
-    /*  Header scan (tab-import-export 1, 4): tuning, tempo, metre and capo may
-        appear above the staff in any order, or not at all. Read them before the
-        staff so the strings are pitched correctly. Everything is clamped. */
-    double tempo = 120.0;
-    int numerator = 4, denominator = 4;
-    int capo = 0;
-    juce::String tuningName ("Standard");
-    std::array<int, kMaxStrings> tuning { { 64, 59, 55, 50, 45, 40, 0, 0, 0, 0, 0, 0 } };
-    int headerStrings = 6;
-
-    for (const auto& raw : lines)
+    if (! file.existsAsFile() || ! file.loadFileAsData (bytes))
     {
-        const auto line = raw.trim();
-        const auto lower = line.toLowerCase();
-
-        if (lower.startsWith ("tuning:"))
-        {
-            const auto value = line.substring (7).trim();
-            tuningName = value.isNotEmpty() ? value : tuningName;
-
-            if (const auto* t = matchTuning (value.toLowerCase()))
-            {
-                headerStrings = juce::jlimit (1, kMaxStrings, t->count);
-                for (int s = 0; s < kMaxStrings; ++s)
-                    tuning[(size_t) s] = s < t->count ? t->notes[s] : 0;
-            }
-        }
-        else if (lower.startsWith ("tempo:"))
-        {
-            const auto value = line.substring (6);
-            tempo = juce::jlimit (20.0, 300.0, value.getDoubleValue() > 0.0 ? value.getDoubleValue() : 120.0);
-
-            const int slash = value.indexOfChar ('/');
-            if (slash > 0 && slash + 1 < value.length())
-            {
-                numerator = juce::jlimit (1, 32, value.substring (0, slash)
-                                                     .retainCharacters ("0123456789").getIntValue());
-                denominator = value.substring (slash + 1).retainCharacters ("0123456789").getIntValue();
-                if (! (denominator == 2 || denominator == 4 || denominator == 8 || denominator == 16))
-                    denominator = 4;
-            }
-        }
-        else if (lower.startsWith ("capo:"))
-        {
-            capo = juce::jlimit (0, 24, line.substring (5).retainCharacters ("0123456789").getIntValue());
-        }
-    }
-
-    destination.beginCapture (tempo, numerator, denominator);
-
-    {
-        auto& track = destination.getTrack (0);
-        track.tuning = tuning;
-        track.capoFret = capo;
-        track.numStrings = juce::jlimit (1, kMaxStrings, headerStrings);
-        destination.getMeta().tuningName = tuningName;
-    }
-
-    const double beatsPerMeasure = (double) juce::jmax (1, numerator) * 4.0
-                                     / (double) juce::jmax (1, denominator);
-
-    /*  ASCII tab has no agreed grammar, so this reads the shape that actually
-        appears: blocks of consecutive lines that contain a '|' and are mostly
-        dashes, each block being one system, with the lowest string at the
-        bottom. Anything else on the page is ignored rather than rejected. */
-    int blockStart = -1;
-    int measureNumber = 0;
-
-    auto looksLikeTab = [] (const juce::String& line)
-    {
-        /*  A staff line carries a bar line. The beat ruler the writer puts above
-            each system ("1---2---3---4---") is otherwise indistinguishable from a
-            string: it is mostly dashes and it contains digits. Without this test
-            the ruler is read as the first string of the block, which both invents
-            a note per beat and shifts every real string down by one. */
-        if (! line.containsChar ('|'))
-            return false;
-
-        if (! line.containsChar ('-'))
-            return false;
-
-        int dashes = 0;
-
-        for (int i = 0; i < line.length(); ++i)
-            if (line[i] == '-')
-                ++dashes;
-
-        return dashes * 2 > line.length();
-    };
-
-    int totalNotes = 0;
-
-    for (int i = 0; i <= lines.size(); ++i)
-    {
-        const bool isTab = (i < lines.size()) && looksLikeTab (lines[i]);
-
-        if (isTab && blockStart < 0)
-            blockStart = i;
-
-        if (! isTab && blockStart >= 0)
-        {
-            const int numLines = i - blockStart;
-
-            if (numLines >= 4)
-            {
-                // The lowest string is the bottom line, so the block is read
-                // upward into string indices.
-                /*  The writer widens a slot on every string of the system where
-                    any string has a two-digit fret, so the columns that are the
-                    second digit of such a fret carry no time, on any line. */
-                std::vector<bool> widened;
-
-                for (int line = 0; line < numLines; ++line)
-                {
-                    const auto& content = lines[blockStart + line];
-
-                    if ((int) widened.size() < content.length() + 1)
-                        widened.resize ((size_t) content.length() + 1, false);
-
-                    for (int c = 0; c + 1 < content.length(); ++c)
-                        if (juce::CharacterFunctions::isDigit (content[c])
-                              && juce::CharacterFunctions::isDigit (content[c + 1]))
-                            widened[(size_t) c + 1] = true;
-                }
-
-                // A system's line count is its string count (clamped).
-                {
-                    auto& track = destination.getTrack (0);
-                    track.numStrings = juce::jmax (track.numStrings,
-                                                   juce::jlimit (1, kMaxStrings, numLines));
-                }
-
-                for (int line = 0; line < numLines; ++line)
-                {
-                    const auto& content = lines[blockStart + line];
-                    const int stringIndex = line;
-
-                    if (stringIndex >= kMaxStrings)
-                        continue;
-
-                    // Where the staff starts, after the string name.
-                    int column = content.indexOfChar ('|');
-                    column = (column >= 0) ? column + 1 : 0;
-
-                    // Beats count from the bar line before the note, in its own
-                    // measure: counting from the line's start would add each bar
-                    // line and the writer's pad column as time.
-                    int barInLine = 0;
-                    int measureColumn = column;
-
-                    for (int c = column; c < content.length();)
-                    {
-                        const auto character = content[c];
-
-                        if (character == '|')
-                        {
-                            ++barInLine;
-                            measureColumn = c + 1;
-                            ++c;
-                            continue;
-                        }
-
-                        const bool isDead  = (character == 'x' || character == 'X');
-                        const bool isDigit = juce::CharacterFunctions::isDigit (character);
-
-                        if (! isDead && ! isDigit)
-                        {
-                            ++c;
-                            continue;
-                        }
-
-                        // Columns to beats: four unwidened columns to a beat,
-                        // which is what the writer uses. Bounds-checked (fuzz).
-                        int slots = 0;
-                        for (int k = measureColumn; k < c && k < (int) widened.size(); ++k)
-                            if (! widened[(size_t) k])
-                                ++slots;
-
-                        const double beat = (double) (measureNumber + barInLine) * beatsPerMeasure
-                                              + (double) slots / 4.0;
-
-                        std::vector<ScoreTechnique> techniques;
-                        bool openedAngle = false;
-
-                        // Prefix wrappers immediately to the left of the token
-                        // (tab-import-export 1): <harmonic>, [harmonic], (ghost),
-                        // /slide-in, =tie. A '-' or bar line ends the run at once.
-                        for (int p = c - 1; p >= column; --p)
-                        {
-                            const auto pc = content[p];
-                            if (pc == '<')      { techniques.push_back ({ ScoreTechnique::Type::naturalHarmonic }); openedAngle = true; }
-                            else if (pc == '[')  techniques.push_back ({ ScoreTechnique::Type::artificialHarmonic });
-                            else if (pc == '(')  techniques.push_back ({ ScoreTechnique::Type::ghostNote });
-                            else if (pc == '/')  techniques.push_back ({ ScoreTechnique::Type::slideIn });
-                            else if (pc == '=')  { /* tie mark: parsed, not stored */ }
-                            else break;
-                        }
-
-                        int fret = 0;
-
-                        if (isDead)
-                        {
-                            techniques.push_back ({ ScoreTechnique::Type::deadNote });
-                            ++c;
-                        }
-                        else
-                        {
-                            fret = character - '0';
-                            ++c;
-
-                            // A two-digit fret is two characters; reading them
-                            // separately would turn 12 into 1 and 2.
-                            if (c < content.length() && juce::CharacterFunctions::isDigit (content[c]))
-                            {
-                                fret = fret * 10 + (content[c] - '0');
-                                ++c;
-                            }
-                        }
-
-                        fret = juce::jlimit (0, 36, fret);   // clamp to the instrument
-
-                        // Suffix techniques, stopping at fill, bar lines, space or
-                        // the next note. Unknown glyphs are skipped, never fatal.
-                        while (c < content.length())
-                        {
-                            const auto s    = content[c];
-                            const auto next = (c + 1 < content.length()) ? content[c + 1] : (juce::juce_wchar) 0;
-
-                            if (s == '-' || s == '|' || s == ':' || s == ' ' || s == '\t'
-                                 || juce::CharacterFunctions::isDigit (s) || s == 'x' || s == 'X')
-                                break;
-
-                            if (s == '>' && openedAngle) { openedAngle = false; ++c; continue; }
-                            if (s == ']' || s == ')')     { ++c; continue; }
-
-                            if (s == 'p' && next == 'b') { techniques.push_back ({ ScoreTechnique::Type::preBend }); c += 2; continue; }
-                            if (s == 'P' && next == 'M') { techniques.push_back ({ ScoreTechnique::Type::palmMute }); c += 2; continue; }
-                            if (s == 't' && next == 'r') { techniques.push_back ({ ScoreTechnique::Type::trill });   c += 2; continue; }
-                            if (s == 'L' && next == 'R') { techniques.push_back ({ ScoreTechnique::Type::letRing }); c += 2; continue; }
-
-                            ScoreTechnique tech;
-                            bool have = true;
-
-                            switch ((int) s)
-                            {
-                                case 'b':  tech.type = ScoreTechnique::Type::bend;        break;
-                                case 'r':  tech.type = ScoreTechnique::Type::bendRelease; break;
-                                case 'h':  tech.type = ScoreTechnique::Type::hammerOn;    break;
-                                case 'p':  tech.type = ScoreTechnique::Type::pullOff;     break;
-                                case '/':  tech.type = ScoreTechnique::Type::slideUp;     break;
-                                case '\\': tech.type = ScoreTechnique::Type::slideDown;   break;
-                                case '~':  tech.type = ScoreTechnique::Type::vibrato;     break;
-                                case 't':  tech.type = ScoreTechnique::Type::tap;         break;
-                                case 'w':  tech.type = ScoreTechnique::Type::whammy;      break;
-                                case '>':  tech.type = ScoreTechnique::Type::accent;      break;
-                                case '.':  tech.type = ScoreTechnique::Type::staccato;    break;
-                                default:   have = false;                                  break;
-                            }
-
-                            ++c;
-
-                            if (! have)
-                                continue;                    // unknown glyph: skip
-
-                            // Digits after a bend glyph are its amount/target, not
-                            // a new note.
-                            if (tech.type == ScoreTechnique::Type::bend
-                                 || tech.type == ScoreTechnique::Type::bendRelease
-                                 || tech.type == ScoreTechnique::Type::preBend)
-                            {
-                                int target = 0, digits = 0;
-                                while (c < content.length() && juce::CharacterFunctions::isDigit (content[c]))
-                                {
-                                    target = target * 10 + (content[c] - '0');
-                                    ++c;
-                                    ++digits;
-                                }
-                                if (digits > 0)
-                                    tech.value = juce::jlimit (0.0, 24.0,
-                                                               (double) (target > fret ? target - fret : target));
-                            }
-
-                            techniques.push_back (tech);
-                        }
-
-                        const auto& track = destination.getTrack (0);
-                        const int open = track.tuning[(size_t) juce::jlimit (0, kMaxStrings - 1, stringIndex)]
-                                           + track.capoFret;
-                        const int midi = juce::jlimit (0, 127, open + fret);
-
-                        destination.noteStarted (stringIndex, fret, midi, 440.0, 0.8, beat);
-
-                        for (const auto& tech : techniques)
-                            destination.addTechnique (stringIndex, tech);
-
-                        destination.noteEnded (stringIndex, beat + 0.25);
-                        ++totalNotes;
-                    }
-                }
-
-                // Count the bar lines of the first line of the block, so the next
-                // system starts after them.
-                int bars = 0;
-
-                for (int c = 0; c < lines[blockStart].length(); ++c)
-                    if (lines[blockStart][c] == '|')
-                        ++bars;
-
-                measureNumber += juce::jmax (1, bars - 1);
-            }
-
-            blockStart = -1;
-        }
-    }
-
-    destination.endCapture ((double) (measureNumber + 1) * beatsPerMeasure);
-
-    if (totalNotes == 0)
-    {
-        lastError = "No tablature was found in that file.";
+        lastError = "Could not read " + file.getFullPathName();
         return false;
     }
 
+    return readMidi (bytes.getData(), bytes.getSize(), destination);
+}
+
+bool NotationImporter::readMidi (const void* data, size_t numBytes, PerformanceScore& destination)
+{
+    lastError.clear();
+    lastDiagnostics = {};
+
+    constexpr double rate = 48000.0;
+    MidiPerformance performance (rate);
+    const auto result = MidiProfiles::importFromMemory (data, numBytes, performance, rate);
+
+    if (! result.ok)
+    {
+        lastError = result.error.isNotEmpty() ? result.error : juce::String ("Not a MIDI file.");
+        return false;
+    }
+
+    destination.clear();
+
+    /*  tab-import-export 8.1: the instrument. A generic file says nothing
+        about it, so the range of the notes decides: a part that lives below
+        the low E and never climbs past C4 is a bass. */
+    {
+        int lowest = 128, highest = -1;
+        for (const auto& entry : performance.getMessages())
+        {
+            if (entry.message.isNoteOn())
+            {
+                lowest = juce::jmin (lowest, entry.message.getNoteNumber());
+                highest = juce::jmax (highest, entry.message.getNoteNumber());
+            }
+        }
+
+        auto& track = destination.getTrack (0);
+        if (highest >= 0 && highest <= 60 && lowest < 40)
+        {
+            track.numStrings = 4;
+            track.tuning = { { 43, 38, 33, 28, 0, 0, 0, 0, 0, 0, 0, 0 } };
+            track.name = "Bass";
+            destination.getMeta().tuningName = "Bass";
+        }
+    }
+
+    performance.toScore (destination);
+
+    if (destination.getTotalNoteCount() == 0)
+    {
+        lastError = "No notes in that MIDI file.";
+        return false;
+    }
+
+    const bool luthierProfile = result.detectedProfile == MidiProfile::luthier;
+    TabFingering::Result fingering;
+
+    if (! luthierProfile && ! TabFingering::isPlausible (destination))
+    {
+        fingering = TabFingering::assign (destination);
+        lastDiagnostics.warnings.add ("Generic MIDI: strings and frets are a best guess (tab-import-export 8)");
+    }
+
+    if (fingering.notesClamped > 0)
+        lastDiagnostics.warnings.add (juce::String (fingering.notesClamped)
+                                        + " note(s) outside the instrument's range were moved onto it");
+
+    for (const auto& w : result.warnings)
+        lastDiagnostics.warnings.add (w);
+
+    const auto& track = destination.getTrack (0);
+    lastDiagnostics.notes = destination.getTotalNoteCount();
+    lastDiagnostics.measures = (int) track.measures.size();
+    lastDiagnostics.numStrings = track.numStrings;
+    lastDiagnostics.tuningFromHeader = luthierProfile;
+    lastDiagnostics.tempoFromHeader = true;
+    lastDiagnostics.timeSignatureFromHeader = true;
+    lastDiagnostics.systems = 1;
+    lastDiagnostics.staffLines = track.numStrings;
+
     return true;
+}
+
+bool NotationImporter::readAsciiTab (const juce::String& text, PerformanceScore& destination,
+                                     TabImportDiagnostics* diagnostics)
+{
+    lastError.clear();
+
+    // tab-import-export 7: the dialect-tolerant reader; what it skipped is
+    // kept so the panel can say how much of the page was read.
+    AsciiTabReader reader;
+    const bool ok = reader.read (text, destination, &lastDiagnostics);
+
+    if (diagnostics != nullptr)
+        *diagnostics = lastDiagnostics;
+
+    if (! ok)
+        lastError = reader.getLastError();
+
+    return ok;
 }
 
 bool NotationImporter::readMusicXml (const juce::String& text, PerformanceScore& destination)
 {
     lastError.clear();
+    lastDiagnostics = {};
 
     auto xml = juce::parseXML (text);
 

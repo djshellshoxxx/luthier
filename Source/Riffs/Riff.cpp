@@ -85,6 +85,9 @@ namespace RiffVocabulary
             { Type::letRing, "letring" },
             // FEAT-ASSIST (auto-articulation.md 9): pick strokes, as MidiPerformance names them.
             { Type::pickStrokeUp, "upstroke" }, { Type::pickStrokeDown, "downstroke" },
+            // tab-import-export 7: slap/pop as note techniques (the bass tokens
+            // "slap"/"pop" name BASS_TECH events, so these are spelt apart).
+            { Type::slap, "slapnote" }, { Type::pop, "popnote" },
         };
 
         static_assert (sizeof (kTokens) / sizeof (kTokens[0]) == (size_t) Type::numTypes,
@@ -544,6 +547,22 @@ Riff Riff::fromScore (const PerformanceScore& score, int trackIndex)
 
                 if (copy.startBeat >= kMaxBeats)
                     continue;
+
+                // tab-import-export 7.3: a slapped or popped note plays through
+                // the BASS_TECH path, which is what the compiler reads for the
+                // slap engine (slap -> thumb, pop -> pop).
+                for (const auto& t : copy.techniques)
+                {
+                    if (t.type != ScoreTechnique::Type::slap && t.type != ScoreTechnique::Type::pop)
+                        continue;
+
+                    RiffBassTech b;
+                    b.beat = copy.startBeat;
+                    b.str = copy.stringIndex;
+                    b.tech = t.type == ScoreTechnique::Type::slap ? "slap" : "pop";
+                    r.bassTech.push_back (b);
+                    break;
+                }
 
                 r.notes.push_back (std::move (copy));
             }

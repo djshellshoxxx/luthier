@@ -25,6 +25,7 @@
 */
 
 #include "PerformanceScore.h"
+#include "AsciiTabReader.h"
 
 namespace luthier
 {
@@ -128,18 +129,34 @@ public:
         when the truth is that the format is not supported. */
     static bool canRead (const juce::File& file);
 
-    /** Parses a file into a score. Returns false and sets the error otherwise. */
+    /** Parses a file into a score. Returns false and sets the error otherwise.
+        Partial reads (tab-import-export 7) return true and say what was
+        skipped in getLastDiagnostics(). */
     bool read (const juce::File& file, PerformanceScore& destination);
 
-    /** Parses ASCII tab. Exposed separately because the tab view pastes it. */
-    bool readAsciiTab (const juce::String& text, PerformanceScore& destination);
+    /** Parses ASCII tab (AsciiTabReader). Exposed separately because the tab
+        view pastes it. `diagnostics` receives what was read and skipped; the
+        same report is kept in getLastDiagnostics(). */
+    bool readAsciiTab (const juce::String& text, PerformanceScore& destination,
+                       TabImportDiagnostics* diagnostics = nullptr);
 
     bool readMusicXml (const juce::String& text, PerformanceScore& destination);
 
+    /** tab-import-export 8: a standard MIDI file as a tab. A Luthier-profile
+        file (or a per-string export) keeps its strings and frets; a generic
+        file is fingered by TabFingering's guess. The diagnostics report how
+        many notes were fingered or clamped. */
+    bool readMidi (const juce::File& file, PerformanceScore& destination);
+    bool readMidi (const void* data, size_t numBytes, PerformanceScore& destination);
+
     juce::String getLastError() const { return lastError; }
+
+    /** What the last read did: bars, notes, skipped lines, guessed tuning. */
+    const TabImportDiagnostics& getLastDiagnostics() const noexcept { return lastDiagnostics; }
 
 private:
     juce::String lastError;
+    TabImportDiagnostics lastDiagnostics;
 };
 
 } // namespace luthier
