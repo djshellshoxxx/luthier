@@ -20,6 +20,8 @@
 #include "../Common/Oversampler.h"
 #include "ToneStack.h"
 
+#include <limits>
+
 namespace luthier
 {
 
@@ -210,6 +212,19 @@ private:
 
     DCBlocker outputDc;
     ExpSmoother gainSmooth, masterSmooth, warmupGain;
+
+    // dbToGain() is a std::pow per call. The drive and master gains are parked
+    // most of the time (the knobs are not being ridden), so caching the last
+    // converted value and reusing it while the smoothed input is unchanged turns
+    // two pow() per sample into none on the steady-state audio path. The inputs
+    // are a pure function of the smoothed gains, so the cache is bit-exact: it is
+    // refreshed the instant either smoother moves. NaN seeds force the first use
+    // to compute. voicing.inputGain is kept out of the cache (it is a cheap mul
+    // that stays per sample) so a voicing change is picked up without a key.
+    double cachedGainInput = std::numeric_limits<double>::quiet_NaN();
+    double cachedPreGainPow = 0.0;    ///< dbToGain (preGainDb), without voicing.inputGain
+    double cachedMasterInput = std::numeric_limits<double>::quiet_NaN();
+    double cachedPostGain = 0.0;      ///< dbToGain (postGainDb)
 
     JUCE_LEAK_DETECTOR (AmpEngine)
 };
