@@ -224,6 +224,7 @@ EasyPanel::EasyPanel (LuthierAudioProcessor& p)
 
     addAndMakeVisible (styleBox);
     styleBox.setTooltip ("Factory sounds, grouped by style. Picking one loads its preset.");
+    AccessibleSetup::configureComboBox (styleBox, "Factory sound");   // A11Y-47: screen readers need a name
     styleBox.onChange = [this]
     {
         const int selected = styleBox.getSelectedItemIndex();
@@ -237,6 +238,7 @@ EasyPanel::EasyPanel (LuthierAudioProcessor& p)
     // ---- audition --------------------------------------------------------------------
     addAndMakeVisible (auditionPhraseBox);
     auditionPhraseBox.setTooltip ("What the Audition button plays");
+    AccessibleSetup::configureComboBox (auditionPhraseBox, "Audition phrase");
 
     for (int i = 0; i < (int) AuditionPhrase::Type::NumTypes; ++i)
         auditionPhraseBox.addItem (AuditionPhrase::getName ((AuditionPhrase::Type) i), i + 1);
@@ -448,6 +450,7 @@ void EasyPanel::buildRhythmStrip()
 
     rhythmGenreBox.setTextWhenNothingSelected ("Style");
     rhythmGenreBox.setTooltip ("Genre kit: sets the voicing, the pattern and the feel in one go.");
+    AccessibleSetup::configureComboBox (rhythmGenreBox, "Rhythm style");
 
     rhythmGenreBox.onChange = [this]
     {
@@ -477,6 +480,7 @@ void EasyPanel::buildRhythmStrip()
     rhythmFeelSlider.setRange (0.0, 200.0, 1.0);
     rhythmFeelSlider.setValue (100.0, juce::dontSendNotification);
     rhythmFeelSlider.setDoubleClickReturnValue (true, 100.0);
+    AccessibleSetup::configureSlider (rhythmFeelSlider, "Rhythm feel", " percent");
     rhythmFeelSlider.setTooltip ("Feel. Centre is the style's own feel. Right strums faster and more "
                                  "evenly and loosens the timing; left strums slower and less evenly.");
 

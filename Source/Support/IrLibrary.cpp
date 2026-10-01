@@ -126,6 +126,10 @@ juce::Array<juce::File> IrLibrary::getCandidateFolders()
     candidates.add (juce::File::getSpecialLocation (juce::File::userHomeDirectory)
                       .getChildFile ("Library/Application Support/Luthier/Resources"));
    #elif JUCE_LINUX || JUCE_BSD
+    // install.sh honours XDG_DATA_HOME, so the content may live under it.
+    if (const auto xdg = juce::SystemStats::getEnvironmentVariable ("XDG_DATA_HOME", {}); xdg.isNotEmpty())
+        candidates.add (juce::File (xdg).getChildFile ("luthier/Resources"));
+
     candidates.add (juce::File::getSpecialLocation (juce::File::userHomeDirectory)
                       .getChildFile (".local/share/luthier/Resources"));
     candidates.add (juce::File ("/usr/local/share/luthier/Resources"));

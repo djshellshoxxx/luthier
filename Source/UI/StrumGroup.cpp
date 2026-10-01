@@ -55,6 +55,7 @@ StrumGroup::StrumGroup (LuthierAudioProcessor& p)
         if (! updating)
             rhythm().setStrumEvenness (evenness.getSlider().getValue());
     };
+    AccessibleSetup::configureSlider (evenness.getSlider(), "Strum evenness");   // not an attachment, so named here
     addAndMakeVisible (evenness);
 
     attach (misses, ParamIDs::strumMissProbability,

@@ -62,7 +62,10 @@ FretboardComponent::FretboardComponent (LuthierAudioProcessor& p)
     liveLevel.fill (0.0);
     liveNote.fill (-1);
 
-    setTooltip ("Click a fret to hear that note. Right-click for string options.");
+    setTooltip ("Click a fret to hear that note. Right-click for string options. "
+                "With the keyboard: arrow keys move, Enter plays, M mutes.");
+    setWantsKeyboardFocus (true);   // A11Y-8: FretboardAccess.cpp
+
     // auto-articulation.md 7.3 (FEAT-ASSIST): a label sits where the live note's dot does.
     assistLabels = std::make_unique<AssistLabelOverlay> (processor, *this, [this] (int s, double fret)
     {

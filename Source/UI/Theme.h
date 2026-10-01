@@ -218,6 +218,11 @@ public:
         rather than a control. */
     bool areScrollbarButtonsVisible() override { return true; }
 
+    /*  accessibility 1: JUCE's scrollbar end buttons have no name, so a screen
+        reader announced them as bare buttons. The scrollbar asks for their size
+        right after creating them, which is where they are named. */
+    int getScrollbarButtonSize (juce::ScrollBar&) override;
+
     void drawScrollbarButton (juce::Graphics&, juce::ScrollBar&, int width, int height,
                               int buttonDirection, bool isScrollbarVertical,
                               bool isMouseOverButton, bool isButtonDown) override;

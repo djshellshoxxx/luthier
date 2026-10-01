@@ -108,6 +108,10 @@ Source: "{#StageDir}\luthier-render.exe"; DestDir: "{app}"; Components: standalo
 Source: "{#StageDir}\luthier.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#StageDir}\Resources\*"; DestDir: "{commonappdata}\Luthier\Resources"; Components: content; Flags: ignoreversion recursesubdirs createallsubdirs
 
+; installer.md 7 (IN-34): a managed install can pre-place the policy file the plug-in
+; reads (Policy::getPolicyFile): Setup.exe /VERYSILENT /POLICY=C:\path\luthier-policy.json
+Source: "{param:POLICY|}"; DestDir: "{commonappdata}\Luthier"; DestName: "luthier-policy.json"; Flags: external ignoreversion; Check: HasPolicyParam
+
 [Dirs]
 Name: "{commonappdata}\Luthier"
 
@@ -137,6 +141,9 @@ Root: HKA; Subkey: "Software\Classes\.midprofile\OpenWithProgids"; ValueType: st
 ; Optional launch, default off (installer.md 1.1.9).
 Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,{#AppName}}"; Components: standalone; Flags: nowait postinstall skipifsilent unchecked
 
+; installer.md 1.1.9 (IN-14): a "What's new" link on the finished page, default off.
+Filename: "https://luthieraudio.com/releases/{#AppVersion}"; Description: "What's new in {#AppName} {#AppVersion}"; Flags: shellexec nowait postinstall skipifsilent unchecked
+
 [UninstallDelete]
 Type: dirifempty; Name: "{commonappdata}\Luthier"
 
@@ -153,6 +160,12 @@ begin
     Result := ComparePackedVersion(PA, PB)
   else
     Result := CompareStr(A, B);
+end;
+
+{ True when /POLICY=<file> names an existing file. }
+function HasPolicyParam(): Boolean;
+begin
+  Result := (ExpandConstant('{param:POLICY|}') <> '') and FileExists(ExpandConstant('{param:POLICY|}'));
 end;
 
 function InitializeSetup(): Boolean;

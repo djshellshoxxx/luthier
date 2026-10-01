@@ -2,6 +2,7 @@
 #include "NewFeatureDots.h"
 #include "RangesUi.h"
 #include "../Accessibility/Accessibility.h"
+#include "../Accessibility/Localisation.h"
 #include "../Support/IrLibrary.h"
 
 namespace luthier
@@ -165,6 +166,26 @@ juce::String Fonts::findAvailable (const juce::StringArray& candidates, const ju
 
 juce::Font Fonts::ui (float height, bool semiBold)
 {
+    // accessibility 8 (A11Y-40, A11Y-42): the user's font override, and the
+    // platform CJK face where the locale's glyphs are not in the bundled Latin
+    // fonts, win over the bundled family.
+    {
+        const auto& a11y = AccessibilitySettings::get();
+        const auto override = a11y.getFontOverride();
+
+        if (override.isNotEmpty())
+        {
+            auto options = juce::FontOptions (override, height, juce::Font::plain);
+            return juce::Font (semiBold ? options.withStyle ("Bold") : options);
+        }
+
+        if (Localisation::get().needsCjkFallbackFont())
+        {
+            auto options = juce::FontOptions (a11y.getFont (height).getTypefaceName(), height, juce::Font::plain);
+            return juce::Font (semiBold ? options.withStyle ("Bold") : options);
+        }
+    }
+
     const auto& bundled = bundledFonts();
 
     if (auto typeface = semiBold ? bundled.bold : bundled.regular)
@@ -1168,6 +1189,26 @@ void LuthierLookAndFeel::drawScrollbar (juce::Graphics& g, juce::ScrollBar&, int
 
     g.setColour (Palette::edge);
     g.drawRoundedRectangle (thumb.toFloat().reduced (0.5f), 3.0f, 1.0f);
+}
+
+int LuthierLookAndFeel::getScrollbarButtonSize (juce::ScrollBar& bar)
+{
+    int index = 0;
+
+    for (auto* child : bar.getChildren())
+    {
+        if (auto* button = dynamic_cast<juce::Button*> (child))
+        {
+            // Created up (or left) first, then down (or right).
+            const bool first = index++ == 0;
+
+            if (button->getTitle().isEmpty())
+                button->setTitle (bar.isVertical() ? (first ? "Scroll up" : "Scroll down")
+                                                   : (first ? "Scroll left" : "Scroll right"));
+        }
+    }
+
+    return juce::LookAndFeel_V4::getScrollbarButtonSize (bar);
 }
 
 void LuthierLookAndFeel::drawScrollbarButton (juce::Graphics& g, juce::ScrollBar&, int width, int height,

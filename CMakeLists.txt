@@ -94,7 +94,10 @@ juce_add_plugin(Luthier
     MICROPHONE_PERMISSION_ENABLED TRUE
     MICROPHONE_PERMISSION_TEXT  "Luthier uses audio input for its sidechain."
     ICON_BIG                    "${CMAKE_CURRENT_SOURCE_DIR}/Resources/icon.png"
-    ICON_SMALL                  "${CMAKE_CURRENT_SOURCE_DIR}/Resources/icon_small.png")
+    ICON_SMALL                  "${CMAKE_CURRENT_SOURCE_DIR}/Resources/icon_small.png"
+    # installer.md 2.1.6 (IN-20): Launch Services associations for the six Luthier
+    # file types; Finder hands the file to StandaloneApp.cpp (anotherInstanceStarted).
+    DOCUMENT_EXTENSIONS         luthierpreset luthierguitar luthiertune luthierloop luthierset midprofile)
 
 file(GLOB_RECURSE LUTHIER_SOURCES CONFIGURE_DEPENDS
      "${CMAKE_CURRENT_SOURCE_DIR}/Source/*.cpp"
@@ -305,6 +308,21 @@ if (LUTHIER_BUILD_TESTS)
     add_test(NAME LuthierUnitTests COMMAND LuthierTests)
     # SPEC-SWEEP (TROUBLESHOOTING TS-1): the documented install paths match the installers.
     add_test(NAME PackagingPaths COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/scripts/check_packaging_paths.cmake)
+
+    # installer.md 13 (IN-2, IN-22, IN-26, IN-44, IN-45): install / upgrade / downgrade /
+    # uninstall cycles of the Linux installer and the macOS uninstaller's logic, in
+    # scratch directories; and the perf-log comparison's self-test (PB-4).
+    find_program(LUTHIER_BASH bash)
+    find_program(LUTHIER_PYTHON3 NAMES python3 python)
+    if (LUTHIER_BASH AND CMAKE_SYSTEM_NAME STREQUAL "Linux")   # install.sh uses GNU tac/tar
+        add_test(NAME InstallCycleLinux COMMAND ${LUTHIER_BASH} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/test_install_linux.sh)
+    endif()
+    if (LUTHIER_BASH AND NOT WIN32)
+        add_test(NAME UninstallMacOsLogic COMMAND ${LUTHIER_BASH} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/test_uninstall_macos.sh)
+    endif()
+    if (LUTHIER_PYTHON3)
+        add_test(NAME PerfCompareSelfTest COMMAND ${LUTHIER_PYTHON3} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/perf_compare.py --selftest)
+    endif()
 endif()
 
 if (LUTHIER_BUILD_CLI)

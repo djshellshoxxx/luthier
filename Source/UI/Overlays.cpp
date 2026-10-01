@@ -16,6 +16,11 @@ namespace luthier
 OverlayPanel::OverlayPanel (const juce::String& t)
     : title (t)
 {
+    // The host announces the panel by its name; without one every dialog was
+    // announced as "Dialog opened" (SPEC-SWEEP: A11Y-10).
+    setName (t);
+    setTitle (t);
+
     addAndMakeVisible (closeButton);
     closeButton.setTooltip ("Close (Escape)");
     closeButton.onClick = [this] { if (onDismiss) onDismiss(); };
@@ -59,6 +64,12 @@ void OverlayPanel::resized()
                            (titleBarHeight - Metrics::buttonHeight) / 2, 72, Metrics::buttonHeight);
 
     layoutContent (getContentBounds());
+}
+
+std::unique_ptr<juce::AccessibilityHandler> OverlayPanel::createAccessibilityHandler()
+{
+    // A dialog to a screen reader: it is announced as one, and focus stays inside.
+    return std::make_unique<juce::AccessibilityHandler> (*this, juce::AccessibilityRole::dialogWindow);
 }
 
 bool OverlayPanel::keyPressed (const juce::KeyPress& key)

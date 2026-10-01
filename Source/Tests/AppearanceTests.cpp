@@ -583,7 +583,16 @@ LUTHIER_TEST (Reflow, noControlHangsOutsideItsParentAtAnyWidthOrScale)
     {
         AccessibilitySettings::get().setUiScale (scale);
         AccessibilitySettings::get().dispatchPendingMessages();
-        CHECK_NEAR (editor->getTransform().getScaleFactor(), (float) scale, 1.0e-3f);
+
+        // A screen too small for the step gets the largest that fits (A11Y-29).
+        double expected = scale;
+
+        if (auto* display = juce::Desktop::getInstance().getDisplays().getPrimaryDisplay())
+            expected = AccessibilitySettings::largestScaleThatFits (scale, display->userArea,
+                                                                    LuthierAudioProcessorEditor::minimumWidth,
+                                                                    LuthierAudioProcessorEditor::minimumHeight);
+
+        CHECK_NEAR (editor->getTransform().getScaleFactor(), (float) expected, 1.0e-3f);
     }
 
     AccessibilitySettings::get().setUiScale (originalScale);
