@@ -701,11 +701,17 @@ int calibrateFactory (const juce::File& out)
 
             auto& manager = p->getPresetManager();
             const auto& def = FactoryPresets::getPreset (pr);
-            const int index = manager.indexOfPreset (def.name);
+            // FactoryPresets::getPreset returns a view backed by a thread_local
+            // Definition that later getPreset calls (from loadPreset, the
+            // structural capture, ...) overwrite, so snapshot the name now for
+            // the entry label below - otherwise every entry is labelled with
+            // whichever preset was fetched last.
+            const juce::String presetName = def.name;
+            const int index = manager.indexOfPreset (presetName);
 
             if (index < 0 || ! manager.loadPreset (index))
             {
-                std::cerr << "cannot load " << def.name << std::endl;
+                std::cerr << "cannot load " << presetName << std::endl;
                 ++failed;
                 continue;
             }
@@ -748,8 +754,8 @@ int calibrateFactory (const juce::File& out)
 
             NormalizationCalibrator::addFactoryEntry (hash, m.measuredLufs, (int) std::lround (plain ("guitar_type")),
                                                       (int) std::lround (plain ("amp_model")), normalised ("amp_gain"),
-                                                      juce::String (def.name) + (g < 0 ? juce::String (" (own guitar)")
-                                                                                         : " / " + juce::String (g)));
+                                                      presetName + (g < 0 ? juce::String (" (own guitar)")
+                                                                          : " / " + juce::String (g)));
 
             if (++done % 25 == 0)
                 std::cout << "calibrated " << done << " / " << presets * (types + 1) << std::endl;
