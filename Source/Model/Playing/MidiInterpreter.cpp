@@ -53,6 +53,7 @@ void MidiInterpreter::prepare (double sampleRate, int strings)
     stringBendRange.fill (2.0);
     resetChannelMap();
     autoArt.prepare (sampleRate, numStrings);   // FEAT-ASSIST
+    motif.prepare (sampleRate);                  // easter-egg: Dueling Banjos
     setChordWindowMs (chordWindowMs);
     reset();
 }
@@ -96,6 +97,7 @@ void MidiInterpreter::reset() noexcept
     activeNoteCount = 0;
     lastMonoString = -1;
     activity = false;
+    motif.reset();   // easter-egg: a transport reset ends any phrase in progress
     nextStrumIsUp = false;
     {
         const juce::SpinLock::ScopedLockType sl (lastChordLock);
@@ -532,6 +534,11 @@ void MidiInterpreter::handleNoteOn (int midiNote, int channel, double velocity,
 {
     if (tuning == nullptr || voicer == nullptr || technique == nullptr)
         return;
+
+    // easter-egg: every physical note-on feeds the Dueling Banjos motif
+    // detector here - the single choke point before any mode/voicing branch,
+    // so the phrase is recognised whatever the playing mode. Allocation-free.
+    motif.noteOn (midiNote, timestamp);
 
     currentTimestamp = timestamp;
 
