@@ -546,3 +546,45 @@ packaging scripts and the two CI scripts (7.6), `docs/RELEASING.md`.
 - **Q-8** Time-limited Pro trial inside the Free binary: recommended
   **against** (it would put Pro code in the Free binary, rule 0.5); a
   separate Pro trial via `licensing.md` 6.4 instead. Confirm.
+
+## 12. Rollout and current scaffolding
+
+The phased implementation order for this split and `licensing.md` lives in
+**`spec/editions-rollout-plan.md`** (gating scaffolding -> licence verify
+core -> trial/activation -> edition UI -> packaging two editions -> store/
+upgrade flow), with each phase's files, tests, acceptance criteria and the
+owner actions that gate it. Two points of reconciliation belong here, in
+the design doc itself:
+
+### 12.1 Transitional scaffolding already in the tree
+
+The split has not happened, but seams exist and the plan builds on them,
+not around them:
+
+- `Source/Support/Edition.h/.cpp` is a **runtime** process-wide flag
+  (`luthier::Editions::current()`, a relaxed atomic defaulting to `pro`)
+  with `isPro()` and `kProSuffix`. It predates this spec's `Source/Edition.h`
+  (section 7.2). It is a **pre-fork simulation seam only**: it lets today's
+  single Pro build pretend to be Free for tests before the compile-time
+  split exists. After the fork, the **compile-time** `constexpr bool
+  edition::isPro` (section 7.2) is the source of truth for Free-vs-Pro; the
+  runtime atomic is kept only as a test-only override (**D-7**: default it
+  from `edition::isPro`, remove the setter from non-test code) so existing
+  call sites keep compiling.
+- `Source/Jam/JamEdition.h` (`kIsFree`, `nearestFree`) is the already-wired
+  compile-time pattern the rest of the `Feature` table follows.
+- The assist-rules Free path in `Parameters.cpp` (append `kProSuffix`,
+  force the neutral value in Free) is the template for section 7.3.
+
+**Edition vs licence state, kept distinct:** *Edition* (Free vs Pro) is
+compile-time, two binaries (D-5, rule 0.5). *Licence state* (demo vs
+activated, `licensing.md` 8) is runtime and exists **only inside the Pro
+binary** (section 2.5, Q-8). The runtime edition atomic must never grow
+into a second Free-vs-Pro gate.
+
+### 12.2 "Seven" vs eight headline groups
+
+Product copy ("seven sub-tabs", `docs/PRODUCT_DESCRIPTION.md`) refers to
+the Techniques tab's seven technique panels, which are **one** headline
+group (**H3**). The canonical gating list is the **eight** headline groups
+H1-H8 of section 1. Q-2 covers any change to that set.
