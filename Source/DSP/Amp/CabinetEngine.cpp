@@ -593,35 +593,67 @@ void CabinetEngine::processBlock (juce::AudioBuffer<float>& buffer) noexcept
     }
 
     // ---- blend and place ------------------------------------------------------
-    for (int i = 0; i < numSamples; ++i)
+    if (! dualMic)
     {
-        const double blend = dualMic ? blendSmooth.next() : 0.0;
-        const double width = widthSmooth.next();
-
-        const double sampleA = (double) a[i];
-        const double sampleB = dualMic ? (double) b[i] : sampleA;
-
-        // Equal-power blend so moving the control never dips in the middle.
-        const double gainA = std::cos (blend * constants::kPi * 0.5);
-        const double gainB = std::sin (blend * constants::kPi * 0.5);
-
-        // Width spreads the two mics across the image. At width 0 they are both
-        // dead centre, which is the mono-safe default.
-        const double spread = dualMic ? width : 0.0;
-
-        double outL = sampleA * gainA * (1.0 - spread * 0.5) + sampleB * gainB * (spread * 0.5);
-        double outR = sampleA * gainA * (spread * 0.5) + sampleB * gainB * (1.0 - spread * 0.5);
-
-        if (! dualMic)
+        // Single mic: the blend collapses to mic A (gainA = cos 0 = 1, gainB = 0,
+        // spread = 0), so the equal-power trig and the width/spread arithmetic all
+        // drop out. Only mic A reaches the DC blocker, exactly as before. The
+        // width smoother is still advanced so its state matches when the second
+        // mic returns (blendSmooth was never advanced on this path).
+        for (int i = 0; i < numSamples; ++i)
         {
-            outL = sampleA;
-            outR = sampleA;
+            widthSmooth.next();
+
+            const double sampleA = (double) a[i];
+            inL[i] = (float) sanitise (dcL.process (sampleA));
+
+            if (numChannels > 1)
+                inR[i] = (float) sanitise (dcR.process (sampleA));
+        }
+    }
+    else
+    {
+        // Equal-power gains move only while the blend control glides; parked (the
+        // common case) cos/sin take the same argument every sample, so they are
+        // computed once up front. Width still smooths per sample. A parked
+        // ExpSmoother returns its target verbatim, so hoisting is bit-exact.
+        const bool blendStatic = ! blendSmooth.isSmoothing();
+        double gainA = 0.0, gainB = 0.0;
+
+        if (blendStatic)
+        {
+            const double blend = blendSmooth.getCurrent();
+            gainA = std::cos (blend * constants::kPi * 0.5);
+            gainB = std::sin (blend * constants::kPi * 0.5);
         }
 
-        inL[i] = (float) sanitise (dcL.process (outL));
+        for (int i = 0; i < numSamples; ++i)
+        {
+            const double blend = blendSmooth.next();
+            const double width = widthSmooth.next();
 
-        if (numChannels > 1)
-            inR[i] = (float) sanitise (dcR.process (outR));
+            if (! blendStatic)
+            {
+                // Equal-power blend so moving the control never dips in the middle.
+                gainA = std::cos (blend * constants::kPi * 0.5);
+                gainB = std::sin (blend * constants::kPi * 0.5);
+            }
+
+            const double sampleA = (double) a[i];
+            const double sampleB = (double) b[i];
+
+            // Width spreads the two mics across the image. At width 0 they are both
+            // dead centre, which is the mono-safe default.
+            const double spread = width;
+
+            const double outL = sampleA * gainA * (1.0 - spread * 0.5) + sampleB * gainB * (spread * 0.5);
+            const double outR = sampleA * gainA * (spread * 0.5) + sampleB * gainB * (1.0 - spread * 0.5);
+
+            inL[i] = (float) sanitise (dcL.process (outL));
+
+            if (numChannels > 1)
+                inR[i] = (float) sanitise (dcR.process (outR));
+        }
     }
 
     // The blend wrote to the caller's buffer, not to a[] and b[], so the two mic
