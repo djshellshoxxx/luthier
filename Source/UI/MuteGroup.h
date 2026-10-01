@@ -20,6 +20,7 @@
 */
 
 #include <juce_gui_basics/juce_gui_basics.h>
+#include "AnimationPolicy.h"
 #include "Widgets.h"
 #include "../Rhythm/Muting.h"
 
@@ -120,6 +121,7 @@ private:
                   humanise { "Humanise" }, ghostVelocity { "Ghost level" };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MuteGroup)
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "MuteGroup" };   // cpu-quality-modes 6 (CQ-22)
 };
 
 //==============================================================================
@@ -145,6 +147,7 @@ private:
     LuthierAudioProcessor& processor;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (EasyMuteButton)
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "EasyMuteButton" };   // cpu-quality-modes 6 (CQ-22)
 };
 
 } // namespace luthier

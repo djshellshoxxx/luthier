@@ -301,7 +301,7 @@ PresetBrowserPanel::PresetBrowserPanel (LuthierAudioProcessor& p)
 
 PresetBrowserPanel::~PresetBrowserPanel()
 {
-    stopTimer();
+    motion.stopTimer();
 
     if (processor.hasPresetLibrary())
     {
@@ -385,7 +385,7 @@ void PresetBrowserPanel::overlayShown()
         selectEntry (currentEntry);
     }
 
-    startTimerHz (30);
+    motion.startTimerHz (*this, 30);
     AccessibleSetup::announceOverlayOpened (*this, "Presets");
     searchBox.grabKeyboardFocus();
 }
@@ -394,7 +394,7 @@ void PresetBrowserPanel::overlayHidden()
 {
     // 15: closing the browser fades the preview out; on-save renders continue.
     stopPreview();
-    stopTimer();
+    motion.stopTimer();
     rememberView();
 }
 

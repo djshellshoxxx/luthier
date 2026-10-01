@@ -230,12 +230,12 @@ TechniquePill::TechniquePill (LuthierAudioProcessor& p, TechniqueSlot s)
     setTitle (TechniqueTable::get (slot).spokenName + juce::String (" technique"));
     setDescription ("Click or Space to arm. Hold for its controls. Right-click or Enter opens its sub-tab.");
     refresh();
-    startTimerHz (30);
+    motion.startTimerHz (*this, 30);
 }
 
 TechniquePill::~TechniquePill()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 juce::String TechniquePill::getLearnParameterId() const

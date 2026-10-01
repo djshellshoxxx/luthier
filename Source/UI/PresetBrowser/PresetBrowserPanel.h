@@ -17,6 +17,7 @@
 */
 
 #include "../Overlays.h"
+#include "../AnimationPolicy.h"
 #include "PresetBrowserWidgets.h"
 #include "../../Presets/PresetLibrary.h"
 
@@ -238,6 +239,7 @@ private:
     bool advancedAtLastLayout = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PresetBrowserPanel)
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "PresetBrowserPanel" };   // cpu-quality-modes 6 (CQ-22)
 };
 
 } // namespace luthier

@@ -21,6 +21,7 @@
 */
 
 #include <juce_gui_basics/juce_gui_basics.h>
+#include "../AnimationPolicy.h"
 #include <array>
 
 namespace luthier
@@ -72,6 +73,7 @@ private:
     std::array<int, numLayers> drawn {};
     double lastPaintMs = 0.0;
     bool anythingLive = false;
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "TechniqueOverlay" };   // cpu-quality-modes 6 (CQ-22)
 };
 
 } // namespace luthier
