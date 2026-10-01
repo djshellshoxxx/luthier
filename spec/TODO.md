@@ -7,204 +7,226 @@ every judgement call made along the way.
 
 Build: `cmake --build build --config Release --target LuthierTests -- -v:m -p:CL_MPCount=1`,
 one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/LuthierTests.exe [filter...]`.
+On Linux: `scripts/setup_linux.sh` then
+`ninja -C build LuthierTests`, and
+`xvfb-run -a build/LuthierTests_artefacts/Release/LuthierTests [filter...]`.
 
-## In progress
+## Triage note (2026-10-01)
 
-- [x] Scrape and strum integration built and green on Linux (clang); portability fixes
-      for clang (nested default args, int64 casts, temporaries). SlapEngine +
-      TechniqueTriggers integrated (params 426-450, count 450, 22 Slap tests green).
-      chuckKillsPitch fixed: a chuck now damps unplayed strings too (the hand lies
-      across all of them) and the test measures the chord's f0 from output onset.
-      Linux build: scripts/setup_linux.sh; tests under xvfb-run.
-- [ ] Remaining WIP: Source/WIP/Rhythm/Muting + UI/MuteGroup (muting-rhythm.md),
-      Source/WIP/UI/FirstRun + FirstEncounterHint (onboarding, TODO 14c).
-- [ ] 13c UNBLOCKED: the nine phase 2b specs are now on disk (string-aging,
-      environment, body-coupling, harmonic-realism, string-interaction,
-      fingerstyle-attack, noise-floor, sustain-and-decay, tuning-stability).
-      New range families they propose (strings/environment/body/string) are
-      recorded in DECISIONS.md "Phase 2b range families".
-- [ ] **G. Realistic guitar illustration** - IN PROGRESS. Built and green
-      (432 tests): `GuitarRenderer` draws every factory guitar from its parts
-      (body outline data, finishes with grain/burst/aging/sparkle, lighting
-      per visual-polish 1, bridges, tailpieces, pickups, pickguards, neck,
-      fretboard, inlays, frets, nut, headstock, tuners, strings by material),
-      hit regions with section 16 descriptions, overlays (played notes, slide
-      bar, hover); `GuitarBodyComponent` now uses it (Easy and Advanced).
-      Renders: `%TEMP%/luthier-guitar-renders/`. Remaining: headstock shapes
-      refined (assistant, `HeadstockOutlines.h`), body refinements
-      (assistant), family-switch UI in the Workshop drawer (mechanics done:
-      `PartLibrary::switchFamily`, `switchGuitarFamily`; amp defaults per
-      family, 12.3, not yet), zoom /
-      pan (1), preset-browser thumbnails on a worker thread with a 200-entry
-      cache (15), per-string material override (10), capo drawing, reduced
-      motion crossfade rules (16), 60 ms note-dot timing test (19).
-- [ ] **C. `docs/spec-coverage.md`** (CLAUDE.md workflow) - IN PROGRESS, being
-      built by an assistant agent: one row per actionable requirement across
-      every `spec/*.md`, with location, verification and status. Keep it
-      current after each step once it lands.
-- [ ] 6e. Part swaps that keep the string count move to an off-thread build
-      and block-boundary swap with step 7 (DECISIONS C-09). Notes arriving
-      while parked are now queued (done, `WorkshopSwap` test).
-- [ ] 5b. `slide-technique-controls.md`: position source (modwheel / bend /
-      MPE Y / expression / CC / drag), absolute/relative, slant & pressure
-      sources, contact string mask, speed limit, auto-vibrato on hold,
-      scripted SlideGesture, presets; Techniques tab Slide sub-tab.
+The engine/model workstream branches (tune-help, techniques,
+feat2-notation/tab, midi/practice gaps, model-gaps, realism A/B/C,
+visual-workshop-qa) have all been merged into `codex/luthier-beta`, but
+many checkboxes below were never ticked. A full re-verification of every
+open row against the current `Source/` tree (with `docs/coverage/*.md` as
+the cross-check) was done on 2026-10-01; the result is recorded here.
+`Source/WIP/` no longer exists - every historical WIP module (muting,
+first-run, slap, scrape, strum) is promoted into the real tree with tests.
 
-## Remaining
+What is genuinely still open is small and almost entirely non-code:
 
-- [ ] **V. Visual appeal (user request, 2026-09-23; after G).** Done: the
-      Luthier guitar-shop theme (visual-polish 6) - rosewood/walnut/Tolex
-      palette, maple-and-cream Light palette, black bell knobs with cream
-      pointers, mini toggles, brass fader caps, walnut panels with corner
-      screws, engraved brass section plates, brass headstock brand mark,
-      Lato + Bebas Neue shipped in `Resources/Fonts` (OFL); palettes now
-      actually reach the UI (they did not before) and switch live via
-      `Palette::remap`; `Theme` tests. Amp and pedal faces (2) in the rack,
-      the Easy amp card and the Advanced amp section, with model knob caps
-      (3) and valve glow (4); `FacesIntegration` tests. Remaining: header plugin name in the
-      display face, Options -> Appearance accent choices + follow-the-guitar
-      (5), VU meter / room light (4), live overlays polish on the guitar (G 14),
-      preset-browser thumbnails (G 15), screenshots of every panel in all
-      three palettes reviewed by eye.
+- **13 (HELP)** - the support URLs / email are still RFC-2606
+  `luthieraudio.example` placeholders. The mechanism is done (one
+  configurable `Source/Support/SupportLinks.h`, overridable at configure
+  time via `LUTHIER_HOMEPAGE_URL` / `LUTHIER_SOURCE_URL` /
+  `LUTHIER_SUPPORT_EMAIL`; `SupportLinks::areConfigured()` is false until
+  set, and the About text says so). Setting the real values is a release
+  config step that needs the real domain/email - **DEFERRED** to the
+  release owner, not a code change.
+- **2d(4)** - a listening pass on the rubric's unison voicings. The
+  behaviour is intentional (`DECISIONS.md` "Rubric unisons"); this is a
+  human QA/listening task, nothing to implement - **DEFERRED**.
+- **V (Visual appeal) / remaining G (illustration polish)** - GUI/drawing
+  polish (zoom/pan, thumbnail worker cache, accent choices, VU meter,
+  screenshots-by-eye). **Owned by the GUI audit** - not touched here.
+- **15 / 17** - final subjective polish, performance and bug-bash passes -
+  **DEFERRED** (process, not a discrete code item).
+- **16** - installer platform matrix - **DEFERRED** (cannot be run from a
+  single-platform CI container; see `DECISIONS.md`).
 
-- [ ] 2k. **Gaps the coverage refresh found (2026-09-23)**:
-      - [ ] part-acoustics 2.1: chambering's feedback coupling feeds the
-            feedback gain (FeedbackLoop's k_couple has no chambering term).
-      - [ ] notation-export 4 / 6.1: the engine never calls the capture's
-            chordSymbol / bassTechnique / slideBar, so the NOTATION tab's chord
-            history is empty in use (with TODO 9's technique hook).
-      - [ ] notation-export 7.1: the capture's no-allocation check compiles
-            out (LUTHIER_ALLOCATION_COUNTER is never defined); expose the
-            counter from CircuitTests and define it for the test target.
-      - [ ] gui-engine-dataflow 22: FeedbackLed refreshes at 20 Hz, not 30.
-      - [ ] file-formats 2: a load that migrates a preset backs up the
-            original to Presets/Backup/<date>/ (backups happen only on save).
-      - [ ] notation-export 0.1: notation export on a worker thread.
-      - [ ] Doubler pitch / HP / LP defaults asserted; VP-7-04 at panel level.
-- [ ] 2h. Easy rig strip polish: the amp card's knobs are cramped at 1200x720;
-      give the amp card more height or two knob sizes.
-- [ ] 2d. `ambiguity-resolutions.md` gaps (audited in spec-coverage.md 25):
-      - [ ] 4 rubric voicer in at runtime (`RubricVoicer`, 15 tests; 4.1-4.7
-            green). Remaining: a bass-pattern setting on the rhythm engine
-            (Bass voices the root today); a listening pass on the rubric's
-            unison voicings (DECISIONS "Rubric unisons"); retire the now
-            unused `RhythmEngine::selectNotesForStyle`.
-      - [ ] 6 Crossing velocity from the pattern (strum-builder assistant,
-            with strum-dynamics, item 8).
-      - [ ] 8 Feedback / freeze / E-Bow as mod destinations (untested); Aux 1
-            pre/post-circuit toggle. (Snapshot recall cancelling a morph is done.)
-- [ ] **7. Workshop bench** - IN PROGRESS. Done and green (457 tests):
-      7a model (`WorkshopBench`, `SpectrumDelta`, live pickup moves); 7b
-      `WorkshopPanel` - header with name/modified/Save As Guitar/A-H slots,
-      `BenchIllustration` (hover names, click selects, pickup drags with
-      snap and limits, saddle drags, scroll for height, Ctrl-scroll zoom,
-      pan, ruler with pickup rail, Tab/arrow keyboard parity), inspector,
-      13-category parts drawer (fit on click, Alt-hover audition, user
-      section empty state, slide needs Slide Mode), setup strip, spectrum
-      pane (+-12 dB / auto-zoom, comb notches, summary sentence); 7c WORKSHOP
-      is column 4's first tab and takes over columns 3+4; the header's
-      Workshop button opens it (Advanced) or the Easy overlay.
-      Also done: the Guitar (family) category with the once-per-session
-      confirm, and double-click field editing in the inspector.
-      Remaining: per-string string overrides (3.3), nut
-      slot drag on the nut, pick/slide/capo overlays and drags on the bench
-      (4), WORKSHOP tab padlock when part fields gain
-      ranges, an editor-level test of the wrench in Easy mode, spectrum
-      summary announced to screen readers, slide material in the engine
-      (5b). Known issue: the first note after a body/cab IR load renders
-      slightly differently (~0.02 peak at the onset); the spectrum fixture
-      primes around it.
-- [ ] 8. `StrumGesture` (RHYTHM STRUM group), then `BassTechniques` (SLAP
-      group, bass step grid). Assistant `strum-builder` writing StrumGesture
-      under Source/WIP/.
-- [ ] 9. `PerformanceCapture`, then the NOTATION tab. Done: the capture
-      (assistant-built `Source/Capture`, 20 CaptureTests) is wired into the
-      processor - clocked from the host each block, fed from the engine's
-      string activity, drained at 10 Hz with its tuning kept current - and
-      the NOTATION tab (`NotationPanel`, `NotationPanelTests`): capture
-      state, live tab (bars, density, scroll speed), chord history, export of
-      MusicXML / Guitar Pro / ASCII / MIDI with range, quantise, per-format
-      options and preview; header "Export notation...". Remaining: techniques
-      in the capture (it reads string activity, which has string and fret but
-      not technique - the engine hook from triggerNote the capture's header
-      describes), marked-region range, the fretboard tablature dots (3), Mono
-      mode offline chord extraction (4).
-- [ ] 10. MIDI export profiles (`midi-export.md`), then the MIDI OUT tab.
-      Model done and green (`Source/Export`, `MidiExportTests`: per-string
-      export, Luthier / generic profiles, live MIDI out, round-trip null of
-      every factory preset at <= -60 dBFS after the reset-determinism fixes,
-      DECISIONS). MIDI OUT tab done (`MidiOutPanel`, `MidiOutPanelTests`):
-      profile editor = Options -> MIDI defaults (8) with .midprofile save /
-      load (7), export of the retrospective capture (entire / last N s) with
-      preview (4.1), drag-out with Alt for Generic (4.2), live sources shared
-      with ROUTING (6) incl. EVENTS (noise triggers as Luthier SysEx on their
-      sample) and WORKSHOP (part fits); the header's "Save last MIDI take"
-      uses the defaults; TUNE source done. Remaining:
-      CHARACTER seed / environment events, import UI (5: File -> Import,
-      drop a .mid, target choice), marked-region / current-section ranges,
-      drag from the session recorder's own Save button (practice drawer).
-      Residual: a brand-new engine's
-      first 7-string render after a 6-string one differs from the next by
-      ~1e-4 peak (about -80 dB) from ~27 ms in; under the bar, not yet found.
-- [ ] 11. `PracticeRoutines` and the PRACTICE tab. Model done and in the
-      build (assistant-built `Source/Practice/PracticeRoutine*`, 18
-      PracticeRoutine tests): routines and runner, progress stats, defaults,
-      library, session-recorder setup, count-ins, loop regions, speed
-      trainer. PRACTICE tab (`PracticeSetupPanel`, 9 tests) and the
-      processor hooks in: runner / stats / tracker owned by the processor,
-      the drawer advancing routines and counting minutes, START opening the
-      drawer (`PracticeDrawer` tests), recent tabs recorded, the drawer's
-      SESSION ring from the tab's setup. Remaining: SessionRecorder honouring
-      record audio / MIDI and auto-save; the looper's default length and the
-      trainers' note range / question count (TODO(lead hook)s in
-      PracticeRoutineSetup.cpp); a test through the tab reader's recent list.
-- [ ] 12. Tune Builder (`tune-builder.md`) and the TUNE tab. Model done
-      (`Source/Tune`, `TuneBuilderTests`, d284547). TUNE tab, player and
-      session in the plugin (TunePlayer / TunePanel / TuneProcessor tests):
-      chords strummed by the rhythm engine, melody / bass / layers as direct
-      notes, host-or-own clock, audible count-in and metronome, MIDI out
-      TUNE source, tune in the plugin state, Record from MIDI in.
-      Remaining: pill popovers / drag / right-click menus (3.2); section drag
-      and Vary (3.3); note menus, multi-select, clipboard, nudge (3.4); bass
-      and layer editors (6, 7); the one-screen export dialog incl. audio
-      stems and MIDI via profiles (9, C-53); kit suggested tempo (2.1);
-      Ctrl+T in the shortcut registry; hum capture (13); mod routes over the
-      timeline / snapshots / looper (14); tests 15-07 (offline vs live),
-      15-08 (MIDI re-import), 15-09 (hum), 15-10 (standalone relaunch);
-      a processor-level state-boundary test; the tune's own undo stack is
-      separate from the plugin's.
-- [ ] 13. HELP tab (column 4): `HelpTab` / `HelpContent`, the tab and the
-      Easy overlay, F1 and ? pinned to the panel in use. Remaining: the
-      support links and email are placeholders (luthieraudio.example) -
-      release blocker; per-panel Docs menu items / ? icons (gui-integration
-      16, 20) to call `AdvancedPanel::showHelp`; stale docs/TROUBLESHOOTING.md
-      ("Panic (or `0`)", "Options > Oversampling") and USER_MANUAL.md column
-      descriptions.
-- [ ] 13b. **Phase 5b technique specs (added 2026-09-23)**, in INDEX order:
-      `string-scraping.md` (assistant `scrape-builder` writing it under
-      Source/WIP/; ScrapeEngine; also the pick-scrape trigger pick-noise 5 asks for - folded in from 3f), `string-slap-technique.md`,
-      `muting-rhythm.md`, `two-hand-tapping.md`, `microtonal-bends.md`,
-      `technique-cascade.md`, `gui-techniques-updates.md` (Techniques tab,
-      Playing strip pills, fretboard overlays), `engine-technique-layer.md`.
-- [ ] 13c. **BLOCKED: phase 2b specs not on disk** - `string-aging.md`,
-      `environment.md`, `body-coupling.md`, `harmonic-realism.md`,
-      `string-interaction.md`, `fingerstyle-attack.md`, `noise-floor.md`,
-      `sustain-and-decay.md`, `tuning-stability.md`. Listed in INDEX and the
-      brief (2026-09-23) but the files do not exist. Asked the user.
-- [ ] 14. Audit `ui-wiring.md`, `onboarding.md`, `performance-budget.md`,
-      `qa-polish.md`, `installer.md`, and gui-integration 20-22 against the
-      build (GAPS.md "Not audited yet"); fix what they find.
-- [ ] 14b. `action-and-undo.md`: audit entry classes, grouping and state
-      boundaries against the snapshot undo stack (fixed off-by-one in c0b05eb).
-- [ ] 14c. Onboarding: "Restore first-run experience" in Options ->
-      Diagnostics must also clear `ranges_first_unlock_explained`.
-- [ ] 15. Polish pass, performance pass, onboarding pass (brief steps 7-9).
-- [ ] 16. Installer pass (brief step 10). The platform matrix cannot be run
-      from this Windows-only machine; see DECISIONS.md when reached.
-- [ ] 17. Bug bash and final check (brief steps 11-12).
-- [ ] 18. Plugin targets (`Luthier_VST3`, `Luthier_Standalone`) build clean.
+No open TODO row requires engine/model code for the beta: the realism,
+technique, capture, notation, MIDI, practice and tune work the rows
+describe is implemented and tested.
 
-## Done
+## Remaining / deferred
+
+- [ ] **13. HELP tab** - DEFERRED (release config). Content, per-panel `?`
+      icons (gui-integration 20) and the `showHelp` topics are done
+      (`PanelHelpButton`, `AdvancedPanel::showHelp`, `HelpTab` tests); the
+      stale `docs/TROUBLESHOOTING.md` / `USER_MANUAL.md` strings are fixed.
+      Open: set real support URLs/email in `Source/Support/SupportLinks.h`
+      (and `docs/KNOWN_ISSUES.md`). Needs the real domain - owner's call.
+- [ ] **V. Visual appeal** - OWNED BY GUI AUDIT. The guitar-shop theme,
+      amp/pedal faces, palettes-reach-the-UI and `Theme`/`FacesIntegration`
+      tests are in. Remaining (header plugin name in the display face,
+      Options -> Appearance accent choices + follow-the-guitar, VU meter /
+      room light, live overlay polish, preset-browser thumbnails,
+      screenshots reviewed by eye) is GUI-drawing polish - not in scope
+      here.
+- [ ] **G. Realistic guitar illustration** - CORE DONE, GUI polish owned
+      elsewhere. `GuitarRenderer` / `GuitarBodyComponent` /
+      `HeadstockOutlines` / `GuitarThumbnails` built and green
+      (`GuitarRendererTests`, `IllustrationRemainderTests`,
+      `AnimatedStringsTests`). Remaining (zoom/pan, thumbnail worker-thread
+      cache, per-string material override drawing, capo drawing,
+      reduced-motion crossfade, 60 ms note-dot timing) is GUI-drawing work
+      owned by the GUI audit.
+- [ ] **2d(4). Rubric unison listening pass** - DEFERRED (human QA). The
+      voicer's unison weights are the spec's (`DECISIONS.md` "Rubric
+      unisons"); whether strummed unisons sound right is a listening pass,
+      not code. The rest of 2d is done (see Done).
+- [ ] **14. Spec audit sweep** - features built & tested; formal read-through
+      only. `ui-wiring.md`, `onboarding.md`, `performance-budget.md`,
+      `qa-polish.md`, `installer.md` and gui-integration 20-22 are now
+      backed by code and tests (`PerfBudgetTests`, `GuiReachabilityTests`,
+      `InstallTests`, `QA_*`, OB-* onboarding tests, `?`-icon tests).
+      `GAPS.md` still lists them "Not audited yet" but self-declares (its
+      own footer) as written against a build it did not run. No specific
+      known code gap remains; this is a verification exercise.
+- [ ] **15. Polish / performance / onboarding pass** - DEFERRED (process).
+      Onboarding is done (OB-* tests); perf is budgeted (`PerfBudgetTests`);
+      the remaining subjective polish/perf pass is a final-pass task.
+- [ ] **16. Installer pass** - DEFERRED (platform-blocked). `InstallTests`
+      exist; the Windows/macOS/Linux packaging matrix cannot be exercised
+      from this container. See `DECISIONS.md`.
+- [ ] **17. Bug bash and final check** - DEFERRED (process).
+- [x] **18. Plugin targets build clean.** `Luthier_VST3` and
+      `Luthier_Standalone` build clean from the Linux Ninja tree (verified
+      2026-10-01). `Luthier_CLAP` is wired when `clap-juce-extensions` is
+      present. AU is added on macOS.
+
+## Done (verified against the current tree, 2026-10-01)
+
+- [x] Scrape and strum integration built and green; SlapEngine +
+      TechniqueTriggers integrated. (Was "In progress".) `Source/WIP` is
+      gone - muting (`Source/Rhythm/Muting`, `Source/DSP/Techniques/MuteEngine`,
+      `Source/UI/MuteGroup`; `MutingTests`) and first-run / first-encounter
+      (`Source/UI/FirstRun`, `FirstEncounterHint`; `FirstRunTests`) are all
+      promoted with tests.
+
+- [x] **13c. Phase 2b realism specs** - all nine on disk AND implemented
+      with tests (the old "BLOCKED: not on disk" note is wrong):
+      string-aging (`DSP/String/StringAging`; `StringAgingTests`),
+      environment (`Character/EnvironmentModel`; `EnvironmentTests`),
+      body-coupling (`DSP/Coupling/BodyCouplingBank`; `BodyCouplingTests`),
+      harmonic-realism (`LuthierEngineRealismB`; `HarmonicRealismTests`),
+      string-interaction (`LuthierEngineRealismB` + `UI/StringInteractionGroup`;
+      `StringInteractionTests`), fingerstyle-attack (`LuthierEngineRealismB`;
+      `FingerstyleAttackTests`), noise-floor (`DSP/Noise/NoiseFloor`;
+      `NoiseFloorTests`), sustain-and-decay (`LuthierEngineRealismB`;
+      `SustainDecayTests`), tuning-stability (`TuningStabilityTests`).
+
+- [x] **C. docs/spec-coverage.md** - built and maintained (one row per
+      actionable requirement, ~3000 rows, refreshed through recent commits).
+
+- [x] **6e. Off-thread part swap + block-boundary swap.** `WorkshopSwap`
+      suite (`WorkshopPresetTests.cpp`): click-free swap, note queued while
+      parked is kept, map-once-not-per-block, no file I/O on the audio
+      thread.
+
+- [x] **5b. slide-technique-controls.md** - `SlideEngine` implements
+      position source (abs/rel, modwheel/bend/MPE Y/expression/CC/drag),
+      slant & pressure sources, contact string mask, speed limit,
+      auto-vibrato on hold, scripted `SlideGesture`; Techniques tab Slide
+      sub-tab (`TechniquePages` SlidePage); `SlideTechniqueTests`.
+
+- [x] **2k. Coverage-refresh gaps (2026-09-23)** - all done:
+      - part-acoustics 2.1: chambering feeds the feedback coupling
+        (`FeedbackLoop::bodyCouplingFor`/`setBodyCoupling`;
+        `ModelGaps::chamberingFeedsTheFeedbackCoupling`).
+      - notation-export 4/6.1: the engine calls the capture's
+        chordSymbol / bassTechnique / slideBar (`LuthierEngine::captureBlockState`;
+        `ModelGapsUi::theCaptureHearsTechniquesAndChordsFromTheEngine`).
+      - notation-export 7.1: `LUTHIER_ALLOCATION_COUNTER` is defined for
+        the test target (`CMakeLists.txt`); the no-alloc checks are live
+        (`Capture::capturingTenThousandNotesDoesNotAllocate`). (The old
+        note that it "is never defined" was wrong.)
+      - gui-engine-dataflow 22: `FeedbackLed::kRefreshHz == 30`
+        (`ModelGapsUi::theFeedbackLedDrainsAtThirtyHertz`).
+      - file-formats 2: a migrated load backs up the original to
+        `Presets/Backup/<date>/` (`PresetManager::backupMigratedOriginal`;
+        `ModelGapsUi::aMigratedPresetKeepsItsOriginal`, `PresetQaTests`).
+      - notation-export 0.1: export runs on a worker thread
+        (`NotationTakeExport::writeAsync`;
+        `ModelGapsUi::notationExportRunsOnAWorkerThread`).
+      - Doubler pitch / HP / LP defaults and VP-7-04 at panel level
+        (`ModelGapsUi::theDoublerDefaultsAreTheClassicAdt`,
+        `::standbyAndBypassReachTheFacesOnThePanels`).
+
+- [x] **2h. Easy rig strip polish** - amp card has room at 1200x720
+      (`EasyPanel`/`AmpFacePanel`; `EasyLayout::ampKnobsHaveRoomAtCompactWindowSize`).
+
+- [x] **2d. ambiguity-resolutions.md gaps** (except the 2d(4) listening
+      pass, above):
+      - RubricVoicer in at runtime; bass-pattern on the rhythm engine
+        (`RhythmEngine::setBassPattern`, `RubricVoicer::setBassPattern`);
+        `RhythmEngine::selectNotesForStyle` retired.
+      - Crossing velocity from the pattern (`RhythmEngine::resolveCrossingSps`;
+        `StrumGestureTests`).
+      - Feedback / freeze / E-Bow as mod destinations
+        (`ModelGapsUi::theSustainControlsAreModulationDestinations`); Aux 1
+        pre/post-circuit toggle (`aux1_pre_circuit`,
+        `LuthierEngine::setAuxDiPreCircuit`;
+        `ModelGapsUi::auxOneTapsBeforeOrAfterTheCircuit`).
+
+- [x] **7. Workshop bench** - remainder done: per-string string overrides
+      (`StringOverride`, `WorkshopBench::setStringOverride`,
+      `partsStringMaterial/Wound`; `WorkshopStrings` tests), nut slot drag
+      (`setNutSlotDepth`; `WorkshopNut`), pick/slide/capo overlays & drags
+      (`WorkshopAccessories`), WORKSHOP tab padlock (`WorkshopRanges`),
+      wrench-in-Easy editor test (`WorkshopEditor`), spectrum summary to
+      screen readers (`WorkshopSpectrum`), slide material in the engine
+      (`LuthierEngine::setSlideBar`, processor `setSlidePart`).
+
+- [x] **8. StrumGesture + BassTechniques** - `Source/Rhythm/StrumGesture`
+      (RHYTHM STRUM; `StrumGestureTests`); SLAP group + bass step grid
+      (`Source/Rhythm/BassStepGrid`, `RhythmEngine::processBassGrid`,
+      `BassGridGroup`; `SlapTests`, `BassTechniqueTests`).
+
+- [x] **9. PerformanceCapture + NOTATION tab** - remainder done: technique
+      hook from `triggerNote` (`LuthierEngine` noteOn passes technique /
+      harmonic partial; palmMute/accent/pickStroke marks), marked-region
+      range (`CaptureRanges`; `CaptureRangeTests`), fretboard tablature dots
+      (`NotationPanel` toggle -> `FretboardComponent`), Mono offline chord
+      extraction (`PerformanceCapture` via `ChordDetector`).
+
+- [x] **10. MIDI export + MIDI OUT tab** - remainder done: CHARACTER seed /
+      environment events (`sendCharacterChanges` SysEx), import UI (header
+      "Import MIDI...", file drop, `MidiImportTargets`; `MidiImportTests`),
+      marked-region / current-section ranges (`CaptureRanges`), drag from the
+      session recorder Save button (`PracticePanel` external drag).
+
+- [x] **11. PracticeRoutines + PRACTICE tab** - remainder done:
+      SessionRecorder honours record audio/MIDI and auto-save
+      (`Looper`; `PracticeGapsTests`), looper default length, trainers'
+      note range / question count (`PracticeRoutineSetup`), tab-reader
+      recent-list test (`PracticeGapsTests`).
+
+- [x] **12. Tune Builder + TUNE tab** - remainder done: editing GUI
+      (`TuneChordEditor`, `TuneChordPillsEditing`, `TuneSectionStripEditing`,
+      `TunePianoRoll`, `TuneLayersStrip`, `TuneExportDialog`;
+      `TuneEditingTests`); kit suggested tempo, separate tune undo stack,
+      state-boundary test, hum capture (`TuneHumCapture`; `HumCaptureTests`),
+      tests 15-07..15-10, mod routes, Ctrl+T in the registry
+      (`TuneIntegrationTests`).
+
+- [x] **13b. Phase 5b technique specs** - all implemented with tests:
+      string-scraping (`DSP/Noise/ScrapeEngine`; `ScrapeTests`),
+      string-slap (`DSP/Slap/SlapEngine`; `SlapTests`, `BassTechniqueTests`),
+      muting-rhythm (`DSP/Techniques/MuteEngine` + `Rhythm/Muting` + `UI/MuteGroup`;
+      `MutingTests`), two-hand-tapping (`DSP/Techniques/TapEngine`;
+      `TapTests`), microtonal-bends (`DSP/Techniques/MicrotonalScale`;
+      `BendTests`), technique-cascade (`CascadeTests`),
+      gui-techniques-updates (`UI/Techniques/TechniquePages`,
+      `TechniqueMirrors`; `TechniquesUiTests`), engine-technique-layer
+      (`DSP/Techniques/TechniqueLayer`; `CascadeTests` TechniqueLayer suite).
+
+- [x] **14b. action-and-undo.md** - entry classes, grouping and state
+      boundaries verified (`UndoCoverageTests`); the off-by-one is fixed
+      (c0b05eb).
+
+- [x] **14c. Onboarding restore clears `ranges_first_unlock_explained`** -
+      `FirstRun`/`DiagnosticsPage` restore clears the one-time flag and
+      keeps libraries (`FirstRunTests::restoreClearsTheSettings...`).
 
 - [x] 2g. Trademark sweep: guitar types, amps, speakers, mics, bridge types,
       bleed and slide names, factory presets and their descriptions, genre
@@ -241,3 +263,10 @@ one target at a time, foreground. Tests: `build/LuthierTests_artefacts/Release/L
 - [x] `PhysicalRange`, `RangeRegistry`, `RangeState` (commit 2ef230b).
 - [x] `RangeState` wired into preset save and load, ranges block applied
       before parameter values; harness fixed; round-trip test added.
+
+## Not touched here (owned by other workstreams)
+
+- Host-clock validation in `PluginProcessor` (owned elsewhere).
+- B-* beta-test findings / RT-safety docs (owned elsewhere).
+- GUI parameter wiring / orphan params (GUI audit).
+- Normalization goldens / ON27 (owned elsewhere).
