@@ -82,7 +82,7 @@ IN PROGRESS (a helper branch covers it).
 - Found by: pluginval strictness 10, Automation test (`double free or corruption (!prev)`), then reproduced by `Combo.structuralChangesWhileAudioRuns` (seed 99): `pure virtual method called` / `free(): invalid pointer` within seconds.
 - Backtraces (audio thread): `ReverbPedal::rebuildLines` <- `ReverbPedal::parameterChanged`, and `RoomEngine::rebuild` <- `RoomEngine::setDecayScale` <- `ParameterBridge::applyToEngine`, while the message thread ran `ParameterBridge::applyStructural` (via `handleAsyncUpdate` / `applyAllNow`, which also calls `applyToEngine`).
 - Fix: `ParameterBridge::getEngineLock()`; the structural pass holds it, `processSlice` try-locks it around `applyToEngine` and the engine render, and outputs silence for a block that loses the race (the audio thread never waits). 6 clean stress runs after.
-- Still open behind it: `ReverbPedal::rebuildLines` calls `std::vector::assign` on the audio thread when the Size parameter changes (allocation when the new length exceeds capacity) - RT-safety, not a crash any more.
+- ~~Still open behind it: `ReverbPedal::rebuildLines` calls `std::vector::assign` on the audio thread when the Size parameter changes~~ CLOSED (`claude/luthier-beta-findings`, verified in current source): `ReverbPedal::prepare` pre-sizes every FDN line to `sr * kMaxLineSeconds`, and `rebuildLines` now `std::fill`s within that capacity (the `assign` branch runs "only before prepare", i.e. never on the audio thread). No audio-thread allocation on a Size/Character change.
 
 ### B-02 Strings grew after the rhythm engine stopped; panic did not silence them. RESOLVED
 
@@ -113,9 +113,10 @@ IN PROGRESS (a helper branch covers it).
 - A preset switch under a ringing note cut it mid-cycle: J-Style Fingerstyle -> P-Bass Flatwound stepped 0.32 of full scale 72 samples into the next block. The processor now fades out (5 ms) before a preset load or structural pass and back in after, the message thread waiting up to 60 ms for the audio thread's fade (outermost call only; skipped when no other thread is rendering). The fade length first collapsed to one sample because `getSampleRate()` is 0 until a host sets it; it uses the prepared rate.
 - The test now renders on its own thread while the message thread loads, as a host does; all 36 factory transitions pass.
 
-### B-07 Legacy `doubler_on` migrates on every load. OPEN, low
+### B-07 Legacy `doubler_on` migrates on every load. OPEN, low - OUT OF SCOPE (design decision)
 
 - `PresetManager::fromVar`: any state with `doubler_on` > 0.5 adds a Doubler pedal and sets `doubler_on` to 0, regardless of the preset's version. A host automating the (hidden) parameter, or a session saved with it on, changes its own rig on reload. Excluded from `everyParameterSurvivesTheSessionStateRoundTrip` with a pointer here. Suggest gating the migration on the preset's format version.
+- Triage (`claude/luthier-beta-findings`): left as-is. The suggested fix - gate on the preset's format version - is not available: `PresetManager::kSchemaVersion` has never been bumped past 1, so legacy and modern presets are the same schema and carry no discriminator. There is also no non-version discriminator: `doubler_on` is deliberately kept as a hidden, host-automatable parameter *and* as the one-shot migration trigger, and `DoublerTests.presetsWithTheOldDoublerGetThePedal` pins "a current-build state with `doubler_on` forced on must migrate to a Doubler pedal" - exactly the case this finding would stop. Resolving the tension is a product decision about whether `doubler_on` stays automatable (and would require either a schema scheme that does not exist or weakening that test), so it is recorded rather than fixed here.
 
 ### B-08 Render depended on what was played before. FIXED (class 3)
 
@@ -129,26 +130,30 @@ IN PROGRESS (a helper branch covers it).
 
 - clap-validator state-reproducibility (3 tests): `preset_morph_position` 0.295 -> 0.0 after reload. Now covered by `Combo.everyParameterSurvivesTheSessionStateRoundTrip`.
 
-### B-11 GUI: automatable parameters with no control. OPEN / IN PROGRESS
+### B-11 GUI: automatable parameters with no control. OPEN / IN PROGRESS - OUT OF SCOPE (GUI audit owns param wiring)
 
 - Test: `GuiReach.everyAutomatableParameterHasAVisibleControl`.
+- Triage (`claude/luthier-beta-findings`): untouched. Wiring GUI controls to parameters is explicitly owned by the GUI audit (coordination); this pass stays in the B-*/RT-safety domain.
 - Round 2 (merged tree, after the GuiReach corrections above), no control anywhere: `scrape_*` (14) and the slap arm/trigger set (13: `slap_armed`, `slap_type`, `slap_trigger`, `slap_velocity_zone`, `slap_trigger_cc`, `slap_ghost_cc`, `slap_force`, `slap_palm_position_mm`, `slap_string_mask`, `slap_ghost_mode`, `slap_rebound_gap`, `slap_snap_back`, `slap_body_part`) - **in progress on `claude/luthier-techniques`** (TECHNIQUES tab); the other 12 slap/pop/ghost controls now sit in CHARACTER's SlapGroup (bass only). Still no control and no owner: `macro_assign_a`, `macro_assign_b` (Macro 7/8), `pickup_blend` (also never read by `PickupEngine` in process).
 - Control exists but never on screen: `strum_acceleration`, `strum_up_velocity_ratio`, `strum_tilt`, `strum_miss_probability`, `chuck_amount`, `chuck_damping`. Cause: the RHYTHM tab laid `RhythmPanel` out at the viewport height, not `RhythmPanel::preferredHeight()`, so the STRUM group's lower rows got no height. **FIXED in round 2** (`AdvancedPanel::resized` sizes the RHYTHM tab like TUNE, JAM, MIDI OUT, NOTATION and PRACTICE; issues.md 8): all six are now reached and operated.
 - Pedal slots: slot `pN` knobs a given pedal type does not use are summarised, not failed.
 - Intentionally hidden (documented in the test): `feedback_on/threshold/speed`, `strum_speed`, `doubler_on/amount`, `fret_action`, and since round 2 `string_age`, `tune_feel_mod`, `tune_tempo_drift`.
 
-### B-12 pluginval Parameter thread safety exceeds its 30 s timeout. OPEN, low
+### B-12 pluginval Parameter thread safety exceeds its 30 s timeout. OPEN, low - OUT OF SCOPE (environmental; re-measure)
 
 - Passes with `--timeout-ms 900000`; times out at the default 30 s on a shared 4-core container. Likely each structural parameter write (guitar type, pedal type) triggers a full structural pass. Re-measure on an idle machine before acting.
+- Triage (`claude/luthier-beta-findings`): not a correctness bug and not an RT-safety violation (the pass succeeds, only slowly, on a shared container); the finding itself says to re-measure on an idle machine first. The structural-write cost is the CPU/perf domain. Left as-is.
 
-### B-13 Idle CPU is nearly the playing CPU. OPEN, medium
+### B-13 Idle CPU is nearly the playing CPU. OPEN, medium - OUT OF SCOPE (perf architecture / CPU-quality domain)
 
 - `Combo.cpuPerFactoryPreset` (48 kHz / 256, this container, not the reference CPU): playing 8.3-18.6% of a core, idle 8.3-19.0%. performance-budget.md: idle <= 1.5 units, heaviest preset <= 22. Playing cost is inside budget even here; idle is 6-12x over it. There is no silence short-circuit (strings, body, amp, cab and room all run on silence).
+- Triage (`claude/luthier-beta-findings`): not fixed here. A correct silence short-circuit is a performance-architecture change, not a localized fix: the sustain features (reverb/delay tails, E-Bow, freeze, feedback) must keep running after the strings fall silent, so a naive "no notes -> skip DSP" gate would truncate tails and break the many Combo decay/sustain verdicts. Safe idle detection (all tails below the floor, feedback idle, no pending modulation) belongs with the CPU-quality/perf work that already owns the quality levels, and carries real regression risk to the tail/decay suite. Recorded for that owner.
 - Heaviest: #21 "Modern Metal Chug" 18.6%, #14 "8-String Djent" 18.3%, #25 "Shred Lead" 17.9% (idle 19.0%).
 
-### B-14 Panic and Reset do not stop the transport-side players. OPEN, medium
+### B-14 Panic and Reset do not stop the transport-side players. OPEN, medium - OUT OF SCOPE (spec-scoped behaviour / product decision)
 
 - From the gap audit (A): `LuthierAudioProcessor::panic()` stops the audition and the engine only; the looper, backing track, tune player, metronome, progression looper and rhythm engine keep going.
+- Triage (`claude/luthier-beta-findings`): not changed here. `panic()` does more than the gap note says - it stops `previewPlayer`, the audition, the jam band (`jam.requestPanic` + `jam_play` off) and, via the deferred engine command, the riff player and the engine. The spec that defines panic, LIVE-9-01, scopes it to the instrument ("notes off, FX tails, amp DC/feedback, coupling; keeps snapshot/preset and params"); it does not call for stopping the practice transport (looper/backing track/metronome/tune player). Whether an emergency panic should also halt a loop capture or a backing track is a product decision, not a clear bug, and extending it risks the `IntegrationTests.Engine.panicSilencesEverything` expectations. Recorded for a product call rather than changed unilaterally while GUI/host-clock owners are active in the same files.
 
 ### B-15 `string_age` Old nearly silences a bass above E3. OPEN (realism-a owns string aging)
 
