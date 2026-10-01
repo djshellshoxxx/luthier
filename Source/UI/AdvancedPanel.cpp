@@ -423,8 +423,8 @@ void AdvancedPanel::setSelectedString (int index)
 /*  Column 1, section 4.1: GUITAR, BODY, STRINGS, WHAMMY.
 
     Section 4.1 gives GUITAR an instrument library and an "Open in Workshop"
-    button as well; the library is an Easy-mode surface and the Workshop does
-    not exist, so what is here is the tuning and temperament half of it.
+    button as well; the library is an Easy-mode surface, so what is here is the
+    tuning and temperament half of it and the button into the Workshop tab.
 
     Three sections in this column are not in section 4.1, and are here because
     they are the only home their parameters have: SELECTED STRING, NECK - whose
@@ -460,6 +460,12 @@ void AdvancedPanel::buildColumn1()
     };
 
     juce::ignoreUnused (addKnob, addChoice, addToggle);
+
+    // gui-integration 4.1: GUITAR's "Open in Workshop", the way into the bench
+    // (the WORKSHOP tab) from the column that names the guitar.
+    openWorkshopButton.setTooltip ("Opens the WORKSHOP tab: the guitar's parts, setup and strings on the bench");
+    openWorkshopButton.onClick = [this] { setWorkspaceTabNamed ("WORKSHOP"); };
+    column.addControl (&openWorkshopButton, Metrics::buttonHeight);
 
     column.addGap (Metrics::grid);
     column.addSection ("Temperament");
