@@ -865,7 +865,7 @@ private:
     // midi-export 2.1 / 6 (MODEL-GAPS, TODO 10): the CHARACTER class's seed and
     // environment, sent when they change. Audio thread.
     uint64_t sentCharacterSeed = 0;
-    int sentTemperature = -1, sentHumidity = -1;
+    double sentTemperature = -1000.0, sentHumidity = -1000.0;
     bool characterStated = false;
     void sendCharacterChanges() noexcept;
 

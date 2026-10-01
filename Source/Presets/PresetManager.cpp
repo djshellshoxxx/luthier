@@ -437,6 +437,7 @@ juce::var PresetManager::toVar (const juce::String& name,
     root->setProperty ("schema", kSchemaVersion);          // SPEC-SWEEP: FF-2
     root->setProperty ("schemaVersion", kSchemaVersion);   // read by builds before FF-2
     root->setProperty ("pluginVersion", JucePlugin_VersionString);
+    root->setProperty ("doublerMigrated", true);           // B-07: legacy doubler_on is migrated once, by a file without this
     root->setProperty ("name", name.isNotEmpty() ? name : currentName);
     root->setProperty ("category", category.isNotEmpty() ? category : currentCategory);
     root->setProperty ("author", "");
@@ -695,7 +696,8 @@ bool PresetManager::fromVar (const juce::var& data)
             MicPlacementMigration::kLegacyBlockKey,   // mic-placement.md 4
             "techniques",   // TECHNIQUES: engine-technique-layer.md 7 (a missing comma here once
                             // fused it with "uid", so both were re-saved first as unknown keys)
-            "uid", "previewPhrase"   // preset-browser-previews 5.4 (FEAT-BROWSER)
+            "uid", "previewPhrase",   // preset-browser-previews 5.4 (FEAT-BROWSER)
+            "doublerMigrated"   // B-07
         };
 
         auto* preserved = new juce::DynamicObject();
@@ -875,7 +877,8 @@ bool PresetManager::fromVar (const juce::var& data)
             preset that had the old engine doubler on gets a Doubler in its first
             empty post-amp slot, at the pedal's own defaults (the old amount
             meant something else); with no slot free it goes without. */
-        if ((double) params->getProperty (ParamIDs::doublerOn) > 0.5)
+        if ((double) params->getProperty (ParamIDs::doublerOn) > 0.5
+              && ! (bool) obj->getProperty ("doublerMigrated"))   // B-07: only files from before the pedal
         {
             bool already = false;
             int freeSlot = -1;

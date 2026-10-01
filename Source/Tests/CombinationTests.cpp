@@ -1921,3 +1921,31 @@ LUTHIER_TEST (Combo, qualityLevelsForgetWhatWasPlayedAtReset)
         fresh.p().getQualityController().forceLevelForTesting (-1);
     }
 }
+
+/*  B-15: string_age Old / 120+ hours detunes a string by a few cents, and the
+    voicers' "is this pitch on a fret" slop did not allow for it, so a bass note
+    above the open G was dropped: silence, not dullness. Old strings play. */
+LUTHIER_TEST (Combo, oldStringsStillPlayTheHighNotes)
+{
+    auto play = [] (float hours)
+    {
+        Rig rig;
+        auto& presets = rig.p().getPresetManager();
+        presets.loadPreset (presets.indexOfPreset ("P-Bass Flatwound"));
+        rig.setPlain (ParamIDs::stringAgeHours, hours);
+        rig.apply();
+        rig.processSilence (8);
+        std::vector<TimedMidi> ev { { 0, juce::MidiMessage::noteOn (1, 52, (juce::uint8) 100) },
+                                    { (int) (0.5 * kSr), juce::MidiMessage::noteOff (1, 52) } };
+        return rig.renderEvents (ev, (int) (0.5 * kSr), 0.2).maxWindowRms;
+    };
+
+    const double fresh = play (0.0f);
+
+    for (float hours : { 120.0f, 200.0f })
+    {
+        const double old = play (hours);
+        CHECK_MSG (old > 0.5 * fresh && old < 1.5 * fresh,
+                   "aged " + juce::String (hours) + " h: rms " + juce::String (old) + " against fresh " + juce::String (fresh));
+    }
+}

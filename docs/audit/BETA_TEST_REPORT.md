@@ -113,9 +113,9 @@ IN PROGRESS (a helper branch covers it).
 - A preset switch under a ringing note cut it mid-cycle: J-Style Fingerstyle -> P-Bass Flatwound stepped 0.32 of full scale 72 samples into the next block. The processor now fades out (5 ms) before a preset load or structural pass and back in after, the message thread waiting up to 60 ms for the audio thread's fade (outermost call only; skipped when no other thread is rendering). The fade length first collapsed to one sample because `getSampleRate()` is 0 until a host sets it; it uses the prepared rate.
 - The test now renders on its own thread while the message thread loads, as a host does; all 36 factory transitions pass.
 
-### B-07 Legacy `doubler_on` migrates on every load. OPEN, low
+### B-07 Legacy `doubler_on` migrates on every load. FIXED (task C)
 
-- `PresetManager::fromVar`: any state with `doubler_on` > 0.5 adds a Doubler pedal and sets `doubler_on` to 0, regardless of the preset's version. A host automating the (hidden) parameter, or a session saved with it on, changes its own rig on reload. Excluded from `everyParameterSurvivesTheSessionStateRoundTrip` with a pointer here. Suggest gating the migration on the preset's format version.
+- `PresetManager::fromVar`: any state with `doubler_on` > 0.5 adds a Doubler pedal and sets `doubler_on` to 0, regardless of the preset's version. A host automating the (hidden) parameter, or a session saved with it on, changes its own rig on reload. Excluded from `everyParameterSurvivesTheSessionStateRoundTrip` with a pointer here. Fixed: every save writes `"doublerMigrated": true`; the migration runs only for a file without it.
 
 ### B-08 Render depended on what was played before. FIXED (class 3)
 
@@ -141,18 +141,19 @@ IN PROGRESS (a helper branch covers it).
 
 - Passes with `--timeout-ms 900000`; times out at the default 30 s on a shared 4-core container. Likely each structural parameter write (guitar type, pedal type) triggers a full structural pass. Re-measure on an idle machine before acting.
 
-### B-13 Idle CPU is nearly the playing CPU. OPEN, medium
+### B-13 Idle CPU is nearly the playing CPU. OPEN (task C investigated)
 
 - `Combo.cpuPerFactoryPreset` (48 kHz / 256, this container, not the reference CPU): playing 8.3-18.6% of a core, idle 8.3-19.0%. performance-budget.md: idle <= 1.5 units, heaviest preset <= 22. Playing cost is inside budget even here; idle is 6-12x over it. There is no silence short-circuit (strings, body, amp, cab and room all run on silence).
+- Task C finding: the strings are only about 18% of the idle cost here (8.1% with every string asleep against 9.9% awake, Strummed Dreadnought), and idle-string sleep is not bit-exact at High - a waking string restarts with its pitch smoother and loop coefficients where they were when it slept - which moved 116 of the 122 ON-02 golden hashes. So High keeps it off (it stays a Medium/Low policy). The remaining cost is the amp, cabinet, body, room and pedals running on silence; a bit-exact silence short-circuit there needs each stage's tail length and is not done.
 - Heaviest: #21 "Modern Metal Chug" 18.6%, #14 "8-String Djent" 18.3%, #25 "Shred Lead" 17.9% (idle 19.0%).
 
 ### B-14 Panic and Reset do not stop the transport-side players. OPEN, medium
 
 - From the gap audit (A): `LuthierAudioProcessor::panic()` stops the audition and the engine only; the looper, backing track, tune player, metronome, progression looper and rhythm engine keep going.
 
-### B-15 `string_age` Old nearly silences a bass above E3. OPEN (realism-a owns string aging)
+### B-15 `string_age` Old nearly silences a bass above E3. FIXED (task C)
 
-- Found while fixing B-05: with the P-Bass's real parts, "P-Bass Flatwound" (`string_age` Old) plays G3 at -52 dBFS where the same bass with Fresh strings plays it at -12; notes above about A3 are silent. Old strings go dull and short, not mute. `Combo.everyFactoryPresetPlaysEveryPhrase` fails 5 renders of this preset on it, and `Combo.snapshotsAndPresetMorph` fails the "5-String Low B" / "P-Bass Flatwound" pair; left failing for the owner. Round 2: unchanged after realism-a landed - the new aging model maps `string_age` Old to 120 h and SA-02 pins the legacy behaviour, so the new model reproduces it.
+- Found while fixing B-05: with the P-Bass's real parts, "P-Bass Flatwound" (`string_age` Old) plays G3 at -52 dBFS where the same bass with Fresh strings plays it at -12; notes above about A3 are silent. Old strings go dull and short, not mute. `Combo.everyFactoryPresetPlaysEveryPhrase` fails 5 renders of this preset on it, and `Combo.snapshotsAndPresetMorph` fails the "5-String Low B" / "P-Bass Flatwound" pair; left failing for the owner. Root cause (task C): not damping. Aged strings carry a few cents of detune and the voicers' 0.08-fret 'is this pitch on a fret' slop did not allow for it, so the note was dropped (silence). `TuningEngine::getMicroOffsetFrets` now widens the slop; `Combo.oldStringsStillPlayTheHighNotes`. Round 2: unchanged after realism-a landed - the new aging model maps `string_age` Old to 120 h and SA-02 pins the legacy behaviour, so the new model reproduces it.
 
 ### B-16 clap-validator after the helpers landed: family switch overwrote host values; one parameter drifts an ulp. FIXED / OPEN (low)
 

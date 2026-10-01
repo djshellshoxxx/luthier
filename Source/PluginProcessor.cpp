@@ -4244,15 +4244,18 @@ void LuthierAudioProcessor::sendCharacterChanges() noexcept
         sentCharacterSeed = seed;
     }
 
-    const int temperature = (int) character.getTemperature();
-    const int humidity = (int) character.getHumidity();
+    // Glue: the environment is now env_temperature_c / env_humidity_pct, not
+    // the legacy cold/warm enums; report those.
+    const auto& envIn = engine.getEnvironment().getInputs();
+    const double temperature = envIn.temperatureC;
+    const double humidity = envIn.humidityPct;
 
-    if (! characterStated || temperature != sentTemperature || humidity != sentHumidity)
+    if (! characterStated || std::abs (temperature - sentTemperature) > 0.05 || std::abs (humidity - sentHumidity) > 0.05)
     {
         sysExOut.push (LuthierEventClass::character, 0,
                        { Field::makeWord ("what", "environment"),
-                         Field::makeReal ("temp", temperatureCelsius ((Temperature) temperature)),
-                         Field::makeReal ("humidity", humidityPercent ((Humidity) humidity)) });
+                         Field::makeReal ("temp", temperature),
+                         Field::makeReal ("humidity", humidity) });
         sentTemperature = temperature;
         sentHumidity = humidity;
     }

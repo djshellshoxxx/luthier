@@ -859,7 +859,7 @@ void AdvancedPanel::buildColumn2()
     addKnob (releaseNoise, "Release", ParamIDs::releaseNoise, "Thump as a note is stopped");
     addKnob (bodyKnock, "Body Knock", ParamIDs::bodyKnock, "Percussive tap on the body");
     addKnob (pickNoise, "Pick Attack", ParamIDs::pickNoise, "Contact noise under the pick");
-    addKnob (ampBuzz, "Amp Buzz", ParamIDs::ampBuzz,
+    addKnob (ampBuzz, "Single-coil Hum", ParamIDs::ampBuzz,
              "Mains hum. Single coils hum; humbuckers cancel it.");
 }
 
@@ -1637,6 +1637,7 @@ void AdvancedPanel::resized()
         else if (auto* p = dynamic_cast<NotationPanel*> (panel))             height = juce::jmax (visible, p->getPreferredHeight());
         else if (auto* p = dynamic_cast<PracticeSetupPanel*> (panel))        height = juce::jmax (visible, p->getPreferredHeight());
         else if (auto* p = dynamic_cast<RhythmPanel*> (panel))               height = juce::jmax (visible, p->preferredHeight());   // issues.md 8: the STRUM group's lower rows
+        else if (auto* p = dynamic_cast<ModMatrixPanel*> (panel))            height = juce::jmax (visible, p->preferredHeight());   // the user macros above the route table
         else if (panel == characterPanel.get() || panel == controllersPage.get())
             height = juce::jmax (80, panel->getHeight());
 

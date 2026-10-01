@@ -140,6 +140,26 @@ LUTHIER_TEST (Doubler, isAPostAmpRackPedal)
     CHECK ((int) PedalType::Doubler == (int) PedalType::ParametricEQ + 1);
 }
 
+/*  B-07: the migration is for files from before the pedal. A file this build
+    saved says so, and a session that has doubler_on automated on is left alone
+    rather than growing a pedal on every load. */
+LUTHIER_TEST (Doubler, theLegacyDoublerMigratesOnceNotOnEveryLoad)
+{
+    LuthierAudioProcessor processor;
+    auto state = processor.getPresetManager().toVar();
+
+    CHECK (state.getProperty ("doublerMigrated", false));
+
+    if (auto* params = state.getProperty ("parameters", {}).getDynamicObject())
+        params->setProperty (ParamIDs::doublerOn, 1.0);
+
+    CHECK (processor.getPresetManager().fromVar (state));
+
+    for (int slot = 0; slot < EffectsChain::kNumSlots; ++slot)
+        if (auto* type = processor.getState().getParameter (ParamIDs::slotType (true, slot)))
+            CHECK (juce::roundToInt (type->convertFrom0to1 (type->getValue())) != (int) PedalType::Doubler);
+}
+
 LUTHIER_TEST (Doubler, presetsWithTheOldDoublerGetThePedal)
 {
     LuthierAudioProcessor processor;
@@ -147,6 +167,10 @@ LUTHIER_TEST (Doubler, presetsWithTheOldDoublerGetThePedal)
 
     if (auto* params = state.getProperty ("parameters", {}).getDynamicObject())
         params->setProperty (ParamIDs::doublerOn, 1.0);
+
+    // A file from before the pedal has no migration marker (B-07: every save since has it).
+    if (auto* root = state.getDynamicObject())
+        root->removeProperty ("doublerMigrated");
 
     CHECK (processor.getPresetManager().fromVar (state));
 

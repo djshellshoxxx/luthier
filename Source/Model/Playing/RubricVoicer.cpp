@@ -253,7 +253,7 @@ void RubricVoicer::prepareSlots() noexcept
 
             const double position = tuningEngine->frequencyToFretPosition (s, midiToHz ((double) m, a4));
 
-            if (std::abs (position - (double) f) <= kFretSlop)
+            if (std::abs (position - (double) f) <= kFretSlop + tuningEngine->getMicroOffsetFrets (s))
                 row[(size_t) f] = m;
         }
     }
@@ -1093,7 +1093,7 @@ int RubricVoicer::pairPitch (int stringIndex, int relFret) const noexcept
         return -1;
 
     const double position = tuningEngine->frequencyToFretPosition (stringIndex, midiToHz ((double) m, a4));
-    return std::abs (position - (double) relFret) <= kFretSlop ? m : -1;
+    return std::abs (position - (double) relFret) <= kFretSlop + tuningEngine->getMicroOffsetFrets (stringIndex) ? m : -1;
 }
 
 double RubricVoicer::velocityFor (int pitch) const noexcept

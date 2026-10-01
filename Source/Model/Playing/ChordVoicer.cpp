@@ -137,7 +137,7 @@ int ChordVoicer::findCandidates (int midiNote, Candidate* dest) const noexcept
 
         // Allow a couple of cents of slop: an alternate tuning rarely lands on an
         // exact integer fret, and rejecting those would make whole tunings unplayable.
-        if (std::abs (fret - (double) rounded) > 0.08)
+        if (std::abs (fret - (double) rounded) > 0.08 + tuningEngine->getMicroOffsetFrets (s))
             continue;
 
         /*  Two ceilings, and the lower one wins. `maxFret` is a voicing
