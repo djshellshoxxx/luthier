@@ -314,7 +314,16 @@ LUTHIER_TEST (AnimatedStrings, AS01_defaultOffAndPixelIdentical)
     {
         juce::Graphics g (golden);
         const auto mmToPx = ill.body.getMmToPxForTesting();
-        GuitarRenderer::paint (g, ill.body.getScene(), mmToPx);
+
+        // The component bakes the static scene into a default-type image and draws
+        // that; do the same, so a platform whose native images rasterise differently
+        // from the software renderer (Direct2D on Windows) does not read as a diff.
+        juce::Image cache (juce::Image::ARGB, actual.getWidth(), actual.getHeight(), true);
+        {
+            juce::Graphics cg (cache);
+            GuitarRenderer::paint (cg, ill.body.getScene(), mmToPx);
+        }
+        g.drawImage (cache, actual.getBounds().toFloat());
 
         auto overlay = ill.body.getOverlayForTesting();
         overlay.motionActive = false;

@@ -28,7 +28,15 @@
  #include <dlfcn.h>
 #endif
 
-namespace juce::detail { bool dispatchNextMessageOnSystemQueue (bool returnIfNoPendingMessages); }
+#if JUCE_MAC
+ // macOS has no juce::detail::dispatchNextMessageOnSystemQueue free function
+ // (that symbol exists only in JUCE's Linux and Windows messaging back-ends);
+ // there the system queue is drained through CFRunLoop, exactly as JUCE's own
+ // macOS runDispatchLoopUntil does.
+ #include <CoreFoundation/CoreFoundation.h>
+#else
+ namespace juce::detail { bool dispatchNextMessageOnSystemQueue (bool returnIfNoPendingMessages); }
+#endif
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -125,8 +133,15 @@ namespace
             const double t0 = threadCpuSeconds();
 
             for (int i = 0; i < 50; ++i)
+            {
+               #if JUCE_MAC
+                if (CFRunLoopRunInMode (kCFRunLoopDefaultMode, 0, true) != kCFRunLoopRunHandledSource)
+                    break;
+               #else
                 if (! juce::detail::dispatchNextMessageOnSystemQueue (true))
                     break;
+               #endif
+            }
 
             dispatching += threadCpuSeconds() - t0;
             juce::Thread::sleep (2);
