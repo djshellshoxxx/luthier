@@ -11,5 +11,17 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 ninja -C build LuthierRender
 out="$(pwd)/Resources/NormalizationFactory.json"
-( cd build/LuthierRender_artefacts/Release && ./LuthierRender --calibrate-factory "$out" )
+# The binary lands in a per-config subdirectory with a multi-config generator
+# (…/Release/LuthierRender) and directly in the artefacts directory with a
+# single-config one (…/LuthierRender, as scripts/setup_linux.sh configures). Use
+# whichever exists so a regen is not silently skipped on a single-config tree.
+if [ -x build/LuthierRender_artefacts/Release/LuthierRender ]; then
+  render="build/LuthierRender_artefacts/Release/LuthierRender"
+elif [ -x build/LuthierRender_artefacts/LuthierRender ]; then
+  render="build/LuthierRender_artefacts/LuthierRender"
+else
+  echo "LuthierRender binary not found under build/LuthierRender_artefacts/." >&2
+  exit 1
+fi
+"$render" --calibrate-factory "$out"
 echo "Now check: git diff --stat Resources/NormalizationFactory.json"

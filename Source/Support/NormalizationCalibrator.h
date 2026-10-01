@@ -160,6 +160,12 @@ public:
         through this, and tests seed it). */
     static void addFactoryEntry (const juce::String& hash, double measuredLufs, int guitarType, int ampModel,
                                  double drive, const juce::String& preset);
+
+    /** Drops every in-memory entry whose preset label names one of these presets
+        (the `"Name / N"` and `"Name (own guitar)"` rows), so a partial regen can
+        replace just those presets without leaving the old-hash rows behind. */
+    static void removeFactoryEntriesForPresets (const juce::StringArray& presetNames);
+
     static bool writeFactoryTable (const juce::File& file);
 
     static void clearMemoryCache();

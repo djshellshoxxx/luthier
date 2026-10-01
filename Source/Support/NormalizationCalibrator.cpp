@@ -887,6 +887,29 @@ void NormalizationCalibrator::addFactoryEntry (const juce::String& hash, double 
     c.factory[hash] = { measuredLufs, guitarType, ampModel, drive, preset };
 }
 
+void NormalizationCalibrator::removeFactoryEntriesForPresets (const juce::StringArray& presetNames)
+{
+    auto& c = caches();
+    const std::lock_guard<std::mutex> sl (c.lock);
+    loadFactoryLocked (c);
+
+    // The label is "<name> / <guitarType>" or "<name> (own guitar)"; recover the
+    // base name and drop the row if it is one of the named presets.
+    for (auto it = c.factory.begin(); it != c.factory.end();)
+    {
+        const auto& label = it->second.preset;
+        juce::String base = label.upToLastOccurrenceOf (" / ", false, false);
+
+        if (base == label)
+            base = label.upToLastOccurrenceOf (" (own guitar)", false, false);
+
+        if (presetNames.contains (base, true))
+            it = c.factory.erase (it);
+        else
+            ++it;
+    }
+}
+
 bool NormalizationCalibrator::writeFactoryTable (const juce::File& file)
 {
     auto& c = caches();
