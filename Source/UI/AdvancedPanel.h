@@ -317,6 +317,7 @@ private:
 
     // --- column 2 -----------------------------------------------------------------
     std::unique_ptr<LuthierChoice> temperament, capo;
+    juce::TextButton openWorkshopButton { "Open in Workshop" };   // gui-integration 4.1: GUITAR column
     std::unique_ptr<LuthierKnob> concertA, couplingAmount, fretAction, fretBuzz;
     std::unique_ptr<LuthierToggle> fretlessToggle, slideGuitarToggle;
 

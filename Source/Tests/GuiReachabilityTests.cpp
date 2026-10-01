@@ -372,6 +372,11 @@ namespace
             // style stands for; its own choice is the one credited.
             bool credit = ! ids.empty() && ids.size() <= 3;
 
+            // The preset morph slider writes its own position first, then every
+            // parameter the two slots blend: far more than three ids.
+            if (! credit && isSlider && ! ids.empty() && ids.front() == ParamIDs::presetMorphPosition)
+                credit = true;
+
             if (! credit && isCombo && ! ids.empty())
                 if (auto* choice = dynamic_cast<juce::AudioParameterChoice*> (p.getParameters()[p.getState().getParameter (ids.front())->getParameterIndex()]))
                     credit = std::abs (choice->choices.size() - dynamic_cast<juce::ComboBox*> (c)->getNumItems()) <= 1;
@@ -530,6 +535,13 @@ namespace
 
         for (const char* action : { "help", "presetBrowser", "export", "debugPanel", "saveAs", "options" })
         {
+            // The browser shows the A/B slots and the morph slider only while
+            // Morph is on, and a toggle's state change does not run its onClick:
+            // turn Morph on before the browser opens, as its button does.
+            const bool morphWasOn = p.getPresetMorph().isEnabled();
+            if (juce::String (action) == "presetBrowser")
+                p.getPresetMorph().setEnabled (true);
+
             key (action);
 
             if (host == nullptr || ! host->isShowingOverlay())
@@ -552,6 +564,7 @@ namespace
                     }
 
             editor->keyPressed (juce::KeyPress (juce::KeyPress::escapeKey));
+            p.getPresetMorph().setEnabled (morphWasOn);
         }
     }
 
@@ -670,7 +683,7 @@ LUTHIER_TEST (GuiReach, everyAutomatableParameterHasAVisibleControl)
 
         // Pedal slot parameters p0-p9 are summarised separately: a pedal with
         // four knobs leaves p4-p9 unused, which is not a missing control.
-        if (id.matchesWildcard ("pre*_p*", true) || id.matchesWildcard ("post*_p*", true))
+        if (id.matchesWildcard ("pre?_p?", true) || id.matchesWildcard ("post?_p?", true))
         {
             pedalParamsMissing.add (id);
             continue;
@@ -722,6 +735,7 @@ LUTHIER_TEST (GuiReach, operatingEachControlWritesItsParameter)
     auto& walk = theWalk();
 
     int ok = 0;
+    juce::StringArray neverOperated;
     for (auto& [id, r] : walk.reach)
     {
         if (r.visibleIn.empty())
@@ -729,10 +743,59 @@ LUTHIER_TEST (GuiReach, operatingEachControlWritesItsParameter)
 
         if (r.operatedOk) { ++ok; continue; }
 
+        if (r.operateProblem.isEmpty())
+            neverOperated.add (id);
+
         if (r.operateProblem.isNotEmpty())
             CHECK_MSG (false, id + ": " + r.operateProblem);
     }
 
     std::cout << "    parameters whose control was operated and wrote them: " << ok << std::endl;
+
+    if (neverOperated.size() > 0)
+        std::cout << "    visible but never operated: " << neverOperated.joinIntoString (" ") << std::endl;
+
     CHECK (ok > 0);
+}
+
+//==============================================================================
+/*  GUITAR column's "Open in Workshop" button (gui-integration 4.1) switches the
+    Advanced panel to the WORKSHOP tab. */
+LUTHIER_TEST (GuiReach, openInWorkshopButtonShowsTheWorkshopTab)
+{
+    Rig rig;
+    std::unique_ptr<juce::AudioProcessorEditor> editor (rig.p().createEditor());
+    CHECK (editor != nullptr);
+
+    if (editor == nullptr)
+        return;
+
+    editor->setVisible (true);
+    editor->setSize (juce::jmax (1600, LuthierAudioProcessorEditor::defaultWidth),
+                     juce::jmax (1000, LuthierAudioProcessorEditor::defaultHeight));
+
+    auto* adv = findOne<AdvancedPanel> (*editor);
+    CHECK (adv != nullptr);
+
+    if (adv == nullptr)
+        return;
+
+    adv->setWorkspaceTabNamed ("MOD");   // anything but WORKSHOP
+
+    juce::Array<juce::TextButton*> buttons;
+    collect<juce::TextButton> (*adv, buttons);
+
+    juce::TextButton* open = nullptr;
+    for (auto* b : buttons)
+        if (b->getButtonText() == "Open in Workshop")
+            open = b;
+
+    CHECK (open != nullptr);
+
+    if (open == nullptr)
+        return;
+
+    CHECK (adv->getWorkspaceTabName (adv->getWorkspaceTab()) != "WORKSHOP");
+    open->onClick();
+    CHECK_MSG (adv->getWorkspaceTabName (adv->getWorkspaceTab()) == "WORKSHOP", "Open in Workshop did not show the WORKSHOP tab");
 }
