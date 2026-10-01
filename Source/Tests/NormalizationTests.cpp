@@ -1684,27 +1684,6 @@ LUTHIER_TEST (Normalization, ON27_Cache)
     CHECK (n.getStatus().state == OutputNormalization::State::applied);
 }
 
-// TEMP: dump the canonical calibration key for named presets so the hash
-// inputs can be inspected field by field (ON27 toolchain-invariance work).
-LUTHIER_TEST (Normalization, DumpCanonical)
-{
-    NormalizationCalibrator::setFactoryTableFileForTesting ({});
-    NormalizationCalibrator::reloadFactoryTable();
-
-    for (int i = 0; i < numFactoryPresets(); ++i)
-    {
-        const juce::String name = FactoryPresets::getPreset (i).name;
-
-        auto p = makeProcessor();
-        loadCombo (*p, i, -1);
-        p->getOutputNormalization().refreshStructuralSnapshot();
-        const auto state = p->getOutputNormalization().captureSoundState();
-        const auto canonical = NormalizationCalibrator::canonicalSoundState (state, *p);
-
-        std::cout << "CANON\t" << name << "\t" << canonical << std::endl;
-    }
-}
-
 LUTHIER_TEST (Normalization, ON28_PresetLoadWithCachedGain)
 {
     IsolatedCaches caches;
