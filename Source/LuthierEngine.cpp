@@ -144,6 +144,14 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
     jackRampCoeff = 1.0 - std::exp (-1.0 / (0.003 * sr));   // SPEC-SWEEP: CW-18, 2-5 ms ramps
     instrumentBuffer.assign ((size_t) maxBlock, 0.0);
     preCircuitBuffer.assign ((size_t) maxBlock, 0.0);   // MODEL-GAPS: Aux 1 pre-circuit
+    // CODEX-RTSAFETY P1: pedal/secret stereo scratch and the oversized-block MIDI
+    // slices, sized once here so the render never allocates.
+    pedalScratchL.assign ((size_t) maxBlock, 0.0);
+    pedalScratchR.assign ((size_t) maxBlock, 0.0);
+    secretScratchL.assign ((size_t) maxBlock, 0.0);
+    secretScratchR.assign ((size_t) maxBlock, 0.0);
+    directSlice.ensureSize (2048);
+    sliceMidi.ensureSize (2048);
     bodyIrInput.assign ((size_t) maxBlock, 0.0f);       // SPEC-SWEEP TM-6
     bodyBuffer.setSize (1, maxBlock, false, true, true);
     workBuffer.setSize (2, maxBlock, false, true, true);
@@ -491,6 +499,12 @@ bool LuthierEngine::swapPartsAtBlockBoundary (const DerivedAcoustics& d, GuitarT
     // The last swap's leftovers, handed back by the audio thread.
     delete retiredPartSwap.exchange (nullptr, std::memory_order_acq_rel);
 
+    // CODEX-RTSAFETY P0: build the body's modal bank here, on the message thread,
+    // before the swap is published. applyPartSwapLive then only adopts it (a
+    // bounded copy, no lock, no allocation) at the block boundary. The handoff's
+    // release store below publishes the staged bank to the audio thread.
+    body.stageBodyConfig (d.body);
+
     auto* swap = new PendingPartSwap { d, standsFor };
     delete pendingPartSwap.exchange (swap, std::memory_order_acq_rel);   // one never taken
 
@@ -585,7 +599,9 @@ void LuthierEngine::applyPartSwapLive (const PendingPartSwap& swap) noexcept
 
     aging.markDirty();
 
-    body.setBodyConfig (partsBody);
+    // CODEX-RTSAFETY P0: adopt the bank stageBodyConfig already built on the
+    // message thread. No rebuild, lock or allocation on the audio thread here.
+    body.commitStagedConfig (partsBody);
     body.setAmount (bodyAmount);
 
     for (int i = 0; i < PickupEngine::kMaxPickups; ++i)
@@ -2346,10 +2362,8 @@ void LuthierEngine::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
     // allocating would be worse, and truncating would drop audio.
     const int numChannels = buffer.getNumChannels();
 
-    juce::MidiBuffer sliceMidi;
-    sliceMidi.ensureSize (2048);
-    directSlice.ensureSize (2048);
-
+    // CODEX-RTSAFETY P1: sliceMidi and directSlice are members reserved in prepare;
+    // the loop clears them per slice below. No MIDI buffer is created or grown here.
     for (int offset = 0; offset < numSamples;)
     {
         const int count = juce::jmin (maxBlock, numSamples - offset);
@@ -3176,9 +3190,10 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
     {
         // The pedalboard is stereo-capable but the guitar is mono up to here.
-        static thread_local std::vector<double> dl, dr;
-
-        if ((int) dl.size() < numSamples) { dl.resize ((size_t) numSamples); dr.resize ((size_t) numSamples); }
+        // CODEX-RTSAFETY P1: engine-owned, sized to maxBlock in prepare; numSamples
+        // is always <= maxBlock here, so no resize (and no allocation) is needed.
+        auto& dl = pedalScratchL;
+        auto& dr = pedalScratchR;
 
         for (int i = 0; i < numSamples; ++i)
         {
@@ -3290,9 +3305,11 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     // ---- 8b. the hidden effect --------------------------------------------------
     if (secret.isEnabled())
     {
-        static thread_local std::vector<double> sl, sr2;
-
-        if ((int) sl.size() < numSamples) { sl.resize ((size_t) numSamples); sr2.resize ((size_t) numSamples); }
+        // CODEX-RTSAFETY P1: engine-owned, sized in prepare. The old thread_local
+        // pair allocated on the first block after the hidden effect was enabled,
+        // which could be minutes into playback.
+        auto& sl = secretScratchL;
+        auto& sr2 = secretScratchR;
 
         for (int i = 0; i < numSamples; ++i)
         {

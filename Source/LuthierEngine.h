@@ -727,6 +727,10 @@ private:
     const juce::MidiBuffer* directMidi = nullptr;      ///< for the current processBlock
     const juce::MidiBuffer* directForSubBlock = nullptr;
     juce::MidiBuffer directSlice;
+    /*  CODEX-RTSAFETY P1: the oversized-host-block path sliced host MIDI into a
+        local juce::MidiBuffer and called ensureSize on it in the callback. Both
+        slice buffers are members now, reserved in prepare. */
+    juce::MidiBuffer sliceMidi;
     RhythmEngine rhythm;
     CharacterEngine character;
 
@@ -835,6 +839,14 @@ private:
     std::vector<double> magneticBuffer;
     std::vector<double> instrumentBuffer;
     std::vector<double> preCircuitBuffer;         ///< MODEL-GAPS: Aux 1's pre-circuit tap
+
+    /*  CODEX-RTSAFETY P1: the pre/post pedal and hidden-effect stereo scratch were
+        `static thread_local std::vector` grown with resize() inside the render,
+        which allocated on the first block of each new host audio thread and when
+        the hidden effect was first enabled mid-playback. Owned here and sized to
+        maxBlock in prepare, they never allocate in the callback. */
+    std::vector<double> pedalScratchL, pedalScratchR;
+    std::vector<double> secretScratchL, secretScratchR;
     std::atomic<bool> auxDiPreCircuit { false };
     juce::AudioBuffer<float> bodyBuffer;
     juce::AudioBuffer<float> workBuffer;
