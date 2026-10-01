@@ -524,7 +524,7 @@ namespace
         {
             if (i < s.length() && isDigit (s[i]))
             {
-                value = juce::jmin (100000, value * 10 + (s[i] - '0'));
+                value = juce::jmin (100000, value * 10 + ((int) s[i] - '0'));
                 ++digits;
             }
             else if (digits > 0)

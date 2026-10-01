@@ -20,8 +20,13 @@ namespace
 
         if (auto* o = copy.getDynamicObject())
         {
+            //  `uid` is pure identity (unique per preset, does not touch the
+            //  sound), so it never belongs in the calibration hash. `techniques`
+            //  is kept: it is the only path the live technique layer (mute grid,
+            //  custom scale, drawn bend curve) reaches the hash - it is not one
+            //  of the live-module captures below - and its toVar is deterministic.
             for (const char* key : { "parameters", "name", "category", "author", "description",
-                                     "tags", "pluginVersion", "midiMap" })
+                                     "tags", "pluginVersion", "midiMap", "uid" })
                 o->removeProperty (key);
 
             /*  Merge with SPEC-SWEEP (SM-1, Presets/PresetBlocks.cpp): a preset now

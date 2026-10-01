@@ -134,11 +134,11 @@ LuthierAudioProcessor::LuthierAudioProcessor()
         presetFileLoaded();   // SPEC-SWEEP: SM-46 - the layers a user-facing load clears (A/B compare)
         outputNormalization.notifyConfigurationChanged (true);
     };
-    if (! offlineConstruction)   // FEAT-BROWSER: a render instance loads presets by file
-    {
-        presets.ensureFactoryPresetsInstalled();
-        presets.refresh();
-    }
+    // performance-budget.md 5.1 (QA-2.4): the preset folder scan (44 factory
+    // files, each parsed and feature-read) is deferred out of the constructor.
+    // PresetManager scans lazily on the first list read - a browser open, a host
+    // program query, or a search - so instantiation does not pay for it. A render
+    // instance (offlineConstruction) loads presets by file and never scans.
 
     bridge.cachePointers();
     bridge.setModMatrix (&modMatrix);
@@ -4135,8 +4135,12 @@ void LuthierAudioProcessor::timerCallback()
     }
 
     if (const int bank = pendingPresetSelect.exchange (-1, std::memory_order_relaxed);
-        bank >= 0)
+        bank >= 0 && presets.isScanned())
     {
+        // Only when the library has already been scanned on the message thread:
+        // the first scan does disk IO and must never be triggered here, on the
+        // audio thread. A host that sends program changes has queried
+        // getNumPrograms (which scans) first, so in practice it always has been.
         if (presets.loadPreset (bank))
             bridge.applyAllNow();
     }
