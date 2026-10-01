@@ -10,6 +10,8 @@
 #include <juce_cryptography/juce_cryptography.h>
 
 #include <chrono>
+#include <cmath>
+#include <cstdio>
 #include <random>
 #include <thread>
 
@@ -19,8 +21,39 @@ namespace luthier
 //==============================================================================
 namespace
 {
-    //  3.3: canonical JSON - sorted keys, numbers as %.9g - so the same state
-    //  always hashes the same whatever order its objects were built in.
+    //  3.3: the hash is a *calibration cache key* - two sound states that are
+    //  audibly identical must hash equal. A double is therefore written to a
+    //  coarse, fixed precision (kCanonicalSigFigs significant figures) rather
+    //  than full %.9g. Full precision exposed the last few significant digits
+    //  of every value, which the engine computes with sub-epsilon differences
+    //  across toolchains (CPU FMA, SIMD, libm, floating-point rounding). Those
+    //  differences never change the sound, but at %.9g they changed the key, so
+    //  a factory table calibrated on one machine missed on another (ON27). The
+    //  coarse precision snaps that noise away while keeping every distinct
+    //  parameter choice, tuning and realism value apart. -0.0 and sub-threshold
+    //  dust fold to a single "0" for the same reason. Bump kCalibrationRevision
+    //  whenever this precision changes.
+    constexpr int kCanonicalSigFigs = 6;
+
+    void appendCanonicalDouble (double value, juce::String& out)
+    {
+        if (! std::isfinite (value))
+        {
+            out << "null";   // NaN / inf never belong in a stable key
+            return;
+        }
+
+        if (std::abs (value) < 1.0e-9)
+            value = 0.0;     // fold -0.0 and sub-epsilon dust to one representation
+
+        char buffer[64];
+        std::snprintf (buffer, sizeof (buffer), "%.*g", kCanonicalSigFigs, value);
+        out << buffer;
+    }
+
+    //  canonical JSON - sorted keys, numbers quantised (appendCanonicalDouble) -
+    //  so the same state always hashes the same whatever order its objects were
+    //  built in, and whatever toolchain computed the floats.
     void writeCanonical (const juce::var& v, juce::String& out)
     {
         if (auto* object = v.getDynamicObject())
@@ -68,9 +101,7 @@ namespace
         }
         else if (v.isDouble())
         {
-            char buffer[64];
-            std::snprintf (buffer, sizeof (buffer), "%.9g", (double) v);
-            out << buffer;
+            appendCanonicalDouble ((double) v, out);
         }
         else if (v.isString())
         {

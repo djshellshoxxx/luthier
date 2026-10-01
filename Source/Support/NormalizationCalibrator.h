@@ -72,8 +72,12 @@ struct NormalizationSoundState
 class NormalizationCalibrator : private juce::Thread
 {
 public:
-    /** 3.3: bumped only when the phrase, the meter or the engine's level moves. */
-    static constexpr int kCalibrationRevision = 1;
+    /** 3.3: bumped when the phrase, the meter or the engine's level moves, or
+        when the canonical hash encoding changes. Revision 2: hashSoundState
+        now quantises every float to a coarse, toolchain-stable precision
+        (NormalizationCalibrator.cpp appendCanonicalDouble) so a factory table
+        calibrated on one machine is a hit on another (ON27). */
+    static constexpr int kCalibrationRevision = 2;
 
     /** 4.3: a render is abandoned after this much wall time. */
     static constexpr double kRenderTimeoutSeconds = 10.0;
