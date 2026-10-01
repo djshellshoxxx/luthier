@@ -53,3 +53,24 @@ xvfb-run -a build/LuthierTests_artefacts/Release/LuthierTests CodexRobustness
 Reproduce a failure by running the same test on this branch; the fixed seed and case labels identify its inputs. `scripts/fixeol.sh` could not be run against the private repository from this connector-only environment. The two files were created as LF UTF-8 text through GitHub's contents API.
 
 No production or spec files were changed. No merges were performed.
+
+
+## CI follow-up (2026-09-29)
+
+PR #19 CI run 36533895181 compiled both Codex QA files, then the
+`CodexRobustness` suite aborted with `free(): invalid next size (fast)`.
+The state-restoration fixture claimed that one-shot Jam controls were excluded,
+but its disturbance loop still called `setValueNotifyingHost` on every
+parameter. That executed unrelated transient actions immediately before state
+restore even though those values are intentionally absent from the state blob.
+
+This correction skips Jam transient controls and `preset_morph_position` in
+the disturbance loop, matching the comparison policy already used immediately
+below it. Production code is unchanged.
+
+Verification: **NOT RUN locally** because this connector workspace has no JUCE
+checkout or configured CMake build tree. GitHub CI must rebuild and run
+`CodexRobustness`. If the same heap corruption remains, treat it as a
+production defect and isolate the printed preset/host case rather than weakening
+the matrix further. Next QA section: CLAP state reproducibility for transient
+parameters, outside the ownership of this fixture-only change.

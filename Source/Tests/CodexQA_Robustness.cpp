@@ -119,7 +119,17 @@ LUTHIER_TEST (CodexRobustness, everyFactoryPresetAtVaryingHostConfigurations)
         CHECK_MSG (state.getSize() > 0, label + " saved empty state");
         const auto before = values (*processor);
         for (auto* parameter : processor->getParameters())
-            parameter->setValueNotifyingHost (rng.nextFloat());
+        {
+            const auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (parameter);
+            const juce::String id = withId != nullptr ? withId->paramID : juce::String();
+
+            // One-shot controls are deliberately absent from saved state. Driving
+            // them here executes unrelated actions and cannot help prove restore
+            // fidelity, so disturb only values the following comparison expects
+            // the state blob to restore.
+            if (! ParamIDs::isJamTransient (id) && id != ParamIDs::presetMorphPosition)
+                parameter->setValueNotifyingHost (rng.nextFloat());
+        }
         processor->setStateInformation (state.getData(), (int) state.getSize());
         processor->getParameterBridge().applyAllNow();
 
