@@ -181,6 +181,7 @@ function(luthier_copy_resources target destination)
             COMMAND ${CMAKE_COMMAND} -E rm -rf "${destination}/Parts" "${destination}/Guitars"
                     "${destination}/Presets" "${destination}/Tunes" "${destination}/Fonts"
                     "${destination}/Riffs"
+                    "${destination}/Practice"
             COMMAND ${CMAKE_COMMAND} -E make_directory "${destination}"
             COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
                     "${LUTHIER_RESOURCES}" "${destination}"

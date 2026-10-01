@@ -1,0 +1,110 @@
+{
+  "schema": 1,
+  "magic": "luthier.tune",
+  "meta": {
+    "title": "Pop four-chord in G",
+    "artist": "",
+    "author": "Factory",
+    "tempo_bpm": 100.0,
+    "time_sig": "4/4",
+    "key": "G",
+    "mode": "ionian",
+    "swing": 0.0,
+    "feel_pct": 0.0,
+    "tags": [
+      "template",
+      "pop"
+    ],
+    "notes": "I-V-vi-IV: G D Em C, verse and chorus.",
+    "created": "2026-09-23T00:00:00Z",
+    "modified": "2026-09-23T00:00:00Z"
+  },
+  "sections": [
+    {
+      "name": "Verse",
+      "length_bars": 8,
+      "rhythm_pattern": "Classic Strum",
+      "genre_kit": "Folk Fingerstyle",
+      "chords": [
+        {
+          "root": "G",
+          "quality": "maj",
+          "beats": 4.0
+        },
+        {
+          "root": "D",
+          "quality": "maj",
+          "beats": 4.0
+        },
+        {
+          "root": "E",
+          "quality": "min",
+          "beats": 4.0
+        },
+        {
+          "root": "C",
+          "quality": "maj",
+          "beats": 4.0
+        }
+      ],
+      "bass": {
+        "mode": "genre"
+      },
+      "role": "verse",
+      "rhythm_on": true,
+      "rhythm_link": "",
+      "feel": 0.5,
+      "strum": 0.5,
+      "state_boundary": false,
+      "style": "none"
+    },
+    {
+      "name": "Chorus",
+      "length_bars": 8,
+      "rhythm_pattern": "Classic Strum",
+      "genre_kit": "Folk Fingerstyle",
+      "chords": [
+        {
+          "root": "C",
+          "quality": "maj",
+          "beats": 4.0
+        },
+        {
+          "root": "G",
+          "quality": "maj",
+          "beats": 4.0
+        },
+        {
+          "root": "D",
+          "quality": "maj",
+          "beats": 4.0
+        },
+        {
+          "root": "E",
+          "quality": "min",
+          "beats": 4.0
+        }
+      ],
+      "bass": {
+        "mode": "genre"
+      },
+      "role": "chorus",
+      "rhythm_on": true,
+      "rhythm_link": "",
+      "feel": 0.5,
+      "strum": 0.5,
+      "state_boundary": false,
+      "style": "none"
+    }
+  ],
+  "setlist": [
+    {
+      "section": "Verse",
+      "repeats": 1
+    },
+    {
+      "section": "Chorus",
+      "repeats": 1
+    }
+  ]
+}
