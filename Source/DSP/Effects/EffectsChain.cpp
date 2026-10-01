@@ -37,7 +37,31 @@ void EffectsChain::prepare (double sampleRate, int maxBlockSize)
 void EffectsChain::reset() noexcept
 {
     const juce::ScopedLock sl (swapLock);
+    resetPending.store (false, std::memory_order_relaxed);
+    resetPedalsLocked();
+}
 
+void EffectsChain::resetFromAudioThread() noexcept
+{
+    /*  Like BodyEngine::reset: a try-lock, so the audio thread never waits on
+        the message thread. If a pedal is being swapped this instant the reset
+        is left pending, and processStereo carries it out under its own
+        try-lock the next time it gets in - before that block is processed,
+        so no tail from before the panic reaches the output. */
+    const juce::ScopedTryLock sl (swapLock);
+
+    if (! sl.isLocked())
+    {
+        resetPending.store (true, std::memory_order_release);
+        return;
+    }
+
+    resetPending.store (false, std::memory_order_relaxed);
+    resetPedalsLocked();
+}
+
+void EffectsChain::resetPedalsLocked() noexcept
+{
     for (auto& slot : slots)
     {
         if (slot.pedal != nullptr)
@@ -262,6 +286,9 @@ void EffectsChain::processStereo (double* left, double* right, int numSamples) n
 
     if (! sl.isLocked())
         return;   // A slot is being swapped this instant; pass the block through.
+
+    if (resetPending.exchange (false, std::memory_order_acq_rel))
+        resetPedalsLocked();
 
     for (auto& slot : slots)
         if (slot.pedal != nullptr)

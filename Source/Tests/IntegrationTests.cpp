@@ -1622,3 +1622,60 @@ LUTHIER_TEST (ErrorLog, arefusedPresetLoadIsRecordedAndChangesNothing)
     ErrorLog::setFolderForTesting ({});
     folder.deleteRecursively();
 }
+
+//==============================================================================
+//  Ported from PR #2 (claude/clever-hopper-07uz7t): chords on free strings.
+/*  The user's "cannot do chords": notes played one after another while the
+    earlier ones are held must each get a string of their own. C4 lands on the B
+    string, E4 on the high E, and G4 - cheapest on the high E at fret 3 - used to
+    take the high E and end E4. Now the held strings are out of bounds for the
+    voicer, so all three ring, and neither of the first two is ever re-struck. */
+LUTHIER_TEST (Engine, notesPlayedWhileOthersAreHeldEachGetTheirOwnString)
+{
+    LuthierEngine engine;
+    engine.prepare (kSr, kBlock);
+    engine.setGuitarType (GuitarType::Dreadnought);
+    engine.getMidiInterpreter().setPlayingMode (PlayingMode::Poly);
+    engine.getMidiInterpreter().setHumanisation ({ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 });
+
+    // Each note arrives well outside the chord window of the one before, so
+    // every one is voiced on its own against what is already held.
+    auto play = [&engine] (int midiNote, double seconds)
+    {
+        juce::MidiBuffer midi;
+        midi.addEvent (juce::MidiMessage::noteOn (1, midiNote, 0.8f), 0);
+        render (engine, midi, seconds);
+    };
+
+    auto stringHolding = [&engine] (int midiNote)
+    {
+        for (int s = 0; s < engine.getNumStrings(); ++s)
+            if (engine.getStringMidiNote (s) == midiNote)
+                return s;
+
+        return -1;
+    };
+
+    play (60, 0.05);
+    const int c = stringHolding (60);
+    CHECK_MSG (c >= 0, "C4 is not sounding on any string");
+
+    play (64, 0.05);
+    const int e = stringHolding (64);
+    CHECK_MSG (e >= 0 && e != c, "E4 did not get a string of its own");
+    CHECK_MSG (stringHolding (60) == c, "E4 took over C4's string");
+
+    play (67, 0.3);
+    const int g = stringHolding (67);
+    CHECK_MSG (g >= 0 && g != c && g != e, "G4 did not get a string of its own");
+    CHECK_MSG (stringHolding (60) == c, "G4 took over C4's string");
+    CHECK_MSG (stringHolding (64) == e, "G4 took over E4's string");
+
+    int ringing = 0;
+
+    for (int s = 0; s < engine.getNumStrings(); ++s)
+        if (engine.getStringLevel (s) > 1.0e-5)
+            ++ringing;
+
+    CHECK_MSG (ringing >= 3, "only " + juce::String (ringing) + " strings are ringing under a held C-E-G");
+}

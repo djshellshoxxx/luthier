@@ -29,6 +29,15 @@ public:
     void prepare (double sampleRate, int maxBlockSize);
     void reset() noexcept;
 
+    /** reset() for the audio thread (Panic, live-performance 9.2): a try-lock,
+        because waiting on the message thread's swapLock (setSlotType, moveSlot)
+        would stall the callback. Resets every pedal now when the lock is free,
+        else leaves it pending for the next processStereo to carry out. */
+    void resetFromAudioThread() noexcept;
+
+    /** True while a resetFromAudioThread is waiting for the next block (tests). */
+    bool isResetPending() const noexcept { return resetPending.load (std::memory_order_acquire); }
+
     void setPosition (Position p) noexcept { position = p; }
     Position getPosition() const noexcept { return position; }
 
@@ -88,6 +97,7 @@ private:
     };
 
     void applyPendingSwaps() noexcept;
+    void resetPedalsLocked() noexcept;
 
     double sr = 44100.0;
     int maxBlock = 512;
@@ -104,6 +114,7 @@ private:
     // thread, never inside processBlock.
     std::vector<std::unique_ptr<Pedal>> retired;
     juce::CriticalSection swapLock;
+    std::atomic<bool> resetPending { false };
 
     std::vector<double> workL, workR;
 

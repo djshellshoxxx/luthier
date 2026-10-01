@@ -147,7 +147,9 @@ IN PROGRESS (a helper branch covers it).
 - Task C finding: the strings are only about 18% of the idle cost here (8.1% with every string asleep against 9.9% awake, Strummed Dreadnought), and idle-string sleep is not bit-exact at High - a waking string restarts with its pitch smoother and loop coefficients where they were when it slept - which moved 116 of the 122 ON-02 golden hashes. So High keeps it off (it stays a Medium/Low policy). The remaining cost is the amp, cabinet, body, room and pedals running on silence; a bit-exact silence short-circuit there needs each stage's tail length and is not done.
 - Heaviest: #21 "Modern Metal Chug" 18.6%, #14 "8-String Djent" 18.3%, #25 "Shred Lead" 17.9% (idle 19.0%).
 
-### B-14 Panic and Reset do not stop the transport-side players. OPEN, medium
+### B-14 Panic and Reset do not stop the transport-side players. FIXED (PR #2 port), medium
+
+- Fixed with the PR #2 (clever-hopper) RESET & STOP port: `panic()` now stops the tune player, looper, backing track, metronome, practice routine and the rhythm engine's free-run (the progression), and resets the rhythm engine's pending strums and every effect/amp/cab/room tail on the audio thread; `resetEverything()` additionally disables the rhythm engine, the session recorder and the kill switch, and resets the engine with the audio thread parked. `ResetStop.*` tests.
 
 - From the gap audit (A): `LuthierAudioProcessor::panic()` stops the audition and the engine only; the looper, backing track, tune player, metronome, progression looper and rhythm engine keep going.
 

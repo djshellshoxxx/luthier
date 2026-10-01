@@ -2866,15 +2866,39 @@ bool LuthierAudioProcessor::applyCurrentSetlistEntry (bool asUndoStep)
 }
 
 //==============================================================================
+void LuthierAudioProcessor::stopAllPlayers()
+{
+    /*  B-14: a panic that left these running was undone before it finished -
+        a looping tune re-feeds its notes every block, the looper and the
+        backing track keep playing audio, a free-running rhythm engine strums
+        again, and a practice routine starts the next entry's metronome. */
+    tunePlayer.stop();
+    looper.stop();
+    backingTrack.stop();
+    metronome.setEnabled (false);
+    practiceRunner.stop();
+
+    // The PRACTICE progression and the RHYTHM tab's free-run play through the
+    // rhythm engine without a host transport; its enable is the Easy genre
+    // box's setting and is left to Reset.
+    engine.getRhythmEngine().setFreeRun (false);
+}
+
 void LuthierAudioProcessor::panic()
 {
-    previewPlayer.panic();   // preset-browser-previews 4.1
-    stopAudition();
-
     // SPEC-SWEEP (UW-5): the engine is the audio thread's; the release happens
     // at the top of the next block rather than under its feet. The deferred
     // panic command also stops the riff player (riff-library 5.3).
     postEngineCommand (EngineCommand::make (EngineCommand::Type::panic));
+
+    stopEverythingButTheEngine();
+}
+
+void LuthierAudioProcessor::stopEverythingButTheEngine()
+{
+    previewPlayer.panic();   // preset-browser-previews 4.1
+    stopAudition();
+    stopAllPlayers();
 
     // jam-mode 2.2 (FEAT-JAM): a 5 ms choke of the band, jam_play off, Armed.
     jam.requestPanic();
@@ -3034,7 +3058,16 @@ void LuthierAudioProcessor::resetEverything()
 {
     pushUndoState ("Reset everything");
 
-    panic();
+    // RESET & STOP (B-14, PR #2): everything that makes or re-feeds sound on
+    // its own first, then every setting back to its default. The engine's
+    // panic runs below with its reset rather than queued for a later block,
+    // where it would land after the new settings (a render right after Reset
+    // must equal the next one - Combo.renderIsDeterministicAfterReset).
+    stopEverythingButTheEngine();
+    engine.getRhythmEngine().setEnabled (false);
+    sessionRecorder.setEnabled (false);
+    killSwitch.setActive (false);
+
     presets.resetToDefaults();
     midiLearn.clearAllMappings();
     lockedParameters.clear();
@@ -3045,7 +3078,16 @@ void LuthierAudioProcessor::resetEverything()
     uiState.qualityOverride = keptQualityOverride;
 
     bridge.applyAllNow();
-    engine.reset();
+
+    {
+        // The engine belongs to the audio thread: park it (a 5 ms fade) rather
+        // than reset strings and filters under a render. With no audio thread
+        // running (tests, offline) the reset simply applies.
+        const LuthierEngine::ScopedStructuralChange change (engine);
+        engine.getRiffPlayer().stop();   // riff-library 5.3, as the queued panic does
+        engine.panic();
+        engine.reset();
+    }
 
     diagnostics.log (LogCategory::Engine, "reset to defaults", samplePosition);
 }

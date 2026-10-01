@@ -72,7 +72,7 @@ Always visible, in both modes.
 | **File** | save, save as, open, import and export a preset; export audio, save the last MIDI take, export notation; open the preset and render folders; options; randomise; reset. |
 | **A / B** | two comparison slots. `A>B` copies the current one across. |
 | **Undo / Redo** | 200 steps. |
-| **Panic** | stops every string immediately. |
+| **Panic** | stops every string immediately, and stops the tune, looper, backing track, metronome and progression (settings are left alone). |
 | **Learn** | arms MIDI Learn: the next control you click is assigned to the next CC you move. |
 | **?** | help. In Advanced mode it opens the HELP tab on the panel you were using; in Easy mode, the same help over the window. |
 | **Advanced** | switches modes. Locked while Live Mode is on. |

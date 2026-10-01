@@ -51,7 +51,7 @@ decisions and the fix log are in `docs/coverage/SPEC-SWEEP.md`.
 | [include](#includemd) | 22 | 0 | 3 | 5 | 0 | 0 | 1 | 31 | 71% |
 | [input-routing](#input-routingmd) | 15 | 0 | 4 | 7 | 4 | 0 | 0 | 30 | 50% |
 | [installer](#installermd) | 16 | 2 | 8 | 13 | 10 | 0 | 0 | 49 | 33% |
-| [issues](#issuesmd) | 10 | 0 | 0 | 1 | 1 | 0 | 0 | 12 | 83% |
+| [issues](#issuesmd) | 12 | 0 | 0 | 0 | 0 | 0 | 0 | 12 | 100% |
 | [jam-mode](#jam-modemd) | 29 | 0 | 0 | 3 | 0 | 0 | 0 | 32 | 91% |
 | [licensing](#licensingmd) | 0 | 0 | 0 | 3 | 0 | 0 | 10 | 13 | 0% |
 | [live-performance](#live-performancemd) | 41 | 0 | 2 | 4 | 0 | 0 | 0 | 47 | 87% |
@@ -102,7 +102,7 @@ decisions and the fix log are in `docs/coverage/SPEC-SWEEP.md`.
 | [docs-PRESET_FORMAT](#docs-preset_formatmd) | 25 | 0 | 0 | 0 | 0 | 0 | 0 | 25 | 100% |
 | [docs-TROUBLESHOOTING](#docs-troubleshootingmd) | 18 | 0 | 4 | 0 | 0 | 0 | 2 | 24 | 75% |
 | [docs-USER_MANUAL](#docs-user_manualmd) | 51 | 0 | 8 | 0 | 0 | 0 | 1 | 60 | 85% |
-| **Total** | **2504** | **48** | **245** | **452** | **466** | **0** | **46** | **3761** | **67%** |
+| **Total** | **2506** | **48** | **245** | **451** | **465** | **0** | **46** | **3761** | **67%** |
 
 Not yet audited: amp-cab-ir, midi-learn, randomize-and-ab, tab-export, tab-import-export, tuner-and-tuning-reference, ui-scaling
 
@@ -2806,9 +2806,9 @@ Of the 12 user-reported issues, three are fixed and tested: chords, MIDI import 
 | ISS-4 (#4) | Fingers vs pick makes a difference — wired, no test compares them | `Parameters.cpp` bridge → `LuthierEngine::setPickMaterialAndFingers` (`use_fingers`) | ADVANCED col 2 Playing Hand "Fingers" | `Excitation::fingersSoundDifferentFromAPick` (through the whole plugin; darker over the first 20 ms. Note: over 100 ms the brightness is equal within 1% - the amp/cab default rig masks the excitation difference after the attack) | DONE |
 | ISS-5 (#5) | Chords: two notes at once play | `Model/Playing/ChordVoicer`, `MidiInterpreter` Poly default | Easy `EasyPanel::playingModeSelector` | `Engine.aChordVoicesAcrossStrings`, `ReviewRegression.aNoteReleasedInsideTheChordWindowIsReleased` | DONE |
 | ISS-6 (#6) | Guitar picture must look good - illustration rebuilt (GuitarRenderer, Guitar/*) | `UI/Guitar/GuitarRenderer` | Easy / Advanced illustration | `GuitarIllustration.*` (GuitarRendererTests), `FamilySwitch::*` | DONE |
-| ISS-7 (#7) | Colourful scrollbars, arrow indicators, "scroll" tooltip; the wheel scrolls the column, not the knob — thumb is `edgeBright` on `panelSunken`, no arrows or hint, no wheel guard on sliders (also not on visual) | - | `UI/Theme.cpp:LuthierLookAndFeel::drawScrollbar`; `AdvancedPanel` viewports | - | MISSING |
+| ISS-7 (#7) | Colourful scrollbars, arrow indicators, "scroll" tooltip; the wheel scrolls the column, not the knob — thumb is `edgeBright` on `panelSunken`, no arrows or hint, no wheel guard on sliders (also not on visual) | - | `UI/Theme.cpp:LuthierLookAndFeel::drawScrollbar`; `AdvancedPanel` viewports | - | DONE (PR #2 port: accent scrollbars with arrow buttons, ScrollHintViewport chevrons, wheel scrolls the column unless Ctrl; `ScrollWheel.*`) |
 | ISS-8 (#8) | MOD/RHYTHM dropdowns not squished; LIVE boxes readable - workspace tabs and panels fill their space | `AdvancedPanel::resized` | ADVANCED workspace tabs | `Reflow::noControlHangsOutsideItsParentAtAnyWidthOrScale`, `Editor::everyWorkspaceTabSelectsAndPaints` | DONE |
-| ISS-9 (#9) | Reset and stop really stops everything - `panic()` now also stops the jam band and preview; looper, backing track, progression, rhythm, TUNE player and metronome keep running | `PluginProcessor.cpp:panic`, `resetEverything` | header `HeaderBar::panicButton`, File > Reset | `Engine.panicSilencesEverything` (engine only) | PARTIAL |
+| ISS-9 (#9) | "Reset and stop" really stops everything — `panic()`/`resetEverything()` stop audition + engine only; looper, backing track, progression, rhythm, TUNE player and metronome keep running | `PluginProcessor.cpp:panic`, `resetEverything` | header `HeaderBar::panicButton`, File > Reset | `Engine.panicSilencesEverything` (engine only) | DONE (PR #2 port; `ResetStop.*`) |
 | ISS-10a (#10) | MIDI import works | `Export/MidiImportTargets`, `PluginEditor::importMidiFile` | header File > "Import MIDI..." (`HeaderBar.cpp` item 14); window drop | `MidiImport.theTuneBuilderGetsANewTune`, `MidiImport.aDropOnTheWindowImports` | DONE |
 | ISS-10b (#10) | Basic internal sequencer | `Tune/*` (TuneBuilder, TunePlayer) | ADVANCED > TUNE tab `TunePanel` | `TuneBuilder.*`, `TunePlayer.*` | DONE |
 | ISS-11 (#11) | Small piano roll that mirrors plucked strings and plays them back - `PianoRollStrip` in Easy and Advanced | `UI/PianoRollModel.cpp`, `UI/PianoRollStrip.cpp` | Easy (`EasyPanel.cpp:673`), Advanced (`AdvancedPanel.cpp:304`) | `PianoRoll::aChordLightsItsSoundingKeysInTheStringsColours`, `PianoRoll::clickingAKeyPlaysTheGuitar` | DONE |

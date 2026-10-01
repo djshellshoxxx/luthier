@@ -19,6 +19,7 @@
 
 #include "Theme.h"
 #include "Widgets.h"
+#include "StringRoll.h"
 #include "../Capture/PerformanceCapture.h"
 #include "../Notation/NotationExport.h"
 
@@ -84,6 +85,11 @@ public:
     juce::String getChordHistoryText() const     { return chordHistory; }
     juce::String getStatusText() const           { return statusText; }
 
+    /** The string roll (PR #2): one lane per string, what was played scrolling by. */
+    StringRollComponent& getStringRoll() noexcept { return stringRoll; }
+    juce::Button& getShowRollButton() noexcept   { return showRoll->getButton(); }
+    bool isStringRollShown() const noexcept      { return showRoll->getButton().getToggleState(); }
+
     bool exportTo (const juce::File& destination, juce::String* error = nullptr);
     juce::ComboBox& getRangeBox() noexcept { return rangeBox; }
     juce::TextButton& getMarkInButton() noexcept  { return markInButton; }
@@ -104,6 +110,10 @@ private:
     NotationExportOptions currentOptions() const;
 
     LuthierAudioProcessor& processor;
+
+    // --- string roll ----------------------------------------------------------------
+    std::unique_ptr<LuthierToggle> showRoll;
+    StringRollComponent stringRoll;
 
     // --- capture --------------------------------------------------------------------
     std::unique_ptr<LuthierToggle> offButton, rollingButton, armedButton;
@@ -135,7 +145,7 @@ private:
     juce::TextButton exportButton { "EXPORT NOTATION..." };
     juce::TextButton markInButton { "MARK IN" }, markOutButton { "MARK OUT" };   // MODEL-GAPS: the marked region
 
-    juce::Rectangle<int> captureHeader, tabHeader, exportHeader, statusBounds, chordBounds;
+    juce::Rectangle<int> captureHeader, rollHeader, tabHeader, exportHeader, statusBounds, chordBounds;
     std::unique_ptr<juce::FileChooser> chooser;
     size_t shownNotes = (size_t) -1;
 

@@ -639,8 +639,18 @@ void MidiInterpreter::handleNoteOn (int midiNote, int channel, double velocity,
 
         if (stringIndex < 0)
         {
-            // Not a per-string channel: fall back to picking a string by pitch.
-            const auto v = voicer->voiceSingleNote (midiNote, velocity, lastMonoString);
+            // Not a per-string channel: fall back to picking a string by pitch,
+            // a free one - the per-string channels may be holding the rest (PR #2).
+            voicer->setOccupiedStrings (occupiedStringMask (&midiNote, 1));
+            auto v = voicer->voiceSingleNote (midiNote, velocity, lastMonoString);
+
+            if (! v.valid)
+            {
+                voicer->setOccupiedStrings (heldStringMask (midiNote));
+                v = voicer->voiceSingleNote (midiNote, velocity, lastMonoString);
+            }
+
+            voicer->setOccupiedStrings (0);
 
             if (! v.valid)
                 return;
@@ -715,6 +725,96 @@ void MidiInterpreter::handleNoteOn (int midiNote, int channel, double velocity,
 }
 
 //==============================================================================
+uint16_t MidiInterpreter::heldStringMask (int exceptMidiNote) const noexcept
+{
+    uint16_t mask = 0;
+
+    for (int s = 0; s < numStrings; ++s)
+        if (slots[(size_t) s].held && slots[(size_t) s].midiNote != exceptMidiNote)
+            mask = (uint16_t) (mask | (1u << s));
+
+    return mask;
+}
+
+uint16_t MidiInterpreter::ringingStringMask (int exceptMidiNote) const noexcept
+{
+    uint16_t mask = 0;
+
+    for (int s = 0; s < numStrings; ++s)
+    {
+        const auto& slot = slots[(size_t) s];
+
+        if (slot.pedalRinging && ! slot.held && slot.pedalRingingNote != exceptMidiNote)
+            mask = (uint16_t) (mask | (1u << s));
+    }
+
+    return mask;
+}
+
+uint16_t MidiInterpreter::occupiedStringMask (const int* notes, int count) const noexcept
+{
+    uint16_t held = heldStringMask();
+    uint16_t ringing = ringingStringMask();
+
+    for (int i = 0; i < count; ++i)
+    {
+        held = (uint16_t) (held & heldStringMask (notes[i]));
+        ringing = (uint16_t) (ringing & ringingStringMask (notes[i]));
+    }
+
+    const int free = numStrings - juce::countNumberOfBits ((juce::uint32) (held | ringing));
+
+    return free >= count ? (uint16_t) (held | ringing) : held;
+}
+
+void MidiInterpreter::placeUnvoicedNotes (const int* notes, const double* velocities, int count,
+                                          uint16_t occupied, ChordVoicing& voicing) noexcept
+{
+    if (voicer == nullptr)
+        return;
+
+    // The strings the chord took are taken too.
+    for (int i = 0; i < voicing.numNotes; ++i)
+        if (voicing.notes[(size_t) i].valid)
+            occupied = (uint16_t) (occupied | (1u << voicing.notes[(size_t) i].stringIndex));
+
+    bool claimed[ChordVoicing::kMaxNotes] = {};
+
+    for (int k = 0; k < count; ++k)
+    {
+        bool placed = false;
+
+        for (int i = 0; i < voicing.numNotes && ! placed; ++i)
+        {
+            if (! claimed[i] && voicing.notes[(size_t) i].valid
+                 && voicing.notes[(size_t) i].midiNote == notes[k])
+            {
+                claimed[i] = true;
+                placed = true;
+            }
+        }
+
+        if (placed)
+            continue;
+
+        if (voicing.numNotes >= ChordVoicing::kMaxNotes)
+            break;
+
+        voicer->setOccupiedStrings (occupied);
+        const auto v = voicer->voiceSingleNote (notes[k], velocities[k], -1);
+
+        if (! v.valid)
+            continue;   // no free string sounds it: dropped, as it always was
+
+        occupied = (uint16_t) (occupied | (1u << v.stringIndex));
+        voicing.notes[(size_t) voicing.numNotes++] = v;
+        voicing.droppedNotes = juce::jmax (0, voicing.droppedNotes - 1);
+    }
+
+    voicer->setOccupiedStrings (0);
+}
+
+//==============================================================================
 void MidiInterpreter::flushChordGroup (int64_t upToSample, int blockOffset, int numSamples,
                                        PlayEventQueue& out) noexcept
 {
@@ -775,7 +875,38 @@ void MidiInterpreter::flushChordGroup (int64_t upToSample, int blockOffset, int 
     if (assisted && autoArt.rule (AssistRule::position))
         voicer->setPreferredPosition (autoArt.getHandPosition());
 
-    const auto voicing = voicer->voice (notes, velocities, count);
+    /*  PR #2: the strings still holding a note are out of bounds. A chord played
+        while another is held has to fit around it, or its cheapest fingering
+        lands on a ringing string and kills it (C4 held on the B string, then E4
+        and G4: both fit the high E, and G4 at fret 3 used to end E4 open). A
+        note already held and played again re-picks its own string. */
+    uint16_t occupied = occupiedStringMask (notes, count);
+
+    voicer->setOccupiedStrings (occupied);
+    auto voicing = voicer->voice (notes, velocities, count);
+
+    // What the chord search could not place goes note by note onto free strings.
+    placeUnvoicedNotes (notes, velocities, count, occupied, voicing);
+
+    // With the pedal-ringing strings kept out a note may be left with none that
+    // can sound it: then it takes a ringing string, never a held one.
+    const uint16_t heldOnly = [this, notes, count]
+    {
+        uint16_t held = heldStringMask();
+
+        for (int i = 0; i < count; ++i)
+            held = (uint16_t) (held & heldStringMask (notes[i]));
+
+        return held;
+    }();
+
+    if (occupied != heldOnly && voicing.numNotes < count)
+    {
+        occupied = heldOnly;
+        voicer->setOccupiedStrings (occupied);
+        voicing = voicer->voice (notes, velocities, count);
+        placeUnvoicedNotes (notes, velocities, count, occupied, voicing);
+    }
 
     if (assisted)
         autoArt.setHandPositionFromVoicing (voicer->getLastScore().handPosition);

@@ -3,6 +3,7 @@
 #include "../PluginProcessor.h"
 #include "../Tune/TuneTemplates.h"
 #include "../Tune/TuneMelody.h"
+#include "../Tune/TuneImport.h"   // PR #2: a MIDI file as an arranged tune
 
 #include <map>
 
@@ -230,6 +231,40 @@ MidiImportOutcome MidiImportTargets::importFile (LuthierAudioProcessor& processo
         refused.read = read;
         refused.message = file.getFileName() + " could not be read: " + read.error;
         return refused;
+    }
+
+    /*  PR #2 (TuneImport, midi-export 5 / tune-builder 9.2): a song file
+        going to the Tune Builder is read as an arrangement - markers become
+        sections, the chord track becomes chord cells, a bass line, a melody
+        and the other tracks as layers - rather than one long melody. A
+        Luthier-profile take is a performance, not an arrangement, so it keeps
+        the melody path below; so does anything TuneImport refuses. */
+    if (target == MidiImportTarget::tune && read.detectedProfile != MidiProfile::luthier)
+    {
+        Tune tune;
+        juce::String error;
+        juce::StringArray warnings;
+
+        if (importMidiFile (file, tune, TuneImportOptions(), error, &warnings))
+        {
+            processor.getTuneSession().newTune (tune);
+
+            MidiImportOutcome arranged;
+            arranged.ok = true;
+            arranged.read = read;
+
+            for (const auto& section : tune.arrangement.sections)
+                if (section.melody.has_value())
+                    arranged.notes += (int) section.melody->notes.size();
+
+            arranged.message = file.getFileNameWithoutExtension() + " is a new tune in the Tune Builder ("
+                             + juce::String (tune.getNumSections()) + " sections).";
+
+            if (! warnings.isEmpty())
+                arranged.message << " " << warnings.joinIntoString (" ");
+
+            return arranged;
+        }
     }
 
     auto outcome = importPerformance (processor, performance, target, file.getFileNameWithoutExtension());

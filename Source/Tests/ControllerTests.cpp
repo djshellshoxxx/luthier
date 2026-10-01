@@ -890,3 +890,114 @@ LUTHIER_TEST (Controllers, mpeMasterChannelNotesAreIgnored)
 // wheel with no preceding note-on). The canonical versions are in
 // ControllerSweepTests. The stale duplicates are removed to end the name
 // collisions.
+
+//  Ported from PR #2 (claude/clever-hopper-07uz7t): chords on free strings.
+//==============================================================================
+/*  A note that arrives while another is held goes to a free string. C4 sits on
+    the B string; E4 takes the open high E; G4's cheapest place is the high E at
+    fret 3, which is taken, so it moves on - nothing already sounding is ended. */
+LUTHIER_TEST (Controllers, aNoteArrivingWhileAnotherIsHeldGoesToAFreeString)
+{
+    InterpreterFixture f;
+    int64_t position = 0;
+
+    const int c = f.noteOnString (1, 60, position);
+    const int e = f.noteOnString (1, 64, position);
+    CHECK (c >= 0 && e >= 0 && e != c);
+
+    juce::MidiBuffer midi;
+    midi.addEvent (juce::MidiMessage::noteOn (1, 67, 0.8f), 0);
+
+    PlayEventQueue out;
+    f.interpreter.processBlock (midi, 256, position, out);
+
+    CHECK (out.getNumNoteOns() == 1);
+    CHECK_MSG (out.getNumNoteOffs() == 0, "a held note was ended by the new one");
+
+    const int g = out.getNumNoteOns() > 0 ? out.getNoteOn (0).stringIndex : -1;
+    CHECK_MSG (g >= 0 && g != c && g != e,
+               "G4 landed on string " + juce::String (g) + " with C4 on " + juce::String (c)
+                 + " and E4 on " + juce::String (e));
+
+    CHECK (f.interpreter.getStringMidiNote (c) == 60);
+    CHECK (f.interpreter.getStringMidiNote (e) == 64);
+    CHECK (f.interpreter.getActiveNoteCount() == 3);
+}
+
+/*  The same note played again while it is held re-picks its own string rather
+    than spilling onto a second one. */
+LUTHIER_TEST (Controllers, aHeldNotePlayedAgainRepicksItsOwnString)
+{
+    InterpreterFixture f;
+    int64_t position = 0;
+
+    const int first = f.noteOnString (1, 60, position);
+    const int again = f.noteOnString (1, 60, position);
+
+    CHECK (first >= 0 && again == first);
+}
+
+/*  A group the fingering rubric cannot place as one chord (F2 and B4: the only
+    frets are 1 and 7 or further apart, past any hand span, so the rubric keeps
+    the bass and drops the top) still sounds whole: what the chord search left
+    out is placed on a free string by itself. It used to be dropped silently. */
+LUTHIER_TEST (Controllers, anUnplayableChordGroupStillSounds)
+{
+    InterpreterFixture f;
+    f.interpreter.setChordWindowMs (2.0);
+    f.interpreter.setStrumSpeedMs (0.0);
+
+    // The rubric alone cannot place both notes as one chord.
+    {
+        const int pair[] = { 41, 71 };
+        const auto asChord = f.voicer.voice (pair, nullptr, 2);
+        CHECK_MSG (asChord.numNotes < 2 || asChord.droppedNotes > 0,
+                   "the pair was expected to be unfingerable as a chord - the test needs a new pair");
+        f.voicer.reset();
+    }
+
+    juce::MidiBuffer midi;
+    midi.addEvent (juce::MidiMessage::noteOn (1, 41, 0.8f), 0);
+    midi.addEvent (juce::MidiMessage::noteOn (1, 71, 0.8f), 0);
+
+    PlayEventQueue out;
+    f.interpreter.processBlock (midi, 256, 0, out);
+
+    CHECK_MSG (out.getNumNoteOns() == 2,
+               juce::String (out.getNumNoteOns()) + " notes sounded from an unfingerable pair");
+
+    if (out.getNumNoteOns() == 2)
+    {
+        CHECK (out.getNoteOn (0).stringIndex != out.getNoteOn (1).stringIndex);
+
+        juce::Array<int> notes { out.getNoteOn (0).midiNote, out.getNoteOn (1).midiNote };
+        CHECK (notes.contains (41) && notes.contains (71));
+    }
+}
+
+/*  A five-note cluster the rubric can only finger by leaving a note out: what it
+    leaves out is placed on a free string, so every note played sounds. */
+LUTHIER_TEST (Controllers, notesTheChordSearchLeavesOutArePlacedOnFreeStrings)
+{
+    InterpreterFixture f;
+    f.interpreter.setChordWindowMs (2.0);
+    f.interpreter.setStrumSpeedMs (0.0);
+
+    juce::MidiBuffer midi;
+
+    for (int note : { 60, 61, 62, 63, 64 })
+        midi.addEvent (juce::MidiMessage::noteOn (1, note, 0.8f), 0);
+
+    PlayEventQueue out;
+    f.interpreter.processBlock (midi, 256, 0, out);
+
+    CHECK_MSG (out.getNumNoteOns() == 5,
+               juce::String (out.getNumNoteOns()) + " of the five notes sounded");
+
+    juce::Array<int> strings;
+
+    for (int i = 0; i < out.getNumNoteOns(); ++i)
+        strings.addIfNotAlreadyThere (out.getNoteOn (i).stringIndex);
+
+    CHECK_MSG (strings.size() == out.getNumNoteOns(), "two notes were put on one string");
+}
