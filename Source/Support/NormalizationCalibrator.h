@@ -72,8 +72,12 @@ struct NormalizationSoundState
 class NormalizationCalibrator : private juce::Thread
 {
 public:
-    /** 3.3: bumped only when the phrase, the meter or the engine's level moves. */
-    static constexpr int kCalibrationRevision = 1;
+    /** 3.3: bumped when the phrase, the meter or the engine's level moves, or
+        when the canonical key's contents change. Revision 2 (ON-27): the
+        toolchain-derived character aging maps (fretWear, deadSpots) are no
+        longer hashed - they are a per-CPU function of the retained seed, so
+        they made the factory table machine-dependent. */
+    static constexpr int kCalibrationRevision = 2;
 
     /** 4.3: a render is abandoned after this much wall time. */
     static constexpr double kRenderTimeoutSeconds = 10.0;

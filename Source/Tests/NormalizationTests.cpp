@@ -1691,27 +1691,17 @@ LUTHIER_TEST (Normalization, DumpCanonical)
     NormalizationCalibrator::setFactoryTableFileForTesting ({});
     NormalizationCalibrator::reloadFactoryTable();
 
-    for (const char* want : { "8-String Djent", "Clean Double-Cut Funk" })
+    for (int i = 0; i < numFactoryPresets(); ++i)
     {
-        int idx = -1;
-
-        for (int i = 0; i < numFactoryPresets(); ++i)
-            if (juce::String (FactoryPresets::getPreset (i).name) == want)
-                idx = i;
-
-        CHECK_MSG (idx >= 0, juce::String ("preset not found: ") + want);
-
-        if (idx < 0)
-            continue;
+        const juce::String name = FactoryPresets::getPreset (i).name;
 
         auto p = makeProcessor();
-        loadCombo (*p, idx, -1);
+        loadCombo (*p, i, -1);
         p->getOutputNormalization().refreshStructuralSnapshot();
         const auto state = p->getOutputNormalization().captureSoundState();
         const auto canonical = NormalizationCalibrator::canonicalSoundState (state, *p);
 
-        std::cout << "\n===CANONICAL BEGIN=== " << want << "\n"
-                  << canonical << "\n===CANONICAL END=== " << want << std::endl;
+        std::cout << "CANON\t" << name << "\t" << canonical << std::endl;
     }
 }
 
