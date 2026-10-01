@@ -45,6 +45,13 @@
       "drive": 0.25,
       "preset": "P-Bass Flatwound / 22"
     },
+    "00b4620a6930258a0d20e3ba276c771e60230a88337309e6b144c0481cdb9c48": {
+      "lufs": -26.920000000000002,
+      "guitarType": 17,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Shred Lead / 17"
+    },
     "00d979742b7eeb0d5b213c014caacc0740b1c0db39053f61e77bf04a4b865906": {
       "lufs": -20.93,
       "guitarType": 20,
@@ -80,12 +87,26 @@
       "drive": 0.05,
       "preset": "Microtonal Just / 1"
     },
+    "01eb830df29ad4294764420d1ab0d9ff713f14c498abe3bf340937dbce3d857d": {
+      "lufs": -28.0,
+      "guitarType": 23,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Shred Lead / 23"
+    },
     "01f2cb63e2206eb37afcf9228cc154b5fd5145b5fa4206af93ec64839f5d5f0a": {
       "lufs": -46.640000000000001,
       "guitarType": 6,
       "ampModel": 0,
       "drive": 0.22,
       "preset": "Wah Funk Rhythm / 6"
+    },
+    "0211962dd643b426fcf9fc17786e5bcc016355efda345d70cb35a3f67c375d6b": {
+      "lufs": -39.009999999999998,
+      "guitarType": 21,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Ambient Swell / 21"
     },
     "0239b2020b4125a1c3a9858a6158e088be5f04619dc474cd0210c1821f01cf59": {
       "lufs": -15.69,
@@ -150,12 +171,12 @@
       "drive": 0.05,
       "preset": "Middle Eastern Maqam / 3"
     },
-    "040118377a416e3d6c2b6514dc1a5a620f448dcfb2c5a9df0e84202526a92bdc": {
-      "lufs": -19.920000000000002,
-      "guitarType": 5,
+    "046adcc424464fad5f7a516bb98f85fd7b8b06842f5fdd9cddf88f3d3d455cd0": {
+      "lufs": -18.66,
+      "guitarType": 9,
       "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Rockabilly Slap / 5"
+      "drive": 0.34,
+      "preset": "T-Style Country Twang / 9"
     },
     "049354742dd7a1034e329cf9512fc320b67b3fe3847f78e506f58f1ede4feae7": {
       "lufs": -14.33,
@@ -178,26 +199,12 @@
       "drive": 0.2,
       "preset": "Assist Jazz Comping / 11"
     },
-    "051f6a043686e04005e8e728b642878441c78fd151debc55c17873b04e7b8ff8": {
-      "lufs": -43.100000000000001,
-      "guitarType": 8,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Ambient Swell / 8"
-    },
     "05403ee402e3b1a19d39e2235f404c892d680ac75c23fb9c496345ec144d09b2": {
       "lufs": -16.149999999999999,
       "guitarType": 2,
       "ampModel": 0,
       "drive": 0.2,
       "preset": "Eight-Finger Tap / 2"
-    },
-    "055f619fd402eb90fe1abf1568ee929e17b9723410d468a5d9b672756371509c": {
-      "lufs": -26.48,
-      "guitarType": 22,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Surf Reverb / 22"
     },
     "0571132876e1ff126735fda2391be116d93ee3a22a3593e9a52aa71ec92a2e74": {
       "lufs": -13.65,
@@ -290,6 +297,13 @@
       "drive": 0.48,
       "preset": "Germanium Fuzz Lead / 18"
     },
+    "06f79b1b227efc518ff8400247a1d7d2d502dd784932545bb54e2184e8217753": {
+      "lufs": -26.739999999999998,
+      "guitarType": 10,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Shred Lead / 10"
+    },
     "06fd3751ada88fdc58ce3e2c7b3cd0f74f56980c687cb51de563a5b3ab02eaf9": {
       "lufs": -15.1,
       "guitarType": 3,
@@ -297,12 +311,19 @@
       "drive": 0.7,
       "preset": "Drop C Riff / 3"
     },
-    "0786b36b12b7a6a2cce783ee1222cea191688d897bca1b6de24454409be969c7": {
-      "lufs": -19.609999999999999,
-      "guitarType": 7,
+    "0709cc04dacef7c0e0ad81563c65b1352db5ad4fa9fccf2eddab05b54078da97": {
+      "lufs": -22.18,
+      "guitarType": 17,
       "ampModel": 1,
-      "drive": 0.34,
-      "preset": "T-Style Country Twang / 7"
+      "drive": 0.42,
+      "preset": "Rockabilly Slap / 17"
+    },
+    "08197f82532bf0c73ed9ac2813dbb367e7b1391b8a63a2906824ce7c853aae73": {
+      "lufs": -37.0,
+      "guitarType": 18,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "5-String Low B / 18"
     },
     "082bd9a15ea57c66771920baa4fade67853c3d49e7ef8cedfb903de0b8ce1c60": {
       "lufs": -22.489999999999998,
@@ -409,12 +430,12 @@
       "drive": 0.2,
       "preset": "Eight-Finger Tap / 4"
     },
-    "0a2e892603fcfc4b69331b61ebd68916c0f71453381f0a2249454b45423f74d7": {
-      "lufs": -20.809999999999999,
-      "guitarType": 18,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Shred Lead / 18"
+    "0a2c37c711802e269e779837a47f08100881f1eaab7cf51503b1c3d24f58862b": {
+      "lufs": -20.120000000000001,
+      "guitarType": 12,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "8-String Djent / 12"
     },
     "0a889e3a6893b1afe8673fcf3cc6feacda96f4eb6fd77281d061302e767ff245": {
       "lufs": -11.66,
@@ -479,6 +500,13 @@
       "drive": 0.35,
       "preset": "Funk Slap Groove / 15"
     },
+    "0bb2dc9a2cd70dba7c376387a935663e39d6af1954616836174c875809d914e0": {
+      "lufs": -22.43,
+      "guitarType": 23,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Surf Reverb / 23"
+    },
     "0bcd234680a8ba6c4acede5a4548cbb918b8178244d71eb7f5ce91204bf7d045": {
       "lufs": -15.1,
       "guitarType": 0,
@@ -499,6 +527,13 @@
       "ampModel": 0,
       "drive": 0.2,
       "preset": "Assist Jazz Comping / 6"
+    },
+    "0c5fafeb6643ef5cc25cf3355c8f5e9c62ef6f1196130c3e43e2406ccbfa0b83": {
+      "lufs": -18.550000000000001,
+      "guitarType": 0,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Rockabilly Slap / 0"
     },
     "0c9396ce0769c1b094a80a96ca7ba52f71ff7d128bcd240b81f0767e35ddf753": {
       "lufs": -13.99,
@@ -542,13 +577,6 @@
       "drive": 0.55,
       "preset": "Standard Two-Hand Tap / 23"
     },
-    "0d43353759cd462573f81bef4986c97083a3be6cf40a82c359504e3c89de9864": {
-      "lufs": -19.77,
-      "guitarType": 12,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "T-Style Country Twang / 12"
-    },
     "0d97a300f84726ba26c918196a1f71090bd8be4dde505677bbe34f83f1468de5": {
       "lufs": -14.380000000000001,
       "guitarType": 3,
@@ -577,12 +605,26 @@
       "drive": 0.05,
       "preset": "Parlor Blues / 5"
     },
-    "0e55017ff06566c590da30fbd55df1389571fbb89d4fe721a66418d51cb17269": {
-      "lufs": -20.039999999999999,
-      "guitarType": 23,
+    "0dca74776812c02c70482dfb6a429924e224d593865f5250ef5c9988d31b00e0": {
+      "lufs": -19.050000000000001,
+      "guitarType": 0,
       "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Rockabilly Slap / 23"
+      "drive": 0.34,
+      "preset": "T-Style Country Twang / 0"
+    },
+    "0df4e90dd5a212061664553f78006e3de7a952622534058383ee999b2d678bb5": {
+      "lufs": -19.66,
+      "guitarType": 20,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "8-String Djent / 20"
+    },
+    "0e1f738d1c4ab31ed1bc0bc1c27ac4751d124e8d8b88e3c66a2a8b5d994fd15f": {
+      "lufs": -27.0,
+      "guitarType": 18,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Shred Lead / 18"
     },
     "0e61be0641befc638cd0c0b91b2535a0a7d2dba41abf4ecff0a677c595674758": {
       "lufs": -42.079999999999998,
@@ -619,6 +661,13 @@
       "drive": 0.7,
       "preset": "Whammy-Style Two-Octave / 20"
     },
+    "0f197cf7064d6d06ea8c6aaaf7912b7a5a3bb95aadb49c744c9bbcc0d8f4824e": {
+      "lufs": -36.759999999999998,
+      "guitarType": 24,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "5-String Low B / 24"
+    },
     "0f23014ff82f85532b6d79fc7c75dbe65154c9e9fb89d8119e70bf01c43f252b": {
       "lufs": -21.09,
       "guitarType": 9,
@@ -632,13 +681,6 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Nashville High-Strung / 16"
-    },
-    "0f85fdae447434a332317c5cb694eaa5bd1df3612251d83f03cea91e2d99f8b5": {
-      "lufs": -42.890000000000001,
-      "guitarType": 2,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Ambient Swell / 2"
     },
     "100cf868900f1aed7ef61758676b646548d0a11b2324d008d0fdb4a024a702f6": {
       "lufs": -29.809999999999999,
@@ -675,12 +717,12 @@
       "drive": 0.58,
       "preset": "Blues Slide / 22"
     },
-    "115532167e8ac72b247f83115ad58d532f01ce0435c73a22d9f0ea4a3ef65254": {
-      "lufs": -19.27,
-      "guitarType": 4,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "T-Style Country Twang / 4"
+    "113d772170057d00592d3215c840b73053344fa43af3b7e290b15d4c686e5f66": {
+      "lufs": -34.619999999999997,
+      "guitarType": 5,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "5-String Low B / 5"
     },
     "11867a3b59955b5da25c21c4d9151b34111e66ff61fe96360eb68675594c144a": {
       "lufs": -20.449999999999999,
@@ -752,6 +794,13 @@
       "drive": 0.32,
       "preset": "J-Style Fingerstyle / 19"
     },
+    "13341ca482f3d6e4bb0f91c4cdecc0c2b735c949d3a7445b7332145522ef18a0": {
+      "lufs": -26.82,
+      "guitarType": 2,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Shred Lead / 2"
+    },
     "135d97bf875c063123176b849d9a16c0d7716395961d4527e2d31aa1b6f23a01": {
       "lufs": -14.93,
       "guitarType": 20,
@@ -779,13 +828,6 @@
       "ampModel": 0,
       "drive": 0.15,
       "preset": "Funk Chuka / 10"
-    },
-    "13d19bb026ad5dea6efd197830a0d73907bd5eed6559908d69191d2438f7a3c1": {
-      "lufs": -15.59,
-      "guitarType": 11,
-      "ampModel": 0,
-      "drive": 0.35,
-      "preset": "Init / 11"
     },
     "13d926865e5cefc72544e2bf3d0c223c776c71faa89b4ef321d9b9acc4d1c80c": {
       "lufs": -12.18,
@@ -836,6 +878,13 @@
       "drive": 0.64,
       "preset": "Octave Fuzz Stoner / 19"
     },
+    "14e32237bb4a036bdb07c27bfa357d276518d7a99969df12b252434703164fbb": {
+      "lufs": -20.07,
+      "guitarType": 4,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "8-String Djent / 4"
+    },
     "1596b4d2f1e7ca19ec396900b13da8f3d3b06e773bfee62eaa3412ae4f0563e3": {
       "lufs": -15.44,
       "guitarType": 2,
@@ -878,6 +927,13 @@
       "drive": 0.8,
       "preset": "Metal Chug 16ths / 12"
     },
+    "1638a33825a7c82cd9dde8ae3135e96619482051d53a016c004fd8fd114ef4e3": {
+      "lufs": -34.530000000000001,
+      "guitarType": 9,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "5-String Low B / 9"
+    },
     "1685a5d4ab27b37c6d844467be7bc558ad688e69d1ef315acf4136b077e88936": {
       "lufs": -14.48,
       "guitarType": 22,
@@ -906,13 +962,6 @@
       "drive": 0.5,
       "preset": "Standard Whole-Tone Bend / 1"
     },
-    "16fbca3654e347b76e71ca2b60a786475644fa7384a8d98d4a665692a3c06410": {
-      "lufs": -19.079999999999998,
-      "guitarType": 0,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Rockabilly Slap / 0"
-    },
     "16fc75f9f36e2da5d3b37deee83dcc784ee9d6e72dd29f19fedde44603afaa4c": {
       "lufs": -40.619999999999997,
       "guitarType": 14,
@@ -926,13 +975,6 @@
       "ampModel": 4,
       "drive": 0.62,
       "preset": "Single-Cut Crunch / 14"
-    },
-    "171bf08560f75542d0b2a73769843446559dbd34e0538a3fdaed8c0b0dae7e83": {
-      "lufs": -27.170000000000002,
-      "guitarType": 19,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Semi-Hollow Chime / 19"
     },
     "172fdfe7792379e533f96160092eb5c2d32cab9ffc2aba3d64deddbd6c35c5e1": {
       "lufs": -21.579999999999998,
@@ -983,13 +1025,6 @@
       "drive": 0.22,
       "preset": "Wah Funk Rhythm / 23"
     },
-    "17fc547b1e6786758195fc02035a6efd738b9055a94f34b1640496c6d305873f": {
-      "lufs": -42.68,
-      "guitarType": 3,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Ambient Swell / 3"
-    },
     "180ef8aa2012b4cd88a051eb6c0d1fe1daf494623cbc96605b6f8707625717b6": {
       "lufs": -18.75,
       "guitarType": 2,
@@ -1025,12 +1060,26 @@
       "drive": 0.6,
       "preset": "Wide Vibrato / 1"
     },
+    "1892ec7e07714282021260b9cd6f0337c1cce3cbcbc2bf9ceae372d0cdc7326c": {
+      "lufs": -18.73,
+      "guitarType": 2,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "T-Style Country Twang / 2"
+    },
     "18af87e4aa41793d3758a4b8d3cdbd5b139947d610d92cee0a57b2981aa7e490": {
       "lufs": -27.82,
       "guitarType": 23,
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Strummed Dreadnought / 23"
+    },
+    "18d5f4d46d55fc78e268d9edb7e5c64faa9941f613595940e3ba8daed19affe4": {
+      "lufs": -18.260000000000002,
+      "guitarType": 7,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Rockabilly Slap / 7"
     },
     "192928b63d5f9ea6791f441c4502ffe53171eb800b58cef88c19efd61b33fa0d": {
       "lufs": -40.259999999999998,
@@ -1066,13 +1115,6 @@
       "ampModel": 0,
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 15"
-    },
-    "19cfd111d0a9485047232cb7bc16406ac0e64e30075c3c9b04b93ebd48d20b28": {
-      "lufs": -20.989999999999998,
-      "guitarType": 7,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "8-String Djent / 7"
     },
     "19d2ede54cdfabc8e72218bec04545633ef4521a3d16bcee18e5688075f59e3a": {
       "lufs": -16.07,
@@ -1235,13 +1277,6 @@
       "drive": 0.2,
       "preset": "Eight-Finger Tap / 17"
     },
-    "1c052e53b1b9ea41d5f632502dd5f6b700c2785ed5ac5357942e444ea51a0901": {
-      "lufs": -20.84,
-      "guitarType": 11,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Shred Lead / 11"
-    },
     "1c1c93eff0c8082d3200101c1f06701502cf517300d2630c8afa61622fed96fa": {
       "lufs": -41.0,
       "guitarType": 18,
@@ -1326,19 +1361,19 @@
       "drive": 0.7,
       "preset": "Whammy-Style Two-Octave / 3"
     },
-    "1eb325061cd90bef60df01567d4bd5453368b537e978f75fc49d4d682006cef6": {
-      "lufs": -51.619999999999997,
-      "guitarType": 12,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Ambient Swell / 12"
-    },
     "1eb42933800c735f8850205c2aac42a1848a82ce54e1c58e59e8382fb5c46b1e": {
       "lufs": -9.91,
       "guitarType": 24,
       "ampModel": 11,
       "drive": 0.3,
       "preset": "Assist Bass Groove / 24"
+    },
+    "1ee1787a2655368f0ebcb78abf5f6740d0df05ab04f83666272f49434d996ac5": {
+      "lufs": -29.449999999999999,
+      "guitarType": 18,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Semi-Hollow Chime / 18"
     },
     "1ee1bfe8c1cd95064bfa22002349cddf9bf4acb4ddc561fcbbf98e8025acdf2d": {
       "lufs": -23.109999999999999,
@@ -1353,6 +1388,13 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Lap Steel Full Control / 12"
+    },
+    "1ef2f43ff2ade3394f7dc60ae29619cfe342c6a5867365b9fa43e1d1b40bb363": {
+      "lufs": -29.960000000000001,
+      "guitarType": 16,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Semi-Hollow Chime / 16"
     },
     "1f1e5ace2baabe586fbbc37e9ef1c9227126a7cb7df2062bf1251a1aa5c01a4f": {
       "lufs": -21.190000000000001,
@@ -1536,13 +1578,6 @@
       "drive": 0.55,
       "preset": "Assist Blues Lead / 1"
     },
-    "23476fefedfbf839ede239f4f72685daa55ab69ac830cdfffb0cf3a8a855e79e": {
-      "lufs": -28.350000000000001,
-      "guitarType": 16,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "5-String Low B / 16"
-    },
     "236a990e220f5a9cc1fc48d34bd1e40a0c9489ec94ca5520ed916cf2e2022455": {
       "lufs": -15.199999999999999,
       "guitarType": 6,
@@ -1655,6 +1690,13 @@
       "drive": 0.15,
       "preset": "Funk Chuka / 16"
     },
+    "254bc36c7a9acccfcb85b14915a96c0c44369eb57d1d3d4e769c2e02448b8dc5": {
+      "lufs": -18.579999999999998,
+      "guitarType": 10,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "T-Style Country Twang / 10"
+    },
     "256ebd27f72731251b035218c237222c6f857acd2218d294364f4c05005d6b22": {
       "lufs": -14.15,
       "guitarType": 14,
@@ -1683,20 +1725,6 @@
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 9"
     },
-    "25a7097c935849766aeb24d0a34d71014975665af6142dfb12c06c307790d33d": {
-      "lufs": -19.379999999999999,
-      "guitarType": 9,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "T-Style Country Twang / 9"
-    },
-    "25c75f11a33350f6c428d879c8122d560dedf68abac4ea00581945bbfe44ba08": {
-      "lufs": -27.379999999999999,
-      "guitarType": 19,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Surf Reverb / 19"
-    },
     "25e93fb3f470f5807974f2c8c1c90336be304749d9ee59a55845f1f59fcd065b": {
       "lufs": -26.559999999999999,
       "guitarType": 10,
@@ -1717,6 +1745,13 @@
       "ampModel": 11,
       "drive": 0.3,
       "preset": "Assist Bass Groove / 18"
+    },
+    "2636b30e472b9564925a909404629227eaecac0e7ef4ead48a49a4b8b77c2180": {
+      "lufs": -19.059999999999999,
+      "guitarType": 21,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "8-String Djent / 21"
     },
     "265907b3fefd785f60ec0de8baa5ca9368367bb05387f20dd606251ccaf2fb51": {
       "lufs": -13.83,
@@ -1816,13 +1851,6 @@
       "drive": 0.3,
       "preset": "Full Cascade Demo / 23"
     },
-    "2726288671f71bc469c04fe38cfbf816d4f7d30276b8cbadad9fb6aea2a75bb3": {
-      "lufs": -22.260000000000002,
-      "guitarType": 16,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Rockabilly Slap / 16"
-    },
     "272c556472a519be62c112bb389cca125ee528eaaab4788f96261cdd95ce5a5e": {
       "lufs": -17.690000000000001,
       "guitarType": 20,
@@ -1837,19 +1865,19 @@
       "drive": 0.05,
       "preset": "Fingerstyle Folk / 9"
     },
+    "2752cf4540ba877370df4a6f3d6b879d35e884ea6a78f538cbd330fdce59c6c4": {
+      "lufs": -18.899999999999999,
+      "guitarType": 19,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "8-String Djent / 19"
+    },
     "277a44bc33b3d1f353c8d54e5f6f97051574bfdbe51c5160ca1bb51352b98a6e": {
       "lufs": -37.359999999999999,
       "guitarType": 20,
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Physics Showcase / 20"
-    },
-    "279fab7077032b22b671ff6ef1f737f65087387bc330a729aadbe33cd233d236": {
-      "lufs": -21.16,
-      "guitarType": 1,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Shred Lead / 1"
     },
     "27cdcadbda7dc15813e7bfe509106502ae4a33db3549f9fb080c26073e2a60db": {
       "lufs": -42.359999999999999,
@@ -1872,12 +1900,19 @@
       "drive": 0.2,
       "preset": "Transposing Trem Chords / 12"
     },
-    "27fc83424fb77d91ff829c61aa7159dbe96a8ab6004cd43f10e97cf8abbfcaaa": {
-      "lufs": -28.370000000000001,
-      "guitarType": 14,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Semi-Hollow Chime / 14"
+    "27faf59d66d369513ba008fd3c18cfb03c67d275ca2d396c97aeeb4cf535fafa": {
+      "lufs": -21.649999999999999,
+      "guitarType": 3,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Surf Reverb / 3"
+    },
+    "2810fd7fc3a6836b28ec3422b5690ebebabb9736d238f317daca2415b28bef85": {
+      "lufs": -43.990000000000002,
+      "guitarType": 19,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "5-String Low B / 19"
     },
     "2870e01c4295b00482f053d97ff52b78a985b960ec4c38264c90457a70c470b2": {
       "lufs": -30.960000000000001,
@@ -1956,13 +1991,6 @@
       "drive": 0.3,
       "preset": "Full Cascade Demo / 6"
     },
-    "2a54e0cd6f1ca09fa4b9c5d0c7d5bc63c7fc396e0d3bb2236453cbf6c12fdf19": {
-      "lufs": -32.219999999999999,
-      "guitarType": 17,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Surf Reverb / 17"
-    },
     "2ab45af58ab8cdfb232a4783b9d7e7cf4fd99da55d2a561e3fec715598f97d4a": {
       "lufs": -13.449999999999999,
       "guitarType": 4,
@@ -1976,6 +2004,13 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Nylon Classical / 21"
+    },
+    "2b18aabb74b38ef0765dfb977261f4baa96c95acb0cf1bffe4be732bd7996d64": {
+      "lufs": -36.990000000000002,
+      "guitarType": 23,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Ambient Swell / 23"
     },
     "2b1c8cd16c6f4e087df732cdbf7bf815c6abc48b046c17b7cf547a8f396b43ac": {
       "lufs": -15.81,
@@ -1997,6 +2032,13 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Microtonal Just / 7"
+    },
+    "2b52988c13d7d73b1f42c97f5c4c3120dcb45390ca4ae1dbb35fb56acfa5816a": {
+      "lufs": -26.91,
+      "guitarType": 6,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Shred Lead / 6"
     },
     "2b6feb9efeb148a8f8d70492085d5024bed83c36ea519aeb2284936db56170e3": {
       "lufs": -14.08,
@@ -2054,6 +2096,13 @@
       "drive": 0.3,
       "preset": "Standard Slide (Mod Wheel) / 21"
     },
+    "2c6467a612b6f8ed51a630128d6e821cfa7f87212074b1e6decf7c9b87ab9600": {
+      "lufs": -33.829999999999998,
+      "guitarType": 10,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "5-String Low B / 10"
+    },
     "2c6f81ffecbad79425a08d9646c175d8e10ecb275a63f8e6028b40d82abfa6ca": {
       "lufs": -14.69,
       "guitarType": 21,
@@ -2089,12 +2138,12 @@
       "drive": 0.2,
       "preset": "Transposing Trem Chords / 17"
     },
-    "2cdc4196c6b6cd62bd99f926c734896cec5b8571dafe96c6db6c10a34f6b3489": {
-      "lufs": -43.159999999999997,
-      "guitarType": 23,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Ambient Swell / 23"
+    "2cff1b1d9c4424d6af38d875a3383b49f8a9575296b898f712a0234a0c8f4b47": {
+      "lufs": -30.120000000000001,
+      "guitarType": 15,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Semi-Hollow Chime / 15"
     },
     "2d2c5db599df100fe9bd075b5dfad5e2b53714f51db8222fce12210c86213c5b": {
       "lufs": -32.509999999999998,
@@ -2131,6 +2180,13 @@
       "drive": 0.2,
       "preset": "Transposing Trem Chords / 10"
     },
+    "2db9197eb74b06695b3d6e0fb30b5609b4a2e95de44fb6092f61d5069492f23b": {
+      "lufs": -27.960000000000001,
+      "guitarType": 20,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Shred Lead / 20"
+    },
     "2de0a9404a38ac65aacb562fb8310e7f5aa9161d04866724b54369b374b0941a": {
       "lufs": -20.690000000000001,
       "guitarType": 22,
@@ -2166,13 +2222,6 @@
       "drive": 0.62,
       "preset": "Single-Cut Crunch / 10"
     },
-    "2e60cb0a6bd614de44ee53c95a3039118ba92347c6fc619880f96cce91c689f0": {
-      "lufs": -22.969999999999999,
-      "guitarType": 0,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "8-String Djent / 0"
-    },
     "2ea8b6e591902df2a5cec22628b5fd7d6d61235ae41a8e9722fd7eb817bd204c": {
       "lufs": -22.120000000000001,
       "guitarType": 8,
@@ -2194,12 +2243,33 @@
       "drive": 0.2,
       "preset": "Percussive Tap Mute / 0"
     },
+    "2ef0965a1ba8648f6e9e8775ed246d88bc0ce04d79ead1fcf56d7d1595114b93": {
+      "lufs": -26.98,
+      "guitarType": 15,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Shred Lead / 15"
+    },
     "2f1ec45de6511bdc4a3b3fde943a0795ed1f39118207ac80895771220ed8d379": {
       "lufs": -15.66,
       "guitarType": 10,
       "ampModel": 0,
       "drive": 0.2,
       "preset": "Microtonal Tap / 10"
+    },
+    "2f33adf8b586f1bcd65eef884dc9b7bec96534fe7929f6da94e8cd035472f7cb": {
+      "lufs": -26.739999999999998,
+      "guitarType": 5,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Shred Lead / 5"
+    },
+    "2f52ef539496902a770f6ababd87fa3c4031a1f9c820e127c6b6a1c965461d3e": {
+      "lufs": -26.93,
+      "guitarType": 24,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Shred Lead / 24"
     },
     "2f766570848961cf3362177ce3c0bcdb7b7197e5158c52eeff1a3ced585a76e6": {
       "lufs": -26.32,
@@ -2263,13 +2333,6 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Dry Instrument / 10"
-    },
-    "305f847479a8afbdaa8fff2640714fa8254ecf8657b480b4a5d0b953682b0bc6": {
-      "lufs": -18.949999999999999,
-      "guitarType": 1,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Rockabilly Slap / 1"
     },
     "30af48f406c97150488387a36998c3cbfd03f0d47562c082fc76a580c3d43b3f": {
       "lufs": -11.92,
@@ -2355,6 +2418,13 @@
       "drive": 0.05,
       "preset": "Lap Steel Full Control / 7"
     },
+    "31e9707fcddf2877b72478664d76a4ff1edb5e77335a71bb4d97ef99d0d57355": {
+      "lufs": -22.73,
+      "guitarType": 21,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Surf Reverb / 21"
+    },
     "321b56a60ac252e11128ca75cf29ea52ab2bfc3dc37c9ba74bb29c44d554f3f6": {
       "lufs": -22.780000000000001,
       "guitarType": 18,
@@ -2390,8 +2460,8 @@
       "drive": 0.7,
       "preset": "Whammy-Style Two-Octave / 4"
     },
-    "32840247920a5edcb5c9298b0cda7882e554b8f551405f3360981bb75f98c629": {
-      "lufs": -28.510000000000002,
+    "32ae761b296caf68120fe1cffbdec4ee295e83067b117e5b6eab347a6ec54871": {
+      "lufs": -37.130000000000003,
       "guitarType": 12,
       "ampModel": 11,
       "drive": 0.36,
@@ -2474,13 +2544,6 @@
       "drive": 0.7,
       "preset": "Whammy-Style Two-Octave / 11"
     },
-    "33b98ce3e922215a30b17cdddff46e0b45bf30ffb5853cfa6f316c99c218aa58": {
-      "lufs": -19.48,
-      "guitarType": 2,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "T-Style Country Twang / 2"
-    },
     "34048688133c00ea501bfef9fe5c8ef514e98cf381fb8affc52ba8fc16e6acb6": {
       "lufs": -19.109999999999999,
       "guitarType": 3,
@@ -2516,13 +2579,6 @@
       "drive": 0.05,
       "preset": "Flamenco Rasgueado / 24"
     },
-    "34fffae43183857bfbc991da8debdc26e846cf27da48747eb993fd6cb714b21c": {
-      "lufs": -20.510000000000002,
-      "guitarType": 18,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "T-Style Country Twang / 18"
-    },
     "3524f5802187065357deb644794067abaf0c351f8f321640171ab2f833b577e3": {
       "lufs": -15.01,
       "guitarType": 1,
@@ -2544,12 +2600,12 @@
       "drive": 0.14,
       "preset": "Jazz Hollowbody / 21"
     },
-    "35431ef3e5e782da58c8130f1901defcb0abb18fc5de116f51dacfd26debcd0c": {
-      "lufs": -28.16,
-      "guitarType": 17,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "5-String Low B / 17"
+    "354797f92f600da0455e0df676c993dc61d64d87974019eac32f1a6b7dc6f947": {
+      "lufs": -28.649999999999999,
+      "guitarType": 21,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Semi-Hollow Chime / 21"
     },
     "3556019f0f2292527a22a348696f61ca34490b5c46d41877338467a0ae07e659": {
       "lufs": -15.27,
@@ -2572,13 +2628,6 @@
       "drive": 0.35,
       "preset": "Funk Slap Groove / 23"
     },
-    "35e67fb8f90f0b5f08cd34b499cab969a023d3e965acb619515719e627527b5c": {
-      "lufs": -26.77,
-      "guitarType": 2,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Surf Reverb / 2"
-    },
     "35f1bdbb128718fc5c018561e1ea05db4a9403999dc020e6f5724912467f5db1": {
       "lufs": -24.859999999999999,
       "guitarType": 11,
@@ -2600,12 +2649,12 @@
       "drive": 0.05,
       "preset": "Percussive Tap / 6"
     },
-    "36459d3b77be50c9bef21bdd66394ac8f0900bc543b7a42f7acab8bb11d74828": {
-      "lufs": -18.449999999999999,
-      "guitarType": 10,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Rockabilly Slap / 10"
+    "3626dc8b27d5fb8e7a1e2da668f7f06db28b3535809709e7c0e5f9fad59d6175": {
+      "lufs": -19.170000000000002,
+      "guitarType": 7,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "8-String Djent / 7"
     },
     "3656e70801297f6b0de8fa975268269f28ee6b504838fca1e60967f7b0181f9b": {
       "lufs": -11.06,
@@ -2705,13 +2754,6 @@
       "drive": 0.3,
       "preset": "Assist Bass Groove / 7"
     },
-    "3892365928720103d732d5131f0adf58f8d7a5658aa800d3de5375000a73b48b": {
-      "lufs": -19.649999999999999,
-      "guitarType": 24,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "T-Style Country Twang / 24"
-    },
     "38acf71622f366fa7def9e3e84c196123cdf191861266f881f99ac96b97ea003": {
       "lufs": -16.109999999999999,
       "guitarType": 23,
@@ -2767,6 +2809,13 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "DADGAD Drone / 14"
+    },
+    "39d14a04d18cab48a594533dd610fbe1c8f365a9419f1ae48695c6043badd386": {
+      "lufs": -36.939999999999998,
+      "guitarType": 16,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "5-String Low B / 16"
     },
     "39ea6774a0c2d6271366da1f8f49bd569595936d45e3c0ade4b7487ac128e2aa": {
       "lufs": -26.829999999999998,
@@ -2887,26 +2936,12 @@
       "drive": 0.68,
       "preset": "Tapping Etude / 15"
     },
-    "3c0a2260ade7f00625ae75868053f29020c707c539adc624f0c35ef92e849578": {
-      "lufs": -21.370000000000001,
-      "guitarType": 6,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Shred Lead / 6"
-    },
     "3c0c98ce1b7b106db34fdcb2151c1c22736e34f7b230a4c8b5b1a9d61e8342e6": {
       "lufs": -12.84,
       "guitarType": 11,
       "ampModel": 11,
       "drive": 0.48,
       "preset": "Violin Bass Grind / 11"
-    },
-    "3c10536a7b4407231e2e208b1d51fb7e12baabce242340d0ce37be9a658d8e6a": {
-      "lufs": -19.289999999999999,
-      "guitarType": 10,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "T-Style Country Twang / 10"
     },
     "3c4cf2729ee04daa16b4031e5e065b492e2c7a54f1a5239f89fa6a24e6c8700c": {
       "lufs": -20.890000000000001,
@@ -2922,13 +2957,6 @@
       "drive": 0.05,
       "preset": "Assist Fingerstyle Acoustic / 1"
     },
-    "3caa0bbb9a8a88d2cbbdbbc35b22b64fc5565169a5be117a17c15287dfd38e16": {
-      "lufs": -18.780000000000001,
-      "guitarType": 7,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Rockabilly Slap / 7"
-    },
     "3cb742e6728111734ac17088f73ced9f691453e78729a955eb8be2ccf53e63a7": {
       "lufs": -15.01,
       "guitarType": 14,
@@ -2936,19 +2964,19 @@
       "drive": 0.55,
       "preset": "Legato Runs / 14"
     },
+    "3ce214980b12fadecdbdebca98f557911ff163ea263a51788396cfc3ef9dedf3": {
+      "lufs": -35.539999999999999,
+      "guitarType": 9,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Ambient Swell / 9"
+    },
     "3db807ad5a0d7b742a13a793aeec469ecdd3c0b5ff3530cae09acd702f9c57e1": {
       "lufs": -14.199999999999999,
       "guitarType": 24,
       "ampModel": 0,
       "drive": 0.3,
       "preset": "Standard Slide (Mod Wheel) / 24"
-    },
-    "3dfe9bd2d5cd39773c62e2920195812981ebbe4d31b739667d74e02fb2d087e1": {
-      "lufs": -20.5,
-      "guitarType": 8,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Shred Lead / 8"
     },
     "3e0d9799abcb6bd9611903d1af3fcfb9b0af63287f4edf9344a3b8b7a9dc33f3": {
       "lufs": -14.390000000000001,
@@ -3006,6 +3034,13 @@
       "drive": 0.48,
       "preset": "Violin Bass Grind / 7"
     },
+    "3ee6823d32239b60f7d693dd4cac4bd405e75a82172d5c7eee6f4c6757bce73a": {
+      "lufs": -21.670000000000002,
+      "guitarType": 12,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Rockabilly Slap / 12"
+    },
     "3eebba6cdd0a28bba325266f1ea40966ea7afed096fa11de0d90f11b85417003": {
       "lufs": -43.829999999999998,
       "guitarType": 11,
@@ -3041,19 +3076,19 @@
       "drive": 0.8,
       "preset": "Assist Metal Chug / 7"
     },
+    "3fdc87a7b706b85a0090af6a0b8aa55f2b4fcbcb18f9d72fdf6277aefb79dd39": {
+      "lufs": -19.16,
+      "guitarType": 22,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "8-String Djent / 22"
+    },
     "4048ed52a9038924cee9c41d235fd15797011e86ddbb5f95dd5a8cd9f2d1e34b": {
       "lufs": -35.039999999999999,
       "guitarType": 23,
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Fingerstyle Folk / 23"
-    },
-    "405e2184047a27801c1320468ebde9a5f03d06f159b1d5de90e05a323f28d229": {
-      "lufs": -21.649999999999999,
-      "guitarType": 24,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Shred Lead / 24"
     },
     "406329d85fffe3d28368cb7be62041b638ef715883076883c0952f062d93b28d": {
       "lufs": -17.98,
@@ -3075,6 +3110,13 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Lap Steel Full Control / 20"
+    },
+    "40a7c04293fd82cbd0a77052224760474926ee347280501f549803bb46ee9b74": {
+      "lufs": -39.270000000000003,
+      "guitarType": 0,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Ambient Swell / 0"
     },
     "40b6d687eebad03603d6ec5cc175f014fec776b04d552beaf7f9955cd1f298b6": {
       "lufs": -26.760000000000002,
@@ -3117,13 +3159,6 @@
       "ampModel": 3,
       "drive": 0.58,
       "preset": "Blues Slide / 12"
-    },
-    "41dcd343ff55029a4cf91a86140e250fa7833597f01b76cdbb2cfaeaf1aae9b5": {
-      "lufs": -51.649999999999999,
-      "guitarType": 13,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Ambient Swell / 13"
     },
     "41e7809a8a8f0b8c883fcd2284fa9c8494e934a6e562931f4a47b3d8a3c70856": {
       "lufs": -13.210000000000001,
@@ -3195,6 +3230,13 @@
       "drive": 0.32,
       "preset": "J-Style Fingerstyle / 12"
     },
+    "4249abdcde5f9b4fe670333c742650e597cc5df61850f1a30810ed01a20afb5d": {
+      "lufs": -20.329999999999998,
+      "guitarType": 15,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "8-String Djent / 15"
+    },
     "424ed2aed67e57245dda674fda95dec3c92123df1fc8969f73828d1d4b5da9c5": {
       "lufs": -32.869999999999997,
       "guitarType": 3,
@@ -3250,6 +3292,13 @@
       "ampModel": 4,
       "drive": 0.55,
       "preset": "Legato Runs / 0"
+    },
+    "442186240f8e6343bf107fde47d949e57079f274a80aaea408fc995e1cede586": {
+      "lufs": -26.329999999999998,
+      "guitarType": 13,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Surf Reverb / 13"
     },
     "446f78517b98c74cba594f9b2c1e967f889737f5903ad6e68939a765d320e605": {
       "lufs": -18.190000000000001,
@@ -3426,6 +3475,20 @@
       "drive": 0.78,
       "preset": "Metal Lead Combo / 18"
     },
+    "4762d04d486c1c5235c25992732839b3728b942be270cbb34c94ca21ff947cd7": {
+      "lufs": -19.100000000000001,
+      "guitarType": 22,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Rockabilly Slap / 22"
+    },
+    "477e1410688f35e857a21ce35727e5dfa9ca3c423b45db4d67463db4fedd7233": {
+      "lufs": -36.420000000000002,
+      "guitarType": 5,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Ambient Swell / 5"
+    },
     "47b1b0ca30a7f947515d816ad095f8615451e8db9d21b9f6d90792a6e08e284a": {
       "lufs": -32.799999999999997,
       "guitarType": 1,
@@ -3446,13 +3509,6 @@
       "ampModel": 4,
       "drive": 0.55,
       "preset": "Legato Runs / 17"
-    },
-    "482de15f938c2a5bf790aa48e8e976b552af6de171236d9f646e76346191dea9": {
-      "lufs": -34.579999999999998,
-      "guitarType": 19,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "5-String Low B / 19"
     },
     "483d8e3a27f654693198d6a730406c5c8c0304440b624b065288ee02f875852c": {
       "lufs": -15.84,
@@ -3489,19 +3545,19 @@
       "drive": 0.2,
       "preset": "Assist Jazz Comping / 22"
     },
+    "48bc7a5004c3638f66f67e909860689d014123da0770a447aa7b113a2343039c": {
+      "lufs": -23.73,
+      "guitarType": 5,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Surf Reverb / 5"
+    },
     "48cfb3c7faca7c6360d95b0040bc872eb00c0c32b4e611d8c66a6618462f1dc4": {
       "lufs": -18.57,
       "guitarType": 9,
       "ampModel": 0,
       "drive": 0.22,
       "preset": "Assist Clean Pop Lead / 9"
-    },
-    "490e009ca4366d1b98dd4194384d25356c76a7e662832a36c6ae95634ddd2e43": {
-      "lufs": -20.41,
-      "guitarType": 17,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "T-Style Country Twang / 17"
     },
     "490e96f1314c4d423c93aee0b1ad9c2cc9b55a991eaa25125dd9b215792ee035": {
       "lufs": -44.859999999999999,
@@ -3510,12 +3566,12 @@
       "drive": 0.22,
       "preset": "Wah Funk Rhythm / 0"
     },
-    "490ffe7000cdfa4d461729fef2b605776382c8beef0d488c3ad3a70e3b16a674": {
-      "lufs": -25.300000000000001,
-      "guitarType": 1,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "5-String Low B / 1"
+    "49350f88e753225219be01152a0ba19c0c984fbe60761f4fbbd6e4ef17fe421b": {
+      "lufs": -36.170000000000002,
+      "guitarType": 7,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Ambient Swell / 7"
     },
     "4966578ab2825860e4469a1a4286ff5ae1899119794aa39dd28d65f807e2e3d6": {
       "lufs": -26.789999999999999,
@@ -3551,6 +3607,13 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Dry Instrument / 7"
+    },
+    "4a12ef06fcd2bb373d320fe39fead304618c3abfc5b15972ccc4a215ad6a5f8d": {
+      "lufs": -26.309999999999999,
+      "guitarType": 12,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Surf Reverb / 12"
     },
     "4a262b71d553886124a82471d588f382e76042c9d56215235ab6253400fd46e6": {
       "lufs": -10.85,
@@ -3636,6 +3699,13 @@
       "drive": 0.2,
       "preset": "Microtonal Tap / 3"
     },
+    "4b800756c28befbdfd482ba0b9da2432b62eb996106bf317d3d52063d29a1f74": {
+      "lufs": -36.270000000000003,
+      "guitarType": 8,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Ambient Swell / 8"
+    },
     "4b923cc5619180ee7c8f62df720920e57d5518a5890d7f481bcedcd643a8cbb8": {
       "lufs": -28.359999999999999,
       "guitarType": 12,
@@ -3656,13 +3726,6 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Parlor Blues / 24"
-    },
-    "4c11157173798aa6db5dda0ff6bf011731b42fd4afaf2fa9b6919dfb82fc4fab": {
-      "lufs": -50.159999999999997,
-      "guitarType": 11,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Ambient Swell / 11"
     },
     "4c131de7c080618ab7c8a3cf6642b28413b21b5c51f9a7a3557ac70a3f96f21b": {
       "lufs": -34.850000000000001,
@@ -3691,13 +3754,6 @@
       "ampModel": 0,
       "drive": 0.3,
       "preset": "Standard Slide (Mod Wheel) / 4"
-    },
-    "4cb37d1d087d0474412388b6f77705ac5bb64b19c8a2606b566a43894aa014e8": {
-      "lufs": -26.280000000000001,
-      "guitarType": 5,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "5-String Low B / 5"
     },
     "4ccc7accfc0674cff3d8c7f41b40522b695594b9b616728b24117005f92d9a2d": {
       "lufs": -33.630000000000003,
@@ -3748,26 +3804,12 @@
       "drive": 0.05,
       "preset": "Physics Showcase / 21"
     },
-    "4d2a8aa35646dfcbd69b9e5b8adc0b1bc4e8ecfdc058232ff2709a5975cc8b8e": {
-      "lufs": -19.25,
-      "guitarType": 6,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Rockabilly Slap / 6"
-    },
     "4d583329ec2c1d41a5abcea1f1b5fcc332cd86cdb0e6b6ab0883638b3e7f353a": {
       "lufs": -25.870000000000001,
       "guitarType": 19,
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Flamenco Rasgueado / 19"
-    },
-    "4db0f6a9ceed4fb85808703cc9722d96b8966584cbef57b93ecca58396ec98fe": {
-      "lufs": -24.329999999999998,
-      "guitarType": 1,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Semi-Hollow Chime / 1"
     },
     "4e0fd5ce9d241a4ed1f559e9f37902a9ad08c6af286d561f4b610828cf9296ba": {
       "lufs": -14.94,
@@ -3796,13 +3838,6 @@
       "ampModel": 0,
       "drive": 0.2,
       "preset": "Percussive Tap Mute / 23"
-    },
-    "4e8b3d98724109c0ae50f868bbaf8eb43a41ebd3b93572aa4e4482bfe270b85e": {
-      "lufs": -25.41,
-      "guitarType": 6,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Surf Reverb / 6"
     },
     "4ee90e92cb779ff48fd0b2f9bcc41a6b97c467fcaa0c6de50728ce7da6bd5bc6": {
       "lufs": -13.06,
@@ -3937,13 +3972,6 @@
       "drive": 0.05,
       "preset": "Flamenco Rasgueado / 16"
     },
-    "511f86a6308649c5b27acfbf580db90505e895b8bf68daa8d06a9b1bfe50d0b7": {
-      "lufs": -25.59,
-      "guitarType": 0,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "5-String Low B / 0"
-    },
     "5147764646a4c3e090f718a5e17d8cf1b2542e38e807922542a076620cdb433d": {
       "lufs": -45.43,
       "guitarType": 16,
@@ -3965,6 +3993,13 @@
       "drive": 0.05,
       "preset": "Classical Staccato / 8"
     },
+    "515d7da584d47e983f65d31e46edd606f0a53ff51722403d61f58ff69366f215": {
+      "lufs": -35.579999999999998,
+      "guitarType": 6,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Ambient Swell / 6"
+    },
     "5181859ae55541d54115fd683ae83c44838a4cfaca4be4e43452bbcb9aa7990a": {
       "lufs": -15.42,
       "guitarType": 1,
@@ -3972,12 +4007,12 @@
       "drive": 0.55,
       "preset": "Legato Runs / 1"
     },
-    "51b6ed5af248da762625240afe8d31b94084dfcc2a0b4049fea61034915457af": {
-      "lufs": -21.850000000000001,
-      "guitarType": 22,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Shred Lead / 22"
+    "51e021c8e3013a97fde5c12a38ab2718020ea12035cb2e765b38e7f20e2bff67": {
+      "lufs": -32.390000000000001,
+      "guitarType": 7,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "5-String Low B / 7"
     },
     "52338129d9564c4aa2a1621ce4e1a81848b2f1efe262b2bba548828942461bae": {
       "lufs": -39.359999999999999,
@@ -4007,6 +4042,13 @@
       "drive": 0.55,
       "preset": "Legato Runs / 16"
     },
+    "52713cece60aa99726d8f0faf79ed860a6714cee7b13736fb881269b89453172": {
+      "lufs": -27.600000000000001,
+      "guitarType": 22,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Shred Lead / 22"
+    },
     "52a3c99534c7b3a710d619590e7846768f278540b6285f5111781824f27f705f": {
       "lufs": -16.870000000000001,
       "guitarType": 19,
@@ -4021,19 +4063,19 @@
       "drive": 0.7,
       "preset": "Drop C Riff / 19"
     },
-    "52c89b5fe235736dee35c78820807feba1825d414577d385134964aa3995210e": {
-      "lufs": -21.440000000000001,
-      "guitarType": 18,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Rockabilly Slap / 18"
-    },
     "52e4fafe51982f90085abc0cf01bf7b5f52a8ef7a12a7fe845d9ffeaaa9ba75c": {
       "lufs": -24.489999999999998,
       "guitarType": 0,
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Classical Staccato / 0"
+    },
+    "52ffe4fcc357bf2f6b10ca39c9e26ee3f2ea58c784249bc4e97102e3aa0b097c": {
+      "lufs": -25.989999999999998,
+      "guitarType": 1,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Semi-Hollow Chime / 1"
     },
     "535309d0df19dd67598ae2420bc558d980fe2c18d1ee84b415327f7e0cfae512": {
       "lufs": -25.559999999999999,
@@ -4063,26 +4105,12 @@
       "drive": 0.68,
       "preset": "Tapping Etude / 0"
     },
-    "539ebedf98dedb960e170d62312a2a1bdd07c161ed7235adfb688af43876e68a": {
-      "lufs": -22.949999999999999,
-      "guitarType": 1,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "8-String Djent / 1"
-    },
     "53c6585e76a9a19843fb0c4f3ee3e4e74641108d2dd799559867556c0b3a48e6": {
       "lufs": -15.67,
       "guitarType": 19,
       "ampModel": 0,
       "drive": 0.3,
       "preset": "Full Cascade Demo / 19"
-    },
-    "53e2965c23d192f43087725716bca8f844d931d299dbbd3f0d511c0dfed73a11": {
-      "lufs": -26.77,
-      "guitarType": 24,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Surf Reverb / 24"
     },
     "53e560a94b4f417208380e90816f0cea89192efade2bd53ce814fbc940cec1f9": {
       "lufs": -11.43,
@@ -4119,19 +4147,19 @@
       "drive": 0.5,
       "preset": "Standard Whole-Tone Bend / 4"
     },
-    "5489a0216108133b2e0c3444932337d5878a4b585e3e61197f105fbe3fe84519": {
-      "lufs": -31.66,
-      "guitarType": 18,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Surf Reverb / 18"
-    },
     "54b0244e25ae3738946f72bcf470d5c5149e46737965ba8707c1328ef90fbf99": {
       "lufs": -40.880000000000003,
       "guitarType": 18,
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Parlor Blues / 18"
+    },
+    "55a8c1615791ba4d399f540f7578a08e3f1d8c3d388f370c7f2ce5bb7948cbed": {
+      "lufs": -18.649999999999999,
+      "guitarType": 2,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Rockabilly Slap / 2"
     },
     "55d841a52d5a06c675ce6f3ffdd237f016958c24fe57f08df505406578f28b83": {
       "lufs": -37.479999999999997,
@@ -4196,6 +4224,13 @@
       "drive": 0.3,
       "preset": "Assist Country Twang / 13"
     },
+    "570406203552164d760e599825d383d1600cb248fd161836338518b04bae40d8": {
+      "lufs": -26.73,
+      "guitarType": 1,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Shred Lead / 1"
+    },
     "576d92711384060a223094dc76efefda1fa01e56af18c51da9c0b74a89283ecc": {
       "lufs": -30.350000000000001,
       "guitarType": 1,
@@ -4217,6 +4252,13 @@
       "drive": 0.55,
       "preset": "Standard Two-Hand Tap / 21"
     },
+    "57c26b0d84dc737ab1f8d0de1e2a3b0070f7aa369eb0893f8340c09673ecc5c1": {
+      "lufs": -43.490000000000002,
+      "guitarType": 14,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Ambient Swell / 14"
+    },
     "57cbc29c7efb00d8dc1eb07b5cc0e4e0c01440ac76f1319ee9f20d53581afa07": {
       "lufs": -15.24,
       "guitarType": 1,
@@ -4237,13 +4279,6 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Lap Steel Full Control / 9"
-    },
-    "5806346827558ae32bb613b324f25cb34821771c9e9f1821bbd6a8df53b79d4b": {
-      "lufs": -26.600000000000001,
-      "guitarType": 4,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Surf Reverb / 4"
     },
     "581ec7b4a418a6d980d06ba1d2e3ceae81c9c6ff88b8e1bfe3838d5be896ad7b": {
       "lufs": -15.619999999999999,
@@ -4273,13 +4308,6 @@
       "drive": 0.32,
       "preset": "J-Style Fingerstyle / 13"
     },
-    "58cf60f1ed7103341a0554cb2910c7082e49c6478bf89b28efcfcdd53be3f374": {
-      "lufs": -40.060000000000002,
-      "guitarType": 7,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Ambient Swell / 7"
-    },
     "59219c2939dff7a5f968f79899f4d93768645b86a74dfd83006beabcce278e59": {
       "lufs": -18.41,
       "guitarType": 16,
@@ -4307,6 +4335,13 @@
       "ampModel": 9,
       "drive": 0.82,
       "preset": "Modern Metal Chug / 9"
+    },
+    "59f2a59b71e0e84bb2825dec2b1143472ad71de3f7c719223c3a16c4d0101297": {
+      "lufs": -27.550000000000001,
+      "guitarType": 14,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Surf Reverb / 14"
     },
     "59f3e27043d374b429487bb11857a94b8684901c59c12576e22421da0d0d721f": {
       "lufs": -19.039999999999999,
@@ -4350,13 +4385,6 @@
       "drive": 0.7,
       "preset": "Whammy-Style Two-Octave / 23"
     },
-    "5a681225200d5235da8625de141a144679bede5c8e5428dc5c48d5b5455fa50c": {
-      "lufs": -27.079999999999998,
-      "guitarType": 11,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Semi-Hollow Chime / 11"
-    },
     "5a982d5003340fe82d7fb95a1521ab527e90afb4d0abe4f7a2e9acbac5406b17": {
       "lufs": -13.85,
       "guitarType": 7,
@@ -4377,13 +4405,6 @@
       "ampModel": 11,
       "drive": 0.25,
       "preset": "P-Bass Flatwound / 17"
-    },
-    "5abafb40fe690cd5768829a18240c7376a794dc36af36b00c12b30981275e679": {
-      "lufs": -22.300000000000001,
-      "guitarType": 20,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Shred Lead / 20"
     },
     "5acdf10b005c016aafa10fac00972418be0a7c146e5f23870b16a6dee9eb2c7b": {
       "lufs": -13.81,
@@ -4420,13 +4441,6 @@
       "drive": 0.05,
       "preset": "Nashville High-Strung / 15"
     },
-    "5b6795e4bb85aea4253eb3fa665891237a1746758bc75168d1e5fe56dc80b045": {
-      "lufs": -25.0,
-      "guitarType": 13,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "8-String Djent / 13"
-    },
     "5b77e66fb563483ca14c72bf71e6a85a319f4ccd2108a218a47ea03034cfa4ba": {
       "lufs": -13.779999999999999,
       "guitarType": 24,
@@ -4462,13 +4476,6 @@
       "drive": 0.05,
       "preset": "Fingerstyle Folk / 4"
     },
-    "5bce42caa7650162df12bce1b76897965b428fdf02d07010403b17ca5bf79207": {
-      "lufs": -26.18,
-      "guitarType": 10,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Surf Reverb / 10"
-    },
     "5bd0fe5346a3e1c92ea7c045d3963e266c63f757da694ebc9446f2d829a8627b": {
       "lufs": -26.289999999999999,
       "guitarType": 19,
@@ -4476,12 +4483,12 @@
       "drive": 0.05,
       "preset": "Nylon Classical / 19"
     },
-    "5c17463e5ed03d337a8fd8b643c1262280498d2cc821e2af8a586db01de9744a": {
-      "lufs": -21.329999999999998,
-      "guitarType": 3,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Shred Lead / 3"
+    "5bffc2e652e22509b656ae7dc6feeed97d2da6d4aa366a2cc47931a09cd1141e": {
+      "lufs": -44.68,
+      "guitarType": 17,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Ambient Swell / 17"
     },
     "5c241f9653163db565327e67dae2fd031ac577495ba391d95f13491e04b941e3": {
       "lufs": -26.0,
@@ -4497,13 +4504,6 @@
       "drive": 0.05,
       "preset": "DADGAD Drone / 16"
     },
-    "5c6c41f5a247489e0c5c9385fc8dd79e77ff58666e5c35613bf02b3027cd7a2a": {
-      "lufs": -21.719999999999999,
-      "guitarType": 21,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Shred Lead / 21"
-    },
     "5c71bbdc18f4799b93a3ea0626cbf163893ad52f237d48f07d4ddd8ee321145b": {
       "lufs": -18.77,
       "guitarType": 0,
@@ -4518,12 +4518,12 @@
       "drive": 0.55,
       "preset": "Legato Runs / 23"
     },
-    "5d18bca03189973cae39f199cafea3bb4413f1526e045f0eaf5ed381de28545a": {
-      "lufs": -24.489999999999998,
-      "guitarType": 5,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "8-String Djent / 5"
+    "5dc9a1434d854c31e04278dad7aefdf16aec8f38e5113f83fc3c4e9c1e731727": {
+      "lufs": -18.5,
+      "guitarType": 4,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "T-Style Country Twang / 4"
     },
     "5ddfd0d107ebb423a1e5892beb4d787e129f704aa109f6c51dcd9927186999eb": {
       "lufs": -30.57,
@@ -4553,13 +4553,6 @@
       "drive": 0.3,
       "preset": "Quarter-Tone Blues / 12"
     },
-    "5e83618ca87b6e1fc939052d948f237993ef4b2fbdec19459b400c2ceb1a1fd3": {
-      "lufs": -32.549999999999997,
-      "guitarType": 14,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Surf Reverb / 14"
-    },
     "5e9bc85f9e94d1d7c4eb9e779d30aa1631c336d5669725043388fd2d8c9339a1": {
       "lufs": -12.98,
       "guitarType": 18,
@@ -4573,6 +4566,13 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Fingerstyle Folk / 0"
+    },
+    "5ed1065297c61cc388c433f4949b43536fcee779efd0c461798dbcf2735c7d25": {
+      "lufs": -29.010000000000002,
+      "guitarType": 20,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Semi-Hollow Chime / 20"
     },
     "5ed6aff043a0ecf8b93785a52cc385b65afee4f698f7ebe4d32d30a38065201c": {
       "lufs": -14.49,
@@ -4623,6 +4623,13 @@
       "drive": 0.3,
       "preset": "Quarter-Tone Blues / 18"
     },
+    "5fb06222d1a9ff6b23096c1a20d04113f80db30f9d4df72a934a0d304538200e": {
+      "lufs": -33.299999999999997,
+      "guitarType": 6,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "5-String Low B / 6"
+    },
     "5fcb4fddb34ddd1acf4153e914a537334956a92ee9d66eeba3688d28255c894c": {
       "lufs": -27.129999999999999,
       "guitarType": 7,
@@ -4636,20 +4643,6 @@
       "ampModel": 4,
       "drive": 0.62,
       "preset": "Scrape Intro / 12"
-    },
-    "600837090570913c1168e7db9d9d4430ed0934c78ccd836ae76b57b7262bb79a": {
-      "lufs": -26.16,
-      "guitarType": 4,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "5-String Low B / 4"
-    },
-    "60088e17df56bff9a45c469410af92d3cc8288064441a2df0d596c49896fe50c": {
-      "lufs": -21.02,
-      "guitarType": 13,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Shred Lead / 13"
     },
     "6010bace29e3ee7ce45d44d8f12f4c389aab5829c50caaa375fb48d72cc1f7bf": {
       "lufs": -34.520000000000003,
@@ -4679,26 +4672,12 @@
       "drive": 0.2,
       "preset": "Microtonal Tap / 17"
     },
-    "60f5fb4fdf31bca62f6b3f8208b957ddd4a9a7b24fe7a1bb80080d82d6cc4a37": {
-      "lufs": -42.039999999999999,
-      "guitarType": 19,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Ambient Swell / 19"
-    },
     "6102ddb4da7f5eb78fd37b0904b63775d16706c8e92725654596f8fe5fe463e1": {
       "lufs": -41.409999999999997,
       "guitarType": 15,
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Parlor Blues / 15"
-    },
-    "6194ea2b830e70fb2b4d554e80832525a8111da38ba66483a7e761a2984e16ad": {
-      "lufs": -22.25,
-      "guitarType": 20,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "8-String Djent / 20"
     },
     "61a752ee62ea98ee9184f60283565a576e58b9ae06aae30cedf4f5156977abe9": {
       "lufs": -16.309999999999999,
@@ -4748,13 +4727,6 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "12-String Jangle / 2"
-    },
-    "62b05d0f506b6deaa4774dfa2fcc32837945d48cb8bc0051e02c47ba4ba77abe": {
-      "lufs": -25.719999999999999,
-      "guitarType": 21,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Semi-Hollow Chime / 21"
     },
     "62b8af6aeb0f99283e73d065546b41a738ca454f44ed2154a59af1d97771b1a1": {
       "lufs": -40.82,
@@ -4861,13 +4833,6 @@
       "drive": 0.25,
       "preset": "Country Boom-Chick / 17"
     },
-    "64d70668fce4e390cb18e8686c18cd9c161ed8d432b7f00c3ba1d9bacc5e9164": {
-      "lufs": -26.0,
-      "guitarType": 22,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Semi-Hollow Chime / 22"
-    },
     "650f593240ab04289be55a78e970ff11348eddcac634b4b9d6fe4a3c616e8972": {
       "lufs": -15.16,
       "guitarType": 3,
@@ -4889,33 +4854,12 @@
       "drive": 0.3,
       "preset": "Assist Country Twang / 15"
     },
-    "652f048f198003e255c536964eb4626a23797af0a5fb0b4069918f7e9df092c7": {
-      "lufs": -32.579999999999998,
-      "guitarType": 15,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Surf Reverb / 15"
-    },
     "6539986dd6aeca5bc24ca834082caa20a4de8ea67851d18ee5845cdf83e940b0": {
       "lufs": -16.27,
       "guitarType": 6,
       "ampModel": 0,
       "drive": 0.2,
       "preset": "Microtonal Tap / 6"
-    },
-    "654e25caa863a59a64292079ebb9c6a60d797221a57d36574eb30cd3b8995f1e": {
-      "lufs": -21.420000000000002,
-      "guitarType": 13,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Rockabilly Slap / 13"
-    },
-    "6575610cd76a7de0cc77b92a7d08d48427d0ec9f20db55cdca613d5611020091": {
-      "lufs": -25.260000000000002,
-      "guitarType": 5,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Semi-Hollow Chime / 5"
     },
     "6579dfe31fe97cc9559ea2a9fdbe915920c8427e0dfbf4872599c1abf28ebf0e": {
       "lufs": -14.0,
@@ -4938,19 +4882,19 @@
       "drive": 0.3,
       "preset": "Assist Country Twang / 14"
     },
+    "6675da3f1f5f2f509d15b338c4a262c615d0fac1372b807dba4e757bd897c03b": {
+      "lufs": -34.219999999999999,
+      "guitarType": 2,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "5-String Low B / 2"
+    },
     "66d1406a0f81cbbb85ea6b23d4d67f6638c946ea2a0bbf4f9cf51c6efbe297b7": {
       "lufs": -15.210000000000001,
       "guitarType": 12,
       "ampModel": 4,
       "drive": 0.48,
       "preset": "Germanium Fuzz Lead / 12"
-    },
-    "66d152a4207f5feec598d642d78745cbacc2c17f017bce0099cac0da986aed9b": {
-      "lufs": -19.219999999999999,
-      "guitarType": 1,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "T-Style Country Twang / 1"
     },
     "66e3b08a1c62c9b7d75f55b9c4b1b9f1790465ba44c0caedf3464573739ddf72": {
       "lufs": -31.960000000000001,
@@ -5007,20 +4951,6 @@
       "ampModel": 0,
       "drive": 0.15,
       "preset": "Funk Chuka / 17"
-    },
-    "67ed94543304959e9d82e03c5d1efd412d72ee0310b4a87d64d326c9406646da": {
-      "lufs": -45.25,
-      "guitarType": 0,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Ambient Swell / 0"
-    },
-    "67f0b0c71728177841078fda318149e3a7c822427e8de72900946ace6d6b8df8": {
-      "lufs": -20.620000000000001,
-      "guitarType": 9,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Shred Lead / 9"
     },
     "6813f7489073fccc8b3285e3c44c0467a52cd24b13683b51162ae7b0ac93866e": {
       "lufs": -20.43,
@@ -5099,12 +5029,12 @@
       "drive": 0.48,
       "preset": "Violin Bass Grind / 1"
     },
-    "693733f469393aeb395b473d2644e4ab5e6df3597fad505967b50d15af480254": {
-      "lufs": -19.600000000000001,
-      "guitarType": 3,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Rockabilly Slap / 3"
+    "693d0979c0fb3eac2d437dfc629bf56ab626938ac055c18f960e16e7dc4e834e": {
+      "lufs": -27.039999999999999,
+      "guitarType": 13,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Shred Lead / 13"
     },
     "696bf6a085f201587666a2d2c77ea8ca06a2c7db8e269063e8ccfb90ce5481a2": {
       "lufs": -14.609999999999999,
@@ -5113,19 +5043,19 @@
       "drive": 0.55,
       "preset": "Assist Blues Lead / 20"
     },
+    "69b4a010c218fc3091a4bafb243c801b7765e9892a6036be504d200d9130f209": {
+      "lufs": -18.280000000000001,
+      "guitarType": 8,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Rockabilly Slap / 8"
+    },
     "69c366ba7adb3adb20504c99cb8154dcffa108cf76b47ab0bcb7983499222fa0": {
       "lufs": -12.98,
       "guitarType": 18,
       "ampModel": 5,
       "drive": 0.8,
       "preset": "Metal Gallop / 18"
-    },
-    "69e9dc097ae7cdea1461715de964ecaeba5e54e1214a1b0d4bdc1f5d348c5054": {
-      "lufs": -30.699999999999999,
-      "guitarType": 8,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Surf Reverb / 8"
     },
     "69fe996b2e2168ecf1bdcf37f2ac6ff7438d5ccfc230c0fe6bf70654628f5bdc": {
       "lufs": -11.51,
@@ -5134,33 +5064,12 @@
       "drive": 0.48,
       "preset": "Violin Bass Grind / 21"
     },
-    "6a1421eac8104660a16e2d3c81757dd7469419dfaef1a3722c36030932f53192": {
-      "lufs": -22.289999999999999,
-      "guitarType": 12,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Rockabilly Slap / 12"
-    },
-    "6a87a993ee54306cd9284b1584def7d6fc8e5b42b4f92442cd4a2f50b8030f38": {
-      "lufs": -19.34,
-      "guitarType": 8,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "T-Style Country Twang / 8"
-    },
     "6a8bb6a99d2da7c1538296c56dbd859491deb9b54e605b0b62de8c1626e34677": {
       "lufs": -13.73,
       "guitarType": 4,
       "ampModel": 5,
       "drive": 0.8,
       "preset": "Metal Gallop / 4"
-    },
-    "6a951d287e093312a2097c06dbf3c12e418e3eb27abaa59dd9105304ceadf996": {
-      "lufs": -21.449999999999999,
-      "guitarType": 16,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Shred Lead / 16"
     },
     "6aa396356dc0dbd4554530e7f71137596a1891a3e300df3edef22d4481f8eed2": {
       "lufs": -15.99,
@@ -5175,20 +5084,6 @@
       "ampModel": 8,
       "drive": 0.7,
       "preset": "Drop C Riff / 10"
-    },
-    "6ac9c42186f430147555eebe40906357574367f01a18b646fedfb011dd97e000": {
-      "lufs": -24.510000000000002,
-      "guitarType": 2,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Semi-Hollow Chime / 2"
-    },
-    "6ada56f7832888a94723b96182090b30b3155118e9a77f09682134013a812dd3": {
-      "lufs": -21.260000000000002,
-      "guitarType": 12,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Shred Lead / 12"
     },
     "6ae02dde9aedded01afad972cdd9a1a24a7b5ce2c0b3b861b16986ea02fbc16b": {
       "lufs": -14.0,
@@ -5386,6 +5281,27 @@
       "drive": 0.14,
       "preset": "Jazz Hollowbody / 16"
     },
+    "6e8296fbc01b3cc9b3cb2f5cb3da813c967cf78aefc242f88a378720b134b7c7": {
+      "lufs": -36.890000000000001,
+      "guitarType": 13,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "5-String Low B / 13"
+    },
+    "6e8ce4b5f17f48c9255d34bb840a0261ce63a6314832748de4023c4f2bd64c3a": {
+      "lufs": -18.170000000000002,
+      "guitarType": 24,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Rockabilly Slap / 24"
+    },
+    "6eb759524e2426e88b772024cd1ad0cd4ae8f37462941e304275fe54080643cf": {
+      "lufs": -27.07,
+      "guitarType": 16,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Shred Lead / 16"
+    },
     "6eca037ab03304c921d7048733e51497dddb234a495ed4ff4dbd1af85d1200f3": {
       "lufs": -15.67,
       "guitarType": 8,
@@ -5414,13 +5330,6 @@
       "drive": 0.2,
       "preset": "Percussive Tap Mute / 24"
     },
-    "6f51640021e30287d92005d34548751933f800d3474d993b2486faf31684ce25": {
-      "lufs": -27.559999999999999,
-      "guitarType": 18,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Semi-Hollow Chime / 18"
-    },
     "6f59ff3abd69f624a18be2a611e0f69871d28fc594f46e592180f5f60b928086": {
       "lufs": -34.289999999999999,
       "guitarType": 8,
@@ -5435,33 +5344,12 @@
       "drive": 0.32,
       "preset": "J-Style Fingerstyle / 10"
     },
-    "6fe86110a15e0361cceb2c11f9fdf49bab6f7d08f5cc49a6ec4d849ccb23b9de": {
-      "lufs": -19.59,
-      "guitarType": 22,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Rockabilly Slap / 22"
-    },
     "700f9469f0a49b82d44c83c079e6c5303118d86efa2be612297c89b7a33daeb4": {
       "lufs": -17.109999999999999,
       "guitarType": 21,
       "ampModel": 0,
       "drive": 0.3,
       "preset": "Quarter-Tone Blues / 21"
-    },
-    "70633046de8b819d28633b33139dad43b640ae312a09208d70a9c9292491ae39": {
-      "lufs": -25.920000000000002,
-      "guitarType": 9,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Semi-Hollow Chime / 9"
-    },
-    "70bacb4e84cab5b40cf242d469e3f882692539cc6b01e1c21d71847651aea3d1": {
-      "lufs": -19.890000000000001,
-      "guitarType": 19,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Rockabilly Slap / 19"
     },
     "70c401098fbcc5e84bfc7a0f75d4790b2b23fbb601ce14ca4d3a49bc08cff27b": {
       "lufs": -15.039999999999999,
@@ -5505,12 +5393,12 @@
       "drive": 0.7,
       "preset": "Drop C Riff / 0"
     },
-    "719b53b3f9ab8aeb83f74f366b13758c36ba3ab21770f5a516c85fa9ff2bbca4": {
-      "lufs": -24.02,
-      "guitarType": 0,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Semi-Hollow Chime / 0"
+    "71d378c6d21526b4a49eced33c053d8252844001ef9baf2bb5a7d217b665bfa7": {
+      "lufs": -38.07,
+      "guitarType": 22,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Ambient Swell / 22"
     },
     "71ed67e1478ddb7131eb56654c81fbadcb187f4aeb83ca6329eac3c2174a598f": {
       "lufs": -37.850000000000001,
@@ -5518,13 +5406,6 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Assist Fingerstyle Acoustic / 17"
-    },
-    "7243f7c8d9c50d6e8e1df0a1462aaa50ce70fc9d9cf38cd55ec0ad8e29a0d0de": {
-      "lufs": -21.52,
-      "guitarType": 22,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "8-String Djent / 22"
     },
     "7257bbc36a04c9cc474f87ecc185b45a6402d3b4fda05c1169f7af21e48ffdc9": {
       "lufs": -13.630000000000001,
@@ -5575,12 +5456,26 @@
       "drive": 0.32,
       "preset": "J-Style Fingerstyle / 15"
     },
+    "730f166f1c70a410cba799251e7a3b0ef261e257e71abb617f61ce4d65243858": {
+      "lufs": -20.640000000000001,
+      "guitarType": 14,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "8-String Djent / 14"
+    },
     "737b1d419dadb49250bd81b291302bf375212c5dd4175cfa97c8df750c7bde7c": {
       "lufs": -15.44,
       "guitarType": 1,
       "ampModel": 4,
       "drive": 0.62,
       "preset": "Scrape Intro / 1"
+    },
+    "73c260286335acfcd8bfb44b7dd27b116146832a044f1401ac27c32929e4c24d": {
+      "lufs": -27.02,
+      "guitarType": 14,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Shred Lead / 14"
     },
     "73cbcfb6bcbe88d3b9760ec6265019550f48256b9257942c0a24562d3693386c": {
       "lufs": -18.530000000000001,
@@ -5616,13 +5511,6 @@
       "ampModel": 4,
       "drive": 0.62,
       "preset": "Scrape Intro / 20"
-    },
-    "748cb00c88c6f7fb66521688b09cf0f4a46a603dac12276abf9dacd26e82ea1b": {
-      "lufs": -19.739999999999998,
-      "guitarType": 0,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "T-Style Country Twang / 0"
     },
     "748f1cd43186cdd410ffb13037a455ebe24eca7d12bdea990a2b6f48d856a14d": {
       "lufs": -15.279999999999999,
@@ -5666,13 +5554,6 @@
       "drive": 0.14,
       "preset": "Jazz Hollowbody / 14"
     },
-    "750484ee790671b90f39fa4105143baf2ee603572242011aedc3c3488f2aa0e7": {
-      "lufs": -20.359999999999999,
-      "guitarType": 13,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "T-Style Country Twang / 13"
-    },
     "75230f03ec306b2d3a448060dda7e871a4e1cdbd622dba35672c415e102009cb": {
       "lufs": -14.76,
       "guitarType": 18,
@@ -5700,6 +5581,13 @@
       "ampModel": 4,
       "drive": 0.55,
       "preset": "Legato Runs / 18"
+    },
+    "75b11c55c1054af37b8a65ca75aebc3cf4e3fc7e4633cbcc2909ba9d010d20f3": {
+      "lufs": -19.550000000000001,
+      "guitarType": 9,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "8-String Djent / 9"
     },
     "75d0f7e3b3728bba8c57258c8480b79ba7de4bce834a8dccd6ab4b40c44d309b": {
       "lufs": -16.25,
@@ -5743,6 +5631,13 @@
       "drive": 0.3,
       "preset": "Slide Blues / 19"
     },
+    "76be8ea8e6bd7a77ff961aa14d9bb652e73d8e55f0dd01b8aaf53f20995ef311": {
+      "lufs": -20.34,
+      "guitarType": 16,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "8-String Djent / 16"
+    },
     "76c3fe870fb1aee085cd41036af20f9fbad8ea49f73bd5f614635ef7eba873c7": {
       "lufs": -22.77,
       "guitarType": 19,
@@ -5778,26 +5673,19 @@
       "drive": 0.8,
       "preset": "Metal Gallop / 8"
     },
-    "774a275510bc1ecab291fd050f4fe274ca932ef2b261707a5766988e229e026e": {
-      "lufs": -20.579999999999998,
-      "guitarType": 16,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "T-Style Country Twang / 16"
-    },
-    "77748152c49ffcf1c35ce2e3ccd5842808c8ca1769be1414811037fed9e5a419": {
-      "lufs": -24.469999999999999,
-      "guitarType": 4,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Semi-Hollow Chime / 4"
-    },
     "7778e9fa12d7c17145907ce69917796c6dfb506a90da733647ab61c1fbcd1efd": {
       "lufs": -13.359999999999999,
       "guitarType": 17,
       "ampModel": 5,
       "drive": 0.7,
       "preset": "Whammy-Style Two-Octave / 17"
+    },
+    "77dd24c904c9dea3b8c61b96ab3e682ce811c2cb4bd5ff7de245bf93a2b07be3": {
+      "lufs": -29.039999999999999,
+      "guitarType": 23,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Semi-Hollow Chime / 23"
     },
     "77ed0a622a1a8dac2e1df4745181f396b33136f07c8042690b5c570d892ed5c8": {
       "lufs": -14.59,
@@ -5806,6 +5694,20 @@
       "drive": 0.62,
       "preset": "Assist Rock Rhythm / 13"
     },
+    "77fc27fb2c469d9a21441ab05405be4b74023705e0af6a5e7b261d1df690b24f": {
+      "lufs": -27.719999999999999,
+      "guitarType": 15,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Surf Reverb / 15"
+    },
+    "78032be5fe73b6c1405a867ca462925d7af8a0a13dfef5f1c4dfa82c3cdec51f": {
+      "lufs": -21.829999999999998,
+      "guitarType": 4,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Surf Reverb / 4"
+    },
     "78114684dcb9aaa7f87951e3e3c9cdbc86df1091679a3ceea8d5a2c3b813d241": {
       "lufs": -33.939999999999998,
       "guitarType": 3,
@@ -5813,19 +5715,19 @@
       "drive": 0.05,
       "preset": "DADGAD Drone / 3"
     },
+    "786cfe80c6021bd919b2da3924bc830226dedee9c23319aa6de9ca9244024fdf": {
+      "lufs": -21.59,
+      "guitarType": 16,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Rockabilly Slap / 16"
+    },
     "78c214aa36e3d0ac79f151c1efb695a20f62aff5414548e7e82559cee2ba0706": {
       "lufs": -31.120000000000001,
       "guitarType": 10,
       "ampModel": 0,
       "drive": 0.2,
       "preset": "Percussive Tap Mute / 10"
-    },
-    "78c219afc2cf9ee52b6d2f01fe139bf1aa9ea406121acaf6806145d4ed74acdf": {
-      "lufs": -23.989999999999998,
-      "guitarType": 7,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Semi-Hollow Chime / 7"
     },
     "78d5b7890f13735ff24b203aff927d6114b1c85211f6f522fa158a24a43dea98": {
       "lufs": -19.120000000000001,
@@ -5841,6 +5743,13 @@
       "drive": 0.05,
       "preset": "12-String Jangle / 5"
     },
+    "78fb0f1377e06071cb8a5a49d966f4f6336f9c7a137e9f5a9ca6e198d60481cd": {
+      "lufs": -20.300000000000001,
+      "guitarType": 10,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "8-String Djent / 10"
+    },
     "790721269526d47d1824c57062e21e03e39d87f154c1eefcb34606fe9cb70779": {
       "lufs": -24.649999999999999,
       "guitarType": 8,
@@ -5854,13 +5763,6 @@
       "ampModel": 11,
       "drive": 0.32,
       "preset": "J-Style Fingerstyle / 0"
-    },
-    "799ab32fe88bd9522c865d899681e1b4362a7a2ca894b0450faf2caaa37b2796": {
-      "lufs": -24.890000000000001,
-      "guitarType": 11,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "8-String Djent / 11"
     },
     "79c93fd8563062a4c10e4006c832a7e779ec0f861d88928d271ca3c1bfb451b6": {
       "lufs": -16.600000000000001,
@@ -5988,13 +5890,6 @@
       "drive": 0.14,
       "preset": "Jazz Hollowbody / 20"
     },
-    "7ba1786e12cb7176ab357e445e1f120c0962e7c23f0ac9c6a68aebaf426a3d0c": {
-      "lufs": -45.049999999999997,
-      "guitarType": 21,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Ambient Swell / 21"
-    },
     "7ba7de0974413ed2165aaf7ea0d5b1442833d0630d8b2b611bdabdc476475f55": {
       "lufs": -19.059999999999999,
       "guitarType": 11,
@@ -6002,19 +5897,19 @@
       "drive": 0.25,
       "preset": "Country Boom-Chick / 11"
     },
-    "7bdfe6cca492cb80aef86f3c5d011536b8a82646ce10e803df6c4991169dacfa": {
-      "lufs": -21.050000000000001,
-      "guitarType": 14,
+    "7bc3f6181893f915d4f5b0f7a45bf5a50d44c876dc2c3c5f8a1911f09dd1dcc0": {
+      "lufs": -18.710000000000001,
+      "guitarType": 8,
       "ampModel": 1,
       "drive": 0.34,
-      "preset": "T-Style Country Twang / 14"
+      "preset": "T-Style Country Twang / 8"
     },
-    "7c007bb42e7f9459f6b85a8faa01c183bb969ace9463b7ee3efdde2b3d830e9f": {
-      "lufs": -20.510000000000002,
-      "guitarType": 19,
+    "7c0db8f9574128f6a400712b2282084d6e8c36e5920f2a7a2865786cab366cc5": {
+      "lufs": -20.260000000000002,
+      "guitarType": 13,
       "ampModel": 9,
       "drive": 0.85,
-      "preset": "8-String Djent / 19"
+      "preset": "8-String Djent / 13"
     },
     "7c2981db5747d5cdfd508299d52e6bffe21e372b52e2b2dcff2b45ab19c85e5f": {
       "lufs": -15.869999999999999,
@@ -6023,12 +5918,12 @@
       "drive": 0.5,
       "preset": "Standard Whole-Tone Bend / 20"
     },
-    "7c6e02e1c32e2a35fac2475909e4ef44a2517cf4f681c3aab1d626eadc92452b": {
-      "lufs": -26.170000000000002,
-      "guitarType": 9,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "5-String Low B / 9"
+    "7c2b6989f74c96ce6f7d2cd44dd39f83aa504e318ceee26f73e9ab5b3931dde0": {
+      "lufs": -18.359999999999999,
+      "guitarType": 1,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Rockabilly Slap / 1"
     },
     "7c911341186a598931180017e5d7e7e13e0096154fce4f8688e0a917677431f2": {
       "lufs": -16.379999999999999,
@@ -6036,6 +5931,13 @@
       "ampModel": 0,
       "drive": 0.15,
       "preset": "Funk Chuka / 3"
+    },
+    "7c92afb5c3002c902c805a2629756240b6148d9bf16534cea3f4d03bdc31a244": {
+      "lufs": -19.899999999999999,
+      "guitarType": 2,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "8-String Djent / 2"
     },
     "7ca3f4ca79f8ed6807e455437d4e749090fde6c43eabf35f7d0cbfc1041c1621": {
       "lufs": -14.880000000000001,
@@ -6085,6 +5987,13 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Flamenco Rasgueado / 23"
+    },
+    "7d2d59464ddd203e4c7c42ca1c00fec5058b166a413253b1f43fe934e08ede88": {
+      "lufs": -25.920000000000002,
+      "guitarType": 11,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Surf Reverb / 11"
     },
     "7d3691b3cf1acd16d220fd57e81e85a4ba6a610e5e54d9937bf033eb5a0821d2": {
       "lufs": -12.98,
@@ -6170,12 +6079,12 @@
       "drive": 0.7,
       "preset": "Whammy-Style Two-Octave / 21"
     },
-    "7f85b87f251f5a38440ffe4ddc040a6dd8bd17463df0f6f034748a210fa06e4d": {
-      "lufs": -24.18,
-      "guitarType": 24,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Semi-Hollow Chime / 24"
+    "7f2f07c233221b4c84ddd7750608bdeacd98c1eee797eb3b856b55e17ad32756": {
+      "lufs": -35.280000000000001,
+      "guitarType": 22,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "5-String Low B / 22"
     },
     "7fc466636a9d5e1e1df358fcf3c3fe2780fe59006c687df2b0871933fa2a4919": {
       "lufs": -32.710000000000001,
@@ -6212,12 +6121,33 @@
       "drive": 0.3,
       "preset": "Assist Country Twang / 3"
     },
+    "806b0ed05cb80cb6fb912b01f789224213313b3f9c74a751cc76006e6cb05ecf": {
+      "lufs": -36.329999999999998,
+      "guitarType": 2,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Ambient Swell / 2"
+    },
+    "8071e1a1136b26fa364da1daf69849b28f3edc93888b20899506f907ad76e101": {
+      "lufs": -35.530000000000001,
+      "guitarType": 20,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "5-String Low B / 20"
+    },
     "80ba33adefb3260571b65be07ceb87b5dad2b925473aff64074e409869670c2a": {
       "lufs": -15.119999999999999,
       "guitarType": 7,
       "ampModel": 5,
       "drive": 0.62,
       "preset": "Assist Rock Rhythm / 7"
+    },
+    "80d1ab5c0606a9072ea5b48fe3621d2424662350c7b091e2c84a3cbb91da34e1": {
+      "lufs": -19.760000000000002,
+      "guitarType": 1,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "8-String Djent / 1"
     },
     "80d4482876bfd8d6d67233ee3f8aca4e0db60f6bb8e13508bd9d878d179e2169": {
       "lufs": -35.240000000000002,
@@ -6240,20 +6170,6 @@
       "drive": 0.48,
       "preset": "Germanium Fuzz Lead / 10"
     },
-    "812b8827018f27c891363b45a8e64188d379455eb80c05d50c3abd0231c12725": {
-      "lufs": -31.34,
-      "guitarType": 12,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Surf Reverb / 12"
-    },
-    "8134335fd5a0a05f4648cba162c3d53821f6cf8f208c095f012edbe6f4ab5e24": {
-      "lufs": -25.170000000000002,
-      "guitarType": 6,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "5-String Low B / 6"
-    },
     "814b2b12eeac0c778472ad284dbccfb32697757ad9dd5c1d918ca56e2d7fffef": {
       "lufs": -17.890000000000001,
       "guitarType": 3,
@@ -6267,6 +6183,13 @@
       "ampModel": 4,
       "drive": 0.5,
       "preset": "Standard Whole-Tone Bend / 10"
+    },
+    "81e45dfb772c1ef31819c9a87f0005290ebf9f4218dadafb7f1b93662fe5772c": {
+      "lufs": -19.93,
+      "guitarType": 24,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "8-String Djent / 24"
     },
     "81ec0aaa70a959f6c506f1c46333a1e44438233733e1ee54416448a74e26671a": {
       "lufs": -17.440000000000001,
@@ -6302,6 +6225,13 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Jumbo Bluegrass / 15"
+    },
+    "8289feb76e6957c60df9bf6cbc1825a93a24e6f96a8b19a181168dce0f37c2c9": {
+      "lufs": -26.690000000000001,
+      "guitarType": 4,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Shred Lead / 4"
     },
     "829916fe5e2a966661fb01de56a0b320351665647be96887ffd2e7503a67cd0d": {
       "lufs": -15.24,
@@ -6387,6 +6317,13 @@
       "drive": 0.16,
       "preset": "Clean Double-Cut Funk / 6"
     },
+    "83e1d0ab048f629b93e8dc2c8b2e0a3fe5b6b082bfefa94b72dd897d5679aaeb": {
+      "lufs": -20.920000000000002,
+      "guitarType": 18,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Rockabilly Slap / 18"
+    },
     "83feda384fe958e738e0c64d604fc3f548d93aaf42f3457fdf3bb4de7820dbfa": {
       "lufs": -14.859999999999999,
       "guitarType": 24,
@@ -6414,20 +6351,6 @@
       "ampModel": 4,
       "drive": 0.62,
       "preset": "Single-Cut Crunch / 11"
-    },
-    "84401fff0fca367979e61652bae2b46c8ec1a4a61ef7c83ca79e6d3f10a883ef": {
-      "lufs": -28.030000000000001,
-      "guitarType": 11,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "5-String Low B / 11"
-    },
-    "844b1c2b89bc53020694d7f052681147925a0a0dd806a462622719af8a61d6bc": {
-      "lufs": -22.59,
-      "guitarType": 23,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "8-String Djent / 23"
     },
     "845a72b84570132503363b897242412b48b0a9a72e3d301f7685f3583a800a22": {
       "lufs": -26.600000000000001,
@@ -6513,12 +6436,12 @@
       "drive": 0.3,
       "preset": "Slide Blues / 18"
     },
-    "85efb604c7f3feee25ba90291c58ac27b10c86b8f3e1903ceab65e5feb119ab5": {
-      "lufs": -21.870000000000001,
-      "guitarType": 14,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Rockabilly Slap / 14"
+    "861fb98963816e2937f4921a688ef1e05f677cc5671a4212c54921d299ad6cc6": {
+      "lufs": -21.289999999999999,
+      "guitarType": 10,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Surf Reverb / 10"
     },
     "8648a96b013a1c328249937767015319100d5f6c6462e1c5c987567032783f7f": {
       "lufs": -19.27,
@@ -6526,6 +6449,20 @@
       "ampModel": 0,
       "drive": 0.3,
       "preset": "Slide Blues / 15"
+    },
+    "86549bfe7dd7a844b0d9d8d9c810bba45612c3449ce8cc2ac57fbbe8a1c2d262": {
+      "lufs": -25.539999999999999,
+      "guitarType": 3,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Semi-Hollow Chime / 3"
+    },
+    "866a8f786b14e84823aab7561d82a5886f92984df06c5e35f911cf53792d5779": {
+      "lufs": -18.91,
+      "guitarType": 7,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "T-Style Country Twang / 7"
     },
     "866f2670611a05cb604b619c825250f60deb5deabc594c80ad0c53da5fe95ddf": {
       "lufs": -16.620000000000001,
@@ -6540,13 +6477,6 @@
       "ampModel": 4,
       "drive": 0.55,
       "preset": "Legato Runs / 24"
-    },
-    "869b992bd02ae7705166e1e013dc7b60743c198ec22201c8c93499688bef9679": {
-      "lufs": -25.030000000000001,
-      "guitarType": 18,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "8-String Djent / 18"
     },
     "86bf13deb7a8b6dea56a2309ec75a48a680a1d73990fcf1ff80eeca22e4bc87c": {
       "lufs": -11.94,
@@ -6576,13 +6506,6 @@
       "drive": 0.2,
       "preset": "Assist Jazz Comping / 7"
     },
-    "87723fc15fe56c2da948733c3060e3247c8fb5e41d5accfc89d75546438f9314": {
-      "lufs": -28.600000000000001,
-      "guitarType": 15,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "5-String Low B / 15"
-    },
     "877520f71747e42e2efb4ab6a0a5a4a546236e68181c3e14ff60ba79f8d96d3a": {
       "lufs": -41.090000000000003,
       "guitarType": 16,
@@ -6604,20 +6527,6 @@
       "drive": 0.14,
       "preset": "Jazz Hollowbody / 18"
     },
-    "87d0473a748f20f456feebd49e9e5ffc5f81c4fabbd4779ad1ca0125ca45ed8e": {
-      "lufs": -28.239999999999998,
-      "guitarType": 13,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "5-String Low B / 13"
-    },
-    "880d32e56e7ece3cc380348db330610efd14ec6a5f77010447b41c6948e9a51f": {
-      "lufs": -52.659999999999997,
-      "guitarType": 14,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Ambient Swell / 14"
-    },
     "880e65323d7d3ecc2b349be6965aaadf1551a082af8254fcb7bb738d325f6287": {
       "lufs": -22.66,
       "guitarType": 22,
@@ -6631,6 +6540,13 @@
       "ampModel": 9,
       "drive": 0.82,
       "preset": "Modern Metal Chug / 24"
+    },
+    "8829626d47e7089363821ebcdf6ba9294adc4061dbbc8d86d6e2cfbe61df82ab": {
+      "lufs": -29.289999999999999,
+      "guitarType": 12,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Semi-Hollow Chime / 12"
     },
     "883ad6b10a9eb7b60d7d3c1e8211eaa48d7df4b6a03f344c0fdf3ec37f938ebf": {
       "lufs": -16.34,
@@ -6659,13 +6575,6 @@
       "ampModel": 0,
       "drive": 0.25,
       "preset": "Country Boom-Chick / 16"
-    },
-    "891f28656ee63c2967bc921802db5c9d0872392161750e7512df5da1304497c7": {
-      "lufs": -26.640000000000001,
-      "guitarType": 3,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Surf Reverb / 3"
     },
     "898122015a7ff86a494a7129d584af51c22373ff130ac7dcc64ca4d4ff0783e4": {
       "lufs": -19.25,
@@ -6751,6 +6660,13 @@
       "drive": 0.05,
       "preset": "Nylon Classical / 0"
     },
+    "8abbd4174422d3748acebe22f71df0df199b7a35431eb0f559a8451dcbcb6c85": {
+      "lufs": -21.449999999999999,
+      "guitarType": 14,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Rockabilly Slap / 14"
+    },
     "8adea0e10a5b90feedc8b915f0ecdfbc56149b9d026d1532bc294f87a0127987": {
       "lufs": -15.9,
       "guitarType": 5,
@@ -6785,13 +6701,6 @@
       "ampModel": 4,
       "drive": 0.5,
       "preset": "Standard Whole-Tone Bend / 16"
-    },
-    "8b6e4d9a21925f1a9b46bfdf0f7cc7dd60c0dbdc16c5fd243e30e11ccddee5bf": {
-      "lufs": -23.73,
-      "guitarType": 2,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "8-String Djent / 2"
     },
     "8bb279895ca9c4e3b0df5359d255f42aa38bab2b94b7d7cf9ec60a64c8ec5662": {
       "lufs": -24.66,
@@ -6863,6 +6772,13 @@
       "drive": 0.05,
       "preset": "Fingerstyle Folk / 21"
     },
+    "8d70b8f8efa72a2319fd9ea3b0552df66cb90c3e183d4e76a303de8790c69a80": {
+      "lufs": -42.350000000000001,
+      "guitarType": 18,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Ambient Swell / 18"
+    },
     "8d794d6584b62add1952bc419c531e11aa7bfd0a796ae0293178642c568cac59": {
       "lufs": -14.93,
       "guitarType": 18,
@@ -6905,6 +6821,20 @@
       "drive": 0.05,
       "preset": "Dry Instrument / 12"
     },
+    "8dffdd209e1f5b0067373bb4454701de476808578bd711a21555c4bea537d47b": {
+      "lufs": -19.120000000000001,
+      "guitarType": 4,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Rockabilly Slap / 4"
+    },
+    "8e45c9faf96f7a53262b0ac6e6f1f2af5e16693e3086381b7ec04c844bd0b100": {
+      "lufs": -20.329999999999998,
+      "guitarType": 11,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "8-String Djent / 11"
+    },
     "8e6670fee95d74bb8cee535b9fb609b4ab5a61e3c31bac78e96a51d89ab75d76": {
       "lufs": -12.32,
       "guitarType": 16,
@@ -6926,12 +6856,26 @@
       "drive": 0.68,
       "preset": "Tapping Etude / 7"
     },
+    "900d2a70a3c637fe6d26fac59f555f70df3af5904565db05210815f99d439bb3": {
+      "lufs": -26.91,
+      "guitarType": 12,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Shred Lead / 12"
+    },
     "90102517ddac337a77c0e916755d56711124e23ec2f33954ab9304b728c662bd": {
       "lufs": -22.309999999999999,
       "guitarType": 1,
       "ampModel": 3,
       "drive": 0.58,
       "preset": "Blues Slide / 1"
+    },
+    "901bf456d9af5660d3ac81001d3279b77a877d1605ecf275158aae2f4e40d312": {
+      "lufs": -36.649999999999999,
+      "guitarType": 20,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Ambient Swell / 20"
     },
     "90208df06e3903052ab8efc8d4c7970d95915c380f50efc57adb5cfe6c38d30d": {
       "lufs": -20.949999999999999,
@@ -7010,13 +6954,6 @@
       "drive": 0.16,
       "preset": "Clean Double-Cut Funk / 20"
     },
-    "91ddf05d591b0f13b072479bc9fd4dfd0a749286531217bd7ca9c47802772a6d": {
-      "lufs": -21.059999999999999,
-      "guitarType": 10,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Shred Lead / 10"
-    },
     "9222803599509939910580173a44622be9ed5a619c5c12e6a10e5a37557694fb": {
       "lufs": -13.710000000000001,
       "guitarType": 17,
@@ -7038,12 +6975,19 @@
       "drive": 0.62,
       "preset": "Assist Rock Rhythm / 19"
     },
-    "929baf923e3a8c02f35c5e7fa6acac8836c4fe3e909e3de9fa306bf28300b781": {
-      "lufs": -24.460000000000001,
-      "guitarType": 7,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "5-String Low B / 7"
+    "927e087bae59d60f8ae707be2d774c97589cab89c2f7c3c449f05c15e8461edf": {
+      "lufs": -18.73,
+      "guitarType": 5,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "T-Style Country Twang / 5"
+    },
+    "92a4fb08c50d123624082e15fd98059ca559c6ea4a3939497262d31fd87498ab": {
+      "lufs": -18.710000000000001,
+      "guitarType": 6,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Rockabilly Slap / 6"
     },
     "92ed45db8ebc3add9003d86fd0df3333422c2bac8552b540f7ffe60c2260e0d6": {
       "lufs": -12.130000000000001,
@@ -7051,13 +6995,6 @@
       "ampModel": 0,
       "drive": 0.35,
       "preset": "Init / 24"
-    },
-    "930d059985edbcfb66b58d47ff27ae7234d3cd23721f59ecad08acd950df78e1": {
-      "lufs": -28.52,
-      "guitarType": 15,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Semi-Hollow Chime / 15"
     },
     "931e686cfaf27fb6fd25a1cf063590741f8381473298e34be8fdda958b51ebdf": {
       "lufs": -17.670000000000002,
@@ -7122,13 +7059,6 @@
       "drive": 0.05,
       "preset": "Jumbo Bluegrass / 24"
     },
-    "9457814b62d3f453679438455f5c2becd7e8ce382a5fa1399f895aa43cda0bd3": {
-      "lufs": -26.109999999999999,
-      "guitarType": 1,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Surf Reverb / 1"
-    },
     "946e3c20181170106ae786d8150b959160609dd8d39bce898e80f84eaa1fba6b": {
       "lufs": -16.670000000000002,
       "guitarType": 24,
@@ -7142,6 +7072,20 @@
       "ampModel": 4,
       "drive": 0.55,
       "preset": "Assist Blues Lead / 4"
+    },
+    "948d82794ef606913553a0e0cee1318cef289d9285574d9a37150eb633648501": {
+      "lufs": -19.73,
+      "guitarType": 22,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "T-Style Country Twang / 22"
+    },
+    "949203c1fd793d95992a4333ed7bb007402e16c28945ec44607136b3684285b4": {
+      "lufs": -20.140000000000001,
+      "guitarType": 15,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "T-Style Country Twang / 15"
     },
     "94965b97abb280832548ffee49dad48f43f69c53a87279333c79f9c3b2148f00": {
       "lufs": -25.129999999999999,
@@ -7170,6 +7114,13 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "12-String Jangle / 8"
+    },
+    "958f2f3a793a2cd3664a3e38a181d753615755d01b588489e4f3f44b65324f4f": {
+      "lufs": -35.390000000000001,
+      "guitarType": 19,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Ambient Swell / 19"
     },
     "95bde8033b8f5cda68179526d0835cbc04fe7482c3d8eebe2bf687e442f8e7b3": {
       "lufs": -17.920000000000002,
@@ -7206,19 +7157,19 @@
       "drive": 0.55,
       "preset": "Assist Blues Lead / 13"
     },
+    "9638c08a4a6126e738f84dcd61df96b15145e5b35ae631d84ea09284904d4e67": {
+      "lufs": -25.739999999999998,
+      "guitarType": 24,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Semi-Hollow Chime / 24"
+    },
     "966bfe7f6d6c7ffac1f6eae400b5e80589e4b7c3b62c45a901cbfbc1fa84edef": {
       "lufs": -25.25,
       "guitarType": 2,
       "ampModel": 7,
       "drive": 0.8,
       "preset": "Assist Metal Chug / 2"
-    },
-    "967507738fcdbe61c0d5935ab92475a634b6e8376c0fb3c52d99130115532f07": {
-      "lufs": -22.949999999999999,
-      "guitarType": 10,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "8-String Djent / 10"
     },
     "96ab9c11e95b30132276bf716668831e4fed041f5e49d6fbea4c39df163852ea": {
       "lufs": -16.530000000000001,
@@ -7227,19 +7178,19 @@
       "drive": 0.48,
       "preset": "Germanium Fuzz Lead / 22"
     },
+    "96b7b0438b1cbd7e5304170bf4f6e1dc1d80282c0f8e4eb67ed9e6d35ebb5719": {
+      "lufs": -28.649999999999999,
+      "guitarType": 22,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Semi-Hollow Chime / 22"
+    },
     "96c56030020436db588926da8b457d0f5f8e6ea8f6da4c09b9e9e24b32350455": {
       "lufs": -14.06,
       "guitarType": 12,
       "ampModel": 5,
       "drive": 0.68,
       "preset": "Tapping Etude / 12"
-    },
-    "96fc46466b2279928e2317af428dadfe0d73beae6bff13932a51a5d8c81e4f2d": {
-      "lufs": -19.32,
-      "guitarType": 2,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Rockabilly Slap / 2"
     },
     "9704acf6f1d503d67e92b06c8383716312e48b76c8d388259c0c04aea0c9dab7": {
       "lufs": -44.0,
@@ -7311,20 +7262,6 @@
       "drive": 0.22,
       "preset": "Wah Funk Rhythm / 12"
     },
-    "99778d43cd36b7d5b5e79d358a9cd5b6fecb691272f5640f2054949b787c5b1b": {
-      "lufs": -20.91,
-      "guitarType": 2,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Shred Lead / 2"
-    },
-    "997fb662c7318707cdfe10c4126502c533ca7770ea0d8b39feccb9b4b4bd31bb": {
-      "lufs": -50.939999999999998,
-      "guitarType": 18,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Ambient Swell / 18"
-    },
     "99923f49b4742726ed216d92904adc8a2f2b2f2d96b03206f31f3fb77afb5e56": {
       "lufs": -20.210000000000001,
       "guitarType": 23,
@@ -7381,12 +7318,12 @@
       "drive": 0.05,
       "preset": "DADGAD Drone / 7"
     },
-    "9ae2d9dc53206a75c3328e9e639f40b24ab098d8bea18c069d762db81d47308c": {
-      "lufs": -18.690000000000001,
-      "guitarType": 24,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Rockabilly Slap / 24"
+    "9aef58618a19fbfe6801653d75d66bd9bc45fcb79bb1b46abc20cc38e01df17f": {
+      "lufs": -37.189999999999998,
+      "guitarType": 15,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "5-String Low B / 15"
     },
     "9b2fedc843449dbbc5f7f055090d1921d1391a2964598f6be3e651fe1991ed71": {
       "lufs": -17.890000000000001,
@@ -7401,13 +7338,6 @@
       "ampModel": 10,
       "drive": 0.64,
       "preset": "Octave Fuzz Stoner / 24"
-    },
-    "9b42314ba2fced53c05587ba7360f5c91c55394cb9a5a29e084be13b688682e4": {
-      "lufs": -22.309999999999999,
-      "guitarType": 19,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Shred Lead / 19"
     },
     "9b71062b12e59dc674c5acfd038a58da67afb1d0288d6d72a4a5f017ce79794e": {
       "lufs": -29.420000000000002,
@@ -7430,12 +7360,26 @@
       "drive": 0.48,
       "preset": "Germanium Fuzz Lead / 19"
     },
+    "9bcb64a5cde64d74daa26a78c490f0e60daa028e8eb02c5e43212c799c20b36e": {
+      "lufs": -18.969999999999999,
+      "guitarType": 24,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "T-Style Country Twang / 24"
+    },
     "9bcf8fe532797a05a8e247b13addeb858a81c4b43affcf74a4874d724aafe5f2": {
       "lufs": -34.420000000000002,
       "guitarType": 4,
       "ampModel": 12,
       "drive": 0.05,
       "preset": "DADGAD Drone / 4"
+    },
+    "9bdc764eb85a4b3904880a67b47368d03862a5639f5cd5b95a5df6959ad10e78": {
+      "lufs": -33.619999999999997,
+      "guitarType": 0,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "5-String Low B / 0"
     },
     "9bed3095b60cc7bedb89f27290f786eb6cc50b3b23f92316fa1a7fc54749f1f5": {
       "lufs": -13.34,
@@ -7458,13 +7402,6 @@
       "drive": 0.68,
       "preset": "Tapping Etude / 10"
     },
-    "9c453d917f8cf443f0afe9145bf72db6fcc478856d4eb66afe09fefc622a9411": {
-      "lufs": -26.68,
-      "guitarType": 23,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "5-String Low B / 23"
-    },
     "9c5781dd020a35b0803116312c9691df6218b80d9f2e38d370c5c986db6fe155": {
       "lufs": -15.43,
       "guitarType": 9,
@@ -7478,20 +7415,6 @@
       "ampModel": 3,
       "drive": 0.58,
       "preset": "Blues Slide / 11"
-    },
-    "9c75146739a959ae53094d8ec9687b04572785f3f8ba38d8dca4d27d3853c732": {
-      "lufs": -27.960000000000001,
-      "guitarType": 12,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Semi-Hollow Chime / 12"
-    },
-    "9c8e9a07d1ee6cf75b462cb6cedcfbd4c2a8dc5ed171a9f1168bda805fd0c550": {
-      "lufs": -21.850000000000001,
-      "guitarType": 15,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Rockabilly Slap / 15"
     },
     "9cc1d0184a962225693df6f53c7eeb1ce0dd35254ab665721f86c140dd9eb03b": {
       "lufs": -13.539999999999999,
@@ -7513,6 +7436,13 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Physics Showcase / 1"
+    },
+    "9d40e3d165747a0e05cf29b7e46bf30cd896063cec9ceae7231815a425b513e8": {
+      "lufs": -25.219999999999999,
+      "guitarType": 9,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Surf Reverb / 9"
     },
     "9d49e5ffd47b7c787dd6a89d4ee7e17de9873e573582513180b3a2a4f80a8d6e": {
       "lufs": -16.780000000000001,
@@ -7577,6 +7507,13 @@
       "drive": 0.05,
       "preset": "Classical Staccato / 6"
     },
+    "9e5062050c5cb7ebe818cd793c63410025b17fa7e44fddbf1f13d0b8aabedb80": {
+      "lufs": -27.789999999999999,
+      "guitarType": 9,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Semi-Hollow Chime / 9"
+    },
     "9eaf80652c5a839581cac293dbdac9ddbe5fbc8b737a961cac71587ddba23f4e": {
       "lufs": -12.91,
       "guitarType": 23,
@@ -7619,13 +7556,6 @@
       "drive": 0.2,
       "preset": "Transposing Trem Chords / 16"
     },
-    "9efe1db918412b1802b7004eb7e650edb18b1361ca0c88c2d057fbd7f6626e9d": {
-      "lufs": -24.289999999999999,
-      "guitarType": 17,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "8-String Djent / 17"
-    },
     "9f0c8212d4884ad9ab67fe02cf5aa59e12557b72a7fd80313068f58a0ab70184": {
       "lufs": -30.199999999999999,
       "guitarType": 17,
@@ -7654,12 +7584,19 @@
       "drive": 0.58,
       "preset": "Blues Slide / 0"
     },
-    "9f7066e5d7f343053f07edbbe5485dd8d94a1005cead723a239860eb2bf80b91": {
-      "lufs": -40.469999999999999,
+    "9f6b8700bf982b24ea254e1d1f1231da113bca7e8bf1f2ed2485fe95d3a6e55d": {
+      "lufs": -25.800000000000001,
       "guitarType": 10,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Ambient Swell / 10"
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Semi-Hollow Chime / 10"
+    },
+    "9f9cc3f1be8cccf5f702b7b11c9829dbf3759f17ad5ed5f7db51a534b758822e": {
+      "lufs": -19.510000000000002,
+      "guitarType": 17,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "T-Style Country Twang / 17"
     },
     "9fb16948e656c2cbba5e5c72dd04c69d55827039b5333ab769398a00bf84ceda": {
       "lufs": -15.98,
@@ -7668,12 +7605,40 @@
       "drive": 0.6,
       "preset": "Wide Vibrato / 22"
     },
+    "a00107cae2792253dd9bfb0fa81f8facfc1499440e9a9c6b28d573ae7c6899a6": {
+      "lufs": -43.020000000000003,
+      "guitarType": 12,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Ambient Swell / 12"
+    },
+    "a00a2a0cf2ac135cf40ff4823d58b72c375d409e6dc62c37a838df65715fefe2": {
+      "lufs": -19.260000000000002,
+      "guitarType": 5,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Rockabilly Slap / 5"
+    },
     "a0331ac53adb8d45737e5f92a51ed25b2d60241f80f3d2e58ba1d6833eebf3d6": {
       "lufs": -26.300000000000001,
       "guitarType": 3,
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Strummed Dreadnought / 3"
+    },
+    "a03f5f3a7527deb4c258135d3614c901a9c0d067620115275132112464fa9a8f": {
+      "lufs": -26.75,
+      "guitarType": 7,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Shred Lead / 7"
+    },
+    "a04f54fc460e0d7e08e8060909eb1083e69b25d2ed13dae924b18bb3790fa59e": {
+      "lufs": -21.93,
+      "guitarType": 2,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Surf Reverb / 2"
     },
     "a05f4cbc2fbcf101a61845439f08ed0630d041fb825114ddb3a57b4de03e2fb3": {
       "lufs": -11.58,
@@ -7724,26 +7689,12 @@
       "drive": 0.32,
       "preset": "J-Style Fingerstyle / 4"
     },
-    "a12da1a42e9a17a82f8e5584ad967279a93ba4e20d2941cb829aec3d366113f6": {
-      "lufs": -21.170000000000002,
-      "guitarType": 17,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Shred Lead / 17"
-    },
     "a13f016c3ecede714c4fb2e38c2cc25b5e1fed80be975722188a0c1a615c46a5": {
       "lufs": -24.059999999999999,
       "guitarType": 24,
       "ampModel": 12,
       "drive": 0.05,
       "preset": "12-String Jangle / 24"
-    },
-    "a14fb185a5fc8f7ac4c6a157cc7276d9cb3e075237de1a905971e7cf8810eca6": {
-      "lufs": -25.690000000000001,
-      "guitarType": 10,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "5-String Low B / 10"
     },
     "a1e44f6372722d43c39fe2c8dc950c5e1f7f88aa45ff003430d5aadb290a618e": {
       "lufs": -37.479999999999997,
@@ -7843,6 +7794,13 @@
       "drive": 0.35,
       "preset": "Init / 23"
     },
+    "a36c3992e922d96dbac26b28449490bb8a9b6ea452c4521b7561e65f9c3e7182": {
+      "lufs": -35.590000000000003,
+      "guitarType": 10,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Ambient Swell / 10"
+    },
     "a41e727039482393c0982855f1fe568a379bf76321f5c634618084f04c699d3f": {
       "lufs": -34.689999999999998,
       "guitarType": 9,
@@ -7856,13 +7814,6 @@
       "ampModel": 4,
       "drive": 0.48,
       "preset": "Germanium Fuzz Lead / 5"
-    },
-    "a438f6a217b9cd1dc550de19a2dd47ea70582040034a7b8a8cb1760512dd9151": {
-      "lufs": -20.829999999999998,
-      "guitarType": 15,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "T-Style Country Twang / 15"
     },
     "a43be179a8654e42f5d0549ee92a3b89e3e11a9090befbe3b728f66bf002c341": {
       "lufs": -17.039999999999999,
@@ -7884,6 +7835,13 @@
       "ampModel": 0,
       "drive": 0.16,
       "preset": "Clean Double-Cut Funk / 18"
+    },
+    "a492896443f6329e5dd9070693214661bbb2fb7ce0e93c44ea9820f589db3944": {
+      "lufs": -34.399999999999999,
+      "guitarType": 8,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "5-String Low B / 8"
     },
     "a49d5b49a869964f73f6a4680207b4bab71630433586aa7e5cb7e43d2210b03a": {
       "lufs": -15.1,
@@ -7934,13 +7892,6 @@
       "drive": 0.6,
       "preset": "Wide Vibrato / 13"
     },
-    "a5bf9c66055658ce56e825cdea96a6966df4d27f3619f9f4b8d406eb936beb49": {
-      "lufs": -26.030000000000001,
-      "guitarType": 8,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Semi-Hollow Chime / 8"
-    },
     "a5d09ccb099c196c9a536ec2cbc2ac45e4281a1bcc5c16a7b97434390e73a99c": {
       "lufs": -29.920000000000002,
       "guitarType": 8,
@@ -7955,19 +7906,19 @@
       "drive": 0.48,
       "preset": "Germanium Fuzz Lead / 2"
     },
+    "a5fec7b1a83e63d1d03facbff03780a129628fca9f572c64a478f01d839c6a2c": {
+      "lufs": -19.52,
+      "guitarType": 13,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "T-Style Country Twang / 13"
+    },
     "a65fa843e63e2b4138ca92ff69d69486cd211cb165cc07f13148aefb9525bfbf": {
       "lufs": -28.370000000000001,
       "guitarType": 10,
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Flamenco Rasgueado / 10"
-    },
-    "a66d93564c67edc1352243ac09c6096d8fd4c945944bf22111024dcf92372e38": {
-      "lufs": -25.199999999999999,
-      "guitarType": 15,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "8-String Djent / 15"
     },
     "a685d499c50965d0c1878572b7601d720eabdac02293b8ede1057c61beaa83c4": {
       "lufs": -14.18,
@@ -7976,12 +7927,26 @@
       "drive": 0.55,
       "preset": "Assist Blues Lead / 16"
     },
+    "a695acdb648adaf10bf2611e646b6d91c1ef1372bc560c6e51cea7e320538df5": {
+      "lufs": -18.77,
+      "guitarType": 6,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "T-Style Country Twang / 6"
+    },
     "a69f394f03796ee8aa65a80d5e659e484fdfd0fd83fe3747e7f35bb8dc38bb77": {
       "lufs": -18.23,
       "guitarType": 14,
       "ampModel": 9,
       "drive": 0.82,
       "preset": "Modern Metal Chug / 14"
+    },
+    "a6a38d2473d113eda55f687c7993d136f5f10b8f936a568b0e83517418d9f2b0": {
+      "lufs": -20.079999999999998,
+      "guitarType": 21,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "T-Style Country Twang / 21"
     },
     "a6b6e24b5134b323a34fdea4bbb1e74567fa993c45da278a48b35212c8ab147f": {
       "lufs": -22.800000000000001,
@@ -7996,13 +7961,6 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Middle Eastern Maqam / 11"
-    },
-    "a6ceb384339ccaeabcb9d5f295e5527f7d85eae12675468c5bb83b0eec178bbb": {
-      "lufs": -26.050000000000001,
-      "guitarType": 8,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "5-String Low B / 8"
     },
     "a6fa3ce3156e4fcba1abfa1ff8ac103d3a414f541c11bd4648590cb5c809006a": {
       "lufs": -14.48,
@@ -8031,13 +7989,6 @@
       "ampModel": 4,
       "drive": 0.55,
       "preset": "Legato Runs / 22"
-    },
-    "a781f9129ed12b9e0cd9e776747992fb9ff9fd23fa638faef9f5459ce97282c8": {
-      "lufs": -41.869999999999997,
-      "guitarType": 5,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Ambient Swell / 5"
     },
     "a79b8f2bb049e3e8a4ed4e1d00a2e557ce5aec2bca66938ee093f46a1e07541b": {
       "lufs": -35.490000000000002,
@@ -8088,13 +8039,6 @@
       "drive": 0.05,
       "preset": "12-String Jangle / 15"
     },
-    "a8a582166272009266559774c321ff94d387f9ab68f7cb5a0d3de373a5d0dbf6": {
-      "lufs": -24.800000000000001,
-      "guitarType": 12,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "8-String Djent / 12"
-    },
     "a93539da1ee59b95167302f6f176ed88b8c2309792cbda270ea3a82ce2ba794a": {
       "lufs": -19.550000000000001,
       "guitarType": 6,
@@ -8136,6 +8080,13 @@
       "ampModel": 5,
       "drive": 0.68,
       "preset": "Tapping Etude / 21"
+    },
+    "aa4fcea63c1399e6877880084a89f682079c0548d499f98bb482d0e062ad7658": {
+      "lufs": -27.039999999999999,
+      "guitarType": 11,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Shred Lead / 11"
     },
     "aa9b434bacc9774be656b911716835766d3f1d67b1b90b623658a8ff5d3c78a2": {
       "lufs": -32.039999999999999,
@@ -8186,6 +8137,13 @@
       "drive": 0.32,
       "preset": "J-Style Fingerstyle / 8"
     },
+    "ab564767ec3b7189be303f30e78a83fe2475a79db3ada5e8bcc1e414ec9dab62": {
+      "lufs": -21.739999999999998,
+      "guitarType": 24,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Surf Reverb / 24"
+    },
     "ab7d3d6b4fdb8f1c7b3a95de6115c7ebdea3a2b54ba1a914b287c1d6f0274f24": {
       "lufs": -20.190000000000001,
       "guitarType": 9,
@@ -8206,6 +8164,13 @@
       "ampModel": 11,
       "drive": 0.48,
       "preset": "Violin Bass Grind / 14"
+    },
+    "abce4e20fe87aa993b0d0bf5f81722bf7c58011fc69ee3c5f53075bb0396d43f": {
+      "lufs": -19.870000000000001,
+      "guitarType": 16,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "T-Style Country Twang / 16"
     },
     "abf2b05e2471aef96f03ba023ce97b0a44d0ad4fc8fc1d866ec602195b609e8c": {
       "lufs": -33.219999999999999,
@@ -8228,6 +8193,13 @@
       "drive": 0.64,
       "preset": "Octave Fuzz Stoner / 3"
     },
+    "ac8b13a805222fee29c50903bec5da6f9e118e0e90edb107cd0fab3b3be3f5e5": {
+      "lufs": -19.850000000000001,
+      "guitarType": 0,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "8-String Djent / 0"
+    },
     "acb27c975be0e0405a2984f2f815441f7166dce1188859611c9aaff6ba5eb5e2": {
       "lufs": -18.640000000000001,
       "guitarType": 22,
@@ -8241,6 +8213,13 @@
       "ampModel": 11,
       "drive": 0.35,
       "preset": "Funk Slap Groove / 11"
+    },
+    "ad10cf731aee7ec16f0d61be2e6edc5883bbc7aef50a2d8b0ee01b0454c6a34d": {
+      "lufs": -26.84,
+      "guitarType": 3,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Shred Lead / 3"
     },
     "ad1a43aa2fbf279700316f94a6205d22d4a442cffa884fc1558dedbcb9d84477": {
       "lufs": -33.020000000000003,
@@ -8277,6 +8256,13 @@
       "drive": 0.22,
       "preset": "Assist Clean Pop Lead / 23"
     },
+    "ada0f3f97e4c837e6baf78f2ce06c2b178495e76f415e11b7442fe4fe5e3afd8": {
+      "lufs": -27.219999999999999,
+      "guitarType": 17,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Surf Reverb / 17"
+    },
     "adb51f65b27ad03af3920f5a148766fba951c1ef3916ba036a5d051ec9933e6a": {
       "lufs": -43.060000000000002,
       "guitarType": 13,
@@ -8297,6 +8283,27 @@
       "ampModel": 11,
       "drive": 0.32,
       "preset": "J-Style Fingerstyle / 2"
+    },
+    "ade5d737dadf4c550773f3650e9ce1b0109548aa1964237d1e78e9260528c891": {
+      "lufs": -18.760000000000002,
+      "guitarType": 9,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Rockabilly Slap / 9"
+    },
+    "adeaf015790a160b9c38e2bdc262aff652eb2238a99b72addf11062c2fd9054c": {
+      "lufs": -20.280000000000001,
+      "guitarType": 14,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "T-Style Country Twang / 14"
+    },
+    "ae000b359aff6cd6c5c2d85cf0ce4541cc3477f62d211214960caf899343df41": {
+      "lufs": -41.640000000000001,
+      "guitarType": 11,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Ambient Swell / 11"
     },
     "ae2e155ffaded1e50a12706eab5dd0700ee5aab224d21bf856032df766b32c30": {
       "lufs": -14.210000000000001,
@@ -8333,6 +8340,13 @@
       "drive": 0.2,
       "preset": "Reggae Skank / 2"
     },
+    "ae97aef78e1ac797a58a1d57f01f4d18623d597d9d59258cdecffd4e464e9e83": {
+      "lufs": -33.380000000000003,
+      "guitarType": 1,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "5-String Low B / 1"
+    },
     "aef95bc24daa509309cdb7a6189bc302155ccb4ecda5ebd5996f2bc5340d0215": {
       "lufs": -12.960000000000001,
       "guitarType": 9,
@@ -8347,26 +8361,12 @@
       "drive": 0.3,
       "preset": "Slide Blues / 10"
     },
-    "af1159e30894383447d1fdcf18fc2b344792323442fc84ddfda9a4cd9f598bf1": {
-      "lufs": -40.219999999999999,
-      "guitarType": 1,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Ambient Swell / 1"
-    },
     "af2e084c3bf3a91d80be775fa60b95e352442bce7dcdb58fd95c993de0b92249": {
       "lufs": -34.590000000000003,
       "guitarType": 20,
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Nashville High-Strung / 20"
-    },
-    "af3ee535025de4bb385b846c94dfa982f753bf060bb8dfb896c83cf0547bd8d0": {
-      "lufs": -23.890000000000001,
-      "guitarType": 9,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "8-String Djent / 9"
     },
     "af548a6397a366a38a420ccb1070d55f64bc2a2c74ce5d0cd1dded23ccbe84a4": {
       "lufs": -45.280000000000001,
@@ -8389,13 +8389,6 @@
       "drive": 0.82,
       "preset": "Modern Metal Chug / 8"
     },
-    "afc06462fd6be7239caac3c26a9b301904744d3f4c880322b9471a20e6c5d90f": {
-      "lufs": -28.629999999999999,
-      "guitarType": 24,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "5-String Low B / 24"
-    },
     "afe5c2425de515a89371951c0f01ec5ca2e4599501d620c0826b8c00853a2193": {
       "lufs": -15.25,
       "guitarType": 9,
@@ -8416,6 +8409,13 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Dry Instrument / 16"
+    },
+    "b0b8a231697e5afc6c5cb9b10566bda2e8c9923ae9660415b22ca7b7b861d905": {
+      "lufs": -26.440000000000001,
+      "guitarType": 8,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Shred Lead / 8"
     },
     "b0e4d938c039340db4767ba214554a1910987d87ee740d47150a652ca5696e83": {
       "lufs": -15.44,
@@ -8444,6 +8444,13 @@
       "ampModel": 7,
       "drive": 0.8,
       "preset": "Assist Metal Chug / 13"
+    },
+    "b148cc81437a09c37a4a1338d4b7611af5832741f683901de30812b3638fe0c6": {
+      "lufs": -27.789999999999999,
+      "guitarType": 16,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Surf Reverb / 16"
     },
     "b1ecf96b59ba34fec1ea677e30aa798354abcab2a55f4ca29a06cc71ea386c96": {
       "lufs": -34.590000000000003,
@@ -8557,13 +8564,6 @@
       "drive": 0.3,
       "preset": "Quarter-Tone Blues / 4"
     },
-    "b443937612a124d1d1ea0aa978d64214b2ea3215f4f4b20a409b135784c1bf9e": {
-      "lufs": -19.989999999999998,
-      "guitarType": 20,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Rockabilly Slap / 20"
-    },
     "b462570d5912fe37ae41cff12d88ec302835f900f1712c45b6ece45700ba05f9": {
       "lufs": -15.15,
       "guitarType": 7,
@@ -8585,12 +8585,12 @@
       "drive": 0.05,
       "preset": "Parlor Blues / 20"
     },
-    "b4f9806c8cade60acf27507ab3f07b2d8285e922aabe725f9ff016567858dba1": {
-      "lufs": -25.149999999999999,
-      "guitarType": 16,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "8-String Djent / 16"
+    "b4f45f8e12562f23bf018f05290650b2db05ca75b491878a3bc534c78e650eba": {
+      "lufs": -43.049999999999997,
+      "guitarType": 13,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Ambient Swell / 13"
     },
     "b5382b781afad616a9fc52ef1c75b9776ab5c81021efe1acd8fa646a3f650020": {
       "lufs": -16.109999999999999,
@@ -8634,6 +8634,13 @@
       "drive": 0.05,
       "preset": "Classical Staccato / 4"
     },
+    "b62d0ee145317584c90b2963ea0552a6e48574c90178b3b3a133ede96a50b16a": {
+      "lufs": -25.960000000000001,
+      "guitarType": 4,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Semi-Hollow Chime / 4"
+    },
     "b66c98704e8caf7ecff58caffbc34eca9be93b4ee2c433d1b3a08087b921043f": {
       "lufs": -20.789999999999999,
       "guitarType": 15,
@@ -8655,12 +8662,12 @@
       "drive": 0.25,
       "preset": "Country Boom-Chick / 10"
     },
-    "b710e20ce9520c38996706913be7dc7b1411e5fc0b6ff8fbabaed993c74f1352": {
-      "lufs": -43.700000000000003,
-      "guitarType": 22,
+    "b704bb5e1c823e35618083e35b13a018714581253dc67851cc8fedf3da1fdb14": {
+      "lufs": -34.810000000000002,
+      "guitarType": 24,
       "ampModel": 0,
       "drive": 0.12,
-      "preset": "Ambient Swell / 22"
+      "preset": "Ambient Swell / 24"
     },
     "b71dd7b1f22156d11bcb89b7c56477892baf9a30e5cf03de69bcbcde5fbe2518": {
       "lufs": -15.09,
@@ -8668,6 +8675,13 @@
       "ampModel": 4,
       "drive": 0.62,
       "preset": "Scrape Intro / 16"
+    },
+    "b729bd3b56e9387dedbb4fef05d07600d0b291f79e14641dbc3e31aeadb1b1ea": {
+      "lufs": -19.940000000000001,
+      "guitarType": 20,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "T-Style Country Twang / 20"
     },
     "b73aeca67c30a23e1e1570cbaf5a5b7e1d311be0d4cd668ae0bcc01d258cdd3f": {
       "lufs": -25.359999999999999,
@@ -8690,26 +8704,12 @@
       "drive": 0.05,
       "preset": "Physics Showcase / 6"
     },
-    "b7915c679b973968ca67caef5ae7933b68f84c78cc19f02b5abc2c028619187e": {
-      "lufs": -20.989999999999998,
-      "guitarType": 4,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Shred Lead / 4"
-    },
-    "b79eaaa4d4da7c202376e85c4b04a7d61b68d4583b1cf76d9639455f6ddcea35": {
-      "lufs": -26.32,
-      "guitarType": 21,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "5-String Low B / 21"
-    },
-    "b7b52e9cef13f32d136bff1e6a3e1cfe314f4f8d9cd2b0ae644da82384fda1ca": {
-      "lufs": -27.32,
+    "b7e060dced37d637782eb9b8596b58ff148692381551400d446352f31152117d": {
+      "lufs": -19.649999999999999,
       "guitarType": 20,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Surf Reverb / 20"
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Rockabilly Slap / 20"
     },
     "b811996a747f28fda95d903dd086f77ebe590d5359d44645b2b23d7699bcfd3e": {
       "lufs": -15.4,
@@ -8739,12 +8739,19 @@
       "drive": 0.3,
       "preset": "Full Cascade Demo / 5"
     },
-    "b8b9dbc765d392b70595e68585055bb9fb6ff8a63fe3427651cc6af42b9447b4": {
-      "lufs": -18.829999999999998,
-      "guitarType": 8,
+    "b861aa00de233213facb75f3ac0543f14c09765ca35c117760b31e08edde0618": {
+      "lufs": -35.600000000000001,
+      "guitarType": 23,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "5-String Low B / 23"
+    },
+    "b883d32a6c65190b1d30080aa04441af08a5d67f6b2e70c2952d40cf3d0f7817": {
+      "lufs": -21.379999999999999,
+      "guitarType": 15,
       "ampModel": 1,
       "drive": 0.42,
-      "preset": "Rockabilly Slap / 8"
+      "preset": "Rockabilly Slap / 15"
     },
     "b8bbb6eea29f740107434fe51292c5badb3610663244405f8295c548fb0731e6": {
       "lufs": -39.640000000000001,
@@ -8766,13 +8773,6 @@
       "ampModel": 5,
       "drive": 0.78,
       "preset": "Metal Lead Combo / 0"
-    },
-    "b8e2dde1f8643b5897d0520803c09a8a854d4e70e907b829a2f3242815d9c495": {
-      "lufs": -23.600000000000001,
-      "guitarType": 3,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "8-String Djent / 3"
     },
     "b8f0a7538d1bc0fafcef4e4b40b74b786950804e07bb76f18f5ddec535a224b0": {
       "lufs": -15.109999999999999,
@@ -8823,12 +8823,12 @@
       "drive": 0.6,
       "preset": "Wide Vibrato / 11"
     },
-    "b98a14db707e75110faf91c8448ba7a5c2d65c4b4a984c75f5b31c204147896d": {
-      "lufs": -22.469999999999999,
-      "guitarType": 23,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Shred Lead / 23"
+    "b98cabeacc3a45f670700a7235934df87331850e9ed311e0a809385840d6aedf": {
+      "lufs": -25.649999999999999,
+      "guitarType": 8,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Surf Reverb / 8"
     },
     "b9b16a93a7f447b569c8dc878ee0b6ed64391701986509b10c764dca233ad983": {
       "lufs": -16.600000000000001,
@@ -8844,12 +8844,26 @@
       "drive": 0.35,
       "preset": "Init / 14"
     },
+    "b9c93ec6e77d3812f28dba59b023c5a44cb94472c73b37e4401ba4b63eb9c2d3": {
+      "lufs": -27.640000000000001,
+      "guitarType": 21,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Shred Lead / 21"
+    },
     "b9f548b0c18d0d4c4dd50f582c50c6543a7f81851fa97eeac5bbf473ce46e9aa": {
       "lufs": -21.579999999999998,
       "guitarType": 16,
       "ampModel": 0,
       "drive": 0.2,
       "preset": "Reggae Skank / 16"
+    },
+    "b9f5e91093ad669e6a70ca754bd75b272bf8a7d5e579c42af5c05401f5021792": {
+      "lufs": -19.5,
+      "guitarType": 23,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Rockabilly Slap / 23"
     },
     "ba0b8de30fba653cd679137ba72d0c923c6fd300514f7b5ef0054e8833d7c2c1": {
       "lufs": -19.129999999999999,
@@ -8879,19 +8893,19 @@
       "drive": 0.05,
       "preset": "Assist Fingerstyle Acoustic / 6"
     },
+    "baa43317c8091f38f8967f9443147572fad371b5c14e8be56c8c5c9ebfebbd15": {
+      "lufs": -25.390000000000001,
+      "guitarType": 7,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Semi-Hollow Chime / 7"
+    },
     "baa6b9d1a38bc2ea58a52ed31cf0000a7ee173541d1dd1c9d18133bc8a29b36e": {
       "lufs": -21.539999999999999,
       "guitarType": 15,
       "ampModel": 0,
       "drive": 0.2,
       "preset": "Eight-Finger Tap / 15"
-    },
-    "bac28d8457b9291ca0c0a63e082a3728d9aae5e47c2b2d9cb0386d97ca0369cb": {
-      "lufs": -39.530000000000001,
-      "guitarType": 24,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Ambient Swell / 24"
     },
     "bac8978bd28171773da7e3c7cf326b1089672d761a9d1fb5baa1625293be9ed0": {
       "lufs": -15.66,
@@ -8977,6 +8991,13 @@
       "drive": 0.68,
       "preset": "Tapping Etude / 22"
     },
+    "bcda771ca2e1533b01b87027347a4be48b717e69f248e6941a3b4402b21187ac": {
+      "lufs": -20.23,
+      "guitarType": 5,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "8-String Djent / 5"
+    },
     "bcdc7629d08f38137047aaf3c044faeb1cf6b95b619cb5eea7f228bdd1fced61": {
       "lufs": -15.640000000000001,
       "guitarType": 8,
@@ -8984,19 +9005,19 @@
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 8"
     },
-    "bcf84c691eaa2b962b63ae469ce7caa52105800d65542eaa6cc407b270c5bb4c": {
-      "lufs": -24.120000000000001,
-      "guitarType": 3,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Semi-Hollow Chime / 3"
-    },
     "bd0c4dd340af57e3f307b19d4adbfa663e574c951f0d96d10579fdeebb016a12": {
       "lufs": -25.440000000000001,
       "guitarType": 3,
       "ampModel": 7,
       "drive": 0.8,
       "preset": "Assist Metal Chug / 3"
+    },
+    "bd4e13b73b1987ae9fe4eec39021f95b7ca25aa8240d784969293c9b20c83089": {
+      "lufs": -18.510000000000002,
+      "guitarType": 1,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "T-Style Country Twang / 1"
     },
     "bd7f9eaabee63ea77a6c69509d985056018669ca47c28b57d3facccd2ec65100": {
       "lufs": -15.07,
@@ -9033,6 +9054,20 @@
       "drive": 0.05,
       "preset": "Assist Fingerstyle Acoustic / 8"
     },
+    "be1483eb51fb2308e31455ebe8a02eeb41446f81a3a50c4967447262679dec19": {
+      "lufs": -20.399999999999999,
+      "guitarType": 18,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "8-String Djent / 18"
+    },
+    "be1de0cbf30653d68b5ba56d5e89c82916b69024b82afa38232e48f8c5bc4452": {
+      "lufs": -28.170000000000002,
+      "guitarType": 19,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Shred Lead / 19"
+    },
     "be269829d036eaeafc60aa5e650913e9f52944a1b26910ae2e8213529e7e5dee": {
       "lufs": -23.379999999999999,
       "guitarType": 13,
@@ -9046,6 +9081,20 @@
       "ampModel": 11,
       "drive": 0.25,
       "preset": "P-Bass Flatwound / 7"
+    },
+    "be95ea14d8d32177b36712ba9941067b87b6ebdbce4d96f39a9519b1bfa2b39d": {
+      "lufs": -25.780000000000001,
+      "guitarType": 6,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Semi-Hollow Chime / 6"
+    },
+    "bea8338faf2078ac655ef4797c8d44464ce7be7c4a4098746d8f1f2a75e36506": {
+      "lufs": -20.82,
+      "guitarType": 11,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Rockabilly Slap / 11"
     },
     "bec6ef5851a33c7445adba9ec1d34dacf8b560687e986eea89a77aea72b7852a": {
       "lufs": -27.09,
@@ -9110,6 +9159,13 @@
       "drive": 0.05,
       "preset": "12-String Jangle / 14"
     },
+    "bfddcefc734a8e3fa7d8661e7a20b2a96614078a1b0bbf79a77103c8a716ff94": {
+      "lufs": -26.809999999999999,
+      "guitarType": 0,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Shred Lead / 0"
+    },
     "bfde10bf457b2b50bd02195ce8599807f0ddd463941aef61f7bfed00a5d19081": {
       "lufs": -45.68,
       "guitarType": 21,
@@ -9131,12 +9187,19 @@
       "drive": 0.48,
       "preset": "Violin Bass Grind / 2"
     },
-    "c05d0adfbc8ac7c3f5c7be393f5388bbe02277112cafc67166668b34b93f1f48": {
-      "lufs": -26.620000000000001,
-      "guitarType": 20,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "5-String Low B / 20"
+    "bffbcf5b61545991a9f117325c158a325cceb23c2d3dbf91cb1cc1bca5c2fa71": {
+      "lufs": -21.68,
+      "guitarType": 0,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Surf Reverb / 0"
+    },
+    "c01a6c4dd31cd7f658b0197b2173be50718575beff8348585bd9d7199e87f485": {
+      "lufs": -25.579999999999998,
+      "guitarType": 0,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Semi-Hollow Chime / 0"
     },
     "c09ebaf005228d49ad2d959ebf45954a2e083b98d7e0c9f2d9bd48ed03d5ebbe": {
       "lufs": -13.02,
@@ -9159,19 +9222,26 @@
       "drive": 0.05,
       "preset": "Jumbo Bluegrass / 4"
     },
+    "c197a316b0327066caf6985cd7eac197e19ac2c4fac524478cb249e42e217bad": {
+      "lufs": -26.600000000000001,
+      "guitarType": 9,
+      "ampModel": 7,
+      "drive": 0.78,
+      "preset": "Shred Lead / 9"
+    },
+    "c1a4553ccd611ff1d8d49456edca9b316f9b8067e7eeae76691f5b5d28a12be0": {
+      "lufs": -27.609999999999999,
+      "guitarType": 8,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Semi-Hollow Chime / 8"
+    },
     "c1e2e88bd8bb110ea0ebc294267b0034b9191e20459a3b23d5b654f1939f35e4": {
       "lufs": -15.33,
       "guitarType": 0,
       "ampModel": 0,
       "drive": 0.3,
       "preset": "Full Cascade Demo / 0"
-    },
-    "c20b08a7eb6b765b6bf4bdc597cac5fa50f32c904fe389731603b2de541efad7": {
-      "lufs": -52.409999999999997,
-      "guitarType": 16,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Ambient Swell / 16"
     },
     "c20cc76c83963cc652b36b0402a481ee7bcaae0473fb43bfbf2cbcdf2cd3e148": {
       "lufs": -30.84,
@@ -9208,20 +9278,6 @@
       "drive": 0.05,
       "preset": "Middle Eastern Maqam / 17"
     },
-    "c360f9509be7e166a2cb7d9d8e2d73d3754726a4b0513fa9c14f4f1644525d96": {
-      "lufs": -31.190000000000001,
-      "guitarType": 13,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Surf Reverb / 13"
-    },
-    "c3b15ab518903f238022c67320bf9b3c4ae046d4ec05bd3e21184a3a056e6607": {
-      "lufs": -32.57,
-      "guitarType": 16,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Surf Reverb / 16"
-    },
     "c3b1a22288fff72207da3b6582ba7eddad0e982eeaf8fc59b81addec6abcaaef": {
       "lufs": -26.120000000000001,
       "guitarType": 6,
@@ -9236,20 +9292,6 @@
       "drive": 0.2,
       "preset": "Reggae Skank / 3"
     },
-    "c41afe112b67e2e8949dd12336a2d4483612da5f2451d489348ee33e7669d2f4": {
-      "lufs": -19.539999999999999,
-      "guitarType": 6,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "T-Style Country Twang / 6"
-    },
-    "c44afc34ce297bf506be707df9b35256dcf1b1348fc77eaed252839ac126c480": {
-      "lufs": -20.629999999999999,
-      "guitarType": 22,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "T-Style Country Twang / 22"
-    },
     "c45932ffdae57ae6f40846dab9b82f8c00681028aa70060311b83688835ce116": {
       "lufs": -30.23,
       "guitarType": 19,
@@ -9257,33 +9299,12 @@
       "drive": 0.05,
       "preset": "Percussive Tap / 19"
     },
-    "c479c2b24f6c1ea9ee963d910f32c7ec6cc4dd0c7f98ec2e6509791018bdde77": {
-      "lufs": -20.789999999999999,
-      "guitarType": 21,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "T-Style Country Twang / 21"
-    },
     "c47c3f746c5b2795ac79e8fd27db3e79818786de06bb4bcaf2dcc1c401d5a751": {
       "lufs": -15.050000000000001,
       "guitarType": 23,
       "ampModel": 5,
       "drive": 0.68,
       "preset": "Tapping Etude / 23"
-    },
-    "c48927a12ce331e5cb018f14b5ffe6ead931ef6b037b25fad9e473fbd42cb913": {
-      "lufs": -27.219999999999999,
-      "guitarType": 23,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Surf Reverb / 23"
-    },
-    "c48d653d3c34eb508db3ba12efa334d97ad338fa2f3fd8e132492c10594b1de2": {
-      "lufs": -26.210000000000001,
-      "guitarType": 23,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Semi-Hollow Chime / 23"
     },
     "c4d845c41e8d23fb325dd1401a100d39159046bfd27f2b08ed621a9449669812": {
       "lufs": -18.309999999999999,
@@ -9333,6 +9354,13 @@
       "ampModel": 7,
       "drive": 0.8,
       "preset": "Assist Metal Chug / 4"
+    },
+    "c60601eca1338025b26fd6796d715b3e7a6263898d787792daee21003e854d51": {
+      "lufs": -20.940000000000001,
+      "guitarType": 7,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Surf Reverb / 7"
     },
     "c609bf8956e2336b32655603f681d2437ed5ea2ce71458f967a4a07a363be8a4": {
       "lufs": -21.190000000000001,
@@ -9425,12 +9453,12 @@
       "drive": 0.05,
       "preset": "Middle Eastern Maqam / 20"
     },
-    "c7b46e7b4d3c34faadb7e656ed4752a875ac57739b3c00c6629464bd2dfd3cee": {
-      "lufs": -19.390000000000001,
-      "guitarType": 5,
-      "ampModel": 1,
+    "c7725a14c31e0eaff62fd96585e9e4d5f00ea153562254de45d22ab0162779c3": {
+      "lufs": -29.18,
+      "guitarType": 11,
+      "ampModel": 6,
       "drive": 0.34,
-      "preset": "T-Style Country Twang / 5"
+      "preset": "Semi-Hollow Chime / 11"
     },
     "c7b727f302c2192897dcc4e00b3d922518bd0a7253332de0d25888c3cf6d17c3": {
       "lufs": -29.449999999999999,
@@ -9445,6 +9473,13 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Physics Showcase / 7"
+    },
+    "c7e089c0549105ffa2487aece2f90a06b94d7d004b08f6035e2dbada2f2bb80e": {
+      "lufs": -15.609999999999999,
+      "guitarType": 11,
+      "ampModel": 0,
+      "drive": 0.35,
+      "preset": "Init / 11"
     },
     "c80d91fca1e20bd55650337d59801ec2edae9dc31d4e68aea5c6e02eb2be75dd": {
       "lufs": -29.609999999999999,
@@ -9474,13 +9509,6 @@
       "drive": 0.64,
       "preset": "Octave Fuzz Stoner / 2"
     },
-    "c8748eb0f434ff50b555d5a1b120bc026ec816aca605ce10125cbde4b6627362": {
-      "lufs": -20.870000000000001,
-      "guitarType": 23,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "T-Style Country Twang / 23"
-    },
     "c879712751d946f54b874a54d3ea1bba4955132ab3f0be366aa95ec57f71d39b": {
       "lufs": -15.08,
       "guitarType": 17,
@@ -9501,13 +9529,6 @@
       "ampModel": 4,
       "drive": 0.55,
       "preset": "Standard Two-Hand Tap / 24"
-    },
-    "c8d2df7154ea70860908560415f66247e7d03c084aac3b99ea9c43a086af17a5": {
-      "lufs": -42.240000000000002,
-      "guitarType": 9,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Ambient Swell / 9"
     },
     "c8d8219cfd691c51ad521e2ccc1b7545a8b75e402ea07d0c9eb7a7636a2613de": {
       "lufs": -40.280000000000001,
@@ -9536,6 +9557,13 @@
       "ampModel": 5,
       "drive": 0.8,
       "preset": "Metal Chug 16ths / 9"
+    },
+    "c9c600d78232fd9019da83df8619ed63f8d69602ef12cb6ce89f8caae70ef783": {
+      "lufs": -19.879999999999999,
+      "guitarType": 3,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "8-String Djent / 3"
     },
     "ca4e36d9488e926a50894e418c9bd9481fa348c49448ff659f5148a82697ca52": {
       "lufs": -37.960000000000001,
@@ -9614,13 +9642,6 @@
       "drive": 0.35,
       "preset": "Init / 13"
     },
-    "cba00db69c64a2bf073b7bdc45201b43c4671ca984799141ea0c3fcc2f43b762": {
-      "lufs": -24.289999999999999,
-      "guitarType": 8,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "8-String Djent / 8"
-    },
     "cbd07a3574a87cca561260a76cbae853fe1751ebd35001b596bdc41ffee7f5ac": {
       "lufs": -14.199999999999999,
       "guitarType": 11,
@@ -9670,13 +9691,6 @@
       "drive": 0.62,
       "preset": "Assist Rock Rhythm / 22"
     },
-    "ccb145a47767f1af1c73bbaf919c7e5f6dbb1d2f7961032eb8d11eae8a14d77a": {
-      "lufs": -20.84,
-      "guitarType": 0,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Shred Lead / 0"
-    },
     "ccc10f6018ef407fae9282d58e32fcadfddc9667bceecdbd580ed5ef53d8ecb3": {
       "lufs": -43.990000000000002,
       "guitarType": 18,
@@ -9690,6 +9704,13 @@
       "ampModel": 11,
       "drive": 0.25,
       "preset": "P-Bass Flatwound / 0"
+    },
+    "ccf2e11911ad9a9a6d96b4a1cee7223419cf25bea8c07202f0a1a3c8884f72a7": {
+      "lufs": -21.170000000000002,
+      "guitarType": 1,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Surf Reverb / 1"
     },
     "cd0d7501ec9c628906e6a9d870b863eac68e366d9e65875b401d0f51a1f98f5f": {
       "lufs": -37.490000000000002,
@@ -9719,26 +9740,19 @@
       "drive": 0.28,
       "preset": "Fretless Mwah / 2"
     },
-    "cd60c86c8832f220a7ca64135582d7553132f32a32827924578a0b19993946b4": {
-      "lufs": -27.59,
-      "guitarType": 21,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Surf Reverb / 21"
-    },
-    "cd9d8b785bbbe77581b29e0128184be0f9d6dc28a3fc8b62e59e9e51eacb8683": {
-      "lufs": -25.960000000000001,
-      "guitarType": 2,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "5-String Low B / 2"
-    },
     "cdb36a85ca9c8df56a7825d29cc835f761c3cee2631c138acd7b6e2d4382e99d": {
       "lufs": -15.17,
       "guitarType": 11,
       "ampModel": 4,
       "drive": 0.48,
       "preset": "Germanium Fuzz Lead / 11"
+    },
+    "ce19e6672d32f49e02ac191e94a02ca0a6666d4bda449ce00c66d5ba1d536ca3": {
+      "lufs": -36.090000000000003,
+      "guitarType": 3,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Ambient Swell / 3"
     },
     "ce6e0274c0d4fca2dcb15ff55230879aa5b0d375f44c7460dd7c263d633185df": {
       "lufs": -15.08,
@@ -9788,13 +9802,6 @@
       "ampModel": 0,
       "drive": 0.2,
       "preset": "Assist Jazz Comping / 4"
-    },
-    "cfa0a8a034f0fc86a3d50ccc3d4fd52c05e459187ad7dd2318d2563a743b34ea": {
-      "lufs": -42.700000000000003,
-      "guitarType": 20,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Ambient Swell / 20"
     },
     "d03fdbdc0629293f63c17e739f387a7405803d7274933fc4f183924ad9248bbc": {
       "lufs": -9.710000000000001,
@@ -9873,12 +9880,12 @@
       "drive": 0.78,
       "preset": "Metal Lead Combo / 6"
     },
-    "d1860ef1d92420bc157c28391d7d6e00c4012499949c9afc26b58b18f941c891": {
-      "lufs": -24.059999999999999,
-      "guitarType": 4,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "8-String Djent / 4"
+    "d16fe401e218cc6ad16e7bf43c1bf4ab2dc78c00d06689538d07aaf4b495455d": {
+      "lufs": -20.09,
+      "guitarType": 23,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "T-Style Country Twang / 23"
     },
     "d18b01b729a368acf199dcf0e55ee707f5999bd8cf7aaf4b52aeddc3c0effceb": {
       "lufs": -15.6,
@@ -9929,6 +9936,13 @@
       "drive": 0.05,
       "preset": "Nylon Classical / 10"
     },
+    "d28cf3d3f8bb365b55d4c28b4aa9ec429574dfefc1267b791c541bce701fb91f": {
+      "lufs": -42.979999999999997,
+      "guitarType": 15,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Ambient Swell / 15"
+    },
     "d2aaee4f3f172680173c3e0cd649927e64959750f8182f7b25599f603a58ffc5": {
       "lufs": -10.51,
       "guitarType": 5,
@@ -9949,6 +9963,13 @@
       "ampModel": 0,
       "drive": 0.3,
       "preset": "Standard Slide (Mod Wheel) / 19"
+    },
+    "d34e5e2285368e26a4abc9220a5cf8ed22cf6db02509043f2bc248f6be9b33e8": {
+      "lufs": -19.460000000000001,
+      "guitarType": 19,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Rockabilly Slap / 19"
     },
     "d35753b92932365867909246b7e4e8cfa7d44ac27bcff4cee301b76be40f6c9b": {
       "lufs": -17.760000000000002,
@@ -10069,6 +10090,13 @@
       "drive": 0.2,
       "preset": "Transposing Trem Chords / 22"
     },
+    "d5012befcc5a5e1039539400f2d2c75509fcaa59574f419a420ea934549f4c00": {
+      "lufs": -19.010000000000002,
+      "guitarType": 12,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "T-Style Country Twang / 12"
+    },
     "d50fa3e2888e858a506eaf7c71abd7b546bffeefc201023981c085ffdbf8687d": {
       "lufs": -36.880000000000003,
       "guitarType": 15,
@@ -10089,13 +10117,6 @@
       "ampModel": 11,
       "drive": 0.25,
       "preset": "P-Bass Flatwound / 15"
-    },
-    "d5c1e943236c926eebd3b70bfca5cbb280537a650436b7fb0f2a66989e8ca5ec": {
-      "lufs": -19.449999999999999,
-      "guitarType": 3,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "T-Style Country Twang / 3"
     },
     "d5c85bc79598388cff269fc09b80f63054d0543be47a2c20d14ab3e28d7f51a9": {
       "lufs": -22.489999999999998,
@@ -10118,13 +10139,6 @@
       "drive": 0.05,
       "preset": "Jumbo Bluegrass / 19"
     },
-    "d616d246d2b6000fdd73feb9a57ce98a6692a04cb62a3aebc07b614c61e1c912": {
-      "lufs": -30.260000000000002,
-      "guitarType": 9,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Surf Reverb / 9"
-    },
     "d62870fc751b80aeec2aa42b41aff1dd021aea40fc31ee67ccc3c092422702e4": {
       "lufs": -24.379999999999999,
       "guitarType": 24,
@@ -10139,6 +10153,13 @@
       "drive": 0.05,
       "preset": "Nashville High-Strung / 0"
     },
+    "d6411a8251327fdf30d6f6b4a71b49728c9242b39a5bcfb3318f199678e23a2d": {
+      "lufs": -20.789999999999999,
+      "guitarType": 13,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Rockabilly Slap / 13"
+    },
     "d66b5d6290c7c03ee0bd04d69c78a7ae8f52a3fd3937519afe7345295ee15096": {
       "lufs": -31.399999999999999,
       "guitarType": 8,
@@ -10152,13 +10173,6 @@
       "ampModel": 3,
       "drive": 0.58,
       "preset": "Blues Slide / 20"
-    },
-    "d6916cb0a4ca901baaa2ac64fdfdbfa410e9249852c4e838a9dadaae81a9cfdb": {
-      "lufs": -42.32,
-      "guitarType": 6,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Ambient Swell / 6"
     },
     "d706fa22480ffc4a265f2c68d5ea2eea0dd62e0d9509c5c3e9222f047b45b4b5": {
       "lufs": -14.470000000000001,
@@ -10230,19 +10244,19 @@
       "drive": 0.8,
       "preset": "Metal Chug 16ths / 16"
     },
-    "d896ab86420f9bc46b7f224017678c913fac8b856ada3510281bb090c2c8fa63": {
-      "lufs": -52.390000000000001,
-      "guitarType": 15,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Ambient Swell / 15"
+    "d893ccf68db3aa631d8be1db1ba0e6befae3531017ed81a9d05e1e0be5cf5c04": {
+      "lufs": -29.420000000000002,
+      "guitarType": 13,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Semi-Hollow Chime / 13"
     },
-    "d8a68e5339bbdc246fc2fe31f35803298dd5bfc0bdf6f826fa98f321b4544c3d": {
-      "lufs": -20.82,
-      "guitarType": 15,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Shred Lead / 15"
+    "d8b5d52dc993ae08721c076dcfcf13000c10c350972af906aca146f9518d14e5": {
+      "lufs": -26.059999999999999,
+      "guitarType": 2,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Semi-Hollow Chime / 2"
     },
     "d8b9d38edd52caed5da3c5dab27cbdc0980e79b3436e4ba3f59cd2f4944f89c5": {
       "lufs": -19.170000000000002,
@@ -10278,13 +10292,6 @@
       "ampModel": 0,
       "drive": 0.2,
       "preset": "Microtonal Tap / 0"
-    },
-    "d9a97bdfd42e0cde87e8f342d4d7e4d9f0fa259318e2230ec0f7e326aac986a9": {
-      "lufs": -25.120000000000001,
-      "guitarType": 14,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "8-String Djent / 14"
     },
     "d9ccb0fea9c2739135fa1d085ad8984a24f00fe9deecbf1af9c45384830f1c6a": {
       "lufs": -19.489999999999998,
@@ -10342,12 +10349,26 @@
       "drive": 0.3,
       "preset": "Assist Bass Groove / 20"
     },
+    "dafb97aa437cbd7b077d5e469bbc814e73a2360bc34b201e1c4a26394646c69f": {
+      "lufs": -21.75,
+      "guitarType": 22,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Surf Reverb / 22"
+    },
     "db043a42dd59b75a9ee40d7f5108e499ccf0429bc0ffdae858d861f042a3c59a": {
       "lufs": -36.869999999999997,
       "guitarType": 18,
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Jumbo Bluegrass / 18"
+    },
+    "db1df077cf54e635c013dee3694486ab6aaf58d37c5dda0d405a09be940c30ab": {
+      "lufs": -19.73,
+      "guitarType": 18,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "T-Style Country Twang / 18"
     },
     "db2e15c230ed79cb18aac3678af76cbf240d794a2ea98f25a981a42f379dd40c": {
       "lufs": -15.859999999999999,
@@ -10362,20 +10383,6 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "DADGAD Drone / 22"
-    },
-    "db97849a908c5fa575b239f0990bc326d20a85dde0176fbbcc54f2389fe0545f": {
-      "lufs": -20.329999999999998,
-      "guitarType": 11,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "T-Style Country Twang / 11"
-    },
-    "dba2429810eed8fd384ffec472a03503f5c094c85ff0a859502042c9bcb2e0f6": {
-      "lufs": -28.219999999999999,
-      "guitarType": 16,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Semi-Hollow Chime / 16"
     },
     "dbb6efcb1c428c5625ee76c1bfe27f06fee740b328f0263d56ddf3c2825e4a7b": {
       "lufs": -28.550000000000001,
@@ -10397,6 +10404,13 @@
       "ampModel": 10,
       "drive": 0.64,
       "preset": "Octave Fuzz Stoner / 23"
+    },
+    "dc4989126c55257ead0ced66955f059e3602564fbfa7aba6a54c9e3381fcb37d": {
+      "lufs": -20.190000000000001,
+      "guitarType": 21,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Rockabilly Slap / 21"
     },
     "dc566a4aa7d50b6bc257183b0924fae1cf13cb1a40cacbc0df792b2f4ed0fb77": {
       "lufs": -13.869999999999999,
@@ -10461,19 +10475,19 @@
       "drive": 0.22,
       "preset": "Assist Clean Pop Lead / 20"
     },
-    "dd97ce8b37a9c7a4225524cd9532f4765dd99a5d8d666e3b8a9d27be20819d11": {
-      "lufs": -28.289999999999999,
-      "guitarType": 18,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "5-String Low B / 18"
-    },
     "dd9b61eee079c95ef522b24c8988984b2d5f7271b2c691ea77d6510d575a1373": {
       "lufs": -30.800000000000001,
       "guitarType": 22,
       "ampModel": 12,
       "drive": 0.05,
       "preset": "12-String Jangle / 22"
+    },
+    "ddc34e4337ebb6ca436bc84f3fbffa534b106752f27d74c643f75cf6e7f8d976": {
+      "lufs": -20.84,
+      "guitarType": 6,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Surf Reverb / 6"
     },
     "dde62d2f82c3aed04ecf8df63190311f7ef9a3e0fa976754222d446d9048064a": {
       "lufs": -15.380000000000001,
@@ -10517,6 +10531,13 @@
       "drive": 0.3,
       "preset": "Standard Slide (Mod Wheel) / 11"
     },
+    "df1811afd06fcfc8f82e60f03b6951f419ba13cb956bfb5a9478fd40776d9de4": {
+      "lufs": -17.940000000000001,
+      "guitarType": 10,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Rockabilly Slap / 10"
+    },
     "df2782a37107d572c97c5bd1d29b42f90424bb9f5ce1988b5bed29a78eec0d90": {
       "lufs": -14.92,
       "guitarType": 14,
@@ -10524,12 +10545,12 @@
       "drive": 0.62,
       "preset": "Scrape Intro / 14"
     },
-    "df60c77b42e3ae1778a87333dcb89ccee1bf4c0fe33a92652f4bcf84bbdc2a8b": {
-      "lufs": -25.949999999999999,
-      "guitarType": 3,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "5-String Low B / 3"
+    "df49a9fa136ee2c261969c7adc3f51750444df2e8caad3765c0b743b91b4eaf4": {
+      "lufs": -19.440000000000001,
+      "guitarType": 11,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "T-Style Country Twang / 11"
     },
     "dff2309fe8062fa08fce687600cf847986181bdb14a2475156600ce11cdda0af": {
       "lufs": -15.380000000000001,
@@ -10636,6 +10657,20 @@
       "drive": 0.48,
       "preset": "Violin Bass Grind / 20"
     },
+    "e1d8e52d8ac6ee043480d3432842d7ece867a9fa596429e227f521907d5c2c72": {
+      "lufs": -18.73,
+      "guitarType": 3,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "T-Style Country Twang / 3"
+    },
+    "e1df9ab31b288215c9215034b36b26cbc4539a7d815fb649cbcb27bbc176cc91": {
+      "lufs": -30.100000000000001,
+      "guitarType": 19,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Semi-Hollow Chime / 19"
+    },
     "e204589f3665823850d76b8223e1996b55a1e2dc0279216b992c62d58a632090": {
       "lufs": -11.039999999999999,
       "guitarType": 20,
@@ -10650,12 +10685,12 @@
       "drive": 0.05,
       "preset": "Physics Showcase / 15"
     },
-    "e25271f5a59e2505f7bb4448ef42f7937060519e9ac1d1eb9ab218dc8eef138c": {
-      "lufs": -21.48,
-      "guitarType": 11,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Rockabilly Slap / 11"
+    "e28a9177e0610f19dd0859f918f9cc78bfd4e80b402f04182960910fb246cab3": {
+      "lufs": -26.879999999999999,
+      "guitarType": 5,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Semi-Hollow Chime / 5"
     },
     "e28e1ad5ca15862b76d4096f9701143c90079d2acddf151c3ccad017a858b751": {
       "lufs": -14.16,
@@ -10663,20 +10698,6 @@
       "ampModel": 0,
       "drive": 0.3,
       "preset": "Auto-Vibrato Hold / 24"
-    },
-    "e299363b87943476c6e950ca364e9770150a70414ce6cde43d3ded8e75005498": {
-      "lufs": -19.440000000000001,
-      "guitarType": 9,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Rockabilly Slap / 9"
-    },
-    "e2a094add679a85f79115f1aa0a7671e7f439f793376f0e0eb8dd45e5f0588a1": {
-      "lufs": -24.219999999999999,
-      "guitarType": 10,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Semi-Hollow Chime / 10"
     },
     "e2c397a1356965386c705e67f4bf7fe9c4a2b7f3e4af2f9e58c1e080438ac901": {
       "lufs": -28.920000000000002,
@@ -10699,13 +10720,6 @@
       "drive": 0.05,
       "preset": "Strummed Dreadnought / 1"
     },
-    "e2e43897c1eeb1d621bddc2faf2d978d65a38d2e2eb6e70e774029fb2248e4d1": {
-      "lufs": -20.969999999999999,
-      "guitarType": 7,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Shred Lead / 7"
-    },
     "e30621c38f246f83643f5a326a994ea0c4eaab24bcf75a7b1787e725107a1667": {
       "lufs": -16.449999999999999,
       "guitarType": 20,
@@ -10726,6 +10740,13 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Fingerstyle Folk / 5"
+    },
+    "e3769a8a029314b48383e5ef7ee2c9ae6ec5ae28446d9b51048261a31af9bfc4": {
+      "lufs": -22.120000000000001,
+      "guitarType": 19,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Surf Reverb / 19"
     },
     "e3ad569765ba6528065bc4271d562e8498829e659331eddb483ab2f0d0cb737c": {
       "lufs": -15.26,
@@ -10748,20 +10769,6 @@
       "drive": 0.05,
       "preset": "12-String Jangle / 10"
     },
-    "e42d9c5ff88fd3589dadd73576b266e5291714c45bbe75ed94153d0b0512d13b": {
-      "lufs": -20.079999999999998,
-      "guitarType": 21,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "8-String Djent / 21"
-    },
-    "e43f27b0c01f93c986444a9ae2d8f3d934358181297d6a3d15e804f5f3896922": {
-      "lufs": -26.16,
-      "guitarType": 20,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Semi-Hollow Chime / 20"
-    },
     "e43f3cd45f826d11e07576d2c33a59cdd3e64afd9ada4f82d117f5667b697545": {
       "lufs": -11.34,
       "guitarType": 10,
@@ -10776,12 +10783,12 @@
       "drive": 0.05,
       "preset": "Middle Eastern Maqam / 23"
     },
-    "e464c4e4dee8cc61ad03e648ba2e8d9aeae62196126612ee9b5571bdcdbc5ec6": {
-      "lufs": -53.280000000000001,
-      "guitarType": 17,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Ambient Swell / 17"
+    "e47a9376907c63f0d4eb97ba62911f4097a513f1c0c9a941c6dc915f61e90e0e": {
+      "lufs": -26.539999999999999,
+      "guitarType": 18,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Surf Reverb / 18"
     },
     "e499ac41e525daf785824967924acf7e8184d585a6f2658203b73ee863224509": {
       "lufs": -21.719999999999999,
@@ -10803,13 +10810,6 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Assist Fingerstyle Acoustic / 0"
-    },
-    "e4d8d2bbdd48941235bf1c9a6ef244dcebee800677d3c5dfbab6d8356e6db0a5": {
-      "lufs": -42.350000000000001,
-      "guitarType": 4,
-      "ampModel": 0,
-      "drive": 0.12,
-      "preset": "Ambient Swell / 4"
     },
     "e4e4786eb1291d117d429a7937a46311b67fdbde7946cdf593938b46863db925": {
       "lufs": -14.59,
@@ -10846,6 +10846,13 @@
       "drive": 0.2,
       "preset": "Eight-Finger Tap / 0"
     },
+    "e61b8d964c0c2aa73cecc1a4841b5ec9e1ecf4f2a3162c296ed44980261a2913": {
+      "lufs": -30.829999999999998,
+      "guitarType": 17,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Semi-Hollow Chime / 17"
+    },
     "e6429d03fe65c89acfca65356ddc10f512044ee3c8c57e228c085ac7361531c6": {
       "lufs": -14.65,
       "guitarType": 24,
@@ -10853,19 +10860,19 @@
       "drive": 0.62,
       "preset": "Assist Rock Rhythm / 24"
     },
+    "e64c245c9e9757526efd88e729480f6b6101cf3e5c25646069edd421f5df38b6": {
+      "lufs": -30.079999999999998,
+      "guitarType": 14,
+      "ampModel": 6,
+      "drive": 0.34,
+      "preset": "Semi-Hollow Chime / 14"
+    },
     "e68a5497421936900b5fb1417c3ea26f68a2d768e774dd3a6b5aa939fc3760ce": {
       "lufs": -27.170000000000002,
       "guitarType": 23,
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Jumbo Bluegrass / 23"
-    },
-    "e698d92d141499acee4bfaf17a69aabcdf2465a6d1273088fcdd98694bf86387": {
-      "lufs": -26.670000000000002,
-      "guitarType": 0,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Surf Reverb / 0"
     },
     "e6f1b1eacc675a8cba80380f20422a6b98133e6117b2fff87dabaf5ea18c63e8": {
       "lufs": -21.91,
@@ -10916,6 +10923,13 @@
       "drive": 0.05,
       "preset": "Flamenco Rasgueado / 22"
     },
+    "e7607fd239b84c50f9a496a4af946ee8c1be28c0a32ff1165a67f7ead7266eae": {
+      "lufs": -19.82,
+      "guitarType": 8,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "8-String Djent / 8"
+    },
     "e77486072a004111a9f72debd0c99d61306664e7cdc0dd20ee3b0442ef1044b7": {
       "lufs": -17.539999999999999,
       "guitarType": 1,
@@ -10957,13 +10971,6 @@
       "ampModel": 12,
       "drive": 0.05,
       "preset": "Classical Staccato / 2"
-    },
-    "e8317420d6d23570204a16f1a8c3d6bcb508c2d778b64fa2cd10f426a2a747bf": {
-      "lufs": -28.550000000000001,
-      "guitarType": 5,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Surf Reverb / 5"
     },
     "e876e9c0bcc4afed6c25b58449bf9dcf59e2598feb450a2239741ba979b4bf12": {
       "lufs": -29.5,
@@ -11035,12 +11042,26 @@
       "drive": 0.05,
       "preset": "Classical Staccato / 21"
     },
+    "e991dd40014160a268d2650f881613ff142cc0fcf1d8385f819633c975f2f04f": {
+      "lufs": -19.260000000000002,
+      "guitarType": 6,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "8-String Djent / 6"
+    },
     "e9aa85ffe6cca3586a238fc07e8830f205bdebd8995db67c7ff5a58c6c9b6495": {
       "lufs": -11.35,
       "guitarType": 23,
       "ampModel": 11,
       "drive": 0.25,
       "preset": "P-Bass Flatwound / 23"
+    },
+    "e9aad92ce6f8e8887cc4be0674834609e0bba5ef3b40cd5f0d4765b97838afdb": {
+      "lufs": -35.68,
+      "guitarType": 4,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Ambient Swell / 4"
     },
     "e9b39a1f872e08f1f45f1526c61cd7f885161c1210ba693dc010dec15cd79c52": {
       "lufs": -16.059999999999999,
@@ -11168,13 +11189,6 @@
       "drive": 0.3,
       "preset": "Slide Blues / 1"
     },
-    "ecaf8cc050eb1a4db6aeb4c9f028768bff625fecd85d0bdab6b906da2396727b": {
-      "lufs": -29.149999999999999,
-      "guitarType": 17,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Semi-Hollow Chime / 17"
-    },
     "ed5f2ab7c55c7e707bac5c8f0865f6f5fb8a54a6638c996381793f4d943a4c79": {
       "lufs": -14.539999999999999,
       "guitarType": 8,
@@ -11203,6 +11217,13 @@
       "drive": 0.8,
       "preset": "Metal Chug 16ths / 5"
     },
+    "edb4d050c1002a0f09a486382f46d086c23207a6acd7b59cae94acc52b8fb954": {
+      "lufs": -42.950000000000003,
+      "guitarType": 16,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Ambient Swell / 16"
+    },
     "edc441b7969a5229f88c6c3d4b26efab5a9075c7c6097bf5573373f41d28f52d": {
       "lufs": -27.289999999999999,
       "guitarType": 9,
@@ -11223,6 +11244,13 @@
       "ampModel": 11,
       "drive": 0.25,
       "preset": "P-Bass Flatwound / 1"
+    },
+    "eebccb11b0d760f11c9e39f9d9cec94c24a54aa21a58226f3bd1d44a6c9b557b": {
+      "lufs": -22.550000000000001,
+      "guitarType": 20,
+      "ampModel": 2,
+      "drive": 0.26,
+      "preset": "Surf Reverb / 20"
     },
     "eeca66ecb31626f9728124d402b78ea6b508bf7a25d5a65fd58b769954b0869c": {
       "lufs": -15.279999999999999,
@@ -11308,6 +11336,13 @@
       "drive": 0.05,
       "preset": "Middle Eastern Maqam / 15"
     },
+    "efae5e9fb301ff84abd3ab7b9d67e295d9131e288288064b740f2df22924d1cc": {
+      "lufs": -18.879999999999999,
+      "guitarType": 3,
+      "ampModel": 1,
+      "drive": 0.42,
+      "preset": "Rockabilly Slap / 3"
+    },
     "efc6740d3bba023d6c0efb88e064b2ca2e8253875918489c185910e679239b9c": {
       "lufs": -26.309999999999999,
       "guitarType": 18,
@@ -11321,6 +11356,13 @@
       "ampModel": 11,
       "drive": 0.35,
       "preset": "Funk Slap Groove / 8"
+    },
+    "efead3df9cc841e687b783adb2541692acac4ad218f607bb2aff68c949718029": {
+      "lufs": -20.710000000000001,
+      "guitarType": 19,
+      "ampModel": 1,
+      "drive": 0.34,
+      "preset": "T-Style Country Twang / 19"
     },
     "eff0cffc60a0e662968f4629ce99bea0cf8b2188fde9642f6766529f8b4a0e7b": {
       "lufs": -13.59,
@@ -11364,6 +11406,13 @@
       "drive": 0.05,
       "preset": "Nashville High-Strung / 5"
     },
+    "f0c927965bdd7abaa5f0c7aa8a196a0c3d260d1007ea2ab468f723124b6eca90": {
+      "lufs": -20.059999999999999,
+      "guitarType": 23,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "8-String Djent / 23"
+    },
     "f0d6393291aa46966312a278c758f1c79392fc96e62e1df33c3126f32348fd28": {
       "lufs": -36.57,
       "guitarType": 11,
@@ -11399,19 +11448,19 @@
       "drive": 0.14,
       "preset": "Jazz Hollowbody / 2"
     },
-    "f16e027fc2100b8ebf3584542c7e2a51b954d60abcf57740ec9a5ecadb9182ec": {
-      "lufs": -19.829999999999998,
-      "guitarType": 4,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Rockabilly Slap / 4"
-    },
     "f20ebf335c47b8d9c8eea7746954b16904bb1db86c566a61c28552a0b809dc45": {
       "lufs": -26.719999999999999,
       "guitarType": 7,
       "ampModel": 12,
       "drive": 0.05,
       "preset": "12-String Jangle / 7"
+    },
+    "f24b64dc2042155d5a7056a9bbda12530e64501694c0bf04268f90b6378fde39": {
+      "lufs": -36.600000000000001,
+      "guitarType": 17,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "5-String Low B / 17"
     },
     "f24e60952e151fd2e2346a3e5d5c47ef07d0e5ae432be92091f61048f952a6ee": {
       "lufs": -15.380000000000001,
@@ -11434,19 +11483,19 @@
       "drive": 0.48,
       "preset": "Violin Bass Grind / 18"
     },
-    "f31aa0bd21156a7d6f5ebfdfd33e4cc8e11952e43fc056cc07bf3d8c0c77a487": {
-      "lufs": -28.640000000000001,
-      "guitarType": 14,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "5-String Low B / 14"
-    },
     "f31c6f269266d886f88c1443baa392abb9cc3df4df0df3f995e77454249666ee": {
       "lufs": -20.02,
       "guitarType": 10,
       "ampModel": 2,
       "drive": 0.3,
       "preset": "Assist Country Twang / 10"
+    },
+    "f31db5af910da5ca4fdcecc8ae174faa333102034a31eb875126f03b335e8f3e": {
+      "lufs": -34.770000000000003,
+      "guitarType": 1,
+      "ampModel": 0,
+      "drive": 0.12,
+      "preset": "Ambient Swell / 1"
     },
     "f33307f75c635cdfd52a1a640bd5bb42d66185e7a645a43724a19d0a352d4263": {
       "lufs": -36.280000000000001,
@@ -11461,13 +11510,6 @@
       "ampModel": 4,
       "drive": 0.55,
       "preset": "Standard Two-Hand Tap / 20"
-    },
-    "f36b9b94858748bca944507bfbcd38aab481c99fa081134e124379f54dbdb379": {
-      "lufs": -20.440000000000001,
-      "guitarType": 21,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Rockabilly Slap / 21"
     },
     "f37b0f26457b9ee343daa4c241b1957b285cb26573fd6da1b515b92120fd1733": {
       "lufs": -27.870000000000001,
@@ -11490,6 +11532,13 @@
       "drive": 0.16,
       "preset": "Clean Double-Cut Funk / 5"
     },
+    "f3ac99f3c61b2a8b8f134bd65014566e6e3c1227b9db72514fd59ec7d0c03337": {
+      "lufs": -34.479999999999997,
+      "guitarType": 4,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "5-String Low B / 4"
+    },
     "f3c0ad09a776ac08d1db2afe333370435f41d407afce3b975623122b994d226b": {
       "lufs": -15.279999999999999,
       "guitarType": 2,
@@ -11503,6 +11552,13 @@
       "ampModel": 4,
       "drive": 0.62,
       "preset": "Scrape Intro / 4"
+    },
+    "f3eaeab2646f8dbd1ebf402ce50ccdf4823c82de2260c239736499bc8e82496c": {
+      "lufs": -37.240000000000002,
+      "guitarType": 14,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "5-String Low B / 14"
     },
     "f3f44a4ac914782801cbf3818d89895520001b10e250629d48d61cbc19db149c": {
       "lufs": -15.48,
@@ -11658,13 +11714,6 @@
       "drive": 0.05,
       "preset": "Nylon Classical / 6"
     },
-    "f63141bd0a55d1ea15636f5bfcf4ea795f1632f0e78481ed50c0535986d1b1a4": {
-      "lufs": -20.969999999999999,
-      "guitarType": 5,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Shred Lead / 5"
-    },
     "f66eadd4e80caa622bd6218d7e456e7526a18272f8082ace88f1e4691bef0d56": {
       "lufs": -13.640000000000001,
       "guitarType": 0,
@@ -11707,13 +11756,6 @@
       "drive": 0.35,
       "preset": "Funk Slap Groove / 14"
     },
-    "f737b2a9096824844990e4b9cc5f0db139db9e12897e53c6f4d940d274fa0c87": {
-      "lufs": -26.399999999999999,
-      "guitarType": 22,
-      "ampModel": 11,
-      "drive": 0.36,
-      "preset": "5-String Low B / 22"
-    },
     "f744d90bca214d1741d94e88a684560be36d16e2f9af2b038ce4dad11a74b17f": {
       "lufs": -24.91,
       "guitarType": 3,
@@ -11727,13 +11769,6 @@
       "ampModel": 2,
       "drive": 0.3,
       "preset": "Assist Country Twang / 12"
-    },
-    "f766103854c956485f1603db04244c28c059a62fdc4b9f56fcb8207c62a84bcf": {
-      "lufs": -21.390000000000001,
-      "guitarType": 14,
-      "ampModel": 7,
-      "drive": 0.78,
-      "preset": "Shred Lead / 14"
     },
     "f7785d6ac67786d1d33451044f2430744edbb8e1e432c7dca1ee0afe8b73fcaf": {
       "lufs": -10.140000000000001,
@@ -11769,13 +11804,6 @@
       "ampModel": 7,
       "drive": 0.8,
       "preset": "Assist Metal Chug / 6"
-    },
-    "f80ef15c627c68668301197f30ca72cbdee94b79f86643814d677d1c8e8cbe43": {
-      "lufs": -22.699999999999999,
-      "guitarType": 17,
-      "ampModel": 1,
-      "drive": 0.42,
-      "preset": "Rockabilly Slap / 17"
     },
     "f824f99adf7a7eeedcf18d00dc984340598b195af9886b73403dbcd937cdc744": {
       "lufs": -17.309999999999999,
@@ -11826,13 +11854,6 @@
       "drive": 0.05,
       "preset": "Percussive Tap / 18"
     },
-    "f8e4410271626890a870ce58593e406084e44739dcfe729b448fb87dbe10ae27": {
-      "lufs": -27.710000000000001,
-      "guitarType": 13,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Semi-Hollow Chime / 13"
-    },
     "f9024697c4a9e9f134e14e58cd6c367403329da67ef0954467f5123854aa672c": {
       "lufs": -13.619999999999999,
       "guitarType": 10,
@@ -11861,20 +11882,6 @@
       "drive": 0.48,
       "preset": "Violin Bass Grind / 15"
     },
-    "f9759d69812a51ff138f0c1c4f17c903684e1d81ebb8b854d5f054c3f4c489ac": {
-      "lufs": -31.190000000000001,
-      "guitarType": 11,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Surf Reverb / 11"
-    },
-    "f980c8fc12cacc949c2341ede8adaf7da3a7d6a4971d5d912594af154a623ba8": {
-      "lufs": -20.82,
-      "guitarType": 20,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "T-Style Country Twang / 20"
-    },
     "f9a889e8605148a1c8db3befbbdf28efcf6ab64200eec450dc117d90160d8ed2": {
       "lufs": -10.92,
       "guitarType": 21,
@@ -11888,13 +11895,6 @@
       "ampModel": 0,
       "drive": 0.25,
       "preset": "Country Boom-Chick / 4"
-    },
-    "f9b4571193674de88c5e93afadc310cd9a02662211836df518c0c4d3c6b623be": {
-      "lufs": -23.129999999999999,
-      "guitarType": 24,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "8-String Djent / 24"
     },
     "f9ce0921978f2cab63fe5e904667824cbbda18dc98c6e899c2a0d5fd1c3bbb84": {
       "lufs": -11.27,
@@ -11931,13 +11931,6 @@
       "drive": 0.05,
       "preset": "Physics Showcase / 23"
     },
-    "fa73079a242ce2e453755ea1fa87129e1938cef1b20ae4ce875db826a28543a4": {
-      "lufs": -20.780000000000001,
-      "guitarType": 6,
-      "ampModel": 9,
-      "drive": 0.85,
-      "preset": "8-String Djent / 6"
-    },
     "fa7c7bc6569ac2d5f8fd2b9d51657f3e69c3e354a2e8663561f792abf9988e57": {
       "lufs": -17.010000000000002,
       "guitarType": 2,
@@ -11959,6 +11952,13 @@
       "drive": 0.62,
       "preset": "Assist Rock Rhythm / 8"
     },
+    "fab3e68e42cdb419b9198e3b4ce2e1c2d89e32f2bb5f149054069c2675729a54": {
+      "lufs": -35.140000000000001,
+      "guitarType": 21,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "5-String Low B / 21"
+    },
     "fabd498f36eaaee0bd80663db70f85ff684f0bea4d746e2ad68226573acebbd0": {
       "lufs": -15.130000000000001,
       "guitarType": 2,
@@ -11979,20 +11979,6 @@
       "ampModel": 5,
       "drive": 0.78,
       "preset": "Metal Lead Combo / 12"
-    },
-    "fb59ff15c52547907c1472ba9645918ee8d63af7857b7e74491f50f481c12ae4": {
-      "lufs": -21.579999999999998,
-      "guitarType": 19,
-      "ampModel": 1,
-      "drive": 0.34,
-      "preset": "T-Style Country Twang / 19"
-    },
-    "fb66ec5471fb6cbd408d7e2492df95d787c7ef86410dfc2d4501c7a304f90f3e": {
-      "lufs": -24.18,
-      "guitarType": 6,
-      "ampModel": 6,
-      "drive": 0.34,
-      "preset": "Semi-Hollow Chime / 6"
     },
     "fb8fb73b10a1f731c2f39b539fe59534ae88ef962f434de6837299cdea3e4902": {
       "lufs": -17.760000000000002,
@@ -12035,13 +12021,6 @@
       "ampModel": 5,
       "drive": 0.78,
       "preset": "Metal Lead Combo / 21"
-    },
-    "fc426ece51e36ddb1ce04352a68af906e0c95f43ec51d655984fd8109b338468": {
-      "lufs": -25.710000000000001,
-      "guitarType": 7,
-      "ampModel": 2,
-      "drive": 0.26,
-      "preset": "Surf Reverb / 7"
     },
     "fc772b67bcb4611744606175e2ab20f58431ad09cce583a7582ce49cb47fac3d": {
       "lufs": -19.559999999999999,
@@ -12162,6 +12141,13 @@
       "drive": 0.05,
       "preset": "Middle Eastern Maqam / 13"
     },
+    "fe275a018faf4ed4ecddb1d4895830b4817645af07dc4b2b3633f58bd70b54f2": {
+      "lufs": -34.159999999999997,
+      "guitarType": 3,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "5-String Low B / 3"
+    },
     "fe7100a1408c5633d6d92f123b9c0936d960fa3ca650df12dd2a7e427e3e8cee": {
       "lufs": -11.82,
       "guitarType": 8,
@@ -12211,6 +12197,13 @@
       "drive": 0.2,
       "preset": "Microtonal Tap / 11"
     },
+    "ff4c44591473cdc296d986304694cfcbd1f2dcbcbd198ffb1ec452cce6e5bd04": {
+      "lufs": -19.789999999999999,
+      "guitarType": 17,
+      "ampModel": 9,
+      "drive": 0.85,
+      "preset": "8-String Djent / 17"
+    },
     "ff545273c28f2e8efb43d4071ddd0472e93fe2b28ead0e2c717dc1d864a16390": {
       "lufs": -24.57,
       "guitarType": 9,
@@ -12224,6 +12217,13 @@
       "ampModel": 0,
       "drive": 0.2,
       "preset": "Reggae Skank / 13"
+    },
+    "ff61baa8da9e6e21fec4b942f02409d2008b4ca094c6a91f13d1c30edf44fe27": {
+      "lufs": -36.689999999999998,
+      "guitarType": 11,
+      "ampModel": 11,
+      "drive": 0.36,
+      "preset": "5-String Low B / 11"
     },
     "ff941e50e74116a6bcc27b038189aa45b2b0e184a47dbda63c41fa58554212fc": {
       "lufs": -17.91,
