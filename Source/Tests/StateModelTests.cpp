@@ -253,3 +253,59 @@ LUTHIER_TEST (StateModel, aProgramChangeRightAfterAStateRestoreDoesNotWipeIt)
                "a later program change was ignored too, so Program Change no longer "
                "selects presets");
 }
+
+//==============================================================================
+/*  onboarding.md 11: the returning user's session restores the sound and the
+    visible workspace choices together. This pins the processor-side round trip;
+    editor construction separately consumes these UiState fields. */
+LUTHIER_TEST (StateModel, returningUserSessionRestoresPresetWindowDrawerAndSlideMode)
+{
+    LuthierAudioProcessor source;
+    source.prepareToPlay (kSr, kBlock);
+
+    if (source.getPresetManager().getNumPresets() < 2)
+    {
+        CHECK_MSG (false, "not enough factory presets to verify returning-user recall");
+        return;
+    }
+
+    CHECK (source.getPresetManager().loadPreset (1));
+
+    // The session identifies the current preset by name, not by its library
+    // index: the library is rescanned (and may reorder) on the returning run, so
+    // the restored session is pinned to the same preset by the name it saved.
+    const auto loadedPresetName = source.getPresetManager().getCurrentPresetName();
+    CHECK (loadedPresetName.isNotEmpty());
+
+    auto& ui = source.getUiState();
+    ui.advancedMode = true;
+    ui.advancedTab = 7;
+    ui.editorWidth = 1440;
+    ui.editorHeight = 864;
+    ui.practiceDrawerOpen = true;
+
+    auto* sourceSlide = source.getState().getParameter (ParamIDs::slideGuitar);
+    CHECK_MSG (sourceSlide != nullptr, "Slide Mode parameter is missing");
+
+    if (sourceSlide != nullptr)
+        sourceSlide->setValueNotifyingHost (1.0f);
+
+    juce::MemoryBlock block;
+    source.getStateInformation (block);
+
+    LuthierAudioProcessor restored;
+    restored.prepareToPlay (kSr, kBlock);
+    restored.setStateInformation (block.getData(), (int) block.getSize());
+
+    const auto& restoredUi = restored.getUiState();
+    CHECK (restored.getPresetManager().getCurrentPresetName() == loadedPresetName);
+    CHECK (restoredUi.advancedMode);
+    CHECK (restoredUi.advancedTab == 7);
+    CHECK (restoredUi.editorWidth == 1440);
+    CHECK (restoredUi.editorHeight == 864);
+    CHECK (restoredUi.practiceDrawerOpen);
+
+    auto* restoredSlide = restored.getState().getParameter (ParamIDs::slideGuitar);
+    CHECK_MSG (restoredSlide != nullptr && restoredSlide->getValue() > 0.5f,
+               "Slide Mode was not restored with the returning-user session");
+}
