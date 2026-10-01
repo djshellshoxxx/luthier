@@ -952,6 +952,78 @@ void LuthierEngine::refreshStringPhysics()
     setupChanged.store (true);
     rebuildBodyCoupling();   // body-coupling.md 3: Z0 moved
     refreshStabilityHardware();   // tuning-stability.md 5
+
+    // easter-egg: a physics rebuild (material, gauge, tuning...) wipes the banjo
+    // overlay's Physical; drop the banjo shape too and keep the UI flag honest.
+    if (banjoActive)
+    {
+        banjoActive = false;
+        banjoRevealed.store (false, std::memory_order_relaxed);
+
+        const StringEngine::SustainShape neutral;
+        for (int i = 0; i < numStrings; ++i)
+            strings[(size_t) i].setSustainShape (neutral);
+    }
+}
+
+//==============================================================================
+void LuthierEngine::applyBanjoVoice (bool on) noexcept
+{
+    if (on == banjoActive)
+        return;
+
+    if (on)
+    {
+        // The 5-string banjo: a short, bright, steel-strung plucked tone with a
+        // snappy attack. We keep the current pitch mapping and tuning logic (the
+        // player's notes still sound where they expect) and only re-voice the
+        // string model - a far brighter loop cutoff, a much shorter sustain, and
+        // a percussive attack/fast-decay shape. Every call below is a plain
+        // coefficient write, so this is safe under the ringing strings.
+        StringEngine::SustainShape banjo;
+        banjo.attackTransient   = 0.8;     ///< bright plucked snap
+        banjo.attackTimeSeconds = 0.003;   ///< very fast onset
+        banjo.fastShare         = 0.6;     ///< most energy in the quick-decay stage
+        banjo.fastRatio         = 0.12;    ///< the characteristic twang then quiet ring
+        banjo.releaseSeconds    = 0.08;    ///< clean, short note-off
+
+        for (int i = 0; i < numStrings; ++i)
+        {
+            auto p = strings[(size_t) i].getPhysical();
+            p.openBrightnessHz = 10000.0;  ///< banjo head + steel: very bright
+            p.sustainSeconds   = 1.1;      ///< rings, but decays far faster than a guitar
+            strings[(size_t) i].setPhysical (p);
+            strings[(size_t) i].setSustainShape (banjo);
+        }
+
+        banjoActive = true;
+        banjoRevealed.store (true, std::memory_order_relaxed);
+    }
+    else
+    {
+        // Lift the overlay: rebuild each string's physics from the real
+        // instrument and clear the banjo shape. refreshStringPhysics allocates,
+        // so this path is message-thread only (setBanjoEgg parks the audio
+        // thread around it); it also clears banjoActive itself.
+        banjoActive = false;
+        banjoRevealed.store (false, std::memory_order_relaxed);
+        refreshStringPhysics();
+
+        const StringEngine::SustainShape neutral;
+        for (int i = 0; i < numStrings; ++i)
+            strings[(size_t) i].setSustainShape (neutral);
+    }
+}
+
+void LuthierEngine::setBanjoEgg (bool on)
+{
+    if (on == banjoActive)
+        return;
+
+    // Message-thread entry. Park the audio thread so the re-voicing (and, when
+    // lifting, the allocating physics rebuild) never races the render.
+    ScopedStructuralChange scope (*this);
+    applyBanjoVoice (on);
 }
 
 //==============================================================================
@@ -2663,6 +2735,12 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
     assistSetContext (rhythm.isEnabled() && rhythm.isDriving());   // FEAT-ASSIST: 5's explicit rows
     midi.processBlock (played, numSamples, samplePosition, events);
+
+    // easter-egg: the player just performed the Dueling Banjos opening motif.
+    // Re-voice the strings as a banjo in place (a coefficient change under the
+    // ringing strings - allocation-free, no park). Idempotent via banjoActive.
+    if (midi.consumeBanjoMotif() && ! banjoActive)
+        applyBanjoVoice (true);
 
     // Events go onto the schedule rather than being applied here, so a strum
     // that runs past the end of this block still sounds.
