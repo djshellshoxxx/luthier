@@ -1923,7 +1923,14 @@ TabReaderTab::TabReaderTab (LuthierAudioProcessor& p)
     styleSlider (barsSlider, 1.0, 8.0, 1.0, " bars");
     barsSlider.setValue (4.0, juce::dontSendNotification);
     barsSlider.onValueChange = [this] { refresh(); };
+    barsSlider.setTooltip ("How many bars the view shows at once.");
     addAndMakeVisible (barsSlider);
+
+    // A tab longer than the window is scrolled, not cut off at its first bars.
+    styleSlider (fromBarSlider, 1.0, 1.0, 1.0, "");
+    fromBarSlider.setTooltip ("The first bar shown. Scroll through a long tab.");
+    fromBarSlider.onValueChange = [this] { refresh(); };
+    addAndMakeVisible (fromBarSlider);
 
     styleReadout (statusLabel);
     addAndMakeVisible (statusLabel);
@@ -1946,7 +1953,17 @@ void TabReaderTab::refresh()
     NotationExportOptions options;
     options.lineWidth = 200;
 
-    const auto text = exporter.renderAsciiTabWindow (score, 0, (int) barsSlider.getValue(), options);
+    // The scroller spans the score's bars; a new score pulls it back into range.
+    const int numMeasures = score.getNumTracks() > 0 ? (int) score.getTrack (0).measures.size() : 0;
+    fromBarSlider.setRange (1.0, (double) juce::jmax (1, numMeasures), 1.0);
+    fromBarSlider.setEnabled (numMeasures > 1);
+
+    const auto text = exporter.renderAsciiTabWindow (score, (int) fromBarSlider.getValue() - 1,
+                                                     (int) barsSlider.getValue(), options);
+
+    // The Play button follows the player, which a riff audition or Stop elsewhere can change.
+    auto& player = processor.getEngine().getRiffPlayer();
+    playButton.setButtonText (player.isPlaying() || player.isWaiting() ? "Stop" : "Play");
 
     if (text != tabView.getText())
         tabView.setText (text, false);
@@ -1965,6 +1982,7 @@ void TabReaderTab::resized()
         formatBox.setBounds (r.take (112));
         exportButton.setBounds (r.take (74));
         barsSlider.setBounds (r.take (116));
+        fromBarSlider.setBounds (r.take (116));
         statusLabel.setBounds (r.rest());
     }
 
