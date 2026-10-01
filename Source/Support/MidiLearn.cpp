@@ -1,4 +1,5 @@
 #include "MidiLearn.h"
+#include "BoundedMidi.h"
 
 namespace luthier
 {
@@ -293,7 +294,7 @@ void MidiLearnManager::processMidi (juce::MidiBuffer& midi, juce::MidiBuffer& sc
 
         for (const auto metadata : midi)
         {
-            const auto message = metadata.getMessage();
+            const auto message = BoundedMidi::inspect (metadata);   // RT-SAFETY P1: no SysEx heap copy
 
             if (message.isController())
             {
@@ -339,7 +340,7 @@ void MidiLearnManager::processMidi (const juce::MidiBuffer& midi) noexcept
 
     for (const auto metadata : midi)
     {
-        const auto message = metadata.getMessage();
+        const auto message = BoundedMidi::inspect (metadata);   // RT-SAFETY P1: no SysEx heap copy
 
         if (! message.isController())
             continue;
