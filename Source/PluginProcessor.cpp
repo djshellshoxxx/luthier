@@ -131,6 +131,7 @@ LuthierAudioProcessor::LuthierAudioProcessor()
     // event, and a cached gain rides the load.
     presets.onPresetLoaded = [this]
     {
+        refusedPresetBlock = juce::var();   // SPEC-SWEEP HI-24: the user chose another sound
         presetFileLoaded();   // SPEC-SWEEP: SM-46 - the layers a user-facing load clears (A/B compare)
         outputNormalization.notifyConfigurationChanged (true);
     };
@@ -963,15 +964,48 @@ bool LuthierAudioProcessor::switchGuitarFamily (const juce::String& family)
     return true;
 }
 
+juce::String LuthierAudioProcessor::describeGuitarSaveProblem (const WorkshopGuitar& guitar)
+{
+    for (int i = 0; i < kNumGuitarSlots; ++i)
+    {
+        const auto slot = (GuitarSlot) i;
+
+        if (isSlotRequired (slot) && guitar.get (slot) == nullptr)
+            return "the " + juce::String (getSlotId (slot)) + " slot is empty. Fit a part there first.";
+    }
+
+    if (guitar.getStringCount() < 1)
+        return "the neck and the bridge take no strings between them.";
+
+    return {};
+}
+
 juce::File LuthierAudioProcessor::saveGuitarAs (const juce::String& name, bool bundleParts)
 {
     const auto safeName = juce::File::createLegalFileName (name.trim());
 
-    if (safeName.isEmpty() || ! partsGuitarLoaded)
-        return {};
+    // SPEC-SWEEP ER-44, error-recovery 5: an invalid guitar is refused with its
+    // reason and stays unsaved; nothing is written.
+    lastGuitarSaveError.clear();
+
+    auto refuse = [this] (const juce::String& reason, const char* code)
+    {
+        lastGuitarSaveError = reason;
+        ErrorLog::write (ErrorLog::Severity::warn, "Workshop", code, reason);
+        return juce::File();
+    };
+
+    if (! partsGuitarLoaded)
+        return refuse ("There is no Workshop guitar to save. Open one in the Workshop first.", "GUITAR_SAVE_NO_GUITAR");
+
+    if (safeName.isEmpty())
+        return refuse ("A guitar needs a name to be saved.", "GUITAR_SAVE_NO_NAME");
 
     auto guitar = currentGuitar;
     guitar.name = name.trim();
+
+    if (const auto problem = describeGuitarSaveProblem (guitar); problem.isNotEmpty())
+        return refuse ("Cannot save " + guitar.name + ": " + problem, "GUITAR_SAVE_INVALID");
 
     const auto folder = PartLibrary::getUserGuitarsFolder();
     folder.createDirectory();
@@ -979,11 +1013,9 @@ juce::File LuthierAudioProcessor::saveGuitarAs (const juce::String& name, bool b
     const auto file = folder.getChildFile (safeName + WorkshopGuitar::kExtension);
 
     if (! guitar.save (file))
-    {
-        ErrorLog::write (ErrorLog::Severity::warn, "Workshop", "GUITAR_SAVE_FAILED",
-                         "Could not write " + file.getFullPathName());
-        return {};
-    }
+        return refuse ("Could not write " + file.getFileName() + " to " + folder.getFullPathName()
+                         + " (permission denied or disk full). Nothing was changed.",
+                       "GUITAR_SAVE_FAILED");
 
     /*  6: "Bundle parts" writes the referenced parts beside the guitar, in
         their category folders, so the folder is shareable on its own. */
@@ -3579,15 +3611,6 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     root->setProperty ("bankSelectsPreset", doesBankSelectChoosePreset());   // SPEC-SWEEP IR-14
     root->setProperty ("liveMode", uiState.liveMode);
 
-    // host-integration HI-20: the root format's version, so an older build can
-    // tell a blob apart from one it understands and back it up before migrating.
-    root->setProperty ("formatVersion", (int) kCurrentStateFormatVersion);
-
-    // HI-24: write back whatever a newer build's section this one did not
-    // recognise on load, instead of quietly dropping it.
-    for (const auto& section : unknownHostSections)
-        root->setProperty (section.name, section.value);
-
     // tuning-stability.md 7 (REALISM-C): the strings' wear and the capo
     // compensation are the session's, not the preset's. (REALISM-A's aging and
     // environment ride in the preset's character block: PresetBlocks.cpp.)
@@ -3617,6 +3640,8 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
         root->setProperty ("jamPlayValue", (double) p->getValue());
     if (auto* p = apvts.getParameter (ParamIDs::jamFillNow))
         root->setProperty ("jamFillNowValue", (double) p->getValue());
+
+    writeStateFormat (*root);   // HI-20/24 (HostStateFormat.cpp): last, so the sections above win
 
     const auto json = juce::JSON::toString (juce::var (root), false);
 
@@ -3689,59 +3714,37 @@ void LuthierAudioProcessor::restoreState (const void* data, int sizeInBytes, Res
     if (data == nullptr || sizeInBytes <= 0)
         return;
 
-    const juce::String json (juce::CharPointer_UTF8 (static_cast<const char*> (data)),
-                             (size_t) sizeInBytes);
+    // SPEC-SWEEP (HI-53): by bytes, not characters - a name with an accent in
+    // it made the old character count read past the end of the host's buffer.
+    const auto json = stateBlobToText (data, sizeInBytes);
 
     const auto parsed = juce::JSON::parse (json);
     auto* root = parsed.getDynamicObject();
 
     if (root == nullptr)
-        return;
-
-    // host-integration HI-20/HI-24/HI-25, full host restores only: undo/redo and
-    // A/B recall replay a `soundOnly` slice of this same state and are not "an
-    // older or newer build's blob" in the sense those rows mean.
-    if (scope == RestoreScope::full)
     {
-        const int formatVersion = root->hasProperty ("formatVersion")
-                                     ? (int) root->getProperty ("formatVersion") : 0;
+        // error-recovery 0.2: never silently degrade. The session is left as it
+        // is, and the blob is kept so the project can still be recovered.
+        if (scope == RestoreScope::full)
+            reportUnreadableState (data, sizeInBytes);
 
-        // HI-25: an older (or pre-versioning) blob is about to be migrated by
-        // whatever below reads it under today's assumptions. Keep the original.
-        if (formatVersion < kCurrentStateFormatVersion)
-        {
-            const auto stamp = juce::Time::getCurrentTime().formatted ("%Y%m%d-%H%M%S");
-            Diagnostics::getDiagnosticsFolder()
-                .getChildFile ("state-backup-" + stamp + ".json")
-                .replaceWithText (json);
-        }
-
-        // HI-24: keep whatever root-level key this build does not recognise
-        // (a newer build's section) so the next save writes it straight back
-        // instead of quietly dropping it, and warn once when the blob names a
-        // format version newer than this build understands.
-        static const std::set<juce::String> knownRootKeys {
-            "preset", "midiLearn", "ui", "setlist", "lockedParameters", "slotBActive",
-            "routing", "modulation", "rhythm", "snapshots", "liveMode", "controllerProfile",
-            "character", "stability", "toneMatch", "metronome", "clickToMain", "normalization",
-            "tune", "presetMorphPosition", "formatVersion",
-            "jamPlayValue", "jamFillNowValue"   // jam-mode 10 (FEAT-JAM)
-        };
-
-        unknownHostSections.clear();
-
-        for (const auto& prop : root->getProperties())
-            if (knownRootKeys.find (prop.name.toString()) == knownRootKeys.end())
-                unknownHostSections.set (prop.name, prop.value);
-
-        if (formatVersion > kCurrentStateFormatVersion)
-            guitarNotices.addIfNotAlreadyThere (
-                "This session was saved by a newer version of Luthier. Some settings "
-                "may not carry over.");
+        return;
     }
 
+    // host-integration HI-20/24/25 (HostStateFormat.cpp), full host restores
+    // only: undo/redo and A/B recall replay a `soundOnly` slice of this same
+    // state and are not "an older or newer build's blob" in the sense those
+    // rows mean.
+    if (scope == RestoreScope::full)
+        readStateFormat (*root, data, sizeInBytes);
+
     if (root->hasProperty ("preset"))
-        presets.fromVar (root->getProperty ("preset"));
+    {
+        const bool loaded = presets.fromVar (root->getProperty ("preset"));
+
+        if (scope == RestoreScope::full)
+            noteRestoredPresetBlock (root->getProperty ("preset"), loaded);
+    }
 
     if (root->hasProperty ("midiLearn"))
         midiLearn.fromVar (root->getProperty ("midiLearn"));

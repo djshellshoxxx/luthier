@@ -226,9 +226,18 @@ public:
         forget. Cleared by the next load that succeeds. */
     juce::String getLastLoadError() const { return lastLoadError; }
 
+    /** Why the last fromVar refused, as the tail of a sentence ("was made by a
+        newer Luthier version. Update to open."), or empty. */
+    juce::String getLastRefusal() const { return lastRefusal; }
+
     /*  SPEC-SWEEP: ER-19/20/21. Why the last save failed, in a sentence, or
         empty if it worked. Polled by the window like getLastLoadError. */
     juce::String getLastSaveError() const { return lastSaveError; }
+
+    /*  SPEC-SWEEP: ER-22, error-recovery 2: "concurrent save from two plugin
+        instances - later save wins, banner 'Saved; overwrote another change.'"
+        Taken once by the window (empty when there is nothing to say). */
+    juce::String takeSaveNotice() { return std::exchange (saveNotice, {}); }
 
     /*  SPEC-SWEEP: FF-32/PF-5. Makes the next write fail at a stage, for the
         atomicity tests: 1 = the temp file cannot be opened (a read-only folder
@@ -372,6 +381,12 @@ private:
 
     /** Where the current preset came from. Empty until something is loaded. */
     juce::File currentFile;
+
+    // SPEC-SWEEP: ER-22 - the current file's modification time as this
+    // instance last read or wrote it.
+    juce::Time currentFileStamp;
+    juce::String saveNotice;
+    void noteConcurrentChange (const juce::File& file);
 
 
     /*  file-formats 0.3: fields this build does not understand are kept on load

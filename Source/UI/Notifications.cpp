@@ -125,8 +125,15 @@ void NotificationCentre::showNext()
         return;
     }
 
-    current = std::move (queue.front());
-    queue.erase (queue.begin());
+    // SPEC-SWEEP ER-81: the most severe waiting banner first, oldest first within a level.
+    auto next = queue.begin();
+
+    for (auto it = queue.begin(); it != queue.end(); ++it)
+        if ((int) it->level > (int) next->level)
+            next = it;
+
+    current = std::move (*next);
+    queue.erase (next);
 
     updateButtons();
 
@@ -212,8 +219,9 @@ void NotificationCentre::paint (juce::Graphics& g)
     if (! isShowingNotification())
         return;
 
-    const auto tint = current.level == Notification::Level::warning
-                        ? Palette::warning : Palette::secondary;
+    const auto tint = current.level == Notification::Level::error   ? Palette::clip
+                    : current.level == Notification::Level::warning ? Palette::warning
+                                                                    : Palette::secondary;
 
     auto bounds = getLocalBounds().toFloat().reduced (0.5f);
 

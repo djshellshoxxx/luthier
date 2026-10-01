@@ -7,6 +7,7 @@
 #include "Accessibility/Accessibility.h"
 #include "UI/Guitar/StringAnimator.h"   // animated-strings.md 8
 #include "UI/NormalizationOptions.h"   // output-normalization.md 5
+#include "Support/ConfigRecovery.h"
 #include "UI/Search/SearchNavigator.h"   // global-search.md (FEAT-SEARCH)
 #include "UI/Search/CommandPalette.h"
 #include "UI/Search/RiffSearchProvider.h"   // INTEGRATE-2
@@ -379,8 +380,12 @@ void LuthierAudioProcessorEditor::showSaveGuitarDialog()
                 safeThis->notifications.post ({ "save-guitar", tr ("workshop.saveGuitar.saved", { { "name", name } }),
                                                 Notification::Level::info });
             else
-                safeThis->notifications.post ({ "save-guitar", tr ("workshop.saveGuitar.failed"),
-                                                Notification::Level::warning });
+                safeThis->notifications.post ({ "save-guitar",
+                                                // SPEC-SWEEP ER-44: the reason, when there is one.
+                                                safeThis->processor.getLastGuitarSaveError().isNotEmpty()
+                                                    ? safeThis->processor.getLastGuitarSaveError()
+                                                    : tr ("workshop.saveGuitar.failed"),
+                                                Notification::Level::error });
         }), true);
 }
 
@@ -1342,6 +1347,16 @@ void LuthierAudioProcessorEditor::pollForNotifications()
         notifications.post (std::move (n));
     }
 
+    // SPEC-SWEEP ER-65: the same for every other settings file.
+    if (const auto files = ConfigRecovery::takeRecoveredFiles(); ! files.isEmpty())
+    {
+        Notification n;
+        n.id = "settings-reset";
+        n.message = "Settings reset (" + files.joinIntoString (", ") + " was corrupted, backed up).";
+        n.level = Notification::Level::warning;
+        notifications.post (std::move (n));
+    }
+
     // ---- SPEC-SWEEP: FF-35/SM-31 - a setlist that would not load whole -----
     for (const auto& message : processor.takeStateWarnings())
     {
@@ -1392,9 +1407,19 @@ void LuthierAudioProcessorEditor::pollForNotifications()
             Notification n;
             n.id = "preset-save";
             n.message = saveError;
-            n.level = Notification::Level::warning;
+            n.level = Notification::Level::error;   // SPEC-SWEEP ER-81: the user's work did not land
             notifications.post (std::move (n));
         }
+    }
+
+    // ---- SPEC-SWEEP: ER-22 - a save that overwrote another instance's ------------
+    if (const auto notice = processor.getPresetManager().takeSaveNotice(); notice.isNotEmpty())
+    {
+        Notification n;
+        n.id = "preset-save-concurrent";
+        n.message = notice;
+        n.level = Notification::Level::warning;
+        notifications.post (std::move (n));
     }
 
     // ---- installer.md 8: a load that migrated an old file ----------------------

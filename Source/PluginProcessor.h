@@ -123,6 +123,13 @@ public:
     enum class RestoreScope { full, soundOnly };
     void restoreState (const void* data, int sizeInBytes, RestoreScope scope);
 
+    /*  SPEC-SWEEP HI-20/24/25 (HostStateFormat.cpp): the diagnostics folder,
+        where HI-25's pre-migration copies and an unreadable blob are kept. */
+    static juce::File getStateBackupFolder();
+
+    /** The blob as text: byte-counted, and empty when it is not valid UTF-8. */
+    static juce::String stateBlobToText (const void* data, int sizeInBytes);
+
     /** output-normalization.md: the switch, the target, the calibration. */
     OutputNormalization& getOutputNormalization() noexcept { return outputNormalization; }
     OutputNormalization::Status getNormalizationStatus() const { return outputNormalization.getStatus(); }
@@ -396,6 +403,13 @@ public:
         file. Returns the file, or an empty File if the write failed. */
     juce::File saveGuitarAs (const juce::String& name, bool bundleParts = false);
 
+    /*  SPEC-SWEEP ER-44, error-recovery 5: why the last saveGuitarAs refused or
+        failed, as a sentence the banner shows; empty after a save that worked. */
+    juce::String getLastGuitarSaveError() const { return lastGuitarSaveError; }
+
+    /** What makes a guitar unsaveable (an empty required slot, no strings), or empty. */
+    static juce::String describeGuitarSaveProblem (const WorkshopGuitar& guitar);
+
     /*  guitar-workshop.md 7: saves a fitted part's current fields as a user
         part under `name`, rescans the library and fits the saved part in its
         slot. Returns the saved part, or nullptr if the slot is empty or the
@@ -438,6 +452,10 @@ public:
         did to the layers around it ("A/B cleared by preset load."). Taken once
         by the editor. */
     juce::StringArray takeStateNotices();
+
+    /** An info banner from a panel that has no window of its own to tell
+        (SPEC-SWEEP ER-46: a melody that could not be generated). */
+    void postStateNotice (const juce::String& message) { stateNotices.addIfNotAlreadyThere (message); }
 
     /** SPEC-SWEEP: FF-35/SM-31 - the same, for warnings (a refused setlist). */
     juce::StringArray takeStateWarnings();
@@ -992,6 +1010,13 @@ private:
     void presetFileLoaded();
     juce::StringArray stateNotices, stateWarnings;
 
+    // SPEC-SWEEP HI-20/24/25 (HostStateFormat.cpp).
+    void writeStateFormat (juce::DynamicObject& root) const;
+    void readStateFormat (const juce::DynamicObject& root, const void* data, int sizeInBytes);
+    void noteRestoredPresetBlock (const juce::var& block, bool loaded);
+    void reportUnreadableState (const void* data, int sizeInBytes);
+    juce::var refusedPresetBlock;   // a newer build's preset, written back until another preset loads
+
     /** Resolves a preset's reference to a guitar file: user, then factory. */
     static juce::File resolveGuitarReference (const juce::String& reference);
 
@@ -1002,6 +1027,7 @@ private:
     WorkshopGuitar currentGuitar;
     WorkshopBench bench { *this };
     bool partsGuitarLoaded = false;
+    juce::String lastGuitarSaveError;   // SPEC-SWEEP ER-44
     bool strumFamilyIsBass = false;   ///< strum-dynamics 4: the family the strum parameters' defaults follow
     juce::StringArray guitarNotices;
 

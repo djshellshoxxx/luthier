@@ -1,5 +1,6 @@
 #include "Accessibility.h"
 #include "Localisation.h"
+#include "../Support/ConfigRecovery.h"
 
 namespace luthier
 {
@@ -815,10 +816,8 @@ bool AccessibilitySettings::load()
 {
     const auto file = getConfigFile();
 
-    if (! file.existsAsFile())
-        return false;
-
-    const auto parsed = juce::JSON::parse (file.loadFileAsString());
+    // SPEC-SWEEP ER-65: an unreadable file is kept aside and reported.
+    const auto parsed = ConfigRecovery::loadObject (file, "Accessibility");
 
     if (parsed.getDynamicObject() == nullptr)
         return false;

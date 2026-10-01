@@ -18,6 +18,7 @@
 #include "Widgets.h"
 #include "OptionsPages.h"
 #include "HelpTab.h"
+#include "OwnedFileChooser.h"
 #include "../DSP/Common/DspCommon.h"
 
 namespace luthier
@@ -283,6 +284,8 @@ private:
     juce::File importedMidiFile;
     double progress = 0.0;
 
+    OwnedFileChooser fileChooser;   // dies (and so cancels) with the panel
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ExportPanel)
 
 private:
@@ -375,6 +378,8 @@ private:
 
     ChordListModel listModel { *this };
     DiagramComponent diagram { *this };
+
+    OwnedFileChooser fileChooser;   // dies (and so cancels) with the panel
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChordAndTabPanel)
 };

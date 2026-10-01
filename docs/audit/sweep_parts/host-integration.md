@@ -2,6 +2,8 @@
 
 The core host surface is in place and tested: VST3/AU/Standalone (plus optional CLAP) targets, bus layouts A-D with the sidechain and Aux 8, latency reporting through `setLatencySamples`, program enumeration, the Ableton post-restore program-change swallow, transport/tempo follow with free-run, and CI running pluginval (strictness 5 per push, 10 nightly). `NEEDS_MIDI_OUTPUT` is now TRUE. Real defects remain: there are no parameter groups/VST3 units, no localised parameter names, no version tag or unknown-section preservation in the (JSON) state blob and no pre-migration blob backup; host time signature/isRecording/sample rate are not consumed by the rhythm engine; `docs/HOST_COMPATIBILITY.md` does not exist. The 32-instance, bus-layout-change and allocation/lock stress tests are now merged. (NEEDS_MIDI_OUTPUT is now TRUE; see HI-2 / HI-31.)
 
+W2 robustness pass: HI-16/20/22/24/25/38/54 closed (state format version, newer-blob preservation, older-blob backup, size and host-notify tests, `docs/HOST_COMPATIBILITY.md`). HI-14/47 (parameter groups) are left: grouping changes the flattened parameter order some hosts index automation by, which the append-only rule forbids without a migration plan. HI-29 is with the host BPM/transport owners.
+
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
 | HI-1 (§0.2) | No blocking calls or allocation on the audio thread, no stdout - engine uses tryLock on `engineLock`; allocation and pthread lock traps in the suite | `PluginProcessor.cpp:processBlock` | n/a | `Engine::fiveMinutesOfPlaybackNeitherAllocatesNorLocks`, `ThreadProbe::theLockTrapSeesALock`, `WorkshopSwap::noFileIsTouchedFromTheAudioThreadDuringASwap` | DONE |
@@ -19,16 +21,16 @@ The core host surface is in place and tested: VST3/AU/Standalone (plus optional 
 | HI-13 (§3) | APVTS single source; count stable; stable IDs, range, default, text converters | `Parameters.cpp:createLayout` | n/a | `Parameters::everyParameterHasAUniqueIdAndSaneDefault`, `Parameters::everyParameterTextRoundTrips`, `HostState::parameterTextRoundTripsStably` | DONE |
 | HI-14 (§3) | Parameters grouped by ParameterCategory — flat layout, no `AudioProcessorParameterGroup` | `Parameters.cpp:createLayout` | n/a | - | MISSING |
 | HI-15 (§3) | Display names translated per locale — hard-coded English | `Parameters.cpp` | n/a | - | MISSING |
-| HI-16 (§3.1) | Internal changes (snapshot recall, preset load) notify host | `setValueNotifyingHost` in PresetManager / SnapshotBank apply | n/a | `HostState::processingDoesNotMoveParameters` (indirect) | NO-TEST |
+| HI-16 (§3.1) | Internal changes (snapshot recall, preset load) notify host | `setValueNotifyingHost` in PresetManager / SnapshotBank apply | n/a | `HostState::presetLoadsAndSnapshotRecallsNotifyTheHost` | DONE |
 | HI-17 (§3.1) | Batching: only last write per block per parameter notified — relies on JUCE default, not implemented | - | n/a | - | PARTIAL |
 | HI-18 (§3.2) | Automation moves base, modulation adds on top | `Modulation/ModMatrix` | n/a | `Modulation::*` (e.g. `Combo::modulationRoutesAtFullDepth`) | DONE |
 | HI-19 (§3.3) | Discrete params integer 0..N-1 with module crossfade | choice params + module crossfades | n/a | `Modulation::discreteDestinationsStepAtBoundaries` | DONE |
-| HI-20 (§4) | State blob: format version tag (u32) + padding — root JSON has no version | `PluginProcessor.cpp:getStateInformation` | n/a | - | MISSING |
+| HI-20 (§4) | State blob: format version tag — JSON `formatVersion` (1) + `savedBy` on every blob (GAPS-HOST and W2 unified in `HostStateFormat.cpp`) (W2 `claude/luthier-w2-robustness`) | `HostStateFormat.cpp:writeStateFormat` | n/a | `HostState::theBlobCarriesItsFormatVersion`, `HostState::theStateCarriesAFormatVersion` | DONE |
 | HI-21 (§4) | APVTS + uiState + structural (mod matrix, snapshots, MIDI mappings, ranges, guitar ref/inline, circuit, MIDI export profile) — JSON rather than XML, content equivalent | `getStateInformation` / `setStateInformation` | n/a | `Presets::stateRoundTripsExactly`, `Combo::everyParameterSurvivesTheSessionStateRoundTrip`, `Routing::stateRoundTrips` | DONE |
-| HI-22 (§4) | Size < 200 KB typical / < 2 MB inline guitar — never measured | `getStateInformation` | n/a | - | NO-TEST |
+| HI-22 (§4) | Size < 200 KB typical / < 2 MB inline guitar — measured for every factory preset | `getStateInformation` | n/a | `HostState::everyFactoryPresetsSessionIsUnder200KB` | DONE |
 | HI-23 (§4) | setStateInformation applies via swap pattern | direct apply on message thread; engine picks up via bridge | n/a | `StateModel::loadingAPresetWhileRenderingProducesNoGarbage` | DONE |
-| HI-24 (§4.1) | Older build + newer blob: warn, keep unknown sections on write-back — only preset-level unknownFields kept; host-level keys dropped, no warning | `PresetManager::fromVar` unknownFields | n/a | `Presets::unknownFieldsSurviveARoundTrip` | PARTIAL |
-| HI-25 (§4.2) | Newer build + older blob: migrate and back up old blob to diagnostics — migrations run, no blob backup | `PresetManager` migrations | n/a | `GuitarMigration::*` | PARTIAL |
+| HI-24 (§4.1) | Older build + newer blob: warn, keep unknown sections on write-back — unknown top-level sections and a refused newer-schema preset are written back (until the user loads another preset); warning banner + ErrorLog (W2 `claude/luthier-w2-robustness`) | `HostStateFormat.cpp:readStateFormat/noteRestoredPresetBlock/writeStateFormat` | n/a | `HostState::aNewerBlobKeepsWhatItCannotReadOnWriteBack`, `HostState::unknownSectionsSurviveWriteBack` | DONE |
+| HI-25 (§4.2) | Newer build + older blob: migrate and back up old blob to diagnostics — `state-backup-<stamp>.json` in the diagnostics folder (20 kept); an unreadable blob is kept there too and reported (W2 `claude/luthier-w2-robustness`) | `HostStateFormat.cpp:readStateFormat/reportUnreadableState` | n/a | `HostState::anOlderBlobIsBackedUpBeforeItIsMigrated`, `HostState::anUnreadableBlobChangesNothingAndIsKept` | DONE |
 | HI-26 (§5) | getLatencySamples = main-out latency; change -> updateHostDisplay | `PluginProcessor.cpp:updateLatency` (`setLatencySamples`) | ROUTING tab latency readout | `Engine::latencyIsReportedAndPlausible` | DONE |
 | HI-27 (§5) | Per-output latency reported where the host supports it — UI report only (JUCE has no per-bus API) | `updateRoutingLatencyReport`, `LuthierEngine::getLatencySamples(AuxBus)` | ROUTING tab | `Routing::perOutputLatencyIsConsistent` | DONE |
 | HI-28 (§6) | Read tempo, isPlaying, ppq every block; missing playhead -> internal transport | `processBlock` getPlayHead blocks | n/a | `Modulation::syncedLfoFollowsTheHost`, `TunePlayer::theHostWinsWhenItPlaysAndTheClockRunsWhenItDoesNot` | DONE |
@@ -41,7 +43,7 @@ The core host surface is in place and tested: VST3/AU/Standalone (plus optional 
 | HI-35 (§8) | Instances fully independent, no shared state beyond settings/content | per-instance members | n/a | `Stress::thirtyTwoInstancesRenderInTurn` | DONE |
 | HI-36 (§9.1) | Ableton: first program change after state restore swallowed | `setCurrentProgram`, `ignoreNextProgramChange` | n/a | `StateModel::aProgramChangeRightAfterAStateRestoreDoesNotWipeIt` | DONE |
 | HI-37 (§9.1) | Ableton MPE auto-detect from channel-1-plus-member traffic — no auto-detect; MPE is a chosen profile | - | n/a | - | MISSING |
-| HI-38 (§9.2) | Logic: state < 500 KB via guitar file refs — refs used when saved; never measured | `getStateInformation` preset guitar ref | n/a | `WorkshopPresets::saveAsGuitarWritesAFileAndPointsThePresetAtIt` | NO-TEST |
+| HI-38 (§9.2) | Logic: state < 500 KB via guitar file refs — refs used when saved; every factory preset measured < 200 KB | `getStateInformation` preset guitar ref | n/a | `WorkshopPresets::saveAsGuitarWritesAFileAndPointsThePresetAtIt`, `HostState::everyFactoryPresetsSessionIsUnder200KB` | DONE |
 | HI-39 (§9.2) | Logic: routing panel exposes the PC / Bank Select mapping mode — no such control | `PluginProcessor.cpp` PC -> snapshot, CC0 -> preset (fixed) | none | - | MISSING |
 | HI-40 (§9.2) | prepareToPlay idempotent and fast | `prepareToPlay` | n/a | `HostState::aSessionSurvivesThePrepareThatFollowsIt`, `Engine::sampleRateChangesAreSurvived` | DONE |
 | HI-41 (§9.9) | Standalone: device disconnect polling, virtual MIDI-out toggle — neither built (JUCE default standalone) | - | none | - | MISSING |
@@ -57,6 +59,6 @@ The core host surface is in place and tested: VST3/AU/Standalone (plus optional 
 | HI-51 (§15) | Test: host format switching VST3 -> AU -> VST3 (macOS) — manual host test | - | n/a | - | MISSING |
 | HI-52 (§15) | Test: transport follow play/stop/seek with rhythm engine and tune builder together | processBlock transport | n/a | `TunePlayer::theHostWinsWhenItPlaysAndTheClockRunsWhenItDoesNot` (tune only) | PARTIAL |
 | HI-53 (§15) | Test: state round trip in every host; MIDI I/O in every host | - | n/a | `Combo::sessionStateRoundTripReproducesAudio` (in-process only) | PARTIAL |
-| HI-54 (§16) | `docs/HOST_COMPATIBILITY.md` documents every §9 quirk — file missing | - | n/a | - | MISSING |
+| HI-54 (§16) | `docs/HOST_COMPATIBILITY.md` documents every §9 quirk (status per quirk; open ones point at their rows) (W2 `claude/luthier-w2-robustness`) | `docs/HOST_COMPATIBILITY.md` | n/a | - | DONE |
 
-<!-- counts DONE=33 NO-GUI=0 NO-TEST=4 PARTIAL=8 MISSING=9 DEFERRED=0 -->
+<!-- counts DONE=40 NO-TEST=1 PARTIAL=6 MISSING=7 -->

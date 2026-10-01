@@ -7,8 +7,9 @@ juce::MemoryBlock UndoState::withSessionLayers (const juce::MemoryBlock& state,
                                                 const juce::NamedValueSet& keep,
                                                 const juce::StringArray& drop)
 {
-    const juce::String json (juce::CharPointer_UTF8 (static_cast<const char*> (state.getData())),
-                             state.getSize());
+    // By bytes: the character-count constructor read past the block when the
+    // state held a multi-byte character.
+    const auto json = juce::String::fromUTF8 (static_cast<const char*> (state.getData()), (int) state.getSize());
 
     auto parsed = juce::JSON::parse (json);
     auto* root = parsed.getDynamicObject();

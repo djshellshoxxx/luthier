@@ -93,6 +93,7 @@ void StringRow::paint (juce::Graphics& g)
 
     // ---- mute -------------------------------------------------------------------
     muteBounds = bounds.removeFromRight (18).withSizeKeepingCentre (12, 12);
+    muted = processor.isStringMuted (stringIndex);   // the fretboard's menu mutes too
 
     g.setColour (muted ? Palette::warning : Palette::edge);
     g.drawRoundedRectangle (muteBounds.toFloat(), 2.0f, 1.0f);
@@ -123,10 +124,11 @@ void StringRow::mouseDown (const juce::MouseEvent& e)
 {
     if (muteBounds.contains (e.getPosition()))
     {
-        muted = ! muted;
+        muted = ! processor.isStringMuted (stringIndex);
 
-        processor.getEngine().getString (stringIndex).setDamping (
-            muted ? StringEngine::Damping::Choked : StringEngine::Damping::Open, 1.0);
+        // CB-17: the string is the audio thread's; the processor queues the
+        // mute and applies it at the top of the next block.
+        processor.setStringMuted (stringIndex, muted);
 
         repaint();
         return;
