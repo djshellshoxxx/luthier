@@ -686,7 +686,7 @@ int render (RenderHost& host, const Options& options, const juce::MidiMessageSeq
     preset on its own guitar and on every guitar type is loaded into a fresh
     processor (as a user would load it), hashed exactly as the live instance
     hashes it, and measured by the same reference render. */
-int calibrateFactory (const juce::File& out)
+int calibrateFactory (const juce::File& out, const juce::StringArray& onlyPresets = {})
 {
     const int presets = FactoryPresets::getNumPresets();
     const int types = (int) GuitarType::NumTypes;
@@ -694,6 +694,12 @@ int calibrateFactory (const juce::File& out)
 
     for (int pr = 0; pr < presets; ++pr)
     {
+        // When a subset is named (a partial regen, merged afterwards), skip the
+        // presets not in it. The name is snapshotted because getPreset returns a
+        // thread_local view that later calls overwrite.
+        if (! onlyPresets.isEmpty() && ! onlyPresets.contains (FactoryPresets::getPreset (pr).name, true))
+            continue;
+
         for (int g = -1; g < types; ++g)
         {
             auto p = std::make_unique<LuthierAudioProcessor>();
@@ -776,6 +782,30 @@ int calibrateFactory (const juce::File& out)
 int main (int argc, char* argv[])
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
+
+    // --calibrate-presets <table> <Name1,Name2,...> : regenerate just the named
+    // factory presets' entries (all guitar types) in-place in <table>, keeping
+    // every other preset's rows byte-for-byte. Much faster than a full
+    // --calibrate-factory when only a few presets changed; see
+    // scripts/regen_normalization_factory.sh.
+    for (int i = 1; i + 2 < argc; ++i)
+        if (juce::String (argv[i]) == "--calibrate-presets")
+        {
+            const juce::String tableArg (juce::String::fromUTF8 (argv[i + 1]));
+            const juce::File table = juce::File::isAbsolutePath (tableArg) ? juce::File (tableArg)
+                                                                           : juce::File::getCurrentWorkingDirectory().getChildFile (tableArg);
+            juce::StringArray names;
+            names.addTokens (juce::String::fromUTF8 (argv[i + 2]), ",", "");
+            names.trim();
+            names.removeEmptyStrings();
+
+            // Load the existing table, drop the named presets' (stale) rows, then
+            // regenerate just those presets and write the merged table back.
+            NormalizationCalibrator::setFactoryTableFileForTesting (table);
+            NormalizationCalibrator::reloadFactoryTable();
+            NormalizationCalibrator::removeFactoryEntriesForPresets (names);
+            return calibrateFactory (table, names);
+        }
 
     Options options;
 
