@@ -61,8 +61,8 @@ namespace
 
             for (int j = i + 1; j < k; ++j)
             {
-                uncovered[(size_t) i][(size_t) j].assign ((size_t) (sizes[(size_t) i] * sizes[(size_t) j]), 1);
-                remaining += sizes[(size_t) i] * sizes[(size_t) j];
+                uncovered[(size_t) i][(size_t) j].assign ((size_t) sizes[(size_t) i] * (size_t) sizes[(size_t) j], 1);
+                remaining += (long) sizes[(size_t) i] * (long) sizes[(size_t) j];
             }
         }
 

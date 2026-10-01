@@ -352,7 +352,7 @@ void JamPredictor::onBarLine (double barStart, double barLength) noexcept
             }
         }
 
-        if (same && n1 == n2 && n2 + 1 > 1)
+        if (same && n1 == n2 && n2 > 0)
         {
             cycleBars = n;
             cycleLength = cycle;

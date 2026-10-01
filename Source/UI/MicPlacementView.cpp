@@ -1026,7 +1026,8 @@ void MicFace::drawBody (juce::Graphics& g) const
     for (int i = 0; i < style->numOutline; ++i)
     {
         const auto& pt = style->outline[i];
-        const auto at = bodyPoint ((style->saddleU - pt.u) * style->lengthMm, pt.v * style->widthMm);
+        const auto at = bodyPoint (((double) style->saddleU - (double) pt.u) * (double) style->lengthMm,
+                                   (double) pt.v * (double) style->widthMm);
         if (i == 0) body.startNewSubPath (at); else body.lineTo (at);
     }
 
@@ -1039,7 +1040,7 @@ void MicFace::drawBody (juce::Graphics& g) const
     g.strokePath (body, juce::PathStrokeType (1.4f));
 
     // The neck to the 12th fret.
-    const auto neckA = bodyPoint (style->lengthMm * (style->saddleU - style->neckU), -22.0);
+    const auto neckA = bodyPoint ((double) style->lengthMm * ((double) style->saddleU - (double) style->neckU), -22.0);
     const auto neckB = bodyPoint (landmarks.alongMm[4] + 25.0, 22.0);
     g.setColour (Palette::panel.brighter (0.1f));
     g.fillRect (juce::Rectangle<float> (neckA, neckB));
