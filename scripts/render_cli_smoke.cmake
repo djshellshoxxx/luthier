@@ -66,5 +66,37 @@ if(rc EQUAL 0)
     message(FATAL_ERROR "an unknown option was accepted")
 endif()
 
+#-------------------------------------------------------------------------------
+# cli-tools.md: the notation converter / inspector, end to end.
+run_ok(--list-formats --list-formats)
+if(NOT LAST_OUT MATCHES "Guitar Pro" OR NOT LAST_OUT MATCHES "MusicXML")
+    message(FATAL_ERROR "--list-formats did not list the formats:\n${LAST_OUT}")
+endif()
+
+run_ok(--inspect --inspect "${MIDI}")
+if(NOT LAST_OUT MATCHES "Notes" OR NOT LAST_OUT MATCHES "Tuning")
+    message(FATAL_ERROR "--inspect did not report the file:\n${LAST_OUT}")
+endif()
+
+# Convert the sample MIDI to a tab, then convert that tab back to MIDI.
+run_ok(--convert-mid-to-tab --convert "${MIDI}" --to tab --out "${OUT_DIR}")
+if(NOT EXISTS "${OUT_DIR}/two_bars.tab")
+    message(FATAL_ERROR "--convert did not write two_bars.tab")
+endif()
+
+run_ok(--convert-tab-to-mid --convert "${OUT_DIR}/two_bars.tab" --to midi --out "${OUT_DIR}/back")
+if(NOT EXISTS "${OUT_DIR}/back/two_bars.mid")
+    message(FATAL_ERROR "--convert did not round-trip tab back to MIDI")
+endif()
+
+# --validate: a good file exits 0, a garbage file exits nonzero.
+run_ok(--validate-good --validate "${MIDI}")
+file(WRITE "${OUT_DIR}/garbage.tab" "@@@ not a tab @@@\n")
+execute_process(COMMAND "${RENDER}" --validate "${OUT_DIR}/garbage.tab"
+                RESULT_VARIABLE rc OUTPUT_QUIET ERROR_QUIET)
+if(rc EQUAL 0)
+    message(FATAL_ERROR "--validate passed a garbage file")
+endif()
+
 file(REMOVE_RECURSE "${OUT_DIR}")
 message(STATUS "luthier-render smoke test passed")
