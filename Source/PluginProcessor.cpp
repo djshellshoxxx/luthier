@@ -400,6 +400,10 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     if (presets.hasExtraState())
         presets.applyExtraState();
 
+    // The first render starts from the values just applied, not a ramp from
+    // the stages' prepare defaults (LuthierEngine::settleAfterPrepare).
+    engine.settleAfterPrepare();
+
     initialStateApplied = true;
 
     // cpu-quality-modes 2.5 / 2.6: re-read the machine's setting (another

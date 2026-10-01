@@ -73,6 +73,10 @@ public:
 
     void prepare (double sampleRate, int maxBlockSize);
     void reset() noexcept;
+
+    /** After prepare() and the parameters that follow it: the signal stages'
+        smoothers land on the values just applied (see the .cpp). */
+    void settleAfterPrepare() noexcept;
     void releaseResources();
 
     double getSampleRate() const noexcept { return sr; }
@@ -1116,6 +1120,8 @@ private:
     void qualityNoteOff (int stringIndex, bool heldOn) noexcept;
     void qualityPerBlock() noexcept;
     void qualityAfterBlock (const juce::AudioBuffer<float>& output) noexcept;
+    void reseedCouplingPitches() noexcept;   // reset/panic: the coupling's filters at the open pitches
+
     // ==== BEGIN REALISM-B engine state ====
     HarmonicTouchSettings harmonicTouch;
     StringInteractionSettings interaction;

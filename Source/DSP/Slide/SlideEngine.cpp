@@ -43,6 +43,24 @@ void SlideEngine::reset() noexcept
     barString = -1;
     landing = false;
     overlayFret = -1.0;
+
+    // The technique controls' bar state goes back to its start too: left
+    // behind, the auto-vibrato's hold timer, ramp and phase carried on from the
+    // last render, so a reset render shook from its first block where a fresh
+    // one waited out the hold ("Auto-Vibrato Hold", Combo determinism).
+    lastPositionSource = ControlSource::none;
+    controlledFret = -1.0;
+    relativeOffset = 0.0;
+    smoothedTarget = -1.0;
+    relativeActive = false;
+    gestureActive = false;
+    runningGesture = {};
+    gestureElapsed = 0.0;
+    lastControlledFret = -1.0;
+    heldSeconds = 0.0;
+    vibratoPhase = 0.0;
+    vibratoRamp = 0.0;
+    controlVibratoCents = 0.0;
 }
 
 bool SlideEngine::noteOn (int s, int numStrings) noexcept

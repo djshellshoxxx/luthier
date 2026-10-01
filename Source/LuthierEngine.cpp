@@ -278,6 +278,8 @@ void LuthierEngine::reset() noexcept
         strings[(size_t) i].snapToFrequency (tuning.computeFrequency (i, 0.0));
     }
 
+    reseedCouplingPitches();
+
     feedbackLoop.reset();
 
     numScheduled = 0;
@@ -1227,10 +1229,49 @@ void LuthierEngine::panic() noexcept
     // sounding; a panic silences them too.
     playingNoise.reset();
     coupling.reset();
+    reseedCouplingPitches();
     noteSustainScale.fill (1.0);
     bridgeOutputs.fill (0.0);
     couplingInputs.fill (0.0);
     resetRealismB();   // REALISM-B: string-interaction.md 9, panic clears the runtime flags
+}
+
+//==============================================================================
+/*  The coupling's receive filters are designed at the open-string pitches
+    after a reset or a panic. CouplingMatrix::reset() forgets the designed
+    pitches, and setStringFrequency skips a move under 0.5 Hz, so whatever
+    set them first afterwards fixed the design: after a reset the guitar
+    rebuild's open pitch, after a panic (one still queued when the next render
+    began, say) the first block's pitch. The same session then rendered
+    differently depending on what had been played and stopped before it
+    (Combo renderDoesNotDependOnWhatWasPlayedBefore). Seeding them from the
+    tuning here makes both start from the same design. */
+/*  prepare() resets every stage before the host's parameters are applied, so
+    the stages' smoothers (the room's blend and width, a pedal's mix) were
+    snapped to their prepare defaults and the first render after a prepare
+    ramped from those to the applied values; a panic still queued at that
+    point snapped them instead, so the render depended on whether one was
+    (Combo qualityLevelsForgetWhatWasPlayedAtReset). Nothing has played since
+    the prepare, so resetting the stages again only lands the smoothers on
+    the values in force. Message thread, from prepareToPlay. */
+void LuthierEngine::settleAfterPrepare() noexcept
+{
+    body.reset();
+    pickups.reset();
+    circuit.reset();
+    preEffects.reset();
+    amp.reset();
+    postEffects.reset();
+    cabinet.reset();
+    room.reset();
+    master.reset();
+    freezeOverlay.reset();
+}
+
+void LuthierEngine::reseedCouplingPitches() noexcept
+{
+    for (int i = 0; i < numStrings; ++i)
+        coupling.setStringFrequency (i, tuning.computeFrequency (i, 0.0));
 }
 
 //==============================================================================
