@@ -82,6 +82,9 @@ public:
     void prepare (double sampleRate) noexcept;
     void reset() noexcept { filter.reset(); }
 
+    /** cpu-quality-modes 2.2: a new rate with the filter state kept. */
+    void setSampleRateKeepingState (double sampleRate) noexcept;
+
     void setComponents (const ToneStackComponents& c) noexcept;
     const ToneStackComponents& getComponents() const noexcept { return components; }
 

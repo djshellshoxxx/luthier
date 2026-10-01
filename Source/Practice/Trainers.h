@@ -101,8 +101,52 @@ public:
 
     void resetScore() noexcept { correct = 0; asked = 0; }
 
+    //==========================================================================
+    /*  SPEC-SWEEP PT-35 (practice-tools 4): the interval trainer and the
+        chord-tone trainer.
+
+        The interval trainer hears the key's root and the asked note and is
+        answered with an interval, in semitones. The chord-tone trainer hears
+        the key's seventh chord and is answered on the guitar: the 3rd and the
+        7th (only the 3rd in a scale without a 7th), within the time limit. */
+    int getIntervalSemitones() const noexcept;
+    bool answerInterval (int semitones);
+
+    /** The notes of the question to play: the root and the asked note for an
+        interval, the seventh chord for chord tones. Returns how many. */
+    int getQuestionNotes (int* notes, int maxNotes) const noexcept;
+
+    void setTimeLimitSeconds (double seconds) noexcept { timeLimitSeconds = juce::jmax (1.0, seconds); }
+    double getTimeLimitSeconds() const noexcept { return timeLimitSeconds; }
+
+    /** Scores a played note `secondsSinceAsked` after the question. For the
+        chord-tone trainer a note is right only once both tones are in, and
+        nothing counts after the time limit - the question is then missed. */
+    bool answer (int midiNote, double secondsSinceAsked);
+
+    /** Chord tones still to play, as a pitch-class bit mask. */
+    int getChordTonesRemaining() const noexcept { return chordTonesRemaining; }
+
+    /** True when the current question can still be answered. */
+    bool isQuestionOpen() const noexcept { return expectedPitchClass >= 0; }
+
+    //==========================================================================
+    /*  The PRACTICE tab's trainer setup (practice-tools 11.2, MODEL-GAPS TODO
+        11): the notes that count as answers, and how many questions a session
+        is. A note outside the range is not an answer - it is not scored either
+        way. 0 questions is an open-ended session. */
+    void setNoteRange (int lowNote, int highNote) noexcept;
+    int getLowNote() const noexcept { return lowNote; }
+    int getHighNote() const noexcept { return highNote; }
+
+    void setQuestionCount (int count) noexcept { questionCount = juce::jmax (0, count); }
+    int getQuestionCount() const noexcept { return questionCount; }
+    bool isSessionComplete() const noexcept { return questionCount > 0 && asked >= questionCount; }
+
 private:
     void rebuild() noexcept;
+
+    int lowNote = 0, highNote = 127, questionCount = 0;
 
     int root = 0;
     ScaleType scale = ScaleType::ionian;
@@ -118,6 +162,9 @@ private:
     int expectedPitchClass = -1;
 
     int correct = 0, asked = 0;
+
+    double timeLimitSeconds = 8.0;   // SPEC-SWEEP PT-35
+    int chordTonesRemaining = 0;     // SPEC-SWEEP PT-35
 };
 
 //==============================================================================
@@ -133,8 +180,8 @@ public:
     /** practice-tools 5: eleven chord qualities. */
     static constexpr int kNumChordQualities = 11;
 
-    /** practice-tools 5: fourteen progressions. */
-    static constexpr int kNumProgressions = 14;
+    /** practice-tools 5: five named progressions and ten more (SPEC-SWEEP PT-38). */
+    static constexpr int kNumProgressions = 15;
 
     static constexpr int kMaxNotesInQuestion = 16;
 
@@ -175,6 +222,17 @@ public:
 
     void resetScore() noexcept;
 
+    /*  The PRACTICE tab's trainer setup (MODEL-GAPS TODO 11): every note a
+        question plays is moved by octaves into this range where it fits; a
+        session is this many questions (0 is open-ended). */
+    void setNoteRange (int lowNote, int highNote) noexcept;
+    int getLowNote() const noexcept { return lowNote; }
+    int getHighNote() const noexcept { return highNote; }
+
+    void setQuestionCount (int count) noexcept { questionCount = juce::jmax (0, count); }
+    int getQuestionCount() const noexcept { return questionCount; }
+    bool isSessionComplete() const noexcept { return questionCount > 0 && asked >= questionCount; }
+
     //==========================================================================
     /** practice-tools 5: session stats live in the user's practice folder. */
     juce::var statsToVar() const;
@@ -203,6 +261,7 @@ private:
     juce::String questionText;
 
     int correct = 0, asked = 0, streak = 0;
+    int lowNote = 0, highNote = 127, questionCount = 0;
 
     /*  A rolling rate rather than a lifetime one.
 

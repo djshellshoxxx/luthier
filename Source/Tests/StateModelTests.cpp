@@ -52,9 +52,7 @@ LUTHIER_TEST (StateModel, loadingAPresetLeavesTheLayersAboveItAlone)
     processor.setLiveMode (true);
     processor.getMidiLearn().setArmed (true);
 
-    /*  Two entries, because one stored state is not something to go back *to*:
-        pushUndoState records where things stood before a change, so canUndo only
-        becomes true once there is a previous state as well as a current one. */
+    // One entry is enough: each entry holds the state from before its action.
     processor.pushUndoState ("Something the user did");
     processor.pushUndoState ("Something else the user did");
 
@@ -76,7 +74,11 @@ LUTHIER_TEST (StateModel, loadingAPresetLeavesTheLayersAboveItAlone)
     CHECK_MSG (processor.canUndo(), "a preset load cleared the undo stack");
     CHECK_MSG (processor.getMidiLearn().isArmed(),
                "a preset load disarmed MIDI Learn");
-    CHECK_MSG (processor.isSlotBActive(), "a preset load changed the A/B slot");
+
+    /*  SPEC-SWEEP: SM-46. state-model.md 8.1 is the specific rule for A/B and
+        wins over section 2's general "never touches" list: the compare clears,
+        because either slot recalled after a load would silently undo it. */
+    CHECK_MSG (! processor.isSlotBActive(), "a preset load left A/B compare active (state-model 8.1)");
 }
 
 //==============================================================================
@@ -113,7 +115,9 @@ LUTHIER_TEST (StateModel, recallingASnapshotStaysInsideThePreset)
 
     /*  A recall returns before it has finished. The crossfade is carried by the
         audio thread's own clock (live-performance.md, and state-model 3 step 3),
-        so the parameter only moves as blocks are rendered. */
+        so the parameter only moves as blocks are rendered - and the processor's
+        timer applies that time on the message thread, as advancePending does
+        here. */
     {
         juce::AudioBuffer<float> buffer (2, kBlock);
         juce::MidiBuffer midi;
@@ -122,6 +126,7 @@ LUTHIER_TEST (StateModel, recallingASnapshotStaysInsideThePreset)
         {
             buffer.clear();
             processor.processBlock (buffer, midi);
+            processor.getSnapshots().advancePending();
         }
     }
 
@@ -248,3 +253,54 @@ LUTHIER_TEST (StateModel, aProgramChangeRightAfterAStateRestoreDoesNotWipeIt)
                "a later program change was ignored too, so Program Change no longer "
                "selects presets");
 }
+
+//==============================================================================
+/*  onboarding.md 11: the returning user's session restores the sound and the
+    visible workspace choices together. This pins the processor-side round trip;
+    editor construction separately consumes these UiState fields. */
+LUTHIER_TEST (StateModel, returningUserSessionRestoresPresetWindowDrawerAndSlideMode)
+{
+    LuthierAudioProcessor source;
+    source.prepareToPlay (kSr, kBlock);
+
+    if (source.getPresetManager().getNumPresets() < 2)
+    {
+        CHECK_MSG (false, "not enough factory presets to verify returning-user recall");
+        return;
+    }
+
+    CHECK (source.getPresetManager().loadPreset (1));
+
+    auto& ui = source.getUiState();
+    ui.advancedMode = true;
+    ui.advancedTab = 7;
+    ui.editorWidth = 1440;
+    ui.editorHeight = 864;
+    ui.practiceDrawerOpen = true;
+
+    auto* sourceSlide = source.getState().getParameter (ParamIDs::slideGuitar);
+    CHECK_MSG (sourceSlide != nullptr, "Slide Mode parameter is missing");
+
+    if (sourceSlide != nullptr)
+        sourceSlide->setValueNotifyingHost (1.0f);
+
+    juce::MemoryBlock block;
+    source.getStateInformation (block);
+
+    LuthierAudioProcessor restored;
+    restored.prepareToPlay (kSr, kBlock);
+    restored.setStateInformation (block.getData(), (int) block.getSize());
+
+    const auto& restoredUi = restored.getUiState();
+    CHECK (restored.getPresetManager().getCurrentPresetIndex() == 1);
+    CHECK (restoredUi.advancedMode);
+    CHECK (restoredUi.advancedTab == 7);
+    CHECK (restoredUi.editorWidth == 1440);
+    CHECK (restoredUi.editorHeight == 864);
+    CHECK (restoredUi.practiceDrawerOpen);
+
+    auto* restoredSlide = restored.getState().getParameter (ParamIDs::slideGuitar);
+    CHECK_MSG (restoredSlide != nullptr && restoredSlide->getValue() > 0.5f,
+               "Slide Mode was not restored with the returning-user session");
+}
+

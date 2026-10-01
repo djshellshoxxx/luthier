@@ -1,4 +1,5 @@
 #include "LiveControls.h"
+#include "../Support/ConfigRecovery.h"
 
 namespace luthier
 {
@@ -25,6 +26,8 @@ void KillSwitch::processBlock (juce::AudioBuffer<float>& buffer) noexcept
 {
     const bool wantMute = active.load (std::memory_order_relaxed);
     const double target = wantMute ? 0.0 : 1.0;
+    blockStartGain = gain;   // FEAT-JAM: applyBlockRamp replays this block's ramp
+    blockTarget = target;
 
     // Nothing to do at all when the gain is already where it should be, which is
     // every block but the few during a fade.
@@ -55,6 +58,28 @@ void KillSwitch::processBlock (juce::AudioBuffer<float>& buffer) noexcept
     }
 
     gain = localGain;
+}
+
+void KillSwitch::applyBlockRamp (juce::AudioBuffer<float>& buffer, int numSamples) const noexcept
+{
+    if (blockStartGain == blockTarget)
+    {
+        if (blockTarget == 0.0)
+            buffer.clear (0, numSamples);
+
+        return;
+    }
+
+    double localGain = blockStartGain;
+
+    for (int sample = 0; sample < numSamples; ++sample)
+    {
+        localGain = (blockTarget > localGain) ? juce::jmin (blockTarget, localGain + step)
+                                              : juce::jmax (blockTarget, localGain - step);
+
+        for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
+            buffer.setSample (channel, sample, (float) (buffer.getSample (channel, sample) * localGain));
+    }
 }
 
 //==============================================================================
@@ -384,6 +409,7 @@ void ExpressionCalibrationSet::set (const ExpressionCalibration& calibration)
 
     calibrations[(size_t) calibration.ccNumber] = calibration;
     present[(size_t) calibration.ccNumber] = true;
+    ++version;
 }
 
 void ExpressionCalibrationSet::remove (int ccNumber)
@@ -394,11 +420,13 @@ void ExpressionCalibrationSet::remove (int ccNumber)
     present[(size_t) ccNumber] = false;
     calibrations[(size_t) ccNumber] = ExpressionCalibration {};
     calibrations[(size_t) ccNumber].ccNumber = ccNumber;
+    ++version;
 }
 
 void ExpressionCalibrationSet::clear()
 {
     present.fill (false);
+    ++version;
 
     for (int cc = 0; cc < 128; ++cc)
     {
@@ -544,10 +572,8 @@ bool ExpressionCalibrationSet::load()
 {
     const auto file = getConfigFile();
 
-    if (! file.existsAsFile())
-        return false;
-
-    const auto parsed = juce::JSON::parse (file.loadFileAsString());
+    // SPEC-SWEEP ER-65: an unreadable file is kept aside and reported.
+    const auto parsed = ConfigRecovery::loadObject (file, "LivePerformance");
 
     if (parsed.getDynamicObject() == nullptr)
         return false;

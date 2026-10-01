@@ -74,7 +74,12 @@ public:
             would silently cancel it. */
         double characterDriftCents = 0.0;
         double intonationSlope    = 0.30;  ///< Cents of sharpening per fret.
+        double agingIntonationSlope = 0.0; ///< string-aging.md 3.4: added to, never overwriting, the slope.
         double fineTuneCents      = 0.0;   ///< Per-string fine tuner.
+
+        /*  tuning-stability.md 1: the event-driven offsets (StabilityModel).
+            Exactly 0.0 at stability_amount 0, so it drops out of the sum. */
+        double stabilityCents     = 0.0;
         int    maxFrets           = 24;
     };
 
@@ -99,7 +104,13 @@ public:
 
     /** The character engine's tuner drift, in cents (character-wear 4). */
     void setCharacterDriftCents (int stringIndex, double cents) noexcept;
+
+    /** tuning-stability.md 1 and 3: the stability offset, and a retune's
+        clearing of one string's random-walk drift. */
+    void setStabilityCents (int stringIndex, double cents) noexcept;
+    void clearDrift (int stringIndex) noexcept;
     void setIntonationSlope (int stringIndex, double centsPerFret) noexcept;
+    void setAgingIntonation (int stringIndex, double centsPerFret) noexcept;   // string-aging.md 3.4
     void setMaxFrets (int stringIndex, int frets) noexcept;
 
     void setTemperament (Temperament t) noexcept { temperament = t; }
@@ -185,6 +196,12 @@ public:
 
     /** The open pitch including detune, drift and fine tuning but no fret. */
     double getEffectiveOpenFrequency (int stringIndex) const noexcept;
+
+    /** B-15: the string's small offsets (ageing, imperfection, drift, fine tune,
+        stability), in frets. A voicer's "is this pitch on a fret" slop must be
+        widened by this, or an aged string's few cents of detune push every fret
+        outside it and the note is dropped rather than played out of tune. */
+    double getMicroOffsetFrets (int stringIndex) const noexcept;
 
     /** Inverse of computeFrequency: the fret position that would produce `hz`.
         Returns a negative value if the pitch is below the open string. */

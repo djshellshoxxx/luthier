@@ -12,9 +12,18 @@ support and how to produce it.
 | Format | Location |
 |---|---|
 | Windows VST3 | `C:\Program Files\Common Files\VST3\Luthier.vst3` |
-| macOS VST3 | `~/Library/Audio/Plug-Ins/VST3/Luthier.vst3` |
-| macOS AU | `~/Library/Audio/Plug-Ins/Components/Luthier.component` |
+| Windows CLAP | `C:\Program Files\Common Files\CLAP\Luthier.clap` |
+| macOS VST3 | `/Library/Audio/Plug-Ins/VST3/Luthier.vst3` |
+| macOS AU | `/Library/Audio/Plug-Ins/Components/Luthier.component` |
+| macOS CLAP | `/Library/Audio/Plug-Ins/CLAP/Luthier.clap` |
 | Linux VST3 | `~/.vst3/Luthier.vst3` |
+| Linux CLAP | `~/.clap/Luthier.clap` |
+
+The macOS installer writes to the system `/Library` folders. A bundle copied by hand
+into your own `~/Library/Audio/Plug-Ins/...` works too. The CLAP rows apply to
+builds that include CLAP.
+
+**On macOS,** the installer writes to the system `/Library/` folder. You can also hand-copy the plugin bundle to `~/Library/Audio/Plug-Ins/` (your user Library) if you prefer not to use the installer.
 
 `Luthier.vst3` is a **folder**, not a file. Copy the whole thing, not its contents.
 
@@ -37,14 +46,16 @@ try again. Every host above has a blocklist or blacklist to clear.
 **On macOS, check quarantine.** Downloaded files get quarantined. In Terminal:
 
 ```
-xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/Luthier.vst3
+xattr -dr com.apple.quarantine /Library/Audio/Plug-Ins/VST3/Luthier.vst3
 ```
 
 ---
 
 ## Uninstalling by hand
 
-Delete the bundle from the folder in the table above.
+On macOS, run `/Applications/Luthier/Uninstall.command`: it removes the AU,
+VST3, CLAP, the app and the factory content, and asks before touching your own
+files. Anywhere else, delete the bundle from the folder in the table above.
 
 Your presets, renders and diagnostics live in `Documents/Luthier` and are **left
 alone**, so that reinstalling does not lose your work. Delete that folder too if
@@ -68,7 +79,10 @@ you want everything gone.
 5. **Add another folder** with Options > FILE LOCATIONS > Add a preset folder, if you keep presets
    somewhere else - a shared drive, a Dropbox folder, a repository.
 6. **Check the file is valid JSON.** Open it in a text editor; it should start with
-   `{` and contain `"format": "luthierpreset"`. A truncated file is skipped.
+   `{` and contain `"magic": "luthier.preset"` (older presets have
+   `"format": "luthierpreset"`, which is also accepted). A truncated or damaged
+   file still appears in the list under its file name, but refuses to load and
+   says why.
 
 ### The factory presets are missing
 
@@ -165,7 +179,8 @@ Two causes, both adjustable:
 - **Humanize** adds timing jitter on purpose. Turn the macro down, or zero the
   individual Timing control in Advanced.
 - **Poly mode strums.** A chord is spread over time rather than triggered at once.
-  Set Strum Speed to zero in Advanced for a simultaneous attack.
+  Set Strum Crossing to its maximum (800 strings per second, about 1 ms across six
+  strings) in Advanced, Performance, for a near-simultaneous attack.
 
 ---
 
@@ -182,8 +197,9 @@ Press **Panic**, or `P` (unless you have rebound it). If it recurs:
 
 ## It sounds thin when I sum to mono
 
-Every factory preset is mono-safe, and there is an automated test for it, but a
-patch you build yourself can still cancel. The usual causes:
+The factory presets are built to be mono-safe, and an automated test folds a wide
+rig (two mics at full width, chorus and a wide room) to mono and checks it keeps its
+energy, but a patch you build yourself can still cancel. The usual causes:
 
 - **Mic Width** (the Width knob under Cabinet and Mic) at maximum with two very
   different microphones.
@@ -202,8 +218,9 @@ Set Mic Width to zero to check. If the thinness goes away, that was it.
    purpose.
 3. Reproduce the crash.
 4. Reopen the plugin and press **Export troubleshooting file**.
-5. Send **both** files, from `Documents/Luthier/Diagnostics`, to
-   `support@luthieraudio.example`, with a description of what you were doing.
+5. Send **both** files, from `Documents/Luthier/Diagnostics`, to the support
+   address shown in **Help > About and Licence** (and on the HELP tab's Email
+   Support button), with a description of what you were doing.
 
 The two files do different jobs:
 
@@ -212,6 +229,18 @@ The two files do different jobs:
   anything that is merely not working as expected. It contains no audio.
 - The **crash log** is a running record of what the plugin was doing, with a copy
   of the troubleshooting report at the top. It is only useful for an actual crash.
+
+---
+
+## The welcome banner, the tour or the hints are gone (or will not go away)
+
+- **Take the tour again** from the HELP tab: the **Take the tour** button at the top.
+- **The first-week hints** (pulsing `?` icons, dots on unopened tabs) stop by
+  themselves after seven launches or seven days.
+- **Bring everything back**: Options > DIAGNOSTICS > **Restore first-run
+  experience**. It asks first, puts your settings back to a fresh install's, and
+  re-arms the welcome banner, the tour offer, every one-time hint and the advanced
+  range explainer. Your presets, guitars, tunes and parts are kept.
 
 ---
 

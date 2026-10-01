@@ -54,6 +54,9 @@ juce::var GenreKit::toVar() const
     object->setProperty ("preferred_preset", preferredPreset);
     object->setProperty ("tags", stringArrayToVar (tags));
 
+    if (bassGrid.isNotEmpty())
+        object->setProperty ("bass_grid", bassGrid);   // MODEL-GAPS
+
     return { object };
 }
 
@@ -98,6 +101,7 @@ GenreKit GenreKit::fromVar (const juce::var& state)
 
     kit.preferredPreset = object->getProperty ("preferred_preset").toString();
     kit.tags            = varToStringArray (object->getProperty ("tags"));
+    kit.bassGrid        = object->getProperty ("bass_grid").toString();   // MODEL-GAPS
 
     return kit;
 }
@@ -112,6 +116,15 @@ bool GenreKit::loadFrom (const juce::File& file)
     if (parsed.getDynamicObject() == nullptr)
         return false;
 
+    /*  SPEC-SWEEP: FF-5/FF-12 (file-formats 0.2, 0.5). Files written before the
+        marker carry none and still load; a file with some other magic, or a
+        schema newer than this build, is refused. */
+    if (const auto magic = parsed.getProperty ("magic", {}).toString(); magic.isNotEmpty() && magic != "luthier.genrekit")
+        return false;
+
+    if ((int) parsed.getProperty ("schema", 1) > 1)
+        return false;
+
     auto loaded = fromVar (parsed);
 
     if (! loaded.isValid())
@@ -124,7 +137,18 @@ bool GenreKit::loadFrom (const juce::File& file)
 bool GenreKit::saveTo (const juce::File& file) const
 {
     file.getParentDirectory().createDirectory();
-    return file.replaceWithText (juce::JSON::toString (toVar(), false));
+
+    // SPEC-SWEEP: FF-5/FF-12 - the file's marker and schema, file only (the
+    // same var is embedded in presets and snapshots without them).
+    auto data = toVar();
+
+    if (auto* object = data.getDynamicObject())
+    {
+        object->setProperty ("magic", "luthier.genrekit");
+        object->setProperty ("schema", 1);
+    }
+
+    return file.replaceWithText (juce::JSON::toString (data, false));
 }
 
 //==============================================================================
@@ -364,6 +388,26 @@ void GenreKitLibrary::addFactoryKits()
                              "Post-Rock Arpeggio,Contemporary Fingerstyle",
                              { 8.0, 9.0, 0.2, 2.0 }, 40.0, 0.58,
                              "Ambient Swell", "ambient post-rock arpeggio"));
+
+    // ---- bass (bass-techniques 9, factory-content 1.4: "and the same for bass") ----
+    // The kits the bass step grid plays; the strum pattern is what a guitar
+    // loaded under the kit falls back to. MODEL-GAPS.
+    auto bassKit = [] (const char* name, const char* grid, const char* strum, const char* preset, const char* tags,
+                       std::array<double, 4> feel)
+    {
+        auto kit = makeKit (name, V::bass, 30, 0, strum, "", feel, 30.0, 0.85, preset, tags);
+        kit.bassGrid = grid;
+        return kit;
+    };
+
+    kits.push_back (bassKit ("Funk Slap Bass", BassStepGrid::getFactoryName (BassStepGrid::Factory::slapFunk),
+                             "Classic Strum", "J-Style Fingerstyle", "bass funk slap", { 4.0, 10.0, 0.0, 0.0 }));
+    kits.push_back (bassKit ("Fingerstyle Groove Bass", BassStepGrid::getFactoryName (BassStepGrid::Factory::fingerstyleGroove),
+                             "Classic Strum", "J-Style Fingerstyle", "bass fingerstyle rock pop", { 6.0, 10.0, 0.0, 0.0 }));
+    kits.push_back (bassKit ("Motown Thumb Bass", BassStepGrid::getFactoryName (BassStepGrid::Factory::motownThumb),
+                             "Country Boom Chick", "P-Bass Flatwound", "bass soul motown", { 7.0, 8.0, 0.0, 0.0 }));
+    kits.push_back (bassKit ("Root-Fifth Bass", BassStepGrid::getFactoryName (BassStepGrid::Factory::rootFifthWalk),
+                             "Country Boom Chick", "P-Bass Flatwound", "bass country folk", { 6.0, 8.0, 0.0, 0.0 }));
 }
 
 //==============================================================================
@@ -484,6 +528,17 @@ bool GenreKitLibrary::apply (const GenreKit& kit, RhythmEngine& engine,
     // strum-dynamics 6.3: a kit is written for Feel 0.5, which is where Easy
     // mode's knob lands when a kit sets the humanise amount to 1.
     engine.setStrumFeel (0.5);
+
+    // bass-techniques 9 (MODEL-GAPS): a bass kit's grid; any other kit clears it.
+    {
+        BassStepGrid grid;
+
+        for (int f = 0; f < (int) BassStepGrid::Factory::numFactory; ++f)
+            if (kit.bassGrid == BassStepGrid::getFactoryName ((BassStepGrid::Factory) f))
+                grid = BassStepGrid::factory ((BassStepGrid::Factory) f);
+
+        engine.setBassGrid (grid);
+    }
 
     // A kit selects its first strum pattern, or its first fingerpick pattern if
     // it is a fingerstyle kit with no strums at all.

@@ -1,4 +1,5 @@
 #include "RoomEngine.h"
+#include "../../Support/QualityProfile.h"
 
 namespace luthier
 {
@@ -59,12 +60,17 @@ void RoomEngine::prepare (double sampleRate, int maxBlockSize)
     erIndex = 0;
 
     for (int i = 0; i < kFdnSize; ++i)
+        lines[i].assign ((size_t) (sr * 0.45) + 1, 0.0);   // rebuild's longest line
+
+    for (int i = 0; i < kFdnSize; ++i)
         lineDamp[i].prepare (sr);
 
     blendSmooth.prepare (sr, constants::kParamSmoothSeconds);
     widthSmooth.prepare (sr, constants::kParamSmoothSeconds);
     blendSmooth.snapTo (0.2);
     widthSmooth.snapTo (0.6);
+    bleedSmooth.prepare (sr, constants::kParamSmoothSeconds);
+    bleedSmooth.snapTo (0.0);
 
     dcL.prepare (sr, 12.0);
     dcR.prepare (sr, 12.0);
@@ -96,6 +102,7 @@ void RoomEngine::reset() noexcept
 
     blendSmooth.snapToTarget();
     widthSmooth.snapToTarget();
+    bleedSmooth.snapToTarget();
 }
 
 //==============================================================================
@@ -105,6 +112,7 @@ void RoomEngine::setRoomSize (RoomSize s) noexcept
         return;
 
     roomSize = s;
+    bleedSmooth.setTarget (bleedFor (closeMicMetres, roomSize));
     rebuild();
 }
 
@@ -122,10 +130,53 @@ void RoomEngine::setRoomBlend (double blend) noexcept
     blendSmooth.setTarget (juce::jlimit (0.0, 1.0, blend));
 }
 
+//==============================================================================
+double RoomEngine::criticalDistanceM (RoomSize s) noexcept
+{
+    // mic-placement.md 5: where the room's field is as loud as the cabinet's.
+    switch (s)
+    {
+        case RoomSize::IsoBooth:    return 0.3;
+        case RoomSize::SmallBooth:  return 0.5;
+        case RoomSize::SmallStudio: return 0.9;
+        case RoomSize::LargeStudio: return 1.4;
+        case RoomSize::LiveRoom:    return 2.0;
+        case RoomSize::ConcertHall: return 2.8;
+        case RoomSize::Cathedral:   return 3.0;
+        case RoomSize::NumRoomSizes:
+        default:                    return 0.9;
+    }
+}
+
+double RoomEngine::bleedFor (double closeMicMetres, RoomSize s) noexcept
+{
+    /*  b = 0.5 (d / d_c)^2, clamped to [0, 0.5], taken relative to the anchor
+        distance (2.5 cm): the rooms were voiced with a close mic already in
+        them, so the default placement adds nothing and every existing preset
+        keeps its wet level exactly. */
+    const double dc = criticalDistanceM (s);
+    const double d = juce::jmax (0.0, std::isfinite (closeMicMetres) ? closeMicMetres : 0.0);
+    const double anchor = 0.025;
+    return juce::jlimit (0.0, 0.5, 0.5 * ((d / dc) * (d / dc) - (anchor / dc) * (anchor / dc)));
+}
+
+void RoomEngine::setCloseMicDistance (double metres) noexcept
+{
+    closeMicMetres = metres;
+    bleedSmooth.setTarget (bleedFor (metres, roomSize));
+}
+
 void RoomEngine::setDecayScale (double scale) noexcept
 {
-    decayScale = juce::jlimit (0.25, 4.0, scale);
-    rebuild();
+    const double clamped = juce::jlimit (0.25, 4.0, scale);
+
+    // Sent every block by the parameter bridge: only the loop gain depends on it,
+    // and rebuilding would clear the late reverb every block.
+    if (clamped == decayScale)
+        return;
+
+    decayScale = clamped;
+    updateFeedbackGain();
 }
 
 void RoomEngine::setWidth (double width) noexcept
@@ -170,6 +221,8 @@ void RoomEngine::rebuild()
         tapGainsR[i] = gain * (1.0 - pan);
     }
 
+    computeTapCompensation();
+
     tapFilterL.setLowpass (sr, juce::jmin (mat.dampingHz, sr * 0.46), 0.707);
     tapFilterR.setLowpass (sr, juce::jmin (mat.dampingHz * 0.94, sr * 0.46), 0.707);
 
@@ -181,10 +234,97 @@ void RoomEngine::rebuild()
     for (int i = 0; i < kFdnSize; ++i)
     {
         lineLengths[i] = juce::jlimit (64, (int) (sr * 0.45), (int) (primes[i] * scale));
-        lines[i].assign ((size_t) lineLengths[i], 0.0);
+
+        // Sized in prepare for the longest line, so a room change never
+        // reallocates under the audio thread.
+        if (lines[i].size() < (size_t) lineLengths[i])
+            lines[i].assign ((size_t) lineLengths[i], 0.0);
+        else
+            std::fill (lines[i].begin(), lines[i].begin() + lineLengths[i], 0.0);
+
         lineIndex[i] = 0;
         lineDamp[i].setCutoff (juce::jmin (mat.dampingHz, sr * 0.46));
     }
+
+    updateFeedbackGain();
+}
+
+void RoomEngine::computeTapCompensation() noexcept
+{
+    // Merge taps at the same delay: exactly the same output, fewer reads.
+    reducedCount = 0;
+
+    for (int i = 0; i < kNumTaps; ++i)
+    {
+        int k = 0;
+
+        while (k < reducedCount && reducedDelays[k] != tapDelays[i])
+            ++k;
+
+        if (k == reducedCount)
+        {
+            reducedDelays[k] = tapDelays[i];
+            reducedGainsL[k] = reducedGainsR[k] = 0.0;
+            ++reducedCount;
+        }
+
+        reducedGainsL[k] += tapGainsL[i];
+        reducedGainsR[k] += tapGainsR[i];
+    }
+
+    // Loudest first.
+    for (int i = 1; i < reducedCount; ++i)
+        for (int j = i; j > 0; --j)
+        {
+            const double a = reducedGainsL[j] * reducedGainsL[j] + reducedGainsR[j] * reducedGainsR[j];
+            const double b = reducedGainsL[j - 1] * reducedGainsL[j - 1] + reducedGainsR[j - 1] * reducedGainsR[j - 1];
+
+            if (a <= b)
+                break;
+
+            std::swap (reducedDelays[j], reducedDelays[j - 1]);
+            std::swap (reducedGainsL[j], reducedGainsL[j - 1]);
+            std::swap (reducedGainsR[j], reducedGainsR[j - 1]);
+        }
+
+    // Energy compensation for the first n merged taps.
+    double allL = 0.0, allR = 0.0;
+
+    for (int k = 0; k < reducedCount; ++k)
+    {
+        allL += reducedGainsL[k] * reducedGainsL[k];
+        allR += reducedGainsR[k] * reducedGainsR[k];
+    }
+
+    double sumL = 0.0, sumR = 0.0;
+    reducedCompL[0] = reducedCompR[0] = 1.0;
+
+    for (int n = 1; n <= kNumTaps; ++n)
+    {
+        if (n <= reducedCount)
+        {
+            sumL += reducedGainsL[n - 1] * reducedGainsL[n - 1];
+            sumR += reducedGainsR[n - 1] * reducedGainsR[n - 1];
+        }
+
+        reducedCompL[n] = sumL > 0.0 ? std::sqrt (allL / sumL) : 1.0;
+        reducedCompR[n] = sumR > 0.0 ? std::sqrt (allR / sumR) : 1.0;
+    }
+}
+
+void RoomEngine::setTapCount (int count, bool hard) noexcept
+{
+    tapTarget = juce::jlimit (1, kNumTaps, count);
+    reducedStep = 1.0 / juce::jmax (1.0, std::round (QualityProfile::kDroppedVoiceRampSeconds * sr));
+
+    if (hard)
+        reducedMix = tapTarget < kNumTaps ? 1.0 : 0.0;
+}
+
+void RoomEngine::updateFeedbackGain() noexcept
+{
+    const auto& room = kRooms[(size_t) juce::jlimit (0, (int) RoomSize::NumRoomSizes - 1, (int) roomSize)];
+    const auto& mat = kMaterials[(size_t) juce::jlimit (0, (int) RoomMaterial::NumMaterials - 1, (int) material)];
 
     double avgLength = 0.0;
 
@@ -197,7 +337,7 @@ void RoomEngine::rebuild()
                                                    * (1.0 + (1.0 - mat.absorption) * 1.2));
 
     feedbackGain = std::exp (-6.907755 * avgLength / (rt60 * sr));
-    feedbackGain = juce::jlimit (0.0, 0.9985, feedbackGain);
+    feedbackGain = juce::jlimit (0.0, kMaxFeedback, feedbackGain);   // SPEC-SWEEP: EN-90
 }
 
 //==============================================================================
@@ -237,11 +377,39 @@ void RoomEngine::processBlock (juce::AudioBuffer<float>& buffer) noexcept
 
         double erL = 0.0, erR = 0.0;
 
-        for (int i = 0; i < kNumTaps; ++i)
+        // cpu-quality-modes 2.1: the full set, the reduced set, or both while switching.
+        const double reducedGoal = tapTarget < kNumTaps ? 1.0 : 0.0;
+
+        if (reducedMix != reducedGoal)
+            reducedMix = reducedGoal > reducedMix ? juce::jmin (reducedGoal, reducedMix + reducedStep)
+                                                  : juce::jmax (reducedGoal, reducedMix - reducedStep);
+
+        if (reducedMix < 1.0)
         {
-            const double s = erBuffer[(size_t) ((erIndex - tapDelays[i]) & erMask)];
-            erL += s * tapGainsL[i];
-            erR += s * tapGainsR[i];
+            for (int i = 0; i < kNumTaps; ++i)
+            {
+                const double s = erBuffer[(size_t) ((erIndex - tapDelays[i]) & erMask)];
+                erL += s * tapGainsL[i];
+                erR += s * tapGainsR[i];
+            }
+        }
+
+        if (reducedMix > 0.0)
+        {
+            const int n = juce::jmin (tapTarget, reducedCount);
+            double rL = 0.0, rR = 0.0;
+
+            for (int k = 0; k < n; ++k)
+            {
+                const double s = erBuffer[(size_t) ((erIndex - reducedDelays[k]) & erMask)];
+                rL += s * reducedGainsL[k];
+                rR += s * reducedGainsR[k];
+            }
+
+            rL *= reducedCompL[n];
+            rR *= reducedCompR[n];
+            erL = erL * (1.0 - reducedMix) + rL * reducedMix;
+            erR = erR * (1.0 - reducedMix) + rR * reducedMix;
         }
 
         erIndex = (erIndex + 1) & erMask;
@@ -292,6 +460,11 @@ void RoomEngine::processBlock (juce::AudioBuffer<float>& buffer) noexcept
         const double blend = blendSmooth.next();
         const double width = widthSmooth.next();
 
+        // mic-placement.md 5: a close mic backed off hears the room too. The
+        // Room Blend still means the room mics, so Aux 5 below excludes this.
+        const double bleed = bleedSmooth.next();
+        const double heard = (bleed == 0.0) ? blend : 1.0 - (1.0 - blend) * (1.0 - bleed);
+
         double wetL = erL + lateL;
         double wetR = erR + lateR;
 
@@ -304,10 +477,10 @@ void RoomEngine::processBlock (juce::AudioBuffer<float>& buffer) noexcept
         wetL = dcL.process (wetL);
         wetR = dcR.process (wetR);
 
-        left[n] = (float) sanitise (dryL * (1.0 - blend) + wetL * blend);
+        left[n] = (float) sanitise (dryL * (1.0 - heard) + wetL * heard);
 
         if (numChannels > 1)
-            right[n] = (float) sanitise (dryR * (1.0 - blend) + wetR * blend);
+            right[n] = (float) sanitise (dryR * (1.0 - heard) + wetR * heard);
 
         if (tapping)
         {

@@ -109,6 +109,7 @@ void RubricVoicer::reset() noexcept
     handHint = 0;
     hasPrevious = false;
     previous = ChordVoicing {};
+    occupiedStrings = 0;
     singleNotes.reset();
 
     lastOutcome = RubricOutcome::none;
@@ -221,6 +222,7 @@ void RubricVoicer::prepareSlots() noexcept
     capoFret = tuningEngine->getCapoFret();
 
     const double a4 = tuningEngine->getConcertA();
+    occupiedBelow[0] = 0;
 
     for (int slot = 0; slot < numSlots; ++slot)
     {
@@ -228,6 +230,11 @@ void RubricVoicer::prepareSlots() noexcept
 
         slotString[(size_t) slot] = s;
         slotCapo[(size_t) slot] = tuningEngine->getCapoFretFor (s);
+
+        // A course is taken when either of its strings is still ringing.
+        const uint16_t courseMask = coursed ? (uint16_t) (3u << s) : (uint16_t) (1u << s);
+        slotOccupied[(size_t) slot] = (occupiedStrings & courseMask) != 0;
+        occupiedBelow[(size_t) slot + 1] = occupiedBelow[(size_t) slot] + (slotOccupied[(size_t) slot] ? 1 : 0);
 
         // Two ceilings and the lower wins: maxFret is how far up the neck to
         // reach, and the tuning engine's playable span is the neck itself, which
@@ -253,7 +260,7 @@ void RubricVoicer::prepareSlots() noexcept
 
             const double position = tuningEngine->frequencyToFretPosition (s, midiToHz ((double) m, a4));
 
-            if (std::abs (position - (double) f) <= kFretSlop)
+            if (std::abs (position - (double) f) <= kFretSlop + tuningEngine->getMicroOffsetFrets (s))
                 row[(size_t) f] = m;
         }
     }
@@ -505,6 +512,17 @@ void RubricVoicer::buildOptions() noexcept
         int n = 0;
         int maxGain = -kMutePenalty;
 
+        /*  A string already sounding a held note offers nothing: the hand
+            leaves it alone, which is neither fretting it nor muting it, so
+            it costs nothing and no mute penalty. */
+        if (slotOccupied[(size_t) slot])
+        {
+            row[(size_t) n++] = Option {};
+            numOptions[(size_t) slot] = n;
+            suffixMaxGain[(size_t) slot + 1] = suffixMaxGain[(size_t) slot];
+            continue;
+        }
+
         for (int f = 0; f <= slotHighest[(size_t) slot]; ++f)
         {
             const int pitch = pitchAt[(size_t) slot][(size_t) f];
@@ -725,6 +743,15 @@ bool RubricVoicer::scoreCandidate (const int* fret, RubricScore& s) const noexce
     {
         const int f = fret[slot];
 
+        if (slotOccupied[(size_t) slot])
+        {
+            // Left ringing under the chord: not muted, and not this chord's to fret.
+            if (f < 0)
+                continue;
+
+            return fail (RubricScore::kNotThisChord);
+        }
+
         if (f < 0)
         {
             ++s.mutedStrings;
@@ -942,9 +969,14 @@ int RubricVoicer::upperBound (int slotsLeft) const noexcept
     int rest = suffixMaxGain[(size_t) slotsLeft];
     const int soundLeft = juce::jmax (0, soundingCap - state.count);
 
-    // Strings past the sounding cap have to be muted.
+    // Strings past the sounding cap have to be muted - except the occupied
+    // ones, which are left ringing for free (never charge what cannot be
+    // charged, or the bound cuts the best answer).
     if (soundLeft < slotsLeft)
-        rest = juce::jmin (rest, soundLeft * maxSoundingGain - (slotsLeft - soundLeft) * kMutePenalty);
+    {
+        const int forcedMutes = juce::jmax (0, slotsLeft - soundLeft - occupiedBelow[(size_t) slotsLeft]);
+        rest = juce::jmin (rest, soundLeft * maxSoundingGain - forcedMutes * kMutePenalty);
+    }
 
     bound += rest;
     bound -= kDupPenalty * state.dups;
@@ -1093,7 +1125,7 @@ int RubricVoicer::pairPitch (int stringIndex, int relFret) const noexcept
         return -1;
 
     const double position = tuningEngine->frequencyToFretPosition (stringIndex, midiToHz ((double) m, a4));
-    return std::abs (position - (double) relFret) <= kFretSlop ? m : -1;
+    return std::abs (position - (double) relFret) <= kFretSlop + tuningEngine->getMicroOffsetFrets (stringIndex) ? m : -1;
 }
 
 double RubricVoicer::velocityFor (int pitch) const noexcept
@@ -1136,6 +1168,7 @@ ChordVoicing RubricVoicer::voice (const int* midiNotes, const double* velocities
         singleNotes.setMinFret (minFret);
         singleNotes.setAllowOpenStrings (allowOpen);
         singleNotes.setPreferredPosition (handHint);
+        singleNotes.setOccupiedStrings (occupiedStrings);
 
         result = singleNotes.voice (midiNotes, velocities, 1);
         lastOutcome = result.numNotes > 0 ? RubricOutcome::voiced : RubricOutcome::unplayable;
@@ -1257,6 +1290,7 @@ VoicedNote RubricVoicer::voiceSingleNote (int midiNote, double velocity, int pre
     singleNotes.setMinFret (minFret);
     singleNotes.setAllowOpenStrings (allowOpen);
     singleNotes.setPreferredPosition (handHint);
+    singleNotes.setOccupiedStrings (occupiedStrings);
 
     return singleNotes.voiceSingleNote (midiNote, velocity, preferStringIndex);
 }

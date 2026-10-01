@@ -987,6 +987,18 @@ LUTHIER_TEST (TuneBuilder, editsKeepNamesUniqueAndTheSetlistInStep)
     CHECK (juce::String (getTuneEditClassName (TuneEditClass::melodyGenerate)) == "tune-melody-generate");
 }
 
+LUTHIER_TEST (TuneBuilder, refusingLastSectionRemovalPreservesTheArrangement)
+{
+    auto tune = makeSongTune();
+    CHECK (tune.removeSection (1));
+
+    const auto before = tune.arrangement;
+    CHECK (! tune.removeSection (0));
+    CHECK (tune.arrangement == before);
+    CHECK (tune.getNumSections() == 1);
+    CHECK (! tune.removeSection (-1));
+}
+
 LUTHIER_TEST (TuneBuilder, aThousandSectionReordersKeepTheLengthAndEveryNotesPosition)
 {
     RtRandom rng (0x52454F52ull);
@@ -1213,10 +1225,10 @@ LUTHIER_TEST (TuneBuilder, saveIsAtomicAndKeepsADatedBackup)
 }
 
 //==============================================================================
-// Templates (10)
+// Templates (12)
 //==============================================================================
 
-LUTHIER_TEST (TuneBuilder, theTenTemplatesLoadInOrderAndAreValid)
+LUTHIER_TEST (TuneBuilder, theTwelveTemplatesLoadInOrderAndAreValid)
 {
     juce::StringArray errors;
     const auto templates = TuneTemplateLibrary::loadFactory (&errors);
@@ -1227,7 +1239,8 @@ LUTHIER_TEST (TuneBuilder, theTenTemplatesLoadInOrderAndAreValid)
     const char* const names[] =
     {
         "Blank", "Verse/Chorus", "12-bar blues in E", "AABA jazz standard", "Reggae one-drop in A",
-        "Country waltz", "Rock ballad", "Bossa Nova", "Punk two-chord", "Instrumental fingerstyle"
+        "Country waltz", "Rock ballad", "Bossa Nova", "Punk two-chord", "Instrumental fingerstyle",
+        "Pop four-chord in G", "Funk groove in E"
     };
 
     if ((int) templates.size() != TuneTemplateLibrary::kNumFactoryTemplates)
@@ -1302,6 +1315,15 @@ LUTHIER_TEST (TuneBuilder, theTenTemplatesLoadInOrderAndAreValid)
     CHECK (fingerstyle.getNumSections() == 1 && fingerstyle.arrangement.sections[0].chords.empty());
     CHECK (fingerstyle.arrangement.sections[0].melody.has_value()
              && fingerstyle.arrangement.sections[0].melody->notes.empty());
+
+    const auto& pop = templates[10].tune;
+    CHECK (pop.meta.keyTonic == 7 && pop.getNumSections() == 2);
+    CHECK (formatProgression (pop.arrangement.sections[0].chords, 4.0, false) == "G D Em C");
+    CHECK (formatProgression (pop.arrangement.sections[1].chords, 4.0, false) == "C G D Em");
+
+    const auto& funkGroove = templates[11].tune;
+    CHECK (funkGroove.meta.keyTonic == 4 && funkGroove.getNumSections() == 1);
+    CHECK (funkGroove.arrangement.sections[0].rhythmPatternId == "Funk Sixteenth");
 }
 
 LUTHIER_TEST (TuneBuilder, templateFilesAreInCanonicalFormAndBlankMatchesTheBuiltIn)

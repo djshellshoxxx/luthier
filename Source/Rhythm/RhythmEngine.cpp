@@ -1,4 +1,7 @@
 #include "RhythmEngine.h"
+#include "MutedThump.h"   // REALISM-B: string-interaction.md 6
+
+#include <algorithm>   // std::sort / std::min: GCC does not pull it in transitively (PR #2)
 
 namespace luthier
 {
@@ -23,39 +26,15 @@ const char* getVoicingStyleName (VoicingStyle style) noexcept
     }
 }
 
-namespace
-{
-    /** How many notes a style wants, given how many are available. */
-    int noteBudgetFor (VoicingStyle style, int available, double densityPercent, int numStrings)
-    {
-        const int byDensity = juce::jmax (1, (int) std::round (
-            (double) available * juce::jlimit (0.0, 100.0, densityPercent) / 100.0));
-
-        switch (style)
-        {
-            case VoicingStyle::power:    return juce::jmin (3, byDensity);
-            case VoicingStyle::shell:    return juce::jmin (3, byDensity);
-            case VoicingStyle::triad:    return juce::jmin (3, byDensity);
-            case VoicingStyle::drop2:
-            case VoicingStyle::drop3:    return juce::jmin (4, byDensity);
-            case VoicingStyle::wide:     return juce::jmin (numStrings, byDensity);
-            case VoicingStyle::bass:     return juce::jmin (2, byDensity);
-            case VoicingStyle::rootless:
-            case VoicingStyle::open:
-            case VoicingStyle::barre:
-            case VoicingStyle::numStyles:
-            default:                     return juce::jmin (numStrings, byDensity);
-        }
-    }
-}
 
 //==============================================================================
 RhythmEngine::RhythmEngine()
 {
     // A pattern that does nothing is the honest default: the engine is off until
     // the user chooses something for it to play.
-    patterns[0] = RhythmPattern();
-    patterns[1] = patterns[0];
+    patternBuffer.resetAll (writtenPattern);
+    bassGridBuffer.resetAll (writtenBassGrid);
+    humaniseBuffer.resetAll (writtenHumanise);
 }
 
 void RhythmEngine::prepare (double sampleRate, int maxBlockSize,
@@ -128,28 +107,27 @@ void RhythmEngine::setEnabled (bool shouldBeEnabled) noexcept
 void RhythmEngine::setPattern (const RhythmPattern& pattern)
 {
     const juce::ScopedLock sl (patternLock);
-
-    const int building = 1 - livePattern.load (std::memory_order_relaxed);
-    patterns[building] = pattern;
-    livePattern.store (building, std::memory_order_release);
+    writtenPattern = pattern;
+    patternBuffer.write (pattern);   // SPEC-SWEEP RE-2
 }
 
 RhythmPattern RhythmEngine::getPattern() const
 {
     const juce::ScopedLock sl (patternLock);
-    return patterns[livePattern.load (std::memory_order_acquire)];
+    return writtenPattern;
 }
 
 void RhythmEngine::setHumanise (const RhythmHumanise& h) noexcept
 {
     const juce::ScopedLock sl (humaniseLock);
-    humanise = h;
+    writtenHumanise = h;
+    humaniseBuffer.write (h);   // SPEC-SWEEP RE-2: the audio thread never takes this lock
 }
 
 RhythmHumanise RhythmEngine::getHumanise() const noexcept
 {
     const juce::ScopedLock sl (humaniseLock);
-    return humanise;
+    return writtenHumanise;
 }
 
 //==============================================================================
@@ -203,142 +181,140 @@ void RhythmEngine::handleMidi (const juce::MidiBuffer& midi, int64_t blockStartS
 }
 
 //==============================================================================
-int RhythmEngine::selectNotesForStyle (int* dest, int maxNotes) noexcept
+// bass-techniques 9 (MODEL-GAPS): the bass step grid.
+void RhythmEngine::setBassGrid (const BassStepGrid& grid)
 {
-    const int held = detector.getNumHeldNotes();
-    const int* heldNotes = detector.getHeldNotes();
+    const juce::ScopedLock sl (patternLock);
+    writtenBassGrid = grid;
+    bassGridHasSteps.store (! grid.isEmpty(), std::memory_order_release);
+    bassGridBuffer.write (grid);   // SPEC-SWEEP RE-2
+}
 
-    if (held <= 0 || maxNotes <= 0)
-        return 0;
+BassStepGrid RhythmEngine::getBassGrid() const
+{
+    const juce::ScopedLock sl (patternLock);
+    return writtenBassGrid;
+}
 
-    const auto style = getVoicingStyle();
+bool RhythmEngine::isBassGridActive() const noexcept
+{
+    return isBassFamily() && bassGridHasSteps.load (std::memory_order_acquire);
+}
 
-    // Sorted low to high, because every style is described in terms of which
-    // degree sits where.
-    std::array<int, 24> sorted {};
-    const int count = juce::jmin (held, (int) sorted.size());
+int RhythmEngine::processBassGrid (const BassStepGrid& grid, double startBeats, double endBeats,
+                                   double beatsPerSample, int numSamples, PlayEventQueue& out) noexcept
+{
+    const double stepBeats = 1.0 / juce::jmax (1.0e-9, subdivisionsPerBeat (grid.getSubdivision()));
+    const int length = juce::jmax (1, grid.getLength());
+    const int stepSamples = (int) std::round (stepBeats / juce::jmax (1.0e-12, beatsPerSample));
 
-    for (int i = 0; i < count; ++i)
-        sorted[(size_t) i] = heldNotes[i];
+    // A note ends before the next step starts, whatever the gate says, so its
+    // note-off can never land on the next note.
+    const int noteSamples = juce::jmax (1, (int) std::floor (stepSamples * juce::jmin (grid.getGate(), 0.97)));
 
-    std::sort (sorted.begin(), sorted.begin() + count);
+    const int firstIndex = (int) std::ceil (startBeats / stepBeats) - 1;
+    const int lastIndex = (int) std::floor (endBeats / stepBeats) + 1;
+    int emitted = 0;
 
-    const int budget = juce::jmin (maxNotes,
-                                   noteBudgetFor (style, count, getVoicingDensity(), numStrings));
-
-    int written = 0;
-
-    switch (style)
+    for (int index = juce::jmax (0, firstIndex); index <= lastIndex; ++index)
     {
-        case VoicingStyle::power:
-        {
-            // Root and fifth, plus the octave root if there is room. The fifth is
-            // taken from the chord rather than assumed, so a flat-five chord does
-            // not turn into a major power chord.
-            const int root = sorted[0];
-            dest[written++] = root;
+        const double beatPosition = (double) index * stepBeats;
 
-            for (int i = 1; i < count && written < budget; ++i)
+        if (beatPosition < startBeats || beatPosition >= endBeats)
+            continue;
+
+        const int stepInGrid = index % length;
+        const int sampleOffset = juce::jlimit (0, juce::jmax (0, numSamples - 1),
+                                               (int) std::round ((beatPosition - startBeats) / juce::jmax (1.0e-12, beatsPerSample)));
+
+        const auto& step = grid.getStep (stepInGrid);
+        lastStepPlayed.store (stepInGrid, std::memory_order_relaxed);
+
+        if (step.isRest())
+            continue;
+
+        const int before = out.getNumNoteOns();
+        emitBassStep (step, sampleOffset, noteSamples, out);
+        emitted += out.getNumNoteOns() - before;
+    }
+
+    lastPpq = endBeats;
+    return emitted;
+}
+
+void RhythmEngine::emitBassStep (const BassStep& step, int sampleOffset, int lengthSamples, PlayEventQueue& out) noexcept
+{
+    // The root is the lowest voiced note: the Bass style voices it (4.3).
+    const VoicedNote* root = nullptr;
+
+    for (int i = 0; i < currentVoicing.numNotes; ++i)
+    {
+        const auto& note = currentVoicing.notes[(size_t) i];
+
+        if (note.valid && (root == nullptr || note.midiNote < root->midiNote))
+            root = &note;
+    }
+
+    if (root == nullptr)
+        return;
+
+    int stringIndex = root->stringIndex;
+    int midiNote = root->midiNote;
+    double fret = root->fretPosition;
+
+    // The fifth or the octave: the string that reaches it nearest the root's fret.
+    if (step.note != BassStepNote::root && tuning != nullptr)
+    {
+        const int target = root->midiNote + (step.note == BassStepNote::fifth ? 7 : 12);
+        const double hz = 440.0 * std::pow (2.0, (target - 69) / 12.0);
+        double best = 1.0e9;
+
+        for (int s = 0; s < numStrings; ++s)
+        {
+            if (! tuning->canPlay (s, hz))
+                continue;
+
+            const double f = std::round (tuning->frequencyToFretPosition (s, hz));
+
+            if (f < 0.0 || f > (double) tuning->getHighestPlayableFret (s))
+                continue;
+
+            const double distance = std::abs (f - root->fretPosition) + 0.25 * std::abs (s - root->stringIndex);
+
+            if (distance < best)
             {
-                const int interval = (sorted[(size_t) i] - root) % 12;
-
-                if (interval == 7 || interval == 6 || interval == 8)
-                {
-                    dest[written++] = sorted[(size_t) i];
-                    break;
-                }
+                best = distance;
+                stringIndex = s;
+                midiNote = target;
+                fret = f;
             }
-
-            if (written < budget)
-                dest[written++] = root + 12;
-
-            break;
-        }
-
-        case VoicingStyle::shell:
-        {
-            // Root, third and seventh: the notes that carry the harmony, which is
-            // exactly what a shell voicing leaves in.
-            const int root = sorted[0];
-            dest[written++] = root;
-
-            for (int wanted : { 3, 4 })
-                for (int i = 1; i < count && written < budget; ++i)
-                    if ((sorted[(size_t) i] - root) % 12 == wanted)
-                    {
-                        dest[written++] = sorted[(size_t) i];
-                        i = count;
-                    }
-
-            for (int wanted : { 10, 11 })
-                for (int i = 1; i < count && written < budget; ++i)
-                    if ((sorted[(size_t) i] - root) % 12 == wanted)
-                    {
-                        dest[written++] = sorted[(size_t) i];
-                        i = count;
-                    }
-
-            break;
-        }
-
-        case VoicingStyle::rootless:
-        {
-            // Everything but the root, which is what you play over a bassist.
-            for (int i = 1; i < count && written < budget; ++i)
-                dest[written++] = sorted[(size_t) i];
-
-            if (written == 0 && count > 0)
-                dest[written++] = sorted[0];
-
-            break;
-        }
-
-        case VoicingStyle::triad:
-        {
-            // The top three notes: a triad on the top strings.
-            const int start = juce::jmax (0, count - budget);
-
-            for (int i = start; i < count && written < budget; ++i)
-                dest[written++] = sorted[(size_t) i];
-
-            break;
-        }
-
-        case VoicingStyle::drop2:
-        case VoicingStyle::drop3:
-        {
-            // Drop the second (or third) voice from the top down an octave, which
-            // is the definition of the voicing.
-            const int dropFromTop = (style == VoicingStyle::drop2) ? 2 : 3;
-            const int start = juce::jmax (0, count - budget);
-
-            for (int i = start; i < count && written < budget; ++i)
-                dest[written++] = sorted[(size_t) i];
-
-            const int dropIndex = written - dropFromTop;
-
-            if (dropIndex >= 0 && dropIndex < written)
-                dest[dropIndex] -= 12;
-
-            break;
-        }
-
-        case VoicingStyle::open:
-        case VoicingStyle::barre:
-        case VoicingStyle::wide:
-        case VoicingStyle::numStyles:
-        default:
-        {
-            for (int i = 0; i < count && written < budget; ++i)
-                dest[written++] = sorted[(size_t) i];
-
-            break;
         }
     }
 
-    return written;
+    NoteOnEvent on;
+    on.stringIndex = stringIndex;
+    on.midiNote = midiNote;
+    on.midiChannel = 1;
+    on.fretPosition = fret;
+    on.velocity = juce::jlimit (0.02, 1.0, step.level);
+    on.technique = step.type == BassStepType::dead ? Technique::MutedPick : Technique::Pluck;
+    on.sampleOffset = juce::jmax (0, sampleOffset);
+    on.bassTechnique = (int) step.type;
+
+    if (tuning != nullptr)
+        on.pitchHz = tuning->computeFrequency (stringIndex, fret, 0.0);
+
+    out.addNoteOn (on);
+    soundingMask = (uint16_t) (soundingMask | (uint16_t) (1u << stringIndex));
+
+    NoteOffEvent off;
+    off.stringIndex = stringIndex;
+    off.midiNote = midiNote;
+    off.sampleOffset = on.sampleOffset + lengthSamples;
+    out.addNoteOff (off);
 }
 
+//==============================================================================
 void RhythmEngine::revoice() noexcept
 {
     if (voicer == nullptr)
@@ -363,11 +339,12 @@ void RhythmEngine::revoice() noexcept
         it sounds; density sets how many strings that may be. */
     voicer->setPitchMode (RubricPitchMode::chordTones);
     voicer->setStyle ((RubricStyle) (int) style);
+    voicer->setBassPattern (getBassPattern());   // MODEL-GAPS
     voicer->setRootPitchClass (currentChord.root);
     voicer->setMaxSoundingStrings (juce::jmax (1, (int) std::round ((double) numStrings * getVoicingDensity() / 100.0)));
     voicer->setAllowOpenStrings (style != VoicingStyle::barre);
     voicer->setPreferredPosition (getHandPositionHint());
-    voicer->setMaxFretSpan (style == VoicingStyle::wide ? 6 : 5);
+    voicer->setMaxFretSpan (getHandSpan() + (style == VoicingStyle::wide ? 1 : 0));   // SPEC-SWEEP RE-12
     /*  Zero, not the capo. TuningEngine measures fret positions from the capo now
         (ambiguity-resolutions 4.5), so frequencyToFretPosition already hands the
         voicer capo-relative frets, and filtering below the capo a second time here
@@ -400,7 +377,7 @@ void RhythmEngine::revoice() noexcept
 
 //==============================================================================
 void RhythmEngine::emitNote (int stringIndex, double velocity, bool muted, double chuck,
-                             int strikerMaterial, int sampleOffset, PlayEventQueue& out) noexcept
+                             int strikerMaterial, int sampleOffset, PlayEventQueue& out, int finger) noexcept
 {
     if (! juce::isPositiveAndBelow (stringIndex, numStrings))
         return;
@@ -446,6 +423,13 @@ void RhythmEngine::emitNote (int stringIndex, double velocity, bool muted, doubl
     on.slideSeconds = 0.0;
     on.chuck = chuck;
     on.strikerMaterial = strikerMaterial;
+    on.finger = finger;   // REALISM-B: fingerstyle-attack.md 3, the pattern's finger reaches the string
+
+    // muting-rhythm.md 4 (TECHNIQUES): the step's mute travels with its note.
+    on.muteType = (int) pendingMute.type;
+    on.mutePressure = pendingMute.pressure;
+    on.mutePositionMm = pendingMute.positionMm;
+    on.stepDynamic = pendingDynamic;
 
     if (tuning != nullptr)
         on.pitchHz = tuning->computeFrequency (stringIndex, found->fretPosition, 0.0);
@@ -479,7 +463,7 @@ void RhythmEngine::scheduleStrum (const StrumStep& step, double sourceSps, int s
     if (step.isRest() || ! voicingValid)
         return;
 
-    const auto h = getHumanise();
+    const auto& h = humaniseBuffer.current();   // SPEC-SWEEP RE-2: acquired at the top of processBlock
 
     // rhythm-engine 4: a scheduled stroke can simply not happen.
     if (h.missPercent > 0.0 && rng.nextDouble() * 100.0 < h.missPercent * h.amount)
@@ -593,6 +577,19 @@ void RhythmEngine::scheduleStrum (const StrumStep& step, double sourceSps, int s
 
         const int planned = gesture.plan (settings, request, strikes.data(), (int) strikes.size());
 
+        // SPEC-SWEEP (RE-18, rhythm-engine 2): a rake drags muted across the
+        // strings and lands on its target - the last string it strikes - open
+        // and at the step's full dynamic.
+        int rakeTarget = -1;
+
+        if (step.type == StrumType::rake)
+            for (int i = planned; --i >= 0;)
+                if (! strikes[(size_t) i].missed)
+                {
+                    rakeTarget = i;
+                    break;
+                }
+
         for (int i = 0; i < planned; ++i)
         {
             const auto& strike = strikes[(size_t) i];
@@ -601,14 +598,58 @@ void RhythmEngine::scheduleStrum (const StrumStep& step, double sourceSps, int s
             if (strike.missed)
                 continue;
 
-            const double offset = gestureOffset + strokeOffsetMs * 0.001 * sr + strike.timeSeconds * sr;
+            // RE-18, muting-rhythm.md: a rake mutes the strings it drags across but
+            // rings the last one it reaches - its target.
+            const bool strikeIsMuted = muted && ! (step.type == StrumType::rake && i == planned - 1);
 
-            emitNote (strike.stringIndex, baseVelocity * strike.force, muted, chuckAmount,
+            const double offset = gestureOffset + strokeOffsetMs * 0.001 * sr + strike.timeSeconds * sr;
+            const bool isRakeTarget = (i == rakeTarget);
+
+            emitNote (strike.stringIndex,
+                      isRakeTarget ? baseVelocity : baseVelocity * strike.force,
+                      muted && ! isRakeTarget, chuckAmount,
                       strikerMaterial, (int) std::round (juce::jmax (0.0, offset)), out);
+        }
+
+        // REALISM-B, string-interaction.md 6: muted strings inside the STRUM
+        // mask and the strum's span are struck too. Skipped entirely at 0.
+        if (mutedThumpLevel > 0.0)
+        {
+            juce::uint32 candidates = 0;
+
+            for (int s = 0; s < numStrings; ++s)
+            {
+                if (((step.stringMask >> s) & 1u) == 0)
+                    continue;
+
+                bool voiced = false;
+
+                for (int i = 0; i < currentVoicing.numNotes; ++i)
+                    voiced = voiced || (currentVoicing.notes[(size_t) i].valid
+                                          && currentVoicing.notes[(size_t) i].stringIndex == s);
+
+                if (! voiced)
+                    candidates |= (juce::uint32) 1u << (juce::uint32) s;
+            }
+
+            std::array<MutedThump, kMaxStrings> thumps {};
+            const int numThumps = planMutedThumps (strikes.data(), planned, candidates, thumps.data(), (int) thumps.size(), false);
+            const int hand = handPositionHint.load (std::memory_order_relaxed);
+
+            for (int k = 0; k < numThumps; ++k)
+            {
+                const auto& t = thumps[(size_t) k];
+                const double offset = gestureOffset + strokeOffsetMs * 0.001 * sr + t.timeSeconds * sr;
+                const double hz = tuning != nullptr ? tuning->computeFrequency (t.stringIndex, (double) hand, 0.0) : 110.0;
+
+                out.addNoteOn (makeThumpEvent (t.stringIndex, baseVelocity * t.force, mutedThumpLevel, hz,
+                                               (int) std::round (juce::jmax (0.0, offset)), strikerMaterial));
+            }
         }
     }
 
     nextStrumType.store ((int) step.type, std::memory_order_relaxed);
+    strokesScheduled.fetch_add (1, std::memory_order_relaxed);   // SPEC-SWEEP GD-10
 }
 
 void RhythmEngine::scheduleFingerpick (const FingerpickStep& step, int sampleOffset,
@@ -617,12 +658,12 @@ void RhythmEngine::scheduleFingerpick (const FingerpickStep& step, int sampleOff
     if (! step.active || ! voicingValid)
         return;
 
-    const auto h = getHumanise();
+    const auto& h = humaniseBuffer.current();   // SPEC-SWEEP RE-2
 
     if (h.missPercent > 0.0 && rng.nextDouble() * 100.0 < h.missPercent * h.amount)
         return;
 
-    const auto pattern = patterns[livePattern.load (std::memory_order_acquire)];
+    const auto& pattern = patternBuffer.current();   // SPEC-SWEEP RE-2: no copy on the audio thread
     const int stringIndex = pattern.getStringForFinger (step.finger);
 
     double velocity = step.dynamic;
@@ -635,7 +676,7 @@ void RhythmEngine::scheduleFingerpick (const FingerpickStep& step, int sampleOff
     if (h.timingMs > 0.0)
         offset += rng.nextGaussian() * h.timingMs * 0.001 * sr * h.amount * 0.5;
 
-    emitNote (stringIndex, velocity, false, 0.0, -1, (int) juce::jmax (0.0, offset), out);
+    emitNote (stringIndex, velocity, false, 0.0, -1, (int) juce::jmax (0.0, offset), out, (int) step.finger);
 }
 
 //==============================================================================
@@ -644,11 +685,16 @@ int RhythmEngine::processBlock (int numSamples, const RhythmTransport& transport
 {
     driving = false;
 
+    // SPEC-SWEEP (RE-2): pick up whatever the message thread published since the
+    // last block; everything below reads these slots by reference.
+    patternBuffer.acquire();
+    bassGridBuffer.acquire();
+    humaniseBuffer.acquire();
+
     // ---- bypass ---------------------------------------------------------------
-    if (pendingRelease)
+    if (pendingRelease.exchange (false))
     {
         releaseAll (0, out);
-        pendingRelease = false;
     }
 
     if (! isEnabled())
@@ -716,9 +762,17 @@ int RhythmEngine::processBlock (int numSamples, const RhythmTransport& transport
 
     wasPlaying = transport.isPlaying;
     driving = true;
+    drivenBlocks.fetch_add (1, std::memory_order_relaxed);   // SPEC-SWEEP GD-10
+
+    // bass-techniques 9 (MODEL-GAPS): on a bass, a grid with steps in it plays.
+    if (isBassGridActive())
+    {
+        const auto& grid = bassGridBuffer.current();
+        return processBassGrid (grid, startBeats, startBeats + blockBeats, beatsPerSample, numSamples, out);
+    }
 
     // ---- walk the pattern's grid over this block ----------------------------------
-    const auto pattern = patterns[livePattern.load (std::memory_order_acquire)];
+    const auto& pattern = patternBuffer.current();   // SPEC-SWEEP RE-2: no copy on the audio thread
 
     if (pattern.isEmpty() || pattern.getLength() <= 0)
         return 0;
@@ -744,9 +798,12 @@ int RhythmEngine::processBlock (int numSamples, const RhythmTransport& transport
         double beatPosition = (double) index * stepBeats;
 
         // Swing pushes the odd steps later. The pair still spans the same total
-        // time, so the bar does not stretch.
+        // time, so the bar does not stretch. SPEC-SWEEP (RE-35): swing is the
+        // share of the pair the on-beat step takes - 0.5 straight, 0.66 a
+        // triplet feel, 0.75 a dotted feel - so the offbeat lands at swing x the
+        // pair; it used to move only half as far.
         if ((index % 2) != 0 && swing > 0.5)
-            beatPosition += (swing - 0.5) * 2.0 * stepBeats * 0.5;
+            beatPosition += (swing - 0.5) * 2.0 * stepBeats;
 
         if (beatPosition < startBeats || beatPosition >= endBeats)
             continue;
@@ -770,7 +827,7 @@ int RhythmEngine::processBlock (int numSamples, const RhythmTransport& transport
             // A ghost stroke is an extra muted brush just before the hit, which
             // is most of what makes a strummed part sound played rather than
             // programmed.
-            const auto h = getHumanise();
+            const auto& h = humaniseBuffer.current();
 
             if (! step.isRest() && h.ghostPercent > 0.0
                   && rng.nextDouble() * 100.0 < h.ghostPercent * h.amount)
@@ -780,13 +837,19 @@ int RhythmEngine::processBlock (int numSamples, const RhythmTransport& transport
                 ghost.dynamic = step.dynamic * 0.35;
 
                 const int ghostOffset = juce::jmax (0, sampleOffset - (int) (0.035 * sr));
+                pendingMute = MuteStep {};
+                pendingDynamic = ghost.dynamic;
                 scheduleStrum (ghost, crossingSps, ghostOffset, out);
             }
 
+            pendingMute = pattern.getMuteStep (stepInPattern);   // muting-rhythm.md 4
+            pendingDynamic = step.dynamic;
             scheduleStrum (step, crossingSps, sampleOffset, out);
         }
         else
         {
+            pendingMute = pattern.getMuteStep (stepInPattern);   // muting-rhythm.md 4
+            pendingDynamic = -1.0;
             scheduleFingerpick (pattern.getFingerpickStep (stepInPattern), sampleOffset, out);
         }
 
@@ -806,7 +869,9 @@ juce::var RhythmEngine::toVar() const
     root->setProperty ("enabled", isEnabled());
     root->setProperty ("freeRun", isFreeRunning());
     root->setProperty ("voicingStyle", (int) getVoicingStyle());
+    root->setProperty ("bassPattern", (int) getBassPattern());
     root->setProperty ("voicingDensity", getVoicingDensity());
+    root->setProperty ("handSpan", getHandSpan());   // SPEC-SWEEP RE-12
     root->setProperty ("handPosition", getHandPositionHint());
 
     /*  No "capoFret" here any more. The capo is a parameter now (ParamIDs::capoFret),
@@ -817,6 +882,7 @@ juce::var RhythmEngine::toVar() const
     root->setProperty ("strumDurationMs", getStrumDurationMs());
     root->setProperty ("strumFeel", getStrumFeel());
     root->setProperty ("pattern", getPattern().toVar());
+    root->setProperty ("bassGrid", getBassGrid().toVar());   // MODEL-GAPS
 
     const auto h = getHumanise();
     auto* humaniseObject = new juce::DynamicObject();
@@ -841,8 +907,12 @@ void RhythmEngine::fromVar (const juce::var& state)
     setFreeRun ((bool) root->getProperty ("freeRun"));
     setVoicingStyle ((VoicingStyle) juce::jlimit (0, (int) VoicingStyle::numStyles - 1,
                                                   (int) root->getProperty ("voicingStyle")));
+    setBassPattern ((RubricBassPattern) juce::jlimit (0, (int) RubricBassPattern::walking,
+                                                      (int) (root->hasProperty ("bassPattern") ? root->getProperty ("bassPattern") : juce::var (0))));
     setVoicingDensity ((double) root->getProperty ("voicingDensity"));
+    setHandSpan (root->hasProperty ("handSpan") ? (int) root->getProperty ("handSpan") : 5);   // SPEC-SWEEP RE-12
     setHandPositionHint ((int) root->getProperty ("handPosition"));
+    // RE-12: absent in older saves - keep the default of 5.
 
     /*  A capo saved by a build that kept one here. It is applied so an old
         session does not silently lose it, and it is not written back: the
@@ -865,6 +935,9 @@ void RhythmEngine::fromVar (const juce::var& state)
 
     if (root->hasProperty ("pattern"))
         setPattern (RhythmPattern::fromVar (root->getProperty ("pattern")));
+
+    // MODEL-GAPS: the bass step grid; absent in older state, which is an empty grid.
+    setBassGrid (BassStepGrid::fromVar (root->getProperty ("bassGrid")));
 
     if (auto* humaniseObject = root->getProperty ("humanise").getDynamicObject())
     {

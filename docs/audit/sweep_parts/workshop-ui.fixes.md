@@ -1,0 +1,16 @@
+## workshop-ui.md fixes (OWNER-GAP only; owner: claude/luthier-visual, no coverage doc)
+
+- OWNER-GAP [WU-9] effort M — Buzz heatmap overlay (guitar-illustration layer 27). When the setup strip has focus, draw per-fret, per-string buzz likelihood from `FretBuzz`'s clearance model (message thread, from the committed setup) as a translucent overlay in `GuitarRenderer::paintOverlay`. Test: `WorkshopPanel::theHeatmapShowsOnlyWhileTheSetupStripHasFocus`, plus a check that low action heats fret 1-3.
+- OWNER-GAP [WU-10] effort S — Nothing times the overlay-only repaint budget. Add `GuitarIllustration::overlayRepaintIsUnder2ms`, which times `paintOverlay` with pick, slide and capo on at 1920x1080.
+- OWNER-GAP [WU-14] effort S — The 30 ms crossfade back after an Alt release is unverified. Add a render test: audition a different bridge, release, and check that the output matches the committed render within 30 ms.
+- OWNER-GAP [WU-18] effort M — Pickup height has scroll only. Draw two screw handles per selected pickup (visual already draws 8 px accent handles for the accessories), and drag them vertically to set the bass/treble heights (0.1 mm, 0.5-6 mm). Test: `WorkshopBench::aScrewHandleDragSetsOneSidesHeight`.
+- OWNER-GAP [WU-19] effort S — Tilt is not done by dragging one screw handle. With the handles from WU-18, dragging one handle alone changes only that side, up to ±2 mm differential. Test it together with WU-18.
+- OWNER-GAP [WU-20] effort S — Saddle drags are untested and have no keyboard path. Add Left/Right nudges on a selected saddle in `BenchIllustration::keyPressed` (0.1 mm, ±6 mm) and a test `WorkshopBench::aSaddleDragAndItsArrowKeysSetIntonation`.
+- OWNER-GAP [WU-22] effort M — There is no fret wear brush on the bench. With Frets selected, a drag across frets adds wear 0-1 into the character fret-wear map (`CharacterEngine` fret-wear map) as one undo entry per stroke. Otherwise DEFER to CHARACTER's fret-wear map with a DECISIONS note.
+- OWNER-GAP [WU-27] effort S — Swap and Revert are untested. Add `WorkshopPanel::swapFiltersTheDrawerAndRevertRestoresTheLoadedPart`.
+- OWNER-GAP [WU-28] effort M — Inspector fields are painted rows. Make each one a component (Label + Slider/Editor) with a tooltip and an accessible name and value, as `LuthierKnob` does. Test: `WorkshopPanel::everyInspectorFieldHasATooltipAndAnAccessibleValue`.
+- OWNER-GAP [WU-31] effort S — Test that the spectrum's Y range is ±12 dB by default and that auto-zoom rescales. Expose `getDisplayRangeDb()`.
+- OWNER-GAP [WU-35] effort S — Test the empty and blocked drawer states: the exact empty user-parts text, a single-option category still listed, and an incompatible card's warning with a working audition.
+- OWNER-GAP [WU-37] effort M — Expose hit regions as accessible children (one `AccessibilityHandler` per region in builder order, via `createAccessibilityHandler` with children). Test: iterate the children and match the names to the section 10 order.
+- OWNER-GAP [WU-40] effort S — Keyboard reach for every drag, depending on WU-18/19/20. Extend `WorkshopPanel::keyboardNudgesMatchADrag` to saddle, tilt, nut, pick, slide and capo.
+- OWNER-GAP [WU-T3] effort S — As WU-14: the audio-return half of the audition test.

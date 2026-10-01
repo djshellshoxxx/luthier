@@ -12,6 +12,7 @@
       - hover shows the value in place of the label, and a tooltip after 400 ms
 */
 
+#include "AnimationPolicy.h"   // cpu-quality-modes 6
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "Theme.h"
 #include "../Modulation/ModMatrix.h"
@@ -62,6 +63,31 @@ void applyParameterMenuResult (int result,
 constexpr int kUnlockRangeMenuId = 10;
 constexpr int kRestrictRangeMenuId = 11;
 
+/** gui-integration 16 items 12-13: the read-only automation ID, and "Show in
+    Options -> Shortcuts" for a control a shortcut also drives. */
+constexpr int kAutomationIdMenuId = 12;
+constexpr int kShowShortcutMenuId = 13;
+
+/** ui-wiring.md 21: names an attached control for screen readers after its parameter. */
+void labelForScreenReaders (juce::Component& control, LuthierAudioProcessor& processor,
+                            const juce::String& parameterId, const juce::String& tooltip);
+
+/** gui-integration 11.2: a MOD source card's drag description is this prefix and its slot. */
+inline constexpr const char* kModSourceDragPrefix = "luthier.modsource:";
+
+/** The source slot a drag carries, or -1 if it is not a mod source. */
+int modSourceSlotFromDrag (const juce::var& description);
+
+/*  gui-integration 11.2: a dropped source becomes a route at 25% depth - one
+    undo entry. Returns false when the control's routes are full. */
+bool addModulationFromDrop (LuthierAudioProcessor& processor, int sourceSlot, const juce::String& parameterId);
+
+/** The shortcut action that drives a parameter (Slide Mode's S), or empty. */
+juce::String shortcutActionForParameter (const juce::String& parameterId);
+
+/** Set by the editor: opens Options -> Accessibility's shortcut table filtered to an action. */
+extern std::function<void (const juce::String& actionId)> showShortcutInOptions;
+
 /*  advanced-ranges.md 6.3: a drag on a physical control that has reached the
     edge of its stock range while that range is locked. Shows the fixed inline
     notice at `owner`; the control itself simply stops at the edge. Returns
@@ -100,7 +126,14 @@ private:
     until it finds one of these. */
 struct LearnTarget
 {
-    virtual ~LearnTarget() = default;
+    /*  global-search.md 3.2 (FEAT-SEARCH): the constructor and destructor add
+        and remove this control from search::LiveControls, so the palette can
+        find any parameter's control without a registration list. Defined in
+        Search/LiveControls.cpp. */
+    LearnTarget();
+    virtual ~LearnTarget();
+    LearnTarget (const LearnTarget&) = delete;
+    LearnTarget& operator= (const LearnTarget&) = delete;
 
     /** The parameter this control edits, or empty if it is not attached yet. */
     virtual juce::String getLearnParameterId() const = 0;
@@ -108,12 +141,70 @@ struct LearnTarget
 
 //==============================================================================
 /** A rotary control with its label below and its value above. */
+class ModArcHub;   // SPEC-SWEEP UW-35 (Widgets.cpp)
+
+/** SPEC-SWEEP (GD-30, gui-engine-dataflow 20): the 1 Hz pulse the armed MIDI
+    Learn button and the control being learned share - on for half a second,
+    off for half a second, on the same clock everywhere. */
+struct LearnPulse
+{
+    static bool isOn (double nowMs) noexcept { return ((juce::int64) (nowMs / 500.0) & 1) == 0; }
+    static bool isOnNow() noexcept { return isOn (juce::Time::getMillisecondCounterHiRes()); }
+};
+
+//==============================================================================
+/*  spec/issues.md ISS-7 (PR #2): a slider that lets the mouse wheel through to
+    the enclosing Viewport.
+
+    juce::Slider consumes every wheel event over it, which in a scrolling column
+    of controls means the column stops scrolling wherever the pointer happens to
+    rest on a control - and Advanced mode is mostly control. Here the wheel
+    scrolls unless Ctrl (Cmd on macOS) is held, in which case it nudges the
+    value exactly as a plain juce::Slider would. Viewport ignores a wheel with
+    Ctrl held, so the two never fight over one event. */
+class WheelPassSlider : public juce::Slider
+{
+public:
+    WheelPassSlider() = default;
+    explicit WheelPassSlider (const juce::String& componentName) : juce::Slider (componentName) {}
+    WheelPassSlider (juce::Slider::SliderStyle style, juce::Slider::TextEntryBoxPosition textBox)
+        : juce::Slider (style, textBox) {}
+
+    /** True when this wheel event should change the value rather than scroll. */
+    static bool wheelAdjustsValue (const juce::MouseEvent& e) noexcept
+    {
+        return e.mods.isCtrlDown() || e.mods.isCommandDown();
+    }
+
+    void mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel) override
+    {
+        if (wheelAdjustsValue (e))
+            juce::Slider::mouseWheelMove (e, wheel);
+        else
+            juce::Component::mouseWheelMove (e, wheel);
+    }
+};
+
 class LuthierKnob : public juce::Component,
                     public juce::SettableTooltipClient,
-                    public LearnTarget
+                    public LearnTarget,
+                    public juce::DragAndDropTarget   // gui-integration 11.2
 {
 public:
     enum class Size { Small, Normal, Large, Macro };
+
+    // gui-integration 11.2: a MOD source dropped here routes to this knob at 25%.
+    bool isInterestedInDragSource (const SourceDetails& d) override { return processor != nullptr && modSourceSlotFromDrag (d.description) >= 0; }
+    void itemDragEnter (const SourceDetails&) override { dropHighlight = true; repaint(); }
+    void itemDragExit (const SourceDetails&) override  { dropHighlight = false; repaint(); }
+    void itemDropped (const SourceDetails& d) override
+    {
+        dropHighlight = false;
+        repaint();
+
+        if (processor != nullptr)
+            addModulationFromDrop (*processor, modSourceSlotFromDrag (d.description), paramId);
+    }
 
     LuthierKnob (const juce::String& labelText, Size size = Size::Normal);
     ~LuthierKnob() override;
@@ -146,8 +237,34 @@ public:
     static int preferredWidthFor (Size s) noexcept;
     static int preferredHeightFor (Size s) noexcept;
 
+    /** SPEC-SWEEP (UW-35 / GD-17): called by one shared 30 Hz timer for every
+        attached knob. Repaints when this knob's modulation arc has moved by more
+        than half a pixel (or appeared / gone), so an LFO-driven arc is live
+        without the user touching anything. Returns true if it repainted. */
+    bool pollModulationArc();
+    int getArcRepaintCount() const noexcept { return arcRepaints; }
+
+    /** GD-30: whether the learning outline is in its bright half, and the hub
+        tick that follows the pulse (also called by pollModulationArc). */
+    bool isLearnOutlineBright() const noexcept { return learnPulseOn; }
+    bool pollLearnPulse (double nowMs);
+
+    /** Tests: poll even when the knob is not on screen. */
+    void setPollArcWhileHidden (bool b) noexcept { pollWhileHidden = b; }
+
+    /** The shared hub's refresh rate. */
+    static constexpr int kModArcRefreshHz = 30;
+
 private:
     void updateMidiLearnIndicator();
+
+    std::unique_ptr<juce::SharedResourcePointer<ModArcHub>> arcHub;   // UW-35
+    bool lastArcModulated = false;
+    float lastArcNorm = 0.0f;
+    int arcRepaints = 0;
+    bool pollWhileHidden = false;
+    bool learnPulseOn = true, wasLearning = false;
+    int modIndex = -1;
 
     class KnobSlider : public juce::Slider
     {
@@ -157,6 +274,13 @@ private:
         void mouseDrag (const juce::MouseEvent&) override;
         void mouseEnter (const juce::MouseEvent&) override;
         void mouseExit (const juce::MouseEvent&) override;
+
+        /** As WheelPassSlider: the wheel scrolls the column unless Ctrl is held (ISS-7). */
+        void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
+
+        /** SPEC-SWEEP: A11Y-14 - arrows step 1% of the range, Shift 0.1%,
+            Ctrl/Cmd 10%; Home/End go to the ends. */
+        bool keyPressed (const juce::KeyPress&) override;
 
     private:
         LuthierKnob& owner;
@@ -175,6 +299,7 @@ private:
 
     bool showDiceAndLock = false;
     bool hovering = false;
+    bool dropHighlight = false;   // a mod source is being dragged over (11.2)
     int mappedCc = -1;
 
     juce::Rectangle<int> diceBounds, lockBounds;
@@ -235,12 +360,19 @@ public:
     juce::TextButton& getButton() noexcept { return button; }
     juce::String getLearnParameterId() const override { return paramId; }
 
+    /** SPEC-SWEEP (UW-14, ui-wiring 2): momentary - the parameter is on while
+        the button is held and off when it is let go, each inside a gesture.
+        Call after attachTo. */
+    void setMomentary (bool shouldBeMomentary);
+    bool isMomentary() const noexcept { return momentary; }
+
     void resized() override;
     void mouseDown (const juce::MouseEvent&) override;
 
 private:
     juce::TextButton button;
     juce::String paramId;
+    bool momentary = false, momentaryHeld = false;
 
     LuthierAudioProcessor* processor = nullptr;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> attachment;
@@ -252,9 +384,17 @@ private:
 /** Horizontal or vertical slider bound to a float parameter, with a label. */
 class LuthierSlider : public LearnTarget,
                       public juce::Component,
-                      public juce::SettableTooltipClient
+                      public juce::SettableTooltipClient,
+                      public juce::DragAndDropTarget   // gui-integration 11.2
 {
 public:
+    bool isInterestedInDragSource (const SourceDetails& d) override { return processor != nullptr && modSourceSlotFromDrag (d.description) >= 0; }
+    void itemDropped (const SourceDetails& d) override
+    {
+        if (processor != nullptr)
+            addModulationFromDrop (*processor, modSourceSlotFromDrag (d.description), paramId);
+    }
+
     LuthierSlider (const juce::String& labelText, bool vertical = false);
     ~LuthierSlider() override;
 
@@ -296,6 +436,17 @@ public:
 
     void paint (juce::Graphics&) override;
 
+    /** SPEC-SWEEP: A11Y-7 - a read-only value a screen reader reads as the
+        peak in dBFS. */
+    std::unique_ptr<juce::AccessibilityHandler> createAccessibilityHandler() override;
+    float getDisplayPeakDb() const noexcept { return displayPeakDb; }
+
+    /** SPEC-SWEEP: A11Y-25 (tests) - sets what the meter shows, as a tick would. */
+    void setLevelsForTest (float normalisedL, float normalisedR, float peakDb) noexcept
+    {
+        levelL = normalisedL; levelR = normalisedR; displayPeakDb = peakDb;
+    }
+
 private:
     void timerCallback() override;
 
@@ -308,6 +459,10 @@ private:
     float displayPeakDb = -100.0f;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LevelMeter)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "LevelMeter" };
 };
 
 //==============================================================================
@@ -324,14 +479,37 @@ public:
     void setSource (LuthierAudioProcessor* processor);
     void paint (juce::Graphics&) override;
 
+    /** SPEC-SWEEP (GD-8, gui-engine-dataflow 3): 60 Hz; red above 0 dBFS and
+        held 400 ms before it re-evaluates; unlit after 100 ms with no new
+        block from the master bus. */
+    static constexpr int kRefreshHz = 60;
+    static constexpr double kRedHoldMs = 400.0;
+    static constexpr double kStaleMs = 100.0;
+    static juce::Colour darkColour() noexcept { return juce::Colour (0xff5a5f66); }
+    static juce::Colour redColour() noexcept  { return juce::Colour (0xfff2544e); }
+
+    /** One refresh at @p nowMs (the timer passes the real clock; tests their own). */
+    void tick (double nowMs);
+    bool isRed() const noexcept { return overThreshold; }
+    bool isLit() const noexcept { return brightness > 0.0f || overThreshold; }
+    float getBrightness() const noexcept { return brightness; }
+
 private:
     void timerCallback() override;
 
     LuthierAudioProcessor* processor = nullptr;
     float brightness = 0.0f;
     bool overThreshold = false;
+    double redSinceMs = -1.0e9;
+    double lastFreshMs = -1.0e9;
+    juce::uint32 lastBlockCount = 0;
+    double clipLatchedAtMs = -1.0e12;   // cpu-quality-modes 6
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OutputLed)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "OutputLed" };
 };
 
 //==============================================================================
@@ -354,6 +532,10 @@ public:
     /** What the timer does, for the tests. */
     void refresh();
 
+    /** gui-engine-dataflow.md 22: the LED drains at 30 Hz (MODEL-GAPS, TODO 2k). */
+    static constexpr int kRefreshHz = 30;
+    int getRefreshIntervalMs() const noexcept { return getTimerInterval(); }
+
 private:
     void timerCallback() override { refresh(); }
 
@@ -362,6 +544,10 @@ private:
     bool resonant = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (FeedbackLed)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "FeedbackLed" };
 };
 
 //==============================================================================
@@ -407,9 +593,22 @@ public:
     ~DataStreamDisplay() override;
 
     void setSource (LuthierAudioProcessor* processor);
-    void setNumLines (int lines) { numLines = juce::jlimit (4, 24, lines); }
+    void setNumLines (int lines) { numLines = juce::jlimit (1, 24, lines); }
 
     void paint (juce::Graphics&) override;
+
+    /*  ui-wiring.md 11: the stream keeps the last 200 lines, stops scrolling
+        500 ms after the last record, and does no work under reduced motion.
+        gui-integration 5: Options -> Appearance can hide it. */
+    static constexpr int kMaxLines = 200;
+    static constexpr double kStopAfterMs = 500.0;
+    static bool isEnabledByUser();
+    static void setEnabledByUser (bool enabled);
+
+    /** One tick of the timer, with the clock passed in (tests). */
+    void update (double nowMs);
+    bool isScrolling() const noexcept { return scrolling; }
+    int getNumLinesKept() const noexcept { return lines.size(); }
 
 private:
     void timerCallback() override;
@@ -420,8 +619,13 @@ private:
     int lastRecordCount = 0;
     float scrollOffset = 0.0f;
     bool scrolling = false;
+    double lastArrivalMs = 0.0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (DataStreamDisplay)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::Decorative, "DataStreamDisplay" };
 };
 
 //==============================================================================

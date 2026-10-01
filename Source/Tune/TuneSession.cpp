@@ -9,6 +9,11 @@ TuneSession::TuneSession()
       clock ([] { return juce::Time::getMillisecondCounterHiRes(); })
 {
     openNotes.fill ({ -1.0, 0 });
+
+    // An untouched session tune carries no timestamps: two fresh instances
+    // must save the same state (host-integration 3). saveAs() stamps it.
+    tune.meta.created.clear();
+    tune.meta.modified.clear();
 }
 
 //==============================================================================
@@ -113,6 +118,11 @@ juce::String TuneSession::getRedoDescription() const
 //==============================================================================
 void TuneSession::newTune (const Tune& from)
 {
+    // SPEC-SWEEP: SM-29, state-model 8.3: a tune load stops the playing tune;
+    // the new one starts at bar 0.
+    if (player != nullptr && player->isPlaying())
+        player->stop();
+
     tune = from;
     file = juce::File();
     dirty = false;
@@ -246,8 +256,12 @@ void TuneSession::rebuildTimeline()
     auto options = midiOptions;
     options.improvisePass = juce::jmax (0, player->getPass());
 
-    player->setTimeline (std::make_unique<TuneTimeline> (TuneTimeline::build (tune, options)),
-                         tune.meta.tempoBpm, tune.getBeatsPerBar());
+    auto timeline = std::make_unique<TuneTimeline> (TuneTimeline::build (tune, options));
+
+    if (onTimelineBuilt != nullptr)   // FEAT-JAM
+        onTimelineBuilt (*timeline);
+
+    player->setTimeline (std::move (timeline), tune.meta.tempoBpm, tune.getBeatsPerBar());
 }
 
 void TuneSession::service()
@@ -273,7 +287,26 @@ void TuneSession::service()
         TuneRhythmChange change;
 
         while (player->takePendingRhythmChange (change))
+        {
+            // 14 (TUNE-HELP-ONBOARDING): the Tune Feel modulation rides on the section's feel.
+            lastRhythmChange = change;
+            hasLastRhythmChange = true;
+            change.feel = juce::jlimit (0.0, 1.0, change.feel + feelOffset);
             applyRhythmChange (change, *rhythmEngine, *genreKits, *patternLibrary);
+            appliedFeelOffset = feelOffset;
+        }
+
+        // A modulated feel moves within a section too: only the humanise amount
+        // is re-applied, so the pattern and its phase are left alone.
+        if (hasLastRhythmChange && std::abs (feelOffset - appliedFeelOffset) > 0.005)
+        {
+            const int kitIndex = genreKits->indexOf (lastRhythmChange.genreKitId);
+            auto humanise = kitIndex >= 0 ? genreKits->getKit (kitIndex).humanise : rhythmEngine->getHumanise();
+            const double feel = juce::jlimit (0.0, 1.0, lastRhythmChange.feel + feelOffset);
+            humanise.amount = juce::jlimit (0.0, 2.0, humanise.amount * feel * 2.0);
+            rhythmEngine->setHumanise (humanise);
+            appliedFeelOffset = feelOffset;
+        }
     }
 
     if (recording)

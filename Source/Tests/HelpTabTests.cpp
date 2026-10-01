@@ -41,8 +41,8 @@ namespace
         theWorkspaceTopicNamesEveryTabThatExists catches it from the real strip. */
     const char* const kCanonicalTabs[] =
     {
-        "WORKSHOP", "MOD", "RHYTHM", "TUNE", "LIVE", "ROUTING", "TONE MATCH", "CHARACTER",
-        "PRACTICE", "NOTATION", "MIDI OUT", "CONTROLLERS", "HELP"
+        "WORKSHOP", "MOD", "RHYTHM", "TUNE", "JAM", "LIVE", "ROUTING", "TONE MATCH", "CHARACTER",
+        "PRACTICE", "NOTATION", "MIDI OUT", "CONTROLLERS", "TECHNIQUES", "HELP"
     };
 
     /*  UiPreferences writes through to the user's real config file, and opening

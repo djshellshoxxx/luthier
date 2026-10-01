@@ -1,4 +1,5 @@
 #include "Telemetry.h"
+#include "../Support/ConfigRecovery.h"
 
 namespace luthier
 {
@@ -342,6 +343,23 @@ bool Telemetry::isAllowed (Category category) const
 }
 
 //==============================================================================
+bool Telemetry::isAllowedField (const juce::String& key, const juce::String& value)
+{
+    /*  SPEC-SWEEP: UT-2 - updates-telemetry 3's allowlist. Only non-identifying
+        facts: the host and its setup, which panel or feature, counts and CPU.
+        A value that looks like a path is dropped even under an allowed key,
+        because a host name field is one careless call away from a file name. */
+    static const juce::StringArray allowed { "host", "format", "wrapper", "sampleRate", "blockSize",
+                                             "os", "version", "panel", "tab", "page", "feature",
+                                             "source", "count", "cpu", "error", "code", "enabled" };
+
+    if (! allowed.contains (key))
+        return false;
+
+    return ! (value.containsChar ('/') || value.containsChar ('\\') || value.containsChar ('@')
+              || value.length() > 64);
+}
+
 void Telemetry::record (Category category, const juce::String& eventName,
                         const std::map<juce::String, juce::String>& fields)
 {
@@ -363,7 +381,8 @@ void Telemetry::record (Category category, const juce::String& eventName,
         rather than anonymous.
     */
     for (const auto& [key, value] : fields)
-        object->setProperty (key, value);
+        if (isAllowedField (key, value))   // SPEC-SWEEP: UT-2 - enforced, not remembered
+            object->setProperty (key, value);
 
     const auto line = juce::JSON::toString (juce::var (object), true);
 
@@ -796,7 +815,7 @@ void Telemetry::fromVar (const juce::var& state)
     if (root->hasProperty ("crashUploadUrl")) setCrashUploadUrl (root->getProperty ("crashUploadUrl").toString());
 
     if (root->hasProperty ("lastUpdateCheck"))
-        lastUpdateCheck = juce::Time ((int64_t) root->getProperty ("lastUpdateCheck"));
+        lastUpdateCheck = juce::Time ((juce::int64) root->getProperty ("lastUpdateCheck"));
 }
 
 juce::File Telemetry::getSettingsFile()
@@ -820,10 +839,8 @@ bool Telemetry::loadSettings()
 {
     const auto file = getSettingsFile();
 
-    if (! file.existsAsFile())
-        return false;
-
-    const auto parsed = juce::JSON::parse (file.loadFileAsString());
+    // SPEC-SWEEP ER-65: an unreadable file is kept aside and reported.
+    const auto parsed = ConfigRecovery::loadObject (file, "Telemetry");
 
     if (parsed.getDynamicObject() == nullptr)
         return false;
@@ -1000,8 +1017,8 @@ void License::fromVar (const juce::var& state_)
         return;
 
     storedKeyHash = root->getProperty ("keyHash").toString();
-    activatedAt = juce::Time ((int64_t) root->getProperty ("activatedAt"));
-    lastValidated = juce::Time ((int64_t) root->getProperty ("lastValidated"));
+    activatedAt = juce::Time ((juce::int64) root->getProperty ("activatedAt"));
+    lastValidated = juce::Time ((juce::int64) root->getProperty ("lastValidated"));
 
     updateStateFromDates();
 }
@@ -1026,10 +1043,8 @@ bool License::load()
 {
     const auto file = getLicenseFile();
 
-    if (! file.existsAsFile())
-        return false;
-
-    const auto parsed = juce::JSON::parse (file.loadFileAsString());
+    // SPEC-SWEEP ER-65: an unreadable file is kept aside and reported.
+    const auto parsed = ConfigRecovery::loadObject (file, "Licensing");
 
     if (parsed.getDynamicObject() == nullptr)
         return false;

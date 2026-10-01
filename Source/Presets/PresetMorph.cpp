@@ -1,5 +1,7 @@
 #include "PresetMorph.h"
+#include "../Support/ConfigChangeTracker.h"   // output-normalization.md 3.2
 #include "../PluginProcessor.h"
+#include "MicPlacementMigration.h"   // mic-placement.md 4
 
 namespace luthier
 {
@@ -38,6 +40,13 @@ void PresetMorph::setSlot (Slot slot, const juce::var& presetState, const juce::
     slots[(size_t) slot] = presetState;
     names[(size_t) slot] = name;
 
+    // mic-placement.md 4: an endpoint from an older file morphs from its
+    // mapped continuous placement, not from wherever the mic happens to be.
+    {
+        auto params = slots[(size_t) slot].getProperty ("parameters", {});
+        MicPlacementMigration::apply (params, processor.getState());
+    }
+
     // The side whose structure is loaded may just have changed underneath.
     loadedSide = -1;
 
@@ -61,6 +70,9 @@ void PresetMorph::apply (double position)
     if (! enabled || ! hasBothSlots())
         return;
 
+    // output-normalization.md 3.2: the morph has its own gain rule.
+    const PerformanceWriteScope performanceWrites;
+
     const double b = juce::jlimit (0.0, 1.0, position);
 
     if (b == appliedPosition)
@@ -74,6 +86,7 @@ void PresetMorph::apply (double position)
     {
         auto& presets = processor.getPresetManager();
         presets.fromVar (slots[(size_t) side]);
+        presets.applyExtraState();   // the per-string tuning and gauges come with it
         processor.getParameterBridge().applyAllNow();
         loadedSide = side;
     }
@@ -87,7 +100,8 @@ void PresetMorph::apply (double position)
         {
             auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (p);
 
-            if (withId == nullptr || withId->paramID == ParamIDs::presetMorphPosition)
+            if (withId == nullptr || withId->paramID == ParamIDs::presetMorphPosition
+                  || ParamIDs::isJamTransient (withId->paramID))   // FEAT-JAM
                 continue;
 
             const juce::Identifier id (withId->paramID);

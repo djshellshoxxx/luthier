@@ -1,4 +1,5 @@
 #include "MidiOutRouter.h"
+#include "../Support/BoundedMidi.h"
 
 namespace luthier
 {
@@ -9,7 +10,7 @@ namespace
         a small header per event, so this covers well over a thousand events -
         far past anything a host will hand us in one block, and cheap enough that
         reserving it costs nothing. */
-    constexpr int kReservedBytes = 16384;
+    constexpr int kReservedBytes = luthier::BoundedMidi::kReserveBytes;   // RT-SAFETY P1: was 16 KB
 }
 
 //==============================================================================
@@ -54,8 +55,11 @@ void MidiOutRouter::captureInput (const juce::MidiBuffer& incoming) noexcept
 {
     captured.clear();
 
+    // RT-SAFETY P1: never grows the reserved buffer; a burst beyond it keeps
+    // its note-offs and the rest is dropped and counted.
     for (const auto metadata : incoming)
-        captured.addEvent (metadata.data, metadata.numBytes, metadata.samplePosition);
+        if (! BoundedMidi::add (captured, metadata.data, metadata.numBytes, metadata.samplePosition))
+            overflow.fetch_add (1, std::memory_order_relaxed);
 }
 
 void MidiOutRouter::setMacroValue (int macroIndex, float value) noexcept
@@ -107,6 +111,10 @@ void MidiOutRouter::emit (juce::MidiBuffer& midiMessages,
         for (int i = 0; i < n; ++i)
         {
             const auto& e = stringActivity[i];
+
+            if (e.preview)
+                continue;   // riff-library 5.3
+
             const int note = juce::jlimit (0, 127, e.midiNote);
             const int offset = juce::jlimit (0, lastSample, e.sampleOffset);
 

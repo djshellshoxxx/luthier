@@ -56,7 +56,45 @@ public:
         double   noiseAmount   = 0.12;   ///< Contact noise blended into the impulse.
         int      harmonicNumber = 0;     ///< Partial to isolate for Harmonic kinds.
         double   nailVsFlesh   = 0.5;    ///< Fingerstyle only: 0 flesh, 1 nail.
+
+        /*  harmonic-realism.md 3: a harmonic is an ordinary pluck and the
+            contact makes it. Band isolation around one partial survives only
+            as the fallback for loops too short to hold the contact's comb (2). */
+        bool     isolateHarmonic = false;
+
+        /*  harmonic-realism.md 3: plucking a node kills the harmonic. The
+            pick-position comb of a touched note is placed at the geometric
+            position (1 - z^-(pos D): zeros at multiples of f0 / pos), so a
+            pluck at the midpoint notches every even partial. The ordinary
+            pluck keeps its tuned comb unchanged. */
+        bool     exactPluckComb = false;
+
+        /*  fingerstyle-attack.md 1: a contact profile. When releaseSeconds >= 0
+            the lowpass base is 1 / (2 pi tau) instead of the table's, and for
+            the finger materials every MaterialSpec field is blended by
+            nailVsFlesh (Fingertip <-> Fingernail; Thumb toward the nail by
+            half). -1 keeps the material table exactly as it always was. */
+        double   releaseSeconds = -1.0;
+
+        /** fingerstyle-attack.md 2: the rest stroke's level, contact length
+            and brightness terms. 1 is a free stroke. */
+        double   levelScale = 1.0;
+        double   contactScale = 1.0;
+        double   brightnessScale = 1.0;
+
+        /** fingerstyle-attack.md 3: the alternating m stroke lands a little
+            late; the impulse starts this many samples after the trigger. */
+        int      startDelaySamples = 0;
     };
+
+    /** The contact bandwidth a release time allows, 1 / (2 pi tau). */
+    static double cutoffForRelease (double seconds) noexcept
+    {
+        return 1.0 / (constants::kTwoPi * juce::jmax (1.0e-7, seconds));
+    }
+
+    /** The table cutoff of a material, for the fingerstyle defaults. */
+    static double tableCutoff (Material m) noexcept { return specFor (m).lowpassHz; }
 
     void prepare (double sampleRate);
     void reset() noexcept;
@@ -75,6 +113,9 @@ public:
     }
 
     inline bool isActive() const noexcept { return readPos < length; }
+
+    /** The last trigger's normalised peak (sustain-and-decay.md 2.2 scales the ping by it). */
+    double getPeak() const noexcept { return peak; }
     inline int  remaining() const noexcept { return juce::jmax (0, length - readPos); }
 
     /** Peak absolute value of the impulse that was last rendered. Used by the
@@ -97,6 +138,7 @@ private:
     std::vector<double> buffer;
     std::vector<double> scratch;
     int length = 0;
+    int basicCapacity = 0;   ///< the buffer before the late-stroke room
     int readPos = 0;
     double peak = 0.0;
 

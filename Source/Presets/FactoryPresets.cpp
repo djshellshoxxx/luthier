@@ -1,6 +1,9 @@
 #include "FactoryPresets.h"
 #include "PresetManager.h"
 #include "../Parameters.h"
+#include "TechniquePresets.h"
+
+#include <map>
 
 namespace luthier
 {
@@ -68,6 +71,7 @@ namespace
         juce::String description;
         juce::String tags;
         std::vector<std::pair<juce::String, double>> values;
+        juce::String techniques;   // TECHNIQUES: the techniques block's JSON
     };
 
     void addCommon (PresetRecipe& r, int guitar, int tuning, int amp, int cab, int speaker,
@@ -262,7 +266,7 @@ namespace
             }
 
             {
-                auto& r = make ("Fuzz Face Lead", "Electric",
+                auto& r = make ("Germanium Fuzz Lead", "Electric",   // SPEC-SWEEP: FC-1 (was a pedal's trade name)
                                 "Double-cut neck pickup into a germanium fuzz and a plexi head. "
                                 "Roll the guitar volume back and it cleans up.", "fuzz,vintage,lead");
                 addCommon (r, Strat, StdTune, Plexi, C4x12Vintage, Greenback, SM57, Off45, CloseMic);
@@ -271,6 +275,12 @@ namespace
                 addStrings (r, PureNickel, RegularG, BrokenIn, 0.24, Celluloid);
                 addRoom (r, LiveRoom, WoodRoom, 0.26);
                 r.values.emplace_back (P::pickupSelector, NeckPu);
+
+                // A single coil into a germanium fuzz into a Plexi turns mains hum
+                // into a buzz 12-18 dB under the playing at the default Amp Buzz.
+                // Players of this rig shield the guitar (or ride its volume): a
+                // quieter room, not a gate that would cut the fuzz's decay.
+                r.values.emplace_back (P::ampBuzz, 0.04);
                 addPedal (r, false, 0, Fuzz, { 0.72, 0.48, 0.40, 0.52, 0.0 });
             }
 
@@ -662,6 +672,116 @@ namespace
                 r.values.emplace_back (P::useFingers, 1.0);
             }
 
+            // ==== BEGIN FEAT-ASSIST presets ====
+            //==================================================================
+            // ASSIST (auto-articulation.md: one preset per style, Assist on)
+            //==================================================================
+            auto assist = [] (PresetRecipe& r, int style, int mode)
+            {
+                r.values.emplace_back (ParamIDs::aaEnabled, 1.0);
+                r.values.emplace_back (ParamIDs::aaStyle, (double) style);
+                r.values.emplace_back (ParamIDs::aaAmount, 60.0);
+                r.values.emplace_back (ParamIDs::aaRules, 511.0);
+                r.values.emplace_back (P::playingMode, (double) mode);
+            };
+
+            {
+                auto& r = make ("Assist Clean Pop Lead", "Assist",
+                                "Play a melody on a keyboard: slurs where you play legato, "
+                                "gentle vibrato on the long notes.", "assist,clean,lead,keyboard");
+                addCommon (r, Strat, StdTune, Twin, C2x12Open, Jensen, SM57, CapEdge, CloseMic);
+                addAmp (r, 0.22, 0.5, 0.5, 0.6, 0.45, 0.7);
+                addMacros (r, 0.55, 0.25, 0.10, 0.55, 0.30, 0.35);
+                r.values.emplace_back (P::pickupSelector, MidNeck);
+                assist (r, 0, MonoMode);
+            }
+
+            {
+                auto& r = make ("Assist Blues Lead", "Assist",
+                                "Wide vibrato, bends into phrase starts and the odd fall "
+                                "off a long note.", "assist,blues,lead");
+                addCommon (r, LesPaul, StdTune, Plexi, C4x12Vintage, Greenback, SM57, CapEdge, CloseMic);
+                addAmp (r, 0.55, 0.55, 0.60, 0.55, 0.45, 0.62);
+                addMacros (r, 0.60, 0.30, 0.45, 0.50, 0.30, 0.40);
+                r.values.emplace_back (P::pickupSelector, NeckPu);
+                assist (r, 1, MonoMode);
+            }
+
+            {
+                auto& r = make ("Assist Rock Rhythm", "Assist",
+                                "Chords strum with the beat and low eighths chug "
+                                "palm-muted. Drop in a MIDI clip and press play.", "assist,rock,rhythm");
+                addCommon (r, LesPaul, StdTune, JCM800, C4x12, V30, SM57, CapEdge, CloseMic);
+                addAmp (r, 0.62, 0.55, 0.55, 0.60, 0.50, 0.60);
+                addMacros (r, 0.65, 0.25, 0.55, 0.55, 0.15, 0.40);
+                r.values.emplace_back (P::pickupSelector, BridgePu);
+                assist (r, 2, PolyMode);
+            }
+
+            {
+                auto& r = make ("Assist Metal Chug", "Assist",
+                                "Tight palm-muted chugs, downstroke strums and long legato "
+                                "runs.", "assist,metal,rhythm");
+                addCommon (r, RG, DropDTune, Recto, C4x12, V30, SM57, CapEdge, CloseMic);
+                addAmp (r, 0.80, 0.60, 0.40, 0.62, 0.55, 0.55);
+                addMacros (r, 0.75, 0.20, 0.80, 0.60, 0.10, 0.30);
+                r.values.emplace_back (P::pickupSelector, BridgePu);
+                addPedal (r, false, 0, Gate, { 0.40, 0.10, 0.10, 0.16 });
+                assist (r, 3, PolyMode);
+            }
+
+            {
+                auto& r = make ("Assist Jazz Comping", "Assist",
+                                "Downstroke comping in one position, slow light vibrato and "
+                                "slide-ins on the melody.", "assist,jazz,comping");
+                addCommon (r, ES335, StdTune, Twin, C1x12Open, Jensen, R121, AxisCentre, MediumMic);
+                addAmp (r, 0.20, 0.60, 0.50, 0.40, 0.30, 0.70);
+                addMacros (r, 0.40, 0.35, 0.08, 0.40, 0.30, 0.40);
+                r.values.emplace_back (P::pickupSelector, NeckPu);
+                assist (r, 4, PolyMode);
+            }
+
+            {
+                auto& r = make ("Assist Country Twang", "Assist",
+                                "Open strings, whole-step bends into notes and light "
+                                "chicken-pickin' mutes.", "assist,country,lead");
+                addCommon (r, Tele, StdTune, DeluxeAmp, C1x12Open, Jensen, SM57, CapEdge, CloseMic);
+                addAmp (r, 0.30, 0.50, 0.50, 0.65, 0.55, 0.70);
+                addMacros (r, 0.70, 0.22, 0.18, 0.62, 0.25, 0.35);
+                r.values.emplace_back (P::pickupSelector, BridgePu);
+                assist (r, 5, MonoMode);
+            }
+
+            {
+                auto& r = make ("Assist Fingerstyle Acoustic", "Assist",
+                                "Chords roll thumb-first across the fingers; melodies ring "
+                                "on open strings.", "assist,acoustic,fingerstyle");
+                addCommon (r, Dread, StdTune, AcousticDI, CabDI, Greenback, C414, AxisCentre, MediumMic);
+                addAmp (r, 0.05, 0.5, 0.5, 0.52, 0.3, 0.75);
+                addMacros (r, 0.45, 0.80, 0.0, 0.50, 0.30, 0.45);
+                addStrings (r, PhosBronze, AcLight, BrokenIn, 0.24, Flesh);
+                r.values.emplace_back (P::useFingers, 1.0);
+                assist (r, 6, PolyMode);
+            }
+
+            {
+                auto& r = make ("Assist Bass Groove", "Assist",
+                                "Slides into notes, long slurs, double-stops together: a "
+                                "bass line from any MIDI.", "assist,bass,groove");
+                addCommon (r, PBass, BassTune, SVT, C8x10, BassSpk, D112, AxisCentre, CloseMic);
+                addAmp (r, 0.30, 0.60, 0.48, 0.45, 0.30, 0.70);
+                addMacros (r, 0.42, 0.20, 0.16, 0.40, 0.10, 0.40);
+                addStrings (r, NPS, BassStdG, BrokenIn, 0.20, Flesh);
+                addRoom (r, IsoBooth, DryRoom, 0.06);
+                r.values.emplace_back (P::useFingers, 1.0);
+                assist (r, 7, MonoMode);
+            }
+            // ==== END FEAT-ASSIST presets ====
+            // ==== BEGIN TECHNIQUES presets ====
+            for (const auto& t : getTechniquePresetRecipes())
+                b.push_back ({ t.name, t.category, t.description, t.tags, t.values, t.techniques });
+            // ==== END TECHNIQUES presets ====
+
             return b;
         }();
 
@@ -680,7 +800,7 @@ const FactoryPresets::Definition& FactoryPresets::getPreset (int index) noexcept
     // The Definition view is rebuilt on demand from the recipe table.
     static thread_local Definition def {};
     static thread_local std::vector<Entry> entries;
-    static thread_local juce::String name, category, description, tags;
+    static thread_local juce::String name, category, description, tags, techniques;
 
     const auto& bank = buildBank();
     const auto& recipe = bank[(size_t) juce::jlimit (0, (int) bank.size() - 1, index)];
@@ -689,6 +809,7 @@ const FactoryPresets::Definition& FactoryPresets::getPreset (int index) noexcept
     category = recipe.category;
     description = recipe.description;
     tags = recipe.tags;
+    techniques = recipe.techniques;
 
     entries.clear();
     entries.reserve (recipe.values.size());
@@ -700,6 +821,7 @@ const FactoryPresets::Definition& FactoryPresets::getPreset (int index) noexcept
     def.category = category.toRawUTF8();
     def.description = description.toRawUTF8();
     def.tags = tags.toRawUTF8();
+    def.techniques = techniques.toRawUTF8();
     def.entries = entries.data();
     def.numEntries = (int) entries.size();
 
@@ -756,12 +878,72 @@ juce::var FactoryPresets::toVar (const Definition& def, const juce::AudioProcess
         }
     }
 
+    /*  REALISM-A: the factory bank is voiced on the legacy string-age table and
+        without the body's return path until the listening pass re-voices it
+        (body-coupling.md 6, string-aging.md 8). Leaving these keys out makes
+        the loader's legacy mapping apply, so every factory preset sounds as
+        it did. A recipe that sets one explicitly keeps it. */
+    for (const char* id : { ParamIDs::stringAgeHours, ParamIDs::stringAgeDetail, ParamIDs::bodyCouplingAmount })
+    {
+        bool explicitlySet = false;
+
+        for (int i = 0; i < def.numEntries; ++i)
+            explicitlySet = explicitlySet || juce::String (def.entries[i].paramId) == id;
+
+        if (! explicitlySet)
+            params->removeProperty (id);
+    }
+    // mic-placement.md 4: the recipes are written in the discrete Position /
+    // Distance terms, so the continuous placement is left out and the load
+    // maps it, exactly as for any other file that predates it.
+    for (const char* id : { ParamIDs::micX, ParamIDs::micY, ParamIDs::micDist, ParamIDs::micAngle,
+                            ParamIDs::micSpeaker, ParamIDs::micRear, ParamIDs::micX2, ParamIDs::micY2,
+                            ParamIDs::micDist2, ParamIDs::micAngle2, ParamIDs::micSpeaker2, ParamIDs::micRear2 })
+        params->removeProperty (id);
+
     root->setProperty ("parameters", juce::var (params));
+
+    /*  The guitar's own parts (pickups, body woods, bracing, circuit, strings)
+        are the guitar's, not the preset's: the parameter block above holds their
+        layout defaults, which put three single coils and an X-braced spruce top
+        on every factory SG, Les Paul and 335 (BETA_TEST_REPORT B-05). So the
+        guitar block says the parts win, and lists the recipe's own values to put
+        back over them - a recipe that picks the tuning or the strings keeps them. */
+    {
+        auto* guitar = new juce::DynamicObject();
+        guitar->setProperty ("partsWin", true);
+
+        auto* keep = new juce::DynamicObject();
+
+        for (int i = 0; i < def.numEntries; ++i)
+            if (params->hasProperty (def.entries[i].paramId))
+                keep->setProperty (def.entries[i].paramId, params->getProperty (def.entries[i].paramId));
+
+        guitar->setProperty ("keep", juce::var (keep));
+        root->setProperty ("guitar", juce::var (guitar));
+    }
+
+    root->setProperty ("factoryRevision", kFactoryRevision);
+    // TECHNIQUES: engine-technique-layer.md 7.
+    if (def.techniques != nullptr && *def.techniques != 0)
+        root->setProperty ("techniques", juce::JSON::parse (juce::String (def.techniques)));
 
     return juce::var (root);
 }
 
 //==============================================================================
+juce::String FactoryPresets::renamedPreset (const juce::String& name)
+{
+    // SPEC-SWEEP: FC-1. Only renames whose new name is known; the older ones
+    // in writeAll's retired list were re-voiced rather than renamed.
+    static const std::map<juce::String, juce::String> renamed {
+        { "Fuzz Face Lead", "Germanium Fuzz Lead" },   // legacy name (trademark scan skips it)
+    };
+
+    const auto it = renamed.find (name);
+    return it != renamed.end() ? it->second : name;
+}
+
 void FactoryPresets::writeAll (const juce::File& folder)
 {
     if (rangeSource == nullptr)
@@ -776,6 +958,7 @@ void FactoryPresets::writeAll (const juce::File& folder)
         { "Electric", "Clean Strat Funk" }, { "Electric", "Tele Country Twang" },     // legacy name (trademark scan skips it)
         { "Electric", "Les Paul Crunch" },  { "Bass", "Jazz Bass Fingerstyle" },      // legacy name (trademark scan skips it)
         { "Bass", "Rickenbacker Grind" },   { "Electric", "TransTrem Chords" },       // legacy name (trademark scan skips it)
+        { "Electric", "Fuzz Face Lead" },                                               // legacy name (trademark scan skips it) - SPEC-SWEEP: FC-1
     };
 
     for (const auto& r : retired)
@@ -800,9 +983,21 @@ void FactoryPresets::writeAll (const juce::File& folder)
         auto file = folder.getChildFile (juce::File::createLegalFileName (def.category))
                           .getChildFile (juce::File::createLegalFileName (def.name) + ".luthierpreset");
 
-        // Never overwrite: a user who edited a factory preset keeps their edit.
+        /*  Never overwrite a user's edit. A file this generator wrote at an
+            older revision is not an edit - PresetManager never writes
+            factoryRevision, and before revision 2 a factory file had no guitar
+            block while every saved preset has one - so it is regenerated. */
         if (file.existsAsFile())
-            continue;
+        {
+            const auto existing = juce::JSON::parse (file);
+            const bool generated = existing.hasProperty ("factoryRevision")
+                                     || (! existing.hasProperty ("guitar")
+                                         && existing.getProperty ("author", {}).toString() == "Luthier Audio");
+            const int revision = (int) existing.getProperty ("factoryRevision", 1);
+
+            if (! generated || revision >= kFactoryRevision)
+                continue;
+        }
 
         file.getParentDirectory().createDirectory();
 

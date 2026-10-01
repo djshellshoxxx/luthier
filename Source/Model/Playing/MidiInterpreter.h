@@ -18,8 +18,10 @@
 #include "TechniqueEngine.h"
 #include "ChordVoicer.h"
 #include "RubricVoicer.h"
+#include "AutoArticulator.h"   // FEAT-ASSIST: auto-articulation.md
 #include "../../Rhythm/StrumGesture.h"
 #include <array>
+#include <atomic>   // SPEC-SWEEP PT-21
 
 namespace luthier
 {
@@ -52,6 +54,14 @@ enum class MidiTarget
     Space,
     Body,
     Attack,
+
+    // harmonic-realism.md 6 and fingerstyle-attack.md 5 (REALISM-B), appended.
+    ArtificialHarmonic,
+    TappedHarmonic,
+    RightHandTool,
+    RestStroke,
+
+    PitchBend,     ///< SPEC-SWEEP (PT-23): an upward bend; appended so saved indices keep their meaning
     NumTargets
 };
 
@@ -61,6 +71,10 @@ const char* getMidiTargetName (MidiTarget t) noexcept;
 class MidiInterpreter
 {
 public:
+    /** The CC map starts at its defaults here, not in prepare(): a host
+        prepares after restoring a session and must not undo its MIDI map. */
+    MidiInterpreter() noexcept { resetCcMapToDefaults(); }
+
     void prepare (double sampleRate, int numStrings);
     void reset() noexcept;
 
@@ -76,12 +90,52 @@ public:
     void setMpeEnabled (bool e) noexcept { mpeEnabled = e; }
     bool isMpeEnabled() const noexcept { return mpeEnabled; }
 
+    /** SPEC-SWEEP (CT-17): the MPE zone's master channel (1 for a lower zone).
+        With MPE on in guitar-controller mode its note-ons are ignored: the master
+        channel carries zone-wide messages, never notes. 0 disables the check. */
+    void setMpeMasterChannel (int channel) noexcept { mpeMasterChannel = juce::jlimit (0, 16, channel); }
+    int getMpeMasterChannel() const noexcept { return mpeMasterChannel; }
+
+    /** SPEC-SWEEP (CT-10): a controller's pitch curve for per-string / per-note
+        bends, sampled at kPitchCurvePoints evenly spaced inputs over 0..1 (the
+        negative half mirrors it). Fewer than two points means linear. The copy
+        is into a fixed array, so the audio thread may call this. */
+    static constexpr int kPitchCurvePoints = 33;
+    void setPitchCurve (const float* points, int numPoints) noexcept;
+    double applyPitchCurve (double normalised) const noexcept;
+
+    /** SPEC-SWEEP (PT-21): CC 11's master level, 0..1 (1 is unity). The
+        parameter bridge folds it into the master bus gain every block. */
+    double getMasterLevel() const noexcept { return masterLevel.load (std::memory_order_relaxed); }
+
+    /** SPEC-SWEEP (PT-21): the newest value a CC mapped to a macro target
+        (Drive, Tone, Space, Body, Attack) sent, 0..1, or -1 if none since the
+        last call. The processor's timer takes these and moves the macro
+        parameters on the message thread. Any thread. */
+    float takeMacroTarget (MidiTarget target) noexcept;
+
+    /** SPEC-SWEEP (CT-14): notes a per-string controller asked for that the
+        string could not reach and were clipped into range (identity rule 2). */
+    juce::uint32 getClippedNoteCount() const noexcept { return clippedNotes.load (std::memory_order_relaxed); }
+
+    /** SPEC-SWEEP (CT-18): the string a member channel last played, or -1. */
+    int getLastStringForChannel (int channel) const noexcept
+    {
+        return juce::isPositiveAndBelow (channel, 17) ? lastStringForChannel[(size_t) channel] : -1;
+    }
+
     /** Pitch-bend range in semitones. MPE controllers default to 48. */
     void setPitchBendRange (double semitones) noexcept;
     double getPitchBendRange() const noexcept { return bendRangeSemitones; }
 
     /** Per-string bend range, for guitar controller mode. */
     void setStringBendRange (int stringIndex, double semitones) noexcept;
+
+    /** controllers.md 1 (CT-10): a continuous-pitch controller's non-linear
+        physical response (e.g. Osmose), copied from the active profile so
+        per-note/per-string bend can undo it. An empty curve (fewer than two
+        points) restores a plain linear response. Message thread only; the
+        audio thread only ever reads the fixed array this fills. */
 
     //==========================================================================
     /*  Which MIDI channel drives which string in guitar-controller mode
@@ -132,6 +186,32 @@ public:
     /** strum-dynamics 7: the gesture's shape for live chords. Their speed comes
         from setStrumSpeedMs, which the bridge feeds from strum_crossing_sps. */
     void setStrumSettings (const StrumSettings& s) noexcept { strumSettings = s.clamped(); }
+
+    /*  harmonic-realism.md 4 (REALISM-B): the artificial and tapped offsets
+        (choice indices, harmonics::offsetFretsForChoice) and the note mapping. */
+    struct HarmonicSettings
+    {
+        int  artificialOffsetChoice = 0;
+        int  tappedOffsetChoice = 0;
+        bool soundingPitch = false;   ///< 4.2; false = touch-fret mapping (4.1)
+        double inharmonicityB[kMaxStrings] {};
+    };
+
+    void setHarmonicSettings (const HarmonicSettings& h) noexcept { harmonicSettings = h; }
+    const HarmonicSettings& getHarmonicSettings() const noexcept { return harmonicSettings; }
+
+    /*  fingerstyle-attack.md 5: CC 102's live tool override (0 Off, 1 Pick,
+        2 Finger, 3 Thumb, 4 Thumbpick, 5 Slap, 6 Pop) and CC 105's rest. */
+    int  getRightHandToolOverride() const noexcept { return rightHandTool; }
+    bool isRestStrokeForced() const noexcept { return restStrokeHeld; }
+
+    /** True once CC 70 (PickPosition) has moved since the last reset: the
+        pinch harmonic then follows it (harmonic-realism.md 3). */
+    bool hasPickPositionController() const noexcept { return pickPositionMoved; }
+
+    /*  string-interaction.md 6: the muted-string thump's level; 0 is off and
+        emits nothing. */
+    void setMutedThumpLevel (double level) noexcept { mutedThumpLevel = juce::jlimit (0.0, 1.0, level); }
 
     /** Latency the chord window adds, in samples. */
     int getLatencySamples() const noexcept;
@@ -184,10 +264,31 @@ public:
     int getStringMidiNote (int stringIndex) const noexcept;
 
     /** The last chord the voicer identified, for the UI. */
-    juce::String getLastChordName() const { return lastChordName; }
+    juce::String getLastChordName() const;
 
     /** Panic: releases everything. */
     void allNotesOff (PlayEventQueue& out) noexcept;
+
+    // ==== BEGIN FEAT-ASSIST ====
+    /*  Performance Assist (auto-articulation.md 4). The hooks are in
+        MidiInterpreterAssist.cpp; every one is behind isAssistEffective(), so
+        with Assist off the interpreter is exactly what it was (0.1). */
+    void setAutoArticulation (const AutoArticulationSettings& s) noexcept { autoArt.setSettings (s); }
+    const AutoArticulationSettings& getAutoArticulation() const noexcept { return autoArt.getSettings(); }
+    AutoArticulator& getAutoArticulator() noexcept { return autoArt; }
+    const AutoArticulator& getAutoArticulator() const noexcept { return autoArt; }
+
+    /** LuthierEngine, before each processBlock (4.2). */
+    void setAssistContext (const AssistExplicitContext& c, const AssistTransport& t,
+                           int64_t blockStartSample) noexcept;
+
+    /** Settings on, and neither Guitar Controller mode, MPE nor a
+        pre-articulated import (5). */
+    bool isAssistEffective() const noexcept;
+
+    /** The notice line's reason (5, 7.2). The rhythm engine's is the engine's to add. */
+    AssistBypass getAssistBypass() const noexcept;
+    // ==== END FEAT-ASSIST ====
 
 private:
     struct PendingNote
@@ -197,6 +298,7 @@ private:
         double velocity = 0.8;
         int64_t timestamp = 0;
         bool used = false;
+        int64_t releasedAt = -1;   ///< note-off seen while still waiting, or -1
     };
 
     struct StringSlot
@@ -219,7 +321,34 @@ private:
         int64_t startedAt = 0;
         int64_t releaseDueAt = -1;
         bool releaseWasLetRing = false;
+
+        /*  The key went up while a pedal held the string open: it is still
+            ringing, and lifting the pedal is what releases it. */
+        bool pedalRinging = false;
+        int  pedalRingingNote = -1;
     };
+
+    /** Releases (damps) a string left ringing by a pedal, if nothing else still
+        holds it open. */
+    void releasePedalRinging (int stringIndex, int blockOffset, PlayEventQueue& out) noexcept;
+
+    /*  PR #2 (spec/issues.md "two notes at the same time does not work"):
+        a note that arrives while others are held is voiced around them.
+        heldStringMask: the strings holding a note, one bit per string; a string
+        holding `exceptMidiNote` is left out (a note played again re-picks its
+        own string). ringingStringMask: the strings ringing under a pedal with
+        the key up. occupiedStringMask: what a group of notes must avoid - the
+        held strings, plus the pedal-ringing ones while the group still has a
+        free string each. */
+    uint16_t heldStringMask (int exceptMidiNote = -1) const noexcept;
+    uint16_t ringingStringMask (int exceptMidiNote = -1) const noexcept;
+    uint16_t occupiedStringMask (const int* notes, int count) const noexcept;
+
+    /** Places every requested note the voicing left out on a free string, one at
+        a time, and appends it to the voicing. A note no free string can sound
+        stays dropped. Leaves the voicer's occupied mask cleared. */
+    void placeUnvoicedNotes (const int* notes, const double* velocities, int count,
+                             uint16_t occupied, ChordVoicing& voicing) noexcept;
 
     void handleNoteOn (int midiNote, int channel, double velocity,
                        int64_t timestamp, int blockOffset, PlayEventQueue& out) noexcept;
@@ -262,6 +391,18 @@ private:
     int64_t blockStart = 0;
     int blockLength = 0;
     bool mpeEnabled = false;
+    int mpeMasterChannel = 1;                                // SPEC-SWEEP CT-17
+    std::atomic<double> masterLevel { 1.0 };                 // SPEC-SWEEP PT-21
+    std::atomic<juce::uint32> clippedNotes { 0 };            // SPEC-SWEEP CT-14
+    std::array<std::atomic<float>, 5> macroTargets { { -1.0f, -1.0f, -1.0f, -1.0f, -1.0f } };   // PT-21
+    static int macroTargetSlot (MidiTarget target) noexcept;
+    std::array<float, kPitchCurvePoints> pitchCurve {};      // SPEC-SWEEP CT-10
+    int numPitchCurvePoints = 0;
+    std::array<int, 17> lastStringForChannel { { -1, -1, -1, -1, -1, -1, -1, -1, -1,
+                                                  -1, -1, -1, -1, -1, -1, -1, -1 } };   // CT-18
+
+    /** In MPE guitar-controller mode, the string holding this channel's note. */
+    int mpeStringForChannel (int channel) const noexcept;
 
     double bendRangeSemitones = 2.0;
     std::array<double, kMaxStrings> stringBendRange {};
@@ -283,6 +424,17 @@ private:
     bool nextStrumIsUp = false;
 
     StrumSettings strumSettings;
+    HarmonicSettings harmonicSettings;
+    int rightHandTool = 0;
+    bool restStrokeHeld = false;
+    bool pickPositionMoved = false;
+    double mutedThumpLevel = 0.0;
+
+    /** harmonic-realism.md 4.2: plays a harmonic-armed note named by the pitch
+        heard. True if it was handled (located or played artificially). */
+    bool emitSoundingHarmonic (int midiNote, int channel, double velocity, int64_t timestamp,
+                               int blockOffset, PlayEventQueue& out) noexcept;
+    bool isHarmonicArmed (double velocity) const noexcept;
     StrumGesture strumGesture;
     juce::uint32 strumCount = 0;
 
@@ -300,10 +452,66 @@ private:
     int activeNoteCount = 0;
     int lastMonoString = -1;
 
-    juce::String lastChordName;
+    /*  The last chord's notes, not its name: naming it builds a String, which
+        the audio thread must not do, and the UI used to copy the String while
+        the audio thread reassigned it. The UI names it (getLastChordName). */
+    mutable juce::SpinLock lastChordLock;
+    std::array<int, 16> lastChordNotes {};
+    int lastChordCount = 0;
 
     RtRandom rng { 0x4D1D1ull };
     Humanisation humanise;
+
+    // ==== BEGIN FEAT-ASSIST ====
+    AutoArticulator autoArt;
+
+    /** The plan of the note emitVoicedNote is emitting, or null (unassisted). */
+    const AssistPlan* currentPlan = nullptr;
+    int64_t currentArrival = 0;
+
+    /** 3.3: a legato note waiting for its source's release or the slide's
+        minimum overlap, whichever comes first. */
+    struct PendingLegato
+    {
+        bool active = false;
+        AutoArticulator::SinglePlan plan;
+        int channel = 1;
+        int64_t arrival = 0;
+    };
+
+    PendingLegato pendingLegato;
+
+    /** 3.1 late join: the last chord group. */
+    int64_t lastGroupArrival = -1000000000;
+    juce::uint32 lastGroupMask = 0;
+    int lastGroupSize = 0;
+
+    /** A note-on shares the sample of the note-off being handled (3.8's fall). */
+    bool offSharesNoteOn = false;
+
+    void assistBeginBlock() noexcept;
+    void assistEndBlock (int numSamples, PlayEventQueue& out) noexcept;
+    void assistBeforeEvent (int64_t timestamp, PlayEventQueue& out) noexcept;
+    bool assistMonoNoteOn (int midiNote, int channel, double velocity, int64_t timestamp,
+                           int blockOffset, PlayEventQueue& out) noexcept;
+    bool assistNoteOff (int midiNote, int channel, int blockOffset, PlayEventQueue& out) noexcept;
+    bool assistFlushSingle (int midiNote, double velocity, int64_t arrival, int64_t releasedAt,
+                            int64_t groupTimestamp, int blockOffset, PlayEventQueue& out) noexcept;
+    void assistEmit (const VoicedNote& note, const AssistPlan& plan, int64_t arrival, int64_t timestamp,
+                     int blockOffset, int extraDelay, PlayEventQueue& out) noexcept;
+    void assistResolvePending (int64_t atSample, bool sourceReleased, PlayEventQueue& out) noexcept;
+    void assistDecorate (NoteOnEvent& e, Technique decided, bool explicitTech, int64_t soundSample) noexcept;
+    bool assistNoteIsExplicit (double velocity) const noexcept;
+    void assistPlanChordNotes (const ChordVoicing& voicing, int64_t groupTimestamp, bool playedSpread,
+                               AssistPlan& chordPlan) noexcept;
+    bool assistPlanStrum (StrumRequest& request, int* order, int numOrdered, const ChordVoicing& voicing,
+                          int64_t groupTimestamp, double speedVariation, AssistPlan& chordPlan,
+                          std::array<double, kMaxStrings>& delays) noexcept;
+    void assistShapeStrikes (StrumStrike* strikes, int count, const AssistPlan& chordPlan) const noexcept;
+    void assistEmitChordNote (const VoicedNote& note, const AssistPlan& chordPlan, int voicingIndex,
+                              const int64_t* arrivals, const int* notes, int count, int64_t groupTimestamp,
+                              int blockOffset, int delaySamples, PlayEventQueue& out) noexcept;
+    // ==== END FEAT-ASSIST ====
 
     JUCE_LEAK_DETECTOR (MidiInterpreter)
 };

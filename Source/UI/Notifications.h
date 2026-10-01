@@ -46,7 +46,10 @@ namespace luthier
 /** One thing the plugin wants to tell the user about. */
 struct Notification
 {
-    enum class Level { info, warning };
+    /*  SPEC-SWEEP ER-81, error-recovery 14: "errors > warnings > info". The
+        queue shows the most severe waiting banner next (in arrival order within
+        a level); an error is drawn in the clip red. */
+    enum class Level { info, warning, error };
 
     /*  Identity, not text. Two postings with the same id are the same piece of
         news said twice - a licence countdown that ticked, a crash report noticed
@@ -59,6 +62,11 @@ struct Notification
     /** Optional. A banner with action text gets a button and no auto-dismiss. */
     juce::String actionText;
     std::function<void()> action;
+
+    /** Optional second action, beside the first (output-normalization.md 5.3:
+        [Options] and [Don't show again]). Only shown when `action` is set. */
+    juce::String secondaryActionText;
+    std::function<void()> secondaryAction;
 };
 
 //==============================================================================
@@ -107,6 +115,10 @@ public:
         the button does. Does nothing when there is no action. */
     void performCurrentAction();
 
+    /** The second button, when the banner has one. */
+    void performCurrentSecondaryAction();
+    bool currentHasSecondaryAction() const noexcept { return current.action != nullptr && current.secondaryAction != nullptr; }
+
     /** True if this id is on screen or waiting. */
     bool contains (const juce::String& id) const;
 
@@ -128,7 +140,8 @@ private:
     Notification current;
     std::vector<Notification> queue;
 
-    juce::TextButton actionButton;
+    juce::TextButton actionButton, secondaryButton;
+    void updateButtons();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (NotificationCentre)
 };

@@ -29,6 +29,15 @@ public:
     void prepare (double sampleRate, int maxBlockSize);
     void reset() noexcept;
 
+    /** reset() for the audio thread (Panic, live-performance 9.2): a try-lock,
+        because waiting on the message thread's swapLock (setSlotType, moveSlot)
+        would stall the callback. Resets every pedal now when the lock is free,
+        else leaves it pending for the next processStereo to carry out. */
+    void resetFromAudioThread() noexcept;
+
+    /** True while a resetFromAudioThread is waiting for the next block (tests). */
+    bool isResetPending() const noexcept { return resetPending.load (std::memory_order_acquire); }
+
     void setPosition (Position p) noexcept { position = p; }
     Position getPosition() const noexcept { return position; }
 
@@ -39,6 +48,12 @@ public:
 
     /** The pedal in a slot, or nullptr if the slot is empty. Only safe to touch
         from the message thread between setSlotType calls. */
+    /** Audio thread: a slot's bypass, mix and parameters (normalised), under
+        the swap lock. A pedal being swapped this instant is skipped; the next
+        block applies it. getPedal() is for the message thread, which is the
+        one that swaps, never for the audio thread. */
+    void applySlotState (int slot, bool bypassed, double mix, const float* normalisedParams, int numParams) noexcept;
+
     Pedal* getPedal (int slot) noexcept;
     const Pedal* getPedal (int slot) const noexcept;
 
@@ -56,7 +71,12 @@ public:
     //==========================================================================
     void setTempoBpm (double bpm) noexcept;
     void setExpression (double value) noexcept;
-    void setOversamplingFactor (int factor) noexcept;
+    void setOversamplingFactor (int factor) noexcept { setOversamplingFactor (factor, factor, false); }
+
+    /** cpu-quality-modes 2.2: drive pedals run at `effective` and report
+        `nominal`'s latency; a factor change crossfades when asked. */
+    void setOversamplingFactor (int effective, int nominal, bool crossfade) noexcept;
+    int getEffectiveOversamplingFactor() const noexcept { return effectiveFactor; }
 
     /** Total latency of the chain, in samples. */
     int getLatencySamples() const noexcept;
@@ -77,6 +97,7 @@ private:
     };
 
     void applyPendingSwaps() noexcept;
+    void resetPedalsLocked() noexcept;
 
     double sr = 44100.0;
     int maxBlock = 512;
@@ -85,6 +106,7 @@ private:
     double tempoBpm = 120.0;
     double expression = 0.5;
     int oversamplingFactor = 4;
+    int effectiveFactor = 4;   // cpu-quality-modes 2.2
 
     std::array<Slot, kNumSlots> slots;
 
@@ -92,6 +114,7 @@ private:
     // thread, never inside processBlock.
     std::vector<std::unique_ptr<Pedal>> retired;
     juce::CriticalSection swapLock;
+    std::atomic<bool> resetPending { false };
 
     std::vector<double> workL, workR;
 

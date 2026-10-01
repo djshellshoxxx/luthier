@@ -1,4 +1,5 @@
 #include "PerformanceCapture.h"
+#include "../Rhythm/ChordDetector.h"   // MODEL-GAPS: offline chord extraction
 
 #include "../Model/Playing/TuningEngine.h"
 #include "../Routing/MidiOutRouter.h"
@@ -103,6 +104,20 @@ struct PerformanceCapture::Timeline
     double sampleRate = 48000.0;
 
     juce::int64 cutoffSample = 0;
+    juce::int64 endSample = std::numeric_limits<juce::int64>::max();
+    juce::Range<double> ppqRange;
+
+    /** Whether something at this place is in the export's range (MODEL-GAPS). */
+    bool includes (bool itemMusical, double ppq, juce::int64 sample) const noexcept
+    {
+        if (sample < cutoffSample || sample >= endSample)
+            return false;
+
+        if (! ppqRange.isEmpty())
+            return itemMusical && ppq >= ppqRange.getStart() && ppq < ppqRange.getEnd();
+
+        return true;
+    }
 
     double beatOf (bool itemMusical, double ppq, juce::int64 sample) const noexcept
     {
@@ -202,6 +217,8 @@ CaptureRecord PerformanceCapture::makeRecord (CaptureRecord::Kind kind, int samp
 
 void PerformanceCapture::beginBlock (const CaptureClock& newClock) noexcept
 {
+    clockSample.store (newClock.blockStartSample, std::memory_order_relaxed);   // MODEL-GAPS: the marks' now
+
     clock = newClock;
 
     if (restateMeter.exchange (false, std::memory_order_relaxed))
@@ -270,7 +287,8 @@ void PerformanceCapture::bend (int sampleOffset, int stringIndex, double cents) 
     ring.push (record);
 }
 
-void PerformanceCapture::mark (int sampleOffset, int stringIndex, ScoreTechnique::Type type, double value) noexcept
+void PerformanceCapture::mark (int sampleOffset, int stringIndex, ScoreTechnique::Type type, double value,
+                               double secondValue) noexcept
 {
     if (! isRecording())
         return;
@@ -279,6 +297,18 @@ void PerformanceCapture::mark (int sampleOffset, int stringIndex, ScoreTechnique
     record.stringIndex = (juce::int8) juce::jlimit (0, kMaxStrings - 1, stringIndex);
     record.code = (juce::uint8) type;
     record.value = (float) value;
+    record.fret = (float) secondValue;   // a mark has no fret; its second value rides here
+    ring.push (record);
+}
+
+void PerformanceCapture::autoRules (int sampleOffset, int stringIndex, juce::uint16 rules) noexcept
+{
+    if (! isRecording() || rules == 0)
+        return;
+
+    auto record = makeRecord (CaptureRecord::Kind::autoRules, sampleOffset);
+    record.stringIndex = (juce::int8) juce::jlimit (0, kMaxStrings - 1, stringIndex);
+    record.value = (float) rules;
     ring.push (record);
 }
 
@@ -433,6 +463,7 @@ void PerformanceCapture::apply (const CaptureRecord& record)
                 ScoreTechnique technique;
                 technique.type = (Type) record.code;
                 technique.value = record.value;
+                technique.secondValue = record.fret;
                 notes[(size_t) index].marks.push_back (technique);
             }
 
@@ -478,6 +509,16 @@ void PerformanceCapture::apply (const CaptureRecord& record)
                           .setInt ("str", record.stringIndex)
                           .setReal ("pos", record.fret);
             events.push_back (captured);
+            break;
+        }
+
+        case Kind::autoRules:   // FEAT-ASSIST (auto-articulation.md 9)
+        {
+            const int index = sounding[(size_t) s];
+
+            if (juce::isPositiveAndBelow (index, (int) notes.size()))
+                notes[(size_t) index].autoRules = (juce::uint16) juce::jlimit (0, 0xFFFF, (int) record.value);
+
             break;
         }
 
@@ -543,8 +584,41 @@ void PerformanceCapture::rebuildSoundingIndex()
             sounding[(size_t) notes[i].stringIndex] = (int) i;
 }
 
+juce::Range<juce::int64> PerformanceCapture::sampleRangeForPpq (juce::Range<double> ppq) const noexcept
+{
+    juce::int64 lo = std::numeric_limits<juce::int64>::max(), hi = std::numeric_limits<juce::int64>::min();
+
+    for (const auto& n : notes)
+        if (n.musical && n.startPpq >= ppq.getStart() && n.startPpq < ppq.getEnd())
+        {
+            lo = juce::jmin (lo, n.startSample);
+            hi = juce::jmax (hi, n.isSounding() ? newestSample : n.endSample);
+        }
+
+    return hi > lo ? juce::Range<juce::int64> (lo, hi + 1) : juce::Range<juce::int64>();
+}
+
+void PerformanceCapture::markIn()
+{
+    markInSample = juce::jmax (newestSample, clockSample.load (std::memory_order_relaxed));
+
+    if (markOutSample <= markInSample)
+        markOutSample = -1;
+}
+
+void PerformanceCapture::markOut()
+{
+    markOutSample = juce::jmax (newestSample, clockSample.load (std::memory_order_relaxed));
+}
+
+void PerformanceCapture::clearMarks()
+{
+    markInSample = markOutSample = -1;
+}
+
 void PerformanceCapture::clearTake()
 {
+    clearMarks();
     notes.clear();
     chords.clear();
     meters.clear();
@@ -565,10 +639,19 @@ PerformanceCapture::Timeline PerformanceCapture::makeTimeline (const CaptureScor
                               ? newestSample - (juce::int64) std::llround (options.lastSeconds * sampleRate)
                               : std::numeric_limits<juce::int64>::min();
 
+    // MODEL-GAPS: the marked region and the current section.
+    if (! options.sampleRange.isEmpty())
+    {
+        timeline.cutoffSample = juce::jmax (timeline.cutoffSample, options.sampleRange.getStart());
+        timeline.endSample = options.sampleRange.getEnd();
+    }
+
+    timeline.ppqRange = options.ppqRange;
+
     selected.clear();
 
     for (size_t i = 0; i < notes.size(); ++i)
-        if (notes[i].startSample >= timeline.cutoffSample)
+        if (timeline.includes (notes[i].musical, notes[i].startPpq, notes[i].startSample))
             selected.push_back (i);
 
     if (selected.empty())
@@ -713,7 +796,15 @@ void PerformanceCapture::toScore (PerformanceScore& score, const CaptureScoreOpt
 
         Type type = Type::bend;
 
-        if (scoreTypeFor (note.technique, type) && ! (type == Type::bend && bent))
+        // FEAT-ASSIST: a mark that repeats the note's own technique (an auto
+        // palm mute's amount) stands in for it, value and all.
+        bool markedAlready = false;
+
+        if (scoreTypeFor (note.technique, type))
+            for (const auto& m : note.marks)
+                markedAlready = markedAlready || m.type == type;
+
+        if (scoreTypeFor (note.technique, type) && ! (type == Type::bend && bent) && ! markedAlready)
         {
             ScoreTechnique technique;
             technique.type = type;
@@ -726,6 +817,8 @@ void PerformanceCapture::toScore (PerformanceScore& score, const CaptureScoreOpt
 
         for (const auto& markTechnique : note.marks)
             score.addTechnique (s, markTechnique);
+
+        score.setAutoRules (s, note.autoRules);   // FEAT-ASSIST (9)
 
         if (bent)
         {
@@ -745,9 +838,45 @@ void PerformanceCapture::toScore (PerformanceScore& score, const CaptureScoreOpt
         }
     }
 
+    int chordsWritten = 0;
+
     for (const auto& chord : chords)
-        if (chord.sample >= timeline.cutoffSample && ! selected.empty())
+        if (timeline.includes (chord.musical, chord.ppq, chord.sample) && ! selected.empty())
+        {
             score.addChordSymbol (juce::jmax (0.0, timeline.beatOf (chord.musical, chord.ppq, chord.sample)), chord.name);
+            ++chordsWritten;
+        }
+
+    /*  notation-export 4 (MODEL-GAPS): no chord track - a Mono-mode take - so
+        the chords are extracted offline: per beat, the pitch classes sounding
+        in it, matched against the detector's templates; written where the
+        chord changes. */
+    if (chordsWritten == 0 && options.extractChordsWhenMissing && ! placed.empty())
+    {
+        ChordDetector detector;
+        ChordSymbol previous;
+
+        for (int beat = 0; beat <= (int) std::ceil (lastBeat); ++beat)
+        {
+            std::array<int, 32> heard {};
+            int count = 0;
+
+            for (const auto& p : placed)
+                if (p.start < beat + 1.0 && p.end > (double) beat && count < (int) heard.size())
+                    heard[(size_t) count++] = notes[p.index].midiNote;
+
+            if (count == 0)
+                continue;
+
+            const auto chord = detector.detect (heard.data(), count);
+
+            if (chord.isKnown() && chord != previous)
+            {
+                score.addChordSymbol ((double) beat, chord.toString());
+                previous = chord;
+            }
+        }
+    }
 
     score.endCapture (lastBeat);
 
@@ -775,7 +904,7 @@ MidiPerformance PerformanceCapture::toPerformance (double rate, const CaptureSco
 
     for (const auto& captured : events)
     {
-        if (captured.sample < timeline.cutoffSample)
+        if (! timeline.includes (captured.musical, captured.ppq, captured.sample))
             continue;
 
         const double beat = juce::jmax (0.0, timeline.beatOf (captured.musical, captured.ppq, captured.sample));

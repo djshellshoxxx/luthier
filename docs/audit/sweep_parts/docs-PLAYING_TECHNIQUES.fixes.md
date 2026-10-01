@@ -1,0 +1,5 @@
+- [PT-4] effort S — add `StringEngine::aRepluckMutesTheRingingStringOverFiveMs`: pluck, re-pluck mid-ring, CHECK no sample-to-sample jump above the click threshold and that the steal ramp length == round(0.005*sr).
+- [PT-8] effort S — add `StringEngine::fingerVibratoIsAsymmetricAndRampsIn` (or in EngineTests): set mod wheel, CHECK the pitch rise time < fall time per cycle, depth reaches target only after the ramp, and two strings' LFO phases differ.
+- [PT-11] effort S — add `Technique::pinchPartialRisesWithVelocity`: with pinch trigger held, velocities 0.1/0.5/0.99 give partials 2/3/4 (and 5 at 1.0) from `classify`.
+- [PT-19] PARTIAL: doc rewritten to the physical loop and its five controls; the dead feedbackOn/feedbackThres/feedbackSpeed parameters remain (removal needs a state-version decision; parameters may not be removed under the sweep rules).
+- [PT-22] effort S — add `Technique::sustainRingsAndSostenutoHoldsOnlyWhatIsDown` (MidiInterpreter-level): note on/off with CC64 down keeps the string; CC66 down with note A held, then note B on/off, CHECK A sustains and B releases.

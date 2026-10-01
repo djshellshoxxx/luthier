@@ -30,14 +30,38 @@ void EffectsChain::prepare (double sampleRate, int maxBlockSize)
         }
     }
 
-    setOversamplingFactor (oversamplingFactor);
+    setOversamplingFactor (effectiveFactor, oversamplingFactor, false);
     retired.clear();
 }
 
 void EffectsChain::reset() noexcept
 {
     const juce::ScopedLock sl (swapLock);
+    resetPending.store (false, std::memory_order_relaxed);
+    resetPedalsLocked();
+}
 
+void EffectsChain::resetFromAudioThread() noexcept
+{
+    /*  Like BodyEngine::reset: a try-lock, so the audio thread never waits on
+        the message thread. If a pedal is being swapped this instant the reset
+        is left pending, and processStereo carries it out under its own
+        try-lock the next time it gets in - before that block is processed,
+        so no tail from before the panic reaches the output. */
+    const juce::ScopedTryLock sl (swapLock);
+
+    if (! sl.isLocked())
+    {
+        resetPending.store (true, std::memory_order_release);
+        return;
+    }
+
+    resetPending.store (false, std::memory_order_relaxed);
+    resetPedalsLocked();
+}
+
+void EffectsChain::resetPedalsLocked() noexcept
+{
     for (auto& slot : slots)
     {
         if (slot.pedal != nullptr)
@@ -65,8 +89,8 @@ void EffectsChain::setSlotType (int slot, PedalType type)
         replacement->setBypassed (slots[(size_t) slot].bypassed);
         replacement->setMix (slots[(size_t) slot].mix);
 
-        if (auto* drive = dynamic_cast<DrivePedalBase*> (replacement.get()))
-            drive->setOversamplingFactor (oversamplingFactor);
+        // SPEC-SWEEP JG-4: virtual, no cast (cpu-quality-modes 2.2 effective/nominal pair).
+        replacement->setOversamplingFactor (effectiveFactor, oversamplingFactor, false);
     }
 
     {
@@ -107,6 +131,36 @@ const Pedal* EffectsChain::getPedal (int slot) const noexcept
         return nullptr;
 
     return slots[(size_t) slot].pedal.get();
+}
+
+void EffectsChain::applySlotState (int slot, bool bypassed, double mix,
+                                   const float* normalisedParams, int numParams) noexcept
+{
+    if (! juce::isPositiveAndBelow (slot, kNumSlots))
+        return;
+
+    // The message thread swaps pedals under this lock and frees the old one
+    // straight after; reaching into a slot without it used a freed pedal
+    // (pluginval: "pure virtual method called" during automation).
+    const juce::ScopedTryLock sl (swapLock);
+
+    if (! sl.isLocked())
+        return;
+
+    auto& s = slots[(size_t) slot];
+    s.bypassed = bypassed;
+    s.mix = juce::jlimit (0.0, 1.0, mix);
+
+    if (s.pedal == nullptr)
+        return;
+
+    s.pedal->setBypassed (s.bypassed);
+    s.pedal->setMix (s.mix);
+
+    const int n = juce::jmin (numParams, s.pedal->getNumParameters(), Pedal::kMaxParams);
+
+    for (int p = 0; p < n; ++p)
+        s.pedal->setParameterNormalised (p, normalisedParams[p]);
 }
 
 void EffectsChain::setSlotBypassed (int slot, bool bypassed) noexcept
@@ -200,13 +254,15 @@ void EffectsChain::setExpression (double value) noexcept
             slot.pedal->setExpression (expression);
 }
 
-void EffectsChain::setOversamplingFactor (int factor) noexcept
+void EffectsChain::setOversamplingFactor (int effective, int nominal, bool crossfade) noexcept
 {
-    oversamplingFactor = juce::jlimit (1, 8, factor);
+    oversamplingFactor = juce::jlimit (1, 8, nominal);
+    effectiveFactor = juce::jlimit (1, oversamplingFactor, effective);
 
+    // SPEC-SWEEP JG-4: a virtual call rather than a dynamic_cast per slot.
     for (auto& slot : slots)
-        if (auto* drive = dynamic_cast<DrivePedalBase*> (slot.pedal.get()))
-            drive->setOversamplingFactor (oversamplingFactor);
+        if (slot.pedal != nullptr)
+            slot.pedal->setOversamplingFactor (effectiveFactor, oversamplingFactor, crossfade);
 }
 
 int EffectsChain::getLatencySamples() const noexcept
@@ -230,6 +286,9 @@ void EffectsChain::processStereo (double* left, double* right, int numSamples) n
 
     if (! sl.isLocked())
         return;   // A slot is being swapped this instant; pass the block through.
+
+    if (resetPending.exchange (false, std::memory_order_acq_rel))
+        resetPedalsLocked();
 
     for (auto& slot : slots)
         if (slot.pedal != nullptr)

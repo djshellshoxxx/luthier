@@ -1,0 +1,266 @@
+# Build, test and validate Luthier on Linux, Windows (MSVC) and macOS (universal).
+#
+# Called per push and pull request by ci-cadence.yml (Linux, Windows and macOS
+# in parallel on every push: plugin targets + LuthierTests +
+# LuthierRender, unit tests, pluginval at strictness 5, clap-validator). On
+# manual dispatch: any platforms, LTO on and pluginval at strictness 10.
+# release.yml calls this workflow with package=true to build the installers
+# from the same jobs.
+#
+# The heavy lifting is in scripts/ci_build.sh and scripts/ci_build.ps1 so that
+# every step can be reproduced locally with the same command.
+name: build
+
+on:
+  workflow_dispatch:
+    inputs:
+      platforms:
+        description: 'Comma-separated: linux, windows, macos'
+        type: string
+        default: 'linux,windows,macos'
+      strictness:
+        description: 'pluginval strictness (1-10)'
+        type: number
+        default: 10
+      lto:
+        description: 'Link-time optimisation'
+        type: boolean
+        default: true
+  workflow_call:
+    inputs:
+      platforms:
+        description: 'Comma-separated: linux, windows, macos (ci-cadence.yml picks per push)'
+        type: string
+        default: 'linux,windows,macos'
+      strictness:
+        type: number
+        default: 10
+      lto:
+        type: boolean
+        default: true
+      package:
+        description: 'Also build the platform installers (release.yml)'
+        type: boolean
+        default: false
+      version:
+        description: 'Version string for the installers, e.g. 1.2.3'
+        type: string
+        default: ''
+      ref:
+        description: 'Git ref to build (release.yml passes the tag)'
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  # A newer push to the same branch supersedes a running build; a release
+  # (workflow_call) or nightly run is never cancelled.
+  group: build-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}-${{ inputs.platforms }}
+  cancel-in-progress: ${{ (github.event_name == 'push' || github.event_name == 'pull_request') && !inputs.package }}
+
+env:
+  # push / pull_request: fast (no LTO, strictness 5). schedule: LTO and
+  # strictness 10. workflow_dispatch and workflow_call: the inputs, which
+  # default to the same. Under workflow_call github.event_name is the caller's
+  # (a tag push for release.yml), so the release run is recognised by its
+  # package input instead.
+  STRICTNESS: ${{ ((github.event_name == 'push' || github.event_name == 'pull_request') && !inputs.package) && 5 || (inputs.strictness || 10) }}
+  LTO: ${{ ((github.event_name == 'push' || github.event_name == 'pull_request') && !inputs.package) && 'OFF' || ((github.event_name == 'schedule' || inputs.lto) && 'ON' || 'OFF') }}
+  BUILD_DIR: build-ci
+  DIST_DIR: dist
+  CONFIG: Release
+
+jobs:
+  plan:
+    name: Pick platforms
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.m.outputs.matrix }}
+    steps:
+      - id: m
+        env:
+          PLATFORMS: ${{ inputs.platforms || 'linux,windows,macos' }}
+        run: |
+          items=()
+          case ",$PLATFORMS," in *,linux,*)   items+=('{"name":"Linux x64","os":"ubuntu-latest","platform":"linux"}');; esac
+          case ",$PLATFORMS," in *,windows,*) items+=('{"name":"Windows x64 (MSVC)","os":"windows-latest","platform":"windows"}');; esac
+          case ",$PLATFORMS," in *,macos,*)   items+=('{"name":"macOS universal","os":"macos-latest","platform":"macos"}');; esac
+          if [ ${#items[@]} -eq 0 ]; then echo "::error::no platforms in '$PLATFORMS'"; exit 1; fi
+          joined=$(IFS=,; echo "${items[*]}")
+          echo "matrix={\"include\":[$joined]}" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: ${{ matrix.name }}
+    needs: plan
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || '' }}
+
+      # ---------------------------------------------------------- toolchains
+      - name: Linux packages
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends \
+            libasound2-dev libjack-jackd2-dev libxrandr-dev libxcursor-dev libxinerama-dev \
+            libxcomposite-dev libfontconfig1-dev libfreetype-dev libcurl4-openssl-dev \
+            libgl1-mesa-dev \
+            xvfb clang ninja-build dpkg-dev
+
+      - name: Ninja
+        if: runner.os != 'Linux'
+        uses: seanmiddleditch/gha-setup-ninja@v5
+
+      - name: MSVC environment
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Compiler cache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          # ccache cannot wrap MSVC through CMake's launcher reliably; sccache can.
+          variant: ${{ runner.os == 'Windows' && 'sccache' || 'ccache' }}
+          key: ${{ matrix.platform }}-lto${{ env.LTO }}
+          max-size: 2G
+
+      # ---------------------------------------------------------- sources
+      - name: Cache JUCE and clap-juce-extensions
+        uses: actions/cache@v4
+        with:
+          path: |
+            ThirdParty/JUCE
+            ThirdParty/clap-juce-extensions
+          # The pinned versions live in the CI scripts; changing them busts this.
+          key: thirdparty-${{ runner.os }}-${{ hashFiles('scripts/ci_build.sh', 'scripts/ci_build.ps1') }}
+
+      - name: Fetch dependencies (Unix)
+        if: runner.os != 'Windows'
+        run: scripts/ci_build.sh deps
+      - name: Fetch dependencies (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: scripts/ci_build.ps1 -Step deps
+
+      # riff-library RL-01: the committed factory riffs are exactly the
+      # generator's output (it validates the content as it goes).
+      - name: Factory riffs are up to date
+        if: runner.os == 'Linux'
+        run: |
+          python3 Tools/generate_factory_riffs.py
+          git diff --exit-code Resources/Riffs
+
+      # ---------------------------------------------------------- build
+      - name: Configure and build (Unix)
+        id: build_unix
+        if: runner.os != 'Windows'
+        env:
+          LUTHIER_LTO: ${{ env.LTO }}
+        run: scripts/ci_build.sh configure build
+      - name: Configure and build (Windows)
+        id: build_windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: scripts/ci_build.ps1 -Step configure,build -Lto ${{ env.LTO }} -Jobs 4
+
+      # ---------------------------------------------------------- test
+      - name: Unit tests (Unix)
+        if: runner.os != 'Windows' && steps.build_unix.outcome == 'success'
+        run: scripts/ci_build.sh test
+      - name: Unit tests (Windows)
+        if: runner.os == 'Windows' && steps.build_windows.outcome == 'success'
+        shell: pwsh
+        run: scripts/ci_build.ps1 -Step test
+
+      # Validators run even when a unit test failed: they answer a different
+      # question (does the plugin load and behave in a host) and the log is
+      # worth having either way.
+      - name: pluginval + clap-validator (Unix)
+        if: ${{ !cancelled() && runner.os != 'Windows' && steps.build_unix.outcome == 'success' }}
+        env:
+          PLUGINVAL_STRICTNESS: ${{ env.STRICTNESS }}
+        run: scripts/ci_build.sh validate
+      - name: pluginval + clap-validator (Windows)
+        if: ${{ !cancelled() && runner.os == 'Windows' && steps.build_windows.outcome == 'success' }}
+        shell: pwsh
+        run: scripts/ci_build.ps1 -Step validate -Strictness ${{ env.STRICTNESS }}
+
+      # ---------------------------------------------------------- stage
+      - name: Stage products (Unix)
+        if: ${{ !cancelled() && runner.os != 'Windows' && steps.build_unix.outcome == 'success' }}
+        run: scripts/ci_build.sh stage
+      - name: Stage products (Windows)
+        if: ${{ !cancelled() && runner.os == 'Windows' && steps.build_windows.outcome == 'success' }}
+        shell: pwsh
+        run: scripts/ci_build.ps1 -Step stage
+
+      - name: Upload plugins
+        if: ${{ !cancelled() && (steps.build_unix.outcome == 'success' || steps.build_windows.outcome == 'success') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Luthier-${{ matrix.platform }}-${{ github.sha }}
+          path: ${{ env.DIST_DIR }}/${{ matrix.platform }}
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-${{ matrix.platform }}-${{ github.sha }}
+          path: |
+            ${{ env.BUILD_DIR }}/logs
+            ${{ env.BUILD_DIR }}/CMakeFiles/CMakeConfigureLog.yaml
+          retention-days: 14
+          if-no-files-found: ignore
+
+      # ---------------------------------------------------------- installers
+      # Only when release.yml calls this workflow. Signing secrets are optional:
+      # each script signs when its secrets are present and says so when not.
+      - name: Package (Linux)
+        if: inputs.package && runner.os == 'Linux'
+        env:
+          VERSION: ${{ inputs.version }}
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: scripts/package_linux.sh
+
+      - name: Package (macOS)
+        if: inputs.package && runner.os == 'macOS'
+        env:
+          VERSION: ${{ inputs.version }}
+          MACOS_CERT_P12_BASE64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+          MACOS_DEV_ID_APP: ${{ secrets.MACOS_DEV_ID_APP }}
+          MACOS_DEV_ID_INSTALLER: ${{ secrets.MACOS_DEV_ID_INSTALLER }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: scripts/package_macos.sh
+
+      - name: Package (Windows)
+        if: inputs.package && runner.os == 'Windows'
+        shell: pwsh
+        env:
+          VERSION: ${{ inputs.version }}
+          WINDOWS_CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        run: scripts/package_windows.ps1
+
+      - name: Upload installers
+        if: inputs.package
+        uses: actions/upload-artifact@v4
+        with:
+          name: installers-${{ matrix.platform }}
+          path: ${{ env.DIST_DIR }}/installers
+          if-no-files-found: error

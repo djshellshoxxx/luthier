@@ -17,29 +17,17 @@ namespace
     /** The fixture pluck (section 6): the same note, string and velocity every time. */
     std::vector<float> fixtureRender (LuthierEngine& engine, const WorkshopGuitar& guitar, GuitarType type)
     {
-        const int loadsBefore = engine.getIrLoadCount();
         engine.applyWorkshopGuitar (mapSpec (guitar), type);
 
         juce::AudioBuffer<float> buffer (2, kBlock);
 
-        // The first note after a response is loaded comes out a little
-        // different from every later one (TODO: known issue); a throwaway
-        // pluck then makes renders of the same guitar match. Only when a
-        // response actually loaded, so a pickup drag stays inside the budget.
-        if (engine.getIrLoadCount() != loadsBefore)
-        {
-            engine.reset();
-
-            for (int offset = 0; offset < kFftSize; offset += kBlock)
-            {
-                juce::MidiBuffer midi;
-                if (offset == 0)
-                    midi.addEvent (juce::MidiMessage::noteOn (1, 52, 0.8f), 0);
-                buffer.clear();
-                engine.processBlock (buffer, midi);
-            }
-        }
-
+        /*  The first note after a body or cabinet response loaded used to come
+            out slightly different (~0.02 peak at the onset) and was primed
+            around with a throwaway pluck. The response now finishes installing
+            - and juce::dsp::Convolution's 50 ms crossfade from the old one is
+            pumped through and its state cleared - before the load returns
+            (ConvolutionInstaller, BodyEngine / CabinetEngine), so the first
+            note is every note (IrReload.theFirstNoteAfterALoadIsEveryNote). */
         engine.reset();
 
         std::vector<float> out;

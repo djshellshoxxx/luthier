@@ -21,17 +21,32 @@ using namespace luthier::tests;
     lives here once; everything else in the suite just pays one increment. */
 namespace
 {
-    thread_local long allocationsOnThisThread = 0;
+    thread_local long threadAllocationCount = 0;
+}
+
+/*  notation-export 7.1 (MODEL-GAPS, TODO 2k): the counter the other suites'
+    no-allocation checks read; CMake defines LUTHIER_ALLOCATION_COUNTER for the
+    test target so those checks compile in. */
+namespace luthier::tests
+{
+    long allocationsOnThisThread() noexcept { return threadAllocationCount; }
 }
 
 struct AllocationCounter
 {
-    static long count() noexcept { return allocationsOnThisThread; }
+    static long count() noexcept { return threadAllocationCount; }
 };
+
+/** The same count for other test files (REALISM-A's budget tests). */
+long luthierAllocationCount() noexcept { return threadAllocationCount; }
+// REALISM-B: the same counter for the suites in other files.
+long luthierAllocationsOnThisThread() noexcept { return threadAllocationCount; }
+// TECHNIQUES: the same count for other test files (TechniqueLayerTests).
+long luthierTestAllocationCount() noexcept { return threadAllocationCount; }
 
 void* operator new (std::size_t size)
 {
-    ++allocationsOnThisThread;
+    ++threadAllocationCount;
 
     if (auto* p = std::malloc (size == 0 ? 1 : size))
         return p;
@@ -41,7 +56,7 @@ void* operator new (std::size_t size)
 
 void* operator new[] (std::size_t size)
 {
-    ++allocationsOnThisThread;
+    ++threadAllocationCount;
 
     if (auto* p = std::malloc (size == 0 ? 1 : size))
         return p;
@@ -485,7 +500,8 @@ LUTHIER_TEST (Circuit, theEngineRunsThroughTheCircuit)
         for (int b = 0; b < 100; ++b)
         {
             block.clear();
-            engine.processBlock (block, b == 0 ? midi : juce::MidiBuffer());
+            juce::MidiBuffer none;
+            engine.processBlock (block, b == 0 ? midi : none);
 
             for (int i = 0; i < 256; ++i)
                 power += (double) block.getSample (0, i) * block.getSample (0, i);
@@ -563,4 +579,11 @@ LUTHIER_TEST (AmpRanges, pastTheKnobIsAudible)
 
     for (double v : past)
         if (! std::isfinite (v)) { ctx.fail ("non-finite output past the knob"); break; }
+}
+
+// REALISM-C: the counter above, for the noise-floor, sustain and tuning-stability
+// tests' no-allocation checks (they live in other files).
+namespace luthier::tests
+{
+    long realismCAllocationCount() noexcept { return threadAllocationCount; }
 }

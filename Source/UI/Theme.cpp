@@ -1,6 +1,8 @@
 #include "Theme.h"
+#include "NewFeatureDots.h"
 #include "RangesUi.h"
 #include "../Accessibility/Accessibility.h"
+#include "../Accessibility/Localisation.h"
 #include "../Support/IrLibrary.h"
 
 namespace luthier
@@ -164,6 +166,26 @@ juce::String Fonts::findAvailable (const juce::StringArray& candidates, const ju
 
 juce::Font Fonts::ui (float height, bool semiBold)
 {
+    // accessibility 8 (A11Y-40, A11Y-42): the user's font override, and the
+    // platform CJK face where the locale's glyphs are not in the bundled Latin
+    // fonts, win over the bundled family.
+    {
+        const auto& a11y = AccessibilitySettings::get();
+        const auto override = a11y.getFontOverride();
+
+        if (override.isNotEmpty())
+        {
+            auto options = juce::FontOptions (override, height, juce::Font::plain);
+            return juce::Font (semiBold ? options.withStyle ("Bold") : options);
+        }
+
+        if (Localisation::get().needsCjkFallbackFont())
+        {
+            auto options = juce::FontOptions (a11y.getFont (height).getTypefaceName(), height, juce::Font::plain);
+            return juce::Font (semiBold ? options.withStyle ("Bold") : options);
+        }
+    }
+
     const auto& bundled = bundledFonts();
 
     if (auto typeface = semiBold ? bundled.bold : bundled.regular)
@@ -217,16 +239,38 @@ void Fonts::drawTrackedText (juce::Graphics& g, const juce::String& text,
     if (text.isEmpty())
         return;
 
-    const auto font = g.getCurrentFont();
-    const float extra = font.getHeight() * tracking;
+    auto font = g.getCurrentFont();
+
+    auto measure = [&text] (const juce::Font& f, float t)
+    {
+        float w = 0.0f;
+        for (int i = 0; i < text.length(); ++i)
+            w += f.getStringWidthFloat (text.substring (i, i + 1)) + f.getHeight() * t;
+        return w - f.getHeight() * t;
+    };
 
     // Measure with the tracking included so the justification stays correct.
-    float total = 0.0f;
+    float total = measure (font, tracking);
 
-    for (int i = 0; i < text.length(); ++i)
-        total += font.getStringWidthFloat (text.substring (i, i + 1)) + extra;
+    /*  Text that does not fit loses its tracking first, then shrinks (to 7.5 pt
+        at the least), rather than running into its neighbours ("ACTION TACTION
+        B") or being clipped (TODO V, screenshots of every panel). */
+    const float room = (float) area.getWidth();
 
-    total -= extra;
+    if (total > room && room > 0.0f)
+    {
+        tracking = 0.0f;
+        total = measure (font, 0.0f);
+
+        if (total > room)
+        {
+            font = font.withHeight (juce::jmax (7.5f, font.getHeight() * room / total));
+            g.setFont (font);
+            total = measure (font, 0.0f);
+        }
+    }
+
+    const float extra = font.getHeight() * tracking;
 
     float x = (float) area.getX();
 
@@ -264,6 +308,19 @@ LuthierLookAndFeel::LuthierLookAndFeel()
     refreshColours();
 }
 
+juce::Label* LuthierLookAndFeel::createSliderTextBox (juce::Slider& slider)
+{
+    auto* label = LookAndFeel_V4::createSliderTextBox (slider);
+
+    // A colour the slider set itself wins; otherwise the current palette, not
+    // whatever look and feel the slider had when it was built.
+    label->setColour (juce::Label::textColourId,
+                      slider.isColourSpecified (juce::Slider::textBoxTextColourId)
+                          ? slider.findColour (juce::Slider::textBoxTextColourId)
+                          : Palette::textPrimary);
+    return label;
+}
+
 void LuthierLookAndFeel::refreshColours()
 {
     setColour (juce::ResizableWindow::backgroundColourId, Palette::background);
@@ -275,6 +332,12 @@ void LuthierLookAndFeel::refreshColours()
     setColour (juce::Label::textWhenEditingColourId,      Palette::textPrimary);
     setColour (juce::Label::backgroundWhenEditingColourId, Palette::panelSunken);
     setColour (juce::Label::outlineWhenEditingColourId,   Palette::accent);
+
+    // Table headers (the mod matrix's routes) were JUCE's light grey on every palette (TODO V).
+    setColour (juce::TableHeaderComponent::backgroundColourId, Palette::panelRaised);
+    setColour (juce::TableHeaderComponent::textColourId,       Palette::textMuted);
+    setColour (juce::TableHeaderComponent::outlineColourId,    Palette::edge);
+    setColour (juce::TableHeaderComponent::highlightColourId,  Palette::accent.withAlpha (0.25f));
 
     setColour (juce::Slider::rotarySliderFillColourId,    Palette::accent);
     setColour (juce::Slider::rotarySliderOutlineColourId, Palette::edge);
@@ -883,10 +946,14 @@ void LuthierLookAndFeel::drawButtonText (juce::Graphics& g, juce::TextButton& bu
         colour = colour.brighter (0.25f);
 
     g.setColour (colour);
-    g.setFont (getTextButtonFont (button, button.getHeight()));
 
+    // drawTrackedText fits a label that is too long for the button (TODO V).
+    g.setFont (getTextButtonFont (button, button.getHeight()));
     Fonts::drawTrackedText (g, button.getButtonText().toUpperCase(),
-                            button.getLocalBounds(), juce::Justification::centred);
+                            button.getLocalBounds().reduced (3, 0), juce::Justification::centred);
+
+    // gui-integration 20: a feature new in this version carries a dot for its first week.
+    NewFeatureDots::paintDot (g, button);
 }
 
 void LuthierLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton& button,
@@ -952,7 +1019,18 @@ void LuthierLookAndFeel::positionComboBoxText (juce::ComboBox& box, juce::Label&
 }
 
 juce::Font LuthierLookAndFeel::getComboBoxFont (juce::ComboBox&)  { return Fonts::ui (12.0f); }
-juce::Font LuthierLookAndFeel::getLabelFont (juce::Label&)        { return Fonts::ui (12.0f); }
+juce::Font LuthierLookAndFeel::getLabelFont (juce::Label& label)
+{
+    // A label left at JUCE's default font takes the theme's; one given its own
+    // (the Workshop's display-face title) keeps it. Returning the theme's font
+    // for every label hid each setFont in the plugin (TODO V screenshots).
+    const auto f = label.getFont();
+
+    if (std::abs (f.getHeight() - 15.0f) < 0.01f && f.getTypefaceName() == juce::Font::getDefaultSansSerifFontName())
+        return Fonts::ui (12.0f);
+
+    return f;
+}
 juce::Font LuthierLookAndFeel::getPopupMenuFont()                 { return Fonts::ui (13.0f); }
 
 juce::Font LuthierLookAndFeel::getTextButtonFont (juce::TextButton&, int buttonHeight)
@@ -1102,9 +1180,115 @@ void LuthierLookAndFeel::drawScrollbar (juce::Graphics& g, juce::ScrollBar&, int
         ? juce::Rectangle<int> (x + 2, thumbStart, width - 4, thumbSize)
         : juce::Rectangle<int> (thumbStart, y + 2, thumbSize, height - 4);
 
-    g.setColour (isMouseDown ? Palette::accent
-                             : (isMouseOver ? Palette::edgeBright.brighter (0.2f) : Palette::edgeBright));
-    g.fillRoundedRectangle (thumb.toFloat(), 2.0f);
+    /*  ISS-7 (PR #2): accent at every state, dimmed at rest. The edge-coloured
+        thumb vanished into the track, and a scrollbar nobody can see is a
+        column nobody knows scrolls. */
+    g.setColour (isMouseDown ? Palette::accentBright
+                             : (isMouseOver ? Palette::accent : Palette::accentDim));
+    g.fillRoundedRectangle (thumb.toFloat(), 3.0f);
+
+    g.setColour (Palette::edge);
+    g.drawRoundedRectangle (thumb.toFloat().reduced (0.5f), 3.0f, 1.0f);
+}
+
+int LuthierLookAndFeel::getScrollbarButtonSize (juce::ScrollBar& bar)
+{
+    int index = 0;
+
+    for (auto* child : bar.getChildren())
+    {
+        if (auto* button = dynamic_cast<juce::Button*> (child))
+        {
+            // Created up (or left) first, then down (or right).
+            const bool first = index++ == 0;
+
+            if (button->getTitle().isEmpty())
+                button->setTitle (bar.isVertical() ? (first ? "Scroll up" : "Scroll down")
+                                                   : (first ? "Scroll left" : "Scroll right"));
+        }
+    }
+
+    return juce::LookAndFeel_V4::getScrollbarButtonSize (bar);
+}
+
+void LuthierLookAndFeel::drawScrollbarButton (juce::Graphics& g, juce::ScrollBar&, int width, int height,
+                                              int buttonDirection, bool, bool isMouseOverButton,
+                                              bool isButtonDown)
+{
+    juce::Rectangle<int> area (0, 0, width, height);
+
+    g.setColour (Palette::panelSunken);
+    g.fillRect (area);
+
+    if (isMouseOverButton || isButtonDown)
+    {
+        g.setColour (Palette::accent.withAlpha (isButtonDown ? 0.30f : 0.15f));
+        g.fillRoundedRectangle (area.reduced (1).toFloat(), 2.0f);
+    }
+
+    const float half = juce::jlimit (2.0f, 4.0f, (float) juce::jmin (width, height) * 0.3f);
+
+    drawChevron (g, area.toFloat().getCentre(), half, buttonDirection,
+                 isButtonDown ? Palette::accentBright : Palette::accent);
+}
+
+void LuthierLookAndFeel::drawChevron (juce::Graphics& g, juce::Point<float> c, float halfWidth,
+                                      int direction, juce::Colour colour, float thickness)
+{
+    const float depth = halfWidth * 1.125f;
+    const float back = halfWidth * 0.5f;
+
+    juce::Path arrow;
+
+    switch (direction & 3)
+    {
+        case 0:   // up
+            arrow.startNewSubPath (c.x - halfWidth, c.y + back);
+            arrow.lineTo (c.x, c.y - (depth - back));
+            arrow.lineTo (c.x + halfWidth, c.y + back);
+            break;
+
+        case 1:   // right
+            arrow.startNewSubPath (c.x - back, c.y - halfWidth);
+            arrow.lineTo (c.x + (depth - back), c.y);
+            arrow.lineTo (c.x - back, c.y + halfWidth);
+            break;
+
+        case 3:   // left
+            arrow.startNewSubPath (c.x + back, c.y - halfWidth);
+            arrow.lineTo (c.x - (depth - back), c.y);
+            arrow.lineTo (c.x + back, c.y + halfWidth);
+            break;
+
+        case 2:   // down
+        default:
+            arrow.startNewSubPath (c.x - halfWidth, c.y - back);
+            arrow.lineTo (c.x, c.y + (depth - back));
+            arrow.lineTo (c.x + halfWidth, c.y - back);
+            break;
+    }
+
+    g.setColour (colour);
+    g.strokePath (arrow, juce::PathStrokeType (thickness, juce::PathStrokeType::curved,
+                                               juce::PathStrokeType::rounded));
+}
+
+void LuthierLookAndFeel::getIdealPopupMenuItemSize (const juce::String& text, bool isSeparator,
+                                                    int standardMenuItemHeight,
+                                                    int& idealWidth, int& idealHeight)
+{
+    juce::LookAndFeel_V4::getIdealPopupMenuItemSize (text, isSeparator, standardMenuItemHeight,
+                                                     idealWidth, idealHeight);
+
+    if (! isSeparator)
+        idealHeight = juce::jmax (minimumPopupItemHeight, idealHeight);
+}
+
+juce::PopupMenu::Options LuthierLookAndFeel::getOptionsForComboBoxPopupMenu (juce::ComboBox& box,
+                                                                             juce::Label& label)
+{
+    return juce::LookAndFeel_V4::getOptionsForComboBoxPopupMenu (box, label)
+             .withStandardItemHeight (juce::jmax (minimumPopupItemHeight, label.getHeight()));
 }
 
 //==============================================================================

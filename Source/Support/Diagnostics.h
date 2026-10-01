@@ -22,6 +22,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <array>
 #include <atomic>
+#include <functional>
 
 namespace luthier
 {
@@ -34,6 +35,10 @@ enum class LogCategory
 };
 
 const char* getLogCategoryName (LogCategory c) noexcept;
+
+/** host-integration HI-8: LUTHIER_VERSION major.minor.patch plus a build string
+    (CI run / git short SHA), e.g. "1.0.0+a1b2c3d4", for bug reports and About. */
+juce::String getFullVersionString();
 
 //==============================================================================
 class Diagnostics
@@ -70,7 +75,7 @@ public:
 
     /** Total records pushed since the last reset, including ones that have
         scrolled out of the ring. */
-    int getTotalRecords() const noexcept { return totalWritten.load(); }
+    int getTotalRecords() const noexcept { return (int) juce::jmin (totalWritten.load(), (int64_t) std::numeric_limits<int>::max()); }
 
     /** Formats one record for display. */
     static juce::String formatRecord (const Record& r, double sampleRate);
@@ -111,6 +116,12 @@ public:
                                              const juce::String& validatorSummary,
                                              const juce::String& extraNotes = {}) const;
 
+    /** SPEC-SWEEP (include.md INC-29): extra report sections the plugin knows
+        and Diagnostics does not - the LICENCE and MIDI sections. Called on the
+        message thread while a report is built; whatever it returns goes in
+        after HOST. Set once, by the processor that owns this Diagnostics. */
+    void setReportSectionsProvider (std::function<juce::String()> provider);
+
     /** Writes the report. Returns the file written, or an invalid File on failure. */
     juce::File writeTroubleshootingReport (const juce::String& settingsJson,
                                            const juce::String& validatorSummary,
@@ -141,14 +152,18 @@ private:
     double sr = 44100.0;
 
     std::array<Record, kRingSize> ring {};
-    std::atomic<int> writeIndex { 0 };
-    std::atomic<int> totalWritten { 0 };
+    // 64-bit: an int wrapped negative after 2^31 records and `% kRingSize`
+    // then indexed before the ring.
+    std::atomic<int64_t> writeIndex { 0 };
+    std::atomic<int64_t> totalWritten { 0 };
 
     mutable juce::CriticalSection infoLock;
     HostInfo hostInfo;
 
+    std::function<juce::String()> reportSections;   // SPEC-SWEEP INC-29
+
     juce::File crashLogFile;
-    int crashLogFlushedUpTo = 0;
+    int64_t crashLogFlushedUpTo = 0;
     bool crashLogHeaderWritten = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Diagnostics)

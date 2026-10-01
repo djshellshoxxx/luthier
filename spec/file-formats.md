@@ -29,6 +29,7 @@ are reference; this file is the source of truth.
 | `.luthierpart` | Single part | `"magic": "luthier.part"` | Workshop |
 | `.luthiertune` | Tune (composition) | `"magic": "luthier.tune"` | TuneBuilder |
 | `.luthierpattern` | Rhythm pattern | `"magic": "luthier.pattern"` | RhythmEngine |
+| `.luthierjam` | Jam band style (jam-mode.md 12) | `"magic": "luthier.jam"` | Jam |
 | `.luthierset` | Setlist | `"magic": "luthier.setlist"` | LivePerf |
 | `.luthierloop` | Looper save | `"magic": "luthier.loop"` | Practice |
 | `.luthiercontent` | Content update bundle | Signed manifest | Installer |
@@ -36,6 +37,7 @@ are reference; this file is the source of truth.
 | `.mid` / `.midi` | Standard MIDI (Luthier or Generic profile) | See midi-export.md 2 | MidiExport |
 | `.wav` / `.aiff` / `.flac` | Audio (renders, captures, IRs) | Standard | AudioExport / ToneMatch |
 | `.mp3` | Audio in (backing tracks only) | Standard | Practice |
+| `config/performance.json` | CPU quality preference (cpu-quality-modes 3) | `"magic": "luthier.performance"`, `"schema": 1` | PerformanceSettings; written temp-and-rename (13); missing or corrupt -> defaults, never an error |
 
 ## 2. `.luthierpreset`
 
@@ -105,6 +107,14 @@ Migration: schema 1 (pre-M42) had no `ranges` block. Loader adds
 `{"families": {...}: "stock"}` for every family.
 Schema 2 (pre-M49) had `guitar.name` string instead of `guitar.reference`.
 Loader consults `Resources/Guitars/migration.json` to convert.
+
+(mic-placement.md, FEAT-MIC): `ranges.families` also accepts `"mic"` (mic distance and
+angle; absent reads as `"stock"`). A preset that has `mic_position` /
+`mic_distance` (and `_2`) but no `mic_x` etc. is migrated on load to the
+continuous placement keys. On save the legacy keys are written as the
+nearest mirror of the placement (so older builds still load it), and an
+optional `"micLegacy"` object records the automation-facing legacy values
+exactly; readers that do not know it ignore it.
 
 Backup on migration: original file moved to
 `~/Documents/Luthier/Presets/Backup/<yyyy-mm-dd>/<name>-v<schema>.luthierpreset`.
@@ -314,6 +324,24 @@ Every JSON file's `meta` block:
 - `version_created` / `version_modified`: plugin version strings.
 - `tags`: array of short strings, used for filtering in browsers.
 - `notes`: user-facing free text.
+
+### 2.x Preset browser additions (preset-browser-previews.md 5.4, 5.2, 5.5)
+
+- Two optional top-level fields beside `name`: `uid` (a UUID written on the
+  first save of a user preset and kept afterwards; factory presets derive
+  `factory:<name>` and never write it) and `previewPhrase` (a phrase id from
+  preset-browser-previews.md 3.1). Both round-trip; no schema bump.
+  Auto-descriptors are never written into a preset.
+- `~/Documents/Luthier/config/preset-library.json`, magic
+  `luthier.presetlibrary`, schema 1: `entries` keyed by uid (or relative path)
+  with `favourite`, `rating`, `lastLoaded`, `loadCount`; `recent` (last 30).
+- The preview cache (OS cache folder, not Documents): `<hash32>.ogg` plus a
+  `<hash32>.json` sidecar, magic `luthier.preview`; written temp-then-rename
+  per section 13; `<hash32>.lock` taken exclusively; 128 MB, least recently
+  played evicted.
+- Shipped `Resources/Presets/Previews/previews.json`, magic
+  `luthier.previews`, and `Resources/Presets/descriptor-calibration.json`,
+  magic `luthier.calibration`.
 
 ## 13. Save-atomicity rules
 

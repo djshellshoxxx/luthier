@@ -22,12 +22,20 @@ The cabinet IRs are built by designing a magnitude response from the speaker and
 microphone models (mirroring CabinetEngine.cpp), converting it to minimum phase
 via the real cepstrum, and adding the baffle and cabinet-wall reflections that
 give a real cab IR its character.
+
+Usage: python scripts/make_irs.py [--out DIR]
+
+Existing files are kept, so delete one to regenerate it. --out writes the whole
+library into another folder instead of Resources/. The random mode scatter is seeded
+from a stable hash of each IR's name (not Python's per-process randomised hash()),
+so two runs produce byte-identical files.
 """
 
 import math
 import os
 import struct
 import sys
+import zlib
 
 import numpy as np
 
@@ -36,6 +44,13 @@ BODY_SECONDS = 0.40
 CAB_SECONDS = 0.20
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Resources")
+
+
+
+def stable_seed(*parts):
+    """A seed that is the same on every run and every machine (hash() is not)."""
+    return zlib.crc32("|".join(str(p) for p in parts).encode("utf-8")) & 0x7FFFFFFF
+
 
 SPEED_OF_SOUND = 343.0
 POISSON = 0.30
@@ -184,7 +199,7 @@ def build_body_modes(shape, top_wood, back_wood, size_scale, age):
         modes.append((f, q, 0.45 / (1.0 + 0.6 * i)))
 
     # The dense, irregular thicket above ~1 kHz.
-    seed = (hash((shape, top_wood, back_wood)) & 0x7FFFFFFF)
+    seed = stable_seed(shape, top_wood, back_wood)
     rng = np.random.default_rng(seed)
 
     side_base = plate_mode_hz(PLATE_LAMBDA[0], max(1.2, depth * 0.022), radius_mm * 0.55,
@@ -340,7 +355,7 @@ def design_cab_magnitude(freqs, cab, speaker, mic, position, distance, speaker_a
 
     # Fine comb structure from the cone's own modes: this is what stops a
     # synthesised IR from sounding smooth and lifeless.
-    seed = (hash((cab, speaker, mic, position, distance)) & 0x7FFFFFFF)
+    seed = stable_seed(cab, speaker, mic, position, distance)
     rng = np.random.default_rng(seed)
 
     for _ in range(14):
@@ -482,6 +497,15 @@ def generate_cabs():
 
 
 def main():
+    global OUT
+
+    args = sys.argv[1:]
+    if len(args) == 2 and args[0] == "--out":
+        OUT = os.path.abspath(args[1])
+    elif args:
+        print(__doc__)
+        return 2
+
     print("Generating body IRs...")
     bodies = generate_bodies()
     print("  wrote %d body IRs" % bodies)

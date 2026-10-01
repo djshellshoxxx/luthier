@@ -25,6 +25,11 @@
 #include "../Source/Support/AudioExporter.h"
 #include "../Source/Support/IrLibrary.h"
 #include "../Source/Rhythm/GenreKit.h"
+#include "../Source/PluginProcessor.h"                      // output-normalization.md 4.4
+#include "../Source/Support/NormalizationCalibrator.h"      // output-normalization.md 4.4
+#include "../Source/Riffs/RiffLibrary.h"        // riff-library 2.3: --export-riffs
+#include "../Source/Riffs/RiffDestinations.h"
+#include "../Source/Presets/Preview/FactoryPreviews.h"   // preset-browser-previews.md 2 (FEAT-BROWSER)
 
 using namespace luthier;
 
@@ -41,7 +46,7 @@ public:
                             .withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
           apvts (*this, nullptr, "LUTHIER", Parameters::createLayout()),
           bridge (apvts, engine),
-          presets (*this, apvts, engine)
+          presets (*this, apvts, engine, ranges)
     {
         // Same order as the plugin: the recipes need the parameter ranges before
         // the bank can be written, and the bank has to be on disk before a scan
@@ -84,6 +89,7 @@ public:
     LuthierEngine engine;
     juce::AudioProcessorValueTreeState apvts;
     ParameterBridge bridge;
+    RangeState ranges;   // advanced-ranges.md: presets carry their ranges block
     PresetManager presets;
 };
 
@@ -112,6 +118,12 @@ struct Options
     bool showHelp = false;
 
     juce::File writeRhythmResourcesTo;
+
+    // output-normalization.md 4.4: build Resources/NormalizationFactory.json.
+    juce::File calibrateFactoryTo;
+    juce::File exportRiffsTo;          ///< riff-library 2.3
+    bool riffsGeneric = false;
+    juce::File renderPreviewsTo;   // preset-browser-previews.md 2
 };
 
 void printUsage()
@@ -141,7 +153,16 @@ void printUsage()
         "  --tempo <bpm>            for tempo-synced effects, default 120\n"
         "  --normalise [dBFS]       normalise the result, default target -1 dBFS\n"
         "\n"
+        "PRESET PREVIEWS\n"
+        "  --render-previews <dir>  render every factory preset's preview into\n"
+        "                           <dir>/Previews (Ogg + previews.json) and write\n"
+        "                           <dir>/descriptor-calibration.json\n"
+        "\n"
         "INFORMATION\n"
+        "  --calibrate-factory <f>  measure every factory preset x guitar type for output\n"
+        "                           normalization and write the factory table (4.4)\n"
+        "  --export-riffs <dir>     write every factory riff as a .mid file, by genre\n"
+        "  --profile luthier|generic  the .mid profile for --export-riffs, default luthier\n"
         "  --list-presets           list every preset that can be loaded\n"
         "  --list-guitars           list every instrument\n"
         "  --list-phrases           list the built-in audition phrases\n"
@@ -179,6 +200,10 @@ bool parseArguments (int argc, char* argv[], Options& options)
         else if (arg == "--list-presets")              options.listPresets = true;
         else if (arg == "--list-guitars")              options.listGuitars = true;
         else if (arg == "--list-phrases")              options.listPhrases = true;
+        else if (arg == "--calibrate-factory")         options.calibrateFactoryTo = juce::File::getCurrentWorkingDirectory().getChildFile (next (i));
+        else if (arg == "--export-riffs")              options.exportRiffsTo = juce::File::getCurrentWorkingDirectory().getChildFile (next (i));
+        else if (arg == "--profile")                   options.riffsGeneric = next (i).equalsIgnoreCase ("generic");
+        else if (arg == "--render-previews")           options.renderPreviewsTo = juce::File::getCurrentWorkingDirectory().getChildFile (next (i));
         else if (arg == "--write-rhythm-resources")    options.writeRhythmResourcesTo = juce::File::getCurrentWorkingDirectory().getChildFile (next (i));
         else if (arg == "--normalise" || arg == "--normalize")
         {
@@ -234,6 +259,51 @@ int listPresets (RenderHost& host)
     sections 6 and 7 also want them on disk as editable files, and this writes
     that copy from the same tables, so the two can never drift apart.
 */
+/*  riff-library 2.3: batch .mid packs, for marketing and review, through the
+    same C++ path as the drag-out (RiffDestinations::writeDragFile). */
+int exportRiffs (const juce::File& root, bool generic)
+{
+    RiffLibrary library;
+    library.setFolders (RiffLibrary::getDefaultFactoryFolder(), {}, {});
+    library.loadIndexNow();
+
+    if (library.isFactoryMissing() || library.getNumEntries() == 0)
+    {
+        std::cerr << "Factory riffs not found beside the renderer." << std::endl;
+        return 1;
+    }
+
+    int written = 0;
+
+    for (int i = 0; i < library.getNumEntries(); ++i)
+    {
+        const auto* entry = library.getEntry (i);
+        const auto riff = library.getRiff (entry->id);
+
+        if (riff == nullptr)
+        {
+            std::cerr << "Unreadable: " << entry->file.getFullPathName() << std::endl;
+            continue;
+        }
+
+        const auto compiled = RiffCompiler::compile (*riff, {}, GuitarSpecSummary::forRiff (*riff));
+        const int genre = RiffVocabulary::indexOfGenre (riff->genre);
+        const auto folder = root.getChildFile (genre >= 0 ? RiffVocabulary::genres()[(size_t) genre].folder : "User");
+
+        juce::String error;
+        const auto file = RiffDestinations::writeDragFile (*riff, *compiled, generic ? MidiProfile::generic : MidiProfile::luthier,
+                                                          folder, 960, 0.0, &error);
+
+        if (file == juce::File())
+            std::cerr << "Could not write " << riff->meta.id << ": " << error << std::endl;
+        else
+            ++written;
+    }
+
+    std::cout << written << " riffs written to " << root.getFullPathName() << std::endl;
+    return written == library.getNumEntries() ? 0 : 1;
+}
+
 int writeRhythmResources (const juce::File& root)
 {
     const auto patternDirectory = root.getChildFile ("Rhythm");
@@ -611,6 +681,98 @@ int render (RenderHost& host, const Options& options, const juce::MidiMessageSeq
 } // namespace
 
 //==============================================================================
+//==============================================================================
+/*  output-normalization.md 4.4: the factory calibration table. Every factory
+    preset on its own guitar and on every guitar type is loaded into a fresh
+    processor (as a user would load it), hashed exactly as the live instance
+    hashes it, and measured by the same reference render. */
+int calibrateFactory (const juce::File& out)
+{
+    const int presets = FactoryPresets::getNumPresets();
+    const int types = (int) GuitarType::NumTypes;
+    int done = 0, failed = 0;
+
+    for (int pr = 0; pr < presets; ++pr)
+    {
+        for (int g = -1; g < types; ++g)
+        {
+            auto p = std::make_unique<LuthierAudioProcessor>();
+            p->prepareToPlay (48000.0, 256);
+
+            auto& manager = p->getPresetManager();
+            const auto& def = FactoryPresets::getPreset (pr);
+            // FactoryPresets::getPreset returns a view backed by a thread_local
+            // Definition that later getPreset calls (from loadPreset, the
+            // structural capture, ...) overwrite, so snapshot the name now for
+            // the entry label below - otherwise every entry is labelled with
+            // whichever preset was fetched last.
+            const juce::String presetName = def.name;
+            const int index = manager.indexOfPreset (presetName);
+
+            if (index < 0 || ! manager.loadPreset (index))
+            {
+                std::cerr << "cannot load " << presetName << std::endl;
+                ++failed;
+                continue;
+            }
+
+            p->getParameterBridge().applyAllNow();
+
+            if (g >= 0)
+                if (auto* prm = p->getState().getParameter (ParamIDs::guitarType))
+                {
+                    prm->setValueNotifyingHost (prm->convertTo0to1 ((float) g));
+                    p->getParameterBridge().applyAllNow();
+                }
+
+            auto& n = p->getOutputNormalization();
+            n.refreshStructuralSnapshot();
+            const auto state = n.captureSoundState();
+            const auto hash = NormalizationCalibrator::hashSoundState (state, *p);
+            const auto m = NormalizationCalibrator::renderAndMeasure (NormalizationCalibrator::makeRenderState (state, *p));
+
+            if (! m.ok)
+            {
+                std::cerr << "render failed: " << def.name << " / " << g << std::endl;
+                ++failed;
+                continue;
+            }
+
+            auto plain = [&p] (const char* id) -> double
+            {
+                if (auto* prm = p->getState().getParameter (id))
+                    return prm->convertFrom0to1 (prm->getValue());
+                return 0.0;
+            };
+
+            auto normalised = [&p] (const char* id) -> double
+            {
+                if (auto* prm = p->getState().getParameter (id))
+                    return prm->getValue();
+                return 0.0;
+            };
+
+            NormalizationCalibrator::addFactoryEntry (hash, m.measuredLufs, (int) std::lround (plain ("guitar_type")),
+                                                      (int) std::lround (plain ("amp_model")), normalised ("amp_gain"),
+                                                      presetName + (g < 0 ? juce::String (" (own guitar)")
+                                                                          : " / " + juce::String (g)));
+
+            if (++done % 25 == 0)
+                std::cout << "calibrated " << done << " / " << presets * (types + 1) << std::endl;
+        }
+    }
+
+    if (! NormalizationCalibrator::writeFactoryTable (out))
+    {
+        std::cerr << "cannot write " << out.getFullPathName() << std::endl;
+        return 1;
+    }
+
+    std::cout << "wrote " << NormalizationCalibrator::getNumFactoryEntries() << " entries to "
+              << out.getFullPathName() << " (" << failed << " failed)" << std::endl;
+    return failed == 0 ? 0 : 2;
+}
+
 int main (int argc, char* argv[])
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
@@ -626,14 +788,48 @@ int main (int argc, char* argv[])
         return 0;
     }
 
+    // preset-browser-previews.md 2: the factory previews, through the plugin's own
+    // PreviewRenderer (a headless LuthierAudioProcessor per preset), so the CLI
+    // and the plugin render identically.
+    if (options.renderPreviewsTo != juce::File())
+    {
+        PreviewRenderer renderer;
+        const auto bank = FactoryPreviews::renderBank (renderer, [] (int done, int total, const juce::String& name)
+        {
+            std::cout << "  [" << (done + 1) << "/" << total << "] " << name << std::endl;
+        });
+
+        juce::String error;
+
+        if (! FactoryPreviews::write (bank, options.renderPreviewsTo, error))
+        {
+            std::cerr << "Could not write the previews: " << error << std::endl;
+            return 1;
+        }
+
+        std::cout << "Wrote " << bank.size() << " previews to "
+                  << options.renderPreviewsTo.getChildFile ("Previews").getFullPathName() << std::endl;
+        return 0;
+    }
+
     RenderHost host;
 
     if (options.listPresets) return listPresets (host);
     if (options.listGuitars) return listGuitars();
     if (options.listPhrases) return listPhrases();
 
+    if (options.calibrateFactoryTo != juce::File())
+    {
+        // Start from an empty table: this run is the whole of it.
+        NormalizationCalibrator::setFactoryTableFileForTesting (juce::File::createTempFile (".json"));
+        return calibrateFactory (options.calibrateFactoryTo);
+    }
+
     if (options.writeRhythmResourcesTo != juce::File())
         return writeRhythmResources (options.writeRhythmResourcesTo);
+
+    if (options.exportRiffsTo != juce::File())
+        return exportRiffs (options.exportRiffsTo, options.riffsGeneric);
 
     if (options.outputFile == juce::File())
     {

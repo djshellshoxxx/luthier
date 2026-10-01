@@ -15,11 +15,14 @@
     panels already went.
 */
 
+#include "AnimationPolicy.h"   // cpu-quality-modes 6
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "Theme.h"
 #include "Widgets.h"
 #include "StrumGroup.h"
+#include "BassGridGroup.h"   // bass-techniques 9 (MODEL-GAPS)
+#include "PerformanceAssistUi.h"   // auto-articulation.md 7.2 (FEAT-ASSIST)
 #include "../Rhythm/GenreKit.h"
 
 namespace luthier
@@ -116,6 +119,18 @@ public:
 
     static constexpr int preferredHeight = 78;
 
+    /** SPEC-SWEEP (RE-37): what the indicators show, for tests. */
+    const juce::String& getChordText() const noexcept { return chordText; }
+    int getNumVoicedDots() const noexcept
+    {
+        int n = 0;
+
+        for (int s = 0; s < numStringsShown; ++s)
+            n += voicedFrets[(size_t) s] >= 0 ? 1 : 0;
+
+        return n;
+    }
+
 private:
     LuthierAudioProcessor& processor;
 
@@ -176,11 +191,25 @@ private:
     juce::ComboBox styleBox;
     juce::Slider densitySlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
     juce::Slider handPositionSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+    juce::Slider handSpanSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };   // SPEC-SWEEP RE-12
+
+    // SPEC-SWEEP (RE-22): the pattern's length and grid, above the strum grid.
+    juce::ComboBox lengthBox, subdivisionBox;
+    void buildGridControls();
+
+public:
+    juce::ComboBox& getLengthBox() noexcept { return lengthBox; }             // tests
+    juce::ComboBox& getSubdivisionBox() noexcept { return subdivisionBox; }   // tests
+private:
     juce::Label capoLabel;
     juce::TextButton capoDown { "-" }, capoUp { "+" };
 
     // --- pattern editors ------------------------------------------------------------
     std::unique_ptr<StrumGrid> strumGrid;
+
+    // gui-techniques-updates.md 6 / muting-rhythm.md 7 (TECHNIQUES): the pattern's Mute Row.
+    std::unique_ptr<class MuteGridEditor> muteRow;
+    juce::Label muteRowLabel;
     std::unique_ptr<FingerpickGrid> fingerpickGrid;
 
     // --- feel ---------------------------------------------------------------------
@@ -193,6 +222,18 @@ private:
     // gui-integration 4.4: the STRUM group (strum-dynamics 6.3). Its crossing
     // control and source line replace the old strum-duration slider.
     std::unique_ptr<StrumGroup> strumGroup;
+
+    // bass-techniques 9 (MODEL-GAPS): the bass step grid, only on a bass.
+    std::unique_ptr<BassGridGroup> bassGridGroup;
+
+public:
+    BassGridGroup* getBassGridGroup() const noexcept { return bassGridGroup.get(); }
+
+    // auto-articulation.md 7.2 (FEAT-ASSIST): the PLAYING group, first in the tab.
+    std::unique_ptr<PerformanceAssistGroup> playingGroup;
+    PerformanceAssistGroup* getPlayingGroup() const noexcept { return playingGroup.get(); }
+
+private:
 
     // --- browser ------------------------------------------------------------------
     juce::ComboBox tagFilterBox;
@@ -227,6 +268,10 @@ private:
     bool updatingControls = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (RhythmPanel)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "RhythmPanel" };
 };
 
 } // namespace luthier

@@ -54,6 +54,9 @@ void BackingTrackPlayer::prepare (double sampleRate, int maxBlockSize)
     lastLowCut = -1.0;
     lastHighCut = -1.0;
 
+    shifter.prepare();   // SPEC-SWEEP PT-28/29
+    shifterActive = false;
+
     reset();
 }
 
@@ -87,7 +90,7 @@ bool BackingTrackPlayer::load (const juce::File& file)
         is a few megabytes, which is nothing next to the whole file, and is
         enough for both jobs. */
     {
-        const int analysisSamples = (int) juce::jmin ((int64_t) (30.0 * fileSampleRate),
+        const int analysisSamples = (int) juce::jmin ((juce::int64) (30.0 * fileSampleRate),
                                                       reader->lengthInSamples);
 
         analysisSampleRate = fileSampleRate;
@@ -111,20 +114,28 @@ bool BackingTrackPlayer::load (const juce::File& file)
         }
     }
 
-    readerSource = std::make_unique<juce::AudioFormatReaderSource> (reader.release(), true);
+    auto newReaderSource = std::make_unique<juce::AudioFormatReaderSource> (reader.release(), true);
 
     // practice-tools 0.4 and 3: the file streams from disk behind a four-second
     // ring, filled by its own thread. Nothing loads the file whole.
-    bufferingSource = std::make_unique<juce::BufferingAudioSource> (
-        readerSource.get(), readerThread, false,
+    auto newBufferingSource = std::make_unique<juce::BufferingAudioSource> (
+        newReaderSource.get(), readerThread, false,
         (int) (kRingBufferSeconds * fileSampleRate), 2, false);
 
-    transport = std::make_unique<juce::AudioTransportSource>();
-    transport->setSource (bufferingSource.get(), 0, nullptr, fileSampleRate, 2);
-    transport->prepareToPlay (blockSize, sr);
+    auto newTransport = std::make_unique<juce::AudioTransportSource>();
+    newTransport->setSource (newBufferingSource.get(), 0, nullptr, fileSampleRate, 2);
+    newTransport->prepareToPlay (blockSize, sr);
+
+    {
+        const juce::SpinLock::ScopedLockType sl (transportLock);
+        readerSource = std::move (newReaderSource);
+        bufferingSource = std::move (newBufferingSource);
+        transport = std::move (newTransport);
+    }
 
     currentFile = file;
     loaded.store (true, std::memory_order_relaxed);
+    shifterResetPending.store (true, std::memory_order_relaxed);   // SPEC-SWEEP PT-28
 
     markers.clear();
 
@@ -141,16 +152,29 @@ void BackingTrackPlayer::unload()
     playing.store (false, std::memory_order_relaxed);
     loaded.store (false, std::memory_order_relaxed);
 
-    if (transport != nullptr)
+    // Taken out under the lock, so the audio thread is never inside them when
+    // they are destroyed, and torn down after it is released.
+    std::unique_ptr<juce::AudioTransportSource> oldTransport;
+    std::unique_ptr<juce::BufferingAudioSource> oldBufferingSource;
+    std::unique_ptr<juce::AudioFormatReaderSource> oldReaderSource;
+
     {
-        transport->stop();
-        transport->setSource (nullptr);
-        transport->releaseResources();
+        const juce::SpinLock::ScopedLockType sl (transportLock);
+        oldTransport = std::move (transport);
+        oldBufferingSource = std::move (bufferingSource);
+        oldReaderSource = std::move (readerSource);
     }
 
-    transport.reset();
-    bufferingSource.reset();
-    readerSource.reset();
+    if (oldTransport != nullptr)
+    {
+        oldTransport->stop();
+        oldTransport->setSource (nullptr);
+        oldTransport->releaseResources();
+    }
+
+    oldTransport.reset();
+    oldBufferingSource.reset();
+    oldReaderSource.reset();
 
     currentFile = juce::File();
     lengthSeconds = 0.0;
@@ -184,12 +208,16 @@ void BackingTrackPlayer::stop() noexcept
 
     if (transport != nullptr)
         transport->setPosition (isLoopEnabled() ? getLoopStartSeconds() : 0.0);
+
+    shifterResetPending.store (true, std::memory_order_relaxed);   // SPEC-SWEEP PT-28
 }
 
 void BackingTrackPlayer::setPositionSeconds (double seconds)
 {
     if (transport != nullptr)
         transport->setPosition (juce::jlimit (0.0, juce::jmax (0.0, lengthSeconds), seconds));
+
+    shifterResetPending.store (true, std::memory_order_relaxed);   // SPEC-SWEEP PT-28
 }
 
 double BackingTrackPlayer::getPositionSeconds() const
@@ -473,25 +501,40 @@ void BackingTrackPlayer::processBlock (juce::AudioBuffer<float>& destination, in
 
     destination.clear();
 
-    if (! isLoaded() || transport == nullptr || ! isPlaying())
+    const juce::SpinLock::ScopedTryLockType sl (transportLock);
+
+    if (! sl.isLocked() || ! isLoaded() || transport == nullptr || ! isPlaying())
         return;
 
     // ---- pull from the streaming source ------------------------------------------
-    juce::AudioSourceChannelInfo info (&destination, 0, numSamples);
-    transport->getNextAudioBlock (info);
+    /*  SPEC-SWEEP PT-28/29 (practice-tools 3): through the pitch and tempo
+        shift when either is set. The shifter pulls as much input as it needs,
+        a block at a most at a time, so the loop points still apply per pull. */
+    const double tempo = getTempoRatio();
+    const double semitones = getPitchShiftSemitones();
 
-    // ---- loop points --------------------------------------------------------------
-    if (isLoopEnabled())
+    if (TimePitchShifter::isNeutral (tempo, semitones))
     {
-        const double end = getLoopEndSeconds();
-        const double start = getLoopStartSeconds();
+        shifterActive = false;
 
-        if (end > start && transport->getCurrentPosition() >= end)
-            transport->setPosition (start);
+        for (int done = 0; done < numSamples;)
+        {
+            const int count = juce::jmin (numSamples - done, juce::jmax (1, blockSize));
+            pullFromTransport (destination.getWritePointer (0, done), destination.getWritePointer (1, done), count);
+            done += count;
+        }
     }
-    else if (transport->hasStreamFinished())
+    else
     {
-        playing.store (false, std::memory_order_relaxed);
+        if (! shifterActive || shifterResetPending.exchange (false, std::memory_order_relaxed))
+        {
+            shifter.reset();
+            shifterActive = true;
+        }
+
+        shifter.process (destination.getWritePointer (0), destination.getWritePointer (1), numSamples,
+                         tempo, semitones, blockSize,
+                         [this] (float* l, float* r, int count) { pullFromTransport (l, r, count); });
     }
 
     // ---- tone and level ------------------------------------------------------------
@@ -541,6 +584,35 @@ void BackingTrackPlayer::processBlock (juce::AudioBuffer<float>& destination, in
 
         left[i] = (float) sanitise (l * gain * panL);
         right[i] = (float) sanitise (r * gain * panR);
+    }
+}
+
+//==============================================================================
+void BackingTrackPlayer::pullFromTransport (float* left, float* right, int count) noexcept
+{
+    count = juce::jlimit (0, scratch.getNumSamples(), count);
+
+    if (count == 0 || transport == nullptr || scratch.getNumChannels() < 2)
+        return;
+
+    juce::AudioSourceChannelInfo info (&scratch, 0, count);
+    transport->getNextAudioBlock (info);
+
+    juce::FloatVectorOperations::copy (left, scratch.getReadPointer (0), count);
+    juce::FloatVectorOperations::copy (right, scratch.getReadPointer (1), count);
+
+    // ---- loop points --------------------------------------------------------------
+    if (isLoopEnabled())
+    {
+        const double end = getLoopEndSeconds();
+        const double start = getLoopStartSeconds();
+
+        if (end > start && transport->getCurrentPosition() >= end)
+            transport->setPosition (start);
+    }
+    else if (transport->hasStreamFinished())
+    {
+        playing.store (false, std::memory_order_relaxed);
     }
 }
 

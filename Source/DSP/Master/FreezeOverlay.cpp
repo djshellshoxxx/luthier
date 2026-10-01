@@ -111,7 +111,9 @@ void FreezeOverlay::setCaptureMs (double ms) noexcept
 void FreezeOverlay::setLevelDb (double db) noexcept
 {
     // The spec's range is -inf to 0 dB, so anything at the floor is silence.
-    levelLinear = (db <= -90.0) ? 0.0
+    // SPEC-SWEEP AR-10: the floor is freeze_level's own -60 dB bottom; it was
+    // -90, which the parameter could never reach.
+    levelLinear = (db <= -59.95) ? 0.0
                                 : juce::Decibels::decibelsToGain (juce::jmin (0.0, db));
 }
 

@@ -1,0 +1,109 @@
+# performance-budget.md 9 / 10, qa-polish.md 2: the machine-relative and long
+# tests (CPU units, scaling curves, the 60-minute memory session, the 100 000-
+# state fuzz, 10 000 state operations, 32 instances) run nightly with
+# LUTHIER_PERF=1, and their numbers are published as a JSON artefact - the
+# dashboard the spec asks for. A second clean build checks the packages are
+# reproducible (installer.md 10).
+name: Nightly
+
+on:
+  # Manual only since 2026-09-26 (Actions minutes): Actions -> Nightly -> Run workflow.
+  workflow_dispatch:
+
+jobs:
+  perf:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    env:
+      SOURCE_DATE_EPOCH: "1767225600"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up
+        run: |
+          sudo -E scripts/setup_linux.sh
+          sudo chown -R "$USER" .
+
+      - name: Build
+        run: ninja -C build -j4 LuthierTests Luthier_VST3 Luthier_Standalone
+
+      - name: Performance, memory and long-form tests (LUTHIER_PERF=1)
+        env:
+          LUTHIER_PERF: "1"
+        run: |
+          xvfb-run -a build/LuthierTests_artefacts/Release/LuthierTests \
+            PerfBudget Memory Boot Workshop WorkshopBench WorkshopSpectrum Tune Latency \
+            Parameters StateModel Stress Engine | tee build/perf.log
+
+      - name: Dashboard JSON
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json, re, datetime
+          log = open("build/perf.log", encoding="utf-8", errors="replace").read().splitlines()
+          suite, results, metrics = None, [], []
+          for line in log:
+              if re.match(r"^[A-Za-z]+$", line.strip()) and not line.startswith(" "):
+                  suite = line.strip()
+              m = re.match(r"\s+\[(pass|FAIL)\]\s+(\S+?)\s*(\d+) checks\s+([\d.]+) ms", line)
+              if m:
+                  results.append({"suite": suite, "test": m.group(2), "status": m.group(1),
+                                  "checks": int(m.group(3)), "ms": float(m.group(4))})
+              u = re.match(r"\s+(.+?)\s+([\d.]+) units \(budget ([\d.]+)\)", line)
+              if u:
+                  metrics.append({"name": u.group(1).strip(), "units": float(u.group(2)), "budget": float(u.group(3))})
+          json.dump({"date": datetime.datetime.utcnow().isoformat() + "Z",
+                     "results": results, "cpu": metrics},
+                    open("build/perf-dashboard.json", "w"), indent=2)
+          PY
+
+      - name: Reproducible packages (two clean builds)
+        run: |
+          (cd build && cpack -G DEB && cp luthier_*_amd64.deb ../first.deb)
+          rm -rf build-second
+          cmake -S . -B build-second -G Ninja -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+          ninja -C build-second -j4 Luthier_VST3 Luthier_Standalone
+          (cd build-second && cpack -G DEB)
+          if cmp first.deb build-second/luthier_*_amd64.deb; then echo "reproducible"; \
+          else echo "::warning::the two .deb builds differ"; fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: luthier-nightly-dashboard
+          path: |
+            build/perf.log
+            build/perf-dashboard.json
+
+  # qa-polish: AddressSanitizer build of the test runner. A separate build tree
+  # with -fsanitize=address catches heap/stack overflows, use-after-free and
+  # leaks that a plain Release build misses. Combo is skipped: it is the long
+  # combinatorial suite and times out under ASan's slowdown.
+  asan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up
+        run: |
+          sudo -E scripts/setup_linux.sh
+          sudo chown -R "$USER" .
+
+      - name: Configure ASan build
+        run: |
+          cmake -S . -B build-asan -G Ninja -DCMAKE_BUILD_TYPE=Debug \
+                -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+                -DLUTHIER_LTO=OFF \
+                -DCMAKE_C_FLAGS="-fsanitize=address -fno-omit-frame-pointer" \
+                -DCMAKE_CXX_FLAGS="-fsanitize=address -fno-omit-frame-pointer"
+
+      - name: Build LuthierTests (ASan)
+        run: ninja -C build-asan -j4 LuthierTests
+
+      - name: Run tests under ASan (skip Combo)
+        env:
+          ASAN_OPTIONS: "detect_leaks=1:abort_on_error=1:halt_on_error=1"
+        run: |
+          xvfb-run -a build-asan/LuthierTests_artefacts/Debug/LuthierTests --skip=Combo

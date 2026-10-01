@@ -15,6 +15,7 @@
     a custom value is set.
 */
 
+#include "AnimationPolicy.h"   // cpu-quality-modes 6
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Widgets.h"
 #include "../DSP/Circuit/GuitarCircuit.h"
@@ -30,6 +31,10 @@ class CircuitResponseView : public juce::Component,
                             private juce::Timer
 {
 public:
+    /** SPEC-SWEEP (GD-2, gui-engine-dataflow 0.2): the spec's drain rate. */
+    static constexpr int kRefreshHz = 30;
+    int getRefreshIntervalMs() const noexcept { return getTimerInterval(); }
+
     explicit CircuitResponseView (LuthierAudioProcessor& processor);
     ~CircuitResponseView() override;
 
@@ -60,6 +65,10 @@ private:
     double peakHz = 0.0, peakDb = 0.0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CircuitResponseView)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "CircuitResponseView" };
 };
 
 //==============================================================================

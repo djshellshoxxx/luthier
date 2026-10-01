@@ -285,7 +285,7 @@ LUTHIER_TEST (Character, zeroCharacterIsExactlyNeutral)
     CHECK (engine.getBodyQMultiplier() == 1.0);
     CHECK (engine.getAirResonanceMultiplier() == 1.0);
     CHECK (engine.getBodyHfDampingMultiplier() == 1.0);
-    CHECK (engine.getTemperatureOffsetCents() == 0.0);
+    CHECK (CharacterEngine::legacyTemperatureOffsetCents (engine.getTemperature(), engine.getAmount()) == 0.0);
     CHECK (engine.applyPotTaper (0.5) == 0.5);
 
     // And it stays neutral as time passes.
@@ -405,8 +405,11 @@ LUTHIER_TEST (Character, retuneResetsTheDrift)
 }
 
 //==============================================================================
-/*  character-wear 12: a twenty-kelvin step produces the expected tuning offset. */
-LUTHIER_TEST (Character, temperatureProducesTheExpectedOffset)
+/*  environment.md 1: the temperature offset left CharacterEngine for the
+    physical EnvironmentModel (ENV-02 replaces this spec's 20 K test). The
+    legacy choice is kept only so the loader can convert it (environment.md 6):
+    it no longer reaches the tuner drift. */
+LUTHIER_TEST (Character, temperatureIsTheEnvironmentsNow)
 {
     CharacterEngine engine;
     engine.setSeed (0x7ull);
@@ -414,52 +417,39 @@ LUTHIER_TEST (Character, temperatureProducesTheExpectedOffset)
     engine.setAmount (1.0);
     engine.setTunerLooseness (0.0);
 
-    engine.setTemperature (Temperature::room);
-    CHECK_NEAR (engine.getTemperatureOffsetCents(), 0.0, 1.0e-9);
-
-    // Cold tightens the string, so it goes sharp.
     engine.setTemperature (Temperature::cold);
-    const double cold = engine.getTemperatureOffsetCents();
+    CHECK_NEAR (engine.getTunerDriftCents (0), 0.0, 1.0e-12);
 
-    CHECK_MSG (cold > 0.0, "cooling the instrument flattened it");
-    CHECK_NEAR (cold, 2.5, 0.01);
-
-    // Warm does the opposite, symmetrically.
-    engine.setTemperature (Temperature::warm);
-    const double warm = engine.getTemperatureOffsetCents();
-
-    CHECK_MSG (warm < 0.0, "warming the instrument sharpened it");
-    CHECK_NEAR (warm, -2.5, 0.01);
-
-    CHECK_NEAR (cold + warm, 0.0, 1.0e-9);
-
-    // And it reaches the strings.
-    engine.setTemperature (Temperature::cold);
-    CHECK_NEAR (engine.getTunerDriftCents (0), cold, 0.01);
+    // The legacy conversion's target: +-2.5 cents x amount, sharp when cold.
+    CHECK_NEAR (CharacterEngine::legacyTemperatureOffsetCents (Temperature::cold, 1.0), 2.5, 1.0e-12);
+    CHECK_NEAR (CharacterEngine::legacyTemperatureOffsetCents (Temperature::warm, 0.25), -0.625, 1.0e-12);
+    CHECK (CharacterEngine::legacyTemperatureOffsetCents (Temperature::room, 1.0) == 0.0);
 }
 
 //==============================================================================
-/*  character-wear 9: humidity moves the body's Q and compliance the right way. */
-LUTHIER_TEST (Character, humidityMovesTheBodyTheRightWay)
+/*  environment.md 6: the old keys are read, for one schema, and not written. */
+LUTHIER_TEST (Character, legacyEnvironmentKeysAreReadNotWritten)
 {
     CharacterEngine engine;
-    engine.setSeed (0x11ull);
-    engine.setEnabled (true);
-    engine.setAmount (1.0);
-
-    engine.setHumidity (Humidity::normal);
-    CHECK_NEAR (engine.getHumidityQMultiplier(), 1.0, 1.0e-9);
-    CHECK_NEAR (engine.getHumidityComplianceMultiplier(), 1.0, 1.0e-9);
-
-    // Dry wood is stiffer and less lossy: higher Q, lower compliance.
+    engine.setTemperature (Temperature::warm);
     engine.setHumidity (Humidity::dry);
-    CHECK (engine.getHumidityQMultiplier() > 1.0);
-    CHECK (engine.getHumidityComplianceMultiplier() < 1.0);
 
-    // Damp wood is the other way round.
-    engine.setHumidity (Humidity::humid);
-    CHECK (engine.getHumidityQMultiplier() < 1.0);
-    CHECK (engine.getHumidityComplianceMultiplier() > 1.0);
+    auto state = engine.toVar();
+    CHECK (! state.getDynamicObject()->hasProperty ("temperature"));
+    CHECK (! state.getDynamicObject()->hasProperty ("humidity"));
+
+    CharacterEngine absent;
+    absent.fromVar (state);
+    CHECK (absent.getTemperature() == Temperature::room);
+    CHECK (absent.getHumidity() == Humidity::normal);
+
+    state.getDynamicObject()->setProperty ("temperature", (int) Temperature::cold);
+    state.getDynamicObject()->setProperty ("humidity", (int) Humidity::humid);
+
+    CharacterEngine legacy;
+    legacy.fromVar (state);
+    CHECK (legacy.getTemperature() == Temperature::cold);
+    CHECK (legacy.getHumidity() == Humidity::humid);
 }
 
 //==============================================================================
@@ -751,8 +741,9 @@ LUTHIER_TEST (Character, stateRoundTrips)
     CHECK (restored.isJackIntermittentEnabled());
     CHECK (! restored.isBoneNut());
     CHECK_NEAR (restored.getBodyAge(), 77.0, 1.0e-9);
-    CHECK (restored.getTemperature() == Temperature::cold);
-    CHECK (restored.getHumidity() == Humidity::humid);
+    // environment.md 6: these are env_* parameters now and are not saved here.
+    CHECK (restored.getTemperature() == Temperature::room);
+    CHECK (restored.getHumidity() == Humidity::normal);
 
     CHECK_NEAR (restored.getFretWear (7), 0.83, 1.0e-6);
 
@@ -785,4 +776,71 @@ LUTHIER_TEST (Character, nutMaterialChangesDamping)
     // Both are a bias, not a transformation: within ten percent of neutral.
     CHECK (std::abs (bone - 1.0) < 0.1);
     CHECK (std::abs (synthetic - 1.0) < 0.1);
+}
+
+//==============================================================================
+/*  CW-9, character-wear 2: a dead spot is weighted toward the body's air
+    resonance - a note near it loses more sustain than the same spot at a note
+    far from it. */
+LUTHIER_TEST (Character, deadSpotLossIsWorseNearBodyResonance)
+{
+    CharacterEngine engine;
+    engine.setSeed (0x9ull);
+    engine.setAmount (1.0);
+    engine.setEnabled (true);
+
+    DeadSpot spot;
+    spot.fret = 7;
+    spot.depth = 0.6;
+    spot.width = 3.0;
+    engine.setDeadSpot (0, 0, spot);
+
+    const double bodyResonanceHz = 110.0;
+    const double nearHz = bodyResonanceHz;                 // right on it
+    const double farHz  = bodyResonanceHz * 4.0;            // two octaves away
+
+    const double atResonance = engine.getSustainMultiplier (0, (double) spot.fret, nearHz, bodyResonanceHz);
+    const double awayFromResonance = engine.getSustainMultiplier (0, (double) spot.fret, farHz, bodyResonanceHz);
+
+    CHECK_MSG (atResonance < awayFromResonance,
+               "a note at the body resonance did not lose more sustain than one two octaves away");
+
+    // Without a body resonance hint at all, the spot still applies its base loss.
+    const double noHint = engine.getSustainMultiplier (0, (double) spot.fret);
+    CHECK (noHint < 1.0);
+}
+
+//==============================================================================
+/*  CW-21, character-wear 7: nut slot wear dampens the open string.
+    LuthierEngine.cpp applies (1 - getNutDamping(s)) * getNutMaterialDamping() to
+    the fret-0 sustain scale, so a worn nut must read as strictly less than a
+    fresh (disabled) one for every string that has any wear at all. */
+LUTHIER_TEST (Character, nutWearDampensTheOpenString)
+{
+    CharacterEngine engine;
+    engine.setSeed (0x21ull);
+    engine.setAmount (1.0);
+    engine.setEnabled (true);
+
+    bool anyWorn = false;
+
+    for (int s = 0; s < 6; ++s)
+    {
+        const double damping = engine.getNutDamping (s);
+        CHECK (damping >= 0.0 && damping <= 0.08);
+
+        if (damping > 0.0)
+            anyWorn = true;
+
+        // The multiplier LuthierEngine actually applies at fret 0.
+        const double openSustain = 1.0 - damping;
+        CHECK_MSG (openSustain <= 1.0, "nut wear made the open string louder, not softer");
+    }
+
+    CHECK_MSG (anyWorn, "no string had any nut wear to compare against");
+
+    engine.setEnabled (false);
+
+    for (int s = 0; s < 6; ++s)
+        CHECK_MSG (engine.getNutDamping (s) == 0.0, "a disabled Character still reported nut wear");
 }

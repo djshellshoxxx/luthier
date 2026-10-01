@@ -1,6 +1,8 @@
 #include "Widgets.h"
 #include "RangesUi.h"
+#include "UiPreferences.h"
 #include "../PluginProcessor.h"
+#include "../Accessibility/Accessibility.h"
 
 namespace luthier
 {
@@ -130,7 +132,72 @@ juce::PopupMenu buildParameterContextMenu (LuthierAudioProcessor& processor,
         }
     }
 
+    // ---- gui-integration 16 items 11-13 ------------------------------------------
+    menu.addSeparator();
+    menu.addItem (kAutomationIdMenuId, "Automation ID: " + parameterId, false);
+
+    if (const auto action = shortcutActionForParameter (parameterId); action.isNotEmpty())
+        if (const auto* binding = AccessibilitySettings::get().findShortcut (action); binding != nullptr && binding->key.isValid())
+            menu.addItem (kShowShortcutMenuId, "Show in Options -> Shortcuts (" + binding->key.getTextDescription() + ")");
+
     return menu;
+}
+
+std::function<void (const juce::String&)> showShortcutInOptions;
+
+int modSourceSlotFromDrag (const juce::var& description)
+{
+    const auto text = description.toString();
+
+    if (! text.startsWith (kModSourceDragPrefix))
+        return -1;
+
+    const int slot = text.fromFirstOccurrenceOf (kModSourceDragPrefix, false, false).getIntValue();
+    return juce::isPositiveAndBelow (slot, (int) ModSourceSlots::count) ? slot : -1;
+}
+
+bool addModulationFromDrop (LuthierAudioProcessor& processor, int sourceSlot, const juce::String& parameterId)
+{
+    if (sourceSlot < 0 || parameterId.isEmpty() || processor.getState().getParameter (parameterId) == nullptr)
+        return false;
+
+    auto& matrix = processor.getModMatrix();
+
+    if (matrix.getRouteCountForDestination (parameterId) >= ModMatrix::kMaxRoutesPerDestination)
+        return false;
+
+    ModRoute route;
+    route.sourceId = modSourceIdForSlot (sourceSlot);
+    route.destinationId = parameterId;
+    route.depth = 0.25f;   // gui-integration 11.2: "default depth 25%"
+    route.enabled = true;
+
+    // One undo entry, in words (action-and-undo.md).
+    processor.pushUndoState ("Modulate " + processor.getState().getParameter (parameterId)->getName (40)
+                             + " from " + modSourceDisplayName (sourceSlot) + " at 25%");
+    return matrix.addRoute (route);
+}
+
+void labelForScreenReaders (juce::Component& control, LuthierAudioProcessor& processor,
+                            const juce::String& parameterId, const juce::String& tooltip)
+{
+    // ui-wiring.md 21: every attached control has a name a screen reader reads
+    // (the parameter's) and its help (the tooltip); the value comes from the
+    // attachment's own text function, so it carries the unit.
+    if (auto* param = processor.getState().getParameter (parameterId))
+    {
+        control.setTitle (param->getName (64));
+        control.setHelpText (tooltip.isNotEmpty() ? tooltip : param->getName (64));
+    }
+}
+
+juce::String shortcutActionForParameter (const juce::String& parameterId)
+{
+    // The parameters a shortcut in accessibility.md 2's table toggles.
+    if (parameterId == ParamIDs::slideGuitar)
+        return "toggleSlideMode";
+
+    return {};
 }
 
 //==============================================================================
@@ -205,6 +272,7 @@ void applyParameterMenuResult (int result,
                 break;
 
             case 6:
+                processor.pushUndoAction ("Remove MIDI mapping", "midi-mapping-delete", {});   // action-and-undo.md 3.12
                 learn.removeMappingForParameter (parameterId);
                 break;
 
@@ -227,6 +295,11 @@ void applyParameterMenuResult (int result,
                 param->setValueNotifyingHost (v);
                 break;
             }
+
+            case kShowShortcutMenuId:
+                if (showShortcutInOptions)
+                    showShortcutInOptions (shortcutActionForParameter (parameterId));
+                break;
 
             case kUnlockRangeMenuId:
             case kRestrictRangeMenuId:
@@ -265,6 +338,10 @@ void applyParameterMenuResult (int result,
                 // Walk backwards so removing one does not shift the next.
                 auto& modMatrix = processor.getModMatrix();
 
+                // action-and-undo.md 3.6 / ui-wiring 18: one entry for the removal.
+                if (auto* p = processor.getState().getParameter (parameterId))
+                    processor.pushUndoAction ("Remove modulation from " + p->getName (64), "mod-route-delete", {});
+
                 for (int i = modMatrix.getNumRoutes(); --i >= 0;)
                     if (modMatrix.getRoute (i).destinationId == parameterId)
                         modMatrix.removeRoute (i);
@@ -286,6 +363,11 @@ void applyParameterMenuResult (int result,
                     // control the user just right-clicked.
                     route.depth = 0.33f;
                     route.enabled = true;
+
+                    // action-and-undo.md 3.6: "Add [source] to [destination] depth X".
+                    if (auto* p = processor.getState().getParameter (parameterId))
+                        processor.pushUndoAction ("Add " + modSourceDisplayName (result - kModulateMenuBase) + " to "
+                                                    + p->getName (64) + " depth 0.33", "mod-route-create", {});
 
                     processor.getModMatrix().addRoute (route);
                 }
@@ -396,12 +478,107 @@ LuthierKnob::LuthierKnob (const juce::String& text, Size s)
     slider.setVelocityBasedMode (false);
     slider.setMouseDragSensitivity (180);
 
+    // SPEC-SWEEP: A11Y-13 - every knob is on the Tab walk.
+    slider.setWantsKeyboardFocus (true);
+
     setInterceptsMouseClicks (true, true);
 }
 
+//==============================================================================
+/*  SPEC-SWEEP (UW-35 / GD-17): one 30 Hz timer for every attached knob, shared
+    through a SharedResourcePointer so it exists only while knobs do. Each tick
+    asks each knob whether its modulation arc moved; most answer no after two
+    atomic reads, so a screen of unmodulated knobs costs next to nothing. */
+class ModArcHub : private juce::Timer
+{
+public:
+    ~ModArcHub() override { stopTimer(); }
+
+    void add (LuthierKnob* knob)
+    {
+        knobs.addIfNotAlreadyThere (knob);
+
+        if (! isTimerRunning())
+            startTimerHz (LuthierKnob::kModArcRefreshHz);
+    }
+
+    void remove (LuthierKnob* knob)
+    {
+        knobs.removeAllInstancesOf (knob);
+
+        if (knobs.isEmpty())
+            stopTimer();
+    }
+
+    int getIntervalMs() const noexcept { return getTimerInterval(); }
+
+private:
+    void timerCallback() override
+    {
+        for (int i = knobs.size(); --i >= 0;)
+            if (auto* knob = knobs[i])
+                knob->pollModulationArc();
+    }
+
+    juce::Array<LuthierKnob*> knobs;
+};
+
 LuthierKnob::~LuthierKnob()
 {
+    if (arcHub != nullptr)
+        (*arcHub)->remove (this);
+
     attachment.reset();
+}
+
+bool LuthierKnob::pollLearnPulse (double nowMs)
+{
+    const bool learningThis = processor != nullptr && processor->getMidiLearn().isLearning()
+                               && processor->getMidiLearn().getLearningParameterId() == paramId;
+
+    const bool on = learningThis && LearnPulse::isOn (nowMs);
+
+    if (learningThis == wasLearning && on == learnPulseOn)
+        return false;
+
+    wasLearning = learningThis;
+    learnPulseOn = on;
+    repaint();
+    return true;
+}
+
+bool LuthierKnob::pollModulationArc()
+{
+    // SPEC-SWEEP (GD-30): the learning outline pulses on the hub's clock.
+    if (processor != nullptr && (pollWhileHidden || isShowing()))
+        pollLearnPulse (juce::Time::getMillisecondCounterHiRes());
+
+    if (processor == nullptr || modIndex < 0 || ! (pollWhileHidden || isShowing()))
+        return false;
+
+    auto& matrix = processor->getModMatrix();
+    const bool modulated = matrix.isDestinationModulated (modIndex);
+
+    float norm = 0.0f;
+
+    if (modulated)
+    {
+        const auto range = processor->getState().getParameterRange (paramId);
+        norm = matrix.getOffsetFor (modIndex) / juce::jmax (1.0e-9f, range.end - range.start);
+    }
+
+    // Half a pixel of arc: the arc spans 1.6 pi radians of the knob's radius.
+    const float radius = juce::jmax (4.0f, (float) juce::jmin (getWidth(), getHeight()) * 0.5f);
+    const float threshold = 0.5f / (radius * 1.6f * juce::MathConstants<float>::pi);
+
+    if (modulated == lastArcModulated && std::abs (norm - lastArcNorm) <= threshold)
+        return false;
+
+    lastArcModulated = modulated;
+    lastArcNorm = norm;
+    ++arcRepaints;
+    repaint();
+    return true;
 }
 
 void LuthierKnob::attachTo (LuthierAudioProcessor& p, const juce::String& id, const juce::String& tooltip)
@@ -414,6 +591,14 @@ void LuthierKnob::attachTo (LuthierAudioProcessor& p, const juce::String& id, co
 
     RangesUi::tagSlider (slider, id);
 
+    // SPEC-SWEEP (UW-35): live modulation arcs.
+    modIndex = p.getParameterBridge().parameterIndex (id);
+
+    if (arcHub == nullptr)
+        arcHub = std::make_unique<juce::SharedResourcePointer<ModArcHub>>();
+
+    (*arcHub)->add (this);
+
     if (tooltip.isNotEmpty())
     {
         slider.setTooltip (tooltip);
@@ -424,6 +609,7 @@ void LuthierKnob::attachTo (LuthierAudioProcessor& p, const juce::String& id, co
         slider.setTooltip (param->getName (64));
     }
 
+    labelForScreenReaders (slider, p, id, tooltip);
     updateMidiLearnIndicator();
 }
 
@@ -615,8 +801,16 @@ void LuthierKnob::paint (juce::Graphics& g)
     if (processor != nullptr && processor->getMidiLearn().isLearning()
         && processor->getMidiLearn().getLearningParameterId() == paramId)
     {
-        g.setColour (Palette::secondary.withAlpha (0.65f));
+        // SPEC-SWEEP (GD-30): at 1 Hz with the header's MIDI Learn button.
+        g.setColour (Palette::secondary.withAlpha (learnPulseOn ? 0.85f : 0.3f));
         g.drawRoundedRectangle (getLocalBounds().toFloat().reduced (1.0f), Metrics::panelCorner, 1.5f);
+    }
+
+    // gui-integration 11.2: the drop target a dragged source would route to.
+    if (dropHighlight)
+    {
+        g.setColour (Palette::accent);
+        g.drawRoundedRectangle (getLocalBounds().toFloat().reduced (1.0f), Metrics::panelCorner, 2.0f);
     }
 }
 
@@ -663,6 +857,35 @@ void LuthierKnob::mouseDown (const juce::MouseEvent& e)
 }
 
 //==============================================================================
+bool LuthierKnob::KnobSlider::keyPressed (const juce::KeyPress& key)
+{
+    // SPEC-SWEEP: A11Y-14
+    const auto range = getRange();
+    const double span = range.getLength();
+
+    if (span <= 0.0 || ! isEnabled())
+        return false;
+
+    if (key.isKeyCode (juce::KeyPress::homeKey)) { setValue (range.getStart(), juce::sendNotificationSync); return true; }
+    if (key.isKeyCode (juce::KeyPress::endKey))  { setValue (range.getEnd(),   juce::sendNotificationSync); return true; }
+
+    const int code = key.getKeyCode();
+    double direction = 0.0;
+
+    if (code == juce::KeyPress::upKey || code == juce::KeyPress::rightKey)        direction = 1.0;
+    else if (code == juce::KeyPress::downKey || code == juce::KeyPress::leftKey)  direction = -1.0;
+    else return false;
+
+    const auto mods = key.getModifiers();
+    const double fraction = mods.isShiftDown() ? 0.001 : (mods.isCommandDown() || mods.isCtrlDown()) ? 0.1 : 0.01;
+
+    // At least one step of a stepped range, so a choice or an integer moves.
+    const double step = juce::jmax (span * fraction, getInterval());
+
+    setValue (getValue() + direction * step, juce::sendNotificationSync);
+    return true;
+}
+
 void LuthierKnob::KnobSlider::mouseDown (const juce::MouseEvent& e)
 {
     if (e.mods.isPopupMenu())
@@ -705,6 +928,22 @@ void LuthierKnob::KnobSlider::mouseEnter (const juce::MouseEvent& e)
     owner.repaint();
 }
 
+void LuthierKnob::KnobSlider::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel)
+{
+    /*  ISS-7 (PR #2): a knob sits in a scrolling column, and a wheel that
+        stopped the column dead whenever the pointer crossed a knob made the
+        columns feel stuck. Ctrl+wheel keeps the nudge. */
+    if (WheelPassSlider::wheelAdjustsValue (e))
+    {
+        juce::Slider::mouseWheelMove (e, wheel);
+        owner.repaint();
+    }
+    else
+    {
+        juce::Component::mouseWheelMove (e, wheel);
+    }
+}
+
 void LuthierKnob::KnobSlider::mouseExit (const juce::MouseEvent& e)
 {
     juce::Slider::mouseExit (e);
@@ -739,6 +978,7 @@ void LuthierChoice::attachTo (LuthierAudioProcessor& p, const juce::String& id, 
 
         box.setTooltip (tooltip.isNotEmpty() ? tooltip : param->getName (64));
         setTooltip (box.getTooltip());
+        labelForScreenReaders (box, p, id, tooltip);
     }
 
     attachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
@@ -762,7 +1002,8 @@ void LuthierChoice::resized()
 {
     auto bounds = getLocalBounds();
 
-    if (labelVisible && labelText.isNotEmpty())
+    // Too short for both: the box keeps the row and the label goes (paint agrees).
+    if (labelVisible && labelText.isNotEmpty() && bounds.getHeight() >= labelHeight + 16)
         bounds.removeFromTop (labelHeight);
 
     box.setBounds (bounds);
@@ -770,7 +1011,7 @@ void LuthierChoice::resized()
 
 void LuthierChoice::paint (juce::Graphics& g)
 {
-    if (! labelVisible || labelText.isEmpty())
+    if (! labelVisible || labelText.isEmpty() || getHeight() < labelHeight + 16)
         return;
 
     g.setColour (Palette::textMuted);
@@ -810,10 +1051,50 @@ void LuthierToggle::attachTo (LuthierAudioProcessor& p, const juce::String& id, 
     {
         button.setTooltip (tooltip.isNotEmpty() ? tooltip : param->getName (64));
         setTooltip (button.getTooltip());
+        labelForScreenReaders (button, p, id, tooltip);
     }
 
     attachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
         p.getState(), id, button);
+}
+
+void LuthierToggle::setMomentary (bool shouldBeMomentary)
+{
+    momentary = shouldBeMomentary;
+    button.setClickingTogglesState (! momentary);
+
+    if (! momentary)
+    {
+        button.onStateChange = nullptr;
+
+        if (processor != nullptr && paramId.isNotEmpty())
+            attachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
+                processor->getState(), paramId, button);
+        return;
+    }
+
+    // The attachment writes on click (mouse up); a momentary control writes on
+    // press and on release itself.
+    attachment.reset();
+
+    button.onStateChange = [this]
+    {
+        const bool down = button.isDown();
+
+        if (down == momentaryHeld || processor == nullptr)
+            return;
+
+        momentaryHeld = down;
+
+        if (auto* param = processor->getState().getParameter (paramId))
+        {
+            param->beginChangeGesture();
+            param->setValueNotifyingHost (down ? 1.0f : 0.0f);
+            param->endChangeGesture();
+        }
+
+        button.setToggleState (down, juce::dontSendNotification);
+    };
 }
 
 void LuthierToggle::resized()
@@ -854,6 +1135,7 @@ void LuthierSlider::attachTo (LuthierAudioProcessor& p, const juce::String& id, 
     {
         slider.setTooltip (tooltip.isNotEmpty() ? tooltip : param->getName (64));
         setTooltip (slider.getTooltip());
+        labelForScreenReaders (slider, p, id, tooltip);
     }
 
     attachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
@@ -909,17 +1191,46 @@ void LuthierSlider::mouseDown (const juce::MouseEvent& e)
 LevelMeter::LevelMeter()
 {
     setInterceptsMouseClicks (false, false);
-    startTimerHz (30);
+    motion.startTimerHz (*this, 30);
 }
 
 LevelMeter::~LevelMeter()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 void LevelMeter::setSource (LuthierAudioProcessor* p)
 {
     processor = p;
+
+    // SPEC-SWEEP: A11Y-7
+    AccessibleSetup::configureMeter (*this, "Output level", [this] { return (double) displayPeakDb; });
+}
+
+std::unique_ptr<juce::AccessibilityHandler> LevelMeter::createAccessibilityHandler()
+{
+    // SPEC-SWEEP: A11Y-7 - read-only, reported in dBFS.
+    struct PeakValue : juce::AccessibilityValueInterface
+    {
+        explicit PeakValue (LevelMeter& m) : meter (m) {}
+
+        bool isReadOnly() const override { return true; }
+        double getCurrentValue() const override { return meter.getDisplayPeakDb(); }
+        juce::String getCurrentValueAsString() const override
+        {
+            const float db = meter.getDisplayPeakDb();
+            return db <= -99.0f ? juce::String ("silent") : juce::String (db, 1) + " dBFS";
+        }
+        void setValue (double) override {}
+        void setValueAsString (const juce::String&) override {}
+        AccessibleValueRange getRange() const override { return { { -100.0, 12.0 }, 0.1 }; }
+
+        LevelMeter& meter;
+    };
+
+    return std::make_unique<juce::AccessibilityHandler> (*this, juce::AccessibilityRole::progressBar,
+                                                         juce::AccessibilityActions {},
+                                                         juce::AccessibilityHandler::Interfaces { std::make_unique<PeakValue> (*this) });
 }
 
 void LevelMeter::timerCallback()
@@ -937,6 +1248,17 @@ void LevelMeter::timerCallback()
 
     const float newL = toNormalised (master.getPeakLeft());
     const float newR = toNormalised (master.getPeakRight());
+
+    // cpu-quality-modes 6: at Low the meter steps at 10 Hz with no ballistics.
+    if (AnimationPolicy::get().isReadoutStepped())
+    {
+        levelL = peakHoldL = newL;
+        levelR = peakHoldR = newR;
+        holdCountL = holdCountR = 0;
+        displayPeakDb = (float) master.getPeakDb();
+        repaint();
+        return;
+    }
 
     // Fast attack, slow release, so transients are visible but the meter is calm.
     levelL = juce::jmax (newL, levelL * 0.80f);
@@ -958,6 +1280,8 @@ void LevelMeter::timerCallback()
 
 void LevelMeter::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     auto bounds = getLocalBounds();
 
     auto readout = horizontal ? bounds.removeFromRight (46) : bounds.removeFromTop (12);
@@ -967,6 +1291,14 @@ void LevelMeter::paint (juce::Graphics& g)
 
     auto drawBar = [&g, this] (juce::Rectangle<int> area, float level, float hold)
     {
+        // SPEC-SWEEP: A11Y-25 - shape as well as colour: below -18 dBFS the bar
+        // is drawn at 60% of its thickness, so "quiet" reads without the green.
+        const float quietBelow = (60.0f - 18.0f) / 60.0f;
+
+        if (level > 0.001f && level < quietBelow)
+            area = horizontal ? area.withSizeKeepingCentre (area.getWidth(), juce::jmax (1, area.getHeight() * 3 / 5))
+                              : area.withSizeKeepingCentre (juce::jmax (1, area.getWidth() * 3 / 5), area.getHeight());
+
         if (level > 0.001f)
         {
             // Smooth gradient rather than visible LED segments.
@@ -1016,6 +1348,29 @@ void LevelMeter::paint (juce::Graphics& g)
         drawBar (right, levelR, peakHoldR);
     }
 
+    // SPEC-SWEEP: A11Y-25 - over 0 dBFS a bracket marks the clipped end, so the
+    // overload is a shape and not only red.
+    if (displayPeakDb > 0.0f)
+    {
+        const auto meterArea = horizontal ? getLocalBounds().withTrimmedRight (46) : getLocalBounds().withTrimmedTop (12);
+        g.setColour (Palette::clip);
+
+        if (horizontal)
+        {
+            const int x = meterArea.getRight() - 4;
+            g.fillRect (x, meterArea.getY(), 4, 1);
+            g.fillRect (x + 3, meterArea.getY(), 1, meterArea.getHeight());
+            g.fillRect (x, meterArea.getBottom() - 1, 4, 1);
+        }
+        else
+        {
+            const int y = meterArea.getY();
+            g.fillRect (meterArea.getX(), y, 1, 4);
+            g.fillRect (meterArea.getX(), y, meterArea.getWidth(), 1);
+            g.fillRect (meterArea.getRight() - 1, y, 1, 4);
+        }
+    }
+
     g.setColour (displayPeakDb > -0.3f ? Palette::clip : Palette::textMuted);
     g.setFont (Fonts::mono (9.0f));
     g.drawText (displayPeakDb <= -99.0f ? juce::String ("-inf")
@@ -1031,12 +1386,12 @@ OutputLed::OutputLed()
     setInterceptsMouseClicks (false, false);
     setTooltip ("Output level. Dark when silent, white as it approaches 0 dBFS, "
                 "red while the signal is over.");
-    startTimerHz (30);
+    motion.startTimerHz (*this, kRefreshHz);   // SPEC-SWEEP GD-8 rate, via cpu-quality-modes 6
 }
 
 OutputLed::~OutputLed()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 void OutputLed::setSource (LuthierAudioProcessor* p)
@@ -1046,30 +1401,68 @@ void OutputLed::setSource (LuthierAudioProcessor* p)
 
 void OutputLed::timerCallback()
 {
+    tick (juce::Time::getMillisecondCounterHiRes());
+}
+
+void OutputLed::tick (double nowMs)
+{
     if (processor == nullptr)
         return;
 
-    const double db = processor->getEngine().getMasterBus().getPeakDb();
+    auto& bus = processor->getEngine().getMasterBus();
+    const auto blocks = bus.getBlockCount();
+
+    if (blocks != lastBlockCount)
+    {
+        lastBlockCount = blocks;
+        lastFreshMs = nowMs;
+    }
+
+    const bool stale = nowMs - lastFreshMs > kStaleMs;
+    const double db = stale ? -200.0 : bus.getPeakDb();
 
     // -inf is the dark grey; brightness rises toward white as the level nears 0 dB.
     const float target = (float) juce::jlimit (0.0, 1.0, (db + 48.0) / 48.0);
 
-    brightness = juce::jmax (target, brightness * 0.86f);
-    overThreshold = (db > 0.0);
+    // cpu-quality-modes 6: at Low no decay, and the clip LED latches (for a
+    // second after the level drops back) instead of pulsing.
+    if (AnimationPolicy::get().isReadoutStepped())
+    {
+        brightness = stale ? 0.0f : target;
+
+        if (db > 0.0)
+            clipLatchedAtMs = nowMs;
+
+        overThreshold = ! stale && ((db > 0.0) || nowMs - clipLatchedAtMs < 1000.0);
+        repaint();
+        return;
+    }
+
+    // SPEC-SWEEP (GD-8): a stale reading goes dark at once rather than fading
+    // from the last value (0.93 per tick at 60 Hz is 0.86 at 30 Hz).
+    brightness = stale ? 0.0f : juce::jmax (target, brightness * 0.93f);
+
+    // Red latches for kRedHoldMs from the last over, then re-evaluates.
+    if (db > 0.0)
+        redSinceMs = nowMs;
+
+    overThreshold = ! stale && (nowMs - redSinceMs) < kRedHoldMs;
 
     repaint();
 }
 
 void OutputLed::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     auto bounds = getLocalBounds().toFloat().reduced (2.0f);
     const float radius = juce::jmin (bounds.getWidth(), bounds.getHeight()) * 0.5f;
     const auto centre = bounds.getCentre();
 
-    const auto dark = juce::Colour (0xff4a4640);
+    const auto dark = darkColour();   // SPEC-SWEEP GD-8: #5A5F66
 
     auto colour = overThreshold
-                    ? Palette::clip
+                    ? redColour()
                     : dark.interpolatedWith (juce::Colours::white, brightness);
 
     // Glow, so a hot signal reads from across the room.
@@ -1188,18 +1581,20 @@ FeedbackLed::FeedbackLed (LuthierAudioProcessor& p)
                 "when the loop is sustaining a note on its own");
     AccessibleSetup::configureDescriptive (*this, "Feedback indicator",
                                            "Lights when the feedback loop is sustaining a note");
-    startTimerHz (20);
+    motion.startTimerHz (*this, kRefreshHz);   // gui-engine-dataflow 22
 }
 
 FeedbackLed::~FeedbackLed()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 void FeedbackLed::refresh()
 {
     const auto& loop = processor.getEngine().getFeedbackLoop();
-    const float nowActivity = loop.isActive() ? (float) loop.getActivity() : 0.0f;
+    // The glow builds towards the point the loop takes over (1 = resonant).
+    const float nowActivity = loop.isActive() ? (float) juce::jmin (1.0, loop.getActivity() / FeedbackLoop::kResonantShare)
+                                              : 0.0f;
     const bool nowResonant = loop.isActive() && loop.isResonant();
 
     if (std::abs (nowActivity - activity) > 0.01f || nowResonant != resonant)
@@ -1212,17 +1607,19 @@ void FeedbackLed::refresh()
 
 void FeedbackLed::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     auto bounds = getLocalBounds().toFloat().reduced (2.0f);
     const float radius = juce::jmin (bounds.getWidth(), bounds.getHeight()) * 0.5f;
     const auto centre = bounds.getCentre();
 
     const auto dark = juce::Colour (0xff4a4640);
     const auto colour = resonant ? Palette::warning
-                                 : dark.interpolatedWith (Palette::accent, juce::jlimit (0.0f, 1.0f, activity * 4.0f));
+                                 : dark.interpolatedWith (Palette::accent, juce::jlimit (0.0f, 1.0f, activity));
 
-    if (resonant || activity > 0.02f)
+    if (resonant || activity > 0.08f)
     {
-        g.setColour (colour.withAlpha (resonant ? 0.35f : 0.25f * juce::jmin (1.0f, activity * 4.0f)));
+        g.setColour (colour.withAlpha (resonant ? 0.35f : 0.25f * juce::jmin (1.0f, activity)));
         g.fillEllipse (centre.x - radius * 1.9f, centre.y - radius * 1.9f, radius * 3.8f, radius * 3.8f);
     }
 
@@ -1239,12 +1636,12 @@ void FeedbackLed::paint (juce::Graphics& g)
 DataStreamDisplay::DataStreamDisplay()
 {
     setInterceptsMouseClicks (false, false);
-    startTimerHz (20);
+    motion.startTimerHz (*this, 20);
 }
 
 DataStreamDisplay::~DataStreamDisplay()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 void DataStreamDisplay::setSource (LuthierAudioProcessor* p)
@@ -1256,16 +1653,34 @@ void DataStreamDisplay::setSource (LuthierAudioProcessor* p)
         processor->getDiagnostics().setEnabled (true);
 }
 
+bool DataStreamDisplay::isEnabledByUser()
+{
+    return UiPreferences::get().getBool ("appearance.dataStream", true);
+}
+
+void DataStreamDisplay::setEnabledByUser (bool enabled)
+{
+    UiPreferences::get().setBool ("appearance.dataStream", enabled);
+}
+
 void DataStreamDisplay::timerCallback()
 {
-    if (processor == nullptr)
+    update (juce::Time::getMillisecondCounterHiRes());
+}
+
+void DataStreamDisplay::update (double nowMs)
+{
+    // Options -> Appearance's switch, followed here so no one else has to.
+    if (const bool wanted = isEnabledByUser(); wanted != isVisible() && getParentComponent() != nullptr)
+        setVisible (wanted);
+
+    // ui-wiring 11: a moving readout is motion; under reduced motion it holds still.
+    if (processor == nullptr || ! isVisible() || ! AnimationPolicy::get().mayAnimate (AnimationPolicy::Decorative))
         return;
 
-    auto& diagnostics = processor->getDiagnostics();
-    const int total = diagnostics.getTotalRecords();
-
-    // The stream stops when nothing is happening, and starts again on new data.
-    if (total == lastRecordCount)
+    // cpu-quality-modes 7, E1: the scrolling stream is suspended under CPU
+    // load (supersedes performance-budget.md 8 step 2).
+    if (processor->getQualityController().isDataStreamSuspended())
     {
         if (scrolling)
         {
@@ -1275,8 +1690,23 @@ void DataStreamDisplay::timerCallback()
         return;
     }
 
-    const int newRecords = juce::jmin (total - lastRecordCount, numLines);
+    auto& diagnostics = processor->getDiagnostics();
+    const int total = diagnostics.getTotalRecords();
+
+    // The stream stops 500 ms after the last record, and starts again on new data.
+    if (total == lastRecordCount)
+    {
+        if (scrolling && nowMs - lastArrivalMs >= kStopAfterMs)
+        {
+            scrolling = false;
+            repaint();
+        }
+        return;
+    }
+
+    const int newRecords = juce::jmin (total - lastRecordCount, kMaxLines);
     lastRecordCount = total;
+    lastArrivalMs = nowMs;
     scrolling = true;
 
     std::vector<Diagnostics::Record> records ((size_t) juce::jmax (1, newRecords));
@@ -1286,7 +1716,7 @@ void DataStreamDisplay::timerCallback()
         lines.add (Diagnostics::formatRecord (records[(size_t) i],
                                               processor->getEngine().getSampleRate()));
 
-    while (lines.size() > numLines)
+    while (lines.size() > kMaxLines)
         lines.remove (0);
 
     repaint();
@@ -1294,6 +1724,8 @@ void DataStreamDisplay::timerCallback()
 
 void DataStreamDisplay::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     if (lines.isEmpty())
         return;
 
@@ -1301,16 +1733,21 @@ void DataStreamDisplay::paint (juce::Graphics& g)
 
     g.setFont (Fonts::mono (juce::jlimit (7.0f, 11.0f, lineHeight * 0.78f)));
 
-    for (int i = 0; i < lines.size(); ++i)
+    // The newest numLines of the 200 kept.
+    const int first = juce::jmax (0, lines.size() - numLines);
+
+    for (int i = first; i < lines.size(); ++i)
     {
-        // The top two and bottom two lines fade away, as specified.
-        const int fromTop = i;
+        // The top two and bottom two lines fade away, as specified - when
+        // there are lines enough to fade (the footer shows one).
+        const int fromTop = i - first;
         const int fromBottom = lines.size() - 1 - i;
 
         float alpha = 1.0f;
 
-        if (fromTop == 0 || fromBottom == 0)       alpha = 0.12f;
-        else if (fromTop == 1 || fromBottom == 1)  alpha = 0.38f;
+        if (numLines <= 2)                          alpha = 0.62f;
+        else if (fromTop == 0 || fromBottom == 0)   alpha = 0.12f;
+        else if (fromTop == 1 || fromBottom == 1)   alpha = 0.38f;
         else                                        alpha = 0.62f;
 
         if (! scrolling)
@@ -1318,7 +1755,7 @@ void DataStreamDisplay::paint (juce::Graphics& g)
 
         g.setColour (Palette::dataStream.withAlpha (alpha * 0.85f));
 
-        const juce::Rectangle<int> row (0, juce::roundToInt ((float) i * lineHeight),
+        const juce::Rectangle<int> row (0, juce::roundToInt ((float) fromTop * lineHeight),
                                         getWidth(), juce::roundToInt (lineHeight));
 
         g.drawText (lines[i], row.reduced (4, 0), juce::Justification::centredLeft, false);
@@ -1382,8 +1819,10 @@ void InlineNotice::show (const juce::String& newMessage, Level newLevel, int mil
     /*  accessibility 1: announced rather than only drawn. A notice explaining why
         the window changed shape is exactly the case where a user who cannot see
         the window needs it most. */
-    juce::AccessibilityHandler::postAnnouncement (
-        message, juce::AccessibilityHandler::AnnouncementPriority::high);
+    // SPEC-SWEEP: A11Y-43 - gated by the verbosity setting; a warning counts
+    // as an error, which even "minimal" speaks.
+    AccessibleSetup::announce (message, level == Level::warning ? AccessibleSetup::Announcement::error
+                                                                : AccessibleSetup::Announcement::standard);
 
     if (millisecondsToLive > 0)
         startTimer (millisecondsToLive);

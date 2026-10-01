@@ -485,7 +485,9 @@ int Tune::addSection (TuneSection section, int insertAt)
 
 bool Tune::removeSection (int index)
 {
-    if (! isValidSection (index))
+    // error-recovery 6: a tune must keep a playable section. Refusing before
+    // any mutation also preserves its setlist and rhythm links.
+    if (! isValidSection (index) || getNumSections() <= 1)
         return false;
 
     const auto name = arrangement.sections[(size_t) index].name;

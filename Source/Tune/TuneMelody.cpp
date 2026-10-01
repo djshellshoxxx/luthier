@@ -518,6 +518,10 @@ bool generateMelody (Tune& tune, int sectionIndex)
     const int seed = section->melody.has_value() ? section->melody->seed : 1;
     auto notes = generateAutoMelody (tune, sectionIndex, seed);
 
+    // SPEC-SWEEP ER-46, error-recovery 6: nothing generated keeps the melody there was.
+    if (notes.empty())
+        return false;
+
     if (! section->melody.has_value())
         section->melody = MelodyTrack();
 
@@ -540,7 +544,15 @@ bool regenerateMelody (Tune& tune, int sectionIndex)
         section->melody = MelodyTrack();
 
     auto& seed = section->melody->seed;
+    const int previousSeed = seed;
     seed = seed >= 0x7fffffff - 1 ? 1 : seed + 1;
+
+    // SPEC-SWEEP ER-46: an empty result leaves the section (seed included) as it was.
+    if (generateAutoMelody (tune, sectionIndex, seed).empty())
+    {
+        seed = previousSeed;
+        return false;
+    }
 
     generateMelody (tune, sectionIndex);
     return true;

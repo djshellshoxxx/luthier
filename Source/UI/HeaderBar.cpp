@@ -1,8 +1,10 @@
 #include "HeaderBar.h"
+#include "UndoHistoryPanel.h"
 #include "MidiOutPanel.h"
 #include "MidiExportDefaults.h"
 #include "NotationPanel.h"
 #include "../PluginProcessor.h"
+#include "../Accessibility/Accessibility.h"
 
 namespace luthier
 {
@@ -11,6 +13,10 @@ HeaderBar::HeaderBar (LuthierAudioProcessor& p)
     : processor (p)
 {
     addAndMakeVisible (led);
+
+    // output-normalization.md 5.1: visible only while normalization is on.
+    addChildComponent (normalizationBadge);
+    normalizationBadge.onVisibilityChanged = [this] { resized(); };
     led.setSource (&processor);
 
     addAndMakeVisible (guitarSelector);
@@ -27,21 +33,11 @@ HeaderBar::HeaderBar (LuthierAudioProcessor& p)
     // ---- preset ---------------------------------------------------------------
     addAndMakeVisible (presetPrev);
     presetPrev.setTooltip ("Previous preset");
-    presetPrev.onClick = [this]
-    {
-        processor.pushUndoState ("Load preset");
-        processor.getPresetManager().loadPrevious();
-        processor.getParameterBridge().applyAllNow();
-    };
+    presetPrev.onClick = [this] { processor.stepPresetAsUserAction (false); };   // action-and-undo.md 3.8
 
     addAndMakeVisible (presetNext);
     presetNext.setTooltip ("Next preset");
-    presetNext.onClick = [this]
-    {
-        processor.pushUndoState ("Load preset");
-        processor.getPresetManager().loadNext();
-        processor.getParameterBridge().applyAllNow();
-    };
+    presetNext.onClick = [this] { processor.stepPresetAsUserAction (true); };    // action-and-undo.md 3.8
 
     addAndMakeVisible (presetName);
     presetName.setTooltip ("Click to browse the preset bank");
@@ -81,7 +77,7 @@ HeaderBar::HeaderBar (LuthierAudioProcessor& p)
 
     // ---- panic --------------------------------------------------------------------
     addAndMakeVisible (panicButton);
-    panicButton.setTooltip ("Stop every string immediately and clear all held notes");
+    panicButton.setTooltip ("Stop every string immediately, clear all held notes, and stop the tune, looper, backing track, metronome and progression");
     panicButton.setColour (juce::TextButton::textColourOffId, Palette::warning);
     panicButton.onClick = [this] { processor.panic(); };
 
@@ -98,6 +94,10 @@ HeaderBar::HeaderBar (LuthierAudioProcessor& p)
     addAndMakeVisible (helpButton);
     helpButton.setTooltip ("Help, troubleshooting and debug tools");
     helpButton.onClick = [this] { if (onOpenHelp) onOpenHelp(); };
+
+    // global-search.md 6.1 (FEAT-SEARCH): the magnifier opens the palette.
+    addAndMakeVisible (searchButton);
+    searchButton.onClick = [this] { if (onOpenSearch) onOpenSearch(); };
 
     // ---- mode ----------------------------------------------------------------------
     addAndMakeVisible (modeButton);
@@ -154,12 +154,12 @@ HeaderBar::HeaderBar (LuthierAudioProcessor& p)
     refreshPresetDisplay();
     updateUndoRedoState();
 
-    startTimerHz (6);
+    motion.startTimerHz (*this, 6);
 }
 
 HeaderBar::~HeaderBar()
 {
-    stopTimer();
+    motion.stopTimer();
     processor.getPresetManager().removeChangeListener (this);
     processor.getMidiLearn().removeChangeListener (this);
 }
@@ -275,6 +275,14 @@ void HeaderBar::changeListenerCallback (juce::ChangeBroadcaster*)
 
 void HeaderBar::timerCallback()
 {
+    // SPEC-SWEEP (GD-30): the armed MIDI Learn button pulses at 1 Hz.
+    if (midiLearnButton.getToggleState())
+    {
+        const bool on = LearnPulse::isOnNow();
+        midiLearnButton.setColour (juce::TextButton::buttonOnColourId,
+                                   Palette::accent.withAlpha (on ? 0.45f : 0.15f));
+    }
+
     updateUndoRedoState();
     updateRangePadlock();
 
@@ -287,8 +295,46 @@ void HeaderBar::timerCallback()
 }
 
 //==============================================================================
-void HeaderBar::showFileMenu()
+juce::PopupMenu HeaderBar::buildUndoHistoryMenu (const LuthierAudioProcessor& processor)
 {
+    juce::PopupMenu menu;
+    menu.addSectionHeader ("Undo back to before...");
+
+    for (const auto& item : processor.getUndoHistory (20))
+    {
+        // action-and-undo.md 5: boundaries drawn as rules with a subtitle.
+        if (item.boundary)
+        {
+            menu.addSeparator();
+            menu.addSectionHeader (item.description);
+        }
+
+        menu.addItem (1 + item.stepsBack, item.description);
+    }
+
+    return menu;
+}
+
+void HeaderBar::applyUndoHistoryChoice (LuthierAudioProcessor& processor, int result)
+{
+    if (result > 1)
+        processor.undoSteps (result - 1);
+}
+
+void HeaderBar::showUndoHistory()
+{
+    // action-and-undo.md 9: the list with its search box, in a callout.
+    auto panel = std::make_unique<UndoHistoryPanel> (processor);
+    auto* raw = panel.get();
+
+    auto& box = juce::CallOutBox::launchAsynchronously (std::move (panel), fileMenuButton.getScreenBounds(), nullptr);
+    raw->onChosen = [&box] { box.dismiss(); };
+}
+
+juce::PopupMenu HeaderBar::buildFileMenu()
+{
+    // SPEC-SWEEP (USER_MANUAL UM-7): built and handled apart from showing, so a
+    // test can check every documented item and drive the results.
     auto& manager = processor.getPresetManager();
 
     juce::PopupMenu menu;
@@ -299,6 +345,7 @@ void HeaderBar::showFileMenu()
     menu.addItem (3, "Open preset file...");
     menu.addSeparator();
     menu.addItem (4, "Import preset...");
+    menu.addItem (14, "Import MIDI...");   // midi-export 5 (MODEL-GAPS)
     menu.addItem (5, "Export preset...");
     menu.addSeparator();
     menu.addItem (6, "Export audio...");
@@ -310,157 +357,151 @@ void HeaderBar::showFileMenu()
     menu.addItem (8, "Open user preset folder");
     menu.addItem (9, "Open render folder");
     menu.addSeparator();
+    {
+        // global-search.md 6.1 (FEAT-SEARCH): always here, the only route below 1280.
+        const auto* binding = AccessibilitySettings::get().findShortcut ("search");
+        menu.addItem (40, "Search..." + (binding != nullptr && binding->key.isValid()
+                                          ? "  " + binding->key.getTextDescription() : juce::String()));
+    }
     menu.addItem (10, "Options...");
+    menu.addSeparator();
+    menu.addItem (15, "Undo history...", processor.getNumUndoSteps() > 0);   // action-and-undo.md 9
     menu.addSeparator();
     menu.addItem (11, "Randomise");
     menu.addItem (12, "Reset all settings to default");
 
-    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&fileMenuButton),
-                        [this] (int result)
+    return menu;
+}
+
+void HeaderBar::showFileMenu()
+{
+    buildFileMenu().showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&fileMenuButton),
+                                   [this] (int result) { handleFileMenuResult (result); });
+}
+
+void HeaderBar::handleFileMenuResult (int result)
+{
+    auto& presetManager = processor.getPresetManager();
+
+    switch (result)
     {
-        auto& presetManager = processor.getPresetManager();
+        case 1:
+            if (! presetManager.saveCurrent())
+                if (onSaveAs) onSaveAs();
+            break;
 
-        switch (result)
+        case 2:
+            if (onSaveAs)
+                onSaveAs();
+            break;
+
+        case 40:   // FEAT-SEARCH (an id clear of the menu's 1-15)
+            if (onOpenSearch)
+                onOpenSearch();
+            break;
+
+        case 3:
+        case 4:
         {
-            case 1:
-                if (! presetManager.saveCurrent())
-                    if (onSaveAs) onSaveAs();
-                break;
+            const bool isImport = (result == 4);
 
-            case 2:
-                if (onSaveAs)
-                    onSaveAs();
-                break;
-
-            case 3:
-            case 4:
+            // Owned by the header: closing the window cancels it (MIDI chooser lifetime).
+            fileChooser.launch (*this, "Open a Luthier preset",
+                                PresetManager::getUserPresetFolder(),
+                                "*" + juce::String (PresetManager::kFileExtension),
+                                juce::FileBrowserComponent::openMode
+                                    | juce::FileBrowserComponent::canSelectFiles,
+                                [this, isImport] (const juce::File& file)
             {
-                auto chooser = std::make_shared<juce::FileChooser> (
-                    "Open a Luthier preset",
-                    PresetManager::getUserPresetFolder(),
-                    "*" + juce::String (PresetManager::kFileExtension));
+                processor.pushUndoBoundary ((isImport ? "Import preset " : "Load preset ") + file.getFileNameWithoutExtension());   // action-and-undo.md 5
 
-                const bool isImport = (result == 4);
+                if (isImport)
+                    processor.getPresetManager().importPreset (file);
+                else
+                    processor.getPresetManager().loadPreset (file);
 
-                chooser->launchAsync (juce::FileBrowserComponent::openMode
-                                        | juce::FileBrowserComponent::canSelectFiles,
-                                      [this, chooser, isImport] (const juce::FileChooser& fc)
-                {
-                    const auto file = fc.getResult();
+                processor.getParameterBridge().applyAllNow();
+            });
+            break;
+        }
 
-                    if (file == juce::File())
-                        return;
-
-                    processor.pushUndoState (isImport ? "Import preset" : "Open preset");
-
-                    if (isImport)
-                        processor.getPresetManager().importPreset (file);
-                    else
-                        processor.getPresetManager().loadPreset (file);
-
-                    processor.getParameterBridge().applyAllNow();
-                });
-                break;
-            }
-
-            case 5:
+        case 5:
+        {
+            fileChooser.launch (*this, "Export the current preset",
+                                PresetManager::getUserPresetFolder()
+                                    .getChildFile (processor.getPresetManager().getCurrentPresetName()
+                                                   + PresetManager::kFileExtension),
+                                "*" + juce::String (PresetManager::kFileExtension),
+                                juce::FileBrowserComponent::saveMode
+                                    | juce::FileBrowserComponent::warnAboutOverwriting,
+                                [this] (const juce::File& file)
             {
-                auto chooser = std::make_shared<juce::FileChooser> (
-                    "Export the current preset",
-                    PresetManager::getUserPresetFolder()
-                        .getChildFile (processor.getPresetManager().getCurrentPresetName()
-                                       + PresetManager::kFileExtension),
-                    "*" + juce::String (PresetManager::kFileExtension));
+                processor.getPresetManager().exportPreset (file);
+            });
+            break;
+        }
 
-                chooser->launchAsync (juce::FileBrowserComponent::saveMode
-                                        | juce::FileBrowserComponent::warnAboutOverwriting,
-                                      [this, chooser] (const juce::FileChooser& fc)
-                {
-                    const auto file = fc.getResult();
+        case 6:
+            if (onOpenExport)
+                onOpenExport();
+            break;
 
-                    if (file != juce::File())
-                        processor.getPresetManager().exportPreset (file);
-                });
-                break;
-            }
-
-            case 6:
-                if (onOpenExport)
-                    onOpenExport();
-                break;
-
-            case 7:
+        case 7:
+        {
+            fileChooser.launch (*this, "Save the last take as MIDI",
+                                PresetManager::getRenderFolder().getChildFile (MidiCapture::makeDefaultFileName()),
+                                "*.mid",
+                                juce::FileBrowserComponent::saveMode
+                                    | juce::FileBrowserComponent::warnAboutOverwriting,
+                                [this] (const juce::File& file)
             {
-                auto chooser = std::make_shared<juce::FileChooser> (
-                    "Save the last take as MIDI",
-                    PresetManager::getRenderFolder().getChildFile (MidiCapture::makeDefaultFileName()),
-                    "*.mid");
+                // midi-export 8: the take goes out in the Options -> MIDI profile.
+                juce::String error;
+                const bool ok = MidiTakeExport::exportCapture (processor, file, MidiExportDefaults::load(),
+                                                               0.0, &error);
 
-                chooser->launchAsync (juce::FileBrowserComponent::saveMode
-                                        | juce::FileBrowserComponent::warnAboutOverwriting,
-                                      [this, chooser] (const juce::FileChooser& fc)
-                {
-                    const auto file = fc.getResult();
+                juce::NativeMessageBox::showAsync (
+                    juce::MessageBoxOptions()
+                        .withIconType (ok ? juce::MessageBoxIconType::InfoIcon
+                                          : juce::MessageBoxIconType::WarningIcon)
+                        .withTitle (ok ? "MIDI saved" : "Could not save")
+                        .withMessage (ok ? "Saved to\n" + file.getFullPathName()
+                                         : error)
+                        .withButton ("OK"),
+                    nullptr);
+            });
+            break;
+        }
 
-                    if (file == juce::File())
-                        return;
+        case 8:
+            PresetManager::getUserPresetFolder().revealToUser();
+            break;
 
-                    // midi-export 8: the take goes out in the Options -> MIDI profile.
-                    juce::String error;
-                    const bool ok = MidiTakeExport::exportCapture (processor, file, MidiExportDefaults::load(),
-                                                                   0.0, &error);
+        case 9:
+            PresetManager::getRenderFolder().revealToUser();
+            break;
 
-                    juce::NativeMessageBox::showAsync (
-                        juce::MessageBoxOptions()
-                            .withIconType (ok ? juce::MessageBoxIconType::InfoIcon
-                                              : juce::MessageBoxIconType::WarningIcon)
-                            .withTitle (ok ? "MIDI saved" : "Could not save")
-                            .withMessage (ok ? "Saved to\n" + file.getFullPathName()
-                                             : error)
-                            .withButton ("OK"),
-                        nullptr);
-                });
-                break;
-            }
+        case 10:
+            if (onOpenOptions)
+                onOpenOptions();
+            break;
 
-            case 8:
-                PresetManager::getUserPresetFolder().revealToUser();
-                break;
+        case 11:
+            processor.randomiseParameters();
+            break;
 
-            case 9:
-                PresetManager::getRenderFolder().revealToUser();
-                break;
-
-            case 10:
-                if (onOpenOptions)
-                    onOpenOptions();
-                break;
-
-            case 11:
-                processor.randomiseParameters();
-                break;
-
-            case 13:
+        case 13:
+        {
+            // The format follows the extension chosen; the NOTATION tab has the options.
+            fileChooser.launch (*this, "Export the take as notation",
+                                PresetManager::getRenderFolder().getChildFile ("Luthier Take.musicxml"),
+                                "*.musicxml;*.gp;*.txt;*.mid",
+                                juce::FileBrowserComponent::saveMode
+                                    | juce::FileBrowserComponent::warnAboutOverwriting,
+                                [this] (const juce::File& file)
             {
-                // The format follows the extension chosen; the NOTATION tab has the options.
-                auto chooser = std::make_shared<juce::FileChooser> (
-                    "Export the take as notation",
-                    PresetManager::getRenderFolder().getChildFile ("Luthier Take.musicxml"),
-                    "*.musicxml;*.gp;*.txt;*.mid");
-
-                chooser->launchAsync (juce::FileBrowserComponent::saveMode
-                                        | juce::FileBrowserComponent::warnAboutOverwriting,
-                                      [this, chooser] (const juce::FileChooser& fc)
+                auto report = [file] (bool ok, const juce::String& error)
                 {
-                    const auto file = fc.getResult();
-
-                    if (file == juce::File())
-                        return;
-
-                    juce::String error;
-                    const bool ok = NotationTakeExport::write (processor, NotationTakeExport::formatForFile (file),
-                                                               file, {}, {}, &error);
-
                     juce::NativeMessageBox::showAsync (
                         juce::MessageBoxOptions()
                             .withIconType (ok ? juce::MessageBoxIconType::InfoIcon
@@ -469,25 +510,54 @@ void HeaderBar::showFileMenu()
                             .withMessage (ok ? "Saved to\n" + file.getFullPathName() : error)
                             .withButton ("OK"),
                         nullptr);
-                });
-                break;
-            }
+                };
 
-            case 12:
-                processor.resetEverything();
-                break;
+                // notation-export 0.1: written on the export worker (MODEL-GAPS).
+                juce::String error;
 
-            default:
-                break;
+                if (! NotationTakeExport::writeAsync (processor, NotationTakeExport::formatForFile (file),
+                                                      file, {}, {}, report, &error))
+                    report (false, error);
+            });
+            break;
         }
 
-        refreshPresetDisplay();
-    });
+        case 12:
+            processor.resetEverything();
+            break;
+
+        case 14:
+        {
+            // midi-export 5 (MODEL-GAPS): the window asks where it goes.
+            // CODEX_COMPLETENESS_LEDGER (MIDI import chooser lifetime): owned by the
+            // header, so a window closed while it is open cancels it.
+            fileChooser.launch (*this, "Import MIDI",
+                                juce::File::getSpecialLocation (juce::File::userDocumentsDirectory), "*.mid;*.midi",
+                                juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+                                [this] (const juce::File& file)
+            {
+                if (onImportMidi)
+                    onImportMidi (file);
+            });
+            break;
+        }
+
+        case 15:   // action-and-undo.md 9
+            showUndoHistory();
+            break;
+
+        default:
+            break;
+    }
+
+    refreshPresetDisplay();
 }
 
 //==============================================================================
 void HeaderBar::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     auto bounds = getLocalBounds();
 
     g.setColour (Palette::panel);
@@ -497,12 +567,17 @@ void HeaderBar::paint (juce::Graphics& g)
     g.setColour (Palette::edge);
     g.fillRect (bounds.removeFromBottom (1));
 
-    // ---- logo -------------------------------------------------------------------
-    auto logoArea = getLocalBounds().withTrimmedLeft (28).withWidth (96);
+    // ---- logo: the brass headstock mark and the name in the display face ---------
+    // (visual-polish.md 6.2 and 6.4, TODO V). The window's own notch sits under
+    // this strip, so the mark is drawn here, beside the name.
+    auto logoArea = getLocalBounds().withTrimmedLeft (22).withWidth (102);
+
+    LuthierLookAndFeel::drawSignatureNotch (g, { logoArea.getX() - 4, (getHeight() - 28) / 2, 20, 28 }, Palette::accent);
+    logoArea.removeFromLeft (18);
 
     g.setColour (Palette::textPrimary);
-    g.setFont (Fonts::ui (16.0f, true));
-    Fonts::drawTrackedText (g, "LUTHIER", logoArea, juce::Justification::centredLeft, 0.14f);
+    g.setFont (Fonts::display (24.0f));
+    Fonts::drawTrackedText (g, "LUTHIER", logoArea, juce::Justification::centredLeft, 0.12f);
 
     // ---- MIDI activity indicator ---------------------------------------------------
     const bool active = processor.getEngine().getMidiInterpreter().getActiveNoteCount() > 0;
@@ -524,41 +599,63 @@ void HeaderBar::resized()
     bounds.removeFromLeft (20);            // clear the LED
     bounds.removeFromLeft (96 + 14);       // logo and the MIDI dot
 
+    // output-normalization.md 5.1: the badge, only while normalization is on.
+    if (normalizationBadge.isVisible())
+        normalizationBadge.setBounds (bounds.removeFromLeft (NormalizationBadge::preferredWidth + 4).withTrimmedRight (4));
+
+    /*  gui-integration.md 2: the header collapses gracefully below 1280. Every
+        control keeps its place; below 1280 each takes a little less room so the
+        preset name keeps at least a readable width (at 1200 it was 24 points and
+        read "INIT" in a box barely wider than the word - TODO V screenshots). */
+    const bool compact = getWidth() < 1280;
+    auto w = [compact] (int full, int small) { return compact ? small : full; };
+
     // ---- right-hand cluster ---------------------------------------------------------
-    modeButton.setBounds (bounds.removeFromRight (84).reduced (2, 0));
+    modeButton.setBounds (bounds.removeFromRight (w (84, 78)).reduced (2, 0));
     bounds.removeFromRight (Metrics::gridHalf);
 
-    liveButton.setBounds (bounds.removeFromRight (52).reduced (2, 0));
-    slideButton.setBounds (bounds.removeFromRight (52).reduced (2, 0));
-    workshopButton.setBounds (bounds.removeFromRight (82).reduced (2, 0));
+    liveButton.setBounds (bounds.removeFromRight (w (52, 44)).reduced (2, 0));
+    slideButton.setBounds (bounds.removeFromRight (w (52, 46)).reduced (2, 0));
+    workshopButton.setBounds (bounds.removeFromRight (w (82, 74)).reduced (2, 0));
     bounds.removeFromRight (Metrics::gridHalf);
 
-    helpButton.setBounds (bounds.removeFromRight (30).reduced (2, 0));
-    panicButton.setBounds (bounds.removeFromRight (56).reduced (2, 0));
-    midiLearnButton.setBounds (bounds.removeFromRight (54).reduced (2, 0));
+    helpButton.setBounds (bounds.removeFromRight (w (30, 26)).reduced (2, 0));
+
+    // FEAT-SEARCH: the magnifier sits beside Help; below 1280 it is File -> Search.
+    {
+        const auto* binding = AccessibilitySettings::get().findShortcut ("search");
+        const auto key = binding != nullptr && binding->key.isValid() ? binding->key.getTextDescription() : juce::String();
+        searchButton.setTooltip ("Search everything" + (key.isNotEmpty() ? " (" + key + ")" : juce::String()));
+        searchButton.setVisible (getWidth() >= searchButtonMinWidth);
+
+        if (searchButton.isVisible())
+            searchButton.setBounds (bounds.removeFromRight (w (30, 26)).reduced (2, 0));
+    }
+    panicButton.setBounds (bounds.removeFromRight (w (56, 50)).reduced (2, 0));
+    midiLearnButton.setBounds (bounds.removeFromRight (w (54, 48)).reduced (2, 0));
 
     bounds.removeFromRight (Metrics::gridHalf);
 
-    redoButton.setBounds (bounds.removeFromRight (50).reduced (2, 0));
-    undoButton.setBounds (bounds.removeFromRight (50).reduced (2, 0));
+    redoButton.setBounds (bounds.removeFromRight (w (50, 44)).reduced (2, 0));
+    undoButton.setBounds (bounds.removeFromRight (w (50, 44)).reduced (2, 0));
 
     bounds.removeFromRight (Metrics::gridHalf);
 
-    copyAB.setBounds (bounds.removeFromRight (40).reduced (2, 0));
-    compareB.setBounds (bounds.removeFromRight (28).reduced (2, 0));
-    compareA.setBounds (bounds.removeFromRight (28).reduced (2, 0));
+    copyAB.setBounds (bounds.removeFromRight (w (40, 36)).reduced (2, 0));
+    compareB.setBounds (bounds.removeFromRight (w (28, 26)).reduced (2, 0));
+    compareA.setBounds (bounds.removeFromRight (w (28, 26)).reduced (2, 0));
 
     bounds.removeFromRight (Metrics::grid);
 
     // ---- left-hand cluster -------------------------------------------------------------
-    guitarSelector.setBounds (bounds.removeFromLeft (150).reduced (2, 3));
+    guitarSelector.setBounds (bounds.removeFromLeft (w (150, 124)).reduced (2, 3));
     bounds.removeFromLeft (Metrics::gridHalf);
 
-    tuningSelector.setBounds (bounds.removeFromLeft (128).reduced (2, 3));
+    tuningSelector.setBounds (bounds.removeFromLeft (w (128, 104)).reduced (2, 3));
     bounds.removeFromLeft (Metrics::grid);
 
     // ---- preset, filling whatever is left -----------------------------------------------
-    fileMenuButton.setBounds (bounds.removeFromRight (56).reduced (2, 0));
+    fileMenuButton.setBounds (bounds.removeFromRight (w (56, 46)).reduced (2, 0));
     bounds.removeFromRight (Metrics::gridHalf);
 
     presetPrev.setBounds (bounds.removeFromLeft (24).reduced (1, 3));

@@ -51,6 +51,12 @@ void ToneStack::prepare (double sampleRate) noexcept
     reset();
 }
 
+void ToneStack::setSampleRateKeepingState (double sampleRate) noexcept
+{
+    sr = sampleRate;
+    recompute();
+}
+
 void ToneStack::setComponents (const ToneStackComponents& c) noexcept
 {
     components = c;
@@ -110,7 +116,7 @@ void ToneStack::recompute() noexcept
                     + m * (C1 * C2 * C3 * R1 * R3 * R3 + C1 * C2 * C3 * R3 * R3 * R4)
                     + t * C1 * C2 * C3 * R1 * R3 * R4
                     - t * m * C1 * C2 * C3 * R1 * R3 * R4
-                    + t * C1 * C2 * C3 * R1 * R2 * R4;
+                    + t * l * C1 * C2 * C3 * R1 * R2 * R4;
 
     const double A1 = (C1 * R1 + C1 * R3 + C2 * R3 + C2 * R4 + C3 * R4)
                     + m * C3 * R3
