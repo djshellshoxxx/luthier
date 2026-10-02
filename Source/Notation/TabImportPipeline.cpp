@@ -1,4 +1,5 @@
 #include "TabImportPipeline.h"
+#include "TabDirectiveApplier.h"
 
 namespace luthier
 {
@@ -28,6 +29,10 @@ bool TabImportPipeline::read (const juce::String& source, PerformanceScore& dest
     const bool ok = reader.read (prepared, destination, &semantic);
 
     auto merged = TabSemanticAdapter::mergeDiagnostics (lastDocument.diagnostics, semantic);
+
+    if (ok)
+        TabDirectiveApplier::apply (lastDocument, destination, merged);
+
     if (diagnostics != nullptr)
         *diagnostics = merged;
     lastDocument.diagnostics = merged;
