@@ -14,6 +14,32 @@ namespace
         "D|--2--|\n"
         "A|--2--|\n"
         "E|--0--|\n";
+
+    int countBlocks (const NormalizedTabDocument& d, TabBlockKind kind)
+    {
+        int n = 0;
+        for (const auto& b : d.blocks)
+            if (b.kind == kind)
+                ++n;
+        return n;
+    }
+
+    bool hasNotation (const NormalizedTabDocument& d, const juce::String& pattern,
+                      const juce::String& meaning)
+    {
+        for (const auto& n : d.notation)
+            if (n.pattern == pattern && n.canonicalMeaning == meaning)
+                return true;
+        return false;
+    }
+
+    bool hasDirective (const NormalizedTabDocument& d, const juce::String& name)
+    {
+        for (const auto& x : d.metadata.directives)
+            if (x.canonicalName == name)
+                return true;
+        return false;
+    }
 }
 
 LUTHIER_TEST (TabDocument, sharedModelDefaultsAreSafe)
@@ -129,4 +155,58 @@ LUTHIER_TEST (TabDocumentNormalizer, originalSourceIsNeverDestroyed)
     NormalizedTabDocument document;
     CHECK (normalizer.normalize (source, document));
     CHECK (document.originalText == source);
+}
+
+LUTHIER_TEST (TabDocumentNormalizer, legendAfterTabDefinesGeneralizedPatterns)
+{
+    const juce::String source = simpleStaff
+        + "\nKey:\n"
+          "- / = slide up\n"
+          "- \\ = slide down\n"
+          "- 7B = bend\n"
+          "- 7H = harmonics\n"
+          "- 7^9 = hammer on\n";
+
+    TabDocumentNormalizer normalizer;
+    NormalizedTabDocument document;
+    CHECK (normalizer.normalize (source, document));
+    CHECK (hasNotation (document, "<fret>B", "bend"));
+    CHECK (hasNotation (document, "<fret>H", "naturalHarmonic"));
+    CHECK (hasNotation (document, "<fret>^<higher-fret>", "hammerOn"));
+    CHECK (hasNotation (document, "/", "slideUp"));
+    CHECK (hasNotation (document, "\\", "slideDown"));
+    CHECK (document.diagnostics.legendEntries >= 5);
+    CHECK (countBlocks (document, TabBlockKind::legend) >= 1);
+}
+
+LUTHIER_TEST (TabDocumentNormalizer, proseTechniqueInstructionsBecomeScopedDirectives)
+{
+    const juce::String source =
+        "Intro (all notes harmonics on intro):\n" + simpleStaff
+        + "Riff E (pick the following notes as fast as possible aka tremolo picking):\n"
+        + simpleStaff;
+
+    TabDocumentNormalizer normalizer;
+    NormalizedTabDocument document;
+    CHECK (normalizer.normalize (source, document));
+    CHECK (hasDirective (document, "naturalHarmonic"));
+    CHECK (hasDirective (document, "tremoloPicking"));
+    CHECK (document.diagnostics.proseDirectives >= 2);
+    CHECK (countBlocks (document, TabBlockKind::sectionHeading) >= 2);
+}
+
+LUTHIER_TEST (TabDocumentNormalizer, partsAndAttributionAreClassifiedNotParsedAsStaff)
+{
+    const juce::String source =
+        "Guitar 1\n" + simpleStaff
+        + "During the fill guitar two plays:\n" + simpleStaff
+        + "Sent by Mike Example (mike@example.com).\n";
+
+    TabDocumentNormalizer normalizer;
+    NormalizedTabDocument document;
+    CHECK (normalizer.normalize (source, document));
+    CHECK (document.metadata.partNames.size() >= 2);
+    CHECK (document.diagnostics.multiPartBlocks >= 1);
+    CHECK (countBlocks (document, TabBlockKind::attribution) >= 1);
+    CHECK (countBlocks (document, TabBlockKind::staff) >= 2);
 }
