@@ -1,5 +1,5 @@
 #include "TestFramework.h"
-#include "../Notation/AsciiTabReader.h"
+#include "../Notation/TabImportPipeline.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -27,7 +27,7 @@ namespace
 
 LUTHIER_TEST (TabSemanticIntegration, footerDropDTunesTheImportedScoreBeforeNotesAreEmitted)
 {
-    AsciiTabReader reader;
+    TabImportPipeline reader;
     PerformanceScore score;
     TabImportDiagnostics diagnostics;
 
@@ -48,7 +48,7 @@ LUTHIER_TEST (TabSemanticIntegration, normalizedCollapsedStaffReachesExistingSem
         "Standard (EADGBE)\n"
         "e|------| B|------| G|--1---| D|------| A|------| E|------|\n";
 
-    AsciiTabReader reader;
+    TabImportPipeline reader;
     PerformanceScore score;
     TabImportDiagnostics diagnostics;
     CHECK_MSG (reader.read (source, score, &diagnostics), reader.getLastError());
@@ -61,14 +61,11 @@ LUTHIER_TEST (TabSemanticIntegration, conflictingExplicitTuningsDoNotSilentlyRet
     const juce::String source =
         "Tuning: Drop D\n" + lowOpenStaff + "Tuning: DADGAD\n";
 
-    AsciiTabReader reader;
+    TabImportPipeline reader;
     PerformanceScore score;
     TabImportDiagnostics diagnostics;
     CHECK_MSG (reader.read (source, score, &diagnostics), reader.getLastError());
     CHECK (diagnostics.metadataConflicts >= 1);
     CHECK (! diagnostics.warnings.isEmpty());
-
-    // Conflicting declarations are deliberately not allowed to choose an
-    // arbitrary alternate tuning. The labelled staff remains the safe source.
     CHECK (score.getTrack (0).tuning[5] == 40);
 }
