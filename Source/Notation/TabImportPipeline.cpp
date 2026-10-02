@@ -41,4 +41,33 @@ bool TabImportPipeline::read (const juce::String& source, PerformanceScore& dest
     return true;
 }
 
+bool TabImportPipeline::read (const juce::File& file, PerformanceScore& destination,
+                              TabImportDiagnostics* diagnostics)
+{
+    lastError.clear();
+
+    if (! file.existsAsFile())
+    {
+        lastDocument = {};
+        destination.clear();
+        lastError = "No such file: " + file.getFullPathName();
+        if (diagnostics != nullptr)
+            *diagnostics = {};
+        return false;
+    }
+
+    const auto extension = file.getFileExtension().toLowerCase();
+    if (extension.isNotEmpty() && extension != ".txt" && extension != ".tab")
+    {
+        lastDocument = {};
+        destination.clear();
+        lastError = "The resilient tab pipeline reads .txt and .tab files.";
+        if (diagnostics != nullptr)
+            *diagnostics = {};
+        return false;
+    }
+
+    return read (file.loadFileAsString(), destination, diagnostics);
+}
+
 } // namespace luthier
