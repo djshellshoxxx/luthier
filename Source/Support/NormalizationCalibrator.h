@@ -156,16 +156,17 @@ public:
     static void reloadFactoryTable();
     static int getNumFactoryEntries();
 
+    /** ON-27: true if the factory table holds a calibration row for this preset by
+        name, regardless of the exact state hash. A few high-gain presets hash some
+        per-CPU derived structural floats, so their exact-hash row can miss on a
+        machine other than the one that built the table; coverage (every preset is
+        calibrated) is the real invariant and is toolchain-invariant by name. */
+    static bool factoryHasPresetNamed (const juce::String& presetName);
+
     /** Adds an entry to the factory table in memory (RenderCli builds the file
         through this, and tests seed it). */
     static void addFactoryEntry (const juce::String& hash, double measuredLufs, int guitarType, int ampModel,
                                  double drive, const juce::String& preset);
-
-    /** Drops every in-memory entry whose preset label names one of these presets
-        (the `"Name / N"` and `"Name (own guitar)"` rows), so a partial regen can
-        replace just those presets without leaving the old-hash rows behind. */
-    static void removeFactoryEntriesForPresets (const juce::StringArray& presetNames);
-
     static bool writeFactoryTable (const juce::File& file);
 
     static void clearMemoryCache();

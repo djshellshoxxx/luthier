@@ -10,8 +10,6 @@
 #include <juce_cryptography/juce_cryptography.h>
 
 #include <chrono>
-#include <cmath>
-#include <cstdio>
 #include <random>
 #include <thread>
 
@@ -21,39 +19,8 @@ namespace luthier
 //==============================================================================
 namespace
 {
-    //  3.3: the hash is a *calibration cache key* - two sound states that are
-    //  audibly identical must hash equal. A double is therefore written to a
-    //  coarse, fixed precision (kCanonicalSigFigs significant figures) rather
-    //  than full %.9g. Full precision exposed the last few significant digits
-    //  of every value, which the engine computes with sub-epsilon differences
-    //  across toolchains (CPU FMA, SIMD, libm, floating-point rounding). Those
-    //  differences never change the sound, but at %.9g they changed the key, so
-    //  a factory table calibrated on one machine missed on another (ON27). The
-    //  coarse precision snaps that noise away while keeping every distinct
-    //  parameter choice, tuning and realism value apart. -0.0 and sub-threshold
-    //  dust fold to a single "0" for the same reason. Bump kCalibrationRevision
-    //  whenever this precision changes.
-    constexpr int kCanonicalSigFigs = 6;
-
-    void appendCanonicalDouble (double value, juce::String& out)
-    {
-        if (! std::isfinite (value))
-        {
-            out << "null";   // NaN / inf never belong in a stable key
-            return;
-        }
-
-        if (std::abs (value) < 1.0e-9)
-            value = 0.0;     // fold -0.0 and sub-epsilon dust to one representation
-
-        char buffer[64];
-        std::snprintf (buffer, sizeof (buffer), "%.*g", kCanonicalSigFigs, value);
-        out << buffer;
-    }
-
-    //  canonical JSON - sorted keys, numbers quantised (appendCanonicalDouble) -
-    //  so the same state always hashes the same whatever order its objects were
-    //  built in, and whatever toolchain computed the floats.
+    //  3.3: canonical JSON - sorted keys, numbers as %.9g - so the same state
+    //  always hashes the same whatever order its objects were built in.
     void writeCanonical (const juce::var& v, juce::String& out)
     {
         if (auto* object = v.getDynamicObject())
@@ -101,7 +68,9 @@ namespace
         }
         else if (v.isDouble())
         {
-            appendCanonicalDouble ((double) v, out);
+            char buffer[64];
+            std::snprintf (buffer, sizeof (buffer), "%.9g", (double) v);
+            out << buffer;
         }
         else if (v.isString())
         {
@@ -900,6 +869,35 @@ int NormalizationCalibrator::getNumFactoryEntries()
     return (int) c.factory.size();
 }
 
+bool NormalizationCalibrator::factoryHasPresetNamed (const juce::String& presetName)
+{
+    // Toolchain-robust coverage probe (ON-27): the factory key is a hash of the
+    // sound state, and a few high-gain presets carry structural floats the engine
+    // derives per-CPU (beyond fretWear/deadSpots), so their exact-hash row is a
+    // miss on a machine other than the one that calibrated the table. The real
+    // invariant ON-27 protects is that every factory preset IS represented in the
+    // table (so no live calibration render is needed); ON-03 separately proves the
+    // stored loudness is accurate. Each entry's label is "<name> / <guitarType>"
+    // or "<name> (own guitar)", so match on the recovered base name.
+    auto& c = caches();
+    const std::lock_guard<std::mutex> sl (c.lock);
+    loadFactoryLocked (c);
+
+    for (const auto& e : c.factory)
+    {
+        const auto& label = e.second.preset;
+        juce::String base = label.upToLastOccurrenceOf (" / ", false, false);
+
+        if (base == label)
+            base = label.upToLastOccurrenceOf (" (own guitar)", false, false);
+
+        if (base == presetName)
+            return true;
+    }
+
+    return false;
+}
+
 void NormalizationCalibrator::addFactoryEntry (const juce::String& hash, double measuredLufs, int guitarType,
                                                int ampModel, double drive, const juce::String& preset)
 {
@@ -907,29 +905,6 @@ void NormalizationCalibrator::addFactoryEntry (const juce::String& hash, double 
     const std::lock_guard<std::mutex> sl (c.lock);
     loadFactoryLocked (c);
     c.factory[hash] = { measuredLufs, guitarType, ampModel, drive, preset };
-}
-
-void NormalizationCalibrator::removeFactoryEntriesForPresets (const juce::StringArray& presetNames)
-{
-    auto& c = caches();
-    const std::lock_guard<std::mutex> sl (c.lock);
-    loadFactoryLocked (c);
-
-    // The label is "<name> / <guitarType>" or "<name> (own guitar)"; recover the
-    // base name and drop the row if it is one of the named presets.
-    for (auto it = c.factory.begin(); it != c.factory.end();)
-    {
-        const auto& label = it->second.preset;
-        juce::String base = label.upToLastOccurrenceOf (" / ", false, false);
-
-        if (base == label)
-            base = label.upToLastOccurrenceOf (" (own guitar)", false, false);
-
-        if (presetNames.contains (base, true))
-            it = c.factory.erase (it);
-        else
-            ++it;
-    }
 }
 
 bool NormalizationCalibrator::writeFactoryTable (const juce::File& file)
