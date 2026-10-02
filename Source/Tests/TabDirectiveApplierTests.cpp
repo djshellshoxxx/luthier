@@ -56,6 +56,37 @@ LUTHIER_TEST (TabDirectiveApplier, sectionHarmonicInstructionTouchesOnlyMatching
     CHECK (! track.measures[1].voices[0].notes[0].hasTechnique (ScoreTechnique::Type::naturalHarmonic));
 }
 
+LUTHIER_TEST (TabDirectiveApplier, partScopedInstructionTouchesOnlyRequestedGuitar)
+{
+    PerformanceScore score;
+    score.clear();
+
+    for (int i = 0; i < 2; ++i)
+    {
+        auto& track = score.addTrack ("Guitar " + juce::String (i + 1));
+        ScoreMeasure intro;
+        intro.sectionName = "Intro";
+        intro.voices.resize (1);
+        intro.voices[0].notes.push_back (noteAt (7));
+        track.measures.push_back (intro);
+    }
+
+    NormalizedTabDocument doc;
+    TabDirective d;
+    d.canonicalName = "naturalHarmonic";
+    d.scope = DirectiveScope::section;
+    d.sectionName = "Intro";
+    d.partIndex = 2;
+    d.confidence = TabConfidence::high;
+    doc.metadata.directives.push_back (d);
+
+    TabImportDiagnostics diagnostics;
+    TabDirectiveApplier::apply (doc, score, diagnostics);
+
+    CHECK (! score.getTrack (0).measures[0].voices[0].notes[0].hasTechnique (ScoreTechnique::Type::naturalHarmonic));
+    CHECK (score.getTrack (1).measures[0].voices[0].notes[0].hasTechnique (ScoreTechnique::Type::naturalHarmonic));
+}
+
 LUTHIER_TEST (TabDirectiveApplier, duplicateInstructionDoesNotDuplicateTechnique)
 {
     auto score = scoreWithIntroAndVerse();
