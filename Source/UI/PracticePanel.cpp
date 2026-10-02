@@ -1711,6 +1711,10 @@ void TabReaderTab::showStatus (const juce::String& text, bool warning)
 
 bool TabReaderTab::openTab (const juce::File& file, const juce::File& libraryFile)
 {
+    processor.getEngine().getRiffPlayer().stop();
+    tuningSession.end();
+    autoTuneImportedScore = false;
+
     const bool read = importer.read (file, score);
 
     if (read)
@@ -1724,6 +1728,7 @@ bool TabReaderTab::openTab (const juce::File& file, const juce::File& libraryFil
         library.save (libraryFile, error);
 
         scoreTitle = file.getFileNameWithoutExtension();
+        autoTuneImportedScore = importer.lastAsciiHadResolvedTuning();
 
         /*  tab-import-export 7: a page that was only partly readable is still
             opened, and the status says what was skipped ("Loaded 3 bars, 12
@@ -1791,6 +1796,11 @@ bool TabReaderTab::openLivePerformance()
 
 void TabReaderTab::openScore (const PerformanceScore& newScore, const juce::String& title)
 {
+    // Programmatic/live scores do not carry a resolved ASCII tuning declaration.
+    processor.getEngine().getRiffPlayer().stop();
+    tuningSession.end();
+    autoTuneImportedScore = false;
+
     // riff-library 6.4: a riff opened with Learn It.
     score = newScore;
     scoreTitle = title;
@@ -1808,6 +1818,7 @@ void TabReaderTab::togglePlay()
     if (player.isPlaying() || player.isWaiting())
     {
         player.stop();
+        tuningSession.end();
         playButton.setButtonText ("Play");
         return;
     }
@@ -1819,25 +1830,49 @@ void TabReaderTab::togglePlay()
         return;
     }
 
-    // FEAT2-TAB: the parsed score becomes a riff, compiled against the loaded
-    // instrument and handed to the audition player - the same path riffs use.
+    // Same-string-count ASCII tabs with an explicit resolved tuning keep the
+    // author's string/fret choices. The engine is temporarily retuned to that
+    // same score tuning, then restored when playback stops. Other imports use
+    // the existing adaptation path against the currently loaded guitar.
     const auto riff = Riff::fromScore (score);
-    const auto guitar = RiffDestinations::guitarSummary (processor);
+    auto guitar = RiffDestinations::guitarSummary (processor);
+    bool exactImportedTuning = false;
+    juce::String tuningReason;
 
-    player.setCompiled (RiffCompiler::compile (riff, RiffPlaySettings{}, guitar), true);
+    if (autoTuneImportedScore && score.getNumTracks() > 0)
+    {
+        exactImportedTuning = tuningSession.begin (score.getTrack (0), &tuningReason);
+        if (exactImportedTuning)
+            guitar = GuitarSpecSummary::forRiff (riff);
+    }
+
+    auto compiled = RiffCompiler::compile (riff, RiffPlaySettings{}, guitar);
+    if (compiled == nullptr)
+    {
+        tuningSession.end();
+        showStatus ("Could not compile this tab for playback.", true);
+        return;
+    }
+
+    player.setCompiled (compiled, true);
     player.setClockMode (RiffPlayer::ClockMode::own);
     player.setAbsoluteBpm (score.getMeta().tempoBpm);
     player.setLooping (true);
     player.play();
 
     playButton.setButtonText ("Stop");
-    statusLabel.setText ("Playing " + scoreTitle, juce::dontSendNotification);
+    auto playingStatus = "Playing " + scoreTitle;
+    if (exactImportedTuning)
+        playingStatus += " - using tab tuning";
+    else if (autoTuneImportedScore && tuningReason.isNotEmpty())
+        playingStatus += " - " + tuningReason;
+    statusLabel.setText (playingStatus, juce::dontSendNotification);
     statusLabel.setColour (juce::Label::textColourId, Palette::textMuted);
 }
 
 //==============================================================================
 TabReaderTab::TabReaderTab (LuthierAudioProcessor& p)
-    : PracticeTab (p)
+    : PracticeTab (p), tuningSession (p.getEngine())
 {
     openButton.onClick = [this]
     {
@@ -1963,7 +1998,13 @@ void TabReaderTab::refresh()
 
     // The Play button follows the player, which a riff audition or Stop elsewhere can change.
     auto& player = processor.getEngine().getRiffPlayer();
-    playButton.setButtonText (player.isPlaying() || player.isWaiting() ? "Stop" : "Play");
+    const bool playing = player.isPlaying() || player.isWaiting();
+    playButton.setButtonText (playing ? "Stop" : "Play");
+
+    // Natural completion, Stop elsewhere, or a failed audition all release the
+    // temporary imported tuning just like pressing this tab's Stop button.
+    if (! playing && tuningSession.isActive())
+        tuningSession.end();
 
     if (text != tabView.getText())
         tabView.setText (text, false);

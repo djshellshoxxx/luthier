@@ -20,6 +20,7 @@
 #include "../Practice/Trainers.h"
 #include "../Practice/PracticeRoutine.h"
 #include "../Practice/PracticeRoutineSetup.h"
+#include "../Practice/TabPlaybackTuningSession.h"
 #include "../Notation/NotationExport.h"
 #include "PracticeTabImporter.h"
 
@@ -331,6 +332,8 @@ private:
     juce::String scoreTitle;
     NotationExporter exporter;
     PracticeTabImporter importer;
+    TabPlaybackTuningSession tuningSession;
+    bool autoTuneImportedScore = false;
 
     std::unique_ptr<juce::FileChooser> chooser;
 };
