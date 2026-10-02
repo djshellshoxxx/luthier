@@ -201,7 +201,7 @@ LUTHIER_TEST (Accessibility, uiScaleStepsAndFontFloor)
     settings.setUiScale (0.75);
 
     for (float points : { 8.0f, 9.0f, 10.0f, 12.0f, 20.0f })
-        CHECK_MSG (settings.scaledFont (points) >= 9.0f,
+        CHECK_MSG (settings.scaledFont (points) >= 10.0f,   // SPEC-SWEEP: A11Y-27
                    "a " + juce::String (points) + "pt font scaled to "
                      + juce::String (settings.scaledFont (points)) + " at 75%");
 
@@ -438,10 +438,10 @@ LUTHIER_TEST (Accessibility, shortcutsRebindAndRefuseClashes)
     {
         for (size_t j = i + 1; j < shortcuts.size(); ++j)
         {
-            if (! shortcuts[i].key.isValid())
-                continue;
-
-            CHECK_MSG (! (shortcuts[i].key == shortcuts[j].key),
+            // Unbound actions (animated-strings 8, cpu-quality-modes 5,
+            // output-normalization 9) have no key to share: rebind() treats
+            // unbound as never clashing, and so does this check.
+            CHECK_MSG (! (shortcuts[i].key.isValid() && shortcuts[i].key == shortcuts[j].key),
                        shortcuts[i].id + " and " + shortcuts[j].id + " share a key");
         }
     }
@@ -554,7 +554,8 @@ LUTHIER_TEST (Accessibility, settingsRoundTrip)
     settings.setReducedMotion (true);
     settings.setVerbosity (AccessibilitySettings::Verbosity::verbose);
     settings.setFontOverride ("Arial");
-    settings.rebind ("panic", juce::KeyPress ('k', juce::ModifierKeys::commandModifier, 0));
+    // Ctrl+J: free. (Ctrl+K was, until global-search.md made it Search.)
+    settings.rebind ("panic", juce::KeyPress ('j', juce::ModifierKeys::commandModifier, 0));
 
     const auto text = juce::JSON::toString (settings.toVar(), false);
 
@@ -670,7 +671,7 @@ LUTHIER_TEST (Accessibility, noTwoShortcutsShareADefaultKey)
     // Unbound is not a shared key (see shortcutsRebindAndRefuseClashes).
     for (size_t i = 0; i < shortcuts.size(); ++i)
         for (size_t j = i + 1; j < shortcuts.size(); ++j)
-            CHECK_MSG (! shortcuts[i].key.isValid() || ! (shortcuts[i].key == shortcuts[j].key),
+            CHECK_MSG (! (shortcuts[i].key.isValid() && shortcuts[i].key == shortcuts[j].key),   // unbound never clashes
                        shortcuts[i].id + " and " + shortcuts[j].id
                          + " both default to " + shortcuts[i].key.getTextDescription());
 }

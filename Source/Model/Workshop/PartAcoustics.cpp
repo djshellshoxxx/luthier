@@ -89,6 +89,7 @@ namespace
         if (id == "x" || id == "scalloped_x") return id == "x" ? Bracing::XBrace : Bracing::ForwardShiftedX;
         if (id == "fan")                      return Bracing::FanBrace;
         if (id == "ladder")                   return Bracing::LadderBrace;
+        if (id == "parallel")                 return Bracing::HollowParallel;   // archtop tone bars
         if (chambering == "semi_hollow")      return Bracing::SemiHollowBlock;
         if (chambering == "hollow")           return Bracing::HollowParallel;
         return Bracing::SolidBodyNone;
@@ -122,6 +123,14 @@ namespace
 
         if (strings >= 8) return GuitarType::EightString;
         if (strings == 7) return GuitarType::SevenString;
+
+        // ACCURACY_AUDIT_EXISTING A-03: a baritone is tuned a fourth low (B
+        // standard). Falling through to its body style gave the factory
+        // Baritone Electric E standard on 14-68 strings at 686 mm: 150-185 N
+        // per string against a real baritone set's 75-105 N at B.
+        if (style.contains ("baritone") || g.name.containsIgnoreCase ("baritone"))
+            return GuitarType::BaritoneElectric;
+
         if (style.contains ("semi"))                 return GuitarType::ES335;
         if (style.contains ("archtop"))              return GuitarType::ES335;
         if (style.contains ("slab"))                 return GuitarType::Telecaster;
@@ -143,7 +152,10 @@ namespace
         if (chambering == "acoustic")
         {
             if (g.family == "resonator")              return BodyShape::Resonator;
-            if (g.family == "classical")              return style.contains ("flamenc") ? BodyShape::Flamenco : BodyShape::Classical;
+            // ACCURACY_AUDIT_EXISTING A-07: the same test baseTypeFor makes, name
+            // included, so a flamenca is not a Flamenco type on a Classical body.
+            if (g.family == "classical")              return style.contains ("flamenc") || g.name.containsIgnoreCase ("flamenc")
+                                                               ? BodyShape::Flamenco : BodyShape::Classical;
             if (style.contains ("parlor"))            return BodyShape::Parlor;
             if (style.contains ("jumbo"))             return g.getStringCount() >= 12 ? BodyShape::TwelveStringDread : BodyShape::Jumbo;
             if (style.contains ("auditorium") || style.contains ("gypsy")) return BodyShape::Auditorium;
@@ -303,7 +315,8 @@ bool DerivedAcoustics::operator== (const DerivedAcoustics& o) const
     return same (couplingFraction, o.couplingFraction) && same (terminationMassG, o.terminationMassG)
         && same (sustainScale, o.sustainScale) && same (fretBrightness, o.fretBrightness)
         && same (nutBrightness, o.nutBrightness) && same (bodyGainDb, o.bodyGainDb)
-        && same (airResonanceHz, o.airResonanceHz) && same (body.scaleWidth, o.body.scaleWidth)
+        && same (airResonanceHz, o.airResonanceHz) && same (airResonanceQ, o.airResonanceQ)
+        && same (finishDampingDb, o.finishDampingDb) && same (body.scaleWidth, o.body.scaleWidth)
         && same (body.resonanceTrim, o.body.resonanceTrim) && same (body.age, o.body.age)
         && same (body.scaleDepth, o.body.scaleDepth) && same (body.topThicknessMm, o.body.topThicknessMm)
         && wiring == o.wiring
@@ -423,6 +436,15 @@ DerivedAcoustics mapSpec (const WorkshopGuitar& g)
         d.airResonanceHz = juce::jlimit (chamber.airLo, chamber.airHi, mid * std::sqrt (typical / volume));
     }
 
+    /*  SPEC-SWEEP: PA-14 / PA-15 - the body engine hears these now. The air
+        mode and its Q go to the modal bank as they are. The modes' gain is
+        against a solid body, so it applies to the electric chamberings; an
+        acoustic's body is its whole sound (the mic), not a colour mixed into
+        a pickup, and its level is the output normalisation's business. */
+    d.body.airHzOverride = d.airResonanceHz;
+    d.body.airQOverride = d.airResonanceQ;
+    d.body.modeGainDb = (chambering == "acoustic") ? 0.0 : d.bodyGainDb;
+
     // ---- termination: masses add, couplings multiply (10) ------------------------------------
     d.terminationMassG = num (bridge, "mass_g", 100.0) + num (tail, "mass_g", 0.0) + num (guard, "mass_g", 0.0);
     d.couplingFraction = jointCoupling (str (neck, "joint", "bolt")) * num (bridge, "coupling", 0.55);
@@ -464,6 +486,8 @@ DerivedAcoustics mapSpec (const WorkshopGuitar& g)
     // 9: thick gloss damps an acoustic top slightly (up to -0.5 dB).
     if (chambering == "acoustic")
         d.finishDampingDb = -0.5 * juce::jlimit (0.0, 1.0, (g.finish.gloss - 0.5) * 2.0);
+
+    d.body.topDampingDb = d.finishDampingDb;   // SPEC-SWEEP: PA-56
 
     // Hardware colour does nothing, and this file says so (9).
 
@@ -540,13 +564,24 @@ DerivedAcoustics mapSpec (const WorkshopGuitar& g)
         const auto& placement = g.placements[(size_t) fileIndex];
 
         out.spec = PickupSpec::makeDefault (pickupTypeFor (family), 0.13);
+
+        /*  SPEC-SWEEP: PA-40 - 6: output goes with coil turns, and inductance
+            with their square. Against a typical winding per family, so a part
+            that states only its turns lands at that family's default; a stated
+            inductance wins over the derived one. */
+        const double turns = p->number ("coil_turns", 0.0);
+        const double referenceTurns = family == "humbucker" ? 5000.0 : (family == "p90" ? 10000.0 : 8000.0);
+        const double turnsRatio = turns > 0.0 ? juce::jlimit (0.25, 4.0, turns / referenceTurns) : 1.0;
+
+        out.spec.inductanceHenries *= turnsRatio * turnsRatio;
         out.spec.inductanceHenries = p->number ("inductance_h", out.spec.inductanceHenries);
         out.spec.resistanceKOhm = p->number ("dc_resistance_k", out.spec.resistanceKOhm);
         out.spec.capacitancePf = p->number ("capacitance_pf", out.spec.capacitancePf);
         out.spec.magnet = magnetTypeFor (p->text ("magnet", "alnico5"));
 
         // 6: output goes with turns; the reference level is the part's own.
-        out.spec.outputTrimDb = juce::jlimit (-12.0, 12.0, p->number ("output_dbfs_reference", -6.0) + 6.0);
+        out.spec.outputTrimDb = juce::jlimit (-12.0, 12.0, p->number ("output_dbfs_reference", -6.0) + 6.0
+                                                             + 20.0 * std::log10 (turnsRatio));   // SPEC-SWEEP: PA-40
 
         out.positionMm = placement.positionMm;
         out.heightMm = 0.5 * (placement.heightTrebleMm + placement.heightBassMm);
@@ -569,6 +604,12 @@ DerivedAcoustics mapSpec (const WorkshopGuitar& g)
 
     d.numPickups = slot;
     d.spec.numPickups = juce::jmax (0, slot);
+
+    // SPEC-SWEEP: PA-35 - 5: a bridge with a saddle piezo is a piezo source
+    // too, with no pickup slot used.
+    if (bridge != nullptr && bridge->flag ("piezo"))
+        d.hasPiezo = true;
+
     d.spec.hasPiezo = d.hasPiezo;
 
     for (int i = 0; i < 3; ++i)

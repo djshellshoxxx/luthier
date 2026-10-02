@@ -41,6 +41,7 @@ SlapGroup::SlapGroup (LuthierAudioProcessor& p)
     attach (popStrength, ParamIDs::popStrength, "How far the finger pulls the string off the board");
     attach (popPosition, ParamIDs::popPositionMm, "Where the finger hooks the string, from the last fret");
     attachToggle (doubleThump, ParamIDs::doubleThumpEnabled, "The thumb strikes down and again on the way back up");
+    attach (reboundGap, ParamIDs::slapReboundGap, "Time between the down-stroke and rebound, in milliseconds");
     attach (upRatio, ParamIDs::doubleThumpUpRatio, "How loud the up-stroke is against the down-stroke");
     attach (ghostLevel, ParamIDs::ghostLevel, "A ghost note's level against a full note");
     attach (ghostDamping, ParamIDs::ghostDamping, "How firmly the fretting hand rests on a ghosted string");
@@ -71,7 +72,7 @@ juce::StringArray SlapGroup::getAttachedParameterIds() const
     juce::StringArray ids;
 
     for (auto* s : { &slapStrength, &slapPosition, &thumbHardness, &fretContact, &popStrength, &popPosition,
-                     &upRatio, &ghostLevel, &ghostDamping, &ghostThreshold, &alternation })
+                     &upRatio, &reboundGap, &ghostLevel, &ghostDamping, &ghostThreshold, &alternation })
         ids.add (s->getLearnParameterId());
 
     for (auto* t : { &doubleThump, &ghostAuto, &restStroke })
@@ -99,7 +100,7 @@ int SlapGroup::preferredHeight() const
     if (! shown)
         return 0;
 
-    return 20 + 4 * 16 + 11 * 24 + 3 * 26 + 8;
+    return 20 + 4 * 16 + 12 * 24 + 3 * 26 + 8;
 }
 
 void SlapGroup::resized()
@@ -123,6 +124,7 @@ void SlapGroup::resized()
     popStrength.setBounds (take (22));
     popPosition.setBounds (take (22));
     doubleThump.setBounds (take (24).removeFromLeft (140));
+    reboundGap.setBounds (take (22));
     upRatio.setBounds (take (22));
 
     ghostLabel.setBounds (take (14));

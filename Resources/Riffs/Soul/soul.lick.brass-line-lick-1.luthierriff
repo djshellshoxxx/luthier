@@ -1,0 +1,61 @@
+{
+ "bass_tech": [],
+ "magic": "luthier.riff",
+ "meta": {
+  "author": "L",
+  "created": "2026-09-24T00:00:00Z",
+  "id": "soul.lick.brass-line-lick-1",
+  "modified": "2026-09-24T00:00:00Z",
+  "name": "Brass-Line Lick 1",
+  "notes": "",
+  "origin": "original",
+  "tags": ["staccato","punches"],
+  "version_created": "1.3.0",
+  "version_modified": "1.3.0"
+ },
+ "notes": [
+  {"beat":0,"dur":0.25,"fret":10,"str":2,"tech":[{"second":0,"type":"staccato","value":0}],"vel":0.8},
+  {"beat":0.5,"dur":0.25,"fret":10,"str":2,"tech":[{"second":0,"type":"staccato","value":0}],"vel":0.8},
+  {"beat":0.75,"dur":0.25,"fret":0,"str":2,"tech":[{"second":0,"type":"dead","value":0}],"vel":0.8},
+  {"beat":1,"dur":0.5,"fret":10,"str":1,"tech":[{"second":0,"type":"staccato","value":0}],"vel":0.8},
+  {"beat":2,"dur":0.25,"fret":10,"str":2,"tech":[],"vel":0.8},
+  {"beat":2.25,"dur":0.25,"fret":12,"str":2,"tech":[],"vel":0.8},
+  {"beat":2.5,"dur":0.25,"fret":10,"str":1,"tech":[],"vel":0.8},
+  {"beat":3,"dur":0.5,"fret":8,"str":1,"tech":[{"second":0,"type":"staccato","value":0}],"vel":0.8},
+  {"beat":3.5,"dur":0.5,"fret":10,"str":1,"tech":[],"vel":0.8},
+  {"beat":4,"dur":0.25,"fret":8,"str":0,"tech":[{"second":0,"type":"staccato","value":0}],"vel":0.8},
+  {"beat":4.5,"dur":0.25,"fret":8,"str":0,"tech":[{"second":0,"type":"staccato","value":0}],"vel":0.8},
+  {"beat":4.75,"dur":0.25,"fret":0,"str":0,"tech":[{"second":0,"type":"dead","value":0}],"vel":0.8},
+  {"beat":5,"dur":0.5,"fret":10,"str":1,"tech":[{"second":0,"type":"staccato","value":0}],"vel":0.8},
+  {"beat":6,"dur":0.25,"fret":11,"str":1,"tech":[],"vel":0.8},
+  {"beat":6.5,"dur":0.25,"fret":10,"str":1,"tech":[],"vel":0.8},
+  {"beat":6.75,"dur":0.25,"fret":8,"str":1,"tech":[],"vel":0.8},
+  {"beat":7,"dur":1,"fret":10,"str":2,"tech":[],"vel":0.8}
+ ],
+ "riff": {
+  "capo": 0,
+  "chords": [
+   {"beat":0,"symbol":"F"},
+   {"beat":4,"symbol":"C7"},
+   {"beat":7,"symbol":"F"}
+  ],
+  "difficulty": 3,
+  "feel": "straight",
+  "genre": "soul",
+  "instrument": "guitar6",
+  "key": {
+   "root": "F",
+   "scale": "ionian"
+  },
+  "length_beats": 8,
+  "meter": [4,4],
+  "techniques": ["dead","staccato"],
+  "tempo_bpm": 100,
+  "tuning": [64,59,55,50,45,40],
+  "tuning_name": "Standard",
+  "type": "lick"
+ },
+ "schema": 1,
+ "source": "s: 3.10' r 3.10' 3.x e: 2.10' r s: 3.10 3.12 2.10 r e: 2.8' 2.10 | s: 1.8' r 1.8' 1.x e: 2.10' r s: 2.11 r 2.10 2.8 q: 3.10 |",
+ "strums": []
+}

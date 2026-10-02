@@ -287,7 +287,8 @@ void PerformanceCapture::bend (int sampleOffset, int stringIndex, double cents) 
     ring.push (record);
 }
 
-void PerformanceCapture::mark (int sampleOffset, int stringIndex, ScoreTechnique::Type type, double value) noexcept
+void PerformanceCapture::mark (int sampleOffset, int stringIndex, ScoreTechnique::Type type, double value,
+                               double secondValue) noexcept
 {
     if (! isRecording())
         return;
@@ -296,6 +297,18 @@ void PerformanceCapture::mark (int sampleOffset, int stringIndex, ScoreTechnique
     record.stringIndex = (juce::int8) juce::jlimit (0, kMaxStrings - 1, stringIndex);
     record.code = (juce::uint8) type;
     record.value = (float) value;
+    record.fret = (float) secondValue;   // a mark has no fret; its second value rides here
+    ring.push (record);
+}
+
+void PerformanceCapture::autoRules (int sampleOffset, int stringIndex, juce::uint16 rules) noexcept
+{
+    if (! isRecording() || rules == 0)
+        return;
+
+    auto record = makeRecord (CaptureRecord::Kind::autoRules, sampleOffset);
+    record.stringIndex = (juce::int8) juce::jlimit (0, kMaxStrings - 1, stringIndex);
+    record.value = (float) rules;
     ring.push (record);
 }
 
@@ -450,6 +463,7 @@ void PerformanceCapture::apply (const CaptureRecord& record)
                 ScoreTechnique technique;
                 technique.type = (Type) record.code;
                 technique.value = record.value;
+                technique.secondValue = record.fret;
                 notes[(size_t) index].marks.push_back (technique);
             }
 
@@ -495,6 +509,16 @@ void PerformanceCapture::apply (const CaptureRecord& record)
                           .setInt ("str", record.stringIndex)
                           .setReal ("pos", record.fret);
             events.push_back (captured);
+            break;
+        }
+
+        case Kind::autoRules:   // FEAT-ASSIST (auto-articulation.md 9)
+        {
+            const int index = sounding[(size_t) s];
+
+            if (juce::isPositiveAndBelow (index, (int) notes.size()))
+                notes[(size_t) index].autoRules = (juce::uint16) juce::jlimit (0, 0xFFFF, (int) record.value);
+
             break;
         }
 
@@ -772,7 +796,15 @@ void PerformanceCapture::toScore (PerformanceScore& score, const CaptureScoreOpt
 
         Type type = Type::bend;
 
-        if (scoreTypeFor (note.technique, type) && ! (type == Type::bend && bent))
+        // FEAT-ASSIST: a mark that repeats the note's own technique (an auto
+        // palm mute's amount) stands in for it, value and all.
+        bool markedAlready = false;
+
+        if (scoreTypeFor (note.technique, type))
+            for (const auto& m : note.marks)
+                markedAlready = markedAlready || m.type == type;
+
+        if (scoreTypeFor (note.technique, type) && ! (type == Type::bend && bent) && ! markedAlready)
         {
             ScoreTechnique technique;
             technique.type = type;
@@ -785,6 +817,8 @@ void PerformanceCapture::toScore (PerformanceScore& score, const CaptureScoreOpt
 
         for (const auto& markTechnique : note.marks)
             score.addTechnique (s, markTechnique);
+
+        score.setAutoRules (s, note.autoRules);   // FEAT-ASSIST (9)
 
         if (bent)
         {

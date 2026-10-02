@@ -30,6 +30,13 @@ struct PresetInfo
     juce::StringArray tags;
     juce::File file;
     bool isFactory = false;
+
+    /** gui-techniques-updates.md 7 (TECHNIQUES): the techniques the preset arms, by their arm parameter id. */
+    juce::StringArray armedTechniques;
+    // preset-browser-previews.md 5.6 (FEAT-BROWSER): filled in scanFolder.
+    juce::String uid;              ///< the file's uid, or "factory:<name>" for a factory preset
+    juce::String guitarName, family, ampName;
+    juce::Time modified;
 };
 
 //==============================================================================
@@ -90,7 +97,28 @@ public:
         (ParameterBridge::adoptPedalTypesFromParameters). */
     std::function<void()> onPedalTypesLoaded;
 
-    /** output-normalization.md 4.4: after a preset file loaded (message thread). */
+    /*  SPEC-SWEEP: SM-1, SM-11, SM-16, FF-24..29, RIO-30..32, LP-9, RE-40.
+        state-model.md 1 / file-formats.md 2: the preset also carries the
+        modulation matrix, the snapshot bank, the MIDI Learn mappings, the
+        rhythm engine, the routing (not the layout), the character state and
+        the tone-match IR slots. They belong to the processor, so it writes
+        them into the root on save and is handed the root at the end of every
+        load; a block the file does not carry goes back to its default rather
+        than keeping the last preset's. Message thread. */
+    std::function<void (juce::DynamicObject&)> capturePresetBlocks;
+    std::function<void (const juce::DynamicObject&)> onPresetBlocksLoaded;
+
+    /*  SPEC-SWEEP: PF-14. Parameters a preset's `parameters` block leaves out
+        are reset to their defaults on load, except these, which belong to the
+        layers above the preset (the morph slider; Slide Mode persists across a
+        load, state-model.md 8.1; jam-mode 10's performance controls). */
+    static bool keepsValueWhenAbsent (const juce::String& paramId);
+
+    /** output-normalization.md 4.4: after a preset file loaded (message thread).
+        Called after loadPreset (File) succeeds - a load the user asked for - but
+        not from fromVar, which undo, A/B and the host session go through as
+        well. (Merge: this is also SPEC-SWEEP SM-46's hook; the sweep's own
+        onPresetFileLoaded duplicated it and was dropped.) */
     std::function<void()> onPresetLoaded;
 
     /** Called around a whole load (fromVar), so the processor can fade its output
@@ -110,9 +138,19 @@ public:
 
     /** Where the last load filed its migration backup; empty when it made none. */
     juce::File getLastMigrationBackup() const { return lastMigrationBackup; }
+    /*  TECHNIQUES (engine-technique-layer.md 7): the preset's `techniques`
+        block - the live mute grid, the custom bend scale, the drawn curve.
+        Handed a void var on a preset without one (6: defaults) and on Init. */
+    std::function<juce::var()> captureTechniquesBlock;
+    std::function<void (const juce::var&)> onTechniquesBlockLoaded;
 
     /** Deletes backups older than kBackupRetentionDays. Called once on startup. */
     static void pruneOldBackups();
+
+    /*  SPEC-SWEEP: PF-7/FF-44. The sweep for one preset root, as of `now`:
+        its own Backup folder and each category folder's (a save files the
+        replaced version beside it, in <root>/<Category>/Backup/<date>). */
+    static void pruneOldBackupsUnder (const juce::File& root, juce::Time now);
 
     /*  `ranges` is the processor's RangeState (advanced-ranges.md). It is
         passed by reference rather than reached through the processor because
@@ -126,10 +164,19 @@ public:
     ~PresetManager() override;
 
     //==========================================================================
-    /** Rescans every registered folder. Safe to call from the message thread. */
+    /** Rescans every registered folder. Safe to call from the message thread.
+        Installs the factory bank first, and marks the library scanned so the
+        lazy first-scan is not repeated. */
     void refresh();
 
-    int getNumPresets() const noexcept { return presets.size(); }
+    /*  performance-budget.md 5.1 (QA-2.4): the folder scan - reading and
+        feature-parsing every preset file - is deferred out of construction to
+        the first time the list is actually read (a browser open, a host program
+        query, or a search). isScanned() lets the audio thread's program-change
+        path see whether that first scan has happened without triggering it. */
+    bool isScanned() const noexcept { return scanned.load(); }
+
+    int getNumPresets() const noexcept { ensureScanned(); return presets.size(); }
     const PresetInfo* getPreset (int index) const noexcept;
 
     /** The index of the preset with this name, or -1. Case-insensitive, and it
@@ -179,6 +226,14 @@ public:
         forget. Cleared by the next load that succeeds. */
     juce::String getLastLoadError() const { return lastLoadError; }
 
+    /*  SPEC-SWEEP: ER-19/20/21. Why the last save failed, in a sentence, or
+        empty if it worked. Polled by the window like getLastLoadError. */
+    juce::String getLastSaveError() const { return lastSaveError; }
+
+    /*  SPEC-SWEEP: FF-32/PF-5. Makes the next write fail at a stage, for the
+        atomicity tests: 1 = the temp file cannot be opened (a read-only folder
+        or a full disk), 2 = the rename over the target fails. Reset after use. */
+    static std::atomic<int> failNextWriteForTesting;
     /*  installer.md 8: "User sees a subtle info banner on the first affected
         load." A load that had to migrate something (a derived ranges block, a
         pre-parts guitar name, retired parameters) bumps the generation and says
@@ -198,6 +253,17 @@ public:
                  const juce::String& description = {}, const juce::StringArray& tags = {});
 
     bool deletePreset (int index);
+
+    // ==== BEGIN FEAT-BROWSER (preset-browser-previews.md 5.4) ====
+    /** The current preset's uid (written on the first save of a user preset)
+        and its author-chosen preview phrase. Both round-trip. */
+    juce::String getCurrentUid() const { return currentUid; }
+    juce::String getCurrentPreviewPhrase() const { return currentPreviewPhrase; }
+    void setCurrentPreviewPhrase (const juce::String& phraseId) { currentPreviewPhrase = phraseId; }
+
+    /** 2: called after saveAs / saveCurrent's atomic write, with the file. */
+    std::function<void (const juce::File&)> onPresetSaved;
+    // ==== END FEAT-BROWSER ====
 
     /** Import copies the file into the user folder; export writes it anywhere. */
     bool importPreset (const juce::File& source);
@@ -286,11 +352,20 @@ public:
     static bool isRandomisable (const juce::String& paramId);
 
 private:
+    /*  Runs the deferred first scan if it has not happened yet. Called by every
+        list reader; message thread. const because the readers are, but the scan
+        it performs is a lazy fill of state that is logically already there. */
+    void ensureScanned() const;
+
     void scanFolder (const juce::File& folder, bool factory);
     bool writeToFile (const juce::File& file, const juce::var& data) const;
 
     /** Set on every load failure beside the error-log line, cleared on success. */
     juce::String lastLoadError;
+    mutable juce::String lastSaveError;   // SPEC-SWEEP: ER-19
+
+    /** SPEC-SWEEP: ER-12/13 - why fromVar refused, as the end of a sentence. */
+    juce::String lastRefusal;
 
     juce::String lastMigration;            // installer.md 8
     juce::uint32 migrationGeneration = 0;
@@ -326,14 +401,28 @@ private:
     juce::Array<PresetInfo> presets;
     juce::Array<juce::File> searchFolders;
 
+    /*  False until the first scan has populated `presets` (see refresh /
+        ensureScanned). Atomic so the audio thread's isScanned() guard reads it
+        without a data race with the message thread that sets it. */
+    std::atomic<bool> scanned { false };
+
     int currentIndex = -1;
     juce::String currentName { "Init" };
     juce::String currentCategory { "User" };
+
+    /*  SPEC-SWEEP: FF-20, file-formats 2 `meta`. Kept from the file on load,
+        stamped on save (never in toVar itself, so the host state of an
+        unchanged session stays byte-identical). ISO 8601. */
+    juce::String metaCreated, metaModified, metaVersionCreated, metaNotes;
+    void stampSaveTime();
     bool modified = false;
 
     ExtraState extra;
 
     bool extraStateValid = false;
+
+    juce::String currentUid, currentPreviewPhrase;   // FEAT-BROWSER (5.4)
+    std::unique_ptr<class PresetFeatureReader> featureReader;   // FEAT-BROWSER (5.6)
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PresetManager)
 };

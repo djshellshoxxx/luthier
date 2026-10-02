@@ -35,6 +35,7 @@
 #include "DSP/Amp/AmpEngine.h"
 #include "DSP/Amp/CabinetEngine.h"
 #include "DSP/Amp/RoomEngine.h"
+#include "DSP/Body/AcousticMicModel.h"   // mic-placement.md 3
 #include "DSP/Master/MasterBus.h"
 #include "DSP/Master/FreezeOverlay.h"
 #include "Model/Guitar/GuitarLibrary.h"
@@ -46,11 +47,13 @@
 #include "Rhythm/RhythmEngine.h"
 #include "Character/CharacterEngine.h"
 #include "Support/QualityProfile.h"   // cpu-quality-modes
+#include "Riffs/RiffPlayer.h"   // riff-library 5.3
 #include "Character/EnvironmentModel.h"          // environment.md (REALISM-A)
 #include "DSP/String/StringAging.h"              // string-aging.md (REALISM-A)
 #include "DSP/Coupling/BodyCouplingBank.h"       // body-coupling.md (REALISM-A)
 #include "DSP/String/Harmonics.h"          // REALISM-B: harmonic-realism.md
 #include "Model/Playing/RightHand.h"       // REALISM-B: fingerstyle-attack.md, string-interaction.md
+#include "DSP/Techniques/TechniqueLayer.h"   // TECHNIQUES: engine-technique-layer.md
 
 #include <array>
 #include <atomic>
@@ -59,6 +62,7 @@ namespace luthier
 {
 
 class PerformanceCapture;
+class IrSlot;   // SPEC-SWEEP TM-6
 
 //==============================================================================
 class LuthierEngine
@@ -248,6 +252,16 @@ public:
         techniqueTriggers.configure (TechniqueId::slap, s.triggerConfig());
     }
 
+    /*  TECHNIQUES (engine-technique-layer.md 1): mute, tap, microtonal bends,
+        the slide's user controls and the cascade resolver. The glue is in
+        LuthierEngineTechniques.cpp. */
+    TechniqueLayer& getTechniqueLayer() noexcept { return techniqueLayer; }
+    const TechniqueLayer& getTechniqueLayer() const noexcept { return techniqueLayer; }
+    void setMuteSettings (const MuteSettings& s) noexcept { techniqueLayer.mute.setSettings (s); }
+    void setTapSettings (const TapSettings& s) noexcept;
+    void setBendSettings (const BendSettings& s) noexcept;
+    void setSlideControls (const SlideControlSettings& c) noexcept;
+
     /** Sets the pick material and whether it is fingers. The two parameters
         are one decision: a finger material is fingers whatever the switch says. */
     void setPickMaterialAndFingers (Excitation::Material material, bool fingers) noexcept;
@@ -304,6 +318,13 @@ public:
     EffectsChain&    getPostEffects() noexcept     { return postEffects; }
     CabinetEngine&   getCabinetEngine() noexcept   { return cabinet; }
     RoomEngine&      getRoomEngine() noexcept      { return room; }
+
+    /** mic-placement.md 3: external mics around an acoustic guitar, mixed
+        against the pickup by ac_mic_mix (0 = today's pickup path alone). */
+    AcousticMicModel& getAcousticMicModel() noexcept { return acMic; }
+    void setAcousticMicMix (double mix) noexcept { acMicMixTarget = juce::jlimit (0.0, 1.0, mix); }
+    double getAcousticMicMix() const noexcept    { return acMicMixTarget; }
+    bool isAcousticMicActive() const noexcept    { return acMicActive; }
     MasterBus&       getMasterBus() noexcept       { return master; }
     FreezeOverlay&   getFreezeOverlay() noexcept   { return freezeOverlay; }
     Validator&       getValidator() noexcept       { return validator; }
@@ -392,6 +413,7 @@ public:
     int getEffectiveOversamplingFactor() const noexcept { return effectiveOversamplingFactor (oversamplingFactor, sr); }
 
     void setTempoBpm (double bpm) noexcept;
+    double getTempoBpm() const noexcept { return tempoBpm; }   // SPEC-SWEEP: LP-25 (tests)
 
     /** Host transport position, for the rhythm engine's grid. */
     void setTransportPosition (double ppqPosition, bool isPlaying) noexcept
@@ -409,6 +431,11 @@ public:
         and the slide bar. Null (the default) reports nothing. The capture must
         outlive the engine or be cleared first. */
     void setPerformanceCapture (PerformanceCapture* c) noexcept { perfCapture = c; }
+
+    /** SPEC-SWEEP TM-6 (tone-match 1): the TONE MATCH body IR slot, which
+        replaces the body's response while engaged. Owned by the caller, set
+        before audio starts; nullptr for none. */
+    void setBodyIrSlot (IrSlot* slot) noexcept { bodyIrSlot = slot; }
     PerformanceCapture* getPerformanceCapture() const noexcept { return perfCapture; }
 
     /*  ambiguity-resolutions 8 / routing-io 2 (MODEL-GAPS): Aux 1 (DI) taps the
@@ -424,6 +451,16 @@ public:
     /** The rhythm engine sits between the interpreter and the technique engine
         and rewrites the event stream when it is switched on. */
     RhythmEngine& getRhythmEngine() noexcept { return rhythm; }
+
+    /** riff-library 5.3: the riff audition player, played into the strings
+        after the direct notes of each sub-block. */
+    RiffPlayer& getRiffPlayer() noexcept { return riffPlayer; }
+    const RiffPlayer& getRiffPlayer() const noexcept { return riffPlayer; }
+    /** The cents a riff note's bend holds a string at (tests). */
+    double getRiffBendCents (int stringIndex) const noexcept
+    {
+        return riffBendCents[(size_t) juce::jlimit (0, kMaxStrings - 1, stringIndex)];
+    }
     const RhythmEngine& getRhythmEngine() const noexcept { return rhythm; }
 
     /** The instrument's physical imperfections (character-wear.md). Applied at
@@ -494,6 +531,10 @@ public:
 
     const StringActivityQueue& getStringActivity() const noexcept { return stringActivity; }
 
+    // RE-41, rhythm-engine.md 9: the rhythm engine's own emitted stream, empty
+    // whenever it is not driving, for the MIDI-out RHYTHM source.
+    const PlayEventQueue& getRhythmEvents() const noexcept { return rhythmEvents; }
+
     /** Points the engine at this block's sidechain input. The pointers belong to
         the caller and must outlive the processBlock call; passing nullptr (or a
         zero channel count) means "no sidechain this block", which is the normal
@@ -538,6 +579,12 @@ public:
         the next processBlock call; pass nullptr for none. Audio thread. */
     void setDirectMidi (const juce::MidiBuffer* direct) noexcept { directMidi = direct; }
 
+    /** SPEC-SWEEP (RE-41, routing-io MIDI out): where the rhythm engine's strokes
+        go as MIDI for the next processBlock - note on/off, channel = string + 1,
+        at their samples. A stroke scheduled past the block's end is held and
+        written in the block it lands in. nullptr for none. Audio thread. */
+    void setRhythmMidiOut (juce::MidiBuffer* out) noexcept { rhythmMidiOut = out; }
+
     /** The real work. processBlock splits anything larger than the block size
         the engine was prepared for and calls this for each piece. */
     void processSubBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages) noexcept;
@@ -552,6 +599,13 @@ public:
     // Live state for the UI. All lock-free reads.
 
     double getStringLevel (int i) const noexcept;
+
+    /** SPEC-SWEEP (character-wear 7 test): the sustain multiplier the note now on
+        string i started with (dead spot x fret wear x nut x slide x parts). */
+    double getNoteSustainScale (int i) const noexcept
+    {
+        return juce::isPositiveAndBelow (i, kMaxStrings) ? noteSustainScale[(size_t) i] : 1.0;
+    }
     double getStringFrequency (int i) const noexcept;
     int    getStringMidiNote (int i) const noexcept;
     double getStringFret (int i) const noexcept;
@@ -606,6 +660,20 @@ public:
     float getPalmWeight (int s) const noexcept { return palmWeightDisplay[(size_t) juce::jlimit (0, kMaxStrings - 1, s)].load (std::memory_order_relaxed); }
     // ==== END REALISM-B engine ====
 
+    // ==== BEGIN FEAT-ASSIST ====
+    /*  Performance Assist (auto-articulation.md 4.2). The glue is in
+        LuthierEngineAssist.cpp. */
+    void setAutoArticulation (const AutoArticulationSettings& s) noexcept { midi.setAutoArticulation (s); }
+    AutoArticulator& getAutoArticulator() noexcept { return midi.getAutoArticulator(); }
+    const AutoArticulator& getAutoArticulator() const noexcept { return midi.getAutoArticulator(); }
+
+    /** Why Assist is not running, for the notice line (5). */
+    AssistBypass getAssistBypass() const noexcept;
+
+    /** 5: the Luthier-profile import player's notes are pre-articulated. */
+    void setAssistPreArticulated (bool pre) noexcept { assistPreArticulated = pre; }
+    // ==== END FEAT-ASSIST ====
+
 private:
     /** Moves a block's events onto the schedule, converting their offsets to
         absolute sample positions. */
@@ -646,9 +714,23 @@ private:
     PlayEventQueue events;
     PlayEventQueue rhythmEvents;
     PlayEventQueue directEvents;
+
+    // riff-library 5.3: the riff player, its sub-block's events, and the bend
+    // each string's riff note holds (added to the MIDI bend per block).
+    RiffPlayer riffPlayer;
+    RiffPlayer::Output riffOut;
+    std::array<double, kMaxStrings> riffBendCents {};
+    int subBlockOffset = 0;   ///< samples into the host block this sub-block starts at
+    void playRiffEvents (int numSamples) noexcept;
+    bool schedulingRiff = false;   ///< scheduleEvents is taking the riff player's queue
+    bool firingRiff = false;       ///< the event being fired came from the riff player
     const juce::MidiBuffer* directMidi = nullptr;      ///< for the current processBlock
     const juce::MidiBuffer* directForSubBlock = nullptr;
     juce::MidiBuffer directSlice;
+    /*  CODEX-RTSAFETY P1: the oversized-host-block path sliced host MIDI into a
+        local juce::MidiBuffer and called ensureSize on it in the callback. Both
+        slice buffers are members now, reserved in prepare. */
+    juce::MidiBuffer sliceMidi;
     RhythmEngine rhythm;
     CharacterEngine character;
 
@@ -670,9 +752,24 @@ private:
     std::atomic<double> pendingBodyTap { 0.0 };
     // ==== END REALISM-A state ====
 
+    // SPEC-SWEEP (RE-41): the rhythm engine's strokes as MIDI out.
+    struct PendingRhythmMidi { juce::uint8 bytes[3]; int samplesFromNow; };
+    static constexpr int kMaxPendingRhythmMidi = 128;
+    std::array<PendingRhythmMidi, kMaxPendingRhythmMidi> pendingRhythmMidi {};
+    int numPendingRhythmMidi = 0;
+    juce::MidiBuffer* rhythmMidiOut = nullptr;
+    void writeRhythmMidi (const PlayEventQueue& strokes) noexcept;
+    void flushRhythmMidi (int numSamples) noexcept;
+
     /** The drift last written into the tuning engine, so a block that did not
         move it does not rewrite it. */
     std::array<double, kMaxStrings> lastAppliedDrift {};
+
+    // SPEC-SWEEP: CW-18 / CW-19 - character-wear 5's jack and piezo saddles.
+    std::array<double, kMaxStrings> saddleGain {};   ///< per-saddle piezo gain, set per block
+    std::vector<double> piezoSumBuffer;              ///< the saddle-weighted string sum
+    double jackGainNow = 1.0;                        ///< ramped towards CharacterEngine::getJackGain
+    double jackRampCoeff = 0.01;                     ///< a 3 ms one-pole
     Validator validator;
 
     double hostPpq = 0.0;
@@ -690,9 +787,15 @@ private:
         NoteOffEvent noteOff {};
         int64_t absoluteSample = 0;
         bool fingerAlternated = false;   ///< bass-techniques 6: already given its finger's timing
+        bool fromRiff = false;           ///< riff-library 5.3: a riff audition event
         bool staggered = false;   ///< REALISM-B: string-interaction.md 4 delayed this note-off
         bool cancelled = false;   ///< REALISM-B: a new note on the string took it first
+
+        int kind = 0;                    ///< FEAT-ASSIST: kDampingLift is auto-articulation.md 3.6's mute lift
+        juce::uint32 serial = 0;         ///< FEAT-ASSIST: the note the lift belongs to
     };
+
+    static constexpr int kDampingLift = 1;   // FEAT-ASSIST
 
     static constexpr int kMaxScheduledEvents = 192;
     std::array<ScheduledEvent, kMaxScheduledEvents> scheduled {};
@@ -720,6 +823,13 @@ private:
     EffectsChain postEffects;
     CabinetEngine cabinet;
     RoomEngine room;
+
+    // mic-placement.md 3: the acoustic external mics.
+    AcousticMicModel acMic;
+    ExpSmoother acMicMixSmooth;
+    double acMicMixTarget = 0.0;
+    bool acMicActive = false;
+    std::vector<double> acMicBuffer;
     SecretEffect secret;
     MasterBus master;
     FreezeOverlay freezeOverlay;
@@ -729,6 +839,14 @@ private:
     std::vector<double> magneticBuffer;
     std::vector<double> instrumentBuffer;
     std::vector<double> preCircuitBuffer;         ///< MODEL-GAPS: Aux 1's pre-circuit tap
+
+    /*  CODEX-RTSAFETY P1: the pre/post pedal and hidden-effect stereo scratch were
+        `static thread_local std::vector` grown with resize() inside the render,
+        which allocated on the first block of each new host audio thread and when
+        the hidden effect was first enabled mid-playback. Owned here and sized to
+        maxBlock in prepare, they never allocate in the callback. */
+    std::vector<double> pedalScratchL, pedalScratchR;
+    std::vector<double> secretScratchL, secretScratchR;
     std::atomic<bool> auxDiPreCircuit { false };
     juce::AudioBuffer<float> bodyBuffer;
     juce::AudioBuffer<float> workBuffer;
@@ -785,6 +903,8 @@ private:
 
     // ---- MODEL-GAPS: capture reporting and fingerstyle bass --------------------
     PerformanceCapture* perfCapture = nullptr;
+    IrSlot* bodyIrSlot = nullptr;           // SPEC-SWEEP TM-6
+    std::vector<float> bodyIrInput;         // SPEC-SWEEP TM-6: the body's excitation, kept for the IR
     juce::int64 hostBlockStart = 0;
     ChordSymbol lastCapturedChord;
     double lastCapturedBarFret = -2.0;
@@ -801,6 +921,16 @@ private:
 
     /** The chord (Poly mode) and the slide bar, once a block. */
     void captureBlockState() noexcept;
+    // --- TECHNIQUES (engine-technique-layer.md; LuthierEngineTechniques.cpp) ----------
+    TechniqueLayer techniqueLayer;
+    std::array<juce::int64, kMaxStrings> lastStrikeSample {};
+    void techniqueBeginBlock (int numSamples, const juce::MidiBuffer& played) noexcept;
+    void techniqueStampEvents (PlayEventQueue& queue, bool fromRhythm) noexcept;
+    void techniqueStrike (const NoteOnEvent& e, int s, bool slapStruck) noexcept;
+    bool techniqueNoteOff (int s) noexcept;
+    double techniqueFret (int s) const noexcept;
+    double techniqueBendCents (int s, double interpreterBend) noexcept;
+    void playTapEvent (const TapEvent& e) noexcept;
 
     /** Applies one of the slap's due actions (a strike, a palm slap, a body tap). */
     void applySlapAction (const SlapAction& a) noexcept;
@@ -1058,6 +1188,19 @@ private:
     void refreshAirCoupling() noexcept;
     SlapStrike makeToolStrike (const NoteOnEvent& e, int slapType) const noexcept;
     // ==== END REALISM-B engine state ====
+
+    // ==== BEGIN FEAT-ASSIST (auto-articulation.md; LuthierEngineAssist.cpp) ====
+    bool assistPreArticulated = false;
+    std::array<juce::uint32, kMaxStrings> assistNoteSerial {};
+    std::array<juce::int64, kMaxStrings> assistLiftStart {};
+    std::array<double, kMaxStrings> assistLiftFrom {};
+    std::array<double, kMaxStrings> assistLastPitch {};
+    void assistSetContext (bool rhythmPass) noexcept;
+    void assistNoteStarted (const NoteOnEvent& e, int s, double fret) noexcept;
+    void assistFireLift (const ScheduledEvent& e) noexcept;
+    double assistPerBlockCents (int s, int numSamples, double& vib) noexcept;
+    void assistReset() noexcept;
+    // ==== END FEAT-ASSIST ====
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LuthierEngine)
 };

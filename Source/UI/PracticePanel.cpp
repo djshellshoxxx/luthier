@@ -2,6 +2,12 @@
 #include "../PluginProcessor.h"
 #include "MidiOutPanel.h"        // MODEL-GAPS: the drag-out take
 #include "MidiExportDefaults.h"
+#include "../DSP/Common/DspCommon.h"   // SPEC-SWEEP PT-39: hzToMidi
+#include "../Riffs/Riff.h"             // FEAT2-TAB: play an imported tab
+#include "../Riffs/RiffCompiler.h"
+#include "../Riffs/RiffDestinations.h"
+#include "../Notation/TabFingering.h"  // tab-import-export 9: the MIDI capture as tab
+#include "../Export/MidiPerformance.h"
 
 namespace luthier
 {
@@ -143,11 +149,28 @@ MetronomeTab::MetronomeTab (LuthierAudioProcessor& p)
     };
     addAndMakeVisible (*mainOutToggle);
 
+    // SPEC-SWEEP PT-6 (practice-tools 1): the click follows the host's tempo,
+    // or a tapped one while the host is stopped; typing a tempo takes over.
+    followToggle = std::make_unique<LuthierToggle> ("FOLLOW TEMPO");
+    followToggle->getButton().setClickingTogglesState (true);
+    followToggle->getButton().setTooltip ("Follow the host's tempo, or the tapped tempo while the host "
+                                          "is stopped. Setting a tempo here turns this off.");
+    followToggle->getButton().onClick = [this]
+    {
+        if (! updatingControls)
+            metronome().setFollowsTempo (followToggle->getButton().getToggleState());
+    };
+    addAndMakeVisible (*followToggle);
+
     styleSlider (tempoSlider, 20.0, 300.0, 1.0, " bpm");
     tempoSlider.onValueChange = [this]
     {
-        if (! updatingControls)
-            metronome().setTempo (tempoSlider.getValue());
+        if (updatingControls)
+            return;
+
+        metronome().setFollowsTempo (false);   // SPEC-SWEEP PT-6: a typed tempo wins
+        metronome().setTempo (tempoSlider.getValue());
+        followToggle->getButton().setToggleState (false, juce::dontSendNotification);
     };
     addAndMakeVisible (tempoSlider);
 
@@ -236,6 +259,7 @@ MetronomeTab::MetronomeTab (LuthierAudioProcessor& p)
     rampButton.setTooltip ("Ramp the tempo from one to the other over that many bars.");
     rampButton.onClick = [this]
     {
+        metronome().setFollowsTempo (false);   // SPEC-SWEEP PT-6: the ramp's end tempo stays
         metronome().startProgressiveTempo (fromSlider.getValue(), toSlider.getValue(),
                                            (int) overBarsSlider.getValue());
         metronome().setEnabled (true);
@@ -281,6 +305,7 @@ void MetronomeTab::refresh()
 
     enableToggle->getButton().setToggleState (m.isEnabled(), juce::dontSendNotification);
     mainOutToggle->getButton().setToggleState (processor.isClickToMain(), juce::dontSendNotification);
+    followToggle->getButton().setToggleState (m.getFollowsTempo(), juce::dontSendNotification);
     tempoSlider.setValue (m.getTempo(), juce::dontSendNotification);
 
     const auto signature = m.getTimeSignature();
@@ -335,6 +360,7 @@ void MetronomeTab::resized()
         RowLayout r { row (Metrics::buttonHeight) };
         enableToggle->setBounds (r.take (130));
         mainOutToggle->setBounds (r.take (150));
+        followToggle->setBounds (r.take (150));
         indicator->setBounds (r.rest());
     }
 
@@ -382,6 +408,9 @@ LooperTab::LooperTab (LuthierAudioProcessor& p)
                                 "like a looper pedal.");
     transportButton.onClick = [this] { looper().press(); refresh(); };
     addAndMakeVisible (transportButton);
+
+    statusLed.setTitle ("Looper status");   // SPEC-SWEEP GD-31
+    addAndMakeVisible (statusLed);
 
     stopButton.onClick = [this] { looper().stop(); refresh(); };
     addAndMakeVisible (stopButton);
@@ -464,6 +493,35 @@ LooperTab::LooperTab (LuthierAudioProcessor& p)
             editLayer (i, "pan", [this, i] { looper().getLayer (i).setPan (layers[(size_t) i].pan->getValue()); });   // action-and-undo.md 3.14
         };
         addAndMakeVisible (*strip.pan);
+
+        // SPEC-SWEEP PT-20 (practice-tools 2): per-layer low-cut and high-cut.
+        strip.lowCut = std::make_unique<juce::Slider> (juce::Slider::LinearHorizontal,
+                                                       juce::Slider::NoTextBox);
+        strip.lowCut->setRange (20.0, 2000.0, 1.0);
+        strip.lowCut->setSkewFactorFromMidPoint (200.0);
+        strip.lowCut->setValue (20.0, juce::dontSendNotification);
+        strip.lowCut->setTextValueSuffix (" Hz");
+        strip.lowCut->setTooltip ("Layer low-cut");
+        strip.lowCut->setTitle ("Layer " + juce::String (i + 1) + " low-cut");
+        strip.lowCut->onValueChange = [this, i]
+        {
+            looper().getLayer (i).setLowCutHz (layers[(size_t) i].lowCut->getValue());
+        };
+        addAndMakeVisible (*strip.lowCut);
+
+        strip.highCut = std::make_unique<juce::Slider> (juce::Slider::LinearHorizontal,
+                                                        juce::Slider::NoTextBox);
+        strip.highCut->setRange (200.0, 20000.0, 1.0);
+        strip.highCut->setSkewFactorFromMidPoint (2000.0);
+        strip.highCut->setValue (20000.0, juce::dontSendNotification);
+        strip.highCut->setTextValueSuffix (" Hz");
+        strip.highCut->setTooltip ("Layer high-cut");
+        strip.highCut->setTitle ("Layer " + juce::String (i + 1) + " high-cut");
+        strip.highCut->onValueChange = [this, i]
+        {
+            looper().getLayer (i).setHighCutHz (layers[(size_t) i].highCut->getValue());
+        };
+        addAndMakeVisible (*strip.highCut);
 
         strip.undo = std::make_unique<juce::TextButton> ("Undo");
         strip.undo->onClick = [this, i]
@@ -553,6 +611,41 @@ Looper& LooperTab::looper()
     return processor.getLooper();
 }
 
+//==============================================================================
+// SPEC-SWEEP (GD-31)
+juce::Colour LooperTab::ledColourFor (Looper::State state, double nowMs) noexcept
+{
+    switch (state)
+    {
+        case Looper::State::recordingFirst:
+        case Looper::State::overdubbing:
+        {
+            const bool bright = ((juce::int64) (nowMs / 125.0) & 1) == 0;   // 4 Hz
+            return juce::Colour (0xfff2544e).withAlpha (bright ? 1.0f : 0.35f);
+        }
+
+        case Looper::State::playing:   return juce::Colour (0xff4caf6a);
+        case Looper::State::stopped:
+        default:                       return juce::Colours::transparentBlack;
+    }
+}
+
+void LooperTab::StatusLed::paint (juce::Graphics& g)
+{
+    auto r = getLocalBounds().toFloat().reduced (2.0f);
+    const float d = juce::jmin (r.getWidth(), r.getHeight());
+    auto dot = r.withSizeKeepingCentre (d, d);
+
+    g.setColour (Palette::edge);
+    g.drawEllipse (dot, 1.0f);
+
+    if (! colour.isTransparent())
+    {
+        g.setColour (colour);
+        g.fillEllipse (dot.reduced (1.0f));
+    }
+}
+
 void LooperTab::editLayer (int index, const char* what, const std::function<void()>& change)
 {
     auto* layer = &looper().getLayer (index);
@@ -571,6 +664,17 @@ void LooperTab::editLayer (int index, const char* what, const std::function<void
 void LooperTab::refresh()
 {
     auto& l = looper();
+
+    // SPEC-SWEEP (GD-31): the LED follows the state on the panel's 20 Hz tick.
+    {
+        const auto c = ledColourFor (l.getState(), juce::Time::getMillisecondCounterHiRes());
+
+        if (c != statusLed.colour)
+        {
+            statusLed.colour = c;
+            statusLed.repaint();
+        }
+    }
 
     switch (l.getState())
     {
@@ -623,12 +727,18 @@ void LooperTab::refresh()
         strip.undo->setButtonText (layer.canUndo() ? "Undo" : (layer.canRedo() ? "Redo" : "Undo"));
         strip.undo->setEnabled (layer.canUndo() || layer.canRedo());
 
+        // SPEC-SWEEP PT-20: a loaded loop brings its filters with it.
+        strip.lowCut->setValue (layer.getLowCutHz(), juce::dontSendNotification);
+        strip.highCut->setValue (layer.getHighCutHz(), juce::dontSendNotification);
+
         for (auto* control : { (juce::Component*) strip.mute.get(),
                                (juce::Component*) strip.reverse.get(),
                                (juce::Component*) strip.halfSpeed.get(),
                                (juce::Component*) strip.mode.get(),
                                (juce::Component*) strip.level.get(),
-                               (juce::Component*) strip.pan.get() })
+                               (juce::Component*) strip.pan.get(),
+                               (juce::Component*) strip.lowCut.get(),
+                               (juce::Component*) strip.highCut.get() })
             control->setEnabled (hasContent);
     }
 }
@@ -640,6 +750,7 @@ void LooperTab::resized()
     {
         RowLayout r { bounds.removeFromTop (Metrics::buttonHeight) };
 
+        statusLed.setBounds (r.take (18));   // SPEC-SWEEP GD-31
         transportButton.setBounds (r.take (110));
         stopButton.setBounds (r.take (64));
         clearButton.setBounds (r.take (64));
@@ -675,10 +786,12 @@ void LooperTab::resized()
         strip.halfSpeed->setBounds (r.take (34, 2));
         strip.undo->setBounds (r.take (52, 4));
 
-        const int half = juce::jmax (40, r.bounds.getWidth() / 2 - 2);
+        const int quarter = juce::jmax (24, r.bounds.getWidth() / 4 - 2);
 
-        strip.level->setBounds (r.take (half));
-        strip.pan->setBounds (r.rest());
+        strip.level->setBounds (r.take (quarter));
+        strip.pan->setBounds (r.take (quarter));
+        strip.lowCut->setBounds (r.take (quarter));    // SPEC-SWEEP PT-20
+        strip.highCut->setBounds (r.rest());
     }
 }
 
@@ -691,7 +804,9 @@ TrackTab::TrackTab (LuthierAudioProcessor& p)
         chooser = std::make_unique<juce::FileChooser> (
             "Open a backing track",
             juce::File::getSpecialLocation (juce::File::userMusicDirectory),
-            "*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg");
+            // PT-24: no MP3 reader is registered (registerBasicFormats() does not
+            // include one), so offering *.mp3 here just invites a load that fails.
+            "*.wav;*.aif;*.aiff;*.flac;*.ogg");
 
         chooser->launchAsync (juce::FileBrowserComponent::openMode
                                 | juce::FileBrowserComponent::canSelectFiles,
@@ -782,12 +897,46 @@ TrackTab::TrackTab (LuthierAudioProcessor& p)
     addAndMakeVisible (setLoopStart);
     addAndMakeVisible (setLoopEnd);
 
+    // SPEC-SWEEP PT-30 (practice-tools 3): a marker takes the typed name, or
+    // a numbered one; the list shows the names.
+    markerName.setTextToShowWhenEmpty ("Marker name", Palette::textMuted);
+    markerName.setTitle ("Marker name");
+    markerName.onReturnKey = [this] { addMarker.triggerClick(); };
+    addAndMakeVisible (markerName);
+
     addMarker.onClick = [this]
     {
-        track().addMarker ({}, track().getPositionSeconds());
+        auto name = markerName.getText().trim();
+
+        if (name.isEmpty())
+            name = "Marker " + juce::String (track().getNumMarkers() + 1);
+
+        track().addMarker (name, track().getPositionSeconds());
+        markerName.clear();
         refresh();
     };
     addAndMakeVisible (addMarker);
+
+    // SPEC-SWEEP PT-26 (practice-tools 3): the track's own pan and filters.
+    styleSlider (panSlider, -1.0, 1.0, 0.01, "");
+    panSlider.setTitle ("Track pan");
+    panSlider.setTooltip ("Track pan");
+    panSlider.onValueChange = [this] { track().setPan (panSlider.getValue()); };
+    addAndMakeVisible (panSlider);
+
+    styleSlider (lowCutSlider, 20.0, 2000.0, 1.0, " Hz");
+    lowCutSlider.setSkewFactorFromMidPoint (200.0);
+    lowCutSlider.setTitle ("Track low-cut");
+    lowCutSlider.setTooltip ("Track low-cut");
+    lowCutSlider.onValueChange = [this] { track().setLowCutHz (lowCutSlider.getValue()); };
+    addAndMakeVisible (lowCutSlider);
+
+    styleSlider (highCutSlider, 200.0, 20000.0, 1.0, " Hz");
+    highCutSlider.setSkewFactorFromMidPoint (2000.0);
+    highCutSlider.setTitle ("Track high-cut");
+    highCutSlider.setTooltip ("Track high-cut");
+    highCutSlider.onValueChange = [this] { track().setHighCutHz (highCutSlider.getValue()); };
+    addAndMakeVisible (highCutSlider);
 
     markerBox.onChange = [this]
     {
@@ -839,6 +988,11 @@ void TrackTab::refresh()
     loopButton.setToggleState (t.isLoopEnabled(), juce::dontSendNotification);
     monoButton.setToggleState (t.isMonoSummed(), juce::dontSendNotification);
 
+    // SPEC-SWEEP PT-26.
+    panSlider.setValue (t.getPan(), juce::dontSendNotification);
+    lowCutSlider.setValue (t.getLowCutHz(), juce::dontSendNotification);
+    highCutSlider.setValue (t.getHighCutHz(), juce::dontSendNotification);
+
     // Rebuild the marker list only when it has changed.
     if (markerBox.getNumItems() != t.getNumMarkers())
     {
@@ -889,12 +1043,23 @@ void TrackTab::resized()
     }
 
     {
+        // SPEC-SWEEP PT-26.
+        RowLayout r { row (22) };
+        const int third = r.bounds.getWidth() / 3 - 4;
+
+        panSlider.setBounds (r.take (third));
+        lowCutSlider.setBounds (r.take (third));
+        highCutSlider.setBounds (r.rest());
+    }
+
+    {
         RowLayout r { row (Metrics::buttonHeight) };
 
         loopButton.setBounds (r.take (56));
         setLoopStart.setBounds (r.take (70));
         setLoopEnd.setBounds (r.take (70));
         monoButton.setBounds (r.take (56));
+        markerName.setBounds (r.take (90));   // SPEC-SWEEP PT-30
         addMarker.setBounds (r.take (56));
         markerBox.setBounds (r.rest());
     }
@@ -926,6 +1091,9 @@ ScaleTab::ScaleTab (LuthierAudioProcessor& p)
     for (int i = 0; i < (int) ScaleType::custom; ++i)
         scaleBox.addItem (getScaleTypeName ((ScaleType) i), i + 1);
 
+    // SPEC-SWEEP PT-37 (practice-tools 4): a custom scale is its step list.
+    scaleBox.addItem ("Custom...", (int) ScaleType::custom + 1);
+
     scaleBox.setSelectedId (1, juce::dontSendNotification);
     scaleBox.onChange = [this]
     {
@@ -935,10 +1103,34 @@ ScaleTab::ScaleTab (LuthierAudioProcessor& p)
         const auto after = (ScaleType) (scaleBox.getSelectedId() - 1);
         processor.pushUndoCallback ("Change practice scale", "practice-scale", "scale",
                                     [t, before] { t->setScale (before); }, [t, after] { t->setScale (after); });
-        trainer().setScale (after);
+
+        // SPEC-SWEEP PT-37: a custom scale is its step list.
+        customSteps.setVisible (after == ScaleType::custom);
+
+        if (after == ScaleType::custom)
+            setCustomSteps (customSteps.getText());
+        else
+            trainer().setScale (after);
+
+        resized();
         repaint();
     };
     addAndMakeVisible (scaleBox);
+
+    customSteps.setText ("2 2 1 2 2 2 1", juce::dontSendNotification);
+    customSteps.setTitle ("Custom scale steps");
+    customSteps.setTooltip ("The scale's steps in semitones, e.g. 2 1 2 2 1 2 2 for natural minor.");
+    customSteps.onTextChange = [this] { setCustomSteps (customSteps.getText()); repaint(); };
+    addChildComponent (customSteps);
+
+    // SPEC-SWEEP PT-33: note names, intervals from the root or scale degrees.
+    overlayBox.addItem ("Notes", 1);
+    overlayBox.addItem ("Intervals", 2);
+    overlayBox.addItem ("Degrees", 3);
+    overlayBox.setSelectedId (1, juce::dontSendNotification);
+    overlayBox.setTitle ("Fretboard labels");
+    overlayBox.onChange = [this] { repaint(); };
+    addAndMakeVisible (overlayBox);
 
     modeBox.addItem ("Explore", 1);
     modeBox.addItem ("Quiz", 2);
@@ -961,14 +1153,233 @@ ScaleTab::ScaleTab (LuthierAudioProcessor& p)
     styleReadout (scoreLabel);
     addAndMakeVisible (scoreLabel);
 
-    nextButton.onClick = [this]
-    {
-        questionLabel.setText (trainer().nextQuestion (random), juce::dontSendNotification);
-        refresh();
-    };
+    nextButton.onClick = [this] { ask(); };
     addAndMakeVisible (nextButton);
 
+    // SPEC-SWEEP PT-35: the interval trainer's answers.
+    static const char* const intervalNames[12] =
+        { "P1", "m2", "M2", "m3", "M3", "P4", "TT", "P5", "m6", "M6", "m7", "M7" };
+
+    for (int i = 0; i < 12; ++i)
+    {
+        auto* button = intervalButtons.add (new juce::TextButton (intervalNames[i]));
+        button->onClick = [this, i] { chooseInterval (i); };
+        addChildComponent (*button);
+    }
+
     addAndMakeVisible (scaleView);
+
+    styleReadout (feedbackLabel);
+    addAndMakeVisible (feedbackLabel);
+
+    refresh();
+}
+
+juce::String ScaleTab::labelFor (int pitchClass, Overlay overlay)
+{
+    auto& t = trainer();
+    pitchClass = ((pitchClass % 12) + 12) % 12;
+
+    if (! t.containsPitchClass (pitchClass))
+        return {};
+
+    static const char* const noteNames[12] =
+        { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
+    static const char* const intervalNames[12] =
+        { "1", "b2", "2", "b3", "3", "4", "b5", "5", "b6", "6", "b7", "7" };
+
+    switch (overlay)
+    {
+        case Overlay::intervals: return intervalNames[(pitchClass - t.getKey() + 12) % 12];
+        case Overlay::degrees:   return juce::String (t.getDegreeOf (pitchClass));
+        case Overlay::notes:
+        case Overlay::numOverlays:
+        default:                 return noteNames[pitchClass];
+    }
+}
+
+bool ScaleTab::setCustomSteps (const juce::String& text)
+{
+    const auto tokens = juce::StringArray::fromTokens (text, " ,-", "");
+    int offsets[ScaleTrainer::kMaxIntervals] {};
+    int count = 0, total = 0;
+
+    for (const auto& token : tokens)
+    {
+        if (token.trim().isEmpty())
+            continue;
+
+        const int step = token.getIntValue();
+
+        if (step < 1 || step > 11 || count >= ScaleTrainer::kMaxIntervals)
+            return false;
+
+        offsets[count++] = total;
+        total += step;
+    }
+
+    // The steps come back to the octave, or stop short of it - and then the
+    // last step lands on a note of the scale too.
+    if (count == 0 || total > 12)
+        return false;
+
+    if (total < 12)
+    {
+        if (count >= ScaleTrainer::kMaxIntervals)
+            return false;
+
+        offsets[count++] = total;
+    }
+
+    trainer().setCustomIntervals (offsets, count);
+    return true;
+}
+
+void ScaleTab::paint (juce::Graphics& g)
+{
+    // SPEC-SWEEP PT-33 (practice-tools 4, "explore"): the scale on the neck.
+    const auto area = scaleView.getBounds().toFloat().reduced (4.0f);
+
+    if (area.getWidth() < 40.0f || area.getHeight() < 30.0f)
+        return;
+
+    const auto& tuning = processor.getEngine().getTuningEngine();
+    const int numStrings = juce::jlimit (1, 12, processor.getEngine().getNumStrings());
+    constexpr int frets = 15;
+
+    const float fretWidth = area.getWidth() / (float) (frets + 1);
+    const float stringGap = area.getHeight() / (float) numStrings;
+    const auto overlay = (Overlay) juce::jlimit (0, 2, overlayBox.getSelectedId() - 1);
+
+    g.setColour (Palette::edge);
+
+    for (int f = 1; f <= frets + 1; ++f)
+    {
+        const float x = area.getX() + fretWidth * (float) f;
+        g.drawLine (x, area.getY(), x, area.getBottom(), f == 1 ? 3.0f : 1.0f);
+    }
+
+    g.setFont (juce::Font (juce::FontOptions (10.0f)));
+
+    for (int s = 0; s < numStrings; ++s)
+    {
+        const float y = area.getY() + stringGap * ((float) s + 0.5f);
+
+        g.setColour (Palette::edgeBright);
+        g.drawLine (area.getX(), y, area.getRight(), y, 1.0f);
+
+        const int open = (int) std::round (hzToMidi (tuning.computeFrequency (s, 0.0), tuning.getConcertA()));
+
+        for (int f = 0; f <= frets; ++f)
+        {
+            const int pitchClass = (open + f) % 12;
+            const auto label = labelFor (pitchClass, overlay);
+
+            if (label.isEmpty())
+                continue;
+
+            const float x = area.getX() + fretWidth * ((float) f + 0.5f);
+            const float r = juce::jmin (fretWidth, stringGap) * 0.42f;
+            const bool root = pitchClass == trainer().getKey();
+
+            g.setColour (root ? Palette::accent : Palette::secondary);
+            g.fillEllipse (x - r, y - r, 2.0f * r, 2.0f * r);
+
+            g.setColour (Palette::backgroundDeep);
+            g.drawText (label, juce::Rectangle<float> (x - r, y - r, 2.0f * r, 2.0f * r),
+                        juce::Justification::centred, false);
+        }
+    }
+}
+
+void ScaleTab::ask()
+{
+    questionLabel.setText (trainer().nextQuestion (random), juce::dontSendNotification);
+    feedbackLabel.setText ({}, juce::dontSendNotification);
+    askedAtMs = juce::Time::getMillisecondCounterHiRes();
+    playQuestion();
+    refresh();
+}
+
+void ScaleTab::playQuestion()
+{
+    // SPEC-SWEEP PT-35: the interval and chord-tone questions are heard.
+    int notes[8] {};
+    const int count = trainer().getQuestionNotes (notes, 8);
+
+    if (count == 0)
+        return;
+
+    int strings[8] {}, frets[8] {};
+    EarTab::placeOnStrings (processor.getEngine().getTuningEngine(), processor.getEngine().getNumStrings(),
+                            notes, count, strings, frets);
+
+    for (int i = 0; i < count; ++i)
+        if (strings[i] >= 0)
+            processor.triggerPreviewNote (strings[i], (double) frets[i], 0.7);
+}
+
+void ScaleTab::chooseInterval (int semitones)
+{
+    auto& t = trainer();
+
+    if (t.getMode() != ScaleTrainer::Mode::intervalTrainer || ! t.isQuestionOpen())
+        return;
+
+    static const char* const intervalNames[12] =
+        { "P1", "m2", "M2", "m3", "M3", "P4", "TT", "P5", "m6", "M6", "m7", "M7" };
+
+    const int wanted = t.getIntervalSemitones();
+
+    feedbackLabel.setText (t.answerInterval (semitones) ? juce::String ("Right")
+                                                        : juce::String ("No - ") + intervalNames[wanted],
+                           juce::dontSendNotification);
+    refresh();
+}
+
+void ScaleTab::notePlayed (int midiNote)
+{
+    // SPEC-SWEEP PT-34 (practice-tools 4): the quiz is answered on the guitar.
+    auto& t = trainer();
+
+    if (t.getMode() == ScaleTrainer::Mode::explore || t.getExpectedPitchClass() < 0)
+        return;
+
+    static const char* const names[12] =
+        { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
+
+    const int expected = t.getExpectedPitchClass();
+
+    // SPEC-SWEEP PT-35: the interval trainer is answered with its buttons, and
+    // the chord-tone trainer wants both tones, in time.
+    if (t.getMode() == ScaleTrainer::Mode::intervalTrainer)
+        return;
+
+    if (t.getMode() == ScaleTrainer::Mode::chordToneTrainer)
+    {
+        const double seconds = (juce::Time::getMillisecondCounterHiRes() - askedAtMs) * 0.001;
+
+        if (t.answer (midiNote, seconds))
+            feedbackLabel.setText ("Right - both chord tones", juce::dontSendNotification);
+        else if (! t.isQuestionOpen())
+            feedbackLabel.setText ("Too late - ask again", juce::dontSendNotification);
+        else
+            feedbackLabel.setText ("Keep going", juce::dontSendNotification);
+
+        refresh();
+        return;
+    }
+
+    if (t.answer (midiNote))
+    {
+        feedbackLabel.setText (juce::String ("Right - ") + names[expected], juce::dontSendNotification);
+        questionLabel.setText (t.nextQuestion (random), juce::dontSendNotification);
+    }
+    else
+    {
+        feedbackLabel.setText (juce::String ("That was ") + names[((midiNote % 12) + 12) % 12]
+                                 + " - try again", juce::dontSendNotification);
+    }
 
     refresh();
 }
@@ -990,7 +1401,42 @@ void ScaleTab::refresh()
 
     nextButton.setEnabled (t.getMode() != ScaleTrainer::Mode::explore);
 
+    // SPEC-SWEEP PT-35: interval answers only for the interval trainer; the
+    // chord-tone question runs out.
+    const bool intervals = t.getMode() == ScaleTrainer::Mode::intervalTrainer;
+
+    for (auto* button : intervalButtons)
+        if (button->isVisible() != intervals)
+            button->setVisible (intervals), resized();
+
+    if (t.getMode() == ScaleTrainer::Mode::chordToneTrainer && t.isQuestionOpen()
+          && (juce::Time::getMillisecondCounterHiRes() - askedAtMs) * 0.001 > t.getTimeLimitSeconds())
+    {
+        t.answer (-1, t.getTimeLimitSeconds() + 1.0);   // missed
+        feedbackLabel.setText ("Time's up - ask again", juce::dontSendNotification);
+    }
+
     repaint();
+}
+
+void ScaleTab::applyCustomIntervals()
+{
+    juce::StringArray tokens;
+    tokens.addTokens (customIntervalsEditor.getText(), " ,", "");
+    tokens.removeEmptyStrings();
+
+    std::array<int, ScaleTrainer::kMaxIntervals> intervals {};
+    int count = 0;
+
+    for (const auto& token : tokens)
+    {
+        if (count >= ScaleTrainer::kMaxIntervals)
+            break;
+
+        intervals[(size_t) count++] = token.getIntValue();
+    }
+
+    trainer().setCustomIntervals (intervals.data(), count);
 }
 
 void ScaleTab::resized()
@@ -1002,13 +1448,36 @@ void ScaleTab::resized()
 
         keyBox.setBounds (r.take (64));
         scaleBox.setBounds (r.take (150));
+
+        if (customSteps.isVisible())
+            customSteps.setBounds (r.take (110));   // SPEC-SWEEP PT-37
+
         modeBox.setBounds (r.take (150));
+        overlayBox.setBounds (r.take (96));         // SPEC-SWEEP PT-33
         nextButton.setBounds (r.take (64));
         scoreLabel.setBounds (r.rest());
     }
 
     bounds.removeFromTop (3);
-    questionLabel.setBounds (bounds.removeFromTop (20));
+
+    // SPEC-SWEEP PT-35.
+    if (! intervalButtons.isEmpty() && intervalButtons[0]->isVisible())
+    {
+        auto line = bounds.removeFromTop (22);
+        const int width = juce::jmax (24, line.getWidth() / 12);
+
+        for (auto* button : intervalButtons)
+            button->setBounds (line.removeFromLeft (width).reduced (1, 0));
+
+        bounds.removeFromTop (3);
+    }
+
+    {
+        auto line = bounds.removeFromTop (20);
+        feedbackLabel.setBounds (line.removeFromRight (juce::jmin (220, line.getWidth() / 2)));
+        questionLabel.setBounds (line);
+    }
+
     bounds.removeFromTop (3);
 
     scaleView.setBounds (bounds);
@@ -1097,18 +1566,67 @@ void EarTab::playCurrentQuestion()
 {
     // practice-tools 5: the exercise is heard on the instrument the user has
     // built, so the notes go through the plugin's own preview path.
-    for (int i = 0; i < numNotes; ++i)
+    /*  The preview path takes a string and a fret; the trainer works in
+        pitches. SPEC-SWEEP PT-39: each note goes where it sounds - it was
+        string i at fret (note mod 24), which played the wrong pitch for
+        almost every question. */
+    int strings[EarTrainer::kMaxNotesInQuestion] {};
+    int frets[EarTrainer::kMaxNotesInQuestion] {};
+
+    const int placed = placeOnStrings (processor.getEngine().getTuningEngine(),
+                                       processor.getEngine().getNumStrings(),
+                                       notes, numNotes, strings, frets);
+
+    for (int i = 0; i < placed; ++i)
     {
         juce::ignoreUnused (offsets[i]);
 
-        // The preview path takes a string and a fret; the trainer works in
-        // pitches, so each note is placed wherever the voicer would put it.
-        const int midiNote = notes[i];
-
-        processor.triggerPreviewNote (juce::jlimit (0, 5, i % 6),
-                                      juce::jlimit (0.0, 22.0, (double) (midiNote % 24)),
-                                      0.75);
+        if (strings[i] >= 0)
+            processor.triggerPreviewNote (strings[i], (double) frets[i], 0.75);
     }
+}
+
+int EarTab::placeOnStrings (const TuningEngine& tuning, int numStrings, const int* midiNotes, int count,
+                            int* stringsOut, int* fretsOut)
+{
+    numStrings = juce::jlimit (1, 12, numStrings);
+    std::array<bool, 12> used {};
+
+    for (int i = 0; i < count; ++i)
+    {
+        int best = -1, bestFret = 0;
+
+        // The lowest free position that sounds it; out of reach, an octave
+        // nearer the neck is still the same answer.
+        for (int pass = 0; pass < 3 && best < 0; ++pass)
+        {
+            const int wanted = midiNotes[i] + (pass == 1 ? -12 : (pass == 2 ? 12 : 0));
+
+            for (int s = 0; s < numStrings; ++s)
+            {
+                if (used[(size_t) s])
+                    continue;
+
+                const int open = (int) std::round (hzToMidi (tuning.computeFrequency (s, 0.0),
+                                                             tuning.getConcertA()));
+                const int fret = wanted - open;
+
+                if (fret >= 0 && fret <= 15 && (best < 0 || fret < bestFret))
+                {
+                    best = s;
+                    bestFret = fret;
+                }
+            }
+        }
+
+        if (best >= 0)
+            used[(size_t) best] = true;
+
+        stringsOut[i] = best;
+        fretsOut[i] = bestFret;
+    }
+
+    return count;
 }
 
 void EarTab::refresh()
@@ -1184,6 +1702,13 @@ void EarTab::resized()
 }
 
 //==============================================================================
+void TabReaderTab::showStatus (const juce::String& text, bool warning)
+{
+    statusLabel.setText (text, juce::dontSendNotification);
+    statusLabel.setColour (juce::Label::textColourId, warning ? Palette::warning : Palette::textMuted);
+    statusLabel.setTooltip (text);
+}
+
 bool TabReaderTab::openTab (const juce::File& file, const juce::File& libraryFile)
 {
     const bool read = importer.read (file, score);
@@ -1198,20 +1723,116 @@ bool TabReaderTab::openTab (const juce::File& file, const juce::File& libraryFil
         juce::String error;
         library.save (libraryFile, error);
 
-        statusLabel.setText (juce::String (score.getTotalNoteCount()) + " notes from "
-                               + file.getFileName(),
-                             juce::dontSendNotification);
+        scoreTitle = file.getFileNameWithoutExtension();
 
-        statusLabel.setColour (juce::Label::textColourId, Palette::textMuted);
+        /*  tab-import-export 7: a page that was only partly readable is still
+            opened, and the status says what was skipped ("Loaded 3 bars, 12
+            notes (6 strings); 2 lines skipped") in the warning colour, so the
+            player knows the tab is not all there. The details are the tooltip. */
+        const auto& d = importer.getLastDiagnostics();
+        auto text = (d.notes > 0 ? d.summary() : juce::String (score.getTotalNoteCount()) + " notes.")
+                      + " - " + file.getFileName();
+
+        if (! d.warnings.isEmpty())
+            text += "\n" + d.warnings.joinIntoString ("\n");
+
+        showStatus (text, d.isPartial());
     }
     else
     {
-        statusLabel.setText (importer.getLastError(), juce::dontSendNotification);
-        statusLabel.setColour (juce::Label::textColourId, Palette::warning);
+        showStatus (importer.getLastError(), true);
     }
 
     refresh();
     return read;
+}
+
+bool TabReaderTab::openLivePerformance()
+{
+    // tab-import-export 9: the session take is already a score (notation-export 6).
+    auto& take = processor.getPerformanceCapture();
+    processor.drainPerformanceCapture();
+
+    PerformanceScore live;
+    juce::String source;
+
+    if (! take.getNotes().empty())
+    {
+        take.toScore (live);
+        source = "live take";
+    }
+    else
+    {
+        // No engine take (capture off, or MIDI went straight out): the MIDI
+        // capture holds the input as played, pitches only, so it is fingered.
+        const double rate = processor.getSampleRate() > 0.0 ? processor.getSampleRate() : 48000.0;
+        const auto performance = MidiPerformance::fromCapture (processor.getMidiCapture(), rate,
+                                                               processor.getHostTempo());
+        performance.toScore (live);
+
+        if (live.getTotalNoteCount() > 0 && ! TabFingering::isPlausible (live))
+            TabFingering::assign (live);
+
+        source = "MIDI capture (fingering guessed)";
+    }
+
+    if (live.getTotalNoteCount() == 0)
+    {
+        showStatus ("Nothing has been played yet. Play something, then press Live.", true);
+        return false;
+    }
+
+    live.getMeta().title = "Live performance";
+    openScore (live, "Live performance");
+    showStatus (juce::String (live.getTotalNoteCount()) + " notes from the " + source
+                  + " - Export writes it as tab, MIDI, MusicXML or Guitar Pro.", false);
+    return true;
+}
+
+void TabReaderTab::openScore (const PerformanceScore& newScore, const juce::String& title)
+{
+    // riff-library 6.4: a riff opened with Learn It.
+    score = newScore;
+    scoreTitle = title;
+    statusLabel.setText (title + " - " + juce::String (score.getTotalNoteCount()) + " notes",
+                         juce::dontSendNotification);
+    statusLabel.setColour (juce::Label::textColourId, Palette::textMuted);
+    refresh();
+}
+
+//==============================================================================
+void TabReaderTab::togglePlay()
+{
+    auto& player = processor.getEngine().getRiffPlayer();
+
+    if (player.isPlaying() || player.isWaiting())
+    {
+        player.stop();
+        playButton.setButtonText ("Play");
+        return;
+    }
+
+    if (score.getTotalNoteCount() == 0)
+    {
+        statusLabel.setText ("Open a tab first.", juce::dontSendNotification);
+        statusLabel.setColour (juce::Label::textColourId, Palette::warning);
+        return;
+    }
+
+    // FEAT2-TAB: the parsed score becomes a riff, compiled against the loaded
+    // instrument and handed to the audition player - the same path riffs use.
+    const auto riff = Riff::fromScore (score);
+    const auto guitar = RiffDestinations::guitarSummary (processor);
+
+    player.setCompiled (RiffCompiler::compile (riff, RiffPlaySettings{}, guitar), true);
+    player.setClockMode (RiffPlayer::ClockMode::own);
+    player.setAbsoluteBpm (score.getMeta().tempoBpm);
+    player.setLooping (true);
+    player.play();
+
+    playButton.setButtonText ("Stop");
+    statusLabel.setText ("Playing " + scoreTitle, juce::dontSendNotification);
+    statusLabel.setColour (juce::Label::textColourId, Palette::textMuted);
 }
 
 //==============================================================================
@@ -1220,10 +1841,11 @@ TabReaderTab::TabReaderTab (LuthierAudioProcessor& p)
 {
     openButton.onClick = [this]
     {
+        // tab-import-export 8: MIDI files open as tab too.
         chooser = std::make_unique<juce::FileChooser> (
-            "Open tablature",
+            "Open tablature or MIDI",
             juce::File::getSpecialLocation (juce::File::userDocumentsDirectory),
-            "*.txt;*.tab;*.musicxml;*.xml");
+            "*.txt;*.tab;*.musicxml;*.xml;*.mid;*.midi");
 
         chooser->launchAsync (juce::FileBrowserComponent::openMode
                                 | juce::FileBrowserComponent::canSelectFiles,
@@ -1257,15 +1879,32 @@ TabReaderTab::TabReaderTab (LuthierAudioProcessor& p)
             NotationExportOptions options;
             options.lineWidth = 80;
 
-            statusLabel.setText (exporter.write (score, format, fc.getResult(), options)
-                                   ? ("Exported to " + fc.getResult().getFileName())
-                                   : exporter.getLastError(),
-                                 juce::dontSendNotification);
+            if (score.getTotalNoteCount() == 0)
+            {
+                showStatus ("Nothing to export: open a tab or press Live first.", true);
+                return;
+            }
+
+            const bool ok = exporter.write (score, format, fc.getResult(), options);
+            showStatus (ok ? ("Exported " + juce::String (getNotationFormatName (format)) + " to "
+                                + fc.getResult().getFileName())
+                           : exporter.getLastError(),
+                        ! ok);
         });
     };
 
+    playButton.setTooltip ("Play the imported tab through the engine.");
+    playButton.onClick = [this] { togglePlay(); };
+
+    openButton.setTooltip ("Open ASCII tab, MusicXML or a MIDI file (fingered as tab).");
+    exportButton.setTooltip ("Write the shown score in the chosen format: ASCII tab, MIDI, MusicXML or Guitar Pro.");
+    liveButton.setTooltip ("Show what you just played as tab, ready to play back or export.");
+    liveButton.onClick = [this] { openLivePerformance(); };
+
     addAndMakeVisible (openButton);
     addAndMakeVisible (exportButton);
+    addAndMakeVisible (playButton);
+    addAndMakeVisible (liveButton);
 
     for (int i = 0; i < (int) NotationFormat::numFormats; ++i)
         formatBox.addItem (getNotationFormatName ((NotationFormat) i), i + 1);
@@ -1320,10 +1959,12 @@ void TabReaderTab::resized()
     {
         RowLayout r { bounds.removeFromTop (Metrics::buttonHeight) };
 
-        openButton.setBounds (r.take (76));
-        formatBox.setBounds (r.take (120));
-        exportButton.setBounds (r.take (80));
-        barsSlider.setBounds (r.take (130));
+        openButton.setBounds (r.take (70));
+        liveButton.setBounds (r.take (46));
+        playButton.setBounds (r.take (54));
+        formatBox.setBounds (r.take (112));
+        exportButton.setBounds (r.take (74));
+        barsSlider.setBounds (r.take (116));
         statusLabel.setBounds (r.rest());
     }
 
@@ -1521,7 +2162,10 @@ void SessionTab::visibilityChanged()
 
 bool SessionTab::saveTake()
 {
-    const bool saved = processor.getSessionRecorder().saveLastTake (SessionRecorder::getSessionDirectory());
+    // SPEC-SWEEP MX-25: the MIDI in the user's default export profile.
+    const auto midiOptions = MidiExportDefaults::load();
+    const bool saved = processor.getSessionRecorder().saveLastTake (SessionRecorder::getSessionDirectory(),
+                                                                    0.0, &midiOptions);
 
     statusLabel.setText (saved ? "Saved to your Sessions folder."
                                : "There is nothing recorded to save.",
@@ -1611,6 +2255,18 @@ SessionRecorderSetup SessionTab::storedSetup()
     return SessionRecorderSetup::fromVar (defaults.extra["session_recorder"]);
 }
 
+void SessionTab::paint (juce::Graphics& g)
+{
+    // SPEC-SWEEP (GD-33): recorded / capacity.
+    if (fillBarBounds.isEmpty())
+        return;
+
+    g.setColour (Palette::panelSunken);
+    g.fillRect (fillBarBounds);
+    g.setColour (Palette::accent);
+    g.fillRect (fillBarBounds.withWidth (juce::roundToInt ((float) fillBarBounds.getWidth() * fillFraction)));
+}
+
 void SessionTab::refresh()
 {
     auto& recorder = processor.getSessionRecorder();
@@ -1624,6 +2280,17 @@ void SessionTab::refresh()
     statusLabel.setText (juce::String (recorded, 1) + " of " + juce::String (minutes, 1)
                            + " minutes held",
                          juce::dontSendNotification);
+
+    // SPEC-SWEEP (GD-33): the fill bar under it.
+    {
+        const auto fraction = (float) juce::jlimit (0.0, 1.0, minutes > 0.0 ? recorded / minutes : 0.0);
+
+        if (std::abs (fraction - fillFraction) > 1.0e-4f)
+        {
+            fillFraction = fraction;
+            repaint (fillBarBounds);
+        }
+    }
 
     // practice-tools 8 sizes the default at 1.4 GB, which this machine will not
     // allocate. The capacity is reported rather than the request, and the
@@ -1653,6 +2320,7 @@ void SessionTab::resized()
 
     bounds.removeFromTop (4);
     statusLabel.setBounds (bounds.removeFromTop (16));
+    fillBarBounds = bounds.removeFromTop (4).reduced (0, 1);   // SPEC-SWEEP GD-33
     warningLabel.setBounds (bounds.removeFromTop (16));
 }
 
@@ -1951,6 +2619,12 @@ void PracticePanel::timerCallback()
 
     stripTrack.setText (track.isLoaded() ? track.getTitle() : juce::String ("no track"),
                         juce::dontSendNotification);
+
+    // SPEC-SWEEP PT-34: the notes played since the last tick go to the tab on
+    // show (the feed fills only while the drawer is open).
+    for (int note = 0; processor.getPracticeNoteFeed().pop (note);)
+        if (juce::isPositiveAndBelow (currentTab, tabs.size()))
+            tabs[currentTab]->notePlayed (note);
 
     if (juce::isPositiveAndBelow (currentTab, tabs.size()))
         tabs[currentTab]->refresh();

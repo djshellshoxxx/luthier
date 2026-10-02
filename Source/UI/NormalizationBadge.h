@@ -12,6 +12,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Theme.h"
+#include "AnimationPolicy.h"
 
 namespace luthier
 {
@@ -47,6 +48,9 @@ private:
     void timerCallback() override { refresh(); }
 
     LuthierAudioProcessor& processor;
+
+    // cpu-quality-modes 6: the badge's gain text is a live readout.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "NormalizationBadge" };
     juce::String text;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (NormalizationBadge)

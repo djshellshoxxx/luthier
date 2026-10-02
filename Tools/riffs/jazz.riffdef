@@ -1,0 +1,233 @@
+defaults author L origin original date 2026-09-24
+
+# ---------------------------------------------------------------- riffs
+
+riff jazz.riff.bebop-unison-riff-1 "Bebop Unison Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key F mixolydian   tempo 160   meter 4/4   feel swing
+  difficulty 2   tags blues head   free yes
+  chords 0:F7 4:Bb7 8:F7
+  play:
+    e: r 4.3 3.2 3.5 q: 2.4 e: 3.5 3.2 |
+    e: 4.6 3.3 4.3 3.3 q: 2.3 r |
+    e: r 4.3 3.2 3.5 q: 2.4 e: 2.6 2.4 |
+    q.: 3.5 e: 3.2 q: 4.3 r |
+
+riff jazz.riff.modal-quartal-riff-1 "Modal Quartal Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key D dorian   tempo 138   meter 4/4   feel swing
+  difficulty 2   tags modal quartal
+  chords 0:Dm7
+  play:
+    q.: [5.5 4.5 3.5] e: [5.7 4.7 3.7] q: r e: [5.5 4.5 3.5] [5.3 4.3 3.4] |
+    e: r [5.7 4.7 3.7] q: [5.5 4.5 3.5] e: r [5.3 4.3 3.4] q: [5.5 4.5 3.5] |
+    q.: [5.3 4.3 3.4] e: [5.5 4.5 3.5] q: r e: [5.7 4.7 3.7] [5.5 4.5 3.5] |
+    e: r [5.5 4.5 3.5] q: [5.7 4.7 3.7] h: [4.12 3.12 2.12]<> |
+
+# ---------------------------------------------------------------- licks
+
+riff jazz.lick.bebop-enclosure-lick-1 "Bebop Enclosure Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key Bb ionian   tempo 150   meter 4/4   feel swing
+  difficulty 3   tags bebop two-five enclosure
+  chords 0:Cm7 2:F7 4:Bbmaj7
+  play:
+    t8: 1.3 ~ 2.6 2.4 ~ 2.3 3.5 ~ 3.7/9 3.9 ~ 2.6 |
+    t8: 2.4 ~ 2.2 h: 2.3~ q: r |
+
+riff jazz.lick.swing-chromatic-run-1 "Swing Chromatic Run 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key G ionian   tempo 168   meter 4/4   feel swing
+  difficulty 3   tags two-five chromatic
+  chords 0:Am7 2:D7 4:Gmaj7
+  play:
+    e: 1.5 2.8 2.5 3.5 2.7 1.5 1.8 1.7 |
+    e: 3.4 2.5 3.5/7 q: 3.7 e: 4.5 q: 2.7 |
+
+riff jazz.lick.bebop-hammer-lick-1 "Bebop Hammer Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key C harmonic_minor   tempo 144   meter 4/4   feel swing
+  difficulty 3   tags bebop minor two-five
+  chords 0:Dm7b5 2:G7b9 4:Cm
+  play:
+    t8: 3.7 3.10 2.9 1.8 ~ 2.9 2.8 p2.6 4.9 2.9 ~ 2.8 |
+    t8: 3.7 h3.8 p3.7 q: 4.10 h: r |
+
+riff jazz.lick.swing-hammer-line-1 "Swing Hammer Line 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key F ionian   tempo 150   meter 4/4   feel swing
+  difficulty 2   tags turnaround sixth
+  chords 0:F6 4:Gm7 6:C7
+  play:
+    e: 4.3 h4.5 3.2 3.5 q: 2.3 e: 2.1 3.2 |
+    e: 4.5 3.3 2.3 2.6 2.5 2.3 3.3 h3.5 |
+
+riff jazz.lick.minor-pull-lick-1 "Minor Pull Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key A dorian   tempo 132   meter 4/4   feel swing
+  difficulty 2   tags minor triplet   free yes
+  chords 0:Am7
+  play:
+    t8: 1.8 p1.5 2.8 ~ 2.5 3.7 p3.5 ~ 2.7 ~ 2.5 ~ |
+    t8: 3.7 ~ 3.5 4.7 ~ 4.5 h: 4.7 |
+
+riff jazz.lick.ballad-vibrato-phrase-1 "Ballad Vibrato Phrase 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key Eb ionian   tempo 72   meter 4/4   feel swing
+  difficulty 2   tags ballad melodic
+  chords 0:Ebmaj7 4:Abmaj7 6:Bb7
+  play:
+    q: 3.3 e: 3.5 3.7 h: 2.8~ |
+    e: 1.6 1.8 q: 1.6 e: 2.8 2.6 q: 3.7~ |
+
+riff jazz.lick.chord-melody-harmonic-1 "Chord-Melody Harmonic 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key G ionian   tempo 90   meter 4/4   feel swing
+  difficulty 3   tags chord-melody harmonics
+  chords 0:Gmaj7 4:Cmaj7
+  play:
+    h: [3x443x] e: 4.4ah 3.4ah 2.3ah 1.2ah |
+    h: [x3545x] e: 3.4ah 2.5ah q: 1.3ah |
+
+riff jazz.lick.blue-bend-swing-lick-1 "Blue Bend Swing Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key Bb blues   tempo 132   meter 4/4   feel swing
+  difficulty 3   tags blues triplet
+  chords 0:Bb7
+  play:
+    t8: 3.6b1 ~ 2.6 1.6 ~ 2.9 2.6 ~ 3.8 3.6 ~ 3.7 |
+    t8: 4.6 ~ 4.8 3.6 ~ 3.7 h: 4.8 |
+
+riff jazz.lick.swing-arpeggio-lick-1 "Swing Arpeggio Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key C ionian   tempo 120   meter 4/4   feel swing
+  difficulty 1   tags arpeggio turnaround   free yes
+  chords 0:Cmaj7 2:A7 4:Dm7 6:G7
+  play:
+    e: 5.3 4.2 4.5 3.4 3.2 2.2 2.5 1.3 |
+    e: 1.1 2.3 3.5 3.2 4.5 3.4 q: 2.3 |
+
+riff jazz.lick.bebop-scale-run-1 "Bebop Scale Run 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key F ionian   tempo 210   meter 4/4   feel swing
+  difficulty 4   tags bebop uptempo dominant
+  chords 0:C7 8:Fmaj7
+  play:
+    e: 1.8 1.7 1.6 1.5 2.8 2.6 2.5 3.7 |
+    t8: 3.5 3.8 3.9 e: 2.6 2.8 1.5 1.6 1.8 1.5 |
+    t8: 1.6 1.5 2.8 e: 2.7 2.5 q: 2.6 e: 3.9 3.7 |
+    e: 3.5 4.7 q: 4.10 h: 5.8 |
+
+# ---------------------------------------------------------------- strums
+
+riff jazz.strum.swing-four-comp-1 "Swing Four Comp 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key Bb ionian   tempo 160   meter 4/4   feel swing
+  difficulty 2   tags shell-voicings four-to-the-bar
+  chords 0:Bb6 2:G7 3.5:Cm7 6:F7
+  play:
+    q: D[6.6 4.5 3.7]' D[6.6 4.5 3.7]' D[6.3 4.3 3.4]' e: D[6.3 4.3 3.4]' U[5.3 4.1 3.3] |
+    q: ~ D[5.3 4.1 3.3]' D[6.1 4.1 3.2]' e: D[6.1 4.1 3.2]' U[6.1 4.1 3.2]' |
+
+riff jazz.strum.ballad-chord-bloom-1 "Ballad Chord Bloom 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key C ionian   tempo 66   meter 4/4   feel swing
+  difficulty 2   tags ballad extended
+  chords 0:Cmaj9 3.5:Am7 6:Dm9 9.5:G13 14:Cmaj9
+  play:
+    h: D[x3243x]lrcv30 q.: U[x3243x]lr e: D[x02010]lr |
+    q: ~ D[x02010]lr h: D[x5355x]lrcv30 |
+    q.: U[x5355x]lr e: D[3x345x]lr h: ~ |
+    e: U[3x345x]lr D[3x345x]lr q: r h: D[x3243x]lrcv30 |
+
+riff jazz.strum.modal-comp-push-1 "Modal Comp Push 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key D dorian   tempo 132   meter 4/4   feel swing
+  difficulty 3   tags modal quartal
+  chords 0:Dm11
+  play:
+    q.: D[x5555x]lr e: U[x-7-7-7-8-x]lr q: r e: D[x5555x]lr U[x5555x]lr |
+    e: r U[x-8-7-7-8-x]lr q: D[x-8-7-7-8-x]lr h: D[x5555x]lr |
+
+riff jazz.strum.swing-charleston-comp-1 "Swing Charleston Comp 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key F ionian   tempo 144   meter 4/4   feel swing
+  difficulty 1   tags charleston comping   free yes
+  chords 0:F6/9 1.5:Dm7 4:Gm7 5.5:C9 8:F6/9 9.5:Dm7 12:Gm7 13.5:C9
+  play:
+    q.: D[x-8-7-7-8-8] e: U[x5756x] h: r |
+    q.: D[3x333x] e: U[x3233x] q: r e: r U[x3233x] |
+    q.: D[x-8-7-7-8-8] e: U[x5756x] q: r e: r U[x5756x] |
+    q.: D[3x333x] e: U[x3233x] h: r |
+
+# ---------------------------------------------------------------- bass
+
+riff jazz.bass.upright-blues-walk-1 "Upright Blues Walk 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key F mixolydian   tempo 132   meter 4/4   feel swing
+  difficulty 1   tags walking blues   free yes
+  chords 0:F7 4:Bb7 8:F7 12:C7
+  play:
+    q: 4.1 4.5 3.3 3.2 | 3.1 2.0 1.1 1.0 | 2.3 2.1 2.0 3.4 | 3.3 2.2 2.5 2.4 |
+
+riff jazz.bass.upright-ii-v-walk-1 "Upright ii-V Walk 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key C ionian   tempo 144   meter 4/4   feel swing
+  difficulty 2   tags walking two-five
+  chords 0:Dm7 4:G7 8:Cmaj7 12:A7
+  play:
+    q: 3.5 2.2 2.3 2.4 | 2.5 2.3 2.0 3.2 | 3.3 2.2 2.5 2.6 | 2.7 2.5 2.2 2.1 |
+
+riff jazz.bass.two-feel-swing-bass-1 "Two-Feel Swing Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key Bb ionian   tempo 120   meter 4/4   feel swing
+  difficulty 2   tags two-feel
+  chords 0:Bb6 2:G7 4:Cm7 6:F7 8:Bb6 10:G7 12:Cm7 14:F7
+  play:
+    q.: 3.1 e: 3.1g h: 4.3 |
+    q.: 3.3 e: 2.1g h: 4.1 |
+    q.: 3.1 e: 2.0g q: 4.3 2.0 |
+    h: 3.3 q: 4.1 t8: 4.1 ~ 3.0g |
+
+riff jazz.bass.low-b-bebop-walk-1 "Low-B Bebop Walk 1"
+  type bass   instrument bass5   tuning standard   capo 0
+  key Eb ionian   tempo 176   meter 4/4   feel swing
+  difficulty 3   tags walking five-string
+  chords 0:Ebmaj7 4:C7 8:Fm7 12:Bb7
+  play:
+    q: 5.4 5.8 4.6 4.7 | 3.3 3.5 3.7 2.5 | 2.3 2.1 3.3 4.4 | 4.6 5.8 5.6 5.5 |
+
+riff jazz.bass.upright-chromatic-walk-1 "Upright Chromatic Walk 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key G ionian   tempo 152   meter 4/4   feel swing
+  difficulty 2   tags walking chromatic triplet
+  chords 0:Gmaj7 4:Em7 8:Am7 12:D7
+  play:
+    q: 4.3 3.2 3.5 t8: 2.4 ~ 2.3 |
+    q: 2.2 3.5 3.2 3.1 |
+    q: 3.0 3.3 2.2 2.1 |
+    q: 2.0 2.4 t8: 3.3 ~ 3.0 q: 4.4 |
+
+riff jazz.bass.modal-walk-bass-1 "Modal Walk Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key D dorian   tempo 140   meter 4/4   feel swing
+  difficulty 1   tags walking modal
+  chords 0:Dm7
+  play:
+    q: 3.5 2.2 2.3 2.5 | 1.2 1.5 1.4 1.2 | 1.0 2.3 2.2 3.3 | 3.2 3.0 4.3 3.4 |
+
+riff jazz.bass.ballad-bass-line-1 "Ballad Bass Line 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key Eb ionian   tempo 60   meter 4/4   feel swing
+  difficulty 1   tags ballad two-feel
+  chords 0:Ebmaj7 4:Cm7 8:Fm7 12:Bb7
+  play:
+    h: 3.6 q: 4.6 4.7 | h: 3.3 q: 2.5 2.4 | h: 2.3 q: 3.3 3.2 | h: 3.1 q: 2.3 3.5 |
+
+riff jazz.bass.uptempo-walk-bass-1 "Uptempo Walk Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key F ionian   tempo 232   meter 4/4   feel swing
+  difficulty 4   tags walking uptempo
+  chords 0:Fmaj7 2:D7 4:Gm7 6:C7 8:Am7 10:D7 12:Gm7 14:C7
+  play:
+    q: 4.1 3.3 3.5 2.4 | 2.5 2.0 3.3 3.1 | 3.0 2.2 2.0 4.4 | 4.3 4.6 4.8 4.0 |

@@ -1,0 +1,257 @@
+defaults author L origin original date 2026-09-24
+
+# ---------------------------------------------------------------- riffs
+
+riff country.riff.boom-chick-riff-1 "Boom-Chick Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key G ionian   tempo 110   meter 4/4   feel straight
+  difficulty 1   tags alternating-bass two-step   free yes
+  chords 0:G 4:C 8:D 12:G
+  play:
+    q: 6.3pm [xxx003] 4.0pm [xxx003] |
+    q: 5.3pm [xxx010] 6.3pm [xxx010] |
+    q: 4.0pm [xxx232] 5.0pm [xxx232] |
+    q: 6.3pm [xxx003] 4.0pm e: [xxx003] r |
+
+riff country.riff.rail-rhythm-riff-1 "Rail-Rhythm Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key E mixolydian   tempo 160   meter 4/4   feel driving
+  difficulty 3   tags palm-mute driving
+  chords 0:E 8:A 12:B7 14:E
+  play:
+    e: 6.0pm 6.0pm [x22xxx] 6.0pm 6.0pm [x22xxx] 6.0pm [x42xxx] |
+    e: 6.0pm 6.0pm [x22xxx] 6.0pm 6.3 6.4 q: 5.2 |
+    e: 5.0pm 5.0pm [xx22xx] 5.0pm 5.0pm [xx22xx] 5.0pm [xx42xx] |
+    e: 5.2pm 5.2pm [xx42xx] 5.2pm 6.4 6.2 q: 6.0 |
+
+riff country.riff.hybrid-pick-riff-1 "Hybrid-Pick Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key A mixolydian   tempo 120   meter 4/4   feel straight
+  difficulty 3   tags hybrid-picking double-stops
+  chords 0:A 4:D7 8:E7 12:A
+  play:
+    e: 5.0 [xxx65x]' r [xxx65x]' 4.2 [xxx65x]' 5.4 [xxx65x]' |
+    e: 4.0 [xxxx32]' r [xxxx32]' 5.0 [xxxx32]' 4.4 [xxxx12]' |
+    e: 6.0 [xxx43x]' r [xxx43x]' 5.2 [xxx43x]' 6.4 [xxx13x]' |
+    e: 5.0 [xxx65x]' 5.2 5.4 q: [xx222x]' r |
+
+riff country.riff.open-string-cascade-riff-1 "Open-String Cascade Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key G ionian   tempo 96   meter 4/4   feel straight
+  difficulty 2   tags arpeggio open-strings
+  chords 0:G 4:Cadd9 8:Em7 12:D
+  play:
+    e: 6.3lr 4.0lr 3.0lr 2.3lr 1.3lr 2.3lr 3.0lr 4.0lr |
+    e: 5.3lr 4.2lr 3.0lr 2.3lr 1.3lr 2.3lr 3.0lr 4.2lr |
+    e: 6.0lr 5.2lr 4.2lr 3.0lr 2.3lr 1.3lr 2.3lr 3.0lr |
+    e: 4.0lr 3.2lr 2.3lr 1.3lr 1.2lr 2.3lr q: [xx0232]lr |
+
+# ---------------------------------------------------------------- licks
+
+riff country.lick.pedal-steel-bend-lick-1 "Pedal-Steel Bend Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key G ionian   tempo 72   meter 4/4   feel laid_back
+  difficulty 4   tags steel-bends ballad
+  chords 0:G 4:G/B
+  play:
+    e: 2.8 1.7 q: 3.7b2 e: 2.8 1.7 q: 3.9pb2r |
+    e: 2.10b2 2.8 3.9 3.7 h: [xx978x] |
+
+riff country.lick.double-stop-slide-lick-1 "Double-Stop Slide Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key A major_pentatonic   tempo 100   meter 4/4   feel straight
+  difficulty 2   tags double-stops slides   free yes
+  chords 0:A
+  play:
+    e: 3.4s/6 3.6 2.5 1.5 q: [xxx65x] e: 3.4 3.2 |
+    e: [xx42xx] [xx22xx] q: [xx42xx] h: [xx76xx]/out |
+
+riff country.lick.hammer-pull-run-lick-1 "Hammer-Pull Run Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key G major_pentatonic   tempo 104   meter 4/4   feel straight
+  difficulty 2   tags open-position bass-run   free yes
+  chords 0:G
+  play:
+    e: 5.0 h5.2 4.0 h4.2 3.0 ~ 4.2 p4.0 |
+    e: 5.2 p5.0 6.3 5.0 h5.2 4.0 q: 6.3 |
+
+riff country.lick.sixths-harmony-lick-1 "Sixths Harmony Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key D ionian   tempo 88   meter 4/4   feel straight
+  difficulty 2   tags sixths harmony
+  chords 0:D 4:G 6:D
+  play:
+    q: [x-x-x-11-x-10]\in e: [xxx9x9] [xxx7x7] q: [xxx6x5] [xxx7x7] |
+    e: [xxx4x3] [xxx2x2] q: [xxx4x3] h: [xxx2x2]/in |
+
+riff country.lick.bent-release-lick-1 "Bent Release Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key A mixolydian   tempo 92   meter 4/4   feel straight
+  difficulty 4   tags bends release
+  chords 0:A 4:D
+  play:
+    e: 2.10pb2r ~ 2.10 1.9 q: 2.10b2r e: 2.10 3.9 |
+    e: 3.11 3.9 4.11 4.9 q: 4.12pb2 5.12\out |
+
+riff country.lick.chime-harmonic-lick-1 "Chime Harmonic Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key G ionian   tempo 80   meter 4/4   feel laid_back
+  difficulty 1   tags harmonics chime   free yes
+  chords 0:G 4:D
+  play:
+    q: 3.12<>lr 2.12<>lr 1.12<>lr r |
+    q: 4.5<>lr 3.5<>lr h: [xxx77x]<>lr |
+
+riff country.lick.saloon-turnaround-lick-1 "Saloon Turnaround Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key E major_pentatonic   tempo 116   meter 4/4   feel straight
+  difficulty 3   tags turnaround open-position
+  chords 0:E 4:B7 6:E
+  play:
+    e: 1.0 2.0 3.1 h3.2 p3.1 4.2 5.4 ~ |
+    e: 6.0 6.2 6.4 5.0 q: 4.2\in 6.0 |
+
+riff country.lick.banjo-roll-lick-1 "Banjo-Roll Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key G ionian   tempo 120   meter 4/4   feel straight
+  difficulty 3   tags rolls open-strings
+  chords 0:G 4:C 8:D 12:G
+  play:
+    e: 4.0 h4.2 2.0 1.3 3.0 2.3 1.3 4.2 |
+    e: 4.2 2.1 1.0 3.0 h3.2 2.1 1.0 3.2 |
+    e: 4.0 2.3 1.2 3.2 2.3 1.2 5.0 4.0 |
+    e: 3.0 h3.2 1.3 2.3 q: [xxx003] r |
+
+riff country.lick.hot-run-lick-1 "Hot Run Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key A mixolydian   tempo 132   meter 4/4   feel driving
+  difficulty 5   tags fast sixteenths
+  chords 0:A
+  play:
+    s: 1.9 p1.5 2.8 2.7 1.5 2.7 p2.5 3.6 3.7 3.6 p3.4 4.7 4.6 4.4 5.7 4.4 |
+    e: 4.7b2 4.7 3.6 2.5 2.8b1r 2.9 q: 2.10 |
+
+riff country.lick.waltz-cry-lick-1 "Waltz Cry Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key D ionian   tempo 84   meter 3/4   feel laid_back
+  difficulty 3   tags waltz bends
+  chords 0:D 3:G 6:A 9:D
+  play:
+    q: 2.3 1.2 1.5b2 |
+    h: 1.7 e: 1.5 1.2 |
+    q: 2.3b2 ~ 1.2 |
+    h.: 2.3~ |
+
+# ---------------------------------------------------------------- strums
+
+riff country.strum.two-step-strum-1 "Two-Step Strum 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key G ionian   tempo 120   meter 4/4   feel straight
+  difficulty 1   tags two-step alternating-bass
+  chords 0:G 4:C 8:D 12:G
+  play:
+    q: 6.3 e: D[xx0003] U[xx0003] q: 4.0 e: D[xx0003] U[xx0003] |
+    q: 5.3 e: D[xx2010] U[xx2010] q: 6.3 e: D[xx2010] U[xx2010] |
+    q: 4.0 e: D[xx0232] U[xx0232] q: 5.0 e: D[xx0232] U[xx0232] |
+    q: 6.3 e: D[xx0003] U[xx0003] 5.2 5.0 q: 6.3 |
+
+riff country.strum.waltz-strum-1 "Waltz Strum 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key C ionian   tempo 96   meter 3/4   feel straight
+  difficulty 1   tags waltz open-chords
+  chords 0:C 3:G/B 6:Am 9:F 10:G
+  play:
+    q: 5.3 e: D[xx2010] U[xx2010] q: D[xx2010] |
+    q: 5.2 e: D[xx0003] U[xx0003] q: D[xx0003] |
+    q: 5.0 e: D[xx2210] U[xx2210] q: D[xx2210] |
+    q: 4.3 D[xx3211] e: D[320003] U[320003] |
+
+riff country.strum.barroom-shuffle-strum-1 "Barroom Shuffle Strum 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key E mixolydian   tempo 108   meter 4/4   feel shuffle
+  difficulty 2   tags shuffle open-chords
+  chords 0:E 4:A 8:B7 12:E
+  play:
+    t8: D[022100] ~ U[022100] r r U[022100] D[022100] ~ U[022100] D[022100] r r |
+    t8: D[x02220] ~ U[x02220] r r U[x02220] D[x02220] ~ U[x02220] D[x02220] r U[x02220] |
+    t8: D[x21202] ~ U[x21202] r r U[x21202] D[x21202] ~ U[x21202] D[x21202] r r |
+    t8: D[022100] ~ U[022100] D[022100] ~ ~ q: D[022100] r |
+
+riff country.strum.driving-eighth-strum-1 "Driving Eighth Strum 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key D ionian   tempo 140   meter 4/4   feel driving
+  difficulty 2   tags anticipation driving
+  chords 0:D 3.5:G 7.5:A 10:Bm 12:G 13.5:A 15:D
+  play:
+    e: D[xx0232] U[xx0232] D[xx0232] U[xx0232] r U[xx0232] D[xx0232] U[320033] |
+    e: ~ U[320033] D[320033] U[320033] r U[320033] D[320033] U[x02220] |
+    e: ~ U[x02220] D[x02220] U[x02220] D[x24432] U[x24432] D[x24432] U[x24432] |
+    e: D[320033] U[320033] D[320033] U[x02220] ~ U[x02220] q: D[xx0232] |
+
+# ---------------------------------------------------------------- bass
+
+riff country.bass.root-five-two-step-bass-1 "Root-Five Two-Step Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key G ionian   tempo 110   meter 4/4   feel straight
+  difficulty 1   tags two-step root-five   free yes
+  chords 0:G 4:C 8:D 12:G
+  play:
+    h: 4.3 3.5 |
+    h: 3.3 4.3 |
+    h: 2.0 3.0 |
+    h: 4.3 q: 3.5 3.2 |
+
+riff country.bass.walkup-two-step-bass-1 "Walkup Two-Step Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key G ionian   tempo 116   meter 4/4   feel straight
+  difficulty 2   tags two-step walkup
+  chords 0:G 4:C 8:G 12:D
+  play:
+    q: 4.3 3.5 4.5 4.7 |
+    q: 3.3 4.3 3.2 3.0 |
+    q: 4.3 3.5 3.3 3.4 |
+    q: 2.0 3.0 4.7 4.5 |
+
+riff country.bass.waltz-root-bass-1 "Waltz Root Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key C ionian   tempo 96   meter 3/4   feel straight
+  difficulty 1   tags waltz root-five
+  chords 0:C 3:G/B 6:Am 9:F
+  play:
+    h: 3.3 q: 4.3 |
+    h: 4.7 q: 2.0 |
+    h: 3.0 q: 4.0 |
+    h: 4.1 q: 4.3 |
+
+riff country.bass.low-b-ballad-bass-1 "Low-B Ballad Bass 1"
+  type bass   instrument bass5   tuning standard   capo 0
+  key D ionian   tempo 72   meter 4/4   feel laid_back
+  difficulty 2   tags ballad low-register
+  chords 0:D 4:A 8:Bm 12:G 14:A
+  play:
+    h: 5.3 q: 3.0 e: 5.3 5.5 |
+    h: 5.2 q: 3.0 3.4 |
+    h: 5.0 q: 4.2 4.7 |
+    h: 4.3 3.0 |
+
+riff country.bass.shuffle-two-beat-bass-1 "Shuffle Two-Beat Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key E mixolydian   tempo 120   meter 4/4   feel shuffle
+  difficulty 3   tags shuffle walking
+  chords 0:E 4:A 8:B 12:E
+  play:
+    t8: 4.0 ~ 4.0 3.2 ~ 3.2 4.0 ~ 4.2 4.4 ~ 4.2 |
+    t8: 3.0 ~ 3.0 2.2 ~ 2.2 3.0 ~ 3.2 3.4 ~ 3.2 |
+    t8: 3.2 ~ 3.2 2.4 ~ 2.4 3.2 ~ 3.4 3.5 ~ 3.6 |
+    t8: 4.0 ~ 4.4 3.2 ~ 3.4 q: 4.0 r |
+
+riff country.bass.runaway-walk-bass-1 "Runaway Walk Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key A mixolydian   tempo 150   meter 4/4   feel driving
+  difficulty 4   tags walking chromatic
+  chords 0:A 4:D 8:E 12:A
+  play:
+    e: 3.0 r 2.2 r 3.0 3.2 3.3 3.4 |
+    e: 2.0 r 3.0 r 2.0 2.2 2.3 2.4 |
+    e: 2.2 r 3.2 r 2.2 2.1 2.0 3.4 |
+    e: 3.0 2.2 3.4 2.2 q: 3.0/out r |

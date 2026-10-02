@@ -142,6 +142,11 @@ public:
     /** Per block, before process. */
     void setSettings (const Settings& s) noexcept { pendingSettings = s; }
 
+    /** jam-mode 10: after a host-state restore, the restored jam_play / jam_fill_now
+        must not read as a rising edge on the next block, or the band would start
+        on load. This re-baselines the edge detector to the restored values once. */
+    void baselineNextEdges() noexcept { restoreBaseline.store (true, std::memory_order_release); }
+
     /** Count-in clicks the tune asked for, as the band's sticks (11). */
     void addStickClicks (const int* offsets, const bool* downbeats, int count) noexcept;
 
@@ -276,6 +281,7 @@ private:
 
     Settings settings, pendingSettings, previousSettings;
     bool haveSettings = false;
+    std::atomic<bool> restoreBaseline { false };   ///< jam-mode 10: suppress the next play/fill edge after a restore
 
     std::array<std::atomic<const JamStyle*>, jam::kNumStyleChoices> styleSlots;
     std::atomic<JamChordMap*> chordMapIncoming { nullptr };

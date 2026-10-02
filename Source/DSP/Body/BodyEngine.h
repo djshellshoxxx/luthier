@@ -73,6 +73,22 @@ public:
     void setBodyConfig (const BodyConfig& cfg);
     const BodyConfig& getBodyConfig() const noexcept { return config; }
 
+    /*  CODEX-RTSAFETY P0: a live part swap used to call setBodyConfig on the
+        audio thread, which took rebuildLock and rebuilt (and sorted) the modal
+        bank there - a blocking lock and an allocation in the callback. The swap
+        now splits the work the way the normal parameter path already does:
+        stageBodyConfig builds the bank on the message thread, commitStagedConfig
+        adopts it on the audio thread with only a bounded copy and a try-lock. */
+
+    /** Message thread: builds and stages the modal bank for cfg without touching
+        the live config or active bank. Pairs with commitStagedConfig. */
+    void stageBodyConfig (const BodyConfig& cfg);
+
+    /** Audio thread: adopts cfg (a bounded POD copy) and swaps in the bank that
+        stageBodyConfig already built - a try-lock and a fixed-size copy only, no
+        rebuild and no allocation. */
+    void commitStagedConfig (const BodyConfig& cfg) noexcept;
+
     /** Loads a body IR from a file. Asynchronous inside juce::dsp::Convolution;
         the engine keeps producing sound throughout (engine spec 13.4). */
     bool loadImpulseResponse (const juce::File& file);
@@ -137,7 +153,7 @@ public:
     const BodyMode* getModes() const noexcept { return activeModes.data(); }
 
 private:
-    void rebuildModalBank();
+    void rebuildModalBank (const BodyConfig& cfg);
     void applyStagedBank() noexcept;
     void applyRuntimeScaling (bool force) noexcept;
 

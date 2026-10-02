@@ -49,6 +49,10 @@ namespace
         { Type::accent,             "accent",      LuthierEventClass::note },
         { Type::staccato,           "staccato",    LuthierEventClass::note },
         { Type::letRing,            "letring",     LuthierEventClass::note },
+        { Type::pickStrokeUp,       "upstroke",    LuthierEventClass::note },   // FEAT-ASSIST
+        { Type::pickStrokeDown,     "downstroke",  LuthierEventClass::note },
+        { Type::slap,               "slapnote",    LuthierEventClass::note },   // tab-import-export 7
+        { Type::pop,                "popnote",     LuthierEventClass::note },
     };
 
     static_assert (sizeof (kTechniques) / sizeof (kTechniques[0]) == (size_t) Type::numTypes,
@@ -247,6 +251,19 @@ namespace
 
         const bool legato = note.hasTechnique (Type::hammerOn) || note.hasTechnique (Type::pullOff);
 
+        /*  riff-library 6.1 (FEAT-RIFFS fix a): the flags a plain MIDI player
+            can act on also go out as controllers, as TuneMidi writes them -
+            CC67 palm mute, CC72 pinch harmonic, CC73 natural harmonic - set
+            before the note and reset after it, so a DAW playing the file
+            back through Luthier keeps them. The NOTE flags stay the record. */
+        const bool palmMute = note.hasTechnique (Type::palmMute);
+        const bool pinch = note.hasTechnique (Type::pinchHarmonic);
+        const bool natural = note.hasTechnique (Type::naturalHarmonic);
+
+        if (palmMute) performance.addMessage (on, juce::MidiMessage::controllerEvent (channel, 67, 127), part);
+        if (pinch)    performance.addMessage (on, juce::MidiMessage::controllerEvent (channel, 72, 127), part);
+        if (natural)  performance.addMessage (on, juce::MidiMessage::controllerEvent (channel, 73, 127), part);
+
         if (legato)
             performance.addMessage (on, juce::MidiMessage::controllerEvent (channel, 68, 127), part);
 
@@ -349,6 +366,11 @@ namespace
         }
 
         noteEvent.set ("flags", flags.joinIntoString (","));
+
+        // auto-articulation.md 9 (FEAT-ASSIST): aa=<hex mask>, only when nonzero.
+        if (note.autoRules != 0)
+            noteEvent.set ("aa", juce::String::toHexString ((int) note.autoRules));
+
         performance.addEvent (noteEvent);
 
         for (const auto& event : techniqueEvents)
@@ -361,6 +383,10 @@ namespace
 
         if (legato)
             performance.addMessage (off, juce::MidiMessage::controllerEvent (channel, 68, 0), part);
+
+        if (natural)  performance.addMessage (off, juce::MidiMessage::controllerEvent (channel, 73, 0), part);
+        if (pinch)    performance.addMessage (off, juce::MidiMessage::controllerEvent (channel, 72, 0), part);
+        if (palmMute) performance.addMessage (off, juce::MidiMessage::controllerEvent (channel, 67, 0), part);
     }
 }
 
@@ -882,6 +908,10 @@ void MidiPerformance::toScore (PerformanceScore& score) const
 
             for (const auto& technique : techniquesFor (events, entry.sample, channel, key))
                 score.addTechnique (stringIndex, technique);
+
+            // FEAT-ASSIST: aa= comes back as the note's Assist bits (9).
+            if (noteEvent != nullptr && noteEvent->has ("aa"))
+                score.setAutoRules (stringIndex, (juce::uint16) (noteEvent->get ("aa").getHexValue32() & 0xFFFF));
         }
         else if (message.isNoteOff())
         {

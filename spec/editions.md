@@ -136,7 +136,8 @@ Legend:
 | Pre / post effects racks | `gui-integration.md` 3.2 | Free-limited | 4 + 4 slots (Pro 8 + 8) |
 | Pedals | `Pedal.h` | Free-limited | 15 of 22: Compressor, Noise Gate, Wah, Overdrive, Distortion, Fuzz, Boost, Volume, Chorus, Phaser, Tremolo, Delay, Reverb, Spring Reverb, Graphic EQ. Pro adds Envelope Filter, Octaver, Pitch Shifter, Flanger, Rotary, Parametric EQ, Doubler |
 | Cabinet: model, 2 mics, blend, phase, delay | `gui-integration.md` 4.3 | Both | |
-| Factory IRs | `factory-content.md` 10 | Free-limited | 1 body IR per free guitar family, and per cabinet the on-axis and off-axis positions of the two most used mics (~130 IRs of 720); Pro ships all 720 |
+| Mic placement, acoustic external mics (mic-placement.md, FEAT-MIC) | `mic-placement.md` | Both | Continuous placement is a DSP stage on the anchor IR, so it needs no extra IRs |
+| Factory IRs | `factory-content.md` 10 | Free-limited | 1 body IR per free guitar family, and per cabinet the on-axis and off-axis positions of the two most used mics (~130 IRs of 720); Pro ships all 720. (mic-placement.md, FEAT-MIC): placement needs only each cabinet/speaker's Cap Edge 2.5 cm anchor IR; the other positions are browsable user-IR content |
 | Room | `gui-integration.md` 4.3 | Both | |
 | Tone strip: input, output, wet / dry, width | `gui-integration.md` 3.4 | Both | |
 | User IR loader | `tone-match.md` 1 | Free-limited | One user IR in cab slot 1 (WAV, up to 1 s); body IR and cab 2 user slots Pro |
@@ -148,6 +149,7 @@ Legend:
 |---|---|---|---|
 | Factory presets | `factory-content.md` 1 | Free-limited | The 16 of 36 that need only Free features: 1, 2, 3, 4, 7, 10, 11, 14, 17, 21, 22, 27, 29, 31, 32, 35 (renumbered in the Free browser). The other 20 appear in the browser under "Luthier Pro" with a lock and a 20-second audio demo (4.3) |
 | User presets: save, load, browse, tags, favourites | `file-formats.md`, `state-model.md` | Both | Unlimited |
+| Preset previews, tone search and auto-tags, ratings, Sounds like | `preset-browser-previews.md` 12 | Both | Free previews its 16 presets, the user's, and the 20 Pro presets from shipped clips (locked, upsell on load); local renders use Free's effective values. `scripts/render_demos.sh` calls `scripts/render_previews.sh` (preset-browser-previews.md 2). |
 | A/B compare, undo / redo, randomize, reset | `gui-integration.md` 2, `action-and-undo.md` | Both | Randomize draws only from Free features |
 | Easy Mode | `gui-integration.md` 3 | Both | Full |
 | Advanced Mode columns 1-3 | `gui-integration.md` 4.1-4.3 | Both | With the per-control limits above |
@@ -544,3 +546,45 @@ packaging scripts and the two CI scripts (7.6), `docs/RELEASING.md`.
 - **Q-8** Time-limited Pro trial inside the Free binary: recommended
   **against** (it would put Pro code in the Free binary, rule 0.5); a
   separate Pro trial via `licensing.md` 6.4 instead. Confirm.
+
+## 12. Rollout and current scaffolding
+
+The phased implementation order for this split and `licensing.md` lives in
+**`spec/editions-rollout-plan.md`** (gating scaffolding -> licence verify
+core -> trial/activation -> edition UI -> packaging two editions -> store/
+upgrade flow), with each phase's files, tests, acceptance criteria and the
+owner actions that gate it. Two points of reconciliation belong here, in
+the design doc itself:
+
+### 12.1 Transitional scaffolding already in the tree
+
+The split has not happened, but seams exist and the plan builds on them,
+not around them:
+
+- `Source/Support/Edition.h/.cpp` is a **runtime** process-wide flag
+  (`luthier::Editions::current()`, a relaxed atomic defaulting to `pro`)
+  with `isPro()` and `kProSuffix`. It predates this spec's `Source/Edition.h`
+  (section 7.2). It is a **pre-fork simulation seam only**: it lets today's
+  single Pro build pretend to be Free for tests before the compile-time
+  split exists. After the fork, the **compile-time** `constexpr bool
+  edition::isPro` (section 7.2) is the source of truth for Free-vs-Pro; the
+  runtime atomic is kept only as a test-only override (**D-7**: default it
+  from `edition::isPro`, remove the setter from non-test code) so existing
+  call sites keep compiling.
+- `Source/Jam/JamEdition.h` (`kIsFree`, `nearestFree`) is the already-wired
+  compile-time pattern the rest of the `Feature` table follows.
+- The assist-rules Free path in `Parameters.cpp` (append `kProSuffix`,
+  force the neutral value in Free) is the template for section 7.3.
+
+**Edition vs licence state, kept distinct:** *Edition* (Free vs Pro) is
+compile-time, two binaries (D-5, rule 0.5). *Licence state* (demo vs
+activated, `licensing.md` 8) is runtime and exists **only inside the Pro
+binary** (section 2.5, Q-8). The runtime edition atomic must never grow
+into a second Free-vs-Pro gate.
+
+### 12.2 "Seven" vs eight headline groups
+
+Product copy ("seven sub-tabs", `docs/PRODUCT_DESCRIPTION.md`) refers to
+the Techniques tab's seven technique panels, which are **one** headline
+group (**H3**). The canonical gating list is the **eight** headline groups
+H1-H8 of section 1. Q-2 covers any change to that set.

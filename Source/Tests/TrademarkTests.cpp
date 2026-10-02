@@ -21,9 +21,10 @@ namespace
             "Soldano", "Bogner", "Diezel", "Ampeg", "SVT", "JCM", "AC30", "Deluxe", "Champ", "Bassman",
             "Twin Reverb", "Celestion", "Greenback", "Jensen", "EVM", "Shure", "SM57", "SM7B", "Royer",
             "Neumann", "Sennheiser", "MD421", "AKG", "C414", "D112", "U87", "Tube Screamer", "Big Muff",
-            "Klon", "Boss", "MXR", "Electro-Harmonix", "Uni-Vibe", "Leslie", "D'Addario", "NYXL",
+            "Fuzz Face", "Klon", "Boss", "MXR", "Electro-Harmonix", "Uni-Vibe", "Leslie", "D'Addario", "NYXL",
             "Ernie Ball", "Elixir", "Selmer", "Dobro", "Gretsch", "Epiphone", "PRS", "Danelectro",
-            "TransTrem", "Kinman", "Alnico Blue"
+            "TransTrem", "Kinman", "Alnico Blue",
+            "Fuzz Face", "LP Wiring"   // SPEC-SWEEP: FC-1
         };
         return list;
     }
@@ -111,6 +112,16 @@ LUTHIER_TEST (Trademarks, oldNamesStillLoad)
     CHECK (tuners != nullptr && tuners->name == "Vintage Keystone 15 to 1");
 
     CHECK (PartLibrary::renamedFactoryGuitar ("Acoustic/Selmer-Style.luthierguitar") == "Acoustic/Gypsy Jazz.luthierguitar");
+
+    // SPEC-SWEEP: FC-1.
+    const auto wiring = library.resolve ("Factory/Wiring/Modern LP Wiring.luthierpart", PartType::wiring);
+    CHECK_MSG (wiring != nullptr && wiring->name == "Modern Single-Cut Wiring",
+               "a guitar saved with the old single-cut wiring name lost its wiring");
+
+    auto& presets = processor.getPresetManager();
+    const int renamed = presets.indexOfPreset ("Fuzz Face Lead");
+    CHECK_MSG (renamed >= 0 && presets.getPreset (renamed)->name == "Germanium Fuzz Lead",
+               "the old fuzz preset name no longer finds the preset");
 }
 
 /*  Tools/trademark_scan.py's source check, in the suite so a regression fails

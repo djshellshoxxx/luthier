@@ -101,7 +101,8 @@ LUTHIER_TEST (JamPanel, JM47_theTabSitsBetweenTuneAndLiveAndLaysOutAt480To1600)
             if (name == "LIVE") live = i;
         }
 
-        CHECK_MSG (jam == tune + 1 && live == jam + 1, "JAM belongs between TUNE and LIVE");
+        // INTEGRATE-2: RIFFS (riff-library 7.1) is also between TUNE and LIVE; the order is TUNE, JAM, RIFFS, LIVE.
+        CHECK_MSG (jam == tune + 1 && live > jam, "JAM belongs between TUNE and LIVE");
         CHECK (panel.setWorkspaceTabNamed ("JAM"));
         CHECK (dynamic_cast<JamPanel*> (panel.getWorkspacePanel (panel.getWorkspaceTab())) != nullptr);
     }

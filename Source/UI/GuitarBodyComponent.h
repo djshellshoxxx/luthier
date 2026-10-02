@@ -121,6 +121,10 @@ class GuitarBodyComponent : public juce::Component,
                             private juce::Timer
 {
 public:
+    /** SPEC-SWEEP (GD-2, gui-engine-dataflow 0.2): the spec's drain rate. */
+    static constexpr int kRefreshHz = 60;
+    int getRefreshIntervalMs() const noexcept { return getTimerInterval(); }
+
     explicit GuitarBodyComponent (LuthierAudioProcessor& processor);
     ~GuitarBodyComponent() override;
 
@@ -238,6 +242,12 @@ private:
     int draggingKnob = -1;
     double dragStartValue = 0.0;
     int dragStartY = 0;
+
+    // auto-articulation.md 7.3 (FEAT-ASSIST): the labels on Easy mode's fretboard.
+    std::unique_ptr<class AssistLabelOverlay> assistLabels;
+public:
+    AssistLabelOverlay* getAssistLabels() const noexcept { return assistLabels.get(); }
+private:
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GuitarBodyComponent)
 };

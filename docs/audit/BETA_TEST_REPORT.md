@@ -50,6 +50,9 @@ engine, delay/reverb pedals) are exempt from the decay check.
 | `Combo.structuralChangesWhileAudioRuns` | audio thread running while the message thread changes guitar/pedals/amp/cab/body/oversampling and loads presets | 300 bursts, seed 99 |
 | `Combo.unisonStringsNeverGrowAndPanicSilencesThem` | after every strum pattern; two strings at one pitch | 38 |
 | `Combo.cpuPerFactoryPreset` | CPU table, idle and playing | 36 |
+| `Combo.newFeaturesPairwise` (round 2) | all-pairs over jam mode (enabled, play, style, intensity, start mode, kit), output normalization, the three CPU quality levels, guitar type, amp, pickups, oversampling, playing mode, freeze, feedback, phrase; every eighth row with the band stopped also round-trips the session state | 350 rows, seed 20260926, 43 round trips |
+| `Combo.qualityLevelsForgetWhatWasPlayedAtReset` (round 2) | B-21 at each quality level; a released chord repeats after reset | 3 levels |
+| `Combo.compiledGuitarSurvivesATransportRestart` (round 2) | B-17 | 1 |
 | `GuiReach.*` | editor walked in Easy, Advanced (13 tabs), 6 overlays, 11 Options pages, practice drawer, Live, Slide, headstock and bridge popovers, the hidden-effect pixel, every toggle's sub-view; contexts default, bass, whammy+slide+slap, 3 pedal fills; 2043 controls operated | 265 views |
 
 Phrases: single note, 6-note chord, whole-tone bend up and back, hammer-on
@@ -66,6 +69,7 @@ and pull-off, palm-muted chugs (CC67), natural and pinch harmonics
 | clap-validator 0.3.2, CLAP, first run (own CLAP target) | 12 pass, 6 fail: preset-morph position lost from state (B-10), Pick Tip Radius text round trip, param events with a foreign namespace applied, state flush not reproducible |
 | clap-validator 0.3.2 on the integration branch's CLAP target (after merging review) | **18 pass, 0 fail**, 3 skipped |
 | Round 2 (helpers and feat-strings/-normalize/-jam/-cpu merged, `e726444`): pluginval strictness 10, `--timeout-ms 900000` | **SUCCESS**, every test (Parameter thread safety still needs the long timeout, B-12) |
+| Round 2: AddressSanitizer build (`-fsanitize=address -fsanitize-recover=address`, `ASAN_OPTIONS=detect_leaks=0:halt_on_error=0:alloc_dealloc_mismatch=0`), whole suite with `LUTHIER_COMBO_SCALE=0.1` | first run stopped at B-22 (test code, fixed); after the fix **0 AddressSanitizer errors** in 1371 tests. The 22 failing tests under ASan are the known ones (B-11, B-18, B-19, B-23, and the normalization tables this build predates) plus real-time budget tests the instrumentation slows (AS15, CQ13, HR18, SI13, ON33, scrape budget, instantiation) |
 | Round 2: clap-validator 0.3.2 | 15 pass, 3 fail (the three state-reproducibility tests: `jam_play` / `jam_fill_now` restored off by design, 'Whammy Up' one ulp; B-20), 3 skipped |
 
 ## Findings
@@ -78,7 +82,7 @@ IN PROGRESS (a helper branch covers it).
 - Found by: pluginval strictness 10, Automation test (`double free or corruption (!prev)`), then reproduced by `Combo.structuralChangesWhileAudioRuns` (seed 99): `pure virtual method called` / `free(): invalid pointer` within seconds.
 - Backtraces (audio thread): `ReverbPedal::rebuildLines` <- `ReverbPedal::parameterChanged`, and `RoomEngine::rebuild` <- `RoomEngine::setDecayScale` <- `ParameterBridge::applyToEngine`, while the message thread ran `ParameterBridge::applyStructural` (via `handleAsyncUpdate` / `applyAllNow`, which also calls `applyToEngine`).
 - Fix: `ParameterBridge::getEngineLock()`; the structural pass holds it, `processSlice` try-locks it around `applyToEngine` and the engine render, and outputs silence for a block that loses the race (the audio thread never waits). 6 clean stress runs after.
-- Still open behind it: `ReverbPedal::rebuildLines` calls `std::vector::assign` on the audio thread when the Size parameter changes (allocation when the new length exceeds capacity) - RT-safety, not a crash any more.
+- ~~Still open behind it: `ReverbPedal::rebuildLines` calls `std::vector::assign` on the audio thread when the Size parameter changes~~ CLOSED (`claude/luthier-beta-findings`, verified in current source): `ReverbPedal::prepare` pre-sizes every FDN line to `sr * kMaxLineSeconds`, and `rebuildLines` now `std::fill`s within that capacity (the `assign` branch runs "only before prepare", i.e. never on the audio thread). No audio-thread allocation on a Size/Character change.
 
 ### B-02 Strings grew after the rhythm engine stopped; panic did not silence them. RESOLVED
 
@@ -109,9 +113,10 @@ IN PROGRESS (a helper branch covers it).
 - A preset switch under a ringing note cut it mid-cycle: J-Style Fingerstyle -> P-Bass Flatwound stepped 0.32 of full scale 72 samples into the next block. The processor now fades out (5 ms) before a preset load or structural pass and back in after, the message thread waiting up to 60 ms for the audio thread's fade (outermost call only; skipped when no other thread is rendering). The fade length first collapsed to one sample because `getSampleRate()` is 0 until a host sets it; it uses the prepared rate.
 - The test now renders on its own thread while the message thread loads, as a host does; all 36 factory transitions pass.
 
-### B-07 Legacy `doubler_on` migrates on every load. OPEN, low
+### B-07 Legacy `doubler_on` migrates on every load. OPEN, low - OUT OF SCOPE (design decision)
 
 - `PresetManager::fromVar`: any state with `doubler_on` > 0.5 adds a Doubler pedal and sets `doubler_on` to 0, regardless of the preset's version. A host automating the (hidden) parameter, or a session saved with it on, changes its own rig on reload. Excluded from `everyParameterSurvivesTheSessionStateRoundTrip` with a pointer here. Suggest gating the migration on the preset's format version.
+- Triage (`claude/luthier-beta-findings`): left as-is. The suggested fix - gate on the preset's format version - is not available: `PresetManager::kSchemaVersion` has never been bumped past 1, so legacy and modern presets are the same schema and carry no discriminator. There is also no non-version discriminator: `doubler_on` is deliberately kept as a hidden, host-automatable parameter *and* as the one-shot migration trigger, and `DoublerTests.presetsWithTheOldDoublerGetThePedal` pins "a current-build state with `doubler_on` forced on must migrate to a Doubler pedal" - exactly the case this finding would stop. Resolving the tension is a product decision about whether `doubler_on` stays automatable (and would require either a schema scheme that does not exist or weakening that test), so it is recorded rather than fixed here.
 
 ### B-08 Render depended on what was played before. FIXED (class 3)
 
@@ -125,26 +130,30 @@ IN PROGRESS (a helper branch covers it).
 
 - clap-validator state-reproducibility (3 tests): `preset_morph_position` 0.295 -> 0.0 after reload. Now covered by `Combo.everyParameterSurvivesTheSessionStateRoundTrip`.
 
-### B-11 GUI: automatable parameters with no control. OPEN / IN PROGRESS
+### B-11 GUI: automatable parameters with no control. OPEN / IN PROGRESS - OUT OF SCOPE (GUI audit owns param wiring)
 
 - Test: `GuiReach.everyAutomatableParameterHasAVisibleControl`.
+- Triage (`claude/luthier-beta-findings`): untouched. Wiring GUI controls to parameters is explicitly owned by the GUI audit (coordination); this pass stays in the B-*/RT-safety domain.
 - Round 2 (merged tree, after the GuiReach corrections above), no control anywhere: `scrape_*` (14) and the slap arm/trigger set (13: `slap_armed`, `slap_type`, `slap_trigger`, `slap_velocity_zone`, `slap_trigger_cc`, `slap_ghost_cc`, `slap_force`, `slap_palm_position_mm`, `slap_string_mask`, `slap_ghost_mode`, `slap_rebound_gap`, `slap_snap_back`, `slap_body_part`) - **in progress on `claude/luthier-techniques`** (TECHNIQUES tab); the other 12 slap/pop/ghost controls now sit in CHARACTER's SlapGroup (bass only). Still no control and no owner: `macro_assign_a`, `macro_assign_b` (Macro 7/8), `pickup_blend` (also never read by `PickupEngine` in process).
 - Control exists but never on screen: `strum_acceleration`, `strum_up_velocity_ratio`, `strum_tilt`, `strum_miss_probability`, `chuck_amount`, `chuck_damping`. Cause: the RHYTHM tab laid `RhythmPanel` out at the viewport height, not `RhythmPanel::preferredHeight()`, so the STRUM group's lower rows got no height. **FIXED in round 2** (`AdvancedPanel::resized` sizes the RHYTHM tab like TUNE, JAM, MIDI OUT, NOTATION and PRACTICE; issues.md 8): all six are now reached and operated.
 - Pedal slots: slot `pN` knobs a given pedal type does not use are summarised, not failed.
 - Intentionally hidden (documented in the test): `feedback_on/threshold/speed`, `strum_speed`, `doubler_on/amount`, `fret_action`, and since round 2 `string_age`, `tune_feel_mod`, `tune_tempo_drift`.
 
-### B-12 pluginval Parameter thread safety exceeds its 30 s timeout. OPEN, low
+### B-12 pluginval Parameter thread safety exceeds its 30 s timeout. OPEN, low - OUT OF SCOPE (environmental; re-measure)
 
 - Passes with `--timeout-ms 900000`; times out at the default 30 s on a shared 4-core container. Likely each structural parameter write (guitar type, pedal type) triggers a full structural pass. Re-measure on an idle machine before acting.
+- Triage (`claude/luthier-beta-findings`): not a correctness bug and not an RT-safety violation (the pass succeeds, only slowly, on a shared container); the finding itself says to re-measure on an idle machine first. The structural-write cost is the CPU/perf domain. Left as-is.
 
-### B-13 Idle CPU is nearly the playing CPU. OPEN, medium
+### B-13 Idle CPU is nearly the playing CPU. OPEN, medium - OUT OF SCOPE (perf architecture / CPU-quality domain)
 
 - `Combo.cpuPerFactoryPreset` (48 kHz / 256, this container, not the reference CPU): playing 8.3-18.6% of a core, idle 8.3-19.0%. performance-budget.md: idle <= 1.5 units, heaviest preset <= 22. Playing cost is inside budget even here; idle is 6-12x over it. There is no silence short-circuit (strings, body, amp, cab and room all run on silence).
+- Triage (`claude/luthier-beta-findings`): not fixed here. A correct silence short-circuit is a performance-architecture change, not a localized fix: the sustain features (reverb/delay tails, E-Bow, freeze, feedback) must keep running after the strings fall silent, so a naive "no notes -> skip DSP" gate would truncate tails and break the many Combo decay/sustain verdicts. Safe idle detection (all tails below the floor, feedback idle, no pending modulation) belongs with the CPU-quality/perf work that already owns the quality levels, and carries real regression risk to the tail/decay suite. Recorded for that owner.
 - Heaviest: #21 "Modern Metal Chug" 18.6%, #14 "8-String Djent" 18.3%, #25 "Shred Lead" 17.9% (idle 19.0%).
 
-### B-14 Panic and Reset do not stop the transport-side players. OPEN, medium
+### B-14 Panic and Reset do not stop the transport-side players. OPEN, medium - OUT OF SCOPE (spec-scoped behaviour / product decision)
 
 - From the gap audit (A): `LuthierAudioProcessor::panic()` stops the audition and the engine only; the looper, backing track, tune player, metronome, progression looper and rhythm engine keep going.
+- Triage (`claude/luthier-beta-findings`): not changed here. `panic()` does more than the gap note says - it stops `previewPlayer`, the audition, the jam band (`jam.requestPanic` + `jam_play` off) and, via the deferred engine command, the riff player and the engine. The spec that defines panic, LIVE-9-01, scopes it to the instrument ("notes off, FX tails, amp DC/feedback, coupling; keeps snapshot/preset and params"); it does not call for stopping the practice transport (looper/backing track/metronome/tune player). Whether an emergency panic should also halt a loop capture or a backing track is a product decision, not a clear bug, and extending it risks the `IntegrationTests.Engine.panicSilencesEverything` expectations. Recorded for a product call rather than changed unilaterally while GUI/host-clock owners are active in the same files.
 
 ### B-15 `string_age` Old nearly silences a bass above E3. OPEN (realism-a owns string aging)
 
@@ -164,13 +173,13 @@ IN PROGRESS (a helper branch covers it).
 - Cause: the preset's type (Custom) has no parts guitar, so the bridge falls back to the compiled guitar, but `partsGuitarLoaded` stayed set from the previous (Strat) parts guitar; `prepareToPlay` then rebuilt the engine from those parts. The processor that loaded the preset played the Strat's parts after a restart, a fresh instance restoring the session did not.
 - Fix: `loadGuitarForType` clears `partsGuitarLoaded` and `loadedGuitarKey` when no parts guitar loads. Regression test `Combo.compiledGuitarSurvivesATransportRestart` (fails before, passes after).
 
-### B-18 `Feedback.aLoudRigTakesOverAndACleanOneDoesNot`: Shred Lead at full amount never feeds back. OPEN (feedback-loop owner; round 2)
+### B-18 `Feedback.aLoudRigTakesOverAndACleanOneDoesNot`: Shred Lead at full amount never feeds back. FIXED by FIX-CROSS (`bdab6fa`, feedback loop in phase on the partial; round 2)
 
 - `line 179: a loud high-gain rig at full amount never fed back (peak activity 0.0746)`. Fails on the integration branch too (`e4dee39`), and passed on it before this branch's class-4 fix (B-05) was merged.
 - Cause, measured: before B-05, "Shred Lead" loaded the wrong parts (X-brace spruce/rosewood body, single coils, 500k pots). With the RG's own parts (ceramic humbuckers, solid basswood, 250k pots) the loop peaks at activity 0.0746; putting a single coil in slot 0, nothing else changed, reaches 0.081 and takes over. Body bracing and treble bleed make no difference.
 - Physically a hot ceramic humbucker into a Rectifier at 0.5 m and 100% should take over at least as readily as a single coil (the loop is string -> amp -> string; the pickup only has to hear the string). So either the loop's gain is too low overall (even the single coil only just crosses) or its pickup dependence runs the wrong way. The loop's gain staging is a tuning decision for its owner (ambiguity-resolutions 1), so it is not changed here and the test is not loosened.
 
-### B-19 `Feedback.eachStringHearsItsOwnNote`: octave-bias feedback 7.4 cents off target. OPEN (helper merges; round 2)
+### B-19 `Feedback.eachStringHearsItsOwnNote`: octave-bias feedback 7.4 cents off target. FIXED by FIX-CROSS (`bdab6fa`; round 2)
 
 - `octave bias 1: the feedback peaks at 441.12 Hz, 7.4 cents from 439.24 Hz` (limit 5). Already failing on the integration branch before this branch was merged back (`e763adf`: 18.6 cents), so it comes from the helper merges (realism-b's harmonic contacts / realism-c's tuning stability both move string pitch), not from this branch's fixes.
 
@@ -178,6 +187,37 @@ IN PROGRESS (a helper branch covers it).
 
 - `state-reproducibility-basic`, `-null-cookies`, `-flush`-style checks: `jam_play` and `jam_fill_now` come back 0.0 after the validator set them to 1.0 and reloaded. jam-mode.md 10 and JM-35 make them transient on purpose: "Host state restores them off, so opening a project never starts the band." The validator cannot tell a deliberate transient from a lost value; a CLAP-side answer would be to flag them as non-state parameters, which JUCE's wrapper does not expose. Left as designed.
 - 'Whammy Up' (`whammy_up`, a skewed range) comes back one float ulp off (0.0568653494 vs 0.0568653531): the same normalised -> plain -> normalised non-idempotence as B-16's 'Distance to Amp'. Harmless to audio.
+
+### B-21 At Medium/Low CPU quality, what was played before a reset changed the next render. FIXED (`ee0e4a9`, round 2)
+
+- Found by `Combo.newFeaturesPairwise`'s state round trip (row 8, seed 20260926: Classic T-Style, Custom amp, Guitar Controller mode, quality Low): the rig and a fresh instance restoring its session differed by 0.057. Only when an earlier row had played in Mono or Poly; bisected to the quality level (High 0, Medium 0.0009, Low 0.057).
+- Cause: `LuthierEngine::reset` left the cpu-quality-modes 2.4 ring-out bookkeeping (`qualityNotePeak`, `qualityRingOutEligible`, `qualityLastExcite`, `qualitySilentSamples`) behind. A string released before the reset stayed "eligible to ring out" against the old note's peak, so its sympathetic ring after the reset was faded to sleep at Medium/Low where a fresh instance let it ring.
+- Fix: reset clears them; `resetRealismB` also reseeds the release-stagger generator (string-interaction.md 0.3: stagger repeats bit-for-bit). Regression test `Combo.qualityLevelsForgetWhatWasPlayedAtReset` (fails before at Medium and Low, passes after).
+
+### B-22 ASan: FA07 read past its render buffer. FIXED (`01c9863`, round 2)
+
+- The ASan build (`-fsanitize=address`, `ASAN_OPTIONS=detect_leaks=0:alloc_dealloc_mismatch=0`) stopped in `FingerstyleAttack.FA07_restDampsTheNeighbour`: heap-buffer-overflow reading `after[i]` (FingerstyleAttackTests.cpp:385). The test measured a 10 ms window ending three of the watched string's periods plus 10 ms after the stroke, but rendered a fixed 30 ms (1536 samples); for the low E (thumb rest 4 -> 5) the window ends at 2229, so its "< 1 dB" check read uninitialised memory. The render now covers the window. Test code only; the engine was not involved.
+
+### B-23 Integration-side failures after the feat-* merges. MOSTLY FIXED by FIX-CROSS (`b152502`); three left (round 2)
+
+After merging FIX-CROSS (full suite at `b502836` + this branch: 8 of 1371 tests fail, from 17), the shortcut clashes, the Jam pill layout, AS25, `cpuQualityMotionPolicy`, CQ12 and the feedback tests (B-18, B-19) pass. Still failing, on the integration branch too:
+
+- `ON02_OffPathMatchesGoldenHashes`: `p06_gown_phrase` / `p06_gown_chord` differ from their golden hashes with normalization off - the feedback-phase and dispersion changes moved preset 6's audio; the hashes need `scripts/regen_normalization_hashes.sh`.
+- `CQ10_aRingingNoteKeepsItsStagesUntilReExcited`: expects `getLatchedDispersionStages() == 8` and more active stages than at Low - FIX-CROSS latches dispersion at the pluck, so this feat-cpu test and that change disagree.
+- `CQ22_everyTimerDrivenUiClassIsRegisteredOrAllowListed`: `NormalizationBadge`, `NormalizationOptionsGroup`, `NormalizationCaption` and `JamPill` still run timers without an `AnimationPolicy::Registration`.
+- `BC13_budgetAndSafety` and `CQ13_scenarioBudgets` failed once in the full run and pass twice in isolation (and on the integration branch): wall-clock budgets on a shared 4-core container.
+
+Original list (round 2, before FIX-CROSS):
+
+Reproduced on the integration branch itself (`7442855`), so not caused by this branch; `docs/helpers/GAP_FILL_INSTRUCTIONS.md` gives AnimationPolicy wiring, the feedback loop, shortcut clashes and the jam layout to the FIX-CROSS helper, so they are reported here and not fixed:
+
+- `Shortcuts.noTwoShortcutsShareADefaultKey`, `shortcutsRebindAndRefuseClashes`: `toggleNormalization`, `toggleStringAnimation` and `cycleCpuQuality` (feat-normalize, feat-strings, feat-cpu) share one default key.
+- `noControlHangsOutsideItsParentAtAnyWidthOrScale`: the Easy header's `JamPill`, its style box and `JamDots` sit at negative x (-44, -28, -38) at 940 and 1000 px wide.
+- `CQ22_everyTimerDrivenUiClassIsRegisteredOrAllowListed`, `CQ22_builtEditorsRegisterEveryTableClassThatExists`: `StringAnimator`, `JamPanel`, `NormalizationBadge`, `NormalizationOptionsGroup` run timers without an `AnimationPolicy::Registration` (cpu-quality-modes 6).
+- `cpuQualityMotionPolicy`: the illustration's reduced-motion overlay is not set, and the string pixels change while motion is Off (the gap audit's J top gap 2: `StringMotionPolicy` checks only Reduced motion).
+- `AS25_theOptionsRows`: the VISUAL AIDS group starts 20 px below the tooltips row.
+- B-18 and B-19 (feedback loop) belong to the same owner.
+- `CQ12_everyFactoryPresetAtEveryLevel` (feat-cpu): "Fingerstyle Folk at low: -0.99 LU from High" (identical on the integration branch), and "CPU not High > Medium >= Low" on a varying handful of acoustic presets (Parlor Blues, Strummed Dreadnought, Fingerstyle Folk...). The CPU ordering is measured wall-clock on a shared 4-core container and changes preset to preset between runs, so it is load-sensitive; the loudness step is not.
 
 ### Harness corrections in round 2 (test physics, not engine changes)
 

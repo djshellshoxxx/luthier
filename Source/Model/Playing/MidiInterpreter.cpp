@@ -38,6 +38,7 @@ const char* getMidiTargetName (MidiTarget t) noexcept
         case MidiTarget::TappedHarmonic:    return "Tapped Harmonic";
         case MidiTarget::RightHandTool:     return "Right-Hand Tool";
         case MidiTarget::RestStroke:        return "Rest Stroke";
+        case MidiTarget::PitchBend:         return "Pitch Bend";
         case MidiTarget::NumTargets:
         default:                            return "None";
     }
@@ -51,6 +52,7 @@ void MidiInterpreter::prepare (double sampleRate, int strings)
 
     stringBendRange.fill (2.0);
     resetChannelMap();
+    autoArt.prepare (sampleRate, numStrings);   // FEAT-ASSIST
     setChordWindowMs (chordWindowMs);
     reset();
 }
@@ -73,6 +75,8 @@ void MidiInterpreter::reset() noexcept
         s.pedalRingingNote = -1;
     }
 
+    lastStringForChannel.fill (-1);   // SPEC-SWEEP CT-18
+
     numPending = 0;
     currentTimestamp = 0;
     sustainDown = false;
@@ -84,6 +88,10 @@ void MidiInterpreter::reset() noexcept
     // starts from the old preset's last value and does not repeat.
     expressionValue = 0.5;
     pickPosition = 0.5;
+    // SPEC-SWEEP PT-21: CC 11 scales the master gain, so a stale value makes the
+    // first render after a fresh engine differ from every later one (the whole
+    // preset renders 4.15 dB apart). Back to unity like the controllers above.
+    masterLevel.store (1.0, std::memory_order_relaxed);
     globalBendCents = 0.0;
     activeNoteCount = 0;
     lastMonoString = -1;
@@ -100,11 +108,19 @@ void MidiInterpreter::reset() noexcept
     rightHandTool = 0;
     restStrokeHeld = false;
     pickPositionMoved = false;
+
+    // FEAT-ASSIST (auto-articulation.md 4.1): history and hand position go too.
+    autoArt.reset();
+    pendingLegato.active = false;
+    lastGroupArrival = -1000000000;
+    lastGroupMask = 0;
+    lastGroupSize = 0;
 }
 
 void MidiInterpreter::setNumStrings (int n) noexcept
 {
     numStrings = juce::jlimit (1, kMaxStrings, n);
+    autoArt.setNumStrings (numStrings);   // FEAT-ASSIST
 }
 
 void MidiInterpreter::setEngines (TuningEngine* t, TechniqueEngine* te, RubricVoicer* cv) noexcept
@@ -112,6 +128,7 @@ void MidiInterpreter::setEngines (TuningEngine* t, TechniqueEngine* te, RubricVo
     tuning = t;
     technique = te;
     voicer = cv;
+    autoArt.setTuning (t);   // FEAT-ASSIST
 }
 
 void MidiInterpreter::setPlayingMode (PlayingMode m) noexcept
@@ -121,6 +138,7 @@ void MidiInterpreter::setPlayingMode (PlayingMode m) noexcept
 
     mode = m;
     numPending = 0;
+    pendingLegato.active = false;   // FEAT-ASSIST
 }
 
 void MidiInterpreter::setPitchBendRange (double semitones) noexcept
@@ -134,7 +152,6 @@ void MidiInterpreter::setStringBendRange (int stringIndex, double semitones) noe
         stringBendRange[(size_t) stringIndex] = juce::jlimit (0.5, 96.0, semitones);
 }
 
-//==============================================================================
 void MidiInterpreter::resetChannelMap() noexcept
 {
     // The default convention: channel 1 is the high E, and the strings run
@@ -243,6 +260,59 @@ int MidiInterpreter::stringForChannel (int channel) const noexcept
     return -1;
 }
 
+void MidiInterpreter::setPitchCurve (const float* points, int numPoints) noexcept
+{
+    numPitchCurvePoints = (points == nullptr || numPoints < 2) ? 0 : juce::jmin (numPoints, kPitchCurvePoints);
+
+    for (int i = 0; i < numPitchCurvePoints; ++i)
+        pitchCurve[(size_t) i] = juce::jlimit (0.0f, 1.0f, points[i]);
+}
+
+double MidiInterpreter::applyPitchCurve (double normalised) const noexcept
+{
+    const double clamped = juce::jlimit (-1.0, 1.0, normalised);
+
+    if (numPitchCurvePoints < 2)
+        return clamped;
+
+    const double magnitude = std::abs (clamped);
+    const double position = magnitude * (double) (numPitchCurvePoints - 1);
+    const int lower = juce::jlimit (0, numPitchCurvePoints - 1, (int) position);
+    const int upper = juce::jmin (numPitchCurvePoints - 1, lower + 1);
+    const double fraction = position - (double) lower;
+    const double value = pitchCurve[(size_t) lower] + (pitchCurve[(size_t) upper] - pitchCurve[(size_t) lower]) * fraction;
+
+    return (clamped < 0.0 ? -1.0 : 1.0) * value;
+}
+
+int MidiInterpreter::macroTargetSlot (MidiTarget target) noexcept
+{
+    switch (target)
+    {
+        case MidiTarget::Drive:  return 0;
+        case MidiTarget::Tone:   return 1;
+        case MidiTarget::Space:  return 2;
+        case MidiTarget::Body:   return 3;
+        case MidiTarget::Attack: return 4;
+        default:                 return -1;
+    }
+}
+
+float MidiInterpreter::takeMacroTarget (MidiTarget target) noexcept
+{
+    const int slot = macroTargetSlot (target);
+    return slot >= 0 ? macroTargets[(size_t) slot].exchange (-1.0f, std::memory_order_relaxed) : -1.0f;
+}
+
+int MidiInterpreter::mpeStringForChannel (int channel) const noexcept
+{
+    for (int s = 0; s < numStrings; ++s)
+        if (slots[(size_t) s].channel == channel && slots[(size_t) s].held)
+            return s;
+
+    return -1;
+}
+
 int MidiInterpreter::getStringMidiNote (int stringIndex) const noexcept
 {
     if (! juce::isPositiveAndBelow (stringIndex, kMaxStrings))
@@ -268,6 +338,7 @@ void MidiInterpreter::processBlock (const juce::MidiBuffer& midi,
     out.clear();
     blockStart = blockStartSample;
     blockLength = numSamples;
+    assistBeginBlock();   // FEAT-ASSIST
 
     for (const auto metadata : midi)
     {
@@ -275,6 +346,32 @@ void MidiInterpreter::processBlock (const juce::MidiBuffer& midi,
         const int offset = juce::jlimit (0, juce::jmax (0, numSamples - 1), metadata.samplePosition);
         const int64_t timestamp = blockStartSample + offset;
         const int channel = message.getChannel();
+
+        // FEAT-ASSIST (auto-articulation.md 3.3, 3.8, 5): a waiting legato note
+        // whose time has come, and what the explicit rows need from this event.
+        if (pendingLegato.active)
+            assistBeforeEvent (timestamp, out);
+
+        if (isAssistEffective())
+        {
+            offSharesNoteOn = false;
+
+            if (message.isNoteOff())
+                for (const auto other : midi)
+                    if (other.samplePosition == metadata.samplePosition && other.getMessage().isNoteOn())
+                        offSharesNoteOn = true;
+
+            if (message.isPitchWheel())
+                autoArt.noteBend ((mpeEnabled || mode == PlayingMode::GuitarController) ? -2 : -1, timestamp);
+
+            if (message.isController())
+            {
+                const auto target = getCcTarget (message.getControllerNumber());
+
+                if (target == MidiTarget::StrumSpeed || target == MidiTarget::StrumDirection)
+                    autoArt.noteStrumController (timestamp);
+            }
+        }
 
         if (message.isNoteOn())
         {
@@ -299,7 +396,8 @@ void MidiInterpreter::processBlock (const juce::MidiBuffer& midi,
 
                 if (mode == PlayingMode::GuitarController)
                 {
-                    target = stringForChannel (channel);
+                    target = mpeEnabled ? mpeStringForChannel (channel)   // SPEC-SWEEP CT-18
+                                        : stringForChannel (channel);
                 }
                 else
                 {
@@ -310,8 +408,12 @@ void MidiInterpreter::processBlock (const juce::MidiBuffer& midi,
 
                 if (target >= 0)
                 {
-                    const double range = stringBendRange[(size_t) target];
-                    const double cents = normalised * range * 100.0;
+                    // SPEC-SWEEP (CT-7): an MPE member bend travels the member
+                    // range (48 by default); the per-string table is for hex pickups.
+                    const double range = mpeEnabled ? bendRangeSemitones
+                                                    : stringBendRange[(size_t) target];
+                    // SPEC-SWEEP (CT-10): the controller profile's pitch curve.
+                    const double cents = applyPitchCurve (normalised) * range * 100.0;
 
                     /*  controllers.md 5: some hex pickups never stop hunting for
                         the pitch of a sustained note, and emit a steady dribble
@@ -361,7 +463,8 @@ void MidiInterpreter::processBlock (const juce::MidiBuffer& midi,
             if (mpeEnabled || mode == PlayingMode::GuitarController)
             {
                 if (mode == PlayingMode::GuitarController)
-                    target = stringForChannel (channel);
+                    target = mpeEnabled ? mpeStringForChannel (channel)   // SPEC-SWEEP CT-18
+                                        : stringForChannel (channel);
                 else
                     for (int s = 0; s < numStrings; ++s)
                         if (slots[(size_t) s].channel == channel && slots[(size_t) s].held)
@@ -377,7 +480,24 @@ void MidiInterpreter::processBlock (const juce::MidiBuffer& midi,
             e.sampleOffset = offset;
             out.addPressure (e);
 
-            applyTarget (aftertouchTarget, value, offset, out);
+            // SPEC-SWEEP (PT-23): aftertouch switched to bend pushes the string it
+            // belongs to (or, without per-string routing, every string) upward
+            // across the bend range.
+            if (aftertouchTarget == MidiTarget::PitchBend && target >= 0)
+            {
+                const double range = mpeEnabled ? bendRangeSemitones : stringBendRange[(size_t) target];
+                slots[(size_t) target].bendCents = value * range * 100.0;
+
+                BendEvent bend;
+                bend.stringIndex = target;
+                bend.cents = slots[(size_t) target].bendCents;
+                bend.sampleOffset = offset;
+                out.addBend (bend);
+            }
+            else
+            {
+                applyTarget (aftertouchTarget, value, offset, out);
+            }
         }
         else if (message.isController())
         {
@@ -393,6 +513,8 @@ void MidiInterpreter::processBlock (const juce::MidiBuffer& midi,
 
     // Close any chord group whose window has expired.
     flushChordGroup (blockStartSample + numSamples - chordWindowSamples, 0, numSamples, out);
+
+    assistEndBlock (numSamples, out);   // FEAT-ASSIST: deadlines and controller state
 
     // And carry out any note-off that was held back for being too early.
     flushDeferredReleases (blockStartSample, numSamples, out);
@@ -426,6 +548,93 @@ void MidiInterpreter::handleNoteOn (int midiNote, int channel, double velocity,
 
     if (mode == PlayingMode::GuitarController)
     {
+        // SPEC-SWEEP (CT-17/CT-18): MPE is per note, not per string. The master
+        // channel carries no notes; a member channel is voiced by pitch and
+        // sticks to the string it last played while that string can reach the
+        // note, so a player's slide or legato phrase stays on one string.
+        if (mpeEnabled)
+        {
+            if (mpeMasterChannel > 0 && channel == mpeMasterChannel)
+                return;
+
+            const int previous = getLastStringForChannel (channel);
+            int stringIndex = -1;
+
+            if (juce::isPositiveAndBelow (previous, numStrings))
+            {
+                const auto& held = slots[(size_t) previous];
+                const bool takenByAnother = held.held && held.channel != channel;
+                const double f = tuning->frequencyToFretPosition (
+                    previous, midiToHz ((double) midiNote, tuning->getConcertA()));
+
+                if (! takenByAnother && f > -0.5 && f <= (double) tuning->getHighestPlayableFret (previous) + 0.5)
+                    stringIndex = previous;
+            }
+
+            if (stringIndex < 0)
+            {
+                const auto v = voicer->voiceSingleNote (midiNote, velocity, previous);
+
+                if (! v.valid)
+                    return;
+
+                stringIndex = v.stringIndex;
+
+                // Another member channel is holding that string: take the nearest
+                // free string that can reach the note, so MPE polyphony does not
+                // steal a sounding note.
+                const auto& chosen = slots[(size_t) stringIndex];
+
+                if (chosen.held && chosen.channel != channel)
+                {
+                    const double hz = midiToHz ((double) midiNote, tuning->getConcertA());
+
+                    for (int distance = 1; distance < numStrings; ++distance)
+                    {
+                        bool found = false;
+
+                        for (int candidate : { stringIndex - distance, stringIndex + distance })
+                        {
+                            if (! juce::isPositiveAndBelow (candidate, numStrings))
+                                continue;
+
+                            const auto& slot = slots[(size_t) candidate];
+                            const double f = tuning->frequencyToFretPosition (candidate, hz);
+
+                            if (! (slot.held && slot.channel != channel)
+                                  && f > -0.5 && f <= (double) tuning->getHighestPlayableFret (candidate) + 0.5)
+                            {
+                                stringIndex = candidate;
+                                found = true;
+                                break;
+                            }
+                        }
+
+                        if (found)
+                            break;
+                    }
+                }
+            }
+
+            if (juce::isPositiveAndBelow (channel, 17))
+                lastStringForChannel[(size_t) channel] = stringIndex;
+
+            const double targetHz = midiToHz ((double) midiNote, tuning->getConcertA());
+            const double fret = juce::jlimit (0.0, (double) tuning->getHighestPlayableFret (stringIndex),
+                                              tuning->frequencyToFretPosition (stringIndex, targetHz));
+
+            VoicedNote v;
+            v.midiNote = midiNote;
+            v.stringIndex = stringIndex;
+            v.fretPosition = fret;
+            v.velocity = velocity;
+            v.valid = true;
+
+            slots[(size_t) stringIndex].channel = channel;
+            emitVoicedNote (v, timestamp, blockOffset, 0, out);
+            return;
+        }
+
         int stringIndex = stringForChannel (channel);
 
         if (stringIndex < 0)
@@ -447,6 +656,10 @@ void MidiInterpreter::handleNoteOn (int midiNote, int channel, double velocity,
             is the capo'd one (ambiguity-resolutions 4.5) - a capo at 5 makes the
             neck five frets shorter, and clamping to the raw fret count would put a
             note off the end of it. */
+        // SPEC-SWEEP (CT-14): counted, so the processor can log the clip.
+        if (fret < -0.5 || fret > (double) tuning->getHighestPlayableFret (stringIndex) + 0.5)
+            clippedNotes.fetch_add (1, std::memory_order_relaxed);
+
         fret = juce::jlimit (0.0, (double) tuning->getHighestPlayableFret (stringIndex), fret);
 
         VoicedNote v;
@@ -463,6 +676,10 @@ void MidiInterpreter::handleNoteOn (int midiNote, int channel, double velocity,
 
     if (mode == PlayingMode::Mono)
     {
+        // FEAT-ASSIST (auto-articulation.md 4.2): planSingle instead of the voicer.
+        if (assistMonoNoteOn (midiNote, channel, velocity, timestamp, blockOffset, out))
+            return;
+
         const auto v = voicer->voiceSingleNote (midiNote, velocity, lastMonoString);
 
         if (! v.valid)
@@ -547,7 +764,21 @@ void MidiInterpreter::flushChordGroup (int64_t upToSample, int blockOffset, int 
         }
     }
 
+    // FEAT-ASSIST (auto-articulation.md 3.1, 4.2): a single note is placed by
+    // planSingle; a chord's voicer starts from the hand position.
+    const bool assisted = isAssistEffective();
+
+    if (assisted && count == 1
+        && assistFlushSingle (notes[0], velocities[0], arrivals[0], releases[0], groupTimestamp, blockOffset, out))
+        return;
+
+    if (assisted && autoArt.rule (AssistRule::position))
+        voicer->setPreferredPosition (autoArt.getHandPosition());
+
     const auto voicing = voicer->voice (notes, velocities, count);
+
+    if (assisted)
+        autoArt.setHandPositionFromVoicing (voicer->getLastScore().handPosition);
 
     if (voicing.numNotes == 0)
         return;
@@ -579,7 +810,15 @@ void MidiInterpreter::flushChordGroup (int64_t upToSample, int blockOffset, int 
     std::array<StrumStrike, kMaxStrings> strikes {};
     int planned = 0;
 
-    if (isChord && ! playedSpread && strumSpeedMs > 0.0)
+    // FEAT-ASSIST (auto-articulation.md 3.7): the chord's plan and its own timing.
+    AssistPlan chordPlan;
+    std::array<double, kMaxStrings> assistDelays {};
+    bool assistTimed = false;
+
+    if (assisted)
+        assistPlanChordNotes (voicing, groupTimestamp, playedSpread, chordPlan);
+
+    if (isChord && ! playedSpread && (strumSpeedMs > 0.0 || assisted))
     {
         std::array<int, kMaxStrings> order {};
         int numOrdered = 0;
@@ -596,8 +835,10 @@ void MidiInterpreter::flushChordGroup (int64_t upToSample, int blockOffset, int 
             std::sort (order.begin(), order.begin() + numOrdered, [] (int a, int b) { return a > b; });
 
         // Human strums vary in speed; a machine-even strum is instantly recognisable.
-        const double speedVar = 1.0 + rng.nextGaussian() * humanise.strumSpeedVariation
-                                      * humanise.amount * 0.5;
+        // FEAT-ASSIST: no draw where today makes none (0.1), so Humanize's sequence is the same.
+        const double speedVar = strumSpeedMs > 0.0 ? 1.0 + rng.nextGaussian() * humanise.strumSpeedVariation
+                                                               * humanise.amount * 0.5
+                                                   : 1.0;
 
         // Striker and chuck are the rhythm engine's; a live chord is the player's pick.
         auto live = strumSettings;
@@ -611,7 +852,14 @@ void MidiInterpreter::flushChordGroup (int64_t upToSample, int blockOffset, int 
         request.strumIndex = strumCount++;
         request.missScale = 0.0;   // a key the player pressed always sounds
 
-        planned = strumGesture.plan (live, request, strikes.data(), (int) strikes.size());
+        if (assisted)
+            assistTimed = assistPlanStrum (request, order.data(), numOrdered, voicing, groupTimestamp,
+                                           speedVar, chordPlan, assistDelays);
+
+        planned = assistTimed ? 0 : strumGesture.plan (live, request, strikes.data(), (int) strikes.size());
+
+        if (assisted && planned > 0)
+            assistShapeStrikes (strikes.data(), planned, chordPlan);
     }
 
     for (int i = 0; i < voicing.numNotes; ++i)
@@ -636,6 +884,10 @@ void MidiInterpreter::flushChordGroup (int64_t upToSample, int blockOffset, int 
                 }
             }
         }
+        else if (assistTimed)
+        {
+            delaySamples = (int) std::round (assistDelays[(size_t) i] * sr);   // FEAT-ASSIST
+        }
         else if (playedSpread)
         {
             for (int k = 0; k < count; ++k)
@@ -651,7 +903,11 @@ void MidiInterpreter::flushChordGroup (int64_t upToSample, int blockOffset, int 
         auto humanised = note;
         humanised.velocity = juce::jlimit (0.02, 1.0, note.velocity * velocityScale);
 
-        emitVoicedNote (humanised, groupTimestamp, blockOffset, delaySamples, out);
+        if (assisted)
+            assistEmitChordNote (humanised, chordPlan, i, arrivals, notes, count, groupTimestamp,
+                                 blockOffset, delaySamples, out);   // FEAT-ASSIST
+        else
+            emitVoicedNote (humanised, groupTimestamp, blockOffset, delaySamples, out);
 
         // Released before its window closed: it still sounds, for as long as it
         // was held, and flushDeferredReleases ends it. The floor keeps the
@@ -729,15 +985,25 @@ void MidiInterpreter::emitVoicedNote (const VoicedNote& note, int64_t timestamp,
     const int offset = juce::jmax (0, blockOffset + extraDelaySamples + jitterSamples);
 
     // If this string is already sounding, that note ends here.
+    // SPEC-SWEEP SQ-8: remember where the finger was, first - a held note
+    // moved by a revoice travels along the string (string-squeak.md 2).
+    const bool wasHeld = slots[(size_t) s].held && technique->isStringActive (s);
+    const double heldFret = wasHeld ? technique->getStringFret (s) : -1.0;
+
     if (slots[(size_t) s].held)
         technique->noteEnded (s, timestamp);
 
     int harmonicPartial = 0;
     double slideFromFret = -1.0;
 
-    const auto tech = technique->decide (s, note.fretPosition, note.velocity,
-                                         timestamp + extraDelaySamples,
-                                         harmonicPartial, slideFromFret);
+    // FEAT-ASSIST: an assisted note also learns whether a controller chose it.
+    bool explicitTech = false;
+    const auto tech = currentPlan != nullptr
+                        ? technique->decide (s, note.fretPosition, note.velocity, timestamp + extraDelaySamples,
+                                             harmonicPartial, slideFromFret, explicitTech)
+                        : technique->decide (s, note.fretPosition, note.velocity,
+                                             timestamp + extraDelaySamples,
+                                             harmonicPartial, slideFromFret);
 
     // Micro-detune, refreshed per note: identity rule for realism, and the thing
     // that stops repeated notes sounding like a sampler.
@@ -756,6 +1022,15 @@ void MidiInterpreter::emitVoicedNote (const VoicedNote& note, int64_t timestamp,
     e.slideSeconds = (slideFromFret >= 0.0)
                        ? technique->slideDurationFor (note.fretPosition - slideFromFret)
                        : 0.0;
+
+    // SPEC-SWEEP SQ-8: a re-struck note whose finger never left the string
+    // (it was still held) and has moved - the shift that squeaks.
+    if (wasHeld && slideFromFret < 0.0 && heldFret > 0.0 && note.fretPosition > 0.0
+        && std::abs (note.fretPosition - heldFret) >= 0.5)
+    {
+        e.shiftFromFret = heldFret;
+        e.shiftSeconds = technique->slideDurationFor (note.fretPosition - heldFret);
+    }
 
     e.pitchHz = tuning->computeFrequency (s, note.fretPosition,
                                           getStringBendCents (s) + detune);
@@ -784,6 +1059,9 @@ void MidiInterpreter::emitVoicedNote (const VoicedNote& note, int64_t timestamp,
         e.harmonicPartial = harmonics::findNode (harmonics::touchFractionFromBridge (e.touchFret, note.fretPosition),
                                                  648.0, 2.5).partial;
     }
+
+    if (currentPlan != nullptr)
+        assistDecorate (e, tech, explicitTech, blockStart + offset);   // FEAT-ASSIST
 
     out.addNoteOn (e);
 
@@ -881,6 +1159,10 @@ bool MidiInterpreter::emitSoundingHarmonic (int midiNote, int channel, double ve
 void MidiInterpreter::handleNoteOff (int midiNote, int channel, int blockOffset,
                                      PlayEventQueue& out) noexcept
 {
+    // FEAT-ASSIST (auto-articulation.md 3.2 hand-over, 3.3, 3.8 fall).
+    if (assistNoteOff (midiNote, channel, blockOffset, out))
+        return;
+
     // The string that played this note on this channel first: a hex pickup
     // playing a unison on two strings sends the same note on two channels, and
     // releasing one must not stop the other.
@@ -1124,14 +1406,34 @@ void MidiInterpreter::applyTarget (MidiTarget target, double value, int blockOff
 
         case MidiTarget::Humanize:          humanise.amount = value; break;
 
-        // These land on plugin parameters rather than on the interpreter; the
-        // processor reads them from the control events in the queue.
+        // SPEC-SWEEP (PT-21): these land on plugin parameters rather than on
+        // the interpreter. The master level is read by the parameter bridge
+        // every block; the macros are taken by the processor's timer.
         case MidiTarget::MasterLevel:
+            masterLevel.store (juce::jlimit (0.0, 1.0, value), std::memory_order_relaxed);
+            break;
+
         case MidiTarget::Drive:
         case MidiTarget::Tone:
         case MidiTarget::Space:
         case MidiTarget::Body:
         case MidiTarget::Attack:
+            if (const int slot = macroTargetSlot (target); slot >= 0)
+                macroTargets[(size_t) slot].store ((float) juce::jlimit (0.0, 1.0, value), std::memory_order_relaxed);
+            break;
+
+        case MidiTarget::PitchBend:   // SPEC-SWEEP (PT-23): a global upward bend
+        {
+            globalBendCents = value * bendRangeSemitones * 100.0;
+
+            BendEvent e;
+            e.stringIndex = -1;
+            e.cents = globalBendCents;
+            e.sampleOffset = blockOffset;
+            out.addBend (e);
+            break;
+        }
+
         case MidiTarget::None:
         case MidiTarget::NumTargets:
         default:
@@ -1165,6 +1467,7 @@ void MidiInterpreter::releasePedalRinging (int stringIndex, int blockOffset, Pla
 void MidiInterpreter::allNotesOff (PlayEventQueue& out) noexcept
 {
     numPending = 0;
+    pendingLegato.active = false;   // FEAT-ASSIST
 
     for (int s = 0; s < numStrings; ++s)
     {

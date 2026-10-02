@@ -20,6 +20,8 @@ namespace luthier
 {
 
 class LuthierAudioProcessor;
+class AssistLabelOverlay;   // FEAT-ASSIST: auto-articulation.md 7.3
+class TechniqueOverlay;   // TECHNIQUES: gui-techniques-updates.md 4
 
 //==============================================================================
 enum class ScaleOverlay
@@ -37,6 +39,19 @@ class FretboardComponent : public juce::Component,
                            private juce::Timer
 {
 public:
+    /** SPEC-SWEEP (GD-2, gui-engine-dataflow 0.2): the spec's drain rate. */
+    static constexpr int kRefreshHz = 60;
+
+    /** SPEC-SWEEP (GD-14, gui-engine-dataflow 6.4): the slide bar's alpha - 80%
+        of its fade-in opacity, dimmed to 60% of that once the bar has not moved
+        for kSlideStaleMs. */
+    static constexpr double kSlideStaleMs = 200.0;
+    static float slideBarAlpha (float opacity, double msSinceMove) noexcept
+    {
+        return 0.8f * opacity * (msSinceMove > kSlideStaleMs ? 0.6f : 1.0f);
+    }
+    int getRefreshIntervalMs() const noexcept { return getTimerInterval(); }
+
     explicit FretboardComponent (LuthierAudioProcessor& processor);
     ~FretboardComponent() override;
 
@@ -79,6 +94,10 @@ public:
     void resized() override;
     void mouseDown (const juce::MouseEvent&) override;
     void mouseUp (const juce::MouseEvent&) override;
+    void mouseDrag (const juce::MouseEvent&) override;   // TECHNIQUES: slide / bend drags
+
+    /** gui-techniques-updates.md 4: the technique overlays (TECHNIQUES). */
+    TechniqueOverlay* getTechniqueOverlay() const noexcept { return techniqueOverlay.get(); }
     void mouseMove (const juce::MouseEvent&) override;
     void mouseExit (const juce::MouseEvent&) override;
 
@@ -122,6 +141,7 @@ private:
                                            [this] { staticRefresh(); repaint(); },
                                            [this] { staticRefresh(); } };
     float barSlantDegrees = 0.0f;
+    double barLastMoveMs = 0.0, barLastTarget = -1.0;   // SPEC-SWEEP GD-14
     juce::Colour barColour;
 
 public:
@@ -165,6 +185,12 @@ private:
     std::array<int, 12> liveNote {};
 
     int hoverString = -1;
+
+    // auto-articulation.md 7.3 (FEAT-ASSIST): Performance Assist's labels, on top.
+    std::unique_ptr<AssistLabelOverlay> assistLabels;
+public:
+    AssistLabelOverlay* getAssistLabels() const noexcept { return assistLabels.get(); }
+private:
     int hoverFret = -1;
     int playingString = -1;
 
@@ -208,6 +234,10 @@ private:
     int ticksSinceLooksCheck = 1000;
 
     StringAnimator animator;
+    // TECHNIQUES: the overlay layers 33+ draw with the board's own geometry.
+    friend class TechniqueOverlay;
+    std::unique_ptr<TechniqueOverlay> techniqueOverlay;
+    int dragStartY = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (FretboardComponent)
 };

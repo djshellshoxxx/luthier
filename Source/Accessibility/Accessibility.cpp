@@ -575,6 +575,7 @@ void AccessibilitySettings::buildDefaultShortcuts()
     add ("toggleSlideMode",  "accessibility.shortcut.toggleSlideMode",  KP ('s', 0, 0));
     add ("toggleWorkshop",   "accessibility.shortcut.toggleWorkshop",   KP ('w', 0, 0));   // gui-integration 17 (VISUAL-WORKSHOP-QA)
     add ("togglePractice",   "accessibility.shortcut.togglePractice",   KP ('d', 0, 0));
+    add ("toggleAssist",     "accessibility.shortcut.toggleAssist",     KP ('a', 0, 0));   // auto-articulation.md 7.5
 
     // output-normalization.md 9: rebindable, unbound by default.
     add ("toggleNormalization", "accessibility.shortcut.toggleNormalization", KP());
@@ -655,6 +656,10 @@ void AccessibilitySettings::buildDefaultShortcuts()
     add ("toggleStringAnimation", "accessibility.shortcut.toggleStringAnimation", KP());
     // cpu-quality-modes 5: rebindable, unbound by default.
     add ("cycleCpuQuality",  "quality.shortcut.cycle",                  KP());
+    // global-search.md 6.1 (FEAT-SEARCH): Ctrl/Cmd+K opens the search palette.
+    add ("search",           "accessibility.shortcut.search",           KP ('k', cmd, 0));
+    // riff-library 7.1: R opens the RIFFS tab (Advanced) or the Riff drawer (Easy).
+    add ("riffs",            "accessibility.shortcut.riffs",            KP ('r', 0, 0));
 }
 
 bool AccessibilitySettings::rebind (const juce::String& actionId, const juce::KeyPress& key)
@@ -881,6 +886,27 @@ namespace AccessibleSetup
         component.setHelpText (description);
     }
 
+    bool shouldAnnounce (Announcement kind, AccessibilitySettings::Verbosity verbosity) noexcept
+    {
+        using V = AccessibilitySettings::Verbosity;
+
+        switch (kind)
+        {
+            case Announcement::error:       return true;
+            case Announcement::standard:    return verbosity != V::minimal;
+            case Announcement::valueChange: return verbosity == V::verbose;
+            default:                        return true;
+        }
+    }
+
+    void announce (const juce::String& text, Announcement kind)
+    {
+        if (text.isNotEmpty() && shouldAnnounce (kind, AccessibilitySettings::get().getVerbosity()))
+            juce::AccessibilityHandler::postAnnouncement (
+                text, kind == Announcement::error ? juce::AccessibilityHandler::AnnouncementPriority::high
+                                                  : juce::AccessibilityHandler::AnnouncementPriority::medium);
+    }
+
     void announceOverlayOpened (juce::Component& overlay, const juce::String& name)
     {
         overlay.setTitle (name);
@@ -889,8 +915,17 @@ namespace AccessibleSetup
         // can act on, so tabbing starts inside the dialog rather than behind it.
         const auto announcement = tr ("a11y.dialog.opened", { { "name", name } });
 
-        juce::AccessibilityHandler::postAnnouncement (
-            announcement, juce::AccessibilityHandler::AnnouncementPriority::high);
+        // SPEC-SWEEP: A11Y-43 - minimal verbosity announces errors only.
+        announce (announcement, Announcement::standard);
+
+        // SPEC-SWEEP: A11Y-10 - the first focusable control at any depth, in
+        // the traverser's own order, not only a direct child.
+        if (auto traverser = overlay.createFocusTraverser())
+            if (auto* first = traverser->getDefaultComponent (&overlay))
+            {
+                first->grabKeyboardFocus();
+                return;
+            }
 
         for (auto* child : overlay.getChildren())
         {

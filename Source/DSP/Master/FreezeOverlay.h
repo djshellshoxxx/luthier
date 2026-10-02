@@ -60,6 +60,7 @@ public:
 
     void setCaptureMs (double ms) noexcept;
     void setLevelDb (double db) noexcept;
+    double getLevelGain() const noexcept { return levelLinear; }   // SPEC-SWEEP AR-10
     void setAttackMs (double ms) noexcept;
     void setReleaseMs (double ms) noexcept;
     void setLowpassHz (double hz) noexcept;

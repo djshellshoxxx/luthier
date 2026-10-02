@@ -6,6 +6,7 @@
         LuthierTests              run everything
         LuthierTests Tuning       run only suites whose name contains "Tuning"
         LuthierTests --list       list the tests without running them
+        LuthierTests --skip=Combo run everything except the suites named exactly "Combo"
 */
 
 #include "TestFramework.h"
@@ -38,7 +39,7 @@ int main (int argc, char* argv[])
     // audition) inside unrelated tests.
     luthier::QualityController::setGovernorEnabledGlobally (false);
 
-    juce::StringArray filters;
+    juce::StringArray filters, skipped;
     bool listOnly = false;
 
     for (int i = 1; i < argc; ++i)
@@ -47,6 +48,8 @@ int main (int argc, char* argv[])
 
         if (arg == "--list" || arg == "-l")
             listOnly = true;
+        else if (arg.startsWith ("--skip="))
+            skipped.add (arg.fromFirstOccurrenceOf ("=", false, false));
         else if (! arg.startsWith ("-"))
             filters.add (arg);
     }
@@ -79,6 +82,9 @@ int main (int argc, char* argv[])
 
     for (const auto& entry : entries)
     {
+        if (skipped.contains (entry.suite))
+            continue;
+
         if (filters.size() > 0)
         {
             bool matches = false;

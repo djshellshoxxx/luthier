@@ -113,8 +113,13 @@ public:
     void resized() override;
     void mouseDown (const juce::MouseEvent&) override;
 
+    /** SPEC-SWEEP: A11Y-11 - the control that had focus when the overlay
+        opened, which gets it back on dismiss. */
+    juce::Component* getLauncher() const noexcept { return launcher.getComponent(); }
+
 private:
     OverlayPanel* current = nullptr;
+    juce::Component::SafePointer<juce::Component> launcher;   // SPEC-SWEEP: A11Y-11
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OverlayHost)
 };
@@ -286,79 +291,6 @@ private:
 };
 
 //==============================================================================
-/** The preset browser: categories, search, tags, load, delete. */
-class PresetBrowserPanel : public OverlayPanel,
-                           private juce::ChangeListener
-{
-public:
-    explicit PresetBrowserPanel (LuthierAudioProcessor& processor);
-    ~PresetBrowserPanel() override;
-
-    juce::Point<int> getPreferredSize() const override { return { 780, 560 }; }
-
-    /** Raised when the user asks to save the current sound as a new preset. */
-    std::function<void()> saveAsPanelRequested;
-
-    void overlayShown() override;
-
-protected:
-    void layoutContent (juce::Rectangle<int> content) override;
-
-private:
-    void changeListenerCallback (juce::ChangeBroadcaster*) override;
-    void rebuildList();
-    void loadSelected();
-
-    LuthierAudioProcessor& processor;
-
-    juce::TextEditor searchBox;
-    juce::ComboBox categoryBox;
-    juce::ListBox list;
-    juce::Label description;
-    juce::TextButton loadButton { "Load" };
-    juce::TextButton deleteButton { "Delete" };
-    juce::TextButton saveAsButton { "Save As..." };
-
-    // ambiguity-resolutions.md 5.2: Morph, its two slots and the slider.
-    void refreshMorph();
-    juce::TextButton morphToggle { "Morph" };
-    juce::TextButton slotAButton { "A" }, slotBButton { "B" };
-    juce::Slider morphSlider { juce::Slider::LinearHorizontal, juce::Slider::NoTextBox };
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> morphAttachment;
-
-    juce::Array<int> visibleIndices;
-
-    /*  guitar-illustration.md 15: each row shows its guitar, rendered on a
-        worker and cached (VISUAL-WORKSHOP-QA). */
-    GuitarThumbnails thumbnails;
-    juce::Rectangle<int> selectedThumbnailArea;
-    juce::File selectedFile;
-    void paintOverChildren (juce::Graphics&) override;
-
-public:
-    GuitarThumbnails& getThumbnails() noexcept { return thumbnails; }
-    static constexpr int kRowHeight = 38;
-
-private:
-    class PresetListModel : public juce::ListBoxModel
-    {
-    public:
-        explicit PresetListModel (PresetBrowserPanel& o) : owner (o) {}
-        int getNumRows() override;
-        void paintListBoxItem (int row, juce::Graphics&, int width, int height, bool selected) override;
-        void listBoxItemDoubleClicked (int row, const juce::MouseEvent&) override;
-        void selectedRowsChanged (int lastRow) override;
-
-    private:
-        PresetBrowserPanel& owner;
-    };
-
-    PresetListModel listModel { *this };
-
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PresetBrowserPanel)
-};
-
-//==============================================================================
 /** Save As: name, category, description and tags. */
 class SaveAsPanel : public OverlayPanel
 {
@@ -473,3 +405,6 @@ private:
 };
 
 } // namespace luthier
+
+// preset-browser-previews.md 7 (FEAT-BROWSER): the browser moved to its own folder.
+#include "PresetBrowser/PresetBrowserPanel.h"

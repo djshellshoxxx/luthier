@@ -14,6 +14,7 @@
 #include "Widgets.h"
 #include "RangesUi.h"
 #include "NormalizationBadge.h"   // output-normalization.md 5.1
+#include "Search/MagnifierButton.h"   // global-search.md 6.1 (FEAT-SEARCH)
 
 namespace luthier
 {
@@ -52,6 +53,13 @@ public:
     /** midi-export 5 (MODEL-GAPS): File -> Import -> MIDI chose this file. */
     std::function<void (const juce::File&)> onImportMidi;
 
+    /** global-search.md 6.1 (FEAT-SEARCH): the magnifier, and File -> Search. */
+    std::function<void()> onOpenSearch;
+    juce::Button& getSearchButton() noexcept { return searchButton; }
+
+    /** Below this width the magnifier goes into the File menu only (6.1). */
+    static constexpr int searchButtonMinWidth = 1280;
+
     /** gui-integration 19: the header MIDI Learn button. */
     std::function<void (bool)> onMidiLearnArmChanged;
 
@@ -88,6 +96,11 @@ public:
         if (id == "help")     return &helpButton;
         return nullptr;
     }
+
+    /** SPEC-SWEEP (USER_MANUAL UM-7): the File menu, and what choosing an item
+        does. showFileMenu puts the one on screen and routes to the other. */
+    juce::PopupMenu buildFileMenu();
+    void handleFileMenuResult (int result);
 
     void paint (juce::Graphics&) override;
     void resized() override;
@@ -137,6 +150,7 @@ private:
     /** slide-guitar.md 7: Slide Mode is a header toggle (shortcut S). */
     juce::TextButton slideButton { "Slide" };
     juce::TextButton workshopButton { "Workshop" };
+    search::MagnifierButton searchButton;   // FEAT-SEARCH
 
     bool advancedMode = false;
     bool advancedAvailable = true;

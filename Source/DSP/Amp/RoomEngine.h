@@ -54,8 +54,21 @@ public:
     /** Multiplier on the room's natural decay, 0.25 to 4. */
     void setDecayScale (double scale) noexcept;
 
+    /** SPEC-SWEEP: EN-90 - engine.md 20.18: no feedback path above 0.998. */
+    static constexpr double kMaxFeedback = 0.998;
+    double getFeedbackGain() const noexcept { return feedbackGain; }
+
     /** Stereo width of the room mics, 0 to 1. */
     void setWidth (double width) noexcept;
+
+    /** mic-placement.md 5: the blend-weighted distance of the active close
+        mics. Backed off past the anchor, a close mic hears the room: the
+        heard wet becomes 1 - (1 - blend)(1 - b). */
+    void setCloseMicDistance (double metres) noexcept;
+    double getCloseMicBleed() const noexcept { return bleedSmooth.getTarget(); }
+
+    static double criticalDistanceM (RoomSize s) noexcept;
+    static double bleedFor (double closeMicMetres, RoomSize s) noexcept;
 
     void processBlock (juce::AudioBuffer<float>& buffer) noexcept;
 
@@ -142,6 +155,8 @@ private:
     double feedbackGain = 0.8;
 
     ExpSmoother blendSmooth, widthSmooth;
+    ExpSmoother bleedSmooth;            // mic-placement.md 5
+    double closeMicMetres = 0.025;
     DCBlocker dcL, dcR;
 
     JUCE_LEAK_DETECTOR (RoomEngine)

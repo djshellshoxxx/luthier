@@ -74,6 +74,8 @@ public:
     // For tests.
     juce::Button& getStateButton (CaptureState state) noexcept;
     juce::ComboBox& getFormatBox() noexcept      { return formatBox; }
+    juce::Button& getStaffNotationButton() noexcept { return staffNotation->getButton(); }
+    bool isStaffNotationShown() const noexcept { return staffNotation->isVisible(); }
     juce::ComboBox& getBarsBox() noexcept        { return barsBox; }
     juce::ComboBox& getSpeedBox() noexcept       { return speedBox; }
     juce::ComboBox& getQuantiseBox() noexcept    { return quantiseBox; }
@@ -107,6 +109,7 @@ private:
     std::unique_ptr<LuthierToggle> offButton, rollingButton, armedButton;
     juce::Slider rollingMinutes { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
     juce::TextButton clearButton { "CLEAR TAKE" };
+    juce::TextButton saveAsRiffButton { "SAVE AS RIFF" };   // riff-library 7.1 (secondary location)
     juce::String statusText;
 
     // --- live tab -------------------------------------------------------------------
@@ -127,6 +130,7 @@ private:
     juce::Slider lastSeconds { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
     juce::Slider lineWidth { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
     std::unique_ptr<LuthierToggle> chordDiagrams;
+    std::unique_ptr<LuthierToggle> staffNotation;   // Task X: MusicXML's own option
     juce::TextEditor previewView;
     juce::TextButton exportButton { "EXPORT NOTATION..." };
     juce::TextButton markInButton { "MARK IN" }, markOutButton { "MARK OUT" };   // MODEL-GAPS: the marked region

@@ -65,8 +65,8 @@ void EffectsChain::setSlotType (int slot, PedalType type)
         replacement->setBypassed (slots[(size_t) slot].bypassed);
         replacement->setMix (slots[(size_t) slot].mix);
 
-        if (auto* drive = dynamic_cast<DrivePedalBase*> (replacement.get()))
-            drive->setOversamplingFactor (effectiveFactor, oversamplingFactor, false);
+        // SPEC-SWEEP JG-4: virtual, no cast (cpu-quality-modes 2.2 effective/nominal pair).
+        replacement->setOversamplingFactor (effectiveFactor, oversamplingFactor, false);
     }
 
     {
@@ -235,9 +235,10 @@ void EffectsChain::setOversamplingFactor (int effective, int nominal, bool cross
     oversamplingFactor = juce::jlimit (1, 8, nominal);
     effectiveFactor = juce::jlimit (1, oversamplingFactor, effective);
 
+    // SPEC-SWEEP JG-4: a virtual call rather than a dynamic_cast per slot.
     for (auto& slot : slots)
-        if (auto* drive = dynamic_cast<DrivePedalBase*> (slot.pedal.get()))
-            drive->setOversamplingFactor (effectiveFactor, oversamplingFactor, crossfade);
+        if (slot.pedal != nullptr)
+            slot.pedal->setOversamplingFactor (effectiveFactor, oversamplingFactor, crossfade);
 }
 
 int EffectsChain::getLatencySamples() const noexcept

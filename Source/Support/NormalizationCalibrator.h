@@ -72,8 +72,12 @@ struct NormalizationSoundState
 class NormalizationCalibrator : private juce::Thread
 {
 public:
-    /** 3.3: bumped only when the phrase, the meter or the engine's level moves. */
-    static constexpr int kCalibrationRevision = 1;
+    /** 3.3: bumped when the phrase, the meter or the engine's level moves, or
+        when the canonical key's contents change. Revision 2 (ON-27): the
+        toolchain-derived character aging maps (fretWear, deadSpots) are no
+        longer hashed - they are a per-CPU function of the retained seed, so
+        they made the factory table machine-dependent. */
+    static constexpr int kCalibrationRevision = 2;
 
     /** 4.3: a render is abandoned after this much wall time. */
     static constexpr double kRenderTimeoutSeconds = 10.0;
@@ -151,6 +155,13 @@ public:
     static void setFactoryTableFileForTesting (const juce::File& file);
     static void reloadFactoryTable();
     static int getNumFactoryEntries();
+
+    /** ON-27: true if the factory table holds a calibration row for this preset by
+        name, regardless of the exact state hash. A few high-gain presets hash some
+        per-CPU derived structural floats, so their exact-hash row can miss on a
+        machine other than the one that built the table; coverage (every preset is
+        calibrated) is the real invariant and is toolchain-invariant by name. */
+    static bool factoryHasPresetNamed (const juce::String& presetName);
 
     /** Adds an entry to the factory table in memory (RenderCli builds the file
         through this, and tests seed it). */

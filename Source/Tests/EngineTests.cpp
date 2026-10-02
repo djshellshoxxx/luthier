@@ -792,6 +792,60 @@ LUTHIER_TEST (Pickup, silenceWhenEverythingIsOff)
                + juce::String (total, 8));
 }
 
+/*  SPEC-SWEEP: SP-17 / ISS-2 - pickup_blend used to be stored and never read.
+    Two pickups on: the bridge one at 1/4 of the string nulls the 4th harmonic,
+    the neck one at 1/5 does not. Blend 0 is the bridge pickup alone (so the 4th
+    harmonic nearly vanishes), blend 1 the neck pickup alone, and 0.5 is both at
+    full level - the old behaviour. With one pickup on the blend does nothing. */
+LUTHIER_TEST (Pickup, blendSweepsBetweenNeckAndBridge)
+{
+    const double delaySamples = 400.0;
+    const double hz = 4.0 * kSr / delaySamples;
+
+    auto level = [&] (PickupSelector selector, double blend)
+    {
+        PickupEngine p;
+        p.prepare (kSr, 1);
+        p.setNumPickups (2);
+
+        auto bridge = PickupSpec::makeDefault (PickupType::SingleCoil, 0.25);
+        auto neck   = PickupSpec::makeDefault (PickupType::SingleCoil, 0.20);
+        for (auto* s : { &bridge, &neck }) { s->inductanceHenries = 0.0; s->capacitancePf = 0.0; }
+        p.setPickupSpec (0, bridge);
+        p.setPickupSpec (1, neck);
+        p.setSelector (selector);
+        p.setBlend (blend);
+        p.reset();
+
+        const int n = 16384;
+        std::vector<double> out ((size_t) n);
+
+        for (int i = 0; i < n; ++i)
+        {
+            const double ins[1] = { std::sin (2.0 * constants::kPi * hz * i / kSr) };
+            const double delays[1] = { delaySamples };
+            out[(size_t) i] = p.processStrings (ins, delays, 1);
+        }
+
+        return rms (out.data() + n / 2, n / 2);
+    };
+
+    const double bridgeOnly = level (PickupSelector::BridgeNeck, 0.0);
+    const double neckOnly   = level (PickupSelector::BridgeNeck, 1.0);
+    const double both       = level (PickupSelector::BridgeNeck, 0.5);
+
+    CHECK_MSG (bridgeOnly < neckOnly * 0.25,
+               "blend 0 should be the bridge pickup alone (4th harmonic nulled): "
+               + juce::String (bridgeOnly, 6) + " vs neck " + juce::String (neckOnly, 6));
+    CHECK_MSG (both > neckOnly * 0.5,
+               "blend 0.5 keeps both pickups at full level: " + juce::String (both, 6));
+
+    const double singleA = level (PickupSelector::Bridge, 0.0);
+    const double singleB = level (PickupSelector::Bridge, 1.0);
+    CHECK_MSG (std::abs (singleA - singleB) < 1.0e-9,
+               "with one pickup selected the blend must do nothing");
+}
+
 //==============================================================================
 //  Whammy
 //==============================================================================
@@ -1309,4 +1363,26 @@ LUTHIER_TEST (Body, modalBankIsStableAndBounded)
     CHECK_FINITE (signal.data(), n);
     CHECK_MSG (peak (signal.data(), n) < 4.0,
                "modal bank peaked at " + juce::String (peak (signal.data(), n), 3));
+}
+
+//==============================================================================
+/*  SPEC-SWEEP: EN-90 - engine.md 20.18: the room's FDN feedback never exceeds
+    0.998, even for the longest room, the liveliest material and the longest
+    decay. */
+LUTHIER_TEST (Room, feedbackNeverExceedsTheCap)
+{
+    RoomEngine room;
+    room.prepare (kSr, 512);
+    room.setEnabled (true);
+    room.setRoomSize (RoomSize::Cathedral);
+    room.setMaterial (RoomMaterial::Stone);
+    room.setDecayScale (4.0);
+
+    juce::AudioBuffer<float> buffer (2, 512);
+    buffer.clear();
+    room.processBlock (buffer);
+
+    CHECK_MSG (room.getFeedbackGain() <= RoomEngine::kMaxFeedback,
+               "feedback " + juce::String (room.getFeedbackGain(), 6));
+    CHECK (room.getFeedbackGain() > 0.9);
 }

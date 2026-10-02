@@ -16,6 +16,7 @@
 #include "LuthierEngine.h"
 #include "Modulation/ModMatrix.h"
 #include "Jam/JamSettings.h"   // FEAT-JAM
+#include "Support/Edition.h"   // FEAT-ASSIST
 
 namespace luthier
 {
@@ -523,6 +524,120 @@ namespace ParamIDs
         return id == jamPlay || id == jamFillNow;
     }
     // ==== END FEAT-JAM params ====
+    // ==== BEGIN SPEC-SWEEP params ====
+    // live-performance 3 (LP-16): the snapshot morph position, automatable and
+    // a modulation destination. Never captured into a snapshot itself.
+    inline constexpr const char* snapshotMorph = "snapshot_morph";
+    // ==== END SPEC-SWEEP params ====
+    // ==== BEGIN FEAT-ASSIST params ====
+    // auto-articulation.md 6: Performance Assist.
+    inline constexpr const char* aaEnabled = "aa_enabled";
+    inline constexpr const char* aaStyle   = "aa_style";
+    inline constexpr const char* aaAmount  = "aa_amount";
+    inline constexpr const char* aaRules   = "aa_rules";
+    // ==== END FEAT-ASSIST params ====
+    // ==== BEGIN FEAT-MIC params ====
+    // mic-placement.md 7: continuous mic placement. The legacy mic_position /
+    // mic_distance pairs above stay for compatibility; the engine no longer
+    // reads them (section 4).
+    inline constexpr const char* micX           = "mic_x";
+    inline constexpr const char* micY           = "mic_y";
+    inline constexpr const char* micDist        = "mic_dist";
+    inline constexpr const char* micAngle       = "mic_angle";
+    inline constexpr const char* micSpeaker     = "mic_speaker";
+    inline constexpr const char* micRear        = "mic_rear";
+    inline constexpr const char* micX2          = "mic_x_2";
+    inline constexpr const char* micY2          = "mic_y_2";
+    inline constexpr const char* micDist2       = "mic_dist_2";
+    inline constexpr const char* micAngle2      = "mic_angle_2";
+    inline constexpr const char* micSpeaker2    = "mic_speaker_2";
+    inline constexpr const char* micRear2       = "mic_rear_2";
+    inline constexpr const char* micTofMode     = "mic_tof_mode";
+    inline constexpr const char* micLevelMatch  = "mic_level_match";
+    inline constexpr const char* acMicMix       = "ac_mic_mix";
+    inline constexpr const char* acMicAlong     = "ac_mic_along";
+    inline constexpr const char* acMicAcross    = "ac_mic_across";
+    inline constexpr const char* acMicDist      = "ac_mic_dist";
+    inline constexpr const char* acMicAngle     = "ac_mic_angle";
+    inline constexpr const char* acMic2On       = "ac_mic_2_on";
+    inline constexpr const char* acMicAlong2    = "ac_mic_along_2";
+    inline constexpr const char* acMicAcross2   = "ac_mic_across_2";
+    inline constexpr const char* acMicDist2     = "ac_mic_dist_2";
+    inline constexpr const char* acMicAngle2    = "ac_mic_angle_2";
+    inline constexpr const char* acMicBlend     = "ac_mic_blend";
+    inline constexpr int kNumMicPlacementParams = 25;
+    // ==== END FEAT-MIC params ====
+    // ==== BEGIN TECHNIQUES params ====
+    // muting-rhythm.md 3
+    inline constexpr const char* muteArmed          = "mute_armed";
+    inline constexpr const char* muteMasterMode     = "mute_master_mode";
+    inline constexpr const char* mutePalmPosition   = "mute_palm_position";
+    inline constexpr const char* mutePalmPressure   = "mute_palm_pressure";
+    inline constexpr const char* muteFrettingStyle  = "mute_fretting_style";
+    inline constexpr const char* muteChukaSource    = "mute_chuka_source";
+    inline constexpr const char* muteHumanise       = "mute_humanise";
+    inline constexpr const char* muteGhostVelocity  = "mute_ghost_velocity";
+
+    // two-hand-tapping.md 3
+    inline constexpr const char* tapArmed           = "tap_armed";
+    inline constexpr const char* tapSource          = "tap_source";
+    inline constexpr const char* tapChannel         = "tap_channel";
+    inline constexpr const char* tapStrengthCurve   = "tap_strength_curve";
+    inline constexpr const char* tapAutoPullOff     = "tap_auto_pulloff";
+    inline constexpr const char* tapHammerThreshold = "tap_hammer_threshold";
+    inline constexpr const char* tapFlick           = "tap_flick";
+    inline constexpr const char* tapDuration        = "tap_duration";
+    inline constexpr const char* tapMaxConcurrent   = "tap_max_concurrent";
+    inline constexpr const char* tapFretSnap        = "tap_fret_snap";
+
+    // microtonal-bends.md 2
+    inline constexpr const char* bendArmed          = "bend_armed";
+    inline constexpr const char* bendGlobalSource   = "bend_global_source";
+    inline constexpr const char* bendGlobalCc       = "bend_global_cc";
+    inline constexpr const char* bendGlobalRange    = "bend_global_range";
+    inline constexpr const char* bendStringSource   = "bend_string_source";
+    inline constexpr const char* bendStringCc       = "bend_string_cc";
+    juce::String bendStringRange (int stringNumber);   ///< 1-6: "bend_string_range_1" ...
+    inline constexpr const char* bendVibratoSource  = "bend_vibrato_source";
+    inline constexpr const char* bendVibratoRate    = "bend_vibrato_rate";
+    inline constexpr const char* bendVibratoDepth   = "bend_vibrato_depth";
+    inline constexpr const char* bendVibratoOnset   = "bend_vibrato_onset";
+    inline constexpr const char* bendQuantise       = "bend_quantise";
+    inline constexpr const char* bendSnap           = "bend_snap";
+    inline constexpr const char* bendPreBendAmount  = "bend_prebend_amount";
+    inline constexpr const char* bendPreBendTrigger = "bend_prebend_trigger";
+    inline constexpr const char* bendPreBendCc      = "bend_prebend_cc";
+    inline constexpr const char* bendPreBendRelease = "bend_prebend_release";
+    inline constexpr const char* bendCurve          = "bend_curve";
+    inline constexpr const char* bendReleaseCurve   = "bend_release_curve";
+
+    // slide-technique-controls.md 1
+    inline constexpr const char* slidePosSource       = "slide_pos_source";
+    inline constexpr const char* slidePosCc           = "slide_pos_cc";
+    inline constexpr const char* slidePosMode         = "slide_pos_mode";
+    inline constexpr const char* slidePosRange        = "slide_pos_range";
+    inline constexpr const char* slideSlantSource     = "slide_slant_source";
+    inline constexpr const char* slideSlantCc         = "slide_slant_cc";
+    inline constexpr const char* slidePressureSource  = "slide_pressure_source";
+    inline constexpr const char* slidePressureCc      = "slide_pressure_cc";
+    inline constexpr const char* slideContact         = "slide_contact";
+    inline constexpr const char* slideSpeedLimit      = "slide_speed_limit";
+    inline constexpr const char* slideAutoVibrato     = "slide_auto_vibrato";
+    inline constexpr const char* slideAutoVibDepth    = "slide_auto_vib_depth";
+    inline constexpr const char* slideAutoVibRate     = "slide_auto_vib_rate";
+    inline constexpr const char* slideGestureTrigger  = "slide_gesture_trigger";
+    inline constexpr const char* slideGestureCc       = "slide_gesture_cc";
+    inline constexpr const char* slideGestureFrom     = "slide_gesture_from";
+    inline constexpr const char* slideGestureTo       = "slide_gesture_to";
+    inline constexpr const char* slideGestureTime     = "slide_gesture_time";
+    inline constexpr const char* slideGestureCurve    = "slide_gesture_curve";
+    inline constexpr const char* slideGestureSlantStart = "slide_gesture_slant_start";
+    inline constexpr const char* slideGestureSlantEnd = "slide_gesture_slant_end";
+    inline constexpr const char* slideGesturePressure = "slide_gesture_pressure";
+
+    /** The count this block adds (64), for the integration test's arithmetic. */
+    inline constexpr int kTechniquesParamCount = 64;
+    // ==== END TECHNIQUES params ====
 }
 
 //==============================================================================
@@ -585,6 +700,12 @@ public:
     static juce::StringArray roomMaterialNames();
     static juce::StringArray pedalTypeNames();
     static juce::StringArray oversamplingNames();
+
+    /** FEAT-ASSIST (auto-articulation.md 4.2, 11): the four aa_* values as the
+        engine plays them - Free resolves a Pro style to its nearest Free one
+        and plays every rule. */
+    static AutoArticulationSettings effectiveAssistSettings (bool enabled, int style, float amountPercent,
+                                                             int rules, Edition edition) noexcept;
 };
 
 //==============================================================================

@@ -1,0 +1,23 @@
+{
+  "name": "Luthier (Linux build)",
+  "build": { "dockerfile": "Dockerfile" },
+  "features": {},
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-vscode.cpptools",
+        "ms-vscode.cmake-tools",
+        "twxs.cmake"
+      ],
+      "settings": {
+        "cmake.configureOnOpen": false
+      }
+    }
+  },
+  // JUCE and clap-juce-extensions are fetched, then a Release Ninja build tree
+  // is configured, so a Codespace can immediately run:
+  //   ninja -C build LuthierTests
+  //   xvfb-run -a build/LuthierTests_artefacts/Release/LuthierTests
+  "postCreateCommand": "bash scripts/setup_linux.sh",
+  "remoteUser": "vscode"
+}

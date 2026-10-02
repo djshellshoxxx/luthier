@@ -23,11 +23,17 @@
 #include "GuitarBodyComponent.h"
 #include "CircuitPanel.h"
 #include "AmpFacePanel.h"
+#include "RiffBrowser.h"   // riff-library 7.3
 #include "PanelHelpButton.h"
+#include "NextStrumArrow.h"   // SPEC-SWEEP GD-10
 #include "NormalizationBadge.h"   // output-normalization.md 5.1
+#include "MicPlacementEditor.h"   // mic-placement.md 6.3 (FEAT-MIC)
 #include "StageTouches.h"
 #include "PianoRollStrip.h"
 #include "JamWidgets.h"   // FEAT-JAM
+
+#include "PerformanceAssistUi.h"   // auto-articulation.md 7.1 (FEAT-ASSIST)
+#include "Techniques/TechniquePillRow.h"   // gui-techniques-updates.md 2 (TECHNIQUES)
 
 namespace luthier
 {
@@ -41,6 +47,7 @@ class CompactRack : public juce::Component,
                     private juce::Timer
 {
 public:
+
     CompactRack (LuthierAudioProcessor& processor, bool postChain);
     ~CompactRack() override;
 
@@ -72,10 +79,23 @@ class EasyPanel : public juce::Component,
                   private juce::Timer
 {
 public:
+    /** SPEC-SWEEP (GD-9, gui-engine-dataflow 4): the chord readout keeps the
+        last chord and dims it once kChordStaleMs pass without a new one. */
+    static constexpr double kChordStaleMs = 3000.0;
+    void tickChordReadout (double nowMs);
+    juce::String getChordReadoutText() const { return chordLabel.getText(); }
+    bool isChordReadoutDimmed() const { return chordLabel.findColour (juce::Label::textColourId) != Palette::accent; }
+
     explicit EasyPanel (LuthierAudioProcessor& processor);
     ~EasyPanel() override;
 
     std::function<void()> onOpenExport;
+
+    /** mic-placement.md 6.3 (FEAT-MIC): the Cabinet card's pad, and what a
+        double-click on it opens (the expanded editor, as an overlay). */
+    MicPad& getMicPad() noexcept { return micPad; }
+    LuthierKnob& getAcousticMicMixKnob() noexcept { return acMicMix; }
+    std::function<void()> onOpenMicEditor;
 
     /** gui-integration 20 (TUNE-HELP-ONBOARDING): a strip's ? asks the editor
         for Help pinned to it. */
@@ -84,6 +104,14 @@ public:
 
     /** onboarding 4: the Randomise button the first-week tooltip is on. */
     juce::Button& getRandomiseButton() noexcept { return randomiseButton; }
+
+    /** auto-articulation.md 7.1 (FEAT-ASSIST): the AUTO popover's "More in RHYTHM tab". */
+    std::function<void()> onOpenAssistRhythmTab;
+    AssistPill& getAssistPill() noexcept { return *assistPill; }
+    AssistStyleBox& getAssistStyleBox() noexcept { return *assistStyle; }
+    /** gui-techniques-updates.md 2: a pill's right-click opens its TECHNIQUES sub-tab in Advanced mode. */
+    std::function<void (int subTab)> onOpenTechniqueSubTab;
+    TechniquePillRow& getTechniquePills() noexcept { return *techniquePills; }
 
     void paint (juce::Graphics&) override;
     void resized() override;
@@ -100,15 +128,30 @@ public:
 
     /** 3.5's readout: the chord and the next strum's arrow. */
     juce::String getRhythmReadout() const { return rhythmReadout.getText(); }
+    NextStrumArrow* getNextStrumArrow() noexcept { return nextStrumArrow.get(); }   // SPEC-SWEEP GD-10
 
     /** For tests: the rhythm strip's Feel knob. */
     juce::Slider& getRhythmFeelSlider() noexcept { return rhythmFeelSlider; }
+    juce::ComboBox& getRhythmGenreBox() noexcept { return rhythmGenreBox; }         // SPEC-SWEEP RE-38
+    juce::String getRhythmHintText() const { return rhythmHintLabel.getText(); }    // SPEC-SWEEP RE-38
+    void refreshRhythmStripForTest() { refreshRhythmStrip(); }                        // SPEC-SWEEP RE-38
 
     /** For tests: the strip's JAM group (FEAT-JAM). */
     JamStripGroup* getJamGroup() noexcept { return jamGroup.get(); }
 
     /** 3.5's dice: a random genre kit. */
     void rollRhythmDice();
+
+    /*  riff-library 7.3: the Riff drawer. It slides in from the right over
+        the rig strip, 320 points wide and the main area's full height, from
+        the Riffs button in the rhythm strip (or R); Escape or the button
+        closes it, and focus returns to the button. */
+    static constexpr int kRiffDrawerWidth = 320;
+    void setRiffDrawerOpen (bool shouldBeOpen);
+    bool isRiffDrawerOpen() const noexcept { return riffDrawer != nullptr && riffDrawerOpen; }
+    juce::Button& getRiffsButton() noexcept { return riffsButton; }
+    RiffBrowser* getRiffDrawer() const noexcept { return riffDrawer.get(); }
+    juce::Rectangle<int> getRiffDrawerBounds() const;
 
 private:
     void timerCallback() override;
@@ -134,6 +177,12 @@ private:
     LuthierKnob whammyKnob    { "Whammy",    LuthierKnob::Size::Small };
 
     LuthierChoice playingModeSelector { "Mode" };
+
+    // auto-articulation.md 7.1 (FEAT-ASSIST): the mode column's second row.
+    std::unique_ptr<AssistPill> assistPill;
+    std::unique_ptr<AssistStyleBox> assistStyle;
+    // gui-techniques-updates.md 2 (TECHNIQUES): the pill row, its own component.
+    std::unique_ptr<TechniquePillRow> techniquePills;
 
     // ---- tone strip (3.4) --------------------------------------------------------------
     LuthierKnob inputKnob  { "Input",   LuthierKnob::Size::Small };
@@ -167,6 +216,7 @@ public:
     juce::Rectangle<int> getAmpCardArea() const noexcept { return ampCardArea; }
 private:
     juce::Label chordLabel;
+    double lastChordMs = -1.0e9;   // SPEC-SWEEP GD-9
 
 public:
     /** output-normalization.md 5.1: the badge under the level meter. */
@@ -182,7 +232,13 @@ private:
     juce::Slider rhythmFeelSlider { juce::Slider::LinearHorizontal, juce::Slider::NoTextBox };
     juce::TextButton rhythmEnableButton { "OFF" };
     juce::Label rhythmHintLabel, rhythmReadout;
+    std::unique_ptr<NextStrumArrow> nextStrumArrow;   // SPEC-SWEEP GD-10
     std::unique_ptr<JamStripGroup> jamGroup;   // FEAT-JAM: jam-mode 8.2, at the strip's right end
+
+    // riff-library 7.3
+    juce::TextButton riffsButton { "Riffs" };
+    std::unique_ptr<RiffBrowser> riffDrawer;
+    bool riffDrawerOpen = false;
 
     // ---- rig strip (3.2) ---------------------------------------------------------------
     LuthierKnob guitarVolumeKnob { "Volume", LuthierKnob::Size::Small };
@@ -196,7 +252,10 @@ private:
     AmpFacePanel ampFace { processor, AmpFacePanel::Style::card };
 
     LuthierChoice cabModel { "Cab" }, mic1 { "Mic 1" }, mic2 { "Mic 2" };
-    LuthierKnob micBlend { "Blend", LuthierKnob::Size::Normal };
+    LuthierKnob micBlend { "Blend", LuthierKnob::Size::Small };
+    MicPad micPad { processor };                                         // FEAT-MIC
+    LuthierKnob acMicMix { "Pickup / Mic", LuthierKnob::Size::Small };  // FEAT-MIC
+    bool micPadAcoustic = false;                                         // FEAT-MIC
 
     LuthierChoice roomSize { "Room" };
     LuthierKnob roomMix { "Wet/Dry", LuthierKnob::Size::Normal };

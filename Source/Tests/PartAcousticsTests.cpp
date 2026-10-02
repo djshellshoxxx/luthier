@@ -333,3 +333,131 @@ LUTHIER_TEST (PartAcoustics, aReferenceGuitarSoundsLikeTheEngineDefault)
     CHECK (std::abs (d.nutBrightness - 0.75) < 1.0e-9);
     CHECK (std::abs (d.fretBrightness / 0.70 - 1.0) < 0.1);
 }
+
+//==============================================================================
+/*  SPEC-SWEEP: PA-14 / PA-15 / PA-T7 - chambering's air mode, its Q and its
+    gain used to be computed and dropped. The body engine now builds its air
+    mode where the mapping put it, and the electric chamberings' modes are
+    louder than solid by the table's gain. */
+LUTHIER_TEST (PartAcoustics, chamberingReachesTheBodyEngine)
+{
+    auto base = factory ("Electric/Vintage Double-Cut.luthierguitar");
+
+    auto modesFor = [] (const DerivedAcoustics& d)
+    {
+        std::vector<BodyMode> modes;
+        BodyModels::buildModes (d.body, modes);
+        return modes;
+    };
+
+    double gainSum[2] = { 0.0, 0.0 };
+
+    for (const char* chambering : { "chambered", "semi_hollow", "hollow", "acoustic" })
+    {
+        auto g = base;
+        g.parts[(size_t) GuitarSlot::body] = withField (base.get (GuitarSlot::body), "chambering", chambering);
+        const auto d = mapSpec (g);
+
+        // The rendered body's air mode sits where the mapping put it.
+        LuthierEngine engine;
+        engine.prepare (48000.0, 256);
+        engine.applyWorkshopGuitar (d);
+        engine.getCharacterEngine().setEnabled (false);   // body break-in (CW-24) would move it
+
+        juce::AudioBuffer<float> block (2, 256);
+        juce::MidiBuffer none;
+        engine.processBlock (block, none);
+
+        CHECK_NEAR (engine.getBodyEngine().getAirResonanceHz(), d.airResonanceHz, 1.0e-6);
+
+        const auto modes = modesFor (d);
+        bool found = false;
+
+        for (const auto& m : modes)
+            if (std::abs (m.frequencyHz - d.airResonanceHz) < 0.01 && std::abs (m.q - d.airResonanceQ * (1.0 + d.body.age * 0.55)) < 0.01)
+                found = true;
+
+        CHECK_MSG (found, juce::String (chambering) + ": no body mode at the mapped air resonance "
+                            + juce::String (d.airResonanceHz, 1) + " Hz, Q " + juce::String (d.airResonanceQ, 1));
+
+        if (juce::String (chambering) == "semi_hollow")
+            for (const auto& m : modes)
+                gainSum[1] += m.gain;
+    }
+
+    for (const auto& m : modesFor (mapSpec (base)))
+        gainSum[0] += m.gain;
+
+    // 2.1: semi-hollow's modes are +6 dB against solid.
+    CHECK_NEAR (gainToDb (gainSum[1] / gainSum[0]), 6.0, 0.01);
+}
+
+/*  SPEC-SWEEP: PA-56 - a full gloss on an acoustic top costs its modes about
+    half a dB and lowers their Q by 8 %; a half gloss costs nothing. */
+LUTHIER_TEST (PartAcoustics, aThickFinishDampsTheTop)
+{
+    auto base = factory ("Acoustic/Dreadnought.luthierguitar");
+
+    auto topPeak = [&base] (double gloss)
+    {
+        auto g = base;
+        g.finish.gloss = gloss;
+        const auto d = mapSpec (g);
+
+        std::vector<BodyMode> modes;
+        BodyModels::buildModes (d.body, modes);
+
+        // The top's fundamental: the largest mode above the air pair.
+        const double top = BodyModels::computeTopFundamental (d.body);
+        BodyMode best;
+        double nearest = 1.0e9;
+
+        for (const auto& m : modes)
+            if (std::abs (m.frequencyHz - top) < nearest)
+            {
+                nearest = std::abs (m.frequencyHz - top);
+                best = m;
+            }
+
+        return best;
+    };
+
+    const auto matte = topPeak (0.5);
+    const auto gloss = topPeak (1.0);
+
+    CHECK_NEAR (gainToDb (gloss.gain / matte.gain), -0.5, 0.01);
+    CHECK_NEAR (gloss.q / matte.q, 0.92, 0.005);
+}
+
+//==============================================================================
+/*  SPEC-SWEEP: PA-40 - twice the turns is +6 dB of output. */
+LUTHIER_TEST (PartAcoustics, coilTurnsSetTheOutput)
+{
+    auto base = factory ("Electric/Vintage Double-Cut.luthierguitar");
+    const auto pickup = base.get (GuitarSlot::pickupBridge);
+    CHECK (pickup != nullptr);
+
+    auto with = [&] (double turns)
+    {
+        auto g = base;
+        g.parts[(size_t) GuitarSlot::pickupBridge] = withField (pickup, "coil_turns", turns);
+        return mapSpec (g).pickups[0].spec.outputTrimDb;
+    };
+
+    CHECK_NEAR (with (16000.0) - with (8000.0), 20.0 * std::log10 (2.0), 1.0e-6);
+}
+
+/*  SPEC-SWEEP: PA-35 - a bridge with a saddle piezo makes the guitar a piezo
+    source without using a pickup slot. */
+LUTHIER_TEST (PartAcoustics, aPiezoBridgeAddsAPiezoSource)
+{
+    auto base = factory ("Electric/Vintage Double-Cut.luthierguitar");
+    CHECK (! mapSpec (base).hasPiezo);
+
+    auto g = base;
+    g.parts[(size_t) GuitarSlot::bridge] = withField (base.get (GuitarSlot::bridge), "piezo", true);
+    const auto d = mapSpec (g);
+
+    CHECK (d.hasPiezo && d.spec.hasPiezo);
+    CHECK (d.numPickups == mapSpec (base).numPickups);
+}

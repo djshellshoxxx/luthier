@@ -420,3 +420,31 @@ justifies it.
   payments and VAT?
 - **Q-L9** Is a customer account (e-mail sign-in) acceptable, or must
   activation work with a key alone?
+
+## 13. Rollout
+
+The implementation order for this spec is sequenced with the editions
+fork in **`spec/editions-rollout-plan.md`**. Licensing lands across its
+Phases 2-3 and 6:
+
+- **Phase 2 (licence verify core):** `LicenceFile`, `MachineFingerprint`,
+  `LicenceState`, `LicenceStore`, the demo-mode fade, and the vendored
+  Monocypher (section 3.1) under `ThirdParty/`. Fully offline and testable
+  with a **dev-only** test keypair and fixture licences; no server. This
+  replaces the placeholder `License` in `Source/Updates/Telemetry.*`
+  (section 11) with real Ed25519 verification and the section 8 state
+  machine.
+- **Phase 3 (trial + activation):** `LicenceClient`, `OfflineActivation`,
+  `DeactivationQueue` over the existing `Source/Updates` `Transport`;
+  needs the owner to stand up the vendor/server (section 6, section 10,
+  **Keygen.sh** recommended) and provision the **production** signing key
+  in a KMS/HSM as a GitHub secret (L-4). The binary still embeds only the
+  **public** key.
+- **Phase 6 (store + upgrade flow):** the store webhook, self-service seat
+  portal, revocation, pricing/VAT and upgrade policy — business wiring,
+  mostly server-side.
+
+All licensing code is Pro-only and is excluded from the Free link
+(`editions.md` 2.5, 9): the Free binary contains no licensing code at all.
+Every licence check runs off the audio thread (section 7.6), and no
+private key or store token is ever committed (section 3.1).

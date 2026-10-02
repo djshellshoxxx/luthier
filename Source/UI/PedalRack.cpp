@@ -1,5 +1,6 @@
 #include "PedalRack.h"
 #include "Faces/FaceMaterials.h"
+#include "../DSP/Effects/PedalsMod.h"
 #include "../PluginProcessor.h"
 
 #include <cmath>
@@ -30,12 +31,79 @@ namespace
 }
 
 //==============================================================================
+//  GateLed
+//==============================================================================
+GateLed::GateLed (LuthierAudioProcessor& p, bool post, int slot)
+    : processor (p), postChain (post), slotIndex (slot)
+{
+    // Purely an indicator: a drag that starts on it moves the slot, as on the face.
+    setInterceptsMouseClicks (false, false);
+    setVisible (false);
+}
+
+GateLed::~GateLed()
+{
+    motion.stopTimer();
+}
+
+void GateLed::visibilityChanged()
+{
+    // Only a Gater slot pays for the timer, at the rate the motion policy allows.
+    if (isVisible())
+        motion.startTimerHz (*this, 30);
+    else
+        motion.stopTimer();
+}
+
+void GateLed::refresh()
+{
+    float openness = 0.0f;
+
+    // getPedal() is the message thread's; the type check guards a slot that
+    // changed since the rack last looked.
+    if (auto* pedal = chainFor (processor, postChain).getPedal (slotIndex))
+        if (pedal->getType() == PedalType::Gater)
+            openness = static_cast<const GaterPedal*> (pedal)->gateOpenness.load (std::memory_order_relaxed);
+
+    openness = juce::jlimit (0.0f, 1.0f, openness);
+
+    if (std::abs (openness - shown) > 0.02f || (openness != shown && (openness <= 0.0f || openness >= 1.0f)))
+    {
+        shown = openness;
+        repaint();
+    }
+}
+
+void GateLed::paint (juce::Graphics& g)
+{
+    AnimationPolicy::notePaint (*this);
+
+    const auto m = faces::Materials::current();
+    const auto area = getLocalBounds().toFloat();
+    const auto centre = area.getCentre();
+    const float radius = juce::jmin (area.getWidth(), area.getHeight()) * 0.5f;
+
+    // The dark LED, then the lit one faded in by the gate's openness.
+    faces::drawLed (g, centre, radius, m.ledCool, false);
+
+    if (shown > 0.0f)
+    {
+        g.beginTransparencyLayer (shown);
+        faces::drawLed (g, centre, radius, m.ledCool, true);
+        g.endTransparencyLayer();
+    }
+}
+
+//==============================================================================
 //  PedalSlotComponent
 //==============================================================================
 PedalSlotComponent::PedalSlotComponent (LuthierAudioProcessor& p, bool post, int slot)
-    : processor (p), postChain (post), slotIndex (slot)
+    : processor (p), postChain (post), slotIndex (slot), gateLed (p, post, slot)
 {
     setLookAndFeel (&faceLookAndFeel);
+
+    // The Gater's LED overlays the face; the last child added is drawn on top.
+    addChildComponent (gateLed);
 
     addAndMakeVisible (typeSelector);
     typeSelector.setLabelVisible (false);
@@ -147,6 +215,9 @@ void PedalSlotComponent::rebuildControls()
     const bool hasPedal = (cachedType != PedalType::None);
     bypassToggle.setVisible (hasPedal);
     mixKnob.setVisible (hasPedal);
+
+    // The live gate LED belongs to the Gater alone.
+    gateLed.setVisible (cachedType == PedalType::Gater);
 
     if (auto* parent = getParentComponent())
         parent->resized();
@@ -314,6 +385,10 @@ void PedalSlotComponent::resized()
         place (mixKnob, paramKnobs.size());
 
     bypassToggle.setBounds (l.footswitch.toNearestInt());
+
+    // The Gater's LED sits exactly on the face's LED (a pixel over, for the bezel).
+    if (! l.led.isEmpty())
+        gateLed.setBounds (l.led.expanded (1.0f).getSmallestIntegerContainer());
 }
 
 void PedalSlotComponent::lookAndFeelChanged()

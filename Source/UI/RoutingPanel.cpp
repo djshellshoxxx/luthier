@@ -359,7 +359,7 @@ RoutingPanel::RoutingPanel (LuthierAudioProcessor& p)
     }
 
     refreshFromRouting();
-    motion.startTimerHz (*this, 15);
+    motion.startTimerHz (*this, kRefreshHz);   // SPEC-SWEEP GD-2 rate, via cpu-quality-modes 6
 }
 
 RoutingPanel::~RoutingPanel()

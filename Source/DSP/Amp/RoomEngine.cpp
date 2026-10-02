@@ -69,6 +69,8 @@ void RoomEngine::prepare (double sampleRate, int maxBlockSize)
     widthSmooth.prepare (sr, constants::kParamSmoothSeconds);
     blendSmooth.snapTo (0.2);
     widthSmooth.snapTo (0.6);
+    bleedSmooth.prepare (sr, constants::kParamSmoothSeconds);
+    bleedSmooth.snapTo (0.0);
 
     dcL.prepare (sr, 12.0);
     dcR.prepare (sr, 12.0);
@@ -100,6 +102,7 @@ void RoomEngine::reset() noexcept
 
     blendSmooth.snapToTarget();
     widthSmooth.snapToTarget();
+    bleedSmooth.snapToTarget();
 }
 
 //==============================================================================
@@ -109,6 +112,7 @@ void RoomEngine::setRoomSize (RoomSize s) noexcept
         return;
 
     roomSize = s;
+    bleedSmooth.setTarget (bleedFor (closeMicMetres, roomSize));
     rebuild();
 }
 
@@ -124,6 +128,42 @@ void RoomEngine::setMaterial (RoomMaterial m) noexcept
 void RoomEngine::setRoomBlend (double blend) noexcept
 {
     blendSmooth.setTarget (juce::jlimit (0.0, 1.0, blend));
+}
+
+//==============================================================================
+double RoomEngine::criticalDistanceM (RoomSize s) noexcept
+{
+    // mic-placement.md 5: where the room's field is as loud as the cabinet's.
+    switch (s)
+    {
+        case RoomSize::IsoBooth:    return 0.3;
+        case RoomSize::SmallBooth:  return 0.5;
+        case RoomSize::SmallStudio: return 0.9;
+        case RoomSize::LargeStudio: return 1.4;
+        case RoomSize::LiveRoom:    return 2.0;
+        case RoomSize::ConcertHall: return 2.8;
+        case RoomSize::Cathedral:   return 3.0;
+        case RoomSize::NumRoomSizes:
+        default:                    return 0.9;
+    }
+}
+
+double RoomEngine::bleedFor (double closeMicMetres, RoomSize s) noexcept
+{
+    /*  b = 0.5 (d / d_c)^2, clamped to [0, 0.5], taken relative to the anchor
+        distance (2.5 cm): the rooms were voiced with a close mic already in
+        them, so the default placement adds nothing and every existing preset
+        keeps its wet level exactly. */
+    const double dc = criticalDistanceM (s);
+    const double d = juce::jmax (0.0, std::isfinite (closeMicMetres) ? closeMicMetres : 0.0);
+    const double anchor = 0.025;
+    return juce::jlimit (0.0, 0.5, 0.5 * ((d / dc) * (d / dc) - (anchor / dc) * (anchor / dc)));
+}
+
+void RoomEngine::setCloseMicDistance (double metres) noexcept
+{
+    closeMicMetres = metres;
+    bleedSmooth.setTarget (bleedFor (metres, roomSize));
 }
 
 void RoomEngine::setDecayScale (double scale) noexcept
@@ -297,7 +337,7 @@ void RoomEngine::updateFeedbackGain() noexcept
                                                    * (1.0 + (1.0 - mat.absorption) * 1.2));
 
     feedbackGain = std::exp (-6.907755 * avgLength / (rt60 * sr));
-    feedbackGain = juce::jlimit (0.0, 0.9985, feedbackGain);
+    feedbackGain = juce::jlimit (0.0, kMaxFeedback, feedbackGain);   // SPEC-SWEEP: EN-90
 }
 
 //==============================================================================
@@ -420,6 +460,11 @@ void RoomEngine::processBlock (juce::AudioBuffer<float>& buffer) noexcept
         const double blend = blendSmooth.next();
         const double width = widthSmooth.next();
 
+        // mic-placement.md 5: a close mic backed off hears the room too. The
+        // Room Blend still means the room mics, so Aux 5 below excludes this.
+        const double bleed = bleedSmooth.next();
+        const double heard = (bleed == 0.0) ? blend : 1.0 - (1.0 - blend) * (1.0 - bleed);
+
         double wetL = erL + lateL;
         double wetR = erR + lateR;
 
@@ -432,10 +477,10 @@ void RoomEngine::processBlock (juce::AudioBuffer<float>& buffer) noexcept
         wetL = dcL.process (wetL);
         wetR = dcR.process (wetR);
 
-        left[n] = (float) sanitise (dryL * (1.0 - blend) + wetL * blend);
+        left[n] = (float) sanitise (dryL * (1.0 - heard) + wetL * heard);
 
         if (numChannels > 1)
-            right[n] = (float) sanitise (dryR * (1.0 - blend) + wetR * blend);
+            right[n] = (float) sanitise (dryR * (1.0 - heard) + wetR * heard);
 
         if (tapping)
         {

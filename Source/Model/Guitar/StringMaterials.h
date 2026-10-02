@@ -65,12 +65,12 @@ enum class StringAge
 struct MaterialProperties
 {
     const char* name;
-    double densityKgM3;      ///< Bulk density of the wire.
+    double densityKgM3;      ///< Density of a PLAIN string of this set (steel for steel-string sets).
     double woundDensityKgM3; ///< Density of a WOUND string of this type. For nylon
                              ///< and fluorocarbon the winding is silver-plated
                              ///< copper over a floss core, which is nothing like
                              ///< the density of the plain trebles.
-    double youngsModulusPa;  ///< Stiffness, drives inharmonicity.
+    double youngsModulusPa;  ///< Stiffness of the plain wire or wound core, drives inharmonicity.
     double woundMassFactor;  ///< Effective density of a wound string vs a solid one.
     double coreRatio;        ///< Core diameter / outer diameter, for wound strings.
     double sustainSeconds;   ///< Reference open-string T60 on a 648 mm scale.

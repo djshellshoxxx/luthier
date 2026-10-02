@@ -7,6 +7,9 @@
 #include "Accessibility/Accessibility.h"
 #include "UI/Guitar/StringAnimator.h"   // animated-strings.md 8
 #include "UI/NormalizationOptions.h"   // output-normalization.md 5
+#include "UI/Search/SearchNavigator.h"   // global-search.md (FEAT-SEARCH)
+#include "UI/Search/CommandPalette.h"
+#include "UI/Search/RiffSearchProvider.h"   // INTEGRATE-2
 
 namespace luthier
 {
@@ -27,6 +30,7 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
       saveAsPanel (p),
       chordPanel (p),
       workshopOverlay (p),
+      micPlacementOverlay (p),
       secretPanel (p)
 {
     setLookAndFeel (&lookAndFeel);
@@ -91,7 +95,13 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     // The overlay host sits on top of everything and is invisible until used.
     addChildComponent (overlayHost);
 
+    // global-search.md 6.2 (FEAT-SEARCH): the palette sits above the overlay
+    // host and below the MIDI-learn arm layer; the highlight ring above all.
+    searchNav = std::make_unique<search::SearchNavigator> (*this, p);
+    addChildComponent (searchNav->getPalette());
+
     addChildComponent (midiLearnArmLayer);
+    addChildComponent (searchNav->getHighlighter());
 
     header.onMidiLearnArmChanged = [this] (bool armed) { setMidiLearnArmed (armed); };
     header.onImportMidi = [this] (const juce::File& file) { importMidiFile (file); };   // midi-export 5 (MODEL-GAPS)
@@ -117,23 +127,31 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
 
     // ---- header wiring -----------------------------------------------------------
     header.onModeChanged = [this] (bool advanced) { setAdvancedMode (advanced); };
-    header.onOpenHelp = [this] { openHelp (getHelpContext()); };
+    // global-search.md 4.3 (FEAT-SEARCH): the header's buttons run the same
+    // commands as their shortcuts, through performAction.
+    header.onOpenHelp = [this] { performAction ("help"); };
+    header.onOpenSearch = [this] { performAction ("search"); };
 
     // gui-integration.md 6: the wrench opens the WORKSHOP tab in Advanced mode
     // and the same bench as an overlay in Easy mode.
-    header.onOpenWorkshop = [this]
-    {
-        if (advancedMode)
-            advancedPanel.setWorkspaceTabNamed ("WORKSHOP");
-        else
-            showOverlay (&workshopOverlay);
-    };
+    header.onOpenWorkshop = [this] { performAction ("openWorkshop"); };   // FEAT-SEARCH
 
     workshopOverlay.getPanel().onSaveAsGuitar = [this] { showSaveGuitarDialog(); };
 
+    // gui-techniques-updates.md 2 (TECHNIQUES): a pill's right-click opens its sub-tab in Advanced mode.
+    easyPanel.onOpenTechniqueSubTab = [this] (int subTab)
+    {
+        setAdvancedMode (true);
+        header.setAdvancedMode (advancedMode);
+
+        if (advancedMode && advancedPanel.setWorkspaceTabNamed ("TECHNIQUES"))
+            if (auto* techniques = advancedPanel.getTechniquesPanel())
+                techniques->showSubTab (subTab);
+    };
+
     if (auto* bench = advancedPanel.getWorkshopPanel())
         bench->onSaveAsGuitar = [this] { showSaveGuitarDialog(); };
-    header.onOpenOptions = [this] { showOverlay (&optionsPanel); };
+    header.onOpenOptions = [this] { performAction ("options"); };
 
     // output-normalization.md 5.1 and 5.3: the badges and the "turned on" banner.
     header.getNormalizationBadge().onOpenOptions = [this] { openNormalizationOptions(); };
@@ -158,8 +176,8 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
         safe->showOverlay (&safe->optionsPanel);
     };
     header.onOpenRanges = [this] { showOptionsPage ("RANGES"); };
-    header.onOpenExport = [this] { showOverlay (&exportPanel); };
-    header.onOpenPresetBrowser = [this] { showOverlay (&presetBrowser); };
+    header.onOpenExport = [this] { performAction ("export"); };
+    header.onOpenPresetBrowser = [this] { performAction ("presetBrowser"); };
     header.onSaveAs = [this] { showOverlay (&saveAsPanel); };
 
     // The overlay and the HELP tab are one HelpTab in two places; both reach
@@ -172,6 +190,10 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
             showOverlay (&optionsPanel);
             optionsPanel.showShortcutTable();
         };
+
+        // global-search.md 6.1 (FEAT-SEARCH): the HELP tab's Search field opens
+        // the palette on the ? scope.
+        help.onOpenSearch = [this] (const juce::String& text) { searchNav->openPalette ("? " + text); };
     };
 
     wireHelp (helpPanel.getView());
@@ -185,6 +207,11 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     presetBrowser.saveAsPanelRequested = [this] { showOverlay (&saveAsPanel); };
 
     easyPanel.onOpenExport = [this] { showOverlay (&exportPanel); };
+    easyPanel.onOpenAssistRhythmTab = [this] { openAssistInRhythmTab(); };   // FEAT-ASSIST
+
+    // mic-placement.md 6.3 (FEAT-MIC): Easy's pad opens the editor as an overlay.
+    easyPanel.onOpenMicEditor = [this] { showOverlay (&micPlacementOverlay); };
+    micPlacementOverlay.getEditor().onClose = [this] { overlayHost.dismiss(); };
 
     // ---- window --------------------------------------------------------------------
     auto& ui = processor.getUiState();
@@ -224,6 +251,7 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     seenRangeGeneration = RangeState::getGeneration();
     startTimerHz (4);
 
+    buildSearchProviders();   // global-search.md 8 (FEAT-SEARCH)
     // onboarding.md 2-4 (TUNE-HELP-ONBOARDING): banner, tour, first-week hints.
     setupOnboarding();
 
@@ -258,6 +286,16 @@ juce::String LuthierAudioProcessorEditor::advancedUnavailableMessage()
     return "Advanced Mode needs a window at least "
              + juce::String (AdvancedPanel::minimumUsableWidth)
              + " points wide. Widen the window to use it.";
+}
+
+void LuthierAudioProcessorEditor::openAssistInRhythmTab()
+{
+    // FEAT-ASSIST (auto-articulation.md 7.1): the PLAYING group lives in RHYTHM.
+    setAdvancedMode (true);
+    header.setAdvancedMode (advancedMode);
+
+    if (advancedMode)
+        advancedPanel.setWorkspaceTabNamed ("RHYTHM");
 }
 
 void LuthierAudioProcessorEditor::setAdvancedMode (bool advanced)
@@ -457,6 +495,26 @@ void LuthierAudioProcessorEditor::paint (juce::Graphics& g)
                     juce::Justification::centredRight, false);
 }
 
+void LuthierAudioProcessorEditor::applyTooltipPreference()
+{
+    // Tooltips are a user preference, so the window is created or torn down to
+    // match rather than the tips being silently empty.
+    // SPEC-SWEEP: LP-39 / GI-76 - Live Mode suppresses tooltips too: a tip
+    // popping over the snapshot strip mid-song is noise.
+    tooltipDelayMs = processor.getUiState().tooltipsEnabled && ! processor.isLiveMode()
+                         ? Metrics::tooltipDelayMs : 0x7fffffff;
+    tooltips.setMillisecondsBeforeTipAppears (tooltipDelayMs);
+}
+
+juce::String LuthierAudioProcessorEditor::getFooterText() const
+{
+    // SPEC-SWEEP (UM-60 / TS-16) over cpu-quality-modes 5: the window paints
+    // only the latency (the QualityBadge carries the CPU figure); this is the
+    // whole footer as a player reads it, badge included.
+    return "CPU " + juce::String (processor.getEngine().getCpuEstimate(), 1) + "%    "
+           + tr ("quality.badge.latency", { { "n", juce::String (processor.getLatencySamples()) } });
+}
+
 void LuthierAudioProcessorEditor::resized()
 {
     auto bounds = getLocalBounds();
@@ -524,6 +582,9 @@ void LuthierAudioProcessorEditor::resized()
 
     overlayHost.setBounds (getLocalBounds());
     midiLearnArmLayer.setBounds (getLocalBounds());
+
+    if (searchNav != nullptr)   // FEAT-SEARCH
+        searchNav->layout (getLocalBounds(), Metrics::headerHeight);
     discovery.setBounds (getLocalBounds());
     tour.setBounds (getLocalBounds());
 }
@@ -616,10 +677,7 @@ void LuthierAudioProcessorEditor::timerCallback()
         RangesUi::resyncControls (*this);
     }
 
-    // Tooltips are a user preference, so the window is created or torn down to
-    // match rather than the tips being silently empty.
-    tooltips.setMillisecondsBeforeTipAppears (
-        processor.getUiState().tooltipsEnabled ? Metrics::tooltipDelayMs : 0x7fffffff);
+    applyTooltipPreference();
 
     repaint (getLocalBounds().removeFromBottom (Metrics::footerHeight));
 }
@@ -635,20 +693,25 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
         of the table and false of the plugin: this function used to hard-code its
         keys, so rebinding a shortcut changed the row in the table and nothing
         else. Going through the registry is what connects them.
+
+        global-search.md 4.3 (FEAT-SEARCH): the commands themselves are in
+        performAction, so the search palette and the header's buttons run the
+        same code as the keys. What stays here is what is not a command: Escape
+        and the digits.
     */
     auto& shortcuts = AccessibilitySettings::get();
-
-    auto is = [&shortcuts, &key] (const char* actionId)
-    {
-        const auto* binding = shortcuts.findShortcut (actionId);
-        return binding != nullptr && binding->key == key;
-    };
 
     // Escape always closes whatever is open, and is deliberately not rebindable:
     // accessibility 2 makes it the way out of a dialog, so it cannot be lost to a
     // clumsy rebind. An overlay handles it when focused; this is the backstop.
     if (key == juce::KeyPress::escapeKey)
     {
+        if (searchNav != nullptr && searchNav->isPaletteOpen())   // FEAT-SEARCH
+        {
+            searchNav->closePalette();
+            return true;
+        }
+
         // onboarding 3: "Escape ends the tour."
         if (tour.isRunning())
         {
@@ -670,6 +733,68 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
 
         return false;
     }
+
+    // FEAT-JAM: jam-mode 8.2. Its keys do nothing while a text field has focus.
+    if (JamShortcuts::handle (processor, key))
+        return true;
+
+    if (const auto actionId = shortcuts.findAction (key); actionId.isNotEmpty() && ! actionId.startsWith ("jam") && performAction (actionId))
+        return true;
+
+    /*  live-performance 2: digits recall snapshots directly, shifted for the
+        second bank of nine.
+
+        These are not in the rebind registry. Eighteen rows for eighteen digits
+        would bury the table section 17 wants a user to be able to read, and the
+        binding is positional rather than nominal - digit n recalls snapshot n, so
+        there is nothing meaningful to rebind it to. GAPS.md records the
+        deviation. */
+    // SPEC-SWEEP (KS-10): the digit comes from the key code, because Shift+1
+    // types '!' (and something else again on a non-US layout); the text
+    // character is the fallback for a key code outside '1'..'9'.
+    const int keyCode = key.getKeyCode();
+    const auto character = (keyCode >= '1' && keyCode <= '9') ? (juce::juce_wchar) keyCode
+                                                               : key.getTextCharacter();
+
+    if (character >= '1' && character <= '9'
+          && ! key.getModifiers().isCommandDown() && ! key.getModifiers().isAltDown())
+    {
+        const int index = (int) (character - '1')
+                            + (key.getModifiers().isShiftDown() ? 9 : 0);
+
+        if (index < processor.getSnapshots().getNumSnapshots())
+        {
+            processor.recallSnapshot (index);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+//==============================================================================
+/*  global-search.md 8 (FEAT-SEARCH): the built-in providers, then any a
+    feature registers. Add a feature's provider after initialise():
+
+        searchNav->getIndex().addProvider (std::make_unique<RiffProvider> (...));
+
+    docs/SEARCH_INTEGRATION.md has the contract. */
+void LuthierAudioProcessorEditor::buildSearchProviders()
+{
+    searchNav->initialise();
+
+    // riff-library (FEAT-RIFFS, INTEGRATE-2): every riff is a riff: item that
+    // opens the RIFFS tab at it.
+    searchNav->getIndex().addProvider (std::make_unique<search::RiffSearchProvider> (processor.getRiffLibrary(),
+                                                                                    [this] { return advancedPanel.getRiffsPanel(); }));
+}
+
+//==============================================================================
+bool LuthierAudioProcessorEditor::performAction (const juce::String& actionId)
+{
+    // global-search.md 4.3 (FEAT-SEARCH): keyPressed's chain, moved as-is.
+    auto is = [&actionId] (const char* id) { return actionId == id; };
 
     if (is ("help"))            { openHelp (getHelpContext());  return true; }
     if (is ("cycleCpuQuality")) { qualityLink.cycleQuality();   return true; }   // cpu-quality-modes 5
@@ -753,8 +878,28 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
         return true;
     }
 
+    // riff-library 7.1: R selects the RIFFS tab in Advanced and toggles the
+    // Riff drawer in Easy.
+    if (is ("riffs"))
+    {
+        if (advancedMode)
+            advancedPanel.setWorkspaceTabNamed ("RIFFS");
+        else
+            easyPanel.setRiffDrawerOpen (! easyPanel.isRiffDrawerOpen());
+
+        return true;
+    }
+
     if (is ("toggleAdvanced"))
     {
+        // SPEC-SWEEP (USER_MANUAL UM-13 / PROGRESS PR-40): the mode switch is
+        // locked while Live Mode is on, from the keyboard as from the header.
+        if (processor.isLiveMode())
+        {
+            inlineNotice.show ("Easy / Advanced is locked while Live Mode is on", InlineNotice::Level::info);
+            return true;
+        }
+
         setAdvancedMode (! advancedMode);
         header.setAdvancedMode (advancedMode);
         return true;
@@ -784,6 +929,13 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
     if (is ("toggleWorkshop"))
     {
         toggleWorkshop();
+        return true;
+    }
+
+    // auto-articulation.md 7.5 (FEAT-ASSIST): A toggles Performance Assist.
+    if (is ("toggleAssist"))
+    {
+        AssistUi::toggle (processor);
         return true;
     }
 
@@ -822,8 +974,10 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
         StringAnimationSettings::setEnabled (! StringAnimationSettings::isEnabled());
         return true;
     }
-    if (JamShortcuts::handle (processor, key))   // FEAT-JAM: jam-mode 8.2
-        return true;
+    // FEAT-JAM: jam-mode 8.2 (keyPressed keeps the text-field guard).
+    if (is ("jamStartStop")) { processor.jamStartStop(); return true; }
+    if (is ("jamFill"))      { processor.jamFill();      return true; }
+    if (is ("jamArm"))       { processor.jamArmToggle(); return true; }
     if (is ("tapTempo"))  { processor.tapTempoNow(); return true; }
 
     if (is ("killSwitch"))
@@ -934,30 +1088,10 @@ bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
         return true;
     }
 
-    /*  live-performance 2: digits recall snapshots directly, shifted for the
-        second bank of nine.
-
-        These are not in the rebind registry. Eighteen rows for eighteen digits
-        would bury the table section 17 wants a user to be able to read, and the
-        binding is positional rather than nominal - digit n recalls snapshot n, so
-        there is nothing meaningful to rebind it to. GAPS.md records the
-        deviation. */
-    if (const auto character = key.getTextCharacter();
-        character >= '1' && character <= '9')
-    {
-        const int index = (character - '1')
-                            + (key.getModifiers().isShiftDown() ? 9 : 0);
-
-        if (index < processor.getSnapshots().getNumSnapshots())
-        {
-            processor.recallSnapshot (index);
-            return true;
-        }
-    }
-
-    return false;
+    // Commands with no key, and the palette itself (global-search.md 4.3).
+    // Snapshot digit recall lives in keyPressed (it needs the KeyPress).
+    return searchNav != nullptr && searchNav->performExtendedAction (actionId);
 }
-
 
 //==============================================================================
 void LuthierAudioProcessorEditor::openNormalizationOptions()
@@ -1188,6 +1322,46 @@ void LuthierAudioProcessorEditor::pollForNotifications()
         notifications.post (std::move (n));
     }
 
+    // ---- SPEC-SWEEP: ER-38 - an arm nobody answered --------------------------
+    if (processor.getMidiLearn().expireIfIdle (juce::Time::getMillisecondCounter()))
+    {
+        Notification n;
+        n.id = "midi-learn-timeout";
+        n.message = "MIDI Learn cancelled (no MIDI received).";
+        n.level = Notification::Level::info;
+        notifications.post (std::move (n));
+    }
+
+    // ---- SPEC-SWEEP: ER-65 - preferences that could not be read -------------
+    if (UiPreferences::get().takeCorruptionNotice())
+    {
+        Notification n;
+        n.id = "preferences-reset";
+        n.message = "Preferences reset (previous file corrupted, backed up).";
+        n.level = Notification::Level::warning;
+        notifications.post (std::move (n));
+    }
+
+    // ---- SPEC-SWEEP: FF-35/SM-31 - a setlist that would not load whole -----
+    for (const auto& message : processor.takeStateWarnings())
+    {
+        Notification n;
+        n.id = "setlist-load";
+        n.message = message;
+        n.level = Notification::Level::warning;
+        notifications.post (std::move (n));
+    }
+
+    // ---- SPEC-SWEEP: SM-46 - what a load did to the layers around it --------
+    for (const auto& message : processor.takeStateNotices())
+    {
+        Notification n;
+        n.id = "state-model";
+        n.message = message;
+        n.level = Notification::Level::info;
+        notifications.post (std::move (n));
+    }
+
     // ---- a preset that would not load ----------------------------------------
     const auto presetError = processor.getPresetManager().getLastLoadError();
 
@@ -1202,6 +1376,23 @@ void LuthierAudioProcessorEditor::pollForNotifications()
             n.message = presetError;
             n.level = Notification::Level::warning;
 
+            notifications.post (std::move (n));
+        }
+    }
+
+    // ---- SPEC-SWEEP: ER-19/20/21 - a save that did not land ------------------
+    const auto saveError = processor.getPresetManager().getLastSaveError();
+
+    if (saveError != reportedPresetSaveError)
+    {
+        reportedPresetSaveError = saveError;
+
+        if (saveError.isNotEmpty())
+        {
+            Notification n;
+            n.id = "preset-save";
+            n.message = saveError;
+            n.level = Notification::Level::warning;
             notifications.post (std::move (n));
         }
     }

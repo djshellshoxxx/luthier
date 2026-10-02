@@ -9,6 +9,7 @@
 # Environment:
 #   VERSION          default: project(VERSION) from CMakeLists.txt
 #   DIST_DIR         default: dist
+#   BETA_README      completed beta README to include in both packages (optional)
 #   GPG_PRIVATE_KEY  armoured secret key; GPG_PASSPHRASE its passphrase
 #   SOURCE_DATE_EPOCH  timestamps for reproducible archives (default: last commit)
 set -euo pipefail
@@ -20,6 +21,27 @@ OUT="$DIST_DIR/installers"
 VERSION="${VERSION:-$(sed -nE 's/^project\(Luthier VERSION ([0-9.]+).*/\1/p' CMakeLists.txt | tr -d '\r')}"
 SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-$(git log -1 --format=%ct 2>/dev/null || date +%s)}"
 export SOURCE_DATE_EPOCH
+
+if [ -n "${BETA_README:-}" ]; then
+    [ -s "$BETA_README" ] && [[ "$BETA_README" != *.template.md ]] || {
+        echo "BETA_README must point to a nonempty completed README-BETA.md" >&2; exit 1;
+    }
+    # Keep the acceptance gate in line with the portable Windows package.
+    # A Markdown link is valid, but an unlinked bracketed field is not.
+    if python3 - "$BETA_README" <<'PY'
+import pathlib
+import re
+import sys
+
+text = pathlib.Path(sys.argv[1]).read_text(encoding='utf-8')
+sys.exit(not bool(re.search(
+    r'\[[^\]\r\n]+\](?!\()|\{\{[^}]+\}\}|\b(?:TODO|TBD|REPLACE ME)\b|'
+    r'Release owner: replace every bracketed field', text, re.IGNORECASE)))
+PY
+    then
+        echo "BETA_README still contains a placeholder" >&2; exit 1
+    fi
+fi
 
 [ -e "$STAGE/Luthier.vst3" ] || { echo "Nothing staged in $STAGE: run scripts/ci_build.sh first" >&2; exit 1; }
 mkdir -p "$OUT"
@@ -47,6 +69,7 @@ cp packaging/linux/luthier.desktop "$root/share/applications/"
 cp packaging/linux/luthier-mime.xml "$root/share/mime/packages/luthier.xml"
 cp Resources/icon.png "$root/share/icons/hicolor/256x256/apps/luthier.png"
 echo "$VERSION" > "$root/VERSION"
+[ -z "${BETA_README:-}" ] || cp "$BETA_README" "$root/README-BETA.md"
 cat > "$root/README.txt" <<EOF
 Luthier $VERSION for Linux (x86-64)
 
@@ -86,6 +109,7 @@ if command -v dpkg-deb >/dev/null; then
     chmod 755 "$deb_root/DEBIAN/postinst" "$deb_root/DEBIAN/postrm" "$deb_root/usr/bin/"*
     printf 'Luthier %s\nCopyright Luthier Audio. All rights reserved.\n' "$VERSION" \
         > "$deb_root/usr/share/doc/luthier/copyright"
+    [ -z "${BETA_README:-}" ] || cp "$BETA_README" "$deb_root/usr/share/doc/luthier/README-BETA.md"
 
     # The oldest glibc the binaries accept is the newest GLIBC_ symbol version
     # they reference: builds on a new distro do not run on an old one.

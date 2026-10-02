@@ -58,7 +58,7 @@ void BodyEngine::prepare (double sampleRate, int maxBlockSize)
     modeRampTotal = juce::jmax (1, (int) std::round (QualityProfile::kDroppedVoiceRampSeconds * sr));
 
     setAirResonanceGainDb (airGainDb);
-    rebuildModalBank();
+    rebuildModalBank (config);
     applyStagedBank();
     reset();
 }
@@ -109,7 +109,24 @@ void BodyEngine::setMode (Mode m) noexcept
 void BodyEngine::setBodyConfig (const BodyConfig& cfg)
 {
     config = cfg;
-    rebuildModalBank();
+    rebuildModalBank (config);
+}
+
+void BodyEngine::stageBodyConfig (const BodyConfig& cfg)
+{
+    // CODEX-RTSAFETY P0: message thread only. Builds the bank into the staged
+    // slot (takes rebuildLock here, off the audio thread) without disturbing the
+    // live config - commitStagedConfig adopts both at the block boundary.
+    rebuildModalBank (cfg);
+}
+
+void BodyEngine::commitStagedConfig (const BodyConfig& cfg) noexcept
+{
+    // CODEX-RTSAFETY P0: audio thread. BodyConfig is POD, so the copy is bounded;
+    // applyStagedBank is a try-lock plus a fixed-size array copy. No rebuild, no
+    // blocking lock, no allocation.
+    config = cfg;
+    applyStagedBank();
 }
 
 void BodyEngine::setAmount (double amount) noexcept
@@ -140,11 +157,11 @@ void BodyEngine::setOutputGainDb (double db) noexcept
 }
 
 //==============================================================================
-void BodyEngine::rebuildModalBank()
+void BodyEngine::rebuildModalBank (const BodyConfig& cfg)
 {
     const juce::ScopedLock sl (rebuildLock);
 
-    BodyModels::buildModes (config, buildScratch);
+    BodyModels::buildModes (cfg, buildScratch);
 
     stagedCount = juce::jmin ((int) buildScratch.size(), BodyModels::kMaxModes);
 

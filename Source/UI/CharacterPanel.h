@@ -26,6 +26,7 @@
 #include "StringInteractionGroup.h"  // REALISM-B: string-interaction.md 9
 #include "RightHandGroup.h"          // REALISM-B: fingerstyle-attack.md 7
 #include "RealismGroupsC.h"   // REALISM-C
+#include "Techniques/TechniqueMirrors.h"   // gui-techniques-updates.md 5 (TECHNIQUES)
 #include "../Character/CharacterEngine.h"
 
 namespace luthier
@@ -190,6 +191,7 @@ public:
     juce::TextButton& getRetuneAllButton() noexcept { return retuneButton; }
 
 private:
+    std::unique_ptr<TechniqueMirrors> techniqueMirrors;   // TECHNIQUES
 
     /*  Sizes the panel to its content. The workspace viewport keeps whatever
         height a panel gives itself, and this one never gave itself one - so it

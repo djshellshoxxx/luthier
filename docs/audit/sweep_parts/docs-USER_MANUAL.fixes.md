@@ -1,0 +1,10 @@
+- [UM-3] effort S — add `Editor::theOutputLedTracksLevelAndGoesRedWhenOver`: drive `OutputLed::timerCallback` with processor peak at -60 dB / -1 dB / +1 dB and CHECK brightness order and `overThreshold`.
+- [UM-17] (see docs-KEYBOARD_SHORTCUTS KS-25 row) — same test.
+- [UM-19] effort S — add `Fretboard::clicksAndMenuDriveTheEngine` (see KS-23/KS-24) and a spacing check that `fretX(12)` is at half the scale.
+- [UM-20] OWNED by visual (RM-30): `DataStreamDisplay` is constructed in the editor there, with the Options > Appearance switch; doc paragraph left as is.
+- [UM-21] effort S — add `Macros::eachMacroMovesItsDocumentedTargets` in a new test: for each macro, set it 0 vs 1 and CHECK the engine value it multiplies (attack brightness, body amount, amp gain, guitar tone & amp treble, room blend, humanise amount) moves the documented way, and that an Advanced edit survives a macro move.
+- [UM-22] effort S — add `EasyLayout::diceAndPadlockUnderEachMacro`: synthesize `mouseDown` in `diceBounds`/`lockBounds` of each macro knob; CHECK value changes / `isParameterLocked` toggles.
+- [UM-23] effort S — add `EasyLayout::theStyleListIsGroupedByCategory`: CHECK `styleBox` has a section heading per preset category in order, and selecting an item loads that preset.
+- [UM-27] effort S — add `Editor::stringRowsSelectMuteAndWarn`: click a `StringRow` (selects, updates `fretboard.getSelectedString`), click its mute square (mutes), set an absurd tuning and CHECK the row paints the warning colour (or `tensionPlayable == false`).
+- [UM-38] (see docs-KEYBOARD_SHORTCUTS KS-19/KS-20/KS-21 rows) — same tests.
+- [UM-59] DEFERRED: hard reset / the read-only fallback act on the real Documents/Luthier folder (deleting diagnostics *.txt and Cache); a test needs a Documents-root override hook in PresetManager/Diagnostics first (state worker). Crash-log-off-on-load is covered by `Diagnostics::crashLogIsOffOnEveryLoadAndStartsWithTheReport`.

@@ -107,7 +107,9 @@ function Step-Build {
     $targets = @('Luthier_VST3', 'Luthier_Standalone', 'LuthierTests', 'LuthierRender')
     if (Test-Path 'ThirdParty/clap-juce-extensions') { $targets += 'Luthier_CLAP' }
     Write-Step "Building $($targets -join ' ') with $Jobs jobs"
-    Invoke-Checked 'Build' { cmake --build $BuildDir --config $Config --parallel $Jobs --target @targets }
+    # -k 0: keep going after a failed compile so one CI run surfaces every
+    # compiler error, not just the first. A successful build is unaffected.
+    Invoke-Checked 'Build' { cmake --build $BuildDir --config $Config --parallel $Jobs --target @targets -- -k 0 }
 }
 
 function Step-Test {
@@ -117,6 +119,20 @@ function Step-Test {
     Write-Step 'Running the unit tests'
     & $runner 2>&1 | Tee-Object -FilePath (Join-Path $LogDir 'unit-tests.log')
     if ($LASTEXITCODE -ne 0) { throw "Tests failed ($LASTEXITCODE)." }
+
+    # SPEC-SWEEP (TROUBLESHOOTING TS-1, README RM-17): the documented install
+    # paths match the installers, and luthier-render's documented flags work.
+    & cmake -P scripts/check_packaging_paths.cmake
+    if ($LASTEXITCODE -ne 0) { throw "Install locations have drifted from docs/TROUBLESHOOTING.md." }
+
+    $render = Join-Path $BuildDir "LuthierRender_artefacts/$Config/LuthierRender.exe"
+    if (Test-Path $render) {
+        Write-Step 'Smoke-testing luthier-render'
+        & cmake "-DRENDER=$render" "-DMIDI=$PWD/Tools/testdata/two_bars.mid" `
+                "-DOUT_DIR=$BuildDir/render-cli-smoke" -P scripts/render_cli_smoke.cmake 2>&1 |
+            Tee-Object -FilePath (Join-Path $LogDir 'render-cli.log')
+        if ($LASTEXITCODE -ne 0) { throw "luthier-render smoke test failed ($LASTEXITCODE)." }
+    }
 }
 
 function Get-Pluginval {

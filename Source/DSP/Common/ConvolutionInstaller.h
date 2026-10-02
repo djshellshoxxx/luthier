@@ -39,8 +39,10 @@ namespace luthier::ConvolutionInstaller
                                     int timeoutMs = 4000,
                                     int settleSamples = 0)
     {
+        // Never a block larger than the convolution was prepared for: its
+        // internal buffers are sized to `blockSize` (a host at 1 sample is real).
         juce::AudioBuffer<float> silence (juce::jmax (1, numChannels),
-                                          juce::jlimit (16, 4096, blockSize));
+                                          juce::jlimit (1, 4096, blockSize));
 
         const auto deadline = juce::Time::getMillisecondCounter() + (juce::uint32) timeoutMs;
 

@@ -1,0 +1,80 @@
+{
+ "bass_tech": [
+  {"beat":0,"force":0.8,"pos":0.5,"str":2,"tech":"slap"},
+  {"beat":0.5,"force":0.8,"pos":0.5,"str":0,"tech":"pop"},
+  {"beat":1,"force":0.8,"pos":0.5,"str":2,"tech":"slap"},
+  {"beat":1.5,"force":0.8,"pos":0.5,"str":0,"tech":"pop"},
+  {"beat":2,"force":0.8,"pos":0.5,"str":2,"tech":"slap"},
+  {"beat":2.5,"force":0.8,"pos":0.5,"str":0,"tech":"pop"},
+  {"beat":3,"force":0.8,"pos":0.5,"str":2,"tech":"slap"},
+  {"beat":3.75,"force":0.8,"pos":0.5,"str":0,"tech":"pop"},
+  {"beat":4,"force":0.8,"pos":0.5,"str":2,"tech":"slap"},
+  {"beat":4.5,"force":0.8,"pos":0.5,"str":0,"tech":"pop"},
+  {"beat":5,"force":0.8,"pos":0.5,"str":2,"tech":"slap"},
+  {"beat":5.5,"force":0.8,"pos":0.5,"str":0,"tech":"pop"},
+  {"beat":6,"force":0.8,"pos":0.5,"str":3,"tech":"slap"},
+  {"beat":6.5,"force":0.8,"pos":0.5,"str":1,"tech":"pop"},
+  {"beat":7,"force":0.8,"pos":0.5,"str":3,"tech":"slap"},
+  {"beat":7.5,"force":0.8,"pos":0.5,"str":3,"tech":"slap"},
+  {"beat":7.75,"force":0.8,"pos":0.5,"str":1,"tech":"pop"}
+ ],
+ "magic": "luthier.riff",
+ "meta": {
+  "author": "L",
+  "created": "2026-09-24T00:00:00Z",
+  "id": "soul.bass.popped-groove-bass-1",
+  "modified": "2026-09-24T00:00:00Z",
+  "name": "Popped Groove Bass 1",
+  "notes": "",
+  "origin": "original",
+  "tags": ["slap","ghost-notes","sixteenths"],
+  "version_created": "1.3.0",
+  "version_modified": "1.3.0"
+ },
+ "notes": [
+  {"beat":0,"dur":0.25,"fret":5,"str":2,"tech":[],"vel":0.8},
+  {"beat":0.5,"dur":0.25,"fret":7,"str":0,"tech":[],"vel":0.8},
+  {"beat":1,"dur":0.25,"fret":5,"str":2,"tech":[],"vel":0.8},
+  {"beat":1.25,"dur":0.25,"fret":5,"str":2,"tech":[{"second":0,"type":"ghost","value":0}],"vel":0.8},
+  {"beat":1.5,"dur":0.25,"fret":7,"str":0,"tech":[],"vel":0.8},
+  {"beat":2,"dur":0.25,"fret":3,"str":2,"tech":[],"vel":0.8},
+  {"beat":2.5,"dur":0.25,"fret":5,"str":0,"tech":[],"vel":0.8},
+  {"beat":3,"dur":0.25,"fret":5,"str":2,"tech":[],"vel":0.8},
+  {"beat":3.5,"dur":0.25,"fret":0,"str":2,"tech":[{"second":0,"type":"dead","value":0}],"vel":0.8},
+  {"beat":3.75,"dur":0.25,"fret":7,"str":0,"tech":[],"vel":0.8},
+  {"beat":4,"dur":0.25,"fret":5,"str":2,"tech":[],"vel":0.8},
+  {"beat":4.5,"dur":0.25,"fret":7,"str":0,"tech":[],"vel":0.8},
+  {"beat":5,"dur":0.25,"fret":5,"str":2,"tech":[],"vel":0.8},
+  {"beat":5.25,"dur":0.25,"fret":5,"str":2,"tech":[{"second":0,"type":"ghost","value":0}],"vel":0.8},
+  {"beat":5.5,"dur":0.25,"fret":7,"str":0,"tech":[],"vel":0.8},
+  {"beat":6,"dur":0.25,"fret":5,"str":3,"tech":[],"vel":0.8},
+  {"beat":6.5,"dur":0.25,"fret":7,"str":1,"tech":[],"vel":0.8},
+  {"beat":7,"dur":0.25,"fret":3,"str":3,"tech":[],"vel":0.8},
+  {"beat":7.5,"dur":0.25,"fret":5,"str":3,"tech":[],"vel":0.8},
+  {"beat":7.75,"dur":0.25,"fret":7,"str":1,"tech":[],"vel":0.8}
+ ],
+ "riff": {
+  "capo": 0,
+  "chords": [
+   {"beat":0,"symbol":"Dm7"}
+  ],
+  "difficulty": 3,
+  "feel": "straight",
+  "genre": "soul",
+  "instrument": "bass4",
+  "key": {
+   "root": "D",
+   "scale": "dorian"
+  },
+  "length_beats": 8,
+  "meter": [4,4],
+  "techniques": ["dead","ghost","slap","pop"],
+  "tempo_bpm": 96,
+  "tuning": [43,38,33,28],
+  "tuning_name": "Standard",
+  "type": "bass"
+ },
+ "schema": 1,
+ "source": "s: sl3.5 r po1.7 r sl3.5 3.5g po1.7 r sl3.3 r po1.5 r sl3.5 r 3.x po1.7 | s: sl3.5 r po1.7 r sl3.5 3.5g po1.7 r sl4.5 r po2.7 r sl4.3 r sl4.5 po2.7 |",
+ "strums": []
+}

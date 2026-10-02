@@ -1,0 +1,30 @@
+## docs/MIDI_EXPORT_LUTHIER_PROFILE.md
+
+This byte-level spec is implemented as written in `Source/Export/` (`LuthierMidiEvents`, `MidiProfiles`, `LiveMidiOut`) and is the best-tested document in the set: 25 `MidiExport.*` tests plus `MidiImport.*` and `MidiOutPanel.*`. The PPQ bounds, header keys and checksum, `LUTHIER-AT`, BEGIN/text/SysEx/END framing, escaping, all 18 classes with their defaults, the Generic profile, live SysEx and `.midprofile` all match. The gaps are only untested edges: SMPTE refusal, the 4,000,000-event cap, a newer wire version being refused, and Generic's "Bass…" track becoming part 1.
+
+| Req | Summary | Engine location | GUI location | Test | Status |
+|---|---|---|---|---|---|
+| MX-1 (§1) | SMF format 1, PPQ 96-3840 default 960 | `Export/MidiProfiles.h:kMinPpq/kMaxPpq/kDefaultPpq` | MIDI OUT tab profile | `MidiExport::luthierProfileIsSampleExactAtEveryPpqAndSplit` | DONE |
+| MX-2 (§1) | SMPTE timing refused on import | `MidiProfiles.cpp:~1216` | n/a | `MidiExport::smpteTimingIsRefused` | DONE |
+| MX-3 (§1) | Track 0 meta layout; tracks 1..n name + bend RPN block (101/100/6/38/101 127/100 127) at tick 0; import strips it | `MidiProfiles.cpp` writer | n/a | `MidiExport::genericProfileIsPlainMidi` (RPN sequence checked) | DONE |
+| MX-4 (§1) | Splits single/section/instrument/string with names (title or "Guitar", section or "Start", part name, "String N"); note-off in note-on's track | `MidiProfiles.cpp:~771-876, 1133` | MIDI OUT split choice | `MidiExport::trackSplitsNameTheirTracks` | DONE |
+| MX-5 (§2) | Header `FF 7F .. 7D LUTHIER <wire> <fields> <checksum>`; keys profile/sr/ppq/split/sysex/messages/events/bend/parts(%2C)/identifiers | `MidiProfiles.cpp:~900-930` | n/a | `MidiExport::luthierProfileIsSampleExactAtEveryPpqAndSplit`, `MidiExport::stripIdentifiersLeavesNoNamesOrSeeds` | DONE |
+| MX-6 (§2) | Unknown keys ignored; missing header -> Generic without warning; bad checksum or counts -> refused | `MidiProfiles.cpp:~1713` count check | n/a | `MidiExport::headerStrippedFileLoadsAsGenericWithoutWarning`, `MidiExport::everyFlippedByteIsRefusedGracefully` | DONE |
+| MX-7 (§3) | `LUTHIER-AT dt= part= n=` before off-tick / part!=0 / multi-track messages; other SR ignores dt and says so | `MidiProfiles.cpp:~450-480, 1057` | n/a | `MidiExport::luthierProfileIsSampleExactAtEveryPpqAndSplit`, `MidiExport::anotherSampleRateFallsBackToTheTick` | DONE |
+| MX-8 (§4) | Four-event framing BEGIN / text / SysEx `F0 7D 'L' 'T'` / END; payload 0x20-0x7E + 7-bit checksum; either copy accepted, disagreement refused | `LuthierMidiEvents.cpp`, `MidiProfiles.cpp:~509-590` | n/a | `MidiExport::eventPayloadsAreTaggedSevenBitText`, `MidiExport::eitherCopyOfAnEventIsEnough`, `MidiExport::damagedExtensionEventsAreRefused` | DONE |
+| MX-9 (§4) | Unknown class kept (fields or bytes) and written back | `LuthierEventClass::unknown` | n/a | `MidiExport::everyEventClassRoundTripsWithEveryField` (FUTURE_THING / FUTURE_BLOB) | DONE |
+| MX-10 (§5) | Integers, shortest round-trip reals (live out 6 dp), %XX escaping, `%00` forbidden, lists; key/class charsets; dt/part reserved | `LuthierEvents::escapeValue/formatReal` | n/a | `MidiExport::realsAndTextSurviveTheWireExactly` | DONE |
+| MX-11 (§6) | 18 classes at schema 1 with the documented fields and defaults (e.g. PICK celluloid/0.71, VIBRATO rate 5, CHARACTER 20 C/45 %, BASS_TECH 0.5/0.8) | `LuthierMidiEvents.cpp:23-40, ~240-330` | n/a | `MidiExport::everyEventClassRoundTripsWithEveryField` | DONE |
+| MX-12 (§6) | Missing field reads as default and is listed `CLASS.field` in the load notification | `MidiImportResult::defaultedFields` | import banner | `MidiExport::importWarnsOfAdvancedRangesAndNewerSchemas` (STRUM.cv), `MidiExport::stripIdentifiersLeavesNoNamesOrSeeds` | DONE |
+| MX-13 (§6) | tech/value/second/curve carry the notation technique so a score round-trips | `PerformanceScore` <-> events | NOTATION tab | `MidiExport::aScoreSurvivesBothProfiles` | DONE |
+| MX-14 (§6) | RANGES value outside stock warns on import | `MidiProfiles` import | import banner | `MidiExport::importWarnsOfAdvancedRangesAndNewerSchemas` | DONE |
+| MX-15 (§7) | Newer class schema: read known fields, keep rest, warn | import | n/a | `MidiExport::importWarnsOfAdvancedRangesAndNewerSchemas` | DONE |
+| MX-16 (§7) | Newer wire version: kept as bytes in unknown class, refused in known class or header | `MidiProfiles.cpp` wire check | n/a | `MidiExport::aNewerWireVersionIsRefusedInAKnownClassAndTheHeader`; unknown-class bytes: `MidiExport::everyEventClassRoundTripsWithEveryField` (FUTURE_BLOB, wire 2) | DONE |
+| MX-17 (§8) | Generic: no header/AT/markers/SysEx, nearest tick, realism as one `LUTHIER:` text meta without dt/part/identifiers | `MidiProfiles.cpp` generic writer | MIDI OUT profile = Generic | `MidiExport::genericProfileIsPlainMidi`, `MidiExport::genericRoundTripNullsWithinThirtyDb` | DONE |
+| MX-18 (§8) | Generic import reads channel messages only; a track named "Bass..." is part 1 | `MidiProfiles.cpp` generic import | n/a | `MidiImport::aGenericBassTrackIsPartOne` | DONE |
+| MX-19 (§9) | `LuthierSysExOut` writes the SysEx copy with no dt, from fixed storage on the audio thread; `decodeSysEx` reads it | `Export/LiveMidiOut.h:LuthierSysExOut`, `LuthierEvents::decodeSysEx` | ROUTING / MIDI OUT live switches | `MidiExport::liveSysExIsDroppedByOtherHostsAndReadByLuthier`, `MidiOutPanel::liveEventsAndWorkshopChangesGoOutAsLuthierSysEx` | DONE |
+| MX-20 (§10) | `.midprofile` JSON: magic/config required, PPQ clamped, unknown names warn, newer schema loads | `MidiProfiles` profile I/O | MIDI OUT save/load profile | `MidiExport::midprofileSavesAndLoads` | DONE |
+| MX-21 (§11) | Refusals name the byte ("Byte 0x0001A2 (418): ..."), lengths bounds-checked | `MidiProfiles.cpp:~24-27 byteRef` | import banner | `MidiExport::everyFlippedByteIsRefusedGracefully` | DONE |
+| MX-22 (§11) | More than 4,000,000 events refused | `MidiProfiles.cpp:kMaxEvents` | n/a | - | DEFERRED |
+
+<!-- counts DONE=21 NO-GUI=0 NO-TEST=0 PARTIAL=0 MISSING=0 OWNED=0 DEFERRED=1 -->

@@ -32,6 +32,7 @@
 #include "Theme.h"
 #include "Widgets.h"
 #include "../Live/Setlist.h"
+#include "LiveSetup.h"   // SPEC-SWEEP: LP-16 / LP-18 / LP-19 / LP-31 / GI-119
 
 namespace luthier
 {
@@ -109,6 +110,16 @@ private:
     juce::TextButton recallButton  { "Recall" };
     juce::TextButton renameButton  { "Rename..." };
     juce::TextButton clearButton   { "Clear" };
+    juce::TextButton colourButton  { "Colour" };   // SPEC-SWEEP: GI-4
+
+public:
+    /** SPEC-SWEEP: GI-4 - the colour-tag menu, exposed for tests: item id =
+        1 + tag. */
+    juce::PopupMenu buildColourMenu() const;
+    void applyColourMenuResult (int result);
+    juce::TextButton& getColourButton() noexcept { return colourButton; }
+
+private:
 
     /*  The setlist is a list because it *is* a sequence - the order is the whole
         content - which is exactly why the bank above it is not one. */
@@ -130,6 +141,17 @@ private:
     juce::ComboBox morphCurveBox;
     juce::ToggleButton morphEnabled { "Morph between two snapshots" };
     juce::Label morphSlotsLabel;
+
+    // SPEC-SWEEP: LP-16 / LP-18 / LP-19 / LP-11 and LP-31 / GI-119.
+    MorphSetupPanel morphSetup;
+    juce::Label monitorHeading;
+    MonitorSetupPanel monitorSetup;
+
+public:
+    MorphSetupPanel& getMorphSetup() noexcept { return morphSetup; }
+    MonitorSetupPanel& getMonitorSetup() noexcept { return monitorSetup; }
+
+private:
 
     std::unique_ptr<juce::AlertWindow> renameWindow;
 

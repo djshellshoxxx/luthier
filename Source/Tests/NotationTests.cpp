@@ -272,6 +272,136 @@ LUTHIER_TEST (Notation, musicXmlIsWellFormedAndGuitarAware)
 }
 
 //==============================================================================
+/*  Task X (notation-export.md 2.1): the standard staff, distinct from the
+    ASCII/GP tab lane - real noteheads, no fret numbers. The fixture's ten
+    notes are known in advance (makeTestScore's own table, standard tuning),
+    so the written pitch and duration of every one of them is checked, not
+    just that the writer produced *some* plausible XML. */
+LUTHIER_TEST (Notation, musicXmlStandardStaffHasCorrectPitchesAndDurations)
+{
+    const auto score = makeTestScore();
+
+    NotationExportOptions options;
+    options.staffMode = NotationExportOptions::StaffMode::standardStaff;
+
+    NotationExporter exporter;
+    const auto xml = exporter.renderMusicXml (score, options);
+
+    auto parsed = juce::parseXML (xml);
+    CHECK_MSG (parsed != nullptr, "the standard-staff MusicXML did not parse");
+
+    if (parsed == nullptr)
+        return;
+
+    auto* part = parsed->getChildByName ("part");
+    CHECK (part != nullptr);
+
+    if (part == nullptr)
+        return;
+
+    // A real staff: treble clef sounding an octave below what is printed,
+    // not a TAB clef, and no staff-details (that block only means something
+    // when there is a fret number to make sense of).
+    auto* firstMeasure = part->getChildByName ("measure");
+    CHECK (firstMeasure != nullptr);
+
+    if (firstMeasure != nullptr)
+    {
+        auto* attributes = firstMeasure->getChildByName ("attributes");
+        CHECK (attributes != nullptr);
+
+        if (attributes != nullptr)
+        {
+            auto* clef = attributes->getChildByName ("clef");
+            CHECK (clef != nullptr);
+
+            if (clef != nullptr)
+            {
+                CHECK (clef->getChildElementAllSubText ("sign", "") == "G");
+                CHECK (clef->getChildElementAllSubText ("clef-octave-change", "") == "-1");
+            }
+
+            CHECK_MSG (attributes->getChildByName ("staff-details") == nullptr,
+                       "standard staff wrote staff-details, which is tab-only");
+        }
+    }
+
+    // The fixture's ten notes, in order, as written on a standard staff: the
+    // sounding pitch (open string + fret) raised an octave to match the
+    // clef's -1 octave-change, and the same duration as the source note.
+    struct Expected { const char* step; int alter; int octave; int durationTicks; };
+
+    const Expected expected[] =
+    {
+        { "E", 0, 3, 240 },   // string 5 fret 0  (E2 -> written E3)
+        { "G", 0, 3, 240 },   // string 5 fret 3  (G2 -> written G3)
+        { "B", 0, 3, 240 },   // string 4 fret 2  (B2 -> written B3)
+        { "A", 0, 3, 240 },   // string 4 fret 0  (A2 -> written A3)
+        { "E", 0, 4, 480 },   // string 3 fret 2  (E3 -> written E4)
+        { "G", 0, 4, 480 },   // string 2 fret 0  (G3 -> written G4)
+        { "C", 0, 5, 240 },   // string 1 fret 1  (C4 -> written C5)
+        { "E", 0, 6, 240 },   // string 0 fret 12 (E5 -> written E6)
+        { "G", 0, 6, 480 },   // string 0 fret 15 (G5 -> written G6)
+        { "E", 0, 3, 960 },   // string 5 fret 0  (E2 -> written E3)
+    };
+
+    const int numExpected = (int) (sizeof (expected) / sizeof (expected[0]));
+    int noteIndex = 0, technicalOnStandardStaff = 0;
+
+    for (auto* measure : part->getChildWithTagNameIterator ("measure"))
+    {
+        for (auto* note : measure->getChildWithTagNameIterator ("note"))
+        {
+            if (note->getChildByName ("rest") != nullptr)
+                continue;
+
+            if (auto* notations = note->getChildByName ("notations"))
+                if (notations->getChildByName ("technical") != nullptr)
+                    ++technicalOnStandardStaff;
+
+            if (! juce::isPositiveAndBelow (noteIndex, numExpected))
+            {
+                ++noteIndex;
+                continue;
+            }
+
+            const auto& want = expected[(size_t) noteIndex];
+            auto* pitch = note->getChildByName ("pitch");
+
+            CHECK_MSG (pitch != nullptr, "note " + juce::String (noteIndex) + " has no <pitch>");
+
+            if (pitch != nullptr)
+            {
+                CHECK_MSG (pitch->getChildElementAllSubText ("step", "") == want.step,
+                           "note " + juce::String (noteIndex) + " step "
+                             + pitch->getChildElementAllSubText ("step", "?") + ", expected " + want.step);
+
+                CHECK_MSG (pitch->getChildElementAllSubText ("alter", "0").getIntValue() == want.alter,
+                           "note " + juce::String (noteIndex) + " alter wrong");
+
+                CHECK_MSG (pitch->getChildElementAllSubText ("octave", "").getIntValue() == want.octave,
+                           "note " + juce::String (noteIndex) + " octave "
+                             + pitch->getChildElementAllSubText ("octave", "?") + ", expected "
+                             + juce::String (want.octave));
+            }
+
+            CHECK_MSG (note->getChildElementAllSubText ("duration", "").getIntValue() == want.durationTicks,
+                       "note " + juce::String (noteIndex) + " duration "
+                         + note->getChildElementAllSubText ("duration", "?") + ", expected "
+                         + juce::String (want.durationTicks));
+
+            ++noteIndex;
+        }
+    }
+
+    CHECK_MSG (noteIndex == numExpected,
+               juce::String (noteIndex) + " notes found, expected " + juce::String (numExpected));
+
+    CHECK_MSG (technicalOnStandardStaff == 0,
+               juce::String (technicalOnStandardStaff) + " notes carried tab <technical> on the standard staff");
+}
+
+//==============================================================================
 /*  notation-export 6: MusicXML round trip - export, reimport, compare. */
 LUTHIER_TEST (Notation, musicXmlRoundTrips)
 {

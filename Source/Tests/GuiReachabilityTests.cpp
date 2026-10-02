@@ -31,6 +31,7 @@
 #include "../UI/GuitarBodyComponent.h"
 #include "../UI/RightHandGroup.h"
 #include "../UI/RealismGroupsC.h"
+#include "../UI/Search/ParameterVisibility.h"   // FEAT-SEARCH
 
 #include <set>
 
@@ -40,25 +41,12 @@ using namespace luthier::combo;
 
 namespace
 {
-    /*  Parameters with no visible control on purpose. Each needs a reason a
-        reviewer would accept; anything not here that has no control fails. */
+    /*  Parameters with no visible control on purpose. The list lives in
+        ParameterVisibility.h so the search index leaves out exactly the same
+        ones (global-search.md 2, FEAT-SEARCH). */
     const std::map<juce::String, juce::String>& intentionallyHidden()
     {
-        static const std::map<juce::String, juce::String> m
-        {
-            { "feedback_on",        "superseded by feedback_amount (ambiguity-resolutions 1.2); kept for automation indices" },
-            { "feedback_threshold", "superseded by the physical feedback loop (ambiguity-resolutions 1.2)" },
-            { "feedback_speed",     "superseded by the physical feedback loop (ambiguity-resolutions 1.2)" },
-            { "fret_action",        "superseded by the setup geometry (DECISIONS.md, fret-buzz 7); inert, kept for automation indices" },
-            { "doubler_on",         "legacy engine doubler: a load migrates it to a Doubler pedal (PresetManager::fromVar)" },
-            { "doubler_amount",     "legacy engine doubler; the Doubler pedal's own knobs replace it" },
-            { "strum_speed",        "superseded by strum_crossing_sps (strum-dynamics 7); kept for automation indices" },
-            { "string_age",         "legacy: read only at a preset load, mapped to string_age_hours (string-aging 1) and the stability spread (tuning-stability 7)" },
-            { "tune_feel_mod",      "a modulation destination for the tune's timeline (tune-builder 14), reached from the MOD matrix" },
-            { "tune_tempo_drift",   "a modulation destination for the tune's timeline (tune-builder 14), reached from the MOD matrix" },
-        };
-
-        return m;
+        return ParameterVisibility::intentionallyHidden();
     }
 
     template <typename T>
@@ -384,6 +372,11 @@ namespace
             // style stands for; its own choice is the one credited.
             bool credit = ! ids.empty() && ids.size() <= 3;
 
+            // The preset morph slider writes its own position first, then every
+            // parameter the two slots blend: far more than three ids.
+            if (! credit && isSlider && ! ids.empty() && ids.front() == ParamIDs::presetMorphPosition)
+                credit = true;
+
             if (! credit && isCombo && ! ids.empty())
                 if (auto* choice = dynamic_cast<juce::AudioParameterChoice*> (p.getParameters()[p.getState().getParameter (ids.front())->getParameterIndex()]))
                     credit = std::abs (choice->choices.size() - dynamic_cast<juce::ComboBox*> (c)->getNumItems()) <= 1;
@@ -468,6 +461,19 @@ namespace
                 adv->setWorkspaceTab (t);
                 editor->resized();
                 scanView (context + "/Advanced/" + adv->getWorkspaceTabName (t), root, p, rec, walk, operated);
+
+                // The TECHNIQUES tab is a rail of sub-tabs (SCRAPE, SLIDE, SLAP,
+                // MUTE, TAP, BEND, CASCADE); a rail button switches between them,
+                // so each sub-tab's controls are only on screen while it is shown.
+                // Walk every sub-tab, as a user reaches them.
+                if (auto* tech = adv->getTechniquesPanel(); tech != nullptr && tech->isVisible())
+                    for (int st = 0; st < tech->getNumSubTabs(); ++st)
+                    {
+                        tech->showSubTab (st);
+                        editor->resized();
+                        scanView (context + "/Advanced/TECHNIQUES/" + juce::String (TechniquesPanel::getSubTabName (st)),
+                                  root, p, rec, walk, operated);
+                    }
             }
 
             key ("toggleSlideMode"); scanView (context + "/Advanced+Slide", root, p, rec, walk, operated); key ("toggleSlideMode");
@@ -529,6 +535,13 @@ namespace
 
         for (const char* action : { "help", "presetBrowser", "export", "debugPanel", "saveAs", "options" })
         {
+            // The browser shows the A/B slots and the morph slider only while
+            // Morph is on, and a toggle's state change does not run its onClick:
+            // turn Morph on before the browser opens, as its button does.
+            const bool morphWasOn = p.getPresetMorph().isEnabled();
+            if (juce::String (action) == "presetBrowser")
+                p.getPresetMorph().setEnabled (true);
+
             key (action);
 
             if (host == nullptr || ! host->isShowingOverlay())
@@ -551,6 +564,7 @@ namespace
                     }
 
             editor->keyPressed (juce::KeyPress (juce::KeyPress::escapeKey));
+            p.getPresetMorph().setEnabled (morphWasOn);
         }
     }
 
@@ -570,6 +584,16 @@ namespace
                     if (c != nullptr)
                         for (int i = 0; i < c->choices.size(); ++i)
                             if (c->choices[i].containsIgnoreCase ("bass")) { r.setIndex (ParamIDs::guitarType, i); break; }
+                } },
+            // FEAT-MIC (mic-placement.md 6.1): the external mics' controls are
+            // shown on an acoustic guitar, with its second mic on.
+            { "acoustic", [] (Rig& r)
+                {
+                    auto* c = dynamic_cast<juce::AudioParameterChoice*> (r.param (ParamIDs::guitarType));
+                    if (c != nullptr)
+                        for (int i = 0; i < c->choices.size(); ++i)
+                            if (c->choices[i].containsIgnoreCase ("dread")) { r.setIndex (ParamIDs::guitarType, i); break; }
+                    r.setIndex (ParamIDs::acMic2On, 1);
                 } },
             { "whammy+slide+slap", [] (Rig& r)
                 {
@@ -659,7 +683,7 @@ LUTHIER_TEST (GuiReach, everyAutomatableParameterHasAVisibleControl)
 
         // Pedal slot parameters p0-p9 are summarised separately: a pedal with
         // four knobs leaves p4-p9 unused, which is not a missing control.
-        if (id.matchesWildcard ("pre*_p*", true) || id.matchesWildcard ("post*_p*", true))
+        if (id.matchesWildcard ("pre?_p?", true) || id.matchesWildcard ("post?_p?", true))
         {
             pedalParamsMissing.add (id);
             continue;
@@ -711,6 +735,7 @@ LUTHIER_TEST (GuiReach, operatingEachControlWritesItsParameter)
     auto& walk = theWalk();
 
     int ok = 0;
+    juce::StringArray neverOperated;
     for (auto& [id, r] : walk.reach)
     {
         if (r.visibleIn.empty())
@@ -718,10 +743,59 @@ LUTHIER_TEST (GuiReach, operatingEachControlWritesItsParameter)
 
         if (r.operatedOk) { ++ok; continue; }
 
+        if (r.operateProblem.isEmpty())
+            neverOperated.add (id);
+
         if (r.operateProblem.isNotEmpty())
             CHECK_MSG (false, id + ": " + r.operateProblem);
     }
 
     std::cout << "    parameters whose control was operated and wrote them: " << ok << std::endl;
+
+    if (neverOperated.size() > 0)
+        std::cout << "    visible but never operated: " << neverOperated.joinIntoString (" ") << std::endl;
+
     CHECK (ok > 0);
+}
+
+//==============================================================================
+/*  GUITAR column's "Open in Workshop" button (gui-integration 4.1) switches the
+    Advanced panel to the WORKSHOP tab. */
+LUTHIER_TEST (GuiReach, openInWorkshopButtonShowsTheWorkshopTab)
+{
+    Rig rig;
+    std::unique_ptr<juce::AudioProcessorEditor> editor (rig.p().createEditor());
+    CHECK (editor != nullptr);
+
+    if (editor == nullptr)
+        return;
+
+    editor->setVisible (true);
+    editor->setSize (juce::jmax (1600, LuthierAudioProcessorEditor::defaultWidth),
+                     juce::jmax (1000, LuthierAudioProcessorEditor::defaultHeight));
+
+    auto* adv = findOne<AdvancedPanel> (*editor);
+    CHECK (adv != nullptr);
+
+    if (adv == nullptr)
+        return;
+
+    adv->setWorkspaceTabNamed ("MOD");   // anything but WORKSHOP
+
+    juce::Array<juce::TextButton*> buttons;
+    collect<juce::TextButton> (*adv, buttons);
+
+    juce::TextButton* open = nullptr;
+    for (auto* b : buttons)
+        if (b->getButtonText() == "Open in Workshop")
+            open = b;
+
+    CHECK (open != nullptr);
+
+    if (open == nullptr)
+        return;
+
+    CHECK (adv->getWorkspaceTabName (adv->getWorkspaceTab()) != "WORKSHOP");
+    open->onClick();
+    CHECK_MSG (adv->getWorkspaceTabName (adv->getWorkspaceTab()) == "WORKSHOP", "Open in Workshop did not show the WORKSHOP tab");
 }

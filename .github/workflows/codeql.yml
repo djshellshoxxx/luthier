@@ -1,0 +1,60 @@
+# CodeQL static analysis for the C/C++ sources. Manual build (cmake + Ninja)
+# rather than autobuild: this is a JUCE CMake project that needs the Linux GUI
+# dev packages and a fetched JUCE tree, which autobuild does not set up.
+# Building LuthierTests compiles the engine + UI sources, giving CodeQL a full
+# database without the cost of the plugin/packaging steps.
+name: CodeQL
+
+on:
+  push:
+    branches: [master, codex/luthier-beta]
+  pull_request:
+    branches: [master, codex/luthier-beta]
+  schedule:
+    - cron: '27 4 * * 1'   # weekly, Mondays 04:27 UTC
+
+permissions:
+  contents: read
+  security-events: write   # required to upload code-scanning results
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # CodeQL must observe every compilation to build its database, so ccache is
+  # disabled here (a cache hit would skip the compiler and leave the DB empty).
+  # It also avoids the root-owned ccache dir that setup_linux.sh's sudo run
+  # created, which broke the build with "ccache: error: Permission denied".
+  CCACHE_DISABLE: '1'
+
+jobs:
+  analyze:
+    name: Analyze (C/C++)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: c-cpp
+
+      - name: Set up build dependencies and configure
+        run: |
+          sudo -E scripts/setup_linux.sh
+          sudo chown -R "$USER" .
+          # setup_linux.sh bakes ccache in as the CMake compiler launcher when
+          # ccache is installed. Clear both launchers so ninja invokes the
+          # compilers directly, which CodeQL can trace (and which avoids the
+          # root-owned ccache dir permission error).
+          cmake -B build -DCMAKE_C_COMPILER_LAUNCHER= -DCMAKE_CXX_COMPILER_LAUNCHER=
+
+      - name: Build LuthierTests
+        run: ninja -C build -j2 LuthierTests
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:c-cpp

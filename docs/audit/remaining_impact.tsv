@@ -1,0 +1,932 @@
+CLAUDE_CODE_BRIEF	CB-4	PARTIAL	Engine/GUI	FEATURE	Tap, bend, mute engines, technique cascade and the TECHNIQUES tab are not built
+CLAUDE_CODE_BRIEF	CB-6	PARTIAL	GUI	POLISH	Headstock detune sliders and string mute are not APVTS attachments (no parameter exists)
+CLAUDE_CODE_BRIEF	CB-10	PARTIAL	QA	POLISH	qa-polish 4 and 5 polish pass only partly done (see qa-polish part)
+CLAUDE_CODE_BRIEF	CB-11	PARTIAL	Engine	POLISH	Performance pass incomplete: per-module tuning and unmet budget rows remain (see performance-budget part)
+CLAUDE_CODE_BRIEF	CB-13	PARTIAL	Installer	FEATURE	Installers are unsigned without certificates; no per-platform install matrix run
+CLAUDE_CODE_BRIEF	CB-14	MISSING	QA	DOCS	Bug bash (qa-polish 8) and final human check (12) not done
+CLAUDE_CODE_BRIEF	CB-17	PARTIAL	Engine	CRASH	StringRow mute writes the audio-thread StringEngine directly and resetEverything calls engine.reset() off the audio thread
+CLAUDE_CODE_BRIEF	CB-18	PARTIAL	Presets	FEATURE	Per-string detune, fine tune, custom tuning/gauge/temperament and string mute are not APVTS parameters (preset strings block only)
+CLAUDE_CODE_BRIEF	CB-19	PARTIAL	Engine	CRASH	Structural swaps use try-locks rather than a pure command queue plus atomic swap
+CLAUDE_CODE_BRIEF	CB-20	PARTIAL	GUI	FEATURE	AdvancedPanel, EasyPanel, HeaderBar, Overlays and WorkshopPanel have 0 tr() calls; only English catalog
+CLAUDE_CODE_BRIEF	CB-21	PARTIAL	QA	DOCS	Many spec Tests-section cases still absent (see per-spec parts)
+CLAUDE_CODE_BRIEF	CB-22	PARTIAL	Docs	DOCS	spec/PROGRESS.md not updated since 2026-09-24 (310/677 test counts, scrape and slap shown unbuilt)
+CLAUDE_CODE_BRIEF	CB-24	PARTIAL	GUI	FEATURE	Not every gui-integration 19 row is present (TECHNIQUES tab, scrape controls, see gui-integration part)
+CLAUDE_CODE_BRIEF	CB-25	PARTIAL	QA	DOCS	Whole-suite green state and qa-polish 0 gates not confirmed
+CLAUDE_CODE_BRIEF	CB-26	MISSING	Docs	DOCS	No READY TO SHIP marker or signed release checklist in PROGRESS.md
+DECISIONS	DEC-16	PARTIAL	GUI	POLISH	CHARACTER winding selector still attaches string_material instead of editing the Workshop string part
+DECISIONS	DEC-25	PARTIAL	Engine	POLISH	Fretboard radius, bridge spring_count and pickguard plies fields are not consumed by PartAcoustics
+DECISIONS	DEC-37	PARTIAL	Workshop	POLISH	A SETUP tweak is still overwritten when a part is swapped (applyGuitar writes setup)
+DECISIONS	DEC-42	PARTIAL	Presets	POLISH	Genre kit library still scans/saves *.json and magic is luthier.genrekit, not .luthierkit / luthier.kit
+DECISIONS	DEC-43	PARTIAL	GUI	FEATURE	TECHNIQUES workspace tab missing before HELP
+DECISIONS	DEC-49	PARTIAL	QA	DOCS	No test that body / cab IRs reload only when the file changes
+DECISIONS	DEC-69	PARTIAL	Engine	POLISH	Tune undo stack is separate from the plugin-wide undo stack
+DECISIONS	DEC-74	MISSING	QA	DOCS	Listening pass on the rubric's strummed unison voicings not done
+DECISIONS	DEC-80	MISSING	Engine	FEATURE	MIDI chuck key range not specified or implemented
+GAPS	GAP-20	PARTIAL	GUI	POLISH	Expression calibration not offered on the LIVE tab, only in Options > EXPRESSION
+GAPS	GAP-30	MISSING	Presets	FEATURE	Per-string detune is not an automatable / MIDI-learnable parameter
+GAPS	GAP-48	PARTIAL	GUI	POLISH	Space still bound to audition globally; TUNE transport takes it only while TUNE is focused
+INDEX	IX-8	PARTIAL	QA	POLISH	Perf, qa-polish and installer passes only partly complete
+INDEX	IX-9	PARTIAL	Presets	POLISH	Genre kits not saved as .luthierkit files in the library
+INDEX	IX-11	PARTIAL	Engine	FEATURE	Tapping, microtonal bends, muting, cascade, slide-technique controls, Techniques tab and engine technique layer not built
+INDEX	IX-12	MISSING	QA	DOCS	qa-polish 8 bug bash and 12 final human check not done
+INDEX	IX-15	PARTIAL	Engine	POLISH	Some physical parameters (pickup height, mod sources) are outside any range family; modulation family not enforced
+INDEX	IX-21	PARTIAL	GUI	POLISH	Headstock detune sliders and string mute are hand-wired, not attachments
+INDEX	IX-22	PARTIAL	QA	DOCS	Many spec Tests-section cases still absent
+JUCE_CLAUDE_GUIDELINES	JG-1	PARTIAL	Docs	DOCS	Workflow rule (query context7) cannot be verified in code
+JUCE_CLAUDE_GUIDELINES	JG-9	MISSING	Build	POLISH	No -Wall/-Werror or /W4 /WX; MSVC warnings suppressed (CMakeLists.txt:10)
+JUCE_CLAUDE_GUIDELINES	JG-11	PARTIAL	GUI	POLISH	Headstock detune and string mute bypass parameters
+JUCE_CLAUDE_GUIDELINES	JG-22	PARTIAL	GUI	POLISH	setBufferedToImage not applied to expensive rarely-changing components generally
+JUCE_CLAUDE_GUIDELINES	JG-25	PARTIAL	CI	POLISH	pluginval strictness 10 not run on every PR (5 on push/PR)
+JUCE_CLAUDE_GUIDELINES	JG-26	MISSING	QA	DOCS	No host test matrix (Reaper, Live, FL, Cubase, Logic, auval) run
+JUCE_CLAUDE_GUIDELINES	JG-27	PARTIAL	Presets	POLISH	IrLibraryPaths::toPresetPath stores an absolute path for an IR outside the library root
+PROGRESS	PR-22	PARTIAL	Accessibility	FEATURE	15 locales offered but only the English catalog ships (no i18n/<code>.json)
+PROGRESS	PR-24	PARTIAL	Docs	DOCS	PROGRESS.md current-state table and Environment section are stale
+PROGRESS	PR-34	PARTIAL	Installer	FEATURE	No signing certificates configured; shipped installers unsigned
+PROGRESS	PR-35	MISSING	QA	DOCS	Manual per-host test matrix not run
+REVIEW	RV-9	PARTIAL	Accessibility	FEATURE	Catalog English only; no translated catalogs, so RTL never engages
+TODO	TD-2	MISSING	Engine	FEATURE	Muting engine and MuteGroup not built (WIP not compiled)
+TODO	TD-10	MISSING	Engine	FEATURE	slide-technique-controls (sources, mask, speed limit, auto-vibrato, SlideGesture, Slide sub-tab) not built
+TODO	TD-12	PARTIAL	GUI	POLISH	Overlay polish from visual-polish not verifiable / not itemised
+TODO	TD-22	MISSING	QA	DOCS	Listening pass on the rubric's unison voicings not done
+TODO	TD-33	PARTIAL	Engine	POLISH	First 7-string render after a 6-string differs by about -80 dB from about 27 ms; cause not found
+TODO	TD-36	PARTIAL	Engine	POLISH	Tune undo stack not folded into the plugin-wide stack (DEC-69)
+TODO	TD-38	PARTIAL	Installer	FEATURE	Support URLs and email are still luthieraudio.example placeholders (release blocker)
+TODO	TD-41	PARTIAL	Engine	FEATURE	Most phase-5b technique specs and the TECHNIQUES tab not built
+TODO	TD-42	PARTIAL	QA	POLISH	Audit-and-fix passes for ui-wiring, perf, qa, installer and undo only partly done
+TODO	TD-44	PARTIAL	QA	POLISH	Polish and performance passes incomplete
+TODO	TD-45	PARTIAL	Installer	FEATURE	Installers unsigned; no per-platform install matrix
+TODO	TD-46	MISSING	QA	DOCS	Bug bash (qa-polish 8) and final human check (12) not done
+docs-PLAYING_TECHNIQUES	PT-19	PARTIAL	Engine	POLISH	Dead feedback_on / feedback_threshold / feedback_speed parameters still registered (Parameters.cpp:682-684)
+ambiguity-resolutions	AR-5	PARTIAL	Engine	POLISH	Distance 0 keeps one-block minimum delay instead of same-block peak filter; untested
+ambiguity-resolutions	AR-10	PARTIAL	Engine	POLISH	Freeze level floor is -60 dB, not -inf
+issues	ISS-7	MISSING	GUI	POLISH	Scrollbar arrows, scroll tooltip and wheel guard on sliders not implemented
+issues	ISS-9	PARTIAL	Engine	FEATURE	Panic / Reset leave looper, backing track, progression, rhythm, TUNE player and metronome running
+engine	EN-25	PARTIAL	Engine	FEATURE	Realism detune uses a fixed seed; add a re-roll action
+engine	EN-45	PARTIAL	Engine	POLISH	Body modal parameters are derived from part fields and compiled tables, not stored per body in JSON
+engine	EN-57	PARTIAL	Engine	POLISH	Pitch shifter uses one read head per channel, not two crossfaded heads
+engine	EN-63	PARTIAL	Engine	POLISH	Amp standby warm-up is 8 s, spec says 30 s
+engine	EN-75	PARTIAL	QA	DOCS	Only standard tuning is checked to 0.1 c; add a test for every tuning preset
+engine	EN-77	PARTIAL	QA	DOCS	Pickup resonance Q is not checked in the pickup unit test
+engine	EN-86	MISSING	QA	DOCS	No record of the 7-host x 30 min host matrix
+engine	EN-87	MISSING	QA	DOCS	No record of end-to-end controller matrix (keyboard, MPE, GK/TriplePlay); only synthetic tests
+modulation-matrix	MM-2	PARTIAL	Engine	POLISH	Mod destinations use a one-pole 0.5 step per tick, not linear interpolation; untested
+modulation-matrix	MM-8	PARTIAL	Engine	POLISH	Envelopes, followers, random and free LFOs do not reset on transport start
+modulation-matrix	MM-23	PARTIAL	GUI	POLISH	Step sequencer has no tap-tempo option
+modulation-matrix	MM-28	PARTIAL	GUI	FEATURE	Macros are 6 fixed-function plus 2 assignable; no naming or 8 uniform host params
+modulation-matrix	MM-32	MISSING	Engine	FEATURE	Per-string values (tuning cents, damping, pluck) are not parameters, so cannot be mod destinations
+modulation-matrix	MM-33	PARTIAL	Engine	FEATURE	Rhythm density and hand position are not parameters, so cannot be mod destinations
+modulation-matrix	MM-34	PARTIAL	Engine	FEATURE	No output pan parameter as a mod destination
+modulation-matrix	MM-35	MISSING	Engine	FEATURE	Snapshot morph position is not a parameter, so not a mod destination
+modulation-matrix	MM-39	MISSING	Engine	FEATURE	No Custom(name) curve in ModCurve
+modulation-matrix	MM-43	PARTIAL	GUI	POLISH	MOD tab stacks source pool above the route table instead of left third / right two-thirds
+modulation-matrix	MM-48	MISSING	GUI	POLISH	No per-source colour tag; arcs are always the secondary accent
+modulation-matrix	MM-49	MISSING	Engine	FEATURE	No snapshot flag for including modulation; snapshots always capture the matrix
+modulation-matrix	MM-50	PARTIAL	Presets	POLISH	Unknown mod destinations on import are collected but no user-visible warning is shown
+spec	SP-10	PARTIAL	Engine	FEATURE	Sustain is global only; no per-string sustain in Advanced
+spec	SP-13	PARTIAL	Engine	POLISH	No body-size selector; air resonance frequency not user-settable (gain only)
+spec	SP-16	PARTIAL	Engine	POLISH	No pickup pole spacing control
+spec	SP-20	PARTIAL	GUI	POLISH	Custom temperament ratios are preset-only, no control
+spec	SP-24	PARTIAL	QA	DOCS	Fretless no-buzz, less sustain and softer attack are untested; only glide tested
+spec	SP-26	PARTIAL	Engine	FEATURE	No dedicated pre-bend technique or parameters
+spec	SP-27	PARTIAL	Engine	POLISH	Vibrato shapes lack classical and blues
+spec	SP-39	PARTIAL	GUI	POLISH	Pick position is normalised, not shown in mm from the bridge
+spec	SP-40	PARTIAL	GUI	POLISH	Finger-to-string assignment fixed to the default; no assignment editor
+spec	SP-46	MISSING	Engine	POLISH	No pickup handling / switching click noise
+spec	SP-48	PARTIAL	GUI	POLISH	No single global mechanical-noise level, only per-type knobs
+spec	SP-58	PARTIAL	Engine	FEATURE	Realism detune has no re-roll on request (fixed seed)
+spec	SP-59	PARTIAL	Engine	FEATURE	Intonation error is a global slope, not per string
+spec	SP-61	PARTIAL	GUI	FEATURE	No user-defined string mapping in Mono mode
+spec	SP-70	MISSING	Engine	FEATURE	No tuner or tuner-mute pedal
+spec	SP-76	PARTIAL	Engine	FEATURE	No dual-amp stereo routing
+spec	SP-78	PARTIAL	GUI	FEATURE	Chord library fingerings are not editable; search untested
+spec	SP-86	MISSING	Engine	POLISH	No vibrato timing/depth humanize variation
+spec	SP-92	PARTIAL	GUI	POLISH	Easy macro knobs are Size::Small, spec asks for large
+spec	SP-94	PARTIAL	GUI	POLISH	Easy has an Export button but no drag-out handle
+spec	SP-95	PARTIAL	GUI	FEATURE	String rows lack material/gauge/age, parameter-backed mute and Edit button
+spec	SP-96	PARTIAL	GUI	FEATURE	Selected-string detail (length, mass, damping, B, coupling) is a read-only label
+spec	SP-97	MISSING	Engine	FEATURE	Fretless is global; no per-string toggle
+spec	SP-98	MISSING	Engine	FEATURE	No custom fret positions or scalloping per string
+spec	SP-99	MISSING	Engine	FEATURE	No per-fret tuning offset editor
+spec	SP-103	PARTIAL	GUI	POLISH	Fretboard right-click has no mark option
+spec	SP-105	PARTIAL	QA	DOCS	Overlay dismissal tests cover Escape only, not click-outside or close button
+spec	SP-107	PARTIAL	Presets	POLISH	Factory presets are written at runtime, not shipped in the bundle by category
+spec	SP-111	PARTIAL	GUI	POLISH	Impossible tuning is clamped with no warning banner
+spec	SP-114	PARTIAL	GUI	POLISH	All-pickups-off silence has no small warning UI
+spec	SP-118	PARTIAL	QA	DOCS	Validator check 5 tests level, not spectral shape per pickup
+spec	SP-121	PARTIAL	Engine	POLISH	Coupling matrix recalculated inline on tuning change, not on a worker
+spec	SP-123	PARTIAL	Host	FEATURE	Per-string bend range in controller mode is profile-only; no bend_string_range params
+spec	SP-124	MISSING	GUI	FEATURE	No default-preset-on-load preference
+spec	SP-125	PARTIAL	GUI	FEATURE	No global MIDI-mapping defaults, only clear all
+spec	SP-126	PARTIAL	GUI	POLISH	No audio export defaults; MIDI export defaults only
+spec	SP-127	PARTIAL	GUI	POLISH	No FFT block or max polyphony preference (oversampling and quality modes exist)
+spec	SP-128	MISSING	GUI	FEATURE	No realism defaults preference (humanise, string age, intonation)
+spec	SP-131	PARTIAL	Docs	DOCS	UI sources are flat, not split into Easy/Advanced/Fretboard folders
+spec	SP-141	PARTIAL	QA	DOCS	Overlay dismissal tests only cover Escape; pluginval L10 runs in CI only
+spec	SP-142	MISSING	QA	DOCS	No record of 7 hosts x 30 min ship gate
+spec	SP-143	MISSING	QA	DOCS	No record of real GK/TriplePlay and MPE controller ship gate
+spec	SP-144	MISSING	QA	DOCS	No blind A/B listening test record
+tone-match	TM-7	PARTIAL	Engine	FEATURE	Cab IR slots convolve the main out in series instead of replacing mic 1 / mic 2 IRs
+tone-match	TM-16	MISSING	GUI	FEATURE	No recent-IRs list
+tone-match	TM-28	MISSING	Engine	FEATURE	EQ-match result overwrites cab slot 2; no pre-amp/post-amp/post-master filter position
+tone-match	TM-30	PARTIAL	GUI	FEATURE	Capture pane has no source picker (DI, per-string) beyond main out / sidechain
+tone-match	TM-39	PARTIAL	Presets	POLISH	Only one library root for relative IR paths; no registered user IR folders
+tone-match	TM-41	MISSING	QA	DOCS	No 100-IR resample accuracy test
+tone-match	TM-42	PARTIAL	QA	DOCS	Deconvolution null test asserts -20 dB, spec -60 dBFS
+tone-match	TM-43	PARTIAL	QA	DOCS	EQ-fit test lacks a notch and uses 2.5 dB tolerance, spec 1 dB
+tone-match	TM-44	MISSING	QA	DOCS	No 60 s main-out capture null test
+tone-match	TM-45	MISSING	QA	DOCS	No sample-rate change during IR playback test
+tune-builder	TB-6	PARTIAL	GUI	FEATURE	No artist or time-signature control in the TUNE header
+tune-builder	TB-9	PARTIAL	GUI	FEATURE	Tune variations (A/B) have model and API but no UI or playback
+tune-builder	TB-12	PARTIAL	GUI	POLISH	Melody string hint has no control and TunePlayer ignores it
+tune-builder	TB-15	PARTIAL	Presets	POLISH	Shipped genre kit names differ from the spec list
+tune-builder	TB-28	PARTIAL	GUI	FEATURE	Piano roll has no horizontal scroll for sections over 4 bars; untested
+tune-builder	TB-60	PARTIAL	Engine	POLISH	No companion-instance bass routing
+tune-builder	TB-65	PARTIAL	Export	FEATURE	No MP3 export (no encoder); decision not recorded
+tune-builder	TB-72	MISSING	Host	FEATURE	No standalone MIDI/audio input arming for the tune builder
+tune-builder	TB-T8	PARTIAL	QA	DOCS	MIDI re-import held to -60 dBFS not byte-identical; decision not recorded
+midi-export	MX-1	PARTIAL	Export	FEATURE	Capture does not write STRUM/PICK/SQUEAK/BUZZ/CLANK/RASGUEADO/CHARACTER/SNAPSHOT/RANGES events
+midi-export	MX-3	PARTIAL	Export	POLISH	MIDI export writes on the message thread, not a worker
+midi-export	MX-15	PARTIAL	Export	FEATURE	File menu Save last MIDI take skips the export dialog (no range/split/preview)
+midi-export	MX-23	PARTIAL	Installer	POLISH	macOS installer does not register .midprofile
+midi-export	MX-27	PARTIAL	Export	POLISH	Advanced-range warning arrives after the import is applied
+notation-export	NE-1	PARTIAL	Export	POLISH	Tab-reader notation export in PracticePanel still writes on the message thread
+notation-export	NE-4	PARTIAL	Export	FEATURE	No Guitar Pro importer for round trip
+notation-export	NE-9	MISSING	Export	POLISH	MusicXML grace notes for hammer-on/pull-off not written
+notation-export	NE-12	PARTIAL	Export	POLISH	Guitar Pro export lacks semi harmonics and whammy bar events
+notation-export	NE-13	PARTIAL	Export	POLISH	Guitar Pro chord diagrams are names only, no fret diagram
+notation-export	NE-27	PARTIAL	GUI	FEATURE	Session tab Save last take has no notation export beside it
+notation-export	NE-33	PARTIAL	QA	DOCS	No MuseScore fixture round trip test; own importer asserts some techniques only
+notation-export	NE-34	MISSING	QA	DOCS	No Guitar Pro round trip test (no GP parser)
+notation-export	NE-37	MISSING	QA	DOCS	Only a two-chord detection test; no 100-progression test
+factory-content	FC-2	PARTIAL	Presets	FEATURE	Factory bank is 36 older entries, not the spec tonal-spread list
+factory-content	FC-3	MISSING	Presets	FEATURE	No easy/medium/showcase difficulty ladder
+factory-content	FC-4	MISSING	Presets	FEATURE	No reggae, latin, indie or punk presets; bass genres missing
+factory-content	FC-5	PARTIAL	QA	DOCS	No every-guitar x every-preset playability test
+factory-content	FC-9	MISSING	Presets	FEATURE	The 36 named spec presets do not exist (only 2 match)
+factory-content	FC-10	MISSING	Presets	FEATURE	Modern Overdrive default first-run preset does not exist (default is Init)
+factory-content	FC-13	PARTIAL	Presets	FEATURE	Walking, Tumbao, One-Drop, Punk Pick and Dub bass patterns missing; no shipped pattern files
+factory-content	FC-14	PARTIAL	Presets	POLISH	Kits compiled in, lack pick/setup/noise style fields
+factory-content	FC-15	MISSING	Presets	FEATURE	No example setlists
+factory-content	FC-16	MISSING	Presets	FEATURE	No backing tracks shipped
+factory-content	FC-20	PARTIAL	Accessibility	POLISH	Preset, guitar and part names are not in the locale catalog
+factory-content	FC-24	MISSING	QA	DOCS	No spectrum-delta fixtures for factory guitars
+factory-content	FC-26	MISSING	QA	DOCS	No factory setlist load test (no setlists)
+factory-content	FC-27	MISSING	QA	DOCS	No backing-track streaming test (no tracks)
+factory-content	FC-28	MISSING	Docs	DOCS	No legal review sign-off recorded
+advanced-ranges	AR-10	PARTIAL	Engine	POLISH	changeRanges is a direct message-thread call, not routed through the ui-wiring command queue
+advanced-ranges	AR-11	MISSING	QA	DOCS	No automation-under-range-switch test per range family
+advanced-ranges	AR-21	PARTIAL	Presets	FEATURE	Snapshots store normalised values and no mode; recall after locking re-maps rather than clamps the plain value
+advanced-ranges	AR-33	PARTIAL	Engine	POLISH	Range changes are not a ranges-toggle undo class grouped by target within 200 ms
+advanced-ranges	AR-34	MISSING	Telemetry	POLISH	No advanced_ranges_used usage boolean in Telemetry
+advanced-ranges	AR-T2	PARTIAL	QA	DOCS	Widening test compares plain values only; no bit-identical rendered-block check
+advanced-ranges	AR-T10	MISSING	QA	DOCS	No test that snapshots do not carry mode (recall clamps after lock)
+body-coupling	BC-17	MISSING	Workshop	FEATURE	Workshop body inspector does not mirror the coupling mode list and wolf map
+body-coupling	BC-20	MISSING	Presets	POLISH	Factory presets not re-voiced with body coupling on (load at 0)
+body-coupling	BC-22	PARTIAL	Docs	DOCS	spec/performance-budget.md lacks a BodyCoupling budget row
+character-wear	CW-29	PARTIAL	GUI	POLISH	Dead-spot map lacks a per-spot width control (width fixed at 3.0)
+character-wear	CW-32	PARTIAL	QA	DOCS	Dead-spot test checks the multiplier, not a rendered T60 reduction
+controllers	CT-1	PARTIAL	Presets	POLISH	Factory controller profiles are built in code, not loaded from Resources/Controllers/*.json
+controllers	CT-19	MISSING	GUI	FEATURE	No UI to calibrate bend range by confirming the target pitch
+controllers	CT-22	PARTIAL	Engine	FEATURE	ControllerMerge (multi-controller merge/contention) is not wired into the audio path
+controllers	CT-27	PARTIAL	QA	DOCS	Dual-source stress test covers only the unused ControllerMerge class
+environment	ENV-20	MISSING	GUI	POLISH	SETUP action/relief readouts lack the humidity secondary line
+environment	ENV-22	PARTIAL	Docs	DOCS	spec/performance-budget.md lacks an Environment budget row
+fret-buzz	FB-9	PARTIAL	Engine	POLISH	Fret material brightness reaches string termination but not the buzz burst brightness
+fret-buzz	FB-26	MISSING	Engine	POLISH	Bends do not change buzz clearance (no bend input to FretBuzz)
+harmonic-realism	HR-25	MISSING	Docs	DOCS	gui-integration.md section 19 lacks the harmonic contact row
+live-performance	LP-8	PARTIAL	Engine	POLISH	Effect tails not double-buffered across recall; coupling matrix not recomputed on a worker
+live-performance	LP-27	PARTIAL	GUI	POLISH	Header LED does not blink on each beat (only the Live strip pad does)
+live-performance	LP-40	PARTIAL	Presets	FEATURE	Live-mode on/off is session-only, not stored per preset
+live-performance	LP-41	PARTIAL	Presets	FEATURE	No "global" flag for MIDI-learn mappings to persist across presets
+noise-floor	NF-2	PARTIAL	GUI	POLISH	Advanced panel knob still labelled "Amp Buzz" instead of "Single-coil Hum"
+noise-floor	NF-10	PARTIAL	Docs	DOCS	spec/DECISIONS.md lacks the hum calibration (-58 dB measured) entry
+part-acoustics	PA-5	PARTIAL	Docs	DOCS	Fitted constants in mapSpec have no cited source
+part-acoustics	PA-7	PARTIAL	Engine	POLISH	Body mode frequency comes from BodyModels kWoods, not the spec sqrt(E/rho) table
+part-acoustics	PA-8	PARTIAL	Engine	POLISH	Mode Q comes from BodyModels loss factors, not spec tan-delta
+part-acoustics	PA-9	MISSING	Engine	FEATURE	Neck and fretboard wood/density do not feed neck mass, body coupling or dead-spot frequency
+part-acoustics	PA-20	MISSING	Engine	FEATURE	neck.profile not mapped to mass distribution
+part-acoustics	PA-23	MISSING	Engine	FEATURE	fretboard.radius_mm does not affect buzz clearance
+part-acoustics	PA-46	MISSING	Engine	FEATURE	Pickup switching topology part field ignored
+part-acoustics	PA-49	MISSING	Engine	FEATURE	String core round/hex warmth and stiffness not mapped
+part-acoustics	PA-50	PARTIAL	Engine	POLISH	Part winding_pitch_per_mm mapped but ignored by PlayingNoise
+part-acoustics	PA-51	MISSING	Engine	FEATURE	strings tension_kg override not mapped
+part-acoustics	PA-52	PARTIAL	Engine	POLISH	Wound mu uses per-material factor, not core and winding geometry
+part-acoustics	PA-54	PARTIAL	Engine	POLISH	pickguard.mass_g only adds termination mass, no top damping
+part-acoustics	PA-60	MISSING	Engine	POLISH	Dampings multiply instead of adding in the loss domain (1/Q sum)
+part-acoustics	PA-T1	PARTIAL	QA	DOCS	Every-field test compares DerivedAcoustics only, not the rendered spectrum, and skips unmapped fields
+practice-tools	PT-3	PARTIAL	Engine	FEATURE	Loop MIDI is captured and saved but never re-rendered through a new tone
+practice-tools	PT-10	MISSING	Assets	POLISH	Click sounds are synthesized; no 16 click WAVs in Resources/Practice/Clicks
+practice-tools	PT-23	PARTIAL	Engine	POLISH	Loop audio snapshots held in memory and written beside the loop JSON, not in a temp folder
+practice-tools	PT-30	PARTIAL	GUI	POLISH	Section markers have a name field but no jump hotkeys
+practice-tools	PT-32	PARTIAL	GUI	FEATURE	Playlist has no UI and is not gapless
+practice-tools	PT-40	PARTIAL	Import	FEATURE	Tab import lacks GP5/GP/PTB (ASCII and MusicXML only)
+practice-tools	PT-41	MISSING	GUI	FEATURE	Tab view is a static text editor: no scrolling, cursor, tempo, section loop or count-in
+practice-tools	PT-42	MISSING	GUI	FEATURE	Current tab fret is not highlighted on the fretboard
+practice-tools	PT-43	PARTIAL	GUI	FEATURE	Speed trainer exists in routines only, not in the TAB tab
+practice-tools	PT-44	MISSING	Engine	FEATURE	No play-along note detection and scoring
+practice-tools	PT-60	MISSING	QA	DOCS	No looper-vs-fresh-render null test
+practice-tools	PT-61	MISSING	QA	DOCS	No 60-minute WAV stream memory-growth test
+practice-tools	PT-62	MISSING	QA	DOCS	No 50-file Guitar Pro fixture parse test
+rhythm-engine	RE-5	PARTIAL	Engine	POLISH	Rhythm humanise is the engine own RhythmHumanise; instrument hum_*/macro_humanize params never reach it
+rhythm-engine	RE-27	PARTIAL	Presets	POLISH	Factory rhythm patterns built in code, not shipped as Resources/Rhythm files
+rhythm-engine	RE-30	PARTIAL	Presets	POLISH	Factory genre kits built in code, not shipped as Resources/Genres JSON
+rhythm-engine	RE-40	PARTIAL	Host	POLISH	Rhythm enabled/state is not a host-automatable parameter (travels in the rhythm_engine preset block only)
+string-aging	SA-17	PARTIAL	GUI	POLISH	Age knob has no Fresh/Broken in/Old tick marks (tooltip only)
+string-aging	SA-19	MISSING	Workshop	FEATURE	Workshop strings inspector does not mirror per-string aging/coating rows
+string-aging	SA-22	PARTIAL	Docs	DOCS	spec/performance-budget.md lacks a StringAging budget row
+sustain-and-decay	SUS-2	PARTIAL	Engine	FEATURE	Advanced Sustain knob (sustain_scale) is never applied to the engine
+tuning-stability	TS-12	PARTIAL	QA	DOCS	No dedicated whammy return-error (seeded sign, cap 8) test
+tuning-stability	TS-19	MISSING	Host	FEATURE	Retune cannot be assigned as a MIDI Learn action target
+volume-knob-interaction	VK-14	PARTIAL	Engine	POLISH	Easy Tone macro rescales the guitar_tone wiper before the circuit sees it
+volume-knob-interaction	VK-22	PARTIAL	GUI	POLISH	Bleed R/C/wiring editor always visible instead of only for Custom bleed
+volume-knob-interaction	VK-24	MISSING	GUI	FEATURE	No CHARACTER tab CIRCUIT group with the full-size circuit panel
+include	INC-4	PARTIAL	Docs	DOCS	Support links are luthieraudio.example placeholders until real URLs are set for release
+include	INC-10	PARTIAL	Engine	FEATURE	Reset does not stop the looper, backing track, TUNE player or metronome
+include	INC-13	PARTIAL	Host	POLISH	Options offers no audio/MIDI device chooser (info box only, standalone toolbar or host)
+include	INC-19	PARTIAL	GUI	POLISH	Backing-track audio has no drag-and-drop import; no DnD test for IR or audio
+include	INC-31	PARTIAL	GUI	POLISH	theme.md gaps tracked in the theme part remain
+accessibility	A11Y-2	PARTIAL	Accessibility	FEATURE	Mod arc and output LED are colour-only; add shape/text cue
+accessibility	A11Y-4	PARTIAL	Localisation	FEATURE	Hundreds of UI literals are not routed through tr() catalog keys
+accessibility	A11Y-6	PARTIAL	Accessibility	FEATURE	Fretboard and remaining painted widgets lack AccessibilityHandlers; no all-panel test
+accessibility	A11Y-8	MISSING	Accessibility	FEATURE	Fretboard does not expose frets as accessible children
+accessibility	A11Y-12	MISSING	QA	DOCS	No NVDA/VoiceOver/Orca verification pass recorded
+accessibility	A11Y-13	PARTIAL	Accessibility	POLISH	No explicit left-to-right/top-to-bottom Tab focus order across panels
+accessibility	A11Y-24	PARTIAL	Installer	FEATURE	Resources/Themes/*.json not shipped; writeBuiltInPalettes never called by build/installer
+accessibility	A11Y-29	MISSING	Accessibility	FEATURE	Window min size does not grow with scale; stepScaleDown never called for too-small restored size
+accessibility	A11Y-32	PARTIAL	Localisation	FEATURE	No Resources/i18n catalogs ship; only English strings
+accessibility	A11Y-33	PARTIAL	Localisation	FEATURE	15 ship locales offered but only English has strings
+accessibility	A11Y-34	PARTIAL	Localisation	FEATURE	Locale switch does not refresh already-built components
+accessibility	A11Y-36	PARTIAL	Localisation	POLISH	UI concatenates strings instead of named placeholders
+accessibility	A11Y-37	MISSING	Localisation	FEATURE	No RTL/bidi layout handling or bidi fixture test
+accessibility	A11Y-38	PARTIAL	Docs	FEATURE	HelpContent English only; not shown in UI locale
+accessibility	A11Y-40	PARTIAL	Accessibility	FEATURE	Font override stored but AccessibilitySettings::getFont is used by nothing; Fonts::ui ignores it
+accessibility	A11Y-42	PARTIAL	Accessibility	FEATURE	CJK/Arabic fallback font stack unused; no Arabic
+accessibility	A11Y-47	MISSING	QA	DOCS	No automated screen-reader smoke over every panel
+accessibility	A11Y-48	PARTIAL	QA	DOCS	Tab walk test covers knobs in default view only, not every control/view
+accessibility	A11Y-50	PARTIAL	QA	DOCS	Palette-switch clipping only indirectly tested; other palettes render only with LUTHIER_SCREENSHOTS
+accessibility	A11Y-51	MISSING	QA	DOCS	No per-locale render/clipping test at 100% and 150%
+accessibility	A11Y-53	MISSING	QA	DOCS	No CJK missing-glyph test
+action-and-undo	AU-12	PARTIAL	Engine	POLISH	A drag that pauses over 200 ms stays one entry (one gesture = one entry by design); spec wants two
+action-and-undo	AU-20	PARTIAL	Live	FEATURE	Snapshot rearrange (snapshot-move entry) has no UI or entry
+theme	TH-4	PARTIAL	GUI	POLISH	Shadow blur radius 6/5 vs spec 8
+theme	TH-7	PARTIAL	GUI	POLISH	Label tracking 0.06em vs 0.08em; knob value 12px mono vs 13-14px
+theme	TH-17	PARTIAL	GUI	POLISH	No timed 100 ms accent flash on momentary press
+theme	TH-26	MISSING	GUI	POLISH	80 ms value animation: Metrics::animationMs is unused
+theme	TH-27	PARTIAL	GUI	POLISH	No vertical-resize cursor on knobs/sliders; hover brightens 12% vs 8%
+theme	TH-30	PARTIAL	GUI	DOCS	Header 48px (spec.md) vs 32px (theme.md/gui-integration); conflict not recorded in DECISIONS
+onboarding	OB-10	PARTIAL	Onboarding	FEATURE	macOS and Linux OS reads (reduced motion, high contrast, DPI) missing; only Windows
+onboarding	OB-17	MISSING	Factory content	FEATURE	Six royalty-free backing tracks do not ship
+onboarding	OB-23	PARTIAL	Docs	DOCS	No onboarding videos
+onboarding	OB-24	PARTIAL	Host	FEATURE	No explicit clean-close last-preset restore or test; only plugin/standalone state
+onboarding	OB-T2	PARTIAL	QA	DOCS	Tour test walks window sizes, not UI scales
+global-search	GS-0	MISSING	Global search	FEATURE	Ground rules for global search / command palette not built
+global-search	GS-2a	MISSING	Global search	FEATURE	Search index of 13 item kinds not built
+global-search	GS-2b	MISSING	Global search	FEATURE	Keywords, synonyms and breadcrumbs not built
+global-search	GS-2c	MISSING	Global search	FEATURE	Pedal slot titling and empty-slot exclusion not built
+global-search	GS-2d	MISSING	Global search	FEATURE	Shared UI/Search/ParameterVisibility.h not built
+global-search	GS-3.1	MISSING	Global search	FEATURE	Source/UI/Search classes not built
+global-search	GS-3.2	MISSING	Global search	FEATURE	Registration of controls, places and settings not built
+global-search	GS-3.3	MISSING	Global search	FEATURE	UiLocation step navigation list not built
+global-search	GS-3.4	MISSING	Global search	FEATURE	Live availability enum not built
+global-search	GS-4.1	MISSING	Global search	FEATURE	Matcher and ranking not built
+global-search	GS-4.2	MISSING	Global search	FEATURE	SearchNavigator goTo not built
+global-search	GS-4.3	MISSING	Global search	FEATURE	ActionRegistry and performAction refactor not built
+global-search	GS-4.4	MISSING	Global search	FEATURE	Inline value adjustment grammar not built
+global-search	GS-4.5	MISSING	Global search	FEATURE	Recent items and queries persistence not built
+global-search	GS-5	MISSING	Global search	FEATURE	Secondary actions not built
+global-search	GS-6.1	MISSING	Global search	FEATURE	Entry points (magnifier, Ctrl+K, first-run hint) not built
+global-search	GS-6.2	MISSING	Global search	FEATURE	Palette overlay layer not built
+global-search	GS-6.3	MISSING	Global search	FEATURE	Keyboard and mouse handling not built
+global-search	GS-7	MISSING	Global search	FEATURE	Options Search group not built
+global-search	GS-8	MISSING	Global search	FEATURE	SearchProvider contract not built
+global-search	GS-9	MISSING	Global search	FEATURE	No-state-change and undo classes not built
+global-search	GS-10	MISSING	Global search	FEATURE	Edition handling (Pro items locked) not built
+global-search	GS-11	MISSING	Global search	FEATURE	Performance budget not built
+global-search	GS-12	MISSING	Global search	FEATURE	Feature interactions not built
+global-search	GS-13	MISSING	Global search	FEATURE	Failure modes not built
+global-search	GS-14	MISSING	Global search	FEATURE	Palette accessibility not built
+global-search	GS-T1	MISSING	Global search	DOCS	Coverage tests not written
+global-search	GS-T2	MISSING	Global search	DOCS	Matcher/ranking tests not written
+global-search	GS-T3	MISSING	Global search	DOCS	Inline-adjust tests not written
+global-search	GS-T4	MISSING	Global search	DOCS	Palette UI tests not written
+global-search	GS-T5	MISSING	Global search	DOCS	Combination/perf tests not written
+gui-integration	GI-1	PARTIAL	GUI	FEATURE	scrape_* (14), slap_* string-slap (armed/type/trigger/force/palm/mask/CCs) and macro_assign_a/b still have none; pickup_blend now attached
+gui-integration	GI-2	PARTIAL	GUI	FEATURE	Every feature within 3 interactions — scrape/string-slap unreachable; no test
+gui-integration	GI-3	MISSING	GUI	FEATURE	no Easy summary (techniques pills) for scrape/slap armed via MIDI; not in EasyPanel
+gui-integration	GI-6	PARTIAL	GUI	POLISH	Panel header: uppercase + accent bar, status line, collapse chevron, collapse state per preset — only name + bar
+gui-integration	GI-7	PARTIAL	GUI	POLISH	Panels present/absent, never greyed — col-1 whammy knobs shown on hardtails
+gui-integration	GI-8	PARTIAL	GUI	POLISH	Window min 1280x800, cap 2560x1600 — min 940x560, cap 2400x1440, fixed aspect
+gui-integration	GI-13	PARTIAL	GUI	POLISH	Preset prev / name (browser) / next / save / A-B — save is a File-menu item, not a header button
+gui-integration	GI-15	MISSING	GUI	FEATURE	Snapshot strip in header (8 buttons, prev/next, bank) — only in the Live strip
+gui-integration	GI-16	PARTIAL	GUI	FEATURE	Header input meter, output meter, output LED — LED only
+gui-integration	GI-17	PARTIAL	GUI	FEATURE	Utility: panic, MIDI Learn arm, tap tempo, kill (Live) — tap/kill only on Live strip
+gui-integration	GI-18	PARTIAL	GUI	POLISH	Overflow icons: gear (Options), Help, dice, reset — only Help; rest are File-menu items
+gui-integration	GI-19	PARTIAL	GUI	POLISH	Header collapses below 1280: numeric snapshot readout + 3-dot overflow menu
+gui-integration	GI-20	PARTIAL	Accessibility	POLISH	Every header control has tooltip + documented shortcut — guitar/tuning selectors, copyAB have no shortcut
+gui-integration	GI-32	PARTIAL	GUI	FEATURE	Col1 GUITAR: instrument library, tuning, capo, temperament, scale readout, "Open in Workshop" — no library list, no per-string tuning, no Open-in-Workshop button
+gui-integration	GI-33	PARTIAL	GUI	POLISH	Col1 BODY: model, dims, woods, bracing, air readout, link to CHARACTER — no CHARACTER link
+gui-integration	GI-34	PARTIAL	GUI	FEATURE	Col1 STRINGS: material/gauge per string, age, tension readout — material/gauge set-wide only
+gui-integration	GI-35	PARTIAL	GUI	POLISH	Col1 WHAMMY: type, range, spring, dive/up stop; absent if none — always shown
+gui-integration	GI-36	PARTIAL	GUI	FEATURE	Col2 PICKUPS: selector, per-pickup gain, per-pickup phase, "Edit in Workshop" — no phase param, no button, pickup_blend unattached
+gui-integration	GI-39	PARTIAL	Engine	FEATURE	Col3 AMP: model, tone, sag, bright, bias, master — no sag / bias controls (params absent)
+gui-integration	GI-44	PARTIAL	GUI	FEATURE	MOD tab: LFO/ENV/STEP/FOLLOW/RAND cards, MACROS card, route table — one selector-driven card; no macro knobs; no panel test
+gui-integration	GI-54	MISSING	GUI	FEATURE	CHARACTER -> CIRCUIT mirror (full editing + visualiser) — absent
+gui-integration	GI-56	PARTIAL	Controllers	FEATURE	CONTROLLERS tab: profile selector, latency wizard, custom CC-map editor, multi-controller merge display — last two missing
+gui-integration	GI-65	PARTIAL	Workshop	FEATURE	Direct manipulation: nut slot drag, pick drag/rotate, slide drag/slant, capo drag done; fret wear brush not anywhere
+gui-integration	GI-70	MISSING	GUI	FEATURE	Tuning popover shows current glide target in Slide Mode
+gui-integration	GI-73	PARTIAL	GUI	POLISH	Snapshot buttons: colour tag, 12-char label (tested); active outline is the tag colour, not the accent
+gui-integration	GI-78	PARTIAL	GUI	POLISH	Drawer expanded state persists per preset — kept in plugin state, not per preset
+gui-integration	GI-79	PARTIAL	GUI	POLISH	live at 30 Hz via shared ModArcHub but single secondary-colour arc, no per-source segments
+gui-integration	GI-82	PARTIAL	GUI	POLISH	Footer: version, status line, CPU %, voice count — no status line, no voice count
+gui-integration	GI-84	MISSING	GUI	POLISH	Easy below 900: rig strip becomes "Guitar / Rig" tab
+gui-integration	GI-85	PARTIAL	Accessibility	POLISH	UI scale applied (`setScaleFactor`); >125% auto-pick of smaller scale when clipped + one-time notice not found
+gui-integration	GI-86	PARTIAL	GUI	POLISH	Empty hints: snapshot slot done; no-mod-routes hint absent
+gui-integration	GI-87	PARTIAL	GUI	POLISH	Empty hints: setlist, backing track — texts differ from spec
+gui-integration	GI-89	PARTIAL	GUI	POLISH	Empty hint: bass techniques inactive on a guitar — constant exists, never displayed
+gui-integration	GI-93	PARTIAL	GUI	POLISH	Trigger: advanced range clamped on preset save — DECISIONS: no banner, reported at place of clamp
+gui-integration	GI-95	MISSING	GUI	FEATURE	Control menu: "Assign to macro -> (8 macros)" — absent (also on visual)
+gui-integration	GI-97	MISSING	GUI	FEATURE	Panel right-click: collapse, reset panel, screenshot to clipboard, docs
+gui-integration	GI-103	PARTIAL	Export	FEATURE	Ctrl+E context-aware export (tune / preset / take) — always the audio ExportPanel outside a focused TUNE tab
+gui-integration	GI-104	PARTIAL	Engine	POLISH	code keeps 200 per action-and-undo.md 2 (later spec wins)
+gui-integration	GI-107	PARTIAL	GUI	POLISH	Instrument load: Adv Col1 GUITAR + preset browser + Ctrl+O — only header selector / browser
+gui-integration	GI-112	PARTIAL	GUI	POLISH	Playing mode: Easy strip + Adv header — no Advanced-mode control
+gui-integration	GI-113	PARTIAL	Export	POLISH	Export audio: File menu + Options AUDIO — no entry on Options AUDIO
+gui-integration	GI-117	PARTIAL	GUI	FEATURE	Macros 1-8 in MOD -> MACROS and header in Live Mode — macros 7/8 no control; no MACROS knobs
+gui-integration	GI-121	PARTIAL	Workshop	FEATURE	Workshop parts drawer via right-click illustration part done (`drawerCategories`); guided build rail not found
+gui-integration	GI-135	PARTIAL	QA	DOCS	Test: every §19 row resolves to a real, focusable component
+gui-integration	GI-136	MISSING	QA	DOCS	Test: automation ID resolves to exactly one focused control ("focus source")
+gui-integration	GI-137	MISSING	QA	DOCS	Test: Tab-order walk visits every element, Col 1..4 order
+gui-integration	GI-139	MISSING	QA	DOCS	Test: empty-state hint per panel
+gui-integration	GI-140	PARTIAL	QA	DOCS	Test: 13 right-click items per automatable param; range items only in correct state
+gui-engine-dataflow	GD-3	PARTIAL	GUI	POLISH	now heatmap, noise strip, valve glow, output LED, slide bar, chord readout, string animator, noise meters; none on aux meters, mod arcs, footer
+gui-engine-dataflow	GD-4	MISSING	GUI	FEATURE	absent (no input peak accessor, no header meter)
+gui-engine-dataflow	GD-5	PARTIAL	GUI	FEATURE	Header output meter — header has only the LED; `LevelMeter` in the Easy tone strip, no stale rule
+gui-engine-dataflow	GD-6	PARTIAL	GUI	POLISH	30 Hz now; no stale rule, no UI test of the meter
+gui-engine-dataflow	GD-7	PARTIAL	GUI	POLISH	fretboard/illustration 60 Hz, illustration dark after 250 ms (`StringAnimator`); no compact strip, fretboard has no stale rule
+gui-engine-dataflow	GD-16	MISSING	GUI	POLISH	not implemented (only hover highlight)
+gui-engine-dataflow	GD-17	PARTIAL	GUI	POLISH	Mod arcs: 30 Hz shared `ModArcHub` repaints modulated knobs; still one secondary-colour arc, no per-source segments, no stale desaturation
+gui-engine-dataflow	GD-19	PARTIAL	GUI	POLISH	Spectrum pane: grey committed + accent pending traces, one-line summary, 10 Hz poll, stale 30 s -> "Auditioning a part will update this." — draws one delta trace + summary; no stale timeout; hint text differs
+gui-engine-dataflow	GD-21	PARTIAL	GUI	FEATURE	when stale 5 s - CPU only (`getFooterText`, QualityBadge); no voice count, no stale -
+gui-engine-dataflow	GD-25	PARTIAL	GUI	FEATURE	Header tap-tempo LED flashing on the beat at 60 Hz, stale 500 ms -> off — beat light on the Live strip `TapPad` only
+gui-engine-dataflow	GD-26	PARTIAL	Engine	POLISH	Kill pill driven by `kill_switch_active` parameter — `KillSwitch` object, not a parameter
+gui-engine-dataflow	GD-35	PARTIAL	QA	DOCS	several exist in UiSweepTests (`Dataflow::*`, stale tests) but not as a per-element suite under Tests/Ui/Dataflow/
+gui-engine-dataflow	GD-36	MISSING	GUI	POLISH	Options > Diagnostics "Show data-flow overlay" (drain rate, age, FIFO fill per element) — absent
+ui-wiring	UW-1	PARTIAL	Engine	POLISH	Every parameter in one APVTS, no side-channel audible state — per-string detune/fine-tune/custom tuning (preset `strings` block), rhythm density/hand position/humanise/swing, character maps are engine state
+ui-wiring	UW-2	PARTIAL	GUI	CRASH	string mute/detune now go through the command queue and capo via capo_fret, but `RhythmPanel` density/hand/swing sliders and `EasyPanel::rhythmFeelSlider` still write the engine directly
+ui-wiring	UW-3	PARTIAL	Host	FEATURE	`UiState` struct (not a ValueTree) now saves benchSlots, setlist ref/position, piano roll, practice drawer; visible snapshot slot not kept
+ui-wiring	UW-6	PARTIAL	Engine	POLISH	a small `CommandQueue<EngineCommand,128>` exists (panic, stringMute, stringDetune, rhythmReset, aftertouchTarget); structural swaps still message-thread calls, try-locks and the Workshop park/live-swap, no result queue
+ui-wiring	UW-8	MISSING	Accessibility	FEATURE	Display name translated via i18n catalog — names are English literals
+ui-wiring	UW-10	MISSING	Engine	POLISH	Shared unit enum + category tag per parameter — unit is a suffix string, no category tag
+ui-wiring	UW-12	PARTIAL	QA	DOCS	Every new parameter appears in the feature-to-location index — no index data to check against (see gui-integration GI-135)
+ui-wiring	UW-15	MISSING	GUI	POLISH	AttachedCombo rebuilds on parameter metadata change — items fixed at attach
+ui-wiring	UW-16	PARTIAL	GUI	POLISH	PartSlotWidget backed by uiState + command queue — Workshop cards / bench regions, no shared widget, no queue
+ui-wiring	UW-17	MISSING	GUI	POLISH	Panel base API: `getPanelId`, display name, `isCollapsed/setCollapsed`, VT listener — none
+ui-wiring	UW-20	PARTIAL	Engine	POLISH	Display FIFO per subsystem, fixed `DisplaySample` records, drains 30/60/10/15 Hz — only the NoiseEngine event ring; meters, chord, fretboard, mod values poll atomics at 30/15/10/4 Hz
+ui-wiring	UW-21	PARTIAL	Presets	POLISH	Preset load: parse, post command, apply at block boundary, swap structural state, apply ranges, post result — applied on the message thread (ranges first, then values via `ParameterBridge::applyAllNow`)
+ui-wiring	UW-25	PARTIAL	Workshop	POLISH	Shadow audition never mutates committed spec or undo; 30 ms crossfade back — no crossfade back (re-applies committed through the swap path), not tested for time
+ui-wiring	UW-29	MISSING	Host	FEATURE	Mappings per preset, "Save as global" moves one to user settings — absent
+ui-wiring	UW-37	PARTIAL	GUI	POLISH	GuitarIllustration: shared `GuitarRenderer` in two components, no single component with `interactionMode`; played notes and slide bar read from the engine at 60 Hz
+ui-wiring	UW-42	PARTIAL	Engine	POLISH	SlideEngine pressure state machine Lifted/Light/Normal/Heavy/Fretted; bar position a continuous parameter — pressure is continuous `slide_pressure` (per slide-guitar.md), bar position from MIDI
+ui-wiring	UW-43	PARTIAL	Host	FEATURE	MIDI export profile not saved
+ui-wiring	UW-48	PARTIAL	Engine	POLISH	Threading table; shared `juce::ThreadPool` of 2 for long tasks — spectrum delta own thread, notation export a 1-thread pool, IR/guitar loads on message thread
+ui-wiring	UW-49	PARTIAL	Accessibility	FEATURE	Every string from the catalog; LocaleChanged -> `refreshStrings`, no restart — ~12 `tr` uses in UI, `Localisation` has no broadcaster; Options locale change does not refresh panels
+ui-wiring	UW-51	PARTIAL	Accessibility	FEATURE	Custom widgets give per-child handlers (fretboard, step grid, spectrum pane, heatmap, illustration); labels from catalog; units in announcements — only `CircuitResponseView` has a handler; illustration regions describe themselves
+ui-wiring	UW-T1	MISSING	QA	DOCS	Test: every panel instantiated 100x leaves no listener attached
+ui-wiring	UW-T2	PARTIAL	QA	DOCS	Test: 60 s session with message-manager lock detector, no audio-thread UI access — on visual `Engine::fiveMinutesOfPlaybackNeitherAllocatesNorLocks` covers locks/allocation only
+ui-wiring	UW-T3	PARTIAL	QA	DOCS	Test: 20 presets x 10 random loads match an offline render
+ui-wiring	UW-T6	MISSING	QA	DOCS	Test: display FIFO at 10x drain for 60 s, no stall, oldest dropped
+ui-wiring	UW-T7	PARTIAL	QA	DOCS	one audition checked for commit, 100 timed for budget only
+ui-wiring	UW-T8	PARTIAL	QA	DOCS	Test: every physical param toggled stock<->advanced 100x, clamps right, no audio allocation
+ui-wiring	UW-T9	PARTIAL	QA	DOCS	one click test, 100 random swaps timed only
+ui-wiring	UW-T10	PARTIAL	QA	DOCS	Test: spectrum delta on committed vs shadow matches offline within 0.2 dB
+auto-articulation	AA-0	MISSING	Engine	FEATURE	Performance Assist ground rules (bit-identical off, own hash, explicit wins) have no implementation
+auto-articulation	AA-2	MISSING	Engine	FEATURE	Style constants table, Amount scaling and legato caps not built (no AutoArticulationStyles)
+auto-articulation	AA-3.1	MISSING	Engine	FEATURE	Hand-position tracker/cost function not built
+auto-articulation	AA-3.2	MISSING	Engine	FEATURE	Auto hammer-on/pull-off from note history not built
+auto-articulation	AA-3.3	MISSING	Engine	FEATURE	Auto slide rule not built
+auto-articulation	AA-3.4	MISSING	Engine	FEATURE	Delayed auto vibrato ramp in updatePerBlockModulation not built
+auto-articulation	AA-3.5	MISSING	Engine	FEATURE	Attack accent/soft excitation scaling not built
+auto-articulation	AA-3.6	MISSING	Engine	FEATURE	Auto palm-mute rule and scheduled lift not built
+auto-articulation	AA-3.7	MISSING	Engine	FEATURE	Alternate picking and auto strum direction not built
+auto-articulation	AA-3.8	MISSING	Engine	FEATURE	Bend-into, slide-in and fall ornaments not built
+auto-articulation	AA-4.1	MISSING	Engine	FEATURE	AutoArticulator, AutoArticulationStyles, AutoArticulationFeed files absent
+auto-articulation	AA-4.2	MISSING	Engine	FEATURE	NoteOnEvent fields, explicit-context plumbing and ParameterBridge settings absent
+auto-articulation	AA-5	MISSING	Engine	FEATURE	Explicit-context precedence table not built
+auto-articulation	AA-6	MISSING	Engine	FEATURE	aa_enabled/aa_style/aa_amount/aa_rules parameters not added
+auto-articulation	AA-7.1	MISSING	GUI	FEATURE	Easy AUTO pill and style combo not built
+auto-articulation	AA-7.2	MISSING	GUI	FEATURE	RHYTHM tab PLAYING group and CASCADE Auto row not built
+auto-articulation	AA-7.3	MISSING	GUI	FEATURE	Show-what-it-did fretboard labels not built
+auto-articulation	AA-7.4	MISSING	GUI	POLISH	Options Show Performance Assist labels preference not built
+auto-articulation	AA-7.5	MISSING	GUI	POLISH	A shortcut, performance-assist help topic and Free upsell not built
+auto-articulation	AA-7.6	MISSING	Docs	DOCS	gui-integration section 19 feature-index row not added
+auto-articulation	AA-8	MISSING	State	FEATURE	AA state, UiState::playingGroupCollapsed, undo classes and a11y not built
+auto-articulation	AA-9	MISSING	Capture	FEATURE	Capture marks, pickStroke ScoreTechnique types, MusicXML/GP pick direction and aa= profile field not built
+auto-articulation	AA-10	MISSING	Engine	POLISH	Budget cannot be met or measured; feature absent
+auto-articulation	AA-11	MISSING	Editions	FEATURE	Free/Pro style split and aa_rules fallback not built
+auto-articulation	AA-12	MISSING	Engine	FEATURE	Interactions with humanize, strum dynamics, rhythm, Tune, piano roll, capo not built
+auto-articulation	AA-13	MISSING	Engine	FEATURE	Failure-mode handling not built
+auto-articulation	AA-T1	MISSING	QA	DOCS	No AA tests (off bit-identical, rng, latency)
+auto-articulation	AA-T2	MISSING	QA	DOCS	No AA rule unit tests
+auto-articulation	AA-T3	MISSING	QA	DOCS	No explicit-wins/controller/block-size tests
+auto-articulation	AA-T4	MISSING	QA	DOCS	No capture/param-layout/state tests
+auto-articulation	AA-T5	MISSING	QA	DOCS	No AA GUI/undo/combination tests
+muting-rhythm	MR-1	MISSING	Engine	FEATURE	Seven mute types absent from compiled code (only WIP draft)
+muting-rhythm	MR-2	MISSING	Engine	FEATURE	Per-type position/pressure defaults and per-step overrides not compiled
+muting-rhythm	MR-3	MISSING	Engine	FEATURE	mute_type per pattern step and JSON extension not in compiled RhythmPattern
+muting-rhythm	MR-4	MISSING	Engine	FEATURE	Live 16-step Mute Grid engine and Col 4 UI absent
+muting-rhythm	MR-5	MISSING	Engine	FEATURE	Master mute mode override absent
+muting-rhythm	MR-6	MISSING	Engine	FEATURE	mute_palm_position/pressure params absent (only `palmMuteSpread` in Parameters.cpp:840)
+muting-rhythm	MR-7	MISSING	Engine	FEATURE	Fretting-hand mute style (rock spread/classical) absent
+muting-rhythm	MR-8	PARTIAL	Engine	FEATURE	Chuka as a mute type (strums with dynamics<0.3) absent; only older chuck_amount exists
+muting-rhythm	MR-9	MISSING	Engine	FEATURE	Random mute humanise absent
+muting-rhythm	MR-10	MISSING	Engine	FEATURE	Ghost mute type (velocity 0.4, no pitch) absent
+muting-rhythm	MR-11	MISSING	Engine	FEATURE	RhythmEngine does not pass mute_type with note-on
+muting-rhythm	MR-12	PARTIAL	Engine	FEATURE	Mute-type initial damping/post-strike release (setMutedDamping) absent; only chuck/palm damping enums
+muting-rhythm	MR-13	MISSING	Engine	FEATURE	Mute stacking with slap/scrape/slide/tap/bend needs the CascadeResolver, absent
+muting-rhythm	MR-14	MISSING	Engine	FEATURE	Six mute presets not compiled; no Techniques chip
+muting-rhythm	MR-15	MISSING	GUI	FEATURE	Techniques > Muting sub-tab absent
+muting-rhythm	MR-16	MISSING	GUI	FEATURE	Easy 4-way Mute button absent
+muting-rhythm	MR-17	MISSING	GUI	FEATURE	RHYTHM tab Mute row absent
+muting-rhythm	MR-18	MISSING	Export	FEATURE	MIDI export of mute_type (Luthier SysEx / text meta) absent
+muting-rhythm	MR-T1	MISSING	QA	DOCS	Muting test palm heavy low E T60 40-60 ms not compiled (WIP draft only)
+muting-rhythm	MR-T2	MISSING	QA	DOCS	Muting test ghost < -30 dB pitched not compiled (WIP draft only)
+muting-rhythm	MR-T3	MISSING	QA	DOCS	Muting test chuka at dyn 0.2 no sustained pitch not compiled (WIP draft only)
+muting-rhythm	MR-T4	MISSING	QA	DOCS	Muting test grid paint applies within a bar not compiled (WIP draft only)
+muting-rhythm	MR-T5	MISSING	QA	DOCS	Muting test humanise 0.5 ~50% over 100 loops not compiled (WIP draft only)
+muting-rhythm	MR-T6	MISSING	QA	DOCS	Muting test preset save/restore round-trips grid not compiled (WIP draft only)
+muting-rhythm	MR-T7	MISSING	QA	DOCS	Muting test patterns without mute_type play identically not compiled (WIP draft only)
+muting-rhythm	MR-T8	MISSING	QA	DOCS	Muting test slap carries its mute not compiled (WIP draft only)
+engine-technique-layer	ETL-3	MISSING	Engine	FEATURE	TapEngine, MuteEngine, CascadeResolver and TechniqueLayer not in compiled tree
+engine-technique-layer	ETL-4	PARTIAL	Engine	FEATURE	No CascadeResolver stage or documented technique pipeline order
+engine-technique-layer	ETL-6	PARTIAL	Engine	FEATURE	TechniqueId has only scrape and slap; tap, pre-bend, slide gesture types absent
+engine-technique-layer	ETL-7	MISSING	Engine	FEATURE	N concurrent contact points / taps as capos in series not built (no TapEngine)
+engine-technique-layer	ETL-8	MISSING	Engine	FEATURE	Rhythm step mute_type emission absent
+engine-technique-layer	ETL-9	MISSING	Engine	FEATURE	ModMatrix PreBendEvent source and per-string microtonal range factor absent
+engine-technique-layer	ETL-11	MISSING	Engine	FEATURE	Keyswitches 19-21 (tap, pre-bend, slide gesture) absent
+engine-technique-layer	ETL-12	MISSING	Engine	FEATURE	MPE Y/Z routing to slide position/pressure and bends absent
+engine-technique-layer	ETL-13	PARTIAL	Engine	FEATURE	Formal Arm/SetParam/TriggerGesture/LoadMuteGrid commands and TechniqueFiredResult absent; no no-alloc command test
+engine-technique-layer	ETL-14	PARTIAL	Engine	FEATURE	Arm booleans and ~60 params exist only for scrape/slap; tap, mute, bend, cascade params absent
+engine-technique-layer	ETL-15	MISSING	Engine	FEATURE	Grouping under parameters/techniques/<technique>/* not done
+engine-technique-layer	ETL-16	PARTIAL	Engine	FEATURE	No dedicated techniques-block load path or pre-delta preset test
+engine-technique-layer	ETL-18	PARTIAL	Engine	FEATURE	Mute grid, bend scale, curve not persisted (engines absent)
+engine-technique-layer	ETL-20	MISSING	Engine	FEATURE	Technique undo classes absent
+engine-technique-layer	ETL-21	PARTIAL	Engine	POLISH	No all-six / per-module CPU budget test; low-CPU class banner absent
+engine-technique-layer	ETL-T1	MISSING	QA	DOCS	No pipeline-order test (no TechniqueLayer)
+engine-technique-layer	ETL-T2	PARTIAL	QA	DOCS	Additive regression is only the existing suite; no technique layer to regress
+engine-technique-layer	ETL-T3	MISSING	QA	DOCS	No 100 pre-delta preset byte-identical playback test
+engine-technique-layer	ETL-T4	MISSING	QA	DOCS	No 1000 commands/s allocation test
+engine-technique-layer	ETL-T5	PARTIAL	QA	DOCS	No legacy bass-slap preset fixture test, only param round trip
+technique-cascade	TC-1	MISSING	Engine	FEATURE	Compatibility class table absent
+technique-cascade	TC-2	MISSING	Engine	FEATURE	Same-string compatibility matrix and 200 ms window absent
+technique-cascade	TC-3	MISSING	Engine	FEATURE	Cross-string always-compatible rule not formalised (no resolver)
+technique-cascade	TC-4	MISSING	Engine	FEATURE	Priority rules (user over auto, recency, slide holds) absent
+technique-cascade	TC-6	MISSING	Engine	FEATURE	Cascade stage schedule absent
+technique-cascade	TC-8	MISSING	Engine	FEATURE	Six combined technique presets absent
+technique-cascade	TC-9	MISSING	GUI	FEATURE	Conflict red-slash pill and tooltip absent
+technique-cascade	TC-10	MISSING	Engine	FEATURE	Cascade/arm undo behaviour absent
+technique-cascade	TC-11	PARTIAL	Engine	POLISH	No resolver or all-six / body-tap CPU budget test
+technique-cascade	TC-T1	MISSING	QA	DOCS	No matrix-cell fixtures (no resolver)
+technique-cascade	TC-T2	PARTIAL	QA	DOCS	Spectral discontinuity <0.5 dB criterion not measured; no tap-preempts-scrape test
+technique-cascade	TC-T3	MISSING	QA	DOCS	No cross-string slap E/slide B/tap G/bend A test
+technique-cascade	TC-T4	MISSING	QA	DOCS	No combined-preset reference test
+technique-cascade	TC-T5	MISSING	QA	DOCS	No 10000-gesture fuzz
+technique-cascade	TC-T6	MISSING	QA	DOCS	No conflict-slash-within-a-frame test
+gui-techniques-updates	GT-1	PARTIAL	GUI	FEATURE	Constraint holds trivially; the additive delta itself is not built
+gui-techniques-updates	GT-2	MISSING	GUI	FEATURE	TECHNIQUES tab in Col 4 not built
+gui-techniques-updates	GT-3	MISSING	GUI	FEATURE	Sub-tab rail SCRAPE/SLIDE/SLAP/MUTE/TAP/BEND/CASCADE not built
+gui-techniques-updates	GT-5	PARTIAL	GUI	FEATURE	Slide controls only in CHARACTER SlideGroup; no TECHNIQUES SLIDE sub-tab
+gui-techniques-updates	GT-6	PARTIAL	GUI	FEATURE	Slap controls only in bass-only CHARACTER SlapGroup; no TECHNIQUES SLAP sub-tab
+gui-techniques-updates	GT-7	MISSING	GUI	FEATURE	MUTE sub-tab and grid absent
+gui-techniques-updates	GT-8	MISSING	GUI	FEATURE	TAP sub-tab absent
+gui-techniques-updates	GT-9	MISSING	GUI	FEATURE	BEND sub-tab absent
+gui-techniques-updates	GT-10	MISSING	GUI	FEATURE	CASCADE grid view absent
+gui-techniques-updates	GT-11	MISSING	GUI	FEATURE	Per-sub-tab arm pill absent
+gui-techniques-updates	GT-12	MISSING	GUI	FEATURE	Easy Playing strip technique pills absent
+gui-techniques-updates	GT-13	MISSING	GUI	FEATURE	Hold popover for pills absent
+gui-techniques-updates	GT-14	MISSING	GUI	FEATURE	Right-click / long-press to open sub-tab absent
+gui-techniques-updates	GT-15	MISSING	GUI	FEATURE	Pill styling and fire dot absent
+gui-techniques-updates	GT-16	MISSING	GUI	FEATURE	Technique fretboard overlays absent
+gui-techniques-updates	GT-17	MISSING	GUI	FEATURE	CHARACTER Tapping / Microtonal mirrors absent
+gui-techniques-updates	GT-18	MISSING	GUI	FEATURE	RHYTHM Mute Row absent
+gui-techniques-updates	GT-19	MISSING	GUI	FEATURE	Uses Techniques preset filter chip absent
+gui-techniques-updates	GT-20	PARTIAL	GUI	POLISH	Techniques tour stop exists but has no tab to point at; cascade anchor absent
+gui-techniques-updates	GT-21	MISSING	GUI	FEATURE	Technique pill accessibility names/glyph absent
+gui-techniques-updates	GT-22	MISSING	GUI	FEATURE	Technique overlay reduced-motion behaviour absent
+gui-techniques-updates	GT-23	PARTIAL	Docs	DOCS	Help topics exist for unbuilt techniques UI; gui-integration index rows not added
+gui-techniques-updates	GT-T1	MISSING	QA	DOCS	No per-sub-tab render test at 1280x800 (no sub-tabs)
+gui-techniques-updates	GT-T2	PARTIAL	QA	DOCS	Tour-through-Techniques flow untested since the tab is absent
+two-hand-tapping	TH-1	MISSING	Engine	FEATURE	TapGesture (string, fret, strength, hand, pull-off-after, target, duration) ; none (no TapEngine/TapGesture; only the Technique::Tap event kind in Model/Playing/PlayingEvents.
+two-hand-tapping	TH-2	PARTIAL	Engine	FEATURE	Tap-on impulse + contact; tap-hold = movable capo; tap-off back to fretted pitch ; Technique::Tap -> Excitation::Kind::Tap (LuthierEngine.cpp ~1435), TechniqueEngine::setTapTri
+two-hand-tapping	TH-3	MISSING	Engine	FEATURE	Pull-off lateral flick excitation on release ; none: no TapEngine/tap_* params on this checkout
+two-hand-tapping	TH-4	MISSING	Engine	FEATURE	Multi-finger: concurrent taps same/different strings ; none: no TapEngine/tap_* params on this checkout
+two-hand-tapping	TH-5	MISSING	GUI	FEATURE	Trigger source MIDI ch 2 (default) / keyswitch / fretboard tap layer ; none (TechniqueEngine::setTapTrigger only; no TapSettings, no ch-2/keyswitch 19 tap trigger)
+two-hand-tapping	TH-6	MISSING	Engine	FEATURE	Tap strength curve (default linear) ; none: no TapEngine/tap_* params on this checkout
+two-hand-tapping	TH-7	MISSING	Engine	FEATURE	Auto pull-off, default on ; none: no TapEngine/tap_* params on this checkout
+two-hand-tapping	TH-8	PARTIAL	Engine	FEATURE	LH hammer-on threshold (40) and 150 ms promotion window; pull-off on revealing note-off ; TechniqueEngine::setLegatoWindowMs (default 40 ms) / setLegatoVelocityThreshold (0.63): legato h
+two-hand-tapping	TH-9	MISSING	Engine	FEATURE	Lateral flick 0.5, duration 200 ms, max concurrent 2 (adv 8), fret snap on ; none: no TapEngine/tap_* params on this checkout
+two-hand-tapping	TH-10	MISSING	Engine	FEATURE	TapEngine trigger/release/processBlock/reset, inserted after TechniqueEngine before StringEngine ; none: no TapEngine/tap_* params on this checkout
+two-hand-tapping	TH-11	MISSING	GUI	FEATURE	Techniques > Tapping sub-tab, all controls ; none: no TapEngine/tap_* params on this checkout
+two-hand-tapping	TH-12	MISSING	GUI	FEATURE	Easy Playing strip Tap pill arms next note as tap ; none (no tap_armed)
+two-hand-tapping	TH-13	MISSING	GUI	FEATURE	CHARACTER Right Hand group "Tapping" section (curve, flick, auto pull-off) — mirror sits at CHARACTE ; none: no TapEngine/tap_* params on this checkout
+two-hand-tapping	TH-14	MISSING	GUI	FEATURE	Fretboard square tap markers, released fade 100 ms ; none: no TapEngine/tap_* params on this checkout
+two-hand-tapping	TH-15	PARTIAL	Engine	FEATURE	Cascade: mute/bend compatible; slide conflicts on contacted strings; slap alternate; scrape conflict ; LuthierEngine::triggerNote (Technique::Tap preempts scrape and slap on its string), SlapEngine::c
+two-hand-tapping	TH-16	MISSING	GUI	FEATURE	Five presets (Standard Two-Hand, Legato Runs, Eight-Finger, Microtonal, Percussive) — Eight-Finger a ; none: no TapEngine/tap_* params on this checkout
+two-hand-tapping	TH-17	MISSING	Engine	FEATURE	MIDI export of taps (SysEx hand/strength/pull-off; generic ch 2) — deferred on owner branch ; none: no TapEngine/tap_* params on this checkout
+two-hand-tapping	TH-T1	MISSING	QA	DOCS	Test: tap 12 over fret 5, returns with small transient ; none (feature absent)
+two-hand-tapping	TH-T2	MISSING	QA	DOCS	Test: flick 1.0 transient; auto pull-off off none ; none (feature absent)
+two-hand-tapping	TH-T3	MISSING	QA	DOCS	Test: hammer-on without pick transient ; none (feature absent)
+two-hand-tapping	TH-T4	MISSING	QA	DOCS	Test: two taps = capos in series ; none (feature absent)
+two-hand-tapping	TH-T5	MISSING	QA	DOCS	Test: fret snap off 12.3 sharp ; none (feature absent)
+two-hand-tapping	TH-T6	MISSING	QA	DOCS	Test: CPU idle < 0.05 %, busy < 0.8 % ; none (feature absent)
+two-hand-tapping	TH-T7	MISSING	QA	DOCS	Test: preset round-trips every field ; none (feature absent)
+microtonal-bends	MB-1	PARTIAL	Engine	FEATURE	Continuous per-string pitch; ordered source stack global + per-string + vibrato + pre-bend + slide,  ; bend_range (semitones 1-48, default 2) global bend, MPE per-note bend (mpe_enabled), vibrato_ra
+microtonal-bends	MB-2	MISSING	Engine	FEATURE	Per-source scale factor + optional latency compensation — no latency compensation on branch ; none (no per-source scale factor or latency compensation)
+microtonal-bends	MB-3	MISSING	GUI	FEATURE	Global bend source PB / expression / CC; fretboard drag ; none (bend_range driven by pitch wheel only; no source selector)
+microtonal-bends	MB-4	PARTIAL	Engine	FEATURE	Global range cents default 200, advanced 2400 (branch: stock 2400, adv 4800) ; bend_range in semitones (default 2 = 200 c, max 48 = 4800 c); not bend_global_range in cents or 
+microtonal-bends	MB-5	MISSING	Engine	FEATURE	Per-string source MPE Y / CC per string / none; 6 per-string ranges 200 c ; none: no BendEngine/bend_* params on this checkout
+microtonal-bends	MB-6	PARTIAL	Engine	FEATURE	Vibrato source LFO/AT/MPE Z, rate 3-10 (6), depth 5-50 (20), onset 200 ms ; vibrato_rate/depth/shape (Advanced PERFORMANCE); no source select, onset delay or 50 ms ramp
+microtonal-bends	MB-7	MISSING	Engine	FEATURE	Quantise none/quarter/semitone/24/22/31/53-EDO/custom with snap strength ; none: no BendEngine/bend_* params on this checkout
+microtonal-bends	MB-8	MISSING	Engine	FEATURE	Custom .scl / .tun loading ; none: no BendEngine/bend_* params on this checkout
+microtonal-bends	MB-9	MISSING	Engine	FEATURE	Pre-bend via keyswitch/CC, amount -200 c, releases ; none: no BendEngine/bend_* params on this checkout
+microtonal-bends	MB-10	MISSING	Engine	FEATURE	Bend curve / release curve linear / exponential / drawn ; none: no BendEngine/bend_* params on this checkout
+microtonal-bends	MB-11	MISSING	Engine	FEATURE	setBendSourceStack / setBendQuantise; range change at next note-on ; none: no BendEngine/bend_* params on this checkout
+microtonal-bends	MB-12	MISSING	Engine	FEATURE	ModMatrix PreBendEvent source class — deferred on owner branch ; none: no BendEngine/bend_* params on this checkout
+microtonal-bends	MB-13	MISSING	GUI	FEATURE	Techniques > Microtonal Bends sub-tab ; none: no BendEngine/bend_* params on this checkout
+microtonal-bends	MB-14	MISSING	GUI	FEATURE	Easy bend/vibrato "…" popover (range + vibrato) ; none: no BendEngine/bend_* params on this checkout
+microtonal-bends	MB-15	MISSING	GUI	FEATURE	CHARACTER PLAYING group "Microtonal" section — mirror at CHARACTER foot ; none: no BendEngine/bend_* params on this checkout
+microtonal-bends	MB-16	MISSING	GUI	FEATURE	Fretboard cents badge; heavy bend pushes dot along fret gap ; none: no BendEngine/bend_* params on this checkout
+microtonal-bends	MB-17	MISSING	Engine	FEATURE	Cascade: bend compatible with all; bent slap ; none: no BendEngine/bend_* params on this checkout
+microtonal-bends	MB-18	MISSING	GUI	FEATURE	Five presets (Whole-Tone, Quarter-Tone Blues, Maqam, Wide Vibrato, Whammy Two-Octave) ; none: no BendEngine/bend_* params on this checkout
+microtonal-bends	MB-19	MISSING	Engine	FEATURE	MIDI export per-source SysEx; generic PB split per channel — deferred on owner branch ; none: no BendEngine/bend_* params on this checkout
+microtonal-bends	MB-T1	MISSING	QA	DOCS	Test: global +100 c on every note ; none (feature absent)
+microtonal-bends	MB-T2	MISSING	QA	DOCS	Test: per-string bend only string 3 ; none (feature absent)
+microtonal-bends	MB-T3	MISSING	QA	DOCS	Test: vibrato onset delay; depth within 50 ms ; none (feature absent)
+microtonal-bends	MB-T4	MISSING	QA	DOCS	Test: quarter-tone snap lands on 50 c ; none (feature absent)
+microtonal-bends	MB-T5	MISSING	QA	DOCS	Test: .scl within 0.5 c ; none (feature absent)
+microtonal-bends	MB-T6	MISSING	QA	DOCS	Test: pre-bend -200 c releases ; none (feature absent)
+microtonal-bends	MB-T7	MISSING	QA	DOCS	Test: range change mid-note no jump ; none (feature absent)
+microtonal-bends	MB-T8	MISSING	QA	DOCS	Test: bend + slap on low E ; none (feature absent)
+microtonal-bends	MB-T9	MISSING	QA	DOCS	Test: preset round-trips every field ; none (feature absent)
+slide-technique-controls	SL-1	MISSING	GUI	FEATURE	Position source mod wheel / PB / MPE Y / expression / CC / fretboard drag ; none (slide follows note pitch only; no position source stack)
+slide-technique-controls	SL-2	MISSING	Engine	FEATURE	Position mode absolute (0-1 -> fret 0-24) / relative ; none: no SlideControlSettings/slide_pos_* params on this checkout
+slide-technique-controls	SL-3	PARTIAL	Engine	FEATURE	Slant control (degrees), source selectable ; slide_slant (Parameters.cpp, SlideSettings::slantDegrees); no source selector
+slide-technique-controls	SL-4	PARTIAL	Engine	FEATURE	Pressure 0-1, source selectable ; slide_pressure (SlideSettings::pressure); no source selector
+slide-technique-controls	SL-5	MISSING	Engine	FEATURE	Contact string mask all / bass 3 / treble 3 ; none: no SlideControlSettings/slide_pos_* params on this checkout
+slide-technique-controls	SL-6	MISSING	Engine	FEATURE	Speed limit 4800 c/s, advanced higher ; none: no SlideControlSettings/slide_pos_* params on this checkout
+slide-technique-controls	SL-7	PARTIAL	Engine	FEATURE	Auto-vibrato after 300 ms hold, depth/rate, off by default ; SlideEngine::vibratoCents (bar vibrato exists); no auto-vibrato after a 300 ms hold or slide_auto
+slide-technique-controls	SL-8	PARTIAL	Engine	FEATURE	Gesture trigger keyswitch/CC; SlideGesture (from, to, duration, curve, slant start/end, pressure) ; SlideEngine::startMove (scripted from/to/duration move); no SlideGesture struct, curve, keyswitch/
+slide-technique-controls	SL-9	MISSING	Engine	FEATURE	Gesture triggered by MIDI meta or tune-builder — absent on owner branch (keyswitch/CC only) ; none: no SlideControlSettings/slide_pos_* params on this checkout
+slide-technique-controls	SL-10	MISSING	Engine	FEATURE	setPositionSource / triggerGesture / setSpeedLimit on SlideEngine ; none: no SlideControlSettings/slide_pos_* params on this checkout
+slide-technique-controls	SL-11	MISSING	GUI	FEATURE	Techniques > Slide sub-tab ; none: no SlideControlSettings/slide_pos_* params on this checkout
+slide-technique-controls	SL-12	MISSING	GUI	FEATURE	Easy slide glyph "…" popover (source + mode) — SLIDE pill hold popover ; none: no SlideControlSettings/slide_pos_* params on this checkout
+slide-technique-controls	SL-13	MISSING	GUI	FEATURE	Advanced Col 3 SLIDE group expandable section — mirror at CHARACTER foot ; none: no SlideControlSettings/slide_pos_* params on this checkout
+slide-technique-controls	SL-14	PARTIAL	Engine	FEATURE	Cascade: compatible with mute, bends, scrape (bar lifted); not tap on contacted strings, not slap ; LuthierEngine.cpp ~2596 (slide holds its strings), SlapEngine::classify(e, underBar) refuses sla
+slide-technique-controls	SL-15	MISSING	GUI	FEATURE	Presets Standard (Mod Wheel), Pitch-Bend, Lap Steel Full Control, Auto-Vibrato Hold ; none: no SlideControlSettings/slide_pos_* params on this checkout
+slide-technique-controls	SL-T1	MISSING	QA	DOCS	Test: mod wheel drives position ; none (feature absent)
+slide-technique-controls	SL-T2	MISSING	QA	DOCS	Test: speed limit clamps a jump ; none (feature absent)
+slide-technique-controls	SL-T3	MISSING	QA	DOCS	Test: scripted gesture within ±5 ms ; none (feature absent)
+slide-technique-controls	SL-T4	MISSING	QA	DOCS	Test: auto-vibrato after 300 ms ; none (feature absent)
+slide-technique-controls	SL-T5	MISSING	QA	DOCS	Test: source swap crossfades 10 ms ; none (feature absent)
+slide-technique-controls	SL-T6	MISSING	QA	DOCS	Test: bass-only mask leaves treble free ; none (feature absent)
+slide-technique-controls	SL-T7	MISSING	QA	DOCS	Test: preset round-trips every control ; none (feature absent)
+string-scraping	SC-19	PARTIAL	Presets	FEATURE	Five presets (Classic Rock, Metal Zipper, Slow Ratchet, Nail, Modwheel-Sweep) loadable — defined onl ; ScrapeSettings::fromPreset (called only by tests; no factory presets or browser entries)
+string-scraping	SC-25	MISSING	GUI	FEATURE	Controls exposed in the Techniques tab ; n/a
+string-slap-technique	SS-11	PARTIAL	Docs	DOCS	"Double thump on thumb rebounds by default" — double_thump_enabled defaults off (bass-techniques 1 ; Parameters.cpp 778: double_thump_enabled default false (matches bass-techniques 4; spec wording 
+string-slap-technique	SS-19	PARTIAL	Presets	FEATURE	Five presets (Bass Standard, Bass Aggressive, Funk Guitar Palm Slap, Acoustic Body Tap, Percussive F ; SlapSettings::fromPreset (called only by tests; no factory presets or browser entries)
+string-slap-technique	SS-20	PARTIAL	Engine	FEATURE	Cascade: compatible with palm mute and bend ; LuthierEngineRealismB.cpp 642 (thumb palm-mute damping on slap strikes); MuteEngine is only in Sou
+string-slap-technique	SS-21	PARTIAL	Engine	FEATURE	Cascade: tap alternation ; LuthierEngine::triggerNote (Technique::Tap calls slap.preempt), SlapEngine::classify refuses T
+string-slap-technique	SS-23	MISSING	GUI	FEATURE	GUI: TECHNIQUES > Slap sub-tab ; n/a
+slide-guitar	SG-6	MISSING	Engine	FEATURE	slide_length (strings covered) and slide_diameter (contact curvature) have audible effect — fiel ; none (SlideBar::lengthMm/diameterMm in SlideEngine.h are read nowhere)
+slide-guitar	SG-24	MISSING	GUI	POLISH	Tuning popover shows continuous pitch rather than a fret in Slide Mode — no slide branch ; none
+slide-guitar	SG-26	PARTIAL	Export	FEATURE	MIDI export: SLIDE_BAR carries position over time, slant, pressure (Luthier round-trips); Generic re ; LuthierEngine perfCapture->slideBar; LuthierMidiEvents slideBar fields; MidiPerformance::addS
+string-squeak	SQ-8	PARTIAL	Engine	FEATURE	Trigger: PerformanceScore position change, ChordVoicer revoice of a held note, explicit MIDI slide e ; MidiInterpreter::emitVoicedNote (shiftFromFret) -> LuthierEngine::triggerNote onShift; imported 
+string-squeak	SQ-24	PARTIAL	GUI	POLISH	Winding selector is a mirror of the Workshop string part (edit part directly now Workshop exists) —  ; n/a
+string-interaction	SI-5	PARTIAL	Engine	FEATURE	Fretting style scales it (rock 1.0 / classical 0.1) from MuteSettings::frettingStyle — owner proxi ; Parameters.cpp 1836 derives interaction.frettingStyle from rh_style (classical 0.1 / rock 1.0)
+string-interaction	SI-13	MISSING	GUI	FEATURE	Palm width mirrored in TECHNIQUES > MUTE — both realism-b and techniques omit it ; none
+string-interaction	SI-14	MISSING	Docs	DOCS	gui-integration §19 rows (primary CHARACTER > STRING INTERACTION) — not added ; n/a
+string-interaction	SI-24	PARTIAL	QA	DOCS	Per-string sum -80 dBFS with every feature at default — owner relies on existing RoutingTests, no as ; Routing.perStringOutputsSumToPreBody (pre-existing, -80 dBFS bar)
+strum-dynamics	SD-5	PARTIAL	Engine	POLISH	Down steeper/harder/brighter; up shallower, softer, more chirp, less click — only force differs (kU ; StrumGesture.cpp ~281
+strum-dynamics	SD-17	MISSING	Engine	FEATURE	Chuck from a MIDI note in the chuck key range — deferred by DECISIONS (no range specified) ; none
+pick-noise	PN-4	PARTIAL	Engine	POLISH	Per-material noise textures synthesised once, read at a random offset — only 5 shared texture classe ; NoiseEngine::prepare (NoiseTexture enum)
+pick-noise	PN-8	PARTIAL	Engine	FEATURE	pick_material, default Celluloid, 8 materials — Ultex, Tortex and Stone/horn missing (DECISIONS.md ; PlayingNoise::getPickMaterial; Parameters::pickMaterialNames
+pick-noise	PN-9	PARTIAL	Engine	POLISH	pick_thickness 0.38-3 mm, default 0.73 — shipped default 0.5 normalised decodes to 1.07 mm ; Parameters.cpp:486, Parameters::pickThicknessMm; PhysicalRange.cpp:125
+pick-noise	PN-17	PARTIAL	GUI	FEATURE	Rake from the pick_scrape MIDI class or the Easy rake gesture — only keyswitches 13/14 while SCRAP ; ScrapeEngine::takeRake → LuthierEngine::triggerPickScrape
+bass-techniques	BT-2	PARTIAL	GUI	POLISH	Fixed empty-state text "Bass techniques are inactive. Load a bass to use them." shown on a guitar —  ; n/a
+bass-techniques	BT-9	PARTIAL	Engine	POLISH	Return stroke at 1/(2 x strum_crossing_sps) — uses slap_rebound_gap (60 ms) instead ; SlapEngine.cpp reboundGapMs
+bass-techniques	BT-12	PARTIAL	Export	FEATURE	Ghost triggered explicitly by the BASS_TECH MIDI event class — only the step grid sets bassTechniqu ; SlapEngine::classify (e.bassTechnique)
+bass-techniques	BT-24	PARTIAL	Export	FEATURE	BASS_TECH Luthier profile: technique, strength, position, fret-contact per event, round-trips exactl ; LuthierEngine::captureBassTechnique; PerformanceCapture::bassTechnique; LuthierMidiEvents bass
+bass-techniques	BT-T12	PARTIAL	QA	DOCS	Test: BASS_TECH round-trips; Generic velocities keep slap/ghost distinction — Luthier part only via  ; 
+fingerstyle-attack	FA-25	MISSING	Docs	DOCS	gui-integration §19 row "Right-hand tools…" — not added ; n/a
+fingerstyle-attack	FA-26	MISSING	Export	FEATURE	midi-export PICK class gains tool / finger / stroke — owner defers ; none
+fingerstyle-attack	FA-27	PARTIAL	QA	DOCS	Note-on only cost, budget 0.02, no alloc; reset clears rest neighbours and alternation phase — reset ; resetRealismB
+licensing	LIC-5	PARTIAL	Licensing	FEATURE	Seats, online activation, deactivation queue, revocation: only placeholder activate/deactivate
+licensing	LIC-8	PARTIAL	Licensing	FEATURE	Licence state machine: only placeholder grace countdown; no demo mode, exports lock or clock-rollback guard
+licensing	LIC-11	PARTIAL	Licensing	FEATURE	Placeholder License not replaced by LicenceFile/MachineFingerprint/LicenceClient/LicenceState; no Options Licence page
+performance-budget	PB-2	MISSING	QA	DOCS	Budgets/measurements missing for the remaining ~19 modules (StringEngine, Pickup, Whammy, PostFX, ModMatrix, technique modules, etc.)
+performance-budget	PB-3	PARTIAL	QA	DOCS	Module costs measured in-process for 10 s, not isolated in the offline renderer over 60 s
+performance-budget	PB-4	MISSING	QA	DOCS	No regression comparison against the previous release (>10% flag, >20% block); dashboard only publishes numbers
+performance-budget	PB-8	MISSING	Engine	POLISH	No pedal Quality param with eco mode; no per-pedal 0.5 unit cap enforcement
+performance-budget	PB-9	MISSING	QA	DOCS	Per-pedal ship budgets (reverb 0.4 ... doubler 0.15) not measured; only PreFX chain average
+performance-budget	PB-11	MISSING	QA	DOCS	RSS tier tests (all IR variants 700 MB, full parts 800 MB, tunes 820 MB) not written
+performance-budget	PB-17	MISSING	QA	DOCS	Standalone launch-to-audible <= 1.5 s cold not measured
+performance-budget	PB-27	PARTIAL	QA	DOCS	Perf dashboard runs nightly only, not on every merge
+updates-telemetry	UT-8	PARTIAL	GUI	POLISH	Update banner has one Details action; no What is new / Download links in the banner itself
+updates-telemetry	UT-11	MISSING	Updates	FEATURE	bsdiff-style binary patches not implemented (deltas are whole-file replace)
+updates-telemetry	UT-12	PARTIAL	Telemetry	FEATURE	Usage telemetry recorded at one call site only (normalization_enabled); panels/presets/CPU/flags and daily sendPending never called
+updates-telemetry	UT-13	PARTIAL	Telemetry	FEATURE	Diagnostics telemetry (errors, warnings, host/sr/buffer/format) has no record call sites
+updates-telemetry	UT-16	PARTIAL	Telemetry	FEATURE	Crash dump: troubleshooting file not copied beside it; no Windows minidump
+updates-telemetry	UT-17	PARTIAL	GUI	FEATURE	Privacy page has no crash-report viewer (describePendingCrashReport) or upload/discard button
+updates-telemetry	UT-20	PARTIAL	Licensing	FEATURE	Licence activation is a placeholder; real design in licensing.md (deferred to editions split)
+updates-telemetry	UT-31	MISSING	QA	DOCS	Test: 5 sequential delta patches equals full installer SHA not written
+installer	IN-4	PARTIAL	QA	DOCS	Deterministic byte-identical installers — Linux archives reproducible (`SOURCE_DATE_EPOCH`); Win/mac not (signing timestamps; documented)
+installer	IN-6	MISSING	Installer	POLISH	Splash with logo, version, "Preparing installer"
+installer	IN-8	PARTIAL	Installer	DOCS	Licence shown and accepted — the text is a placeholder EULA
+installer	IN-9	PARTIAL	Installer	FEATURE	Component picker: VST3 (fixed), Standalone, Content, Docs, Uninstaller — no Docs component; Content is fixed; CLAP added
+installer	IN-10	PARTIAL	Installer	POLISH	Locations: VST3 fixed; standalone editable; content `C:\ProgramData\Luthier` editable — content path fixed by design (`IrLibrary` search)
+installer	IN-14	PARTIAL	Installer	FEATURE	Post-install: Add/Remove entry, 6 file associations, Start menu, optional launch (off), "What's new" link — no "What's new" link
+installer	IN-16	PARTIAL	Installer	FEATURE	Silent install `/S`, `/D=`, documented exit codes, HKLM keys — Inno `/VERYSILENT` and `/DIR=` (documented deviation in RELEASING §8); HKLM `Software\Luthier` keys
+installer	IN-17	PARTIAL	Installer	FEATURE	Uninstaller refuses while a DAW holding the plugin runs — Restart Manager `CloseApplications` only (known gap)
+installer	IN-19	PARTIAL	Installer	FEATURE	.dmg "Read me first"; standard paths for AU/VST3/app/content; admin only for system paths; "Open Luthier" post-install button — no post-install button
+installer	IN-20	MISSING	Installer	FEATURE	Launch Services associations for the six extensions — no `DOCUMENT_EXTENSIONS`/`CFBundleDocumentTypes` in the app's Info.plist
+installer	IN-24	MISSING	Installer	FEATURE	`.rpm` (best-effort)
+installer	IN-28	PARTIAL	Installer	FEATURE	Standalone-only bundle on every platform — Windows portable zip holds app + plugins; mac/Linux via the picker or `--no-vst3`, no separate bundle
+installer	IN-33	PARTIAL	Installer	FEATURE	Absent marker -> onboarding; different version -> upgrade banner + migrations - `InstallLayout::Result` (firstRun/upgradedFrom) is computed but nothing reads `getInstallLayoutResult()`; no upgrade banner; onboarding uses its own c
+installer	IN-34	PARTIAL	Installer	FEATURE	Managed installers take command-line config; `luthier-policy.json` pre-placeable — the plugin honours a policy file; installers cannot place one
+installer	IN-35	MISSING	Installer	FEATURE	MSI wrapper for Group Policy
+installer	IN-40	PARTIAL	Installer	FEATURE	Portable Windows zip: no registry, no Start menu, no auto-update; no writes outside the folder — the plugin still writes `Documents\Luthier`
+installer	IN-43	PARTIAL	Installer	FEATURE	Rollback: manifest revert within 30 min, old installers stay, downgrade prompt, rollback banner in the plugin — Windows downgrade prompt exists; no rollback banner or runbook
+installer	IN-44	MISSING	QA	DOCS	Test: install/uninstall cycle per platform, files match the manifest — manual (RELEASING §6)
+installer	IN-45	MISSING	QA	DOCS	Test: upgrade A->B leaves no A artefacts; downgrade B->A clean
+installer	IN-46	MISSING	QA	DOCS	Test: silent install with a policy takes effect on first run
+installer	IN-47	MISSING	QA	DOCS	Test: every published installer verifies against the PGP manifest
+installer	IN-48	MISSING	QA	DOCS	Test: portable Windows writes nothing outside its folder
+installer	IN-49	MISSING	QA	DOCS	Test: 200 pre-parts fixture presets load, back up and render within -60 dBFS of golden
+output-normalization	ON-4.4	PARTIAL	Engine	FEATURE	Tune-load prefetch of calibrations not wired (needs TuneSession to expose section presets); setlist and preset prefetch done
+output-normalization	ON-10	PARTIAL	Engine	FEATURE	Preview player gain offset: getPreviewGainOffsetDb API exists but no PreviewPlayer consumes it
+output-normalization	ON-11	PARTIAL	Editions	FEATURE	Per-edition (Free) factory table and build not separate; single edition string only (no Edition.h)
+output-normalization	ON-T4	PARTIAL	QA	DOCS	ON-32 Free-edition run deferred (no Free configuration)
+jam-mode	JM-9	PARTIAL	Export	FEATURE	Export MIDI is a save chooser, not the midi-export 4.1 range dialog
+jam-mode	JM-11	PARTIAL	Engine	FEATURE	PROG looper as an anticipated chord source deferred (no PROG playback engine)
+jam-mode	JM-15	PARTIAL	Editions	FEATURE	Free/Pro split is table + hooks under LUTHIER_FREE_EDITION only; not wired to a build
+riff-library	RL-0	MISSING	Riffs	FEATURE	Ground rules: original content only, explicit techniques, JSON single source with C++ encoder, reviewable `.riffdef`, MIDI-level audition, no new params - not implemented
+riff-library	RL-2.1	MISSING	Content	FEATURE	300 factory items per genre/type table, coverage rules, 60-item Free set - not implemented
+riff-library	RL-2.2	MISSING	Content	FEATURE	`.riffdef` authoring grammar (durations, notes, chords, technique suffixes, strum/bass prefixes, bar sums) - not implemented
+riff-library	RL-2.3	MISSING	Content	FEATURE	`Tools/generate_factory_riffs.py` deterministic generator, legality checks, catalog/free manifest, CI diff; `luthier-render --export-riffs` flag in `Tools/RenderCli.cpp` - not implemented
+riff-library	RL-3	MISSING	Riffs	FEATURE	`.luthierriff` schema (meta, riff, notes, strums, bass_tech, source), tech tokens = MIDI profile tokens, limits, user folder, `library.json`, stable ids - not implemented
+riff-library	RL-4	MISSING	Riffs	FEATURE	`Riff`/`RiffLibrary` (worker scan, LRU 32, bitset filters, AND text search), `RiffAnalysis` (key, techniques, difficulty formula) - not implemented
+riff-library	RL-5.1	MISSING	Riffs	FEATURE	`RiffCompiler::compile` pure; beats->`RiffEvent`s, bend/vibrato curves, strum stagger, technique mapping; `NoteOnEvent::palmMuteDepth` + `explicitArticulation` - not implemented
+riff-library	RL-5.2	MISSING	Riffs	FEATURE	`RiffTransposer`: shift in -6..+6, optional scale map, placement candidates/chain move/drop, tuning/family re-fret, whammy-as-bends notices - not implemented
+riff-library	RL-5.3	MISSING	Riffs	FEATURE	`RiffPlayer` in `LuthierEngine::processSubBlock` after direct events; TunePlayer-style swap; Auto/Own clock, bar-quantised start, tempo factor, bend pacing, 96-slot cap, stop hygie - not implemented
+riff-library	RL-5.4	MISSING	Riffs	FEATURE	Engine interactions (bypass interpreter/voicer, auto-articulation skips explicit, cascade, playing mode) - not implemented
+riff-library	RL-6	MISSING	Riffs	FEATURE	Destinations: drag `.mid` (CC67/72/73 added in `addScoreNote`, Drag folder pruning, profile toggle, Ctrl+E), Add to Tune (Melody/Bass track, `extra` JSON, locked notes, one edit),  - not implemented
+riff-library	RL-7.1	MISSING	GUI	FEATURE	Col 4 RIFFS tab between TUNE and LIVE; Easy Riff drawer + Riffs button; `R` shortcut; Options FILE LOCATIONS "Riffs folder"; gui-integration 19 rows - not implemented
+riff-library	RL-7.2	MISSING	GUI	FEATURE	RIFFS tab layout (search, chips, filters, virtualised list, `RiffTabView` preview + playhead, transport/key/tempo/level, destination buttons, states, Audition-on-select option) - not implemented
+riff-library	RL-7.3	MISSING	GUI	FEATURE	Easy drawer single-column controls (no Add to Tune) - not implemented
+riff-library	RL-7.4	MISSING	GUI	FEATURE	Save as riff from capture region / last N bars, fields, user riff ops, Import .mid as riff - not implemented
+riff-library	RL-7.5	MISSING	GUI	FEATURE	Empty states and error banners - not implemented
+riff-library	RL-8	MISSING	Riffs	FEATURE	Nothing in presets; per-instance uiState fields; playback not restored; excluded from offline renders; pure compile - not implemented
+riff-library	RL-9	MISSING	Riffs	FEATURE	Undo: Add to Tune one `tune-melody-edit` entry; looper layer undo; browsing not undoable - not implemented
+riff-library	RL-10	MISSING	GUI	FEATURE	Accessibility (row names, type-ahead, chips, tab-view text, announcements, keyboard destinations, drawer focus, catalog strings `riff.<id>.name`) - not implemented
+riff-library	RL-11	MISSING	Editions	FEATURE	Edition split table; append `riffLibraryFull/riffExport/userRiffs` to `edition::Feature`, `freeRiffs=60` limit; Free installer manifest - not implemented
+riff-library	RL-12	MISSING	Riffs	DOCS	Legal: origin/author, name pattern, trademark scan of catalog, `deny.txt`, 80% 6-gram similarity guard - not implemented
+riff-library	RL-13	MISSING	Riffs	FEATURE	Budget: player 0.02 units, compile 2 ms, index 150 ms, filter 8 ms, memory 3 MB, lazy boot - not implemented
+riff-library	RL-14	MISSING	Riffs	FEATURE	Interactions (Tune clock/"Key: Tune", jam-mode query API, snapshots continue, preset load ends notes, fretted slides in Slide Mode, metronome, Workshop swap recompile) - not implemented
+riff-library	RL-15	MISSING	Riffs	FEATURE	Failure modes table - not implemented
+riff-library	RL-T1	MISSING	QA	DOCS	Generator determinism, coverage, schema/fuzz - not implemented
+riff-library	RL-T2	MISSING	QA	DOCS	Compile purity, technique mapping, Luthier round trip, drag file, transpose, scale map, re-fret - not implemented
+riff-library	RL-T3	MISSING	QA	DOCS	Player RT safety, host/own clock, stop hygiene, queue pressure, explicit flag, rhythm coexistence, capture - not implemented
+riff-library	RL-T4	MISSING	QA	DOCS	Add to Tune, Looper, Learn It, Save as riff, search/filter, legal - not implemented
+riff-library	RL-T5	MISSING	QA	DOCS	GUI reach, keyboard/SR, empty/error states, state, edition gate, performance, combination - not implemented
+guitar-illustration	GI-3	PARTIAL	Engine	FEATURE	Every part a first-class visual; drawn = loaded. Renderer honours `illustration.body_style` but no factory body part sets it, so a body swap does not change the outline; headstock/inlay follow body style not the neck/fretboard part
+guitar-illustration	GI-7	PARTIAL	QA	POLISH	Budgets: full repaint 8/40 ms, overlay 2 ms, family switch 120 ms, thumbnail 100 ms, 200 caches. Full render and the 200-entry cache are tested; overlay-only, cache-hit and family-switch timings are not
+guitar-illustration	GI-13	PARTIAL	GUI	FEATURE	Drag ghost; drag part cards onto the illustration (pickup, route, bridge, string, body, pick, slide, capo) - click-to-fit only, no DragAndDrop in the drawer
+guitar-illustration	GI-16	PARTIAL	Parts data	FEATURE	Body catalogue (electric 12, acoustic 8, classical 3, bass 8, resonator 3) - outlines exist; the 20 factory body parts carry no `body_style`, so the catalogue is reachable only per guitar file, not by swapping a body part
+guitar-illustration	GI-17	PARTIAL	Parts data	FEATURE	Body part carries outline + attachment points; new shapes as data. Reader exists, factory body parts (Resources/Parts/Bodies) do not supply the field; no test
+guitar-illustration	GI-20	PARTIAL	GUI	FEATURE	Pickguard tortoise stipple, pearloid swirl (missing), 9 colours; pickguard slot has no drawer category
+guitar-illustration	GI-23	MISSING	GUI	FEATURE	Buzz heatmap layer on the illustration when SETUP is focused
+guitar-illustration	GI-26	MISSING	GUI	FEATURE	Pickup pulse layer during activity
+guitar-illustration	GI-28	PARTIAL	Illustration	POLISH	Fretboard radius shading vintage/modern/compound (compound missing); woods + binding; no test
+guitar-illustration	GI-29	PARTIAL	Illustration	POLISH	Inlays dot/block/trapezoid/sharktooth/vine per fretboard part (vine missing; chosen by body style not the fretboard part); no test
+guitar-illustration	GI-32	PARTIAL	Illustration	POLISH	Electric bridges TOM+stopbar, vintage/2-point trem, Floyd, wrap, Bigsby drawn; hardtail ferrules not drawn; no test
+guitar-illustration	GI-33	PARTIAL	Illustration	POLISH	Acoustic pin / pinless (missing) / floating+trapeze / moustache / tie-block; resonator biscuit/spider; no test
+guitar-illustration	GI-34	PARTIAL	Illustration	POLISH	Bass vintage / high-mass / with mutes (missing); no test
+guitar-illustration	GI-37	MISSING	Illustration	POLISH	Pole spacing from `pole_spacing_mm`
+guitar-illustration	GI-42	MISSING	Illustration	FEATURE	Named solid palette (18 colours)
+guitar-illustration	GI-43	PARTIAL	Illustration	POLISH	Bursts (named), transparent 60 %, natural, metallic stroke, sparkle 3 % - generic burst, metallic gradient, sparkle flakes; no named bursts; no test
+guitar-illustration	GI-52	MISSING	Engine	FEATURE	Slide-friendly hint on a high nut; MIDI-out profile default per family
+guitar-illustration	GI-55	PARTIAL	GUI	POLISH	Alt+click audition; Shift+click region below - Alt means bass-side, no Shift-below
+guitar-illustration	GI-61	PARTIAL	GUI	POLISH	Snap modifiers fine default / coarse Shift / ultra-fine Ctrl - implemented mapping differs (Shift fine, Alt free)
+guitar-illustration	GI-63	PARTIAL	Accessibility	FEATURE	Accessible child per part with documented strings; announce on click - one component whose description changes, not one child per part
+guitar-illustration	GI-64	PARTIAL	Accessibility	FEATURE	Tab across parts, arrows navigate z-order, Enter opens inspector - arrows nudge here, no Enter-opens-inspector
+guitar-illustration	GI-T5	MISSING	QA	DOCS	Test: 3-tone sunburst vs reference SVG
+guitar-illustration	GI-T8	PARTIAL	QA	DOCS	Test: accessibility Tab reach + announcement strings for a fixture guitar
+guitar-workshop	GW-13	PARTIAL	Presets	FEATURE	Library scanned at startup and on folder change - startup and save-time rescan only, no folder watcher
+guitar-workshop	GW-16	PARTIAL	GUI	POLISH	Missing-part notification with a jump-to-Workshop action - banner posts, no jump action, no test of the banner
+guitar-workshop	GW-18	PARTIAL	GUI	POLISH	Excess strings reported in the inspector - engine reports the excess, inspector does not show it
+guitar-workshop	GW-T2	PARTIAL	QA	DOCS	Per slot, a swap changes the rendered spectrum and swapping back restores it to -80 dBFS - no per-slot rendered test
+workshop-ui	WU-9	MISSING	GUI	FEATURE	Buzz heatmap overlay when the setup strip has focus
+workshop-ui	WU-18	PARTIAL	GUI	FEATURE	Pickup height by screw handles or scroll, 0.1 mm, 0.5-6 mm - scroll and keys only, no screw handles
+workshop-ui	WU-19	PARTIAL	GUI	FEATURE	Pickup tilt by dragging one screw handle - Shift/Alt wheel only, no handle drag, no test
+workshop-ui	WU-22	PARTIAL	GUI	FEATURE	Frets: click to select, brush to wear - select only; no brush on the bench
+workshop-ui	WU-28	PARTIAL	Accessibility	FEATURE	Fields carry parameter-like tooltips and accessibility - buttons do, painted inspector rows are not components
+workshop-ui	WU-37	PARTIAL	Accessibility	FEATURE	Every hit region focusable with name and value, in builder order - one component, not one per region
+workshop-ui	WU-40	PARTIAL	Accessibility	FEATURE	Everything reachable by drag reachable by keyboard - pickup tilt and fret wear have no key path; saddle keys untested
+workshop-ui	WU-T3	PARTIAL	QA	DOCS	Audition does not commit, and audio returns within 30 ms - no audio-return check
+workshop-ui	WU-T10	PARTIAL	QA	DOCS	Keyboard parity for every drag interaction - pickup, height, nut, accessories only; tilt and saddle keys untested
+proposals-visual-polish	VP-T6	MISSING	QA	DOCS	Test: opening Advanced with every face visible stays in the UI frame budget - none
+mic-placement	MP-0	MISSING	Engine	FEATURE	Ground rules: one anchor IR per (cab, speaker, mic), continuous parametric stage, identity at anchor, named physics, click-free TPT SVFs at 32-sample control rate, one shared model, no samples — not built on this checkout (placeme
+mic-placement	MP-2.1	MISSING	Engine	FEATURE	Coordinates: `mic_speaker`, cone-landmark `u`, per-size radii, cabinet speaker/height table, snap rings, distance/angle/rear
+mic-placement	MP-2.2	MISSING	Engine	FEATURE	`MicPlacementModel::evaluate` terms (beaming weight, presence/axis knots, HF corner knots, angle/polar/polarity, proximity knots, dust cap, surround, HF shelves, rear, level, level match, floor bounce by room ρ, per-speaker variat
+mic-placement	MP-2.3	MISSING	Engine	FEATURE	Two-mic time of arrival: Physical/Aligned, rear re-inversion, `mic_phase_align` kept, Lagrange line with slew limit
+mic-placement	MP-3	MISSING	Engine	FEATURE	Acoustic: `ac_mic_along/across` landmarks via `computeAcousticLandmarks`, `AcousticMicModel` radiator weights + composite table, mic voice/shared terms, calibration K, `ac_mic_mix` after `circuit.process` (skipped at 0), mic 2 equ
+mic-placement	MP-4b	MISSING	Engine	FEATURE	Legacy->continuous mapping tables, continuous->legacy mirror written only into serialised output, `MicPlacementMigration::apply` at preset load / setState / snapshot recall / morph endpoint, legacy host-write mapping with ±250 ms 
+mic-placement	MP-5	MISSING	Engine	FEATURE	`MicPlacementStage` in `CabinetEngine::MicPath` (7 SVFs, signed smoothed gain, floor + ToF delays, `TptSvf` in `DspCommon.h`), processing order, smoothing, new CabinetEngine API, anchor-only `findCabIr`, bridge push, acoustic bran
+mic-placement	MP-6.1	MISSING	GUI	FEATURE	Advanced Col 3 CAB `MicPlacementView` (face, speaker thumbnail, dist/angle/rear, Quick combos, mini-plot, ToF/level-match); acoustic "MICROPHONES" variant with Pickup<->Mic and Mic 2
+mic-placement	MP-6.2	MISSING	GUI	FEATURE	`MicPlacementEditor` over Cols 3-4 (cabinet/cone/mic rendering, snap, wheel, side view, right-click menu, reset, response plot with notch readout, status chips)
+mic-placement	MP-6.3	MISSING	GUI	FEATURE	Easy Cabinet card "Mic: bright<->warm" pad, mic 2 ghost, acoustic knob, double-click overlay
+mic-placement	MP-6.4	MISSING	GUI	FEATURE	Empty states/errors table
+mic-placement	MP-6.5	MISSING	GUI	FEATURE	Options APPEARANCE "Snap mics to landmarks", "Show mic response plot"; `UiState::micGrilleVisible/micFocusedHandle`
+mic-placement	MP-7	MISSING	Engine	FEATURE	25 params appended last in order with ranges/defaults, `RangeFamily::mic`, preset `ranges.families` "mic", mod-matrix destinations, automatable in Free
+mic-placement	MP-8	MISSING	Engine	FEATURE	State round-trip, undo classes (3.5 multi-target drag, 3.1, 3.2 Quick combo, 3.3, Reset), accessibility (handle groups with 4 sliders, value text, key table, reduced motion, Easy pad)
+mic-placement	MP-9	MISSING	Engine	FEATURE	Interactions: user IR bypasses stage + hides handle, morph, mod/learn/automation, randomize limits, factory acoustic presets `ac_mic_mix`≈0.5, Free anchor IR subset
+mic-placement	MP-10	MISSING	Engine	FEATURE	Failure modes table
+mic-placement	MP-11	MISSING	Engine	FEATURE	Budget: CabinetEngine 0.5 units, AcousticMicModel 0.12 (0 at mix 0), no alloc, plot 0.5 ms
+mic-placement	MP-12	MISSING	Engine	FEATURE	Both editions in full, no `ProFeatureGuard` entry
+mic-placement	MP-T1	MISSING	Tests	DOCS	Layout, identity, legacy fidelity, migration map/trigger, mirror
+mic-placement	MP-T2	MISSING	Tests	DOCS	DSP physics tests (radius, angle, proximity, beaming, click-free, RT safety, IR load count, ToF, slew, rear, level match, room bleed, speaker variation)
+mic-placement	MP-T3	MISSING	Tests	DOCS	Acoustic off bit-identical, acoustic positions, landmarks, determinism, CPU, plot=engine
+mic-placement	MP-T4	MISSING	Tests	DOCS	GUI tests (CAB view drag/undo, keyboard, a11y, snap, Easy pad, editor, switches, user IR, reflow)
+mic-placement	MP-T5	MISSING	Tests	DOCS	Combination (morph, round trip, Free), LFO + rhythm, trademark/localisation
+preset-browser-previews	PB-K2	PARTIAL	GUI	FEATURE	Keep guitar thumbnail and "Uses Techniques" chip in the rebuilt browser — thumbnail on visual: `Overlays.h GuitarThumbnails thumbnails`; chip on techniques: `Overlays.cpp techniqueChip` + `TechniquesUiTests`
+preset-browser-previews	PB-0	MISSING	Presets	FEATURE	Ground rules: own-engine renders, live instance untouched, RT-safe mix, never interrupts, no params, both editions
+preset-browser-previews	PB-2	MISSING	Presets	FEATURE	Hybrid sourcing: shipped factory previews via `luthier-render --render-previews`, `scripts/render_previews.sh`, content-pack previews; runtime renders on save/open/hover, staleness by hash
+preset-browser-previews	PB-3.1	MISSING	Presets	FEATURE	`PreviewPhrase` table (15 phrases), selection order, pitch follows guitar, rhythm-engine presets — not built on this checkout (`AuditionPhrase` in `Support/AudioExporter.h` is separate and untouched)
+preset-browser-previews	PB-3.2	MISSING	Presets	FEATURE	`PreviewRenderer` on offline instance (`createOfflineInstance` exists, `PluginProcessor.h:456`), `PreviewRenderHost` moved from RenderCli, job steps, -18 LUFS / -3 dBTP, Ogg q0.5 + peaks, cancel/timeout
+preset-browser-previews	PB-3.3	MISSING	Presets	FEATURE	`PreviewRenderService` owned by processor, priorities, pause on transport/relief, async results, 500 ms join
+preset-browser-previews	PB-4.1	MISSING	Presets	FEATURE	`PreviewPlayer`: resampled immutable clips, atomic hand-off, `PreviewClipPool`, two voices/crossfade, fades, smoothed volume, stop paths
+preset-browser-previews	PB-4.2	MISSING	Presets	FEATURE	Insertion in `processSlice` after practice/click and before `routing.distribute`; excluded from looper/recorder/capture/buses/MIDI; kill switch
+preset-browser-previews	PB-4.3	MISSING	Presets	FEATURE	Gate table (idle, live notes, transport, `whileTransport`, non-realtime/kill), `PreviewPlayer::Gate`, 200 ms no-process hint
+preset-browser-previews	PB-4.4	MISSING	Presets	FEATURE	Triggers: 300 ms hover, click glyph/"Click only", Space, on-select 150 ms; stops; neighbour pre-decode
+preset-browser-previews	PB-5.1	MISSING	Presets	FEATURE	Sound hash (canonical JSON minus meta, GuitarSpec, IR stat, phrase, version, `kRenderRevision`)
+preset-browser-previews	PB-5.2	MISSING	Presets	FEATURE	Per-OS disk cache, sidecar JSON, atomic writes, lock files, 128 MB LRU, Options FILE LOCATIONS Open/Clear
+preset-browser-previews	PB-5.3	MISSING	Presets	FEATURE	Shipped `previews.json` manifest behaviour
+preset-browser-previews	PB-5.4	MISSING	Presets	FEATURE	Preset `uid` + `previewPhrase` fields in `PresetManager::fromVar` known list — absent (`PresetManager.cpp:537`)
+preset-browser-previews	PB-5.5	MISSING	Presets	FEATURE	`PresetLibraryPrefs` (favourites, rating, recent 30, load counts) in `preset-library.json`
+preset-browser-previews	PB-5.6	MISSING	Presets	FEATURE	`PresetIndex` + extended `PresetInfo` (uid, guitarName, family, ampName, modified), incremental — absent (`PresetManager.h:24 PresetInfo` has name/category/author/description/tags/file/isFactory only)
+preset-browser-previews	PB-6.1-6.3	MISSING	Presets	FEATURE	Parameter features, `ToneFeatures` spectral analysis, `ToneDescriptors` rule table + calibration
+preset-browser-previews	PB-6.4	MISSING	Presets	FEATURE	`PresetSearch` tokenised weighted fuzzy query, no debounce — absent (current `searchBox` is a plain filter)
+preset-browser-previews	PB-6.5	MISSING	Presets	FEATURE	24-dim similarity, 8 nearest, exclusions, "still being analysed" footer
+preset-browser-previews	PB-7.1	MISSING	GUI	FEATURE	Easy layout (search, previews speaker/volume, family chips, Fav/Recent, rows with glyph+waveform+stars, detail + More like this, footer)
+preset-browser-previews	PB-7.2	MISSING	GUI	FEATURE	Advanced 1040x680 layout: sidebar filters (source, family, genre, techniques, tone, rating), sort options/column sort, SOUNDS LIKE pane, persisted filters
+preset-browser-previews	PB-7.3	MISSING	GUI	FEATURE	Row glyph states, waveform, author vs auto chips, heart/stars, locked Pro rows, approximate "~"
+preset-browser-previews	PB-7.4	MISSING	GUI	FEATURE	Browser key table (search focus, nav, Space, Enter, Escape x2, F, 0-5, S, Ctrl+Backspace), overrides global Space/digits, rebindable group
+preset-browser-previews	PB-7.5	MISSING	GUI	FEATURE	Empty states and cache-unwritable banner
+preset-browser-previews	PB-8	MISSING	GUI	FEATURE	Options APPEARANCE "PRESET BROWSER" group, `presetPreview.*` / `presetBrowser.*` UiPreferences keys, footer mirror
+preset-browser-previews	PB-9	MISSING	Presets	FEATURE	No params/uiState; load stays a "Load preset" boundary; browsing not undoable — new parts not built on this checkout
+preset-browser-previews	PB-10	MISSING	Presets	FEATURE	Accessibility (row names, glyph button, stars value, announcements, tab order, reduced motion, localisation)
+preset-browser-previews	PB-11	MISSING	Presets	FEATURE	Performance budget table
+preset-browser-previews	PB-12	MISSING	Presets	FEATURE	Both editions; Free previews locked Pro presets from shipped clips; upsell on load
+preset-browser-previews	PB-13	MISSING	Presets	FEATURE	Interactions (morph, snapshots, automation, rhythm/tune, techniques chip, exclusions, Workshop re-render, audition, onboarding)
+preset-browser-previews	PB-14	MISSING	Presets	FEATURE	New files under `Presets/Preview`, `Presets/Search`, `UI/PresetBrowser`; CMake `JUCE_USE_OGGVORBIS=1`
+preset-browser-previews	PB-15	MISSING	Presets	FEATURE	Failure modes table
+preset-browser-previews	PB-T1	MISSING	Tests	DOCS	Rendering tests
+preset-browser-previews	PB-T2	MISSING	Tests	DOCS	Playback safety tests
+preset-browser-previews	PB-T3	MISSING	Tests	DOCS	Cache tests
+preset-browser-previews	PB-T4	MISSING	Tests	DOCS	Search, similarity, library/file tests
+preset-browser-previews	PB-T5	MISSING	Tests	DOCS	Performance, GUI, a11y, options, editions, combination tests
+qa-polish	QA-1	PARTIAL	QA	DOCS	Five ship gates all green — see rows below
+qa-polish	QA-2	MISSING	QA	DOCS	Host matrix (Live, Logic, Cubase, Studio One, Reaper, FL, Bitwig, Pro Tools, Standalone) — no host testing recorded; no AAX
+qa-polish	QA-3	PARTIAL	QA	DOCS	Platform matrix (Win 10/11, macOS 13-15 Intel+AS, Ubuntu 22/24) — CI runs only `*-latest` images
+qa-polish	QA-6	MISSING	QA	DOCS	CPU classes low/mid/high
+qa-polish	QA-8	MISSING	QA	DOCS	Golden render: 36 presets × (SR, block) vs golden WAV, null ≤ -80 dBFS
+qa-polish	QA-15	PARTIAL	QA	DOCS	Migration round trip: pre-M49 presets within -60 dBFS of the pre-M49 golden — resolution only, no golden
+qa-polish	QA-16	PARTIAL	QA	DOCS	pluginval strictness 10 on every platform/format, zero warnings — HEAD: strictness 10 nightly, auval, clap-validator; warnings not fatal
+qa-polish	QA-18	MISSING	QA	DOCS	Host format switching VST3 -> AU -> VST3 mid-session
+qa-polish	QA-21	PARTIAL	QA	DOCS	Part swap while playback runs at 22 CPU units — swap while playing tested, not under load
+qa-polish	QA-22	MISSING	QA	DOCS	95% host CPU while switching presets
+qa-polish	QA-28	PARTIAL	QA	FEATURE	Tooltips and labels in every locale, fitting at 100% — catalog API only; no `Resources/i18n` translations; many literal strings
+qa-polish	QA-29	PARTIAL	QA	POLISH	Accessibility role/value; physical units in the announcement — names for attached controls on visual; units not asserted
+qa-polish	QA-35	PARTIAL	QA	POLISH	Panel header (title, status, chevron); padlock on CHARACTER and WORKSHOP; collapse remembered per preset — WORKSHOP padlock on visual
+qa-polish	QA-38	MISSING	QA	POLISH	Right-click empty-area menu per panel — not found
+qa-polish	QA-40	PARTIAL	QA	POLISH	Dialogs: Escape closes; focus lands on the first control; screen reader announces; cannot be lost behind the host; Options save on change — only Escape is tested
+qa-polish	QA-41	PARTIAL	QA	POLISH	Empty-state hint on every panel that can be empty (gui-integration 14) — ad hoc; no systematic test
+qa-polish	QA-42	PARTIAL	QA	DOCS	Workshop: hit-testing, drag bounds, bench A/B within 30 ms, Alt-audition leaves spec byte-identical, spectrum within 0.2 dB, Save As Guitar reloads identical — the timing and spectrum checks are on visual
+qa-polish	QA-43	PARTIAL	QA	FEATURE	Slide Mode: glyph, overlay and Workshop slide part move together; squeaks suppressed under the bar; pitch tracker announces position — bench slide and fretboard bar on visual; announcements not built
+qa-polish	QA-45	MISSING	QA	DOCS	Sounds like its name (audio-lead sign-off)
+qa-polish	QA-59	PARTIAL	QA	FEATURE	Every gui-integration 19 feature present, wired, persisted, automatable, shortcut, tested — techniques and the visual workshop items are unmerged
+qa-polish	QA-60	PARTIAL	QA	DOCS	User docs match the build; screenshots ≤ 30 days old; translated — no screenshot pipeline on HEAD; no translations
+qa-polish	QA-69	PARTIAL	QA	DOCS	Regression > 5% between releases gates the release — no stored baseline; visual nightly writes a dashboard JSON
+qa-polish	QA-70	MISSING	QA	DOCS	Bug bash: 48 h lockdown, 8 external guitarists, 90-minute script, triage
+qa-polish	QA-71	PARTIAL	QA	FEATURE	Installer polish (signed Win, notarised pkg, .tar.gz/.deb, licence, disk space, newer-version refusal) — see installer.md
+qa-polish	QA-72	PARTIAL	QA	DOCS	Manual complete and translated (Workshop and Realism chapters); docs current; two videos; support email; community seeded — manual exists; no translation or videos
+qa-polish	QA-74	PARTIAL	QA	DOCS	Preset and part names trademark-free; legal review — see factory-content FC-1 ("Fuzz Face Lead", "Modern LP Wiring")
+qa-polish	QA-76	PARTIAL	QA	DOCS	EULA finalised; refund policy documented — the EULA is a placeholder
+qa-polish	QA-77	MISSING	QA	DOCS	Final 30-minute human check including a from-scratch Workshop guitar save/reopen
+qa-polish	QA-78	MISSING	QA	DOCS	72 h post-release monitoring, support SLA, rehearsed 30-minute rollback, 24 h hotfix path — RELEASING.md covers publishing, not rollback
+error-recovery	ER-2	PARTIAL	Errors	FEATURE	Never silently degrade - banners for preset/IR/part/SR/A-B-empty/setlist-load/preset-save/MIDI-learn timeout; guitar/tune save failures, most MIDI drops still silent
+error-recovery	ER-3	PARTIAL	Presets	CRASH	Never destroy user work - preset overwrite and migration backups plus tune save backup (TuneFile::save keepBackup, .backup folder); guitar/setlist saves have no backup
+error-recovery	ER-5	PARTIAL	Diagnostics	POLISH	Every failure logged to Diagnostics/errors-<yyyymm>.log - ErrorLog::write called from PresetManager, PluginProcessor, JamProcessor, NormalizationCalibrator, StringAnimator only; guitar/tune/setlist/MI
+error-recovery	ER-6	PARTIAL	GUI	FEATURE	Recoverable -> banner; disruptive -> banner + halt; unrecoverable -> modal with reset instructions — no modal path, no "halt" semantics
+error-recovery	ER-15	MISSING	Presets	CRASH	Migration fails partway -> "Could not migrate X, original preserved", no disk change
+error-recovery	ER-18	MISSING	Workshop	FEATURE	Cyclic reference refused with banner, cycle logged
+error-recovery	ER-22	MISSING	Presets	CRASH	Concurrent save from two instances -> later wins + "overwrote another change" banner
+error-recovery	ER-24	PARTIAL	Presets	CRASH	Every save temp-file, fsync, rename (file-formats 13) - presets, tunes (TuneFile::save), parts, jam styles, MIDI profiles/capture, perf settings do; setlist/controller/live-input/practice/UiPreference
+error-recovery	ER-28	PARTIAL	Engine	POLISH	NaN/denormal guard -> zero, log with module id, Diagnostics counter — sanitise everywhere, no log, no counter
+error-recovery	ER-30	MISSING	Engine	FEATURE	Sustained overrun after relief -> warning colour; +10 s offer to switch off heaviest module in-banner — not on visual either
+error-recovery	ER-31	MISSING	Host	POLISH	Host underrun -> log + Diagnostics counter, no banner
+error-recovery	ER-32	PARTIAL	Engine	FEATURE	Convolution returns garbage -> bypass + "Cabinet IR failed to load; bypassed" — procedural fallback, no banner
+error-recovery	ER-33	PARTIAL	MIDI	POLISH	Malformed MIDI event -> log, drop — dropped, not logged
+error-recovery	ER-36	PARTIAL	MIDI	POLISH	Corrupt Luthier-profile SysEx -> log, drop, continue — dropped, not logged
+error-recovery	ER-37	MISSING	MIDI	FEATURE	MIDI flood > 5000 ev/s -> process what fits, throttled "MIDI flood: N events dropped" banner every 5 s
+error-recovery	ER-41	MISSING	Workshop	FEATURE	Family change during playback -> held notes decay, "Changed to family X..." info banner
+error-recovery	ER-42	MISSING	Workshop	POLISH	Shadow audition not confirmed in 200 ms -> UI reverts, log
+error-recovery	ER-43	MISSING	Workshop	CRASH	Part-acoustics mapping gives invalid coefficients -> refuse swap, "Cannot use part X" banner
+error-recovery	ER-44	PARTIAL	Workshop	FEATURE	Invalid .luthierguitar save refused with reason, stays unsaved — generic failure banner, no validation reason
+error-recovery	ER-46	MISSING	Tune	FEATURE	Melody generation produces no notes -> keep previous melody + banner
+error-recovery	ER-47	PARTIAL	Tune	FEATURE	Hum capture low confidence -> "Could not detect pitch reliably" banner, no notes — low-confidence frames give no notes, but no banner is shown
+error-recovery	ER-48	MISSING	Tune	CRASH	Removing the last section refused, "A tune must have at least one section" — Tune::removeSection allows it
+error-recovery	ER-49	MISSING	Practice	FEATURE	Loop lookahead exceeds RAM -> loop best effort, log, "loop tail truncated" indicator
+error-recovery	ER-50	PARTIAL	Presets	POLISH	Snapshot recall during preset load queued; discarded with info banner if load fails — both run serially on the message thread; no discard banner
+error-recovery	ER-51	MISSING	Practice	FEATURE	Snapshot recall while looper records -> state-boundary event in the layer's MIDI
+error-recovery	ER-52	MISSING	Tune	FEATURE	Preset load mid-tune -> at next section boundary if < 4 s, else now + info banner
+error-recovery	ER-55	PARTIAL	Updates	POLISH	Update check network error -> silent, retry next window, log to error log — silent yes, not written to ErrorLog
+error-recovery	ER-57	MISSING	Updates	FEATURE	Crash upload failure -> dump stays, banner with path
+error-recovery	ER-63	MISSING	Host	FEATURE	Standalone audio device lost -> poll, switch to compatible device + banner, else "No audio device" with retry
+error-recovery	ER-64	MISSING	Host	FEATURE	Standalone MIDI input lost -> poll, auto-recover, banner
+error-recovery	ER-65	PARTIAL	Presets	POLISH	Corrupt config -> renamed to .corrupted-<timestamp>, defaults used, banner "Preferences reset (previous file corrupted, backed up)." — UI preferences (ui.json); accessibility and telemetry settings fi
+error-recovery	ER-66	PARTIAL	Presets	POLISH	Config with an unknown (newer) schema -> same path — ui.json now writes schema and treats a newer one as corrupt
+error-recovery	ER-67	PARTIAL	Presets	POLISH	Expected folder missing -> create + log — created lazily, not logged
+error-recovery	ER-68	PARTIAL	Updates	POLISH	Content-update folder missing -> log, treat as not installed - ContentPackage apply/rollback exist, no missing-folder log or GUI
+error-recovery	ER-69	MISSING	Installer	FEATURE	No writable Documents -> prompt for alternative location, saved to install-adjacent config
+error-recovery	ER-70	MISSING	Installer	FEATURE	OS below minimum -> modal + exit
+error-recovery	ER-71	MISSING	Host	FEATURE	No audio device (Standalone) -> prompt to connect one
+error-recovery	ER-73	PARTIAL	Diagnostics	FEATURE	Troubleshooting bundle captured at crash - crash dump has stack/build/OS/host only; full report is manual export
+error-recovery	ER-75	PARTIAL	Updates	POLISH	Next launch, opted out -> "crashed last session; the dump is at [path]" info banner — no path, same banner
+error-recovery	ER-80	PARTIAL	GUI	POLISH	At most 3 banners visible, 4th replaces oldest — one visible, rest queued (C-22 decided: show up to three)
+error-recovery	ER-81	PARTIAL	GUI	POLISH	Priority errors > warnings > info (warning colour / accent) — no error level, FIFO order
+error-recovery	ER-83	MISSING	QA	DOCS	Every failure mode has a fixture in Tests/Fixtures/Errors/<section> and a test
+error-recovery	ER-84	MISSING	QA	DOCS	Bug-bash "break the plugin" pass maps every symptom to a response
+state-model	SM-2	PARTIAL	Engine	POLISH	A load is atomic per layer and does not interrupt a block — applied on the message thread + bridge.applyAllNow, not at an audio-thread swap
+state-model	SM-4	PARTIAL	Engine	CRASH	Structural state crosses threads via the command/result queue — direct message-thread calls; only the guitar swap is parked/faded
+state-model	SM-10	PARTIAL	Practice	FEATURE	Loop is a sibling that references its preset by name — the looper does not record the preset name
+state-model	SM-18	PARTIAL	Engine	POLISH	Crossfade affected DSP 5-30 ms per module — only the guitar swap fades (5 ms); no per-module preset crossfade
+state-model	SM-19	PARTIAL	GUI	POLISH	Missing-reference and clamp notices go to the banner - missing-part/IR and migration banners exist; no clamp banner on load
+state-model	SM-24	PARTIAL	Engine	POLISH	Delay/reverb tails preserved via double buffer — not verified
+state-model	SM-28	MISSING	Tune	FEATURE	Bundled preset/guitar files in a tune are extracted to a temp folder
+state-model	SM-30	PARTIAL	Tune	FEATURE	A tune load pushes a boundary — TuneSession clears its own stack; the plugin undo stack has no boundary
+state-model	SM-36	PARTIAL	Engine	POLISH	Guitar load crossfades over 30 ms — 5 ms
+state-model	SM-40	MISSING	Tune	FEATURE	Tune playing: pause at the next section boundary if within 4 s + "Preset changed mid-tune" banner
+state-model	SM-41	MISSING	Live	FEATURE	Setlist "user override in effect" flag; next PageDown resumes the setlist's own position
+state-model	SM-42	MISSING	Practice	FEATURE	Looper and session recorder capture preset/recall/tune/guitar/range changes as state-boundary events
+state-model	SM-44	MISSING	Workshop	CRASH	Bench unsaved changes: Save / Discard / Cancel-load prompt before a preset or guitar load
+state-model	SM-48	MISSING	Engine	POLISH	Feedback loop damps over 100 ms on a load or recall
+state-model	SM-49	PARTIAL	Engine	POLISH	Held notes continue/decay through the new parameters without retriggering
+state-model	SM-50	MISSING	Presets	FEATURE	A recall replaces the selected A/B slot with the recalled state
+state-model	SM-52	PARTIAL	Workshop	POLISH	Guitar load with a string-count change: extra strings silence, missing ones decay
+state-model	SM-54	PARTIAL	Engine	POLISH	Slide Mode + a non-slide guitar: banner; the overlay shows but the slide's acoustic effect is muted — a low-action label shows in SlideGroup; no mute
+state-model	SM-55	PARTIAL	Workshop	DOCS	Part swap: held notes crossfade; a second swap queues; audition drops back to committed — queue and audition drop untested
+state-model	SM-60	PARTIAL	Workshop	DOCS	Save waits for an in-flight part swap; a guitar save writes committed not shadow; a tune save writes live edits — not tested
+state-model	SM-63	MISSING	Diagnostics	FEATURE	Options > Diagnostics "State Inspector" live tree at 4 Hz
+state-model	SM-64	PARTIAL	QA	DOCS	A test for every §8 intersection in Tests/StateModel/Intersections/, and a "never touches" test for every load path in §2-7 — 4 tests only
+file-formats	FF-2	PARTIAL	File formats	POLISH	Top-level schema int; missing = 1 — presets, setlists, patterns and kits write it (presets keep schemaVersion too) and read a missing one as 1; the looper json still has none
+file-formats	FF-3	PARTIAL	File formats	CRASH	Unknown fields preserved and written back — presets (top level) and tunes only; not guitar/part/setlist/pattern
+file-formats	FF-5	PARTIAL	File formats	POLISH	Magic per type — setlist luthier.setlist (legacy format accepted), pattern luthier.pattern, kit luthier.genrekit; unmarked older files load, a wrong marker is refused; the loop is still unmarked (FF-1
+file-formats	FF-6	PARTIAL	File formats	FEATURE	Portable relative paths under registered user folders listed in user-global config — no registered-folders list; setlist stores absolute preset_path
+file-formats	FF-13	PARTIAL	Live	FEATURE	.luthierset {schema, magic, meta{name,notes,bpm_default}, entries{preset,snapshot,notes}} — keys format, preset_path, snapshot_index; no meta; load does not check the marker; no Save in the UI
+file-formats	FF-14	PARTIAL	Practice	FEATURE	.luthierloop single file (MIDI + WAV refs + per-layer settings) — a folder with loop.json, format marker
+file-formats	FF-31	PARTIAL	File formats	POLISH	created/modified/version on every file — presets done (FF-20); setlists not yet
+file-formats	FF-33	PARTIAL	File formats	CRASH	Previous preset/guitar/tune moved to backup — no guitar backup
+file-formats	FF-34	PARTIAL	File formats	POLISH	Backups older than 30 days pruned on startup — preset backups (now including the category folders' Backup/) and the error log; tune .backup still never pruned
+file-formats	FF-35	PARTIAL	File formats	POLISH	Setlist/pattern/kit loaders name the failure — setlist: reason string + warning banner on loadSetlist; pattern/kit loaders unchanged
+file-formats	FF-39	PARTIAL	QA	DOCS	Test: every factory file round-trips - tunes byte-identical; presets to the ulp; guitars/parts spec-equal (not byte-identical)
+file-formats	FF-41	PARTIAL	QA	DOCS	Test: every migration across a 200-file fixture set
+host-integration	HI-8	PARTIAL	Host	POLISH	Version = LUTHIER_VERSION major.minor.patch plus a build string — no build string
+host-integration	HI-14	MISSING	Host	FEATURE	Parameters grouped by ParameterCategory — flat layout, no AudioProcessorParameterGroup
+host-integration	HI-15	MISSING	Host	POLISH	Display names translated per locale — hard-coded English
+host-integration	HI-17	PARTIAL	Host	POLISH	Batching: only last write per block per parameter notified — relies on JUCE default, not implemented
+host-integration	HI-20	MISSING	Host	CRASH	State blob: format version tag (u32) + padding — root JSON has no version
+host-integration	HI-24	PARTIAL	Host	CRASH	Older build + newer blob: warn, keep unknown sections on write-back — only preset-level unknownFields kept; host-level keys dropped, no warning
+host-integration	HI-25	PARTIAL	Host	CRASH	Newer build + older blob: migrate and back up old blob to diagnostics — migrations run, no blob backup
+host-integration	HI-29	PARTIAL	Host	FEATURE	Read time signature, isRecording, host sample rate for rhythm/tune/metronome — time sig only feeds capture
+host-integration	HI-37	MISSING	Host	FEATURE	Ableton MPE auto-detect from channel-1-plus-member traffic — no auto-detect; MPE is a chosen profile
+host-integration	HI-39	MISSING	Host	FEATURE	Logic: routing panel exposes the PC / Bank Select mapping mode — no such control
+host-integration	HI-41	MISSING	Host	FEATURE	Standalone: device disconnect polling, virtual MIDI-out toggle — neither built (JUCE default standalone)
+host-integration	HI-43	PARTIAL	QA	DOCS	pluginval strictness 10 on every merge — CI runs 5 per push, 10 nightly
+host-integration	HI-47	MISSING	Host	FEATURE	VST3 units per Column-4 tab / Easy strip — needs parameter groups
+host-integration	HI-51	MISSING	QA	DOCS	Test: host format switching VST3 -> AU -> VST3 (macOS) — manual host test
+host-integration	HI-52	PARTIAL	QA	DOCS	Test: transport follow play/stop/seek with rhythm engine and tune builder together
+host-integration	HI-53	PARTIAL	QA	DOCS	Test: state round trip in every host; MIDI I/O in every host
+host-integration	HI-54	MISSING	Docs	DOCS	docs/HOST_COMPATIBILITY.md documents every §9 quirk — file missing
+routing-io	RIO-11	MISSING	Engine	FEATURE	Sidechain ducks a "sidechain compressor" pedal — no such pedal
+routing-io	RIO-25	PARTIAL	GUI	POLISH	Layout selector listing host-supported layouts — only a read-only label of the negotiated layout
+input-routing	IR-4	MISSING	MIDI	FEATURE	Learn accepts CC / PC / aftertouch / channel pressure; note learn opt-in in Options — CC only
+input-routing	IR-15	MISSING	MIDI	FEATURE	Incoming Luthier SysEx dispatched to engines (character, workshop, ranges); others ignored — no inbound dispatch
+input-routing	IR-16	PARTIAL	MIDI	FEATURE	MIDI clock / Start / Stop / Continue -> effective tempo when the host is stopped (tap tempo path); SPP and rhythm transport start/stop not followed
+input-routing	IR-18	PARTIAL	GUI	FEATURE	Drag consumers: part cards -> illustration, pedals in rack, snapshots in strip, presets -> setlist, mod source -> control - pedal drag and ModMatrixPanel drag exist; snapshot/preset drags absent; no d
+input-routing	IR-19	PARTIAL	GUI	FEATURE	Root file-drop by extension + unknown-type banner + batch - editor accepts only .mid/.midi (and IR slot); Support/FileOpenRouter routes associations for standalone open but is not wired to drops
+input-routing	IR-24	PARTIAL	Host	POLISH	Host transport: rhythm start/stop/reposition, tune sync, tap defers, metronome grid, recorder regardless — metronome not transport-synced
+input-routing	IR-25	PARTIAL	Engine	FEATURE	Sidechain consumers: followers, sidechain compressor, sidechain-to-amp, EQ/cab match — no sidechain compressor pedal
+input-routing	IR-27	PARTIAL	Host	FEATURE	Standalone audio input: sidechain, sung melody, trainer input — sung-melody capture is on tune-help (humCapture, tune-builder 13); no trainer input here
+input-routing	IR-28	MISSING	Diagnostics	FEATURE	Options > Diagnostics "Inject fixture MIDI / audio" at chain front
+input-routing	IR-29	PARTIAL	QA	DOCS	Tests/InputRouting/ suite for every consumer / veto rule - InputRoutingTests.cpp has 5 InputRouting cases; not every consumer or veto
+input-routing	IR-30	MISSING	QA	DOCS	60 s scripted integration session

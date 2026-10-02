@@ -104,6 +104,11 @@ public:
     /** "48 kHz / 24-bit WAV, stereo" - shown in the success message. */
     static juce::String describeQuality (const Options& o);
 
+    /** SPEC-SWEEP (include.md INC-16): the text the user is shown when an export
+        ends - on success the file name, folder, length, quality and peak; on
+        failure the reason. */
+    static juce::String describeResult (const Result& result);
+
 private:
     void run() override;
 

@@ -1,7 +1,7 @@
 # Build, test and validate Luthier on Linux, Windows (MSVC) and macOS (universal).
 #
-# Called per push by ci-cadence.yml (Linux every push, Windows every 3rd and
-# macOS every 15th successful Linux build: plugin targets + LuthierTests +
+# Called per push and pull request by ci-cadence.yml (Linux, Windows and macOS
+# in parallel on every push: plugin targets + LuthierTests +
 # LuthierRender, unit tests, pluginval at strictness 5, clap-validator). On
 # manual dispatch: any platforms, LTO on and pluginval at strictness 10.
 # release.yml calls this workflow with package=true to build the installers
@@ -151,6 +151,14 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: scripts/ci_build.ps1 -Step deps
+
+      # riff-library RL-01: the committed factory riffs are exactly the
+      # generator's output (it validates the content as it goes).
+      - name: Factory riffs are up to date
+        if: runner.os == 'Linux'
+        run: |
+          python3 Tools/generate_factory_riffs.py
+          git diff --exit-code Resources/Riffs
 
       # ---------------------------------------------------------- build
       - name: Configure and build (Unix)

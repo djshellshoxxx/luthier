@@ -449,7 +449,8 @@ LUTHIER_TEST (WorkshopRanges, theTabCarriesAPadlockAndHeightsStopAtStock)
     panel.setSize (1600, 900);
 
     RangesUi::RangeTabButton* tab = nullptr;
-    for (auto* child : panel.getChildren())
+    // The tab buttons live in the tab strip (FEAT-RIFFS: it scrolls when they overflow).
+    for (auto* child : panel.getWorkspaceTabStrip().getChildren())
         if (auto* t = dynamic_cast<RangesUi::RangeTabButton*> (child))
             if (t->getButtonText() == "WORKSHOP")
                 tab = t;

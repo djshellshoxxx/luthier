@@ -1,0 +1,7 @@
+All rows are OWNED by the animated-strings FEAT session; no Phase-2 fixes. Pre-existing code the owner must integrate with:
+
+- NOTE `Source/LuthierEngine.h:418-421 getStringLevel/getStringFret` — plain doubles written by the audio thread (the data race §4.1 closes); readers are `Source/UI/GuitarBodyComponent.cpp:118 timerCallback` (x4 normaliser at ~131, feeds `overlay.stringLevel/stringFret`) and `Source/UI/FretboardComponent.cpp:154` (+ "excitement" stroke at ~501-507 to be replaced).
+- NOTE `origin/claude/luthier-visual:Source/Support/SoundingNotes.h/.cpp` — the piano-roll `SoundingNotes` (class with `publish(notes, bendCents, startSamples, n)`, packed per-string word, double buffer) is not merged here; the animated-strings fields (level, stopFret, pluckPosition, damping, harmonicPartial, stopKind) must be added to that design, not a second file. Coordinate with the visual workstream.
+- NOTE `Source/UI/Guitar/GuitarRenderer.h:156 paintOverlay` / `:163 render` — layer-26 glow and thumbnail render; `paintString`/`build` string loop is where `stringLooks` is extracted.
+- NOTE `Source/DSP/String/StringEngine.h:48 Damping`, `:100 getDamping`, `:141 getLevel`; `Source/DSP/Slide/SlideEngine.h:102 contactFret`; `Source/LuthierEngine.cpp:2423 cpuEstimate.store` (publish point).
+- NOTE `Source/UI/OptionsPages.h:104 AppearancePage` (`reducedMotionToggle`, `tooltipsToggle` at 115-116) — VISUAL AIDS section goes below them; `Source/UI/UiPreferences.h:42-43 getBool/setBool`; `Source/Accessibility/Accessibility.h:153 isReducedMotion`.

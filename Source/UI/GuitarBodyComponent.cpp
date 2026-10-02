@@ -2,6 +2,7 @@
 #include "RealismGroupsC.h"   // REALISM-C
 #include "../PluginProcessor.h"
 #include "../Accessibility/Accessibility.h"
+#include "PerformanceAssistUi.h"   // FEAT-ASSIST
 
 namespace luthier
 {
@@ -13,7 +14,17 @@ GuitarBodyComponent::GuitarBodyComponent (LuthierAudioProcessor& p)
                 [this] (StringMotionGeometry& g) { return fillMotionGeometry (g); }),
       chordName (p)
 {
-    motion.startTimerHz (*this, 30);   // cpu-quality-modes 6
+    // auto-articulation.md 7.3 (FEAT-ASSIST): where a played note shows on the neck.
+    assistLabels = std::make_unique<AssistLabelOverlay> (processor, *this, [this] (int s, double fret)
+    {
+        if (! juce::isPositiveAndBelow (s, (int) scene.nutPoints.size()))
+            return juce::Point<float>();
+
+        const auto mm = fret > 0.05 ? scene.stringAt (s, (float) fret - 0.5f) : scene.nutPoints[(size_t) s];
+        return mm.transformedBy (mmToPx);
+    });
+
+    motion.startTimerHz (*this, kRefreshHz);   // SPEC-SWEEP GD-2 rate, via cpu-quality-modes 6
 }
 
 GuitarBodyComponent::~GuitarBodyComponent()
@@ -730,11 +741,9 @@ TuningPopover::TuningPopover (LuthierAudioProcessor& p)
         {
             processor.pushUndoAction ("Detune string " + juce::String (i + 1), "string-detune", juce::String (i));
 
-            // tuning-stability.md 5: a lower detune is a string brought down to pitch.
-            auto& engine = processor.getEngine();
-            const double before = engine.getStabilityBasePitch (i);
-            engine.getTuningEngine().setDetuneCents (i, slider->getValue());
-            engine.getStabilityModel().onTuningChanged (i, before, engine.getStabilityBasePitch (i));
+            // SPEC-SWEEP (UW-5): via the command queue; the audio thread applies the
+            // detune and tells the stability model (tuning-stability.md 5) there.
+            processor.setStringDetuneCents (i, slider->getValue());
             refreshNoteNames();
             repaint();
         };
@@ -776,8 +785,16 @@ void TuningPopover::refreshNoteNames()
     noteNames.clearQuick();
 
     for (int i = 0; i < numStrings; ++i)
-        noteNames.add (TuningEngine::describeFrequency (tuning.getEffectiveOpenFrequency (i),
-                                                       tuning.getConcertA()));
+    {
+        // SPEC-SWEEP (UW-5): the slider's detune reaches the engine on the next
+        // audio block, so the name is corrected by what is still in flight.
+        double hz = tuning.getEffectiveOpenFrequency (i);
+
+        if (auto* slider = detuneSliders[i])
+            hz *= std::pow (2.0, (slider->getValue() - tuning.getStringTuning (i).detuneCents) / 1200.0);
+
+        noteNames.add (TuningEngine::describeFrequency (hz, tuning.getConcertA()));
+    }
 }
 
 void TuningPopover::paint (juce::Graphics& g)

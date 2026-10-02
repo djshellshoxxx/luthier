@@ -15,6 +15,9 @@ namespace
         // shifts loudness by about 1 LU (0.4 vs 0.7), so rendering it at its
         // default missed ON-03's +/-1 LU target (docs/coverage/FEAT-NORMALIZE.md).
         "preset_morph_position",
+        // Merge (SPEC-SWEEP LP-16): the snapshot morph is a performance control
+        // like the preset morph; it is never stored in a sound.
+        "snapshot_morph",
 
         // strum-dynamics: strum_crossing_sps ... chuck_damping.
         "strum_crossing_sps", "strum_acceleration", "strum_up_velocity_ratio", "strum_tilt",
@@ -27,7 +30,12 @@ namespace
     const char* const kPerformancePrefixes[] =
     {
         "vibrato_", "freeze_", "ebow_", "feedback_", "hum_",
-        "scrape_", "slap_", "pop_", "ghost_", "double_thump_"
+        "scrape_", "slap_", "pop_", "ghost_", "double_thump_",
+
+        // auto-articulation.md (FEAT-ASSIST): Performance Assist decides how the
+        // notes played are articulated - a playing gesture, rendered at its
+        // default (off) in the reference render.
+        "aa_"
     };
 
     // 3.1, Mix: forced neutral in the reference render.

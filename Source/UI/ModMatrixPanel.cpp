@@ -79,13 +79,21 @@ ModSourceCard::ModSourceCard (LuthierAudioProcessor& p)
     setupSlider (followerReleaseSlider, 1.0, 5000.0, 1.0, " ms");
     setupSlider (thresholdSlider, 0.0, 1.0, 0.001, {});
 
+    // SPEC-SWEEP: MM-14 / MM-23.
+    setupSlider (phaseSlider, 0.0, 360.0, 1.0, " deg");
+    setupSlider (seqRateSlider, 0.1, 40.0, 0.01, " Hz");
+    seqRateSlider.setSkewFactorFromMidPoint (4.0);
+    phaseSlider.setTooltip ("LFO start phase: where a retrigger restarts it");
+    seqRateSlider.setTooltip ("The sequencer's own step rate, used when Sync is off");
+
     // Every slider row says what it is (TODO V screenshots: seven unlabelled bars).
     for (auto [s, name] : { std::pair<juce::Slider*, const char*> { &rateSlider, "Rate" }, { &depthSlider, "Depth" },
                             { &symmetrySlider, "Symmetry" }, { &smoothingSlider, "Smoothing" }, { &delaySlider, "Delay" },
                             { &attackSlider, "Attack" }, { &holdSlider, "Hold" }, { &decaySlider, "Decay" },
                             { &sustainSlider, "Sustain" }, { &releaseSlider, "Release" }, { &lengthSlider, "Length" },
                             { &swingSlider, "Swing" }, { &followerAttackSlider, "Attack" }, { &followerReleaseSlider, "Release" },
-                            { &thresholdSlider, "Threshold" } })
+                            { &thresholdSlider, "Threshold" },
+                            { &phaseSlider, "Phase" }, { &seqRateSlider, "Rate" } })   // + SPEC-SWEEP's two
     {
         s->setName (name);
         s->setTitle (name);
@@ -126,14 +134,42 @@ ModSourceCard::ModSourceCard (LuthierAudioProcessor& p)
     followerSourceBox.addItem ("Per-string", 3);
     followerSourceBox.addItem ("Pickup", 4);
 
+    // SPEC-SWEEP: MM-18 / MM-19 / MM-20 / MM-25.
+    envRetriggerBox.addItem ("Legato", 1);
+    envRetriggerBox.addItem ("Always", 2);
+    envRetriggerBox.addItem ("One-shot", 3);
+    envRetriggerBox.setTooltip ("Envelope retrigger: legato ignores overlapping notes, "
+                                "one-shot runs to the end whatever the key does");
+
+    loopModeBox.addItem ("No loop", 1);
+    loopModeBox.addItem ("Loop D-S", 2);
+    loopModeBox.addItem ("Loop D-R", 3);
+    loopModeBox.setTooltip ("Envelope looping: decay back to attack, or through release");
+
+    for (auto* box : { &attackCurveBox, &decayCurveBox, &releaseCurveBox })
+        for (int i = 0; i < (int) ModCurve::numCurves; ++i)
+            box->addItem (getModCurveName ((ModCurve) i), i + 1);
+
+    attackCurveBox.setTooltip ("Attack curve");
+    decayCurveBox.setTooltip ("Decay curve");
+    releaseCurveBox.setTooltip ("Release curve");
+
+    for (int s = 0; s < kMaxStrings; ++s)
+        followerStringBox.addItem ("String " + juce::String (s + 1), s + 1);
+
+    followerStringBox.setTooltip ("Which string a per-string follower listens to");
+    followerLogButton.setTooltip ("Logarithmic (dB-like) output rather than linear");
+
     for (auto* box : { &shapeBox, &divisionBox, &retriggerBox, &directionBox,
-                       &detectionBox, &followerSourceBox })
+                       &detectionBox, &followerSourceBox,
+                       &envRetriggerBox, &loopModeBox, &attackCurveBox, &decayCurveBox,
+                       &releaseCurveBox, &followerStringBox })
     {
         box->onChange = [this] { pushToSource(); };
         addChildComponent (*box);
     }
 
-    for (auto* button : { &syncButton, &bipolarButton })
+    for (auto* button : { &syncButton, &bipolarButton, &followerLogButton })
     {
         button->onClick = [this] { pushToSource(); };
         addChildComponent (*button);
@@ -198,6 +234,16 @@ void ModSourceCard::rebuildControls()
     followerReleaseSlider.setVisible (isFollower);
     thresholdSlider.setVisible (isFollower);
 
+    // SPEC-SWEEP: MM-14 / 18 / 19 / 20 / 23 / 25.
+    phaseSlider.setVisible (isLfo);
+    for (auto* box : { &envRetriggerBox, &loopModeBox, &attackCurveBox, &decayCurveBox, &releaseCurveBox })
+        box->setVisible (isEnv);
+    seqRateSlider.setVisible (isSeq);
+    followerStringBox.setVisible (isFollower);
+    followerLogButton.setVisible (isFollower);
+
+    applyRangeLimits();
+
     auto& matrix = processor.getModMatrix();
 
     if (isLfo)
@@ -212,6 +258,7 @@ void ModSourceCard::rebuildControls()
         bipolarButton.setToggleState (lfo.isBipolar(), juce::dontSendNotification);
         divisionBox.setSelectedId ((int) lfo.getSyncDivision() + 1, juce::dontSendNotification);
         retriggerBox.setSelectedId ((int) lfo.getRetrigger() + 1, juce::dontSendNotification);
+        phaseSlider.setValue (lfo.getPhaseOffsetDegrees(), juce::dontSendNotification);
     }
     else if (isEnv)
     {
@@ -222,6 +269,11 @@ void ModSourceCard::rebuildControls()
         decaySlider.setValue (env.getDecaySeconds(), juce::dontSendNotification);
         sustainSlider.setValue (env.getSustainLevel(), juce::dontSendNotification);
         releaseSlider.setValue (env.getReleaseSeconds(), juce::dontSendNotification);
+        envRetriggerBox.setSelectedId ((int) env.getRetrigger() + 1, juce::dontSendNotification);
+        loopModeBox.setSelectedId ((int) env.getLoopMode() + 1, juce::dontSendNotification);
+        attackCurveBox.setSelectedId ((int) env.getStageCurve (ModEnvelope::Stage::attack) + 1, juce::dontSendNotification);
+        decayCurveBox.setSelectedId ((int) env.getStageCurve (ModEnvelope::Stage::decay) + 1, juce::dontSendNotification);
+        releaseCurveBox.setSelectedId ((int) env.getStageCurve (ModEnvelope::Stage::release) + 1, juce::dontSendNotification);
     }
     else if (isSeq)
     {
@@ -231,6 +283,8 @@ void ModSourceCard::rebuildControls()
         directionBox.setSelectedId ((int) seq.getDirection() + 1, juce::dontSendNotification);
         divisionBox.setSelectedId ((int) seq.getDivision() + 1, juce::dontSendNotification);
         syncButton.setToggleState (seq.isSynced(), juce::dontSendNotification);
+        seqRateSlider.setValue (seq.getInternalRateHz(), juce::dontSendNotification);
+        seqRateSlider.setEnabled (! seq.isSynced());
     }
     else if (isFollower)
     {
@@ -240,7 +294,42 @@ void ModSourceCard::rebuildControls()
         followerAttackSlider.setValue (follower.getAttackMs(), juce::dontSendNotification);
         followerReleaseSlider.setValue (follower.getReleaseMs(), juce::dontSendNotification);
         thresholdSlider.setValue (follower.getThreshold(), juce::dontSendNotification);
+        followerStringBox.setSelectedId (follower.getStringIndex() + 1, juce::dontSendNotification);
+        followerStringBox.setEnabled (follower.getSource() == ModEnvelopeFollower::Source::perString);
+        followerLogButton.setToggleState (follower.isLogarithmic(), juce::dontSendNotification);
     }
+}
+
+/*  SPEC-SWEEP: PR-44 / AR-15 - the sliders offer the modulation family's live
+    pair (advanced-ranges.md 3.4), so a locked card cannot ask for a value the
+    source would refuse. */
+void ModSourceCard::applyRangeLimits()
+{
+    const bool advanced = processor.getModMatrix().isModulationRangeAdvanced();
+    shownRangeAdvanced = advanced;
+
+    const auto lfo = ModRanges::lfoRateHz (advanced);
+    const auto env = ModRanges::envelopeSeconds (advanced);
+    const auto seq = ModRanges::sequencerRateHz (advanced);
+    const auto fol = ModRanges::followerMs (advanced);
+
+    rateSlider.setRange (lfo.lo, lfo.hi, 0.0);
+    rateSlider.setSkewFactorFromMidPoint (2.0);
+
+    for (auto* s : { &attackSlider, &decaySlider, &releaseSlider })
+        s->setRange (env.lo, env.hi, 0.0);
+
+    attackSlider.setSkewFactorFromMidPoint (0.2);
+    decaySlider.setSkewFactorFromMidPoint (0.3);
+    releaseSlider.setSkewFactorFromMidPoint (0.3);
+
+    seqRateSlider.setRange (seq.lo, seq.hi, 0.0);
+    seqRateSlider.setSkewFactorFromMidPoint (4.0);
+
+    followerAttackSlider.setRange (fol.lo, fol.hi, 0.0);
+    followerReleaseSlider.setRange (fol.lo, fol.hi, 0.0);
+    followerAttackSlider.setSkewFactorFromMidPoint (20.0);
+    followerReleaseSlider.setSkewFactorFromMidPoint (200.0);
 }
 
 void ModSourceCard::pushToSource()
@@ -248,67 +337,85 @@ void ModSourceCard::pushToSource()
     if (updating)
         return;
 
-    auto& matrix = processor.getModMatrix();
+    // SPEC-SWEEP (UW-5): the sources tick on the audio thread, so the card
+    // posts its settings as one plain edit instead of calling their setters.
+    ModSourceEdit e;
 
     switch (kindOf (slot))
     {
         case SourceKind::lfo:
-        {
-            auto& lfo = matrix.getLfo (slot - ModSourceSlots::lfoBase);
-            lfo.setShape ((ModLfo::Shape) juce::jmax (0, shapeBox.getSelectedId() - 1));
-            lfo.setRateHz (rateSlider.getValue());
-            lfo.setDepth (depthSlider.getValue());
-            lfo.setSymmetry (symmetrySlider.getValue());
-            lfo.setSmoothingMs (smoothingSlider.getValue());
-            lfo.setSynced (syncButton.getToggleState());
-            lfo.setBipolar (bipolarButton.getToggleState());
-            lfo.setSyncDivision ((ModSyncDivision) juce::jmax (0, divisionBox.getSelectedId() - 1));
-            lfo.setRetrigger ((ModLfo::Retrigger) juce::jmax (0, retriggerBox.getSelectedId() - 1));
+            e.kind = ModSourceEdit::Kind::lfo;
+            e.index = slot - ModSourceSlots::lfoBase;
+            e.lfoShape = juce::jmax (0, shapeBox.getSelectedId() - 1);
+            e.lfoRateHz = rateSlider.getValue();
+            e.lfoDepth = depthSlider.getValue();
+            e.lfoSymmetry = symmetrySlider.getValue();
+            e.lfoSmoothingMs = smoothingSlider.getValue();
+            e.lfoSynced = syncButton.getToggleState();
+            e.lfoBipolar = bipolarButton.getToggleState();
+            e.lfoDivision = juce::jmax (0, divisionBox.getSelectedId() - 1);
+            e.lfoRetrigger = juce::jmax (0, retriggerBox.getSelectedId() - 1);
+            e.lfoPhaseDegrees = phaseSlider.getValue();   // SPEC-SWEEP: MM-14
             break;
-        }
 
         case SourceKind::envelope:
-        {
-            auto& env = matrix.getEnvelope (slot - ModSourceSlots::envBase);
-            env.setDelaySeconds (delaySlider.getValue());
-            env.setAttackSeconds (attackSlider.getValue());
-            env.setHoldSeconds (holdSlider.getValue());
-            env.setDecaySeconds (decaySlider.getValue());
-            env.setSustainLevel (sustainSlider.getValue());
-            env.setReleaseSeconds (releaseSlider.getValue());
+            e.kind = ModSourceEdit::Kind::envelope;
+            e.index = slot - ModSourceSlots::envBase;
+            e.envDelay = delaySlider.getValue();
+            e.envAttack = attackSlider.getValue();
+            e.envHold = holdSlider.getValue();
+            e.envDecay = decaySlider.getValue();
+            e.envSustain = sustainSlider.getValue();
+            e.envRelease = releaseSlider.getValue();
+            // SPEC-SWEEP: MM-18 / MM-19 / MM-20.
+            e.envRetrigger = juce::jlimit (0, 2, envRetriggerBox.getSelectedId() - 1);
+            e.envLoopMode = juce::jlimit (0, 2, loopModeBox.getSelectedId() - 1);
+            e.envAttackCurve = juce::jmax (0, attackCurveBox.getSelectedId() - 1);
+            e.envDecayCurve = juce::jmax (0, decayCurveBox.getSelectedId() - 1);
+            e.envReleaseCurve = juce::jmax (0, releaseCurveBox.getSelectedId() - 1);
             break;
-        }
 
         case SourceKind::sequencer:
-        {
-            auto& seq = matrix.getSequencer (slot - ModSourceSlots::seqBase);
-            seq.setLength ((int) lengthSlider.getValue());
-            seq.setSwing (swingSlider.getValue());
-            seq.setDirection ((ModStepSequencer::Direction) juce::jmax (0, directionBox.getSelectedId() - 1));
-            seq.setDivision ((ModSyncDivision) juce::jmax (0, divisionBox.getSelectedId() - 1));
-            seq.setSynced (syncButton.getToggleState());
+            e.kind = ModSourceEdit::Kind::sequencer;
+            e.index = slot - ModSourceSlots::seqBase;
+            e.seqLength = (int) lengthSlider.getValue();
+            e.seqSwing = swingSlider.getValue();
+            e.seqDirection = juce::jmax (0, directionBox.getSelectedId() - 1);
+            e.seqDivision = juce::jmax (0, divisionBox.getSelectedId() - 1);
+            e.seqSynced = syncButton.getToggleState();
+            e.seqInternalRateHz = seqRateSlider.getValue();   // SPEC-SWEEP: MM-23
+            seqRateSlider.setEnabled (! e.seqSynced);
             break;
-        }
 
         case SourceKind::follower:
-        {
-            auto& follower = matrix.getFollower (slot - ModSourceSlots::followerBase);
-            follower.setSource ((ModEnvelopeFollower::Source) juce::jmax (0, followerSourceBox.getSelectedId() - 1));
-            follower.setDetection ((ModEnvelopeFollower::Detection) juce::jmax (0, detectionBox.getSelectedId() - 1));
-            follower.setAttackMs (followerAttackSlider.getValue());
-            follower.setReleaseMs (followerReleaseSlider.getValue());
-            follower.setThreshold (thresholdSlider.getValue());
+            e.kind = ModSourceEdit::Kind::follower;
+            e.index = slot - ModSourceSlots::followerBase;
+            e.followerSource = juce::jmax (0, followerSourceBox.getSelectedId() - 1);
+            e.followerDetection = juce::jmax (0, detectionBox.getSelectedId() - 1);
+            e.followerAttackMs = followerAttackSlider.getValue();
+            e.followerReleaseMs = followerReleaseSlider.getValue();
+            e.followerThreshold = thresholdSlider.getValue();
+            // SPEC-SWEEP: MM-25.
+            e.followerString = juce::jmax (0, followerStringBox.getSelectedId() - 1);
+            e.followerLogarithmic = followerLogButton.getToggleState();
+            followerStringBox.setEnabled (e.followerSource == (int) ModEnvelopeFollower::Source::perString);
             break;
-        }
 
         case SourceKind::plain:
         default:
             break;
     }
+
+    if (e.kind != ModSourceEdit::Kind::none)
+        processor.getModMatrix().postSourceEdit (e);
 }
 
 void ModSourceCard::timerCallback()
 {
+    // SPEC-SWEEP: PR-44 - the range family was locked or unlocked elsewhere.
+    if (processor.getModMatrix().isModulationRangeAdvanced() != shownRangeAdvanced)
+        rebuildControls();
+
     const auto value = processor.getModMatrix().getSourceValue (slot);
 
     history[(size_t) historyWrite] = value;
@@ -432,6 +539,7 @@ void ModSourceCard::resized()
             placePair (shapeBox, retriggerBox);
             placePair (syncButton, bipolarButton);
             rateSlider.setBounds (sliderRow());
+            phaseSlider.setBounds (sliderRow());   // SPEC-SWEEP: MM-14
             divisionBox.setBounds (nextRow());
             depthSlider.setBounds (sliderRow());
             symmetrySlider.setBounds (sliderRow());
@@ -445,17 +553,29 @@ void ModSourceCard::resized()
             decaySlider.setBounds (sliderRow());
             sustainSlider.setBounds (sliderRow());
             releaseSlider.setBounds (sliderRow());
+
+            // SPEC-SWEEP: MM-18 / MM-19 / MM-20.
+            placePair (envRetriggerBox, loopModeBox);
+            {
+                auto row = nextRow();
+                const int third = row.getWidth() / 3;
+                attackCurveBox.setBounds (row.removeFromLeft (third).reduced (1, 0));
+                decayCurveBox.setBounds (row.removeFromLeft (third).reduced (1, 0));
+                releaseCurveBox.setBounds (row.reduced (1, 0));
+            }
             break;
 
         case SourceKind::sequencer:
             placePair (directionBox, syncButton);
             divisionBox.setBounds (nextRow());
+            seqRateSlider.setBounds (sliderRow());   // SPEC-SWEEP: MM-23
             lengthSlider.setBounds (sliderRow());
             swingSlider.setBounds (sliderRow());
             break;
 
         case SourceKind::follower:
             placePair (followerSourceBox, detectionBox);
+            placePair (followerStringBox, followerLogButton);   // SPEC-SWEEP: MM-25
             followerAttackSlider.setBounds (sliderRow());
             followerReleaseSlider.setBounds (sliderRow());
             thresholdSlider.setBounds (sliderRow());
@@ -479,8 +599,9 @@ ModRouteTable::ModRouteTable (LuthierAudioProcessor& p)
 
     auto& header = table.getHeader();
     header.addColumn ("Source", ColumnId::source, 78);
-    header.addColumn ("Destination", ColumnId::destination, 128);
-    header.addColumn ("Depth", ColumnId::depth, 66);
+    header.addColumn ("Destination", ColumnId::destination, 112);
+    header.addColumn ("Depth", ColumnId::depth, 58);
+    header.addColumn ("Offset", ColumnId::offset, 44);   // SPEC-SWEEP: MM-40
     header.addColumn ("Curve", ColumnId::curve, 50);
     header.addColumn ("On", ColumnId::enabled, 26);
     header.addColumn ("", ColumnId::remove, 22);
@@ -572,6 +693,11 @@ void ModRouteTable::paintCell (juce::Graphics& g, int row, int columnId,
             break;
         }
 
+        case ColumnId::offset:   // SPEC-SWEEP: MM-40
+            g.drawText ((route.offset > 0.0f ? "+" : "") + juce::String (juce::roundToInt (route.offset * 100.0f)) + "%",
+                        area, juce::Justification::centred, false);
+            break;
+
         case ColumnId::curve:
             g.drawText (getModCurveName (route.curve), area, juce::Justification::centred, false);
             break;
@@ -620,34 +746,9 @@ void ModRouteTable::cellClicked (int row, int columnId, const juce::MouseEvent& 
             break;
 
         case ColumnId::depth:
-        {
-            // Click-drag would fight the table's own mouse handling, so depth is
-            // typed rather than dragged.
-            auto* editor = new juce::TextEditor();
-            editor->setSize (80, 22);
-            editor->setText (juce::String (cached[(size_t) row].depth, 3), false);
-            editor->selectAll();
-
-            auto& box = juce::CallOutBox::launchAsynchronously (
-                std::unique_ptr<juce::Component> (editor),
-                getScreenBounds().withPosition (e.getScreenPosition()), nullptr);
-
-            editor->onReturnKey = [this, editor, row, &box, routeName]
-            {
-                processor.pushUndoAction ("Change depth of " + routeName, "mod-route-edit", routeName);   // 3.6
-                processor.getModMatrix().setRouteDepth (row, editor->getText().getFloatValue());
-                refresh();
-
-                if (onRoutesChanged)
-                    onRoutesChanged();
-
-                box.dismiss();
-            };
-
-            editor->onEscapeKey = [&box] { box.dismiss(); };
-            editor->grabKeyboardFocus();
+        case ColumnId::offset:   // SPEC-SWEEP: MM-40
+            editValue (row, columnId == ColumnId::offset, e);
             return;
-        }
 
         case ColumnId::curve:
         {
@@ -666,6 +767,55 @@ void ModRouteTable::cellClicked (int row, int columnId, const juce::MouseEvent& 
 
     if (onRoutesChanged)
         onRoutesChanged();
+}
+
+void ModRouteTable::applyTypedValue (int row, bool isOffset, float value)
+{
+    auto& matrix = processor.getModMatrix();
+    const float v = juce::jlimit (-1.0f, 1.0f, value);
+
+    // action-and-undo.md 3.6 (integration's depth edit), for depth and offset alike.
+    if (juce::isPositiveAndBelow (row, (int) cached.size()))
+    {
+        const auto routeName = cached[(size_t) row].sourceId + " -> " + cached[(size_t) row].destinationId;
+        processor.pushUndoAction ((isOffset ? "Change offset of " : "Change depth of ") + routeName,
+                                  "mod-route-edit", routeName);
+    }
+
+    if (isOffset)
+        matrix.setRouteOffset (row, v);
+    else
+        matrix.setRouteDepth (row, v);
+
+    refresh();
+
+    if (onRoutesChanged)
+        onRoutesChanged();
+}
+
+void ModRouteTable::editValue (int row, bool isOffset, const juce::MouseEvent& e)
+{
+    // Click-drag would fight the table's own mouse handling, so depth and
+    // offset are typed rather than dragged.
+    const auto& route = cached[(size_t) row];
+
+    auto* editor = new juce::TextEditor();
+    editor->setSize (80, 22);
+    editor->setText (juce::String (isOffset ? route.offset : route.depth, 3), false);
+    editor->selectAll();
+
+    auto& box = juce::CallOutBox::launchAsynchronously (
+        std::unique_ptr<juce::Component> (editor),
+        getScreenBounds().withPosition (e.getScreenPosition()), nullptr);
+
+    editor->onReturnKey = [this, editor, row, isOffset, &box]
+    {
+        applyTypedValue (row, isOffset, editor->getText().getFloatValue());
+        box.dismiss();
+    };
+
+    editor->onEscapeKey = [&box] { box.dismiss(); };
+    editor->grabKeyboardFocus();
 }
 
 void ModRouteTable::resized()
@@ -724,6 +874,18 @@ ModMatrixPanel::ModMatrixPanel (LuthierAudioProcessor& p)
     summaryLabel.setText (juce::String (processor.getModMatrix().getNumRoutes()) + " route(s)",
                           juce::dontSendNotification);
     addAndMakeVisible (summaryLabel);
+
+    // The spare user macros (7/8): their own knobs, so they are visible and
+    // automatable and can then be used as MOD sources on the routes below.
+    userMacroHeading.setText ("USER MACROS", juce::dontSendNotification);
+    userMacroHeading.setFont (Fonts::sectionHeader());
+    userMacroHeading.setColour (juce::Label::textColourId, Palette::accent);
+    addAndMakeVisible (userMacroHeading);
+
+    userMacroA.attachTo (processor, ParamIDs::macroAssignA, "Spare macro A: a value you can route from as a MOD source.");
+    userMacroB.attachTo (processor, ParamIDs::macroAssignB, "Spare macro B: a value you can route from as a MOD source.");
+    addAndMakeVisible (userMacroA);
+    addAndMakeVisible (userMacroB);
 }
 
 ModMatrixPanel::~ModMatrixPanel() = default;
@@ -805,7 +967,8 @@ void ModMatrixPanel::showAddRouteMenu()
 
 int ModMatrixPanel::preferredHeight() const
 {
-    return 22                                   // source selector
+    return 16 + 48 + Metrics::gridHalf         // user macros heading + knobs
+             + 22                               // source selector
              + ModSourceCard::preferredHeight
              + Metrics::gridHalf
              + 160                              // route table
@@ -820,6 +983,15 @@ void ModMatrixPanel::paint (juce::Graphics&)
 void ModMatrixPanel::resized()
 {
     auto bounds = getLocalBounds();
+
+    // The spare user macros sit above the source selector.
+    userMacroHeading.setBounds (bounds.removeFromTop (16));
+    {
+        auto row = bounds.removeFromTop (48);
+        userMacroA.setBounds (row.removeFromLeft (row.getWidth() / 2).reduced (2, 0));
+        userMacroB.setBounds (row.reduced (2, 0));
+    }
+    bounds.removeFromTop (Metrics::gridHalf);
 
     sourceSelector.setBounds (bounds.removeFromTop (22).reduced (0, 1));
     card->setBounds (bounds.removeFromTop (ModSourceCard::preferredHeight));

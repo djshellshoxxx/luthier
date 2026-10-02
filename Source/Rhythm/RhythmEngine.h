@@ -27,6 +27,7 @@
 #include "Patterns.h"
 #include "StrumGesture.h"
 #include "BassStepGrid.h"
+#include "../Support/TripleBuffer.h"   // SPEC-SWEEP RE-2
 
 #include "../Model/Playing/PlayingEvents.h"
 #include "../Model/Playing/RubricVoicer.h"
@@ -130,6 +131,11 @@ public:
     void setHandPositionHint (int fret) noexcept { handPositionHint.store (juce::jlimit (0, 22, fret), std::memory_order_relaxed); }
     int getHandPositionHint() const noexcept { return handPositionHint.load (std::memory_order_relaxed); }
 
+    /** SPEC-SWEEP (RE-12, rhythm-engine 3): the widest stretch, in frets, a
+        voicing may ask of the hand (3-7, default 5; the Wide style adds one). */
+    void setHandSpan (int frets) noexcept { handSpan.store (juce::jlimit (3, 7, frets), std::memory_order_relaxed); }
+    int getHandSpan() const noexcept { return handSpan.load (std::memory_order_relaxed); }
+
     /*  Where the capo sits, 0 for none (rhythm-engine 3, 8.2).
 
         This used to be the rhythm engine's own field, and it was one of three
@@ -214,6 +220,12 @@ public:
     ChordSymbol detectHeldChord() const noexcept { return detector.detect (detector.getHeldNotes(), detector.getNumHeldNotes()); }
     const ChordVoicing& getCurrentVoicing() const noexcept { return currentVoicing; }
     int getCurrentStep() const noexcept { return lastStepPlayed.load (std::memory_order_relaxed); }
+
+    /** SPEC-SWEEP (GD-10): blocks in which the engine drove the strings, so a
+        display can tell a live engine from one that has stopped reporting. */
+    juce::uint32 getDrivenBlockCount() const noexcept { return drivenBlocks.load (std::memory_order_relaxed); }
+    /** Strokes scheduled so far (the arrow flashes on each). */
+    juce::uint32 getStrokeCount() const noexcept { return strokesScheduled.load (std::memory_order_relaxed); }
     StrumType getNextStrumType() const noexcept { return (StrumType) nextStrumType.load (std::memory_order_relaxed); }
 
     //==========================================================================
@@ -262,6 +274,7 @@ private:
     std::atomic<int> bassPattern { (int) RubricBassPattern::root };
     std::atomic<double> voicingDensity { 100.0 };
     std::atomic<int> handPositionHint { 0 };
+    std::atomic<int> handSpan { 5 };   // SPEC-SWEEP RE-12
     // No capoFret here any more: TuningEngine owns the one capo. See setCapoFret.
     std::atomic<double> strumEvenness { 0.75 };   // strum-dynamics 4 / 7
     std::atomic<double> strumDurationMs { 0.0 };  // no kit crossing until a kit sets one
@@ -276,30 +289,41 @@ private:
         strum-dynamics 1's table is written for. */
     static constexpr int kKitReferenceStrings = 6;
 
-    // --- pattern, double buffered ------------------------------------------------
-    mutable juce::CriticalSection patternLock;
-    RhythmPattern patterns[2];
-    std::atomic<int> livePattern { 0 };
+    // --- pattern, humanise and bass grid: message thread -> audio thread -----------
+    // SPEC-SWEEP (RE-2): each is a TripleBuffer, so the audio thread picks up the
+    // newest value at the top of a block and reads it by reference: no copy of a
+    // pattern's name/tags, no lock and no free on the audio thread. The writer
+    // keeps its own copy for message-thread getters.
+    mutable juce::CriticalSection patternLock;   // serialises writers only
+    RhythmPattern writtenPattern;
+    TripleBuffer<RhythmPattern> patternBuffer;
 
-    BassStepGrid bassGrids[2];
-    std::atomic<int> liveBassGrid { 0 };
+    BassStepGrid writtenBassGrid;
+    TripleBuffer<BassStepGrid> bassGridBuffer;
+    std::atomic<bool> bassGridHasSteps { false };
     std::atomic<bool> bassFamily { false };
 
-    mutable juce::CriticalSection humaniseLock;
-    RhythmHumanise humanise;
+    mutable juce::CriticalSection humaniseLock;  // serialises writers only
+    RhythmHumanise writtenHumanise;
+    TripleBuffer<RhythmHumanise> humaniseBuffer;
 
     // --- transport ------------------------------------------------------------------
     double freeRunPpq = 0.0;
     double lastPpq = -1.0;
     bool wasPlaying = false;
-    bool pendingRelease = false;
+    std::atomic<bool> pendingRelease { false };   // SPEC-SWEEP: set from the message thread (setEnabled)
 
     /** Which strings the engine currently has ringing, so it can release them. */
     uint16_t soundingMask = 0;
 
+    // muting-rhythm.md 4 (TECHNIQUES): the step being scheduled's mute and dynamic.
+    MuteStep pendingMute;
+    double pendingDynamic = -1.0;
+
     bool driving = false;
 
     std::atomic<int> lastStepPlayed { -1 };
+    std::atomic<juce::uint32> drivenBlocks { 0 }, strokesScheduled { 0 };   // SPEC-SWEEP GD-10
     std::atomic<int> nextStrumType { (int) StrumType::rest };
 
     RtRandom rng { 0x12345678ull };

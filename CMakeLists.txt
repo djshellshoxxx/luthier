@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 if (MSVC)
-    add_compile_options(/MP1 /bigobj /wd4244 /wd4267 /wd4305 /wd4996)
+    add_compile_options(/MP1 /bigobj /Zc:lambda /wd4244 /wd4267 /wd4305 /wd4996)
     # Keep per-TU memory low: this machine has 4 GB RAM.
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
@@ -18,6 +18,15 @@ option(LUTHIER_BUILD_CLI   "Build the offline batch-render CLI"  ON)
 # it off on ordinary pushes, where it doubles the link time and defeats the
 # compiler cache, and keeps it on for nightly and release builds.
 option(LUTHIER_LTO         "Link-time optimise the plugin targets" ON)
+# Optional crash reporting via sentry-native. OFF by default: when OFF, nothing
+# below fires and Source/Support/CrashReporting.cpp compiles to no-ops (see that
+# file and docs/infra/SETTINGS_CHECKLIST.md). Turn on with:
+#   -DLUTHIER_ENABLE_SENTRY=ON -DSENTRY_DSN=$SENTRY_DSN
+# The DSN is never hardcoded; it is read here from the SENTRY_DSN cache/env var.
+option(LUTHIER_ENABLE_SENTRY "Compile in opt-in sentry-native crash reporting" OFF)
+if (LUTHIER_ENABLE_SENTRY AND (NOT DEFINED SENTRY_DSN OR SENTRY_DSN STREQUAL ""))
+    set(SENTRY_DSN "$ENV{SENTRY_DSN}")
+endif()
 
 add_subdirectory(ThirdParty/JUCE)
 
@@ -30,6 +39,31 @@ if (EXISTS "${LUTHIER_CLAP_EXTENSIONS}/CMakeLists.txt")
     set(LUTHIER_HAS_CLAP TRUE)
 else()
     set(LUTHIER_HAS_CLAP FALSE)
+endif()
+
+# host-integration HI-8: LUTHIER_VERSION major.minor.patch plus a build string,
+# so a bug report names the exact build rather than just "1.0.0". CI sets
+# LUTHIER_BUILD_STRING itself (e.g. a run number); locally it falls back to the
+# git short SHA, or "dev" outside a git checkout.
+if(NOT DEFINED LUTHIER_BUILD_STRING OR LUTHIER_BUILD_STRING STREQUAL "")
+    if(DEFINED ENV{LUTHIER_BUILD_STRING} AND NOT "$ENV{LUTHIER_BUILD_STRING}" STREQUAL "")
+        set(LUTHIER_BUILD_STRING "$ENV{LUTHIER_BUILD_STRING}")
+    else()
+        find_package(Git QUIET)
+        set(LUTHIER_BUILD_STRING "dev")
+        if(GIT_EXECUTABLE)
+            execute_process(
+                COMMAND "${GIT_EXECUTABLE}" rev-parse --short=8 HEAD
+                WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+                OUTPUT_VARIABLE LUTHIER_GIT_SHA
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+                ERROR_QUIET
+                RESULT_VARIABLE LUTHIER_GIT_RESULT)
+            if(LUTHIER_GIT_RESULT EQUAL 0 AND NOT LUTHIER_GIT_SHA STREQUAL "")
+                set(LUTHIER_BUILD_STRING "${LUTHIER_GIT_SHA}")
+            endif()
+        endif()
+    endif()
 endif()
 
 set(LUTHIER_FORMATS VST3 Standalone)
@@ -46,7 +80,7 @@ juce_add_plugin(Luthier
     PRODUCT_NAME                "Luthier"
     IS_SYNTH                    TRUE
     NEEDS_MIDI_INPUT            TRUE
-    NEEDS_MIDI_OUTPUT           FALSE
+    NEEDS_MIDI_OUTPUT           TRUE    # SPEC-SWEEP PR-13 / HI-2 / HI-31: matches producesMidi(), so VST3/AU declare the event output
     IS_MIDI_EFFECT              FALSE
     EDITOR_WANTS_KEYBOARD_FOCUS TRUE
     COPY_PLUGIN_AFTER_BUILD     FALSE
@@ -78,6 +112,7 @@ target_sources(Luthier PRIVATE ${LUTHIER_SOURCES})
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/Source" FILES ${LUTHIER_SOURCES})
 
 target_compile_definitions(Luthier PUBLIC
+    LUTHIER_BUILD_STRING="${LUTHIER_BUILD_STRING}"
     LUTHIER_HEADLESS=0
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
@@ -102,6 +137,22 @@ target_link_libraries(Luthier PRIVATE
 
 if (LUTHIER_LTO)
     target_link_libraries(Luthier PUBLIC juce::juce_recommended_lto_flags)
+endif()
+
+# Opt-in crash reporting (scaffold). Only fires when LUTHIER_ENABLE_SENTRY=ON;
+# the default build never enters this block, so CrashReporting.cpp stays a no-op.
+if (LUTHIER_ENABLE_SENTRY)
+    target_compile_definitions(Luthier PRIVATE
+        LUTHIER_ENABLE_SENTRY=1
+        LUTHIER_SENTRY_DSN="${SENTRY_DSN}")
+    # To finish wiring sentry-native, fetch/find it and link, e.g.:
+    #   find_package(sentry CONFIG REQUIRED)
+    #   target_link_libraries(Luthier PRIVATE sentry::sentry)
+    if (SENTRY_DSN STREQUAL "")
+        message(WARNING "LUTHIER_ENABLE_SENTRY is ON but SENTRY_DSN is empty; reporting stays disabled at runtime.")
+    else()
+        message(STATUS "Luthier: sentry crash reporting compiled in (DSN provided via SENTRY_DSN).")
+    endif()
 endif()
 
 if (LUTHIER_HAS_CLAP)
@@ -129,6 +180,7 @@ function(luthier_copy_resources target destination)
         add_custom_command(TARGET ${target} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E rm -rf "${destination}/Parts" "${destination}/Guitars"
                     "${destination}/Presets" "${destination}/Tunes" "${destination}/Fonts"
+                    "${destination}/Riffs"
             COMMAND ${CMAKE_COMMAND} -E make_directory "${destination}"
             COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
                     "${LUTHIER_RESOURCES}" "${destination}"
@@ -175,7 +227,9 @@ endif()
 # reference to the editor.
 set(LUTHIER_ENGINE_SOURCES ${LUTHIER_SOURCES})
 list(FILTER LUTHIER_ENGINE_SOURCES EXCLUDE REGEX "Source/UI/")
-list(FILTER LUTHIER_ENGINE_SOURCES EXCLUDE REGEX "PluginEditor[A-Za-z]*\.(cpp|h)$")   # FEAT-NORMALIZE: PluginEditorOnboarding.cpp too
+# SPEC-SWEEP: UiPreferences (juce_core only) is engine code too - PresetManager reads it (REALISM-C).
+list(APPEND LUTHIER_ENGINE_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/Source/UI/UiPreferences.cpp")
+list(FILTER LUTHIER_ENGINE_SOURCES EXCLUDE REGEX "PluginEditor[A-Za-z]*\.(cpp|h)$")   # SPEC-SWEEP: + PluginEditorTune; FEAT-NORMALIZE: + PluginEditorOnboarding
 
 # The UI, as its own list. The renderer does not want it - it renders offline and
 # has no window - but the test runner does. With Source/UI out of every target
@@ -184,8 +238,10 @@ list(FILTER LUTHIER_ENGINE_SOURCES EXCLUDE REGEX "PluginEditor[A-Za-z]*\.(cpp|h)
 # the plugin in a host by hand.
 set(LUTHIER_UI_SOURCES ${LUTHIER_SOURCES})
 list(FILTER LUTHIER_UI_SOURCES INCLUDE REGEX "Source/UI/|PluginEditor[A-Za-z]*\.(cpp|h)$")   # FEAT-NORMALIZE: PluginEditorOnboarding.cpp too
+list(FILTER LUTHIER_UI_SOURCES EXCLUDE REGEX "Source/UI/UiPreferences\.cpp$")
 
 set(LUTHIER_CONSOLE_DEFS
+    LUTHIER_BUILD_STRING="${LUTHIER_BUILD_STRING}"
     LUTHIER_HEADLESS=1
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
@@ -195,7 +251,16 @@ set(LUTHIER_CONSOLE_DEFS
     JUCE_MODAL_LOOPS_PERMITTED=0
     JUCE_STRICT_REFCOUNTEDPOINTER=1
     JucePlugin_Name="Luthier"
-    JucePlugin_VersionString="${PROJECT_VERSION}")
+    JucePlugin_VersionString="${PROJECT_VERSION}"
+    # host-integration HI-2/HI-31: mirrors the real plugin targets' NEEDS_MIDI_OUTPUT,
+    # so PluginBuses::midiOutputIsAnnounced can see the same macro they build with.
+    JucePlugin_ProducesMidiOutput=1)
+
+# SPEC-SWEEP PT-24 (practice-tools 3): the TRACK tab offers MP3, so JUCE's own
+# decoder (part of juce_audio_formats, no LGPL code) is switched on.
+set(LUTHIER_FORMAT_DEFS JUCE_USE_MP3AUDIOFORMAT=1)
+list(APPEND LUTHIER_CONSOLE_DEFS ${LUTHIER_FORMAT_DEFS})
+target_compile_definitions(Luthier PUBLIC ${LUTHIER_FORMAT_DEFS})
 
 # The test runner is the one console target that is not headless: it builds the
 # editor, so LUTHIER_HEADLESS has to be 0 or PluginProcessor compiles out the
@@ -237,6 +302,8 @@ if (LUTHIER_BUILD_TESTS)
 
     enable_testing()
     add_test(NAME LuthierUnitTests COMMAND LuthierTests)
+    # SPEC-SWEEP (TROUBLESHOOTING TS-1): the documented install paths match the installers.
+    add_test(NAME PackagingPaths COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/scripts/check_packaging_paths.cmake)
 endif()
 
 if (LUTHIER_BUILD_CLI)
@@ -260,6 +327,15 @@ if (LUTHIER_BUILD_CLI)
         juce::juce_recommended_config_flags)
 
     luthier_copy_resources(LuthierRender "$<TARGET_FILE_DIR:LuthierRender>/Resources")
+
+    # SPEC-SWEEP (README RM-17): every documented luthier-render flag, end to end.
+    enable_testing()
+    add_test(NAME LuthierRenderCli
+             COMMAND ${CMAKE_COMMAND}
+                     -DRENDER=$<TARGET_FILE:LuthierRender>
+                     -DMIDI=${CMAKE_CURRENT_SOURCE_DIR}/Tools/testdata/two_bars.mid
+                     -DOUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/render-cli-smoke
+                     -P ${CMAKE_CURRENT_SOURCE_DIR}/scripts/render_cli_smoke.cmake)
 endif()
 
 #==============================================================================

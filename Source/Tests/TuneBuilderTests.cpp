@@ -987,6 +987,18 @@ LUTHIER_TEST (TuneBuilder, editsKeepNamesUniqueAndTheSetlistInStep)
     CHECK (juce::String (getTuneEditClassName (TuneEditClass::melodyGenerate)) == "tune-melody-generate");
 }
 
+LUTHIER_TEST (TuneBuilder, refusingLastSectionRemovalPreservesTheArrangement)
+{
+    auto tune = makeSongTune();
+    CHECK (tune.removeSection (1));
+
+    const auto before = tune.arrangement;
+    CHECK (! tune.removeSection (0));
+    CHECK (tune.arrangement == before);
+    CHECK (tune.getNumSections() == 1);
+    CHECK (! tune.removeSection (-1));
+}
+
 LUTHIER_TEST (TuneBuilder, aThousandSectionReordersKeepTheLengthAndEveryNotesPosition)
 {
     RtRandom rng (0x52454F52ull);

@@ -54,7 +54,16 @@ const std::vector<std::pair<const char*, const char*>>& AnimationPolicy::getPoll
         { "PositionPad",           "10 Hz: redraws only when the player's position parameters change" },
         { "RightHandToolSelector", "4 Hz: syncs the selected tool with its parameter" },
         { "SustainShapeGroup",     "4 Hz: sustain-style combo text" },
-        { "TuningStabilityGroup",  "2 Hz: capo-bias text and string count" }
+        { "TuningStabilityGroup",  "2 Hz: capo-bias text and string count" },
+        // SPEC-SWEEP classes, allow-listed at the merge with the integration branch.
+        { "LuthierKnob",           "the shared 30 Hz ModArcHub: a knob repaints only when its modulation arc or learn pulse changes" },
+        { "LiveActionButton",      "10 Hz: the CC assignment text of a live action" },
+        { "MorphSetupPanel",       "6 Hz: morph slot labels and enables" },
+        { "MonitorSetupPanel",     "6 Hz: monitor-mix control sync" },
+        { "SearchHighlighter",     "the 900 ms pulse runs only when mayAnimate (Transition); otherwise one tick ends the static ring" },   // FEAT-SEARCH (INTEGRATE-2)
+        { "SearchNavigator",       "40 ms one-shot: waits for the SLIDE group to appear after Slide Mode is switched on" },               // FEAT-SEARCH (INTEGRATE-2)
+        { "MicHandle",             "closes a 200 ms nudge undo group; its 60 ms snap ease runs only when mayAnimate (Transition)" },       // FEAT-MIC (INTEGRATE-2)
+        { "NormalizationCaption",  "4 Hz: shows or hides with the normalization switch; static text" }   // fix-cross
     };
 
     return list;

@@ -1,0 +1,6 @@
+- [TS-3] effort S — DEFER: 64-bit-only is a build/installer property (`ArchitecturesInstallIn64BitMode`), not unit-testable; covered by the release checklist.
+- [TS-4] effort S — DEFER to the installer workstream (visual branch owns installer items): verify on the release checklist that uninstall keeps `Documents/Luthier` unless the user opts in.
+- [TS-8] DEFERRED: hard reset / the read-only fallback act on the real Documents/Luthier folder (deleting diagnostics *.txt and Cache); a test needs a Documents-root override hook in PresetManager/Diagnostics first (state worker). Crash-log-off-on-load is covered by `Diagnostics::crashLogIsOffOnEveryLoadAndStartsWithTheReport`.
+- [TS-9] DEFERRED: hard reset / the read-only fallback act on the real Documents/Luthier folder (deleting diagnostics *.txt and Cache); a test needs a Documents-root override hook in PresetManager/Diagnostics first (state worker). Crash-log-off-on-load is covered by `Diagnostics::crashLogIsOffOnEveryLoadAndStartsWithTheReport`.
+- [TS-15] effort M — add `Engine::emptySlotsAreFreeAndTheSecondMicCostsTheConvolution`: measure `getCpuEstimate()` (or a deterministic op counter) with 0 vs 8 loaded-but-bypassed slots and dual mic on/off; if bypassed pedals turn out to be free, correct the doc instead.
+- [TS-21] (see docs-PLAYING_TECHNIQUES PT-22 row) — same test.

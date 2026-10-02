@@ -19,6 +19,8 @@
 namespace luthier
 {
 
+namespace search { class SearchNavigator; }   // global-search.md (FEAT-SEARCH)
+
 //==============================================================================
 class LuthierAudioProcessorEditor : public juce::AudioProcessorEditor,
                                     public juce::DragAndDropContainer,   // gui-integration 11.2: drag-to-modulate
@@ -49,6 +51,15 @@ public:
     static constexpr int defaultHeight = 720;
     static constexpr int minimumWidth = 940;
     static constexpr int minimumHeight = 560;
+
+    /** SPEC-SWEEP (USER_MANUAL UM-60): the footer's CPU share and reported
+        latency, as drawn. */
+    juce::String getFooterText() const;
+
+    /** SPEC-SWEEP (include.md INC-12): applies the tooltip on/off preference to
+        the tooltip window (the timer calls this) and reports the delay it set. */
+    void applyTooltipPreference();
+    int getTooltipDelayMs() const noexcept { return tooltipDelayMs; }
 
     /*  gui-integration 15: the triggers the plugin can raise on its own, checked
         once when the window opens. Public so a test can drive it against a
@@ -85,6 +96,20 @@ public:
     QualityBadge& getQualityBadge() noexcept { return qualityBadge; }
     QualityEditorLink& getQualityLink() noexcept { return qualityLink; }
 
+    /*  global-search.md 4.3 (FEAT-SEARCH): every command, once. This is the body
+        keyPressed used to have, moved as-is: a shortcut, a header button and the
+        search palette all run a command through here, so none of them has its
+        own copy of "save" or "panic". Returns false for an unknown id or when
+        the command did not apply (a tab step in Easy Mode). */
+    bool performAction (const juce::String& actionId);
+
+    /** global-search.md 3.1: this window's search (index, palette, navigator). */
+    search::SearchNavigator& getSearch() noexcept { return *searchNav; }
+
+    /*  global-search.md 8: where search providers register. A feature adds its
+        provider here, after the defaults:
+            getSearch().getIndex().addProvider (std::make_unique<MyProvider> (...)); */
+    void buildSearchProviders();
     //==========================================================================
     // onboarding.md 2-4 (TUNE-HELP-ONBOARDING; PluginEditorOnboarding.cpp).
 
@@ -108,7 +133,17 @@ public:
         Returns the tab's panel, or nullptr when it cannot be shown. */
     TunePanel* openNewTune();
 
+    // ==== BEGIN FEAT-ASSIST ====
+    /** auto-articulation.md 7.5: the PLAYING group's ?. */
+    void openHelpTopic (const juce::String& topic) { openHelp (topic); }
+
+    /** 7.1: the AUTO popover's "More in RHYTHM tab" - Advanced, RHYTHM. */
+    void openAssistInRhythmTab();
+    // ==== END FEAT-ASSIST ====
+
 private:
+    friend class search::SearchNavigator;   // FEAT-SEARCH: navigation reaches the panels
+
     void timerCallback() override;
 
     /** accessibility.md 6: a palette change reaches every panel at once. */
@@ -149,6 +184,7 @@ private:
 
     LuthierLookAndFeel lookAndFeel;
     juce::TooltipWindow tooltips { this, Metrics::tooltipDelayMs };
+    int tooltipDelayMs = Metrics::tooltipDelayMs;   // SPEC-SWEEP INC-12
 
     HeaderBar header;
     MidiImportOutcome lastMidiImport;   // MODEL-GAPS
@@ -181,6 +217,7 @@ private:
     SaveAsPanel saveAsPanel;
     ChordAndTabPanel chordPanel;
     WorkshopOverlay workshopOverlay;
+    MicPlacementOverlay micPlacementOverlay;   // mic-placement.md 6.3 (FEAT-MIC)
     SecretPanel secretPanel;
 
     // onboarding.md 2-4 (TUNE-HELP-ONBOARDING).
@@ -209,6 +246,7 @@ private:
         is not reposted. Without these, dismissing a banner about a preset that
         still will not load would put it straight back on screen. */
     juce::String reportedPresetError, reportedIrError;
+    juce::String reportedPresetSaveError;   // SPEC-SWEEP: ER-19
     juce::uint32 seenMigrationGeneration = 0;   // installer.md 8
     bool migrationBannerShown = false;
 
@@ -222,6 +260,9 @@ private:
 
     /** The palette this window's components were last coloured with. */
     PaletteColours shownPalette;
+
+    /** global-search.md (FEAT-SEARCH). Last, so it is destroyed first. */
+    std::unique_ptr<search::SearchNavigator> searchNav;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LuthierAudioProcessorEditor)
 };

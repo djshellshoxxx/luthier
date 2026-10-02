@@ -528,6 +528,7 @@ juce::var Metronome::toVar() const
 
     root->setProperty ("enabled", isEnabled());
     root->setProperty ("bpm", getTempo());
+    root->setProperty ("followsTempo", getFollowsTempo());   // SPEC-SWEEP PT-6
     root->setProperty ("numerator", signature.numerator);
     root->setProperty ("denominator", signature.denominator);
     root->setProperty ("subdivision", (int) getSubdivision());
@@ -555,6 +556,10 @@ void Metronome::fromVar (const juce::var& state)
 
     setEnabled ((bool) root->getProperty ("enabled"));
     setTempo ((double) root->getProperty ("bpm"));
+
+    // SPEC-SWEEP PT-6: a session saved before the click could follow keeps
+    // the tempo it was saved with.
+    setFollowsTempo (root->hasProperty ("followsTempo") && (bool) root->getProperty ("followsTempo"));
     setTimeSignature ((int) root->getProperty ("numerator"),
                       (int) root->getProperty ("denominator"));
 

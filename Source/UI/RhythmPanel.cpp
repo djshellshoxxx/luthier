@@ -1,5 +1,8 @@
 #include "RhythmPanel.h"
 #include "../PluginProcessor.h"
+#include "../PluginEditor.h"   // FEAT-ASSIST: the PLAYING group's ?
+#include "MuteGroup.h"                  // TECHNIQUES: the Mute Row
+#include "Techniques/TechniqueUi.h"
 
 namespace luthier
 {
@@ -589,6 +592,7 @@ RhythmPanel::RhythmPanel (LuthierAudioProcessor& p)
 {
     buildGenreControls();
     buildVoicingControls();
+    buildGridControls();   // SPEC-SWEEP RE-22
 
     strumGrid = std::make_unique<StrumGrid> (processor);
     fingerpickGrid = std::make_unique<FingerpickGrid> (processor);
@@ -597,6 +601,23 @@ RhythmPanel::RhythmPanel (LuthierAudioProcessor& p)
     fingerpickGrid->onPatternEdited = [this] { refreshFromEngine(); };
 
     addAndMakeVisible (*strumGrid);
+
+    // gui-techniques-updates.md 6 (TECHNIQUES): the Mute Row, one cell per step.
+    // A pattern without mute_type shows all open; painting writes the pattern.
+    muteRow = std::make_unique<MuteGridEditor>();
+    muteRow->getNumCells = [this] { return processor.getEngine().getRhythmEngine().getPattern().getLength(); };
+    muteRow->getCell = [this] (int i) { return processor.getEngine().getRhythmEngine().getPattern().getMuteStep (i).type; };
+    muteRow->setCell = [this] (int i, MuteType t) { TechniqueUndo::paintPatternMuteStep (processor, i, t); };
+    muteRow->setBrush (MuteType::palmHeavy);
+    muteRow->setTooltip ("Mute Row: each step's mute (muting-rhythm). Click or drag paints palm mute heavy; "
+                         "right-click a cell for any type.");
+    AccessibleSetup::configureDescriptive (*muteRow, "Mute Row", "The pattern's mute type per step");
+    addAndMakeVisible (*muteRow);
+
+    muteRowLabel.setText ("MUTE ROW", juce::dontSendNotification);
+    muteRowLabel.setFont (Fonts::ui (10.0f, true));
+    muteRowLabel.setColour (juce::Label::textColourId, Palette::textMuted);
+    addAndMakeVisible (muteRowLabel);
     addAndMakeVisible (*fingerpickGrid);
 
     buildFeelControls();
@@ -607,6 +628,22 @@ RhythmPanel::RhythmPanel (LuthierAudioProcessor& p)
 
     // bass-techniques 9 (MODEL-GAPS): the bass step grid appears on a bass, and
     // the panel grows or shrinks by its height.
+    // auto-articulation.md 7.2 (FEAT-ASSIST): PLAYING, above the enable row.
+    playingGroup = std::make_unique<PerformanceAssistGroup> (processor);
+    playingGroup->onLayoutChanged = [this]
+    {
+        if (getHeight() > 0)
+            setSize (getWidth(), preferredHeight());
+
+        resized();
+    };
+    playingGroup->onHelp = [this]
+    {
+        if (auto* editor = findParentComponentOfClass<LuthierAudioProcessorEditor>())
+            editor->openHelpTopic ("performance-assist");
+    };
+    addAndMakeVisible (*playingGroup);
+
     bassGridGroup = std::make_unique<BassGridGroup> (processor);
     addChildComponent (*bassGridGroup);
     bassGridGroup->onShownChanged = [this]
@@ -745,19 +782,81 @@ void RhythmPanel::buildVoicingControls()
     };
     addAndMakeVisible (handPositionSlider);
 
+    // SPEC-SWEEP (RE-12): how far the hand may stretch.
+    styleValueSlider (handSpanSlider, 3.0, 7.0, 1.0, " fr span");
+    handSpanSlider.setTooltip ("Hand span: the widest stretch, in frets, a voicing may use.");
+    handSpanSlider.onValueChange = [this]
+    {
+        if (! updatingControls)
+            rhythm().setHandSpan ((int) handSpanSlider.getValue());
+    };
+    addAndMakeVisible (handSpanSlider);
+
     capoLabel.setFont (juce::Font (juce::FontOptions (11.0f)).boldened());
     capoLabel.setColour (juce::Label::textColourId, Palette::textPrimary);
     capoLabel.setJustificationType (juce::Justification::centred);
     addAndMakeVisible (capoLabel);
 
-    capoDown.onClick = [this] { processor.pushUndoAction ("Change rhythm capo", "rhythm-setting", "capo"); rhythm().setCapoFret (rhythm().getCapoFret() - 1); refreshFromEngine(); };
-    capoUp.onClick   = [this] { processor.pushUndoAction ("Change rhythm capo", "rhythm-setting", "capo"); rhythm().setCapoFret (rhythm().getCapoFret() + 1); refreshFromEngine(); };
+    // SPEC-SWEEP (UW-2): the capo is the capo_fret parameter; writing the tuning
+    // engine from here raced the audio thread and was undone by the bridge.
+    // action-and-undo (integration): one "Change rhythm capo" entry per press.
+    auto moveCapo = [this] (int delta)
+    {
+        if (auto* p = processor.getState().getParameter (ParamIDs::capoFret))
+        {
+            processor.pushUndoAction ("Change rhythm capo", "rhythm-setting", "capo");
+            const int wanted = juce::jlimit (0, 12, rhythm().getCapoFret() + delta);
+            p->setValueNotifyingHost (p->convertTo0to1 ((float) wanted));
+        }
+
+        refreshFromEngine();
+    };
+
+    capoDown.onClick = [moveCapo] { moveCapo (-1); };
+    capoUp.onClick   = [moveCapo] { moveCapo (+1); };
 
     capoDown.setTooltip ("Move the capo down a fret.");
     capoUp.setTooltip ("Move the capo up a fret.");
 
     addAndMakeVisible (capoDown);
     addAndMakeVisible (capoUp);
+}
+
+// SPEC-SWEEP (RE-22, rhythm-engine 8.3): pattern length and subdivision.
+void RhythmPanel::buildGridControls()
+{
+    for (int length : { 4, 6, 8, 12, 16, 24, 32 })
+        lengthBox.addItem (juce::String (length) + " steps", length);
+
+    for (int i = 0; i < (int) Subdivision::numSubdivisions; ++i)
+        subdivisionBox.addItem (juce::String ("1/") + getSubdivisionName ((Subdivision) i), i + 1);
+
+    lengthBox.setTooltip ("Pattern length in grid steps. The grids show the first 16.");
+    subdivisionBox.setTooltip ("Grid: eighths, sixteenths, triplets, dotted notes or thirty-seconds.");
+
+    auto push = [this]
+    {
+        if (updatingControls)
+            return;
+
+        auto pattern = rhythm().getPattern();
+
+        if (lengthBox.getSelectedId() > 0)
+            pattern.setLength (lengthBox.getSelectedId());
+
+        if (subdivisionBox.getSelectedId() > 0)
+            pattern.setSubdivision ((Subdivision) (subdivisionBox.getSelectedId() - 1));
+
+        rhythm().setPattern (pattern);
+        strumGrid->refresh();
+        fingerpickGrid->refresh();
+    };
+
+    lengthBox.onChange = push;
+    subdivisionBox.onChange = push;
+
+    addAndMakeVisible (lengthBox);
+    addAndMakeVisible (subdivisionBox);
 }
 
 void RhythmPanel::buildFeelControls()
@@ -974,6 +1073,13 @@ void RhythmPanel::refreshFromEngine()
     styleBox.setSelectedId ((int) engine.getVoicingStyle() + 1, juce::dontSendNotification);
     densitySlider.setValue (engine.getVoicingDensity(), juce::dontSendNotification);
     handPositionSlider.setValue (engine.getHandPositionHint(), juce::dontSendNotification);
+    handSpanSlider.setValue (engine.getHandSpan(), juce::dontSendNotification);   // SPEC-SWEEP RE-12
+
+    {   // SPEC-SWEEP RE-22
+        const auto current = engine.getPattern();
+        lengthBox.setSelectedId (current.getLength(), juce::dontSendNotification);
+        subdivisionBox.setSelectedId ((int) current.getSubdivision() + 1, juce::dontSendNotification);
+    }
 
     const int capo = engine.getCapoFret();
     capoLabel.setText (capo == 0 ? "Capo: off" : "Capo: fret " + juce::String (capo),
@@ -989,6 +1095,7 @@ void RhythmPanel::refreshFromEngine()
     ghostSlider.setValue (humanise.ghostPercent, juce::dontSendNotification);
 
     strumGrid->refresh();
+    muteRow->repaint();   // TECHNIQUES
     fingerpickGrid->refresh();
     strumGroup->refresh();
     bassGridGroup->refresh();
@@ -1000,6 +1107,7 @@ void RhythmPanel::timerCallback()
     const int step = rhythm().getCurrentStep();
 
     strumGrid->setPlayingStep (step);
+    muteRow->setPlayingCell (step);   // TECHNIQUES
     fingerpickGrid->setPlayingStep (step);
 
     indicators->refresh();
@@ -1020,11 +1128,13 @@ void RhythmPanel::timerCallback()
 //==============================================================================
 int RhythmPanel::preferredHeight() const
 {
-    return 14 + Metrics::buttonHeight            // enable row
+    return (playingGroup != nullptr ? playingGroup->preferredHeight() + 4 : 0)   // PLAYING (FEAT-ASSIST)
+         + 14 + Metrics::buttonHeight            // enable row
          + 16 + 26                               // genre heading + kit row
          + 12                                    // rig hint
-         + 16 + 26 + 22 + 22 + 26                // voicing heading + controls
-         + 16 + StrumGrid::preferredHeight       // strum grid
+         + 16 + 26 + 22 + 22 + 22 + 26           // voicing heading + controls (+ hand span, RE-12)
+         + 16 + 24 + 2 + StrumGrid::preferredHeight   // strum grid (+ length/grid row, RE-22)
+         + 14 + MuteGridEditor::preferredHeight + 2   // Mute Row (TECHNIQUES)
          + 16 + FingerpickGrid::preferredHeight  // fingerpick grid
          + 16 + 22 * 5                           // feel heading + five sliders
          + StrumGroup::preferredHeight + 4       // STRUM group
@@ -1056,6 +1166,10 @@ void RhythmPanel::resized()
         return r;
     };
 
+    // ---- PLAYING (auto-articulation.md 7.2, FEAT-ASSIST) ----------------------------
+    if (playingGroup != nullptr)
+        playingGroup->setBounds (row (playingGroup->preferredHeight(), 4));
+
     // ---- enable ------------------------------------------------------------------
     {
         auto r = row (Metrics::buttonHeight);
@@ -1081,6 +1195,7 @@ void RhythmPanel::resized()
     styleBox.setBounds (row (26));
     densitySlider.setBounds (row (22));
     handPositionSlider.setBounds (row (22));
+    handSpanSlider.setBounds (row (22));   // SPEC-SWEEP RE-12
     {
         auto r = row (26);
         capoDown.setBounds (r.removeFromLeft (30));
@@ -1090,7 +1205,15 @@ void RhythmPanel::resized()
 
     // ---- pattern editors -----------------------------------------------------------
     strumHeading.setBounds (row (16));
+    {   // SPEC-SWEEP RE-22
+        auto r = row (24);
+        lengthBox.setBounds (r.removeFromLeft (r.getWidth() / 2 - 2));
+        r.removeFromLeft (4);
+        subdivisionBox.setBounds (r);
+    }
     strumGrid->setBounds (row (StrumGrid::preferredHeight));
+    muteRowLabel.setBounds (row (14, 0));                          // TECHNIQUES
+    muteRow->setBounds (row (MuteGridEditor::preferredHeight));
 
     pickHeading.setBounds (row (16));
     fingerpickGrid->setBounds (row (FingerpickGrid::preferredHeight));

@@ -1,5 +1,6 @@
 #include "LuthierEngine.h"
 #include "Capture/PerformanceCapture.h"
+#include "ToneMatch/ToneMatch.h"   // SPEC-SWEEP TM-6
 
 namespace luthier
 {
@@ -37,6 +38,7 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
 {
     sr = sampleRate;
     maxBlock = juce::jmax (1, maxBlockSize);
+    riffPlayer.prepare (sr);   // riff-library 5.3
 
     // --- routing -------------------------------------------------------------
     taps.prepare (maxBlock);
@@ -106,6 +108,7 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
     stability.setSeed ((juce::uint32) (character.getSeed() ^ (character.getSeed() >> 32)) ^ 0x57AB1Eu);
     noiseFloor.prepare (sr, maxBlock);            // noise-floor.md 4
     noiseFloor.setSeed (character.getSeed());
+    techniqueLayer.prepare (sr);   // TECHNIQUES: engine-technique-layer.md 1
     slapBodyDrive.assign ((size_t) maxBlock, 0.0);
     noteSustainScale.fill (1.0);
     playingNoise.setSeed ((juce::uint32) (character.getSeed() ^ (character.getSeed() >> 32)));
@@ -121,6 +124,12 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
     cabinet.prepare (sr, maxBlock);
     room.prepare (sr, maxBlock);
     setOversamplingFactor (oversamplingFactor);   // performance-budget.md 7: the rate's effective factor
+    acMic.prepare (sr, maxBlock);                                // mic-placement.md 3
+    acMic.setBody (computeAcousticLandmarks (body.getBodyConfig().shape, spec.scaleLengthMm),
+                   body.getAirResonanceHz());
+    acMicMixSmooth.prepare (sr, 0.020);
+    acMicMixSmooth.snapTo (acMicMixTarget);
+    acMicBuffer.assign ((size_t) maxBlock, 0.0);
     secret.prepare (sr);
     master.prepare (sr, maxBlock);
 
@@ -130,8 +139,20 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
     stringSumBuffer.assign ((size_t) maxBlock, 0.0);
     noiseBuffer.assign ((size_t) maxBlock, 0.0);
     magneticBuffer.assign ((size_t) maxBlock, 0.0);
+    piezoSumBuffer.assign ((size_t) maxBlock, 0.0);   // SPEC-SWEEP: CW-19
+    saddleGain.fill (1.0);
+    jackRampCoeff = 1.0 - std::exp (-1.0 / (0.003 * sr));   // SPEC-SWEEP: CW-18, 2-5 ms ramps
     instrumentBuffer.assign ((size_t) maxBlock, 0.0);
     preCircuitBuffer.assign ((size_t) maxBlock, 0.0);   // MODEL-GAPS: Aux 1 pre-circuit
+    // CODEX-RTSAFETY P1: pedal/secret stereo scratch and the oversized-block MIDI
+    // slices, sized once here so the render never allocates.
+    pedalScratchL.assign ((size_t) maxBlock, 0.0);
+    pedalScratchR.assign ((size_t) maxBlock, 0.0);
+    secretScratchL.assign ((size_t) maxBlock, 0.0);
+    secretScratchR.assign ((size_t) maxBlock, 0.0);
+    directSlice.ensureSize (2048);
+    sliceMidi.ensureSize (2048);
+    bodyIrInput.assign ((size_t) maxBlock, 0.0f);       // SPEC-SWEEP TM-6
     bodyBuffer.setSize (1, maxBlock, false, true, true);
     workBuffer.setSize (2, maxBlock, false, true, true);
     wetDryBuffer.setSize (2, maxBlock, false, true, true);
@@ -161,6 +182,7 @@ void LuthierEngine::reset() noexcept
     fretBuzzModel.reset();
     slide.reset();
     scrape.reset();
+    assistReset();   // FEAT-ASSIST
     slap.reset();
     bassFingers.reset();                 // MODEL-GAPS: the index finger leads again
     lastPluckSample.fill (std::numeric_limits<juce::int64>::min() / 2);
@@ -171,6 +193,8 @@ void LuthierEngine::reset() noexcept
     noiseFloor.reset();
     stability.reset();                            // tuning-stability.md 0.4
     techniqueTriggers.reset();
+    techniqueLayer.reset();   // TECHNIQUES
+    lastStrikeSample.fill (std::numeric_limits<juce::int64>::min() / 2);
     scrapeWasActive.fill (false);
     ebowWasDriving.fill (false);
     feedbackWasOn = false;
@@ -185,6 +209,8 @@ void LuthierEngine::reset() noexcept
     postEffects.reset();
     cabinet.reset();
     room.reset();
+    acMic.reset();
+    acMicMixSmooth.snapTo (acMicMixTarget);
     secret.reset();
     master.reset();
     freezeOverlay.reset();
@@ -219,6 +245,11 @@ void LuthierEngine::reset() noexcept
 
     bridgeOutputs.fill (0.0);
     couplingInputs.fill (0.0);
+
+    // riff-library 5.3 / 14: a reset ends the riff's notes; playback carries on
+    // from its next event.
+    riffBendCents.fill (0.0);
+    riffPlayer.notifyEngineReset();
     stringOutputs.fill (0.0);
     stringDelays.fill (100.0);
     vibratoAmount.fill (0.0);
@@ -226,6 +257,7 @@ void LuthierEngine::reset() noexcept
     // tuning.reset() zeroes each string's character drift; this cache of what
     // was last sent must agree, or an unchanged drift is never re-applied.
     lastAppliedDrift.fill (0.0);
+    jackGainNow = 1.0;   // SPEC-SWEEP: CW-18
 
     // Articulation state has to go back to its initial value too. Without this a
     // reset leaves the last note's fret position and string assignment behind, so
@@ -268,12 +300,24 @@ void LuthierEngine::reset() noexcept
         swapPhase = 1.0;
 
     resetRealismB();   // REALISM-B: contacts' display, borrowed damping, stagger, crosstalk
+
+    /*  cpu-quality-modes 2.4's per-string ring-out bookkeeping. Left behind, a
+        string released before the reset stayed "eligible to ring out" against
+        the old note's peak, so at Low its sympathetic ring after the reset was
+        faded to sleep where a fresh instance let it ring: the same session
+        rendered differently depending on what had been played before
+        (BETA_TEST_REPORT B-21, 0.057 apart after a mode switch). */
+    qualityNotePeak.fill (0.0);
+    qualityRingOutEligible.fill (false);
+    qualityLastExcite.fill (0);
+    qualitySilentSamples = 0;
 }
 
 void LuthierEngine::releaseResources()
 {
     stringSumBuffer.clear();
     magneticBuffer.clear();
+    piezoSumBuffer.clear();
     instrumentBuffer.clear();
     preCircuitBuffer.clear();
     bodyBuffer.setSize (0, 0);
@@ -455,6 +499,12 @@ bool LuthierEngine::swapPartsAtBlockBoundary (const DerivedAcoustics& d, GuitarT
     // The last swap's leftovers, handed back by the audio thread.
     delete retiredPartSwap.exchange (nullptr, std::memory_order_acq_rel);
 
+    // CODEX-RTSAFETY P0: build the body's modal bank here, on the message thread,
+    // before the swap is published. applyPartSwapLive then only adopts it (a
+    // bounded copy, no lock, no allocation) at the block boundary. The handoff's
+    // release store below publishes the staged bank to the audio thread.
+    body.stageBodyConfig (d.body);
+
     auto* swap = new PendingPartSwap { d, standsFor };
     delete pendingPartSwap.exchange (swap, std::memory_order_acq_rel);   // one never taken
 
@@ -549,7 +599,9 @@ void LuthierEngine::applyPartSwapLive (const PendingPartSwap& swap) noexcept
 
     aging.markDirty();
 
-    body.setBodyConfig (partsBody);
+    // CODEX-RTSAFETY P0: adopt the bank stageBodyConfig already built on the
+    // message thread. No rebuild, lock or allocation on the audio thread here.
+    body.commitStagedConfig (partsBody);
     body.setAmount (bodyAmount);
 
     for (int i = 0; i < PickupEngine::kMaxPickups; ++i)
@@ -639,6 +691,10 @@ void LuthierEngine::rebuildBodyFromSpec()
 
     reloadBodyIr();
     rebuildBodyCoupling();   // body-coupling.md 3 (REALISM-A)
+
+    // mic-placement.md 3: the acoustic mics' landmarks move with the body, so a
+    // Workshop body swap keeps "12th fret" at the 12th fret.
+    acMic.setBody (computeAcousticLandmarks (cfg.shape, spec.scaleLengthMm), body.getAirResonanceHz());
 }
 
 //==============================================================================
@@ -703,12 +759,14 @@ void LuthierEngine::reloadBodyIr()
 
 void LuthierEngine::reloadCabinetIrs()
 {
-    const auto fileA = IrLibrary::findCabIr (cabinet.getConfigA());
+    // mic-placement.md 5: each mic always loads its anchor IR; placement is a
+    // continuous stage after it and never reloads anything (MP-13).
+    const auto fileA = IrLibrary::findCabIr (CabinetEngine::anchorConfig (cabinet.getConfigA()));
 
     if (fileA.existsAsFile())
         cabinet.loadImpulseResponse (0, fileA);
 
-    const auto fileB = IrLibrary::findCabIr (cabinet.getConfigB());
+    const auto fileB = IrLibrary::findCabIr (CabinetEngine::anchorConfig (cabinet.getConfigB()));
 
     if (fileB.existsAsFile())
         cabinet.loadImpulseResponse (1, fileB);
@@ -1206,6 +1264,7 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
                 later.noteOn = e;
                 later.absoluteSample = blockStartSample + activeSampleOffset + delay;
                 later.fingerAlternated = true;
+                later.fromRiff = firingRiff;
                 scheduled[(size_t) numScheduled++] = later;
                 return;
             }
@@ -1256,7 +1315,7 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
         stringMidiNote[(size_t) s] = e.midiNote;
 
         // Routing-io 6: what is actually ringing, at the sample it started.
-        stringActivity.push ({ activeSampleOffset, s, e.midiNote, (float) e.velocity, true });
+        stringActivity.push ({ activeSampleOffset, s, e.midiNote, (float) e.velocity, true, firingRiff });
 
         // REALISM-B: this note's own hand replaces any other's on the string;
         // a staggered note-off still owed to it would end the new note.
@@ -1284,6 +1343,11 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
     if (perfCapture != nullptr)
         perfCapture->noteOn (captureOffset(), s, e.midiNote, fret, (float) e.velocity,
                              e.technique, e.harmonicPartial);
+
+    ++assistNoteSerial[(size_t) s];   // FEAT-ASSIST: a mute lift belongs to one note
+
+    if (e.autoRules != 0)
+        assistNoteStarted (e, s, fret);   // FEAT-ASSIST: feed, capture marks, the mute lift
 
     auto& str = strings[(size_t) s];
 
@@ -1347,7 +1411,10 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
         str.setSustainScale (noteSustainScale[(size_t) s]);
 
         // A worn crown alters the effective string length by a few cents.
-        const double detune = character.getFretDetuneCents (fret);
+        // SPEC-SWEEP: CW-22 - and the saddle's height variation moves the
+        // fretted intonation (character-wear 7).
+        const double detune = character.getFretDetuneCents (fret)
+                              + character.getSaddleIntonationCents (s, fret);
 
         if (detune != 0.0)
             str.setTargetFrequency (e.pitchHz * std::pow (2.0, detune / 1200.0));
@@ -1367,7 +1434,9 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
             // bass-techniques 7 (MODEL-GAPS): a bass has its own palm-mute profile.
             str.setDamping (spec.category == GuitarCategory::Bass ? StringEngine::Damping::PalmMuteBass
                                                                    : StringEngine::Damping::PalmMute,
-                            technique.getPalmMuteAmount());
+                            e.palmMuteDepth >= 0.0 ? juce::jlimit (0.0, 1.0, e.palmMuteDepth)   // riff-library 5.1
+                          : e.palmMuteAmount >= 0.0 ? e.palmMuteAmount   // FEAT-ASSIST: 3.6's auto amount
+                                                    : technique.getPalmMuteAmount());
             notePalmStrike (s);   // REALISM-B: string-interaction.md 2's palm centre
             break;
 
@@ -1398,6 +1467,9 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
     // bass-techniques 5: a ghost is the fretting hand resting on the string.
     if (slapStrike.ghost)
         SlapEngine::applyGhostDamping (str, slap.getSettings().ghostDamping);
+
+    // TECHNIQUES: muting-rhythm.md 4 (the strike's mute), microtonal-bends 4, cascade.
+    techniqueStrike (e, s, slapStrike.strike);
 
     // ---- build the excitation ---------------------------------------------------
     // strum-dynamics 5: a strum's striker stands in for the pick on this
@@ -1452,6 +1524,10 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
     applyRightHand (hand, e, s, str, p, toolFingers);
     applyHarmonicContact (e, s, str, fret, p);
     applyAdjacentMute (e, s, fret);
+
+    // FEAT-ASSIST (auto-articulation.md 3.5, 3.7): accent, soft and up-stroke attack.
+    p.brightness *= e.attackBrightnessScale;
+    p.noiseAmount *= e.attackNoiseScale;
 
     if (slapStrike.strike)
     {
@@ -1537,8 +1613,21 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
                         fretNoise);
 
     {
-        const auto info = StringNoiseInfo::fromSpec (stringSpecs[(size_t) s], spec.stringMaterial,
-                                                     aging.getFactors (s).roughness, aging.getFactors (s).squeakCentroid);
+        auto info = StringNoiseInfo::fromSpec (stringSpecs[(size_t) s], spec.stringMaterial,
+                                               aging.getFactors (s).roughness, aging.getFactors (s).squeakCentroid);
+
+        /*  SPEC-SWEEP SQ-27 (string-squeak.md 10): a worn fret lets the string
+            sit closer to the winding's catch point - up to 15 % rougher at
+            full wear and full character. */
+        if (character.isEnabled())
+            info.ageRoughness *= 1.0 + 0.15 * character.getFretWear ((int) std::round (fret))
+                                           * character.getAmount();
+
+        // SPEC-SWEEP SQ-8: a revoice that moved a held note - the finger
+        // travelled, so it can squeak, and the note is still struck below.
+        if (e.shiftFromFret >= 0.0 && e.technique != Technique::Slide && ! slide.isUnderBar (s))
+            playingNoise.onShift (s, info, spec.scaleLengthMm, e.shiftFromFret, fret,
+                                  e.shiftSeconds > 0.0 ? e.shiftSeconds : 0.12, shiftCount++);
 
         if (e.technique == Technique::Slide && e.slideFromFret >= 0.0 && ! slide.isUnderBar (s))
         {
@@ -1741,6 +1830,16 @@ void LuthierEngine::setSetupGeometry (const SetupGeometry& geometry) noexcept
     auto g = geometry;
     g.scaleLengthMm = spec.scaleLengthMm;
     g.numStrings = numStrings;
+
+    /*  SPEC-SWEEP FB-21 (fret-buzz.md 8): the instrument's own fret wear
+        (character-wear 3) lowers each worn crown - up to 0.4 mm at full wear
+        and full character. Called every block from the parameter bridge, so a
+        new seed or a refret reaches the buzz model within a block. */
+    for (int f = 1; f <= SetupGeometry::kMaxFrets; ++f)
+        g.fretWearMm[(size_t) f] = character.isEnabled()
+                                     ? character.getFretWear (f) * character.getAmount() * 0.4
+                                     : 0.0;
+
     fretBuzzModel.setGeometry (g);
 
     // environment.md 4: the environment's deltas go on top of this at the next block.
@@ -1789,7 +1888,7 @@ void LuthierEngine::applyNoteOff (const NoteOffEvent& e) noexcept
     const int soundingNote = stringMidiNote[(size_t) s];
 
     if (soundingNote >= 0)
-        stringActivity.push ({ activeSampleOffset, s, soundingNote, 0.0f, false });
+        stringActivity.push ({ activeSampleOffset, s, soundingNote, 0.0f, false, firingRiff });
 
     /*  bass-techniques 6 (MODEL-GAPS): a middle-finger note still waiting for
         its finger has not started yet; its note-off waits until just after it,
@@ -1816,6 +1915,14 @@ void LuthierEngine::applyNoteOff (const NoteOffEvent& e) noexcept
 
     // An E-Bow on explicitly chosen strings keeps them going after the note is
     // released; on "held strings" (mask 0) releasing is exactly what lets go.
+    // two-hand-tapping.md 0.2 (TECHNIQUES): a held tap keeps the string sounding.
+    if (techniqueNoteOff (s))
+    {
+        slide.noteOff (s);
+        stringMidiNote[(size_t) s] = -1;
+        return;
+    }
+
     const auto& ebow = ebowDriver.getSettings();
     const bool ebowHolds = ebow.enabled && (ebow.stringMask & (1 << s)) != 0;
 
@@ -1834,6 +1941,43 @@ void LuthierEngine::applyNoteOff (const NoteOffEvent& e) noexcept
 }
 
 //==============================================================================
+void LuthierEngine::playRiffEvents (int numSamples) noexcept
+{
+    // riff-library 5.3. The player's clock is the host's position at this
+    // sub-block's first sample: a split block advances it slice by slice.
+    riffOut.clear();
+
+    const double ppq = hostPpq + (double) subBlockOffset * tempoBpm / (60.0 * juce::jmax (1.0, sr));
+    riffPlayer.renderSubBlock (numSamples, ppq, hostPlaying, tempoBpm, riffOut);
+
+    auto& queue = riffOut.queue;
+
+    if (queue.getNumNoteOns() == 0 && queue.getNumNoteOffs() == 0 && queue.getNumBends() == 0)
+        return;
+
+    // The bend a riff note holds its string at, for the per-block pitch.
+    for (int i = 0; i < queue.getNumBends(); ++i)
+    {
+        const auto& b = queue.getBend (i);
+
+        if (juce::isPositiveAndBelow (b.stringIndex, kMaxStrings))
+            riffBendCents[(size_t) b.stringIndex] = std::isfinite (b.cents) ? juce::jlimit (-4800.0, 4800.0, b.cents) : 0.0;
+    }
+
+    // The pitch each note starts at: its fret on this guitar, plus a prebend.
+    for (int i = 0; i < queue.getNumNoteOns(); ++i)
+    {
+        auto& e = queue.getMutableNoteOn (i);
+        const int s = juce::jlimit (0, numStrings - 1, e.stringIndex);
+        e.stringIndex = s;
+        e.pitchHz = tuning.computeFrequency (s, e.fretPosition, riffOut.startCents[(size_t) i]);
+    }
+
+    schedulingRiff = true;
+    scheduleEvents (queue, numSamples);
+    schedulingRiff = false;
+}
+
 void LuthierEngine::scheduleEvents (const PlayEventQueue& queue, int numSamples) noexcept
 {
     juce::ignoreUnused (numSamples);
@@ -1852,10 +1996,14 @@ void LuthierEngine::scheduleEvents (const PlayEventQueue& queue, int numSamples)
         activeSampleOffset = (int) juce::jlimit ((int64_t) 0, (int64_t) taps.getMaxBlockSize(),
                                                  e.absoluteSample - blockStartSample);
 
+        firingRiff = e.fromRiff;
+
         if (e.isNoteOn)
             triggerNote (e.noteOn);
         else
             applyNoteOff (e.noteOff);
+
+        firingRiff = false;
     };
 
     for (int i = 0; i < queue.getNumNoteOns(); ++i)
@@ -1864,6 +2012,7 @@ void LuthierEngine::scheduleEvents (const PlayEventQueue& queue, int numSamples)
         e.isNoteOn = true;
         e.noteOn = queue.getNoteOn (i);
         e.absoluteSample = samplePosition + e.noteOn.sampleOffset;
+        e.fromRiff = schedulingRiff;
         push (e);
     }
 
@@ -1878,6 +2027,7 @@ void LuthierEngine::scheduleEvents (const PlayEventQueue& queue, int numSamples)
         e.noteOff = queue.getNoteOff (i);
         e.absoluteSample = offDue[(size_t) i];
         e.staggered = staggered > 0 && offDue[(size_t) i] != samplePosition + e.noteOff.sampleOffset;
+        e.fromRiff = schedulingRiff;
         push (e);
     }
 }
@@ -1906,7 +2056,13 @@ void LuthierEngine::fireScheduledEvents (int64_t absoluteSample) noexcept
         const auto fired = e;
         scheduled[(size_t) i] = scheduled[(size_t) (--numScheduled)];
 
-        if (fired.isNoteOn)
+        firingRiff = fired.fromRiff;   // riff-library 5.3: kept off live MIDI out
+
+        if (fired.kind == kDampingLift)
+        {
+            assistFireLift (fired);   // FEAT-ASSIST: 3.6
+        }
+        else if (fired.isNoteOn)
         {
             firingAlternated = fired.fingerAlternated;
             triggerNote (fired.noteOn);
@@ -1916,6 +2072,8 @@ void LuthierEngine::fireScheduledEvents (int64_t absoluteSample) noexcept
         {
             applyNoteOff (fired.noteOff);
         }
+
+        firingRiff = false;
 
         // Swap-removed above: order within a single sample does not matter,
         // and it keeps the cost at O(1) per event.
@@ -1977,7 +2135,13 @@ void LuthierEngine::advanceRealism (int numSamples) noexcept
     // body-coupling.md 3 and environment.md 4: the same scaling reaches the
     // radiated body and the bank.
     const auto scaling = getBodyCouplingScaling();
-    body.setRuntimeScaling (scaling.plateFreq, scaling.airFreq, scaling.q, scaling.airQ);
+    // SPEC-SWEEP: CW-24 - character-wear 8's body break-in rides on the same
+    // scaling: the air mode drops and the plate Qs rise with body age.
+    body.setRuntimeScaling (scaling.plateFreq,
+                            scaling.airFreq * character.getAirResonanceMultiplier(),
+                            // damping falls as HF damping does: loss is 1/Q
+                            scaling.q * character.getBodyQMultiplier() / character.getBodyHfDampingMultiplier(),
+                            scaling.airQ);
     bodyCoupling.setScaling (scaling);
     bodyCoupling.beginBlock();
 
@@ -2028,7 +2192,12 @@ void LuthierEngine::updatePerBlockModulation (int numSamples) noexcept
             vib *= vibratoAmount[(size_t) s];
         }
 
-        const double bend = midi.getStringBendCents (s);
+        // FEAT-ASSIST (auto-articulation.md 3.4, 3.8): the delayed vibrato and
+        // the auto pitch curve, from absolute time, ride the vibrato's path.
+        assistPerBlockCents (s, numSamples, vib);
+
+        const double bend = techniqueBendCents (s, midi.getStringBendCents (s))   // TECHNIQUES: microtonal-bends.md
+                          + riffBendCents[(size_t) s];   // riff-library 5.3
         const double whammyCents = whammy.getCentOffset (s);
 
         double hz;
@@ -2039,10 +2208,11 @@ void LuthierEngine::updatePerBlockModulation (int numSamples) noexcept
                 touches it, slant included; vibrato moves the bar (depth read
                 as tenths of a millimetre of travel, 3.2); and the intonation
                 assist pulls the result toward equal temperament. */
-            const double barFret = slide.advanceBar (s, currentFret[(size_t) s], numSamples);
+            // slide-technique-controls.md 3 (TECHNIQUES): a source or a gesture may drive the bar.
+            const double barFret = slide.controlledBarFret (s, slide.advanceBar (s, currentFret[(size_t) s], numSamples));
             const double contact = slide.contactFret (s, barFret, numStrings, spec.scaleLengthMm);
             const double slideVibrato = SlideEngine::vibratoCents (vib / 10.0, contact, spec.scaleLengthMm);
-            const double raw = contact + (bend + whammyCents + slideVibrato) / 100.0;
+            const double raw = contact + (bend + whammyCents + slideVibrato + slide.getControlVibratoCents()) / 100.0;
 
             // animated-strings.md 4.1: the display stops the string at the contact; the
             // bar's vibrato and the whammy are not a push across the neck (2.4).
@@ -2054,7 +2224,7 @@ void LuthierEngine::updatePerBlockModulation (int numSamples) noexcept
         }
         else
         {
-            hz = tuning.computeFrequency (s, currentFret[(size_t) s],
+            hz = tuning.computeFrequency (s, techniqueFret (s),   // TECHNIQUES: a held tap sets the length
                                           bend + whammyCents + vib + magnetDetuneCents + scrape.getPitchOffsetCents (s)
                                             + environment.fretCents (s, currentFret[(size_t) s]));   // environment.md 2.5
 
@@ -2118,6 +2288,13 @@ CircuitComponents LuthierEngine::getLiveCircuitComponents() const noexcept
         parts.coilCapacitance = coil.capacitance;
     }
 
+    // SPEC-SWEEP: CW-16 / CW-17 - character-wear 5's aged electronics: the
+    // volume pot's worn track bends the knob-to-wiper law (still pinned at 0
+    // and 1), and the tone cap is not quite its marked value. Both neutral
+    // with character off.
+    parts.volume = character.applyPotTaper (parts.volume);
+    parts.toneCap *= character.getToneCapMultiplier();
+
     return parts;
 }
 
@@ -2170,6 +2347,7 @@ void LuthierEngine::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
 
     if (numSamples <= maxBlock)
     {
+        subBlockOffset = 0;
         directForSubBlock = directMidi;
         processSubBlock (buffer, midiMessages);
         directMidi = nullptr;
@@ -2184,10 +2362,8 @@ void LuthierEngine::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
     // allocating would be worse, and truncating would drop audio.
     const int numChannels = buffer.getNumChannels();
 
-    juce::MidiBuffer sliceMidi;
-    sliceMidi.ensureSize (2048);
-    directSlice.ensureSize (2048);
-
+    // CODEX-RTSAFETY P1: sliceMidi and directSlice are members reserved in prepare;
+    // the loop clears them per slice below. No MIDI buffer is created or grown here.
     for (int offset = 0; offset < numSamples;)
     {
         const int count = juce::jmin (maxBlock, numSamples - offset);
@@ -2222,9 +2398,12 @@ void LuthierEngine::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
         taps.setWriteOffset (offset);
         sidechainReadOffset = offset;
 
+        subBlockOffset = offset;   // riff-library 5.3: the riff clock's place in the host block
         processSubBlock (slice, sliceMidi);
         offset += count;
     }
+
+    subBlockOffset = 0;
 
     directMidi = nullptr;
     directForSubBlock = nullptr;
@@ -2343,6 +2522,65 @@ void LuthierEngine::applyLivePickupPlacements() noexcept
     }
 }
 
+//==============================================================================
+// SPEC-SWEEP (RE-41): the rhythm engine's strokes, as MIDI for routing-io's
+// rhythm source. Held strokes land in the sub-block they fall in.
+void LuthierEngine::writeRhythmMidi (const PlayEventQueue& strokes) noexcept
+{
+    auto hold = [this] (juce::uint8 status, int note, int velocity, int when) noexcept
+    {
+        if (numPendingRhythmMidi >= kMaxPendingRhythmMidi)
+            return;
+
+        auto& p = pendingRhythmMidi[(size_t) numPendingRhythmMidi++];
+        p.bytes[0] = status;
+        p.bytes[1] = (juce::uint8) juce::jlimit (0, 127, note);
+        p.bytes[2] = (juce::uint8) juce::jlimit (0, 127, velocity);
+        p.samplesFromNow = juce::jmax (0, when);
+    };
+
+    for (int i = 0; i < strokes.getNumNoteOffs(); ++i)
+    {
+        const auto& e = strokes.getNoteOff (i);
+        hold ((juce::uint8) (0x80 | juce::jlimit (0, 15, e.stringIndex)), e.midiNote, 0, e.sampleOffset);
+    }
+
+    for (int i = 0; i < strokes.getNumNoteOns(); ++i)
+    {
+        const auto& e = strokes.getNoteOn (i);
+        hold ((juce::uint8) (0x90 | juce::jlimit (0, 15, e.stringIndex)), e.midiNote,
+              juce::jlimit (1, 127, (int) std::lround (e.velocity * 127.0)), e.sampleOffset);
+    }
+}
+
+void LuthierEngine::flushRhythmMidi (int numSamples) noexcept
+{
+    if (rhythmMidiOut == nullptr)
+    {
+        numPendingRhythmMidi = 0;
+        return;
+    }
+
+    int kept = 0;
+
+    for (int i = 0; i < numPendingRhythmMidi; ++i)
+    {
+        auto p = pendingRhythmMidi[(size_t) i];
+
+        if (p.samplesFromNow < numSamples)
+        {
+            rhythmMidiOut->addEvent (p.bytes, 3, sidechainReadOffset + p.samplesFromNow);
+        }
+        else
+        {
+            p.samplesFromNow -= numSamples;
+            pendingRhythmMidi[(size_t) kept++] = p;
+        }
+    }
+
+    numPendingRhythmMidi = kept;
+}
+
 void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages) noexcept
 {
     juce::ScopedNoDenormals noDenormals;
@@ -2394,6 +2632,17 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         }
     }
 
+    // SPEC-SWEEP: CW-19 / CW-20 - per-saddle piezo balance and per-string,
+    // per-pickup pole balance (character-wear 5 and 6). Zero dB, so unity,
+    // when character is off.
+    for (int s = 0; s < numStrings; ++s)
+    {
+        saddleGain[(size_t) s] = dbToGain (character.getSaddleBalanceDb (s));
+
+        for (int slot = 0; slot < PickupEngine::kMaxPickups; ++slot)
+            pickups.setStringBalance (slot, s, dbToGain (character.getPickupBalanceDb (s, slot)));
+    }
+
     // ---- 0. sidechain --------------------------------------------------------
     // The envelope runs whether or not anything is listening: it is a modulation
     // source, and a source that only updates when someone looks at it would lag.
@@ -2416,6 +2665,9 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     slap.setInstrument (numStrings, spec.scaleLengthMm, spec.maxFrets, spec.category == GuitarCategory::Bass);
     slap.processBlock (numSamples, samplePosition, techniqueTriggers);
 
+    // engine-technique-layer.md 2, steps 2b-2c (TECHNIQUES): cascade, controls, tap, bend.
+    techniqueBeginBlock (numSamples, played);
+
     rhythm.handleMidi (played, samplePosition);
     rhythm.setBassFamily (spec.category == GuitarCategory::Bass);   // bass-techniques 9 (MODEL-GAPS)
 
@@ -2423,6 +2675,7 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     if (perfCapture != nullptr)
         captureBlockState();
 
+    assistSetContext (rhythm.isEnabled() && rhythm.isDriving());   // FEAT-ASSIST: 5's explicit rows
     midi.processBlock (played, numSamples, samplePosition, events);
 
     // Events go onto the schedule rather than being applied here, so a strum
@@ -2438,22 +2691,36 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
         rhythm.processBlock (numSamples, transport, rhythmEvents);
 
+        if (rhythmMidiOut != nullptr && rhythm.isDriving())   // SPEC-SWEEP RE-41
+            writeRhythmMidi (rhythmEvents);
+
         // When the rhythm engine is driving, its stream replaces the
         // interpreter's note events; the interpreter's bends and controllers
         // still apply, because those are the player's hands, not the pattern's.
+        // muting-rhythm.md 4 (TECHNIQUES): each note leaves with its mute.
+        techniqueStampEvents (rhythm.isDriving() ? rhythmEvents : events, rhythm.isDriving());
         scheduleEvents (rhythm.isDriving() ? rhythmEvents : events, numSamples);
     }
     else
     {
+        techniqueStampEvents (events, false);   // TECHNIQUES: muting-rhythm.md 4
         scheduleEvents (events, numSamples);
     }
+
+    flushRhythmMidi (numSamples);   // SPEC-SWEEP RE-41: strokes held from earlier blocks too
 
     // Direct notes play as written whether or not the rhythm engine drives.
     if (directForSubBlock != nullptr && ! directForSubBlock->isEmpty())
     {
+        assistSetContext (false);   // FEAT-ASSIST: direct notes (the Tune melody) are assisted
         midi.processBlock (*directForSubBlock, numSamples, samplePosition, directEvents);
+        techniqueStampEvents (directEvents, false);   // TECHNIQUES: muting-rhythm.md 4
         scheduleEvents (directEvents, numSamples);
     }
+
+    // riff-library 5.3: riff audition, straight after the direct notes. Its
+    // notes bypass the interpreter and the voicer, as the tune's do.
+    playRiffEvents (numSamples);
 
     // ---- 1b. string scraping (string-scraping.md 3) --------------------------
     // After the MIDI, before the strings: the block's catches are scheduled
@@ -2633,16 +2900,21 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     // A fretless neck has nothing to buzz against.
     if (! fretless)
     {
-        std::array<double, kMaxStrings> levels {}, fundamentals {};
+        std::array<double, kMaxStrings> levels {}, fundamentals {}, wear {};
 
         for (int s = 0; s < numStrings; ++s)
         {
             levels[(size_t) s] = strings[(size_t) s].getLevel();
             fundamentals[(size_t) s] = strings[(size_t) s].getCurrentFrequency();
+
+            // SPEC-SWEEP: CW-12 - a worn fret under the finger buzzes sooner;
+            // under a slide no fret is touched.
+            wear[(size_t) s] = (currentFret[(size_t) s] > 0.0 && ! slide.isUnderBar (s))
+                                 ? character.getFretBuzzMultiplier (currentFret[(size_t) s]) : 1.0;
         }
 
         fretBuzzModel.process (playingNoise.getPool(), levels.data(), currentFret.data(),
-                               fundamentals.data(), numStrings, pluckPosition);
+                               fundamentals.data(), numStrings, pluckPosition, wear.data());
     }
 
     for (int i = 0; i < numSamples; ++i)
@@ -2698,6 +2970,7 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         noiseBuffer[(size_t) i] += bodyDrive;
 
         double sum = 0.0;
+        double piezoSum = 0.0;   // SPEC-SWEEP: CW-19
 
         for (int s = 0; s < numStrings; ++s)
         {
@@ -2736,6 +3009,7 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
             stringDelays[(size_t) s] = strings[(size_t) s].getCurrentDelaySamples();
 
             sum += out;
+            piezoSum += out * saddleGain[(size_t) s];   // SPEC-SWEEP: CW-19, the saddle under this string
         }
 
         // Per-string outputs (routing-io 3). Taken here, before the body, which
@@ -2748,11 +3022,15 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
         // Normalise by string count so a 12-string is not twice as loud as a 6.
         sum *= 1.0 / std::sqrt ((double) juce::jmax (1, numStrings));
+        piezoSum *= 1.0 / std::sqrt ((double) juce::jmax (1, numStrings));
 
         // Whammy spring noise rides on the instrument bus, not the strings.
-        sum += whammy.processSpringNoise();
+        const double springNoise = whammy.processSpringNoise();
+        sum += springNoise;
+        piezoSum += springNoise;
 
         stringSumBuffer[(size_t) i] = sanitise (sum);
+        piezoSumBuffer[(size_t) i] = sanitise (piezoSum);
 
         if (i < (int) feedbackInjection.size())
             feedbackInjection[(size_t) i] = fbSum;
@@ -2783,11 +3061,21 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     const bool bodyActive = (body.getMode() != BodyEngine::Mode::Bypassed);
     validator.checkBodyCoupling (bodyActive, samplePosition);
 
+    // SPEC-SWEEP TM-6: an engaged body IR hears what the body model hears.
+    const bool bodyIrEngaged = bodyIrSlot != nullptr && bodyIrSlot->isEngaged()
+                               && numSamples <= (int) bodyIrInput.size();
+
+    if (bodyIrEngaged)
+        std::copy (bodyData, bodyData + numSamples, bodyIrInput.begin());
+
     {
         juce::dsp::AudioBlock<float> block (bodyBuffer);
         auto sub = block.getSubBlock (0, (size_t) numSamples);
         body.processBlock (sub);
     }
+
+    if (bodyIrEngaged)
+        bodyIrSlot->processReplacing (bodyIrInput.data(), bodyData, numSamples);
 
     // ---- 4. combine the transducer paths ------------------------------------
     // The circuit is rebuilt only when something in it changed; a knob move is
@@ -2799,7 +3087,18 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     const double micBlend = pickups.getPiezoMicBlend();
     const bool diPreCircuit = auxDiPreCircuit.load (std::memory_order_relaxed) && taps.isAuxWanted (AuxBus::di);
 
+    // mic-placement.md 3: the external mics, rendered only while they are
+    // heard. At ac_mic_mix = 0, settled, nothing below is touched (MP-20).
+    acMicMixSmooth.setTarget (acoustic ? acMicMixTarget : 0.0);
+    acMicActive = acoustic && (acMicMixSmooth.getTarget() > 0.0 || acMicMixSmooth.getCurrent() > 0.0);
+
+    if (acMicActive)
+        acMic.processBlock (bodyData, stringSumBuffer.data(), acMicBuffer.data(), numSamples);
+    else
+        acMicMixSmooth.snapToTarget();
+
     double blockPeak = 0.0;
+    const double jackTarget = character.getJackGain();   // SPEC-SWEEP: CW-18, advanced at the block's start
 
     for (int i = 0; i < numSamples; ++i)
     {
@@ -2809,7 +3108,7 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         {
             // Piezo senses the bridge (the raw string sum); the internal mic hears
             // the body. The blend between them is the acoustic-electric sound.
-            const double piezo = pickups.processPiezo (stringSumBuffer[(size_t) i]);
+            const double piezo = pickups.processPiezo (piezoSumBuffer[(size_t) i]);   // SPEC-SWEEP: CW-19
             const double mic = pickups.processInternalMic ((double) bodyData[i]);
             instrument = piezo * (1.0 - micBlend) + mic * micBlend;
         }
@@ -2837,8 +3136,25 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
         instrument = circuit.process (instrument);
 
+        // SPEC-SWEEP: CW-18 - the intermittent output jack (character-wear 5,
+        // off by default): a 20-100 ms drop, ramped over a few ms so it is a
+        // dropout and not a click. Exactly unity while nothing is happening.
+        if (jackGainNow != 1.0 || jackTarget != 1.0)
+        {
+            jackGainNow += (jackTarget - jackGainNow) * jackRampCoeff;
+
+            if (std::abs (jackGainNow - jackTarget) < 1.0e-7)
+                jackGainNow = jackTarget;
+
+            instrument *= jackGainNow;
+        }
+
         if (noiseFloorOn)
             instrument += noiseFloor.diSample (i);
+        // mic-placement.md 3: a microphone does not go through the guitar's
+        // electronics, so it mixes in after the circuit, before the input gain.
+        if (acMicActive)
+            instrument += acMicMixSmooth.next() * (acMicBuffer[(size_t) i] - instrument);
 
         // Input gain (3.4): the trim into the rig, after the guitar's own circuit.
         inputGainNow += (inputGainTarget.load (std::memory_order_relaxed) - inputGainNow) * 0.002;
@@ -2874,9 +3190,10 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
     {
         // The pedalboard is stereo-capable but the guitar is mono up to here.
-        static thread_local std::vector<double> dl, dr;
-
-        if ((int) dl.size() < numSamples) { dl.resize ((size_t) numSamples); dr.resize ((size_t) numSamples); }
+        // CODEX-RTSAFETY P1: engine-owned, sized to maxBlock in prepare; numSamples
+        // is always <= maxBlock here, so no resize (and no allocation) is needed.
+        auto& dl = pedalScratchL;
+        auto& dr = pedalScratchR;
 
         for (int i = 0; i < numSamples; ++i)
         {
@@ -2961,6 +3278,16 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         if (! taps.isAuxWanted (bus))
             continue;
 
+        // mic-placement.md 5: on an acoustic guitar with its external mics
+        // heard, Aux 3 and 4 carry those mics.
+        if (acMicActive)
+        {
+            if (const auto* acTap = acMic.getMicTap (slot))
+                taps.writeAuxMono (bus, acTap, numSamples);
+
+            continue;
+        }
+
         if (const auto* mic = cabinet.hasMicTap (slot) ? cabinet.getMicTap (slot) : nullptr)
             taps.writeAuxStereo (bus, mic, mic,
                                  juce::jmin (numSamples, cabinet.getMicTapNumSamples()));
@@ -2978,9 +3305,11 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     // ---- 8b. the hidden effect --------------------------------------------------
     if (secret.isEnabled())
     {
-        static thread_local std::vector<double> sl, sr2;
-
-        if ((int) sl.size() < numSamples) { sl.resize ((size_t) numSamples); sr2.resize ((size_t) numSamples); }
+        // CODEX-RTSAFETY P1: engine-owned, sized in prepare. The old thread_local
+        // pair allocated on the first block after the hidden effect was enabled,
+        // which could be minutes into playback.
+        auto& sl = secretScratchL;
+        auto& sr2 = secretScratchR;
 
         for (int i = 0; i < numSamples; ++i)
         {

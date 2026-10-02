@@ -91,7 +91,8 @@ public:
         Choked,        ///< Fully stopped.
         Silenced,      ///< A hand flat on the string: gone in 80 ms whatever its sustain.
         Chuck,         ///< strum-dynamics 6.1: the fretting hand across the strings; amount 1 ends the note in ~10 ms.
-        PalmMuteBass   ///< bass-techniques 7: the palm on a bass - shorter decay, more of the fundamental kept.
+        PalmMuteBass,  ///< bass-techniques 7: the palm on a bass - shorter decay, more of the fundamental kept.
+        Muted          ///< muting-rhythm.md 1: a mute with its own absolute T60 and cutoff (setMutedDamping).
     };
 
     //==========================================================================
@@ -174,6 +175,11 @@ public:
         Physical::couplingSend (a rest stroke drives the top 1.3x). */
     void setCouplingSendScale (double scale) noexcept { couplingSendScale = juce::jlimit (0.0, 4.0, scale); }
     double getCouplingSendScale() const noexcept { return couplingSendScale; }
+
+    /*  muting-rhythm.md 1 (TECHNIQUES): a palm, ghost or fret mute stops the
+        string in an absolute time under a darkened loop, whatever the
+        string's own sustain. Sets Damping::Muted. */
+    void setMutedDamping (double t60Seconds, double cutoffHz) noexcept;
 
     /** Extra decay scaling from string age, coating and user sustain control. */
     void setSustainScale (double scale) noexcept { sustainScale = juce::jlimit (0.05, 4.0, scale); needsLoopUpdate = true; }
@@ -389,6 +395,7 @@ private:
     double touchGain = 1.0, touchDepthGain = 1.0, touchCoeff = 0.0;
     int touchSamplesLeft = 0;
     double  dampingAmount = 1.0;
+    double  mutedT60 = 0.05, mutedCutoffHz = 900.0;   // Damping::Muted
     double  sustainScale = 1.0;
     int     harmonicPartial = 0;
 
