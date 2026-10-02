@@ -139,6 +139,28 @@ if (LUTHIER_LTO)
     target_link_libraries(Luthier PUBLIC juce::juce_recommended_lto_flags)
 endif()
 
+# Binary size. None of this touches optimisation level or the DSP: -O3 / LTO stay
+# as JUCE's recommended flags set them. PUBLIC so the VST3 / CLAP / Standalone
+# wrapper targets inherit it. Release only; Debug and RelWithDebInfo keep symbols.
+#   * per-function / per-datum sections + linker GC drop unreferenced JUCE code
+#   * hidden visibility: the plugin entry points (GetPluginFactory, clap_entry,
+#     ...) carry explicit default-visibility attributes in their wrappers
+#   * strip symbol tables from the shipped binary (MSVC already keeps symbols in
+#     a separate .pdb that is not shipped; /OPT:REF,ICF are the MSVC Release default)
+if (MSVC)
+    target_link_options(Luthier PUBLIC $<$<CONFIG:Release>:/OPT:REF /OPT:ICF>)
+else()
+    target_compile_options(Luthier PUBLIC
+        $<$<CONFIG:Release>:-ffunction-sections -fdata-sections>
+        $<$<AND:$<CONFIG:Release>,$<COMPILE_LANGUAGE:CXX>>:-fvisibility=hidden -fvisibility-inlines-hidden>)
+    if (APPLE)
+        # -x drops local symbols, -S debug info; both keep the binary ad-hoc signable.
+        target_link_options(Luthier PUBLIC $<$<CONFIG:Release>:-Wl,-dead_strip -Wl,-x -Wl,-S>)
+    else()
+        target_link_options(Luthier PUBLIC $<$<CONFIG:Release>:-Wl,--gc-sections -Wl,-s>)
+    endif()
+endif()
+
 # Opt-in crash reporting (scaffold). Only fires when LUTHIER_ENABLE_SENTRY=ON;
 # the default build never enters this block, so CrashReporting.cpp stays a no-op.
 if (LUTHIER_ENABLE_SENTRY)
