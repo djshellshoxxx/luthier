@@ -59,6 +59,14 @@ LUTHIER_TEST (TabSemanticAdapter, conflictingTuningIsNotPromoted)
 
     const auto prepared = TabSemanticAdapter::buildLegacyReaderText (document);
     CHECK (! prepared.startsWithIgnoreCase ("Tuning:"));
+    CHECK (! prepared.containsIgnoreCase ("Tuning: Drop D"));
+    CHECK (! prepared.containsIgnoreCase ("Tuning: DADGAD"));
+
+    AsciiTabReader reader;
+    PerformanceScore score;
+    TabImportDiagnostics semantic;
+    CHECK_MSG (reader.read (prepared, score, &semantic), reader.getLastError());
+    CHECK (score.getTrack (0).tuning[5] == 40);
 }
 
 LUTHIER_TEST (TabSemanticAdapter, recoveryDiagnosticsSurviveSemanticMerge)
