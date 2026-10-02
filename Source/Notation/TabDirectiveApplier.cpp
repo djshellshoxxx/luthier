@@ -57,6 +57,11 @@ void TabDirectiveApplier::apply (const NormalizedTabDocument& document,
 
         for (int trackIndex = 0; trackIndex < score.getNumTracks(); ++trackIndex)
         {
+            // Normalizer part indices are human-facing and 1-based: Guitar 1,
+            // Guitar 2, etc. A zero means the instruction did not name a part.
+            if (directive.partIndex > 0 && trackIndex != directive.partIndex - 1)
+                continue;
+
             auto& track = score.getTrack (trackIndex);
             for (auto& measure : track.measures)
             {
