@@ -493,15 +493,37 @@ juce::String NormalizationCalibrator::canonicalSoundState (const NormalizationSo
     root->setProperty ("edition", getEditionName());
     root->setProperty ("revision", kCalibrationRevision);
     root->setProperty ("params", juce::var (params));
-    // Per-string detune the engine derives from parameters with a random draw
-    // (string age, realism detune) is not configuration: the same preset
-    // loaded twice draws it twice. The parameters that cause it are hashed.
+    //  3.3 / ON-27: the key is a *calibration cache*, so it must contain only
+    //  inputs that (a) determine the loudness and (b) are bit-identical across
+    //  toolchains. A field the engine *computes* from those inputs has no place
+    //  here: the same inputs produce the same sound, but a derived float carries
+    //  the CPU's FMA / FP-contraction / libm rounding (~1e-7), and once it lands
+    //  on an appendCanonicalDouble significant-figure boundary its %.*g text -
+    //  and the hash - flips per machine. (Rounding to fewer sig-figs only moves
+    //  the boundary; it cannot remove the fragility.) So every computed float is
+    //  stripped; the stored input that determines it stays.
     auto structural = state.structural.clone();
 
+    //  Per-string detune the engine derives from parameters with a random draw
+    //  (string age, realism detune): the same preset loaded twice draws it
+    //  twice. The parameters that cause it are hashed instead.
     if (auto* strings = structural.getProperty ("preset", {}).getProperty ("strings", {}).getDynamicObject())
     {
         strings->removeProperty ("fineTuneCents");
         strings->removeProperty ("realismDetuneCents");
+    }
+
+    //  The aging/wear maps the character engine draws from its `seed`: a seeded
+    //  value-noise / Gaussian walk through libm (log/sqrt/cos) and FMA-fusable
+    //  arithmetic, so fretWear and every dead spot's depth/width differ by ~1e-7
+    //  between CPUs - exactly the ON-27 flip (their nearest %.6g boundary is
+    //  ~1e-9 away). They are a pure function of the retained `seed` and the
+    //  retained scalar character settings, which fully determine the sound and
+    //  are bit-identical, so the key keeps those and drops the derived arrays.
+    if (auto* character = structural.getProperty ("character", {}).getDynamicObject())
+    {
+        character->removeProperty ("fretWear");
+        character->removeProperty ("deadSpots");
     }
 
     root->setProperty ("structural", structural);
