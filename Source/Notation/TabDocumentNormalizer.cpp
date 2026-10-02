@@ -2,12 +2,22 @@
 #include "AsciiTabReader.h"
 
 #include <algorithm>
+#include <map>
 #include <utility>
+#include <vector>
 
 namespace luthier
 {
 namespace
 {
+    constexpr int kMaxWarnings = 24;
+
+    struct LogicalLine
+    {
+        juce::String text;
+        int sourceLine = -1;
+    };
+
     int countAndReplace (juce::String& text, const juce::String& needle,
                          const juce::String& replacement)
     {
@@ -25,6 +35,14 @@ namespace
         if (count > 0)
             text = text.replace (needle, replacement);
         return count;
+    }
+
+    void warn (TabImportDiagnostics& d, const juce::String& message)
+    {
+        if (d.warnings.size() < kMaxWarnings)
+            d.warnings.add (message);
+        else if (d.warnings.size() == kMaxWarnings)
+            d.warnings.add ("...");
     }
 
     juce::String stripWholeLineMarkdown (juce::String line, int& removed)
@@ -46,6 +64,49 @@ namespace
         return line;
     }
 
+    bool isNoteLetter (juce::juce_wchar c) noexcept
+    {
+        const auto u = juce::CharacterFunctions::toUpperCase (c);
+        return u >= 'A' && u <= 'G';
+    }
+
+    int labelEnd (const juce::String& text, int start)
+    {
+        if (start < 0 || start >= text.length() || ! isNoteLetter (text[start]))
+            return -1;
+        int j = start + 1;
+        if (j < text.length() && (text[j] == '#' || text[j] == 'b'))
+            ++j;
+        return j < text.length() && text[j] == '|' ? j + 1 : -1;
+    }
+
+    juce::StringArray splitCollapsedLabelledRows (const juce::String& line)
+    {
+        std::vector<int> starts;
+        for (int i = 0; i < line.length(); ++i)
+        {
+            if (i > 0 && ! juce::CharacterFunctions::isWhitespace (line[i - 1]))
+                continue;
+            if (labelEnd (line, i) > 0)
+                starts.push_back (i);
+        }
+
+        juce::StringArray rows;
+        if (starts.size() < 3)
+        {
+            rows.add (line);
+            return rows;
+        }
+
+        for (size_t n = 0; n < starts.size(); ++n)
+        {
+            const int from = starts[n];
+            const int to = n + 1 < starts.size() ? starts[n + 1] : line.length();
+            rows.add (line.substring (from, to).trimEnd());
+        }
+        return rows;
+    }
+
     int firstIntegerAfter (const juce::String& text, const juce::String& marker)
     {
         const int start = text.toLowerCase().indexOf (marker.toLowerCase());
@@ -55,20 +116,15 @@ namespace
         const auto tail = text.substring (start + marker.length());
         for (int i = 0; i < tail.length(); ++i)
         {
-            if (juce::CharacterFunctions::isDigit (tail[i]))
-            {
-                int j = i;
-                while (j < tail.length() && juce::CharacterFunctions::isDigit (tail[j]))
-                    ++j;
-                return tail.substring (i, j).getIntValue();
-            }
+            if (! juce::CharacterFunctions::isDigit (tail[i]))
+                continue;
+
+            int j = i;
+            while (j < tail.length() && juce::CharacterFunctions::isDigit (tail[j]))
+                ++j;
+            return tail.substring (i, j).getIntValue();
         }
         return -1;
-    }
-
-    bool sameTuning (const std::vector<int>& a, const std::vector<int>& b)
-    {
-        return a == b;
     }
 
     std::vector<int> namedTuning (const juce::String& lower, juce::String& name)
@@ -147,7 +203,6 @@ namespace
         const int close = line.lastIndexOfChar (')');
         if (open >= 0 && close > open)
             return line.substring (open + 1, close).trim();
-
         return {};
     }
 
@@ -181,7 +236,7 @@ namespace
         if (candidate.midiHighFirst.empty())
             return;
 
-        out.metadata.tuningCandidates.push_back (candidate);
+        out.metadata.tuningCandidates.push_back (std::move (candidate));
         ++out.diagnostics.headerLines;
     }
 
@@ -198,16 +253,22 @@ namespace
         for (size_t i = 1; i < out.metadata.tuningCandidates.size(); ++i)
         {
             const auto& c = out.metadata.tuningCandidates[i];
-            if (! sameTuning (first.midiHighFirst, c.midiHighFirst))
-            {
-                out.metadata.tuningAmbiguous = true;
-                ++out.diagnostics.metadataConflicts;
-                if (out.diagnostics.warnings.size() < 24)
-                    out.diagnostics.warnings.add ("Conflicting tuning declarations at lines "
-                                                  + juce::String (first.source.sourceLineStart)
-                                                  + " and " + juce::String (c.source.sourceLineStart));
-            }
+            if (c.midiHighFirst == first.midiHighFirst)
+                continue;
+
+            out.metadata.tuningAmbiguous = true;
+            ++out.diagnostics.metadataConflicts;
+            warn (out.diagnostics, "Conflicting tuning declarations at lines "
+                                   + juce::String (first.source.sourceLineStart)
+                                   + " and " + juce::String (c.source.sourceLineStart));
         }
+    }
+
+    juce::String explicitStringLabel (const juce::String& line)
+    {
+        const auto t = line.trimStart();
+        const int end = labelEnd (t, 0);
+        return end > 0 ? t.substring (0, end - 1) : juce::String {};
     }
 
     bool looksLikeStaffLine (const juce::String& line)
@@ -224,10 +285,10 @@ namespace
             if (c == '-' || c == '|' || juce::CharacterFunctions::isDigit (c)
                 || c == 'x' || c == 'X' || c == 'h' || c == 'p' || c == 'b'
                 || c == 'B' || c == 'H' || c == '/' || c == '\\' || c == '~'
-                || c == '^' || c == ' ' || c == '.')
+                || c == '^' || c == ' ' || c == '.' || c == '(' || c == ')')
                 ++staffChars;
         }
-        return staffChars >= juce::jmax (3, trimmed.length() - bar - 3);
+        return staffChars >= juce::jmax (3, trimmed.length() - bar - 4);
     }
 
     bool isLegendHeader (const juce::String& lower)
@@ -269,11 +330,8 @@ namespace
         if (p > 0)
         {
             const auto suffix = lhs.substring (p);
-            if (suffix == "B" || suffix == "b")
-                return "<fret>B";
-            if (suffix == "H" || suffix == "h")
-                return "<fret>H";
-
+            if (suffix == "B" || suffix == "b") return "<fret>B";
+            if (suffix == "H" || suffix == "h") return "<fret>H";
             if (suffix.startsWithChar ('^'))
             {
                 int q = 1;
@@ -283,7 +341,6 @@ namespace
                     return "<fret>^<higher-fret>";
             }
         }
-
         return lhs;
     }
 
@@ -342,15 +399,14 @@ namespace
                                    "outro", "interlude", "riff", "fill" };
         for (const auto* p : prefixes)
         {
-            if (lower.startsWith (p))
-            {
-                int end = trimmed.indexOfChar (':');
-                const int paren = trimmed.indexOfChar ('(');
-                if (end < 0 || (paren >= 0 && paren < end))
-                    end = paren;
-                section = (end >= 0 ? trimmed.substring (0, end) : trimmed).trim();
-                return true;
-            }
+            if (! lower.startsWith (p))
+                continue;
+            int end = trimmed.indexOfChar (':');
+            const int paren = trimmed.indexOfChar ('(');
+            if (end < 0 || (paren >= 0 && paren < end))
+                end = paren;
+            section = (end >= 0 ? trimmed.substring (0, end) : trimmed).trim();
+            return true;
         }
         return false;
     }
@@ -372,16 +428,8 @@ namespace
             name = "Guitar 1";
             return 1;
         }
-        if (lower.contains ("rhythm guitar"))
-        {
-            name = "Rhythm Guitar";
-            return 1;
-        }
-        if (lower.contains ("lead guitar"))
-        {
-            name = "Lead Guitar";
-            return 2;
-        }
+        if (lower.contains ("rhythm guitar")) { name = "Rhythm Guitar"; return 1; }
+        if (lower.contains ("lead guitar"))   { name = "Lead Guitar"; return 2; }
         return 0;
     }
 
@@ -393,9 +441,65 @@ namespace
             || lower.contains ("https://") || line.containsChar ('@');
     }
 
-    void addBlock (NormalizedTabDocument& out, TabBlockKind kind, const juce::String& line,
-                   int sourceLine, TabConfidence confidence, const juce::String& section,
-                   int partIndex)
+    bool plausibleChordRoot (juce::juce_wchar c) noexcept
+    {
+        return c >= 'A' && c <= 'G';
+    }
+
+    int embeddedChordCandidateCount (const juce::String& line, int& strong)
+    {
+        int count = 0;
+        strong = 0;
+        for (int i = 0; i < line.length(); ++i)
+        {
+            if (! plausibleChordRoot (line[i]))
+                continue;
+
+            const bool atStart = i == 0;
+            const bool afterBoundary = atStart || juce::CharacterFunctions::isWhitespace (line[i - 1])
+                                     || line[i - 1] == ',' || line[i - 1] == '(';
+            const bool embeddedAfterLower = i > 0 && juce::CharacterFunctions::isLowerCase (line[i - 1]);
+            if (! afterBoundary && ! embeddedAfterLower)
+                continue;
+
+            int j = i + 1;
+            bool hasAccidentalOrQuality = false;
+            if (j < line.length() && (line[j] == '#' || line[j] == 'b'
+                || line[j] == (juce::juce_wchar) 0x266f || line[j] == (juce::juce_wchar) 0x266d))
+            {
+                hasAccidentalOrQuality = true;
+                ++j;
+            }
+            if (j < line.length() && line[j] == 'm')
+            {
+                hasAccidentalOrQuality = true;
+                ++j;
+            }
+
+            const bool unusualCapitalBoundary = j < line.length()
+                && juce::CharacterFunctions::isUpperCase (line[j]);
+            const bool embeddedAccidental = embeddedAfterLower && hasAccidentalOrQuality;
+
+            ++count;
+            if (hasAccidentalOrQuality || unusualCapitalBoundary || embeddedAccidental)
+                ++strong;
+            i = juce::jmax (i, j - 1);
+        }
+        return count;
+    }
+
+    bool looksLikeEmbeddedChordLyrics (const juce::String& line, bool hasDocumentContext)
+    {
+        if (! hasDocumentContext || line.containsChar ('|') || line.length() < 8)
+            return false;
+        int strong = 0;
+        const int candidates = embeddedChordCandidateCount (line, strong);
+        return candidates >= 2 && strong >= 1;
+    }
+
+    void addBlock (NormalizedTabDocument& out, TabBlockKind kind,
+                   const juce::String& line, int sourceLine, TabConfidence confidence,
+                   const juce::String& section, int partIndex)
     {
         NormalizedTabBlock block;
         block.kind = kind;
@@ -456,12 +560,11 @@ bool TabDocumentNormalizer::normalize (const juce::String& source,
 
     if (source.getNumBytesAsUTF8() > options.maxInputBytes)
     {
-        out.diagnostics.warnings.add ("Tab source exceeds the configured input-size limit");
+        warn (out.diagnostics, "Tab source exceeds the configured input-size limit");
         return false;
     }
 
     juce::String cleaned = source.replace ("\r\n", "\n").replace ("\r", "\n");
-
     out.diagnostics.entitiesDecoded += countAndReplace (cleaned, "&#x20;", " ");
     out.diagnostics.entitiesDecoded += countAndReplace (cleaned, "&#xA0;", " ");
     out.diagnostics.entitiesDecoded += countAndReplace (cleaned, "&#xa0;", " ");
@@ -470,51 +573,45 @@ bool TabDocumentNormalizer::normalize (const juce::String& source,
     out.diagnostics.entitiesDecoded += countAndReplace (cleaned, "&gt;", ">");
     out.diagnostics.entitiesDecoded += countAndReplace (cleaned, "&amp;", "&");
 
-    juce::StringArray lines;
-    lines.addLines (cleaned);
-    if (lines.size() > options.maxLines)
+    juce::StringArray physicalLines;
+    physicalLines.addLines (cleaned);
+    if (physicalLines.size() > options.maxLines)
     {
-        out.diagnostics.warnings.add ("Tab source exceeds the configured line-count limit");
+        warn (out.diagnostics, "Tab source exceeds the configured line-count limit");
         return false;
     }
 
+    std::vector<LogicalLine> logicalLines;
+    logicalLines.reserve ((size_t) physicalLines.size());
     juce::StringArray normalizedLines;
-    normalizedLines.ensureStorageAllocated (lines.size());
+
+    for (int i = 0; i < physicalLines.size(); ++i)
+    {
+        auto line = stripWholeLineMarkdown (physicalLines[i], out.diagnostics.markdownWrappersRemoved);
+        auto recovered = options.recoverCollapsedRows ? splitCollapsedLabelledRows (line)
+                                                      : juce::StringArray { line };
+        if (recovered.size() > 1)
+            out.diagnostics.collapsedRowsSplit += recovered.size() - 1;
+
+        for (const auto& row : recovered)
+        {
+            logicalLines.push_back ({ row, i + 1 });
+            normalizedLines.add (row);
+        }
+    }
 
     int nonEmpty = 0;
-    int currentBlockStart = -1;
-    juce::StringArray currentStaffLines;
-    juce::String currentSection;
-    int currentPart = 0;
-    bool legendMode = false;
-
-    auto flushStaff = [&]
-    {
-        if (currentStaffLines.isEmpty())
-            return;
-        NormalizedTabBlock block;
-        block.kind = TabBlockKind::staff;
-        block.lines = currentStaffLines;
-        block.source = { currentBlockStart, currentBlockStart + currentStaffLines.size() - 1, 0, -1 };
-        block.confidence = currentStaffLines.size() >= 4 ? TabConfidence::high : TabConfidence::medium;
-        block.sectionName = currentSection;
-        block.partIndex = currentPart;
-        out.blocks.push_back (std::move (block));
-        currentStaffLines.clear();
-        currentBlockStart = -1;
-    };
-
-    for (int i = 0; i < lines.size(); ++i)
-    {
-        const int sourceLine = i + 1;
-        auto line = stripWholeLineMarkdown (lines[i], out.diagnostics.markdownWrappersRemoved);
-        normalizedLines.add (line);
-        const auto trimmed = line.trim();
-        const auto lower = trimmed.toLowerCase();
-        if (trimmed.isNotEmpty())
+    for (const auto& line : logicalLines)
+        if (line.text.trim().isNotEmpty())
             ++nonEmpty;
 
-        addTuningCandidate (out, line, sourceLine);
+    // Whole-document metadata pass. Footer declarations therefore have the same
+    // authority as header declarations before any staff semantics are considered.
+    for (const auto& logical : logicalLines)
+    {
+        const auto& line = logical.text;
+        const auto lower = line.toLowerCase();
+        addTuningCandidate (out, line, logical.sourceLine);
 
         if (lower.contains ("capo"))
         {
@@ -524,7 +621,7 @@ bool TabDocumentNormalizer::normalize (const juce::String& source,
                 if (out.metadata.capoFret >= 0 && out.metadata.capoFret != capo)
                 {
                     ++out.diagnostics.metadataConflicts;
-                    out.diagnostics.warnings.add ("Conflicting capo declarations");
+                    warn (out.diagnostics, "Conflicting capo declarations");
                 }
                 else
                 {
@@ -533,13 +630,79 @@ bool TabDocumentNormalizer::normalize (const juce::String& source,
                 ++out.diagnostics.headerLines;
             }
         }
+    }
+    resolveTunings (out);
+
+    int currentBlockStart = -1;
+    int currentBlockEnd = -1;
+    juce::StringArray currentStaffLines;
+    juce::StringArray currentStaffLabels;
+    juce::String currentSection;
+    int currentPart = 0;
+    bool legendMode = false;
+    std::map<int, juce::StringArray> lastLabelsByPart;
+
+    auto flushStaff = [&]
+    {
+        if (currentStaffLines.isEmpty())
+            return;
+
+        NormalizedTabBlock block;
+        block.kind = TabBlockKind::staff;
+        block.lines = currentStaffLines;
+        block.source = { currentBlockStart, currentBlockEnd, 0, -1 };
+        block.sectionName = currentSection;
+        block.partIndex = currentPart;
+
+        const bool allExplicit = currentStaffLabels.size() == currentStaffLines.size();
+        if (allExplicit)
+        {
+            block.confidence = currentStaffLines.size() >= 4 ? TabConfidence::high
+                                                             : TabConfidence::medium;
+            lastLabelsByPart[currentPart] = currentStaffLabels;
+        }
+        else
+        {
+            const auto found = lastLabelsByPart.find (currentPart);
+            if (found != lastLabelsByPart.end()
+                && found->second.size() == currentStaffLines.size())
+            {
+                block.inferredStringLabels = found->second;
+                block.confidence = TabConfidence::medium;
+                out.diagnostics.inheritedStringLabels += block.inferredStringLabels.size();
+                ++out.diagnostics.staffsReconstructed;
+            }
+            else
+            {
+                block.confidence = TabConfidence::low;
+                ++out.diagnostics.lowConfidenceBlocksSkipped;
+            }
+        }
+
+        out.blocks.push_back (std::move (block));
+        currentStaffLines.clear();
+        currentStaffLabels.clear();
+        currentBlockStart = -1;
+        currentBlockEnd = -1;
+    };
+
+    for (const auto& logical : logicalLines)
+    {
+        const auto& line = logical.text;
+        const int sourceLine = logical.sourceLine;
+        const auto trimmed = line.trim();
+        const auto lower = trimmed.toLowerCase();
 
         if (looksLikeStaffLine (line))
         {
             legendMode = false;
             if (currentBlockStart < 0)
                 currentBlockStart = sourceLine;
+            currentBlockEnd = sourceLine;
             currentStaffLines.add (line);
+            const auto label = explicitStringLabel (line);
+            if (label.isNotEmpty())
+                currentStaffLabels.add (label);
             continue;
         }
 
@@ -604,9 +767,9 @@ bool TabDocumentNormalizer::normalize (const juce::String& source,
             continue;
         }
 
-        const auto before = out.metadata.directives.size();
+        const auto directivesBefore = out.metadata.directives.size();
         maybeAddDirective (out, line, sourceLine, currentSection, currentPart);
-        if (out.metadata.directives.size() != before)
+        if (out.metadata.directives.size() != directivesBefore)
         {
             addBlock (out, TabBlockKind::proseInstruction, line, sourceLine, TabConfidence::high,
                       currentSection, currentPart);
@@ -620,15 +783,26 @@ bool TabDocumentNormalizer::normalize (const juce::String& source,
             continue;
         }
 
-        addBlock (out, TabBlockKind::unknown, line, sourceLine, TabConfidence::low,
+        const bool chordContext = ! out.metadata.tuningCandidates.empty()
+                               || out.diagnostics.chordLyricBlocks > 0;
+        if (options.detectEmbeddedChords && looksLikeEmbeddedChordLyrics (line, chordContext))
+        {
+            addBlock (out, TabBlockKind::chordLyrics, line, sourceLine, TabConfidence::medium,
+                      currentSection, currentPart);
+            ++out.diagnostics.chordLyricBlocks;
+            continue;
+        }
+
+        const bool proseLike = trimmed.containsAnyOf ("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+                            && trimmed.length() >= 4;
+        addBlock (out, proseLike ? TabBlockKind::lyric : TabBlockKind::unknown,
+                  line, sourceLine, proseLike ? TabConfidence::medium : TabConfidence::low,
                   currentSection, currentPart);
     }
     flushStaff();
 
     out.diagnostics.totalLines = nonEmpty;
     out.normalizedText = normalizedLines.joinIntoString ("\n");
-    resolveTunings (out);
-
     return nonEmpty > 0;
 }
 
