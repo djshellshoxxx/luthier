@@ -2,6 +2,7 @@
 #include "AsciiTabReader.h"
 
 #include <algorithm>
+#include <utility>
 
 namespace luthier
 {
@@ -134,8 +135,8 @@ namespace
         const int pos = lower.indexOf ("tuning");
         if (pos >= 0)
         {
-            auto before = line.substring (0, pos).trim();
-            auto after = line.substring (pos + 6).trim();
+            const auto before = line.substring (0, pos).trim();
+            const auto after = line.substring (pos + 6).trim();
             if (after.isNotEmpty() && ! after.startsWithChar ('('))
                 return after;
             if (before.isNotEmpty() && before.length() <= 32)
@@ -161,12 +162,11 @@ namespace
         candidate.rawText = line.trim();
         candidate.source = { sourceLine, sourceLine, 0, line.length() };
         candidate.confidence = TabConfidence::exact;
-
         candidate.midiHighFirst = namedTuning (lower, candidate.canonicalName);
 
         if (candidate.midiHighFirst.empty())
         {
-            auto payload = tuningPayload (line);
+            const auto payload = tuningPayload (line);
             std::vector<int> parsed;
             if (payload.isNotEmpty()
                 && AsciiTabReader::parseTuningNames (payload, parsed, true)
@@ -223,10 +223,221 @@ namespace
             const auto c = trimmed[i];
             if (c == '-' || c == '|' || juce::CharacterFunctions::isDigit (c)
                 || c == 'x' || c == 'X' || c == 'h' || c == 'p' || c == 'b'
-                || c == '/' || c == '\\' || c == '~' || c == '^' || c == ' ')
+                || c == 'B' || c == 'H' || c == '/' || c == '\\' || c == '~'
+                || c == '^' || c == ' ' || c == '.')
                 ++staffChars;
         }
         return staffChars >= juce::jmax (3, trimmed.length() - bar - 3);
+    }
+
+    bool isLegendHeader (const juce::String& lower)
+    {
+        const auto t = lower.trim();
+        return t == "key:" || t == "key" || t == "legend:" || t == "legend"
+            || t == "notation:" || t == "notation" || t == "symbols:" || t == "symbols";
+    }
+
+    juce::String canonicalTechniqueMeaning (const juce::String& raw)
+    {
+        const auto lower = raw.toLowerCase();
+        if (lower.contains ("hammer"))       return "hammerOn";
+        if (lower.contains ("pull"))         return "pullOff";
+        if (lower.contains ("harmonic"))     return "naturalHarmonic";
+        if (lower.contains ("bend"))         return "bend";
+        if (lower.contains ("slide up"))     return "slideUp";
+        if (lower.contains ("slide down"))   return "slideDown";
+        if (lower.contains ("vibrato"))      return "vibrato";
+        if (lower.contains ("palm mute"))    return "palmMute";
+        if (lower.contains ("pop"))          return "pop";
+        if (lower.contains ("slap"))         return "slap";
+        if (lower.contains ("trill"))        return "trill";
+        if (lower.contains ("tremolo"))      return "tremoloPicking";
+        return {};
+    }
+
+    juce::String generalizeLegendPattern (juce::String lhs)
+    {
+        lhs = lhs.trim();
+        while (lhs.startsWithChar ('|') || lhs.startsWithChar ('-')
+               || lhs.startsWithChar ('*') || lhs.startsWithChar ((juce::juce_wchar) 0x2022))
+            lhs = lhs.substring (1).trimStart();
+
+        int p = 0;
+        while (p < lhs.length() && juce::CharacterFunctions::isDigit (lhs[p]))
+            ++p;
+
+        if (p > 0)
+        {
+            const auto suffix = lhs.substring (p);
+            if (suffix == "B" || suffix == "b")
+                return "<fret>B";
+            if (suffix == "H" || suffix == "h")
+                return "<fret>H";
+
+            if (suffix.startsWithChar ('^'))
+            {
+                int q = 1;
+                while (q < suffix.length() && juce::CharacterFunctions::isDigit (suffix[q]))
+                    ++q;
+                if (q > 1 && q == suffix.length())
+                    return "<fret>^<higher-fret>";
+            }
+        }
+
+        return lhs;
+    }
+
+    bool parseLegendDefinition (const juce::String& line, TabNotationDefinition& out,
+                                int sourceLine)
+    {
+        auto text = line.trim();
+        while (text.startsWithChar ('-') || text.startsWithChar ('*')
+               || text.startsWithChar ((juce::juce_wchar) 0x2022))
+            text = text.substring (1).trimStart();
+        if (text.startsWithChar ('|'))
+            text = text.substring (1).trimStart();
+
+        int split = text.indexOfChar ('=');
+        if (split < 0)
+            split = text.indexOfChar (':');
+
+        juce::String lhs, rhs;
+        if (split >= 0)
+        {
+            lhs = text.substring (0, split).trim();
+            rhs = text.substring (split + 1).trim();
+        }
+        else
+        {
+            int firstSpace = -1;
+            for (int i = 0; i < text.length(); ++i)
+                if (juce::CharacterFunctions::isWhitespace (text[i]))
+                {
+                    firstSpace = i;
+                    break;
+                }
+            if (firstSpace < 0)
+                return false;
+            lhs = text.substring (0, firstSpace).trim();
+            rhs = text.substring (firstSpace).trim();
+        }
+
+        const auto meaning = canonicalTechniqueMeaning (rhs);
+        if (lhs.isEmpty() || meaning.isEmpty())
+            return false;
+
+        out.pattern = generalizeLegendPattern (lhs);
+        out.canonicalMeaning = meaning;
+        out.rawDefinition = line.trim();
+        out.source = { sourceLine, sourceLine, 0, line.length() };
+        out.confidence = TabConfidence::exact;
+        return true;
+    }
+
+    bool isSectionHeading (const juce::String& line, juce::String& section)
+    {
+        const auto trimmed = line.trim();
+        const auto lower = trimmed.toLowerCase();
+        const char* prefixes[] = { "intro", "verse", "chorus", "bridge", "solo",
+                                   "outro", "interlude", "riff", "fill" };
+        for (const auto* p : prefixes)
+        {
+            if (lower.startsWith (p))
+            {
+                int end = trimmed.indexOfChar (':');
+                const int paren = trimmed.indexOfChar ('(');
+                if (end < 0 || (paren >= 0 && paren < end))
+                    end = paren;
+                section = (end >= 0 ? trimmed.substring (0, end) : trimmed).trim();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    int detectPart (const juce::String& line, juce::String& name)
+    {
+        const auto lower = line.toLowerCase();
+        if (lower.contains ("guitar 2") || lower.contains ("guitar two")
+            || lower.contains ("second guitar") || lower.contains ("gtr. 2")
+            || lower.contains ("gtr 2"))
+        {
+            name = "Guitar 2";
+            return 2;
+        }
+        if (lower.contains ("guitar 1") || lower.contains ("guitar one")
+            || lower.contains ("first guitar") || lower.contains ("gtr. 1")
+            || lower.contains ("gtr 1"))
+        {
+            name = "Guitar 1";
+            return 1;
+        }
+        if (lower.contains ("rhythm guitar"))
+        {
+            name = "Rhythm Guitar";
+            return 1;
+        }
+        if (lower.contains ("lead guitar"))
+        {
+            name = "Lead Guitar";
+            return 2;
+        }
+        return 0;
+    }
+
+    bool isAttribution (const juce::String& line)
+    {
+        const auto lower = line.toLowerCase();
+        return lower.contains ("sent by") || lower.contains ("tabbed by")
+            || lower.contains ("transcribed by") || lower.contains ("http://")
+            || lower.contains ("https://") || line.containsChar ('@');
+    }
+
+    void addBlock (NormalizedTabDocument& out, TabBlockKind kind, const juce::String& line,
+                   int sourceLine, TabConfidence confidence, const juce::String& section,
+                   int partIndex)
+    {
+        NormalizedTabBlock block;
+        block.kind = kind;
+        block.lines.add (line);
+        block.source = { sourceLine, sourceLine, 0, line.length() };
+        block.confidence = confidence;
+        block.sectionName = section;
+        block.partIndex = partIndex;
+        out.blocks.push_back (std::move (block));
+    }
+
+    void maybeAddDirective (NormalizedTabDocument& out, const juce::String& line,
+                            int sourceLine, const juce::String& section, int partIndex)
+    {
+        const auto lower = line.toLowerCase();
+        juce::String name;
+        if (lower.contains ("harmonic"))
+            name = "naturalHarmonic";
+        else if (lower.contains ("tremolo picking") || lower.contains ("tremolo pick"))
+            name = "tremoloPicking";
+        else if (lower.contains ("aka trill") || lower.contains (" trill"))
+            name = "trill";
+        else if (lower.contains ("palm mute throughout"))
+            name = "palmMute";
+        else if (lower.contains ("let ring"))
+            name = "letRing";
+
+        if (name.isEmpty())
+            return;
+
+        TabDirective d;
+        d.canonicalName = name;
+        d.rawText = line.trim();
+        d.sectionName = section;
+        d.partIndex = partIndex;
+        d.source = { sourceLine, sourceLine, 0, line.length() };
+        d.confidence = TabConfidence::high;
+        d.scope = section.isNotEmpty() ? DirectiveScope::section
+                                       : (partIndex > 0 ? DirectiveScope::part
+                                                        : DirectiveScope::nextSystem);
+        out.metadata.directives.push_back (std::move (d));
+        ++out.diagnostics.proseDirectives;
     }
 }
 
@@ -273,6 +484,9 @@ bool TabDocumentNormalizer::normalize (const juce::String& source,
     int nonEmpty = 0;
     int currentBlockStart = -1;
     juce::StringArray currentStaffLines;
+    juce::String currentSection;
+    int currentPart = 0;
+    bool legendMode = false;
 
     auto flushStaff = [&]
     {
@@ -283,6 +497,8 @@ bool TabDocumentNormalizer::normalize (const juce::String& source,
         block.lines = currentStaffLines;
         block.source = { currentBlockStart, currentBlockStart + currentStaffLines.size() - 1, 0, -1 };
         block.confidence = currentStaffLines.size() >= 4 ? TabConfidence::high : TabConfidence::medium;
+        block.sectionName = currentSection;
+        block.partIndex = currentPart;
         out.blocks.push_back (std::move (block));
         currentStaffLines.clear();
         currentBlockStart = -1;
@@ -290,14 +506,16 @@ bool TabDocumentNormalizer::normalize (const juce::String& source,
 
     for (int i = 0; i < lines.size(); ++i)
     {
+        const int sourceLine = i + 1;
         auto line = stripWholeLineMarkdown (lines[i], out.diagnostics.markdownWrappersRemoved);
         normalizedLines.add (line);
-        if (line.trim().isNotEmpty())
+        const auto trimmed = line.trim();
+        const auto lower = trimmed.toLowerCase();
+        if (trimmed.isNotEmpty())
             ++nonEmpty;
 
-        addTuningCandidate (out, line, i + 1);
+        addTuningCandidate (out, line, sourceLine);
 
-        const auto lower = line.toLowerCase();
         if (lower.contains ("capo"))
         {
             const int capo = firstIntegerAfter (line, "capo");
@@ -318,14 +536,92 @@ bool TabDocumentNormalizer::normalize (const juce::String& source,
 
         if (looksLikeStaffLine (line))
         {
+            legendMode = false;
             if (currentBlockStart < 0)
-                currentBlockStart = i + 1;
+                currentBlockStart = sourceLine;
             currentStaffLines.add (line);
+            continue;
         }
-        else
+
+        flushStaff();
+
+        if (trimmed.isEmpty())
         {
-            flushStaff();
+            legendMode = false;
+            continue;
         }
+
+        if (isLegendHeader (lower))
+        {
+            legendMode = true;
+            addBlock (out, TabBlockKind::legend, line, sourceLine, TabConfidence::exact,
+                      currentSection, currentPart);
+            continue;
+        }
+
+        TabNotationDefinition definition;
+        if ((legendMode || trimmed.startsWithChar ('|') || trimmed.startsWithChar ('-'))
+            && parseLegendDefinition (line, definition, sourceLine))
+        {
+            out.notation.push_back (std::move (definition));
+            ++out.diagnostics.legendEntries;
+            addBlock (out, TabBlockKind::legend, line, sourceLine, TabConfidence::exact,
+                      currentSection, currentPart);
+            continue;
+        }
+        legendMode = false;
+
+        juce::String section;
+        if (isSectionHeading (line, section))
+        {
+            currentSection = section;
+            if (! out.metadata.sectionNames.contains (section))
+                out.metadata.sectionNames.add (section);
+            maybeAddDirective (out, line, sourceLine, currentSection, currentPart);
+            addBlock (out, TabBlockKind::sectionHeading, line, sourceLine, TabConfidence::high,
+                      currentSection, currentPart);
+            continue;
+        }
+
+        juce::String partName;
+        const int part = detectPart (line, partName);
+        if (part > 0)
+        {
+            currentPart = part;
+            if (! out.metadata.partNames.contains (partName))
+                out.metadata.partNames.add (partName);
+            ++out.diagnostics.multiPartBlocks;
+            maybeAddDirective (out, line, sourceLine, currentSection, currentPart);
+            addBlock (out, TabBlockKind::proseInstruction, line, sourceLine, TabConfidence::high,
+                      currentSection, currentPart);
+            continue;
+        }
+
+        if (isAttribution (line))
+        {
+            addBlock (out, TabBlockKind::attribution, line, sourceLine, TabConfidence::high,
+                      currentSection, currentPart);
+            continue;
+        }
+
+        const auto before = out.metadata.directives.size();
+        maybeAddDirective (out, line, sourceLine, currentSection, currentPart);
+        if (out.metadata.directives.size() != before)
+        {
+            addBlock (out, TabBlockKind::proseInstruction, line, sourceLine, TabConfidence::high,
+                      currentSection, currentPart);
+            continue;
+        }
+
+        if (lineLooksLikeTuningStatement (lower) || lower.contains ("capo"))
+        {
+            addBlock (out, TabBlockKind::proseInstruction, line, sourceLine, TabConfidence::exact,
+                      currentSection, currentPart);
+            continue;
+        }
+
+        addBlock (out, TabBlockKind::unknown, line, sourceLine, TabConfidence::low,
+                  currentSection, currentPart);
     }
     flushStaff();
 
