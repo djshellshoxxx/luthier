@@ -21,6 +21,7 @@
 #include "../Practice/PracticeRoutine.h"
 #include "../Practice/PracticeRoutineSetup.h"
 #include "../Notation/NotationExport.h"
+#include "PracticeTabImporter.h"
 
 namespace luthier
 {
@@ -329,7 +330,7 @@ private:
     PerformanceScore score;
     juce::String scoreTitle;
     NotationExporter exporter;
-    NotationImporter importer;
+    PracticeTabImporter importer;
 
     std::unique_ptr<juce::FileChooser> chooser;
 };
