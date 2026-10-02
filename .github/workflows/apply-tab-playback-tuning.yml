@@ -1,0 +1,103 @@
+name: apply-tab-playback-tuning
+
+on:
+  push:
+    branches:
+      - codex/deep-audit-fixes-final2
+    paths:
+      - '.github/workflows/apply-tab-playback-tuning.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  edit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/deep-audit-fixes-final2
+          fetch-depth: 0
+      - name: Apply exact Practice playback tuning edits
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          h = Path('Source/UI/PracticePanel.h')
+          s = h.read_text()
+          include_old = '#include "../Practice/PracticeRoutineSetup.h"\n'
+          include_new = include_old + '#include "../Practice/TabPlaybackTuningSession.h"\n'
+          if '#include "../Practice/TabPlaybackTuningSession.h"' not in s:
+              assert s.count(include_old) == 1
+              s = s.replace(include_old, include_new, 1)
+
+          member_old = '    PracticeTabImporter importer;\n\n    std::unique_ptr<juce::FileChooser> chooser;\n'
+          member_new = ('    PracticeTabImporter importer;\n'
+                        '    TabPlaybackTuningSession tuningSession;\n'
+                        '    bool autoTuneImportedScore = false;\n\n'
+                        '    std::unique_ptr<juce::FileChooser> chooser;\n')
+          if 'TabPlaybackTuningSession tuningSession;' not in s:
+              assert s.count(member_old) == 1
+              s = s.replace(member_old, member_new, 1)
+          h.write_text(s)
+
+          p = Path('Source/UI/PracticePanel.cpp')
+          s = p.read_text()
+
+          open_old = '''bool TabReaderTab::openTab (const juce::File& file, const juce::File& libraryFile)\n{\n    const bool read = importer.read (file, score);\n'''
+          open_new = '''bool TabReaderTab::openTab (const juce::File& file, const juce::File& libraryFile)\n{\n    processor.getEngine().getRiffPlayer().stop();\n    tuningSession.end();\n    autoTuneImportedScore = false;\n\n    const bool read = importer.read (file, score);\n'''
+          if 'autoTuneImportedScore = false;\n\n    const bool read = importer.read' not in s:
+              assert s.count(open_old) == 1
+              s = s.replace(open_old, open_new, 1)
+
+          title_old = '        scoreTitle = file.getFileNameWithoutExtension();\n\n'
+          title_new = ('        scoreTitle = file.getFileNameWithoutExtension();\n'
+                       '        autoTuneImportedScore = importer.lastAsciiHadResolvedTuning();\n\n')
+          if 'autoTuneImportedScore = importer.lastAsciiHadResolvedTuning();' not in s:
+              assert s.count(title_old) == 1
+              s = s.replace(title_old, title_new, 1)
+
+          score_old = '''void TabReaderTab::openScore (const PerformanceScore& newScore, const juce::String& title)\n{\n    // riff-library 6.4: a riff opened with Learn It.\n    score = newScore;\n'''
+          score_new = '''void TabReaderTab::openScore (const PerformanceScore& newScore, const juce::String& title)\n{\n    // Programmatic/live scores do not carry a resolved ASCII tuning declaration.\n    processor.getEngine().getRiffPlayer().stop();\n    tuningSession.end();\n    autoTuneImportedScore = false;\n\n    // riff-library 6.4: a riff opened with Learn It.\n    score = newScore;\n'''
+          if 'Programmatic/live scores do not carry a resolved ASCII tuning declaration.' not in s:
+              assert s.count(score_old) == 1
+              s = s.replace(score_old, score_new, 1)
+
+          stop_old = '''    if (player.isPlaying() || player.isWaiting())\n    {\n        player.stop();\n        playButton.setButtonText ("Play");\n        return;\n    }\n'''
+          stop_new = '''    if (player.isPlaying() || player.isWaiting())\n    {\n        player.stop();\n        tuningSession.end();\n        playButton.setButtonText ("Play");\n        return;\n    }\n'''
+          if 'player.stop();\n        tuningSession.end();\n        playButton.setButtonText ("Play")' not in s:
+              assert s.count(stop_old) == 1
+              s = s.replace(stop_old, stop_new, 1)
+
+          compile_old = '''    // FEAT2-TAB: the parsed score becomes a riff, compiled against the loaded\n    // instrument and handed to the audition player - the same path riffs use.\n    const auto riff = Riff::fromScore (score);\n    const auto guitar = RiffDestinations::guitarSummary (processor);\n\n    player.setCompiled (RiffCompiler::compile (riff, RiffPlaySettings{}, guitar), true);\n    player.setClockMode (RiffPlayer::ClockMode::own);\n'''
+          compile_new = '''    // Same-string-count ASCII tabs with an explicit resolved tuning keep the\n    // author's string/fret choices. The engine is temporarily retuned to that\n    // same score tuning, then restored when playback stops. Other imports use\n    // the existing adaptation path against the currently loaded guitar.\n    const auto riff = Riff::fromScore (score);\n    auto guitar = RiffDestinations::guitarSummary (processor);\n    bool exactImportedTuning = false;\n    juce::String tuningReason;\n\n    if (autoTuneImportedScore && score.getNumTracks() > 0)\n    {\n        exactImportedTuning = tuningSession.begin (score.getTrack (0), &tuningReason);\n        if (exactImportedTuning)\n            guitar = GuitarSpecSummary::forRiff (riff);\n    }\n\n    auto compiled = RiffCompiler::compile (riff, RiffPlaySettings{}, guitar);\n    if (compiled == nullptr)\n    {\n        tuningSession.end();\n        showStatus ("Could not compile this tab for playback.", true);\n        return;\n    }\n\n    player.setCompiled (compiled, true);\n    player.setClockMode (RiffPlayer::ClockMode::own);\n'''
+          if 'bool exactImportedTuning = false;' not in s:
+              assert s.count(compile_old) == 1
+              s = s.replace(compile_old, compile_new, 1)
+
+          status_old = '''    playButton.setButtonText ("Stop");\n    statusLabel.setText ("Playing " + scoreTitle, juce::dontSendNotification);\n    statusLabel.setColour (juce::Label::textColourId, Palette::textMuted);\n}\n\n//==============================================================================\nTabReaderTab::TabReaderTab (LuthierAudioProcessor& p)\n    : PracticeTab (p)\n'''
+          status_new = '''    playButton.setButtonText ("Stop");\n    auto playingStatus = "Playing " + scoreTitle;\n    if (exactImportedTuning)\n        playingStatus += " - using tab tuning";\n    else if (autoTuneImportedScore && tuningReason.isNotEmpty())\n        playingStatus += " - " + tuningReason;\n    statusLabel.setText (playingStatus, juce::dontSendNotification);\n    statusLabel.setColour (juce::Label::textColourId, Palette::textMuted);\n}\n\n//==============================================================================\nTabReaderTab::TabReaderTab (LuthierAudioProcessor& p)\n    : PracticeTab (p), tuningSession (p.getEngine())\n'''
+          if ': PracticeTab (p), tuningSession (p.getEngine())' not in s:
+              assert s.count(status_old) == 1
+              s = s.replace(status_old, status_new, 1)
+
+          refresh_old = '''    auto& player = processor.getEngine().getRiffPlayer();\n    playButton.setButtonText (player.isPlaying() || player.isWaiting() ? "Stop" : "Play");\n\n    if (text != tabView.getText())\n'''
+          refresh_new = '''    auto& player = processor.getEngine().getRiffPlayer();\n    const bool playing = player.isPlaying() || player.isWaiting();\n    playButton.setButtonText (playing ? "Stop" : "Play");\n\n    // Natural completion, Stop elsewhere, or a failed audition all release the\n    // temporary imported tuning just like pressing this tab's Stop button.\n    if (! playing && tuningSession.isActive())\n        tuningSession.end();\n\n    if (text != tabView.getText())\n'''
+          if 'if (! playing && tuningSession.isActive())' not in s:
+              assert s.count(refresh_old) == 1
+              s = s.replace(refresh_old, refresh_new, 1)
+
+          p.write_text(s)
+          PY
+          git diff --check
+          git diff -- Source/UI/PracticePanel.h Source/UI/PracticePanel.cpp
+      - name: Commit playback tuning wiring
+        run: |
+          if git diff --quiet -- Source/UI/PracticePanel.h Source/UI/PracticePanel.cpp; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Source/UI/PracticePanel.h Source/UI/PracticePanel.cpp
+          git commit -m "feat: play ASCII tabs in their declared tuning"
+          git push origin HEAD:codex/deep-audit-fixes-final2
