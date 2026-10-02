@@ -20,6 +20,7 @@ on:
       - claude/luthier-cloud-session-5lzlix   # integration
       - claude/luthier-free
       - claude/luthier-pro
+      - codex/deep-audit-fixes-final2         # temporary: validate isolated implementation
     tags-ignore: ['v*']   # release.yml handles version tags
     paths-ignore:
       - 'spec/**'
