@@ -29,6 +29,53 @@ namespace
         return notes.isNotEmpty() ? "Tuning: " + notes : juce::String();
     }
 
+    bool isOriginalTuningDeclaration (const juce::String& line,
+                                      const TabDocumentMetadata& metadata)
+    {
+        const auto trimmed = line.trim();
+        for (const auto& candidate : metadata.tuningCandidates)
+            if (trimmed == candidate.rawText.trim())
+                return true;
+        return false;
+    }
+
+    bool isPromotedMetadataLine (const juce::String& line,
+                                 const TabDocumentMetadata& metadata)
+    {
+        if (isOriginalTuningDeclaration (line, metadata))
+            return true;
+
+        const auto lower = line.trim().toLowerCase();
+        if (lower.startsWith ("capo:") || lower.startsWith ("capo=")
+            || lower.startsWith ("capo ") || lower == "no capo")
+            return metadata.capoFret >= 0;
+
+        if (lower.startsWith ("tempo:") || lower.startsWith ("tempo=")
+            || lower.startsWith ("bpm:") || lower.startsWith ("bpm=")
+            || lower.startsWith ("q=") || lower.startsWith ("q ="))
+            return metadata.tempoBpm >= 20.0;
+
+        if (lower.startsWith ("time:") || lower.startsWith ("time signature:")
+            || lower.startsWith ("meter:") || lower.startsWith ("metre:"))
+            return metadata.timeSignatureNumerator > 0
+                && metadata.timeSignatureDenominator > 0;
+
+        return false;
+    }
+
+    juce::String semanticBody (const NormalizedTabDocument& document)
+    {
+        juce::StringArray lines = juce::StringArray::fromLines (document.normalizedText);
+        juce::StringArray kept;
+        kept.ensureStorageAllocated (lines.size());
+
+        for (const auto& line : lines)
+            if (! isPromotedMetadataLine (line, document.metadata))
+                kept.add (line);
+
+        return kept.joinIntoString ("\n");
+    }
+
     void appendWarningsUnique (juce::StringArray& destination, const juce::StringArray& source)
     {
         for (const auto& warning : source)
@@ -57,9 +104,11 @@ juce::String TabSemanticAdapter::buildLegacyReaderText (const NormalizedTabDocum
             << "/" << document.metadata.timeSignatureDenominator << "\n";
     }
 
-    // normalizedText retains the repaired physical ordering, including section
-    // annotations the legacy reader already knows how to ignore safely.
-    out << document.normalizedText;
+    // Original metadata declarations are removed before the legacy semantic
+    // pass. This prevents footer duplicates and, critically, prevents a pair of
+    // conflicting tuning declarations from bypassing the normalizer's
+    // ambiguity decision.
+    out << semanticBody (document);
     return out;
 }
 
