@@ -11,6 +11,7 @@
 #include "UI/EasyPanel.h"
 #include "UI/AdvancedPanel.h"
 #include "UI/Overlays.h"
+#include "UI/BanjoReveal.h"   // easter-egg: Dueling Banjos
 #include "UI/Notifications.h"
 #include "Export/MidiImportTargets.h"   // midi-export 5 (MODEL-GAPS)
 #include "UI/Onboarding.h"
@@ -155,7 +156,7 @@ private:
         again back to the tab or window it came from. VISUAL-WORKSHOP-QA. */
     void toggleWorkshop();
     int tabBeforeWorkshop = -1;
-    bool newDotsApplied = false;   // gui-integration 20
+    bool newDotsApplied = false;   // gui-integration 20
 
     /** guitar-workshop.md 6 (Ctrl+G): asks for a name and saves the guitar. */
     void showSaveGuitarDialog();
@@ -219,6 +220,11 @@ private:
     WorkshopOverlay workshopOverlay;
     MicPlacementOverlay micPlacementOverlay;   // mic-placement.md 6.3 (FEAT-MIC)
     SecretPanel secretPanel;
+
+    /** easter-egg: the banjo reveal badge, shown while the banjo voice is on. */
+    BanjoReveal banjoReveal;
+    bool banjoRevealShown = false;
+    void updateBanjoRevealVisibility();
 
     // onboarding.md 2-4 (TUNE-HELP-ONBOARDING).
     void setupOnboarding();
