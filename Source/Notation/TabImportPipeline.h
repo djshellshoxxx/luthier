@@ -18,6 +18,10 @@ public:
     bool read (const juce::String& source, PerformanceScore& destination,
                TabImportDiagnostics* diagnostics = nullptr);
 
+    /** Convenience entry point for the Practice/file-import surface. */
+    bool read (const juce::File& file, PerformanceScore& destination,
+               TabImportDiagnostics* diagnostics = nullptr);
+
     juce::String getLastError() const { return lastError; }
     const NormalizedTabDocument& getLastDocument() const noexcept { return lastDocument; }
 
