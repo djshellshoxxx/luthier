@@ -27,6 +27,9 @@
         (degrees 1 2 3 5 6 8 -> intervals +2 +2 +3 +2 +3). The two minor-third
         skips make it distinct from an ordinary diatonic scale run
         (+2 +2 +1 +2 +2), which differs by two edits and so cannot match.
+      - The final resolution must keep the characteristic minor-third leap.
+        A one-semitone sharp landing (+4) is accepted as the documented human
+        slip, but the common +2 leading-tone continuation is not.
       - The search window is capped at kRefLen + kMaxCost intervals, so the
         phrase can only be recognised as the most recent few notes, never
         assembled out of scattered notes across a passage.
@@ -159,6 +162,15 @@ private:
         const int w = count < kWindow ? count : kWindow;   // history intervals in play
         if (w < kRefLen - kMaxCost)
             return false;                                   // not enough notes yet
+
+        // The hidden phrase is defined as resolving with its characteristic
+        // final minor-third leap. Keep the documented one-semitone-sharp slip,
+        // but reject the common whole-step continuation that otherwise lands at
+        // edit distance 1 and produces false positives in normal playing.
+        const int finalInterval = recent (0);
+        if (finalInterval < kRefIntervals[kRefLen - 1]
+              || finalInterval > kRefIntervals[kRefLen - 1] + 1)
+            return false;
 
         // h[0..w-1] oldest..newest of the window.
         int h[kWindow];
