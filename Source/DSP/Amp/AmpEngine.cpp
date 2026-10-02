@@ -491,11 +491,29 @@ double AmpEngine::processCore (double x) noexcept
     // here are clean, which matches where the useful range sits on the real thing.
     // Past the knob's end (advanced ranges) the gain keeps climbing, more
     // gently: another 24 dB of drive and 12 dB of master at the limit.
-    const double preGainDb = gain <= 1.0 ? juce::jmap (gain, 0.0, 1.0, -6.0, 40.0) : 40.0 + (gain - 1.0) * 24.0;
-    const double postGainDb = master <= 1.0 ? juce::jmap (master, 0.0, 1.0, -40.0, 8.0) : 8.0 + (master - 1.0) * 12.0;
+    // dbToGain() is a std::pow; the drive/master gains are parked most of the
+    // time, so the conversion is cached and only redone when its smoothed input
+    // actually moves. The gain-to-dB map and the pow are a pure function of
+    // `gain` / `master`, so reusing the cached result while the input is
+    // unchanged is bit-exact (a parked ExpSmoother returns its target verbatim).
+    if (gain != cachedGainInput)
+    {
+        cachedGainInput = gain;
+        const double preGainDb = gain <= 1.0 ? juce::jmap (gain, 0.0, 1.0, -6.0, 40.0) : 40.0 + (gain - 1.0) * 24.0;
+        cachedPreGainPow = dbToGain (preGainDb);
+    }
 
-    const double preGain = voicing.inputGain * dbToGain (preGainDb);
-    const double postGain = dbToGain (postGainDb);
+    if (master != cachedMasterInput)
+    {
+        cachedMasterInput = master;
+        const double postGainDb = master <= 1.0 ? juce::jmap (master, 0.0, 1.0, -40.0, 8.0) : 8.0 + (master - 1.0) * 12.0;
+        cachedPostGain = dbToGain (postGainDb);
+    }
+
+    // voicing.inputGain stays out of the cache: it is one cheap multiply, and
+    // leaving it here means a voicing change takes effect at once, with no key.
+    const double preGain = voicing.inputGain * cachedPreGainPow;
+    const double postGain = cachedPostGain;
 
     const int stages = voicing.preampStages;
 
