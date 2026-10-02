@@ -20,7 +20,9 @@
 #include "../Practice/Trainers.h"
 #include "../Practice/PracticeRoutine.h"
 #include "../Practice/PracticeRoutineSetup.h"
+#include "../Practice/TabPlaybackTuningSession.h"
 #include "../Notation/NotationExport.h"
+#include "PracticeTabImporter.h"
 
 namespace luthier
 {
@@ -329,7 +331,9 @@ private:
     PerformanceScore score;
     juce::String scoreTitle;
     NotationExporter exporter;
-    NotationImporter importer;
+    PracticeTabImporter importer;
+    TabPlaybackTuningSession tuningSession;
+    bool autoTuneImportedScore = false;
 
     std::unique_ptr<juce::FileChooser> chooser;
 };

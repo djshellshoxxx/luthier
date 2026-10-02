@@ -111,6 +111,19 @@ LUTHIER_TEST (MotifDetector, ignoresPlainMajorScale)
     CHECK (! playsAsMotif (d, scale));
 }
 
+LUTHIER_TEST (MotifDetector, ignoresNearPentatonicLeadingToneRun)
+{
+    // Common major-pentatonic motion ending on the leading tone differs from the
+    // hidden phrase in only the final interval. It must not summon the banjo.
+    for (int root : { 48, 55, 60, 67 })
+    {
+        auto d = makeDetector();
+        std::vector<int> notes { root, root + 2, root + 4, root + 7, root + 9, root + 11 };
+        CHECK_MSG (! playsAsMotif (d, notes),
+                   juce::String ("near-match must not trigger from root ") + juce::String (root));
+    }
+}
+
 LUTHIER_TEST (MotifDetector, ignoresChromaticRun)
 {
     auto d = makeDetector();
