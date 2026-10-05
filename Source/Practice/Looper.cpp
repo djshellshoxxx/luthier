@@ -196,8 +196,9 @@ void LoopLayer::playInto (float* left, float* right, int position, int numSample
     const auto* srcL = audio.getReadPointer (0);
     const auto* srcR = audio.getReadPointer (1);
 
-    const int length = juce::jmax (1, juce::jmin (recordedSamples,
-                                                  loopLength > 0 ? loopLength : recordedSamples));
+    const int recorded = recordedSamples.load (std::memory_order_relaxed);
+    const int length = juce::jmax (1, juce::jmin (recorded,
+                                                  loopLength > 0 ? loopLength : recorded));
 
     for (int i = 0; i < numSamples; ++i)
     {

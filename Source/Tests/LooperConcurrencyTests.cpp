@@ -59,8 +59,11 @@ LUTHIER_TEST (PracticeLooperConcurrency, saveSnapshotsStorageBeforeDiskIo)
     const int saveStart = source.indexOf ("bool Looper::save (const juce::File& file) const");
     const int nextFunction = source.indexOf (saveStart + 1, "int Looper::importLayer");
 
-    REQUIRE_MSG (saveStart >= 0, "could not locate Looper::save");
-    REQUIRE_MSG (nextFunction > saveStart, "could not isolate Looper::save body");
+    CHECK_MSG (saveStart >= 0, "could not locate Looper::save");
+    CHECK_MSG (nextFunction > saveStart, "could not isolate Looper::save body");
+
+    if (saveStart < 0 || nextFunction <= saveStart)
+        return;
 
     const auto saveBody = source.substring (saveStart, nextFunction);
     const int barrierStart = saveBody.indexOf ("beginStorageAccess();");
