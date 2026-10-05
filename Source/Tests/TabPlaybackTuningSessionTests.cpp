@@ -27,7 +27,7 @@ LUTHIER_TEST (TabPlaybackTuningSession, exactSameStringCountAppliesImportedOpenP
 {
     LuthierEngine engine;
     engine.prepare (48000.0, 512);
-    engine.setGuitarType (GuitarType::ElectricSolid);
+    engine.setGuitarType (GuitarType::Stratocaster);
 
     TabPlaybackTuningSession session (engine);
     juce::String reason;
@@ -47,7 +47,7 @@ LUTHIER_TEST (TabPlaybackTuningSession, stopRestoresEveryCapturedTuningField)
 {
     LuthierEngine engine;
     engine.prepare (48000.0, 512);
-    engine.setGuitarType (GuitarType::ElectricSolid);
+    engine.setGuitarType (GuitarType::Stratocaster);
 
     auto& tuning = engine.getTuningEngine();
     tuning.setCapoFret (4);
@@ -82,7 +82,7 @@ LUTHIER_TEST (TabPlaybackTuningSession, differentStringCountRefusesStructuralIns
 {
     LuthierEngine engine;
     engine.prepare (48000.0, 512);
-    engine.setGuitarType (GuitarType::ElectricSolid);
+    engine.setGuitarType (GuitarType::Stratocaster);
 
     ScoreTrack seven;
     seven.numStrings = 7;
@@ -100,7 +100,7 @@ LUTHIER_TEST (TabPlaybackTuningSession, repeatedBeginRestoresPreviousSessionBefo
 {
     LuthierEngine engine;
     engine.prepare (48000.0, 512);
-    engine.setGuitarType (GuitarType::ElectricSolid);
+    engine.setGuitarType (GuitarType::Stratocaster);
 
     const auto originalLow = engine.getTuningEngine().getStringTuning (5);
 

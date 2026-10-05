@@ -95,7 +95,8 @@ do_configure() {
         fi
     fi
 
-    cmake "${args[@]}"
+    mkdir -p "$LOG_DIR"
+    cmake "${args[@]}" 2>&1 | tee "$LOG_DIR/configure.log"
 }
 
 build_targets() {
@@ -111,7 +112,9 @@ do_build() {
     step "Building ${targets[*]} with $JOBS jobs"
     # -k 0: keep going after a failed compile so one CI run surfaces every
     # compiler error, not just the first. A successful build is unaffected.
-    cmake --build "$BUILD_DIR" --config "$CONFIG" --parallel "$JOBS" --target "${targets[@]}" -- -k 0
+    mkdir -p "$LOG_DIR"
+    cmake --build "$BUILD_DIR" --config "$CONFIG" --parallel "$JOBS" --target "${targets[@]}" -- -k 0 \
+        2>&1 | tee "$LOG_DIR/build.log"
 
     if [ "$PLATFORM" = macos ]; then
         # Resources are copied into each bundle after JUCE has signed it, which
