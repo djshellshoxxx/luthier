@@ -854,17 +854,59 @@ juce::File Looper::getUserDirectory()
 
 bool Looper::save (const juce::File& file) const
 {
-    const_cast<Looper*> (this)->drainPendingMidi();
-
-    const int length = getLoopLengthSamples();
-
-    if (length <= 0)
-        return false;
+    struct LayerSnapshot
+    {
+        juce::var settings;
+        juce::AudioBuffer<float> audio;
+        juce::MidiMessageSequence midi;
+        bool hasContent = false;
+    };
 
     const auto folder = file.getParentDirectory()
                           .getChildFile (file.getFileNameWithoutExtension());
-
     folder.createDirectory();
+
+    std::array<LayerSnapshot, kMaxLayers> snapshots;
+    int length = 0;
+    bool snapshotOk = true;
+
+    beginStorageAccess();
+
+    try
+    {
+        const_cast<Looper*> (this)->drainPendingMidi();
+        length = getLoopLengthSamples();
+
+        if (length > 0)
+        {
+            for (int i = 0; i < kMaxLayers; ++i)
+            {
+                const auto& layer = getLayer (i);
+                auto& snapshot = snapshots[(size_t) i];
+
+                snapshot.settings = layer.settingsToVar();
+                snapshot.hasContent = layer.hasContent();
+
+                if (! snapshot.hasContent)
+                    continue;
+
+                const int count = juce::jmin (length, layer.getRecordedSamples());
+                snapshot.audio.setSize (2, count, false, true, false);
+                snapshot.audio.copyFrom (0, 0, layer.readLeft(), count);
+                snapshot.audio.copyFrom (1, 0, layer.readRight(), count);
+                snapshot.midi = layer.getMidi();
+            }
+        }
+    }
+    catch (...)
+    {
+        snapshotOk = false;
+    }
+
+    endStorageAccess();
+
+    if (! snapshotOk || length <= 0)
+        return false;
 
     auto* root = new juce::DynamicObject();
 
@@ -876,29 +918,25 @@ bool Looper::save (const juce::File& file) const
 
     for (int i = 0; i < kMaxLayers; ++i)
     {
-        const auto& layer = getLayer (i);
-
-        auto* entry = layer.settingsToVar().getDynamicObject();
+        auto& snapshot = snapshots[(size_t) i];
+        auto* entry = snapshot.settings.getDynamicObject();
 
         if (entry == nullptr)
             continue;
 
-        if (layer.hasContent())
+        if (snapshot.hasContent)
         {
             const auto audioName = "layer" + juce::String (i + 1) + ".wav";
 
-            juce::AudioBuffer<float> copy (2, juce::jmin (length, layer.getRecordedSamples()));
-            copy.copyFrom (0, 0, layer.readLeft(), copy.getNumSamples());
-            copy.copyFrom (1, 0, layer.readRight(), copy.getNumSamples());
-
-            if (writeWav (folder.getChildFile (audioName), copy, copy.getNumSamples(), sr))
+            if (writeWav (folder.getChildFile (audioName), snapshot.audio,
+                          snapshot.audio.getNumSamples(), sr))
                 entry->setProperty ("audio", audioName);
 
             juce::Array<juce::var> events;
 
-            for (int e = 0; e < layer.getMidi().getNumEvents(); ++e)
+            for (int e = 0; e < snapshot.midi.getNumEvents(); ++e)
             {
-                const auto* event = layer.getMidi().getEventPointer (e);
+                const auto* event = snapshot.midi.getEventPointer (e);
 
                 if (event == nullptr)
                     continue;
@@ -914,7 +952,7 @@ bool Looper::save (const juce::File& file) const
             entry->setProperty ("midi", events);
         }
 
-        layerArray.add (juce::var (entry));
+        layerArray.add (snapshot.settings);
     }
 
     root->setProperty ("layers", layerArray);
