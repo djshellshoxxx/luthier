@@ -595,6 +595,11 @@ bool TabDocumentNormalizer::normalize (const juce::String& source,
 
         for (const auto& row : recovered)
         {
+            if (looksLikeStaffLine (row) && row.length() > options.maxColumnsPerSystem)
+            {
+                warn (out.diagnostics, "Tab staff exceeds the configured column limit");
+                return false;
+            }
             logicalLines.push_back ({ row, i + 1 });
             normalizedLines.add (row);
         }
@@ -639,6 +644,7 @@ bool TabDocumentNormalizer::normalize (const juce::String& source,
     juce::StringArray currentStaffLabels;
     juce::String currentSection;
     int currentPart = 0;
+    int recoveredSystems = 0;
     bool legendMode = false;
     std::map<int, juce::StringArray> lastLabelsByPart;
 
@@ -696,6 +702,15 @@ bool TabDocumentNormalizer::normalize (const juce::String& source,
         if (looksLikeStaffLine (line))
         {
             legendMode = false;
+            if (currentStaffLines.isEmpty())
+            {
+                ++recoveredSystems;
+                if (recoveredSystems > options.maxRecoveredSystems)
+                {
+                    warn (out.diagnostics, "Tab source exceeds the configured recovered-system limit");
+                    return false;
+                }
+            }
             if (currentBlockStart < 0)
                 currentBlockStart = sourceLine;
             currentBlockEnd = sourceLine;
