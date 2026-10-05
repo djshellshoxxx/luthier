@@ -13,7 +13,8 @@ namespace
     {
         PerformanceScore score;
         score.clear();
-        auto& track = score.addTrack ("Guitar");
+        auto& track = score.getTrack (0);
+        track.name = "Guitar";
         track.numStrings = 6;
         track.tuning = { { 64, 59, 55, 50, 45, 38, 0, 0, 0, 0, 0, 0 } };
         track.capoFret = 0;
