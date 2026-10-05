@@ -49,3 +49,26 @@ LUTHIER_TEST (PracticeLooperConcurrency, destructiveStorageOperationsQuiesceAudi
     CHECK_MSG (sourceText.contains ("storageAccessPaused.load"),
                "processBlock must bail out while message-thread storage access owns the layer buffers");
 }
+
+LUTHIER_TEST (PracticeLooperConcurrency, saveSnapshotsStorageBeforeDiskIo)
+{
+    const auto implementation = looperSource();
+    CHECK_MSG (implementation.existsAsFile(), "could not locate Source/Practice/Looper.cpp from the test source path");
+
+    const auto source = implementation.loadFileAsString();
+    const int saveStart = source.indexOf ("bool Looper::save (const juce::File& file) const");
+    const int nextFunction = source.indexOf (saveStart + 1, "int Looper::importLayer");
+
+    REQUIRE_MSG (saveStart >= 0, "could not locate Looper::save");
+    REQUIRE_MSG (nextFunction > saveStart, "could not isolate Looper::save body");
+
+    const auto saveBody = source.substring (saveStart, nextFunction);
+    const int barrierStart = saveBody.indexOf ("beginStorageAccess();");
+    const int barrierEnd = saveBody.indexOf ("endStorageAccess();");
+    const int firstDiskWrite = saveBody.indexOf ("writeWav (");
+
+    CHECK_MSG (barrierStart >= 0 && barrierEnd > barrierStart,
+               "Looper::save must snapshot shared layer audio/MIDI while the audio thread is quiesced");
+    CHECK_MSG (firstDiskWrite < 0 || (barrierEnd >= 0 && barrierEnd < firstDiskWrite),
+               "Looper::save must release the storage barrier before WAV/JSON disk I/O");
+}
