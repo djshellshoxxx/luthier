@@ -19,7 +19,8 @@ namespace
     {
         PerformanceScore score;
         score.clear();
-        auto& track = score.addTrack ("Guitar");
+        auto& track = score.getTrack (0);
+        track.name = "Guitar";
 
         ScoreMeasure intro;
         intro.sectionName = "Intro";
@@ -61,15 +62,20 @@ LUTHIER_TEST (TabDirectiveApplier, partScopedInstructionTouchesOnlyRequestedGuit
     PerformanceScore score;
     score.clear();
 
-    for (int i = 0; i < 2; ++i)
-    {
-        auto& track = score.addTrack ("Guitar " + juce::String (i + 1));
-        ScoreMeasure intro;
-        intro.sectionName = "Intro";
-        intro.voices.resize (1);
-        intro.voices[0].notes.push_back (noteAt (7));
-        track.measures.push_back (intro);
-    }
+    auto& firstTrack = score.getTrack (0);
+    firstTrack.name = "Guitar 1";
+    ScoreMeasure firstIntro;
+    firstIntro.sectionName = "Intro";
+    firstIntro.voices.resize (1);
+    firstIntro.voices[0].notes.push_back (noteAt (7));
+    firstTrack.measures.push_back (firstIntro);
+
+    auto& secondTrack = score.addTrack ("Guitar 2");
+    ScoreMeasure secondIntro;
+    secondIntro.sectionName = "Intro";
+    secondIntro.voices.resize (1);
+    secondIntro.voices[0].notes.push_back (noteAt (7));
+    secondTrack.measures.push_back (secondIntro);
 
     NormalizedTabDocument doc;
     TabDirective d;
