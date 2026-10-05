@@ -451,8 +451,10 @@ void Looper::press() noexcept
     switch (getState())
     {
         case State::stopped:
+            // First press: start recording the loop that defines the length.
             if (getLoopLengthSamples() > 0)
             {
+                // A loop already exists, so this is a play command.
                 playPosition.store (0, std::memory_order_relaxed);
                 state.store ((int) State::playing, std::memory_order_relaxed);
             }
@@ -464,11 +466,14 @@ void Looper::press() noexcept
             break;
 
         case State::recordingFirst:
+            // Second press closes the loop. The audio thread does it at the next
+            // bar line when the metronome is running, so it lands on the beat.
             pendingClose.store (true, std::memory_order_relaxed);
             break;
 
         case State::playing:
         {
+            // Third press overdubs onto the next free layer.
             int next = getActiveLayer();
 
             for (int i = 0; i < kMaxLayers; ++i)
@@ -734,6 +739,7 @@ void Looper::drainPendingMidi()
                 layers[(size_t) e.layer].getMidi().addEvent (juce::MidiMessage (e.bytes, e.size),
                                                              (double) e.position);
 
+            // FEAT-JAM: the audio thread reads this layer again once its events are in.
             pendingPerLayer[(size_t) juce::jlimit (0, kMaxLayers - 1, e.layer)].fetch_sub (1, std::memory_order_release);
         }
     };
@@ -761,6 +767,8 @@ namespace
         if (stream == nullptr)
             return false;
 
+        // practice-tools 2: 24-bit float in the temp area; a bounce is written at
+        // 24-bit, which is what anyone would import.
         std::unique_ptr<juce::AudioFormatWriter> writer (
             format.createWriterFor (stream.get(), sampleRate,
                                     (unsigned int) buffer.getNumChannels(), 24, {}, 0));
@@ -1088,7 +1096,12 @@ bool SessionRecorder::prepare (double sampleRate, double minutes)
 
     const int64_t wanted = (int64_t) (clamped * 60.0 * sr);
 
-    constexpr int64_t kMaxSamples = 1 << 26;
+    /*  practice-tools 8 sizes the default buffer at about 1.4 GB, which is more
+        than this machine has. A recorder that fails to allocate must fail here,
+        on the message thread, rather than by throwing under the audio callback,
+        so the request is capped at something that can actually be held and the
+        caller is told what it got by getCapacityMinutes(). */
+    constexpr int64_t kMaxSamples = 1 << 26;      // 64 M frames: about 23 minutes at 48 kHz
 
     {
         const juce::SpinLock::ScopedLockType sl (ringLock);
@@ -1166,6 +1179,7 @@ void SessionRecorder::reset() noexcept
 
 void SessionRecorder::processBlock (const juce::AudioBuffer<float>& buffer, int numSamples) noexcept
 {
+    // MODEL-GAPS: MIDI only - the clock runs, so the MIDI keeps its place.
     if (isEnabled() && ! isRecordingAudio())
     {
         samplesSeen += numSamples;
@@ -1180,6 +1194,7 @@ void SessionRecorder::processBlock (const juce::AudioBuffer<float>& buffer, int 
     if (! sl.isLocked() || capacity <= 0)
         return;
 
+    // Nothing here allocates: the ring exists, and this is a copy into it.
     int position = juce::jlimit (0, capacity - 1, writePosition.load (std::memory_order_relaxed));
 
     const auto* srcL = buffer.getReadPointer (0);
@@ -1211,6 +1226,8 @@ void SessionRecorder::captureMidi (const juce::MidiBuffer& incoming, int numSamp
     if (! isEnabled() || ! isRecordingMidi())
         return;
 
+    // MODEL-GAPS: into the fixed FIFO; the sequence (which allocates) is the
+    // message thread's.
     for (const auto metadata : incoming)
     {
         if (metadata.numBytes <= 0 || metadata.numBytes > 3)
@@ -1219,7 +1236,7 @@ void SessionRecorder::captureMidi (const juce::MidiBuffer& incoming, int numSamp
         const auto scope = midiFifo.write (1);
 
         if (scope.blockSize1 + scope.blockSize2 == 0)
-            return;
+            return;   // full: the drain is late; dropping is better than blocking
 
         auto& q = midiQueue[(size_t) (scope.blockSize1 > 0 ? scope.startIndex1 : scope.startIndex2)];
         q.sample = samplesSeen + metadata.samplePosition;
@@ -1296,7 +1313,7 @@ bool SessionRecorder::saveLastTake (const juce::File& directory, double seconds,
 
     const int available = recorded.load (std::memory_order_relaxed);
     const bool haveAudio = isRecordingAudio() && available > 0 && capacity > 0;
-    const bool haveMidi = isRecordingMidi() && getNumMidiEvents() > 0;
+    const bool haveMidi = isRecordingMidi() && getNumMidiEvents() > 0;   // drains the FIFO
 
     if (! haveAudio && ! haveMidi)
         return false;
@@ -1309,6 +1326,7 @@ bool SessionRecorder::saveLastTake (const juce::File& directory, double seconds,
 
     const auto stamp = juce::Time::getCurrentTime().formatted ("%Y%m%d-%H%M%S");
 
+    // Unwrap the ring into a linear buffer, oldest first.
     juce::AudioBuffer<float> take (2, wanted);
 
     const int writeAt = writePosition.load (std::memory_order_relaxed);
@@ -1332,6 +1350,7 @@ bool SessionRecorder::saveLastTake (const juce::File& directory, double seconds,
     if (wroteAudio)
         lastSaved.add (wavTarget);
 
+    // And the MIDI beside it.
     bool wroteMidi = false;
 
     {
@@ -1339,6 +1358,8 @@ bool SessionRecorder::saveLastTake (const juce::File& directory, double seconds,
 
         if (haveMidi && midi.getNumEvents() > 0 && midiOptions != nullptr)
         {
+            // SPEC-SWEEP MX-25: the take's events are on its own sample clock,
+            // at the 120 bpm the bare file below assumes too.
             MidiPerformance performance (sr);
             performance.setTempo (120.0);
 
@@ -1357,6 +1378,7 @@ bool SessionRecorder::saveLastTake (const juce::File& directory, double seconds,
             juce::MidiFile midiFile;
             juce::MidiMessageSequence sequence (midi);
 
+            // A MIDI file's timebase is ticks, not samples.
             constexpr int ticksPerQuarter = 960;
             const double ticksPerSample = (double) ticksPerQuarter * 2.0 / sr;
 
