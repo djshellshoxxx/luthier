@@ -22,23 +22,6 @@
 #include <atomic>
 #include <vector>
 
-/* LoopLayer's published sample count is atomic because the audio thread updates
-   it while message/UI code queries layer state. JUCE's same-type jmin/jmax
-   templates cannot deduce a mixed std::atomic<int>/int call, so keep the two
-   existing DSP expressions source-compatible while making their loads explicit. */
-namespace juce
-{
-inline int jmin (const std::atomic<int>& a, int b) noexcept
-{
-    return juce::jmin (a.load (std::memory_order_relaxed), b);
-}
-
-inline int jmax (const std::atomic<int>& a, int b) noexcept
-{
-    return juce::jmax (a.load (std::memory_order_relaxed), b);
-}
-}
-
 namespace luthier
 {
 
