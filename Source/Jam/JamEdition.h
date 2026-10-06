@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../Edition.h"
+
 /*  Jam mode's edition split (jam-mode.md 15, editions.md 2.3), as data.
 
     editions.md says the split itself is the coordinator's, done once every
@@ -15,11 +17,7 @@
 
 namespace luthier::JamEdition
 {
-   #if defined (LUTHIER_FREE_EDITION) && LUTHIER_FREE_EDITION
-    inline constexpr bool kIsFree = true;
-   #else
-    inline constexpr bool kIsFree = false;
-   #endif
+    inline constexpr bool kIsFree = ! edition::isPro;
 
     enum class Item { style, kit, bassVoice, output };
 
