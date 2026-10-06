@@ -405,7 +405,7 @@ justifies it.
 
 - **Q-L1** Vendor: Keygen.sh (recommended), Moonbase, KeyZy, Cryptlex,
   iLok, or self-hosted?
-- **Q-L2** Seats per licence: 3 (recommended) or 2?
+- **Q-L2** RESOLVED 2026-10-06: 3 seats per licence (owner decision).
 - **Q-L3** Offline window: 30-day revalidation + 14-day grace
   (`updates-telemetry.md` 5) or longer (60 + 14) for touring musicians?
 - **Q-L4** Unlicensed behaviour: silence intervals (recommended), noise

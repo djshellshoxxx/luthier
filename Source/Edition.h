@@ -82,10 +82,21 @@ inline constexpr const char* contentFolder = isPro ? "Luthier" : "Luthier Free";
 
 constexpr bool isFreeAmpIndex (int index) noexcept
 {
-    // editions.md 2.2: Blackface Twin, Deluxe, Plexi, AC30, Rectifier,
-    // SVT and Acoustic DI. Indices are kept in the engine's existing order.
-    return index == 0 || index == 2 || index == 3 || index == 4
-        || index == 6 || index == 10 || index == 12;
+    // editions.md 2.2 (owner decision 2026-10-06, Q-3: drawn at random):
+    // American Twin, British 800, British Top-Boost 30, California Rectified,
+    // German Four-Channel, Classic Bass 300 and Acoustic DI. Indices are the
+    // AmpModel enum's order (AmpEngine.h).
+    return index == 0 || index == 5 || index == 6 || index == 7
+        || index == 9 || index == 11 || index == 12;
+}
+
+constexpr bool isFreeGuitarIndex (int index) noexcept
+{
+    // editions.md 2.1 (owner decision 2026-10-06, Q-3: drawn at random):
+    // Classic T-Style, SG, Angular Korina, Baritone Electric, Auditorium and
+    // J-Style Bass. Indices are the GuitarType enum's order (GuitarLibrary.h).
+    return index == 1 || index == 3 || index == 6 || index == 10
+        || index == 12 || index == 20;
 }
 
 constexpr bool isFreePedalIndex (int index) noexcept

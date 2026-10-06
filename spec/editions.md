@@ -96,7 +96,7 @@ Legend:
 | String model, body, pickups, whammy, polyphony, sample rates, oversampling | `spec.md`, `engine.md` | Both | Rule 0.1 |
 | Playing modes Mono / Poly / Chord, humanize macro | `gui-integration.md` 3.3 | Both | |
 | Character macro (one knob) | `character-wear.md`, `gui-integration.md` 3.3 | Both | The macro works in full; the per-group deep controls are H8 |
-| Factory guitars | `factory-content.md` 2 | Free-limited | 6 guitars: Vintage Double-Cut, Vintage Single-Cut, Classic T-Style, Dreadnought, Classical, P-Style Bass (one per family). The others (semi-hollow, archtop, offset, 7- and 8-string, grand auditorium, parlor, 12-string, flamenca, resonator, Selmer-style, J-style and hollow bass) are Pro |
+| Factory guitars | `factory-content.md` 2 | Free-limited | 6 guitars, drawn at random by the owner's decision (2026-10-06, Q-3): Classic T-Style, SG, Angular Korina, Baritone Electric, Auditorium, J-Style Bass. Every other factory guitar is Pro. The table is `edition::isFreeGuitarIndex` in `Source/Edition.h` |
 | Guitar library, tuning, capo, temperament popover | `gui-integration.md` 3.1, 4.1 | Both | Temperaments: equal and the 4 most common historical; custom .scl/.tun is Pro (with H3 BEND) |
 | Loading a user `.luthierguitar` made in Pro | `file-formats.md` | Both (play) | Plays as designed; not editable; see 5.3 |
 | Pickup selector, per-pickup gain / phase | `gui-integration.md` 4.2 | Both | |
@@ -131,7 +131,7 @@ Legend:
 
 | Feature | Spec | Edition | Free limit / notes |
 |---|---|---|---|
-| Amp models | `AmpEngine.h` | Free-limited | 7 of 13: Blackface Twin, Deluxe, Plexi, AC30, Rectifier, SVT (bass), Acoustic DI. Pro adds Tweed, Champ, JCM800, Ecstasy, VH4, OR120 and the Custom model |
+| Amp models | `AmpEngine.h` | Free-limited | 7 of 13, drawn at random by the owner's decision (2026-10-06, Q-3): American Twin, British 800, British Top-Boost 30, California Rectified, German Four-Channel, Classic Bass 300, Acoustic DI. Pro adds Tweed Combo, Blackface Combo 22, Small Tweed, British Plexi, Boutique Lead, British Crunch 120 and the Custom model. The table is `edition::isFreeAmpIndex` in `Source/Edition.h` |
 | Amp controls (gain, EQ, presence, master, sag, bright, bias) | `gui-integration.md` 4.3 | Both | |
 | Pre / post effects racks | `gui-integration.md` 3.2 | Free-limited | 4 + 4 slots (Pro 8 + 8) |
 | Pedals | `Pedal.h` | Free-limited | 15 of 22: Compressor, Noise Gate, Wah, Overdrive, Distortion, Fuzz, Boost, Volume, Chorus, Phaser, Tremolo, Delay, Reverb, Spring Reverb, Graphic EQ. Pro adds Envelope Filter, Octaver, Pitch Shifter, Flanger, Rotary, Parametric EQ, Doubler |
@@ -531,8 +531,10 @@ packaging scripts and the two CI scripts (7.6), `docs/RELEASING.md`.
 - **Q-2** The eight headline groups of section 1: agree, or move any
   (Slide Mode and slap are the closest calls; both are classic
   techniques a free user will miss) to Free-limited?
-- **Q-3** Free guitar list (six) and amp list (seven): the owner may
-  prefer a Semi-Hollow or a 12-string as the "wow" guitar in Free.
+- **Q-3** RESOLVED 2026-10-06: the owner chose to draw the six Free
+  guitars and seven Free amps at random; the result is in 2.1 and 2.2.
+  Follow-up: the Free factory-preset list in 2.3 (16 of 36) was chosen
+  against the old guitar/amp lists and must be re-derived from the new ones.
 - **Q-4** Should Free play Pro-built `.luthierguitar` files (5.3,
   recommended: it is viral and costs nothing) or refuse them?
 - **Q-5** Is there an upgrade discount / crossgrade for Free users, and

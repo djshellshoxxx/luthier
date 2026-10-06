@@ -44,9 +44,20 @@ LUTHIER_TEST (Editions, runtimeSeamReturnsToCompileTimeIdentity)
 
 LUTHIER_TEST (Editions, freeCatalogTablesMatchSpecification)
 {
-    CHECK (edition::isFreeAmpIndex (0));
-    CHECK (edition::isFreeAmpIndex (2));
-    CHECK (! edition::isFreeAmpIndex (1));
+    int freeAmps = 0, freeGuitars = 0;
+
+    for (int i = 0; i < 13; ++i)            // AmpModel::Custom (13) is never free
+        freeAmps += edition::isFreeAmpIndex (i) ? 1 : 0;
+
+    for (int i = 0; i < 25; ++i)            // GuitarType::Custom is index 24
+        freeGuitars += edition::isFreeGuitarIndex (i) ? 1 : 0;
+
+    CHECK (freeAmps == edition::freeLimits.ampModels);
+    CHECK (freeGuitars == edition::freeLimits.guitars);
+    CHECK (edition::isFreeAmpIndex (0));     // American Twin
+    CHECK (! edition::isFreeAmpIndex (1));   // Tweed Combo
+    CHECK (edition::isFreeGuitarIndex (1));  // Classic T-Style
+    CHECK (! edition::isFreeGuitarIndex (0));
 
     CHECK (edition::isFreePedalIndex (0));
     CHECK (edition::isFreePedalIndex (14));

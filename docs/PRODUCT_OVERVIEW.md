@@ -136,8 +136,8 @@ A complete, organized list of Luthier's features and capabilities, grouped by ca
 ## Amplifier & Effects
 
 **Amplifiers (13 models)**
-- Blackface Twin, Deluxe, Plexi, AC30, Rectifier (available in Free: 7 models)
-- Tweed, Champ, JCM800, Ecstasy, VH4, OR120, Custom (Pro only)
+- Free (7): American Twin, British 800, British Top-Boost 30, California Rectified, German Four-Channel, Classic Bass 300, Acoustic DI
+- Pro adds: Tweed Combo, Blackface Combo 22, Small Tweed, British Plexi, Boutique Lead, British Crunch 120, Custom
 - SVT (bass amplifier)
 - Acoustic DI
 - Per-amp controls: gain, EQ (bass/mid/treble), presence, master volume, sag, bright switch, bias

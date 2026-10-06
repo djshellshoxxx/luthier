@@ -4,7 +4,8 @@ Assume you inherit NOTHING from any chat. Everything you need is in the repo.
 
 ## What it is
 Physically-modelled guitar VST3 / CLAP / Standalone. JUCE 8.0.10, C++17.
-Integration branch: `claude/luthier-cloud-session-5lzlix` (base for all work).
+Integration branch: `claude/luthier-consolidate` (base for all work from 2026-10-06; see
+"Consolidation" below). `codex/luthier-beta` and `claude/luthier-cloud-session-5lzlix` are superseded.
 
 ## Build / test (Linux)
 - Setup: `scripts/setup_linux.sh` (installs deps, clones JUCE into ThirdParty/JUCE,
@@ -14,6 +15,23 @@ Integration branch: `claude/luthier-cloud-session-5lzlix` (base for all work).
   (no filter = all; the Combo suite is long — filter while iterating).
 - Build plugins: `ninja -C build Luthier_VST3 Luthier_Standalone` (and CLAP target).
 - Line endings: repo mixes CRLF/LF — run `scripts/fixeol.sh` before every commit.
+
+## Consolidation (2026-10-06)
+Every branch with unmerged work was merged into `claude/luthier-consolidate`:
+`codex/luthier-licensing-core` (editions phase 1 + Pro licensing core, on top of
+`codex/luthier-beta`), `codex/luthier-beta-looper-concurrency`, `codex/luthier-continue`,
+`codex/deep-audit-fixes-final2` (ASCII tab pipeline, CLI converter, banjo easter egg, perf,
+binary size, TAB reader), `claude/ecstatic-hawking-prpppy` (MIDI->tune import, string roll,
+Reset & Stop, error recovery, BoundedMidi), `claude/luthier-spec-sweep` (GP7/8 reader, MIDI
+clock transport, SysEx in, mod-source editors, themes/i18n resources, sweep tests),
+`claude/luthier-w2-crossplatform`, `codex/audit-host-clock-validation`,
+`codex/luthier-audit-spec-coverage` and `master` (licence headers, CDL plugin standard).
+Every other remote branch was already an ancestor of one of these.
+Where two branches implemented the same fix differently (looper storage gate, RT-safety body
+bank and MIDI slices, host state format, fretboard accessibility), the trunk's design was
+kept and the duplicate dropped; see the merge commits for each decision.
+Owner decisions recorded: 3 seats per licence (licensing Q-L2); Free guitars and amps drawn at
+random (editions Q-3, `Source/Edition.h`). Deferred by the owner: support URL/email, licence server.
 
 ## Architecture entry points
 spec/INDEX.md (map of all specs) · spec/engine.md (DSP rules: double precision,
