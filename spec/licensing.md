@@ -259,7 +259,7 @@ string as a response.
 
 ### 6.5 Trial
 
-A 30-day trial is a licence with `trial: true`, bound to the machine,
+A 60-day trial is a licence with `trial: true`, bound to the machine,
 issued by `/v1/activate` with a trial request (one per fingerprint set).
 It runs the Pro edition in full. **L-7** Reason: a full Pro trial is a
 better sales tool than the Free edition alone and keeps Pro code out of
@@ -410,7 +410,7 @@ justifies it.
   (`updates-telemetry.md` 5) or longer (60 + 14) for touring musicians?
 - **Q-L4** Unlicensed behaviour: silence intervals (recommended), noise
   bursts, or a hard block on load?
-- **Q-L5** Trial: 30-day full Pro trial (recommended), or none (Free
+- **Q-L5** Trial: 60-day full Pro trial (recommended), or none (Free
   edition as the only try-before-you-buy)?
 - **Q-L6** Upgrade policy: free updates within major version 1,
   paid upgrade for v2 (`majorVersions`)?
