@@ -27,7 +27,9 @@ renamed over the target. A crash mid-save leaves either the old file or the new
 one, never half of either.
 
 **The version you replace is kept.** Before a save lands, the file it is about to
-replace is copied to `Backup/<yyyy-mm-dd>/` beside it. Several saves in one day
+replace is copied to `Presets/Backup/<yyyy-mm-dd>/` under its nearest `Presets`
+ancestor. For a preset outside a `Presets` tree, `Backup/<yyyy-mm-dd>/` is beside
+the file. Several saves in one day
 keep several versions. A sweep at startup deletes backups older than 30 days,
 dated by the folder name rather than the filesystem timestamp - copying a backup
 folder around should not resurrect it or expire it early.

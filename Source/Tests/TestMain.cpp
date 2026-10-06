@@ -6,10 +6,11 @@
         LuthierTests              run everything
         LuthierTests Tuning       run only suites whose name contains "Tuning"
         LuthierTests --list       list the tests without running them
-        LuthierTests --skip=Combo run everything except the suites named exactly "Combo"
+        LuthierTests --skip=Combo exclude an exact suite name (case-insensitive)
 */
 
 #include "TestFramework.h"
+#include "TestSelection.h"
 #include <juce_events/juce_events.h>
 #include "../UI/FirstRun.h"
 #include "../UI/Onboarding.h"
@@ -39,29 +40,24 @@ int main (int argc, char* argv[])
     // audition) inside unrelated tests.
     luthier::QualityController::setGovernorEnabledGlobally (false);
 
-    juce::StringArray filters, skipped;
-    bool listOnly = false;
-
+    std::vector<std::string> arguments;
     for (int i = 1; i < argc; ++i)
-    {
-        const juce::String arg (argv[i]);
-
-        if (arg == "--list" || arg == "-l")
-            listOnly = true;
-        else if (arg.startsWith ("--skip="))
-            skipped.add (arg.fromFirstOccurrenceOf ("=", false, false));
-        else if (! arg.startsWith ("-"))
-            filters.add (arg);
-    }
+        arguments.emplace_back (argv[i]);
+    const TestSelection selection (arguments);
 
     const auto& entries = TestRegistry::get().getEntries();
 
-    if (listOnly)
+    if (selection.listOnly)
     {
+        int listed = 0;
         for (const auto& entry : entries)
-            std::cout << entry.suite << " :: " << entry.name << std::endl;
+            if (selection.includes (entry.suite.toStdString(), entry.name.toStdString()))
+            {
+                std::cout << entry.suite << " :: " << entry.name << std::endl;
+                ++listed;
+            }
 
-        std::cout << entries.size() << " tests" << std::endl;
+        std::cout << listed << " tests" << std::endl;
         return 0;
     }
 
@@ -82,20 +78,8 @@ int main (int argc, char* argv[])
 
     for (const auto& entry : entries)
     {
-        if (skipped.contains (entry.suite))
+        if (! selection.includes (entry.suite.toStdString(), entry.name.toStdString()))
             continue;
-
-        if (filters.size() > 0)
-        {
-            bool matches = false;
-
-            for (const auto& filter : filters)
-                if (entry.suite.containsIgnoreCase (filter) || entry.name.containsIgnoreCase (filter))
-                    matches = true;
-
-            if (! matches)
-                continue;
-        }
 
         if (entry.suite != currentSuite)
         {

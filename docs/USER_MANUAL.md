@@ -288,8 +288,9 @@ knob or pedal.
 A small teal dot appears on any control that has a CC mapped. Right-click again
 to clear it.
 
-Sustain and sostenuto are skipped while learning, so an accidental pedal press
-cannot steal the mapping.
+Sustain (CC64), sostenuto (CC66), All Sound Off (CC120), and All Notes Off
+(CC123) are skipped while learning, so a pedal press or panic message cannot
+steal the mapping.
 
 Mappings are stored with the plugin state, not the preset, so your controller setup
 survives changing sounds.
