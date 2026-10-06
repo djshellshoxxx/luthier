@@ -1,0 +1,13 @@
+# Factory data files are LF and several tests compare them byte-for-byte with
+# what the code writes back (TuneFile::toJson, riff/part/guitar save, and
+# generate_factory_riffs.py --check). Git for Windows would otherwise check them
+# out as CRLF (core.autocrlf), so they would read as non-canonical on Windows only.
+*.luthiertune  text eol=lf
+*.luthierriff  text eol=lf
+*.luthierpart  text eol=lf
+*.luthierguitar text eol=lf
+# Everything under Resources/Riffs (riffs, catalog.json, strings.en.json, free.txt) is generated
+# LF and checked byte-for-byte by generate_factory_riffs.py --check. Guitar migration data is LF
+# too; other JSON under Resources is deliberately left alone.
+Resources/Riffs/* text eol=lf
+Resources/Guitars/*.json text eol=lf
