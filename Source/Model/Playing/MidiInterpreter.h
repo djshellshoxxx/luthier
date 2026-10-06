@@ -19,6 +19,7 @@
 #include "ChordVoicer.h"
 #include "RubricVoicer.h"
 #include "AutoArticulator.h"   // FEAT-ASSIST: auto-articulation.md
+#include "MotifDetector.h"     // easter-egg: Dueling Banjos
 #include "../../Rhythm/StrumGesture.h"
 #include <array>
 #include <atomic>   // SPEC-SWEEP PT-21
@@ -257,6 +258,10 @@ public:
     /** True if any note arrived during the last block, for the MIDI-in LED. */
     bool consumeActivityFlag() noexcept { const bool a = activity; activity = false; return a; }
 
+    /** Easter-egg: true once the "Dueling Banjos" opening motif has been played.
+        Consumes the latch, so the engine acts on it exactly once. Audio thread. */
+    bool consumeBanjoMotif() noexcept { return motif.consumeTrigger(); }
+
     /** Notes currently sounding, for the fretboard display. */
     int getActiveNoteCount() const noexcept { return activeNoteCount; }
 
@@ -352,6 +357,9 @@ private:
 
     double sr = 44100.0;
     int numStrings = 6;
+
+    // easter-egg: watches the played-pitch stream for the Dueling Banjos motif.
+    MotifDetector motif;
 
     TuningEngine* tuning = nullptr;
     TechniqueEngine* technique = nullptr;

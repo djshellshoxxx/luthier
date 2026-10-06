@@ -100,6 +100,11 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     // The overlay host sits on top of everything and is invisible until used.
     addChildComponent (overlayHost);
 
+    // easter-egg: the banjo reveal badge floats above the panels, shown only
+    // while the Dueling Banjos voice is active. Clicking it reverts the voice.
+    addChildComponent (banjoReveal);
+    banjoReveal.onDismiss = [this] { processor.getEngine().setBanjoEgg (false); };
+
     // global-search.md 6.2 (FEAT-SEARCH): the palette sits above the overlay
     // host and below the MIDI-learn arm layer; the highlight ring above all.
     searchNav = std::make_unique<search::SearchNavigator> (*this, p);
@@ -592,6 +597,16 @@ void LuthierAudioProcessorEditor::resized()
         searchNav->layout (getLocalBounds(), Metrics::headerHeight);
     discovery.setBounds (getLocalBounds());
     tour.setBounds (getLocalBounds());
+
+    // easter-egg: the banjo badge is positioned absolutely, just under the
+    // header at the right, so it floats over the panels without ever taking
+    // space from the main layout (it is invisible unless the voice is active).
+    {
+        const int w = 280, h = 52, margin = 12;
+        banjoReveal.setBounds (getWidth() - w - margin,
+                               Metrics::headerHeight + margin,
+                               w, h);
+    }
 }
 
 //==============================================================================
@@ -652,9 +667,29 @@ void LuthierAudioProcessorEditor::changeListenerCallback (juce::ChangeBroadcaste
     repaint();
 }
 
+void LuthierAudioProcessorEditor::updateBanjoRevealVisibility()
+{
+    // easter-egg: the engine raises this flag from the audio thread when the
+    // Dueling Banjos motif is recognised; the badge follows at the next tick.
+    const bool revealed = processor.getEngine().isBanjoRevealed();
+
+    if (revealed == banjoRevealShown)
+        return;
+
+    banjoRevealShown = revealed;
+    banjoReveal.setVisible (revealed);
+
+    if (revealed)
+    {
+        banjoReveal.toFront (false);
+        processor.getUiState().easterEggFound = true;   // the discovery is recorded
+    }
+}
+
 void LuthierAudioProcessorEditor::timerCallback()
 {
     updateLiveStripVisibility();
+    updateBanjoRevealVisibility();   // easter-egg: Dueling Banjos
     pollForNotifications();
 
     // gui-integration 20: mark this version's new entry points, once the window is built.

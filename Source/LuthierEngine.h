@@ -110,6 +110,22 @@ public:
     GuitarType getGuitarType() const noexcept { return guitarType; }
     const GuitarSpec& getGuitarSpec() const noexcept { return spec; }
 
+    //==========================================================================
+    /*  Easter-egg (Dueling Banjos). When the player performs the opening motif,
+        the string model is re-voiced as a bright, short-decay banjo - the
+        existing Karplus-Strong strings parameterised for banjo brightness and
+        attack, not a second synth. Off by default, hidden until triggered.
+
+        `on` is set from the audio thread when the motif fires (allocation-free,
+        no park - it is just a coefficient change under the ringing strings,
+        exactly like a live part swap) and cleared from the message thread when
+        the player dismisses the reveal (parked structural change, so the
+        rebuild never races the render). */
+    void setBanjoEgg (bool on);
+
+    /** Whether the banjo voice is active, for the UI's reveal. Lock-free read. */
+    bool isBanjoRevealed() const noexcept { return banjoRevealed.load (std::memory_order_relaxed); }
+
     void setTuningPreset (TuningPreset preset);
 
     /** A 12-string's courses from spec.tuning: unison top two, octaves below. */
@@ -688,6 +704,12 @@ private:
     void fireScheduledEvents (int64_t absoluteSample) noexcept;
     void triggerNote (const NoteOnEvent& e) noexcept;
     void applyNoteOff (const NoteOffEvent& e) noexcept;
+
+    /*  Easter-egg: overlays (on) or lifts (off) the banjo voicing on every
+        string. Allocation-free coefficient writes; safe from the audio thread
+        when applying, and wrapped by the caller in a structural-change park
+        when lifting from the message thread. */
+    void applyBanjoVoice (bool on) noexcept;
     void updatePerBlockModulation (int numSamples) noexcept;
 
     /** animated-strings.md 4.1: the end-of-sub-block store into soundingNotes. Audio thread, never waits. */
@@ -705,6 +727,11 @@ private:
     GuitarType guitarType = GuitarType::Stratocaster;
     GuitarSpec spec {};
     int numStrings = 6;
+
+    // easter-egg (Dueling Banjos): banjoActive is the audio thread's own flag;
+    // banjoRevealed is the lock-free mirror the UI polls.
+    bool banjoActive = false;
+    std::atomic<bool> banjoRevealed { false };
 
     // --- model ---------------------------------------------------------------
     TuningEngine tuning;

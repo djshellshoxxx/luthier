@@ -16,44 +16,11 @@
 */
 
 #include "PerformanceScore.h"
+#include "TabDocument.h"
 
 namespace luthier
 {
 
-//==============================================================================
-/** What the reader did with the page (tab-import-export 7). */
-struct TabImportDiagnostics
-{
-    int totalLines = 0;        ///< non-empty lines in the input
-    int staffLines = 0;        ///< lines read as strings of a system
-    int headerLines = 0;       ///< tuning / capo / tempo / time lines used
-    int annotationLines = 0;   ///< PM / let-ring / bend-amount lines above a staff (used or skipped)
-    int skippedLines = 0;      ///< non-empty lines that were neither (titles, chords, lyrics, junk)
-    int systems = 0;           ///< staff blocks read
-    int measures = 0;          ///< measures produced, after unrolling repeats
-    int notes = 0;
-    int numStrings = 0;
-    int repeatsUnrolled = 0;   ///< repeat sections / systems that were expanded
-    int ignoredGlyphs = 0;     ///< characters inside a staff that no dialect explains
-    int splitFrets = 0;        ///< digit pairs above fret 24 read as two notes
-
-    bool tuningFromHeader = false;      ///< a "Tuning:" line named or listed it
-    bool tuningFromStringNames = false; ///< inferred from the note names in front of the strings
-    bool tempoFromHeader = false;
-    bool timeSignatureFromHeader = false;
-
-    /** Human-readable notes, one per event, capped so a huge file does not
-        produce a huge list. "line 12: skipped (chord names)". */
-    juce::StringArray warnings;
-
-    /** True when anything was skipped, ignored or guessed beyond the tuning. */
-    bool isPartial() const noexcept;
-
-    /** One line for a status label: "Loaded 4 bars, 17 notes (6 strings); 2 lines skipped". */
-    juce::String summary() const;
-};
-
-//==============================================================================
 class AsciiTabReader
 {
 public:

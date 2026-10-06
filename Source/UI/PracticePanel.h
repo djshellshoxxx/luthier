@@ -20,7 +20,9 @@
 #include "../Practice/Trainers.h"
 #include "../Practice/PracticeRoutine.h"
 #include "../Practice/PracticeRoutineSetup.h"
+#include "../Practice/TabPlaybackTuningSession.h"
 #include "../Notation/NotationExport.h"
+#include "PracticeTabImporter.h"
 
 namespace luthier
 {
@@ -306,6 +308,10 @@ public:
     /** The status line, for tests: "Loaded 4 bars, 17 notes (6 strings); 2 lines skipped". */
     juce::String getStatusText() const { return statusLabel.getText(); }
 
+    /** The "From bar" scroller (1-based), for tests: the view must reach every bar of a long tab. */
+    juce::Slider& getFromBarSlider() noexcept { return fromBarSlider; }
+    juce::String getTabViewText() const { return tabView.getText(); }
+
 private:
     /** FEAT2-TAB: compiles the parsed score and plays it through the engine's
         RiffPlayer (the audition path). Toggles the button between Play and Stop. */
@@ -320,11 +326,14 @@ private:
     juce::TextEditor tabView;
     juce::ComboBox formatBox;
     juce::Slider barsSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+    juce::Slider fromBarSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };   // first bar shown
 
     PerformanceScore score;
     juce::String scoreTitle;
     NotationExporter exporter;
-    NotationImporter importer;
+    PracticeTabImporter importer;
+    TabPlaybackTuningSession tuningSession;
+    bool autoTuneImportedScore = false;
 
     std::unique_ptr<juce::FileChooser> chooser;
 };

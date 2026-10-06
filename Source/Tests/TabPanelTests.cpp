@@ -96,6 +96,48 @@ LUTHIER_TEST (TabPanel, midiFileOpensAsTabAndPlays)
     midi.deleteFile();
 }
 
+LUTHIER_TEST (TabPanel, longTabScrollsPastTheFirstWindow)
+{
+    LuthierAudioProcessor processor;
+    TabReaderTab reader (processor);
+
+    // Twelve bars, one distinct fret each: more than the 8-bar window can show.
+    juce::String e = "e|", b = "B|", g = "G|", d = "D|", a = "A|", low = "E|";
+
+    for (int bar = 0; bar < 12; ++bar)
+    {
+        e   += "--" + juce::String (bar) + "--|";
+        b   += "-----|";
+        g   += "-----|";
+        d   += "-----|";
+        a   += "-----|";
+        low += "-----|";
+    }
+
+    NotationImporter importer;
+    PerformanceScore score;
+    CHECK (importer.readAsciiTab (e + "\n" + b + "\n" + g + "\n" + d + "\n" + a + "\n" + low + "\n", score));
+    reader.openScore (score, "long");
+
+    auto& from = reader.getFromBarSlider();
+    const int bars = (int) score.getTrack (0).measures.size();
+    CHECK (bars > 8);
+    CHECK_MSG (from.getMaximum() == (double) bars, juce::String (from.getMaximum()));
+    CHECK (from.isEnabled());
+
+    const auto first = reader.getTabViewText();
+    from.setValue (from.getMaximum(), juce::sendNotificationSync);
+    CHECK (reader.getTabViewText() != first);
+    CHECK (reader.getTabViewText().isNotEmpty());
+
+    // A shorter score pulls the scroller back into range.
+    PerformanceScore tiny;
+    CHECK (importer.readAsciiTab ("e|--0--|\nB|-----|\nG|-----|\nD|-----|\nA|-----|\nE|-----|\n", tiny));
+    reader.openScore (tiny, "tiny");
+    CHECK (from.getValue() == 1.0);
+    CHECK (! from.isEnabled());
+}
+
 LUTHIER_TEST (TabPanel, livePerformanceBecomesAnExportableScore)
 {
     LuthierAudioProcessor processor;

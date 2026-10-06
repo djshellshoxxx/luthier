@@ -22,6 +22,7 @@ on:
       - claude/luthier-pro
       - codex/luthier-beta
       - codex/luthier-beta-looper-concurrency
+      - claude/luthier-consolidate        # consolidation of every open branch
     tags-ignore: ['v*']   # release.yml handles version tags
     paths-ignore:
       - 'spec/**'
