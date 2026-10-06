@@ -515,6 +515,11 @@ void Looper::processBlock (juce::AudioBuffer<float>& buffer, int numSamples) noe
     if (capacity <= 0 || buffer.getNumChannels() < 2 || numSamples <= 0)
         return;
 
+    detail::StorageAccessGate::CallbackAccess callbackAccess (storageGate);
+
+    if (! callbackAccess)
+        return;
+
     const auto currentState = getState();
 
     if (currentState == State::stopped)
@@ -534,14 +539,6 @@ void Looper::processBlock (juce::AudioBuffer<float>& buffer, int numSamples) noe
         left += skip;
         right += skip;
         numSamples -= skip;
-    }
-
-    callbacksInFlight.fetch_add (1, std::memory_order_acq_rel);
-
-    if (storageAccessPaused.load (std::memory_order_acquire))
-    {
-        callbacksInFlight.fetch_sub (1, std::memory_order_release);
-        return;
     }
 
     const int position = getPlayPosition();
@@ -629,24 +626,23 @@ void Looper::processBlock (juce::AudioBuffer<float>& buffer, int numSamples) noe
     playPosition.store (juce::jlimit (0, juce::jmax (1, capacity) - 1, next),
                         std::memory_order_relaxed);
 
-    callbacksInFlight.fetch_sub (1, std::memory_order_release);
 }
 
 void Looper::renderPlaybackMidi (juce::MidiBuffer& out, int numSamples) const noexcept
 {
+    if (numSamples <= 0)
+        return;
+
+    detail::StorageAccessGate::CallbackAccess callbackAccess (storageGate);
+
+    if (! callbackAccess)
+        return;
+
     const auto currentState = getState();
     const int length = getLoopLengthSamples();
 
-    if ((currentState != State::playing && currentState != State::overdubbing) || length <= 0 || numSamples <= 0)
+    if ((currentState != State::playing && currentState != State::overdubbing) || length <= 0)
         return;
-
-    callbacksInFlight.fetch_add (1, std::memory_order_acq_rel);
-
-    if (storageAccessPaused.load (std::memory_order_acquire))
-    {
-        callbacksInFlight.fetch_sub (1, std::memory_order_release);
-        return;
-    }
 
     const int position = getPlayPosition();
 
@@ -682,25 +678,21 @@ void Looper::renderPlaybackMidi (juce::MidiBuffer& out, int numSamples) const no
         }
     }
 
-    callbacksInFlight.fetch_sub (1, std::memory_order_release);
 }
 
 void Looper::captureMidi (const juce::MidiBuffer& midi, int numSamples) noexcept
 {
     juce::ignoreUnused (numSamples);
 
+    detail::StorageAccessGate::CallbackAccess callbackAccess (storageGate);
+
+    if (! callbackAccess)
+        return;
+
     const auto currentState = getState();
 
     if (currentState != State::recordingFirst && currentState != State::overdubbing)
         return;
-
-    callbacksInFlight.fetch_add (1, std::memory_order_acq_rel);
-
-    if (storageAccessPaused.load (std::memory_order_acquire))
-    {
-        callbacksInFlight.fetch_sub (1, std::memory_order_release);
-        return;
-    }
 
     const int layer = getActiveLayer();
     const int position = getPlayPosition();
@@ -723,7 +715,6 @@ void Looper::captureMidi (const juce::MidiBuffer& midi, int numSamples) noexcept
         pendingPerLayer[(size_t) juce::jlimit (0, kMaxLayers - 1, layer)].fetch_add (1, std::memory_order_relaxed);
     }
 
-    callbacksInFlight.fetch_sub (1, std::memory_order_release);
 }
 
 void Looper::drainPendingMidi()

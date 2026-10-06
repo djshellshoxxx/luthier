@@ -21,6 +21,7 @@ on:
       - claude/luthier-free
       - claude/luthier-pro
       - codex/luthier-beta
+      - codex/luthier-beta-looper-concurrency
     tags-ignore: ['v*']   # release.yml handles version tags
     paths-ignore:
       - 'spec/**'
