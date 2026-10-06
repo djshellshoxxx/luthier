@@ -15,6 +15,7 @@
 */
 
 #include "../DSP/Common/DspCommon.h"
+#include "StorageAccessGate.h"
 
 #include <juce_audio_formats/juce_audio_formats.h>
 
@@ -287,36 +288,16 @@ private:
     class AudioStorageGuard
     {
     public:
-        explicit AudioStorageGuard (const Looper& ownerIn) noexcept : owner (ownerIn)
-        {
-            owner.callbacksInFlight.fetch_add (1, std::memory_order_acq_rel);
-            mayAccess = ! owner.storageAccessPaused.load (std::memory_order_acquire);
-        }
+        explicit AudioStorageGuard (const Looper& ownerIn) noexcept
+            : access (ownerIn.storageGate) {}
 
-        ~AudioStorageGuard()
-        {
-            owner.callbacksInFlight.fetch_sub (1, std::memory_order_release);
-        }
-
-        bool canAccess() const noexcept { return mayAccess; }
+        void release() noexcept { access.release(); }
 
     private:
-        const Looper& owner;
-        bool mayAccess = false;
+        detail::StorageAccessGate::ExclusiveAccess access;
     };
 
-    void beginStorageAccess() const noexcept
-    {
-        storageAccessPaused.store (true, std::memory_order_release);
-
-        while (callbacksInFlight.load (std::memory_order_acquire) != 0)
-            juce::Thread::yield();
-    }
-
-    void endStorageAccess() const noexcept
-    {
-        storageAccessPaused.store (false, std::memory_order_release);
-    }
+    void clearStorageWhileLocked (int previousLength);
 
     bool writeLayersToFile (const juce::File& file,
                             const juce::Array<int>& layerIndices) const;
@@ -327,8 +308,7 @@ private:
     std::array<LoopLayer, kMaxLayers> layers;
 
     std::atomic<int> state { (int) State::stopped };
-    mutable std::atomic<bool> storageAccessPaused { false };
-    mutable std::atomic<int> callbacksInFlight { 0 };
+    mutable detail::StorageAccessGate storageGate;
 
     /** The live input of an overdub, kept while the layers play into the
         buffer, so the active layer's old take is heard and only the live
