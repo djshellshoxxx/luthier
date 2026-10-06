@@ -33,6 +33,9 @@ param(
     [ValidateSet('ON', 'OFF')]
     [string] $Lto = 'OFF',
 
+    [ValidateSet('PAID', 'FREE')]
+    [string] $Edition = 'PAID',
+
     [ValidateRange(1, 64)]
     [int] $Jobs = 4,
 
@@ -56,6 +59,7 @@ Set-Location $root
 if (-not $LogDir) { $LogDir = Join-Path $BuildDir 'logs' }
 $toolsDir  = Join-Path $BuildDir 'tools'
 $artefacts = Join-Path $BuildDir "Luthier_artefacts/$Config"
+$productName = if ($Edition -eq 'FREE') { 'Luthier Free' } else { 'Luthier Pro' }
 
 $JuceTag = '8.0.10'
 # Keep in step with CLAP_JUCE_EXT_COMMIT in scripts/ci_build.sh.
@@ -91,7 +95,7 @@ function Step-Configure {
         throw 'cl.exe is not on PATH. Run from a Developer PowerShell for VS 2022 (CI uses ilammy/msvc-dev-cmd).'
     }
     $cmakeArgs = @('-S', '.', '-B', $BuildDir, '-G', 'Ninja',
-                   "-DCMAKE_BUILD_TYPE=$Config", "-DLUTHIER_LTO=$Lto",
+                   "-DCMAKE_BUILD_TYPE=$Config", "-DLUTHIER_LTO=$Lto", "-DLUTHIER_EDITION=$Edition",
                    '-DCMAKE_C_COMPILER=cl', '-DCMAKE_CXX_COMPILER=cl')
     if (Get-Command sccache -ErrorAction SilentlyContinue) {
         # sccache caches MSVC objects only with embedded debug info (/Z7), never
@@ -170,14 +174,14 @@ function Step-Validate {
     $failed = $false
 
     $pluginval = Get-Pluginval
-    $vst3 = Join-Path $artefacts 'VST3/Luthier.vst3'
+    $vst3 = Join-Path $artefacts 'VST3/$productName.vst3'
     Write-Step "pluginval strictness ${Strictness}: $vst3"
     & $pluginval --strictness-level $Strictness --validate-in-process --timeout-ms 600000 `
         --output-dir $LogDir --validate $vst3 2>&1 |
         Tee-Object -FilePath (Join-Path $LogDir 'pluginval-Luthier.vst3.log')
     if ($LASTEXITCODE -ne 0) { $failed = $true }
 
-    $clap = Join-Path $artefacts 'CLAP/Luthier.clap'
+    $clap = Join-Path $artefacts 'CLAP/$productName.clap'
     if (Test-Path $clap) {
         $validator = Get-ClapValidator
         Write-Step "clap-validator: $clap"
@@ -194,10 +198,10 @@ function Step-Stage {
     if (Test-Path $out) { Remove-Item -Recurse -Force $out }
     New-Item -ItemType Directory -Force -Path $out | Out-Null
 
-    Copy-Item -Recurse (Join-Path $artefacts 'VST3/Luthier.vst3') $out
-    $clap = Join-Path $artefacts 'CLAP/Luthier.clap'
+    Copy-Item -Recurse (Join-Path $artefacts 'VST3/$productName.vst3') $out
+    $clap = Join-Path $artefacts 'CLAP/$productName.clap'
     if (Test-Path $clap) { Copy-Item $clap $out }
-    Copy-Item (Join-Path $artefacts 'Standalone/Luthier.exe') $out
+    Copy-Item (Join-Path $artefacts 'Standalone/$productName.exe') $out
     # The console app's file is named after its target; it ships as luthier-render.exe.
     $render = Join-Path $BuildDir "LuthierRender_artefacts/$Config/LuthierRender.exe"
     if (Test-Path $render) { Copy-Item $render (Join-Path $out 'luthier-render.exe') }
@@ -209,7 +213,7 @@ function Step-Stage {
 
     # The VST3 bundle keeps JUCE's moduleinfo.json but not our content.
     foreach ($d in 'BodyIRs', 'CabIRs', 'Fonts', 'Guitars', 'Parts', 'Presets', 'Tunes', 'icon.png', 'icon_small.png', 'luthier.ico') {
-        $p = Join-Path $out "Luthier.vst3/Contents/Resources/$d"
+        $p = Join-Path $out "$productName.vst3/Contents/Resources/$d"
         if (Test-Path $p) { Remove-Item -Recurse -Force $p }
     }
     Set-Content -Path (Join-Path $out 'BUILD_CONFIG') -Value $Config
