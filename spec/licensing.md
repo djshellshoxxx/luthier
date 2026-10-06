@@ -111,7 +111,7 @@ signing, stored with its signature:
 
 - `customer` is an opaque hash, not a name or e-mail (section 9).
 - `validUntil` is the end of the offline window (30-day revalidation +
-  60-day grace, section 8) for a subscription-free perpetual licence;
+  14-day grace, section 8) for a subscription-free perpetual licence;
   an online revalidation simply issues a new document.
 - `majorVersions` lets a v2 paid upgrade exist without a new scheme.
 - `features` is reserved for future bundles; Pro uses `["all"]`.
