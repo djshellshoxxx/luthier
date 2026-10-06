@@ -1,13 +1,13 @@
 #pragma once
 
-/*  The product edition (editions.md; auto-articulation.md 11).
+/* Transitional runtime edition seam.
 
-    The Free / Pro split itself happens later. Until then this is the runtime
-    check features gate on: one process-wide flag, defaulting to Pro, which a
-    licence (or a test) sets. Reading it is a relaxed atomic load, so it is safe
-    on the audio thread.
+   Real product edition is compile-time (Source/Edition.h). The runtime override
+   remains solely so the existing edition tests can exercise Free behaviour from
+   the Pro test binary. Production code should query luthier::edition directly.
 */
 
+#include "../Edition.h"
 #include <atomic>
 
 namespace luthier
@@ -19,9 +19,9 @@ namespace Editions
 {
     Edition current() noexcept;
     void set (Edition e) noexcept;
+    void clearTestOverride() noexcept;
     inline bool isPro() noexcept { return current() == Edition::pro; }
 
-    /** " (Pro)", the name suffix of a Pro-only parameter in Free (editions.md 4). */
     constexpr const char* kProSuffix = " (Pro)";
 }
 
