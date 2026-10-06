@@ -52,11 +52,14 @@ LUTHIER_TEST (OfflineActivation, challengeCarriesFiveHashedFingerprints)
     const auto parsed = juce::JSON::parse (json);
     auto* root = parsed.getDynamicObject();
 
-    REQUIRE (root != nullptr);
+    CHECK (root != nullptr);
+    if (root == nullptr)
+        return;
     CHECK (root->getProperty ("key").toString() == "LTHR-TEST");
     CHECK (root->getProperty ("product").toString() == "com.luthieraudio.luthier");
-    REQUIRE (root->getProperty ("fp").getArray() != nullptr);
-    CHECK (root->getProperty ("fp").getArray()->size() == 5);
+    CHECK (root->getProperty ("fp").getArray() != nullptr);
+    if (root->getProperty ("fp").getArray() != nullptr)
+        CHECK (root->getProperty ("fp").getArray()->size() == 5);
 }
 
 LUTHIER_TEST (DeactivationQueue, keepsFailedSeatReleasesAndDrainsLater)
