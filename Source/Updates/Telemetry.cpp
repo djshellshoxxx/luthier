@@ -851,6 +851,7 @@ bool Telemetry::loadSettings()
 }
 
 //==============================================================================
+#if LUTHIER_PRO
 const char* License::getStateName (State state) noexcept
 {
     switch (state)
@@ -1055,5 +1056,6 @@ bool License::load()
     fromVar (parsed);
     return true;
 }
+#endif
 
 } // namespace luthier
