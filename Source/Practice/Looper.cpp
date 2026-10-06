@@ -393,10 +393,10 @@ void Looper::clearStorageWhileLocked (int previousLength)
 
 void Looper::clear()
 {
+    AudioStorageGuard storageAccess (*this);
     const int length = loopLength.load (std::memory_order_relaxed);
 
     reset();
-    AudioStorageGuard storageAccess (*this);
     clearStorageWhileLocked (length);
 }
 
@@ -1009,9 +1009,9 @@ bool Looper::load (const juce::File& file)
     if (root == nullptr)
         return false;
 
+    AudioStorageGuard storageAccess (*this);
     const int previousLength = loopLength.load (std::memory_order_relaxed);
     reset();
-    AudioStorageGuard storageAccess (*this);
     clearStorageWhileLocked (previousLength);
 
     const int length = juce::jlimit (0, capacity, (int) root->getProperty ("loopLength"));
