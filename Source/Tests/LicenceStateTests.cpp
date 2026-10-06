@@ -12,7 +12,9 @@ LicenceTiming validTiming()
     t.issued = juce::Time (2026, 9, 1, 0, 0);
     t.revalidateAfter = juce::Time (2026, 9, 30, 0, 0);
     t.validUntil = juce::Time (2026, 10, 14, 0, 0);
-    t.lastSeen = juce::Time (2026, 9, 20, 0, 0);
+    // Ordinary state transitions must not also simulate a clock rollback.
+    // The rollback test sets its own later lastSeen explicitly.
+    t.lastSeen = t.issued;
     t.signatureValid = true;
     t.fingerprintMatches = true;
     return t;
