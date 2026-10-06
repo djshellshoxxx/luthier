@@ -308,8 +308,7 @@ private:
     std::array<LoopLayer, kMaxLayers> layers;
 
     std::atomic<int> state { (int) State::stopped };
-    mutable std::atomic<bool> storageAccessPaused { false };
-    mutable std::atomic<int> callbacksInFlight { 0 };
+    mutable detail::StorageAccessGate storageGate;
 
     /** The live input of an overdub, kept while the layers play into the
         buffer, so the active layer's old take is heard and only the live
