@@ -40,6 +40,12 @@ DIST_DIR="${DIST_DIR:-dist}"
 LOG_DIR="${LOG_DIR:-$BUILD_DIR/logs}"
 CONFIG="${CONFIG:-Release}"
 LUTHIER_LTO="${LUTHIER_LTO:-OFF}"
+LUTHIER_EDITION="${LUTHIER_EDITION:-PAID}"
+case "$LUTHIER_EDITION" in
+    PAID) PRODUCT_NAME="Luthier Pro" ;;
+    FREE) PRODUCT_NAME="Luthier Free" ;;
+    *) echo "ci_build.sh: LUTHIER_EDITION must be PAID or FREE" >&2; exit 1 ;;
+esac
 PLUGINVAL_STRICTNESS="${PLUGINVAL_STRICTNESS:-5}"
 PLUGINVAL_VERSION="${PLUGINVAL_VERSION:-v1.0.4}"
 CLAP_VALIDATOR_VERSION="${CLAP_VALIDATOR_VERSION:-0.3.2}"
@@ -79,6 +85,7 @@ do_configure() {
     local args=(-S . -B "$BUILD_DIR" -G Ninja
                 -DCMAKE_BUILD_TYPE="$CONFIG"
                 -DLUTHIER_LTO="$LUTHIER_LTO"
+                -DLUTHIER_EDITION="$LUTHIER_EDITION"
                 -DCMAKE_EXPORT_COMPILE_COMMANDS=ON)
 
     if command -v ccache >/dev/null; then
@@ -118,8 +125,8 @@ do_build() {
         # breaks the seal. An ad-hoc signature keeps the bundles loadable on
         # Apple Silicon for the validators; release packaging re-signs them
         # with the Developer ID (scripts/package_macos.sh).
-        for b in "$ARTEFACTS/VST3/Luthier.vst3" "$ARTEFACTS/AU/Luthier.component" \
-                 "$ARTEFACTS/CLAP/Luthier.clap" "$ARTEFACTS/Standalone/Luthier.app"; do
+        for b in "$ARTEFACTS/VST3/${PRODUCT_NAME}.vst3" "$ARTEFACTS/AU/${PRODUCT_NAME}.component" \
+                 "$ARTEFACTS/CLAP/${PRODUCT_NAME}.clap" "$ARTEFACTS/Standalone/${PRODUCT_NAME}.app"; do
             [ -e "$b" ] && codesign --force --deep --sign - "$b"
         done
     fi
@@ -204,8 +211,8 @@ do_validate() {
         wrap=(xvfb-run -a -s "-screen 0 1920x1080x24")
     fi
 
-    local plugins=("$ARTEFACTS/VST3/Luthier.vst3")
-    [ "$PLATFORM" = macos ] && plugins+=("$ARTEFACTS/AU/Luthier.component")
+    local plugins=("$ARTEFACTS/VST3/${PRODUCT_NAME}.vst3")
+    [ "$PLATFORM" = macos ] && plugins+=("$ARTEFACTS/AU/${PRODUCT_NAME}.component")
 
     for p in "${plugins[@]}"; do
         local name; name="$(basename "$p")"
@@ -229,7 +236,7 @@ do_validate() {
         set -e
     done
 
-    local clap="$ARTEFACTS/CLAP/Luthier.clap"
+    local clap="$ARTEFACTS/CLAP/${PRODUCT_NAME}.clap"
     if [ -e "$clap" ]; then
         local validator; validator="$(fetch_clap_validator)"
         step "clap-validator: $clap"
@@ -247,13 +254,13 @@ do_stage() {
     step "Staging products into $out"
     rm -rf "$out"
     mkdir -p "$out"
-    for f in VST3/Luthier.vst3 CLAP/Luthier.clap AU/Luthier.component; do
+    for f in VST3/${PRODUCT_NAME}.vst3 CLAP/${PRODUCT_NAME}.clap AU/${PRODUCT_NAME}.component; do
         [ -e "$ARTEFACTS/$f" ] && cp -R "$ARTEFACTS/$f" "$out/"
     done
     if [ "$PLATFORM" = macos ]; then
-        cp -R "$ARTEFACTS/Standalone/Luthier.app" "$out/"
+        cp -R "$ARTEFACTS/Standalone/${PRODUCT_NAME}.app" "$out/"
     else
-        cp "$ARTEFACTS/Standalone/Luthier" "$out/luthier"
+        cp "$ARTEFACTS/Standalone/$PRODUCT_NAME" "$out/luthier"
     fi
     # The console app's file is named after its target (LuthierRender); it
     # ships as luthier-render, the name its --help and the docs use.
@@ -267,7 +274,7 @@ do_stage() {
 
     # Strip the per-bundle copies the build made, keeping JUCE's moduleinfo.json:
     # the installed plugins read the shared copy.
-    for b in "$out"/Luthier.vst3 "$out"/Luthier.component "$out"/Luthier.clap "$out"/Luthier.app; do
+    for b in "$out"/${PRODUCT_NAME}.vst3 "$out"/${PRODUCT_NAME}.component "$out"/${PRODUCT_NAME}.clap "$out"/${PRODUCT_NAME}.app; do
         [ -d "$b/Contents/Resources" ] || continue
         for d in BodyIRs CabIRs Fonts Guitars Parts Presets Tunes; do
             rm -rf "$b/Contents/Resources/$d"
