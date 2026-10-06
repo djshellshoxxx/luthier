@@ -607,7 +607,7 @@ driving the drawer) are not committed (TODO 11).
 | PRA-2-05 | Overdub / replace / play-once modes | practice-tools §2 | `Looper.h:32-34` | `PracticeTests.cpp` `PracticeLooper::recordsClosesAndOverdubs` | `implemented` - replace/play-once not asserted |
 | PRA-2-06 | Per-layer volume, pan, low-cut, high-cut | practice-tools §2 | `Looper.h:77-136` | `PracticeTests.cpp` `PracticeLooper::mutedLayersAreSilent` | `implemented` |
 | PRA-2-07 | Export mix WAV or stems | practice-tools §2 | `Looper.cpp:660` | none | `implemented` |
-| PRA-2-08 | Save `.luthierloop` with MIDI, audio, settings; temp folder until saved | practice-tools §2 | saved as a folder with `loop.json` + WAVs (`Looper.cpp:671-757`) | none | `partial` - folder format, not a `.luthierloop` file (see `file-formats.md`) |
+| PRA-2-08 | Save `.luthierloop` with MIDI, audio, settings; temp folder until saved | practice-tools §2 | saved as a folder with `loop.json` + WAVs (`Looper::save`); failed directory/WAV writes return false before publishing JSON | `LooperSaveTests.cpp`: failedLayerWriteDoesNotPublishManifest (failure, retry, audio round-trip), saveRejectsUnavailableDestination | `partial` - folder format, not a `.luthierloop` file (see `file-formats.md`) |
 | PRA-3-01 | Formats WAV, AIFF, FLAC, MP3 (dr_mp3) | practice-tools §3 | chooser offers mp3/ogg (`PracticePanel.cpp:653`); no MP3 decoder configured | none | `partial` - MP3 decoding not enabled |
 | PRA-3-02 | 4-second ring per file | practice-tools §3 | `BackingTrack.h:47` | none | `implemented` |
 | PRA-3-03 | Volume, pan, mono/stereo, low/high cut | practice-tools §3 | `BackingTrack` | none | `implemented` |
