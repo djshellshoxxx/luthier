@@ -1,5 +1,7 @@
 #include "MachineFingerprint.h"
 
+#include <juce_cryptography/juce_cryptography.h>
+
 namespace luthier
 {
 
