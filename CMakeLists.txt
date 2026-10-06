@@ -293,6 +293,9 @@ if (LUTHIER_BUILD_TESTS)
          "${CMAKE_CURRENT_SOURCE_DIR}/Source/Tests/*.cpp"
          "${CMAKE_CURRENT_SOURCE_DIR}/Source/Tests/*.h")
     list(FILTER LUTHIER_TEST_SOURCES EXCLUDE REGEX "${LUTHIER_WIP_REGEX}")
+    if (NOT LUTHIER_IS_PRO)
+        list(FILTER LUTHIER_TEST_SOURCES EXCLUDE REGEX "Licence.*Tests\\.cpp$|MachineFingerprintTests\\.cpp$")
+    endif()
 
     juce_add_console_app(LuthierTests PRODUCT_NAME "LuthierTests")
 
