@@ -143,9 +143,10 @@ void LoopLayer::record (const float* left, const float* right,
         }
     }
 
-    recordedSamples = juce::jmax (recordedSamples,
-                                  juce::jmin (wrapLength > 0 ? juce::jmin (capacity, wrapLength) : capacity,
-                                              position + numSamples));
+    const int currentRecorded = recordedSamples.load (std::memory_order_relaxed);
+    const int newRecorded = juce::jmin (wrapLength > 0 ? juce::jmin (capacity, wrapLength) : capacity,
+                                        position + numSamples);
+    recordedSamples.store (juce::jmax (currentRecorded, newRecorded), std::memory_order_relaxed);
 }
 
 void LoopLayer::playInto (float* left, float* right, int position, int numSamples,
