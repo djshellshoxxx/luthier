@@ -40,6 +40,13 @@ public:
                      bool requestTrial = false);
 
     Result revalidate (const juce::String& endpoint);
+
+    /** Install an already-signed envelope, used by offline activation. */
+    Result installSignedEnvelope (const juce::String& envelope)
+    {
+        return acceptServerEnvelope (envelope);
+    }
+
     void deactivateLocal() noexcept;
 
     std::optional<VerifiedLicence> currentVerified (juce::String* error = nullptr) const;
