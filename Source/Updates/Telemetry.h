@@ -302,6 +302,7 @@ private:
     Optional: an open-source build never calls any of this. A commercial build
     activates once online and revalidates monthly, with a fortnight of grace so
     that a laptop taken to a gig without a network keeps working. */
+#if LUTHIER_PRO
 class License
 {
 public:
@@ -365,5 +366,6 @@ private:
     static constexpr int kRevalidationDays = 30;
     static constexpr int kGraceDays = 14;
 };
+#endif
 
 } // namespace luthier
