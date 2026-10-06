@@ -380,25 +380,24 @@ void Looper::reset() noexcept
     pendingClose.store (false, std::memory_order_relaxed);
 }
 
-void Looper::clear()
+void Looper::clearStorageWhileLocked (int previousLength)
 {
-    const int length = loopLength.load (std::memory_order_relaxed);
-
-    // Stop publication first. New audio-side calls now either see stopped state
-    // or the storage pause below; already-entered calls are drained by the
-    // in-flight counter before any layer buffer is copied or cleared.
-    reset();
-    AudioStorageGuard storageAccess (*this);
-
     drainPendingMidi();
 
     for (auto& layer : layers)
         layer.clearKeepingUndo();
 
-    if (length > 0)
-        clearedLoopLength = length;
+    if (previousLength > 0)
+        clearedLoopLength = previousLength;
+}
 
-    storageAccess.release();
+void Looper::clear()
+{
+    const int length = loopLength.load (std::memory_order_relaxed);
+
+    reset();
+    AudioStorageGuard storageAccess (*this);
+    clearStorageWhileLocked (length);
 }
 
 bool Looper::restoreCleared()
@@ -1010,10 +1009,14 @@ bool Looper::load (const juce::File& file)
     if (root == nullptr)
         return false;
 
-    clear();
+    const int previousLength = loopLength.load (std::memory_order_relaxed);
+    reset();
+    AudioStorageGuard storageAccess (*this);
+    clearStorageWhileLocked (previousLength);
 
     const int length = juce::jlimit (0, capacity, (int) root->getProperty ("loopLength"));
     loopLength.store (length, std::memory_order_relaxed);
+
 
     const auto* layerArray = root->getProperty ("layers").getArray();
 

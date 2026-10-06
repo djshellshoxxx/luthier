@@ -66,6 +66,27 @@ LUTHIER_TEST (PracticeLooperConcurrency, callbacksReadTransportOnlyAfterGateAdmi
     }
 }
 
+LUTHIER_TEST (PracticeLooperConcurrency, loadHoldsExclusiveAccessWhileReplacingLayers)
+{
+    const auto implementation = looperSource();
+    const auto source = implementation.loadFileAsString();
+    const int loadStart = source.indexOf ("bool Looper::load (const juce::File& file)");
+    const int nextFunction = source.indexOf ("SessionRecorder::SessionRecorder", loadStart);
+    CHECK_MSG (loadStart >= 0 && nextFunction > loadStart, "could not isolate Looper::load");
+
+    if (loadStart < 0 || nextFunction <= loadStart)
+        return;
+
+    const auto loadBody = source.substring (loadStart, nextFunction);
+    const int guard = loadBody.indexOf ("AudioStorageGuard storageAccess (*this);");
+    const int settings = loadBody.indexOf ("layer.settingsFromVar");
+    const int audioRead = loadBody.indexOf ("reader->read");
+    const int midiAppend = loadBody.indexOf ("layer.getMidi().addEvent");
+
+    CHECK_MSG (guard >= 0 && settings > guard && audioRead > guard && midiAppend > guard,
+               "Looper::load must keep exclusive access through settings, audio, and MIDI replacement");
+}
+
 LUTHIER_TEST (PracticeLooperConcurrency, saveSnapshotsStorageBeforeDiskIo)
 {
     const auto implementation = looperSource();

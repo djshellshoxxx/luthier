@@ -297,6 +297,8 @@ private:
         detail::StorageAccessGate::ExclusiveAccess access;
     };
 
+    void clearStorageWhileLocked (int previousLength);
+
     bool writeLayersToFile (const juce::File& file,
                             const juce::Array<int>& layerIndices) const;
 
