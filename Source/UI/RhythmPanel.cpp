@@ -656,6 +656,22 @@ RhythmPanel::RhythmPanel (LuthierAudioProcessor& p)
 
     buildBrowser();
 
+    // accessibility 1 (A11Y-47): the plain JUCE boxes and sliders here carry
+    // no parameter attachment, so they are named for screen readers by hand.
+    AccessibleSetup::configureComboBox (genreBox, "Genre kit");
+    AccessibleSetup::configureComboBox (styleBox, "Voicing style");
+    AccessibleSetup::configureSlider (densitySlider, "Voicing density", " percent");
+    AccessibleSetup::configureSlider (handPositionSlider, "Hand position", " fret");
+    AccessibleSetup::configureSlider (handSpanSlider, "Hand span", " frets");
+    AccessibleSetup::configureComboBox (lengthBox, "Pattern length");
+    AccessibleSetup::configureComboBox (subdivisionBox, "Pattern grid");
+    AccessibleSetup::configureSlider (swingSlider, "Swing");
+    AccessibleSetup::configureSlider (timingSlider, "Timing jitter");
+    AccessibleSetup::configureSlider (velocitySlider, "Velocity jitter");
+    AccessibleSetup::configureSlider (missSlider, "Miss chance");
+    AccessibleSetup::configureSlider (ghostSlider, "Ghost stroke chance");
+    AccessibleSetup::configureComboBox (tagFilterBox, "Pattern tag filter");
+
     indicators = std::make_unique<RhythmIndicators> (processor);
     addAndMakeVisible (*indicators);
 

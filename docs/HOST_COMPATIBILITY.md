@@ -77,3 +77,16 @@ see [the release checklist](RELEASING.md) and [remaining work](audit/REMAINING.m
 | MIDI input and output | Select a MIDI input; the virtual MIDI-out toggle routes to another application. |
 | Window size | The JUCE window is resizable with an enforced minimum size. |
 | File dialogs | Native operating-system dialogs are used. |
+
+## Behaviour common to every host (implementation and tests)
+
+| Topic | Behaviour | Where / test |
+|---|---|---|
+| State blob | JSON with `formatVersion` (currently 1) and `savedBy`. Root sections this build does not know are written back unchanged; a newer blob also raises a notice, and a newer preset it cannot load is written back until another preset is loaded. An older blob is copied to the diagnostics folder as `state-backup-<stamp>.json` before it is migrated (newest 20 kept). An unreadable blob changes nothing, is kept there too, and a banner says so. | `HostStateFormat.cpp`; `HostState::unknownSectionsSurviveWriteBack`, `anOldBlobIsBackedUpBeforeMigration`, `aNewerBlobKeepsWhatItCannotReadOnWriteBack`, `anOlderBlobIsBackedUpBeforeItIsMigrated`, `anUnreadableBlobChangesNothingAndIsKept` |
+| State size | Under 200 KB for every factory preset. Guitars are saved as file references. | `HostState::everyFactoryPresetsSessionIsUnder200KB` |
+| Program change after a restore | The first `setCurrentProgram` after `setStateInformation` is ignored, so the restored sound wins. | `PluginProcessor::setCurrentProgram` |
+| Internal changes | Preset loads and snapshot recalls call `setValueNotifyingHost`, so the host sees them. | `HostState::presetLoadsAndSnapshotRecallsNotifyTheHost` |
+| Transport | When the host is playing, it wins. When it is stopped, the internal clock runs. | `TunePlayer::theHostWinsWhenItPlaysAndTheClockRunsWhenItDoesNot` |
+| Sidechain | Used only by a consumer: followers, sidechain-to-amp, tone match. It never leaks to the main output. | `InputRouting::anUnconsumedSidechainNeverReachesTheMainOutput` |
+| File dialogs | Each dialog belongs to the window that opened it. Closing the plugin window (or removing the plugin) cancels any dialog that is open. | `OwnedFileChooser`; `ChooserLifetime::*` |
+

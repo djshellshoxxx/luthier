@@ -181,9 +181,14 @@ LUTHIER_TEST (CpuQuality, CQ02_settingsFileRoundTripsAndFallsBackToDefaults)
     settings.setQuality (QualityChoice::Medium);
     CHECK (settings.getFile().existsAsFile());
 
-    // Temp-and-rename: the folder holds the one file, complete, and nothing else.
-    const auto siblings = settings.getFile().getParentDirectory().findChildFiles (juce::File::findFiles, false, "*");
-    CHECK (siblings.size() == 1);
+    // Temp-and-rename: the folder holds the one file, complete, and nothing else
+    // but the two unreadable versions above, kept aside as .corrupted-<stamp>
+    // (SPEC-SWEEP ER-65, error-recovery 10).
+    const auto folder = settings.getFile().getParentDirectory();
+    const auto siblings = folder.findChildFiles (juce::File::findFiles, false, "*");
+    const auto setAside = folder.findChildFiles (juce::File::findFiles, false, "*.corrupted-*");
+    CHECK (setAside.size() == 2);
+    CHECK (siblings.size() - setAside.size() == 1);
     CHECK (PerformanceSettings::parse (settings.getFile().loadFileAsString(), temp.scratch));
     CHECK (temp.scratch.quality == QualityChoice::Medium);
 

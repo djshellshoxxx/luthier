@@ -2,6 +2,8 @@
 
 The layers exist (host state, uiState, setlist, tune, preset, snapshot bank, guitar, part). The "never touches" rules for a preset load and a snapshot recall hold and are tested by the four `StateModel.*` tests. The main deviations are unchanged since the baseline. Loads apply on the message thread; there is no command/result queue. `.luthierpreset` files carry no snapshots, modulation, MIDI mappings, rhythm or routing (`PresetManager::toVar`), so a preset load cannot swap them; only the host state carries them. Undo state boundaries, the named preset-load entry and the 10k-operation fuzz are now merged and tested. Nearly every §8 intersection behaviour is still missing: A/B clear, Freeze/E-Bow clear, feedback damp, the tune pause, the setlist override flag, looper state-boundary events and the bench save prompt. The State Inspector is also missing.
 
+W2 robustness pass: SM-7/50/62 verified and tested.
+
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
 | SM-1 (§0.1) | Layers nest: guitar and snapshots inside the preset | `Presets/PresetBlocks.cpp` (`writePresetBlocks`/`readPresetBlocks`) via `PresetManager::capturePresetBlocks`/`onPresetBlocksLoaded` | n/a | `Presets::processorBlocksTravelInThePresetFile`, `StateModel::recallingASnapshotStaysInsideThePreset` | DONE |
@@ -10,7 +12,7 @@ The layers exist (host state, uiState, setlist, tune, preset, snapshot bank, gui
 | SM-4 (§0.5) | Structural state crosses threads via the command/result queue — direct message-thread calls; only the guitar swap is parked/faded | `LuthierEngine` guitar swap (park + 5 ms fade) | n/a | `WorkshopSwap::aChangeFromTheAudioThreadItselfDoesNotWait` | PARTIAL |
 | SM-5 (§0.6, §1) | uiState is per instance and never travels with presets | `PluginProcessor::getStateInformation` "ui" block; `PresetManager::toVar` has no ui | n/a | `StateModel::loadingAPresetLeavesTheLayersAboveItAlone` | DONE |
 | SM-6 (§1) | User-global settings layer (Options) | `UI/UiPreferences.cpp`, `Updates/Telemetry` | Options overlay, `UI/OptionsPages.cpp` | `Telemetry.*` (partial) | DONE |
-| SM-7 (§1) | Per-instance uiState: mode, tab, Live, bench A/B slots, Practice drawer, piano-roll state in `UiState` (JSON struct, not a VT); Slide Mode persists as a parameter kept across loads | `PluginProcessor.h:UiState` | n/a | `StateModel::loadingAPresetLeavesTheLayersAboveItAlone`, `StateModel::slideLiveAndTheDrawerPersistAcrossALoad` | DONE |
+| SM-7 (§1) | Per-instance uiState: mode, tab, Live, Slide, bench A/B slots, drawer — JSON struct in the host blob (not a VT); Slide Mode is the `slide_guitar` parameter; the Practice drawer is `practiceDrawerOpen` | `PluginProcessor.h:UiState` | n/a | `StateModel::theInstancesUiStateSurvivesTheHost`, `StateModel::loadingAPresetLeavesTheLayersAboveItAlone` | DONE |
 | SM-8 (§1, §10) | Session state not saved (undo, arm, tap, recorder, A/B buffers) | `PluginProcessor` members (only `slotBActive` flag saved) | n/a | `StateModel::sessionStateIsNotSaved` (arm, A/B) | DONE |
 | SM-9 (§1) | Snapshot bank up to 128 | `Live/Snapshots.cpp:SnapshotBank` | LIVE tab, `LivePanel` / `LiveStrip` | `LiveSnapshots::programChangeMapsAcrossAllOneTwentyEight` | DONE |
 | SM-10 (§1) | Loop is a sibling that references its preset by name — the looper does not record the preset name | `Practice/Looper.cpp` | PRACTICE drawer | - | PARTIAL |
@@ -53,7 +55,7 @@ The layers exist (host state, uiState, setlist, tune, preset, snapshot bank, gui
 | SM-47 (§8.1, §8.2) | Freeze and E-Bow clear on a load or recall — through their parameters: every factory preset has them off and a key a file leaves out resets to its default (PF-14) | params `freezeEnable`, `ebowEnable` | n/a | `StateModel::aLoadClearsFreezeAndEBow` | DONE |
 | SM-48 (§8.1, §8.2) | Feedback loop damps over 100 ms on a load or recall | - | - | - | MISSING |
 | SM-49 (§8.1, §8.2) | Held notes continue/decay through the new parameters without retriggering | engine voices | n/a | `StateModel::loadingAPresetWhileRenderingProducesNoGarbage` (no burst only) | PARTIAL |
-| SM-50 (§8.2) | A recall replaces the selected A/B slot with the recalled state | - | - | - | MISSING |
+| SM-50 (§8.2) | A recall replaces the selected A/B slot with the recalled state — switching slots stores what is on screen into the slot being left, so the recalled state becomes the selected slot | `PluginProcessor::setSlotBActive` (`storeToSlot`) | - | `StateModel::aRecallDuringCompareReplacesTheSelectedSlot` | DONE |
 | SM-51 (§8.3) | Tune load: setlist stays, Live and Workshop persist | separate objects | n/a | `StateModel::aTuneLoadStopsPlaybackAndLeavesTheRestAlone` | DONE |
 | SM-52 (§8.4) | Guitar load with a string-count change: extra strings silence, missing ones decay | `LuthierEngine` swap | n/a | `Workshop::aStringCountMismatchClamps` (spec only, not voices) | PARTIAL |
 | SM-53 (§8.4) | A guitar load discards an in-flight part swap | bench parking | n/a | - | NO-TEST |
@@ -65,9 +67,9 @@ The layers exist (host state, uiState, setlist, tune, preset, snapshot bank, gui
 | SM-59 (§9) | Saving a preset captures the current snapshot bank | `PresetManager::toVar` -> `writePresetBlocks` | - | `Presets::processorBlocksTravelInThePresetFile` | DONE |
 | SM-60 (§9) | Save waits for an in-flight part swap; a guitar save writes committed not shadow; a tune save writes live edits — not tested | bench parking, `WorkshopBench` committed spec, `TuneSession` | WORKSHOP / TUNE | `WorkshopBench::auditionNeverCommits` (indirect) | PARTIAL |
 | SM-61 (§10) | Host state persists params, matrix, bank, mappings, ranges, guitar ref and uiState | `PluginProcessor::getStateInformation` | n/a | `Presets::stateRoundTripsExactly`, `HostState.*` | DONE |
-| SM-62 (§11) | Multi-instance independence (own APVTS, matrix, bank; independent learn and recorder) — `ExpressionCalibrationSet` is global | per-instance members | n/a | on visual: `Stress::thirtyTwoInstancesRenderInTurn` (render only) | NO-TEST |
+| SM-62 (§11) | Multi-instance independence (own APVTS, matrix, bank; independent learn and recorder) — `ExpressionCalibrationSet` is a per-instance member reading the user-global calibration file, which live-performance 11 makes global on purpose | per-instance members | n/a | `StateModel::twoInstancesAreIndependent` (visual: `Stress::thirtyTwoInstancesRenderInTurn`) | DONE |
 | SM-63 (§12) | Options > Diagnostics "State Inspector" live tree at 4 Hz | - | Diagnostics page, `UI/OptionsPages.cpp` (absent) | - | MISSING |
 | SM-64 (§13) | A test for every §8 intersection in `Tests/StateModel/Intersections/`, and a "never touches" test for every load path in §2-7 — 4 tests only | - | - | `StateModelTests.cpp` (4), `PresetBlockTests.cpp`, `SweepStateTests.cpp` (8.1 A/B, recall, learn, freeze) | PARTIAL |
 | SM-65 (§13) | Fuzz: 10,000 random operations with no crash, orphaned state or memory growth | `Tests/RobustnessTests.cpp` random-operation fuzz | n/a | `StateModel::tenThousandRandomOperationsLeaveNoStuckState` | DONE |
 
-<!-- counts DONE=39 NO-GUI=0 NO-TEST=4 PARTIAL=14 MISSING=8 DEFERRED=0 -->
+<!-- counts DONE=41 NO-TEST=3 PARTIAL=14 MISSING=7 -->

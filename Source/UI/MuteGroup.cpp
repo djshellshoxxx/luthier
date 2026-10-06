@@ -236,12 +236,12 @@ MuteGroup::MuteGroup (LuthierAudioProcessor& p)
     addAndMakeVisible (chukaSource);
 
     refresh();
-    startTimerHz (15);
+    motion.startTimerHz (*this, 15);
 }
 
 MuteGroup::~MuteGroup()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 void MuteGroup::applyPreset (int index)
@@ -306,12 +306,12 @@ EasyMuteButton::EasyMuteButton (LuthierAudioProcessor& p)
     onClick = [this] { write ((getState() + 1) % 4); };
 
     refresh();
-    startTimerHz (5);
+    motion.startTimerHz (*this, 5);
 }
 
 EasyMuteButton::~EasyMuteButton()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 int EasyMuteButton::getState() const

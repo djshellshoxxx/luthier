@@ -315,12 +315,12 @@ BendCurveEditor::BendCurveEditor (LuthierAudioProcessor& p)
 {
     setTooltip ("The drawn bend curve (Bend curve or Release curve: Drawn). Drag a point.");
     AccessibleSetup::configureDescriptive (*this, "Drawn bend curve", "Five points from rest to full throw");
-    startTimerHz (10);
+    motion.startTimerHz (*this, 10);
 }
 
 BendCurveEditor::~BendCurveEditor()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 void BendCurveEditor::setPoint (int index, double value)
@@ -481,12 +481,12 @@ CascadeView::CascadeView (LuthierAudioProcessor& p)
                 "a red row conflicts with another armed technique.");
     AccessibleSetup::configureDescriptive (*this, "Cascade overview", "Techniques down, strings across");
     refresh();
-    startTimerHz (30);
+    motion.startTimerHz (*this, 30);
 }
 
 CascadeView::~CascadeView()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 bool CascadeView::isActiveCell (TechniqueSlot slot, int string) const noexcept

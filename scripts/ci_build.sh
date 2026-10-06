@@ -279,7 +279,7 @@ do_stage() {
     # the installed plugins read the shared copy.
     for b in "$out"/${PRODUCT_NAME}.vst3 "$out"/${PRODUCT_NAME}.component "$out"/${PRODUCT_NAME}.clap "$out"/${PRODUCT_NAME}.app; do
         [ -d "$b/Contents/Resources" ] || continue
-        for d in BodyIRs CabIRs Fonts Guitars Parts Presets Tunes; do
+        for d in BodyIRs CabIRs Examples Fonts Guitars Parts Practice Presets Tunes; do
             rm -rf "$b/Contents/Resources/$d"
         done
         # Our icons came along with the content copy; a bundle's own icon

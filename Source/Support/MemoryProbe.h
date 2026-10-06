@@ -8,6 +8,9 @@
 #include <juce_core/juce_core.h>
 
 #if JUCE_WINDOWS
+ #ifndef NOMINMAX
+  #define NOMINMAX 1   // windows.h min/max macros break std::min in every includer (PR #2)
+ #endif
  #include <windows.h>
  #include <psapi.h>
 #elif JUCE_MAC

@@ -1,5 +1,6 @@
 #include "Accessibility.h"
 #include "Localisation.h"
+#include "../Support/ConfigRecovery.h"
 
 namespace luthier
 {
@@ -462,6 +463,27 @@ void AccessibilitySettings::setUiScale (double scale)
     sendChangeMessage();
 }
 
+double AccessibilitySettings::largestScaleThatFits (double wanted, juce::Rectangle<int> available,
+                                                    int minWidth, int minHeight) noexcept
+{
+    double best = kScales[0];
+
+    for (double candidate : kScales)
+    {
+        if (candidate > wanted + 1.0e-6)
+            break;   // steps are ascending
+
+        const bool fits = available.isEmpty()
+                          || ((double) minWidth * candidate <= (double) available.getWidth()
+                              && (double) minHeight * candidate <= (double) available.getHeight());
+
+        if (fits)
+            best = candidate;
+    }
+
+    return best;
+}
+
 bool AccessibilitySettings::stepScaleDown()
 {
     for (int i = 1; i < kNumScales; ++i)
@@ -815,10 +837,8 @@ bool AccessibilitySettings::load()
 {
     const auto file = getConfigFile();
 
-    if (! file.existsAsFile())
-        return false;
-
-    const auto parsed = juce::JSON::parse (file.loadFileAsString());
+    // SPEC-SWEEP ER-65: an unreadable file is kept aside and reported.
+    const auto parsed = ConfigRecovery::loadObject (file, "Accessibility");
 
     if (parsed.getDynamicObject() == nullptr)
         return false;

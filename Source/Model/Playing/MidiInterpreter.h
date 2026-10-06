@@ -337,6 +337,24 @@ private:
         holds it open. */
     void releasePedalRinging (int stringIndex, int blockOffset, PlayEventQueue& out) noexcept;
 
+    /*  PR #2 (spec/issues.md "two notes at the same time does not work"):
+        a note that arrives while others are held is voiced around them.
+        heldStringMask: the strings holding a note, one bit per string; a string
+        holding `exceptMidiNote` is left out (a note played again re-picks its
+        own string). ringingStringMask: the strings ringing under a pedal with
+        the key up. occupiedStringMask: what a group of notes must avoid - the
+        held strings, plus the pedal-ringing ones while the group still has a
+        free string each. */
+    uint16_t heldStringMask (int exceptMidiNote = -1) const noexcept;
+    uint16_t ringingStringMask (int exceptMidiNote = -1) const noexcept;
+    uint16_t occupiedStringMask (const int* notes, int count) const noexcept;
+
+    /** Places every requested note the voicing left out on a free string, one at
+        a time, and appends it to the voicing. A note no free string can sound
+        stays dropped. Leaves the voicer's occupied mask cleared. */
+    void placeUnvoicedNotes (const int* notes, const double* velocities, int count,
+                             uint16_t occupied, ChordVoicing& voicing) noexcept;
+
     void handleNoteOn (int midiNote, int channel, double velocity,
                        int64_t timestamp, int blockOffset, PlayEventQueue& out) noexcept;
     void handleNoteOff (int midiNote, int channel, int blockOffset, PlayEventQueue& out) noexcept;

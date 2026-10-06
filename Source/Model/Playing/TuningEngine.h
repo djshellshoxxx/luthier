@@ -197,6 +197,12 @@ public:
     /** The open pitch including detune, drift and fine tuning but no fret. */
     double getEffectiveOpenFrequency (int stringIndex) const noexcept;
 
+    /** B-15: the string's small offsets (ageing, imperfection, drift, fine tune,
+        stability), in frets. A voicer's "is this pitch on a fret" slop must be
+        widened by this, or an aged string's few cents of detune push every fret
+        outside it and the note is dropped rather than played out of tune. */
+    double getMicroOffsetFrets (int stringIndex) const noexcept;
+
     /** Inverse of computeFrequency: the fret position that would produce `hz`.
         Returns a negative value if the pitch is below the open string. */
     double frequencyToFretPosition (int stringIndex, double hz) const noexcept;

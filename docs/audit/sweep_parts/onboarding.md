@@ -20,7 +20,7 @@ TUNE-HELP has landed on this checkout: the curated first-run preset and state, t
 | OB-14 (§6) | Tune templates (12 in spec; ten per DECISIONS C-16) | `Tune/TuneTemplates.cpp` | TUNE NEW | `TuneBuilder::theTenTemplatesLoadInOrderAndAreValid` | DONE |
 | OB-15 (§6) | Six example tunes | `TuneExamples::buildExampleTunes`, `Resources/Tunes/Examples` | TUNE New -> Example tunes | `SampleContent.theSixExampleTunesAreValidAndShipAsBuilt`, `SampleContent.anExampleTuneOpensFromTheTuneTabAndPlays` | DONE |
 | OB-16 (§6) | Twelve example MIDI clips in `Resources/Examples` | `TuneExamples::buildMidiClips` | n/a | `SampleContent.theTwelveMidiClipsShipAndPlay` | DONE |
-| OB-17 (§6) | Six royalty-free backing tracks - none ship (no audio under Resources; only the `Practice/BackingTrack` loader exists); not recorded in DECISIONS.md | `Practice/BackingTrack.cpp` (loader only) | - | - | MISSING |
+| OB-17 (§6) | Six original backing tracks landed 2026-09-30 (owner's size worry: 13.4 MB total, FLAC) | `Resources/Practice/BackingTracks/`, `BackingTrackLibrary` | - | `SampleContent::theSixBackingTracksShipAndPlay` | DONE |
 | OB-18 (§6) | Ten example setlists | `TuneExamples::installExampleSetlists` | LIVE setlist | `SampleContent.theTenExampleSetlistsInstallOnceOverTheFactoryBank` | DONE |
 | OB-19 (§6) | The tour as a reusable walkthrough | `TourOverlay` | Help -> Take the tour | `Onboarding.theBannerAndHelpBothStartTheTour` | DONE |
 | OB-20 (§7) | Advanced-range explainer, once, exact text | `UI/RangesUi.cpp:showExplainerIfFirstTime` | popover on first past-stock drag | `FirstRun.theRangeExplainerSaysSectionSevensWords` | DONE |

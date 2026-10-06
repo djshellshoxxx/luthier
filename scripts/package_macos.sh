@@ -133,6 +133,19 @@ cabinet impulse responses, guitars, parts, presets and tunes).
 Your own presets, guitars and tunes live in ~/Documents/Luthier and are never
 touched by the installer or the uninstaller.
 EOF
+# installer.md 2.1 (IN-19): productbuild cannot run a post-install button, so the
+# last page says what to do next and where the uninstaller is.
+cat > "$work/resources/Conclusion.txt" <<EOF
+Luthier $VERSION is installed.
+
+Next: open Luthier from /Applications (standalone), or rescan plug-ins in your
+DAW (Logic: Settings > Plug-in Manager > Reset & Rescan Selection).
+
+If your DAW does not list Luthier, see docs/TROUBLESHOOTING.md.
+
+To uninstall, run /Applications/Luthier/Uninstall.command. Your own presets,
+guitars and tunes in ~/Documents/Luthier are kept.
+EOF
 cat > "$work/distribution.xml" <<EOF
 <?xml version="1.0" encoding="utf-8"?>
 <installer-gui-script minSpecVersion="2">
@@ -143,6 +156,7 @@ cat > "$work/distribution.xml" <<EOF
     <os-version min="10.13"/>
     <welcome file="Welcome.txt" mime-type="text/plain"/>
     <license file="License.txt" mime-type="text/plain"/>
+    <conclusion file="Conclusion.txt" mime-type="text/plain"/>
     <choices-outline>
         <line choice="au"/>
         <line choice="vst3"/>

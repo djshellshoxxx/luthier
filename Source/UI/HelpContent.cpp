@@ -55,7 +55,7 @@ namespace
           "- File: save, open, import, export, options, randomise, reset.\n"
           "- A / B: two comparison slots. A>B copies the current one across.\n"
           "- Undo / Redo: 64 steps.\n"
-          "- Panic: stops every string immediately.\n"
+          "- Panic: stops every string immediately, and the tune, looper, backing track, metronome and progression.\n"
           "- Learn: arms MIDI Learn; the next control you click takes the next CC you move.\n"
           "- ?: this help.\n"
           "- Advanced, Live, Slide, Workshop: the mode switches.\n\n"
@@ -96,7 +96,7 @@ namespace
           "LOCKS AND RANDOMISE\n"
           "Randomise ({key:randomise}) gives a new sound every press; each press after the first starts again "
           "from the defaults rather than piling changes on changes. A locked control is left alone. Reset All "
-          "({key:resetAll}) puts every setting back to its default." },
+          "({key:resetAll}) stops everything that plays and puts every setting back to its default." },
 
         { "instrument", "Column 1: Instrument",
           "Instrument|GUITAR|STRINGS|String Set|Strings|Tuning Realism|Temperament|Selected String|Neck|"

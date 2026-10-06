@@ -18,6 +18,7 @@
 */
 
 #include "TechniqueUi.h"
+#include "../AnimationPolicy.h"
 #include "../MuteGroup.h"
 #include "../../DSP/Techniques/MicrotonalScale.h"
 
@@ -132,6 +133,7 @@ private:
 
     LuthierAudioProcessor& processor;
     int dragging = -1;
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "BendCurveEditor" };   // cpu-quality-modes 6 (CQ-22)
 };
 
 class BendPage : public ControlFlow
@@ -177,6 +179,7 @@ private:
     std::array<int, kMaxStrings> activity {};
     juce::StringArray conflicts;
     int numStrings = 6;
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "CascadeView" };   // cpu-quality-modes 6 (CQ-22)
 };
 
 class CascadePage : public ControlFlow

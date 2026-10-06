@@ -132,12 +132,16 @@ int ChordVoicer::findCandidates (int midiNote, Candidate* dest) const noexcept
 
     for (int s = 0; s < numStrings && count < kMaxCandidates; ++s)
     {
+        // A string that is still sounding a held note is not available.
+        if (((occupied >> s) & 1u) != 0)
+            continue;
+
         const double fret = tuningEngine->frequencyToFretPosition (s, targetHz);
         const int rounded = (int) std::round (fret);
 
         // Allow a couple of cents of slop: an alternate tuning rarely lands on an
         // exact integer fret, and rejecting those would make whole tunings unplayable.
-        if (std::abs (fret - (double) rounded) > 0.08)
+        if (std::abs (fret - (double) rounded) > 0.08 + tuningEngine->getMicroOffsetFrets (s))
             continue;
 
         /*  Two ceilings, and the lower one wins. `maxFret` is a voicing

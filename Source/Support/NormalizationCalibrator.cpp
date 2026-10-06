@@ -494,6 +494,9 @@ juce::String NormalizationCalibrator::canonicalSoundState (const NormalizationSo
         character->removeProperty ("fretWear");
         character->removeProperty ("deadSpots");
     }
+    // B-07: the save format's migration marker is not configuration either.
+    if (auto* preset = structural.getProperty ("preset", {}).getDynamicObject())
+        preset->removeProperty ("doublerMigrated");
 
     root->setProperty ("structural", structural);
 

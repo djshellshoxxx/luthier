@@ -7,6 +7,7 @@
 */
 
 #include <juce_gui_basics/juce_gui_basics.h>
+#include "../AnimationPolicy.h"
 #include "../Widgets.h"
 #include "../../DSP/Techniques/CascadeResolver.h"
 #include "../../Rhythm/Muting.h"
@@ -143,6 +144,7 @@ private:
     bool holdFired = false, pressed = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TechniquePill)
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "TechniquePill" };   // cpu-quality-modes 6 (CQ-22)
 };
 
 } // namespace luthier

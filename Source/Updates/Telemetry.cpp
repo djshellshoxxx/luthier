@@ -1,4 +1,5 @@
 #include "Telemetry.h"
+#include "../Support/ConfigRecovery.h"
 
 namespace luthier
 {
@@ -838,10 +839,8 @@ bool Telemetry::loadSettings()
 {
     const auto file = getSettingsFile();
 
-    if (! file.existsAsFile())
-        return false;
-
-    const auto parsed = juce::JSON::parse (file.loadFileAsString());
+    // SPEC-SWEEP ER-65: an unreadable file is kept aside and reported.
+    const auto parsed = ConfigRecovery::loadObject (file, "Telemetry");
 
     if (parsed.getDynamicObject() == nullptr)
         return false;
@@ -1045,10 +1044,8 @@ bool License::load()
 {
     const auto file = getLicenseFile();
 
-    if (! file.existsAsFile())
-        return false;
-
-    const auto parsed = juce::JSON::parse (file.loadFileAsString());
+    // SPEC-SWEEP ER-65: an unreadable file is kept aside and reported.
+    const auto parsed = ConfigRecovery::loadObject (file, "Licensing");
 
     if (parsed.getDynamicObject() == nullptr)
         return false;

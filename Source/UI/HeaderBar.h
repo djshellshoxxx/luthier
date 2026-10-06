@@ -14,6 +14,7 @@
 #include "Widgets.h"
 #include "RangesUi.h"
 #include "NormalizationBadge.h"   // output-normalization.md 5.1
+#include "OwnedFileChooser.h"
 #include "Search/MagnifierButton.h"   // global-search.md 6.1 (FEAT-SEARCH)
 
 namespace luthier
@@ -154,6 +155,15 @@ private:
 
     bool advancedMode = false;
     bool advancedAvailable = true;
+
+    // The File menu's open / save dialogs; destroyed (so cancelled) with the header.
+    OwnedFileChooser fileChooser;
+
+public:
+    /** For tests: whether a File-menu chooser has been launched. */
+    bool hasOpenFileChooser() const noexcept { return fileChooser.hasChooser(); }
+
+private:
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HeaderBar)
 

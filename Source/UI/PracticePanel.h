@@ -159,8 +159,11 @@ public:
 private:
     BackingTrackPlayer& track();
 
-    juce::TextButton openButton { "Open..." }, playButton { "Play" }, stopButton { "Stop" };
+    juce::TextButton openButton { "Open..." }, factoryButton { "Factory..." }, playButton { "Play" }, stopButton { "Stop" };
     juce::Label titleLabel, positionLabel, tempoLabel;
+
+    /** Loads a file into the player (with its undo entry) and refreshes. */
+    void loadTrack (const juce::File& file);
 
     juce::Slider positionSlider { juce::Slider::LinearHorizontal, juce::Slider::NoTextBox };
     juce::Slider levelSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };

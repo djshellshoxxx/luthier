@@ -79,7 +79,7 @@ namespace Onboarding
     /** gui-integration 20: the NEW dot lasts one week. */
     inline constexpr int kNewDotDays = 7;
 
-    /** onboarding 1's "Factory / Rock / Modern Overdrive" on the Les Paul-style
+    /** onboarding 1's first-run preset ("Single-Cut Crunch", Electric) on the single-cut
         guitar: after the trademark sweep (TODO 2g) the factory bank's rock
         overdrive on the single-cut is "Single-Cut Crunch". */
     inline constexpr const char* kFirstRunPreset = "Single-Cut Crunch";

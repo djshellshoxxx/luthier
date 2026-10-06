@@ -437,6 +437,7 @@ juce::var PresetManager::toVar (const juce::String& name,
     root->setProperty ("schema", kSchemaVersion);          // SPEC-SWEEP: FF-2
     root->setProperty ("schemaVersion", kSchemaVersion);   // read by builds before FF-2
     root->setProperty ("pluginVersion", JucePlugin_VersionString);
+    root->setProperty ("doublerMigrated", true);           // B-07: legacy doubler_on is migrated once, by a file without this
     root->setProperty ("name", name.isNotEmpty() ? name : currentName);
     root->setProperty ("category", category.isNotEmpty() ? category : currentCategory);
     root->setProperty ("author", "");
@@ -695,7 +696,8 @@ bool PresetManager::fromVar (const juce::var& data)
             MicPlacementMigration::kLegacyBlockKey,   // mic-placement.md 4
             "techniques",   // TECHNIQUES: engine-technique-layer.md 7 (a missing comma here once
                             // fused it with "uid", so both were re-saved first as unknown keys)
-            "uid", "previewPhrase"   // preset-browser-previews 5.4 (FEAT-BROWSER)
+            "uid", "previewPhrase",   // preset-browser-previews 5.4 (FEAT-BROWSER)
+            "doublerMigrated"   // B-07
         };
 
         auto* preserved = new juce::DynamicObject();
@@ -875,7 +877,8 @@ bool PresetManager::fromVar (const juce::var& data)
             preset that had the old engine doubler on gets a Doubler in its first
             empty post-amp slot, at the pedal's own defaults (the old amount
             meant something else); with no slot free it goes without. */
-        if ((double) params->getProperty (ParamIDs::doublerOn) > 0.5)
+        if ((double) params->getProperty (ParamIDs::doublerOn) > 0.5
+              && ! (bool) obj->getProperty ("doublerMigrated"))   // B-07: only files from before the pedal
         {
             bool already = false;
             int freeSlot = -1;
@@ -1240,6 +1243,7 @@ bool PresetManager::loadPreset (const juce::File& file)
 
     currentName = file.getFileNameWithoutExtension();
     currentFile = file;
+    currentFileStamp = file.getLastModificationTime();   // SPEC-SWEEP: ER-22
     applyExtraState();
 
     // file-formats 2 (MODEL-GAPS): a migrated file's original is kept.
@@ -1542,6 +1546,7 @@ bool PresetManager::saveCurrent()
 
     captureExtraState();
     stampSaveTime();   // SPEC-SWEEP: FF-20
+    noteConcurrentChange (info->file);   // SPEC-SWEEP: ER-22
 
     // preset-browser-previews 5.4: a uid on the first save of a user preset.
     if (currentUid.isEmpty() || currentUid.startsWith ("factory:"))
@@ -1550,6 +1555,8 @@ bool PresetManager::saveCurrent()
 
     if (writeToFile (info->file, toVar (info->name, info->category, info->description, info->tags)))
     {
+        currentFile = info->file;
+        currentFileStamp = info->file.getLastModificationTime();
         modified = false;
         const auto savedFile = info->file;
         sendChangeMessage();
@@ -1578,6 +1585,7 @@ bool PresetManager::saveAs (const juce::String& name, const juce::String& catego
 
     captureExtraState();
     stampSaveTime();   // SPEC-SWEEP: FF-20
+    noteConcurrentChange (file);   // SPEC-SWEEP: ER-22
 
     // preset-browser-previews 5.4: a new file gets a new uid; saving over an
     // existing one keeps its uid, so its favourite and rating stay with it.
@@ -1593,10 +1601,13 @@ bool PresetManager::saveAs (const juce::String& name, const juce::String& catego
         if (! writeToFile (file, toVar (name, safeCategory, description, tags)))
         {
             currentUid = previousUid;
+            saveNotice.clear();   // SPEC-SWEEP: ER-22 - nothing was written
             return false;
         }
     }
 
+    currentFile = file;
+    currentFileStamp = file.getLastModificationTime();
     currentName = name;
     currentCategory = safeCategory;
     modified = false;
@@ -1618,6 +1629,33 @@ bool PresetManager::saveAs (const juce::String& name, const juce::String& catego
         onPresetSaved (file);   // preset-browser-previews 2 (FEAT-BROWSER)
 
     return true;
+}
+
+void PresetManager::noteConcurrentChange (const juce::File& file)
+{
+    /*  Only the file this instance loaded or last saved: its modification time
+        moved without us, so another instance (or window) saved it in between.
+        The later save wins, as error-recovery 2 says, and the earlier version
+        is in the backup folder (backupBeforeOverwrite). */
+    saveNotice.clear();
+
+    if (file != currentFile || ! file.existsAsFile() || currentFileStamp == juce::Time())
+        return;
+
+    if (file.getLastModificationTime() == currentFileStamp)
+        return;
+
+    saveNotice = "Saved " + file.getFileNameWithoutExtension()
+                   + "; overwrote another change made since it was opened (the earlier version is in Backups).";
+
+    ErrorLog::write (ErrorLog::Severity::warn, "PresetSystem", "CONCURRENT_SAVE",
+                     "The preset changed on disk since it was loaded; the later save won",
+                     [&]
+                     {
+                         auto* context = new juce::DynamicObject();
+                         context->setProperty ("path", file.getFullPathName());
+                         return juce::var (context);
+                     }());
 }
 
 bool PresetManager::deletePreset (int index)

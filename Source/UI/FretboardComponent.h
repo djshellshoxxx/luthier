@@ -101,7 +101,37 @@ public:
     void mouseMove (const juce::MouseEvent&) override;
     void mouseExit (const juce::MouseEvent&) override;
 
+    // ==== BEGIN A11Y-8 fretboard keyboard ====
+    /*  accessibility.md 1, 2 (A11Y-8): the board is reachable without a mouse and
+        readable by a screen reader. It takes keyboard focus; a cursor sits on one
+        string and fret, arrows move it, Enter or Space plays it, M mutes the
+        string, and every move is spoken as "String 3, fret 5, current note: G".
+        FretboardAccess.cpp. */
+    bool keyPressed (const juce::KeyPress&) override;
+    void focusGained (FocusChangeType) override;
+    void focusLost (FocusChangeType) override;
+    void paintOverChildren (juce::Graphics&) override;
+    std::unique_ptr<juce::AccessibilityHandler> createAccessibilityHandler() override;
+
+    /** The keyboard cursor: string 0-based from the top row, fret 0 (open) to the last fret. */
+    void setCursor (int stringIndex, int fret);
+    int getCursorString() const noexcept { return cursorString; }
+    int getCursorFret() const noexcept { return cursorFret; }
+
+    /** What a screen reader says for a cell: "String 3, fret 5, current note: G". */
+    juce::String describeCell (int stringIndex, int fret) const;
+
+    /** Plays the cursor's cell as a click there would; false when the string is muted. */
+    bool playCursor();
+
+    int getNumFrets() const noexcept { return numFrets; }
+    int getNumStrings() const noexcept { return numStrings; }
+    // ==== END A11Y-8 fretboard keyboard ====
+
 private:
+    int cursorString = 0, cursorFret = 0;
+    bool cursorShown = false;
+
     void timerCallback() override;
 
     /** Fret positions follow the real rule: each fret sits at

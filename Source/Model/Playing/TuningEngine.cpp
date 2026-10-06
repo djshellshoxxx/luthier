@@ -324,6 +324,13 @@ double TuningEngine::getOpenFrequencyBeforeCapo (int stringIndex) const noexcept
     return s.openFrequencyHz * centsToRatio (cents);
 }
 
+double TuningEngine::getMicroOffsetFrets (int stringIndex) const noexcept
+{
+    const auto& s = getStringTuning (stringIndex);
+    return (std::abs (s.realismDetuneCents) + std::abs (s.driftCents) + std::abs (s.fineTuneCents)
+              + std::abs (s.characterDriftCents) + std::abs (s.stabilityCents)) / 100.0;
+}
+
 double TuningEngine::getEffectiveOpenFrequency (int stringIndex) const noexcept
 {
     /*  4.5: "open strings are the capo'd notes". Everything that asks what a

@@ -13,7 +13,9 @@
 #include "UI/Overlays.h"
 #include "UI/BanjoReveal.h"   // easter-egg: Dueling Banjos
 #include "UI/Notifications.h"
+#include "UI/ValidatorNotices.h"   // SP-111 / SP-114
 #include "Export/MidiImportTargets.h"   // midi-export 5 (MODEL-GAPS)
+#include "Support/FileOpenRouter.h"   // root file drop
 #include "UI/Onboarding.h"
 #include "UI/QualityBadge.h"   // cpu-quality-modes
 
@@ -149,6 +151,11 @@ private:
 
     /** accessibility.md 6: a palette change reaches every panel at once. */
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
+
+    /** accessibility 4 (A11Y-29): the user's scale, stepped down to the largest
+        that lets the minimum window fit this screen. Returns the warning to show,
+        once per session, otherwise empty. */
+    juce::String applyUiScale();
     void setAdvancedMode (bool advanced);
     void showOverlay (OverlayPanel* panel);
 
@@ -196,6 +203,7 @@ private:
         that pushed the live controls up every time it arrived would move the
         buttons under a player's hand mid-set. */
     NotificationCentre notifications;
+    ValidatorNotices validatorNotices;   // SP-111 / SP-114: the validator's corrections, said out loud
 
     LiveStrip liveStrip;
     InlineNotice inlineNotice;

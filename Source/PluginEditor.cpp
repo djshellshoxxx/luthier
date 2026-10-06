@@ -12,9 +12,11 @@
 #include "Accessibility/Accessibility.h"
 #include "UI/Guitar/StringAnimator.h"   // animated-strings.md 8
 #include "UI/NormalizationOptions.h"   // output-normalization.md 5
+#include "Support/ConfigRecovery.h"
 #include "UI/Search/SearchNavigator.h"   // global-search.md (FEAT-SEARCH)
 #include "UI/Search/CommandPalette.h"
 #include "UI/Search/RiffSearchProvider.h"   // INTEGRATE-2
+#include "UI/ValidatorNotices.h"
 
 namespace luthier
 {
@@ -50,7 +52,7 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
 
     // accessibility.md 4: the UI scale (75-200 %) was stored and offered but
     // never applied; the host is told through the editor's scale factor.
-    setScaleFactor ((float) AccessibilitySettings::get().getUiScale());
+    const auto scaleNotice = applyUiScale();   // shown once the window is built, below
 
     // gui-integration 20's NEW dots: the first launch of this version starts the week.
     NewFeatureDots::noteLaunch (JucePlugin_VersionString, juce::Time::getCurrentTime());
@@ -250,6 +252,9 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
         header carries it instead. */
     inlineNotice.dismiss();
 
+    if (scaleNotice.isNotEmpty())   // accessibility.md 4 (A11Y-29): a screen too small for the scale
+        inlineNotice.show (scaleNotice, InlineNotice::Level::warning);
+
     tooltips.setLookAndFeel (&lookAndFeel);
 
     setWantsKeyboardFocus (true);
@@ -389,8 +394,12 @@ void LuthierAudioProcessorEditor::showSaveGuitarDialog()
                 safeThis->notifications.post ({ "save-guitar", tr ("workshop.saveGuitar.saved", { { "name", name } }),
                                                 Notification::Level::info });
             else
-                safeThis->notifications.post ({ "save-guitar", tr ("workshop.saveGuitar.failed"),
-                                                Notification::Level::warning });
+                safeThis->notifications.post ({ "save-guitar",
+                                                // SPEC-SWEEP ER-44: the reason, when there is one.
+                                                safeThis->processor.getLastGuitarSaveError().isNotEmpty()
+                                                    ? safeThis->processor.getLastGuitarSaveError()
+                                                    : tr ("workshop.saveGuitar.failed"),
+                                                Notification::Level::error });
         }), true);
 }
 
@@ -650,6 +659,39 @@ void LuthierAudioProcessorEditor::updateLiveStripVisibility()
 }
 
 //==============================================================================
+juce::String LuthierAudioProcessorEditor::applyUiScale()
+{
+    const double wanted = AccessibilitySettings::get().getUiScale();
+    double scale = wanted;
+
+    // No display (headless tests, some hosts before the window exists): trust the setting.
+    const auto& displays = juce::Desktop::getInstance().getDisplays();
+    const auto* display = isOnDesktop() ? displays.getDisplayForRect (getScreenBounds())
+                                        : displays.getPrimaryDisplay();
+
+    if (display != nullptr)
+        scale = AccessibilitySettings::largestScaleThatFits (wanted, display->userArea,
+                                                             minimumWidth, minimumHeight);
+
+    juce::String notice;
+
+    if (scale < wanted - 1.0e-6)
+    {
+        static std::atomic<bool> warned { false };
+
+        if (! warned.exchange (true))
+            notice = "The window is scaled to " + juce::String (juce::roundToInt (scale * 100.0))
+                     + "% so it fits this screen (you asked for "
+                     + juce::String (juce::roundToInt (wanted * 100.0)) + "%).";
+    }
+
+    if (std::abs (getTransform().getScaleFactor() - (float) scale) > 1.0e-3f)
+        setScaleFactor ((float) scale);
+
+    return notice;
+}
+
+//==============================================================================
 void LuthierAudioProcessorEditor::changeListenerCallback (juce::ChangeBroadcaster*)
 {
     auto& settings = AccessibilitySettings::get();
@@ -659,8 +701,8 @@ void LuthierAudioProcessorEditor::changeListenerCallback (juce::ChangeBroadcaste
     Palette::remap (*this, shownPalette, wanted);
     shownPalette = wanted;
 
-    if (std::abs (getTransform().getScaleFactor() - (float) settings.getUiScale()) > 1.0e-3f)
-        setScaleFactor ((float) settings.getUiScale());   // accessibility.md 4
+    if (const auto scaleNotice = applyUiScale(); scaleNotice.isNotEmpty())   // accessibility.md 4
+        inlineNotice.show (scaleNotice, InlineNotice::Level::warning);
 
     lookAndFeel.refreshColours();
     sendLookAndFeelChange();
@@ -1349,6 +1391,10 @@ void LuthierAudioProcessorEditor::pollForNotifications()
         notifications.post (std::move (n));
     }
 
+    // ---- SPEC-SWEEP: SP-111 / SP-114 - a tension that had to be corrected, or every pickup off ----
+    for (auto& n : validatorNotices.poll (processor.getEngine().getValidator(), juce::Time::getMillisecondCounter()))
+        notifications.post (std::move (n));
+
     // The CPU limit banner (performance-budget.md 8, relief 7) is now E3's,
     // posted by QualityEditorLink (cpu-quality-modes 7).
 
@@ -1378,6 +1424,16 @@ void LuthierAudioProcessorEditor::pollForNotifications()
         Notification n;
         n.id = "preferences-reset";
         n.message = "Preferences reset (previous file corrupted, backed up).";
+        n.level = Notification::Level::warning;
+        notifications.post (std::move (n));
+    }
+
+    // SPEC-SWEEP ER-65: the same for every other settings file.
+    if (const auto files = ConfigRecovery::takeRecoveredFiles(); ! files.isEmpty())
+    {
+        Notification n;
+        n.id = "settings-reset";
+        n.message = "Settings reset (" + files.joinIntoString (", ") + " was corrupted, backed up).";
         n.level = Notification::Level::warning;
         notifications.post (std::move (n));
     }
@@ -1432,9 +1488,19 @@ void LuthierAudioProcessorEditor::pollForNotifications()
             Notification n;
             n.id = "preset-save";
             n.message = saveError;
-            n.level = Notification::Level::warning;
+            n.level = Notification::Level::error;   // SPEC-SWEEP ER-81: the user's work did not land
             notifications.post (std::move (n));
         }
+    }
+
+    // ---- SPEC-SWEEP: ER-22 - a save that overwrote another instance's ------------
+    if (const auto notice = processor.getPresetManager().takeSaveNotice(); notice.isNotEmpty())
+    {
+        Notification n;
+        n.id = "preset-save-concurrent";
+        n.message = notice;
+        n.level = Notification::Level::warning;
+        notifications.post (std::move (n));
     }
 
     // ---- installer.md 8: a load that migrated an old file ----------------------
@@ -1529,7 +1595,8 @@ void LuthierAudioProcessorEditor::openHelp (const juce::String& topic)
 bool LuthierAudioProcessorEditor::isInterestedInFileDrag (const juce::StringArray& files)
 {
     for (const auto& f : files)
-        if (MidiImportTargets::isMidiFile (juce::File (f)))
+        if (MidiImportTargets::isMidiFile (juce::File (f))
+            || FileOpenRouter::route (f) != FileOpenRouter::Target::unknown)
             return true;
 
     return false;
@@ -1543,6 +1610,24 @@ void LuthierAudioProcessorEditor::filesDropped (const juce::StringArray& files, 
             importMidiFile (juce::File (f));
             return;
         }
+
+    // Glue: every other Luthier file type goes through the router the
+    // standalone's double-click uses.
+    for (const auto& f : files)
+    {
+        if (FileOpenRouter::route (f) == FileOpenRouter::Target::unknown)
+            continue;
+
+        juce::String error;
+        const bool ok = FileOpenRouter::open (processor, juce::File (f), error);
+
+        Notification n;
+        n.id = "file-drop";
+        n.message = ok ? "Opened " + juce::File (f).getFileName() : error;
+        n.level = ok ? Notification::Level::info : Notification::Level::warning;
+        notifications.post (std::move (n));
+        return;
+    }
 }
 
 void LuthierAudioProcessorEditor::importMidiFile (const juce::File& file, std::optional<MidiImportTarget> target)

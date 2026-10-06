@@ -29,7 +29,13 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 MODE=""
 WANT_VST3=1 WANT_CLAP=1 WANT_APP=1 WANT_CONTENT=1 ASSUME_YES=0
 
-for arg in "$@"; do
+# A package may carry install.defaults (e.g. "--no-vst3 --no-clap" for the
+# standalone-only archive); command-line options add to them.
+DEFAULTS=""
+[ -r "$HERE/install.defaults" ] && DEFAULTS="$(tr '\n' ' ' < "$HERE/install.defaults")"
+
+# shellcheck disable=SC2086
+for arg in $DEFAULTS "$@"; do
     case "$arg" in
         --user) MODE=user ;;
         --system) MODE=system ;;
@@ -83,6 +89,8 @@ fi
 
 mkdir -p "$CONTENT_DIR"
 : > "$MANIFEST.tmp"
+work_desktop="$(mktemp)"
+trap 'rm -f "$work_desktop"' EXIT
 
 record() { # every path written, deepest last; uninstall removes in reverse
     find "$1" -depth -print | tac >> "$MANIFEST.tmp"
@@ -112,7 +120,11 @@ if [ $WANT_APP = 1 ]; then
         put "$HERE/luthier-render" "$BIN_DIR/luthier-render"
         chmod 755 "$BIN_DIR/luthier-render"
     fi
-    put "$HERE/share/applications/luthier.desktop" "$SHARE/applications/luthier.desktop"
+    # Launchers often lack ~/.local/bin on PATH, so the entry names the binary by
+    # its absolute path (a bare "Exec=luthier" would silently fail to start).
+    sed "s#^Exec=luthier #Exec=$BIN_DIR/luthier #" "$HERE/share/applications/luthier.desktop" \
+        > "$work_desktop"
+    put "$work_desktop" "$SHARE/applications/luthier.desktop"
     put "$HERE/share/mime/packages/luthier.xml"    "$SHARE/mime/packages/luthier.xml"
     put "$HERE/share/icons/hicolor/256x256/apps/luthier.png" \
         "$SHARE/icons/hicolor/256x256/apps/luthier.png"

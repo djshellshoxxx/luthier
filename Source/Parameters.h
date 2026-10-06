@@ -895,6 +895,9 @@ private:
     int lastBridgeType = -1;
     int lastPlayingMode = -1;
     int lastTemperament = -1;
+    // A controller profile owns MPE and the bend range once chosen; the
+    // parameters are pushed to the interpreter only when they change.
+    float lastMpeEnabled = -1.0f, lastBendRange = -1.0f;
 
     /*  The capo is structural: it changes what every open string sounds and how
         many frets are left, so the engine has to be told rather than having it

@@ -61,12 +61,12 @@ TechniqueOverlay::TechniqueOverlay (LuthierAudioProcessor& p, FretboardComponent
 {
     setInterceptsMouseClicks (false, false);
     setAccessible (false);
-    startTimerHz (30);
+    motion.startTimerHz (*this, 30);
 }
 
 TechniqueOverlay::~TechniqueOverlay()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 void TechniqueOverlay::refresh()

@@ -78,6 +78,10 @@ public:
 
     void prepare (double sampleRate, int maxBlockSize);
     void reset() noexcept;
+
+    /** After prepare() and the parameters that follow it: the signal stages'
+        smoothers land on the values just applied (see the .cpp). */
+    void settleAfterPrepare() noexcept;
     void releaseResources();
 
     double getSampleRate() const noexcept { return sr; }
@@ -211,6 +215,8 @@ public:
 
     /** Part swaps taken at a block boundary since prepare, for the tests. */
     int getLivePartSwapCount() const noexcept { return livePartSwaps.load (std::memory_order_relaxed); }
+    /** RT-SAFETY P1: MIDI events trimmed by the bounded slice copies (0 in any real session). */
+    int getMidiOverflowDropCount() const noexcept { return midiOverflowDrops.load (std::memory_order_relaxed); }
 
     /** A parts guitar's pickup as its part describes it (engine slot order). */
     const PickupSpec& getPartsPickup (int slot) const noexcept
@@ -439,6 +445,9 @@ public:
     /** Host transport position, for the rhythm engine's grid. */
     void setTransportPosition (double ppqPosition, bool isPlaying) noexcept
     {
+        if (! std::isfinite (ppqPosition))   // RT-SAFETY P2: keep the last valid position
+            ppqPosition = hostPpq;
+
         hostPpq = ppqPosition;
         hostPlaying = isPlaying;
     }
@@ -526,6 +535,9 @@ public:
     /** environment.md 3.4: the host's playhead, seconds, when it is playing. */
     void setHostTimeSeconds (double seconds, bool isPlaying) noexcept
     {
+        if (! std::isfinite (seconds))   // RT-SAFETY P2: "the host does not say"
+            seconds = -1.0, isPlaying = false;
+
         hostTimeSeconds = seconds;
         hostTimePlaying = isPlaying;
     }
@@ -763,6 +775,7 @@ private:
         local juce::MidiBuffer and called ensureSize on it in the callback. Both
         slice buffers are members now, reserved in prepare. */
     juce::MidiBuffer sliceMidi;
+    std::atomic<int> midiOverflowDrops { 0 };          ///< events BoundedMidi trimmed
     RhythmEngine rhythm;
     CharacterEngine character;
 
@@ -1144,6 +1157,8 @@ private:
     void qualityNoteOff (int stringIndex, bool heldOn) noexcept;
     void qualityPerBlock() noexcept;
     void qualityAfterBlock (const juce::AudioBuffer<float>& output) noexcept;
+    void reseedCouplingPitches() noexcept;   // reset/panic: the coupling's filters at the open pitches
+
     // ==== BEGIN REALISM-B engine state ====
     HarmonicTouchSettings harmonicTouch;
     StringInteractionSettings interaction;

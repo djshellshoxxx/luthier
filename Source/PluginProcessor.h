@@ -57,6 +57,7 @@
 #include "Support/InstallLayout.h"
 #include "Support/SoundingNotesPublisher.h"
 #include "Presets/Preview/PreviewPlayer.h"   // preset-browser-previews.md 4
+#include "Support/HostClockGuard.h"   // RT-SAFETY P2
 
 namespace luthier
 {
@@ -82,6 +83,14 @@ public:
     void processBlockBypassed (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&) override
     {
         buffer.clear();
+    }
+
+    /** RT-SAFETY: invalid host clock fields replaced, and MIDI events a bounded
+        copy trimmed (both 0 in a well-behaved session). */
+    int getRejectedHostClockCount() const noexcept { return hostClock.getRejectedCount(); }
+    int getMidiOverflowDropCount() const noexcept
+    {
+        return midiOverflowDrops.load (std::memory_order_relaxed) + engine.getMidiOverflowDropCount();
     }
 
     /** cpu-quality-modes 2.6: an offline bounce renders at High. Any thread. */
@@ -127,6 +136,13 @@ public:
         only; the host restores everything, the normalization setting included. */
     enum class RestoreScope { full, soundOnly };
     void restoreState (const void* data, int sizeInBytes, RestoreScope scope);
+
+    /*  SPEC-SWEEP HI-20/24/25 (HostStateFormat.cpp): the diagnostics folder,
+        where HI-25's pre-migration copies and an unreadable blob are kept. */
+    static juce::File getStateBackupFolder();
+
+    /** The blob as text: byte-counted, and empty when it is not valid UTF-8. */
+    static juce::String stateBlobToText (const void* data, int sizeInBytes);
 
     /** output-normalization.md: the switch, the target, the calibration. */
     OutputNormalization& getOutputNormalization() noexcept { return outputNormalization; }
@@ -401,6 +417,13 @@ public:
         file. Returns the file, or an empty File if the write failed. */
     juce::File saveGuitarAs (const juce::String& name, bool bundleParts = false);
 
+    /*  SPEC-SWEEP ER-44, error-recovery 5: why the last saveGuitarAs refused or
+        failed, as a sentence the banner shows; empty after a save that worked. */
+    juce::String getLastGuitarSaveError() const { return lastGuitarSaveError; }
+
+    /** What makes a guitar unsaveable (an empty required slot, no strings), or empty. */
+    static juce::String describeGuitarSaveProblem (const WorkshopGuitar& guitar);
+
     /*  guitar-workshop.md 7: saves a fitted part's current fields as a user
         part under `name`, rescans the library and fits the saved part in its
         slot. Returns the saved part, or nullptr if the slot is empty or the
@@ -443,6 +466,10 @@ public:
         did to the layers around it ("A/B cleared by preset load."). Taken once
         by the editor. */
     juce::StringArray takeStateNotices();
+
+    /** An info banner from a panel that has no window of its own to tell
+        (SPEC-SWEEP ER-46: a melody that could not be generated). */
+    void postStateNotice (const juce::String& message) { stateNotices.addIfNotAlreadyThere (message); }
 
     /** SPEC-SWEEP: FF-35/SM-31 - the same, for warnings (a refused setlist). */
     juce::StringArray takeStateWarnings();
@@ -499,8 +526,23 @@ public:
     void releaseKeyboardChord (const juce::Array<int>& midiNotes);
 
     //==========================================================================
-    /** Releases every string and clears all state. The Panic button. */
+    /** Releases every string and clears all state. The Panic button.
+
+        B-14 / GAPS "Stop everything" (PR #2's RESET & STOP): Panic also stops
+        everything that would start the sound again on its own - the tune
+        player, the looper, the backing track, the metronome, a practice
+        routine, the rhythm engine's free-run (which plays the PRACTICE
+        progression) and the jam band. Parameters are left alone
+        (live-performance 9.5 / 9.6); that is resetEverything's job. */
     void panic();
+
+    /** Panic's transport half on its own: stops the players listed above.
+        Message thread. */
+    void stopAllPlayers();
+
+    /** panic() without the engine command: the players, the audition, the jam
+        band and the preview MIDI. resetEverything panics the engine itself. */
+    void stopEverythingButTheEngine();
 
     //==========================================================================
     // SPEC-SWEEP (UW-5 / CB-17): the UI's writes to audio-thread state go
@@ -591,8 +633,14 @@ public:
     /** Tune percussion note-ons that reached the engine so far (JM-42). */
     int getTunePercussionToEngine() const noexcept { return tunePercussionToEngine.load (std::memory_order_relaxed); }
 
-    /** Restores every parameter, the MIDI map and the UI state to defaults. */
+    /** Restores every parameter, the MIDI map and the UI state to defaults,
+        and stops everything that plays (RESET & STOP): Panic's players, plus
+        the rhythm engine, the session recorder and the kill switch. One undo
+        step. The engine reset runs with the audio thread parked. */
     void resetEverything();
+
+    /** PR #2's name for the same action. */
+    void resetAndStop() { resetEverything(); }
 
     /** The destructive reset in the debug panel: defaults plus removing caches. */
     void hardResetAndClearCaches();
@@ -843,7 +891,7 @@ private:
     // midi-export 2.1 / 6 (MODEL-GAPS, TODO 10): the CHARACTER class's seed and
     // environment, sent when they change. Audio thread.
     uint64_t sentCharacterSeed = 0;
-    int sentTemperature = -1, sentHumidity = -1;
+    double sentTemperature = -1000.0, sentHumidity = -1000.0;
     bool characterStated = false;
     void sendCharacterChanges() noexcept;
 
@@ -997,6 +1045,13 @@ private:
     void presetFileLoaded();
     juce::StringArray stateNotices, stateWarnings;
 
+    // SPEC-SWEEP HI-20/24/25 (HostStateFormat.cpp).
+    void writeStateFormat (juce::DynamicObject& root) const;
+    void readStateFormat (const juce::DynamicObject& root, const void* data, int sizeInBytes);
+    void noteRestoredPresetBlock (const juce::var& block, bool loaded);
+    void reportUnreadableState (const void* data, int sizeInBytes);
+    juce::var refusedPresetBlock;   // a newer build's preset, written back until another preset loads
+
     /** Resolves a preset's reference to a guitar file: user, then factory. */
     static juce::File resolveGuitarReference (const juce::String& reference);
 
@@ -1007,6 +1062,7 @@ private:
     WorkshopGuitar currentGuitar;
     WorkshopBench bench { *this };
     bool partsGuitarLoaded = false;
+    juce::String lastGuitarSaveError;   // SPEC-SWEEP ER-44
     bool strumFamilyIsBass = false;   ///< strum-dynamics 4: the family the strum parameters' defaults follow
     juce::StringArray guitarNotices;
 
@@ -1068,6 +1124,8 @@ private:
     int hostTimeSigNumerator = 0, hostTimeSigDenominator = 0;   // SPEC-SWEEP HI-29: 0 = the host gave none
 
     double currentSampleRate = 44100.0;
+    HostClockGuard hostClock;                    ///< RT-SAFETY P2: every PlayHead read goes through it
+    std::atomic<int> midiOverflowDrops { 0 };     ///< RT-SAFETY P1: events BoundedMidi trimmed
     bool initialStateApplied = false;   ///< the bridge has built the instrument once (prepare or save)
     int currentBlockSize = 512;
 

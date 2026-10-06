@@ -13,6 +13,149 @@ namespace luthier
 {
 
 //==============================================================================
+//  ScrollHintViewport
+//==============================================================================
+class ScrollHintViewport::OverflowChevron : public juce::Component,
+                                            public juce::SettableTooltipClient
+{
+public:
+    OverflowChevron (ScrollHintViewport& v, bool isTop)
+        : viewport (v), top (isTop)
+    {
+        setTooltip ((top ? "More controls above: scroll up, or click here" : "More controls below: scroll down, or click here"));
+        setMouseCursor (juce::MouseCursor::PointingHandCursor);
+
+        AccessibleSetup::configureDescriptive (*this,
+                                               (top ? "More above" : "More below"),
+                                               getTooltip());
+    }
+
+    void paint (juce::Graphics& g) override
+    {
+        auto bounds = getLocalBounds().toFloat();
+
+        // The fade runs from the page background at the edge to nothing at the
+        // inner side, so the strip reads as the column running under the frame.
+        const auto solid = top ? bounds.getY() : bounds.getBottom();
+        const auto clear = top ? bounds.getBottom() : bounds.getY();
+
+        g.setGradientFill (juce::ColourGradient (Palette::background.withAlpha (0.92f),
+                                                 bounds.getX(), solid,
+                                                 Palette::background.withAlpha (0.0f),
+                                                 bounds.getX(), clear, false));
+        g.fillRect (bounds);
+
+        LuthierLookAndFeel::drawChevron (g, bounds.getCentre(), 5.0f, top ? 0 : 2,
+                                         hovering ? Palette::accentBright : Palette::accent, 1.6f);
+    }
+
+    void mouseEnter (const juce::MouseEvent&) override { hovering = true;  repaint(); }
+    void mouseExit  (const juce::MouseEvent&) override { hovering = false; repaint(); }
+
+    /** Only the glyph takes the mouse; a control scrolled under the fade
+        either side of it still gets its click. */
+    bool hitTest (int x, int y) override
+    {
+        return juce::isPositiveAndBelow (y, getHeight())
+            && std::abs (x - getWidth() / 2) <= ScrollHintViewport::hintGlyphHalfWidth;
+    }
+
+    void mouseDown (const juce::MouseEvent&) override
+    {
+        viewport.pageBy (top ? -1 : 1);
+    }
+
+    // mouseWheelMove is deliberately not overridden: Component's default hands
+    // the wheel to the parent, which is the Viewport, which scrolls.
+
+private:
+    ScrollHintViewport& viewport;
+    const bool top;
+    bool hovering = false;
+};
+
+ScrollHintViewport::ScrollHintViewport (const juce::String& componentName)
+    : juce::Viewport (componentName)
+{
+    topHint = std::make_unique<OverflowChevron> (*this, true);
+    bottomHint = std::make_unique<OverflowChevron> (*this, false);
+
+    // Added after the Viewport's own content holder and scrollbars, so they sit
+    // on top of both.
+    addChildComponent (*topHint);
+    addChildComponent (*bottomHint);
+}
+
+ScrollHintViewport::~ScrollHintViewport()
+{
+    if (watchedContent != nullptr)
+        watchedContent->removeComponentListener (&contentWatcher);
+}
+
+void ScrollHintViewport::resized()
+{
+    juce::Viewport::resized();
+    updateHints();
+}
+
+void ScrollHintViewport::visibleAreaChanged (const juce::Rectangle<int>&)
+{
+    updateHints();
+}
+
+void ScrollHintViewport::viewedComponentChanged (juce::Component* newComponent)
+{
+    if (watchedContent != nullptr)
+        watchedContent->removeComponentListener (&contentWatcher);
+
+    watchedContent = newComponent;
+
+    if (watchedContent != nullptr)
+        watchedContent->addComponentListener (&contentWatcher);
+
+    updateHints();
+}
+
+void ScrollHintViewport::ContentWatcher::componentMovedOrResized (juce::Component&, bool, bool wasResized)
+{
+    // A taller or shorter content leaves the bottom hint stale otherwise:
+    // resized() and visibleAreaChanged() only run on the viewport's own moves.
+    if (wasResized)
+        owner.updateHints();
+}
+
+void ScrollHintViewport::updateHints()
+{
+    const int width = getMaximumVisibleWidth();
+    const int height = getMaximumVisibleHeight();
+
+    topHint->setBounds (0, 0, width, hintHeight);
+    bottomHint->setBounds (0, height - hintHeight, width, hintHeight);
+
+    const auto* content = getViewedComponent();
+    const int contentHeight = content != nullptr ? content->getHeight() : 0;
+    const int viewY = getViewPositionY();
+
+    topHint->setVisible (viewY > 0);
+    bottomHint->setVisible (contentHeight > viewY + height);
+
+    topHint->toFront (false);
+    bottomHint->toFront (false);
+}
+
+bool ScrollHintViewport::isTopHintShowing() const noexcept     { return topHint->isVisible(); }
+bool ScrollHintViewport::isBottomHintShowing() const noexcept  { return bottomHint->isVisible(); }
+
+void ScrollHintViewport::pageBy (int direction)
+{
+    /*  Reduced motion (accessibility 5) is respected by construction: the view
+        moves in one step, with no animation to disable. */
+    const int step = juce::roundToInt ((float) getMaximumVisibleHeight() * 0.8f);
+    setViewPosition (getViewPositionX(), getViewPositionY() + direction * step);
+}
+
+
+//==============================================================================
 //  StringRow
 //==============================================================================
 StringRow::StringRow (LuthierAudioProcessor& p, int index)
@@ -93,6 +236,7 @@ void StringRow::paint (juce::Graphics& g)
 
     // ---- mute -------------------------------------------------------------------
     muteBounds = bounds.removeFromRight (18).withSizeKeepingCentre (12, 12);
+    muted = processor.isStringMuted (stringIndex);   // the fretboard's menu mutes too
 
     g.setColour (muted ? Palette::warning : Palette::edge);
     g.drawRoundedRectangle (muteBounds.toFloat(), 2.0f, 1.0f);
@@ -123,10 +267,11 @@ void StringRow::mouseDown (const juce::MouseEvent& e)
 {
     if (muteBounds.contains (e.getPosition()))
     {
-        muted = ! muted;
+        muted = ! processor.isStringMuted (stringIndex);
 
-        processor.getEngine().getString (stringIndex).setDamping (
-            muted ? StringEngine::Damping::Choked : StringEngine::Damping::Open, 1.0);
+        // CB-17: the string is the audio thread's; the processor queues the
+        // mute and applies it at the top of the next block.
+        processor.setStringMuted (stringIndex, muted);
 
         repaint();
         return;
@@ -863,7 +1008,7 @@ void AdvancedPanel::buildColumn2()
     addKnob (releaseNoise, "Release", ParamIDs::releaseNoise, "Thump as a note is stopped");
     addKnob (bodyKnock, "Body Knock", ParamIDs::bodyKnock, "Percussive tap on the body");
     addKnob (pickNoise, "Pick Attack", ParamIDs::pickNoise, "Contact noise under the pick");
-    addKnob (ampBuzz, "Amp Buzz", ParamIDs::ampBuzz,
+    addKnob (ampBuzz, "Single-coil Hum", ParamIDs::ampBuzz,
              "Mains hum. Single coils hum; humbuckers cancel it.");
 }
 
@@ -1641,6 +1786,7 @@ void AdvancedPanel::resized()
         else if (auto* p = dynamic_cast<NotationPanel*> (panel))             height = juce::jmax (visible, p->getPreferredHeight());
         else if (auto* p = dynamic_cast<PracticeSetupPanel*> (panel))        height = juce::jmax (visible, p->getPreferredHeight());
         else if (auto* p = dynamic_cast<RhythmPanel*> (panel))               height = juce::jmax (visible, p->preferredHeight());   // issues.md 8: the STRUM group's lower rows
+        else if (auto* p = dynamic_cast<ModMatrixPanel*> (panel))            height = juce::jmax (visible, p->preferredHeight());   // the user macros above the route table
         else if (panel == characterPanel.get() || panel == controllersPage.get())
             height = juce::jmax (80, panel->getHeight());
 

@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: LicenseRef-Proprietary
 
 #include "LuthierEngine.h"
+#include "Support/BoundedMidi.h"
 #include "Capture/PerformanceCapture.h"
 #include "ToneMatch/ToneMatch.h"   // SPEC-SWEEP TM-6
 
@@ -108,6 +109,8 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
     scrape.prepare (sr, maxBlock);
     scrapeMidi.ensureSize (8192);
     techniqueMidi.ensureSize (8192);
+    sliceMidi.ensureSize ((size_t) BoundedMidi::kReserveBytes);   // RT-SAFETY P1
+    directSlice.ensureSize ((size_t) BoundedMidi::kReserveBytes);
     slap.prepare (sr);
     stability.prepare (sr);                       // tuning-stability.md 5
     stability.setSeed ((juce::uint32) (character.getSeed() ^ (character.getSeed() >> 32)) ^ 0x57AB1Eu);
@@ -283,6 +286,8 @@ void LuthierEngine::reset() noexcept
         // pitch would otherwise depend on the previous preset.
         strings[(size_t) i].snapToFrequency (tuning.computeFrequency (i, 0.0));
     }
+
+    reseedCouplingPitches();
 
     feedbackLoop.reset();
 
@@ -1242,6 +1247,9 @@ void LuthierEngine::setOversamplingFactor (int factor) noexcept
 
 void LuthierEngine::setTempoBpm (double bpm) noexcept
 {
+    if (! std::isfinite (bpm) || bpm <= 0.0)   // RT-SAFETY P2: keep the last valid tempo
+        return;
+
     tempoBpm = bpm;
     preEffects.setTempoBpm (bpm);
     postEffects.setTempoBpm (bpm);
@@ -1250,8 +1258,13 @@ void LuthierEngine::setTempoBpm (double bpm) noexcept
 //==============================================================================
 void LuthierEngine::panic() noexcept
 {
+    // live-performance 9.1: all notes off on every string, and nothing left
+    // waiting to sound.
     PlayEventQueue q;
     midi.allNotesOff (q);
+    events.clear();
+    rhythmEvents.clear();
+    directEvents.clear();
 
     for (int i = 0; i < numStrings; ++i)
     {
@@ -1260,6 +1273,30 @@ void LuthierEngine::panic() noexcept
         vibratoAmount[(size_t) i] = 0.0;
         stringMidiNote[(size_t) i] = -1;
     }
+
+    // B-14 (PR #2, RESET & STOP): the rhythm engine's held chord and pending
+    // strums go too - a free-running engine otherwise strums its remembered
+    // chord straight back in. Whether it is enabled is a setting (9.6).
+    rhythm.reset();
+    technique.reset();
+
+    // live-performance 9.2 - 9.4: every tail - the body's and the cabinet's
+    // resonances, the circuit, the effects, the amp's DC, the room, the freeze.
+    // Every reset here is lock-free or a try-lock: this runs at the top of the
+    // audio callback (the command queue), never waiting on the message thread.
+    body.reset();
+    pickups.reset();
+    circuit.reset();
+    secret.reset();
+    fretBuzzModel.reset();
+    preEffects.resetFromAudioThread();
+    amp.reset();
+    postEffects.resetFromAudioThread();
+    cabinet.reset();
+    room.reset();
+    master.reset();
+    freezeOverlay.reset();
+    stringOutputs.fill (0.0);
 
     feedbackLoop.reset();
     ebowDriver.reset();
@@ -1272,10 +1309,49 @@ void LuthierEngine::panic() noexcept
     // sounding; a panic silences them too.
     playingNoise.reset();
     coupling.reset();
+    reseedCouplingPitches();
     noteSustainScale.fill (1.0);
     bridgeOutputs.fill (0.0);
     couplingInputs.fill (0.0);
     resetRealismB();   // REALISM-B: string-interaction.md 9, panic clears the runtime flags
+}
+
+//==============================================================================
+/*  The coupling's receive filters are designed at the open-string pitches
+    after a reset or a panic. CouplingMatrix::reset() forgets the designed
+    pitches, and setStringFrequency skips a move under 0.5 Hz, so whatever
+    set them first afterwards fixed the design: after a reset the guitar
+    rebuild's open pitch, after a panic (one still queued when the next render
+    began, say) the first block's pitch. The same session then rendered
+    differently depending on what had been played and stopped before it
+    (Combo renderDoesNotDependOnWhatWasPlayedBefore). Seeding them from the
+    tuning here makes both start from the same design. */
+/*  prepare() resets every stage before the host's parameters are applied, so
+    the stages' smoothers (the room's blend and width, a pedal's mix) were
+    snapped to their prepare defaults and the first render after a prepare
+    ramped from those to the applied values; a panic still queued at that
+    point snapped them instead, so the render depended on whether one was
+    (Combo qualityLevelsForgetWhatWasPlayedAtReset). Nothing has played since
+    the prepare, so resetting the stages again only lands the smoothers on
+    the values in force. Message thread, from prepareToPlay. */
+void LuthierEngine::settleAfterPrepare() noexcept
+{
+    body.reset();
+    pickups.reset();
+    circuit.reset();
+    preEffects.reset();
+    amp.reset();
+    postEffects.reset();
+    cabinet.reset();
+    room.reset();
+    master.reset();
+    freezeOverlay.reset();
+}
+
+void LuthierEngine::reseedCouplingPitches() noexcept
+{
+    for (int i = 0; i < numStrings; ++i)
+        coupling.setStringFrequency (i, tuning.computeFrequency (i, 0.0));
 }
 
 //==============================================================================
@@ -2457,7 +2533,8 @@ void LuthierEngine::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
             const int position = metadata.samplePosition;
 
             if (position >= offset && position < offset + count)
-                sliceMidi.addEvent (metadata.getMessage(), position - offset);
+                if (! BoundedMidi::add (sliceMidi, metadata.data, metadata.numBytes, position - offset))
+                    midiOverflowDrops.fetch_add (1, std::memory_order_relaxed);
         }
 
         // The direct notes are sliced the same way.
@@ -2466,7 +2543,8 @@ void LuthierEngine::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
         if (directMidi != nullptr)
             for (const auto metadata : *directMidi)
                 if (metadata.samplePosition >= offset && metadata.samplePosition < offset + count)
-                    directSlice.addEvent (metadata.getMessage(), metadata.samplePosition - offset);
+                    if (! BoundedMidi::add (directSlice, metadata.data, metadata.numBytes, metadata.samplePosition - offset))
+                        midiOverflowDrops.fetch_add (1, std::memory_order_relaxed);
 
         directForSubBlock = &directSlice;
 

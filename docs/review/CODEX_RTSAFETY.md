@@ -49,3 +49,13 @@ The existing `Source/Tests/AudioThreadSafetyTests.cpp:203-282` counts same-threa
 No new test file was added: the board requires a new test to build and run on Linux before handoff, and this execution environment has no local repository, JUCE checkout, CMake, Ninja or xvfb-run. The available `g++` alone cannot build this JUCE target. These findings were checked against exact source at the stated commit through the GitHub connector, but **Linux build and runtime tests are unverified**. Suggested first tests: (1) live part swap with both probes armed, (2) active strum/fingerpick while changing humanization, (3) secret effect enabled after warm-up, (4) oversized/dense MIDI, and (5) reset/replay and invalid-host-clock finite output. The P0 tests may intentionally fail until fixes land; do not turn them into a required green gate prematurely.
 
 No production, spec, or shared helper files changed.
+
+## Status after the RT-safety fix pass (2026-09-29)
+
+- **P0 live part swap: fixed.** `swapPartsAtBlockBoundary` builds the body bank (`BodyEngine::buildModalBank`) on the message thread into the fixed-size `PendingPartSwap::bodyBank`; the audio thread installs it with `BodyEngine::applyPrebuiltBank` (bounded copy, no lock, no sort). The swap object is still retired to the message thread through `retiredPartSwap`.
+- **P0 humanise lock: already fixed on trunk** (SPEC-SWEEP RE-2: `RhythmEngine` reads a `TripleBuffer`; `getHumanise()` is message-thread only). Now covered by a concurrent-writer probe test.
+- **P1 thread_local scratch: fixed.** Engine members `pedalScratch*` / `secretScratch*`, sized in `prepare`.
+- **P1 oversized-block / MIDI growth: fixed where the buffer is ours.** Member slice buffers reserved in `prepare` (`Support/BoundedMidi.h`, 64 KB); bounded copies keep note-offs, pedal-ups and channel-mode messages in a reserved headroom and drop (and count) the rest of an unrealistic burst. Long SysEx is inspected without a heap copy. The host's own `MidiBuffer` is still written directly (copy-back, as `handleLiveMidi` does); `TunePlayer` output is covered by a larger reserve, not a bound.
+- **P2 host clock / sample rate: fixed.** `Support/HostClockGuard.h` sanitises every PlayHead read (non-finite or non-positive BPM, non-finite PPQ / bar start / time are replaced by the last valid value); `prepareToPlay` refuses a non-finite or non-positive rate or block size; `LuthierEngine::setTempoBpm`, `setTransportPosition` and `setHostTimeSeconds` also ignore non-finite input.
+- **Beta: ReverbPedal Size change** was already preallocated on trunk; now covered by a probe test.
+- Tests: `Source/Tests/RtSafetyProbeTests.cpp` (suite `RtSafety`).

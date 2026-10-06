@@ -1,0 +1,63 @@
+{
+  "schema": 1,
+  "magic": "luthier.tune",
+  "meta": {
+    "title": "Funk groove in E",
+    "artist": "",
+    "author": "Factory",
+    "tempo_bpm": 100.0,
+    "time_sig": "4/4",
+    "key": "E",
+    "mode": "ionian",
+    "swing": 0.0,
+    "feel_pct": 0.0,
+    "tags": [
+      "template",
+      "funk"
+    ],
+    "notes": "One-chord E9 vamp with an A9 change: sixteenth-note comping.",
+    "created": "2026-09-23T00:00:00Z",
+    "modified": "2026-09-23T00:00:00Z"
+  },
+  "sections": [
+    {
+      "name": "Groove",
+      "length_bars": 8,
+      "rhythm_pattern": "Funk Sixteenth",
+      "genre_kit": "Funk 16th",
+      "chords": [
+        {
+          "root": "E",
+          "quality": "9",
+          "beats": 8.0
+        },
+        {
+          "root": "A",
+          "quality": "9",
+          "beats": 4.0
+        },
+        {
+          "root": "E",
+          "quality": "9",
+          "beats": 4.0
+        }
+      ],
+      "bass": {
+        "mode": "genre"
+      },
+      "role": "verse",
+      "rhythm_on": true,
+      "rhythm_link": "",
+      "feel": 0.5,
+      "strum": 0.5,
+      "state_boundary": false,
+      "style": "none"
+    }
+  ],
+  "setlist": [
+    {
+      "section": "Groove",
+      "repeats": 1
+    }
+  ]
+}

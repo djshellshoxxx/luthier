@@ -244,7 +244,7 @@ list with exact IDs.
 | Tune feel/tempo drift | `tune_feel_mod`, `tune_tempo_drift` (mod-only?) | TUNE or `intentionallyHidden` | open (decide) |
 | Legacy string age | `string_age` into GuiReach `intentionallyHidden` (superseded by `string_age_hours`) | Tests | open |
 | RHYTHM panel height | `RhythmPanel::preferredHeight()` into `AdvancedPanel::resized` | AdvancedPanel | open |
-| Stop everything | looper, backing track, tune player, metronome, progression, rhythm into `LuthierAudioProcessor::panic()` | PluginProcessor | open |
+| Stop everything | looper, backing track, tune player, metronome, progression, rhythm into `LuthierAudioProcessor::panic()` | PluginProcessor | done (PR #2 port; `ResetStop.*`) |
 | Backing track pitch/tempo | read `pitchSemis`/`tempoRatio` in the renderer | BackingTrack | open |
 | Controller profile MPE/bend | stop `ParameterBridge::applyToEngine` overwriting them each block | Parameters.cpp | open |
 | Environment SysEx | send `env_temperature_c` / `env_humidity_pct` instead of the legacy enum | PluginProcessor | open |

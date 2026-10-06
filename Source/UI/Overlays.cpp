@@ -16,6 +16,11 @@ namespace luthier
 OverlayPanel::OverlayPanel (const juce::String& t)
     : title (t)
 {
+    // The host announces the panel by its name; without one every dialog was
+    // announced as "Dialog opened" (SPEC-SWEEP: A11Y-10).
+    setName (t);
+    setTitle (t);
+
     addAndMakeVisible (closeButton);
     closeButton.setTooltip ("Close (Escape)");
     closeButton.onClick = [this] { if (onDismiss) onDismiss(); };
@@ -59,6 +64,12 @@ void OverlayPanel::resized()
                            (titleBarHeight - Metrics::buttonHeight) / 2, 72, Metrics::buttonHeight);
 
     layoutContent (getContentBounds());
+}
+
+std::unique_ptr<juce::AccessibilityHandler> OverlayPanel::createAccessibilityHandler()
+{
+    // A dialog to a screen reader: it is announced as one, and focus stays inside.
+    return std::make_unique<juce::AccessibilityHandler> (*this, juce::AccessibilityRole::dialogWindow);
 }
 
 bool OverlayPanel::keyPressed (const juce::KeyPress& key)
@@ -727,18 +738,20 @@ ExportPanel::ExportPanel (LuthierAudioProcessor& p)
             return;
         }
 
-        auto chooser = std::make_shared<juce::FileChooser> ("Choose a MIDI file to render",
-                                                             PresetManager::getRenderFolder(), "*.mid;*.midi");
-
-        chooser->launchAsync (juce::FileBrowserComponent::openMode
+        // Owned by the panel, so closing it cancels the dialog (chooser lifetime).
+        fileChooser.launch (*this, "Choose a MIDI file to render",
+                            PresetManager::getRenderFolder(), "*.mid;*.midi",
+                            juce::FileBrowserComponent::openMode
                                 | juce::FileBrowserComponent::canSelectFiles,
-                              [this, chooser] (const juce::FileChooser& fc)
+                            [this] (const juce::File& file)
         {
-            importedMidiFile = fc.getResult();
-
-            if (importedMidiFile == juce::File())
-                sourceBox.setSelectedId (1, juce::dontSendNotification);
-
+            importedMidiFile = file;
+            updateEstimate();
+        },
+        [this]
+        {
+            importedMidiFile = juce::File();
+            sourceBox.setSelectedId (1, juce::dontSendNotification);
             updateEstimate();
         });
     };
@@ -816,16 +829,14 @@ ExportPanel::ExportPanel (LuthierAudioProcessor& p)
     addAndMakeVisible (chooseFolderButton);
     chooseFolderButton.onClick = [this]
     {
-        auto chooser = std::make_shared<juce::FileChooser> ("Choose where to save the render",
-                                                             destinationFolder);
-
-        chooser->launchAsync (juce::FileBrowserComponent::openMode
+        fileChooser.launch (*this, "Choose where to save the render", destinationFolder, {},
+                            juce::FileBrowserComponent::openMode
                                 | juce::FileBrowserComponent::canSelectDirectories,
-                              [this, chooser] (const juce::FileChooser& fc)
+                            [this] (const juce::File& folder)
         {
-            if (fc.getResult().isDirectory())
+            if (folder.isDirectory())
             {
-                destinationFolder = fc.getResult();
+                destinationFolder = folder;
                 updateEstimate();
             }
         });
@@ -1335,18 +1346,13 @@ ChordAndTabPanel::ChordAndTabPanel (LuthierAudioProcessor& p)
     addAndMakeVisible (exportTabButton);
     exportTabButton.onClick = [this]
     {
-        auto chooser = std::make_shared<juce::FileChooser> (
-            "Export the tab",
-            PresetManager::getRenderFolder().getChildFile ("Luthier Tab.txt"), "*.txt");
-
-        chooser->launchAsync (juce::FileBrowserComponent::saveMode
+        fileChooser.launch (*this, "Export the tab",
+                            PresetManager::getRenderFolder().getChildFile ("Luthier Tab.txt"), "*.txt",
+                            juce::FileBrowserComponent::saveMode
                                 | juce::FileBrowserComponent::warnAboutOverwriting,
-                              [this, chooser] (const juce::FileChooser& fc)
+                            [this] (const juce::File& file)
         {
-            const auto file = fc.getResult();
-
-            if (file != juce::File())
-                file.replaceWithText (tabView.getText());
+            file.replaceWithText (tabView.getText());
         });
     };
 
