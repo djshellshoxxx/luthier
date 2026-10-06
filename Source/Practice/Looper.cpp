@@ -864,7 +864,8 @@ bool Looper::save (const juce::File& file) const
 
     const auto folder = file.getParentDirectory()
                           .getChildFile (file.getFileNameWithoutExtension());
-    folder.createDirectory();
+    if (folder.createDirectory().failed())
+        return false;
 
     std::array<LayerSnapshot, kMaxLayers> snapshots;
     int length = 0;
@@ -908,7 +909,8 @@ bool Looper::save (const juce::File& file) const
     if (! snapshotOk || length <= 0)
         return false;
 
-    auto* root = new juce::DynamicObject();
+    juce::var document (new juce::DynamicObject());
+    auto* root = document.getDynamicObject();
 
     root->setProperty ("format", "luthierloop");
     root->setProperty ("sampleRate", sr);
@@ -928,9 +930,11 @@ bool Looper::save (const juce::File& file) const
         {
             const auto audioName = "layer" + juce::String (i + 1) + ".wav";
 
-            if (writeWav (folder.getChildFile (audioName), snapshot.audio,
-                          snapshot.audio.getNumSamples(), sr))
-                entry->setProperty ("audio", audioName);
+            if (! writeWav (folder.getChildFile (audioName), snapshot.audio,
+                            snapshot.audio.getNumSamples(), sr))
+                return false;
+
+            entry->setProperty ("audio", audioName);
 
             juce::Array<juce::var> events;
 
@@ -958,7 +962,7 @@ bool Looper::save (const juce::File& file) const
     root->setProperty ("layers", layerArray);
 
     return folder.getChildFile ("loop.json")
-             .replaceWithText (juce::JSON::toString (juce::var (root), false));
+             .replaceWithText (juce::JSON::toString (document, false));
 }
 
 int Looper::importLayer (int layerIndex, const juce::AudioBuffer<float>& source)
