@@ -22,3 +22,8 @@ ONLY when every item above is genuinely true:
 2. Output exactly: <promise>COMPLETE</promise>
 
 Never output the promise to escape the loop early. If not done, just keep working.
+
+
+## Required shared plug-in standard
+
+This project follows the [Circuit Drift Labs Shared Audio Plugin Standard](docs/standards/CDL_PLUGIN_BASELINE.md). It is required for the plug-in target; standalone-only requirements apply only when a standalone target is included. The product-specific specification supplements the shared standard and records the applicable profiles, compliance status, and any exceptions.
