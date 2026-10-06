@@ -388,7 +388,7 @@ void Looper::clear()
     // or the storage pause below; already-entered calls are drained by the
     // in-flight counter before any layer buffer is copied or cleared.
     reset();
-    beginStorageAccess();
+    AudioStorageGuard storageAccess (*this);
 
     drainPendingMidi();
 
@@ -398,13 +398,13 @@ void Looper::clear()
     if (length > 0)
         clearedLoopLength = length;
 
-    endStorageAccess();
+    storageAccess.release();
 }
 
 bool Looper::restoreCleared()
 {
     stop();
-    beginStorageAccess();
+    AudioStorageGuard storageAccess (*this);
 
     bool restored = false;
 
@@ -416,7 +416,7 @@ bool Looper::restoreCleared()
         loopLength.store (clearedLoopLength, std::memory_order_relaxed);
 
     clearedLoopLength = 0;
-    endStorageAccess();
+    storageAccess.release();
     return restored;
 }
 
@@ -791,7 +791,7 @@ bool Looper::writeLayersToFile (const juce::File& file,
     if (length <= 0 || layerIndices.isEmpty())
         return false;
 
-    beginStorageAccess();
+    AudioStorageGuard storageAccess (*this);
 
     juce::AudioBuffer<float> mix (2, length);
     mix.clear();
@@ -815,7 +815,7 @@ bool Looper::writeLayersToFile (const juce::File& file,
         mix.addFrom (1, 0, layer.readRight(), count, (float) (gain * panR));
     }
 
-    endStorageAccess();
+    storageAccess.release();
     return writeWav (file, mix, length, sr);
 }
 
@@ -880,7 +880,7 @@ bool Looper::save (const juce::File& file) const
     int length = 0;
     bool snapshotOk = true;
 
-    beginStorageAccess();
+    AudioStorageGuard storageAccess (*this);
 
     try
     {
@@ -913,7 +913,7 @@ bool Looper::save (const juce::File& file) const
         snapshotOk = false;
     }
 
-    endStorageAccess();
+    storageAccess.release();
 
     if (! snapshotOk || length <= 0)
         return false;
@@ -977,7 +977,7 @@ int Looper::importLayer (int layerIndex, const juce::AudioBuffer<float>& source)
         return 0;
 
     stop();
-    beginStorageAccess();
+    AudioStorageGuard storageAccess (*this);
 
     auto& layer = getLayer (layerIndex);
     const int count = juce::jmin (capacity, source.getNumSamples(), layer.getAudio().getNumSamples());
@@ -997,7 +997,7 @@ int Looper::importLayer (int layerIndex, const juce::AudioBuffer<float>& source)
     if (! others || loopLength.load (std::memory_order_relaxed) <= 0)
         loopLength.store (count, std::memory_order_relaxed);
 
-    endStorageAccess();
+    storageAccess.release();
     return count;
 }
 
@@ -1138,7 +1138,7 @@ bool Looper::loadLayerAudio (int layerIndex, const juce::AudioBuffer<float>& sou
         || ! juce::isPositiveAndBelow (layerIndex, kMaxLayers))
         return false;
 
-    beginStorageAccess();
+    AudioStorageGuard storageAccess (*this);
 
     int length = loopLength.load (std::memory_order_relaxed);
 
@@ -1163,7 +1163,7 @@ bool Looper::loadLayerAudio (int layerIndex, const juce::AudioBuffer<float>& sou
     layer.setRecordedSamples (length);
     layer.setMode (mode);
 
-    endStorageAccess();
+    storageAccess.release();
     return true;
 }
 
