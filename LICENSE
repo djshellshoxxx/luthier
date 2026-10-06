@@ -1,0 +1,32 @@
+# Luthier Proprietary Source License
+
+Copyright © 2026 Sheldon Davidson. All rights reserved.
+
+Luthier is commercial software developed under the Circuit Drift Labs brand.
+
+This license applies to the original Luthier source code, documentation, graphics, presets, specifications, tests, build materials, and other original project materials in this repository, except for third-party components expressly identified as being governed by their own licenses.
+
+No permission is granted to copy, modify, redistribute, sublicense, sell, publish, incorporate into another product, create derivative works from, or commercially exploit the covered source materials except under a separate written license from the copyright holder.
+
+## Free, Trial, and Pro editions
+
+The existence of a Luthier Free edition, evaluation build, beta build, or time-limited trial does not make the Luthier source code open source and does not grant redistribution or modification rights.
+
+Compiled Luthier releases may be distributed under separate end-user terms established by the copyright holder, including:
+
+- a permanent Free edition;
+- a time-limited Pro evaluation or trial;
+- a paid Luthier Pro license;
+- commercial, OEM, educational, or other separately negotiated licenses.
+
+Audio, presets, project files, and other creative output produced by an authorized Luthier build remain the user's own output unless a separate agreement explicitly states otherwise.
+
+## Third-party software
+
+Third-party frameworks, SDKs, libraries, formats, trademarks, and other components remain governed by their respective licenses and owners. Nothing in this license overrides those obligations.
+
+## No trademark license
+
+This software license does not grant rights to use the Luthier name, Circuit Drift Labs name, logos, icons, trade dress, or other source-identifying branding except as necessary to truthfully identify an authorized copy of the software.
+
+THE COVERED MATERIALS ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE COPYRIGHT HOLDER IS NOT LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING FROM THE MATERIALS OR THEIR USE.
