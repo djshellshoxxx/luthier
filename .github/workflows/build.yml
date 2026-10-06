@@ -71,6 +71,7 @@ env:
   BUILD_DIR: build-ci
   DIST_DIR: dist
   CONFIG: Release
+  LUTHIER_EDITION: ${{ matrix.edition }}
 
 jobs:
   plan:
@@ -84,9 +85,18 @@ jobs:
           PLATFORMS: ${{ inputs.platforms || 'linux,windows,macos' }}
         run: |
           items=()
-          case ",$PLATFORMS," in *,linux,*)   items+=('{"name":"Linux x64","os":"ubuntu-latest","platform":"linux"}');; esac
-          case ",$PLATFORMS," in *,windows,*) items+=('{"name":"Windows x64 (MSVC)","os":"windows-latest","platform":"windows"}');; esac
-          case ",$PLATFORMS," in *,macos,*)   items+=('{"name":"macOS universal","os":"macos-latest","platform":"macos"}');; esac
+          case ",$PLATFORMS," in *,linux,*)
+            items+=('{"name":"Linux x64 / Pro","os":"ubuntu-latest","platform":"linux","edition":"PAID"}')
+            items+=('{"name":"Linux x64 / Free","os":"ubuntu-latest","platform":"linux","edition":"FREE"}');;
+          esac
+          case ",$PLATFORMS," in *,windows,*)
+            items+=('{"name":"Windows x64 / Pro","os":"windows-latest","platform":"windows","edition":"PAID"}')
+            items+=('{"name":"Windows x64 / Free","os":"windows-latest","platform":"windows","edition":"FREE"}');;
+          esac
+          case ",$PLATFORMS," in *,macos,*)
+            items+=('{"name":"macOS universal / Pro","os":"macos-latest","platform":"macos","edition":"PAID"}')
+            items+=('{"name":"macOS universal / Free","os":"macos-latest","platform":"macos","edition":"FREE"}');;
+          esac
           if [ ${#items[@]} -eq 0 ]; then echo "::error::no platforms in '$PLATFORMS'"; exit 1; fi
           joined=$(IFS=,; echo "${items[*]}")
           echo "matrix={\"include\":[$joined]}" >> "$GITHUB_OUTPUT"
@@ -131,7 +141,7 @@ jobs:
         with:
           # ccache cannot wrap MSVC through CMake's launcher reliably; sccache can.
           variant: ${{ runner.os == 'Windows' && 'sccache' || 'ccache' }}
-          key: ${{ matrix.platform }}-lto${{ env.LTO }}
+          key: ${{ matrix.platform }}-${{ matrix.edition }}-lto${{ env.LTO }}
           max-size: 2G
 
       # ---------------------------------------------------------- sources
@@ -171,7 +181,7 @@ jobs:
         id: build_windows
         if: runner.os == 'Windows'
         shell: pwsh
-        run: scripts/ci_build.ps1 -Step configure,build -Lto ${{ env.LTO }} -Jobs 4
+        run: scripts/ci_build.ps1 -Step configure,build -Lto ${{ env.LTO }} -Edition ${{ matrix.edition }} -Jobs 4
 
       # ---------------------------------------------------------- test
       - name: Unit tests (Unix)
@@ -180,7 +190,7 @@ jobs:
       - name: Unit tests (Windows)
         if: runner.os == 'Windows' && steps.build_windows.outcome == 'success'
         shell: pwsh
-        run: scripts/ci_build.ps1 -Step test
+        run: scripts/ci_build.ps1 -Step test -Edition ${{ matrix.edition }}
 
       # Validators run even when a unit test failed: they answer a different
       # question (does the plugin load and behave in a host) and the log is
@@ -193,7 +203,7 @@ jobs:
       - name: pluginval + clap-validator (Windows)
         if: ${{ !cancelled() && runner.os == 'Windows' && steps.build_windows.outcome == 'success' }}
         shell: pwsh
-        run: scripts/ci_build.ps1 -Step validate -Strictness ${{ env.STRICTNESS }}
+        run: scripts/ci_build.ps1 -Step validate -Edition ${{ matrix.edition }} -Strictness ${{ env.STRICTNESS }}
 
       # ---------------------------------------------------------- stage
       - name: Stage products (Unix)
@@ -202,13 +212,13 @@ jobs:
       - name: Stage products (Windows)
         if: ${{ !cancelled() && runner.os == 'Windows' && steps.build_windows.outcome == 'success' }}
         shell: pwsh
-        run: scripts/ci_build.ps1 -Step stage
+        run: scripts/ci_build.ps1 -Step stage -Edition ${{ matrix.edition }}
 
       - name: Upload plugins
         if: ${{ !cancelled() && (steps.build_unix.outcome == 'success' || steps.build_windows.outcome == 'success') }}
         uses: actions/upload-artifact@v4
         with:
-          name: Luthier-${{ matrix.platform }}-${{ github.sha }}
+          name: Luthier-${{ matrix.edition }}-${{ matrix.platform }}-${{ github.sha }}
           path: ${{ env.DIST_DIR }}/${{ matrix.platform }}
           retention-days: 14
           if-no-files-found: warn
@@ -217,7 +227,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: logs-${{ matrix.platform }}-${{ github.sha }}
+          name: logs-${{ matrix.edition }}-${{ matrix.platform }}-${{ github.sha }}
           path: |
             ${{ env.BUILD_DIR }}/logs
             ${{ env.BUILD_DIR }}/CMakeFiles/CMakeConfigureLog.yaml
@@ -261,6 +271,6 @@ jobs:
         if: inputs.package
         uses: actions/upload-artifact@v4
         with:
-          name: installers-${{ matrix.platform }}
+          name: installers-${{ matrix.edition }}-${{ matrix.platform }}
           path: ${{ env.DIST_DIR }}/installers
           if-no-files-found: error
