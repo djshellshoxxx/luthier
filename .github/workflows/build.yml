@@ -73,7 +73,6 @@ env:
   BUILD_DIR: build-ci
   DIST_DIR: dist
   CONFIG: Release
-  LUTHIER_EDITION: ${{ matrix.edition }}
 
 jobs:
   plan:
@@ -106,6 +105,8 @@ jobs:
   build:
     name: ${{ matrix.name }}
     needs: plan
+    env:
+      LUTHIER_EDITION: ${{ matrix.edition }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 180
     strategy:

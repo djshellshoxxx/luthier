@@ -4,10 +4,50 @@
 extern "C"
 {
 #include "monocypher-ed25519.h"
+#include "monocypher.h"
 }
 
 using namespace luthier;
 using namespace luthier::tests;
+
+// Guard the vendored Poly1305 arithmetic used by the crypto library. Expected
+// tags come from RFC 8439 section 2.5.2 and an independent integer-mod-p model.
+LUTHIER_TEST (LicenceFile, poly1305KnownAnswerAndHighLimbVectors)
+{
+    const unsigned char rfcKey[32] = {
+        0x85, 0xd6, 0xbe, 0x78, 0x57, 0x55, 0x6d, 0x33,
+        0x7f, 0x44, 0x52, 0xfe, 0x42, 0xd5, 0x06, 0xa8,
+        0x01, 0x03, 0x80, 0x8a, 0xfb, 0x0d, 0xb2, 0xfd,
+        0x4a, 0xbf, 0xf6, 0xaf, 0x41, 0x49, 0xf5, 0x1b
+    };
+    const char message[] = "Cryptographic Forum Research Group";
+    const unsigned char rfcTag[16] = {
+        0xa8, 0x06, 0x1d, 0xc1, 0x30, 0x51, 0x36, 0xc6,
+        0xc2, 0x2b, 0x8b, 0xaf, 0x0c, 0x01, 0x27, 0xa9
+    };
+    unsigned char tag[16] {};
+    crypto_poly1305 (tag, reinterpret_cast<const unsigned char*> (message),
+                     sizeof (message) - 1, rfcKey);
+    CHECK (std::equal (std::begin (tag), std::end (tag), std::begin (rfcTag)));
+
+    std::array<unsigned char, 32> key;
+    std::array<unsigned char, 1024> blocks;
+    key.fill (0xff);
+    blocks.fill (0xff);
+    const unsigned char highLimbTag[16] = {
+        0x25, 0xd4, 0x92, 0x6a, 0x53, 0xbb, 0x48, 0x0d,
+        0xa2, 0x28, 0xec, 0x61, 0xe0, 0xa3, 0x1a, 0x38
+    };
+    crypto_poly1305 (tag, blocks.data(), blocks.size(), key.data());
+    CHECK (std::equal (std::begin (tag), std::end (tag), std::begin (highLimbTag)));
+
+    crypto_poly1305_ctx state;
+    crypto_poly1305_init (&state, key.data());
+    for (size_t offset = 0; offset < blocks.size(); ++offset)
+        crypto_poly1305_update (&state, blocks.data() + offset, 1);
+    crypto_poly1305_final (&state, tag);
+    CHECK (std::equal (std::begin (tag), std::end (tag), std::begin (highLimbTag)));
+}
 
 namespace
 {
