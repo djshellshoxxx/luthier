@@ -32,6 +32,15 @@ endif()
 
 add_subdirectory(ThirdParty/JUCE)
 
+if (LUTHIER_IS_PRO)
+    add_library(luthier_monocypher STATIC
+        ThirdParty/monocypher/monocypher.c
+        ThirdParty/monocypher/monocypher-ed25519.c)
+    target_include_directories(luthier_monocypher PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/monocypher")
+    set_target_properties(luthier_monocypher PROPERTIES POSITION_INDEPENDENT_CODE ON)
+endif()
+
 # CLAP comes from clap-juce-extensions when it has been fetched beside JUCE
 # (scripts/setup_linux.sh and the CI workflows fetch it); without it the build
 # simply has no CLAP target.
@@ -102,6 +111,9 @@ file(GLOB_RECURSE LUTHIER_SOURCES CONFIGURE_DEPENDS
      "${CMAKE_CURRENT_SOURCE_DIR}/Source/*.cpp"
      "${CMAKE_CURRENT_SOURCE_DIR}/Source/*.h")
 list(FILTER LUTHIER_SOURCES EXCLUDE REGEX "/Tests/")
+if (NOT LUTHIER_IS_PRO)
+    list(FILTER LUTHIER_SOURCES EXCLUDE REGEX "/Licence/")
+endif()
 
 # Work in progress by the assistant agents (spec/DECISIONS.md): written without
 # a compiler, so kept out of the build until the lead integrates it. Remove a
@@ -131,6 +143,7 @@ target_compile_definitions(Luthier PUBLIC
 target_include_directories(Luthier PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/Source")
 
 target_link_libraries(Luthier PRIVATE
+    $<$<BOOL:${LUTHIER_IS_PRO}>:luthier_monocypher>
     juce::juce_audio_utils
     juce::juce_dsp
     # SHA-256, for the license activation proof (updates-telemetry 5).
@@ -290,6 +303,7 @@ if (LUTHIER_BUILD_TESTS)
     target_compile_definitions(LuthierTests PRIVATE ${LUTHIER_TEST_DEFS})
 
     target_link_libraries(LuthierTests PRIVATE
+        $<$<BOOL:${LUTHIER_IS_PRO}>:luthier_monocypher>
         juce::juce_audio_utils
         juce::juce_dsp
         juce::juce_cryptography
