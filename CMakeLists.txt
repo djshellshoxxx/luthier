@@ -14,6 +14,8 @@ endif()
 
 option(LUTHIER_BUILD_TESTS "Build the Luthier unit-test runner" ON)
 option(LUTHIER_BUILD_CLI   "Build the offline batch-render CLI"  ON)
+
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/Editions.cmake")
 # Link-time optimisation for the plugin targets. On for shipped builds; CI turns
 # it off on ordinary pushes, where it doubles the link time and defeats the
 # compiler cache, and keeps it on for nightly and release builds.
@@ -73,11 +75,11 @@ endif()
 
 juce_add_plugin(Luthier
     COMPANY_NAME                "Luthier Audio"
-    BUNDLE_ID                   "com.luthieraudio.luthier"
+    BUNDLE_ID                   "${LUTHIER_BUNDLE_ID}"
     PLUGIN_MANUFACTURER_CODE    Ltha
-    PLUGIN_CODE                 Lthr
+    PLUGIN_CODE                 ${LUTHIER_PLUGIN_CODE}
     FORMATS                     ${LUTHIER_FORMATS}
-    PRODUCT_NAME                "Luthier"
+    PRODUCT_NAME                "${LUTHIER_PRODUCT_NAME}"
     IS_SYNTH                    TRUE
     NEEDS_MIDI_INPUT            TRUE
     NEEDS_MIDI_OUTPUT           TRUE    # SPEC-SWEEP PR-13 / HI-2 / HI-31: matches producesMidi(), so VST3/AU declare the event output
@@ -112,6 +114,7 @@ target_sources(Luthier PRIVATE ${LUTHIER_SOURCES})
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/Source" FILES ${LUTHIER_SOURCES})
 
 target_compile_definitions(Luthier PUBLIC
+    LUTHIER_PRO=${LUTHIER_IS_PRO}
     LUTHIER_BUILD_STRING="${LUTHIER_BUILD_STRING}"
     LUTHIER_HEADLESS=0
     JUCE_WEB_BROWSER=0
@@ -157,7 +160,7 @@ endif()
 
 if (LUTHIER_HAS_CLAP)
     clap_juce_extensions_plugin(TARGET Luthier
-        CLAP_ID "com.luthieraudio.luthier"
+        CLAP_ID "${LUTHIER_CLAP_ID}"
         CLAP_FEATURES instrument synthesizer stereo)
 endif()
 
@@ -241,6 +244,7 @@ list(FILTER LUTHIER_UI_SOURCES INCLUDE REGEX "Source/UI/|PluginEditor[A-Za-z]*\.
 list(FILTER LUTHIER_UI_SOURCES EXCLUDE REGEX "Source/UI/UiPreferences\.cpp$")
 
 set(LUTHIER_CONSOLE_DEFS
+    LUTHIER_PRO=${LUTHIER_IS_PRO}
     LUTHIER_BUILD_STRING="${LUTHIER_BUILD_STRING}"
     LUTHIER_HEADLESS=1
     JUCE_WEB_BROWSER=0
