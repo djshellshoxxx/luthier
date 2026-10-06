@@ -419,6 +419,13 @@ int Metronome::processBlock (float* destination, int numSamples) noexcept
         if (restartPending.exchange (false, std::memory_order_relaxed))
             clickPosition = kStartPosition;
 
+        // SPEC-SWEEP (IR-24): the host's position places the grid this block.
+        if (hostLock >= 0.0)
+        {
+            clickPosition = hostLock * perBeat + kStartPosition;
+            hostLock = -1.0;
+        }
+
         // ---- progressive tempo ----------------------------------------------------
         if (progressive.load (std::memory_order_relaxed))
         {

@@ -11,7 +11,7 @@ The drawer (eight tabs, strip readouts, practice level, tap, panic) and the PRAC
 | PT-5 (§1) | Time signatures incl. custom | `Metronome::setTimeSignature` | drawer METRO | `PracticeMetronome::settingsRoundTrip` | DONE |
 | PT-6 (§1) | Tempo 20-300, follows tap + host tempo — never follows either | `Metronome::followTempo` from `processSlice` (blockTempo) | METRO "FOLLOW TEMPO" toggle | `PracticeMetronome.followsTheHostAndTheTap` | DONE |
 | PT-7 (§1) | Accent map, accent/normal/ghost (+silent) | `Metronome::setBeatAccent` | METRO beat buttons | `PracticeMetronome::accentPatternIsObeyed` | DONE |
-| PT-8 (§1) | Subdivisions incl. dotted, each with own gain — untested | `Metronome::setSubdivision/setSubdivisionLevelDb` | METRO | - | NO-TEST |
+| PT-8 (§1) | Subdivisions incl. dotted, each with own gain — untested | `Metronome::setSubdivision/setSubdivisionLevelDb` | METRO | `PracticeMetronome.subdivisionsClickAtTheirOwnLevel` | DONE |
 | PT-9 (§1) | 6 click sounds | `ClickSound` | METRO sound box | `PracticeMetronome::everyClickSoundIsAudibleAndFinite` | DONE |
 | PT-10 (§1, §10) | 16 click WAVs in Resources/Practice/Clicks - clicks synthesized by `Metronome`; Resources/Practice does not exist | `Metronome` synth | - | - | MISSING |
 | PT-11 (§1) | Silent bars every N (1-16) | `Metronome::setSilentBarPeriod` | METRO | `PracticeMetronome::silentBarsMuteTheClickWithoutStoppingTheCount` | DONE |
@@ -24,18 +24,18 @@ The drawer (eight tabs, strip readouts, practice level, tap, panic) and the PRAC
 | PT-18 (§2) | Overdub / replace / play-once — modes untested | `LayerMode` | LOOP mode box | - | NO-TEST |
 | PT-19 (§2) | Per-layer volume, pan | `LoopLayer::setLevelDb/setPan` | LOOP level/pan | `PracticeLooper::mutedLayersAreSilent` | DONE |
 | PT-20 (§2) | Per-layer low-cut / high-cut — engine only | `LoopLayer::setLowCutHz/setHighCutHz` | LOOP layer strip low-cut / high-cut sliders | `PracticeLooper.layerFiltersCutWhatTheySay` | DONE |
-| PT-21 (§2) | Export mixdown / stems — untested | `Looper::exportMixdown/exportStems` | LOOP Export mix / Export stems | - | NO-TEST |
-| PT-22 (§2) | `.luthierloop` save/load with MIDI, audio, settings — untested | `Looper::save/load` | LOOP Save/Load | - | NO-TEST |
+| PT-21 (§2) | Export mixdown / stems — untested | `Looper::exportMixdown/exportStems` | LOOP Export mix / Export stems | `PracticeLooper.exportWritesAMixdownAndOneStemPerLayer` | DONE |
+| PT-22 (§2) | `.luthierloop` save/load with MIDI, audio, settings — untested | `Looper::save` (fixed a use-after-free of each layer settings var) | LOOP Save/Load | `PracticeLooper.aSavedLoopReloadsIdentically` | DONE |
 | PT-23 (§2) | Audio snapshots in temp folder, moved on save — held in memory, written as WAVs beside the loop JSON | `Looper::save` | n/a | - | PARTIAL |
 | PT-24 (§3) | WAV/AIFF/FLAC/MP3 — no MP3 (`registerBasicFormats`, no JUCE_USE_MP3AUDIOFORMAT/dr_mp3) though chooser offers *.mp3 | `JUCE_USE_MP3AUDIOFORMAT=1` (CMakeLists) | TRACK Load (`PracticePanel.cpp:670`) | `PracticeTrack.loadsEveryAdvertisedFormat` | DONE |
-| PT-25 (§3) | Volume, mono — untested | `setLevelDb/setMonoSum` | TRACK | - | NO-TEST |
+| PT-25 (§3) | Volume, mono — untested | `setLevelDb/setMonoSum` | TRACK | `PracticeTrack.levelAndMonoApply` | DONE |
 | PT-26 (§3) | Pan, low-cut, high-cut — engine only | `BackingTrackPlayer::setPan/setLowCutHz/setHighCutHz` | TRACK pan / low-cut / high-cut sliders | `PracticeTrack.panAndFiltersShapeTheTrack` | DONE |
-| PT-27 (§3) | Loop points with zero-crossing snap — untested | `setLoopSeconds`, `snapToZeroCrossing` | TRACK set start/end | - | NO-TEST |
+| PT-27 (§3) | Loop points with zero-crossing snap — untested | `setLoopSeconds`, `snapToZeroCrossing` | TRACK set start/end | `PracticeTrack.loopPointsSnapToZeroCrossingsAndWrap` | DONE |
 | PT-28 (§3) | Pitch shift +-12 st, tempo-independent — stored, renderer never reads `pitchSemis` | `Practice/TimePitchShifter` (WSOLA) in `BackingTrackPlayer::processBlock` | TRACK `pitchSlider` (no effect) | `PracticeTrack.pitchShiftMovesPitchNotTempo` | DONE |
 | PT-29 (§3) | Tempo 25-200 %, pitch-independent — stored, renderer never reads `tempoRatio` | `Practice/TimePitchShifter` driven by tempoRatio | TRACK `tempoSlider` (no effect) | `PracticeTrack.tempoShiftChangesDurationNotPitch` | DONE |
 | PT-30 (§3) | Section markers with names, jump hotkeys — markers unnamed in UI, no hotkeys | `addMarker/jumpToMarker` | TRACK marker name field; names in markerBox | `PracticeTrack.panAndFiltersShapeTheTrack` (names) | PARTIAL |
-| PT-31 (§3) | Auto-detect tempo on load — untested | `BackingTrackPlayer::estimateTempo` | TRACK `tempoLabel` | - | NO-TEST |
-| PT-32 (§3) | Gapless playlist - `setPlaylist`/`nextInPlaylist`/`previousInPlaylist` exist; no UI in Source/UI and not gapless; no test | `BackingTrackPlayer::setPlaylist` | - | - | PARTIAL |
+| PT-31 (§3) | Auto-detect tempo on load — untested | `BackingTrackPlayer::estimateTempo` | TRACK `tempoLabel` | `PracticeTrack.estimatesTheTempoOfAClickTrack` | DONE |
+| PT-32 (§3) | Gapless playlist — `setPlaylist` exists, no UI, not gapless | `BackingTrackPlayer::setPlaylist` | - | - | PARTIAL |
 | PT-33 (§4) | Scale Explore with interval/degree/note overlays — no overlay selector | `ScaleTrainer` | SCALE fretboard drawing + Notes/Intervals/Degrees overlay box | `PracticePanelUi.scaleOverlaysChangeTheLabels` | DONE |
 | PT-34 (§4) | Quiz: detects played note via MIDI, scores — `answer(midiNote)` never fed MIDI | `PracticeNoteFeed` pushed in `processSlice` while the drawer is open | drawer timer -> `ScaleTab::notePlayed` | `PracticeTrainers.aPlayedNoteAnswersTheQuiz` | DONE |
 | PT-35 (§4) | Interval trainer and chord-tone trainer — modes exist, no played-note input or choice list | `ScaleTrainer::answerInterval / answer(note, seconds) / getQuestionNotes` | SCALE interval buttons; Ask plays the question | `PracticeTrainers.intervalTrainerScoresChoices`, `PracticeTrainers.chordToneTrainerNeedsThirdAndSeventhInTime` | DONE |
@@ -43,15 +43,15 @@ The drawer (eight tabs, strip readouts, practice level, tap, panic) and the PRAC
 | PT-37 (§4) | Custom scale via interval list — engine only | `ScaleTrainer::setCustomIntervals` | SCALE "Custom..." + step list editor | `PracticePanelUi.aCustomScaleIsHighlighted` | DONE |
 | PT-38 (§5) | Ear training: intervals, 11 chord qualities, adaptive, stats.json — 14 progressions (spec: 5 named + 10 = 15) | `kProgressions` (15, +I-IV-vi-V) | drawer EAR | `PracticeTrainers.fifteenProgressions` | DONE |
 | PT-39 (§5) | Uses Luthier's own guitar sound — untested | `EarTab::placeOnStrings` (was string i, fret note%24: wrong pitches) | EAR | `PracticeTrainers.earQuestionsPlayThroughTheEngine` | DONE |
-| PT-40 (§6) | Tab formats GP5/GP/ASCII/MusicXML/PTB — ASCII and MusicXML only | `Notation/NotationImporter` | drawer TAB Open | `Notation::importerIsHonestAboutWhatItReads` | PARTIAL |
-| PT-41 (§6) | Scrolling tab view, cursor, tempo, section loop, count-in - `TabReaderTab` holds only a static `juce::TextEditor tabView` (`UI/PracticePanel.h`) | `UI/PracticePanel.cpp:TabReaderTab` | TAB | - | MISSING |
-| PT-42 (§6) | Highlight current fret on the fretboard - not implemented (no tab-to-fretboard link in Source/UI) | - | - | - | MISSING |
+| PT-40 (§6) | Tab formats GP5/GP/ASCII/MusicXML/PTB — ASCII and MusicXML only | `NotationImporter::readGuitarPro` (.gp, GP7/8) | drawer TAB Open | `Notation.guitarProRoundTripsStringsAndFrets` | PARTIAL |
+| PT-41 (§6) | Scrolling tab view, cursor, tempo, section loop, count-in — static TextEditor | `TabReaderTab::tabView` | TAB | - | MISSING |
+| PT-42 (§6) | Highlight current fret on the fretboard | - | - | - | MISSING |
 | PT-43 (§6) | Speed trainer (+N% per pass until misses) — in routines only, not in TAB | `SpeedTrainer` (PracticeRoutineTempo) | PRACTICE routines | `PracticeRoutine::theSpeedTrainerClimbsUntilAPassMissesNotes` | PARTIAL |
 | PT-44 (§6) | Play-along note detection and scoring - not implemented (no scorer in Source outside WIP) | - | - | - | MISSING |
 | PT-45 (§7) | Chord progression looper: symbols, voiced, strummed, looped; tempo/feel/kit — only parsing tested | `ProgressionLooper` | drawer PROG | `PracticeTrainers::progressionParsing` | NO-TEST |
 | PT-46 (§8) | Session recorder ring (default 60 min), audio + MIDI | `SessionRecorder` | drawer SESSION | `PracticeSession::ringBufferNeverGrows`, `PracticeGaps::theSessionRecorderRecordsWhatItIsToldTo` | DONE |
 | PT-47 (§8) | Save last take WAV + MIDI, timestamp name | `SessionRecorder::saveLastTake` | SESSION Save | `PracticeGaps::theSessionRecorderRecordsWhatItIsToldTo`, `PracticeGaps::theSaveButtonDragsTheSavedTakeOut` | DONE |
-| PT-48 (§8) | Sessions/tmp, 24 h cleanup — cleanup untested | `SessionRecorder::cleanUpOldTempFiles` (PluginProcessor.cpp:130) | n/a | - | NO-TEST |
+| PT-48 (§8) | Sessions/tmp, 24 h cleanup — cleanup untested | `SessionRecorder::cleanUpOldTempFiles` (PluginProcessor.cpp:130) | n/a | `PracticeSession.oldTempFilesAreCleanedAfterADay` | DONE |
 | PT-49 (§8) | Off by default, enabled in Options | `OptionsPages` recorder toggle | Options | `PracticeSession::disabledByDefault` | DONE |
 | PT-50 (§9) | Drawer 32-360 px resizable; collapsed strip bpm / loop LED / track title — untested | `PracticePanel` | drawer | - | NO-TEST |
 | PT-51 (§9) | Tabs METRO..SESSION in order | `PracticePanel` tabs | drawer | `PracticeRoutine::toolsAreInTheDrawersTabOrder` | DONE |

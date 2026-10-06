@@ -17,7 +17,8 @@ namespace luthier
 */
 struct ModSourceEdit
 {
-    enum class Kind : int { none = 0, lfo, envelope, sequencer, follower };
+    enum class Kind : int { none = 0, lfo, envelope, sequencer, follower,
+                            lfoBreakpoint, seqStep };   // SPEC-SWEEP: MM-12, MM-22
 
     Kind kind = Kind::none;
     int index = 0;   ///< which LFO / envelope / sequencer / follower
@@ -43,6 +44,12 @@ struct ModSourceEdit
     double followerAttackMs = 5.0, followerReleaseMs = 100.0, followerThreshold = 0.0;
     int followerString = 0;          // SPEC-SWEEP: MM-25
     bool followerLogarithmic = false;
+
+    // SPEC-SWEEP: MM-12 / MM-22 - one breakpoint or one step.
+    int subIndex = 0;                 ///< breakpoint 0-7, or step 0-63
+    double pointValue = 0.0;          ///< breakpoint -1..1, or step value -1..1
+    bool stepGate = true, stepSlide = false;
+    double stepProbability = 1.0;
 };
 
 } // namespace luthier

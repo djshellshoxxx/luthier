@@ -161,6 +161,7 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
     directSlice.ensureSize (2048);
     sliceMidi.ensureSize (2048);
     bodyIrInput.assign ((size_t) maxBlock, 0.0f);       // SPEC-SWEEP TM-6
+    eqMatchScratch.assign ((size_t) maxBlock, 0.0f);    // SPEC-SWEEP TM-28
     bodyBuffer.setSize (1, maxBlock, false, true, true);
     workBuffer.setSize (2, maxBlock, false, true, true);
     wetDryBuffer.setSize (2, maxBlock, false, true, true);
@@ -175,6 +176,7 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
 
 void LuthierEngine::reset() noexcept
 {
+    pendingBassTechnique.fill (-1);   // SPEC-SWEEP BT-12
     stringActivity.clear();
     sidechainFollower.reset();
     sidechainEnv.store (0.0);
@@ -1373,7 +1375,25 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
     /*  string-slap-technique.md 2: what the note becomes. A palm slap or a
         body tap replaces the note with the hand; a thumb strike or a pop is
         played below with the slap's excitation; a ghost is damped first. */
-    SlapStrike slapStrike = slap.classify (e, slide.isUnderBar (s));
+    // SPEC-SWEEP BT-12: an imported BASS_TECH names this note's technique.
+    NoteOnEvent withTechnique;
+    const NoteOnEvent* classified = &e;
+
+    if (e.bassTechnique < 0)
+    {
+        auto& pending = pendingBassTechnique[(size_t) s] >= 0 ? pendingBassTechnique[(size_t) s]
+                                                              : pendingBassTechnique[(size_t) kMaxStrings];
+
+        if (pending >= 0)
+        {
+            withTechnique = e;
+            withTechnique.bassTechnique = pending;
+            classified = &withTechnique;
+            pending = -1;
+        }
+    }
+
+    SlapStrike slapStrike = slap.classify (*classified, slide.isUnderBar (s));
 
     // REALISM-B, fingerstyle-attack.md 3-4: the right hand's tool. The Slap
     // and Pop tools are the slap's thumb and pop whether or not it is armed.
@@ -1643,6 +1663,15 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
     p.harmonicNumber = e.harmonicPartial;
     p.noiseAmount = pickAttackNoise * 0.4;
 
+    /*  SPEC-SWEEP SD-5 (strum-dynamics 2.1): a down-stroke meets the string at
+        a steeper angle - harder and brighter; an up-stroke at a shallower one -
+        softer. The pick noise follows below (more chirp, less click up). */
+    if (e.strumDirection != 0)
+    {
+        p.pickAngle = juce::jlimit (0.0, 1.0, pickAngle + (e.strumDirection > 0 ? -0.08 : 0.12));
+        p.brightness = juce::jlimit (0.0, 1.0, attackBrightness * (e.strumDirection > 0 ? 1.08 : 0.94));
+    }
+
     switch (e.technique)
     {
         case Technique::HammerOn:           p.kind = Excitation::Kind::HammerOn; break;
@@ -1804,9 +1833,21 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
                 pickNow.fingers = toolFingers || ! PlayingNoise::getPickMaterial (p.material).isPick;
                 pickNow.pluckPosition = p.pluckPosition;
             }
+            // SPEC-SWEEP SD-5: the stroke's angle for this strike only.
+            const double baseAngle = pickNow.angleDegrees;
+
+            if (e.strumDirection != 0)
+                pickNow.angleDegrees = juce::jlimit (0.0, 89.0, baseAngle + (e.strumDirection > 0 ? -8.0 : 12.0));
+
             playingNoise.setPick (pickNow);
 
             playingNoise.onPluck (s, info, e.velocity);
+
+            if (e.strumDirection != 0)
+            {
+                pickNow.angleDegrees = baseAngle;
+                playingNoise.setPick (pickNow);
+            }
         }
     }
 
@@ -1929,7 +1970,9 @@ void LuthierEngine::captureBassTechnique (const SlapStrike& strike) noexcept
                                                         : "slap";
 
     const double position = juce::jlimit (0.0, 1.0, strike.contactMm / juce::jmax (1.0, spec.scaleLengthMm));
-    perfCapture->bassTechnique (captureOffset(), strike.stringIndex, name, position);
+    // SPEC-SWEEP BT-24: the strike's force and its fret contact go with it.
+    perfCapture->bassTechnique (captureOffset(), strike.stringIndex, name, position,
+                                strike.force, slap.getSettings().fretContact);
 }
 
 void LuthierEngine::captureBlockState() noexcept
@@ -2576,7 +2619,7 @@ void LuthierEngine::applySwapFade (juce::AudioBuffer<float>& buffer) noexcept
     // Idle with a fade in progress only happens when a change applied without
     // parking (no audio running then); the fade-in finishes regardless.
     const bool out = state == swapFadingOut;
-    const double step = 1.0 / juce::jmax (1.0, kSwapFadeSeconds * sr);
+    const double step = 1.0 / juce::jmax (1.0, nextSwapFade.load (std::memory_order_relaxed) * sr);   // SPEC-SWEEP UW-25
 
     const int numSamples = buffer.getNumSamples();
     const int numChannels = buffer.getNumChannels();
@@ -2590,6 +2633,9 @@ void LuthierEngine::applySwapFade (juce::AudioBuffer<float>& buffer) noexcept
 
         for (int c = 0; c < numChannels; ++c)
             buffer.getWritePointer (c)[i] *= gain;
+
+        if (! out && swapPhase < 1.0)
+            ++fadeInCounter;
     }
 
     if (out && swapPhase <= 0.0)
@@ -2602,6 +2648,11 @@ void LuthierEngine::applySwapFade (juce::AudioBuffer<float>& buffer) noexcept
     {
         int expected = swapFadingIn;
         swapState.compare_exchange_strong (expected, swapIdle, std::memory_order_acq_rel);
+
+        // SPEC-SWEEP (UW-25): a one-off fade length is spent.
+        lastFadeInSamples.store (fadeInCounter + 1, std::memory_order_relaxed);
+        fadeInCounter = 0;
+        nextSwapFade.store (kSwapFadeSeconds, std::memory_order_relaxed);
     }
 }
 
@@ -3061,21 +3112,23 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     // A fretless neck has nothing to buzz against.
     if (! fretless)
     {
-        std::array<double, kMaxStrings> levels {}, fundamentals {}, wear {};
+        std::array<double, kMaxStrings> levels {}, fundamentals {};
 
         for (int s = 0; s < numStrings; ++s)
         {
             levels[(size_t) s] = strings[(size_t) s].getLevel();
             fundamentals[(size_t) s] = strings[(size_t) s].getCurrentFrequency();
 
-            // SPEC-SWEEP: CW-12 - a worn fret under the finger buzzes sooner;
-            // under a slide no fret is touched.
-            wear[(size_t) s] = (currentFret[(size_t) s] > 0.0 && ! slide.isUnderBar (s))
-                                 ? character.getFretBuzzMultiplier (currentFret[(size_t) s]) : 1.0;
+
+            fretBuzzModel.setBendCents (s, midi.getStringBendCents (s));   // SPEC-SWEEP FB-26
         }
 
         fretBuzzModel.process (playingNoise.getPool(), levels.data(), currentFret.data(),
-                               fundamentals.data(), numStrings, pluckPosition, wear.data());
+                               fundamentals.data(), numStrings, pluckPosition);
+        // SPEC-SWEEP: CW-12 and FB-21 both moved a note on a worn fret closer to
+        // the next one; the wear reaches the buzz once, through the setup's
+        // fretWearMm (filled from CharacterEngine in setSetupGeometry), which
+        // also lets the worn fret itself clear.
     }
 
     for (int i = 0; i < numSamples; ++i)
@@ -3364,6 +3417,21 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
         preEffects.processStereo (dl.data(), dr.data(), numSamples);
 
+        // SPEC-SWEEP TM-28: the EQ-match filter, into the amp.
+        const bool eqMatchHere = eqMatchSlot != nullptr && eqMatchSlot->isEngaged()
+                                 && numSamples <= (int) eqMatchScratch.size();
+
+        if (eqMatchHere && eqMatchPosition.load (std::memory_order_relaxed) == 0)
+        {
+            for (int i = 0; i < numSamples; ++i)
+                eqMatchScratch[(size_t) i] = (float) ((dl[(size_t) i] + dr[(size_t) i]) * 0.5);
+
+            eqMatchSlot->processReplacing (eqMatchScratch.data(), eqMatchScratch.data(), numSamples);
+
+            for (int i = 0; i < numSamples; ++i)
+                dl[(size_t) i] = dr[(size_t) i] = (double) eqMatchScratch[(size_t) i];
+        }
+
         // ---- 6. amp (mono) ----------------------------------------------------
         for (int i = 0; i < numSamples; ++i)
         {
@@ -3416,6 +3484,10 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
             wl[i] = (float) dl[(size_t) i];
             wr[i] = (float) dr[(size_t) i];
         }
+
+        // SPEC-SWEEP TM-28: the EQ-match filter after the amp, before the cabinet.
+        if (eqMatchHere && eqMatchPosition.load (std::memory_order_relaxed) == 1)
+            eqMatchSlot->process (workBuffer.getArrayOfWritePointers(), 2, numSamples);
 
         if (wantWetTap)
             taps.writeAuxDifference (AuxBus::wetFx, wl, wr,
@@ -3577,6 +3649,7 @@ int LuthierEngine::getLatencySamples() const noexcept
     latency += amp.getLatencySamples();
     latency += midi.getLatencySamples();
     latency += master.getLatencySamples();   // performance-budget.md 10.6: the limiter's lookahead
+                                             // (SPEC-SWEEP EN-95 added the same term; merged to one)
 
     return latency;
 }
@@ -3615,9 +3688,13 @@ int LuthierEngine::getLatencySamples (AuxBus bus) const noexcept
 
         case AuxBus::roomMic:
         case AuxBus::wetFx:
+            // The end of the chain, but ahead of the master's look-ahead line
+            // (SPEC-SWEEP: EN-95).
+            return getLatencySamples() - master.getLatencySamples();
+
         case AuxBus::monitor:
         default:
-            // These sit at or after the end of the chain.
+            // Post-master: the main output's.
             return getLatencySamples();
     }
 }

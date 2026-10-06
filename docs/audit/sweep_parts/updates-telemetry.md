@@ -7,7 +7,7 @@ Opt-in defaults, the local outbound-network log, the manifest-based update check
 | UT-1 (§0.1/§8) | Every telemetry/crash/update option off by default | `Updates/Telemetry` ctor | Options > UPDATES / PRIVACY | `Telemetry::everythingIsOffByDefault` | DONE |
 | UT-2 (§0.2) | No PII (no license, filenames, preset names) — no test asserts record payloads are PII-free | `Telemetry::record` + `isAllowedField` key allowlist, path/address values dropped | n/a | `Telemetry::recordsCarryNoPersonalData` | DONE |
 | UT-3 (§0.3) | Every outbound call logged in a rotating local file (dest, size, time, category) | `Telemetry::logNetworkCall` | PRIVACY `viewLogButton` | `Telemetry::everyOutboundCallIsLogged` | DONE |
-| UT-4 (§0.4) | Update checks on a worker thread — `juce::Thread::launch` in editor; untested | `PluginEditor.cpp` (~875), `UpdatesPage::checkForUpdate` | n/a | - | NO-TEST |
+| UT-4 (§0.4) | Update checks on a worker thread — `juce::Thread::launch` in editor; untested | `Telemetry::checkForUpdateAsync` (worker thread; editor uses it with a SafePointer) | n/a | `Telemetry::theUpdateCheckRunsOffTheMessageThread` | DONE |
 | UT-5 (§0.5) | Never auto-installs; only notifies | `PluginEditor.cpp` update banner | header banner | `Telemetry::updateCheckReadsTheManifest` | DONE |
 | UT-6 (§1) | Opt-in toggle in Options -> Updates, on-load 24 h throttle, Check now | `Telemetry::checkForUpdate` | UPDATES `updateCheckToggle`, `checkNowButton` | `Telemetry::updateCheckIsThrottled` | DONE |
 | UT-7 (§1) | Manifest JSON (schema, stable, beta, min, changelog, per-platform downloads) + semver compare | `UpdateManifest::parse`, `Version::compare` | n/a | `Telemetry::updateCheckReadsTheManifest`, `Telemetry::versionComparison` | DONE |
@@ -29,11 +29,11 @@ Opt-in defaults, the local outbound-network log, the manifest-based update check
 | UT-23 (§6) | Editable endpoint URLs | `Telemetry::setManifestUrl/...` | PRIVACY `manifestUrlBox` etc. | `Telemetry::settingsRoundTrip` | DONE |
 | UT-24 (§6) | One-click turn everything off + delete diagnostics | `Telemetry::turnEverythingOffAndDelete` | PRIVACY `paranoiaButton` | `Telemetry::turnEverythingOffDeletesAndDisables` | DONE |
 | UT-25 (§7) | System-wide `luthier-policy.json` forces telemetry off / private mirror / no crash uploads | `Policy::load/getPolicyFile` | n/a | `Telemetry::policyOverridesTheUser` | DONE |
-| UT-26 (§7) | "Managed by policy" indicator — header banner + page label, untested | `PluginEditor.cpp` "policy" notification | header banner, PRIVACY/UPDATES `policyLabel` | - | NO-TEST |
+| UT-26 (§7) | "Managed by policy" indicator — header banner + page label, untested | `Policy::setPolicyFileForTesting` | header banner, PRIVACY/UPDATES `policyLabel` | `Telemetry::aPolicyLocksThePrivacyPage` | DONE |
 | UT-27 (§8) | Test: no-network mode silent | | n/a | `Telemetry::noNetworkIsSilentRatherThanAnError` | DONE |
 | UT-28 (§8) | Test: fresh install has all four toggles off | | n/a | `Telemetry::everythingIsOffByDefault` | DONE |
 | UT-29 (§8) | Test: policy file blocks disallowed features | | n/a | `Telemetry::policyOverridesTheUser` | DONE |
 | UT-30 (§8) | Test: crash dump privacy grep | | n/a | `Telemetry::crashDumpsContainNoAudioMidiOrPresets` | DONE |
 | UT-31 (§8) | Test: 5 sequential delta patches -> SHA equals full installer - not written (only the bad-hash rollback test exists) | - | n/a | - | MISSING |
 
-<!-- counts DONE=20 NO-GUI=1 NO-TEST=2 PARTIAL=6 MISSING=2 DEFERRED=0 -->
+<!-- counts DONE=22 NO-GUI=0 NO-TEST=0 PARTIAL=4 MISSING=2 OWNED=3 DEFERRED=0 -->

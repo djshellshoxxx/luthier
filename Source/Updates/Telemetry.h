@@ -133,6 +133,10 @@ struct Policy
 
     static Policy load();
     static juce::File getPolicyFile();
+
+    /** SPEC-SWEEP: UT-26 - tests point the policy at a temporary file; an
+        empty File restores the system path. */
+    static void setPolicyFileForTesting (const juce::File& file);
 };
 
 //==============================================================================
@@ -205,6 +209,12 @@ public:
     /** Checks for an update. Worker thread; never touches the audio thread.
         Throttled to once per 24 hours unless `force` is set. */
     UpdateResult checkForUpdate (const Version& runningVersion, bool force = false);
+
+    /** SPEC-SWEEP: UT-4 - the same check on a worker thread, never the message
+        or audio thread; `onResult` is posted back to the message thread. The
+        Telemetry must outlive the call (it is the processor's). */
+    void checkForUpdateAsync (const Version& runningVersion, bool force,
+                              std::function<void (const UpdateResult&)> onResult);
 
     /** When the last check happened, for the throttle and for the UI. */
     juce::Time getLastUpdateCheckTime() const { return lastUpdateCheck; }

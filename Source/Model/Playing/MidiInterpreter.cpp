@@ -375,6 +375,22 @@ void MidiInterpreter::processBlock (const juce::MidiBuffer& midi,
             }
         }
 
+        // SPEC-SWEEP HI-37 (host-integration 9.1): notes held on two or more
+        // member channels with per-channel bend or CC 74 is MPE traffic.
+        if (! mpeEnabled && mode != PlayingMode::GuitarController && channel >= 2 && channel <= 16)
+        {
+            const auto bit = (juce::uint32) 1u << (juce::uint32) channel;
+
+            if (message.isNoteOn())
+                mpeChannelsWithNotes |= bit;
+            else if (message.isNoteOff())
+                mpeChannelsWithNotes &= ~bit;
+            else if ((message.isPitchWheel() || (message.isController() && message.getControllerNumber() == 74))
+                     && (mpeChannelsWithNotes & bit) != 0
+                     && juce::countNumberOfBits (mpeChannelsWithNotes) >= 2)
+                mpeTrafficDetected.store (true, std::memory_order_relaxed);
+        }
+
         if (message.isNoteOn())
         {
             activity = true;
@@ -1000,6 +1016,9 @@ void MidiInterpreter::flushChordGroup (int64_t upToSample, int blockOffset, int 
             assistShapeStrikes (strikes.data(), planned, chordPlan);
     }
 
+    // SPEC-SWEEP SD-5: the notes below are one stroke, in its direction.
+    pendingStrumDirection = planned > 0 ? (strumUp ? -1 : 1) : 0;
+
     for (int i = 0; i < voicing.numNotes; ++i)
     {
         const auto& note = voicing.notes[(size_t) i];
@@ -1064,6 +1083,8 @@ void MidiInterpreter::flushChordGroup (int64_t upToSample, int blockOffset, int 
             break;
         }
     }
+
+    pendingStrumDirection = 0;   // SPEC-SWEEP SD-5: later notes are not this stroke's
 
     // REALISM-B, string-interaction.md 6: the strum crosses the strings the
     // voicing mutes between its first and last; each is struck, pitchless.
@@ -1169,6 +1190,8 @@ void MidiInterpreter::emitVoicedNote (const VoicedNote& note, int64_t timestamp,
         e.shiftFromFret = heldFret;
         e.shiftSeconds = technique->slideDurationFor (note.fretPosition - heldFret);
     }
+
+    e.strumDirection = pendingStrumDirection;   // SPEC-SWEEP SD-5
 
     e.pitchHz = tuning->computeFrequency (s, note.fretPosition,
                                           getStringBendCents (s) + detune);

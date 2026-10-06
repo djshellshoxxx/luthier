@@ -316,3 +316,191 @@ LUTHIER_TEST (Accessibility, theMeterChangesShapeNotOnlyColour)
 
     CHECK_MSG (differing > 0, "no bracket at 0 dBFS+");
 }
+
+//==============================================================================
+/*  A11Y-46: the LOCALIZATION page switches the locale and the fallback, and a
+    custom catalog folder is honoured. */
+#include "../UI/OptionsPages.h"
+#include "../Accessibility/Localisation.h"
+
+LUTHIER_TEST (Editor, theLocalizationPageSwitchesLocaleAndFallback)
+{
+    auto& loc = Localisation::get();
+    const auto savedLocale = loc.getLocale();
+    const auto savedFallback = loc.getFallbackLocale();
+    const auto savedSettings = AccessibilitySettings::get().toVar();
+
+    // A custom catalog for German, so the switch has something to load.
+    juce::TemporaryFile holder;
+    const auto dir = holder.getFile();
+    dir.createDirectory();
+    CHECK (dir.getChildFile ("de.json").replaceWithText (R"({ "a11y.dialog.opened": "Dialog geoeffnet" })"));
+    loc.setCustomCatalogDirectory (dir);
+
+    LuthierAudioProcessor processor;
+    LocalizationPage page (processor);
+    page.setSize (600, 500);
+
+    juce::Array<juce::ComboBox*> boxes;
+    collectAll<juce::ComboBox> (page, boxes);
+    CHECK (boxes.size() >= 2);
+
+    const auto& locales = Localisation::getShipLocales();
+    int german = -1;
+    for (size_t i = 0; i < locales.size(); ++i)
+        if (locales[i].code == "de")
+            german = (int) i + 1;
+
+    CHECK (german > 0);
+
+    if (boxes.size() >= 2 && german > 0)
+    {
+        boxes[0]->setSelectedId (german, juce::sendNotificationSync);
+        CHECK_MSG (loc.getLocale() == "de", "locale is " + loc.getLocale());
+
+        boxes[1]->setSelectedId (german, juce::sendNotificationSync);
+        CHECK (loc.getFallbackLocale() == "de");
+    }
+
+    loc.setCustomCatalogDirectory ({});
+    loc.setFallbackLocale (savedFallback);
+    loc.setLocale (savedLocale);
+    AccessibilitySettings::get().fromVar (savedSettings);
+    AccessibilitySettings::get().save();
+    dir.deleteRecursively();
+}
+
+//==============================================================================
+/*  A11Y-24: the six palettes ship as Resources/Themes/*.json (copied beside
+    every binary with the rest of Resources), and they are exactly the built-in
+    ones. */
+LUTHIER_TEST (Accessibility, theShippedThemeFilesMatchTheBuiltIns)
+{
+    // LUTHIER_WRITE_THEMES=<absolute path to Resources/Themes> regenerates them.
+    if (const auto target = juce::SystemStats::getEnvironmentVariable ("LUTHIER_WRITE_THEMES", {});
+        juce::File::isAbsolutePath (target))
+        CHECK (AccessibilitySettings::writeBuiltInPalettes (juce::File (target)));
+
+    juce::TemporaryFile holder;
+    const auto fresh = holder.getFile();
+    CHECK (AccessibilitySettings::writeBuiltInPalettes (fresh));
+
+    const auto shipped = AccessibilitySettings::getThemeDirectory();
+
+    for (int i = 0; i < (int) PaletteId::numPalettes; ++i)
+    {
+        const auto name = juce::String (getPaletteName ((PaletteId) i)) + ".json";
+        const auto installed = shipped.getChildFile (name);
+
+        CHECK_MSG (installed.existsAsFile(), name + " is not beside the binary");
+        CHECK_MSG (installed.loadFileAsString() == fresh.getChildFile (name).loadFileAsString(),
+                   name + " differs from the built-in palette");
+    }
+
+    fresh.deleteRecursively();
+}
+
+//==============================================================================
+/*  A11Y-32: Resources/i18n/en.json ships beside the binary as the translators'
+    template: flat JSON, exactly the built-in English keys and texts, and every
+    other shipped catalog uses only known keys.
+    LUTHIER_WRITE_I18N=<absolute path to Resources/i18n> regenerates en.json. */
+LUTHIER_TEST (Localisation, everyShippedCatalogIsFlatJsonWithKnownKeys)
+{
+    const auto& english = Localisation::getBuiltInEnglish();
+
+    auto toJson = [&english]
+    {
+        auto* object = new juce::DynamicObject();
+        for (const auto& [key, text] : english)
+            object->setProperty (key, text);
+        return juce::JSON::toString (juce::var (object), false);
+    };
+
+    if (const auto target = juce::SystemStats::getEnvironmentVariable ("LUTHIER_WRITE_I18N", {});
+        juce::File::isAbsolutePath (target))
+    {
+        juce::File (target).createDirectory();
+        CHECK (juce::File (target).getChildFile ("en.json").replaceWithText (toJson()));
+    }
+
+    const auto dir = Localisation::getCatalogDirectory();
+    const auto en = dir.getChildFile ("en.json");
+    CHECK_MSG (en.existsAsFile(), "no en.json beside the binary");
+
+    for (const auto& entry : juce::RangedDirectoryIterator (dir, false, "*.json"))
+    {
+        const auto parsed = juce::JSON::parse (entry.getFile().loadFileAsString());
+        auto* object = parsed.getDynamicObject();
+        CHECK_MSG (object != nullptr, entry.getFile().getFileName() + " is not a JSON object");
+
+        if (object == nullptr)
+            continue;
+
+        for (const auto& property : object->getProperties())
+        {
+            CHECK_MSG (! property.value.isObject() && ! property.value.isArray(),
+                       entry.getFile().getFileName() + ": " + property.name.toString() + " is not flat");
+            CHECK_MSG (english.count (property.name.toString()) == 1,
+                       entry.getFile().getFileName() + ": unknown key " + property.name.toString());
+        }
+
+        if (entry.getFile() == en)
+            CHECK_MSG ((size_t) object->getProperties().size() == english.size()
+                         && juce::JSON::toString (parsed, false) == toJson(),
+                       "en.json is not the built-in English (regenerate it)");
+    }
+}
+
+//==============================================================================
+/*  A11Y-15: Enter opens a focused dropdown (Space too). */
+LUTHIER_TEST (Editor, enterOpensADropdown)
+{
+    LuthierAudioProcessor processor;
+    LuthierChoice choice ("Amp");
+    choice.attachTo (processor, ParamIDs::ampModel);
+    choice.setSize (160, 40);
+
+    auto& box = choice.getComboBox();
+    CHECK (box.getWantsKeyboardFocus());
+    CHECK (! box.isPopupActive());
+
+    CHECK (box.keyPressed (juce::KeyPress (juce::KeyPress::returnKey)));
+    CHECK (box.isPopupActive());
+
+    box.hidePopup();
+    juce::PopupMenu::dismissAllActiveMenus();
+}
+
+//==============================================================================
+/*  A11Y-8: the fretboard names each fret for a screen reader. */
+#include "../UI/FretboardComponent.h"
+
+LUTHIER_TEST (ScreenReader, theFretboardNamesEachFret)
+{
+    // The trunk's A11Y-8 design: one focusable board with a keyboard cursor,
+    // whose accessible value is describeCell for the cell under the cursor.
+    LuthierAudioProcessor processor;
+    FretboardComponent board (processor);
+    board.setSize (900, 160);
+
+    const int strings = board.getNumStrings();
+    CHECK (strings >= 4);
+    CHECK (board.getNumFrets() >= 12);
+
+    const auto cell = board.describeCell (0, 3);
+    CHECK_MSG (cell.startsWith ("String 1, fret 3, current note: "), cell);
+
+    board.setCursor (strings - 1, 0);
+    CHECK (board.getCursorString() == strings - 1 && board.getCursorFret() == 0);
+
+    // Fret 12 is an octave above the open string, so it names the same note.
+    for (int s = 0; s < strings; ++s)
+    {
+        const auto openName = board.describeCell (s, 0).fromFirstOccurrenceOf ("current note: ", false, false)
+                                                       .upToFirstOccurrenceOf (",", false, false);
+        const auto twelve = board.describeCell (s, 12).fromFirstOccurrenceOf ("current note: ", false, false)
+                                                      .upToFirstOccurrenceOf (",", false, false);
+        CHECK_MSG (openName.isNotEmpty() && openName == twelve, openName + " vs " + twelve);
+    }
+}

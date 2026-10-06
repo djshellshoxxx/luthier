@@ -6,6 +6,8 @@
 #include "../DSP/Circuit/GuitarCircuit.h"
 #include "../Parameters.h"
 #include "../PluginProcessor.h"
+#include "../UI/EasyPanel.h"
+#include "../UI/CircuitPanel.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -82,4 +84,53 @@ LUTHIER_TEST (Circuit, fiftiesWiringKeepsTheTop)
     CHECK_MSG (std::abs (fiftiesLoss) < std::abs (modernLoss),
                "50s wiring should lose less top at volume 0.7: "
                + juce::String (fiftiesLoss, 2) + " dB vs modern " + juce::String (modernLoss, 2) + " dB");
+}
+
+//==============================================================================
+/*  VK-25: gui-integration 4.1 - the Easy rig strip carries the guitar's own
+    volume and tone, attached to their parameters, beside a visible circuit
+    view. */
+LUTHIER_TEST (Circuit, theEasyRigStripCarriesTheGuitarKnobsAndTheView)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+
+    EasyPanel panel (processor);
+    panel.setSize (1200, 800);
+
+    juce::Array<LuthierKnob*> knobs;
+    std::function<void (juce::Component&)> walk = [&] (juce::Component& c)
+    {
+        for (auto* child : c.getChildren())
+        {
+            if (auto* k = dynamic_cast<LuthierKnob*> (child)) knobs.add (k);
+            walk (*child);
+        }
+    };
+    walk (panel);
+
+    auto find = [&] (const char* id) -> LuthierKnob*
+    {
+        for (auto* k : knobs)
+            if (k->getParameterId() == id && k->isVisible() && k->getWidth() > 0)
+                return k;
+        return nullptr;
+    };
+
+    CHECK_MSG (find (ParamIDs::guitarVolume) != nullptr, "no visible knob on guitar_volume");
+    CHECK_MSG (find (ParamIDs::guitarTone) != nullptr, "no visible knob on guitar_tone");
+
+    CircuitResponseView* view = nullptr;
+    std::function<void (juce::Component&)> findView = [&] (juce::Component& c)
+    {
+        for (auto* child : c.getChildren())
+        {
+            if (auto* v = dynamic_cast<CircuitResponseView*> (child)) view = v;
+            findView (*child);
+        }
+    };
+    findView (panel);
+
+    CHECK_MSG (view != nullptr && view->isVisible() && view->getWidth() > 0 && view->getHeight() > 0,
+               "the circuit view is missing or has no size in the Easy rig strip");
 }

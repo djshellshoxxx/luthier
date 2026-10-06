@@ -1,15 +1,9 @@
 #pragma once
 
 /*  The live surface's MIDI input side (live-performance.md sections 2, 5, 6, 8
-    and 9). SPEC-SWEEP: LP-1, LP-11, LP-14, LP-21, LP-26, LP-29, LP-33, LP-34,
-    LP-37.
+    and 9). SPEC-SWEEP: LP-1, LP-11, LP-14, LP-21, LP-26, LP-29, LP-37.
 
-    Two jobs, both on the audio thread's MIDI path and both lock-free.
-
-      - ExpressionInput runs at the very top of the MIDI chain. It lets the
-        calibration wizard see the pedal (observe) and rewrites every calibrated
-        CC through its calibration (map), so MIDI Learn, the modulation matrix
-        and everything else downstream see a pedal that reaches 0 and 127.
+    (The expression-pedal calibration on the MIDI path is Live/ExpressionStage.)
 
       - LiveActionMap turns a learned CC into a live action: next / previous /
         by-value snapshot, tap tempo, kill switch, panic and setlist steps. The
@@ -32,48 +26,7 @@
 namespace luthier
 {
 
-class ExpressionCalibrationSet;
 class KillSwitch;
-
-//==============================================================================
-/** live-performance 8: the calibration applied to the incoming CC stream. */
-class ExpressionInput
-{
-public:
-    ExpressionInput();
-
-    /** Message thread: copies the calibrations into the lock-free lookup the
-        audio thread reads. Cheap enough to call on every change. */
-    void rebuild (const ExpressionCalibrationSet& set);
-
-    /** Audio thread. Records what the wizard is waiting for and rewrites the
-        values of calibrated CCs in place. */
-    void processMidi (juce::MidiBuffer& midi) noexcept;
-
-    /** Message thread: hands the wizard the extremes the audio thread saw since
-        the last call. Returns true when anything was fed to it. */
-    bool feedWizard (ExpressionCalibrationSet& set);
-
-    /** Message thread: rebuilds the table when the set has changed since the
-        last rebuild. */
-    void syncWith (const ExpressionCalibrationSet& set);
-
-    bool isCalibrated (int cc) const noexcept;
-
-    /** The value a raw CC turns into, for tests and the Options page. */
-    int mapForTest (int cc, int raw) const noexcept;
-
-private:
-    std::array<std::atomic<bool>, 128> calibrated;
-    std::array<std::atomic<std::uint8_t>, 128 * 128> table;
-
-    std::atomic<int> wizardCc { -1 };
-    std::atomic<int> seenMin { 128 }, seenMax { -1 };
-
-    juce::String lastSignature;
-
-    JUCE_DECLARE_NON_COPYABLE (ExpressionInput)
-};
 
 //==============================================================================
 /** The live actions a CC can be assigned to (live-performance 2, 4, 5, 6, 9). */

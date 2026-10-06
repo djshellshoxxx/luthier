@@ -230,21 +230,57 @@ of bdf9f1b (`/home/user/wt/int`) or on the pre-merge sweep tip:
 `EBow.theHarmonicChoiceTakesTheString` failed once in the long run. It passes
 when run alone, both here and on bdf9f1b.
 
-## W2 polish pass (installer, qa-polish, accessibility, performance-budget, spec)
+## Merges of round 2 and integration 718f2b0; known failures on the sweep tip
 
-Closed or advanced: fretboard keyboard and screen-reader support (A11Y-8); overlay
-names and dialog role (they were announced as "Dialog"); font override and CJK face
-reach `Fonts::ui` (A11Y-40/42); the applied UI scale steps down to fit the screen
-(A11Y-29); all-pickups-off and corrected-tension banners (SP-111/114); five unlabelled
-controls found by the new screen-reader smoke test; macOS file associations, conclusion
-page; Linux absolute-Exec desktop entry, richer MIME file, standalone tarball, `.rpm`;
-Windows What's-new link and `/POLICY`; install-cycle, macOS-uninstall and perf-compare
-tests in CTest; `verify_release.sh`; rollback runbook in RELEASING.
+Round-2 worker branches (ui, rtmidi, dsp1, dsp2) and integration 718f2b0 are
+merged. Fret wear reached the buzz twice (dsp1 CW-12's per-note multiplier and
+dsp2 FB-21's worn-crown geometry); the engine now feeds only the geometry, which
+also lets the worn fret itself clear. `NormalizationFactory.json` and the golden
+hashes were regenerated for the merged audio.
 
-Full run (Combo included, `CodexRobustness` excluded - it aborts with heap corruption in
-the engine before and after this pass): 15 of 1622 failed, none in this pass's code.
-On the base commit the same GUI failures reproduce: `EasyLayout.ampKnobsHaveRoomAtCompactWindowSize`,
-`everyAutomatableParameterHasAVisibleControl` (macro_assign, scrape params), `CQ22`, `CQ10`,
-`irTrimControls...`, `rangeUsesEachMeasuresTimeSignature`. The DSP determinism/silent-preset
-failures are engine-side. `processBlockDoesNotAllocate` failed only in the long run and passes
-alone on both trees.
+Failing on the sweep tip, and why:
+
+| Test | Also fails on pure integration 718f2b0? | Note |
+|---|---|---|
+| `Combo.*` (auditor-owned) | yes | unchanged ownership |
+| `GuiReach.everyAutomatableParameterHasAVisibleControl` | yes | `macro_assign_a/b`, `scrape_*`, `slap_*` (their controls are on the unmerged techniques branch); `pickup_blend` is fixed here |
+| `HostState.aSessionSurvivesThePrepareThatFollowsIt` | yes | came with 718f2b0 (it dropped the fixed-point nudge; skewed parameters now move by one float step on a restore + prepare) |
+| `CpuQualityUi.CQ10`, `CQ13`, `CQ22` | yes | CQ22 lists NormalizationBadge / NormalizationOptions / JamPill |
+| `CpuQuality.CQ12_everyFactoryPresetAtEveryLevel` | yes | CPU-time ordering; a different preset set fails on each run under load |
+| `EBow.theHarmonicChoiceTakesTheString` | intermittent | passes alone and in its suite; its own comment records it as a known intermittent |
+| `Normalization.ON03_ON04_FactoryCombinationsLandOnTarget` | no (passes there) | `p34_g22` lands at -16.95 LUFS against -18 +-1. The render calibration (fresh processor, calibration mode, fixed play head) measures the phrase 1.05 dB quieter than the live instance plays it; on integration the same gap is 0.75 dB. Live and state-restored instances render identically (-21.39 both), so the gap is inside the calibration render, not state fidelity; the sweep's sound changes (strum direction, pickups, part acoustics) moved this combination 0.3 dB and exposed it. Left for FEAT-NORMALIZE: widen the stimulus/tolerance or find what the calibration render does differently. |
+
+## Final state of the sweep
+
+Counts over every spec file and feature-stating doc (`docs/audit/SPEC_SWEEP.md`):
+
+| Status | Before (first full audit, 3761 rows) | After (3841 rows; 80 from the six specs added during the sweep) |
+|---|---|---|
+| DONE | 1424 | 2279 |
+| OWNED | 1276 | 872 |
+| PARTIAL | 448 | 368 |
+| MISSING | 256 | 172 |
+| NO-TEST | 325 | 111 |
+| NO-GUI | 32 | 15 |
+| DEFERRED | 0 | 24 |
+
+Most of the OWNED drop is REALISM-A/B/C and TUNE-HELP landing and being
+re-verified here. VISUAL, FEAT-STRINGS/JAM/NORMALIZE/CPU landed too, but their
+OWNED rows were not re-verified (the coordinator's budget hold said no new
+helpers); they are the next thing to convert. What is left unowned is listed per
+spec in the `.fixes.md` work lists: about 245 small, 190 medium and 21 large
+items, plus DEFERRED rows with reasons.
+
+Found and fixed while verifying the merged tip: Reset queued a panic that fired
+on the first block after `prepareToPlay` and damped the first note of the next
+render (`Combo.renderIsDeterministicAfterReset`,
+`Combo.renderDoesNotDependOnWhatWasPlayedBefore`); queued engine commands are now
+applied in `prepareToPlay`.
+
+Final full suite on the tip (37c1c90 + docs): 8 of 1728 tests fail. Seven fail
+the same way on pure integration 718f2b0: `Combo.everyFactoryPresetPlaysEveryPhrase`,
+`Combo.snapshotsAndPresetMorph`, `GuiReach.everyAutomatableParameterHasAVisibleControl`,
+`HostState.aSessionSurvivesThePrepareThatFollowsIt`, `CpuQuality.CQ10`, `CQ12`,
+`CpuQualityUi.CQ22`. The eighth, `Normalization.ON03_ON04`, is the 0.05 LU miss
+analysed above (left for FEAT-NORMALIZE). Luthier_VST3, Luthier_Standalone and
+LuthierTests build.

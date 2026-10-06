@@ -82,6 +82,8 @@ void LuthierAudioProcessor::writePresetBlocks (juce::DynamicObject& root) const
         irs->setProperty ("body", bodyIr.toVar());
         irs->setProperty ("cab1", cabIr[0].toVar());
         irs->setProperty ("cab2", cabIr[1].toVar());
+        irs->setProperty ("eq", eqMatchSlot.toVar());                       // SPEC-SWEEP TM-28
+        irs->setProperty ("eqPosition", (int) getEqMatchPosition());
 
         root.setProperty (PresetBlockKeys::toneMatch, juce::var (irs));
     }
@@ -103,6 +105,9 @@ void LuthierAudioProcessor::readPresetBlocks (const juce::DynamicObject& root)
         return defaults != nullptr ? defaults->getProperty (key) : juce::var();
     };
 
+    // SPEC-SWEEP: PR-44 - the preset's ranges are in by now; the modulation
+    // family's clamps must follow them before the sources are set.
+    modMatrix.setModulationRangeAdvanced (ranges.isFamilyAdvanced (RangeFamily::modulation));
     modMatrix.fromVar (pick (PresetBlockKeys::modulation));
 
     // The one block whose absence keeps the current state (see the writer).
@@ -123,6 +128,15 @@ void LuthierAudioProcessor::readPresetBlocks (const juce::DynamicObject& root)
         bodyIr.fromVar (irs->getProperty ("body"));
         cabIr[0].fromVar (irs->getProperty ("cab1"));
         cabIr[1].fromVar (irs->getProperty ("cab2"));
+
+        // SPEC-SWEEP TM-28: absent in older presets - no filter, post-amp.
+        if (irs->hasProperty ("eq"))
+            eqMatchSlot.fromVar (irs->getProperty ("eq"));
+        else
+            eqMatchSlot.unload();
+
+        setEqMatchPosition ((EqMatchPosition) juce::jlimit (0, 2, irs->hasProperty ("eqPosition")
+                                                                     ? (int) irs->getProperty ("eqPosition") : 1));
     }
 
     /*  live-performance 1: a preset saved before snapshots existed has none,

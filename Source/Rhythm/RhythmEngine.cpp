@@ -424,6 +424,7 @@ void RhythmEngine::emitNote (int stringIndex, double velocity, bool muted, doubl
     on.chuck = chuck;
     on.strikerMaterial = strikerMaterial;
     on.finger = finger;   // REALISM-B: fingerstyle-attack.md 3, the pattern's finger reaches the string
+    on.strumDirection = emitStrumDirection;   // SPEC-SWEEP SD-5
 
     // muting-rhythm.md 4 (TECHNIQUES): the step's mute travels with its note.
     on.muteType = (int) pendingMute.type;
@@ -463,7 +464,7 @@ void RhythmEngine::scheduleStrum (const StrumStep& step, double sourceSps, int s
     if (step.isRest() || ! voicingValid)
         return;
 
-    const auto& h = humaniseBuffer.current();   // SPEC-SWEEP RE-2: acquired at the top of processBlock
+    const auto& h = blockHumanise;   // SPEC-SWEEP RE-2: acquired at the top of processBlock
 
     // rhythm-engine 4: a scheduled stroke can simply not happen.
     if (h.missPercent > 0.0 && rng.nextDouble() * 100.0 < h.missPercent * h.amount)
@@ -576,6 +577,7 @@ void RhythmEngine::scheduleStrum (const StrumStep& step, double sourceSps, int s
         request.missScale = h.amount;   // humanise off is a hand that never misses
 
         const int planned = gesture.plan (settings, request, strikes.data(), (int) strikes.size());
+        emitStrumDirection = downward ? 1 : -1;   // SPEC-SWEEP SD-5: the strikes below are this stroke's
 
         // SPEC-SWEEP (RE-18, rhythm-engine 2): a rake drags muted across the
         // strings and lands on its target - the last string it strikes - open
@@ -610,6 +612,8 @@ void RhythmEngine::scheduleStrum (const StrumStep& step, double sourceSps, int s
                       muted && ! isRakeTarget, chuckAmount,
                       strikerMaterial, (int) std::round (juce::jmax (0.0, offset)), out);
         }
+
+        emitStrumDirection = 0;   // SPEC-SWEEP SD-5
 
         // REALISM-B, string-interaction.md 6: muted strings inside the STRUM
         // mask and the strum's span are struck too. Skipped entirely at 0.
@@ -658,7 +662,7 @@ void RhythmEngine::scheduleFingerpick (const FingerpickStep& step, int sampleOff
     if (! step.active || ! voicingValid)
         return;
 
-    const auto& h = humaniseBuffer.current();   // SPEC-SWEEP RE-2
+    const auto& h = blockHumanise;   // SPEC-SWEEP RE-2
 
     if (h.missPercent > 0.0 && rng.nextDouble() * 100.0 < h.missPercent * h.amount)
         return;
@@ -690,6 +694,10 @@ int RhythmEngine::processBlock (int numSamples, const RhythmTransport& transport
     patternBuffer.acquire();
     bassGridBuffer.acquire();
     humaniseBuffer.acquire();
+
+    // SPEC-SWEEP (RE-5): the instrument's Humanize macro scales the kit's feel.
+    blockHumanise = humaniseBuffer.current();
+    blockHumanise.amount *= humaniseScale.load (std::memory_order_relaxed);
 
     // ---- bypass ---------------------------------------------------------------
     if (pendingRelease.exchange (false))
@@ -827,7 +835,7 @@ int RhythmEngine::processBlock (int numSamples, const RhythmTransport& transport
             // A ghost stroke is an extra muted brush just before the hit, which
             // is most of what makes a strummed part sound played rather than
             // programmed.
-            const auto& h = humaniseBuffer.current();
+            const auto& h = blockHumanise;
 
             if (! step.isRest() && h.ghostPercent > 0.0
                   && rng.nextDouble() * 100.0 < h.ghostPercent * h.amount)

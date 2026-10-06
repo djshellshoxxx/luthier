@@ -50,6 +50,8 @@
 #include "Controllers/ControllerStage.h"   // SPEC-SWEEP CT-2/CT-7
 #include "Support/CommandQueue.h"         // SPEC-SWEEP UW-5
 #include "Live/ExpressionStage.h"          // SPEC-SWEEP IR-11
+#include "Live/MidiClockTransport.h"       // SPEC-SWEEP IR-16
+#include "Export/LuthierSysExIn.h"         // SPEC-SWEEP IR-15
 #include "Jam/JamEngine.h"   // FEAT-JAM
 #include "Support/OutputNormalization.h"   // output-normalization.md
 #include "Support/QualityController.h"   // cpu-quality-modes
@@ -257,7 +259,6 @@ public:
 
     // SPEC-SWEEP: LP-11 / LP-34 - live actions on CCs, calibrated pedal input.
     LiveActionMap&   getLiveActions() noexcept    { return liveActions; }
-    ExpressionInput& getExpressionInput() noexcept { return expressionInput; }
 
     /** SPEC-SWEEP: LP-16 - where the automatable snapshot morph last moved the
         bank to (the timer follows the parameter, modulation included). */
@@ -266,6 +267,9 @@ public:
     /** Captures the live state into a snapshot, including the state of the
         modules that do not live in the parameter tree. */
     bool captureSnapshot (int index, const juce::String& label = {}, int colourTag = -1);
+
+    /** SPEC-SWEEP: MM-49 - whether a snapshot carries the mod matrix. */
+    bool setSnapshotIncludesModulation (int index, bool includes);
 
     /** Recalls a snapshot. The crossfade is carried by the audio thread's own
         clock, so this returns before the fade has finished. */
@@ -345,6 +349,17 @@ public:
 
     IrSlot& getBodyIrSlot() noexcept    { return bodyIr; }
     IrSlot& getCabIrSlot (int index) noexcept { return cabIr[(size_t) juce::jlimit (0, 1, index)]; }
+
+    /*  SPEC-SWEEP TM-28 (tone-match 3): the EQ-match filter and its place in
+        the chain - pre-amp, post-amp or post-master - saved with the preset. */
+    enum class EqMatchPosition { preAmp = 0, postAmp, postMaster, numPositions };
+    IrSlot& getEqMatchSlot() noexcept { return eqMatchSlot; }
+    void setEqMatchPosition (EqMatchPosition p) noexcept
+    {
+        eqMatchPosition.store ((int) p, std::memory_order_relaxed);
+        engine.setEqMatchPosition ((int) p);
+    }
+    EqMatchPosition getEqMatchPosition() const noexcept { return (EqMatchPosition) eqMatchPosition.load (std::memory_order_relaxed); }
     Capture& getCapture() noexcept     { return capture; }
     /** SPEC-SWEEP TM-17: the Cab Match test signal, played out of Aux 1 (or the main out). */
     TestSignalPlayer& getCabMatchSignal() noexcept { return cabMatchSignal; }
@@ -940,7 +955,6 @@ private:
     MonitorMix monitorMix;
     ExpressionCalibrationSet expression;
     LiveActionMap liveActions;          // SPEC-SWEEP: LP-11
-    ExpressionInput expressionInput;    // SPEC-SWEEP: LP-33 / LP-34
     float lastSnapshotMorph = -1.0f;    // SPEC-SWEEP: LP-16
 
     /*  The monitor mix is rendered into its own buffer and then written to the
@@ -997,6 +1011,8 @@ private:
     // --- tone match ---------------------------------------------------------------------
     IrSlot bodyIr;
     std::array<IrSlot, 2> cabIr;
+    IrSlot eqMatchSlot;                              // SPEC-SWEEP TM-28
+    std::atomic<int> eqMatchPosition { (int) EqMatchPosition::postAmp };
     Capture capture;
     TestSignalPlayer cabMatchSignal;                 // SPEC-SWEEP TM-17
     juce::AudioBuffer<float> testSignalBuffer;       // SPEC-SWEEP TM-17
@@ -1140,6 +1156,7 @@ private:
     /** The macro parameters' values, looked up once: a lookup by ID builds a
         String, which is an allocation the audio thread must not make. */
     std::array<std::atomic<float>*, ParamIDs::kNumMacros> macroValues {};
+    std::array<int, ParamIDs::kNumMacros> macroParamIndex {};   // SPEC-SWEEP: MM-29, index into getParameters()
 
     void processSlice (juce::AudioBuffer<float>&, juce::MidiBuffer&);
     int reportedLatency = 0;
@@ -1268,6 +1285,21 @@ private:
     CommandQueue<EngineCommand, 128> engineCommands;
     ControllerStage controllerStage;
     ExpressionStage expressionStage;   // IR-11
+    MidiClockTransport clockTransport; // IR-16
+    LuthierSysExIn sysExIn;            // IR-15
+    bool blockHostPlaying = false;     // IR-24: this block's host transport
+    double blockHostPpq = 0.0;
+
+public:
+    /** SPEC-SWEEP (IR-16): where incoming MIDI clock says the song is. */
+    const MidiClockTransport& getMidiClockTransport() const noexcept { return clockTransport; }
+
+    /** SPEC-SWEEP (IR-15): applies Luthier SysEx that arrived at the input
+        (CHARACTER seed / environment, SNAPSHOT recall, RANGES unlock). The
+        timer calls it; so can a test. Message thread. Returns events applied. */
+    int serviceInboundSysEx();
+    void applyInboundLuthierEvent (const LuthierEvent& event);
+private:
     juce::MidiBuffer controllerScratch;
     std::array<std::atomic<bool>, kMaxStrings> stringMuted {};
     std::atomic<bool> aftertouchBends { false };   // PT-23

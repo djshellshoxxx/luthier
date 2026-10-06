@@ -59,8 +59,8 @@ LUTHIER_TEST (PracticeLooperConcurrency, callbacksReadTransportOnlyAfterGateAdmi
     for (const auto& functionName : functionNames)
     {
         const int start = source.indexOf (functionName);
-        const int gate = source.indexOf ("StorageAccessGate::CallbackAccess callbackAccess (storageGate)", start);
-        const int state = source.indexOf ("getState()", start);
+        const int gate = source.indexOf (start, "StorageAccessGate::CallbackAccess callbackAccess (storageGate)");
+        const int state = source.indexOf (start, "getState()");
         CHECK_MSG (start >= 0 && gate > start && state > gate,
                    functionName + " must enter the gate before reading transport state");
     }
@@ -71,7 +71,7 @@ LUTHIER_TEST (PracticeLooperConcurrency, loadHoldsExclusiveAccessWhileReplacingL
     const auto implementation = looperSource();
     const auto source = implementation.loadFileAsString();
     const int loadStart = source.indexOf ("bool Looper::load (const juce::File& file)");
-    const int nextFunction = source.indexOf ("SessionRecorder::SessionRecorder", loadStart);
+    const int nextFunction = source.indexOf (loadStart, "SessionRecorder::SessionRecorder");
     CHECK_MSG (loadStart >= 0 && nextFunction > loadStart, "could not isolate Looper::load");
 
     if (loadStart < 0 || nextFunction <= loadStart)

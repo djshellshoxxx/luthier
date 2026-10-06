@@ -15,6 +15,7 @@
 #include "../UI/LivePanel.h"
 #include "../UI/LiveStrip.h"
 #include "../UI/LiveSetup.h"
+#include "../Accessibility/Accessibility.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -278,11 +279,7 @@ LUTHIER_TEST (LiveExpression, aCalibratedPedalReachesFullRangeDownstream)
     c.heelDeadZone = 0.0;
     c.toeDeadZone = 0.0;
     p.getExpression().set (c);
-    p.getExpressionInput().syncWith (p.getExpression());
-
-    CHECK (p.getExpressionInput().isCalibrated (11));
-    CHECK (p.getExpressionInput().mapForTest (11, 118) == 127);
-    CHECK (p.getExpressionInput().mapForTest (11, 12) == 0);
+    p.serviceExpressionCalibration();
 
     p.getMidiLearn().addMapping (ParamIDs::ampGain, 11);
 
@@ -295,8 +292,9 @@ LUTHIER_TEST (LiveExpression, aCalibratedPedalReachesFullRangeDownstream)
     CHECK_MSG (normalised (p, ParamIDs::ampGain) < 0.01f,
                "heel reached " + juce::String (normalised (p, ParamIDs::ampGain)));
 
-    // An uncalibrated CC passes through untouched.
-    CHECK (p.getExpressionInput().mapForTest (12, 64) == 64);
+    // Mapped once, not twice: mid-travel lands mid-range.
+    rig.cc (11, 65);
+    CHECK_NEAR (normalised (p, ParamIDs::ampGain), 0.5f, 0.03f);
 
     p.getExpression().fromVar (savedCalibrations);
 }
@@ -312,18 +310,18 @@ LUTHIER_TEST (LiveExpression, theWizardHearsThePedalThroughTheProcessor)
     using Stage = ExpressionCalibrationSet::WizardStage;
 
     set.beginCalibration (7);
-    p.getExpressionInput().feedWizard (set);   // arms the audio side
+    p.serviceExpressionCalibration();   // arms the audio side
 
     rig.cc (7, 9);
     rig.cc (7, 5);
     rig.cc (7, 6);
-    CHECK (p.getExpressionInput().feedWizard (set));
+    p.serviceExpressionCalibration();
     CHECK (set.confirmStage() == Stage::toe);
 
-    p.getExpressionInput().feedWizard (set);
+    p.serviceExpressionCalibration();
     rig.cc (7, 110);
     rig.cc (7, 121);
-    CHECK (p.getExpressionInput().feedWizard (set));
+    p.serviceExpressionCalibration();
     CHECK (set.confirmStage() == Stage::done);
 
     const auto cal = set.get (7);
@@ -695,4 +693,37 @@ LUTHIER_TEST (Live, shiftClickWritesAndClickRecalls)
     CHECK (text.startsWith ("5  "));
     CHECK (text.substring (3).length() == SnapshotStrip::kPadLabelChars);
     CHECK (SnapshotStrip::getPadText (0, "Verse") == "1  Verse");
+}
+
+/*  LP-39 / GI-76: Live Mode suppresses tooltips the moment it is switched on,
+    and gives them back when it is switched off. */
+LUTHIER_TEST (Editor, liveModeSuppressesTooltips)
+{
+    Rig rig;
+    auto& p = rig.processor;
+    p.setLiveMode (false);
+
+    std::unique_ptr<juce::AudioProcessorEditor> base (p.createEditor());
+    auto* editor = dynamic_cast<LuthierAudioProcessorEditor*> (base.get());
+    CHECK (editor != nullptr);
+
+    if (editor == nullptr)
+        return;
+
+    editor->applyTooltipPreference();
+    const bool enabled = p.getUiState().tooltipsEnabled;
+
+    if (enabled)
+        CHECK (editor->getTooltipDelayMs() == Metrics::tooltipDelayMs);
+
+    const auto* binding = AccessibilitySettings::get().findShortcut ("toggleLiveMode");
+    CHECK (binding != nullptr && editor->keyPressed (binding->key));
+    CHECK (p.isLiveMode());
+    CHECK (editor->getTooltipDelayMs() > 60000);
+
+    CHECK (editor->keyPressed (binding->key));
+    CHECK (! p.isLiveMode());
+
+    if (enabled)
+        CHECK (editor->getTooltipDelayMs() == Metrics::tooltipDelayMs);
 }

@@ -587,3 +587,38 @@ namespace luthier::tests
 {
     long realismCAllocationCount() noexcept { return threadAllocationCount; }
 }
+
+/*  SPEC-SWEEP UW-41 (ui-wiring 15): a circuit control change is cheap enough to
+    make at control rate - one recompute costs under 0.05% of a 512-sample block
+    at 48 kHz (5.3 us). Best of five runs of a thousand, so a busy test machine
+    does not decide it. */
+LUTHIER_TEST (Circuit, aParameterChangeCostsUnderFiveHundredthsOfAPercent)
+{
+    GuitarCircuit circuit;
+    circuit.prepare (48000.0);
+
+    auto p = reference();
+    double best = 1.0e9;
+
+    for (int run = 0; run < 5; ++run)
+    {
+        const auto start = juce::Time::getHighResolutionTicks();
+
+        for (int i = 0; i < 1000; ++i)
+        {
+            p.volume = (i % 21) / 20.0;
+            p.tone = (i % 13) / 12.0;
+            p.cableLength = 1.0 + (i % 7);
+            circuit.setComponents (p);
+            circuit.process (0.0);   // the change is taken up when the circuit next runs
+        }
+
+        const double seconds = juce::Time::highResolutionTicksToSeconds (juce::Time::getHighResolutionTicks() - start);
+        best = juce::jmin (best, seconds / 1000.0);
+    }
+
+    const double blockBudget = 512.0 / 48000.0;
+    CHECK_MSG (best < blockBudget * 0.0005,
+               "one circuit change costs " + juce::String (best * 1.0e6, 2) + " us, over 0.05% of a block ("
+                 + juce::String (blockBudget * 0.0005 * 1.0e6, 2) + " us)");
+}

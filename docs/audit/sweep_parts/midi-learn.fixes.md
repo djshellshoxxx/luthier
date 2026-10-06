@@ -1,0 +1,11 @@
+- [ML-0 (§0)] effort S — DEFERRED (coordinator plan: serialized after the gap helpers) — verify one-control-one-mapping replacement and same-source-two-controls rule (LEARN-08)
+- [ML-1 (§1)] effort L — DEFERRED (coordinator plan: serialized after the gap helpers) — add MPE dimension sources (slide/pressure/pitch) with Highest/Lowest/Most recent/Mean aggregation and hold-last
+- [ML-2.3 (§2.3)] effort S — DEFERRED (coordinator plan: serialized after the gap helpers) — timeout is 30 s in code vs 20 s in spec (reconcile); add larger-swing burst resolution within 150 ms
+- [ML-3 (§3)] effort M — DEFERRED (coordinator plan: serialized after the gap helpers) — build mappings popover: rows with source/target, global glyph, Clear all, Save all as global, empty state
+- [ML-4 (§4)] effort S — DEFERRED (coordinator plan: serialized after the gap helpers) — assert preset-overrides-global resolution and midi_mappings.json round trip (LEARN-09/10)
+- [ML-5 (§5)] effort M — DEFERRED (coordinator plan: serialized after the gap helpers) — per-mapping min/max/invert editor in popover; re-scale on family widening (LEARN-11)
+- [ML-6 (§6)] effort M — DEFERRED (coordinator plan: serialized after the gap helpers) — add mpe_dimension field, undo entries for learn/delete/Clear all (LEARN-12), announcements (LEARN-14)
+- [ML-7 (§7)] effort S — DEFERRED (coordinator plan: serialized after the gap helpers) — cover sustain skip / conflict / missing target messages
+- [ML-T1 (§8 LEARN-01..05)] effort S — DEFERRED (coordinator plan: serialized after the gap helpers) — add LEARN-01 parity, LEARN-02 all-params and LEARN-04 burst tests
+- [ML-T2 (§8 LEARN-06..08)] effort M — DEFERRED (coordinator plan: serialized after the gap helpers) — LEARN-06 needs MPE feature; add LEARN-07/08 tests
+- [ML-T3 (§8 LEARN-09..14)] effort M — DEFERRED (coordinator plan: serialized after the gap helpers) — add LEARN-10..14 tests once popover/undo exist

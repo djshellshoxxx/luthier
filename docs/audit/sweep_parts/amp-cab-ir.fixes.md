@@ -1,0 +1,1 @@
+- [AC-4 (§4)] effort M — add CAB-panel IR combo + shared Mix knob bound to the same slot/param as IrSlotEditor; acoustic 'Body IR' retitle (Codex lane)

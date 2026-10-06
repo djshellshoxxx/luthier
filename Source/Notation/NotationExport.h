@@ -148,6 +148,12 @@ public:
         many notes were fingered or clamped. */
     bool readMidi (const juce::File& file, PerformanceScore& destination);
     bool readMidi (const void* data, size_t numBytes, PerformanceScore& destination);
+    /*  SPEC-SWEEP NE-4 (notation-export 2.2): Guitar Pro 7/8 - a `.gp` zip with
+        Content/score.gpif inside. Reads the structure Luthier writes and GP7
+        uses (master bars -> bars -> voices -> beats -> notes, rhythms, tuning
+        and the note techniques GPIF names). `.gp5`/`.gpx`/`.ptb` stay unread. */
+    bool readGuitarPro (const juce::File& file, PerformanceScore& destination);
+    bool readGpif (const juce::String& xml, PerformanceScore& destination);
 
     juce::String getLastError() const { return lastError; }
 

@@ -48,7 +48,8 @@ struct CaptureRecord
         meter,           ///< tempo and time signature
         bassTechnique,
         slideBar,
-        autoRules        ///< auto-articulation.md 9 (FEAT-ASSIST): the sounding note's Assist bits
+        autoRules,       ///< auto-articulation.md 9 (FEAT-ASSIST): the sounding note's Assist bits
+        noise            ///< SPEC-SWEEP MX-1: a playing-noise trigger (code = the kind below)
     };
 
     Kind kind = Kind::noteOn;

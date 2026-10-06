@@ -231,10 +231,18 @@ public:
     void chordSymbol (int sampleOffset, const char* name) noexcept;
 
     /** bass-techniques: slap, pop, ghost, lhslap, thump, pluck. */
-    void bassTechnique (int sampleOffset, int stringIndex, const char* technique, double pluckPosition) noexcept;
+    void bassTechnique (int sampleOffset, int stringIndex, const char* technique, double pluckPosition,
+                        double force = 0.8, double fretContact = 0.8) noexcept;   // SPEC-SWEEP BT-24: force, contact
 
     /** slide-guitar: the bar's position in frets and its pressure (lift, light, full). */
     void slideBar (int sampleOffset, double fretPosition, const char* pressure) noexcept;
+
+    /*  SPEC-SWEEP MX-1 (midi-export 6): a live noise event - what the live
+        MIDI out sends as PICK, SQUEAK, BUZZ or CLANK - so an exported take
+        carries it too. `kind`: 0 pick, 1 squeak (shift), 2 squeak (drag),
+        3 buzz, 4 clank. Audio thread. */
+    enum class NoiseKind : juce::uint8 { pick = 0, squeakShift, squeakDrag, buzz, clank };
+    void noiseEvent (int sampleOffset, NoiseKind kind, int stringIndex, double durationMs, double level) noexcept;
 
     /** Until the engine reports from triggerNote: the block's string activity,
         after engine.processBlock. Strings are the voicer's; frets are worked

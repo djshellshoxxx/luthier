@@ -1,6 +1,8 @@
 #include "Telemetry.h"
 #include "../Support/ConfigRecovery.h"
 
+#include <juce_events/juce_events.h>   // SPEC-SWEEP: UT-4 (MessageManager)
+
 namespace luthier
 {
 
@@ -182,8 +184,22 @@ std::unique_ptr<Transport> createHttpsTransport()
 }
 
 //==============================================================================
+static juce::File& policyFileOverride()
+{
+    static juce::File file;
+    return file;
+}
+
+void Policy::setPolicyFileForTesting (const juce::File& file)
+{
+    policyFileOverride() = file;
+}
+
 juce::File Policy::getPolicyFile()
 {
+    if (policyFileOverride() != juce::File())   // SPEC-SWEEP: UT-26
+        return policyFileOverride();
+
     // A documented, system-wide path, so an administrator can deploy it.
    #if JUCE_WINDOWS
     return juce::File::getSpecialLocation (juce::File::commonApplicationDataDirectory)
@@ -586,6 +602,19 @@ juce::StringArray Telemetry::readTelemetryLog() const
 }
 
 //==============================================================================
+void Telemetry::checkForUpdateAsync (const Version& runningVersion, bool force,
+                                     std::function<void (const UpdateResult&)> onResult)
+{
+    // SPEC-SWEEP: UT-4
+    juce::Thread::launch ([this, runningVersion, force, onResult = std::move (onResult)]
+    {
+        const auto result = checkForUpdate (runningVersion, force);
+
+        if (onResult != nullptr)
+            juce::MessageManager::callAsync ([onResult, result] { onResult (result); });
+    });
+}
+
 bool Telemetry::hasPendingCrashReport() const
 {
     return getPendingCrashReport() != juce::File();

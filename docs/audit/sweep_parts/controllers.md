@@ -22,14 +22,14 @@ The profile model, JSON format, the nine ship profiles, user overrides and the p
 | CT-16 (§4) | Per-channel pressure drives that string's vibrato — untested | `MidiInterpreter` pressure path `slots[].pressure` | n/a | `Controllers::pressureOnAChannelVibratesOnlyItsString` | DONE |
 | CT-17 (§4) | MPE: master-channel notes ignored | `MidiInterpreter::handleNoteOn` (mpeMasterChannel) | profile | `Controllers::mpeMasterChannelNotesAreIgnored` | DONE |
 | CT-18 (§4) | MPE: sticky string per member channel | `MidiInterpreter::handleNoteOn` (lastStringForChannel), `mpeStringForChannel` | profile | `Controllers::mpeMemberChannelsStickToTheirString` | DONE |
-| CT-19 (§5) | Calibrate bend range by confirming target pitch in UI - not implemented (only pitchDeadZoneCents/minimumNoteDurationMs and the latency wizard exist) | - | - | - | MISSING |
+| CT-19 (§5) | Bend range check: live 'bent to' note readout and a range stepper that applies at once and is saved with the profile | - | CONTROLLERS `bendCheckLabel`, `bendRangeStepper` | `Controllers::bendRangeCheckWritesTheProfile` | DONE |
 | CT-20 (§5) | Minimum note duration | `MidiInterpreter::setMinimumNoteDurationMs` | CONTROLLERS `minimumNoteSlider` | `Controllers::minimumNoteDurationSurvivesAnEarlyNoteOff` | DONE |
 | CT-21 (§5) | Pitch dead-zone, default 5 cents | `MidiInterpreter::setPitchDeadZoneCents` | CONTROLLERS `deadZoneSlider` | `Controllers::pitchDeadZoneRejectsTrackingNoiseButNotRealBends` | DONE |
-| CT-22 (§6) | Multi-controller merge, source tags, most-recent-wins, contention warning - `ControllerMerge` (claim/release/getOwner) is called only from tests, never from `processBlock`/`ControllerStage` | `Controllers/ControllerProfile.h:ControllerMerge` | - | `Controllers::multiControllerMergeNeverLosesAString`, `Controllers::oneControllerPlayingNormallyReportsNoContention` | PARTIAL |
+| CT-22 (§6) | Multi-controller merge, source tags, most-recent-wins, contention warning — `ControllerMerge` exists but is unused in `processBlock` | `Controllers/ControllerProfile.h:ControllerMerge` | - | `Controllers::multiControllerMergeNeverLosesAString`, `Controllers::oneControllerPlayingNormallyReportsNoContention` | DEFERRED |
 | CT-23 (§7) | Test: ship profiles load, cc_map resolves | - | n/a | `Controllers::everyShipProfileIsWellFormed`, `Controllers::everyCcMappingResolvesToARealTarget` | DONE |
 | CT-24 (§7) | Test: wizard 10 runs within 0.5 ms sigma | - | n/a | `Controllers::latencyWizardIsStableAndReportsItsScatter` | DONE |
 | CT-25 (§7) | Test: per-channel fuzz (1800 events, not 10 000) | - | n/a | `Controllers::perChannelRoutingSendsEachChannelToItsString` | DONE |
 | CT-26 (§7) | Test: MPE stickiness | - | n/a | `Controllers::mpeMemberChannelsStickToTheirString` | DONE |
-| CT-27 (§7) | Test: dual-source stress, no dropped strings / coupling corruption - only exercises `ControllerMerge` in isolation (unused in the audio path) | - | n/a | `Controllers::multiControllerMergeNeverLosesAString` | PARTIAL |
+| CT-27 (§7) | Test: dual-source stress, no dropped strings / coupling corruption — tests the unused `ControllerMerge` only | - | n/a | `Controllers::multiControllerMergeNeverLosesAString` | DEFERRED |
 
 <!-- counts DONE=23 NO-GUI=0 NO-TEST=0 PARTIAL=3 MISSING=1 OWNED=0 -->

@@ -196,14 +196,30 @@ void StrumGrid::mouseDown (const juce::MouseEvent& event)
     repaint();
 }
 
-void StrumGrid::showStepMenu (int step)
+namespace
 {
-    auto cell = pattern.getStrumStep (step);
+    // SPEC-SWEEP (RE-33): shared by building the step menu and applying it.
+    constexpr int kStepDynamics[] = { 100, 85, 70, 55, 40 };
+
+    struct StepMask { const char* name; uint16_t mask; };
+    constexpr StepMask kStepMasks[] = {
+        { "All strings",   0x0FFF },
+        { "Top three",     0x0007 },
+        { "Middle three",  0x001C },
+        { "Low strings",   0x0FF8 },
+        { "Bass pair",     0x0FF0 }
+    };
+}
+
+juce::PopupMenu StrumGrid::buildStepMenu (int step) const
+{
+    const auto cell = pattern.getStrumStep (step);
+    const auto& dynamics = kStepDynamics;
+    const auto& masks = kStepMasks;
 
     juce::PopupMenu menu;
 
     juce::PopupMenu dynamicMenu;
-    const int dynamics[] = { 100, 85, 70, 55, 40 };
 
     for (int i = 0; i < 5; ++i)
         dynamicMenu.addItem (100 + i, juce::String (dynamics[i]) + "%", true,
@@ -212,13 +228,6 @@ void StrumGrid::showStepMenu (int step)
     menu.addSubMenu ("Dynamic", dynamicMenu);
 
     juce::PopupMenu maskMenu;
-    struct { const char* name; uint16_t mask; } masks[] = {
-        { "All strings",   0x0FFF },
-        { "Top three",     0x0007 },
-        { "Middle three",  0x001C },
-        { "Low strings",   0x0FF8 },
-        { "Bass pair",     0x0FF0 }
-    };
 
     for (int i = 0; i < 5; ++i)
         maskMenu.addItem (200 + i, masks[i].name, true, cell.stringMask == masks[i].mask);
@@ -228,24 +237,39 @@ void StrumGrid::showStepMenu (int step)
     menu.addSeparator();
     menu.addItem (300, "Clear this step", ! cell.isRest());
 
-    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this),
-                        [this, step, dynamics, masks] (int result)
+    return menu;
+}
+
+void StrumGrid::applyStepMenuResult (int step, int result)
+{
+    if (result == 0 || ! juce::isPositiveAndBelow (step, pattern.getLength()))
+        return;
+
+    auto edited = pattern.getStrumStep (step);
+
+    if (result >= 100 && result < 105)
+        edited.dynamic = kStepDynamics[result - 100] / 100.0;
+    else if (result >= 200 && result < 205)
+        edited.stringMask = kStepMasks[result - 200].mask;
+    else if (result == 300)
+        edited = StrumStep {};
+    else
+        return;
+
+    pattern.setStrumStep (step, edited);
+    commit();
+    repaint();
+}
+
+void StrumGrid::showStepMenu (int step)
+{
+    juce::Component::SafePointer<StrumGrid> safe (this);
+
+    buildStepMenu (step).showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this),
+                                        [safe, step] (int result)
     {
-        if (result == 0)
-            return;
-
-        auto edited = pattern.getStrumStep (step);
-
-        if (result >= 100 && result < 105)
-            edited.dynamic = dynamics[result - 100] / 100.0;
-        else if (result >= 200 && result < 205)
-            edited.stringMask = masks[result - 200].mask;
-        else if (result == 300)
-            edited = StrumStep {};
-
-        pattern.setStrumStep (step, edited);
-        commit();
-        repaint();
+        if (safe != nullptr)
+            safe->applyStepMenuResult (step, result);
     });
 }
 

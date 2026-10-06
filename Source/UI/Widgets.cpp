@@ -48,8 +48,10 @@ juce::PopupMenu buildParameterContextMenu (LuthierAudioProcessor& processor,
 
     if (mappedCc >= 0)
     {
-        menu.addItem (5, "MIDI Learn (mapped to CC " + juce::String (mappedCc) + ")");
+        menu.addItem (5, "MIDI Learn (mapped to " + MidiLearnManager::describeSource (mappedCc) + ")");   // SPEC-SWEEP IR-4
         menu.addItem (6, "Clear MIDI mapping");
+        menu.addItem (12, "Keep this mapping for every preset", true,
+                      midiLearn.isMappingGlobal (parameterId));   // SPEC-SWEEP UW-29
     }
     else
     {
@@ -276,6 +278,10 @@ void applyParameterMenuResult (int result,
                 learn.removeMappingForParameter (parameterId);
                 break;
 
+            case 12:   // SPEC-SWEEP UW-29
+                learn.setMappingGlobal (parameterId, ! learn.isMappingGlobal (parameterId));
+                break;
+
             case 7:
                 processor.setParameterLocked (parameterId, ! processor.isParameterLocked (parameterId));
                 break;
@@ -480,6 +486,9 @@ LuthierKnob::LuthierKnob (const juce::String& text, Size s)
 
     // SPEC-SWEEP: A11Y-13 - every knob is on the Tab walk.
     slider.setWantsKeyboardFocus (true);
+
+    // SPEC-SWEEP: TH-27 - theme.md: knobs show a vertical-resize cursor.
+    slider.setMouseCursor (juce::MouseCursor::UpDownResizeCursor);
 
     setInterceptsMouseClicks (true, true);
 }

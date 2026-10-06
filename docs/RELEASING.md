@@ -231,3 +231,72 @@ Target: a bad release is withdrawn in 30 minutes, a fixed one is out in 24 hours
 - clap-validator 0.3.2 skips 3 of its 21 tests: the three preset-discovery
   tests, because the plugin does not implement CLAP's (draft)
   preset-discovery factory. The other 18 pass.
+
+## 9. Elevation, silent installs and enterprise policy
+
+Why each installer asks for what it asks for (`installer.md` 0.4):
+
+- **Windows** runs elevated (`PrivilegesRequired=admin` in `Luthier.iss`)
+  because VST3 plug-ins must go to `C:\Program Files\Common Files\VST3`
+  and shared content to `C:\ProgramData\Luthier`. Nothing else needs it.
+- **macOS** asks for an administrator only for the system paths
+  (`/Library/Audio/Plug-Ins`, `/Library/Application Support/Luthier`).
+- **Linux** installs per user by default (`install.sh`); `--system` and the
+  `.deb` need root.
+
+Silent installs (`installer.md` 1.2) use Inno Setup's own switches, the
+documented deviation from the NSIS names:
+
+| Switch | Meaning |
+|---|---|
+| `/VERYSILENT /SUPPRESSMSGBOXES` | no UI, default answers |
+| `/DIR="C:\Path"` | standalone application folder |
+| `/COMPONENTS="vst3,clap,standalone"` | component subset |
+| `/LOG="file.txt"` | write a setup log |
+
+Exit codes are Inno Setup's: `0` success, `1` setup failed to initialise,
+`2` cancelled before install began, `3` fatal error while preparing, `4` fatal
+error during install (rolled back), `5` cancelled during install (rolled
+back), `6` killed by the system, `7` a preparation step refused (for example
+a file in use), `8` a restart is needed first. Inno's progress page offers
+Cancel at every step and rolls a partial install back (`installer.md` 1.1.8).
+
+**Policy file** (`updates-telemetry.md` 7, `installer.md` 7). An
+administrator pre-places `luthier-policy.json` at the path the plugin reads
+(`Policy::getPolicyFile`): `%ProgramData%\Luthier\luthier-policy.json` on
+Windows, `/Library/Application Support/Luthier/luthier-policy.json` on macOS,
+`/etc/luthier/luthier-policy.json` on Linux. A policy can only switch things
+off:
+
+```json
+{ "allow_usage_telemetry": false, "allow_diagnostics_telemetry": false,
+  "allow_crash_upload": false, "allow_update_check": false,
+  "update_manifest_url": "https://mirror.example/manifest.json" }
+```
+
+Deploy it with the software-distribution tool alongside a silent install;
+the installers do not take it as a switch yet.
+
+## 10. Rollback and hotfix (`qa-polish.md` 13, `installer.md` 12)
+
+A release that has to come back:
+
+1. **Revert the manifest first** (target: within 30 minutes of the call). Put
+   the previous `latest_stable` back in the update manifest; the update check
+   stops offering the bad build on its next daily check.
+2. **Keep every published installer.** Old assets are never deleted from
+   GitHub Releases, so the previous version is always downloadable; mark
+   the bad release as a pre-release instead of deleting it.
+3. **Tell installed users** through the release notes linked from the
+   manifest's `changelog_url`. (An in-plugin rollback banner driven by a
+   manifest field is not built yet.)
+4. **Downgrading** is supported: the Windows installer detects the newer
+   installed version and asks before replacing it; the macOS and Linux
+   packages install over it. User data in `Documents/Luthier` is never
+   touched by an install or uninstall.
+5. **Hotfix path:** branch from the release tag, fix, bump the patch
+   version, tag, and run `release.yml`; the same CI gates apply. The target
+   is a hotfix within 24 hours of a confirmed ship-blocker.
+6. **Monitoring** for 72 hours after a release (crash reports opted into,
+   support inbox, community channels) is a process step owned by the
+   release lead.

@@ -53,6 +53,11 @@ public:
     void resized() override;
     void mouseDown (const juce::MouseEvent&) override;
 
+    // SPEC-SWEEP (RE-33): the right-click menu, split from showing it so it can
+    // be checked without a popup: ids 100-104 dynamic, 200-204 mask, 300 clear.
+    juce::PopupMenu buildStepMenu (int step) const;
+    void applyStepMenuResult (int step, int result);
+
     static constexpr int rowHeight = 30;
     static constexpr int preferredHeight = rowHeight * 2 + 6;
 
@@ -200,6 +205,13 @@ private:
 public:
     juce::ComboBox& getLengthBox() noexcept { return lengthBox; }             // tests
     juce::ComboBox& getSubdivisionBox() noexcept { return subdivisionBox; }   // tests
+    // SPEC-SWEEP (RE-33/RE-36): the strum grid and the browser, for tests.
+    StrumGrid* getStrumGrid() const noexcept { return strumGrid.get(); }
+    juce::ComboBox& getTagFilterBox() noexcept { return tagFilterBox; }
+    juce::ListBox& getPatternList() noexcept { return patternList; }
+    juce::TextButton& getLoadButton() noexcept { return loadButton; }
+    juce::TextButton& getSaveButton() noexcept { return saveButton; }
+    juce::TextButton& getExportButton() noexcept { return exportButton; }
 private:
     juce::Label capoLabel;
     juce::TextButton capoDown { "-" }, capoUp { "+" };

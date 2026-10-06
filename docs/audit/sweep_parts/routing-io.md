@@ -7,17 +7,17 @@ The routing engine is complete: all four layouts are advertised (plus the Aux 8 
 | RIO-1 (§0.1, §1) | Layouts A/B/C/D advertised via BusesProperties; host picks | `PluginProcessor.cpp:buildBusesProperties`, `isBusesLayoutSupported` | n/a | `Routing::everyLayoutRendersCleanly`, `PluginBuses::perStringLayoutPutsEachStringOnItsOwnBus` | DONE |
 | RIO-2 (§0.2) | Runs correctly at every advertised layout incl. stereo-only | `PluginProcessor::processSlice`, `RoutingMatrix::distribute` | n/a | `Routing::everyLayoutRendersCleanly` | DONE |
 | RIO-3 (§0.3) | Extra outs post-limiter unless tap points; taps documented | `Routing/TapBuffers.h`, `RoutingMatrix::distribute` | n/a | `Routing::diTapNullsAgainstReappliedAmp` | DONE |
-| RIO-4 (§0.4, §4) | Sidechain optional; makes follower source `sidechain` live — no test drives a follower from the sidechain bus | `ModEnvelopeFollower::Source::sidechain`, `ModBlockContext` sidechain peak | ADVANCED > MOD, follower card `followerSourceBox` | - | NO-TEST |
+| RIO-4 (§0.4, §4) | Sidechain optional; makes follower source `sidechain` live — no test drives a follower from the sidechain bus | `ModEnvelopeFollower::Source::sidechain`, `ModBlockContext` sidechain peak | ADVANCED > MOD, follower card `followerSourceBox` | `Routing::sidechainDrivesTheEnvelopeFollower` | DONE |
 | RIO-5 (§0.5, §6) | MIDI out sample-accurate for pass-through and generated events | `Routing/MidiOutRouter.cpp` | n/a | `Routing::midiOutPassThroughIsSampleExact`, `MidiExport::liveMidiOutKeepsTenThousandEventsOnTheirSample` | DONE |
-| RIO-6 (§2) | Aux 1-7 tap assignments (DI, pre-cab, mic1, mic2, room, wet, monitor) — only Aux1/Aux6 (and Aux 8) are asserted by tests | `TapBuffers`, `RoutingMatrix::distribute/writeMonitorBus` | n/a | `Routing::diTapNullsAgainstReappliedAmp` (Aux1 only) | NO-TEST |
+| RIO-6 (§2) | Aux 1-7 tap assignments (DI, pre-cab, mic1, mic2, room, wet, monitor) — only Aux1/Aux6 (and Aux 8) are asserted by tests | `TapBuffers`, `RoutingMatrix::distribute/writeMonitorBus` | n/a | `Routing::everyAuxTapCarriesItsOwnSignal`, `Routing::diTapNullsAgainstReappliedAmp` (Aux1 only) | DONE |
 | RIO-7 (§2) | Per-aux gain trim | `RoutingMatrix::setAuxGainDb` | ADVANCED > ROUTING, `AuxStrip::gain` | `PluginBuses::aux8CarriesThePlayingNoiseAndObeysItsStrip`, `Routing::stateRoundTrips` | DONE |
 | RIO-8 (§2) | Muted aux bus skips its tap render | `RoutingMatrix::updateWantedTaps` | ROUTING `AuxStrip` mute | `Routing::muteAndSoloResolveTogether` | DONE |
 | RIO-9 (§3) | 12 mono per-string buses, post-body pre-pickup, silence when unused | `RoutingMatrix::distribute` per-string | ROUTING `PerStringStrip` | `Routing::perStringOutputsSumToPreBody`, `PluginBuses::perStringLayoutPutsEachStringOnItsOwnBus` | DONE |
 | RIO-10 (§3, §7) | Per-string latency = engine-only latency | `LuthierEngine::getPerStringLatencySamples` | ROUTING `latencyLabel` | `Routing::perOutputLatencyIsConsistent` | DONE |
 | RIO-11 (§4) | Sidechain ducks a "sidechain compressor" pedal — no such pedal | `DSP/Effects/Pedal.h:PedalType` (absent) | - | - | MISSING |
 | RIO-12 (§4) | Sidechain as monitor input for backing-track summing | `Live/LiveControls.cpp:MonitorMix` | Live Strip `monitorLevel` | `LiveMonitor::idleWhenNothingToMonitorAndSumsWhenThereIs` | DONE |
-| RIO-13 (§4) | Sidechain never sums into the guitar output unless consumed — no test asserts main out unchanged by a sidechain with toggle off | `PluginProcessor::processSlice` (sidechainCopy to consumers only) | n/a | - | NO-TEST |
-| RIO-14 (§4, §8) | Sidechain meter in routing panel — untested | `RoutingMatrix::meterSidechain` | ROUTING `RoutingPanel::sidechainMeterBounds` | - | NO-TEST |
+| RIO-13 (§4) | Sidechain never sums into the guitar output unless consumed — no test asserts main out unchanged by a sidechain with toggle off | `PluginProcessor::processSlice` (sidechainCopy to consumers only) | n/a | `Routing::sidechainNeverReachesTheMainOut` | DONE |
+| RIO-14 (§4, §8) | Sidechain meter in routing panel — untested | `RoutingMatrix::meterSidechain` | ROUTING `RoutingPanel::sidechainMeterBounds` | `Routing::sidechainMeterReadsTheSidechain` | DONE |
 | RIO-15 (§5A) | External re-amp: Aux 1 DI render (pre/post-circuit option) | `LuthierEngine` DI tap, `aux1_pre_circuit` | ROUTING `RoutingPanel::aux1PreCircuit` | `ModelGapsUi::auxOneTapsBeforeOrAfterTheCircuit` | DONE |
 | RIO-16 (§5B) | Internal re-amp "Sidechain to amp" toggle, off by default, replaces string engine | `RoutingMatrix::setSidechainToAmp`, `LuthierEngine::setSidechainToAmp` | ROUTING `RoutingPanel::sidechainToAmp` | `Routing::sidechainToAmpReplacesTheInstrument` | DONE |
 | RIO-17 (§6) | MIDI out: note pass-through, same timestamps | `MidiOutRouter::captureInput` | ROUTING `midiPassThrough` | `Routing::midiOutPassThroughIsSampleExact` | DONE |
@@ -43,4 +43,4 @@ The routing engine is complete: all four layouts are advertised (plus the Aux 8 
 | RIO-T5 (§10) | Test: sidechain-to-amp routes correctly | n/a | n/a | `Routing::sidechainToAmpReplacesTheInstrument` | DONE |
 | RIO-T6 (§10) | Test: reported main latency = measured impulse latency within 1 sample (amp path, cabinet/room off) | n/a | n/a | `Latency::anImpulseArrivesWhenReported`, `Routing::perOutputLatencyIsConsistent` | DONE |
 
-<!-- counts DONE=30 NO-GUI=0 NO-TEST=6 PARTIAL=1 MISSING=1 DEFERRED=0 -->
+<!-- counts DONE=31 NO-GUI=0 NO-TEST=2 PARTIAL=1 MISSING=1 OWNED=3 -->

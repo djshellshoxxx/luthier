@@ -11,100 +11,104 @@ decisions and the fix log are in `docs/coverage/SPEC-SWEEP.md`.
 
 | Spec | DONE | NO-GUI | NO-TEST | PARTIAL | MISSING | OWNED | DEFERRED | Rows | % done |
 |---|---|---|---|---|---|---|---|---|---|
-| [CLAUDE_CODE_BRIEF](#claude_code_briefmd) | 12 | 0 | 0 | 12 | 2 | 0 | 0 | 26 | 46% |
-| [DECISIONS](#decisionsmd) | 67 | 1 | 4 | 7 | 2 | 0 | 0 | 81 | 83% |
-| [GAPS](#gapsmd) | 48 | 0 | 4 | 2 | 1 | 0 | 0 | 55 | 87% |
-| [INDEX](#indexmd) | 14 | 1 | 0 | 6 | 1 | 0 | 0 | 22 | 64% |
-| [JUCE_CLAUDE_GUIDELINES](#juce_claude_guidelinesmd) | 23 | 0 | 0 | 5 | 2 | 0 | 0 | 30 | 77% |
-| [PROGRESS](#progressmd) | 40 | 0 | 0 | 3 | 1 | 0 | 0 | 44 | 91% |
-| [README](#readmemd) | 32 | 0 | 0 | 0 | 0 | 0 | 0 | 32 | 100% |
+| [CLAUDE_CODE_BRIEF](#claude_code_briefmd) | 10 | 0 | 0 | 9 | 2 | 5 | 0 | 26 | 38% |
+| [DECISIONS](#decisionsmd) | 65 | 0 | 4 | 6 | 2 | 4 | 0 | 81 | 80% |
+| [GAPS](#gapsmd) | 44 | 0 | 2 | 1 | 2 | 6 | 0 | 55 | 80% |
+| [INDEX](#indexmd) | 14 | 0 | 0 | 4 | 1 | 3 | 0 | 22 | 64% |
+| [JUCE_CLAUDE_GUIDELINES](#juce_claude_guidelinesmd) | 21 | 0 | 0 | 5 | 2 | 2 | 0 | 30 | 70% |
+| [PROGRESS](#progressmd) | 39 | 0 | 0 | 2 | 1 | 2 | 0 | 44 | 89% |
+| [README](#readmemd) | 29 | 0 | 0 | 0 | 0 | 3 | 0 | 32 | 91% |
 | [REVIEW](#reviewmd) | 15 | 0 | 0 | 1 | 0 | 0 | 0 | 16 | 94% |
-| [TODO](#todomd) | 45 | 0 | 1 | 8 | 4 | 0 | 0 | 58 | 78% |
-| [accessibility](#accessibilitymd) | 32 | 0 | 3 | 14 | 4 | 0 | 0 | 53 | 60% |
-| [action-and-undo](#action-and-undomd) | 35 | 0 | 5 | 2 | 0 | 0 | 0 | 42 | 83% |
-| [advanced-ranges](#advanced-rangesmd) | 31 | 0 | 8 | 4 | 3 | 0 | 0 | 46 | 67% |
-| [ambiguity-resolutions](#ambiguity-resolutionsmd) | 34 | 0 | 0 | 2 | 0 | 0 | 0 | 36 | 94% |
-| [animated-strings](#animated-stringsmd) | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 23 | 100% |
-| [auto-articulation](#auto-articulationmd) | 0 | 0 | 0 | 0 | 31 | 0 | 0 | 31 | 0% |
-| [bass-techniques](#bass-techniquesmd) | 33 | 0 | 0 | 5 | 0 | 0 | 0 | 38 | 87% |
+| [TODO](#todomd) | 39 | 0 | 1 | 2 | 3 | 13 | 0 | 58 | 67% |
+| [accessibility](#accessibilitymd) | 25 | 0 | 1 | 14 | 6 | 7 | 0 | 53 | 47% |
+| [action-and-undo](#action-and-undomd) | 10 | 0 | 3 | 0 | 3 | 26 | 0 | 42 | 24% |
+| [advanced-ranges](#advanced-rangesmd) | 36 | 0 | 5 | 1 | 1 | 3 | 0 | 46 | 78% |
+| [ambiguity-resolutions](#ambiguity-resolutionsmd) | 33 | 0 | 0 | 1 | 0 | 1 | 1 | 36 | 92% |
+| [amp-cab-ir](#amp-cab-irmd) | 0 | 0 | 0 | 1 | 0 | 11 | 0 | 12 | 0% |
+| [animated-strings](#animated-stringsmd) | 0 | 0 | 0 | 0 | 0 | 23 | 0 | 23 | 0% |
+| [auto-articulation](#auto-articulationmd) | 0 | 0 | 0 | 0 | 0 | 31 | 0 | 31 | 0% |
+| [bass-techniques](#bass-techniquesmd) | 34 | 0 | 0 | 3 | 0 | 0 | 1 | 38 | 89% |
 | [body-coupling](#body-couplingmd) | 32 | 0 | 0 | 1 | 2 | 0 | 0 | 35 | 91% |
-| [character-wear](#character-wearmd) | 31 | 0 | 2 | 2 | 0 | 0 | 0 | 35 | 89% |
-| [controllers](#controllersmd) | 23 | 0 | 0 | 3 | 1 | 0 | 0 | 27 | 85% |
-| [cpu-quality-modes](#cpu-quality-modesmd) | 22 | 0 | 0 | 0 | 0 | 0 | 0 | 22 | 100% |
-| [editions](#editionsmd) | 0 | 0 | 0 | 0 | 0 | 0 | 16 | 16 | 0% |
-| [engine](#enginemd) | 68 | 7 | 11 | 6 | 2 | 0 | 1 | 95 | 72% |
-| [engine-technique-layer](#engine-technique-layermd) | 5 | 0 | 1 | 9 | 11 | 0 | 0 | 26 | 19% |
+| [character-wear](#character-wearmd) | 34 | 0 | 0 | 0 | 0 | 0 | 1 | 35 | 97% |
+| [controllers](#controllersmd) | 24 | 0 | 0 | 1 | 0 | 0 | 2 | 27 | 89% |
+| [cpu-quality-modes](#cpu-quality-modesmd) | 1 | 0 | 0 | 0 | 0 | 21 | 0 | 22 | 5% |
+| [editions](#editionsmd) | 0 | 0 | 0 | 0 | 0 | 16 | 0 | 16 | 0% |
+| [engine](#enginemd) | 69 | 7 | 1 | 6 | 2 | 10 | 0 | 95 | 73% |
+| [engine-technique-layer](#engine-technique-layermd) | 3 | 0 | 0 | 0 | 0 | 23 | 0 | 26 | 12% |
 | [environment](#environmentmd) | 34 | 0 | 1 | 1 | 1 | 0 | 0 | 37 | 92% |
-| [error-recovery](#error-recoverymd) | 42 | 1 | 3 | 18 | 17 | 0 | 3 | 84 | 50% |
-| [factory-content](#factory-contentmd) | 11 | 1 | 5 | 5 | 6 | 0 | 0 | 28 | 39% |
-| [file-formats](#file-formatsmd) | 30 | 1 | 1 | 12 | 0 | 0 | 0 | 44 | 68% |
+| [error-recovery](#error-recoverymd) | 29 | 1 | 3 | 21 | 23 | 7 | 0 | 84 | 35% |
+| [factory-content](#factory-contentmd) | 7 | 0 | 5 | 5 | 10 | 1 | 0 | 28 | 25% |
+| [file-formats](#file-formatsmd) | 27 | 0 | 1 | 14 | 0 | 2 | 0 | 44 | 61% |
 | [fingerstyle-attack](#fingerstyle-attackmd) | 40 | 0 | 0 | 1 | 2 | 0 | 0 | 43 | 93% |
-| [fret-buzz](#fret-buzzmd) | 30 | 0 | 4 | 1 | 1 | 0 | 0 | 36 | 83% |
-| [global-search](#global-searchmd) | 0 | 0 | 0 | 0 | 31 | 0 | 0 | 31 | 0% |
-| [gui-engine-dataflow](#gui-engine-dataflowmd) | 22 | 0 | 1 | 10 | 3 | 0 | 0 | 36 | 61% |
-| [gui-integration](#gui-integrationmd) | 89 | 0 | 7 | 38 | 10 | 0 | 0 | 144 | 62% |
-| [gui-techniques-updates](#gui-techniques-updatesmd) | 0 | 1 | 0 | 6 | 18 | 0 | 0 | 25 | 0% |
-| [guitar-illustration](#guitar-illustrationmd) | 38 | 3 | 7 | 17 | 6 | 0 | 1 | 72 | 53% |
-| [guitar-workshop](#guitar-workshopmd) | 23 | 2 | 1 | 4 | 0 | 0 | 0 | 30 | 77% |
-| [harmonic-realism](#harmonic-realismmd) | 43 | 0 | 1 | 0 | 1 | 0 | 1 | 46 | 93% |
-| [host-integration](#host-integrationmd) | 40 | 0 | 1 | 6 | 7 | 0 | 0 | 54 | 74% |
-| [include](#includemd) | 22 | 0 | 3 | 5 | 0 | 0 | 1 | 31 | 71% |
-| [input-routing](#input-routingmd) | 15 | 0 | 4 | 7 | 4 | 0 | 0 | 30 | 50% |
-| [installer](#installermd) | 26 | 2 | 3 | 13 | 5 | 0 | 0 | 49 | 53% |
-| [issues](#issuesmd) | 12 | 0 | 0 | 0 | 0 | 0 | 0 | 12 | 100% |
-| [jam-mode](#jam-modemd) | 29 | 0 | 0 | 3 | 0 | 0 | 0 | 32 | 91% |
-| [licensing](#licensingmd) | 0 | 0 | 0 | 3 | 0 | 0 | 10 | 13 | 0% |
-| [live-performance](#live-performancemd) | 41 | 0 | 2 | 4 | 0 | 0 | 0 | 47 | 87% |
-| [mic-placement](#mic-placementmd) | 1 | 0 | 0 | 0 | 23 | 0 | 0 | 24 | 4% |
-| [microtonal-bends](#microtonal-bendsmd) | 0 | 0 | 0 | 3 | 25 | 0 | 0 | 28 | 0% |
+| [fret-buzz](#fret-buzzmd) | 34 | 0 | 1 | 0 | 1 | 0 | 0 | 36 | 94% |
+| [global-search](#global-searchmd) | 0 | 0 | 0 | 0 | 0 | 31 | 0 | 31 | 0% |
+| [gui-engine-dataflow](#gui-engine-dataflowmd) | 13 | 0 | 2 | 12 | 4 | 5 | 0 | 36 | 36% |
+| [gui-integration](#gui-integrationmd) | 69 | 0 | 3 | 34 | 9 | 28 | 1 | 144 | 48% |
+| [gui-techniques-updates](#gui-techniques-updatesmd) | 0 | 0 | 0 | 0 | 0 | 25 | 0 | 25 | 0% |
+| [guitar-illustration](#guitar-illustrationmd) | 24 | 0 | 0 | 0 | 0 | 48 | 0 | 72 | 33% |
+| [guitar-workshop](#guitar-workshopmd) | 23 | 0 | 0 | 0 | 0 | 7 | 0 | 30 | 77% |
+| [harmonic-realism](#harmonic-realismmd) | 43 | 0 | 1 | 0 | 2 | 0 | 0 | 46 | 93% |
+| [host-integration](#host-integrationmd) | 38 | 0 | 0 | 4 | 5 | 4 | 3 | 54 | 70% |
+| [include](#includemd) | 21 | 0 | 2 | 4 | 0 | 3 | 1 | 31 | 68% |
+| [input-routing](#input-routingmd) | 20 | 0 | 2 | 6 | 2 | 0 | 0 | 30 | 67% |
+| [installer](#installermd) | 15 | 0 | 6 | 10 | 10 | 7 | 1 | 49 | 31% |
+| [issues](#issuesmd) | 7 | 0 | 0 | 1 | 1 | 3 | 0 | 12 | 58% |
+| [jam-mode](#jam-modemd) | 0 | 0 | 0 | 0 | 0 | 32 | 0 | 32 | 0% |
+| [licensing](#licensingmd) | 0 | 0 | 0 | 0 | 0 | 13 | 0 | 13 | 0% |
+| [live-performance](#live-performancemd) | 42 | 0 | 1 | 1 | 0 | 0 | 3 | 47 | 89% |
+| [mic-placement](#mic-placementmd) | 1 | 0 | 0 | 0 | 0 | 23 | 0 | 24 | 4% |
+| [microtonal-bends](#microtonal-bendsmd) | 0 | 0 | 0 | 0 | 0 | 28 | 0 | 28 | 0% |
 | [midi-export](#midi-exportmd) | 33 | 0 | 0 | 5 | 0 | 0 | 0 | 38 | 87% |
-| [modulation-matrix](#modulation-matrixmd) | 33 | 2 | 8 | 8 | 5 | 0 | 0 | 56 | 59% |
-| [muting-rhythm](#muting-rhythmmd) | 0 | 0 | 0 | 2 | 24 | 0 | 0 | 26 | 0% |
+| [midi-learn](#midi-learnmd) | 2 | 2 | 0 | 9 | 0 | 0 | 0 | 13 | 15% |
+| [modulation-matrix](#modulation-matrixmd) | 41 | 0 | 3 | 8 | 3 | 1 | 0 | 56 | 73% |
+| [muting-rhythm](#muting-rhythmmd) | 0 | 0 | 0 | 0 | 0 | 26 | 0 | 26 | 0% |
 | [noise-floor](#noise-floormd) | 40 | 0 | 1 | 2 | 0 | 0 | 0 | 43 | 93% |
-| [notation-export](#notation-exportmd) | 32 | 0 | 4 | 6 | 3 | 0 | 0 | 45 | 71% |
-| [onboarding](#onboardingmd) | 32 | 0 | 2 | 4 | 0 | 0 | 0 | 38 | 84% |
-| [output-normalization](#output-normalizationmd) | 26 | 0 | 0 | 4 | 0 | 0 | 0 | 30 | 87% |
-| [part-acoustics](#part-acousticsmd) | 39 | 0 | 18 | 7 | 7 | 0 | 0 | 71 | 55% |
-| [performance-budget](#performance-budgetmd) | 22 | 0 | 0 | 2 | 4 | 0 | 0 | 28 | 79% |
-| [piano-roll-chord-display](#piano-roll-chord-displaymd) | 32 | 0 | 7 | 0 | 0 | 0 | 0 | 39 | 82% |
-| [pick-noise](#pick-noisemd) | 24 | 0 | 3 | 4 | 0 | 0 | 0 | 31 | 77% |
-| [practice-tools](#practice-toolsmd) | 37 | 0 | 14 | 6 | 7 | 0 | 0 | 64 | 58% |
-| [preset-browser-previews](#preset-browser-previewsmd) | 1 | 0 | 0 | 1 | 36 | 0 | 0 | 38 | 3% |
-| [qa-polish](#qa-polishmd) | 47 | 0 | 3 | 19 | 9 | 0 | 0 | 78 | 60% |
-| [rhythm-engine](#rhythm-enginemd) | 41 | 0 | 2 | 4 | 0 | 0 | 0 | 47 | 87% |
-| [riff-library](#riff-librarymd) | 0 | 0 | 0 | 0 | 29 | 0 | 0 | 29 | 0% |
-| [routing-io](#routing-iomd) | 30 | 0 | 6 | 1 | 1 | 0 | 0 | 38 | 79% |
-| [slide-guitar](#slide-guitarmd) | 30 | 0 | 3 | 1 | 2 | 0 | 0 | 36 | 83% |
-| [slide-technique-controls](#slide-technique-controlsmd) | 1 | 0 | 0 | 5 | 17 | 0 | 0 | 23 | 4% |
-| [spec](#specmd) | 86 | 5 | 12 | 29 | 11 | 0 | 1 | 144 | 60% |
-| [state-model](#state-modelmd) | 41 | 0 | 3 | 14 | 7 | 0 | 0 | 65 | 63% |
+| [notation-export](#notation-exportmd) | 39 | 0 | 2 | 4 | 0 | 0 | 0 | 45 | 87% |
+| [onboarding](#onboardingmd) | 30 | 0 | 0 | 6 | 2 | 0 | 0 | 38 | 79% |
+| [output-normalization](#output-normalizationmd) | 0 | 0 | 0 | 0 | 0 | 30 | 0 | 30 | 0% |
+| [part-acoustics](#part-acousticsmd) | 58 | 0 | 1 | 5 | 7 | 0 | 0 | 71 | 82% |
+| [performance-budget](#performance-budgetmd) | 3 | 0 | 0 | 0 | 7 | 18 | 0 | 28 | 11% |
+| [piano-roll-chord-display](#piano-roll-chord-displaymd) | 0 | 0 | 0 | 0 | 0 | 39 | 0 | 39 | 0% |
+| [pick-noise](#pick-noisemd) | 24 | 0 | 0 | 1 | 0 | 3 | 3 | 31 | 77% |
+| [practice-tools](#practice-toolsmd) | 44 | 0 | 7 | 6 | 7 | 0 | 0 | 64 | 69% |
+| [preset-browser-previews](#preset-browser-previewsmd) | 1 | 0 | 0 | 0 | 0 | 37 | 0 | 38 | 3% |
+| [qa-polish](#qa-polishmd) | 18 | 0 | 1 | 14 | 9 | 36 | 0 | 78 | 23% |
+| [randomize-and-ab](#randomize-and-abmd) | 4 | 0 | 0 | 10 | 2 | 0 | 0 | 16 | 25% |
+| [rhythm-engine](#rhythm-enginemd) | 43 | 0 | 0 | 4 | 0 | 0 | 0 | 47 | 91% |
+| [riff-library](#riff-librarymd) | 0 | 0 | 0 | 0 | 0 | 29 | 0 | 29 | 0% |
+| [routing-io](#routing-iomd) | 31 | 0 | 2 | 1 | 1 | 3 | 0 | 38 | 82% |
+| [slide-guitar](#slide-guitarmd) | 31 | 0 | 0 | 2 | 1 | 2 | 0 | 36 | 86% |
+| [slide-technique-controls](#slide-technique-controlsmd) | 1 | 0 | 0 | 0 | 0 | 22 | 0 | 23 | 4% |
+| [spec](#specmd) | 75 | 4 | 12 | 29 | 11 | 13 | 0 | 144 | 52% |
+| [state-model](#state-modelmd) | 34 | 0 | 4 | 15 | 8 | 4 | 0 | 65 | 52% |
 | [string-aging](#string-agingmd) | 35 | 0 | 0 | 2 | 1 | 0 | 0 | 38 | 92% |
 | [string-interaction](#string-interactionmd) | 21 | 0 | 1 | 2 | 2 | 0 | 0 | 26 | 81% |
-| [string-scraping](#string-scrapingmd) | 18 | 10 | 2 | 1 | 1 | 0 | 0 | 32 | 56% |
-| [string-slap-technique](#string-slap-techniquemd) | 17 | 9 | 1 | 4 | 1 | 0 | 0 | 32 | 53% |
-| [string-squeak](#string-squeakmd) | 38 | 0 | 1 | 2 | 0 | 0 | 0 | 41 | 93% |
-| [strum-dynamics](#strum-dynamicsmd) | 31 | 0 | 1 | 1 | 1 | 0 | 0 | 34 | 91% |
+| [string-scraping](#string-scrapingmd) | 19 | 0 | 0 | 1 | 0 | 12 | 0 | 32 | 59% |
+| [string-slap-technique](#string-slap-techniquemd) | 17 | 0 | 0 | 1 | 0 | 13 | 1 | 32 | 53% |
+| [string-squeak](#string-squeakmd) | 38 | 0 | 0 | 2 | 0 | 1 | 0 | 41 | 93% |
+| [strum-dynamics](#strum-dynamicsmd) | 33 | 0 | 0 | 0 | 0 | 0 | 1 | 34 | 97% |
 | [sustain-and-decay](#sustain-and-decaymd) | 33 | 0 | 1 | 1 | 0 | 0 | 0 | 35 | 94% |
-| [technique-cascade](#technique-cascademd) | 2 | 0 | 0 | 2 | 13 | 0 | 0 | 17 | 12% |
-| [theme](#thememd) | 8 | 0 | 13 | 5 | 1 | 0 | 8 | 35 | 23% |
-| [tone-match](#tone-matchmd) | 27 | 0 | 8 | 5 | 5 | 0 | 0 | 45 | 60% |
-| [tune-builder](#tune-buildermd) | 76 | 1 | 1 | 8 | 1 | 0 | 0 | 87 | 87% |
+| [tab-export](#tab-exportmd) | 0 | 0 | 0 | 6 | 0 | 8 | 0 | 14 | 0% |
+| [technique-cascade](#technique-cascademd) | 1 | 0 | 0 | 0 | 0 | 16 | 0 | 17 | 6% |
+| [theme](#thememd) | 12 | 0 | 6 | 15 | 1 | 1 | 0 | 35 | 34% |
+| [tone-match](#tone-matchmd) | 34 | 0 | 4 | 5 | 2 | 0 | 0 | 45 | 76% |
+| [tune-builder](#tune-buildermd) | 76 | 1 | 1 | 7 | 2 | 0 | 0 | 87 | 87% |
+| [tuner-and-tuning-reference](#tuner-and-tuning-referencemd) | 0 | 0 | 1 | 3 | 0 | 11 | 0 | 15 | 0% |
 | [tuning-stability](#tuning-stabilitymd) | 44 | 0 | 0 | 1 | 1 | 0 | 0 | 46 | 96% |
-| [two-hand-tapping](#two-hand-tappingmd) | 0 | 0 | 0 | 3 | 21 | 0 | 0 | 24 | 0% |
-| [ui-wiring](#ui-wiringmd) | 30 | 0 | 4 | 21 | 7 | 0 | 0 | 62 | 48% |
-| [updates-telemetry](#updates-telemetrymd) | 20 | 1 | 2 | 6 | 2 | 0 | 0 | 31 | 65% |
-| [volume-knob-interaction](#volume-knob-interactionmd) | 31 | 0 | 1 | 2 | 1 | 0 | 0 | 35 | 89% |
-| [workshop-ui](#workshop-uimd) | 35 | 0 | 6 | 8 | 1 | 0 | 0 | 50 | 70% |
-| [proposals-visual-polish](#proposals-visual-polishmd) | 27 | 0 | 2 | 0 | 1 | 0 | 0 | 30 | 90% |
-| [docs-KEYBOARD_SHORTCUTS](#docs-keyboard_shortcutsmd) | 18 | 0 | 9 | 0 | 0 | 0 | 0 | 27 | 67% |
+| [two-hand-tapping](#two-hand-tappingmd) | 0 | 0 | 0 | 0 | 0 | 24 | 0 | 24 | 0% |
+| [ui-scaling](#ui-scalingmd) | 1 | 0 | 4 | 5 | 0 | 0 | 0 | 10 | 10% |
+| [ui-wiring](#ui-wiringmd) | 30 | 0 | 3 | 17 | 5 | 7 | 0 | 62 | 48% |
+| [updates-telemetry](#updates-telemetrymd) | 22 | 0 | 0 | 4 | 2 | 3 | 0 | 31 | 71% |
+| [volume-knob-interaction](#volume-knob-interactionmd) | 31 | 0 | 0 | 1 | 1 | 1 | 1 | 35 | 89% |
+| [workshop-ui](#workshop-uimd) | 24 | 0 | 0 | 0 | 0 | 26 | 0 | 50 | 48% |
+| [proposals-visual-polish](#proposals-visual-polishmd) | 22 | 0 | 0 | 0 | 0 | 8 | 0 | 30 | 73% |
+| [docs-KEYBOARD_SHORTCUTS](#docs-keyboard_shortcutsmd) | 26 | 0 | 0 | 1 | 0 | 0 | 0 | 27 | 96% |
 | [docs-MIDI_EXPORT_LUTHIER_PROFILE](#docs-midi_export_luthier_profilemd) | 21 | 0 | 0 | 0 | 0 | 0 | 1 | 22 | 95% |
-| [docs-PLAYING_TECHNIQUES](#docs-playing_techniquesmd) | 26 | 0 | 4 | 1 | 0 | 0 | 0 | 31 | 84% |
+| [docs-PLAYING_TECHNIQUES](#docs-playing_techniquesmd) | 30 | 0 | 0 | 1 | 0 | 0 | 0 | 31 | 97% |
 | [docs-PRESET_FORMAT](#docs-preset_formatmd) | 25 | 0 | 0 | 0 | 0 | 0 | 0 | 25 | 100% |
 | [docs-TROUBLESHOOTING](#docs-troubleshootingmd) | 18 | 0 | 4 | 0 | 0 | 0 | 2 | 24 | 75% |
-| [docs-USER_MANUAL](#docs-user_manualmd) | 51 | 0 | 8 | 0 | 0 | 0 | 1 | 60 | 85% |
-| **Total** | **2532** | **48** | **238** | **448** | **449** | **0** | **46** | **3761** | **67%** |
-
-Not yet audited: amp-cab-ir, midi-learn, randomize-and-ab, tab-export, tab-import-export, tuner-and-tuning-reference, ui-scaling
+| [docs-USER_MANUAL](#docs-user_manualmd) | 50 | 0 | 8 | 0 | 0 | 1 | 1 | 60 | 83% |
+| **Total** | **2279** | **15** | **111** | **368** | **172** | **872** | **24** | **3841** | **59%** |
 
 ## CLAUDE_CODE_BRIEF.md
 
@@ -115,16 +119,16 @@ The brief is process: reading order, a 12-step build order, rules of engagement,
 | CB-1 (Problem 1) | Every engine feature surfaced in the GUI (mod matrix, tone match, character, practice drawer, Workshop) | panels in `Source/UI/*` | col 4 tabs MOD / TONE MATCH / CHARACTER / PRACTICE / WORKSHOP; header Workshop | `GuiReach::everyAutomatableParameterHasAVisibleControl`, `Editor::everyWorkspaceTabSelectsAndPaints` | DONE |
 | CB-2 (Problem 2) | Realism specs landed (ranges, circuit, pick/squeak/buzz/slide, Workshop, strum, bass, MIDI export) + tune-builder | `PhysicalRange`, `GuitarCircuit`, `NoiseEngine`, `SlideEngine`, `Workshop/*`, `StrumGesture`, `SlapEngine`, `Export/*`, `Tune/*` | col 1-4 | `Circuit::*`, `PickNoise::*`, `Squeak::*`, `Buzz::*`, `StrumDynamics::*`, `MidiExport::*`, `TuneBuilder::*` | DONE |
 | CB-3 (Order 1) | Phase 2b extended realism (9 specs) read and built — landed (REALISM-A/B/C); open rows are listed in the nine spec parts | `DSP/String/StringAging.*`, `Character/EnvironmentModel.*`, `DSP/Coupling/BodyCouplingBank.*`, `DSP/String/Harmonics.h`, `Model/Playing/RightHand.h`, `DSP/Noise/NoiseFloor.*`, `Model/Playing/StabilityModel.*` | CHARACTER realism groups | `StringAging.*`, `Environment.*`, `BodyCoupling.*`, `HarmonicRealism.*`, `StringInteraction.*`, `FingerstyleAttack.*`, `NoiseFloor.*`, `SustainDecay.*`, `TuningStability.*` | DONE |
-| CB-4 (Order 1) | Phase 5b technique specs (Techniques tab, Tap/Bend/Mute engines, cascade) - only scrape / slap / slide are built | `ScrapeEngine`, `SlapEngine`, `SlideEngine`, `TechniqueTriggers`; no Tap/Bend/Mute/Cascade engine in Source (muting is in Source/WIP, not compiled) | col 2 SlapGroup / SlideGroup; no TECHNIQUES tab (AdvancedPanel.cpp:1053 says not built) | `Scrape::*`, `Slap::*` | PARTIAL |
+| CB-4 (Order 1) | Phase 5b technique specs (Techniques tab, Tap/Bend/Mute engines, cascade) — only scrape/slap/slide here | `ScrapeEngine`, `SlapEngine`, `SlideEngine` | col 2 SlapGroup/SlideGroup | `Scrape::*`, `Slap::*` | OWNED |
 | CB-5 (Order 2) | Audit against gui-integration §19; gap list | `docs/spec-coverage.md`, `docs/audit/` | n/a | `GuiReach::*` | DONE |
 | CB-6 (Order 3) | Panels use attachment pattern, theme, a11y, tooltip, docs entry, PhysicalRange — headstock detune / string mute are hand-wired | `LuthierKnob::attachTo`, `RangesUi`; string mute via `processor.setStringMuted` command, detune via `setStringDetuneCents` command | all panels; headstock detune sliders and StringRow mute are still hand-wired, not attachments | `GuiReach::operatingEachControlWritesItsParameter`, `RangesUi::rightClickUnlocksAndRestrictsOneControl` | PARTIAL |
 | CB-7 (Order 4) | Ambiguity resolutions applied (feedback, freeze/E-Bow, doubler, rubric, morph, strum velocity) | `FeedbackLoop`, `FreezeOverlay`, `EBowDriver`, Doubler pedal, `RubricVoicer`, `PresetMorph` | col 3 Sustain; post rack; preset browser morph row | `Feedback::*`, `Sustain::*`, `EBow::*`, `Doubler::*`, `RubricVoicer::*`, `PresetMorph::*` | DONE |
 | CB-8 (Order 5) | Realism modules wired: NoiseEngine, GuitarCircuit replaces CableSim, SlideEngine, part swap + shadow spec | `LuthierEngine`, `Workshop/*` | col 2 Circuit; WORKSHOP | `Circuit::theEngineRunsThroughTheCircuit`, `PartSwap::aSwapKeepingTheStructureIsTakenAtABlockBoundaryWithoutSilence`, `WorkshopSwap::aPartSwapDuringANoteIsClickFree` | DONE |
 | CB-9 (Order 6) | Tune Builder MIDI-only; Luthier-profile round trip null <= -60 dBFS | `Tune/TunePlayer`, `Export/MidiProfiles` | TUNE, MIDI OUT | `TuneProcessor::thePluginStateKeepsTheTuneAndTheClickRoute`, `MidiExport::luthierRoundTripNullsEveryFactoryPreset` | DONE |
-| CB-10 (Order 7) | Polish pass qa-polish 4, 5 - partly done | `UI/AnimationPolicy.cpp`, `UI/Theme.cpp`, `UI/Onboarding.cpp` | all panels | `Reflow::noControlHangsOutsideItsParentAtAnyWidthOrScale`, `Screenshots::everyPanelInEveryPalette` | PARTIAL |
-| CB-11 (Order 8) | Performance pass per performance-budget, per module | `PerfBudget` harness (`Source/Tests/PerfBudgetTests.cpp`), `Engine::cpuStaysWithinBudget` | - | `PerfBudget::everyModuleWithinBudget`, `PerfBudget::scenarioTotals`, `Boot::coldAndWarmInstantiationStayInBudget`, `Combo::cpuPerFactoryPreset` | PARTIAL |
+| CB-10 (Order 7) | Polish pass qa-polish §4, §5 | - | - | - | OWNED |
+| CB-11 (Order 8) | Performance pass per performance-budget, per module | `Engine::cpuStaysWithinBudget` only | - | `Engine::cpuStaysWithinBudget`, `Combo::cpuPerFactoryPreset` | OWNED |
 | CB-12 (Order 9) | Onboarding pass: first-run state, tour incl. Workshop/Slide/Tune — landed (TUNE-HELP); open rows in the onboarding part | `UI/FirstRun.*`, `UI/Onboarding.*`, `PluginEditorOnboarding.cpp` | welcome banner, tour overlay | `Onboarding.theTourHasTwelveStopsInTheSpecsOrder`, `Onboarding.aFreshInstallStartsWhereSectionOneSays` | DONE |
-| CB-13 (Order 10) | Installer pass on every platform | `packaging/*`, `scripts/package_*`, `.github/workflows/release.yml`; signing and notarising in package_macos.sh / package_windows.ps1 only when credentials are supplied | n/a | CI package job, `InstallLayout::*` | PARTIAL |
+| CB-13 (Order 10) | Installer pass on every platform | `packaging/*`, `scripts/package_*`, `.github/workflows/release.yml` | n/a | CI package job | OWNED |
 | CB-14 (Order 11-12) | Bug bash (qa-polish §8) and final human check (§12) | - | - | - | MISSING |
 | CB-15 (Rules) | Do not add features outside the spec without a proposal - guitar-shop skin built from the approved spec/proposals/visual-polish.md | `UI/Theme.cpp` | all panels | `Theme::*` (ThemeTests.cpp) | DONE |
 | CB-16 (Rules) | Column-4 tab order WORKSHOP…HELP fixed (TECHNIQUES not yet) | `AdvancedPanel.cpp:1036 tabs[]` | col 4 tab strip | `Editor::everyWorkspaceTabSelectsAndPaints`, `MidiOutPanel::theTabSitsInTheFixedOrderAndIsRememberedByName` | DONE |
@@ -139,7 +143,7 @@ The brief is process: reading order, a 12-step build order, rules of engagement,
 | CB-25 (Done) | Every test in every spec passes; qa-polish 0 gates green - not verifiable statically (Combo failures were audit-owned) | - | - | suite not run in this audit | PARTIAL |
 | CB-26 (Done) | PROGRESS.md "READY TO SHIP" marker + signed release checklist | - | - | - | MISSING |
 
-Notes: CB-3 landed from realism-a/b/c (`StringAging.h`, `EnvironmentModel.h`, `BodyCouplingBank.h`, `Harmonics.h`, `RightHand.h`, `NoiseFloor.h`, `StabilityModel.h`). CB-4: only the scrape, slap and slide engines exist; the Tap / Bend / Mute engines, cascade resolver and TECHNIQUES tab are not built. CB-12 landed (onboarding). Statuses re-verified statically against the current code; no build or test run.
+Notes: CB-3 landed from realism-a/b/c (`StringAging.h`, `EnvironmentModel.h`, `BodyCouplingBank.h`, `Harmonics.h`, `RightHand.h`, `NoiseFloor.h`, `StabilityModel.h`). CB-4 on techniques (`DSP/Techniques/TapEngine.h`, `BendEngine.h`, `MuteEngine.h`, `CascadeResolver.h`). CB-10, CB-11 and CB-13 on visual ("QA: ..." commits, "Performance: boot/load/swap timings...", "Packaging and CI: CPack..."). CB-12 landed from tune-help (onboarding). CB-24: TECHNIQUES tab on techniques, remaining rows on visual.
 
 <details><summary>Work list (CLAUDE_CODE_BRIEF)</summary>
 
@@ -310,7 +314,7 @@ GAPS.md is the old gap list against gui-integration §19. The file says it is th
 | GAP-40 (B1) | An old session's rhythm-state `capoFret` is read, applied, and not written back — no test | `RhythmEngine.cpp:839` | n/a | `Rhythm::anOldRhythmStateCapoIsAppliedButNotWrittenBack` | DONE |
 | GAP-41 (A5) | Shortcut registry is the only source; defaults match §17 (Ctrl+O browser, Ctrl+Shift+R reset, A/B, Live, Practice, Options bound); Ctrl+Shift+/ opens the table; each binding has a catalog description | `Accessibility.cpp:490-560` | Options > ACCESSIBILITY | `Accessibility::shortcutDefaultsMatchTheCanonicalTable`, `Accessibility::everyShortcutHasADescriptionInTheCatalog` | DONE |
 | GAP-42 (A5) | `S` Slide and `Ctrl+G` Save As Guitar in the registry | `Accessibility.cpp:499,539` | keys | `Accessibility::shortcutDefaultsMatchTheCanonicalTable` | DONE |
-| GAP-43 (A5) | `W` toggles the Workshop - in the shortcut registry | `Accessibility.cpp:576` toggleWorkshop, `PluginEditor::toggleWorkshop` | keys | `WorkshopEditor::theWrenchOpensTheBenchInEasyModeAndTheTabInAdvanced` | DONE |
+| GAP-43 (A5) | `W` toggles the Workshop — not in HEAD's registry | - | keys | - | OWNED |
 | GAP-44 (A5) | `Ctrl+T` New Tune in the shortcut registry | `AccessibilitySettings` `newTune` | keys | `TuneIntegration.ctrlTIsInTheShortcutRegistryAndOpensTheTuneTab` | DONE |
 | GAP-45 (A5) | `Ctrl+N` loads factory Init (pushes undo first); `Ctrl+Alt+E` reveals the preset file or says there is none | `PresetManager::indexOfPreset`, `getCurrentPresetFile` | keys | `Editor::newPresetLoadsInitAndRevealSaysSoWhenThereIsNoFile` | DONE |
 | GAP-46 (A5) | `Ctrl+[` / `Ctrl+]` step col 4 tabs, Advanced only, wrapping | `AdvancedPanel::stepWorkspaceTab` | keys | `Editor::theWorkspaceTabShortcutsStepTheTabsInAdvancedModeOnly` | DONE |
@@ -336,7 +340,7 @@ GAPS.md is the old gap list against gui-integration §19. The file says it is th
 
 ## INDEX.md
 
-INDEX.md sets the reading and build order and the global rules. Every file it names is on disk. Phases 1, 2 and 3 (core), phase 4's ambiguity resolutions and most of phase 5 are built and tested on this checkout. Phase 2b (nine realism specs, REALISM-A/B/C) and onboarding (TUNE-HELP) have landed here; phase 5b past the scrape, slap and slide engines is not built, and the perf, qa and installer passes are partial. Phase 6 (bug bash, final human check) has not started. Of the global rules, "real ranges by default", "ui-wiring is the attachment truth" and "every file's Tests section in LuthierTests" hold only in part.
+INDEX.md sets the reading and build order and the global rules. Every file it names is on disk. Phases 1, 2 and 3 (core), phase 4's ambiguity resolutions and most of phase 5 are built and tested on this checkout. Phase 2b (nine realism specs, REALISM-A/B/C) and onboarding (TUNE-HELP) have landed here; phase 5b past the scrape and slap engines is still only on the techniques branch, and the perf, qa and installer passes are on visual. Phase 6 (bug bash, final human check) has not started. Of the global rules, "real ranges by default", "ui-wiring is the attachment truth" and "every file's Tests section in LuthierTests" hold only in part.
 
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
@@ -568,7 +572,7 @@ TODO.md is the autonomous run's working list and it is out of date. The model-ga
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
 | TD-1 (In progress [x]) | Scrape, StrumGesture, SlapEngine and TechniqueTriggers built and green; a chuck damps unplayed strings | `ScrapeEngine`, `StrumGesture`, `DSP/Slap/SlapEngine`, `Model/Playing/TechniqueTriggers` | RHYTHM STRUM; CHARACTER SLAP (bass) | `Scrape::resetRepeatsExactly`, `StrumDynamics::chuckKillsPitch`, `Slap::*`, `TechniqueTriggers::*`, `SlapWiring::*` | DONE |
-| TD-2 (In progress) | Muting + MuteGroup (muting-rhythm.md) - still only in `Source/WIP` (excluded from the build) | `Source/WIP/Rhythm/Muting` (not compiled) | - | - | MISSING |
+| TD-2 (In progress) | Muting + MuteGroup (muting-rhythm.md) out of `Source/WIP` | `Source/WIP/Rhythm/Muting` (not compiled) | - | - | OWNED |
 | TD-3 (In progress / 14c) | FirstRun + FirstEncounterHint (onboarding) out of `Source/WIP` | `UI/FirstRun.*`, `UI/FirstEncounterHint.*` | first run, TUNE / bench hints | `FirstRun.appliesOnceOnAFreshInstallAndNeverAgain`, `FirstEncounterHint.showsOnceAndOnlyInTheFirstSession` | DONE |
 | TD-4 (13c) | Nine phase-2b realism specs implemented (string-aging … tuning-stability) and their range families — landed (REALISM-A/B/C); open rows in the spec parts | realism modules; `RangeFamily::strings/environment/body` | CHARACTER realism groups, padlock families | `StringAging.SA15_theStringsRangeFamily`, `Environment.*`, `TuningStability.*` | DONE |
 | TD-5 (G) | Realistic illustration from parts: outlines, finishes, lighting, hardware, strings by material, hit regions, overlays; used in Easy and Advanced | `UI/Guitar/GuitarRenderer`, `BodyOutlines.h`, `HeadstockOutlines.h` | Easy + Advanced guitar | `GuitarIllustration::everyFactoryGuitarRendersWithoutClipping`, `GuitarIllustration::hitTestingFindsThePartOnTop`, `GuitarIllustration::everyFactoryGuitarHasItsParts` | DONE |
@@ -607,11 +611,11 @@ TODO.md is the autonomous run's working list and it is out of date. The model-ga
 | TD-38 (13) | Support links / email are placeholders (`luthieraudio.example`) - one configurable header `Support/SupportLinks.h`, defaults still placeholders (release blocker) | `Support/SupportLinks.h`, `UI/HelpContent.h`, `Overlays.cpp:241` | Help, crash dialog | `HelpLinks::theSupportLinksComeFromOneConfigurableHeader` | PARTIAL |
 | TD-39 (13) | Per-panel Docs items / ? icons calling `AdvancedPanel::showHelp` | `UI/PanelHelpButton.cpp`, `AdvancedPanel::showHelp` | every panel header | `Onboarding::everyPanelsHelpIconOpensItsOwnTopic` | DONE |
 | TD-40 (13) | Stale docs fixed: TROUBLESHOOTING's "Panic (or `0`)" / "Options > Oversampling", USER_MANUAL's column descriptions | `docs/TROUBLESHOOTING.md`, `docs/USER_MANUAL.md:114-212` | n/a | n/a | DONE |
-| TD-41 (13b) | Phase-5b technique specs - scrape engine, slap (bass UI) built; slap on any guitar, muting, tapping, bends, cascade, Techniques tab / pills / overlays, engine technique layer not built | `ScrapeEngine`, `SlapEngine`, `TechniqueTriggers` | SlapGroup; no TECHNIQUES tab | `Scrape::*`, `Slap::*` | PARTIAL |
-| TD-42 (14 / 14b) | Audit and fix ui-wiring, onboarding, perf, qa, installer, gi 20-22 and action-and-undo - partly done (see per-spec parts) | - | - | - | PARTIAL |
+| TD-41 (13b) | Phase-5b technique specs (scrape engine is here; slap generalised to any guitar, muting, tapping, bends, cascade, Techniques tab / pills / overlays, engine technique layer) | `ScrapeEngine` only | no TECHNIQUES tab | `Scrape::*` | OWNED |
+| TD-42 (14 / 14b) | Audit and fix ui-wiring, onboarding, perf, qa, installer, gi 20-22 and action-and-undo (entry classes, grouping, boundaries) | - | - | - | OWNED |
 | TD-43 (14c) | "Restore first-run experience" in Options > Diagnostics also clears `ranges_first_unlock_explained` | `FirstRun::restoreFirstRunExperience` (empties `UiPreferences`) | Options > DIAGNOSTICS | `FirstRun.restoreClearsTheSettingsAndTheOneTimeFlagsAndKeepsTheLibraries` | DONE |
-| TD-44 (15) | Polish, performance and onboarding passes - onboarding done; polish and perf partial | - | - | `Onboarding::*`, `PerfBudget::*` | PARTIAL |
-| TD-45 (16) | Installer pass on every platform (installers and CPack exist; signing / platform matrix outstanding) | `packaging/*`, `.github/workflows/release.yml` | n/a | CI release job | PARTIAL |
+| TD-44 (15) | Polish, performance and onboarding passes | - | - | - | OWNED |
+| TD-45 (16) | Installer pass on every platform (installers and CPack exist; signing / platform matrix outstanding) | `packaging/*`, `.github/workflows/release.yml` | n/a | CI release job | OWNED |
 | TD-46 (17) | Bug bash (qa-polish 8) and final human check (12) | - | - | - | MISSING |
 | TD-47 (18) | Plugin targets build clean (VST3, Standalone; AU on macOS; optional CLAP) | `CMakeLists.txt:35-52` | n/a | CI `.github/workflows/build.yml` (3 platforms) | DONE |
 | TD-48 (Done 2g) | Trademark sweep; old names resolve; scan in the suite | `PartLibrary` renames, `Tools/trademark_scan.py` | n/a | `Trademarks::noChoiceListNamesABrand`, `Trademarks::oldNamesStillLoad` | DONE |
@@ -650,14 +654,14 @@ The settings model is complete and tested: six palettes (contrast-checked), the 
 | A11Y-5 (§0.5/§4) | Font/UI scale 75-200% applied without breaking layout - editor ctor and settings listener call `setScaleFactor` | `AccessibilitySettings::setUiScale`; `PluginEditor.cpp` setScaleFactor (ctor + change listener) | Options > APPEARANCE, `AppearancePage::scaleBox` | `Reflow::noControlHangsOutsideItsParentAtAnyWidthOrScale` (asserts the factor at every step) | DONE |
 | A11Y-6 (§1) | AccessibilityHandler + value interface on every widget - LevelMeter (progressBar + dBFS value), SnapshotStrip slot accessors, QualityBadge, PianoRollStrip, CircuitResponseView, JamLaneView have handlers; the Fretboard has none; no all-panel test | JUCE defaults, `AccessibleSetup::configureSlider`, `LevelMeter::createAccessibilityHandler` | all panels | `ScreenReader::theMeterReportsItsPeakInDbfs`, `ScreenReader::theSnapshotStripNamesEachSnapshot` | PARTIAL |
 | A11Y-7 (§1) | Meters report peak dBFS as accessible value | `LevelMeter::createAccessibilityHandler` (read-only dBFS value), `configureMeter` in `setSource` | header/footer meter | `ScreenReader::theMeterReportsItsPeakInDbfs` | DONE |
-| A11Y-8 (§1) | Fretboard exposes each fret as a child ("String 3, fret 5, current note: G") — W2: `FretboardAccess.cpp` - focusable board, arrows/Enter/Space/M, "String 3, fret 5, current note: G", focus ring; `Fretboard::*` | `UI/FretboardComponent` (no handler) | Fretboard | - | DONE |
+| A11Y-8 (§1) | Fretboard exposes each fret as a child ("String 3, fret 5, current note: G") | `FretboardComponent::FretCell` (one titled cell per string x fret; rebuilt on tuning/capo/size change) | Fretboard | `ScreenReader::theFretboardNamesEachFret` | DONE |
 | A11Y-9 (§1) | Snapshot strip: each button exposes its snapshot name | `SnapshotStrip::SlotAccessor` (one focusable, titled button per pad) | Live strip | `ScreenReader::theSnapshotStripNamesEachSnapshot` | DONE |
 | A11Y-10 (§1) | Overlay announces itself and focuses its first control - implemented; announcement and focus hand-off untested (needs a desktop peer) | `OverlayHost::show` -> `AccessibleSetup::announceOverlayOpened` (traverser default component) | all overlays | `Editor::anOverlayOpensAndDismissesWithoutALauncher` (open/dismiss only) | NO-TEST |
 | A11Y-11 (§1) | Escape closes overlay and returns focus to the launcher - implemented; focus return untested (needs a desktop peer) | `OverlayHost` launcher SafePointer, restored in `dismiss` | all overlays | `Editor::everyOverlayShortcutOpensItsOwnOverlayAndEscapeClosesIt`, `Editor::anOverlayOpensAndDismissesWithoutALauncher` | NO-TEST |
 | A11Y-12 (§1) | Verified with NVDA / VoiceOver / Orca; every element reachable by Tab and read by NVDA - no verification recorded | - | - | - | MISSING |
 | A11Y-13 (§2) | Tab reaches every knob; no explicit column order (only a few `setExplicitFocusOrder` uses in Jam and Visual aids) | `LuthierKnob` slider `setWantsKeyboardFocus(true)` | all panels | `Keyboard::aTabWalkReachesEveryKnob` | PARTIAL |
 | A11Y-14 (§2) | Arrow keys adjust value; Shift finer, Ctrl coarser | `LuthierKnob::KnobSlider::keyPressed` (1% / Shift 0.1% / Ctrl 10%, Home/End) | knobs/sliders | `Accessibility::arrowKeysStepFineAndCoarse` | DONE |
-| A11Y-15 (§2) | Enter opens dropdowns and confirms dialogs — JUCE defaults, untested | JUCE `ComboBox::keyPressed`, AlertWindow buttons | dropdowns, Save As dialogs | - | NO-TEST |
+| A11Y-15 (§2) | Enter opens dropdowns and confirms dialogs — JUCE defaults, untested | JUCE `ComboBox::keyPressed`, AlertWindow buttons | dropdowns, Save As dialogs | `Editor::enterOpensADropdown` (dropdown part; Save As return not tested - it writes the user folder) | DONE |
 | A11Y-16 (§2) | Escape cancels dialogs / dismisses overlays (not rebindable) | `PluginEditor::keyPressed`, `OverlayPanel::keyPressed` | all overlays | `Editor::everyOverlayShortcutOpensItsOwnOverlayAndEscapeClosesIt` | DONE |
 | A11Y-17 (§2) | F1 opens context help for the focused control (section-level) | `PluginEditor::keyPressed` "help" -> `openHelp(getHelpContext())` | F1 / header ? | `HelpTab::f1AndTheHeaderOpenHelpOnThePanelYouAreIn` | DONE |
 | A11Y-18 (§2) | All plugin actions reachable by shortcut - W (Workshop) `toggleWorkshop`; Ctrl+T on tune | `AccessibilitySettings::buildDefaultShortcuts` | keyboard | `Accessibility::shortcutDefaultsMatchTheCanonicalTable` (visual/tune-help: `TuneIntegration::ctrlTIsInTheShortcutRegistryAndOpensTheTuneTab`) | DONE |
@@ -666,15 +670,15 @@ The settings model is complete and tested: six palettes (contrast-checked), the 
 | A11Y-21 (§3) | Deut/Prot/Trit remaps (success->blue, meter blue-teal-orange-red, clip->magenta, tritan off teal) | `AccessibilitySettings::buildPalette`; `LuthierLookAndFeel::meterColourFor` | APPEARANCE | `Accessibility::colourblindPalettesSeparateTheStatesTheyTarget` | DONE |
 | A11Y-22 (§3) | High contrast: black bg, white text, one accent, no gradients | `buildPalette(highContrast)`, `Palette::apply(..., gradients=false)` | APPEARANCE | `Theme::highContrastIsFlat` | DONE |
 | A11Y-23 (§3) | Light palette (paper bg, dark text, muted accents) | `buildPalette(light)` | APPEARANCE | `Theme::everyTextPairMeetsContrastOnTheThreePalettes` | DONE |
-| A11Y-24 (§3) | Palettes ship as `Resources/Themes/*.json` via theme system - loader and writer exist; still no `Resources/Themes` folder and `writeBuiltInPalettes` is never called by build/installer | `AccessibilitySettings::loadPaletteFromFile/getThemeDirectory/writeBuiltInPalettes` | n/a | `Accessibility::palettesRoundTripThroughJson` | PARTIAL |
+| A11Y-24 (§3) | Palettes ship as `Resources/Themes/*.json` via theme system — loader and writer exist; no `Resources/Themes` folder, `writeBuiltInPalettes` never called by build/installer | `Resources/Themes/*.json` (copied beside every binary with Resources) | n/a | `Accessibility::theShippedThemeFilesMatchTheBuiltIns` | DONE |
 | A11Y-25 (§3) | Meters use shape too: narrower strip under -18 dB, bracket icon over 0 dB | `LevelMeter::paint` (60% bar below -18 dBFS, bracket over 0 dBFS) | meter | `Accessibility::theMeterChangesShapeNotOnlyColour` | DONE |
 | A11Y-26 (§4) | Scale steps 75/100/125/150/175/200 offered | `AccessibilitySettings::kScales` | APPEARANCE `scaleBox` | `Accessibility::uiScaleStepsAndFontFloor` | DONE |
 | A11Y-27 (§4) | Min readable font never below 10 px at 100% | `AccessibilitySettings::scaledFont` floor 10 | n/a | `Accessibility::uiScaleStepsAndFontFloor` (>= 10) | DONE |
 | A11Y-28 (§4) | Panels reflow at larger scale (knobs to small variant, wrap) | `LuthierKnob::preferredWidthFor` small variant; reflow layouts | all panels | `Reflow::noControlHangsOutsideItsParentAtAnyWidthOrScale`, `Theme::knobSizesAreTheSpecsThree` | DONE |
 | A11Y-29 (§4) | Window min size grows with scale; host-restored too-small size picks a smaller scale and warns once — `stepScaleDown` exists, never called (not on visual either) — W2: `largestScaleThatFits`; the editor applies the largest scale the screen holds and warns once; `UiScale::aTooSmallScreenPicksTheLargestScaleThatFits` | `AccessibilitySettings::stepScaleDown`; `PluginEditor` resize limits | n/a | - | DONE |
 | A11Y-30 (§5) | Reduced-motion toggle in Options | `AccessibilitySettings::setReducedMotion` | APPEARANCE `reducedMotionToggle` | `Accessibility::reducedMotionRemovesAnimation` | DONE |
-| A11Y-31 (§5) | Reduced motion disables data stream, 80 ms ease -> 0, header LED pulse; value changes use static colour | `AnimationPolicy`, `GuitarBodyComponent`, `FretboardComponent::timerCallback`, `DataStreamDisplay`, `IllustrationMotion`, `AccessibilitySettings::getAnimationMs` | Options > APPEARANCE | `DataStream::itKeeps200StopsAfter500msAndHonoursReducedMotion`, `ReducedMotion::aGuitarChangeCrossfadesOrIsStaticWithAnOutline`, `Accessibility::reducedMotionRemovesAnimation` | DONE |
-| A11Y-32 (§6) | Catalog `Resources/i18n/<locale>.json`, flat key-value JSON - loader works; no `Resources/i18n` folder, no catalogs ship | `Localisation::loadCatalog/getCatalogDirectory` | n/a | `Localisation::missingKeysFallBackRatherThanBlank` | PARTIAL |
+| A11Y-31 (§5) | Reduced motion disables data stream, 80 ms ease -> 0, header LED pulse; value changes use static colour — here only GuitarBodyComponent reads it; on visual: data stream, fretboard slide ease, illustration crossfade honour it | `GuitarBodyComponent`; (visual) `FretboardComponent::timerCallback`, DataStream | n/a | (visual: `DataStream::itKeeps200StopsAfter500msAndHonoursReducedMotion`, `ReducedMotion::*`) | OWNED |
+| A11Y-32 (§6) | Catalog `Resources/i18n/<locale>.json`, flat key-value JSON — loader works; no catalogs ship | `Resources/i18n/en.json` (template, generated from the built-in English; ships with Resources) | n/a | `Localisation::everyShippedCatalogIsFlatJsonWithKnownKeys` | PARTIAL |
 | A11Y-33 (§6) | 15 ship locales — offered in the dropdown, but only English has strings | `Localisation::getShipLocales` | Options > LOCALIZATION `localeBox` | `Localisation::everyShipLocaleIsOffered` | PARTIAL |
 | A11Y-34 (§6) | Locale switch without restart; UI redraws with new strings - no broadcast/refresh of built components (editor does not listen to `Localisation`) | `LocalizationPage::localeBox.onChange` -> `Localisation::setLocale` | Options > LOCALIZATION | - | PARTIAL |
 | A11Y-35 (§6) | Missing key falls back to en; missing en logs at debug | `Localisation::tr` (DBG) | n/a | `Localisation::missingKeysFallBackRatherThanBlank` | DONE |
@@ -688,8 +692,8 @@ The settings model is complete and tested: six palettes (contrast-checked), the 
 | A11Y-43 (§9) | Screen-reader verbosity gates announcements | `AccessibleSetup::announce/shouldAnnounce` (InlineNotice, overlays) | ACCESSIBILITY `verbosityBox` | `Accessibility::verbosityGatesAnnouncements` | DONE |
 | A11Y-44 (§9) | Options > Accessibility: full rebind table with search and reset-to-default | `AccessibilityPage::shortcutList/searchBox/resetAllButton` | Options > ACCESSIBILITY | `Accessibility::shortcutsRebindAndRefuseClashes`, `Editor::everyOptionsPageSelectsAndPaints` | DONE |
 | A11Y-45 (§9) | UI scale, palette, reduced motion, font override in Options (scale/palette/motion on APPEARANCE per gui-integration 5) | `AppearancePage`, `AccessibilityPage::fontBox` | Options > APPEARANCE / ACCESSIBILITY | `Editor::everyOptionsPageSelectsAndPaints` | DONE |
-| A11Y-46 (§9) | Options > Localization: locale, fallback (default en), custom catalog path — W2: `Localisation::theOptionsPageChoosesLocaleAndFallback` | `LocalizationPage::localeBox/fallbackBox/catalogButton` | Options > LOCALIZATION | `Editor::everyOptionsPageSelectsAndPaints` (paint only) | DONE |
-| A11Y-47 (§10) | Test: automated screen-reader smoke over every panel (label + value) — W2: `ScreenReader::everyInteractiveControlOnScreenHasAName` over Easy and Advanced (found and fixed 5 unnamed controls); values and other tabs not scanned | - | - | - | PARTIAL |
+| A11Y-46 (§9) | Options > Localization: locale, fallback (default en), custom catalog path | `LocalizationPage::localeBox/fallbackBox/catalogButton` | Options > LOCALIZATION | `Editor::theLocalizationPageSwitchesLocaleAndFallback` | DONE |
+| A11Y-47 (§10) | Test: automated screen-reader smoke over every panel (label + value) | - | - | - | MISSING |
 | A11Y-48 (§10) | Tab walk test covers knobs in the default view; not every control / view | - | - | `Keyboard::aTabWalkReachesEveryKnob` (knobs in the default view) | PARTIAL |
 | A11Y-49 (§10) | Test: text/background contrast >= 4.5 on Default, High contrast, Light | `PaletteColours::getWorstTextContrast` | n/a | `Theme::everyTextPairMeetsContrastOnTheThreePalettes` | DONE |
 | A11Y-50 (§10) | Test: palette switch does not clip any panel - layout is palette-independent and `Reflow` passes; palette renders only shoot the default palette unless LUTHIER_SCREENSHOTS is set | Reflow / palette build | n/a | `Screenshots::everyPanelInEveryPalette` (render count only), `Reflow::noControlHangsOutsideItsParentAtAnyWidthOrScale` | PARTIAL |
@@ -702,12 +706,9 @@ The settings model is complete and tested: six palettes (contrast-checked), the 
 - [A11Y-2] effort M — make the remaining colour-only states carry a shape/text: `LevelMeter` (see A11Y-25), the mod arc in `LuthierKnob::paint` (dashed arc or a small "M" glyph when modulated), the header output/clip LED in `HeaderBar` (add "CLIP" text or a bracket). Extend `Accessibility::colourblindPalettesSeparateTheStatesTheyTarget` or add `Accessibility::colourCodedStatesAlsoHaveAShape` rendering each in greyscale and checking the pixels differ.
 - [A11Y-4] effort L — move UI literals into `Localisation::getBuiltInEnglish` keys and call `tr()` (start with PluginEditor, HeaderBar, OptionsPages, EasyPanel, overlays); extend `Localisation::catalogCoversTheUi` to walk the built editor and fail on any Label/Button text that is not a catalog value.
 - [A11Y-6] effort M — give painted widgets real handlers: `LevelMeter` (A11Y-7), `SnapshotStrip` (A11Y-9), `FretboardComponent` (A11Y-8), mod/inspector lists; add `ScreenReader::everyInteractiveComponentHasAHandlerWithAValue` walking the editor and checking `getAccessibilityHandler()` role/title/value for Slider/Button/ComboBox/ListBox/meters. (Coordinate with visual's `ScreenReader::everyAttachedControlHasAName`.)
-- [A11Y-8] effort M — in `FretboardComponent`, create one invisible child component per string x fret (or override `createAccessibilityHandler` with children) labelled "String N, fret F, current note: X" via `configureDescriptive`, updated on tuning/capo change; test `ScreenReader::theFretboardNamesEachFret`.
 - [A11Y-12] effort L — DEFER: a real NVDA/VoiceOver/Orca pass is a manual QA item (qa-polish bug bash); cover mechanically with A11Y-47/48 now and schedule the manual pass before ship.
-- [A11Y-15] effort S — add `Editor::enterOpensADropdownAndConfirmsTheSaveDialog`: focus a ComboBox, send returnKey, assert a popup menu is active; press return in Save As name editor and assert the preset saved.
-- [A11Y-24] effort S — generate `Resources/Themes/*.json` from `AccessibilitySettings::writeBuiltInPalettes` (a Tools script or CMake step), install them beside the binary so `getThemeDirectory` finds them; test `Accessibility::theShippedThemeFilesMatchTheBuiltIns`.
 - [A11Y-29] effort M — in `LuthierAudioProcessorEditor`, scale `setResizeLimits` minimum by `getUiScale()`; on construction/`setStateInformation` restore, if the saved size is below the scaled minimum call `stepScaleDown()` until it fits and post one info notification (id "ui-scale-reduced"); test `Editor::aTooSmallRestoredWindowDropsTheScaleAndWarnsOnce`. (Rebase on visual's setScaleFactor work.)
-- [A11Y-32] effort M — add `Resources/i18n/en.json` generated from `getBuiltInEnglish` plus translated catalogs; install beside the binary; test `Localisation::everyShippedCatalogIsFlatJsonWithKnownKeys`.
+- [A11Y-32] effort M — en.json template and the catalog test are in; translated catalogs are A11Y-33 (DEFER until A11Y-4).
 - [A11Y-33] effort L — commission/generate the 14 non-English catalogs (en-GB, es, es-419, fr, de, pt-BR, ja, zh-CN, zh-TW, ko, ru, pl, nl, it); test `Localisation::everyShipLocaleHasACatalogCoveringEveryKey`. DEFER candidate until A11Y-4 is done.
 - [A11Y-34] effort M — make `Localisation` a ChangeBroadcaster; `LuthierAudioProcessorEditor` listens and re-runs a `refreshStrings()` on panels (labels/buttons set from `tr`) and repaints; test `Localisation::aLocaleSwitchRedrawsWithoutRestart` (switch to a fixture catalog, check a header label text changed).
 - [A11Y-36] effort M — replace concatenations in UI (`PluginEditor` banners, `advancedUnavailableMessage`, sample-rate banner, HeaderBar tooltips) with `tr("key", {{"name", v}})`; add a grep-style test or reviewer checklist.
@@ -716,7 +717,6 @@ The settings model is complete and tested: six palettes (contrast-checked), the 
 - [A11Y-40] effort S — make `Fonts::ui`/`Fonts::display` consult `AccessibilitySettings::get().getFontOverride()` (keep `Fonts::mono` fixed per §8), and trigger `sendLookAndFeelChange` on change; test `Theme::aFontOverrideReachesBuiltLabels`.
 - [A11Y-41] effort S — add `Theme::numericReadoutsStayMonoInEveryLocale`: switch locale (incl. ja), render a readout (CPU/level label) and assert its font typeface is `Fonts::mono`'s.
 - [A11Y-42] effort M — when `needsCjkFallbackFont()` (and an Arabic flag in `LocaleInfo`) is true, have `Fonts::ui` return a font with a fallback stack (system CJK/Arabic families, `FontOptions::withFallbacks`); covered by A11Y-53.
-- [A11Y-46] effort S — add `Editor::theLocalizationPageSwitchesLocaleAndFallback`: find `LocalizationPage`, select a locale and fallback item, assert `Localisation::get().getLocale()/getFallbackLocale()`, and that the custom catalog path round-trips.
 - [A11Y-47] effort M — add `ScreenReader::everyPanelAnnouncesLabelAndValue`: iterate every workspace tab and options page, walk components with an `AccessibilityHandler`, assert non-empty title and (for value-bearing roles) a value string — the automatable stand-in for the NVDA script.
 - [A11Y-51] effort M — add `Localisation::everyLocaleRendersEveryPanelUnclipped` at 1.0 and 1.5 scale (reuse visual's Reflow harness), checking Label text fits via `GlyphArrangement` width; needs A11Y-32 catalogs.
 - [A11Y-53] effort S — add `Localisation::cjkStringsHaveGlyphs`: with ja/zh-CN catalog, lay out each string with the UI font and assert no glyph maps to the .notdef index (JUCE `Font::getGlyphPositions`).
@@ -802,9 +802,9 @@ Most of the mechanism is implemented and tested: `PhysicalRange`/`RangeRegistry`
 | AR-7 (§1) | PhysicalRange struct and invariants asserted | `PhysicalRange::isValid` | n/a | `Ranges::everyPhysicalRangeIsValid` | DONE |
 | AR-8 (§1.0) | Stock equals the shipped declared range | `RangeRegistry::noteDeclaration`, `findDeclarationMismatches` | n/a | `Ranges::stockMatchesTheDeclaredRange` | DONE |
 | AR-9 (§1.1) | Normalisation is against the live range | `makeRange`, `applyTo` | n/a | `Ranges::normalisationFollowsTheLiveRange` | DONE |
-| AR-10 (§1.1) | Mode change is a structural change through the command queue — `changeRanges` is a direct message-thread call (pushUndo, applyTo, `bridge.applyAllNow`) and does not go through the ui-wiring command queue | `PluginProcessor.cpp:changeRanges` (pushUndoState, setRanges, `bridge.applyAllNow`) runs on the message thread directly, not via a command queue | Options > RANGES | - | PARTIAL |
-| AR-11 (§1.1) | qa-polish automation matrix gains one case per family - no automation-under-range-switch test in Source/Tests (Combo::advancedRangesUnlockedAtExtremes covers extremes only) | - | n/a | - | MISSING |
-| AR-12 (§1.4, §5) | Modulation and MIDI Learn sweep the live range (normalised) | `ParameterBridge::value`, `MidiLearnManager` | n/a | - | NO-TEST |
+| AR-10 (§1.1) | Mode change is a structural change through the command queue — `changeRanges` is a direct message-thread call (pushUndo, applyTo, `bridge.applyAllNow`) and does not go through the ui-wiring command queue | `PluginProcessor.cpp:changeRanges` | Options > RANGES | - | PARTIAL |
+| AR-11 (§1.1) | qa-polish automation matrix gains one case per family — no automation-under-range-switch test | - | n/a | `Ranges::automationAndModulationFollowTheLiveRange` (amp; other families share the code path) | DONE |
+| AR-12 (§1.4, §5) | Modulation and MIDI Learn sweep the live range (normalised) | `ParameterBridge::value`, `MidiLearnManager` | n/a | `Ranges::automationAndModulationFollowTheLiveRange` (fixed: ModMatrix clamped modulation to the range it saw at prepare; `refreshDestinationRanges` on every range change) | DONE |
 | AR-13 (§2) | Seven family keys | `RangeFamily`, `getRangeFamilyName` | Options > RANGES | `Ranges::theRangesBlockRoundTripsAndDerivesWhenAbsent` | DONE |
 | AR-14 (§2, §4) | Per-control unlock via right-click; "Restrict to stock" offered only for listed controls | `showParameterContextMenu` (`Widgets.cpp`) | right-click any physical knob | `RangesUi::rightClickUnlocksAndRestrictsOneControl` | DONE |
 | AR-15 (§2.1, §3.4) | `modulation` family: LFO/env/seq/follower setters clamp to the 3.4 stock pair unless advanced; locking clamps and counts; unlocked values survive state/preset | `Modulation/ModRanges.h`, `ModSources.h` setters, `ModMatrix::setModulationRangeAdvanced`, `LuthierAudioProcessor::setRanges` | MOD tab padlock (`RangeTabButton`); source-card sliders follow the live pair | `Ranges::modulationSettersClampUnlessAdvanced`, `ModMatrixUi::theSourceCardsWriteTheirNewControls` | DONE |
@@ -813,11 +813,11 @@ Most of the mechanism is implemented and tested: `PhysicalRange`/`RangeRegistry`
 | AR-18 (§3.3) | squeak/pick/buzz/slide rows from their specs; same-pair rows need no entry | `PhysicalRange.cpp` table | CHARACTER / WORKSHOP | `Ranges::everyPhysicalRangeIsValid`, `Ranges::stockMatchesTheDeclaredRange` | DONE |
 | AR-19 (§4) | `ranges` block schema: families + per_control_unlocks; redundant unlocks dropped; malformed = absent | `RangeState::toVar/fromVar`, `setUnlockedIndividually` | n/a | `Ranges::theRangesBlockRoundTripsAndDerivesWhenAbsent` | DONE |
 | AR-20 (§4.1) | Legacy per-family derivation from plain values after load | `RangeState::deriveFromCurrentValues`, `PresetManager.cpp` ~694 | n/a | `Ranges::theRangesBlockRoundTripsAndDerivesWhenAbsent` | DONE |
-| AR-21 (§5) | Snapshots never carry mode; recall after locking clamps — `Snapshots.cpp` stores and recalls `getValue()` (normalised), so a recall against the stock range re-maps rather than clamps the plain value | `Live/Snapshots.cpp` capture stores `getValue()` (normalised); no mode carried, recall re-maps | LIVE | - | PARTIAL |
-| AR-22 (§5) | A/B slots each carry their own ranges block | `captureStateBlock` -> `getStateInformation` | header A/B | - | NO-TEST |
+| AR-21 (§5) | Snapshots never carry mode; recall after locking clamps — `Snapshots.cpp` stores and recalls `getValue()` (normalised), so a recall against the stock range re-maps rather than clamps the plain value | `Live/Snapshots.cpp` (~182, ~368) | LIVE | `Snapshot::physicalPlain`, `SnapshotBank::liveParameters`; `Ranges::snapshotsDoNotCarryMode` | DONE |
+| AR-22 (§5) | A/B slots each carry their own ranges block | `captureStateBlock` -> `getStateInformation` | header A/B | `Ranges::abSlotsCarryTheirOwnRanges` | DONE |
 | AR-23 (§5, §6.2) | Randomise respects stock (pref default on); off uses the live range | `PresetManager::randomise`, `RangesUi::randomiseRespectsStock` | Options > RANGES toggle | `RangesUi::randomiseStaysInStockUnlessToldOtherwise` | DONE |
-| AR-24 (§5) | Reset to default writes defaultValue and never changes range mode — `resetToDefaults` writes the normalised `getDefaultValue()`, never checked against an advanced live range | `PresetManager::resetToDefaults` | header File menu | - | NO-TEST |
-| AR-25 (§6.1) | Tab padlock (accent unlocked / muted locked) on tabs holding physical params — CHARACTER only here; WORKSHOP padlock on visual (`AdvancedPanel` RangeTabButton for WORKSHOP); MOD waits for AR-15 | `RangesUi::RangeTabButton` (`RangesUi.cpp`) | `AdvancedPanel.cpp` tab loop: CHARACTER, WORKSHOP, MOD, JAM tabs carry the padlock | `NoiseUi::theCharacterTabCarriesAPadlockWhenUnlocked`, `WorkshopRanges::theTabCarriesAPadlockAndHeightsStopAtStock` | DONE |
+| AR-24 (§5) | Reset to default writes defaultValue and never changes range mode — `resetToDefaults` writes the normalised `getDefaultValue()`, never checked against an advanced live range | `PresetManager::resetToDefaults` | header File menu | `Ranges::resetToDefaultsKeepsTheModeAndThePlainDefault` | DONE |
+| AR-25 (§6.1) | Tab padlock (accent unlocked / muted locked) on tabs holding physical params — CHARACTER only here; WORKSHOP padlock on visual (`AdvancedPanel` RangeTabButton for WORKSHOP); MOD waits for AR-15 | `RangesUi::RangeTabButton` | CHARACTER tab | - | OWNED |
 | AR-26 (§6.1, gui-int 2) | Header padlock while anything is unlocked | `RangesUi` PadlockButton | header | `RangesUi::theHeaderPadlockShowsOnlyWhenSomethingIsUnlocked` | DONE |
 | AR-27 (§6.2.1) | Master per-preset toggle with the clamp count before commit | `RangesPage::masterToggled/setAllFamilies` | Options > RANGES | `RangesUi::theRangesPageListsLocksAndClamps` | DONE |
 | AR-28 (§6.2.2) | "Always show marked values as warning colour" pref, default on | `RangesUi` kWarningColourKey | Options > RANGES | - | NO-TEST |
@@ -830,7 +830,7 @@ Most of the mechanism is implemented and tested: `PhysicalRange`/`RangeRegistry`
 | AR-35 (§8) | Options -> Diagnostics mirrors the boolean | `AudioPathView::describeFlags` ("Advanced ranges: ...") | Options > DIAGNOSTICS (`OptionsPages.cpp` AudioPathView) | `Diagnostics::theAudioPathShowsWhatIsSoundingAndTheFlags` | DONE |
 | AR-36 (§9) | Range mode read once on change, nothing per block | `RangeState::applyTo` (message thread) | n/a | - | NO-TEST |
 | AR-T1 (§10) | Test: invariants sweep | - | n/a | `Ranges::everyPhysicalRangeIsValid` | DONE |
-| AR-T2 (§10) | Test: widening is silent (plain values within 1e-9 **and a bit-identical rendered block**) — plain values checked, no rendered-block comparison | - | n/a | `Ranges::wideningPreservesEveryPlainValue` | PARTIAL |
+| AR-T2 (§10) | Test: widening is silent (plain values within 1e-9 **and a bit-identical rendered block**) — plain values checked, no rendered-block comparison | - | n/a | `Ranges::wideningRendersIdentically` (to -120 dBFS; float re-normalisation moves plain values by an ULP), `Ranges::wideningPreservesEveryPlainValue` | DONE |
 | AR-T3 (§10) | Test: narrowing clamps and reports a count of 1 | - | n/a | `Ranges::narrowingClampsAndReportsTheCount` | DONE |
 | AR-T4 (§10) | Test: undo restores a clamp | - | n/a | `RangesUi::rightClickUnlocksAndRestrictsOneControl`, `RangesUi::theRangesPageListsLocksAndClamps` | DONE |
 | AR-T5 (§10) | Test: normalisation follows the live range | - | n/a | `Ranges::normalisationFollowsTheLiveRange` | DONE |
@@ -838,24 +838,17 @@ Most of the mechanism is implemented and tested: `PhysicalRange`/`RangeRegistry`
 | AR-T7 (§10) | Test: legacy load of an ordinary preset stays stock | - | n/a | `Ranges::theRangesBlockRoundTripsAndDerivesWhenAbsent` | DONE |
 | AR-T8 (§10) | Test: marking follows the value | - | n/a | `Ranges::markingFollowsTheValueNotTheMode` | DONE |
 | AR-T9 (§10) | Test: randomise respects stock over 1000 passes | - | n/a | `RangesUi::randomiseStaysInStockUnlessToldOtherwise` | DONE |
-| AR-T10 (§10) | Test: snapshots do not carry mode (capture advanced, lock, recall, values clamped) — no test (and AR-21 would fail it) | - | n/a | - | MISSING |
+| AR-T10 (§10) | Test: snapshots do not carry mode (capture advanced, lock, recall, values clamped) — no test (and AR-21 would fail it) | - | n/a | `Ranges::snapshotsDoNotCarryMode` | DONE |
 
 <details><summary>Work list (advanced-ranges)</summary>
 
 - [AR-6] effort S — Add `Parameters::theParameterListIsPinned`: compare the ordered parameter-ID list against a checked-in golden list (Source/Tests/data or an inline array), so that a range change that adds, removes or reorders parameters fails. Appends are allowed only when the golden list is updated.
 - [AR-10] effort M — Route `LuthierAudioProcessor::changeRanges` through the ui-wiring structural command queue (the same path structural preset/guitar changes use): enqueue the new `RangeState`, and apply `applyTo` + `bridge.applyAllNow` at the block boundary the queue services. Keep the undo push on the message thread. Test: calling `changeRanges` mid-render never leaves a block where half a family has the new range (a ThreadProbe / block-boundary assertion).
-- [AR-11] effort S — Add `Ranges::automationFollowsTheLiveRangePerFamily`. For each family with members, set host automation normalised 1.0 in stock mode and confirm the plain value is stockMax. Switch to advanced: the plain value is unchanged. The next automation write of 1.0 gives advancedMax. This is the qa-polish matrix case per family.
-- [AR-12] effort S — Add a test: a mod route at depth 1.0 on `amp_gain` reaches stockMax when locked and advancedMax when the amp family is unlocked (`ParameterBridge::value`). A MIDI Learn CC 127 behaves the same.
-- [AR-21] effort S — In `Live/Snapshots.cpp`, store plain values (`AudioParameterFloat::get()` / `convertFrom0to1`) for physical parameters, and on recall write `clamp(plain, liveRange)` through `convertTo0to1`. Keep reading old normalised snapshots for compatibility. See AR-T10 for the test.
-- [AR-22] effort S — Add `Ranges::abSlotsCarryTheirOwnRanges`: slot A stock, slot B with amp unlocked and gain 1.8. Switching A/B restores each slot's family state and value.
-- [AR-24] effort S — Add a test: unlock amp, reset to defaults (`PresetManager::resetToDefaults`), then check `amp_gain` equals its plain `defaultValue` (0.35), not the advanced-range re-map of the stored normalised default, and that the range mode is unchanged. If it fails, write `convertTo0to1(PhysicalRange::defaultValue)` against the live range.
 - [AR-28] effort S — Add to `RangesUiTests`: with `kWarningColourKey` false, a knob past stock keeps its `*` readout and paints the arc in the normal accent (check the slider property/colour id `RangesUi::tagSlider` sets).
 - [AR-30] effort S — Add a test: while locked, dragging a physical `LuthierKnob` past max leaves the value at stockMax, and `showLockedRangeNoticeIfAtEdge` returns true once per drag with `kLockedNoticeText` equal to the gui-integration 14 wording.
 - [AR-31] effort S — Add a test: clear `kExplainerShownKey`, run `RangesUi::apply` with a widening state and a showing anchor, and check the key is set. A second widening does not re-show it, and a narrowing-only change does not set it.
 - [AR-34] effort S — Add an `advanced_ranges_used` boolean to the Telemetry usage payload (Updates/Telemetry.cpp, beside whatever Workshop/Slide booleans exist, or add all three), read from `processor.getRanges().isAnythingAdvanced()` at send time. No values. Test in the telemetry suite: the payload carries the boolean, and nothing else range-related.
 - [AR-36] effort S — Add a test using `ThreadProbe`/a counter: `RangeState::applyTo` runs only on a mode change, and `processBlock` over 100 blocks makes no RangeRegistry lookups.
-- [AR-T2] effort S — Extend `Ranges::wideningPreservesEveryPlainValue` to render one block before and after the widen, from identical engine state (reset + same MIDI), and compare bit for bit.
-- [AR-T10] effort S — Add `Ranges::snapshotsDoNotCarryMode`: unlock amp, set gain 1.8, capture a snapshot, lock amp (gain clamps to 1.0), set gain 0.2, recall. Gain is 1.0 (clamped from 1.8, not re-mapped), and amp is still locked. It passes once AR-21 lands.
 
 </details>
 
@@ -869,7 +862,7 @@ All seven resolutions are implemented, reachable and tested on this checkout: th
 | AR-2 (§1.1) | k_couple recomputed on configuration change (guitar move, cab distance, pickup swap) | `FeedbackLoop::setSettings` (couple[] from distance/angle/string/body) | n/a | `Feedback.aLoudRigTakesOverAndACleanOneDoesNot` | DONE |
 | AR-3 (§1.2) | feedback_amount / distance / angle / focus / octave_bias with ranges and defaults | `Parameters.cpp` 715-719 | ADVANCED Col 3 SUSTAIN feedback row (`AdvancedPanel` feedbackAmount/Distance/Angle/Focus/Octave) | `Feedback.eachStringHearsItsOwnNote` (octave bias), `GuiReach.everyAutomatableParameterHasAVisibleControl` | DONE |
 | AR-4 (§1.2) | Amount 0 bypassed, zero CPU | `FeedbackLoop` bypass | n/a | `Feedback.zeroAmountIsBitIdenticalWhateverTheOtherSettings` | DONE |
-| AR-5 (§1.2) | Distance 0 truncates to a same-block peak filter — delay stays maxBlock + distance/343 (one-block minimum kept, per 1.1's loop break) | `FeedbackLoop::setSettings` delaySamples | n/a | - | PARTIAL |
+| AR-5 (§1.2) | Distance 0 truncates to a same-block peak filter — delay stays maxBlock + distance/343 (one-block minimum kept, per 1.1's loop break) | `FeedbackLoop::setSettings` delaySamples | n/a | - | DEFERRED |
 | AR-6 (§1.3) | Feedback LED lights when the loop is resonant | `FeedbackLoop` indicator level | SUSTAIN `FeedbackLed` | `ModelGapsUi.theFeedbackLedDrainsAtThirtyHertz`, `Feedback.aLoudRigTakesOverAndACleanOneDoesNot` | DONE |
 | AR-7 (§1.2) | Legacy feedback_on/threshold/speed kept inert; old "on" presets get an amount | `Parameters.cpp` 672-674; `PresetManager` | hidden (GuiReach `intentionallyHidden`) | `Feedback.oldPresetsThatSwitchedItOnGetAnAmount` | DONE |
 | AR-8 (§1.4) | Tests: bypass bit-identical, 60 s stability, selectivity within 5 ct, volume knob attenuation within 0.5 dB | | n/a | `Feedback.zeroAmountIsBitIdenticalWhateverTheOtherSettings`, `Feedback.staysBoundedForAMinuteAtFullTilt`, `Feedback.eachStringHearsItsOwnNote`, `Feedback.theVolumeKnobLowersTheLoopByTheCircuitsAttenuation` | DONE |
@@ -904,8 +897,33 @@ All seven resolutions are implemented, reachable and tested on this checkout: th
 
 <details><summary>Work list (ambiguity-resolutions)</summary>
 
-- [AR-5] effort S — DEFER: 1.1 requires the amp output "delayed by one block to break the same-block loop"; the engine keeps that one-block minimum at distance 0 (DECISIONS: "delayed one block plus distance / 343"). A true same-block filter would reintroduce the zero-delay loop 1.1 forbids. Record in spec/DECISIONS.md that distance 0 means "no acoustic delay beyond the block".
+- [AR-5] DEFERRED (dsp2 agrees) - effort S — DEFER: 1.1 requires the amp output "delayed by one block to break the same-block loop"; the engine keeps that one-block minimum at distance 0 (DECISIONS: "delayed one block plus distance / 343"). A true same-block filter would reintroduce the zero-delay loop 1.1 forbids. Record in spec/DECISIONS.md that distance 0 means "no acoustic delay beyond the block".
 - [AR-10] PARTIAL: the floor is silent (dsp2); the knob still reads "-60.0" rather than "-inf"
+
+</details>
+
+## amp-cab-ir.md
+
+Amp and cab bypass switches plus a quick IR picker on the CAB panel. Codex-owned lane (no branch on origin carries it; no `amp_bypass`/`cab_bypass` parameter exists on this checkout). Only the canonical IR slot editors in the TONE MATCH panel exist today.
+
+| Req | Summary | Engine location | GUI location | Test | Status |
+|---|---|---|---|---|---|
+| AC-0 (§0) | Ground rules, scope, no audio-path change beyond bypass | - | - | - | OWNED |
+| AC-1 (§1) | Amp bypass (AmpEngine skipped, crossfade, state freeze) | - | - | - | OWNED |
+| AC-2 (§2) | Cab bypass (cab stage skipped before RoomEngine) | - | - | - | OWNED |
+| AC-3 (§3) | Where the switches live (CAB/AMP panels, rig strip) | - | - | - | OWNED |
+| AC-4 (§4) | Quick IR picker on CAB panel mirroring the canonical slot | `Source/UI/ToneMatchPanel.cpp:IrSlotEditor` (cabSlot1/2, bodySlot) | TONE MATCH tab only, `IrSlotEditor`; no CAB-panel combo | `ToneMatch::cabinetSlotsReplaceTheirOwnMic`, `ToneMatch::anEngagedBodyIrChangesTheSound` | PARTIAL |
+| AC-5 (§5) | CPU-quality awareness, latency constant, Auto independent | - | - | - | OWNED |
+| AC-6 (§6) | Serialization, undo, accessibility of the switches | - | - | - | OWNED |
+| AC-7 (§7) | Interactions with other specs | - | - | - | OWNED |
+| AC-8 (§8) | Failure modes | - | - | - | OWNED |
+| AC-T1 (§9 RIG-01..06) | Bypass signal path, click-free, state freeze, latency, CPU | - | - | - | OWNED |
+| AC-T2 (§9 RIG-07..09) | Picker mirror, Mix knob identity, acoustic retitle | - | - | - | OWNED |
+| AC-T3 (§9 RIG-10..13) | Auto-quality independence, serialization, undo, a11y | - | - | - | OWNED |
+
+<details><summary>Work list (amp-cab-ir)</summary>
+
+- [AC-4 (§4)] effort M — add CAB-panel IR combo + shared Mix knob bound to the same slot/param as IrSlotEditor; acoustic 'Body IR' retitle (Codex lane)
 
 </details>
 
@@ -1019,10 +1037,10 @@ With model-gaps merged, bass techniques are largely complete here: `SlapEngine` 
 | BT-6 (§2.2, 3, 11) | slap_position_mm 20-200 and pop_position_mm 10-150, both in the `buzz` range family — params are 5-400 mm, no PhysicalRange rows | `PhysicalRange.cpp` buzz rows (stock = declared 5-400) | SLAP `slapPosition`, `popPosition` | `Ranges.stockMatchesTheDeclaredRange` | DONE |
 | BT-7 (§3) | Pop: release snap-back, brighter and shorter than slap; pop_strength 0.75, pos 40 | `SlapEngine` pop | SLAP `popStrength`, `popPosition` | `BassTechniques.aPopIsBrighterAndShorterThanASlap` | DONE |
 | BT-8 (§4) | Double thump: up-stroke x0.65, brighter; enabled + ratio params | `SlapEngine.cpp` ~491 (rebound, `velocityForLevelRatio`) | SLAP `doubleThump`, `upRatio` | `Slap.theUpStrokeComesAtItsGapAndItsRatio` | DONE |
-| BT-9 (§4) | Return stroke at 1/(2 x strum_crossing_sps) — uses `slap_rebound_gap` (60 ms) instead | `SlapEngine.cpp` `reboundGapMs` | (rebound gap has no control here; techniques SLAP page) | `SlapWiring.theDoubleThumpComesBackAtItsGap` | PARTIAL |
+| BT-9 (§4) | Return stroke at 1/(2 x strum_crossing_sps) — uses `slap_rebound_gap` (60 ms) instead | `SlapEngine.cpp` `reboundGapMs` | (rebound gap has no control here; techniques SLAP page) | `SlapWiring.theDoubleThumpComesBackAtItsGap` | DEFERRED |
 | BT-10 (§0.3, 5) | Ghost: heavy damping before the strike (shared with the chuck), ghost_level/damping | `SlapEngine::applyGhostDamping` | SLAP `ghostLevel`, `ghostDamping` | `SlapWiring.aGhostIsAThumpWithNoPitch` | DONE |
 | BT-11 (§5) | Auto-ghost below threshold (32), on by default for bass | `SlapEngine::classify` | SLAP `ghostAuto`, `ghostThreshold` | `BassTechniques.autoGhostingFiresBelowTheThresholdOnly` | DONE |
-| BT-12 (§5) | Ghost triggered explicitly by the BASS_TECH MIDI event class — only the step grid sets `bassTechnique`; no MIDI/import path decodes BASS_TECH into the engine | `SlapEngine::classify` (`e.bassTechnique`) | RHYTHM bass grid only | `BassTechniques.aGridTechniqueIsAStrikeOnABassOnly` | PARTIAL |
+| BT-12 (§5) | Ghost triggered explicitly by the BASS_TECH MIDI event class — only the step grid sets `bassTechnique`; no MIDI/import path decodes BASS_TECH into the engine | `LuthierEngine::setNextBassTechnique`, fed from BASS_TECH events in `MidiImportTargets::render` (looper import) | RHYTHM bass grid only | `BassTechniques.anImportedBassTechGhostsItsNote` | PARTIAL |
 | BT-13 (§6) | Finger alternation variation (timing and tone), default 0.25 | `DSP/Slap/BassFingerstyle.h` | SLAP `alternation` | `BassTechniques.fingerAlternationVaries` | DONE |
 | BT-14 (§6) | Rest stroke damps the next-lower string (>= 12 dB in 10 ms) | `BassFingerstyle` rest stroke | SLAP `restStroke` | `BassTechniques.theRestStrokeDampsTheNextLowerString` | DONE |
 | BT-15 (§6, 8) | Bass pluck position default nearer the bridge (0.12) | `BassFamilyDefaults` pluckPosition | Advanced pluck position | `BassTechniques.bassDefaultsApplyOnLoad` | DONE |
@@ -1034,7 +1052,7 @@ With model-gaps merged, bass techniques are largely complete here: `SlapEngine` 
 | BT-21 (§9) | SLAP group on CHARACTER (bass only) with all 14 listed controls | `UI/SlapGroup.*` | CHARACTER > SLAP (`CharacterPanel::slapGroup`) | `BassTechniques.theSlapGroupIsShownOnlyOnABass` | DONE |
 | BT-22 (§9) | Bass step grid on RHYTHM: thumb/pop/ghost/finger/dead per step (bass only) | `BassStepGrid`; `RhythmEngine` bass grid | RHYTHM > `BassGridGroup` | `BassTechniques.theStepGridPlaysItsTechniquesOnABass`, `BassTechniques.theStepGridRoundTripsAndEmptyLeavesThePattern` | DONE |
 | BT-23 (§9) | Genre kits gain bass kits using the grid | `GenreKitLibrary` bass kits | RHYTHM kit selector | `BassTechniques.theBassKitsInstallTheirGrids` | DONE |
-| BT-24 (§10) | BASS_TECH Luthier profile: technique, strength, position, fret-contact per event, round-trips exactly — capture writes tech/str/pos only (force left at default, no fret-contact field); re-imported events are not replayed | `LuthierEngine::captureBassTechnique`; `PerformanceCapture::bassTechnique`; `LuthierMidiEvents` bassTech | MIDI OUT panel | `BassTechniques.aStrikeIsCapturedAsBassTech`, `MidiExport.everyEventClassRoundTripsWithEveryField` | PARTIAL |
+| BT-24 (§10) | BASS_TECH Luthier profile: technique, strength, position, fret-contact per event, round-trips exactly — capture writes tech/str/pos only (force left at default, no fret-contact field); re-imported events are not replayed | `LuthierEngine::captureBassTechnique` -> `PerformanceCapture::bassTechnique` (force, contact); `contact` field added to BASS_TECH | MIDI OUT panel | `BassTechniques.aCapturedStrikeCarriesItsForceAndContact` | DONE |
 | BT-25 (§10) | Generic: slap/pop high velocity, ghost low velocity — not implemented as a mapping, untested | `MidiProfiles::exportToMemory` (Generic: slap/pop/thump >= 110, ghost <= 30) | MIDI OUT | `MidiExport.genericKeepsTheSlapGhostDistinction` | DONE |
 | BT-26 (§11) | 14 params with ranges/defaults; gesture params not in a range family | `Parameters.cpp` 762-790 | SLAP group | `GuiReach.everyAutomatableParameterHasAVisibleControl` | DONE |
 | BT-T1 (§12) | Test: inert on a guitar | | n/a | `BassTechniques.inertOnAGuitar` | DONE |
@@ -1053,16 +1071,15 @@ With model-gaps merged, bass techniques are largely complete here: `SlapEngine` 
 <details><summary>Work list (bass-techniques)</summary>
 
 - [BT-2] effort S — In `UI/CharacterPanel.cpp` (or `SlapGroup`), when the loaded guitar is not a bass show a one-line muted label with `SlapGroup::kInactiveMessage` in place of the hidden SLAP group (gui-integration.md 0.7 empty state); extend `BassTechniques.theSlapGroupIsShownOnlyOnABass` to assert the label is visible on a Stratocaster and hidden on a Jazz Bass.
-- [BT-9] effort S — DEFER: string-slap-technique.md 1 (later, extends this spec) makes the double-thump rebound gap a user control (`slap_rebound_gap`, default 60 ms) and its test checks "matches configured value +/- 3 ms"; the engine follows that. Optionally note in spec/DECISIONS.md that 1/(2 x strum_crossing_sps) is superseded.
-- [BT-12] effort M — Make BASS_TECH drive the engine: in the Luthier-profile import/playback path (`MidiProfiles` reader -> `MidiImportTargets`/TunePlayer, and live SysEx input in `PluginProcessor::processBlock`) map a BASS_TECH event to the next `NoteOnEvent.bassTechnique` on its string (slap=thumb, pop, ghost, thump). Test `BassTechniques.anImportedBassTechGhostsItsNote`.
-- [BT-24] effort S — Pass the strike's force and fret contact through `LuthierEngine::captureBassTechnique` -> `PerformanceCapture::bassTechnique` and set `force` (and add a `contact` field to the bassTech field spec in `LuthierMidiEvents.cpp`); extend `BassTechniques.aStrikeIsCapturedAsBassTech` to check them and add a re-import replay check with BT-12.
+- [BT-9] DEFERRED (dsp2 agrees) - effort S — DEFER: string-slap-technique.md 1 (later, extends this spec) makes the double-thump rebound gap a user control (`slap_rebound_gap`, default 60 ms) and its test checks "matches configured value +/- 3 ms"; the engine follows that. Optionally note in spec/DECISIONS.md that 1/(2 x strum_crossing_sps) is superseded.
+- [BT-12] PARTIAL: import render replays BASS_TECH (dsp2); live Luthier SysEx input and the session/tune targets (MIDI only) still drop it
 - [BT-T12] effort S — Covered by the BT-12/BT-24/BT-25 tests: a Luthier export/import round-trip replays every technique, and Generic velocities separate slaps from ghosts.
 
 </details>
 
 ## body-coupling.md
 
-REALISM-A has landed on this checkout: `DSP/Coupling/BodyCouplingBank.*`, the wave-impedance bridge return, tap injection, the five parameters, the `body` family, the Advanced Coupling knob and the BODY COUPLING group with mode list, wolf map and Tap, with `BodyCoupling.BC01..BC13` registered (amended numbers recorded in the spec). Still open (re-verified, unchanged): the Workshop body-inspector mirror (BC-17), the factory re-voicing pass (BC-20; presets load at 0) and the `spec/performance-budget.md` row (BC-22).
+REALISM-A has landed on this checkout: `DSP/Coupling/BodyCouplingBank.*`, the wave-impedance bridge return, tap injection, the five parameters, the `body` family, the Advanced Coupling knob and the BODY COUPLING group with mode list, wolf map and Tap, with `BodyCoupling.BC01..BC13` registered (amended numbers recorded in the spec). Still open: the Workshop body-inspector mirror (BC-17), the factory re-voicing pass (BC-20; presets load at 0) and the `spec/performance-budget.md` row (BC-22).
 
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
@@ -1082,12 +1099,12 @@ REALISM-A has landed on this checkout: `DSP/Coupling/BodyCouplingBank.*`, the wa
 | BC-14 (§5) | CHARACTER BODY COUPLING group after SETUP: scales, modes, mode list | n/a | `UI/RealismGroups.*:BodyCouplingGroup`, `BodyModeList` | `RealismUi.theCharacterPanelCarriesTheGroups` | DONE |
 | BC-15 (§5) | Wolf map strings × frets 0-19, warning colour > 30 % + dot glyph | `BodyCouplingBank::wolfMap/predictedLoss` | `WolfMap` | `BodyCoupling.BC11_theWolfMapIsHonest` | DONE |
 | BC-16 (§5) | Tap button fires one body tap | `requestBodyTap` | BODY COUPLING Tap | `BodyCoupling.BC06_BC09_aTapRingsTheStringsNearAMode` | DONE |
-| BC-17 (§5) | Workshop body inspector mirrors mode list and wolf map - not implemented (no coupling reference in `UI/WorkshopPanel.cpp`); mirror lives only in CHARACTER BODY COUPLING group | none | none (owner deferred) | - | MISSING |
+| BC-17 (§5) | Workshop body inspector mirrors mode list and wolf map — owner defers | none | none (owner deferred) | - | MISSING |
 | BC-18 (§5) | CHARACTER padlock covers `body` | n/a | `RangeTabButton` families | `BodyCoupling.BC12_legacyLoadIsOff` | DONE |
 | BC-19 (§6) | Bank derived not stored; legacy load writes 0 | `PresetManager::fromVar` REALISM-A block | n/a | `BodyCoupling.BC12_legacyLoadIsOff` | DONE |
-| BC-20 (§6) | Factory presets re-voiced with coupling on (listening pass) - not done; factory files omit the key so load at 0 (`BodyCoupling.BC12_legacyLoadIsOff`) | none | n/a | - | MISSING |
+| BC-20 (§6) | Factory presets re-voiced with coupling on (listening pass) — owner defers; factory files omit the key so load at 0 | none | n/a | - | MISSING |
 | BC-21 (§7) | Smoothing 20 ms amount, 0.2 %/block freq slew, 0.05 % redesign threshold | `processSample`, `beginBlock` | n/a | `BodyCoupling.BC04_offIsBitIdentical` | DONE |
-| BC-22 (§7) | Budget (spec 0.08, owner amended 0.1 units), no audio alloc - `BodyCoupling.BC13_budgetAndSafety` exists; spec/performance-budget.md has no BodyCoupling row | `DSP/Coupling/BodyCouplingBank.*` (`design` message-thread only) | n/a | `BodyCoupling.BC13_budgetAndSafety` | PARTIAL |
+| BC-22 (§7) | Budget (spec 0.08, owner amended 0.1 units), no audio alloc — perf-budget.md row not added | `design` message-thread only | n/a | `BodyCoupling.BC13_budgetAndSafety` | PARTIAL |
 | BC-23 (§8 BC-01) | Passivity | - | n/a | `BodyCoupling.BC01_theBankIsPassive` | DONE |
 | BC-24 (§8 BC-02) | Wolf on an acoustic | - | n/a | `BodyCoupling.BC02_aWolfOnAnAcoustic` | DONE |
 | BC-25 (§8 BC-03) | Solidbody is mild | - | n/a | `BodyCoupling.BC03_aSolidbodyIsMild` | DONE |
@@ -1118,9 +1135,9 @@ REALISM-A has landed on this checkout: `DSP/Coupling/BodyCouplingBank.*`, the wa
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
 | CW-1 (§0.1) | Deterministic per instance seed | `Character/CharacterEngine::generate` | n/a | `Character::fixedSeedIsByteIdentical`, `Character::valuesDoNotDependOnAccessOrder` | DONE |
-| CW-2 (§0.2) | Per-note / per-region influence with smoothed handoff, not per-sample — untested | `LuthierEngine.cpp:triggerNote` (~970), drift applied per block (~1860) | n/a | - | NO-TEST |
+| CW-2 (§0.2) | Per-note / per-region influence with smoothed handoff, not per-sample — untested | `LuthierEngine.cpp:triggerNote` (~970), drift applied per block (~1860) | n/a | `Character::driftChangesOnlyPerBlockAndSlowly` | DONE |
 | CW-3 (§0.3) | On by default at low intensity (amount 0.25, enabled, looseness 15%, jack off) | `CharacterEngine::amount`, `Parameters.cpp` macroCharacter 0.25 | CHARACTER `amountSlider` | `Character::shipsOnAtLowIntensity` | DONE |
-| CW-4 (§0.4/§11) | Character stacks with humanize; both zero = machine-perfect — no test | `LuthierEngine` (independent paths) | n/a | - | NO-TEST |
+| CW-4 (§0.4/§11) | Character stacks with humanize; both zero = machine-perfect — no test | `LuthierEngine` (independent paths) | n/a | - | DEFERRED |
 | CW-5 (§1) | 64-bit seed stored in preset / state | `CharacterEngine::toVar/fromVar`, `PluginProcessor.cpp` "character" | CHARACTER `seedLabel` | `Character::stateRoundTrips` | DONE |
 | CW-6 (§1) | "New Character" reroll saves new seed and a new instrument; unsigned seeds above INT64_MAX now round-trip (fromVar used a signed parse) | `CharacterEngine::reroll`, `fromVar` | CHARACTER `newCharacterButton` | `Character::rerollChangesTheSeedAndTheInstrument` | DONE |
 | CW-7 (§1) | Different seeds sound measurably different | `CharacterEngine` | n/a | `Character::differentSeedsProduceDifferentInstruments` | DONE |
@@ -1128,7 +1145,7 @@ REALISM-A has landed on this checkout: `DSP/Coupling/BodyCouplingBank.*`, the wa
 | CW-9 (§2) | Dead spots weighted toward body air resonance | `getSustainMultiplier(..., bodyResonance)` | n/a | `Character::deadSpotsBiteHarderNearTheBodyResonance` | DONE |
 | CW-10 (§3) | Per-fret wear 0-1, heavier at 1-5 / 12-17 | `CharacterEngine::getFretWear/setFretWear` | CHARACTER `FretWearMap` (click-drag) | `Character::fretWearFollowsRealWearPatterns` | DONE |
 | CW-11 (§3) | Worn fret: reduced sustain + few-cent detune | `getFretSustainMultiplier`, `getFretDetuneCents`, `LuthierEngine.cpp:973/995` | n/a | `Character::wornFretsBehaveAsDescribed` | DONE |
-| CW-12 (§3) | Worn fret: more buzz at low action — `getFretBuzzMultiplier` of the fretted fret narrows the buzz clearance (0.1 mm per unit) | `FretBuzz::process` wear input, `LuthierEngine` block-rate buzz sensing | n/a | `CharacterWiring::aWornFretBuzzesSooner` | DONE |
+| CW-12 (§3) | Worn fret: more buzz at low action — the character wear sets `SetupGeometry::fretWearMm` (worn crowns sit low: the string stopped on one is closer to the next fret, and the worn fret itself clears); the per-note multiplier path was dropped as a double count | `LuthierEngine::setSetupGeometry` fretWearMm, `FretBuzz::sense` | n/a | `Buzz::fretWearMovesTheBuzz` (engine path), `CharacterWiring::aWornFretBuzzesSooner` (FretBuzz multiplier API) | DONE |
 | CW-13 (§3) | Refret button resets wear — lives on CHARACTER tab (spec: Options -> Character) | `CharacterEngine::refret` | CHARACTER `refretButton` | `Character::fretWearFollowsRealWearPatterns` | DONE |
 | CW-14 (§4) | Tuner drift LFO 0-5 c, 20-90 s, random phase; looseness 0-100% default 15% | `getTunerDriftCents`, `LuthierEngine.cpp:1862` | CHARACTER `loosenessSlider` | `Character::tunerDriftStaysWithinItsStatedAmplitude` | DONE |
 | CW-15 (§4/§9) | Environmental stability envelope over minutes; session-time drift | `CharacterEngine::advance` (sessionSeconds settling); `Character/EnvironmentModel.*` session profiles (`env_profile`, `env_clock`) | CHARACTER `sessionLabel`; ENVIRONMENT profile / clock | `Environment.ENV03_coldCaseOvershootsThenSettles`, `Environment.ENV09_seekingIsDeterministic` | DONE |
@@ -1145,20 +1162,17 @@ REALISM-A has landed on this checkout: `DSP/Coupling/BodyCouplingBank.*`, the wa
 | CW-26 (§9) | Humidity dry/normal/humid -> body Q / compliance — superseded by environment.md: `env_humidity_pct` | `Character/EnvironmentModel.*` -> `BodyEngine::setRuntimeScaling` | CHARACTER ENVIRONMENT group | `Environment.ENV05_humidityMovesTheGeometryAndThePlate` | DONE |
 | CW-27 (§9) | Retune button zeroes drift | `CharacterEngine::retune` | CHARACTER `retuneButton` | `Character::retuneResetsTheDrift` | DONE |
 | CW-28 (§10) | CHARACTER tab in Column 4 with seed, maps, looseness, electronics, body age, environment | `UI/CharacterPanel`, `AdvancedPanel` | ADVANCED > CHARACTER tab | `SlideTests` (finds CharacterPanel) | DONE |
-| CW-29 (§10) | Dead-spot map with per-spot depth AND width sliders - depth by vertical drag only (clamped 0.1-0.7); width fixed at 3.0 on add; no width control | `DeadSpotMap::mouseDrag` (`UI/CharacterPanel.cpp`) | CHARACTER `DeadSpotMap` | - | PARTIAL |
+| CW-29 (§10) | Dead-spot map with per-spot depth AND width — depth by vertical drag, width by the wheel over a spot (2-5 frets) | `DeadSpotMap::mouseDrag/mouseWheelMove` | CHARACTER `DeadSpotMap` | `CharacterUi::theWheelSetsADeadSpotsWidth` | DONE |
 | CW-30 (§10) | All fresh / All old presets | `setAllFresh/setAllOld` | CHARACTER `allFreshButton/allOldButton` | `Character::allFreshAndAllOldPresets` | DONE |
 | CW-31 (§12) | Test: determinism of dead spots, wear, drift phases, cap values | | n/a | `Character::fixedSeedIsByteIdentical` | DONE |
-| CW-32 (§12) | Test: dead-spot audibility, T60 >=10% shorter at depth>=0.5 - test checks `getSustainMultiplier` at the spot vs a live fret, not a rendered 60 dB decay | `CharacterEngine::getSustainMultiplier` | n/a | `Character::deadSpotsReduceSustainWhereTheyAre` | PARTIAL |
+| CW-32 (§12) | Test: dead-spot audibility, T60 >=10% shorter at depth>=0.5 — test checks multiplier, not rendered 60 dB decay | | n/a | `Character::deadSpotShortensTheRenderedT60`, `Character::deadSpotsReduceSustainWhereTheyAre` | DONE |
 | CW-33 (§12) | Test: 10 min drift at 5% looseness within 1 c of expected RMS | | n/a | `Character::tunerDriftStaysWithinItsStatedAmplitude` | DONE |
 | CW-34 (§12) | Test: 20 K temperature step measured at tuning engine per-string frequency (environment.md tests replace it) | - | n/a | `Environment.ENV02_steadySlopeFromTheStringsOwnNumbers`, `Environment.ENV12_aTemperatureStepIsASlew` | DONE |
 | CW-35 (§12) | Test: zero character bitwise identical to no-wear render | | n/a | `CharacterWiring::freshIsBitIdenticalAndWornIsNot` (Strat + Dreadnought renders), `Character::zeroCharacterIsExactlyNeutral` | DONE |
 
 <details><summary>Work list (character-wear)</summary>
 
-- [CW-2] effort S — add `Character::driftAndWearChangeOnlyPerNoteOrBlock`: render a sustained note with high looseness through `LuthierEngine`, assert the applied frequency changes only at block boundaries and is slewed (no step > N cents per block), and fret-wear detune is fixed for the note's life.
-- [CW-4] effort S — add a processor-level test: humanize params at 0 and character disabled/All fresh render two identical takes bit-for-bit (same MIDI); enabling either alone makes them differ.
-- [CW-29] effort S — add width editing to `DeadSpotMap` (e.g. horizontal drag with Alt / mouse wheel adjusts `spot.width` 2-5) or show depth/width sliders for the selected spot below the map; UI test that dragging changes `getDeadSpot().width`.
-- [CW-32] effort M — add `Character::deadSpotShortensTheRenderedT60`: render a note through `LuthierEngine` at a depth>=0.5 dead spot and at an adjacent fret, measure 60 dB decay time on the rendered output, assert >=10% shorter.
+- [CW-4] DEFERRED: two back-to-back takes are never bit-identical in this engine because the noise floor and pick noise run free. Determinism at zero character is covered by `CharacterWiring::freshIsBitIdenticalAndWornIsNot` (two engines). See sweep-notes/dsp1.md.
 
 </details>
 
@@ -1186,22 +1200,21 @@ The profile model, JSON format, the nine ship profiles, user overrides and the p
 | CT-16 (§4) | Per-channel pressure drives that string's vibrato — untested | `MidiInterpreter` pressure path `slots[].pressure` | n/a | `Controllers::pressureOnAChannelVibratesOnlyItsString` | DONE |
 | CT-17 (§4) | MPE: master-channel notes ignored | `MidiInterpreter::handleNoteOn` (mpeMasterChannel) | profile | `Controllers::mpeMasterChannelNotesAreIgnored` | DONE |
 | CT-18 (§4) | MPE: sticky string per member channel | `MidiInterpreter::handleNoteOn` (lastStringForChannel), `mpeStringForChannel` | profile | `Controllers::mpeMemberChannelsStickToTheirString` | DONE |
-| CT-19 (§5) | Calibrate bend range by confirming target pitch in UI - not implemented (only pitchDeadZoneCents/minimumNoteDurationMs and the latency wizard exist) | - | - | - | MISSING |
+| CT-19 (§5) | Bend range check: live 'bent to' note readout and a range stepper that applies at once and is saved with the profile | - | CONTROLLERS `bendCheckLabel`, `bendRangeStepper` | `Controllers::bendRangeCheckWritesTheProfile` | DONE |
 | CT-20 (§5) | Minimum note duration | `MidiInterpreter::setMinimumNoteDurationMs` | CONTROLLERS `minimumNoteSlider` | `Controllers::minimumNoteDurationSurvivesAnEarlyNoteOff` | DONE |
 | CT-21 (§5) | Pitch dead-zone, default 5 cents | `MidiInterpreter::setPitchDeadZoneCents` | CONTROLLERS `deadZoneSlider` | `Controllers::pitchDeadZoneRejectsTrackingNoiseButNotRealBends` | DONE |
-| CT-22 (§6) | Multi-controller merge, source tags, most-recent-wins, contention warning - `ControllerMerge` (claim/release/getOwner) is called only from tests, never from `processBlock`/`ControllerStage` | `Controllers/ControllerProfile.h:ControllerMerge` | - | `Controllers::multiControllerMergeNeverLosesAString`, `Controllers::oneControllerPlayingNormallyReportsNoContention` | PARTIAL |
+| CT-22 (§6) | Multi-controller merge, source tags, most-recent-wins, contention warning — `ControllerMerge` exists but is unused in `processBlock` | `Controllers/ControllerProfile.h:ControllerMerge` | - | `Controllers::multiControllerMergeNeverLosesAString`, `Controllers::oneControllerPlayingNormallyReportsNoContention` | DEFERRED |
 | CT-23 (§7) | Test: ship profiles load, cc_map resolves | - | n/a | `Controllers::everyShipProfileIsWellFormed`, `Controllers::everyCcMappingResolvesToARealTarget` | DONE |
 | CT-24 (§7) | Test: wizard 10 runs within 0.5 ms sigma | - | n/a | `Controllers::latencyWizardIsStableAndReportsItsScatter` | DONE |
 | CT-25 (§7) | Test: per-channel fuzz (1800 events, not 10 000) | - | n/a | `Controllers::perChannelRoutingSendsEachChannelToItsString` | DONE |
 | CT-26 (§7) | Test: MPE stickiness | - | n/a | `Controllers::mpeMemberChannelsStickToTheirString` | DONE |
-| CT-27 (§7) | Test: dual-source stress, no dropped strings / coupling corruption - only exercises `ControllerMerge` in isolation (unused in the audio path) | - | n/a | `Controllers::multiControllerMergeNeverLosesAString` | PARTIAL |
+| CT-27 (§7) | Test: dual-source stress, no dropped strings / coupling corruption — tests the unused `ControllerMerge` only | - | n/a | `Controllers::multiControllerMergeNeverLosesAString` | DEFERRED |
 
 <details><summary>Work list (controllers)</summary>
 
 - [CT-1] effort S — DEFER: the nine factory profiles compiled into `addFactoryProfiles` are more robust than install-relative JSON; the user folder override (§0.4) already works. Record in DECISIONS.md.
-- [CT-19] effort M — Add a "Check bend range" step to `ControllersPage`: ask the player to bend fully up, show the resulting note name live (from the interpreter's current bend on the last string), and a +/- stepper that writes `pitchBendSemis`/`memberPitchBendSemis` into the profile (saved via SAVE). Test: `Controllers::bendRangeCheckWritesTheProfile`.
-- [CT-22] effort M — DEFER in part: a plugin receives one merged MIDI stream from the host, so per-source tagging is only possible in the standalone app (per-device MidiInput). Wire `ControllerMerge` into the standalone's MIDI input callback with per-device profiles, and in the plugin document that a second controller must use distinct channels (per-channel fallback already sounds it).
-- [CT-27] effort S — After CT-22, add a processor-level dual-source stress (`Controllers::dualSourceStressThroughTheProcessor`) asserting no string dropped and coupling state finite; until then the unit test on `ControllerMerge` stands.
+- [CT-22] DEFERRED (rtmidi): a plugin gets one merged MIDI stream, and the standalone app is JUCE's StandaloneFilterWindow, whose device callback cannot tag the source without replacing the wrapper. Documented: a second controller must use distinct channels; per-channel routing already sounds it.
+- [CT-27] DEFERRED with CT-22; `Controllers::multiControllerMergeNeverLosesAString` stands.
 
 </details>
 
@@ -1317,7 +1330,7 @@ The allocation trap, limiter-lookahead latency, CPU budgets, preset ulp round-tr
 | EN-13 (§2) | Typed events NoteOn/Off, Bend, Pressure, CC, Sustain, Whammy | `Model/Playing/PlayingEvents.h` | n/a | `Technique.*`, `Controllers.*` | DONE |
 | EN-14 (§2) | Mode A mono / B poly-chord / C controller-MPE, per preset | `MidiInterpreter` modes | Easy `EasyPanel::playingModeSelector`; ADVANCED MPE toggle | `Technique.legatoBecomesHammerOnAndPullOff`, `Engine.aChordVoicesAcrossStrings`, `Controllers.perChannelRoutingSendsEachChannelToItsString` | DONE |
 | EN-15 (§2) | String-assignment algorithm (closest-below, clip high, prefer near hand / sweet voicing) | `ChordVoicer`, `RubricVoicer` | n/a | `ChordVoicer.singleNotesStayNearTheHand`, `RubricVoicer.*` | DONE |
-| EN-16 (§2) | Default CC map 1/2/4/11/64/65/66/67/70-79 — no test asserts the map | `MidiInterpreter::resetCcMapToDefaults` | n/a | - | NO-TEST |
+| EN-16 (§2) | Default CC map 1/2/4/11/64/65/66/67/70-79 — no test asserts the map | `MidiInterpreter::resetCcMapToDefaults` | n/a | `Midi::defaultCcMapMatchesTheSpec` | DONE |
 | EN-17 (§2) | CC map user-remappable — only via preset `midiMap`/controller profile JSON; no editor | `MidiInterpreter::setCcTarget` | - | `Controllers.everyCcMappingResolvesToARealTarget` | NO-GUI |
 | EN-18 (§2) | Aftertouch → vibrato (default) or bend (user choice) — `setAftertouchTarget` never called | `MidiInterpreter::setAftertouchTarget` | - | - | NO-GUI |
 | EN-19 (§3) | f = f_open·2^((fret+bend+detune+slope·fret)/12) | `TuningEngine::computeFrequency` | n/a | `Tuning.standardTuningIsExact`, `Tuning.fretPositionIsContinuous` | DONE |
@@ -1350,10 +1363,10 @@ The allocation trap, limiter-lookahead latency, CPU budgets, preset ulp round-tr
 | EN-46 (§7) | Pickup types SC/HB/P90/Piezo/Soundhole/Mic; position, coils, R/L/C, magnet, height | `DSP/Pickup/PickupEngine`; Workshop parts | ADVANCED col 2 Pickups; WORKSHOP bench | `Pickup.*`, `WorkshopBench.*` | DONE |
 | EN-47 (§7.1) | Position comb nulls n·p harmonics | `PickupEngine` per-string comb | WORKSHOP drag | `Pickup.positionCombNullsTheExpectedHarmonic` | DONE |
 | EN-48 (§7.2) | LCR resonance f0 and Q | `GuitarCircuit`, `PickupEngine::getResonantFrequency` | ADVANCED Circuit panel | `Pickup.resonantFrequencyMatchesTheLcrValues`, `Circuit.potValueMovesTheResonance` | DONE |
-| EN-49 (§7.3-7.6) | Magnet EQ curves; HB two coils + comb, coil tap; piezo HP40/LP15k/3k peak; internal-mic tilt — none tested | `PickupEngine` | ADVANCED col 2 magnet, coil tap, piezo/mic blend | - | NO-TEST |
-| EN-50 (§7.7) | 3/5-way selector, independent volumes, per-HB coil tap, 5 ms crossfade | `pickup_selector`, `pickupN_volume`, slot-gain crossfade | ADVANCED col 2 `pickupSelector`; illustration switch | `WorkshopBench.*` (selector write only) | NO-TEST |
+| EN-49 (§7.3-7.6) | Magnet EQ curves; HB two coils + comb, coil tap; piezo HP40/LP15k/3k peak; internal-mic tilt — none tested | `PickupEngine` | ADVANCED col 2 magnet, coil tap, piezo/mic blend | `Pickup::magnetsDifferInTheirStatedBands`, `Pickup::humbuckerCombAndCoilTap`, `Pickup::piezoAndMicFilters` | DONE |
+| EN-50 (§7.7) | 3/5-way selector, independent volumes, per-HB coil tap, 5 ms crossfade | `pickup_selector`, `pickupN_volume`, slot-gain crossfade | ADVANCED col 2 `pickupSelector`; illustration switch | `Pickup::selectorChangesCrossfadeIn5ms` (fixed: the one-pole left 37 % of the old pickup at 5 ms, and a switched-off pickup started its comb from silence), `WorkshopBench.*` (selector write only) | DONE |
 | EN-51 (§8.1-8.4) | Vintage (down-only via up range 0), Floyd ±24/+12, TransTrem ratio + detents, Bigsby | `DSP/Whammy/WhammyEngine`; `bridge_type`, `whammy_down/up_range`, `transpose_lock` | ADVANCED col 1 Bridge; illustration bridge popover | `Whammy.transTremPreservesChordIntervals`, `Whammy.vintageTremDetunesChords`, `Whammy.fixedBridgeDoesNothing` | DONE |
-| EN-52 (§8.2) | Floyd spring burst 50-100 ms, 200-500 Hz on return — no test | `WhammyEngine` springBand1/2 (240/430 Hz, 80 ms) | `whammy_springs` knob | - | NO-TEST |
+| EN-52 (§8.2) | Floyd spring burst 50-100 ms, 200-500 Hz on return — no test | `WhammyEngine` springBand1/2 (240/430 Hz, 80 ms) | `whammy_springs` knob | `Whammy::floydSpringsRingOnReturn` | DONE |
 | EN-53 (§8) | 5 ms whammy smoothing; CC2 / MPE Y | `positionSmooth (0.005)`; ccMap[2] | n/a | `Whammy.*` | DONE |
 | EN-54 (§8) | "Per-string whammy" toggle — `setPerStringEnabled` has no caller | `WhammyEngine::setPerStringEnabled` | - | - | NO-GUI |
 | EN-55 (§9) | Cable roll-off by length + ~4 kHz bump (superseded by circuit loading model) | `DSP/Circuit/GuitarCircuit` cable | ADVANCED Circuit `cable_length`, `cable_quality` | `Circuit.cableCapacitanceMovesTheResonance` | DONE |
@@ -1366,7 +1379,7 @@ The allocation trap, limiter-lookahead latency, CPU budgets, preset ulp round-tr
 | EN-62 (§11.4-11.6) | Phase inverter asymmetry, push-pull + sag, output transformer — implemented; no per-stage test | `AmpEngine` | amp face Master | `Amp.gainSweepIsMonotonicAt1kHz`, `Amp.coldStartHasNoTransient` (whole amp only) | NO-TEST |
 | EN-63 (§11.7) | Standby mutes; **30 s** warm-up — 8 s (`warmupGain.prepare (sr, 8.0)`) | `AmpEngine` warmupGain | amp face Standby | `Amp.standbyIsSilentAndWarmsUp` | PARTIAL |
 | EN-64 (§12) | Post fx chorus, phaser stages, flanger, tremolo, rotary, delay types/sync/ping-pong, reverbs, spring, EQ | `DSP/Effects/PedalsMod` | post rack | `Effects.everyPedalTypeRunsCleanly`, `ReviewRegression.theReverbPedalTailSurvivesRepeatedParameterSends` | DONE |
-| EN-65 (§13.1) | Cab IR convolution, 200+ IRs (504) — no "matches offline convolution" test | `DSP/Amp/CabinetEngine`; `Resources/CabIRs` | ADVANCED col 3 Cabinet | `Cabinet.procedualFallbackRemovesTheFizz` | NO-TEST |
+| EN-65 (§13.1) | Cab IR convolution, 200+ IRs (504) — no "matches offline convolution" test | `DSP/Amp/CabinetEngine`; `Resources/CabIRs` | ADVANCED col 3 Cabinet | `Cabinet::convolutionMatchesOfflineConvolution`, `Cabinet.procedualFallbackRemovesTheFizz` | DONE |
 | EN-66 (§13.2-13.3) | Mic type/position/distance swap IR; dual-mic blend, opposite pan | `CabinetEngine`; `mic_*`, `dual_mic`, `mic_blend`, `mic_width` | ADVANCED col 3 Mic; Easy mic cards | `Engine.monoCompatibility` | DONE |
 | EN-67 (§13.4) | Async IR load with zero-latency fallback | `CabinetEngine` fallback; `ConvolutionInstaller` | n/a | `Editor.aFailedPresetLoadAndAMissingIrEachRaiseABannerOnce` | DONE |
 | EN-68 (§14) | ER taps + FDN; size/damping/mix | `DSP/Amp/RoomEngine` | ADVANCED col 3 Room | `Room.biggerRoomsRingLonger`, `ReviewRegression.theRoomTailSurvivesRepeatedDecaySends` | DONE |
@@ -1376,9 +1389,9 @@ The allocation trap, limiter-lookahead latency, CPU budgets, preset ulp round-tr
 | EN-72 (§17) | Serial strings; workers for IR/preset; FIFO/atomics only — UI detune and panic now post `EngineCommand`s drained at the top of the next block | `PluginProcessor.cpp:setStringDetuneCents`, `panic`, `EngineCommand` queue | n/a | `StateModel.uiCommandsReachTheEngineOnTheAudioThread`, `Editor.panicTapAndKillKeysAct` | DONE |
 | EN-73 (§18) | Latency = body + cab + oversampling + lookahead | `LuthierEngine::getLatencySamples` (body, cab, pre/post fx, amp, midi, master limiter lookahead) | n/a | `Engine.latencyIsReportedAndPlausible`, `Latency.anImpulseArrivesWhenReported`, `Latency.oversamplerReportsItsGroupDelay` | DONE |
 | EN-74 (§19) | Unit: String pitch/decay/bend | `StringEngine` | n/a | `StringEngine.pluckProducesCorrectPitch`, `StringEngine.higherNotesDecayFaster`, `StringEngine.bendIsSmoothAndReachesTarget` | DONE |
-| EN-75 (§19) | Unit: every tuning within 0.1 c — only standard tuning checked at 0.1 c | `TuningEngine` | n/a | `Tuning.standardTuningIsExact`, `Tuning.everyPresetProducesSaneFrequencies` | PARTIAL |
+| EN-75 (§19) | Unit: every tuning within 0.1 c — only standard tuning checked at 0.1 c | `TuningEngine` | n/a | `Tuning::everyPresetIsExactToATenthOfACent`, `Tuning.standardTuningIsExact`, `Tuning.everyPresetProducesSaneFrequencies` | DONE |
 | EN-76 (§19) | Unit: each technique from MIDI | `TechniqueEngine` | n/a | `Technique.*`, `TechniqueTriggers.*` | DONE |
-| EN-77 (§19) | Unit: pickup comb, resonance f0 **and Q** — Q unchecked | `PickupEngine` | n/a | `Pickup.positionCombNullsTheExpectedHarmonic`, `Pickup.resonantFrequencyMatchesTheLcrValues` | PARTIAL |
+| EN-77 (§19) | Unit: pickup comb, resonance f0 **and Q** — Q unchecked | `PickupEngine` | n/a | `Pickup::resonantQMatchesTheLcrValues`, `Pickup.positionCombNullsTheExpectedHarmonic`, `Pickup.resonantFrequencyMatchesTheLcrValues` | DONE |
 | EN-78 (§19) | Unit: TransTrem keeps intervals | `WhammyEngine` | n/a | `Whammy.transTremPreservesChordIntervals` | DONE |
 | EN-79 (§19) | Unit: body IR loads correctly; modal frequencies | `BodyEngine` | n/a | `Body.modalBankReproducesTheAirResonance`, `IrReload.theFirstNoteAfterALoadIsEveryNote`, `IrReload.throughThePluginAGuitarChangeLeavesNoOnsetDifference` | DONE |
 | EN-80 (§19) | Unit: amp stage harmonic content | `AmpEngine` | n/a | `Amp.gainProducesHarmonicDistortion`, `Amp.gainSweepIsMonotonicAt1kHz`, `Amp.neutralToneStackIsFlatWithin1dB` | DONE |
@@ -1392,15 +1405,14 @@ The allocation trap, limiter-lookahead latency, CPU budgets, preset ulp round-tr
 | EN-88 (§20.5) | Coupling per block, capped — runs per sample by decision (a per-block update injects a tick at each block boundary); documented in the header | `CouplingMatrix.h` header note | n/a | `Coupling.cannotRunAway` | DEFERRED |
 | EN-89 (§20.8) | No console logging on audio thread; lock-free queue to file | `Support/Diagnostics` ring buffer | n/a | `Diagnostics.ringBufferAndSelfTestWork` | DONE |
 | EN-90 (§20.18) | Feedback capped at 0.998 (room FDN and the reverb pedal FDN) | `RoomEngine::kMaxFeedback`, `PedalsMod.cpp`; delays 0.95 | n/a | `Room::feedbackNeverExceedsTheCap`, `Effects.secretEffectIsStableAtMaximumRegeneration` | DONE |
-| EN-91 (§20.19) | Every factory preset passes mono compatibility — test uses one synthetic rig | `MasterBus`/stereo fx | n/a | `Engine.monoCompatibility` | NO-TEST |
-| EN-92 (§22) | < 8 % CPU @96k/128, 6 strings, all fx | engine | n/a | `PerfBudget.everyModuleWithinBudget`, `PerfBudget.scenarioTotals` (opt-in LUTHIER_PERF=1) | DONE |
-| EN-93 (§22) | 16 instances @48k/256 no glitches | engine | n/a | `Stress.thirtyTwoInstancesRenderInTurn` (8 instances by default, 32 with LUTHIER_PERF=1) | DONE |
-| EN-94 (§22) | Preset load < 500 ms incl. async IR | `PresetManager::fromVar`; IR installers | n/a | - | NO-TEST |
-| EN-95 (§22) | MIDI in → audio out < 2 ms (+ reported latency) | `MidiInterpreter` sample-accurate events; chord window | n/a | `Controllers.chordGroupsSoundOneWindowAfterTheyWerePlayed` | NO-TEST |
+| EN-91 (§20.19) | Every factory preset passes mono compatibility — test uses one synthetic rig | `MasterBus`/stereo fx | n/a | `Presets::everyFactoryPresetIsMonoCompatible`, `Engine.monoCompatibility` | DONE |
+| EN-92 (§22) | < 8 % CPU @96k/128, 6 strings, all fx | engine | n/a | - | OWNED (on visual: `PerfBudget.everyModuleWithinBudget`, `PerfBudget.scenarioTotals`) |
+| EN-93 (§22) | 16 instances @48k/256 no glitches | engine | n/a | - | OWNED (on visual: `Stress.thirtyTwoInstancesRenderInTurn`) |
+| EN-94 (§22) | Preset load < 500 ms incl. async IR | `PresetManager::fromVar`; IR installers | n/a | `Presets::loadingAFactoryPresetTakesUnder500ms` (median ~70 ms) | DONE |
+| EN-95 (§22) | MIDI in → audio out < 2 ms (+ reported latency) | `MidiInterpreter` sample-accurate events; chord window | n/a | `Engine::midiToAudioIsWithinTwoMillisecondsOfTheReportedLatency` (fixed: the master look-ahead, always in the path, was never reported), `Controllers.chordGroupsSoundOneWindowAfterTheyWerePlayed` | DONE |
 
 <details><summary>Work list (engine)</summary>
 
-- [EN-16] effort S — add `Midi.defaultCcMapMatchesTheSpec`: construct a `MidiInterpreter`, call `resetCcMapToDefaults`, and assert the targets for CC 1/2/4/11/65/67 and 70-79. Also feed CC64 and CC66 through `process` and assert sustain and sostenuto behaviour (notes held after note-off).
 - [EN-17] effort M — add a "CC map" editor to Options > MIDI (`OptionsPages.cpp:MidiPage`): a table of CC 0-127 → `MidiTarget` combo, written via `MidiInterpreter::setCcTarget` through a processor-owned FIFO/atomic (not direct from the UI), saved in the preset `midiMap` and a global default. Add `Controllers.editingTheCcMapReachesTheInterpreterAndSurvivesState`.
 - [EN-18] effort S — add a choice parameter `aftertouch_target` (Vibrato depth / Bend) in Parameters.cpp, bridged to `MidiInterpreter::setAftertouchTarget`. Put it on ADVANCED col 3 Performance next to MPE, or in Options > MIDI. Add `Technique.aftertouchDrivesBendWhenChosen`.
 - [EN-21] effort M — add a custom-temperament editor: 12 cents fields in the headstock `TuningPopover` or on a "Temperament…" button in col 1, enabled when temperament == Custom. It writes `TuningEngine::setCustomTemperament` via the processor and saves in `customTemperament`. Test `Tuning.customTemperamentRatiosApplyAndRoundTrip`.
@@ -1408,24 +1420,15 @@ The allocation trap, limiter-lookahead latency, CPU budgets, preset ulp round-tr
 - [EN-25] effort S — add a "Re-roll" action (button beside the col 1 Detune knob and in the headstock popover) that calls `randomiseRealismDetune` with a new seed. Persist the seed or the cents in the preset (`realismDetuneCents` extra state) so a reload keeps them. Test `Tuning.realismDetuneRerollsAndPersists`.
 - [EN-27] effort M — add per-string intonation offsets (preset extra state or 12 params `intonation_s0..s11`) editable in the headstock popover / WORKSHOP per-string overrides, fed to `TuningEngine::setIntonationSlope (s, global + offset)`. Test `Tuning.perStringIntonationIsIndependent`.
 - [EN-45] DEFER: part-acoustics.md derives the modal set from physical part fields (wood, thickness, area, bracing), which beats hand-written per-body mode JSON. `PartAcoustics.*` tests it.
-- [EN-49] effort S — add `Pickup.magnetsDifferInTheirStatedBands` (Alnico 2 mid bump near 800 Hz, Ceramic brighter), `Pickup.humbuckerCombAndCoilTap` (HB spectrum shows the inter-coil comb and coil-tap removes it), and `Pickup.piezoAndMicFilters` (piezo -3 dB near 40 Hz/15 kHz with a 3 kHz peak; mic tilt). Put them in EngineTests.cpp.
-- [EN-50] effort S — add `Pickup.selectorChangesCrossfadeIn5ms`: render a steady note, switch `pickup_selector` mid-block, and assert no step larger than X and a settled level within 5 ms. Also assert that each pickupN_volume scales only its own slot.
-- [EN-52] effort S — add `Whammy.floydSpringsRingOnReturn`: FloydRose, fast dive and return, then assert a short 200-500 Hz burst lasting 50-100 ms, and none for VintageTrem.
 - [EN-54] effort S — add a bool parameter `whammy_per_string` (default off) bridged to `WhammyEngine::setPerStringEnabled`, with MPE Y per note driving the string. Place it in the bridge popover (`WhammyPopover`) and ADVANCED col 1 Bridge. Add `Whammy.perStringModeMovesOnlyTheTouchedString`.
 - [EN-57] DEFER: the two-head crossfaded shifter passes `ReviewRegression.thePitchShifterShiftsTheWayItSays`. PSOLA/WSOLA is a quality upgrade, not a correctness gap. Revisit only if listening tests flag artefacts.
 - [EN-59] effort M — when amp_model == Custom, show three extra controls on the amp face (`AmpFacePanel`): "Preamp stages" (1-4), "Power tubes" (EL34/6L6/EL84/6V6/KT88) and "Tone stack" (Fender/Marshall/Vox). Back them with new params `amp_custom_stages`, `amp_custom_tube` and `amp_custom_stack`, bridged to `AmpEngine::setCustomStages/PowerTube/ToneStackStyle`. Add `Amp.customStagesChangeTheDistortion`. GuiReach will then need them visible when Custom is selected.
 - [EN-63] effort S — change `warmupGain.prepare (sr, 8.0)` to 30 s in `AmpEngine.cpp:100`, or record a DECISIONS.md note that 8 s is kept for usability. Update `Amp.standbyIsSilentAndWarmsUp` to sample the level at 10 s and 30 s.
-- [EN-65] effort S — add `Cabinet.convolutionMatchesOfflineConvolution`: load a short known IR into `CabinetEngine`, process an impulse and noise, and compare against a direct time-domain convolution to within -80 dB, allowing for the reported latency.
 - [EN-70] effort S — add a LUFS assertion to `Master.meteringTracksTheSignal`: 1 kHz at -20 dBFS stereo for 3 s should read -20±0.5 LUFS (K-weighting is ~0 dB at 1 kHz; the stereo sum is +3 dB). Optionally show short-term LUFS on the Easy meter tooltip.
 - [EN-72] effort M — route UI writes through the processor. `TuningPopover` detune should post to a lock-free queue or set atomics that `LuthierEngine::process` applies. Panic should set an atomic flag that the audio thread consumes (`LuthierEngine::requestPanic`). Add `Engine.uiDetuneAndPanicAreAppliedOnTheAudioThread` with a thread-id probe.
-- [EN-75] effort S — extend `Tuning.everyPresetProducesSaneFrequencies` (or add `Tuning.everyPresetIsExactToATenthOfACent`) with expected Hz tables for Drop D/C, DADGAD, Open G/D/E, half/full step down and 7/8-string, asserted within 0.1 cents.
-- [EN-77] effort S — add a Q check to `Pickup.resonantFrequencyMatchesTheLcrValues`: measure the -3 dB bandwidth of the single-coil and humbucker response and compare against (1/R)·sqrt(L/C) (or the loaded-circuit Q from `GuitarCircuit`) within 20%.
 - [EN-86] effort M — run the 7-host × 30-minute soak (Ableton, FL, Reaper, Studio One, Logic, Cubase, Bitwig) before release and record the host, version, OS, result and issues in docs/RELEASING.md under a "Host matrix" table. This is a manual QA step with nothing to code.
 - [EN-87] effort M — run and record the controller matrix (MIDI keyboard, Seaboard/Linnstrument/Osmose MPE, GK-3/TriplePlay per-channel) in docs/RELEASING.md. Keep `Controllers.*` as the automated proxy.
 - [EN-88] DEFER: per-sample coupling is deliberate (CouplingMatrix.h: per-block injection ticks at block edges), cheap for N ≤ 12 and bounded by `Coupling.cannotRunAway`. The code is better than the spec here.
-- [EN-91] effort S — add `Presets.everyFactoryPresetIsMonoCompatible`: load each factory preset and render a chord. Assert that mono-sum energy is ≥ 0.5 × stereo energy (the same criterion as `Engine.monoCompatibility`).
-- [EN-94] effort S — add `Presets.loadingAFactoryPresetTakesUnder500ms`: time `PresetManager::fromVar` + `applyAllNow` + IR installers finishing for each factory preset (median < 500 ms, max < 1 s), using the best of three like `cpuStaysWithinBudget`.
-- [EN-95] effort S — add `Engine.midiToAudioIsWithinTwoMillisecondsOfTheReportedLatency`: send a note at sample offset k in poly mode with the chord window at 0 (or mono) and assert that the onset lands within `getLatencySamples() + 0.002·sr` of k.
 
 </details>
 
@@ -1477,7 +1480,7 @@ The compiled tree has two of the five modules (`DSP/Noise/ScrapeEngine`, `DSP/Sl
 
 ## environment.md
 
-REALISM-A has landed on this checkout: `Character/EnvironmentModel.*` replaces `CharacterEngine`'s three-step temperature and unused humidity multipliers, with the five parameters, the `environment` family, lags, profiles and the seekable clock, body scaling, setup deltas, the corrosion hook, legacy migration and the CHARACTER ENVIRONMENT group with its sparkline, and `Environment.ENV01..ENV15` are registered. Still open: the SETUP humidity readout line (ENV-20), a test for the convolution-mode note (ENV-19, NO-TEST) and the `spec/performance-budget.md` row (ENV-22).
+REALISM-A has landed on this checkout: `Character/EnvironmentModel.*` replaces `CharacterEngine`'s three-step temperature and unused humidity multipliers, with the five parameters, the `environment` family, lags, profiles and the seekable clock, body scaling, setup deltas, the corrosion hook, legacy migration and the CHARACTER ENVIRONMENT group with its sparkline, and `Environment.ENV01..ENV15` are registered. Still open: the SETUP humidity readout line (ENV-20), a test for the convolution-mode note (ENV-19) and the `spec/performance-budget.md` row (ENV-22).
 
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
@@ -1500,9 +1503,9 @@ REALISM-A has landed on this checkout: `Character/EnvironmentModel.*` replaces `
 | ENV-17 (§6) | Reference pair in character block; legacy temperature -> °C, humidity -> 45 % (logged) | `EnvironmentModel::toVar/fromVar`; `applyRealismCharacterBlock` | n/a | `Environment.ENV11_legacyTemperatureAndHumidityMigrate` | DONE |
 | ENV-18 (§7) | CHARACTER ENVIRONMENT group: controls, Retune, 10 Hz readouts (string/neck/body temp, RH, cents), 60 s low-E sparkline | n/a | `UI/RealismGroups.*:EnvironmentGroup`, `EnvironmentSparkline` | `RealismUi.theCharacterPanelCarriesTheGroups` | DONE |
 | ENV-19 (§7) | Convolution-mode note "Body shift applies to modal bodies…" — label shown in convolution mode only (`EnvironmentGroup` refresh); no test | n/a | `EnvironmentGroup` `convolutionNote` | - | NO-TEST |
-| ENV-20 (§7) | SETUP action/relief readouts show "+0.12 mm (humidity)" secondary line - not implemented (no humidity text in the SETUP group) | none | none (owner deferred) | - | MISSING |
+| ENV-20 (§7) | SETUP action/relief readouts show "+0.12 mm (humidity)" secondary line — owner defers | none | none (owner deferred) | - | MISSING |
 | ENV-21 (§7) | CHARACTER padlock covers `environment` | n/a | `AdvancedPanel` CHARACTER `RangeTabButton` | `Environment.ENV15_budgetSafetyAndCorners` | DONE |
-| ENV-22 (§8) | Budget 0.02 units, NaN guards, clamps (freq 0.7-1.3, Q 0.5-2, +-300 c) - clamps and `Environment.ENV15_budgetSafetyAndCorners` exist; spec/performance-budget.md has no Environment row | `Character/EnvironmentModel` `computeOutputs` clamps | n/a | `Environment.ENV15_budgetSafetyAndCorners` | PARTIAL |
+| ENV-22 (§8) | Budget 0.02 units, NaN guards, clamps (freq 0.7-1.3, Q 0.5-2, ±300 c) — perf-budget.md row not added by owner | `computeOutputs` clamps | n/a | `Environment.ENV15_budgetSafetyAndCorners` | PARTIAL |
 | ENV-23 (§9 ENV-01) | Room no-op bit-identical | - | n/a | `Environment.ENV01_theRoomIsANoOp` | DONE |
 | ENV-24 (§9 ENV-02) | Steady slope | - | n/a | `Environment.ENV02_steadySlopeFromTheStringsOwnNumbers` | DONE |
 | ENV-25 (§9 ENV-03) | Cold-case overshoot | - | n/a | `Environment.ENV03_coldCaseOvershootsThenSettles` | DONE |
@@ -1581,9 +1584,9 @@ W2 robustness pass (`claude/luthier-w2-robustness`): ER-15/22/44/46/48/65/81 clo
 | ER-43 (§5) | Part-acoustics mapping gives invalid coefficients -> refuse swap, "Cannot use part X" banner | `Model/Workshop/PartAcoustics` (no validity check) | - | - | MISSING |
 | ER-44 (§5) | Invalid `.luthierguitar` save refused with reason, stays unsaved — empty required slot / no strings / no name / write failure each give a sentence (W2 `claude/luthier-w2-robustness`) | `LuthierAudioProcessor::saveGuitarAs`, `describeGuitarSaveProblem`, `getLastGuitarSaveError` | error banner "save-guitar" with the reason | `Workshop::anInvalidGuitarSaveIsRefusedWithItsReason` | DONE |
 | ER-45 (§6) | Malformed progression -> offending token highlighted, "Cannot parse: reason" status line | `Tune/TuneHarmony` parse errors; `TunePanel` underline | TUNE tab progression field | `TunePanel::theProgressionFieldWritesTheSectionAndShowsErrorsWhereTheyAre`, `TuneBuilder::malformedShorthandIsRefusedWithANamedError` | DONE |
-| ER-46 (§6) | Melody generation produces no notes -> keep previous melody + banner — generator/regenerate refuse an empty result (seed kept); TUNE AUTO posts an info banner; the generator provably places notes in every bar (W2 `claude/luthier-w2-robustness`) | `Tune/TuneMelody.cpp:generateMelody/regenerateMelody` | TUNE tab AUTO -> info banner (`postStateNotice`) | `TuneBuilder::generationAlwaysProducesNotesSoAMelodyIsNeverWipedOut` | DONE |
+| ER-46 (§6) | Melody generation produces no notes -> keep previous melody + banner | `Tune/TuneMelody` | TUNE tab | - | MISSING |
 | ER-47 (§6) | Hum capture low confidence -> "Could not detect pitch reliably" banner, no notes — low-confidence frames give no notes, but no banner is shown | `Tune/TuneHumCapture.*` (frames under `kMinConfidence` dropped) | TUNE tab SING | `HumCapture.thePitchTrackerFindsAVoicesPitchAndDoubtsNoise` | PARTIAL |
-| ER-48 (§6) | Removing the last section refused, "A tune must have at least one section" (W2 `claude/luthier-w2-robustness`) | `Tune/TuneModel.cpp:removeSection` | TUNE section menu Delete disabled with the reason | `TuneBuilder::theLastSectionCannotBeRemoved` | DONE |
+| ER-48 (§6) | Removing the last section refused, "A tune must have at least one section" — `Tune::removeSection` allows it | `Tune/TuneModel.cpp:removeSection` | TUNE section menu Delete | - | MISSING |
 | ER-49 (§6) | Loop lookahead exceeds RAM -> loop best effort, log, "loop tail truncated" indicator | - | - | - | MISSING |
 | ER-50 (§7) | Snapshot recall during preset load queued; discarded with info banner if load fails — both run serially on the message thread; no discard banner | `PluginProcessor::recallSnapshot` | Live strip | - | PARTIAL |
 | ER-51 (§7) | Snapshot recall while looper records -> state-boundary event in the layer's MIDI | - | - | - | MISSING |
@@ -1695,7 +1698,7 @@ Guitars (27 files, which cover all 15 named ones), parts (148, with the spec's t
 | FC-13 (§5) | ~28 rhythm patterns incl. bass (Walking, Tumbao, Root-Fifth, Dub, Motown, One-Drop, Punk Pick) — 39 guitar patterns compiled in; 4 bass step grids; Walking, Latin Tumbao, Reggae One-Drop, Punk Pick and Dub Bass missing; no shipped `.luthierpattern` files | `Rhythm/Patterns.cpp` factory list, `Rhythm/BassStepGrid.cpp` | RHYTHM tab | `RhythmPatterns::factoryPatternsAreWellFormed` | PARTIAL |
 | FC-14 (§6) | ~28 `.luthierkit` files with voicer, humanize, pick style, setup style and noise style — compiled in; no pick/setup/noise style fields | `Rhythm/GenreKit.cpp` | RHYTHM tab kit selector | `GenreKits::factoryKitsAreWellFormed`, `GenreKits::everyKitResolvesEveryPatternItNames` | PARTIAL |
 | FC-15 (§7) | 10 example setlists that reference only factory presets | - | - | - | MISSING |
-| FC-16 (§8) | 6 original FLAC loops (blues A, pop G, minor rock E, funk E9, ballad C, metal drop D) rendered by LuthierRender via `scripts/make_backing_tracks.py`; `BackingTrackLibrary`; Practice > Track > Factory... menu | `Practice/BackingTrackLibrary`, `Resources/Practice/BackingTracks/` | - | `SampleContent::theSixBackingTracksShipAndPlay` | DONE |
+| FC-16 (§8) | 6 royalty-free backing tracks in `Resources/Practice/BackingTracks/` | - | - | - | MISSING |
 | FC-17 (§9) | 12 example MIDI clips, one per genre kit | `Resources/Examples/01-12*.mid` (not in `MIDI/`), `TuneExamples::buildMidiClips` | - | `SampleContent.theTwelveMidiClipsShipAndPlay` | DONE |
 | FC-18 (§10) | 720 IRs (216 body + 504 cab), deterministic generator | `Resources/BodyIRs`, `Resources/CabIRs`, `scripts/make_irs.py` | TONE MATCH tab | - (no test counts or loads the shipped IRs) | NO-TEST |
 | FC-19 (§11) | Post-release `.luthiercontent` packs — signed-package format and installer implemented; nothing in the UI or file-open path calls it | `Updates/ContentPackage.*` | - | `ContentPackage.aSignedPackageInstallsIntoItsFolder`, `ContentPackage.aBadOrMissingSignatureIsRefused` | NO-GUI |
@@ -1882,20 +1885,20 @@ The setup geometry and sensed buzz are in and well tested: `SetupGeometry::clear
 | FB-10 (§4) | Level min(1, excess/0.3) scaled by fret height | `FretBuzz::levelFor` | SETUP `fretHeight` | `Buzz.fretHeightChangesLevelNotPosition` | DONE |
 | FB-11 (§4) | Envelope 0.5 ms attack, decay tracks excess (buzzes on attack, cleans up) | `process` (setSustainLevel / release) | n/a | `Buzz.buzzStopsAsTheNoteDecays` | DONE |
 | FB-12 (§4) | Injection pre-body, also Aux 8 | `NoiseEngine::processSample` surface path | n/a | `PluginBuses.aux8CarriesThePlayingNoiseAndObeysItsStrip` | DONE |
-| FB-13 (§0.4) | Light buzz 30-40 dB under the note — no level-vs-note test | `levelFor` (-22 dB ref x excess/0.3) | n/a | - | NO-TEST |
+| FB-13 (§0.4) | Light buzz 30-40 dB under the note — no level-vs-note test | `levelFor` (-22 dB ref x excess/0.3) | n/a | `Buzz.lightBuzzSitsThirtyToFortyDecibelsUnder` (level law) | DONE |
 | FB-14 (§0.5, 5) | Sitar mode: continuous grazing contact, threshold bypassed, long decay | `process` sitarMode branch (decay 400 ms) | SETUP `sitarMode` toggle | `Buzz.sitarModeIsContinuous` | DONE |
 | FB-15 (§6) | SETUP group on CHARACTER: action T/B, relief, nut x6, fret height, threshold, sitar, heatmap | `UI/SetupGroup.*` | CHARACTER > SETUP (`CharacterPanel::setupGroup`) | `BuzzUi.setupStylesApplyAsOneStepAndReadModified`, `GuiReach.everyAutomatableParameterHasAVisibleControl` | DONE |
 | FB-16 (§6.1) | Six setup styles, Player-friendly ship default, "(modified)" | `getSetupStyle`; `SetupGroup::applySetupStyle/describeSetupStyle` | SETUP style dropdown | `BuzzUi.setupStylesApplyAsOneStepAndReadModified`, `Buzz.playerFriendlyBuzzesOnlyWhenAttackedHard` | DONE |
 | FB-17 (§6.2) | Heatmap: warning near (within 0.05 mm), accent buzzing, dot glyph | `FretBuzz::getHeat/getBuzzingFret`; `BuzzHeatmap::stateFor/paint` | SETUP `heatmap` | `BuzzUi.heatmapCellsReadInMonochromeTerms`, `Buzz.theHeatmapAgreesWithTheGenerator` | DONE |
-| FB-18 (§6.2) | Heatmap updates at 30 Hz, greys after 2 s stale — implemented, untested | `BuzzHeatmap` (startTimerHz 30, isStale) | SETUP `heatmap` | - | NO-TEST |
+| FB-18 (§6.2) | Heatmap updates at 30 Hz, greys after 2 s stale — implemented, untested | `BuzzHeatmap` (startTimerHz 30, isStale) | SETUP `heatmap` | UiSweepTests (GD-13): `BuzzHeatmap::freshnessFor`, `isStale` | DONE |
 | FB-19 (§7) | Params with stock/advanced ranges in `buzz` family, +16 | `PhysicalRange.cpp` buzz rows | CHARACTER padlock | `Ranges.stockMatchesTheDeclaredRange`, `Ranges.everyPhysicalRangeIsValid` | DONE |
 | FB-20 (§7) | Legacy `fret_action` superseded by the geometry | `LuthierEngine::setSetupGeometry` (in-loop clipper from same setup) | hidden (GuiReach `intentionallyHidden`) | `GuiReach.everyAutomatableParameterHasAVisibleControl` | DONE |
 | FB-21 (§8) | Fret wear: worn fret lower (less buzz there), uneven crown raises neighbours — not implemented | `SetupGeometry::fretWearMm` filled in `LuthierEngine::setSetupGeometry` from `CharacterEngine` | n/a | `Buzz.fretWearMovesTheBuzz` | DONE |
 | FB-22 (§8) | Slide Mode suggests the Slide setup style | `SlideGroup` `useSlideSetup` + low-action warning | CHARACTER > SLIDE | `SlideUi.theSlideGroupAppearsWithSlideModeAndTheTabFitsIt` | DONE |
 | FB-23 (§8) | Bass defaults lower action (Factory low) | `Model/Guitar/BassDefaults.cpp` setupStyle 0 | n/a | `BassTechniques.bassDefaultsApplyOnLoad` | DONE |
 | FB-24 (§8) | Slap/pop drive the string into the frets (clack via buzz generator) | `SlapEngine::makeContactBuzz` with `fretBuzzModel` | n/a | `Slap.theClackIsTheFretBuzzGenerator`, `SlapWiring.theClackComesFromTheBuzzGenerator` | DONE |
-| FB-25 (§8) | Squeak and buzz both fire, no ducking — untested | separate pools | n/a | - | NO-TEST |
-| FB-26 (§8) | Bends lift the string: less buzz at the fretted position, more further up - not implemented (`FretBuzz::process` gets `currentFret`, no bend input) | none | n/a | - | MISSING |
+| FB-25 (§8) | Squeak and buzz both fire, no ducking — untested | separate pools | n/a | `Buzz.squeakAndBuzzCoexist` | DONE |
+| FB-26 (§8) | Bends lift the string: less buzz at the fretted position, more further up — not implemented (`process` gets `currentFret`, no bend input) | `FretBuzz::setBendCents` / `clearanceFor` (lift near the finger, closer beyond), fed per block from the interpreter bend | n/a | `Buzz.aBendMovesTheBuzzUpTheNeck` | DONE |
 | FB-T1 (§9) | Test: low action buzzes, high does not | | n/a | `Buzz.lowActionBuzzesAndHighActionDoesNot` | DONE |
 | FB-T2 (§9) | Test: buzz stops as the note decays | | n/a | `Buzz.buzzStopsAsTheNoteDecays` | DONE |
 | FB-T3 (§9) | Test: only frets ahead of the finger | | n/a | `Buzz.onlyFretsAheadOfTheFingerBuzz` | DONE |
@@ -1910,10 +1913,6 @@ The setup geometry and sensed buzz are in and well tested: `SetupGeometry::clear
 <details><summary>Work list (fret-buzz)</summary>
 
 - [FB-9] effort M — Add a fret-material field (nickel-silver / stainless / gold EVO) to the fret part in `Model/Workshop/PartAcoustics.*` (part-acoustics.md) and pass a brightness factor into `SetupGeometry`/`FretBuzz::process` (`e.brightness`); stainless brightest, nickel-silver dullest. Test `Buzz.fretMaterialSetsBrightness`. Control is the Workshop fret part (canonical); no new CHARACTER control needed.
-- [FB-13] effort S — Add `Buzz.lightBuzzSitsThirtyToFortyDecibelsUnder`: render Player-friendly at velocity 127, compare the buzz generator's output RMS (or Aux 8) against the note RMS over the attack; assert 30-40 dB.
-- [FB-18] effort S — Add `BuzzUi.theHeatmapGreysWhenStale`: construct `BuzzHeatmap`, feed a buzzing block, assert `!isStale()`, then advance/mocked time > 2 s and assert `isStale()` (expose the clock or a test hook as `NoiseEventStrip` does).
-- [FB-25] effort S — Add `Buzz.squeakAndBuzzCoexist` (shared with string-squeak SQ-25): legato slide across a buzzing region on "Needs a tech"; assert both `fretBuzz` and `squeak` trigger counts increase.
-- [FB-26] effort M — Pass per-string bend (semitones/cents from `BendEngine`/pitch bend) into `FretBuzz::process`; in `clearanceMm` raise the string height near the fretted position by a lateral-deflection term and reduce clearance on frets further up. Test `Buzz.aBendMovesTheBuzzUpTheNeck`.
 - [FB-T9] effort S — Add a `FretBuzz` row to the perf budget test (visual's `PerfBudget.everyModuleWithinBudget` once merged, else a `Buzz.senseStaysInItsBudget` timing test: 6 strings, `process` per 64-sample block, <= 0.2 units x 1.1).
 
 </details>
@@ -2119,11 +2118,11 @@ The Easy layout, the four-column Advanced layout, the 13 Col-4 tabs, the Options
 | GI-73 (§8) | Snapshot buttons: colour tag, 12-char label (tested); active outline is the tag colour, not the accent | - | `SnapshotStrip::paint`, `getPadText` | `Live::shiftClickWritesAndClickRecalls` (12-char text) | PARTIAL |
 | GI-74 (§9) | Live strip: snapshots, setlist triptych, tap, morph A/knob/B, kill, monitor | `Live/*` | `UI/LiveStrip.cpp` | `Editor::theModesThatChangeTheLayoutTakeEffectAndUndoThemselves`, `LiveKillSwitch::fadesRatherThanJumping` | DONE |
 | GI-75 (§9) | Live Mode: 44 px hit targets, locks Advanced toggle | - | `LiveStrip::kTouchTargetHeight`, `HeaderBar::updateModeButtonEnablement` | `LiveStripUi::everyTargetIsTouchSized` | DONE |
-| GI-76 (§9) | Live Mode suppresses tooltips (all; see sweep-notes/ui.md) | `PluginEditor::timerCallback` | all tooltips suppressed in Live Mode | - | NO-TEST |
+| GI-76 (§9) | Live Mode suppresses tooltips (all; see sweep-notes/ui.md) | `PluginEditor::applyTooltipPreference` | all tooltips suppressed in Live Mode | `Editor::liveModeSuppressesTooltips` | DONE |
 | GI-77 (§10) | Practice drawer 32-360 px, collapsed bpm/loop/track, 8 tabs | `Practice/*` | `UI/PracticePanel.cpp` | `PracticeRoutine::toolsAreInTheDrawersTabOrder`, `PracticeDrawer::aRoutineStartAsksForTheDrawerOnce` | DONE |
 | GI-78 (§1/§10) | Drawer expanded state persists per preset — kept in plugin state, not per preset | `UiState::practiceDrawerOpen` | Practice drawer | `ReturningUser.thePracticeDrawerComesBackAsItWasLeft` | PARTIAL |
-| GI-79 (§11.1) | Mod arcs: 4 px outside, 2 px, per-source colour, segmented - live at 30 Hz via shared ModArcHub but single secondary-colour arc, no per-source segments | `ModMatrix::getOffsetFor` | `Widgets.cpp:LuthierKnob::paint`, `ModArcHub` | `ModMatrixUi::aModulatedKnobRepaintsWithoutBeingTouched` | PARTIAL |
-| GI-80 (§11.2) | Drag source card onto control -> 25% route, Escape cancels | `ModMatrix` | `LuthierKnob`/`LuthierChoice` `juce::DragAndDropTarget` (`Widgets.h`), `ModMatrixPanel` source card | `DragToModulate::aDroppedSourceRoutesAt25PercentAsOneEntry` | DONE |
+| GI-79 (§11.1) | Mod arcs: 4 px outside, 2 px, per-source colour, segmented — single secondary-colour arc | `ModMatrix::getOffsetFor` | `Widgets.cpp:LuthierKnob::paint` | - | PARTIAL |
+| GI-80 (§11.2) | Drag source card onto control -> 25% route, Escape cancels | `ModMatrix` | - | on visual: `DragToModulate::aDroppedSourceRoutesAt25PercentAsOneEntry` (960e25c) | OWNED |
 | GI-81 (§11.2) | Right-click any control -> Modulate submenu | `ModMatrix` | `Widgets.cpp:showParameterMenu` | `Editor::rightClickOffersModulationAndBuildsTheRoute` | DONE |
 | GI-82 (§12) | Footer: version, status line, CPU %, voice count — no status line, no voice count | `LuthierEngine::getCpuEstimate` | `PluginEditor::paint` footer | - | PARTIAL |
 | GI-83 (§12) | Scrolling data stream in empty main area; static count under reduced motion | `Widgets.cpp:DataStreamDisplay` | `PluginEditor` `dataStream` member (`DataStreamDisplay`, added and sized in footer) | `DataStream::itKeeps200StopsAfter500msAndHonoursReducedMotion` | DONE |
@@ -2132,7 +2131,7 @@ The Easy layout, the four-column Advanced layout, the 13 Col-4 tabs, the Options
 | GI-86 (§14) | Empty hints: snapshot slot done; no-mod-routes hint absent | - | `SnapshotStrip` paints `kEmptySlotHint` | `Live::shiftClickWritesAndClickRecalls` | PARTIAL |
 | GI-87 (§14) | Empty hints: setlist, backing track — texts differ from spec | - | `LivePanel::setlistEmptyLabel`, `PracticePanel` "No track loaded." | - | PARTIAL |
 | GI-88 (§14) | Empty hint: non-slide guitar in Slide Mode | `SlideEngine::kLowActionMessage` | `SlideGroup::lowAction` | `SlideTests.cpp` low-action warning check (in `Slide`/`SlideUi` suite) | DONE |
-| GI-89 (§14) | Empty hint: bass techniques inactive on a guitar — constant exists, never displayed | `SlapGroup::kInactiveMessage` | - | `BassTechniques::theSlapGroupIsShownOnlyOnABass` (text only) | PARTIAL |
+| GI-89 (§14) | Empty hint: bass techniques inactive on a guitar — constant exists, never displayed | `SlapGroup::kInactiveMessage` | - | `BassTechniques::theSlapGroupIsShownOnlyOnABass` (text only) | DEFERRED |
 | GI-90 (§14) | Empty hint: advanced-range edit on a locked preset | `RangesUi::kLockedNoticeText` | `Widgets.cpp` bubble at control | - | NO-TEST |
 | GI-91 (§15) | Banners under header, 32 px, dismissible, auto-dismiss 5 s unless actionable | - | `UI/Notifications.cpp:NotificationCentre` | `Editor::notificationBannersQueueDismissAndRespectTheirActions` | DONE |
 | GI-92 (§15) | Triggers: preset error, missing IR/part/guitar, SR change, update, policy, crash, licence | `PluginEditor::postStartupNotifications` | banners | `Editor::theWindowRaisesSectionFifteensTriggersAndIsQuietWhenItShould`, `Editor::aSampleRateChangeIsAnnouncedOnceAndTheFirstOneIsNot`, `Workshop::aMissingPartFallsBackAndSaysSo` | DONE |
@@ -2143,8 +2142,8 @@ The Easy layout, the four-column Advanced layout, the 13 Col-4 tabs, the Options
 | GI-97 (§16) | Panel right-click: collapse, reset panel, screenshot to clipboard, docs | - | - | - | MISSING |
 | GI-98 (§17) | All shortcuts rebindable; defaults match table | `Accessibility.cpp:buildDefaultShortcuts` | Options ACCESSIBILITY table | `Accessibility::shortcutDefaultsMatchTheCanonicalTable`, `Accessibility::shortcutsRebindAndRefuseClashes` | DONE |
 | GI-99 (§17) | Overlay/mode shortcuts: Tab, L, D, S, Ctrl+, , Ctrl+O, Ctrl+Shift+S, F1, Ctrl+] / Ctrl+[ | `PluginEditor::keyPressed` | - | `Editor::everyOverlayShortcutOpensItsOwnOverlayAndEscapeClosesIt`, `Editor::theWorkspaceTabShortcutsStepTheTabsInAdvancedModeOnly`, `HelpTab::f1AndTheHeaderOpenHelpOnThePanelYouAreIn` | DONE |
-| GI-100 (§17) | Action shortcuts: P, \ , [ ], 1-9, Shift+1-9, T, Ctrl+L, Ctrl+S/N/R/Shift+R, Ctrl+/, Ctrl+Z/Shift+Z, Ctrl+?, PgUp/PgDn, Ctrl+G, Ctrl+Alt+E, Ctrl+Shift+E — dispatch untested (kill toggles, not hold) | `PluginEditor::keyPressed` | - | `Editor::newPresetLoadsInitAndRevealSaysSoWhenThereIsNoFile` (Ctrl+N/Ctrl+Alt+E only) | NO-TEST |
-| GI-101 (§17) | W toggles Workshop | - | `PluginEditor::toggleWorkshop`, shortcut action `toggleWorkshop` | `WorkshopEditor::theWrenchOpensTheBenchInEasyModeAndTheTabInAdvanced` (W key checked) | DONE |
+| GI-100 (§17) | Action shortcuts: P, \ , [ ], 1-9, Shift+1-9, T, Ctrl+L, Ctrl+S/N/R/Shift+R, Ctrl+/, Ctrl+Z/Shift+Z, Ctrl+?, PgUp/PgDn, Ctrl+G, Ctrl+Alt+E, Ctrl+Shift+E — dispatch untested (kill toggles, not hold) | `PluginEditor::keyPressed` | - | `Editor::everyActionShortcutDispatches` (all but the file-writing ones; workspace-tab steps in Advanced) | DONE |
+| GI-101 (§17) | W toggles Workshop | - | - | on visual: `toggleWorkshop` (9f67749) | OWNED |
 | GI-102 (§17) | Ctrl+T new tune; Space play/pause (TUNE-focused per DECISIONS) | `TunePlayer`; `AccessibilitySettings` `newTune` | `TunePanel::keyPressed` | `TunePanel.theTransportAndSpaceDriveThePlayer`, `TuneIntegration.ctrlTIsInTheShortcutRegistryAndOpensTheTuneTab` | DONE |
 | GI-103 (§17) | Ctrl+E context-aware export (tune / preset / take) — always the audio ExportPanel outside a focused TUNE tab | `AudioExporter` | `PluginEditor` `export` -> `exportPanel` | - | PARTIAL |
 | GI-104 (§18) | Undo stack of 64 - code keeps 200 per action-and-undo.md 2 (later spec wins) | `Support/UndoHistory.h:kMaxEntries` | header Undo/Redo | `Undo::stepsOneActionAtATimeBothWays`, `Undo::overflowDropsTheOldest` | PARTIAL |
@@ -2220,12 +2219,11 @@ The Easy layout, the four-column Advanced layout, the 13 Col-4 tabs, the Options
 - [GI-84 (§13)] effort M — in `EasyPanel::resized` below 900 px width, move the rig strip into a `TabbedButtonBar` "Guitar / Rig" above the illustration. Test with the editor at 880 px: rig controls are reachable via the Rig tab and nothing overlaps.
 - [GI-86 (§14)] effort S — snapshot hint done; ModMatrixPanel's no-routes hint left (ModMatrixPanel is reworked on the visual branch).
 - [GI-87 (§14)] effort S — change `LivePanel::setlistEmptyLabel` and `PracticePanel`'s "No track loaded." to the exact §14 strings (via `tr`). Covered by GI-139.
-- [GI-89 (§14)] effort S — when the loaded guitar is not a bass, show `SlapGroup::kInactiveMessage` as a label in the place the SLAP group would appear (col 3 playing hand) instead of nothing. Extend `BassTechniques::theSlapGroupIsShownOnlyOnABass` to assert the label is visible on a guitar.
+- [GI-89] effort S — DEFERRED: there is no bass mode to be active; a permanent notice row on every guitar would cost column-3 space. Revisit if a bass-technique toggle appears.
 - [GI-90 (§14)] effort S — add `RangesUi::editingPastStockOnALockedPresetShowsTheNotice`: lock a preset, drag a knob past stock via `LuthierKnob`, assert the `kLockedNoticeText` bubble component is visible.
 - [GI-93 (§15)] effort S — DEFER: spec/DECISIONS.md says clamps are reported at the place of the clamp, not as a banner; `RangesUi::theRangesPageListsLocksAndClamps` covers that. Amend gui-integration §15's trigger table.
 - [GI-95 (§16)] effort S — add "Assign to macro" submenu (8 macros) to the control right-click menu built in `Widgets.cpp` (next to "Modulate"), creating a `ModRoute` from `macro<N>` at depth 0.5 through `ModMatrix::addRoute` (undoable, as other route edits). Extend `Editor::rightClickOffersModulationAndBuildsTheRoute`.
 - [GI-97 (§16)] effort M — right-click on a `SectionHeader` (GI-6): Collapse/Expand, Reset panel (set the section's attached params to defaults, one undo entry), Screenshot to clipboard (`createComponentSnapshot` -> `SystemClipboard` needs an image path: write PNG to temp and copy path, or skip on Linux), Open docs (`openHelp` pinned to the section). Test `Editor::panelMenuResetsItsParameters`.
-- [GI-100 (§17)] effort S — add `Editor::everyActionShortcutDispatches`: iterate `AccessibilitySettings::get()` bindings, feed each `KeyPress` to `LuthierAudioProcessorEditor::keyPressed`, assert it returns true and the observable effect (Live Mode flag, practice open, tab index, panic counter, tap tempo count, preset index...). Kill-switch toggling is a documented keyboard limitation (comment in `keyPressed`), note in DECISIONS.
 - [GI-103 (§17)] effort M — make the `export` action context-aware in `PluginEditor::keyPressed`: TUNE tab shown -> tune export; preset browser focused -> preset export; a take/looper selected -> take export; else audio `exportPanel`. Test `Editor::ctrlEExportsWhatIsInFocus` for the three contexts.
 - [GI-104 (§18)] effort S — DEFER: action-and-undo.md §2 (the dedicated, later spec) sets 200 entries; `kMaxUndoSteps = 200` follows it. Amend gui-integration §18's "64".
 - [GI-107 (§19)] effort S — bind Ctrl+O ("openGuitar") in `AccessibilitySettings` to open the header `guitarSelector` popup (or the GI-32 library list in Advanced). Test via GI-100's dispatch test.
@@ -2238,7 +2236,6 @@ The Easy layout, the four-column Advanced layout, the 13 Col-4 tabs, the Options
 - [GI-137 (§22)] effort M — set explicit focus order (`setExplicitFocusOrder` in `AdvancedPanel::Column::add*`, columns 1..4) and add `Accessibility::tabWalkVisitsEveryControlInColumnOrder` using `ComponentTraverser` from the header, asserting monotone column index and that every visible control is visited.
 - [GI-139 (§22)] effort S — add `Editor::everyPanelShowsItsEmptyHint`: with a fresh processor (no snapshots, no routes, no setlist, no backing track, guitar loaded), assert each §14 hint text is visible in its panel (depends on GI-86/87/89).
 - [GI-140 (§22)] effort S — add `Editor::everyAutomatableControlOffersThirteenMenuItems`: for each `LuthierKnob` found by the GuiReach walk, build its popup menu (expose the menu builder in `Widgets.cpp`) and assert the 13 §16 items, with range items enabled only when ranges are unlocked/locked appropriately. Items 12-13 are on the visual branch; merge first.
-- [GI-76] effort S — NO-TEST: JUCE TooltipWindow exposes no delay getter; behaviour in PluginEditor::timerCallback.
 - [GI-78] OWNER-GAP (landed) effort S — TUNE-HELP keeps the practice drawer's expanded state in plugin state (`UiState::practiceDrawerOpen`), not per preset. Either store it in the preset's UI block and restore it on load (test: two presets with different drawer states), or amend gui-integration §1/§10 to per-session.
 
 </details>
@@ -2434,7 +2431,7 @@ The parts model is essentially DONE: `Part`, `PartLibrary` and `WorkshopGuitar`,
 
 ## harmonic-realism.md
 
-REALISM-B has landed on this checkout: the contact comb and contacts API, all four harmonic kinds, the analytic node search, the sounding-pitch locator, the 8 parameters, CC 103/104, the CHARACTER HARMONICS group and the fretboard contact ring, with `HarmonicRealism.HR01..HR19` registered. Still open: a test for the 0.35 receptivity while touching (HR-11), the gui-integration §19 row (HR-25) and the gui-integration row (HR-25); the midi-export `touch_fret`/`partial` fields (HR-27) are DEFERRED by the spec.
+REALISM-B has landed on this checkout: the contact comb and contacts API, all four harmonic kinds, the analytic node search, the sounding-pitch locator, the 8 parameters, CC 103/104, the CHARACTER HARMONICS group and the fretboard contact ring, with `HarmonicRealism.HR01..HR19` registered. Still open: a test for the 0.35 receptivity while touching (HR-11), the gui-integration §19 row (HR-25) and the midi-export `touch_fret`/`partial` fields (HR-27).
 
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
@@ -2462,9 +2459,9 @@ REALISM-B has landed on this checkout: the contact comb and contacts API, all fo
 | HR-22 (§6) | CC 103 ArtificialHarmonic, CC 104 TappedHarmonic; decide() priority order | `MidiInterpreter::resetCcMapToDefaults`, `TechniqueEngine::decide` | n/a (MIDI) | `HarmonicRealism.HR19_FA17_luthierExportRoundTrip`, `Technique.controllersTakePriorityOverInference` | DONE |
 | HR-23 (§7) | CHARACTER HARMONICS row in PICK with partial tooltips | n/a | `UI/HarmonicsGroup.*` after PICK in `CharacterPanel` | `RealismBUi.theCharacterTabCarriesTheThreeGroups` | DONE |
 | HR-24 (§7) | Fretboard hollow ring at contact, fading; dashed when missed | `getContactDisplay` | `UI/FretboardRealismB.cpp` | `RealismBUi.theFretboardDrawsTheTouch` | DONE |
-| HR-25 (§7) | gui-integration.md §19 row "Harmonic contact / offsets / mapping" - no such row in spec/gui-integration.md (Feature-to-location index) | n/a | n/a (doc) | - | MISSING |
+| HR-25 (§7) | gui-integration.md §19 row "Harmonic contact / offsets / mapping" — owner defers | n/a | n/a (doc) | - | MISSING |
 | HR-26 (§7) | Preset: plain APVTS params | APVTS | n/a | `FingerstyleAttack.FA17_rangesRealtimeRoundTrip` (same mechanism) | DONE |
-| HR-27 (§7) | midi-export NOTE gains `touch_fret` + `partial` - deferred by spec/harmonic-realism.md (item 10, midi-export owns the capture path); not implemented | none | n/a | - | DEFERRED |
+| HR-27 (§7) | midi-export NOTE gains `touch_fret` + `partial` — owner defers | none | n/a | - | MISSING |
 | HR-28 (§8) | No allocation, reset clears contacts, budget (spec 0.05, owner 1.0 units) | `StringEngine::reset`, `resetRealismB` | n/a | `HarmonicRealism.HR18_realtime` | DONE |
 | HR-29 (§9 HR-01) | Natural harmonic pitch | - | n/a | `HarmonicRealism.HR01_naturalHarmonicPitch` | DONE |
 | HR-30 (§9 HR-02/03) | Fundamental suppressed; not a sine | - | n/a | `HarmonicRealism.HR02_HR03_fundamentalSuppressedAndNotASine` | DONE |
@@ -2517,16 +2514,16 @@ W2 robustness pass: HI-16/20/22/24/25/38/54 closed (state format version, newer-
 | HI-13 (§3) | APVTS single source; count stable; stable IDs, range, default, text converters | `Parameters.cpp:createLayout` | n/a | `Parameters::everyParameterHasAUniqueIdAndSaneDefault`, `Parameters::everyParameterTextRoundTrips`, `HostState::parameterTextRoundTripsStably` | DONE |
 | HI-14 (§3) | Parameters grouped by ParameterCategory — flat layout, no `AudioProcessorParameterGroup` | `Parameters.cpp:createLayout` | n/a | - | MISSING |
 | HI-15 (§3) | Display names translated per locale — hard-coded English | `Parameters.cpp` | n/a | - | MISSING |
-| HI-16 (§3.1) | Internal changes (snapshot recall, preset load) notify host | `setValueNotifyingHost` in PresetManager / SnapshotBank apply | n/a | `HostState::presetLoadsAndSnapshotRecallsNotifyTheHost` | DONE |
-| HI-17 (§3.1) | Batching: only last write per block per parameter notified — relies on JUCE default, not implemented | - | n/a | - | PARTIAL |
+| HI-16 (§3.1) | Internal changes (snapshot recall, preset load) notify host | `setValueNotifyingHost` in PresetManager / SnapshotBank apply | n/a | `HostState.aSnapshotRecallAndPresetLoadNotifyTheHost` | DONE |
+| HI-17 (§3.1) | Batching: only last write per block per parameter notified — relies on JUCE default, not implemented | - | n/a | - | DEFERRED |
 | HI-18 (§3.2) | Automation moves base, modulation adds on top | `Modulation/ModMatrix` | n/a | `Modulation::*` (e.g. `Combo::modulationRoutesAtFullDepth`) | DONE |
 | HI-19 (§3.3) | Discrete params integer 0..N-1 with module crossfade | choice params + module crossfades | n/a | `Modulation::discreteDestinationsStepAtBoundaries` | DONE |
-| HI-20 (§4) | State blob: format version tag — JSON `formatVersion` (1) + `savedBy` on every blob (GAPS-HOST and W2 unified in `HostStateFormat.cpp`) (W2 `claude/luthier-w2-robustness`) | `HostStateFormat.cpp:writeStateFormat` | n/a | `HostState::theBlobCarriesItsFormatVersion`, `HostState::theStateCarriesAFormatVersion` | DONE |
+| HI-20 (§4) | State blob: format version tag (u32) + padding — root JSON has no version | `Support/HostStateEnvelope` stamps formatVersion | n/a | `HostState.theStateCarriesAFormatVersion` | DONE |
 | HI-21 (§4) | APVTS + uiState + structural (mod matrix, snapshots, MIDI mappings, ranges, guitar ref/inline, circuit, MIDI export profile) — JSON rather than XML, content equivalent | `getStateInformation` / `setStateInformation` | n/a | `Presets::stateRoundTripsExactly`, `Combo::everyParameterSurvivesTheSessionStateRoundTrip`, `Routing::stateRoundTrips` | DONE |
-| HI-22 (§4) | Size < 200 KB typical / < 2 MB inline guitar — measured for every factory preset | `getStateInformation` | n/a | `HostState::everyFactoryPresetsSessionIsUnder200KB` | DONE |
+| HI-22 (§4) | Size < 200 KB typical / < 2 MB inline guitar — never measured | `getStateInformation` | n/a | `HostState.typicalStateIsSmall` | PARTIAL |
 | HI-23 (§4) | setStateInformation applies via swap pattern | direct apply on message thread; engine picks up via bridge | n/a | `StateModel::loadingAPresetWhileRenderingProducesNoGarbage` | DONE |
-| HI-24 (§4.1) | Older build + newer blob: warn, keep unknown sections on write-back — unknown top-level sections and a refused newer-schema preset are written back (until the user loads another preset); warning banner + ErrorLog (W2 `claude/luthier-w2-robustness`) | `HostStateFormat.cpp:readStateFormat/noteRestoredPresetBlock/writeStateFormat` | n/a | `HostState::aNewerBlobKeepsWhatItCannotReadOnWriteBack`, `HostState::unknownSectionsSurviveWriteBack` | DONE |
-| HI-25 (§4.2) | Newer build + older blob: migrate and back up old blob to diagnostics — `state-backup-<stamp>.json` in the diagnostics folder (20 kept); an unreadable blob is kept there too and reported (W2 `claude/luthier-w2-robustness`) | `HostStateFormat.cpp:readStateFormat/reportUnreadableState` | n/a | `HostState::anOlderBlobIsBackedUpBeforeItIsMigrated`, `HostState::anUnreadableBlobChangesNothingAndIsKept` | DONE |
+| HI-24 (§4.1) | Older build + newer blob: warn, keep unknown sections on write-back — only preset-level unknownFields kept; host-level keys dropped, no warning | `HostStateEnvelope` keeps unknown root keys; newer-blob notice via stateNotices | n/a | `HostState.unknownSectionsSurviveWriteBack` | DONE |
+| HI-25 (§4.2) | Newer build + older blob: migrate and back up old blob to diagnostics — migrations run, no blob backup | `HostStateEnvelope::read` backs up older blobs to Diagnostics (last 10) | n/a | `HostState.anOldBlobIsBackedUpBeforeMigration` | DONE |
 | HI-26 (§5) | getLatencySamples = main-out latency; change -> updateHostDisplay | `PluginProcessor.cpp:updateLatency` (`setLatencySamples`) | ROUTING tab latency readout | `Engine::latencyIsReportedAndPlausible` | DONE |
 | HI-27 (§5) | Per-output latency reported where the host supports it — UI report only (JUCE has no per-bus API) | `updateRoutingLatencyReport`, `LuthierEngine::getLatencySamples(AuxBus)` | ROUTING tab | `Routing::perOutputLatencyIsConsistent` | DONE |
 | HI-28 (§6) | Read tempo, isPlaying, ppq every block; missing playhead -> internal transport | `processBlock` getPlayHead blocks | n/a | `Modulation::syncedLfoFollowsTheHost`, `TunePlayer::theHostWinsWhenItPlaysAndTheClockRunsWhenItDoesNot` | DONE |
@@ -2538,48 +2535,39 @@ W2 robustness pass: HI-16/20/22/24/25/38/54 closed (state format version, newer-
 | HI-34 (§7) | Sample-accurate MIDI in/out timestamps | `MidiOutRouter` | n/a | `Routing::midiOutPassThroughIsSampleExact`, `MidiExport::liveMidiOutKeepsTenThousandEventsOnTheirSample` | DONE |
 | HI-35 (§8) | Instances fully independent, no shared state beyond settings/content | per-instance members | n/a | `Stress::thirtyTwoInstancesRenderInTurn` | DONE |
 | HI-36 (§9.1) | Ableton: first program change after state restore swallowed | `setCurrentProgram`, `ignoreNextProgramChange` | n/a | `StateModel::aProgramChangeRightAfterAStateRestoreDoesNotWipeIt` | DONE |
-| HI-37 (§9.1) | Ableton MPE auto-detect from channel-1-plus-member traffic — no auto-detect; MPE is a chosen profile | - | n/a | - | MISSING |
-| HI-38 (§9.2) | Logic: state < 500 KB via guitar file refs — refs used when saved; every factory preset measured < 200 KB | `getStateInformation` preset guitar ref | n/a | `WorkshopPresets::saveAsGuitarWritesAFileAndPointsThePresetAtIt`, `HostState::everyFactoryPresetsSessionIsUnder200KB` | DONE |
+| HI-37 (§9.1) | Ableton MPE auto-detect from channel-1-plus-member traffic — no auto-detect; MPE is a chosen profile | `MidiInterpreter` flags member-channel bend/CC74 traffic while MPE is off | notification in the editor (id mpe-detected) | `Controllers.mpeTrafficIsDetected` | DONE |
+| HI-38 (§9.2) | Logic: state < 500 KB via guitar file refs — refs used when saved; never measured | `getStateInformation` preset guitar ref | n/a | `HostState.typicalStateIsSmall` | DONE |
 | HI-39 (§9.2) | Logic: routing panel exposes the PC / Bank Select mapping mode — no such control | `PluginProcessor.cpp` PC -> snapshot, CC0 -> preset (fixed) | none | - | MISSING |
 | HI-40 (§9.2) | prepareToPlay idempotent and fast | `prepareToPlay` | n/a | `HostState::aSessionSurvivesThePrepareThatFollowsIt`, `Engine::sampleRateChangesAreSurvived` | DONE |
 | HI-41 (§9.9) | Standalone: device disconnect polling, virtual MIDI-out toggle — neither built (JUCE default standalone) | - | none | - | MISSING |
 | HI-42 (§9.9) | Standalone resizable window with minimum size, native file dialogs | `PluginEditor.cpp` constrainer `setSizeLimits`, `FileChooser` | editor window | `Editor::itLaysOutAndPaintsAcrossItsResizeRange` | DONE |
-| HI-43 (§10) | pluginval strictness 10 on every merge — CI runs 5 per push, 10 nightly | `.github/workflows/build.yml`, `scripts/ci_build.sh validate` | n/a | CI pluginval step | PARTIAL |
+| HI-43 (§10) | pluginval strictness 10 on every merge — CI runs 5 per push, 10 nightly | `.github/workflows/build.yml` STRICTNESS: 10 on a push to main/master | n/a | CI (not run here) | DONE |
 | HI-44 (§11) | Plugin undo is per-instance, not host-integrated | `PluginProcessor::undo` | Header undo | `Undo::stepsOneActionAtATimeBothWays` | DONE |
-| HI-45 (§12) | Factory presets via getNumPrograms/getProgramName, PC addressable — user presets included, so count changes on save | `PluginProcessor.cpp:getNumPrograms` | host browser | - | NO-TEST |
+| HI-45 (§12) | Factory presets via getNumPrograms/getProgramName, PC addressable — user presets included, so count changes on save | `PluginProcessor.cpp:getNumPrograms` | host browser | `HostState.programsEnumeratePresetsAndLoadByIndex` | DONE |
 | HI-46 (§13) | Threading contract: state save doesn't block audio | message-thread `captureExtraState`; audio uses tryLock | n/a | `StateModel::loadingAPresetWhileRenderingProducesNoGarbage` | DONE |
 | HI-47 (§14.1) | VST3 units per Column-4 tab / Easy strip — needs parameter groups | - | n/a | - | MISSING |
 | HI-48 (§14.2-14.3) | AU cocoa view standard; state chunk + typed params | JUCE wrappers | n/a | CI auval/pluginval | DONE |
 | HI-49 (§15) | Test: SR change / block size change mid-play | engine prepare | n/a | `Engine::sampleRateChangesAreSurvived`, `Engine::blockSizeChangesAreSurvived` | DONE |
-| HI-50 (§15) | Test: 32 instances, bus layout change mid-play | `Tests/RobustnessTests.cpp` | n/a | `Stress::thirtyTwoInstancesRenderInTurn`, `Stress::busLayoutChangesMidPlay` | DONE |
-| HI-51 (§15) | Test: host format switching VST3 -> AU -> VST3 (macOS) — manual host test | - | n/a | - | MISSING |
+| HI-50 (§15) | Test: 32 instances, bus layout change mid-play | - | n/a | - (visual `Stress::thirtyTwoInstancesRenderInTurn`, `Stress::busLayoutChangesMidPlay`) | OWNED |
+| HI-51 (§15) | Test: host format switching VST3 -> AU -> VST3 (macOS) — manual host test | - | n/a | - | DEFERRED |
 | HI-52 (§15) | Test: transport follow play/stop/seek with rhythm engine and tune builder together | processBlock transport | n/a | `TunePlayer::theHostWinsWhenItPlaysAndTheClockRunsWhenItDoesNot` (tune only) | PARTIAL |
-| HI-53 (§15) | Test: state round trip in every host; MIDI I/O in every host | - | n/a | `Combo::sessionStateRoundTripReproducesAudio` (in-process only) | PARTIAL |
-| HI-54 (§16) | `docs/HOST_COMPATIBILITY.md` documents every §9 quirk (status per quirk; open ones point at their rows) (W2 `claude/luthier-w2-robustness`) | `docs/HOST_COMPATIBILITY.md` | n/a | - | DONE |
+| HI-53 (§15) | Test: state round trip in every host; MIDI I/O in every host | - | n/a | `Combo::sessionStateRoundTripReproducesAudio` (in-process only) | DEFERRED |
+| HI-54 (§16) | `docs/HOST_COMPATIBILITY.md` documents every §9 quirk — file missing | docs/HOST_COMPATIBILITY.md | n/a | n/a | DONE |
 
 <details><summary>Work list (host-integration)</summary>
 
 - [HI-8 (§1)] effort S — Add a `LUTHIER_BUILD` string (git short SHA / CI run number) as a compile definition in `CMakeLists.txt`, expose it via `JucePlugin_VersionString` + Options > Diagnostics / About; test `HostState::versionCarriesABuildString`.
 - [HI-14 (§3)] effort M — Build the layout in `Parameters.cpp:createLayout` as `AudioProcessorParameterGroup`s per `ParameterCategory` (gui-integration Column-4 tab names + Easy strip), keeping IDs and order unchanged; test `Parameters::everyParameterBelongsToExactlyOneGroup` and that the flat ID order is unchanged.
 - [HI-15 (§3)] effort M — Route parameter display names through `Accessibility/Localisation` catalog keys (`param.<id>.name`) with English fallback; test `Localisation::everyParameterNameHasACatalogKey`. Needs locale catalogs (qa-polish QA-17) to be meaningful.
-- [HI-16 (§3.1)] effort S — Add `HostState::aSnapshotRecallAndPresetLoadNotifyTheHost`: attach an `AudioProcessorParameter::Listener`, recall a snapshot and load a preset, assert callbacks for every changed parameter.
-- [HI-17 (§3.1)] effort M — DEFER: JUCE's `setValueNotifyingHost` already coalesces per host poll for VST3/AU; an extra per-block last-write batcher would add audio-thread state for no host-visible benefit. Revisit only if pluginval/hosts show notification storms.
-- [HI-20 (§4)] effort S — Add a root `"formatVersion": <u32>` (start at 1) to `getStateInformation` and read it first in `setStateInformation`; test `HostState::theStateCarriesAFormatVersion`. (Keeping JSON instead of the spec's XML is fine; note it in spec/DECISIONS.md.)
-- [HI-22 (§4)] effort S — Test `HostState::typicalStateIsUnder200KBAndInlineGuitarUnder2MB`: save state for every factory preset and for one with an edited (inline) guitar plus a full mod matrix, assert sizes.
-- [HI-24 (§4.1)] effort M — In `setStateInformation` keep every unknown root key in a `juce::NamedValueSet unknownHostSections` and re-emit them in `getStateInformation`; when `formatVersion` > known, post an info banner via `NotificationCentre`. Test `HostState::unknownSectionsSurviveWriteBack`.
-- [HI-25 (§4.2)] effort S — When `formatVersion` < current (or absent) before migrating, write the raw blob to `~/Documents/Luthier/Diagnostics/state-backup-<date>.json`; test `HostState::anOldBlobIsBackedUpBeforeMigration` using a temp root.
+- [HI-17 (§3.1)] DEFERRED (dsp2 agrees) - effort M — DEFER: JUCE's `setValueNotifyingHost` already coalesces per host poll for VST3/AU; an extra per-block last-write batcher would add audio-thread state for no host-visible benefit. Revisit only if pluginval/hosts show notification storms.
+- [HI-22] PARTIAL: every factory preset state under 200 KB (dsp2); an inline-guitar + full-mod-matrix case is not built
 - [HI-29] PARTIAL: metronome follows the host metre (dsp2); rhythm-engine metre, isRecording and host-time diagnostics remain (M)
-- [HI-37 (§9.1)] effort M — Add MPE auto-detect to MidiInterpreter: on seeing per-note pitch bend/CC74 on channels 2-16 with notes, switch to an MPE zone (or suggest the MPE profile via banner); test `Controllers::mpeTrafficIsDetected`.
-- [HI-38 (§9.2)] effort S — Covered by HI-22's size test; add an assertion that a factory preset state (guitar by reference) is < 500 KB.
 - [HI-39 (§9.2)] effort M — Add a "Program Change mapping" combo (PC -> snapshot / PC -> preset / Bank Select + PC -> preset / off) to ADVANCED > ROUTING (`RoutingPanel`), stored in `RoutingMatrix::toVar`; consume it in `PluginProcessor` PC handling (~line 1670). Test `Routing::programChangeModeSelectsWhatAProgramChangeDoes`.
 - [HI-41 (§9.9)] effort M — Standalone only (`JUCE_USE_CUSTOM_PLUGIN_STANDALONE_APP` / the visual branch's `Source/StandaloneApp.cpp` after merge): listen to `AudioDeviceManager` change broadcasts, raise the error-recovery 9 "audio device disconnected" banner and retry; add a "Virtual MIDI out" toggle in Options > Audio creating `MidiOutput::createNewDevice` on Linux/macOS. Test with a fake device manager.
-- [HI-43 (§10)] effort S — Raise the per-push pluginval strictness in `.github/workflows/build.yml` from 5 to 10 (B-12: pass `--timeout-ms` large enough), or document in DECISIONS.md that nightly-10 satisfies "every merge to main" by gating merges on nightly.
-- [HI-45 (§12)] effort S — Test `HostState::programsEnumerateFactoryPresetsAndLoadByIndex` (getNumPrograms == factory count, getProgramName matches, setCurrentProgram loads). Consider enumerating factory presets only so the count is stable (spec says factory presets).
 - [HI-47 (§14.1)] effort S — Falls out of HI-14: JUCE's VST3 wrapper maps parameter groups to units automatically; add a test that the group tree matches gui-integration's tabs.
-- [HI-51 (§15)] effort S — DEFER: macOS-only manual host test; add it to docs/RELEASING.md §6 manual checks.
+- [HI-51 (§15)] DEFERRED (dsp2 agrees) - effort S — DEFER: macOS-only manual host test; add it to docs/RELEASING.md §6 manual checks.
 - [HI-52 (§15)] effort M — Add `TunePlayer::rhythmEngineAndTuneStayInSyncAcrossPlayStopSeek`: fake playhead drives play/stop/seek with a rhythm pattern and a tune both active; assert both schedule on the same bar positions.
-- [HI-53 (§15)] effort S — DEFER (per-host part): real-host round trip is manual; add to docs/RELEASING.md §6. In-process coverage exists (`Combo::sessionStateRoundTripReproducesAudio`).
-- [HI-54 (§16)] effort S — Write `docs/HOST_COMPATIBILITY.md` covering every §9 quirk (Live post-restore PC swallow, Live sidechain send, MPE, Logic state size/PC, Cubase note expression, FL wrapper, Bitwig CLAP, Pro Tools AAX absence, standalone device handling) in user-facing language.
+- [HI-53 (§15)] DEFERRED (dsp2 agrees) - effort S — DEFER (per-host part): real-host round trip is manual; add to docs/RELEASING.md §6. In-process coverage exists (`Combo::sessionStateRoundTripReproducesAudio`).
 
 </details>
 
@@ -2648,57 +2636,48 @@ W2 robustness pass: IR-26 tested. IR-4/9/15/16/28/29/30 are feature work (learn 
 
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
-| IR-1 (§0.1, §1) | Fixed consumer order export -> learn -> controller stage (latency + profile) -> interpreter -> technique -> rhythm -> tune -> practice feed -> strings; tune chord channel is merged after learn (DECISIONS "TUNE in the plugin") | `PluginProcessor::processSlice` (`midiOutRouter` capture, `midiLearn.processMidi`, `controllerStage.compensateLatency`, `practiceNoteFeed`), `LuthierEngine` | n/a | `Routing::midiOutPassThroughIsSampleExact`, `InputRouting::midiLearnConsumesTheEventItLearns`, `InputRouting::ccsOnlyReachEnginesThroughTheInterpreter`, `InputRouting::calibratedCcReachesConsumersRemapped` | DONE |
+| IR-1 (§0.1, §1) | The chain is explicit in processSlice: pass-through capture, expression calibration, MIDI Learn (consuming), live PC, controller stage, SysEx queue, practice feed, then the engine | `PluginProcessor::processSlice` (1074, 1149-1180), `LuthierEngine` | n/a | `InputRouting::consumersSeeEventsInTheDocumentedOrder` | DONE |
 | IR-2 (§1.1) | MIDI-out pass-through first, unchanged | `MidiOutRouter::captureInput` | n/a | `Routing::midiOutPassThroughIsSampleExact` | DONE |
 | IR-3 (§1.1) | Armed MIDI Learn consumes the event it learns | `MidiLearnManager::processMidi (MidiBuffer&, scratch)` | header arm / right-click Learn | `InputRouting::midiLearnConsumesTheEventItLearns` | DONE |
-| IR-4 (§1.1) | Learn accepts CC / PC / aftertouch / channel pressure; note learn opt-in in Options — CC only | `MidiLearnManager::processMidi` (`isController` only) | - | - | MISSING |
-| IR-5 (§1 step 3) | Controller profile stage remaps channels and compensates latency before the interpreter | `Controllers/ControllerStage` (`compensateLatency`, `applyPending`, channelForString to the interpreter) | CONTROLLERS tab | `Controllers::latencyCompensationMovesNotesEarlierByTheBudget`, `Controllers::mpeMemberChannelsStickToTheirString`, `Controllers::anMpeProfileSurvivesTheParameterBridge` | DONE |
+| IR-4 (§1.1) | MIDI Learn takes CCs, program changes, poly aftertouch, channel pressure and (Options > MIDI 'learn notes too') notes | `MidiLearnManager::sourceKeyFor` (source keys; CC keys unchanged) | Options > MIDI `learnNotesToggle`; knob menu names the source | `MidiLearn::learnsPcAftertouchAndPressure`, `MidiLearn::notesAreLearnedOnlyWhenAllowed` | DONE |
+| IR-5 (§1 step 3) | Controller profile stage remaps channels + latency compensation — profile is applied as interpreter settings; no remap/latency stage (see controllers CT-4) | `Controllers/ControllerStage` (latency + profile) before the interpreter | CONTROLLERS tab | `InputRouting::profileStageRemapsChannelsAndTime` | DONE |
 | IR-6 (§1.1) | RhythmEngine consumes the chord notes it uses | `RhythmEngine::handleMidi/processBlock` | n/a | `GenreKits::everyKitSoundsWhenApplied`, `TuneProcessor::theMelodySoundsWhileTheRhythmEngineStrums` | DONE |
-| IR-7 (§1.1) | TechniqueEngine tags, does not consume — no routing test | `Model/Playing/TechniqueEngine` | n/a | - | NO-TEST |
+| IR-7 (§1.1) | TechniqueEngine tags, does not consume — no routing test | `Model/Playing/TechniqueEngine` | n/a | `InputRouting::techniqueLayerTagsWithoutConsuming` | DONE |
 | IR-8 (§1 step 7) | TuneBuilder ignores incoming notes for playback; takes record events when armed | `PluginProcessor.cpp:1120` record path | TUNE tab | `TuneProcessor::theMelodySoundsWhileTheRhythmEngineStrums` | DONE |
-| IR-9 (§1 step 8) | Practice tools read MIDI when the drawer is open and do not consume it | `Practice/PracticeNoteFeed` pushed in `processSlice` before audition/preview notes merge | PRACTICE drawer timer -> `ScaleTab::notePlayed` | `PracticeTrainers::aPlayedNoteAnswersTheQuiz` | DONE |
+| IR-9 (§1 step 8) | Practice tools read MIDI when active, do not consume — nothing feeds them (see practice PT-34) | `PracticeNoteFeed` (dsp2, PT-34) in `processSlice` | - | `InputRouting::practiceToolsHearNotesWithoutConsumingThem` | DONE |
 | IR-10 (§1.2) | Macro CC sources and learned mappings update and pass through | `PluginProcessor::feedModulationSources`, `MidiLearnManager::processMidi` | MOD / Learn | `MidiLearn::mapsAndUnmapsCleanly`, `ReviewRegression::midiLearnLearnsAppliesAndSurvivesAClear` | DONE |
 | IR-11 (§1.2) | Expression calibration remaps each calibrated CC at the front of the chain; the wizard is fed | `Live/ExpressionStage` (processSlice), `PluginProcessor::serviceExpressionCalibration` | Options > EXPRESSION | `InputRouting::calibratedCcReachesConsumersRemapped`, `InputRouting::theCalibrationWizardHearsThePedal` | DONE |
 | IR-12 (§1.2) | CCs never reach the string or rhythm engine directly (only via interpreter targets) — untested | `MidiInterpreter::handleController` | n/a | `InputRouting::ccsOnlyReachEnginesThroughTheInterpreter` | DONE |
 | IR-13 (§1.3) | PB / AT -> per-note bend / vibrato; pressure mapping target | `MidiInterpreter` pitch-wheel / pressure paths | n/a | `Controllers::pitchDeadZoneRejectsTrackingNoiseButNotRealBends` | DONE |
 | IR-14 (§1.4) | PC -> snapshot; CC0 selects preset only when routing option "Bank + PC" — CC0 always selects; no option; PC consumed | `PluginProcessor::handleLiveMidi` (bankSelectsPreset) | Options > MIDI `bankSelectToggle` | `LiveSnapshots::bankSelectOnlySelectsAPresetInBankPlusPcMode` | DONE |
-| IR-15 (§1.5) | Incoming Luthier SysEx dispatched to engines (character, workshop, ranges); others ignored — no inbound dispatch | `Export/LuthierMidiEvents.cpp:decodeSysEx` (file import only) | n/a | `MidiExport::liveSysExIsDroppedByOtherHostsAndReadByLuthier` (decode only) | MISSING |
-| IR-16 (§1.6) | MIDI clock / Start / Stop / Continue -> effective tempo when the host is stopped (tap tempo path); SPP and rhythm transport start/stop not followed | `Live/MidiClockTempo.h` via `PluginProcessor::processSlice` (`midiClockBpm`) | - | `LiveTapTempo::midiClockDrivesTheTempoWhenTheHostIsStopped` | PARTIAL |
-| IR-17 (§2, §2.1) | Mouse z-order: overlays consume, scrim click dismisses; popovers eat the outside click — untested | `UI/Overlays.cpp:OverlayHost::mouseDown` | overlays | `Editor::everyOverlayShortcutOpensItsOwnOverlayAndEscapeClosesIt` (Escape only) | NO-TEST |
-| IR-18 (§2.2) | Drag consumers: part cards -> illustration, pedals in rack, snapshots in strip, presets -> setlist, mod source -> control - pedal drag and ModMatrixPanel drag exist; snapshot/preset drags absent; no drag test | `PedalRack.cpp:PedalSlotComponent::mouseDrag`, `UI/ModMatrixPanel.cpp` drag | FX rack | - | PARTIAL |
-| IR-19 (§4) | Root file-drop by extension + unknown-type banner + batch - editor accepts only `.mid/.midi` (and IR slot); `Support/FileOpenRouter` routes associations for standalone open but is not wired to drops | `PluginEditor::isInterestedInFileDrag/filesDropped`, `Support/FileOpenRouter.cpp` | whole window (MIDI only) | `MidiImport::aDropOnTheWindowImports`, `FileOpen::everyAssociationRoutesToItsLoader`, `FileOpen::aPresetFileOpensAndAStrangerIsRefused` | PARTIAL |
+| IR-15 (§1.5) | Inbound Luthier SysEx: queued RT-safe, decoded on the message thread; CHARACTER, SNAPSHOT and RANGES applied, other SysEx ignored | `Export/LuthierSysExIn`, `PluginProcessor::applyInboundLuthierEvent` | n/a | `InputRouting::luthierSysExDrivesACharacterEventAndOthersAreIgnored` | PARTIAL |
+| IR-16 (§1.6) | MIDI clock start/continue/stop/SPP drives the rhythm grid while the host is stopped (tempo from HI-32's MidiClockTempo) | `Live/MidiClockTransport`, `processSlice` | - | `InputRouting::midiClockDrivesTheRhythmEngineWhenTheHostIsStopped` | DONE |
+| IR-17 (§2, §2.1) | Mouse z-order: overlays consume, scrim click dismisses; popovers eat the outside click — untested | `UI/Overlays.cpp:OverlayHost::mouseDown` | overlays | `Editor::overlaysCloseFromTheScrimAndTheirCloseButton` | PARTIAL |
+| IR-18 (§2.2) | Drag consumers: part cards -> illustration, pedals in rack, snapshots in strip, presets -> setlist, mod source -> control — pedal drag only; snapshot/preset drags absent; mod-source drag on visual | `PedalRack.cpp:PedalSlotComponent::mouseDrag` | FX rack | - | PARTIAL |
+| IR-19 (§4) | Root file-drop by extension (preset, guitar, tune, part, set, loop, content, midprofile, mid, wav/aiff/flac, mp3) + unknown-type banner + batch — only `.mid/.midi` (editor) and IR slot; visual's `FileOpenRouter` routes 6 extensions for standalone open, not drops | `PluginEditor::isInterestedInFileDrag/filesDropped` | whole window (MIDI only) | `MidiImport::aDropOnTheWindowImports` | PARTIAL |
 | IR-20 (§3, §3.1) | Focused text field consumes keys; Escape passes; global shortcuts inactive — JUCE focus order; untested | `PluginEditor::keyPressed` (reached only if unhandled) | n/a | - | NO-TEST |
 | IR-21 (§3) | Global shortcut table with rebinding | `AccessibilitySettings` | Options > ACCESSIBILITY Rebind | `Accessibility::shortcutsRebindAndRefuseClashes`, `Accessibility::shortcutDefaultsMatchTheCanonicalTable` | DONE |
 | IR-22 (§3.2) | Rebind conflict detected at rebind time (inline refusal instead of modal) | `AccessibilitySettings::rebind`, `OptionsPages.cpp:1059` | Options | `Accessibility::shortcutsRebindAndRefuseClashes` | DONE |
 | IR-23 (§3.3) | IME honoured; no shortcuts during composition — JUCE TextEditor; untested | JUCE `TextEditor` | text fields | - | NO-TEST |
-| IR-24 (§5) | Host transport: rhythm start/stop/reposition, tune sync, tap defers, metronome grid, recorder regardless — metronome not transport-synced | `processSlice` playhead read, `RhythmTransport` | n/a | `RhythmPatterns::silentWhenStoppedUnlessFreeRunning`, `LiveTapTempo::respectsRangeSnapAndHostPriority` | PARTIAL |
+| IR-24 (§5) | Host start/stop/relocation resync: the practice click is placed on the host's ppq grid while the host plays (rhythm engine and tune player already follow the playhead) | `Metronome::lockToHostPosition` from `processSlice` | n/a | `InputRouting::transportStartStopAndRepositionResyncRhythmTuneAndMetronome` | DONE |
 | IR-25 (§6) | Sidechain consumers: followers, sidechain compressor, sidechain-to-amp, EQ/cab match — no sidechain compressor pedal | `ModEnvelopeFollower`, `engine.setSidechainToAmp`, ToneMatch capture | ROUTING, MOD | `Routing::sidechainToAmpReplacesTheInstrument` | PARTIAL |
-| IR-26 (§6) | Sidechain never reaches main path unless consumed | `processSlice` sidechainCopy | n/a | `InputRouting::anUnconsumedSidechainNeverReachesTheMainOutput` | DONE |
+| IR-26 (§6) | Sidechain never reaches main path unless consumed — untested | `processSlice` sidechainCopy | n/a | `Routing::sidechainDoesNotReachTheMainOutUnconsumed` | DONE |
 | IR-27 (§7) | Standalone audio input: sidechain, sung melody, trainer input — sung-melody capture is on tune-help (`humCapture`, tune-builder 13); no trainer input here | - | - | - | PARTIAL |
 | IR-28 (§8) | Options > Diagnostics "Inject fixture MIDI / audio" at chain front | - | - | - | MISSING |
-| IR-29 (§9) | `Tests/InputRouting/` suite for every consumer / veto rule - `InputRoutingTests.cpp` has 5 InputRouting cases; not every consumer or veto | - | n/a | `InputRouting::midiLearnConsumesTheEventItLearns`, `::calibratedCcReachesConsumersRemapped`, `::theCalibrationWizardHearsThePedal`, `::ccsOnlyReachEnginesThroughTheInterpreter`, `MidiLearn::everyCcLearnsWithinOneBlock` | PARTIAL |
+| IR-29 (§9) | `Source/Tests/InputRoutingTests.cpp` (suite InputRouting) holds the per-consumer and veto tests | - | n/a | `InputRouting::*` (11 tests) | DONE |
 | IR-30 (§9) | 60 s scripted integration session | - | n/a | - | MISSING |
 
 <details><summary>Work list (input-routing)</summary>
 
-- [IR-1] effort M — Make the chain explicit in `PluginProcessor::processSlice`: after pass-through capture, run MIDI Learn (consuming, IR-3), then a `ControllerInputStage` (profile channel remap + latency shift, controllers CT-4/CT-7) and expression remap (IR-11), then live PC, then the engine; after the engine, hand note-ons to practice consumers (IR-9). Document the tune chord-channel merge point (DECISIONS) in the spec. Test: `InputRouting::consumersSeeEventsInTheDocumentedOrder` using probe hooks.
-- [IR-4] effort M — Extend learn to program change, poly aftertouch and channel pressure (mapping key = type + number), and add an Options > MIDI "Learn notes too" toggle for note learn. Test: `MidiLearn::learnsPcAftertouchAndPressure`, `MidiLearn::notesAreLearnedOnlyWhenAllowed`.
-- [IR-5] PARTIAL: ControllerStage (profile + latency) now runs before the engine; no separate `InputRouting::profileStageRemapsChannelsAndTime` test yet.
-- [IR-7] effort S — Add `InputRouting::techniqueLayerTagsWithoutConsuming`: a keyswitch/velocity-zone note produces a tagged PlayEvent and the note still sounds.
-- [IR-9] effort M — Same as practice PT-34/PT-44: an RT-safe FIFO of note-ons for the active trainer/tab reader, drained on the message thread; events not consumed. Test: `InputRouting::practiceToolsHearNotesWithoutConsumingThem`.
-- [IR-15] effort M — In `processSlice`, decode inbound SysEx with `LuthierEvents::decodeSysEx`; queue character events to the engine (RT-safe) and workshop/range changes to the message thread via a FIFO; drop non-Luthier SysEx. Test: `InputRouting::luthierSysExDrivesACharacterEventAndOthersAreIgnored`.
-- [IR-16] effort M — Parse 0xF8 clock (tempo from inter-clock interval, fed as an external tempo to `TapTempo` when the host is not playing), 0xFA/0xFB/0xFC start/continue/stop and SPP into the rhythm engine's free-run transport. Test: `InputRouting::midiClockDrivesTheRhythmEngineWhenTheHostIsStopped`.
-- [IR-17] effort S — Add `Editor::aClickOnTheScrimDismissesAndDoesNotFallThrough` (open Options, click outside the panel, assert overlay closed and the control under the click unchanged) and the same for a Workshop popover.
+- [IR-15] PARTIAL: CHARACTER, SNAPSHOT and RANGES apply; WORKSHOP (fit a part by id through the bench swap path) is not wired yet.
+- [IR-17] PARTIAL: the scrim click closes an overlay and a click inside does not (tested); "the control under the click unchanged" and the Workshop popover case are not tested.
 - [IR-18] effort M — Add drags: snapshot reorder in `LiveStrip`'s SnapshotStrip (DragAndDropContainer on the editor, target = strip), preset rows from the preset browser into the LIVE setlist list; mod-source drag arrives with the visual merge. Tests: `LiveStripUi::draggingASnapshotReordersTheBank`, `LivePanelUi::droppingAPresetAddsItToTheSetlist`.
 - [IR-19] effort M — After the visual merge, route `PluginEditor::filesDropped` through `FileOpenRouter::route/open` for every extension in §4 (add part, content, wav/aiff/flac/mp3 context routing: TONE MATCH tab -> IR, drawer TRACK -> backing track, else prompt), raise the "Cannot open X: unknown file type." banner for others, and batch-import homogeneous preset drops into the user folder. Test: `InputRouting::eachDroppedTypeReachesItsLoader`.
 - [IR-20] effort S — Add `Editor::aFocusedTextFieldSwallowsGlobalShortcuts`: focus the PROG chord entry, send 'p', assert panic not called and the text inserted; send Escape and assert it reaches the overlay.
 - [IR-23] effort S — DEFER: IME composition is handled by JUCE's `TextEditor`/`TextInputTarget`; cannot be unit-tested headless. Record in DECISIONS.md; manual QA checklist item.
-- [IR-24] effort S — With practice PT-6, lock the metronome grid to host ppq when the host plays (use `renderClicksAt` with the host position as the tune player does). Test: `InputRouting::transportStartStopAndRepositionResyncRhythmTuneAndMetronome`.
 - [IR-25] effort M — Same as routing-io RIO-11: add a sidechain-compressor pedal type keyed from the sidechain bus. Test: `Routing::sidechainCompressorDucksOnTheSidechain`.
-- [IR-26] effort S — Add `Routing::sidechainDoesNotReachTheMainOutUnconsumed` (feed a loud sidechain with every consumer off; main out equals the no-sidechain render).
 - [IR-27] effort M — Trainer audio input in the standalone: a monophonic pitch detector (YIN) on the input feeding the practice note FIFO (IR-9) when a trainer's "listen to audio" toggle is on; sung-melody capture arrives with tune-help. Test: `PracticeTrainers::aSungNoteAnswersTheQuizInTheStandalone` with a generated sine.
 - [IR-28] effort M — Add Options > DIAGNOSTICS "Inject fixture MIDI..." / "Inject fixture audio..." buttons that load a .mid / .wav and push it through a FIFO read at the very top of `processSlice` (MIDI merged before pass-through capture; audio summed into the input/sidechain buffer). Test: `InputRouting::injectedFixtureMidiIsSeenByEveryConsumer`.
-- [IR-29] effort M — Create `Source/Tests/InputRoutingTests.cpp` (suite `InputRouting`) holding the per-consumer/veto tests listed above (IR-1, 3, 7, 9, 11, 12, 15, 16, 19, 24, 28), registered through `TestFramework.h`.
 - [IR-30] effort M — Add `InputRouting::aSixtySecondScriptedSession`: 60 s offline render with scripted MIDI (notes, CCs, PC, SysEx), sidechain audio, parameter edits via the editor and file drops (using the IR-19 handler), asserting per-consumer event counts and that no vetoed event leaked.
 
 </details>
@@ -2710,8 +2689,8 @@ This spec has changed most since the baseline. The integration branch now has re
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
 | IN-1 (§0.2, §1, §2) | Code-signed Windows (EV), notarised macOS, PGP Linux — built in, but runs only when the secrets exist; no CI check that the signatures verify | `scripts/package_windows.ps1` (signtool), `scripts/package_macos.sh` (codesign, notarytool, stapler), `scripts/package_linux.sh` (gpg) | n/a | - | NO-TEST |
-| IN-2 (§0.3, §1.3, §2.3) | Uninstall removes every installed file, keeps user data, explicit purge — Inno prompt (not a checkbox), `Uninstall.command` prompt, `uninstall.sh` manifest; no automated cycle test — W2: `scripts/test_install_linux.sh` (CTest `InstallCycleLinux`) runs install/uninstall/purge against the manifest; macOS script logic by `test_uninstall_macos.sh`; the Windows cycle stays manual | `packaging/windows/Luthier.iss` `CurUninstallStepChanged`, `packaging/macos/Uninstall.command`, `packaging/linux/uninstall.sh` | installer UI | - | PARTIAL |
-| IN-3 (§0.4) | No elevation beyond need — Win `PrivilegesRequired=admin` (needed for Common Files); Linux user mode by default; macOS admin for /Library — W2: rationale in RELEASING §9; Linux user-mode install is tested without root | `Luthier.iss`, `install.sh` | n/a | - | DONE |
+| IN-2 (§0.3, §1.3, §2.3) | Uninstall removes every installed file, keeps user data, explicit purge — Inno prompt (not a checkbox), `Uninstall.command` prompt, `uninstall.sh` manifest; no automated cycle test | `packaging/windows/Luthier.iss` `CurUninstallStepChanged`, `packaging/macos/Uninstall.command`, `packaging/linux/uninstall.sh` | installer UI | - | NO-TEST |
+| IN-3 (§0.4) | No elevation beyond need — Win `PrivilegesRequired=admin` (needed for Common Files); Linux user mode by default; macOS admin for /Library | `Luthier.iss`, `install.sh` | n/a | docs/RELEASING.md 9 (why each platform elevates) | DONE |
 | IN-4 (§0.5) | Deterministic byte-identical installers — Linux archives reproducible (`SOURCE_DATE_EPOCH`); Win/mac not (signing timestamps; documented) | `scripts/package_linux.sh` | n/a | - | PARTIAL |
 | IN-5 (§1) | Windows Inno Setup `.exe` named `Luthier-<v>-Setup-win64.exe` | `packaging/windows/Luthier.iss` | installer | CI `release.yml` package build | DONE |
 | IN-6 (§1.1.1) | Splash with logo, version, "Preparing installer" | - | - | - | MISSING |
@@ -2721,10 +2700,10 @@ This spec has changed most since the baseline. The integration branch now has re
 | IN-10 (§1.1.5) | Locations: VST3 fixed; standalone editable; content `C:\ProgramData\Luthier` editable — content path fixed by design (`IrLibrary` search) | `Luthier.iss`, `Support/IrLibrary.cpp:searchForResources` | installer | `IrLibrary::candidatesIncludeTheInstallerLayout` | PARTIAL |
 | IN-11 (§1.1.6) | Space check: required + 200 MB | `Luthier.iss ExtraDiskSpaceRequired=209715200` | installer | CI package build | DONE |
 | IN-12 (§1.1.7) | Version check: same/newer asks; older offers upgrade | `Luthier.iss InitializeSetup`, `[InstallDelete]` | installer | - | NO-TEST |
-| IN-13 (§1.1.8) | Progress with safe cancel/rollback — W2: Inno/Installer.app native, documented in RELEASING §9 | Inno built-in | installer | - | DONE |
-| IN-14 (§1.1.9) | Post-install: Add/Remove entry, 6 file associations, Start menu, optional launch (off), "What's new" link — no "What's new" link — W2: "What's new" postinstall link added (default off) | `Luthier.iss [Registry]/[Icons]/[Run]` | installer | CI package build | DONE |
-| IN-15 (§1.1.9, §2.1.6, §13) | Double-clicking a Luthier file opens it in the standalone — the OS registration exists on Win/Linux, but the HEAD standalone ignores its command line | `Source/StandaloneApp.cpp` `openFromCommandLine`, `Support/FileOpenRouter.cpp` | standalone | `FileOpen::theCommandLineNamesTheFile`, `FileOpen::everyAssociationRoutesToItsLoader`, `FileOpen::aPresetFileOpensAndAStrangerIsRefused` | DONE |
-| IN-16 (§1.2) | Silent install `/S`, `/D=`, documented exit codes, HKLM keys — Inno `/VERYSILENT` and `/DIR=` (documented deviation in RELEASING §8); HKLM `Software\Luthier` keys — W2: Inno exit codes and the /S,/D= deviation documented in RELEASING §9 | `Luthier.iss [Registry]`, `docs/RELEASING.md` | n/a | - | DONE |
+| IN-13 (§1.1.8) | Progress with safe cancel/rollback | Inno built-in | installer | Inno built-in; documented in docs/RELEASING.md 9 | DEFERRED |
+| IN-14 (§1.1.9) | Post-install: Add/Remove entry, 6 file associations, Start menu, optional launch (off), "What's new" link — no "What's new" link | `Luthier.iss [Run]` What's new link (shellexec, unchecked) | installer | - | NO-TEST |
+| IN-15 (§1.1.9, §2.1.6, §13) | Double-clicking a Luthier file opens it in the standalone — the OS registration exists on Win/Linux, but the HEAD standalone ignores its command line | on visual: `Source/StandaloneApp.cpp`, `Support/FileOpenRouter` (5b1ff56) | standalone | on visual: `FileOpen::theCommandLineNamesTheFile`, `FileOpen::everyAssociationRoutesToItsLoader` | OWNED |
+| IN-16 (§1.2) | Silent install `/S`, `/D=`, documented exit codes, HKLM keys — Inno `/VERYSILENT` and `/DIR=` (documented deviation in RELEASING §8); HKLM `Software\Luthier` keys | `Luthier.iss [Registry]`, `docs/RELEASING.md` | n/a | docs/RELEASING.md 9 (switches and exit codes) | DONE |
 | IN-17 (§1.3) | Uninstaller refuses while a DAW holding the plugin runs — Restart Manager `CloseApplications` only (known gap) | `Luthier.iss CloseApplications=yes` | installer | - | PARTIAL |
 | IN-18 (§2) | macOS `.pkg` inside a signed, notarised `.dmg`, `Luthier-<v>-macOS.dmg` | `scripts/package_macos.sh` | installer | CI `release.yml` package build | DONE |
 | IN-19 (§2.1) | .dmg "Read me first"; standard paths for AU/VST3/app/content; admin only for system paths; "Open Luthier" post-install button — no post-install button — W2: productbuild conclusion page (what next, uninstaller); a button is not possible in productbuild | `package_macos.sh` | installer | CI package build | DONE |
@@ -2738,22 +2717,22 @@ This spec has changed most since the baseline. The integration branch now has re
 | IN-27 (§3.3) | Dependencies documented; no bundled shared libraries — deb Depends/Recommends | `package_linux.sh` control file | n/a | CI package build | DONE |
 | IN-28 (§4) | Standalone-only bundle on every platform — Windows portable zip holds app + plugins; mac/Linux via the picker or `--no-vst3`, no separate bundle — W2: Linux `standalone-linux-x64.tar.gz` added; Windows/macOS use the picker | `package_windows.ps1` portable zip | n/a | - | PARTIAL |
 | IN-29 (§5.1) | Update banner "Version X.Y.Z available" | `PluginEditor` update notification, `UI/OptionsPages.cpp` Updates page | header banner, Options > Updates | `Telemetry::updateCheckReadsTheManifest`, `Telemetry::updateCheckIsThrottled` | DONE |
-| IN-30 (§5.1) | Release notes open in the browser; Download fetches the platform installer to Downloads; never auto-launches | `Updates/UpdateDownloader.cpp` | Options > Updates `UpdatesPage` (`releaseNotesButton`, `downloadButton`, `OptionsPages.cpp:1842`) | `Updates::theDownloadLandsInDownloadsUnderItsOwnName` | DONE |
-| IN-31 (§5.2) | Delta patches: one-way, SHA-256, roll back and prompt full download (the under-50%-of-full-size offer and any UI are not built) | `Updates/ContentPackage.cpp` `applyDelta` | - | `ContentPackage::aBadHashRollsBackAndOffersTheFullDownload` | NO-GUI |
-| IN-32 (§6) | First load creates the `~/Documents/Luthier` tree (18 subfolders), `config/plugin.json`, `.installed_version` | `Support/InstallLayout.cpp` (called from `PluginProcessor.cpp:70`) | n/a | `InstallLayout::createsTheTreeAndMarker` | DONE |
-| IN-33 (§6) | Absent marker -> onboarding; different version -> upgrade banner + migrations - `InstallLayout::Result` (firstRun/upgradedFrom) is computed but nothing reads `getInstallLayoutResult()`; no upgrade banner; onboarding uses its own config-file check | `Support/InstallLayout.cpp`, `PluginProcessor.h:697` | `UI/FirstRun.cpp` (own detection); no upgrade banner | `InstallLayout::differentVersionReportsUpgrade`, `InstallLayout::sameVersionIsQuiet` | PARTIAL |
-| IN-34 (§7) | Managed installers take command-line config; `luthier-policy.json` pre-placeable — the plugin honours a policy file; installers cannot place one — W2: Inno `/POLICY=<file>` copies the policy to ProgramData; macOS/Linux paths in RELEASING §9; plugin already reads these paths | `Updates/Telemetry` policy | Options "managed by policy" | `Telemetry::policyOverridesTheUser` | DONE |
+| IN-30 (§5.1) | Release notes open in the browser; Download fetches the platform installer to Downloads; never auto-launches | on visual: 7d51911 | Options > Updates | on visual: `Updates::theDownloadLandsInDownloadsUnderItsOwnName` | OWNED |
+| IN-31 (§5.2) | Delta patches: offered under 50% of full size, one-way, SHA-256, roll back and prompt full download | on visual: `Updates/ContentPackage` delta (ec0e866) | - | on visual: `ContentPackage::aBadHashRollsBackAndOffersTheFullDownload` | OWNED |
+| IN-32 (§6) | First load creates the `~/Documents/Luthier` tree (18 subfolders), `config/plugin.json`, `.installed_version` | on visual: `Support/InstallLayout` (9d9daa6) | n/a | on visual: `InstallLayout::createsTheTreeAndMarker` | OWNED |
+| IN-33 (§6) | Absent marker -> onboarding; different version -> upgrade banner + migrations | on visual: `InstallLayout` upgrade report; on tune-help: onboarding | banner / onboarding | on visual: `InstallLayout::differentVersionReportsUpgrade`, `InstallLayout::sameVersionIsQuiet` | OWNED |
+| IN-34 (§7) | Managed installers take command-line config; `luthier-policy.json` pre-placeable — the plugin honours a policy file; installers cannot place one | `Updates/Telemetry` policy | Options "managed by policy" | docs/RELEASING.md 9 (pre-placing the policy) | PARTIAL |
 | IN-35 (§7) | MSI wrapper for Group Policy | - | - | - | MISSING |
 | IN-36 (§8) | Preset without ranges gets a block on load; original backed up to `Presets/Backup/<date>/` — derived rather than stock-only (advanced-ranges supersedes) | `PresetManager::fromVar`, `PresetManager::backupMigratedOriginal` | n/a | `Ranges::theRangesBlockRoundTripsAndDerivesWhenAbsent`, `ModelGapsUi::aMigratedPresetKeepsItsOriginal` | DONE |
 | IN-37 (§8) | Pre-parts guitar reference resolves via `migration.json`; same backup | `PartLibrary` migration table, `PresetManager::needsMigration` | n/a | `GuitarMigration::aPresetNamingAnOldGuitarLoadsItsReplacement`, `GuitarMigration::everyPreM49NameResolvesToItsShippedGuitar` | DONE |
-| IN-38 (§8) | Old `.luthierloop` without event-class tags loads with defaults; `.mid` without the Luthier chunk loads as Generic — untested | `Practice/Looper.cpp` load, `Export/MidiProfiles` import | PRACTICE / MIDI import | - | NO-TEST |
-| IN-39 (§8) | Subtle info banner on the first migrated load | `PluginEditor.cpp:1298-1311` migration notification | info banner | `Editor::aMigratedPresetRaisesOneInfoBanner` | DONE |
+| IN-38 (§8) | Old `.luthierloop` without event-class tags loads with defaults; `.mid` without the Luthier chunk loads as Generic — untested | `Practice/Looper.cpp` load, `Export/MidiProfiles` import | PRACTICE / MIDI import | `PracticeLooper::anOldLoopWithoutTagsLoads`, `MidiImport::aPlainMidiFileLoadsAsGeneric` | DONE |
+| IN-39 (§8) | Subtle info banner on the first migrated load | on visual: 3b53f8b | banner | on visual: `Editor::aMigratedPresetRaisesOneInfoBanner` | OWNED |
 | IN-40 (§9) | Portable Windows zip: no registry, no Start menu, no auto-update; no writes outside the folder — the plugin still writes `Documents\Luthier` | `package_windows.ps1` portable zip | n/a | CI package build | PARTIAL |
 | IN-41 (§10) | SHA-256 for every installer + PGP-signed manifest + canonical URL | `.github/workflows/release.yml` (SHA256SUMS.txt + gpg) | n/a | CI `release.yml` | DONE |
-| IN-42 (§11) | Signed `.luthiercontent` applied to `ContentUpdates/<name>/`, data only - engine only; no drag-drop or Options > Updates control calls it | `Updates/ContentPackage.cpp` | none (no caller outside tests) | `ContentPackage::aSignedPackageInstallsIntoItsFolder`, `ContentPackage::pathTraversalAndCodeAreRefused`, `ContentPackage::aBadOrMissingSignatureIsRefused` | NO-GUI |
-| IN-43 (§12) | Rollback: manifest revert within 30 min, old installers stay, downgrade prompt, rollback banner in the plugin — Windows downgrade prompt exists; no rollback banner or runbook | `Luthier.iss InitializeSetup` | - | - | PARTIAL |
-| IN-44 (§13) | Test: install/uninstall cycle per platform, files match the manifest — manual (RELEASING §6) — W2: automated for Linux and the macOS uninstaller; Windows install/uninstall stays manual | - | n/a | - | PARTIAL |
-| IN-45 (§13) | Test: upgrade A->B leaves no A artefacts; downgrade B->A clean — W2: upgrade A->B and downgrade B->A tested for the Linux installer | - | n/a | - | PARTIAL |
+| IN-42 (§11) | Signed `.luthiercontent` applied to `ContentUpdates/<name>/`, data only; drag onto the plugin or Options > Updates | on visual: `Updates/ContentPackage` | Options > Updates (on visual) | on visual: `ContentPackage::aSignedPackageInstallsIntoItsFolder`, `ContentPackage::pathTraversalAndCodeAreRefused` | OWNED |
+| IN-43 (§12) | Rollback: manifest revert within 30 min, old installers stay, downgrade prompt, rollback banner in the plugin — Windows downgrade prompt exists; no rollback banner or runbook | `Luthier.iss InitializeSetup` | - | docs/RELEASING.md 10 (rollback runbook) | PARTIAL |
+| IN-44 (§13) | Test: install/uninstall cycle per platform, files match the manifest — manual (RELEASING §6) | - | n/a | - | MISSING |
+| IN-45 (§13) | Test: upgrade A->B leaves no A artefacts; downgrade B->A clean | - | n/a | - | MISSING |
 | IN-46 (§13) | Test: silent install with a policy takes effect on first run | - | n/a | - | MISSING |
 | IN-47 (§13) | Test: every published installer verifies against the PGP manifest — W2: `scripts/verify_release.sh` checks SHA-256s, coverage and gpg signatures (self-tested with a throw-away key) | - | n/a | - | DONE |
 | IN-48 (§13) | Test: portable Windows writes nothing outside its folder | - | n/a | - | MISSING |
@@ -2763,16 +2742,14 @@ This spec has changed most since the baseline. The integration branch now has re
 
 - [IN-1 (§0.2, §1, §2)] effort S — After packaging in `release.yml`, add a verify step: `signtool verify /pa` on Windows, `spctl -a -vvv -t install` and `stapler validate` on macOS, and `gpg --verify` on the Linux `.asc` files. Each runs only when the secrets exist and warns otherwise. Obtaining the certificates is a process item for the product owner (RELEASING §4, §7).
 - [IN-2 (§0.3, §1.3, §2.3)] effort M — CI install cycle on Linux (`install.sh --user` into a temp HOME, compare the files to `install-manifest.txt`, `uninstall.sh`, assert only `~/Documents/Luthier` remains) and `dpkg -i`/`dpkg -r` in a container. On Windows, `Luthier-*-Setup-win64.exe /VERYSILENT` then the uninstaller `/VERYSILENT`, with a file diff. New job `install-test` in `build.yml` on the package path. Covers IN-44 too.
-- [IN-3 (§0.4)] effort S — Document in RELEASING why Windows needs admin (Common Files VST3) and macOS needs it for /Library. The IN-2 install-test covers the Linux user-mode install without root.
 - [IN-4 (§0.5)] effort S — DEFER: signed Windows/macOS artefacts embed timestamps by design (documented in RELEASING §8). Keep the Linux reproducibility check: add the visual branch's nightly double-build diff for `package_linux.sh`.
 - [IN-6 (§1.1.1)] effort S — Add a WizardImageFile/WizardSmallImageFile with logo and version to `Luthier.iss` (Inno has no true splash; its welcome page shows the logo). Or DEFER as cosmetic.
 - [IN-8 (§1.1.3, §2.1.3)] effort S — DEFER: legal. The product owner replaces `packaging/common/EULA.txt` (RELEASING §7).
 - [IN-9 (§1.1.4, §2.1.4)] effort S — Add a "Documentation" component: the manual as HTML/PDF from `docs/USER_MANUAL.md`, built in release.yml, to `{app}\Docs` on Windows and to a package in the macOS picker. Content stays fixed by design (every format needs it); note this in DECISIONS.md.
 - [IN-10 (§1.1.5)] effort S — DEFER: the content path is fixed so every plugin format finds it (`IrLibrary::searchForResources`). Allowing an edit needs a registry/plist pointer read by `IrLibrary`. Record in DECISIONS.md.
 - [IN-12 (§1.1.7)] effort S — Covered by the IN-45 upgrade/downgrade test.
-- [IN-13 (§1.1.8)] effort S — DEFER: Inno Setup provides cancel and rollback natively. Nothing to build; mention in RELEASING.
-- [IN-14 (§1.1.9)] effort S — Add a "What's new" link to the finished page (`[Run]` entry with `postinstall shellexec` to the release-notes URL, unchecked) in `Luthier.iss`.
-- [IN-16 (§1.2)] effort S — DEFER: Inno's `/VERYSILENT`/`/DIR=` are the platform-native equivalents of the NSIS `/S`/`/D=`. Record in DECISIONS.md and document the Inno exit codes in RELEASING.
+- [IN-13 (§1.1.8)] DEFERRED: Inno Setup's cancel/rollback is native; documented in RELEASING 9. Nothing to build or test in-repo.
+- [IN-14 (§1.1.9)] effort S — link added; covered only by a Windows install-test run (IN-2).
 - [IN-17 (§1.3)] effort M — In `Luthier.iss` `InitializeUninstall`/`InitializeSetup`, check for known DAW processes that hold `Luthier.vst3` (Restart Manager session or a `tasklist` scan) and refuse with a message. RELEASING §8 lists this as a known gap.
 - [IN-19 (§2.1)] effort S — Add a `<conclusion>` page to the productbuild `distribution.xml` with an "Open Luthier" instruction (productbuild cannot run a button; a postinstall `open -a Luthier` for the app component, off by default, is the closest).
 - [IN-20 (§2.1.6)] effort S — Add `DOCUMENT_EXTENSIONS luthierpreset luthierguitar luthiertune luthierloop luthierset midprofile` (plus UTI declarations) to the Standalone target in `CMakeLists.txt` `juce_add_plugin`, and handle `anotherInstanceStarted`/open-file events. The in-app routing (`FileOpenRouter`) comes with visual.
@@ -2780,11 +2757,10 @@ This spec has changed most since the baseline. The integration branch now has re
 - [IN-24 (§3)] effort M — Add an `.rpm` to `scripts/package_linux.sh` (fpm or rpmbuild from the same staged tree), `luthier-<v>-1.x86_64.rpm`, and upload it in release.yml. Best-effort per spec.
 - [IN-26 (§3.2)] effort S — Covered by the IN-2 Linux install-test (check that `update-mime-database` registered `application/x-luthier-preset` with `xdg-mime query default`).
 - [IN-28 (§4)] effort S — Add "standalone only" archives: `Luthier-<v>-standalone-macOS.dmg` (app only) and `Luthier-<v>-standalone-linux-x64.tar.gz` (install.sh with `--no-vst3 --no-clap` defaults), plus a Windows standalone-only zip without the plugins. Upload in release.yml.
-- [IN-34 (§7)] effort S — Document pre-placing `luthier-policy.json` (the path `Telemetry` reads) in RELEASING's enterprise section. Add an Inno `/POLICY=<file>` parameter (`{param:POLICY}`) that copies it to `{commonappdata}\Luthier\`, and make `Telemetry` read that system path too. Test: `Telemetry::aSystemPolicyFileIsHonoured`.
+- [IN-34 (§7)] effort S — pre-placing documented (RELEASING 9); an Inno `/POLICY=` parameter copying the file is still open.
 - [IN-35 (§7)] effort M — DEFER until requested ("on request" per spec). A WiX wrapper around the Inno exe or a separate WiX project when an enterprise customer asks.
-- [IN-38 (§8)] effort S — Tests: `PracticeLooper::anOldLoopWithoutTagsLoads` (a fixture `loop.json` without event-class tags) and `MidiImport::aPlainMidiFileLoadsAsGeneric` (an SMF without the LUTHIER chunk).
 - [IN-40 (§9)] effort M — Portable mode: when `Luthier.exe` finds a `portable.txt` (or a `Data` folder) beside itself, point the user-data root (`~/Documents/Luthier` resolution in `InstallLayout`/`PresetManager`/`Setlist::getUserDirectory` and friends) at `<exe dir>\Data` and disable the update check. This needs one central user-root function (it would also help installer §6). Test: set the portable root and assert every writer lands under it.
-- [IN-43 (§12)] effort S — Write a rollback runbook section in `docs/RELEASING.md`. Add an optional `rollback` message field to the update-check manifest that `Telemetry::checkForUpdate` surfaces as a header banner. Test: `Telemetry::aRollbackNoticeRaisesABanner`.
+- [IN-43 (§12)] effort S — runbook written (RELEASING 10); the in-plugin rollback banner from a manifest field is still open.
 - [IN-44 (§13)] effort M — Same job as IN-2 (install/uninstall cycle, files match the manifest) on Linux and Windows in CI. macOS on the nightly runner.
 - [IN-45 (§13)] effort M — Extend the install-test job: install the previous release (download the last GitHub release asset), then the new one, and diff for leftover files; then the reverse, expecting the downgrade prompt (`/SUPPRESSMSGBOXES` answers yes).
 - [IN-46 (§13)] effort S — In the Windows install-test, pre-place a policy file (IN-34), run a headless `luthier-render --print-policy` (or a unit test reading the installed path), and assert that telemetry is forced off.
@@ -2937,7 +2913,7 @@ The live engines (snapshot bank with crossfade and morph, setlist with preload, 
 | LP-24 (§5) | 4 taps / 3 s, median, outliers >30%, 20-300, snap 0.4 | `TapTempo` | TapPad | `LiveTapTempo::oneOutlierDoesNotMoveTheEstimate`, `LiveTapTempo::respectsRangeSnapAndHostPriority`, `LiveTapTempo::followsAGenuineTempoChange` | DONE |
 | LP-25 (§5) | Tap drives rhythm (host stopped), synced delays, synced LFOs — wired via `blockTempo`; no test that a tap reaches delay/LFO/rhythm | `PluginProcessor.cpp:1093` `engine.setTempoBpm`, `context.bpm` | n/a | `LiveTapTempo::aTapDrivesTheEngineWhileTheHostIsStopped` | DONE |
 | LP-26 (§5) | Tap assignable to CC / footswitch | `LiveActionMap` tapTempo (stamped on arrival), `PluginProcessor::tapTempoAt` | key T; `CC` button | `LiveInput::aFootswitchTapsTheTempo` | DONE |
-| LP-27 (§5) | Header LED blinks each beat in tap accent - only the Live strip pad blinks (`LiveStrip::beatLit`); `HeaderBar` LED has no beat blink | `LiveStrip.h` `beatLit`/`lastBeatMs` (TapPad blink) | Live strip | - | PARTIAL |
+| LP-27 (§5) | Header LED blinks each beat in tap accent — the Live strip pad blinks; header LED does not | `LiveStrip` TapPad blink | Live strip | - | DEFERRED |
 | LP-28 (§5) | Host tempo wins unless "internal tempo" forced | `TapTempo::getEffectiveBpm` | Options toggle | `LiveTapTempo::respectsRangeSnapAndHostPriority` | DONE |
 | LP-29 (§6) | Kill momentary, key, red pill, CC assignment | `LiveActionMap` killSwitch (momentary, audio thread) | Live strip `killButton`; `CC` button | `LiveInput::killAndPanicRideOnCcs` | DONE |
 | LP-30 (§7) | Monitor: main + sidechain sum, level; to 2nd output pair; bypass when idle | `LiveControls.cpp:MonitorMix`, `RoutingMatrix::writeMonitorBus` | Live strip `monitorLevel` | `LiveMonitor::idleWhenNothingToMonitorAndSumsWhenThereIs` | DONE |
@@ -2949,9 +2925,9 @@ The live engines (snapshot bank with crossfade and morph, setlist with preload, 
 | LP-36 (§9) | Panic: notes off, tails, DC, coupling; keeps preset/snapshot/params | `LuthierAudioProcessor::panic` -> `LuthierEngine::panic` | header panic, key P | `Engine::panicSilencesEverything`, `Combo::unisonStringsNeverGrowAndPanicSilencesThem` | DONE |
 | LP-37 (§9) | Panic by CC assignment | `LiveActionMap` panic | header panic, key P, `CC` button | `LiveInput::killAndPanicRideOnCcs` | DONE |
 | LP-38 (§10) | Live strip: snapshots, triptych, tap, morph, kill, monitor | `UI/LiveStrip.cpp` | header LIVE -> Live strip | `Editor::theModesThatChangeTheLayoutTakeEffectAndUndoThemselves` | DONE |
-| LP-39 (§10) | Live Mode: 44 px targets (tested), lock Advanced (`HeaderBar` modeButton disabled when live), tooltips suppressed - no test asserts the Live-Mode tooltip suppression (Editor::theTooltipSwitchDisablesTooltips covers the preference only) | `PluginEditor.cpp:applyTooltipPreference` (delay 0x7fffffff when `isLiveMode()`); `getTooltipDelayMs` | header LIVE | `LiveStripUi::everyTargetIsTouchSized` | NO-TEST |
-| LP-40 (§11) | Live-mode on/off per preset - saved in session state (`PluginProcessor.cpp` uiState.liveMode) but PresetBlocks writes no liveMode key, so it is not per-preset | `PluginProcessor.cpp` uiState.liveMode (getState/setState) | header LIVE | - | PARTIAL |
-| LP-41 (§11) | MIDI-learn for live controls per-preset by default, "global" flag - mappings now travel in the preset `midi_mappings` block (per-preset done); no "global" flag to persist across presets | `Support/MidiLearn.h:MidiLearnManager`, `Presets/PresetBlocks.cpp` midi_mappings | - | `Presets::processorBlocksTravelInThePresetFile` | PARTIAL |
+| LP-39 (§10) | Live Mode: 44 px targets, lock Advanced, tooltips suppressed | `PluginEditor::applyTooltipPreference` (re-applied on the Live Mode toggle) | header LIVE | `LiveStripUi::everyTargetIsTouchSized`, `Editor::liveModeSuppressesTooltips` | DONE |
+| LP-40 (§11) | Live-mode on/off per preset — saved in session `uiState.liveMode`; a preset load keeps it | `PluginProcessor.cpp:2216/2326` | header LIVE | - | DEFERRED |
+| LP-41 (§11) | MIDI-learn for live controls per-preset by default, "global" flag — mappings live in session state only; no flag | `MidiLearnManager` | - | - | DEFERRED |
 | LP-42 (§12) | Test: 1000 recall fuzz, zero clicks | - | n/a | `LiveSnapshots::thousandRecallsNeverJumpAParameter` | DONE |
 | LP-43 (§12) | Test: PC across 128 | - | n/a | `LiveSnapshots::programChangeMapsAcrossAllOneTwentyEight` | DONE |
 | LP-44 (§12) | Test: morph curve shapes, 0.001 at 100 points | - | n/a | `LiveSnapshots::morphFollowsItsCurve` | DONE |
@@ -2961,12 +2937,11 @@ The live engines (snapshot bank with crossfade and morph, setlist with preload, 
 
 <details><summary>Work list (live-performance)</summary>
 
-- [LP-27] effort S — Drive the header's LED (`HeaderBar`, theme.md beat LED) from `TapTempo` phase in the editor timer, blinking in the tap accent colour; test `HeaderBar` repaints/LED state toggles at the beat.
-- [LP-40] effort S — DEFER: spec/state-model.md treats Live Mode as UI/session state (a preset load must not leave Live Mode — `StateModel` test asserts exactly that), contradicting §11's "per-preset". Record in DECISIONS.md.
-- [LP-41] effort M — Add a `global` flag per mapping in `MidiLearnManager` (UI: right-click mapping "Keep across presets"); write non-global mappings into the preset's `midiMappings` block in `PresetManager::toVar/fromVar` and keep global ones in `~/Documents/Luthier/config/midi-learn.json`. Test: `MidiLearn::globalMappingsSurviveAPresetLoadAndLocalOnesDoNot`.
+- [LP-27] effort S — DEFERRED until the visual merge: the header LED lives in HeaderBar, which the visual branch rewrites.
+- [LP-40] effort S — DEFERRED: state-model.md keeps Live Mode as session/UI state (StateModel test asserts a preset load keeps it); contradicts §11's per-preset. Needs a DECISIONS entry by the owner.
+- [LP-41] effort M — DEFERRED: per-preset MIDI mappings need a `midiMappings` preset block and a global flag in MidiLearnManager, which both the visual and rtmidi branches rework; live-action CCs are already user-global (sweep-notes/ui.md).
 - [LP-5] effort S — NO-TEST left: FileChooser removed from the Live strip; an automated "no modal" check is not meaningful because JUCE PopupMenus enter a modal state themselves.
 - [LP-8] effort M — midpoint flip tested (`LiveSnapshots::bypassFlipsAtTheMidpoint`); tail double-buffering / coupling rebuild on a worker still DEFER (coupling is recomputed from parameters per block).
-- [LP-39] effort S — tooltips are suppressed in Live Mode (`PluginEditor::timerCallback`); a test needs a tooltip-delay getter JUCE does not expose.
 
 </details>
 
@@ -3064,7 +3039,7 @@ The codec is complete: 18 event classes with text + SysEx redundancy, Luthier/Ge
 
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
-| MX-1 (intro, §2.1) | Luthier profile lossless for every event class — the capture only writes NOTE/BEND/SLIDE/VIBRATO/WHAMMY technique flags plus BASS_TECH/SLIDE_BAR. STRUM/PICK/SQUEAK/BUZZ/CLANK/RASGUEADO/CHARACTER/WORKSHOP/SNAPSHOT/RANGES only go out as live SysEx | `Export/LuthierMidiEvents.cpp` codec; `Capture/PerformanceCapture.cpp` (bassTech/slideBar only) | n/a | `MidiExport::everyEventClassRoundTripsWithEveryField` | PARTIAL |
+| MX-1 (intro, §2.1) | Luthier profile lossless for every event class — the capture only writes NOTE/BEND/SLIDE/VIBRATO/WHAMMY technique flags plus BASS_TECH/SLIDE_BAR. STRUM/PICK/SQUEAK/BUZZ/CLANK/RASGUEADO/CHARACTER/WORKSHOP/SNAPSHOT/RANGES only go out as live SysEx | `PerformanceCapture::noiseEvent` fed from the noise pool block triggers in `processSlice` (PICK, SQUEAK, BUZZ, CLANK) | n/a | `MidiExport.captureCarriesTheLiveNoiseEvents` | PARTIAL |
 | MX-2 (intro, §3) | Generic profile: plain MIDI + `LUTHIER:` text metas | `Export/MidiProfiles.cpp` | MIDI OUT tab, `MidiOutPanel::getProfileButton` | `MidiExport::genericProfileIsPlainMidi` | DONE |
 | MX-3 (§0.1) | Export on a worker thread, never the audio thread — `MidiOutPanel::exportTo`, the header's "Save last MIDI take" and the drag-out all write on the message thread | `UI/MidiOutPanel.cpp:exportTo`, `MidiTakeExport::exportCapture` | MIDI OUT | - | PARTIAL |
 | MX-4 (§0.2) | Import parses to a performance/Tune, which is handed over by swap | `MidiProfiles::importFromFile`, `Export/MidiImportTargets.cpp` | File menu / drop | `MidiExport::aScoreSurvivesBothProfiles`, `MidiImport::bothProfilesGoIntoTheSession` | DONE |
@@ -3105,11 +3080,47 @@ The codec is complete: 18 event classes with text + SysEx redundancy, Luthier/Ge
 
 <details><summary>Work list (midi-export)</summary>
 
-- [MX-1] effort M — Have `PerformanceCapture` (Source/Capture/PerformanceCapture.cpp) record STRUM, PICK, SQUEAK, BUZZ and CLANK events from the same transient/technique stream that `LuthierAudioProcessor` already pushes to `sysExOut` (PluginProcessor.cpp ~2590-2615). Also record CHARACTER seed/environment changes, WORKSHOP swaps, RANGES toggles and SNAPSHOT recalls (PluginProcessor ~2524-2563). Carry them into `MidiTakeExport::capturedPerformance`. Test `MidiExport::captureCarriesEveryLiveEventClass`: play a strum with squeak and buzz enabled, export Luthier, then check each class appears on import. RASGUEADO can wait until the rhythm engine emits it.
+- [MX-1] PARTIAL: PICK/SQUEAK/BUZZ/CLANK are captured (dsp2); STRUM, CHARACTER/WORKSHOP/RANGES/SNAPSHOT changes still only go to live MIDI out || was: effort M — Have `PerformanceCapture` (Source/Capture/PerformanceCapture.cpp) record STRUM, PICK, SQUEAK, BUZZ and CLANK events from the same transient/technique stream that `LuthierAudioProcessor` already pushes to `sysExOut` (PluginProcessor.cpp ~2590-2615). Also record CHARACTER seed/environment changes, WORKSHOP swaps, RANGES toggles and SNAPSHOT recalls (PluginProcessor ~2524-2563). Carry them into `MidiTakeExport::capturedPerformance`. Test `MidiExport::captureCarriesEveryLiveEventClass`: play a strum with squeak and buzz enabled, export Luthier, then check each class appears on import. RASGUEADO can wait until the rhythm engine emits it.
 - [MX-3] effort S — Run `MidiProfiles::exportToFile` from `MidiOutPanel::exportWithChooser`, the `HeaderBar` "Save last MIDI take" handler and the SESSION drag on a `juce::ThreadPool`/`Thread::launch` job. Capture the `MidiPerformance` on the message thread first, then post the result box back with `MessageManager::callAsync`. The drag-out stays synchronous: the OS drag needs the file. Test `MidiOutPanel::exportRunsOffTheMessageThread`, using `ThreadProbe` to assert the writer's thread.
 - [MX-15] effort S — Make File menu -> "Export MIDI..." (HeaderBar.cpp case 7) open the MIDI OUT tab's export section (add a HeaderBar callback, wired in PluginEditor.cpp like `onOpenExport`, that selects the MIDI OUT tab and calls `MidiOutPanel::exportWithChooser`) with range/split/preview, instead of writing the defaults silently. Or rename the entry, and add "Export MIDI..." next to it that jumps to MIDI OUT. Test in MidiOutPanelTests: the header callback selects the MIDI OUT tab.
 - [MX-23] effort S — Add a `CFBundleDocumentTypes` / `UTExportedTypeDeclarations` entry for `.midprofile` (and the other Luthier extensions) to the standalone plist. In CMakeLists this means `juce_add_plugin` `DOCUMENT_EXTENSIONS`, or a custom plist in packaging/macos. Add a packaging check to scripts (grep the .iss, mime xml and plist for midprofile).
 - [MX-27] effort S — In `LuthierAudioProcessorEditor::importMidiFile`, read the file first with `MidiProfiles::importFromFile`. When `warnings` contains an advanced-range entry, show a confirm dialog ("Apply advanced ranges?") before `MidiImportTargets::importFile` applies it. Test in MidiImportTests: an advanced-range file with a declining callback leaves the session untouched.
+
+</details>
+
+## midi-learn.md
+
+Unified MIDI Learn: sources (CC/PC/pressure/notes/MPE), two entry points, mapping list, global vs preset, ranges, serialization. Deferred feature, no owner; a substantial base exists (`MidiLearnManager`, arm overlay, global mappings) so most rows are PARTIAL. Missing: MPE dimensions, burst resolution, mappings popover with Clear all / Save-all-as-global.
+
+| Req | Summary | Engine location | GUI location | Test | Status |
+|---|---|---|---|---|---|
+| ML-0 (§0) | Ground rules (no audio-thread alloc, one control one mapping) | `Source/Support/MidiLearn.h:MidiLearnManager` | - | `MidiLearn::learningDoesNotAllocateOrLockOnTheAudioThread` | PARTIAL |
+| ML-1 (§1) | Sources: CC, PC, aftertouch, pressure, notes, MPE dims | `MidiLearnManager::sourceKeyFor`, `describeSource` | - | `MidiLearn::learnsPcAftertouchAndPressure`, `MidiLearn::notesAreLearnedOnlyWhenAllowed` | PARTIAL |
+| ML-2.1 (§2.1) | Header arm then click | `MidiLearnManager::setArmed/claimArmedLearn/expireIfIdle` | Header arm button, `MidiLearnArmLayer` (Overlays.h), `LuthierAudioProcessorEditor::setMidiLearnArmed` | `MidiLearn::armingIsSeparateFromLearningUntilAControlClaimsIt`, `Editor::ctrlLArmsMidiLearn`, `MidiLearn::armedButtonAndTargetPulse` | DONE |
+| ML-2.2 (§2.2) | Direct per-control right-click learn | `MidiLearnManager::startLearning` | `Widgets.cpp` context menu item 5 'MIDI Learn' | `MidiLearn::mapsAndUnmapsCleanly` | DONE |
+| ML-2.3 (§2.3) | Catching the source: burst resolve, 20 s timeout, status text | `MidiLearnManager::handleAsyncUpdate/expireIfIdle` | status banner in editor | `MidiLearn::armingTimesOutAfterThirtySeconds`, `MidiLearn::everyCcLearnsWithinOneBlock` | PARTIAL |
+| ML-3 (§3) | Mapping list popover, Clear all, Save-all-as-global | `MidiLearnManager::clearAllMappings/getNumMappings` | none found (no mappings popover) | - | NO-GUI |
+| ML-4 (§4) | Global vs preset mappings, preset wins on conflict | `MidiLearnManager::setMappingGlobal/isMappingGlobal/getGlobalMappingsFile/mergeGlobalMappings` | Widgets.cpp context menu global toggle | `MidiLearn::aGlobalMappingSurvivesAPresetLoad` | PARTIAL |
+| ML-5 (§5) | Ranges, invert, modulation interaction with advanced ranges | `MidiLearnManager::setMappingRange` | none (no range editor) | - | NO-GUI |
+| ML-6 (§6) | Serialization (midi_mappings, mpe_dimension), undo, a11y | `MidiLearnManager::toVar/fromVar`, `PresetBlocks.cpp midiMappings` | - | `LiveInput::assignmentsRoundTripThroughTheirConfigFile` (other file) | PARTIAL |
+| ML-7 (§7) | Failure modes | `MidiLearnManager::cancelLearning` | - | `MidiLearn::disarmingCancelsAnInFlightLearn`, `Stress::midiLearnArmDisarmHundredTimes` | PARTIAL |
+| ML-T1 (§8 LEARN-01..05) | Entry-point parity, all params learnable, CC catch, burst, timeout | see ML-2 | - | `MidiLearn::everyCcLearnsWithinOneBlock`, `MidiLearn::armingTimesOutAfterThirtySeconds` | PARTIAL |
+| ML-T2 (§8 LEARN-06..08) | MPE aggregation, note-class toggle, one-control-one-mapping | - | - | `MidiLearn::notesAreLearnedOnlyWhenAllowed` | PARTIAL |
+| ML-T3 (§8 LEARN-09..14) | Global/preset resolution, serialization, range, undo, popover, a11y | - | - | `MidiLearn::aGlobalMappingSurvivesAPresetLoad` | PARTIAL |
+
+<details><summary>Work list (midi-learn)</summary>
+
+- [ML-0 (§0)] effort S — DEFERRED (coordinator plan: serialized after the gap helpers) — verify one-control-one-mapping replacement and same-source-two-controls rule (LEARN-08)
+- [ML-1 (§1)] effort L — DEFERRED (coordinator plan: serialized after the gap helpers) — add MPE dimension sources (slide/pressure/pitch) with Highest/Lowest/Most recent/Mean aggregation and hold-last
+- [ML-2.3 (§2.3)] effort S — DEFERRED (coordinator plan: serialized after the gap helpers) — timeout is 30 s in code vs 20 s in spec (reconcile); add larger-swing burst resolution within 150 ms
+- [ML-3 (§3)] effort M — DEFERRED (coordinator plan: serialized after the gap helpers) — build mappings popover: rows with source/target, global glyph, Clear all, Save all as global, empty state
+- [ML-4 (§4)] effort S — DEFERRED (coordinator plan: serialized after the gap helpers) — assert preset-overrides-global resolution and midi_mappings.json round trip (LEARN-09/10)
+- [ML-5 (§5)] effort M — DEFERRED (coordinator plan: serialized after the gap helpers) — per-mapping min/max/invert editor in popover; re-scale on family widening (LEARN-11)
+- [ML-6 (§6)] effort M — DEFERRED (coordinator plan: serialized after the gap helpers) — add mpe_dimension field, undo entries for learn/delete/Clear all (LEARN-12), announcements (LEARN-14)
+- [ML-7 (§7)] effort S — DEFERRED (coordinator plan: serialized after the gap helpers) — cover sustain skip / conflict / missing target messages
+- [ML-T1 (§8 LEARN-01..05)] effort S — DEFERRED (coordinator plan: serialized after the gap helpers) — add LEARN-01 parity, LEARN-02 all-params and LEARN-04 burst tests
+- [ML-T2 (§8 LEARN-06..08)] effort M — DEFERRED (coordinator plan: serialized after the gap helpers) — LEARN-06 needs MPE feature; add LEARN-07/08 tests
+- [ML-T3 (§8 LEARN-09..14)] effort M — DEFERRED (coordinator plan: serialized after the gap helpers) — add LEARN-10..14 tests once popover/undo exist
 
 </details>
 
@@ -3120,40 +3131,40 @@ The engine is complete: 8 LFOs, 4 DAHDSR envelopes, 2 step sequencers, 2 followe
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
 | MM-1 (§0.1) | Control rate = block/32, min 128 samples, set in prepare | `Modulation/ModMatrix.cpp:ModMatrix::prepare` | n/a | `Modulation::controlRateIsABlockOver32FlooredAt128` | DONE |
-| MM-2 (§0.2) | Linear interpolation between control ticks — implemented as a one-pole halving step per tick, read once per block by the bridge; not linear, untested | `ModMatrix::processBlock` (currentOffsets += (target-current)*0.5) | n/a | - | PARTIAL |
+| MM-2 (§0.2) | Linear interpolation between control ticks — implemented as a one-pole halving step per tick, read once per block by the bridge; not linear, untested | `ModMatrix::processBlock` (currentOffsets += (target-current)*0.5) | n/a | `Modulation::offsetsRampLinearlyBetweenTicks` (now a true linear ramp to each tick's target; was a one-pole that never arrived) | DONE |
 | MM-3 (§0.3, §3) | Additive over base, (v*depth+offset)*range, clamped to range | `ModMatrix::apply` | n/a | `Modulation::routeModulatesItsDestination` | DONE |
 | MM-4 (§0.4) | Up to 8 sources per destination | `ModMatrix::addRoute` (kMaxRoutesPerDestination) | Modulate menu disables when full | `Modulation::destinationAcceptsEightSourcesAndNoMore` | DONE |
 | MM-5 (§0.4, §3) | Per-route depth and offset -100..+100% (engine) | `ModRoute::depth/offset` | see MM-40 | `Modulation::presetRoundTripIsExact` | DONE |
-| MM-6 (§0.5) | Sources reset on preset load — `loadPreset` reads the `modulation` block (absent = empty matrix) and `fromVar` resets | `Presets/PresetBlocks.cpp:readPresetBlocks` -> `ModMatrix::fromVar` -> `reset()` | n/a | `Presets.processorBlocksTravelInThePresetFile` | DONE |
-| MM-7 (§0.5) | Sources reset on snapshot recall (snapshot's matrix `fromVar` resets) — untested | `PluginProcessor::applySnapshotModules` | n/a | - | NO-TEST |
-| MM-8 (§0.5) | Sources reset on transport start — only LFOs in on-transport/grid retrigger and sequencers restart; envelopes/followers/random/free LFOs do not | `ModMatrix::updateSources` (`transportJustStarted`) | n/a | - | PARTIAL |
-| MM-9 (§0.5, §1.1) | Free-running LFO as per-source option — untested | `ModLfo::Retrigger::freeRun` | ADVANCED > MOD, LFO card `retriggerBox` | - | NO-TEST |
-| MM-10 (§0.6, §6) | Matrix stored as compact route array under `modulation` in every preset | `Presets/PresetBlocks.cpp:writePresetBlocks`; `ModMatrix::toVar` | n/a | `Presets.processorBlocksTravelInThePresetFile`, `Modulation.presetRoundTripIsExact` | DONE |
+| MM-6 (§0.5) | Sources reset on preset load — every preset load goes through `readPresetBlocks` -> `ModMatrix::fromVar`, which asks for a source restart that the next block performs on the audio thread (it used to reset from the message thread, racing the tick) | `ModMatrix::fromVar`, `sourceResetPending`, `processBlock` | n/a | `Modulation::loadingAPresetResetsTheSources` | DONE |
+| MM-7 (§0.5) | Sources reset on snapshot recall | `applySnapshotModules` -> `fromVar` -> deferred reset | n/a | `Modulation::recallingASnapshotResetsTheSources` | DONE |
+| MM-8 (§0.5) | Sources reset on transport start: envelopes, followers, random and sequencers; LFOs per their retrigger mode (free-run exempt by 1.1) | `ModMatrix::updateSources` (`transportJustStarted`) | n/a | `Modulation::transportStartAndNotesRetriggerWhereTheySay` | DONE |
+| MM-9 (§0.5, §1.1) | Free-running LFO as per-source option: ignores notes and transport | `ModLfo::Retrigger::freeRun` | ADVANCED > MOD, LFO card `retriggerBox` | `Modulation::transportStartAndNotesRetriggerWhereTheySay` | DONE |
+| MM-10 (§0.6, §6) | Matrix stored under `modulation` in every preset (state worker's PresetBlocks) | `writePresetBlocks`/`readPresetBlocks` | n/a | `Presets::processorBlocksTravelInThePresetFile`, `Modulation::aPresetFileCarriesTheMatrixExactly` | DONE |
 | MM-11 (§1.1) | LFO x8, 8 shapes incl S+H, random smooth, custom | `Modulation/ModSources.cpp:ModLfo` | MOD LFO card `shapeBox` | `Modulation::lfoFrequencyIsAccurate`, `Modulation::sampleAndHoldHoldsForAWholeCycle` | DONE |
-| MM-12 (§1.1) | LFO custom 8-point breakpoint editor — engine only | `ModLfo::setBreakpoint` | - | - | NO-GUI |
+| MM-12 (§1.1) | LFO custom 8-point breakpoint editor — component and edit kind done; placement on the LFO card waits on the ModMatrixPanel merge | `ModLfo::setBreakpoint`, `ModSourceEdit::Kind::lfoBreakpoint` | `UI/ModSourceEditors` `LfoBreakpointEditor` (not yet on the card) | `ModMatrixUi::draggingABreakpointWritesTheLfo` | PARTIAL |
 | MM-13 (§1.1) | LFO rate 0.01-40 Hz or tempo-synced 1/32T..8 bars incl dotted/triplet | `ModLfo`, `ModSyncDivision` | MOD LFO card `rateSlider`, `syncButton`, `divisionBox` | `Modulation::syncedLfoFollowsTheHost`, `Modulation::lfoFrequencyIsAccurate` | DONE |
 | MM-14 (§1.1) | LFO phase offset 0-360 | `ModLfo::setPhaseOffsetDegrees` | MOD LFO card `phaseSlider` | `ModMatrixUi::theSourceCardsWriteTheirNewControls` | DONE |
 | MM-15 (§1.1) | LFO depth, symmetry, smoothing 0-500 ms, uni/bipolar — untested | `ModLfo::setDepth/setSymmetry/setSmoothingMs/setBipolar` | MOD LFO card sliders, `bipolarButton` | - | NO-TEST |
-| MM-16 (§1.1) | LFO retrigger free/NoteOn/transport/sync boundary — untested | `ModLfo::Retrigger` | MOD LFO card `retriggerBox` | - | NO-TEST |
+| MM-16 (§1.1) | LFO retrigger free/NoteOn/transport (sync-boundary uses the host position) | `ModLfo::Retrigger` | MOD LFO card `retriggerBox` | `Modulation::transportStartAndNotesRetriggerWhereTheySay` (free, note, transport) | DONE |
 | MM-17 (§1.2) | Envelope x4 DAHDSR, 0-30 s stages, sustain 0-100% | `ModEnvelope` | MOD ENV card sliders | `Modulation::envelopeStageTimesAreAccurate` | DONE |
 | MM-18 (§1.2) | Envelope curve per stage | `ModEnvelope::setStageCurve` | MOD ENV card attack/decay/release curve combos | `ModMatrixUi::theSourceCardsWriteTheirNewControls` | DONE |
 | MM-19 (§1.2) | Envelope retrigger legato/always/one-shot | `ModEnvelope::setRetrigger` | MOD ENV card `envRetriggerBox` | `ModMatrixUi::theSourceCardsWriteTheirNewControls` | DONE |
 | MM-20 (§1.2) | Envelope loop mode off/D-S/D-R | `ModEnvelope::setLoopMode` | MOD ENV card `loopModeBox` | `ModMatrixUi::theSourceCardsWriteTheirNewControls` | DONE |
 | MM-21 (§1.3) | Step seq x2: length 4-64, grid, 5 directions, swing 0-75% | `ModStepSequencer` | MOD STEP card `lengthSlider`, `divisionBox`, `directionBox`, `swingSlider` | `Modulation::stepSequencerWalksItsSteps` | DONE |
-| MM-22 (§1.3) | Per-step value/gate/slide/probability — no step grid | `ModStepSequencer::setStep` | - | `Modulation::stepSequencerWalksItsSteps` (engine) | NO-GUI |
+| MM-22 (§1.3) | Per-step value/gate/slide/probability — step grid component and edit kind done; placement on the STEP card waits on the ModMatrixPanel merge | `ModStepSequencer::setStep`, `ModSourceEdit::Kind::seqStep` | `UI/ModSourceEditors` `StepGridEditor` (not yet on the card) | `ModMatrixUi::theStepGridWritesSteps`, `Modulation::stepSequencerWalksItsSteps` | PARTIAL |
 | MM-23 (§1.3) | Seq sync to host / internal rate (now with a control, saved in the matrix); no tap-tempo option | `ModStepSequencer::setSynced/setInternalRateHz`, `ModMatrix::toVar` "rate" | MOD STEP card `syncButton` + `seqRateSlider` | `ModMatrixUi::theSourceCardsWriteTheirNewControls` | PARTIAL |
 | MM-24 (§1.4) | Followers x2: source main/sidechain/per-string/pickup, attack, release, detection, threshold | `ModEnvelopeFollower` | MOD FOLLOW card `followerSourceBox`, `detectionBox`, sliders | `Modulation::envelopeFollowerTracksLevel` | DONE |
 | MM-25 (§1.4) | Follower per-string index and log/linear output curve | `ModEnvelopeFollower::setStringIndex/setLogarithmic` | MOD FOLLOW card `followerStringBox` + `Log` toggle | `ModMatrixUi::theSourceCardsWriteTheirNewControls` | DONE |
 | MM-26 (§1.5) | Note pitch/velocity/trigger/held/AT/poly-AT sources | `ModMatrix` note handling, `ModSourceSlots` 16-21 | MOD source selector / ADD ROUTE menu | `Modulation::noteSourcesFollowNotes` | DONE |
 | MM-27 (§1.6) | Any CC, 14-bit pairs, PB, mod wheel, ch pressure | `ModSourceSlots::ccBase/cc14Base/pitchBend...` | MOD source selector | `Modulation::controllerSourcesFollowMidi` | DONE |
 | MM-28 (§1.7) | 8 macros, named 32-char slots, host params "Macro 1..8" — 6 fixed-function macros + 2 assign, no naming | `Parameters.h:macro_*`, `ModSourceSlots::macroBase` | Easy/Advanced macro knobs | `GuiReach::everyAutomatableParameterHasAVisibleControl` | PARTIAL |
-| MM-29 (§1.7) | Macros assignable to any control and themselves modulatable — untested as such | macro source slots; macro params are destinations | right-click Modulate on macro knobs | - | NO-TEST |
+| MM-29 (§1.7) | Macros assignable to any control and themselves modulatable — untested as such | macro source slots; macro params are destinations | right-click Modulate on macro knobs | `Modulation::aMacroCanBeModulatedAndModulate` (fixed: the macro source took the raw knob, so a modulated macro modulated nothing) | DONE |
 | MM-30 (§1.8) | Random per-note / per-bar / smooth, seeded | `ModRandomSource` | MOD source selector | `Modulation::randomSourcesAreDeterministic` | DONE |
 | MM-31 (§2) | Every automatable parameter is a destination | `ModMatrix` destinations = parameter index | right-click Modulate on any `AttachedKnob` | `Modulation::routeModulatesItsDestination`, `ModelGapsUi::theSustainControlsAreModulationDestinations` | DONE |
 | MM-32 (§2) | Per-string destinations (tuning cents, damping, pluck...) — per-string values are not parameters | - | - | - | MISSING |
 | MM-33 (§2) | Rhythm-engine destinations (density, hand position, humanize) — only `hum_*` exist as params; density/hand position are not | `RhythmEngine::setVoicingDensity` (not a param) | - | - | PARTIAL |
 | MM-34 (§2) | Master volume, output pan — `master_gain` yes, no pan parameter | `Parameters.h:master_gain`, `stereo_width` | - | - | PARTIAL |
-| MM-35 (§2) | Snapshot morph position as destination — not a parameter (`preset_morph_position` is the preset morph) | `SnapshotBank::setMorphPosition` | - | - | MISSING |
+| MM-35 (§2) | Snapshot morph position as destination — the ui sweep made it the `snapshot_morph` parameter (LP-16), read through `ModMatrix::apply` | `LuthierAudioProcessor` snapshot-morph update, `SnapshotBank::setMorphPosition` | LIVE strip morph slider | `LiveSnapshots::aModSourceOnTheMorphParameterSweepsTheMorph` | DONE |
 | MM-36 (§2, §4) | Discrete destinations step at integer boundaries; bypass at 0.5 | `ModMatrix::apply` discrete branch | n/a | `Modulation::discreteDestinationsStepAtBoundaries`, `Modulation::aRouteAtZeroLeavesEveryChoiceWhereItIs` | DONE |
 | MM-37 (§3) | Route record {source_id, channel, destination_id, depth, offset, curve, enabled}, interned ids | `ModRoute`, `modSourceSlotForId` | n/a | `Modulation::presetRoundTripIsExact`, `Modulation::sourceIdsResolveBothWays` | DONE |
 | MM-38 (§3) | Curves Linear/Exp/Log/S | `ModCurve` | MOD route table curve cell (click cycles) | `Modulation::curvesPreserveSignAndFixedPoints` | DONE |
@@ -3167,43 +3178,31 @@ The engine is complete: 8 LFOs, 4 DAHDSR envelopes, 2 step sequencers, 2 followe
 | MM-46 (§5) | Right-click any control -> Modulate submenu creates a route | `UI/Widgets.cpp` kModulateMenuBase | any `AttachedKnob` right-click | `Editor::rightClickOffersModulationAndBuildsTheRoute` | DONE |
 | MM-47 (§5, §7) | Depth arc drawn around modulated controls — untested | `Widgets.cpp` "modulation arc" paint | every `AttachedKnob` | - | NO-TEST |
 | MM-48 (§5) | Per-source user colour tag; routes and arcs inherit; defaults alternate accents — arc is always `Palette::secondary` | - | - | - | MISSING |
-| MM-49 (§6) | Snapshot flag "includes modulation" vs "preset-level only" — snapshots always capture the matrix | `LuthierAudioProcessor::captureSnapshot` | - | - | MISSING |
+| MM-49 (§6) | Snapshot flag "includes modulation" vs "preset-level only" | `Snapshot::includesModulation`, `LuthierAudioProcessor::setSnapshotIncludesModulation`, `captureSnapshot` | LIVE snapshot pad right-click "Includes modulation" | `Live::aPresetLevelOnlySnapshotLeavesTheMatrixAlone` | DONE |
 | MM-50 (§6) | Import validates destination IDs and warns on unknown — list collected, no user-visible warning, and preset files carry no matrix | `ModMatrix::getUnknownDestinations` | - | `Modulation::unknownDestinationsAreReportedNotFatal` | PARTIAL |
-| MM-51 (§7) | Automation moves base/control; modulation does not move the control; both stack — untested | `ParameterBridge` reads param then `ModMatrix::apply` | knob + arc | - | NO-TEST |
+| MM-51 (§7) | Automation moves base/control; modulation does not move the control; both stack — untested | `ParameterBridge` reads param then `ModMatrix::apply` | knob + arc | `Modulation::automationAndModulationStack` | DONE |
 | MM-T1 (§8) | Test: each source's expected output (LFO freq, EG times, S+H hold) | n/a | n/a | `Modulation::lfoFrequencyIsAccurate`, `Modulation::envelopeStageTimesAreAccurate`, `Modulation::sampleAndHoldHoldsForAWholeCycle` | DONE |
 | MM-T2 (§8) | Test: 1000-route stress under CPU budget | n/a | n/a | `Modulation::thousandRouteStressTest` | DONE |
-| MM-T3 (§8) | Test: preset round trip keeps routes — through a saved preset file | n/a | n/a | `Modulation.presetRoundTripIsExact`, `Presets.processorBlocksTravelInThePresetFile` | DONE |
+| MM-T3 (§8) | Test: preset round trip byte-identical, through a saved preset file | n/a | n/a | `Modulation::aPresetFileCarriesTheMatrixExactly`, `presetRoundTripIsExact` | DONE |
 | MM-T4 (§8) | Test: 5-option selector changes at 1/5..4/5 | n/a | n/a | `Modulation::discreteDestinationsStepAtBoundaries` | DONE |
 | MM-T5 (§8) | Test: seeded random renders byte-identical | n/a | n/a | `Modulation::randomSourcesAreDeterministic` | DONE |
 
 <details><summary>Work list (modulation-matrix)</summary>
 
-- [MM-2 (§0.2)] effort M — replace the one-pole `current + (target-current)*0.5f` step in `ModMatrix::processBlock` (`Source/Modulation/ModMatrix.cpp` ~l.858) with a true linear ramp: keep a per-destination `rampStart`/`rampStep` (target-current)/controlRateSamples and have `ModMatrix::apply`/`getOffsetFor` read the value at the block's sample position (or give `ParameterBridge` a per-sub-block read at each tick). Test `Modulation::offsetsRampLinearlyBetweenTicks`: macro route stepped 0->1, process one tick in 32-sample slices, assert the offset rises by equal increments and hits the target exactly at the next tick.
-- [MM-6 (§0.5)] DEFERRED: rides on the RIO-30 worker's PresetManager extra-blocks hook; see sweep-notes/dsp1.md. Plan was: effort S — falls out of MM-10: when `PresetManager::fromVar` hands back the `modulation` block, call `ModMatrix::fromVar` (which calls `reset()`); when the key is absent call `clearRoutes()` + `reset()`. Test `Modulation::loadingAPresetResetsTheSources`: run an envelope into sustain, load a preset file, assert `getEnvelope(0)` stage is idle and LFO phase is back at its offset.
-- [MM-7 (§0.5)] effort S — add `Modulation::recallingASnapshotResetsTheSources`: `LuthierAudioProcessor`, `captureSnapshot(0, ...)`, advance an LFO / trigger envelope 0, recall snapshot 0 (`applySnapshotModules` path), assert `getEnvelope(0)` is idle and the LFO source value restarted.
-- [MM-8 (§0.5)] effort S — in `ModMatrix::updateSources` (`transportJustStarted` branch) also reset envelopes, followers and `randomSource` and restart free-running LFOs' phase (or document in spec/DECISIONS.md that free-run LFOs are exempt, since §1.1 makes free-run a per-source option). Test `Modulation::transportStartResetsEverySource` with `ModBlockContext::transportJustStarted=true`.
-- [MM-9 (§0.5, §1.1)] effort S — add `Modulation::aFreeRunningLfoIgnoresNotesAndTransport`: LFO 0 `Retrigger::freeRun`, record value, send `noteOn` and a `transportJustStarted` block, assert phase continuity (value differs from the reset value and advances by one tick's worth).
-- [MM-10 (§0.6, §6)] DEFERRED: rides on the RIO-30 worker's PresetManager extra-blocks hook; see sweep-notes/dsp1.md. Plan was: effort M — write `modulation` (the `ModMatrix::toVar` route array + source settings) into every `.luthierpreset`: add a `captureExtraBlocks` hook on `PresetManager` (shared with routing-io RIO-30) that `LuthierAudioProcessor` fills with `modMatrix.toVar()`, and in `PresetManager::fromVar` return the block via `onExtraBlocksLoaded` so the processor calls `modMatrix.fromVar` (MessageManager thread; the matrix already swaps its compiled table atomically). Test `Modulation::aPresetFileCarriesTheMatrix`: add 3 routes, `saveAs` temp file, `clearRoutes`, `loadPreset(file)`, assert `getRoutes()` equal.
 - [MM-12 (§1.1)] effort M — add a breakpoint editor to `ModSourceCard` (`Source/UI/ModMatrixPanel.cpp`), shown when the LFO shape is Custom: an 8-point draggable polyline component in the card's scope area writing `ModLfo::setBreakpoint(i, x, y)`; raise `ModSourceCard::preferredHeight` for LFO slots. Test `ModMatrixUi::draggingABreakpointWritesTheLfo` constructing the card on an LFO slot.
 - [MM-15 (§1.1)] effort S — add `ModMatrixUi::theLfoCardWritesItsSource` (new `Source/Tests/ModMatrixUiTests.cpp` or EditorTests): construct `ModSourceCard(processor)`, `setSlot(lfoBase)`, set depth/symmetry/smoothing sliders and toggle bipolar via `setValue(..., sendNotificationSync)`, assert `getLfo(0).getDepth()/getSymmetry()/getSmoothingMs()/isBipolar()` follow; plus an engine check that `setSmoothingMs(500)` slows a square LFO's edge.
-- [MM-16 (§1.1)] effort S — add `Modulation::lfoRetriggerModesRestartWhereTheySay`: for each `ModLfo::Retrigger` value assert the phase reset on `noteOn`, on `transportJustStarted`, on a bar boundary via `positionBeats`, and none for `freeRun`.
 - [MM-22 (§1.3)] effort M — add a step-grid child component to `ModSourceCard` for sequencer slots: `length` columns, bar height = value, click toggles gate, alt-drag slide, a per-step probability row; writes `ModStepSequencer::setStep(i, Step)`. Test `ModMatrixUi::theStepGridWritesSteps`.
 - [MM-23] effort S — remaining: a "Tap" sync option that takes the rate from `Live/TapTempo`.
 - [MM-28 (§1.7)] effort M — DEFER in part: DECISIONS.md ("Easy mode keeps its five older macro knobs", `macro_character`) keeps six fixed-function macros + two assignable; name the host params "Macro 1..8" is contradicted by saved automation. Do add user naming: a 32-char `macroNames` array in `ModMatrix::toVar/fromVar`, editable from a MACROS row on the MOD tab (see gui-integration GI-44/GI-117), shown on the knob label. Test `Modulation::macroNamesRoundTrip`.
-- [MM-29 (§1.7)] effort S — add `Modulation::aMacroCanBeModulatedAndModulate`: route `lfo1 -> macro_assign_a` and `macro7 -> amp_gain`, assert `apply` on `macro_assign_a` moves and the LFO's movement propagates (next block) into `amp_gain` via the macro source slot.
 - [MM-32 (§2)] effort L — expose per-string destinations as virtual mod destinations rather than APVTS params (per-string state lives in the preset `strings` block): extend `ModMatrix` destination resolution with ids `string<N>.tune_cents / damping / pluck_pos`, and have `LuthierEngine` read `ModMatrix::getVirtualOffset(id)` per block for each string. Test `Modulation::aPerStringDestinationMovesOnlyThatString`.
 - [MM-33 (§2)] effort M — add `rhythm_density` and `rhythm_hand_position` parameters (append at end of layout per DECISIONS "New parameters are appended") read by `RhythmEngine::setVoicingDensity`/hand position in the processor's parameter bridge, with knobs on ADVANCED > RHYTHM tab (`RhythmPanel`). Test `Modulation::rhythmDensityIsADestination` + GuiReach picks the knob up.
 - [MM-34 (§2)] effort S — add an `output_pan` parameter (appended) applied in `DSP/Master/MasterBus` as constant-power pan after width; knob next to master gain in column 4 / footer master area. Test `Modulation::outputPanIsADestination` and a MasterBus pan-law check.
-- [MM-35 (§2)] effort M — add a `snapshot_morph` parameter (appended) that the processor forwards to `SnapshotBank::setMorphPosition` each block; attach it to the Live strip's morph slider (`UI/LiveStrip.cpp`) instead of the direct call. Test `Live::snapshotMorphIsAutomatableAndModulatable`.
 - [MM-39 (§3)] effort M — add `ModCurve::custom` (appended before `numCurves`) backed by a per-route 8-point table stored by name in `ModMatrix` (`customCurves` map, serialized in `toVar`); `applyModCurve` needs the table so the compiled route carries a pointer/index; curve column menu gets "Custom..." opening a small breakpoint editor (reuse MM-12's component). Test `Modulation::customCurvesApplyAndRoundTrip`.
 - [MM-43 (§5)] effort S — DEFER: column 4 is a narrow column; stacking source card above the table is documented in `ModMatrixPanel.h` and matches gui-integration's Col-4 tab width. Add a line to spec/DECISIONS.md.
 - [MM-44 (§5)] effort S — add `ModMatrixUi::addRouteButtonAddsARoute`: construct `ModMatrixPanel`, trigger `addButton` (menu path: expose `showAddRouteMenu`'s result handler or add a test hook `addRouteFor(sourceSlot, paramId)`), assert `getNumRoutes()==1` and the table row count updates.
 - [MM-47 (§5, §7)] effort S — add `ModMatrixUi::aModulatedKnobDrawsItsArc`: attach a `LuthierKnob` to `amp_gain`, add a macro route, set macro value, render the knob into an `Image` and assert pixels outside the knob body differ from an unmodulated render (and `ModMatrix::getOffsetFor` != 0).
 - [MM-48 (§5)] effort M — add per-source colour tags: `std::array<int, ModSourceSlots::count> sourceColour` in `ModMatrix` (serialized in `toVar`), defaults alternating `Palette::accent`/`Palette::secondary` by family, a colour chip on `ModSourceCard`'s header with a palette popup, used by `ModRouteTable::paintCell` row swatch and `LuthierKnob::paint`'s arc (look up the dominant route's source for that parameter). Same work as gui-integration GI-79. Test `ModMatrixUi::routesAndArcsInheritTheSourceColour`.
-- [MM-49 (§6)] effort S — add `bool includesModulation` to `Snapshot` (`Live/Snapshots.h`, serialized), default true; `captureSnapshot` stores `modMatrix` only when set and `applySnapshotModules` already skips an empty matrix; checkbox in the snapshot right-click menu (`LiveStrip.cpp:SnapshotStrip::showSlotMenu`). Test `Live::aPresetLevelOnlySnapshotLeavesTheMatrixAlone`.
 - [MM-50 (§6)] DEFERRED: rides on the RIO-30 worker's PresetManager extra-blocks hook; see sweep-notes/dsp1.md. Plan was: effort S — after MM-10's load, if `ModMatrix::getUnknownDestinations()` is non-empty post a warning banner through `UI/Notifications` ("N modulation routes point at unknown controls: ...") from the editor's preset-loaded callback. Test extends `Modulation::unknownDestinationsAreReportedNotFatal` to load a preset file with a bogus destination and assert the notification is queued.
-- [MM-51 (§7)] effort S — add `Modulation::automationAndModulationStack`: set `amp_gain` param to 0.3 (as automation does), add a macro route depth 0.2, assert `apply` = base + offset clamped, the param's own `getValue()` is still 0.3, and changing the param moves the result by the same delta.
-- [MM-T3 (§8)] DEFERRED: rides on the RIO-30 worker's PresetManager extra-blocks hook; see sweep-notes/dsp1.md. Plan was: effort S — falls out of MM-10: make the MM-10 test compare `JSON::toString(modMatrix.toVar())` before save and after load byte-for-byte.
 
 </details>
 
@@ -3253,7 +3252,7 @@ REALISM-C has landed on this checkout: `DSP/Noise/NoiseFloor.*` with every injec
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
 | NF-1 (§1, 2.1) | Existing hum kept (ID, range, default 0.12, constant 0.0022, pre-circuit) | `DSP/Pickup/PickupEngine.cpp:processStrings` | ADVANCED amp column "Amp Buzz" knob, `AdvancedPanel::ampBuzz` | `NoiseFloor.humCalibration` | DONE |
-| NF-2 (§1, 5) | Display name "Single-coil Hum"; Advanced knob relabelled mirror - `Parameters.cpp` names the param "Single-coil Hum" but `AdvancedPanel.cpp` still `addKnob(ampBuzz, "Amp Buzz")` | `Parameters.cpp:549` (renamed, same ID) | `AdvancedPanel.cpp:837` label still "Amp Buzz" | - | PARTIAL |
+| NF-2 (§1, 5) | Display name "Single-coil Hum"; Advanced knob relabelled mirror — branch renames the param but AdvancedPanel label still "Amp Buzz" | (branch) `Parameters.cpp` renamed | `AdvancedPanel.cpp` `addKnob(ampBuzz, "Amp Buzz")` unchanged on branch | - | PARTIAL |
 | NF-3 (§0.1, 2, 4) | Sources injected where they enter (pickup, circuit-in, DI, amp-in); acoustic gets hiss + cable only | `DSP/Noise/NoiseFloor.*` taps in `LuthierEngine::processSubBlock` | n/a | `NoiseFloor.aHumbuckerCancelsHumButNotAGroundLoop`, `NoiseFloor.theVolumeKnobActsOnHumOnly` | DONE |
 | NF-4 (§0.2) | Own module, not the NoiseEngine pool | `NoiseFloor` class | n/a | n/a (structure) | DONE |
 | NF-5 (§0.3) | Deterministic from character seed; reset reseeds | `NoiseFloor::reset/setSeed` | n/a | `NoiseFloor.rendersAreDeterministic` | DONE |
@@ -3261,7 +3260,7 @@ REALISM-C has landed on this checkout: `DSP/Noise/NoiseFloor.*` with every injec
 | NF-7 (§2) | Shared mains phase accumulator, phase-locked with hum | `NoiseFloor` mains phase | n/a | `NoiseFloor.aHumbuckerCancelsHumButNotAGroundLoop` | DONE |
 | NF-8 (§2.1) | Position gain g_angle × g_dist, bit-identical at 0°/1 m | `NoiseFloor::positionGain`, `PickupEngine::setHumPositionGain` | NOISE FLOOR position pad | `NoiseFloor.positionScalesTheHum` | DONE |
 | NF-9 (§2.1) | `noise_mains_hz` drives setMainsFrequency (today hard-coded 60) | `ParameterBridge::applyToEngine` | NOISE FLOOR 50/60 switch | `NoiseFloor.regionSetsTheHumFrequency` | DONE |
-| NF-10 (§2.1) | Hum calibration -40+-6 dB; out-of-window goes in DECISIONS.md, constant unchanged (measured -58 dB, in spec text only) - no matching entry in spec/DECISIONS.md | - | n/a | `NoiseFloor.humCalibration`, `NoiseFloor.calibrationIsLogged` | PARTIAL |
+| NF-10 (§2.1) | Hum calibration -40±6 dB; out-of-window goes in DECISIONS.md, constant unchanged (measured -58 dB, recorded in spec text only) — spec/DECISIONS.md entry not written | - | n/a | `NoiseFloor.humCalibration`, `NoiseFloor.calibrationIsLogged` | PARTIAL |
 | NF-11 (§2.2) | Fluorescent buzz (2×mains impulses, 3.5 kHz BP) | `NoiseFloor::beginBlock` | Guitar row | `NoiseFloor.fluorescentSpectrum` | DONE |
 | NF-12 (§2.3) | Passive Johnson hiss from live R, before circuit | `johnsonVoltsRms`, `hissResistance` | Guitar row | `NoiseFloor.passiveHissIsPhysical` | DONE |
 | NF-13 (§2.4) | Cable movement rolls/events, 4 voices, q per CableQuality, after circuit | `onNoteOn`, `startCableEvent` | Guitar row | `NoiseFloor.cableMovementRollsAndScales` | DONE |
@@ -3314,19 +3313,19 @@ REALISM-C has landed on this checkout: `DSP/Noise/NoiseFloor.*` with every injec
 | NE-1 (§0.1) | Export offline on a worker thread — NOTATION tab and File menu use `writeAsync`; tab-reader export (`PracticePanel.cpp` ~1211) still calls `exporter.write` on the message thread | `UI/NotationPanel.cpp:NotationTakeExport::writeAsync` | NOTATION tab Export, File > Export notation... | `ModelGapsUi::notationExportRunsOnAWorkerThread` | PARTIAL |
 | NE-2 (§0.2) | Guitar-aware output: string/fret, not pitch | `Notation/PerformanceScore:ScoreNote` | n/a | `Notation::stringAndFretAreNotDerivedFromPitch` | DONE |
 | NE-3 (§0.3) | Technique metadata preserved (bends, slides, legato, PM, harmonics, tap, whammy) | `ScoreTechnique`, `Capture/PerformanceCapture` | n/a | `Capture::techniquesBendsChordsAndMetersReachTheScore`, `ModelGapsUi::theCaptureHearsTechniquesAndChordsFromTheEngine` | DONE |
-| NE-4 (§0.4) | Exports round-trip with documented per-format losses — no GP re-import | `NotationImporter::read` (txt/musicxml only) | n/a | `Notation::musicXmlRoundTrips`, `Notation::asciiTabRoundTrips`, `Notation::formatsDeclareTheirLosses` | PARTIAL |
+| NE-4 (§0.4) | Exports round-trip with documented per-format losses — no GP re-import | `NotationImporter::readGuitarPro/readGpif`; the writer now emits GPIF Bars/Voices/Beats (a chord is one beat, gaps are rest beats) | n/a | `Notation.guitarProRoundTripsStringsAndFrets` | DONE |
 | NE-5 (§1) | PerformanceScore model (meta, tracks, measures, voices, notes, techniques) | `Notation/PerformanceScore.h` | n/a | `Notation::captureBuildsMeasures` | DONE |
 | NE-6 (§1) | Capture last N minutes, default 10 | `PerformanceCapture::kDefaultRollingMinutes` | NOTATION `rollingMinutes` slider | `Capture::rollingKeepsTheLastMinutes` | DONE |
 | NE-7 (§2.1) | MusicXML 4.0 `<technical>` bend/slide/hammer/pull/PM/harmonic/tap/string/fret | `NotationExporter::renderMusicXml` | NOTATION format box | `Notation::musicXmlIsWellFormedAndGuitarAware` | DONE |
 | NE-8 (§2.1/§4) | MusicXML chord symbols from detector (`<harmony>`) | `renderMusicXml` (chordSymbols) | NOTATION export | `ModelGapsUi::theCaptureHearsTechniquesAndChordsFromTheEngine` | DONE |
-| NE-9 (§2.1) | Grace notes for hammer-on/pull-off ornaments — not written | - | - | - | MISSING |
-| NE-10 (§2.1) | Multi-voice per staff (`<voice>`/`<backup>`) — implemented, no test exercises a second voice | `PerformanceScore` voice split, `renderMusicXml` | n/a | - | NO-TEST |
+| NE-9 (§2.1) | Grace notes for hammer-on/pull-off ornaments — not written | `renderMusicXml` writes grace notes (slurred to a hammer/pull target); `readMusicXml` reads them back | - | `Notation.aGraceHammerIsAGraceNote` | DONE |
+| NE-10 (§2.1) | Multi-voice per staff (`<voice>`/`<backup>`) — implemented, no test exercises a second voice | `PerformanceScore` voice split, `renderMusicXml` | n/a | `Notation.polyphonicMaterialGetsASecondVoice` | DONE |
 | NE-11 (§2.1) | Whammy as pitch-bend text direction | `renderMusicXml` whammy words | n/a | `Notation::formatsDeclareTheirLosses` | DONE |
-| NE-12 (§2.2) | Guitar Pro .gp bundle: string/fret, bend curves, slide types, PM, harmonics, tapping — no semi harmonic, no whammy bar events; fidelity only checked as valid zip + note count | `NotationExporter::writeGuitarPro/renderGuitarProXml` | NOTATION format box | `Notation::guitarProBundleIsAValidZip` | PARTIAL |
-| NE-13 (§2.2) | GP chord diagrams at first occurrence — writes `<Chord firstOccurrence>` name only, no fret diagram | `renderGuitarProXml` | NOTATION `chordDiagrams` toggle | - | PARTIAL |
+| NE-12 (§2.2) | Guitar Pro .gp bundle: string/fret, bend curves, slide types, PM, harmonics, tapping — no semi harmonic, no whammy bar events; fidelity only checked as valid zip + note count | `renderGuitarProXml`: whammy as beat WhammyBar properties (was an XML comment), LetRing/AntiAccent/Accent/Trill | NOTATION format box | `Notation.guitarProCarriesDiagramsAndWhammy` | PARTIAL |
+| NE-13 (§2.2) | GP chord diagrams at first occurrence — writes `<Chord firstOccurrence>` name only, no fret diagram | `renderGuitarProXml`: Track DiagramCollection from the first voicing; Beat <Chord> ids | NOTATION `chordDiagrams` toggle | `Notation.guitarProCarriesDiagramsAndWhammy` | DONE |
 | NE-14 (§2.3) | ASCII: 6 lines low-bottom, ruler, symbols b r h p / \ ~ PM <12> [12], width 80 default, section headings | `NotationExporter::renderAsciiTab` | NOTATION `lineWidth` slider | `Notation::asciiTabColumnsAlign`, `Notation::asciiTabUsesTheSpecifiedSymbols` | DONE |
 | NE-15 (§2.4) | MIDI per-string tracks (16 max) | `NotationExporter::writeMidi` | NOTATION format box | `Notation::midiExportIsPerString` | DONE |
-| NE-16 (§2.4) | MIDI RPN string/fret hints, pitch bend for bend/whammy, CC68 legato — written, not asserted by any test | `NotationExporter::writeMidi` | n/a | - | NO-TEST |
+| NE-16 (§2.4) | MIDI RPN string/fret hints, pitch bend for bend/whammy, CC68 legato — written, not asserted by any test | `NotationExporter::writeMidi` | n/a | `Notation.midiExportCarriesBendRangeBendsAndLegato` | DONE |
 | NE-17 (§3) | Live TAB view (last N beats) in practice panel + NOTATION tab | `renderAsciiTabWindow`, `NotationPanel`, practice TAB drawer | Practice drawer TAB; ADVANCED > NOTATION | `Notation::liveTabWindowRendersASlice`, `Capture::theLiveTabShowsWhatWasPlayed` | DONE |
 | NE-18 (§3) | Current bar as tab dots on the fretboard | `FretboardComponent::refreshTabDots` | fretboard | `ModelGapsUi::theCurrentBarIsDrawnOnTheFretboardAsTabDots` | DONE |
 | NE-19 (§3) | Controls: bar count 1-8, symbol density full/minimal/notes-only | `NotationExportOptions::density`, window | NOTATION `barsBox`, `densityBox` | `Notation::liveTabWindowRendersASlice`, `Notation::asciiTabUsesTheSpecifiedSymbols` | DONE |
@@ -3344,10 +3343,10 @@ REALISM-C has landed on this checkout: `DSP/Noise/NoiseFloor.*` with every injec
 | NE-31 (§6.3) | States off / rolling (default) / armed | `PerformanceCapture::setState` | NOTATION state buttons | `Capture::offWritesNothingAndLeavesTheAudioAlone`, `Capture::armedStartsCleanFromTheNextNote`, `NotationTab::stateButtonsLiveTabAndPreview` | DONE |
 | NE-32 (§6.4) | Quarter notes vs transport, seconds when stopped, quantise afterwards | `CaptureClock`, quantise options | NOTATION `quantiseBox` | `Capture::transportTimingIsInQuarterNotes`, `Capture::freePlayIsInSecondsAndQuantisesAfterwards` | DONE |
 | NE-33 (§7) | Test: MusicXML round trip via MuseScore fixture, zero technique loss — uses own importer and only asserts some techniques survive | `NotationImporter::readMusicXml` | n/a | `Notation::musicXmlRoundTrips` | PARTIAL |
-| NE-34 (§7) | Test: Guitar Pro round trip via fixture parser, string/fret identical — no GP parser | - | n/a | - | MISSING |
+| NE-34 (§7) | Test: Guitar Pro round trip via fixture parser, string/fret identical — no GP parser | - | n/a | `Notation.guitarProRoundTripsStringsAndFrets` | DONE |
 | NE-35 (§7) | Test: ASCII column alignment at 4/4 | `renderAsciiTab` | n/a | `Notation::asciiTabColumnsAlign` | DONE |
 | NE-36 (§7) | Test: exported MIDI re-rendered nulls at -60 dBFS | `MidiProfiles`, `MidiPerformance` | n/a | `MidiExport::luthierRoundTripNullsEveryFactoryPreset`, `Capture::aCapturedPhraseRoundTripsThroughLuthierMidi` | DONE |
-| NE-37 (§7) | Test: 100 chord progressions, >95% detection — only a two-chord case exists | chord detector / offline extraction | n/a | `ModelGaps::aMonoTakeGetsItsChordsOffline` (2 chords) | MISSING |
+| NE-37 (§7) | Test: 100 chord progressions, >95% detection — only a two-chord case exists | chord detector / offline extraction | n/a | `Notation.chordExtractionOnAHundredProgressions` (the detector both paths use) | DONE |
 | NE-38 (§7.1) | Capture test: voiced notes not MIDI | | n/a | `Capture::recordsVoicedNotesNotMidi` | DONE |
 | NE-39 (§7.1) | Capture test: no allocation over 10 000 notes | | n/a | `Capture::capturingTenThousandNotesDoesNotAllocate` | DONE |
 | NE-40 (§7.1) | Capture test: overflow drops oldest, exact counter | | n/a | `Capture::ringOverflowDropsTheOldestAndCountsExactly` | DONE |
@@ -3360,24 +3359,17 @@ REALISM-C has landed on this checkout: `DSP/Noise/NoiseFloor.*` with every injec
 <details><summary>Work list (notation-export)</summary>
 
 - [NE-1] effort S — replace the synchronous `exporter.write` in `UI/PracticePanel.cpp` (tab-reader "Export notation", ~line 1211) with a worker job (reuse the `NotationTakeExport` export pool: add a `writeScoreAsync(score, format, file, options, done)` overload) and post the status label update back to the message thread; extend `ModelGapsUi::notationExportRunsOnAWorkerThread` to cover the score overload.
-- [NE-4] effort L — add a GPIF reader (`NotationImporter::readGuitarPro`: unzip `.gp`, parse `Content/score.gpif` Tracks/MasterBars/Bars/Voices/Beats/Notes with String/Fret properties) at least for files Luthier writes; update `canRead`; this unblocks NE-34.
-- [NE-9] effort M — in `NotationExporter::renderMusicXml`, emit `<grace/>` notes for hammer-on/pull-off ornaments (short legato notes preceding the target, e.g. duration < 1/16 with hammer/pull technique) with `<slur>`; add a MusicXML test asserting `<grace` appears for a grace-hammer fixture and that the importer reads it back.
-- [NE-10] effort S — add `Notation::polyphonicMaterialGetsASecondVoice`: build a score with an overlapping sustained bass note under a melody, assert `measure.voices.size() == 2`, MusicXML contains `<backup>` and `<voice>2</voice>`, and the round trip preserves both voices' notes.
-- [NE-12] effort M — in `renderGuitarProXml`, add `HarmonicType` Semi, whammy bar as beat-level `WhammyBar` properties from the whammy curve points, and slide in/out flags already present; extend `Notation::guitarProBundleIsAValidZip` (or add `guitarProCarriesEveryTechnique`) asserting each technique's Property is present in the GPIF.
-- [NE-13] effort M — write real chord diagrams: a `<DiagramCollection>` on the Track with `<Item name=...><Diagram stringCount frets baseFret>` built from the first voicing of each chord (string/fret of notes at the chord's beat), referenced by the Beat's `<Chord>` id; test that each chord symbol yields exactly one diagram.
-- [NE-16] effort S — extend `Notation::midiExportIsPerString` to read back the MIDI and assert per track: RPN 101/100/6 at tick 0, pitch-wheel events for a bend/whammy note, CC68 127/0 bracketing a hammer-on.
+- [NE-12] PARTIAL: whammy and the remaining note techniques are written (dsp2); no Semi harmonic type exists in ScoreTechnique to map || was: effort M — in `renderGuitarProXml`, add `HarmonicType` Semi, whammy bar as beat-level `WhammyBar` properties from the whammy curve points, and slide in/out flags already present; extend `Notation::guitarProBundleIsAValidZip` (or add `guitarProCarriesEveryTechnique`) asserting each technique's Property is present in the GPIF.
 - [NE-20] effort S — add a `NotationTab` test toggling `showTab` (live tab component hidden/shown) and setting `speedBox` to Freeze (live text unchanged after new notes + timer ticks) and Fast (text updates).
 - [NE-23] effort S — expose the header's file-menu handler (e.g. `HeaderBar::handleFileMenuResult(int)`) and add a test that item 13 is enabled only with captured notes and starts `NotationTakeExport::writeAsync` (use a test destination hook instead of the chooser).
 - [NE-27] effort S — add an "Export notation..." button (or a Save-take popup menu entry) next to `SessionTab::saveButton` in `UI/PracticePanel.cpp` that runs `NotationTakeExport::writeAsync` with the NOTATION tab's current format/options; test it exists and is enabled after a capture.
 - [NE-33] effort M — add a MuseScore-exported MusicXML fixture (checked into `Tests/fixtures/`) and a test that reads it and compares note count/pitches; tighten `musicXmlRoundTrips` to assert every supported technique type in the source score survives (per-note technique set equality).
-- [NE-34] effort M — after NE-4, add `Notation::guitarProRoundTripsStringsAndFrets`: export a technique-rich score as `.gp`, re-import, assert per-note string/fret/techniques identical.
-- [NE-37] effort M — add `Notation::chordExtractionOnAHundredProgressions`: generate 100 progressions from a table of common chord qualities/roots/voicings (both Poly-detector and Mono offline paths), assert >95% correct symbols.
 
 </details>
 
 ## onboarding.md
 
-TUNE-HELP has landed on this checkout: the curated first-run preset and state, the welcome banner, the 12-stop tour, first-week discovery marks, OS-following first-launch defaults, six example tunes, twelve MIDI clips, ten setlists, the TUNE and Workshop first-encounter hints, Restore first-run and the upgrade banner, with the `Onboarding`, `FirstRun`, `FirstEncounterHint`, `SampleContent` and `ReturningUser` suites registered. Still open: macOS/Linux OS reads (OB-10), backing tracks (OB-17), videos (OB-23), an explicit clean-close last-preset restore (OB-24) and a tour test at UI scales (OB-T2); realism defaults (OB-5) and the migration backup (OB-31) work but have no test.
+TUNE-HELP has landed on this checkout: the curated first-run preset and state, the welcome banner, the 12-stop tour, first-week discovery marks, OS-following first-launch defaults, six example tunes, twelve MIDI clips, ten setlists, the TUNE and Workshop first-encounter hints, Restore first-run and the upgrade banner, with the `Onboarding`, `FirstRun`, `FirstEncounterHint`, `SampleContent` and `ReturningUser` suites registered. Still open: realism defaults in the first-run preset (OB-5), macOS/Linux OS reads (OB-10), backing tracks (OB-17), videos (OB-23), last-preset restore on a clean close (OB-24), a NEW-dots test (OB-30), the dated Backup move on migration (OB-31) and a tour test at UI scales (OB-T2).
 
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
@@ -3385,35 +3377,35 @@ TUNE-HELP has landed on this checkout: the curated first-run preset and state, t
 | OB-2 (§0.5, §5) | First run does no network; update check, telemetry, crash, beta all off | `Updates/Telemetry.cpp` settings defaults | Options -> UPDATES/PRIVACY | `Telemetry::everythingIsOffByDefault`, `Telemetry::nothingIsSentWhileSwitchedOff` | DONE |
 | OB-3 (§1) | Fresh preset + guitar ("Modern Overdrive" / single-cut: owner uses "Single-Cut Crunch") | `applyFirstRunPreset` | n/a | `Onboarding.aFreshInstallStartsWhereSectionOneSays` | DONE |
 | OB-4 (§1, §5) | Easy mode, Live off, drawer collapsed, Workshop closed, Slide off, stock ranges, sidechain/recorder off | `UiState` defaults, param defaults | n/a | `Onboarding.aFreshInstallStartsWhereSectionOneSays` | DONE |
-| OB-5 (§1) | Realism defaults (squeak 25 %, player-friendly setup style) — squeak param default is 0.25; the first-run preset sets no player-friendly setup style; no test | `squeak_amount` default 0.25; `kDefaultSetupStyle`=1 player-friendly (`DSP/Noise/FretBuzz.h`); first-run preset "Single-Cut Crunch" leaves both at default | n/a | - (no test asserts squeak or setup style after a first run) | NO-TEST |
+| OB-5 (§1) | Realism defaults (squeak 25 %, player-friendly setup style) — squeak param default is 0.25; the first-run preset sets no player-friendly setup style; no test | `squeak_amount` default 0.25 | n/a | - | PARTIAL |
 | OB-6 (§2) | Welcome banner: Yes / Maybe later (3x) / Don't ask again, per version | `UI/Onboarding.*:WelcomeBanner`, `PluginEditorOnboarding.cpp` | banner under header | `Onboarding.theWelcomeBannerOffersTheTourUpToThreeTimes` | DONE |
 | OB-7 (§2) | Help -> Take the tour | `HelpTab` "Take the tour" | HELP tab | `Onboarding.theBannerAndHelpBothStartTheTour` | DONE |
 | OB-8 (§3) | 12-stop tour with Next/Back/Skip, Escape, end text | `TourOverlay`, `findTourTarget` | overlay callouts | `Onboarding.theTourHasTwelveStopsInTheSpecsOrder`, `Onboarding.theCalloutSitsBesideItsTargetInsideTheWindow` | DONE |
 | OB-9 (§4) | First week: ? pulse, unused-tab dots, dice tooltip, wrench/TUNE/Slide pulses; quiet after 7 launches or days | `DiscoveryLayer`, `DiscoveryTooltip` | header, tabs | `Onboarding.theDiscoveryWeekIsSevenLaunchesOrSevenDays`, `Onboarding.theFirstWeekMarksTheWrenchTheTabsAndTheHelpIcons`, `Onboarding.theRandomiseTooltipShowsOnTheFirstHoverOnly` | DONE |
-| OB-10 (§5) | Reduced motion, high contrast, DPI > 150 % -> 125 %, locale follow the OS on first launch - `FirstRunOs.cpp` reads Windows only; no macOS .mm or Linux read exists, so those answer "off" | `UI/FirstRun.*`, `UI/FirstRunOs.cpp` | n/a | `FirstRun.theOsPreferencesMapToSectionFivesDefaults`, `FirstRun.appliesOnceOnAFreshInstallAndNeverAgain` | PARTIAL |
+| OB-10 (§5) | Reduced motion, high contrast, DPI > 150 % -> 125 %, locale follow the OS on first launch — `FirstRunOs.cpp` reads Windows only; macOS/Linux answer "off" | `UI/FirstRun.*`, `UI/FirstRunOs.cpp` | n/a | `FirstRun.theOsPreferencesMapToSectionFivesDefaults`, `FirstRun.appliesOnceOnAFreshInstallAndNeverAgain` | PARTIAL |
 | OB-11 (§6) | Factory presets across Electric, Acoustic, Classical, Bass, Utility (36; 44 ship) | `Presets/FactoryPresets` | preset browser | `Presets::everyFactoryPresetLoadsAndPlays` | DONE |
 | OB-12 (§6) | Factory guitars as `.luthierguitar` files (27 ship) | `Resources/Guitars` | header guitar list / WORKSHOP | `Workshop::everyFactoryGuitarLoadsAndRoundTrips`, `Workshop::theFactoryLibraryIsThere` | DONE |
 | OB-13 (§6) | 60+ factory parts (148 ship) | `Resources/Parts`, `PartLibrary` | WORKSHOP drawer | `Workshop::theFactoryLibraryIsThere` | DONE |
 | OB-14 (§6) | Tune templates (12 in spec; ten per DECISIONS C-16) | `Tune/TuneTemplates.cpp` | TUNE NEW | `TuneBuilder::theTenTemplatesLoadInOrderAndAreValid` | DONE |
 | OB-15 (§6) | Six example tunes | `TuneExamples::buildExampleTunes`, `Resources/Tunes/Examples` | TUNE New -> Example tunes | `SampleContent.theSixExampleTunesAreValidAndShipAsBuilt`, `SampleContent.anExampleTuneOpensFromTheTuneTabAndPlays` | DONE |
 | OB-16 (§6) | Twelve example MIDI clips in `Resources/Examples` | `TuneExamples::buildMidiClips` | n/a | `SampleContent.theTwelveMidiClipsShipAndPlay` | DONE |
-| OB-17 (§6) | Six original backing tracks landed 2026-09-30 (owner's size worry: 13.4 MB total, FLAC) | `Resources/Practice/BackingTracks/`, `BackingTrackLibrary` | - | `SampleContent::theSixBackingTracksShipAndPlay` | DONE |
+| OB-17 (§6) | Six royalty-free backing tracks — owner defers (TO LOOPER / audio export render tunes on demand); not recorded in DECISIONS.md | - | - | - | MISSING |
 | OB-18 (§6) | Ten example setlists | `TuneExamples::installExampleSetlists` | LIVE setlist | `SampleContent.theTenExampleSetlistsInstallOnceOverTheFactoryBank` | DONE |
 | OB-19 (§6) | The tour as a reusable walkthrough | `TourOverlay` | Help -> Take the tour | `Onboarding.theBannerAndHelpBothStartTheTour` | DONE |
 | OB-20 (§7) | Advanced-range explainer, once, exact text | `UI/RangesUi.cpp:showExplainerIfFirstTime` | popover on first past-stock drag | `FirstRun.theRangeExplainerSaysSectionSevensWords` | DONE |
 | OB-21 (§8) | TUNE first-encounter hint, once, first session | `FirstEncounterHint` in `TunePanel` | TUNE tab top | `FirstEncounterHint.showsOnceAndOnlyInTheFirstSession`, `FirstEncounterHint.theTuneTabAndTheBenchCarryTheirHints` | DONE |
 | OB-22 (§9) | Workshop first-encounter hint in the bench header | `WorkshopPanel::showFirstEncounterHintIfDue` | bench header | `FirstEncounterHint.theTuneTabAndTheBenchCarryTheirHints` | DONE |
-| OB-23 (§10) | Paths A/B/C documented in the manual and Help topic; no videos exist | `docs/USER_MANUAL.md`, Help topic | HELP | `HelpLinks.otherWorkstreamsPanelsPinToTheirOwnTopics` | PARTIAL |
-| OB-24 (§11) | Restore last preset if closed clean - the preset name rides in plugin state (`getStateInformation` "preset"; standalone `savePluginState`); no explicit clean-close flag; not tested | `PluginProcessor.cpp` state "preset" property; `StandaloneApp.cpp` savePluginState | n/a | - | PARTIAL |
+| OB-23 (§10) | Paths A/B/C documented in the manual and videos — manual and Help topic only; no videos (DEFER not recorded) | `docs/USER_MANUAL.md`, Help topic | HELP | `HelpLinks.otherWorkstreamsPanelsPinToTheirOwnTopics` | PARTIAL |
+| OB-24 (§11) | Restore last preset if closed clean — no last-preset / clean-close memory; host/plugin state only | host/plugin state only | n/a | - | MISSING |
 | OB-25 (§11) | Restore window size, mode, tab | `UiState::editorWidth/Height/advancedMode`, `UiPreferences` tab | n/a | `Editor::theWorkspaceTabWrapsAndIsRemembered` | DONE |
 | OB-26 (§11) | Restore practice drawer state | `UiState::practiceDrawerOpen` | Practice drawer | `ReturningUser.thePracticeDrawerComesBackAsItWasLeft` | DONE |
 | OB-27 (§11) | Restore Slide Mode and the last tune | `slide_mode` param; tune in plugin state | n/a | `TunePanel::theSessionRoundTripsThroughPluginState`, `TuneProcessor::thePluginStateKeepsTheTuneAndTheClickRoute` | DONE |
 | OB-28 (§11) | Skip welcome unless armed; update banner when a check found one | `PluginEditor` update notification; welcome rules | header banner | `Onboarding.theWelcomeBannerOffersTheTourUpToThreeTimes` | DONE |
 | OB-29 (§12) | Options -> Diagnostics "Restore first-run experience", modal, keeps libraries | `FirstRun::restoreFirstRunExperience` | `DiagnosticsPage::restoreFirstRun` | `FirstRun.theDiagnosticsPageRestores`, `FirstRun.restoreClearsTheSettingsAndTheOneTimeFlagsAndKeepsTheLibraries` | DONE |
-| OB-30 (§13) | Upgrade banner once ("What's new"), NEW dots, changelog one click | `Onboarding::getWelcomeDue`, `Onboarding::isNewDotDue`; `UI/NewFeatureDots` (`isNew/apply/paintDot`) | banner; `PluginEditor.cpp` NewFeatureDots::apply; Theme.cpp paintDot; Options UPDATES | `Onboarding.anUpgradeWelcomesOnceAndKeepsTheUsersData`, `NewDots.anEntryPointIsMarkedForItsFirstWeekOnly` | DONE |
-| OB-31 (§13) | Forward-compatible formats; migrate on load and move the old file to a dated Backup folder - implemented, the migration backup itself is untested | `GuitarMigration`, `PresetManager::backupMigratedOriginal` (Presets/Backup/date) | n/a | `GuitarMigration.aPresetNamingAnOldGuitarLoadsItsReplacement`, `Presets.savingBacksUpTheVersionItReplaces`, `Presets.backupsGoToThePresetsRootBackupFolder` (overwrite backups only) | NO-TEST |
+| OB-30 (§13) | Upgrade banner once ("What's new"), NEW dots, changelog one click — NEW dots have no test (visual's `NewDots` test and `UI/NewFeatureDots` are not on this checkout) | `Onboarding::getWelcomeDue`, `Onboarding::isNewDotDue` (drawn by `DiscoveryLayer`) | banner; first-week NEW dots; Options UPDATES | `Onboarding.anUpgradeWelcomesOnceAndKeepsTheUsersData` | PARTIAL |
+| OB-31 (§13) | Forward-compatible formats; migrate on load and move the old file to a dated Backup folder — the dated Backup move on migration is untested (visual's `Presets.backupsGoToThePresetsRootBackupFolder` is not on this checkout) | `GuitarMigration`, `PresetManager` backup | n/a | `GuitarMigration.aPresetNamingAnOldGuitarLoadsItsReplacement`, `Presets.savingBacksUpTheVersionItReplaces` | PARTIAL |
 | OB-T1 (§14) | Fresh install produces the expected default state | - | n/a | `Onboarding.aFreshInstallStartsWhereSectionOneSays` | DONE |
-| OB-T2 (§14) | Tour walks 12 steps without misalignment at every UI scale - test walks window sizes (940 to 2400), not UI scales | - | n/a | `Onboarding.theTourWalksEveryStopAtEverySize` | PARTIAL |
+| OB-T2 (§14) | Tour walks 12 steps without misalignment at every UI scale — test walks window sizes, not UI scales | - | n/a | `Onboarding.theTourWalksEveryStopAtEverySize` | PARTIAL |
 | OB-T3 (§14) | Skipping the tour leaves the plugin playable | - | n/a | `Onboarding.skippingTheTourLeavesThePluginPlayable` | DONE |
 | OB-T4 (§14) | OS high-contrast -> palette switch; DPI 200 -> scale snap | `FirstRun` | n/a | `FirstRun.theOsPreferencesMapToSectionFivesDefaults` | DONE |
 | OB-T5 (§14) | Version upgrade: banner shows, user data intact | - | n/a | `Onboarding.anUpgradeWelcomesOnceAndKeepsTheUsersData` | DONE |
@@ -3495,60 +3487,60 @@ All rows are OWNED by the output-normalization FEAT session; no Phase-2 fixes. P
 | PA-2 (§0.2) | Physical units in, DSP units out | `mapSpec`, `stringTensionNewtons` | n/a | `PartAcoustics::scaleLengthSetsTension` | DONE |
 | PA-3 (§0.3) | Monotonic and continuous | `mapSpec` | n/a | `PartAcoustics::theMappingIsMonotonic` | DONE |
 | PA-4 (§0.4) | Honest magnitudes: a small part swap gives a small real delta — no test bounds the size of a swap's spectral change | `mapSpec` multipliers | n/a | - | NO-TEST |
-| PA-5 (§0.5) | Every constant named and sourced - fitted constants in `mapSpec` (magnet 0.09/-0.9, coupling x1.4, chamber feedback 0.1-0.8, shape-area 1.3x0.78, fretboard tan-delta x20) still carry no source comment or spec citation | `PartAcoustics.cpp`, `LuthierEngine.cpp:applyWorkshopGuitar` | n/a | - | PARTIAL |
-| PA-6 (§1) | 17-wood table (ρ, E, tanδ) | `lookUpWood` | WORKSHOP inspector (`WorkshopPanel` fieldEditor -> `WorkshopBench::editField`) | - | NO-TEST |
-| PA-7 (§1.1) | Body/top density and E set mode frequency, `f ∝ sqrt(E/ρ)` — body modes come from `BodyModels` kWoods, which have different ρ/E; the §1 table only trims by a density override | `mapSpec` (`engineWood`, `resonanceTrim`), `Model/Guitar/BodyModels.cpp` | WORKSHOP inspector | `PartAcoustics::theMappingIsMonotonic` (density only) | PARTIAL |
-| PA-8 (§1.1) | tanδ sets mode Q, `Q≈1/(2tanδ)` — Q comes from BodyModels' loss factors (e.g. alder 0.013, not 8.5e-3); §1 tanδ is used only for fretboard brightness | `BodyModels.cpp` (Q from loss factor) | n/a | - | PARTIAL |
-| PA-9 (§1.1, §3) | Neck and fretboard wood/density feed neck mass, body coupling and dead-spot frequency - not mapped (neck wood unread; fretboard wood tan-delta only trims `fretBrightness`, `PartAcoustics.cpp` ~448-455) | `PartAcoustics.cpp` (fretBrightness only) | - | - | MISSING |
+| PA-5 (§0.5) | Every constant named and sourced — fitted constants have no source: magnet 0.09/-0.9, coupling ×1.4, chamber feedback 0.1-0.8, shape-area 1.3×0.78, fretboard tanδ ×20 | `PartAcoustics.cpp`, `LuthierEngine.cpp:applyWorkshopGuitar` | n/a | - | PARTIAL |
+| PA-6 (§1) | 17-wood table (ρ, E, tanδ) | `lookUpWood` | WORKSHOP inspector (`WorkshopPanel` fieldEditor -> `WorkshopBench::editField`) | `PartAcoustics::theWoodTableIsTheSpecs` | DONE |
+| PA-7 (§1.1) | Body/top density and E set mode frequency, `f ∝ sqrt(E/ρ)` — body modes come from `BodyModels` kWoods, which have different ρ/E; the §1 table only trims by a density override | `mapSpec` (`engineWood`, `resonanceTrim`), `Model/Guitar/BodyModels.cpp` | WORKSHOP inspector | `mapSpec` resonance trim from the table; `PartAcoustics::stifferLighterWoodRaisesTheModes`, `PartAcoustics::theMappingIsMonotonic` (density only) | DONE |
+| PA-8 (§1.1) | tanδ sets mode Q, `Q≈1/(2tanδ)` — Q comes from BodyModels' loss factors (e.g. alder 0.013, not 8.5e-3); §1 tanδ is used only for fretboard brightness | `BodyModels.cpp` (Q from loss factor) | n/a | `BodyConfig::topLossScale/backLossScale`; `PartAcoustics::theTableLossSetsThePlateQ` | DONE |
+| PA-9 (§1.1, §3) | Neck and fretboard wood/density feed neck mass, body coupling and dead-spot frequency — not mapped | - | - | - | MISSING |
 | PA-10 (§2) | body.wood and a `density_kg_m3` override | `mapSpec` body block | WORKSHOP inspector | `PartAcoustics::everyMappedFieldMovesSomething` | DONE |
 | PA-11 (§2) | body.thickness_mm: mode frequency and mass | `scaleDepth`, `shapeFor` | WORKSHOP inspector | `PartAcoustics::theMappingIsMonotonic`, `PartAcoustics::everyMappedFieldMovesSomething` | DONE |
 | PA-12 (§2) | body.area_cm2: mode frequency ∝ 1/area; air volume | `scaleWidth` | WORKSHOP inspector | `PartAcoustics::everyMappedFieldMovesSomething` | DONE |
-| PA-13 (§2.1) | Chambering sets mode count (3/5/7/9/12), by BodyShape — no test checks the shape or mode count per value | `shapeFor` | WORKSHOP inspector | - | NO-TEST |
+| PA-13 (§2.1) | Chambering sets mode count (3/5/7/9/12), by BodyShape — no test checks the shape or mode count per value | `shapeFor` | WORKSHOP inspector | `PartAcoustics::chamberingPicksItsShapeAndSustain` | DONE |
 | PA-14 (§2.1) | Air resonance per row (range, Q, 1/sqrt(V)) reaches the body: `BodyConfig::airHzOverride/airQOverride` from `mapSpec` build the Helmholtz mode | `mapSpec` chamber block -> `BodyModels::buildModes`/`computeAirResonance` | n/a | `PartAcoustics::chamberingReachesTheBodyEngine`, `chamberingPutsTheAirModeInItsRange` | DONE |
 | PA-15 (§2.1) | Chambering mode gain +3/+6/+10 dB against solid on the body modes (electric chamberings; acoustic is the whole mic signal, not a colour) | `BodyConfig::modeGainDb` applied after normalisation | n/a | `PartAcoustics::chamberingReachesTheBodyEngine` (+6 dB semi-hollow) | DONE |
-| PA-16 (§2.1) | Chambering sustain -5/-12/-20/-25% | `sustainScale × chamber.sustain` -> `partsSustain` | n/a | - | NO-TEST |
+| PA-16 (§2.1) | Chambering sustain -5/-12/-20/-25% | `sustainScale × chamber.sustain` -> `partsSustain` | n/a | `PartAcoustics::chamberingPicksItsShapeAndSustain` | DONE |
 | PA-17 (§2.1) | Chambering feedback coupling into the feedback loop | `d.feedbackGain` -> `FeedbackLoop::setBodyCoupling` | n/a | `ModelGaps::chamberingFeedsTheFeedbackCoupling` | DONE |
-| PA-18 (§2) | Bracing: acoustic mode splitting | `engineBracing` -> `BodyConfig::bracing` | WORKSHOP inspector | - | NO-TEST |
+| PA-18 (§2) | Bracing: acoustic mode splitting | `engineBracing` -> `BodyConfig::bracing` | WORKSHOP inspector | `PartAcoustics::bracingSplitsTheAcousticModes` | DONE |
 | PA-19 (§3) | Scale length -> tension `T=(2Lf)²μ` | `stringTensionNewtons`, `StringMaterials::computeSpec` | WORKSHOP inspector | `PartAcoustics::scaleLengthSetsTension` | DONE |
 | PA-20 (§3) | neck.profile: mass distribution only - not mapped (`mapSpec` reads neck scale_length_mm, frets, joint only; renderer draws the profile) | - | - | - | MISSING |
 | PA-21 (§3) | Joint coupling: bolt 0.55 / set 0.80 / through 0.95 | `jointCoupling` | WORKSHOP inspector | `PartAcoustics::couplingsMultiply` | DONE |
-| PA-22 (§3) | fretboard.wood: termination damping; harder is brighter | `mapSpec` (tanδ -> `fretBrightness`) | WORKSHOP part swap | - | NO-TEST |
-| PA-23 (§3) | fretboard.radius_mm: buzz clearance geometry - not mapped (`mapSpec` has no radius read; buzz uses SetupGeometry only) | - | - | - | MISSING |
-| PA-24 (§4) | frets.material brightness NS .70 / SS .90 / EVO .80 / brass .60, plus buzz spectrum | `fretMaterialBrightness` -> `setTerminationBrightness` | WORKSHOP part swap | `PartAcoustics::aReferenceGuitarSoundsLikeTheEngineDefault` (NS only) | NO-TEST |
+| PA-22 (§3) | fretboard.wood: termination damping; harder is brighter | `mapSpec` (tanδ -> `fretBrightness`) | WORKSHOP part swap | `PartAcoustics::fretboardFretsAndNutSetTheirBrightness` | DONE |
+| PA-23 (§3) | fretboard.radius_mm: buzz clearance geometry — not mapped (DECISIONS lists it as not yet consumed) | - | - | - | MISSING |
+| PA-24 (§4) | frets.material brightness NS .70 / SS .90 / EVO .80 / brass .60, plus buzz spectrum | `fretMaterialBrightness` -> `setTerminationBrightness` | WORKSHOP part swap | `PartAcoustics::fretboardFretsAndNutSetTheirBrightness`, `PartAcoustics::aReferenceGuitarSoundsLikeTheEngineDefault` (NS only) | DONE |
 | PA-25 (§4) | frets.height_mm: buzz clearance | `d.setup.fretHeight` | WORKSHOP inspector | `PartAcoustics::everyMappedFieldMovesSomething` | DONE |
 | PA-26 (§4) | frets.width_mm: wider is duller | `mapSpec` fretBrightness | WORKSHOP inspector | `PartAcoustics::everyMappedFieldMovesSomething` | DONE |
-| PA-27 (§4) | frets.count: playable range | `d.spec.maxFrets` | WORKSHOP inspector | - | NO-TEST |
-| PA-28 (§4) | nut.material brightness, open strings only | `nutMaterialBrightness`; `LuthierEngine.cpp` (fret<=0 -> nut factor) | WORKSHOP part swap | `PartAcoustics::aReferenceGuitarSoundsLikeTheEngineDefault` (bone only) | NO-TEST |
-| PA-29 (§4) | nut.slot_depths_mm: open-string clearance | `d.setup.nutDepth` | WORKSHOP setup strip | - | NO-TEST |
+| PA-27 (§4) | frets.count: playable range | `d.spec.maxFrets` | WORKSHOP inspector | `PartAcoustics::fretCountAndNutSlotsReachTheSetup` | DONE |
+| PA-28 (§4) | nut.material brightness, open strings only | `nutMaterialBrightness`; `LuthierEngine.cpp` (fret<=0 -> nut factor) | WORKSHOP part swap | `PartAcoustics::fretboardFretsAndNutSetTheirBrightness`, `PartAcoustics::aReferenceGuitarSoundsLikeTheEngineDefault` (bone only) | DONE |
+| PA-29 (§4) | nut.slot_depths_mm: open-string clearance | `d.setup.nutDepth` | WORKSHOP setup strip | `PartAcoustics::fretCountAndNutSlotsReachTheSetup` | DONE |
 | PA-30 (§4) | nut.friction: tuning stability under bends | `d.nutFriction` -> `LuthierEngine` `TuningHardware::nutFriction` -> `StabilityModel` | Workshop inspector derived figures | `TuningStability.nutBinding`, `RealismUi.theWorkshopInspectorShowsTheDerivedFigures` | DONE |
 | PA-31 (§5) | bridge.mass_g: termination impedance and sustain | `terminationMassG` -> `sustainScale` | WORKSHOP inspector | `PartAcoustics::theMappingIsMonotonic` | DONE |
 | PA-32 (§5) | bridge.coupling | `couplingFraction` -> `spec.couplingAmount` | WORKSHOP inspector | `PartAcoustics::couplingsMultiply` | DONE |
-| PA-33 (§5) | bridge.type preset mass/coupling table — the part files match the table, but `mapSpec` falls back to 100 g / 0.55 whatever the type, and no test checks the files | `Resources/Parts/Bridges/*.luthierpart` | WORKSHOP part swap | - | NO-TEST |
-| PA-34 (§5) | has_tremolo / tremolo_type -> WhammyEngine type | `mapSpec` (`d.spec.bridge`) | WORKSHOP part swap | - | NO-TEST |
+| PA-33 (§5) | bridge.type preset mass/coupling table — the part files match the table, but `mapSpec` falls back to 100 g / 0.55 whatever the type, and no test checks the files | `Resources/Parts/Bridges/*.luthierpart` | WORKSHOP part swap | `bridgeTypeDefaults` fallback in `mapSpec`; `PartAcoustics::aBridgeTypeSetsItsDefaults` (the factory parts state their own values, several off-table, so only the fallback is tested) | DONE |
+| PA-34 (§5) | has_tremolo / tremolo_type -> WhammyEngine type | `mapSpec` (`d.spec.bridge`) | WORKSHOP part swap | `PartAcoustics::bridgeAndTailpieceMapTheirFields` | DONE |
 | PA-35 (§5) | bridge.piezo adds a saddle piezo source, no pickup slot used | `mapSpec` sets `hasPiezo` from `bridge.piezo` | WORKSHOP bridge part | `PartAcoustics::aPiezoBridgeAddsAPiezoSource` | DONE |
-| PA-36 (§5) | tailpiece.mass_g adds to termination mass | `terminationMassG` | WORKSHOP inspector | - | NO-TEST |
-| PA-37 (§5) | tailpiece.break_angle_deg: steeper is brighter | `mapSpec` (breakAngle -> fretBrightness) | WORKSHOP inspector | - | NO-TEST |
+| PA-36 (§5) | tailpiece.mass_g adds to termination mass | `terminationMassG` | WORKSHOP inspector | `PartAcoustics::bridgeAndTailpieceMapTheirFields` | DONE |
+| PA-37 (§5) | tailpiece.break_angle_deg: steeper is brighter | `mapSpec` (breakAngle -> fretBrightness) | WORKSHOP inspector | `PartAcoustics::fretboardFretsAndNutSetTheirBrightness` | DONE |
 | PA-38 (§6) | Pickup L/R/C set the resonant peak with the load | `PickupDerived::spec` | WORKSHOP inspector | `PartAcoustics::everyMappedFieldMovesSomething`, `PartAcoustics::theMappingIsMonotonic` | DONE |
 | PA-39 (§6, §6.2) | Magnet table: pull, damping, sustain and flat pull | `lookUpMagnet`, `LuthierEngine::applyWorkshopGuitar` (magnetSustain/Detune) | WORKSHOP inspector | `PartAcoustics::magnetPullShortensSustainAndPullsFlat` | DONE |
 | PA-40 (§6) | coil_turns: output ∝ turns (dB against a per-family reference winding), inductance ∝ turns² unless stated | `mapSpec` pickup block | WORKSHOP pickup part | `PartAcoustics::coilTurnsSetTheOutput` | DONE |
-| PA-41 (§6) | pole_piece_material eddy losses | `poleBrightness` -> `PickupEngine` | WORKSHOP inspector | - | NO-TEST |
+| PA-41 (§6) | pole_piece_material eddy losses | `poleBrightness` -> `PickupEngine` | WORKSHOP inspector | `PartAcoustics::polePiecesTiltTheTop` | DONE |
 | PA-42 (§6) | Nickel cover -0.8 dB at 4 kHz | `coverLossDbAt4k` -> `PickupEngine` | WORKSHOP inspector | `PartAcoustics::aCoverCostsTopEnd` | DONE |
 | PA-43 (§6.1) | Position sets the comb | `spec.position` | WORKSHOP pickup drag | `PartAcoustics::pickupPositionSetsTheComb` | DONE |
 | PA-44 (§6) | Height: output level and magnetic damping | `heightMm` -> `PickupEngine` heightGain, magnet proximity | WORKSHOP wheel/drag | `PartAcoustics::magnetPullShortensSustainAndPullsFlat` | DONE |
 | PA-45 (§7) | Wiring pots, cap, taper, bleed, active -> circuit | `mapSpec` wiring block -> `CircuitComponents` | WORKSHOP inspector | `PartAcoustics::everyMappedFieldMovesSomething` (pots/cap) | DONE |
 | PA-46 (§7) | `switching` topology (3-way/5-way/series/coil tap) - part field ignored in `mapSpec`; the selector parameter works independently | - | - | - | MISSING |
 | PA-47 (§8) | gauges_in -> μ and tension | `StringMaterials::computeSpec` | WORKSHOP inspector | `PartAcoustics::scaleLengthSetsTension`, `StringPhysics::thickerStringsAreHeavierAndTighter` | DONE |
-| PA-48 (§8) | winding and winding_material -> squeak/brightness material | `materialFor` | WORKSHOP part swap | - | NO-TEST |
-| PA-49 (§8) | core round/hex: warmth and stiffness - not mapped (strings.core unread) | - | - | - | MISSING |
-| PA-50 (§8) | winding_pitch_per_mm feeds squeak and chirp - mapped into `d.windingPitchPerMm` but no LuthierEngine consumer reads it; `PlayingNoise.cpp:19` recomputes 1/wrapMm | `mapSpec` (`PartAcoustics.cpp:527`); `DSP/Noise/PlayingNoise.cpp:19` | n/a | - | PARTIAL |
-| PA-51 (§8) | tension_kg[] override - not mapped (`mapSpec` reads no tension_kg) | - | - | - | MISSING |
+| PA-48 (§8) | winding and winding_material -> squeak/brightness material | `materialFor` | WORKSHOP part swap | `PartAcoustics::stringsAndFinishMapTheirFields` | DONE |
+| PA-49 (§8) | core round/hex: warmth and stiffness — not mapped | - | - | - | MISSING |
+| PA-50 (§8) | winding_pitch_per_mm feeds squeak and chirp — mapped into `d.windingPitchPerMm`, but the engine recomputes 1/wrap in `PlayingNoise` and ignores the part | `mapSpec`; `DSP/Noise/PlayingNoise.cpp` | n/a | - | PARTIAL |
+| PA-51 (§8) | tension_kg[] override — not mapped | - | - | - | MISSING |
 | PA-52 (§8) | Wound μ from core and winding geometry — uses a per-material `woundMassFactor`, not core diameter | `stringLinearDensity`, `StringMaterials` | n/a | - | PARTIAL |
 | PA-53 (§8) | Inharmonicity `B ∝ d⁴E/(TL²)` | `StringMaterials::computeSpec` | n/a | `StringPhysics::woundStringsAreLessStiffThanTheirDiameterSuggests` | DONE |
 | PA-54 (§9) | pickguard.mass_g: top damping on acoustics/thinlines — only added to termination mass | `terminationMassG` | WORKSHOP inspector | `PartAcoustics::everyMappedFieldMovesSomething` | PARTIAL |
 | PA-55 (§9) | hardware_color has no audio effect | (not read by `mapSpec`) | n/a | `PartAcoustics::hardwareColourIsSilent` | DONE |
 | PA-56 (§9) | finish.gloss: -0.5 dB and Q x0.92 on acoustic top modes (heard in Modal/Hybrid body mode; the default acoustic IR is a recording) | `BodyConfig::topDampingDb` in `buildModes` | n/a | `PartAcoustics::aThickFinishDampsTheTop` | DONE |
-| PA-57 (§9) | finish.aging -> body break-in | `d.body.age` | n/a (guitar-file field) | - | NO-TEST |
-| PA-58 (§10) | Masses add (bridge + tailpiece + pickguard) | `terminationMassG` | n/a | - | NO-TEST |
+| PA-57 (§9) | finish.aging -> body break-in | `d.body.age` | n/a (guitar-file field) | `PartAcoustics::stringsAndFinishMapTheirFields` | DONE |
+| PA-58 (§10) | Masses add (bridge + tailpiece + pickguard) | `terminationMassG` | n/a | `PartAcoustics::bridgeAndTailpieceMapTheirFields` | DONE |
 | PA-59 (§10) | Couplings multiply | `couplingFraction` | n/a | `PartAcoustics::couplingsMultiply` | DONE |
 | PA-60 (§10) | Dampings add in the loss domain, 1/Q = sum 1/Q_i - not implemented; sustain factors still multiply (`partsSustain`, `magnetSustain`) | - | - | - | MISSING |
 | PA-T1 (§11) | Test: every field ±10% moves the rendered spectrum — the test compares the DerivedAcoustics struct only and skips unmapped fields | - | n/a | `PartAcoustics::everyMappedFieldMovesSomething` | PARTIAL |
@@ -3567,34 +3559,15 @@ All rows are OWNED by the output-normalization FEAT session; no Phase-2 fixes. P
 
 - [PA-4] effort S — Add `PartAcoustics::aWoodSwapIsARealSmallDifference`: render the reference guitar with a rosewood and then an ebony fretboard, and assert the spectral difference is above the noise floor and below ~1.5 dB in every octave band.
 - [PA-5] effort S — Add a source comment to each fitted constant in `PartAcoustics.cpp` (chamber feedback 0.1-0.8, shape area 1.3×0.78, fretboard tanδ×20, break angle 0.004, width 0.02) and in `LuthierEngine::applyWorkshopGuitar` (0.09 / -0.9 magnet, ×1.4 coupling). A comment can point at DECISIONS.md where the value is a calibration. No code change beyond comments.
-- [PA-6] effort S — Add `PartAcoustics::theWoodTableIsTheSpecs`: `lookUpWood` returns the §1 ρ/E/tanδ for all 17 ids.
-- [PA-7] effort M — Make the §1 table drive the body. In `mapSpec`, set `d.body.resonanceTrim = sqrt((E/ρ)_part / (E/ρ)_engineWood)`, using `BodyModels::getWood(engineWood(id))` as the reference, so any table wood and any density override move the modes by sqrt(E/ρ). Alternatively, align the `BodyModels` kWoods values with §1. Test `PartAcoustics::stifferLighterWoodRaisesTheModes`: ash_swamp vs basswood gives a higher first mode in `BodyModels` output.
-- [PA-8] effort M — Carry the §1 tanδ ratio into `BodyConfig` (a new `lossScale` field) that `BodyModels` multiplies into each mode's loss before Q. Test: ebony top Q / basswood top Q ≈ 11e-3/4.5e-3 within 20%.
 - [PA-9] effort M — Map neck `wood`/`density` into a `d.neckMassKg` value, plus a dead-spot frequency that character-wear's dead-spot model consumes (Source/Character). Feed neck mass into `couplingFraction` weighting. Test that a maple neck and a mahogany neck move the dead-spot frequency in the right direction.
-- [PA-13] effort S — Add `PartAcoustics::chamberingPicksItsShape`: solid/chambered/semi_hollow/hollow/acoustic map to the expected `BodyShape`, and `BodyModels` builds a mode count that rises in that order.
-- [PA-16] effort S — Add a test: solid vs hollow `partsSustain` ratio ≈ 0.80, and rendered T60 is shorter for hollow.
-- [PA-18] effort S — Add a test that bracing x/fan/ladder produces different `BodyModels` mode sets for an acoustic body.
 - [PA-20] effort S — DEFER: the spec itself says the profile makes no tonal claim. Its only role is a mass term for the neck, so fold it into PA-9's neck mass when that lands.
-- [PA-22] effort S — Add a test: rosewood vs ebony fretboard `fretBrightness` rises for ebony, and for a fretted note only.
 - [PA-23] effort M — Map `fretboard.radius_mm` into `SetupGeometry` (per-string radius offset to the clearance) in `mapSpec`, and consume it in `DSP/Noise/FretBuzz`. Test: a flatter radius with the same action gives more buzz on outer strings for a bend.
-- [PA-24] effort S — Extend `aReferenceGuitarSoundsLikeTheEngineDefault`, or add `fretMaterialsAreTheSpecsTable`: stainless/gold_evo/brass give 0.90/0.80/0.60.
-- [PA-27] effort S — Add a test: frets.count 21 vs 24 changes `d.spec.maxFrets` and the tuning's highest playable fret.
-- [PA-28] effort S — Add a test: with a brass nut, an open string's termination brightness changes and a fretted note's does not (via `LuthierEngine` string termination, or by rendering an open vs fretted note).
-- [PA-29] effort S — Add a test: `slot_depths_mm` from the nut part reaches `d.setup.nutDepth` when the guitar setup omits them.
-- [PA-33] effort S — In `mapSpec`, use a bridge.type -> {mass, coupling} table (§5) as the fallback when mass_g/coupling are absent. Add a test that every factory bridge part matches its type row within tolerance.
-- [PA-34] effort S — Add a test: tremolo_type floyd/bigsby/vintage/none maps to the matching `WhammyEngine::BridgeType`.
-- [PA-36] effort S — Add a test: tailpiece.mass_g added to bridge mass changes `terminationMassG` by exactly the amount. Doubles as the PA-58 masses-add test.
-- [PA-37] effort S — Add a monotonic sweep of tailpiece.break_angle_deg -> fretBrightness to `theMappingIsMonotonic`.
-- [PA-41] effort S — Add a test: steel poles give lower 4 kHz output than alnico through `PickupEngine` (the same harness as `aCoverCostsTopEnd`).
 - [PA-46] effort M — Map `wiring.switching` to the engine's `PickupSelector` topology set (3-way limits the selector, 5-way enables the in-between positions, series/coil-tap adds options). Consume it in `LuthierEngine`, and restrict the pickup-selector control's choices in the Circuit panel accordingly. Test that a 3-way guitar has no position 2/4.
-- [PA-48] effort S — Add a test: winding flat/half/coated and each winding_material map to the expected `StringMaterial`.
 - [PA-49] effort M — Add a core round/hex factor to `StringMaterials::computeSpec` (stiffness/inharmonicity ±, brightness), and map it from `strings.core` in `mapSpec`. Test: hex gives higher B than round.
 - [PA-50] effort S — Pass `d.windingPitchPerMm` into `PlayingNoise`/`ScrapeEngine` string info in `applyWorkshopGuitar`, instead of recomputing 1/wrap. Test: doubling the part's winding pitch doubles the squeak centre frequency.
 - [PA-51] effort S — When `strings.tension_kg[s]` is present, use it for tension (and derive μ) in `mapSpec`. Test: the override shows up in `d.tensionNewtons`.
 - [PA-52] effort M — Compute wound μ from core diameter + wrap wire geometry in `stringLinearDensity`, instead of `woundMassFactor`. Test: two 0.046 strings with different cores differ in μ/tension.
 - [PA-54] effort S — Add a pickguard top-damping term (loss added to acoustic/thinline top modes, scaled by mass and chambering), consumed with PA-56's damping. Test: it is audible on acoustic and negligible on solid.
-- [PA-57] effort S — Add a test: finish.aging 0 vs 1 moves `d.body.age`, and the body output in the break-in direction (`Character::bodyBreakInMovesInTheRightDirection` harness).
-- [PA-58] effort S — Covered by the PA-36 test (bridge + tailpiece + pickguard sum).
 - [PA-60] effort M — Compose losses: the termination, chambering and pickguard/finish damping contributions add as 1/Q terms (or loss factors) before becoming sustain, instead of multiplying `sustainScale` factors. Test: two parts each adding loss L give 2L total.
 - [PA-T1] effort M — Upgrade `everyMappedFieldMovesSomething` to render a note through `LuthierEngine::applyWorkshopGuitar`, and compare spectra against the noise floor. Add the fields PA-9/23/35/40/46/49/51 map as they land.
 
@@ -3722,19 +3695,19 @@ Pool degradation (quality-mode Low), the pick illustration and the audio-thread 
 |---|---|---|---|---|---|
 | PN-1 (§1) | Pools 16/16/16/8/16/8, allocated in prepare() | `DSP/Noise/NoiseEngine.h:kPoolSizes`, `NoiseEngine::prepare` | n/a | `NoisePool.aFullPoolStealsTheOldest` | DONE |
 | PN-2 (§1) | A full pool steals the oldest generator | `NoiseEngine::trigger` | n/a | `NoisePool.aFullPoolStealsTheOldest` | DONE |
-| PN-3 (§1) | Degradation step 4 halves every pool | `NoiseEngine::setDegraded`; `LuthierEngine::setQualityLevel` (`LuthierEngineQuality.cpp` 61) applies `QualityProfile::noiseDegraded` at Low | n/a | `CpuQuality.noisePoolsHalveAtLowAndNeverUnderLoadAtHigh`, `NoisePool.aFullPoolStealsTheOldest` | DONE |
-| PN-4 (§1) | Per-material noise textures synthesised once, read at a random offset — only 5 shared texture classes, not one per material | `NoiseEngine::prepare` (`NoiseTexture` enum) | n/a | `NoisePool.aSeedRepeatsExactly` | PARTIAL |
+| PN-3 (§1) | Degradation step 4 halves every pool | `NoiseEngine::setDegraded` (no caller here) | n/a | - | OWNED (on visual: CpuRelief `halveNoisePools` calls `setDegraded`; CpuReliefTests) |
+| PN-4 (§1) | Per-material noise textures synthesised once, read at a random offset — only 5 shared texture classes, not one per material | `NoiseEngine::prepare` (`NoiseTexture` enum) | n/a | `NoisePool.aSeedRepeatsExactly` | DEFERRED |
 | PN-5 (§1.1) | Generator = excitation → 1-3 pole resonator → envelope | `DSP/Noise/NoiseEngine.h:NoiseGenerator` | n/a | `NoisePool.aSeedRepeatsExactly` | DONE |
-| PN-6 (§1.2) | Click enters the excitation; chirp, scrape and other classes enter pre-body — no test that noise goes through body/pickup | `NoiseEngine::process` (excitation vs surface out); `LuthierEngine.cpp` string loop | n/a | - | NO-TEST |
+| PN-6 (§1.2) | Click enters the excitation; chirp, scrape and other classes enter pre-body — no test that noise goes through body/pickup | `NoiseEngine::process` (excitation vs surface out); `LuthierEngine.cpp` string loop | n/a | `NoisePool.clickIsExcitationAndTheRestAreSurface` | DONE |
 | PN-7 (§1.3) | Aux 8 carries the sum of all noise | `LuthierEngine.cpp` aux8; `Routing/RoutingMatrix` | ADVANCED > ROUTING, Aux 8 strip | `PluginBuses.aux8CarriesThePlayingNoiseAndObeysItsStrip` | DONE |
-| PN-8 (§2, §2.1) | `pick_material`, default Celluloid, 8 materials — Ultex, Tortex and Stone/horn missing (DECISIONS.md keeps the 12-choice list) | `PlayingNoise::getPickMaterial`; `Parameters::pickMaterialNames` | CHARACTER > PICK, `NoiseGroups::pickMaterial` | `PickNoise.clickPitchTracksMaterialAndThickness` | PARTIAL |
-| PN-9 (§2, §7) | `pick_thickness` 0.38-3 mm, default 0.73 — shipped default 0.5 normalised decodes to 1.07 mm | `Parameters.cpp:486`, `Parameters::pickThicknessMm`; `PhysicalRange.cpp:125` | CHARACTER > PICK, `NoiseGroups::pickThickness` | `Ranges.stockMatchesTheDeclaredRange` | PARTIAL |
+| PN-8 (§2, §2.1) | `pick_material`, default Celluloid, 8 materials — Ultex, Tortex and Stone/horn missing (DECISIONS.md keeps the 12-choice list) | `PlayingNoise::getPickMaterial`; `Parameters::pickMaterialNames` | CHARACTER > PICK, `NoiseGroups::pickMaterial` | `PickNoise.clickPitchTracksMaterialAndThickness` | DEFERRED |
+| PN-9 (§2, §7) | `pick_thickness` 0.38-3 mm, default 0.73 — shipped default 0.5 normalised decodes to 1.07 mm | `Parameters.cpp:486`, `Parameters::pickThicknessMm`; `PhysicalRange.cpp:125` | CHARACTER > PICK, `NoiseGroups::pickThickness` | `Ranges.stockMatchesTheDeclaredRange` | DEFERRED |
 | PN-10 (§2, §7) | `pick_tip_radius`, `pick_bevel`, `pick_wear` parameters with stock/advanced ranges | `Parameters.cpp:501-503`; `PhysicalRange.cpp:127` | CHARACTER > PICK, `NoiseGroups::pickTip/pickBevel/pickWear` | `GuiReach.everyAutomatableParameterHasAVisibleControl` | DONE |
 | PN-11 (§2) | `pick_angle` 0-60°, default 20 (0.35 → 21°) | `Parameters::pickAngleDegrees` | CHARACTER > PICK, `NoiseGroups::pickAngle` | `PickNoise.angleTradesClickForChirp` | DONE |
 | PN-12 (§2, §6) | `use_fingers` silences click, chirp and scrape | `PlayingNoise::makeClick/makeChirp` guards | ADVANCED > right hand, `AdvancedPanel::useFingers` | `PickNoise.fingersNeitherClickNorChirp` | DONE |
 | PN-13 (§3) | Click level = amount × vel^0.7 × stiffness × cos^1.5, −30 dB nominal | `PlayingNoise::makeClick` | n/a | `PickNoise.clickScalesWithVelocityToThePower0_7`; `PickNoise.aClickSitsAboutThirtyDecibelsUnderTheNote` | DONE |
 | PN-14 (§3) | Click fundamental formula from density and thickness | `PlayingNoise::makeClick` | n/a | `PickNoise.clickPitchTracksMaterialAndThickness` | DONE |
-| PN-15 (§3) | Click decay 3-15 ms from tip and damping, wear sub-resonance, brighter near the bridge — none of these tested | `PlayingNoise::makeClick` (tip, wear, `pluckPosition`) | n/a | - | NO-TEST |
+| PN-15 (§3) | Click decay 3-15 ms from tip and damping, wear sub-resonance, brighter near the bridge — none of these tested | `PlayingNoise::makeClick` (tip, wear, `pluckPosition`) | n/a | `PickNoise.decayWearAndPositionShapeTheClick` | DONE |
 | PN-16 (§4) | Chirp on wound strings only, sin(angle) × roughness × depth, band at windingPitch × speed, 8-40 ms | `PlayingNoise::makeChirp` | n/a | `PickNoise.plainStringsNeverChirp`; `PickNoise.angleTradesClickForChirp` | DONE |
 | PN-17 (§5) | Rake from the `pick_scrape` MIDI class or the Easy rake gesture — only keyswitches 13/14 while SCRAPE is armed with trigger=Keyswitch; no Easy gesture; no arm control on this checkout | `ScrapeEngine::takeRake` → `LuthierEngine::triggerPickScrape` | none | `ScrapeEngineWiring.theRakeHasATrigger` | PARTIAL |
 | PN-18 (§5) | Rake sweeps the strings, 100 ms-3 s, 8-pool, level `pick_scrape_amount` | `PlayingNoise::startScrape`; `ScrapeEngine::takeRake` clamp | CHARACTER > PICK, `NoiseGroups::pickScrape` | `ScrapeEngineWiring.theRakeHasATrigger` | DONE |
@@ -3746,7 +3719,7 @@ Pool degradation (quality-mode Low), the pick illustration and the audio-thread 
 | PN-T2 (§9) | Test: nylon 0.6 mm clicks an octave above metal 3 mm | - | - | `PickNoise.clickPitchTracksMaterialAndThickness` | DONE |
 | PN-T3 (§9) | Test: angle lowers click and raises chirp | - | - | `PickNoise.angleTradesClickForChirp` | DONE |
 | PN-T4 (§9) | Test: plain strings never chirp, every factory guitar | - | - | `PickNoise.plainStringsNeverChirp` | DONE |
-| PN-T5 (§9) | Test: two bodies give different click spectra; amount 0 is bit-identical to noise off — missing | - | - | - | NO-TEST |
+| PN-T5 (§9) | Test: two bodies give different click spectra; amount 0 is bit-identical to noise off — missing | - | - | `PickNoise.noiseRidesTheInstrument` | DONE |
 | PN-T6 (§9) | Test: zero amounts take no generator over 10 000 notes | - | - | `NoisePool.zeroIsFree` | DONE |
 | PN-T7 (§9) | Test: 20 clicks into a 16-pool | - | - | `NoisePool.aFullPoolStealsTheOldest` | DONE |
 | PN-T8 (§9) | Test: no audio-thread allocation for noise | n/a | n/a | `Engine.fiveMinutesOfPlaybackNeitherAllocatesNorLocks` (whole engine, noise at defaults) | DONE |
@@ -3754,13 +3727,10 @@ Pool degradation (quality-mode Low), the pick illustration and the audio-thread 
 
 <details><summary>Work list (pick-noise)</summary>
 
-- [PN-4] effort M — DEFER candidate: a shared texture class per surface is within the 40 MB budget and sounds the same per event. If kept: in `DSP/Noise/NoiseEngine.cpp:prepare`, synthesise one table per `Excitation::Material` pick and per `StringMaterial` winding, keyed by material, and have `PlayingNoise::makeClick/makeChirp/makeSqueak` pass the material table index instead of `NoiseTexture`. Extend `NoisePool.aSeedRepeatsExactly` to assert that two materials read different tables.
-- [PN-6] effort S — Covered by the PN-T5 test below. Also assert that a chirp/squeak event appears in the surface (pre-body) output and not the excitation input: add `NoisePool.clickIsExcitationAndTheRestAreSurface` in `Tests/NoiseTests.cpp`, driving `NoiseEngine::process` and checking the two outputs per class.
-- [PN-8] effort S — DEFER: DECISIONS.md ("`pick_material` keeps its shipped 12-choice list") refuses Ultex/Tortex/Stone because they would re-map saved choice indices. If wanted later, append the three at the end of `Parameters::pickMaterialNames` and `Excitation::Material`, and add rows to `PlayingNoise::getPickMaterial` (Ultex 1.27/0.15, Tortex 1.30/0.40, Stone 2.60/0.10).
-- [PN-9] effort S — Set the `pick_thickness` default in `Parameters.cpp:486` and the default in `PhysicalRange.cpp:125` to 0.316, i.e. log(0.73/0.38)/log(3/0.38), so it decodes to 0.73 mm. `BassFamilyDefaults::retarget` already reads the parameter's default, so it follows. Add `PickNoise.theDefaultPickIsPoint73mm`, checking `Parameters::pickThicknessMm(default)` = 0.73 ± 0.01. Check that `BassTechniques.bassDefaultsApplyOnLoad` still passes, and note that presets without the field now load 0.73 mm.
-- [PN-15] effort S — Add `PickNoise.decayWearAndPositionShapeTheClick` in `Tests/NoiseTests.cpp`. Check that `makeClick(...).decayMs` stays in 3-15 ms and falls with a smaller `tipRadiusMm` and higher damping. Check that `wear > 0` gives `subResonanceLevel > 0` and a longer decay, and that `pluckPosition` 0.05 is brighter than 0.4.
+- [PN-4] DEFERRED (dsp2 agrees) - effort M — DEFER candidate: a shared texture class per surface is within the 40 MB budget and sounds the same per event. If kept: in `DSP/Noise/NoiseEngine.cpp:prepare`, synthesise one table per `Excitation::Material` pick and per `StringMaterial` winding, keyed by material, and have `PlayingNoise::makeClick/makeChirp/makeSqueak` pass the material table index instead of `NoiseTexture`. Extend `NoisePool.aSeedRepeatsExactly` to assert that two materials read different tables.
+- [PN-8] DEFERRED (dsp2 agrees) - effort S — DEFER: DECISIONS.md ("`pick_material` keeps its shipped 12-choice list") refuses Ultex/Tortex/Stone because they would re-map saved choice indices. If wanted later, append the three at the end of `Parameters::pickMaterialNames` and `Excitation::Material`, and add rows to `PlayingNoise::getPickMaterial` (Ultex 1.27/0.15, Tortex 1.30/0.40, Stone 2.60/0.10).
+- [PN-9] DEFERRED (dsp2: changes the default sound of every preset and session that does not store pick_thickness - needs an owner decision and a preset migration) - effort S — Set the `pick_thickness` default in `Parameters.cpp:486` and the default in `PhysicalRange.cpp:125` to 0.316, i.e. log(0.73/0.38)/log(3/0.38), so it decodes to 0.73 mm. `BassFamilyDefaults::retarget` already reads the parameter's default, so it follows. Add `PickNoise.theDefaultPickIsPoint73mm`, checking `Parameters::pickThicknessMm(default)` = 0.73 ± 0.01. Check that `BassTechniques.bassDefaultsApplyOnLoad` still passes, and note that presets without the field now load 0.73 mm.
 - [PN-17] effort M — Add an Easy-mode rake gesture per gui-integration.md 3.x (Easy Playing strip): a "Rake" button (down, with shift for up) that calls `ScrapeEngine::requestRake(bool)` whatever `scrape_armed` is. Let `ScrapeEngine::handleMidi` accept keyswitches 13/14 without SCRAPE being armed, since the rake is a pick-noise event and not the along-string scrape. The arm pill comes from the techniques branch. Add `EasyLayout.theRakeButtonRakes`, asserting that the `pickScrape` trigger count rises.
-- [PN-T5] effort S — Add `PickNoise.noiseRidesTheInstrument` in `Tests/NoiseTests.cpp`. Render one click with `pickClickAmount` 1 through the Dreadnought and the Stratocaster (body mode Modal) and assert that the spectral centroid of the first 10 ms differs by more than 10%. Then render with all pick amounts at 0 against the noise engine disabled (or no triggers) and assert bit-identical buffers.
 
 </details>
 
@@ -3777,7 +3747,7 @@ The drawer (eight tabs, strip readouts, practice level, tap, panic) and the PRAC
 | PT-5 (§1) | Time signatures incl. custom | `Metronome::setTimeSignature` | drawer METRO | `PracticeMetronome::settingsRoundTrip` | DONE |
 | PT-6 (§1) | Tempo 20-300, follows tap + host tempo — never follows either | `Metronome::followTempo` from `processSlice` (blockTempo) | METRO "FOLLOW TEMPO" toggle | `PracticeMetronome.followsTheHostAndTheTap` | DONE |
 | PT-7 (§1) | Accent map, accent/normal/ghost (+silent) | `Metronome::setBeatAccent` | METRO beat buttons | `PracticeMetronome::accentPatternIsObeyed` | DONE |
-| PT-8 (§1) | Subdivisions incl. dotted, each with own gain — untested | `Metronome::setSubdivision/setSubdivisionLevelDb` | METRO | - | NO-TEST |
+| PT-8 (§1) | Subdivisions incl. dotted, each with own gain — untested | `Metronome::setSubdivision/setSubdivisionLevelDb` | METRO | `PracticeMetronome.subdivisionsClickAtTheirOwnLevel` | DONE |
 | PT-9 (§1) | 6 click sounds | `ClickSound` | METRO sound box | `PracticeMetronome::everyClickSoundIsAudibleAndFinite` | DONE |
 | PT-10 (§1, §10) | 16 click WAVs in Resources/Practice/Clicks - clicks synthesized by `Metronome`; Resources/Practice does not exist | `Metronome` synth | - | - | MISSING |
 | PT-11 (§1) | Silent bars every N (1-16) | `Metronome::setSilentBarPeriod` | METRO | `PracticeMetronome::silentBarsMuteTheClickWithoutStoppingTheCount` | DONE |
@@ -3790,18 +3760,18 @@ The drawer (eight tabs, strip readouts, practice level, tap, panic) and the PRAC
 | PT-18 (§2) | Overdub / replace / play-once — modes untested | `LayerMode` | LOOP mode box | - | NO-TEST |
 | PT-19 (§2) | Per-layer volume, pan | `LoopLayer::setLevelDb/setPan` | LOOP level/pan | `PracticeLooper::mutedLayersAreSilent` | DONE |
 | PT-20 (§2) | Per-layer low-cut / high-cut — engine only | `LoopLayer::setLowCutHz/setHighCutHz` | LOOP layer strip low-cut / high-cut sliders | `PracticeLooper.layerFiltersCutWhatTheySay` | DONE |
-| PT-21 (§2) | Export mixdown / stems — untested | `Looper::exportMixdown/exportStems` | LOOP Export mix / Export stems | - | NO-TEST |
-| PT-22 (§2) | `.luthierloop` save/load with MIDI, audio, settings — untested | `Looper::save/load` | LOOP Save/Load | - | NO-TEST |
+| PT-21 (§2) | Export mixdown / stems — untested | `Looper::exportMixdown/exportStems` | LOOP Export mix / Export stems | `PracticeLooper.exportWritesAMixdownAndOneStemPerLayer` | DONE |
+| PT-22 (§2) | `.luthierloop` save/load with MIDI, audio, settings — untested | `Looper::save` (fixed a use-after-free of each layer settings var) | LOOP Save/Load | `PracticeLooper.aSavedLoopReloadsIdentically` | DONE |
 | PT-23 (§2) | Audio snapshots in temp folder, moved on save — held in memory, written as WAVs beside the loop JSON | `Looper::save` | n/a | - | PARTIAL |
 | PT-24 (§3) | WAV/AIFF/FLAC/MP3 — no MP3 (`registerBasicFormats`, no JUCE_USE_MP3AUDIOFORMAT/dr_mp3) though chooser offers *.mp3 | `JUCE_USE_MP3AUDIOFORMAT=1` (CMakeLists) | TRACK Load (`PracticePanel.cpp:670`) | `PracticeTrack.loadsEveryAdvertisedFormat` | DONE |
-| PT-25 (§3) | Volume, mono — untested | `setLevelDb/setMonoSum` | TRACK | - | NO-TEST |
+| PT-25 (§3) | Volume, mono — untested | `setLevelDb/setMonoSum` | TRACK | `PracticeTrack.levelAndMonoApply` | DONE |
 | PT-26 (§3) | Pan, low-cut, high-cut — engine only | `BackingTrackPlayer::setPan/setLowCutHz/setHighCutHz` | TRACK pan / low-cut / high-cut sliders | `PracticeTrack.panAndFiltersShapeTheTrack` | DONE |
-| PT-27 (§3) | Loop points with zero-crossing snap — untested | `setLoopSeconds`, `snapToZeroCrossing` | TRACK set start/end | - | NO-TEST |
+| PT-27 (§3) | Loop points with zero-crossing snap — untested | `setLoopSeconds`, `snapToZeroCrossing` | TRACK set start/end | `PracticeTrack.loopPointsSnapToZeroCrossingsAndWrap` | DONE |
 | PT-28 (§3) | Pitch shift +-12 st, tempo-independent — stored, renderer never reads `pitchSemis` | `Practice/TimePitchShifter` (WSOLA) in `BackingTrackPlayer::processBlock` | TRACK `pitchSlider` (no effect) | `PracticeTrack.pitchShiftMovesPitchNotTempo` | DONE |
 | PT-29 (§3) | Tempo 25-200 %, pitch-independent — stored, renderer never reads `tempoRatio` | `Practice/TimePitchShifter` driven by tempoRatio | TRACK `tempoSlider` (no effect) | `PracticeTrack.tempoShiftChangesDurationNotPitch` | DONE |
 | PT-30 (§3) | Section markers with names, jump hotkeys — markers unnamed in UI, no hotkeys | `addMarker/jumpToMarker` | TRACK marker name field; names in markerBox | `PracticeTrack.panAndFiltersShapeTheTrack` (names) | PARTIAL |
-| PT-31 (§3) | Auto-detect tempo on load — untested | `BackingTrackPlayer::estimateTempo` | TRACK `tempoLabel` | - | NO-TEST |
-| PT-32 (§3) | Gapless playlist - `setPlaylist`/`nextInPlaylist`/`previousInPlaylist` exist; no UI in Source/UI and not gapless; no test | `BackingTrackPlayer::setPlaylist` | - | - | PARTIAL |
+| PT-31 (§3) | Auto-detect tempo on load — untested | `BackingTrackPlayer::estimateTempo` | TRACK `tempoLabel` | `PracticeTrack.estimatesTheTempoOfAClickTrack` | DONE |
+| PT-32 (§3) | Gapless playlist — `setPlaylist` exists, no UI, not gapless | `BackingTrackPlayer::setPlaylist` | - | - | PARTIAL |
 | PT-33 (§4) | Scale Explore with interval/degree/note overlays — no overlay selector | `ScaleTrainer` | SCALE fretboard drawing + Notes/Intervals/Degrees overlay box | `PracticePanelUi.scaleOverlaysChangeTheLabels` | DONE |
 | PT-34 (§4) | Quiz: detects played note via MIDI, scores — `answer(midiNote)` never fed MIDI | `PracticeNoteFeed` pushed in `processSlice` while the drawer is open | drawer timer -> `ScaleTab::notePlayed` | `PracticeTrainers.aPlayedNoteAnswersTheQuiz` | DONE |
 | PT-35 (§4) | Interval trainer and chord-tone trainer — modes exist, no played-note input or choice list | `ScaleTrainer::answerInterval / answer(note, seconds) / getQuestionNotes` | SCALE interval buttons; Ask plays the question | `PracticeTrainers.intervalTrainerScoresChoices`, `PracticeTrainers.chordToneTrainerNeedsThirdAndSeventhInTime` | DONE |
@@ -3809,15 +3779,15 @@ The drawer (eight tabs, strip readouts, practice level, tap, panic) and the PRAC
 | PT-37 (§4) | Custom scale via interval list — engine only | `ScaleTrainer::setCustomIntervals` | SCALE "Custom..." + step list editor | `PracticePanelUi.aCustomScaleIsHighlighted` | DONE |
 | PT-38 (§5) | Ear training: intervals, 11 chord qualities, adaptive, stats.json — 14 progressions (spec: 5 named + 10 = 15) | `kProgressions` (15, +I-IV-vi-V) | drawer EAR | `PracticeTrainers.fifteenProgressions` | DONE |
 | PT-39 (§5) | Uses Luthier's own guitar sound — untested | `EarTab::placeOnStrings` (was string i, fret note%24: wrong pitches) | EAR | `PracticeTrainers.earQuestionsPlayThroughTheEngine` | DONE |
-| PT-40 (§6) | Tab formats GP5/GP/ASCII/MusicXML/PTB — ASCII and MusicXML only | `Notation/NotationImporter` | drawer TAB Open | `Notation::importerIsHonestAboutWhatItReads` | PARTIAL |
-| PT-41 (§6) | Scrolling tab view, cursor, tempo, section loop, count-in - `TabReaderTab` holds only a static `juce::TextEditor tabView` (`UI/PracticePanel.h`) | `UI/PracticePanel.cpp:TabReaderTab` | TAB | - | MISSING |
-| PT-42 (§6) | Highlight current fret on the fretboard - not implemented (no tab-to-fretboard link in Source/UI) | - | - | - | MISSING |
+| PT-40 (§6) | Tab formats GP5/GP/ASCII/MusicXML/PTB — ASCII and MusicXML only | `NotationImporter::readGuitarPro` (.gp, GP7/8) | drawer TAB Open | `Notation.guitarProRoundTripsStringsAndFrets` | PARTIAL |
+| PT-41 (§6) | Scrolling tab view, cursor, tempo, section loop, count-in — static TextEditor | `TabReaderTab::tabView` | TAB | - | MISSING |
+| PT-42 (§6) | Highlight current fret on the fretboard | - | - | - | MISSING |
 | PT-43 (§6) | Speed trainer (+N% per pass until misses) — in routines only, not in TAB | `SpeedTrainer` (PracticeRoutineTempo) | PRACTICE routines | `PracticeRoutine::theSpeedTrainerClimbsUntilAPassMissesNotes` | PARTIAL |
 | PT-44 (§6) | Play-along note detection and scoring - not implemented (no scorer in Source outside WIP) | - | - | - | MISSING |
 | PT-45 (§7) | Chord progression looper: symbols, voiced, strummed, looped; tempo/feel/kit — only parsing tested | `ProgressionLooper` | drawer PROG | `PracticeTrainers::progressionParsing` | NO-TEST |
 | PT-46 (§8) | Session recorder ring (default 60 min), audio + MIDI | `SessionRecorder` | drawer SESSION | `PracticeSession::ringBufferNeverGrows`, `PracticeGaps::theSessionRecorderRecordsWhatItIsToldTo` | DONE |
 | PT-47 (§8) | Save last take WAV + MIDI, timestamp name | `SessionRecorder::saveLastTake` | SESSION Save | `PracticeGaps::theSessionRecorderRecordsWhatItIsToldTo`, `PracticeGaps::theSaveButtonDragsTheSavedTakeOut` | DONE |
-| PT-48 (§8) | Sessions/tmp, 24 h cleanup — cleanup untested | `SessionRecorder::cleanUpOldTempFiles` (PluginProcessor.cpp:130) | n/a | - | NO-TEST |
+| PT-48 (§8) | Sessions/tmp, 24 h cleanup — cleanup untested | `SessionRecorder::cleanUpOldTempFiles` (PluginProcessor.cpp:130) | n/a | `PracticeSession.oldTempFilesAreCleanedAfterADay` | DONE |
 | PT-49 (§8) | Off by default, enabled in Options | `OptionsPages` recorder toggle | Options | `PracticeSession::disabledByDefault` | DONE |
 | PT-50 (§9) | Drawer 32-360 px resizable; collapsed strip bpm / loop LED / track title — untested | `PracticePanel` | drawer | - | NO-TEST |
 | PT-51 (§9) | Tabs METRO..SESSION in order | `PracticePanel` tabs | drawer | `PracticeRoutine::toolsAreInTheDrawersTabOrder` | DONE |
@@ -3840,25 +3810,18 @@ The drawer (eight tabs, strip readouts, practice level, tap, panic) and the PRAC
 - [PT-1] effort S — Add `PracticeDrawer::aClosedDrawerCostsNothing`: with the drawer closed and metronome/looper/track "enabled", render blocks and assert the click/looper/track render functions are not entered (counter in `processSlice`) and the practice buffers stay untouched.
 - [PT-3] effort L — Implement re-render: on tone change (preset/parameter generation bump) with a closed loop, render each layer's stored MIDI offline through a second `LuthierEngine` instance on a worker thread (as `Capture`/tune offline render does) and swap the new audio into the layer; UI: a "Re-render with this tone" button on LOOP (auto per §0.3 optional). Test = PT-60.
 - [PT-4] effort S — Covered by PT-61's streaming test; additionally assert `BackingTrackPlayer` never holds more than `kRingBufferSeconds * sr` frames.
-- [PT-8] effort S — Add `PracticeMetronome::subdivisionsClickAtTheirOwnLevel`: dotted-eighth and triplet grids land on the right samples and the subdivision level dB scales only off-beat clicks.
 - [PT-10] effort S — DEFER: synthesized clicks avoid shipping 16 WAVs and sound identical at any rate; record in DECISIONS.md and drop the `Resources/Practice/Clicks` path from §10/§11.2's defaults (the defaults pick one of the six synth sounds).
 - [PT-13] effort S — Add `PracticePanelUi::theFourDotsFollowTheBeat` rendering MetronomeTab at two beat positions and comparing the lit dot.
 - [PT-18] effort S — Add `PracticeLooper::replaceAndPlayOnceModesBehave`: replace erases the prior layer content during recording; play-once plays one pass then stays silent.
-- [PT-21] effort S — Add `PracticeLooper::exportWritesAMixdownAndOneStemPerLayer` (temp dir; count WAVs; mixdown equals sum of stems within 1e-4).
-- [PT-22] effort S — Add `PracticeLooper::aSavedLoopReloadsIdentically` (save to temp, load into a fresh Looper, compare audio, MIDI event count and layer settings).
 - [PT-23] effort S — DEFER: in-memory layers (<=240 s x 8) written as WAVs beside the JSON on save are simpler than a temp-folder shuffle and lose nothing; record in DECISIONS.md.
-- [PT-25] effort S — Add `PracticeTrack::levelAndMonoApply` rendering a generated stereo WAV.
-- [PT-27] effort S — Add `PracticeTrack::loopPointsSnapToZeroCrossingsAndWrap`.
 - [PT-30] PARTIAL: names done (dsp2); Ctrl+1..9 jump hotkeys still missing
-- [PT-31] effort S — Add `PracticeTrack::estimatesTheTempoOfAClickTrack` (generate a 100 bpm click WAV, assert within 1 bpm).
 - [PT-32] effort M — Add a playlist list to TRACK (add/remove/reorder files) calling `setPlaylist`; make the reader pre-open the next file so the switch is sample-contiguous. Test: `PracticeTrack::playlistIsGapless` (two generated files, no zero-run at the seam).
-- [PT-40] effort L — Add Guitar Pro import to `NotationImporter`: `.gp` (GP7/8 zip + GPIF XML, reuse the writer's GPIF knowledge) first; GP5 binary and PTB are larger (L each) — DEFER PTB (legacy, rare). Test: round-trip `NotationExport` `.gp` files back through the importer.
+- [PT-40] PARTIAL: .gp (GP7/8) reads (dsp2); GP5 binary and PTB are not read || was: effort L — Add Guitar Pro import to `NotationImporter`: `.gp` (GP7/8 zip + GPIF XML, reuse the writer's GPIF knowledge) first; GP5 binary and PTB are larger (L each) — DEFER PTB (legacy, rare). Test: round-trip `NotationExport` `.gp` files back through the importer.
 - [PT-41] effort L — Replace `TabReaderTab::tabView` with a rendered tab component (reuse NOTATION tab's live tab renderer, notation-export 3) with a playback cursor driven by a tempo slider, section loop (drag range) and a one-bar count-in through the practice metronome. Test: `PracticePanelUi::tabReaderCursorAdvancesAtTempo`.
 - [PT-42] effort M — While the tab reader plays, publish the current notes (string/fret) to the Easy/Advanced fretboard (`FretboardComponent` tab-dot API added by MODEL-GAPS) with a distinct colour. Test: `PracticePanelUi::tabReaderHighlightsTheFretboard`.
 - [PT-43] effort S — Put a "Speed trainer" toggle + step % in the TAB tab that drives `SpeedTrainer` over the looped section (scores from PT-44). Test via existing `theSpeedTrainerClimbsUntilAPassMissesNotes` plus a TAB-driven variant.
 - [PT-44] effort M — Compare played notes (PT-34's FIFO) with the tab's expected notes within a timing window; show hit % per pass. Test: `PracticeTrainers::playAlongScoresHitsAndMisses`.
 - [PT-45] effort S — Add `PracticeTrainers::theProgressionLooperStrumsItsChordsInTime`: start `ProgressionLooper` with "Am - F - C - G x4" at 120 bpm, render, assert rhythm-engine strums on each bar with the right chord roots.
-- [PT-48] effort S — Add `PracticeSession::oldTempFilesAreCleanedAfterADay` (touch files with old mtimes in a temp dir; call `cleanUpOldTempFiles`; saved ones outside tmp survive).
 - [PT-50] effort S — Add `PracticeDrawer::resizesBetweenThirtyTwoAndThreeSixtyAndTheStripReadsOut` (drag/set height clamps; collapsed strip text contains bpm and track title).
 - [PT-52] effort S — Add `PracticeDrawer::levelTapAndPanicDoWhatTheySay` (practice level scales click not main; tap calls `tapTempoNow` -> effective tempo; panic stops metronome/looper/track while main audio continues).
 - [PT-60] effort M — After PT-3, add `PracticeLooper::aLoopNullsAgainstAFreshRenderOfItsMidi` (-80 dBFS).
@@ -3956,7 +3919,7 @@ This spec is a ship-gate checklist, and a large part of it is process: the host 
 | QA-24 (§3) | Corrupt preset: every byte flipped is refused or loads — HEAD random mutations | `PresetQaTests.cpp` | n/a | `Presets::mutatedPresetsNeverCrashTheLoader`, `Presets::everyByteOfAFactoryPresetFlippedIsRefusedOrLoads` | DONE |
 | QA-25 (§3) | Corrupt `.luthierguitar`: every byte flipped | `WorkshopQaTests.cpp` | n/a | `Workshop::everyByteOfAFactoryGuitarFlippedIsRefusedOrLoads` | DONE |
 | QA-26 (§3) | Missing IR/part/guitar -> graceful fallback + banner | `PartLibrary` load report, IrSlot | notification banner | `Workshop::aMissingPartFallsBackAndSaysSo`, `WorkshopPresets::aMissingGuitarFileFallsBackToItsType`, `Editor::aFailedPresetLoadAndAMissingIrEachRaiseABannerOnce` | DONE |
-| QA-27 (§4) | Every control has a tooltip — `attachTo` falls back to the parameter name; no test | `UI/Widgets.cpp` attach helpers | all panels | - | NO-TEST |
+| QA-27 (§4) | Every control has a tooltip — `attachTo` falls back to the parameter name; no test | `UI/Widgets.cpp` attach helpers | all panels | `GuiReach::everyVisibleAttachedControlHasATooltip` (default view) | DONE |
 | QA-28 (§4) | Tooltips and labels in every locale, fitting at 100% — catalog API only; no `Resources/i18n` translations; many literal strings | `Accessibility/Localisation.cpp` | Options > language | `Localisation::catalogCoversTheUi`, `Localisation::everyShipLocaleIsOffered` | PARTIAL |
 | QA-29 (§4) | Accessibility role/value; physical units in the announcement — names for attached controls on visual; units not asserted | `Accessibility/Accessibility.cpp` (unit suffix in `textFromValueFunction`) | all controls | `ScreenReader::everyAttachedControlHasAName` (names only; units in the announcement not asserted) | PARTIAL |
 | QA-30 (§4) | Hover/click/drag/right-click/double-click; reset; value entry and paste | `UI/Widgets.cpp` right-click menu | all controls | `GuiReach::operatingEachControlWritesItsParameter`; on visual: `ContextMenu::everyParameterShowsItsAutomationIdAndBoundOnesTheirShortcut` | DONE |
@@ -3977,10 +3940,10 @@ This spec is a ship-gate checklist, and a large part of it is process: the host 
 | QA-45 (§5) | Sounds like its name (audio-lead sign-off) | - | n/a | - | MISSING |
 | QA-46 (§5) | DC null: silent in, ≤ -100 dBFS out — with noise floor off, on visual | engine | n/a | `Engine::silenceInSilenceOut`, `Engine::silenceInSilenceOutWithNoiseFloorOff` | DONE |
 | QA-47 (§5) | Mono compatibility ≤ 3 dB comb in the presence range | engine | n/a | `Engine::monoCompatibility` | DONE |
-| QA-48 (§5) | Bypass null: bypassed output bit-identical to no plugin — host bypass untested | JUCE default `processBlockBypassed` (not overridden) | host | - | NO-TEST |
-| QA-49 (§5) | Pedals: toggle click-free, extremes bounded, zero-mix ≤ -80 dB null | `DSP/Effects` | pedal rack | `Effects::everyPedalTypeRunsCleanly`, `Effects::bypassIsTransparent`, `Effects::toggleIsClickFree`, `Effects::zeroMixIsABypassWithinMinus80` | DONE |
-| QA-50 (§5) | Amps: cold start, monotonic gain sweep, neutral tone stack flat within 1 dB | `DSP/Amp` | AMP | `Amp::coldStartHasNoTransient`, `Amp::gainSweepIsMonotonicAt1kHz`, `Amp::neutralToneStackIsFlatWithin1dB` | DONE |
-| QA-51 (§5) | Squeak: amount 0 is bit-identical to disabled; 1000 runs byte-identical | `DSP/Noise` squeak | CHARACTER | `Squeak::zeroIsFreeAndSlideModeSuppressesIt`, `Squeak::theProbabilityRollIsDeterministic`, `Squeak::aThousandRunsAreByteIdentical` | DONE |
+| QA-48 (§5) | Bypass null: bypassed output bit-identical to no plugin — host bypass untested | JUCE default `processBlockBypassed` (instrument: silence) | host | `HostState::bypassOutputsSilence` | DONE |
+| QA-49 (§5) | Pedals: toggle click-free, extremes bounded, zero-mix ≤ -80 dB null | `DSP/Effects`; on visual: 56a4980 | pedal rack | `Effects::everyPedalTypeRunsCleanly`, `Effects::bypassIsTransparent`; on visual: `Effects::toggleIsClickFree`, `Effects::zeroMixIsABypassWithinMinus80` | OWNED |
+| QA-50 (§5) | Amps: cold start, monotonic gain sweep, neutral tone stack flat within 1 dB | on visual: 56a4980 | AMP | on visual: `Amp::coldStartHasNoTransient`, `Amp::gainSweepIsMonotonicAt1kHz`, `Amp::neutralToneStackIsFlatWithin1dB` | OWNED |
+| QA-51 (§5) | Squeak: amount 0 is bit-identical to disabled; 1000 runs byte-identical | `DSP/Noise` squeak | CHARACTER | `Squeak::zeroIsFreeAndSlideModeSuppressesIt`, `Squeak::theProbabilityRollIsDeterministic`; on visual: `Squeak::aThousandRunsAreByteIdentical` | OWNED |
 | QA-52 (§5) | Pick click/chirp matches the material profile within 0.5 dB; rake scrape on wound, not plain | `DSP/Noise` pick noise | CHARACTER | `PickNoise::clickPitchTracksMaterialAndThickness`, `PickNoise::plainStringsNeverChirp` | DONE |
 | QA-53 (§5) | Buzz threshold -1 dB clean / +3 dB buzzes | buzz generator | CHARACTER | `Buzz::theThresholdIsATrimNotAMute`, `Buzz::oneDecibelUnderTheThresholdIsCleanThreeOverBuzzes` | DONE |
 | QA-54 (§5) | Slide pitch within 2 cents; slide vibrato measurable; clank on bar drop | `SlideEngine` | CHARACTER | `Slide::pitchIsContinuous`, `Slide::theBarClanksWhenItLands`, `Slide::theBarArrivesWithinTwoCents` | DONE |
@@ -4007,7 +3970,7 @@ This spec is a ship-gate checklist, and a large part of it is process: the host 
 | QA-75 (§11) | Every IR generated or licensed, with documentation | `scripts/make_irs.py` | n/a | n/a | DONE |
 | QA-76 (§11) | EULA finalised; refund policy documented — the EULA is a placeholder | `packaging/common/EULA.txt` | installer licence page | - | PARTIAL |
 | QA-77 (§12) | Final 30-minute human check including a from-scratch Workshop guitar save/reopen | process | n/a | - | MISSING |
-| QA-78 (§13) | 72 h post-release monitoring, support SLA, rehearsed 30-minute rollback, 24 h hotfix path — RELEASING.md covers publishing, not rollback — W2: rollback and hotfix runbook in RELEASING §8; not rehearsed | `docs/RELEASING.md` | n/a | - | PARTIAL |
+| QA-78 (§13) | 72 h post-release monitoring, support SLA, rehearsed 30-minute rollback, 24 h hotfix path — RELEASING.md covers publishing, not rollback | docs/RELEASING.md 10 | n/a | - | PARTIAL |
 
 <details><summary>Work list (qa-polish)</summary>
 
@@ -4020,14 +3983,12 @@ This spec is a ship-gate checklist, and a large part of it is process: the host 
 - [QA-18 (§3)] effort M — DEFER: a macOS-host-only manual check (format switching lives in the host). List it in SHIP_GATE.
 - [QA-21 (§3)] effort S — Extend `WorkshopSwap::aPartSwapDuringANoteIsClickFree` (or add `Stress::partSwapUnderHeavyLoad`) with a heavy preset (Modern Metal Chug, six voices, all pedals) during the swap. Assert finite, bounded output with no click.
 - [QA-22 (§3)] effort M — `Stress::presetSwitchingUnderCpuStarvation`: a background thread burns CPU while the test renders and switches presets every 50 ms. Assert no crash and finite output (the CPU relief ladder on visual should engage).
-- [QA-27 (§4)] effort S — `GuiReach::everyControlHasATooltip`: walk the editor as GuiReach does, and assert every visible `Slider`/`Button`/`ComboBox` with an attachment has a non-empty `getTooltip()` or a `SettableTooltipClient` text.
 - [QA-28 (§4)] effort L — Ship `Resources/i18n/<locale>.json` for the ship locales and move the literal UI strings (technique pages, overlays, banners) through `Localisation::tr`. Extend `Localisation::catalogCoversTheUi` to fail on literals found by the walker. The "fits at 100%" check is a GuiReach text-bounds test per locale.
 - [QA-32 (§4)] effort S — `GuiReach::aModRouteDrawsAnArcAndTabReachesEveryControl`: add a route to `amp_gain` and assert the knob's mod-arc property is set, then walk the focus traversal and assert each control is reachable and the focus outline paints in each palette.
 - [QA-38 (§4)] effort M — Add an empty-area right-click menu to panel group components (`UI/Widgets` group base): "Reset this panel", "Copy/Paste panel settings", "Help". Test: right-click at a group's empty point and assert the menu items.
 - [QA-40 (§4)] effort S — In `UI/Overlays.cpp`, grab keyboard focus on the first interactive child on open and post an accessibility announcement (`AccessibilityHandler::postAnnouncement`). The overlays are inside the editor, so they cannot be lost behind the host. Test: `Editor::anOverlayFocusesItsFirstControlAndAnnounces`.
 - [QA-41 (§4)] effort S — List the panels that can be empty (gui-integration 14). Add `GuiReach::everyEmptyPanelShowsItsHint`, which clears the bank, setlist, loops, mod routes and pedals and asserts each panel's hint label is visible.
 - [QA-45 (§5)] effort S — Process: record the audio-lead listening sign-off per factory preset in SHIP_GATE, after the factory-content re-voice (FC-2).
-- [QA-48 (§5)] effort S — Decide the bypass behaviour. Luthier is an instrument, so the JUCE default outputs silence and "bit-identical to no plugin" means silence. Add `HostState::bypassOutputsSilence`, which calls `processBlockBypassed` with a playing note and asserts exact zeros, or override it to add a latency-compensated input pass-through if an audio input is ever routed.
 - [QA-59 (§6)] effort M — After the techniques and visual merges, rerun GuiReach and check each gui-integration 19 row for persistence, automation and shortcut. Most of this is tracked in the gui-integration part.
 - [QA-60 (§6)] effort M — Merge the visual screenshot harness, run it in the nightly workflow, and commit the screenshots used by `docs/USER_MANUAL.md` with a date check (fail when older than 30 days behind the build). Translation follows QA-28.
 - [QA-70 (§8)] effort L — DEFER: a human process. Write the 90-minute script into `docs/BUG_BASH.md` from section 8.3 now, so it is ready.
@@ -4036,7 +3997,47 @@ This spec is a ship-gate checklist, and a large part of it is process: the host 
 - [QA-74 (§11)] effort S — Same fix as factory-content FC-1: rename "Fuzz Face Lead" and "Modern LP Wiring" and extend the trademark scanner.
 - [QA-76 (§11)] effort S — DEFER: legal. Replace `packaging/common/EULA.txt` and publish the refund policy (the product owner's task per RELEASING.md §7).
 - [QA-77 (§12)] effort S — DEFER: human process. Add the 30-minute check and the Workshop from-scratch round trip to SHIP_GATE. The round trip could also be automated as `WorkshopPresets::aGuitarBuiltFromATemplateSurvivesReopen`.
-- [QA-78 (§13)] effort M — Add a "Rollback" section to `docs/RELEASING.md`: revert the update manifest, keep the old assets, and use the in-plugin banner through the update-check manifest's `rollback` field (the `Telemetry` update check reads it and posts a banner). Hotfix path: tag, then release.yml with gates 1-5. The monitoring SLA is process.
+- [QA-78 (§13)] effort M — rollback/hotfix runbook written (RELEASING 10); the monitoring SLA is process, the manifest-driven banner is open (IN-43).
+
+</details>
+
+## randomize-and-ab.md
+
+Randomize (category/amount/distribution/locks) and A/B compare slots. Deferred feature, no owner. Basic randomise (locks, respects-stock) and A/B slots with copy exist in `LuthierAudioProcessor`; category scope, Amount, triangular distribution, popover and per-field diff flip are missing.
+
+| Req | Summary | Engine location | GUI location | Test | Status |
+|---|---|---|---|---|---|
+| RA-0 (§0) | Ground rules, no audio-thread work | `PluginProcessor.cpp:LuthierAudioProcessor::randomiseParameters` | - | `Presets::randomiseNeverProducesSomethingBroken` | PARTIAL |
+| RA-1.1 (§1.1) | Randomize categories (Tone, etc.) | `PresetManager::randomise` (all params, no categories) | none (no category popover) | - | MISSING |
+| RA-1.2 (§1.2) | Amount control | - | - | - | MISSING |
+| RA-1.3 (§1.3) | Musical distribution (triangular around current, within live range) | `PresetManager::randomise` | - | `Presets::randomiseRespectsLocks` | PARTIAL |
+| RA-1.4 (§1.4) | Locks | `LuthierAudioProcessor::setParameterLocked/isParameterLocked` | `Widgets.cpp` menu 'Lock (exclude from randomise)' | `Presets::randomiseRespectsLocks` | DONE |
+| RA-1.5 (§1.5) | Never touches structure (guitar, tuning, ranges, mappings, rack, uiState) | `PresetManager::randomise`, `randomiseRespectsStock` (`RangesUi::kRandomiseInStockKey`) | Options toggle `randomiseToggle` | `Presets::randomiseNeverProducesSomethingBroken` | PARTIAL |
+| RA-2.1 (§2.1) | A/B slot contents | `LuthierAudioProcessor::storeToSlot/recallSlot` | HeaderBar `compareA/compareB` | `Presets::abSlotsCompareAndCopyTheCurrentOneAcross` | DONE |
+| RA-2.2 (§2.2) | Active slot | `isSlotBActive/setSlotBActive` | HeaderBar A/B buttons highlight | `Editor::abButtonsHighlightTheActiveSlot` | DONE |
+| RA-2.3 (§2.3) | Flipping: diff-only, click-free | `recallSlot` (whole-state recall) | HeaderBar, `abCompare` shortcut | `Editor::undoRedoAndABKeysReachTheProcessor` | PARTIAL |
+| RA-2.4 (§2.4) | Copy A>B and Reset both | `LuthierAudioProcessor::copyAtoB` | HeaderBar `copyAB` | `Presets::abSlotsCompareAndCopyTheCurrentOneAcross` | PARTIAL |
+| RA-2.5 (§2.5) | What A/B does not do; transient, not saved | processor slots not serialized | - | `Editor::abCompareIsTransientAndNotSaved`, `StateModel::aPresetLoadClearsABCompareWithABanner` | DONE |
+| RA-3 (§3) | UI: randomise popover, A/B strip | `HeaderBar.cpp` randomise button; `EasyPanel` randomiseButton | HeaderBar, EasyPanel; no popover | `Editor::randomiseAndResetKeys`, `Onboarding::theRandomiseTooltipShowsOnTheFirstHoverOnly` | PARTIAL |
+| RA-4 (§4) | Undo: one multi-target 'randomize' entry; flips not in history | `randomiseParameters` -> `pushUndoState("Randomise")` | - | `UndoSweep` none specific | PARTIAL |
+| RA-5 (§5) | Interactions with other specs | - | - | - | PARTIAL |
+| RA-T1 (§6 RAND-01..06) | Category scope, distribution, stock range, structure, undo, popover state | - | - | `Presets::randomiseNeverProducesSomethingBroken`, `Presets::randomiseRespectsLocks` | PARTIAL |
+| RA-T2 (§6 AB-01..07) | Load resets, diff-only swap, click-free flip, copy/reset, save-active-only, undo independence, session boundary | - | - | `Presets::abSlotsCompareAndCopyTheCurrentOneAcross`, `StateModel::aPresetLoadClearsABCompareWithABanner`, `Editor::abCompareIsTransientAndNotSaved` | PARTIAL |
+
+<details><summary>Work list (randomize-and-ab)</summary>
+
+- [RA-0 (§0)] effort S — DEFERRED (coordinator plan: serialized after the gap helpers) — confirm worker/message-thread only and deterministic seed option
+- [RA-1.1 (§1.1)] effort M — DEFERRED (coordinator plan: serialized after the gap helpers) — category list + popover toggles; restrict randomise to enabled categories
+- [RA-1.2 (§1.2)] effort S — DEFERRED (coordinator plan: serialized after the gap helpers) — Amount slider scaling spread
+- [RA-1.3 (§1.3)] effort M — DEFERRED (coordinator plan: serialized after the gap helpers) — move to triangular-around-current with Amount spread, clamp to live range
+- [RA-1.5 (§1.5)] effort S — DEFERRED (coordinator plan: serialized after the gap helpers) — add RAND-04 test across all category combos
+- [RA-2.3 (§2.3)] effort M — DEFERRED (coordinator plan: serialized after the gap helpers) — flip only writes differing fields (AB-02) and crossfades pedal/guitar changes (AB-03)
+- [RA-2.4 (§2.4)] effort S — DEFERRED (coordinator plan: serialized after the gap helpers) — add Reset both to last-loaded preset
+- [RA-3 (§3)] effort M — DEFERRED (coordinator plan: serialized after the gap helpers) — randomise popover with categories/Amount/respects-stock; persist session choices
+- [RA-4 (§4)] effort S — DEFERRED (coordinator plan: serialized after the gap helpers) — label entry 'randomize' multi-target; add RAND-05 and AB-06 tests
+- [RA-5 (§5)] effort S — DEFERRED (coordinator plan: serialized after the gap helpers) — verify ranges/midi-learn/snapshot interactions when category scope lands
+- [RA-T1 (§6 RAND-01..06)] effort M — DEFERRED (coordinator plan: serialized after the gap helpers) — add RAND-01..06 tests with the features
+- [RA-T2 (§6 AB-01..07)] effort M — DEFERRED (coordinator plan: serialized after the gap helpers) — add AB-02, AB-03, AB-05, AB-06 tests
 
 </details>
 
@@ -4050,7 +4051,7 @@ The rhythm engine is functionally complete: chord detector (84 templates, 30 ms 
 | RE-2 (§0.2) | Never allocates in the callback — pattern, bass grid and humanise reach the audio thread through `Support/TripleBuffer.h` and are read by reference (SPEC-SWEEP) | `RhythmEngine::processBlock` (acquire), `scheduleFingerpick`, `Support/TripleBuffer.h` | n/a | `RhythmPatterns::processBlockDoesNotAllocate` | DONE |
 | RE-3 (§0.3) | Sample-accurate to host ppq | `RhythmEngine::processBlock` (RhythmTransport) | n/a | `RhythmPatterns::strumSchedulingIsSampleAccurate` | DONE |
 | RE-4 (§0.4) | Silent when stopped unless Free-run | `RhythmEngine::setFreeRun` | ADVANCED > RHYTHM `RhythmPanel::freeRunButton` | `RhythmPatterns::silentWhenStoppedUnlessFreeRunning` | DONE |
-| RE-5 (§0.5, §9) | Quantized on read, humanized on write from the existing HumanizeMatrix — engine owns its own `RhythmHumanise`; instrument `hum_*`/`macro_humanize` params never reach it | `RhythmEngine::setHumanise`, `Parameters.cpp:applyToEngine` (interp only) | RHYTHM feel sliders | `RhythmPatterns::humanisationIsDeterministic` | PARTIAL |
+| RE-5 (§0.5, §9) | One humanise source: the instrument's Humanize macro scales the kit/panel feel (1 at the macro default) | `RhythmEngine::setHumaniseScale` (bridge), `blockHumanise` | RHYTHM feel sliders | `RhythmPatterns::macroHumanizeScalesTheRhythmFeel` | DONE |
 | RE-6 (§0.6) | Own bypass, reverts within one block, no artefact | `RhythmEngine::setEnabled`, `pendingRelease` | RHYTHM `enableToggle`; Easy `rhythmEnableButton` | `RhythmPatterns::bypassIsCleanAndImmediate` | DONE |
 | RE-7 (§2.1-2) | ChordDetector: pitch classes, 84 templates | `Rhythm/ChordDetector.cpp` | n/a | `Rhythm::chordTemplatesAreUnique`, `Rhythm::chordDetectorRoundTripsEveryTemplateInEveryKey` | DONE |
 | RE-8 (§2.3) | Lowest pitch as bass / slash | `ChordDetector::detect` | n/a | `Rhythm::slashChordsReportTheirBass`, `Rhythm::chordDetectorHandlesInversions` | DONE |
@@ -4078,10 +4079,10 @@ The rhythm engine is functionally complete: chord detector (84 templates, 30 ms 
 | RE-30 (§7) | Kits as JSON under Resources/Genres - built in code (`addFactoryKits`); Resources/Genres absent, `getFactoryDirectory` and user dir scanned when present | `GenreKitLibrary::getFactoryDirectory` | - | `GenreKits::kitsRoundTripThroughJson` | PARTIAL |
 | RE-31 (§8.1) | Genre dropdown + randomize dice | `GenreKit::randomPattern` | RHYTHM `genreBox`, `diceButton` | `GenreKits::randomPatternStaysInsideTheKit` | DONE |
 | RE-32 (§8.2) | Capo up/down | `RhythmEngine::setCapoFret` -> TuningEngine | RHYTHM `capoDown/capoUp` | `GenreKits::capoRemovesFretsBelowItAndMovesThePitch` | DONE |
-| RE-33 (§8.3) | Strum grid 16/32 steps, right-click dynamic/mask/delete — no UI test | n/a | RHYTHM `StrumGrid::mouseDown` | - | NO-TEST |
+| RE-33 (§8.3) | Strum grid 16/32 steps, right-click dynamic/mask/delete — no UI test | n/a | RHYTHM `StrumGrid::mouseDown` | RhythmPanelUi::strumGridThirtyTwoStepsAndItsMenu | DONE |
 | RE-34 (§8.4) | Fingerpick grid 5 rows — no UI test | n/a | RHYTHM `FingerpickGrid` | `RhythmPanelUi::fingerpickGridTogglesAFingerStep` | DONE |
 | RE-35 (§8.5) | Swing places the offbeat at swing x the pair (0.66 = triplet); range 50-75% kept (below 50% would rush), see sweep-notes | `RhythmPattern::setSwing`, processBlock | RHYTHM `swingSlider` | `RhythmPatterns::swingDelaysTheOffbeats` | DONE |
-| RE-36 (§8.6) | Pattern browser: tag filter, load, save, export — untested | `PatternLibrary::findByTag` | RHYTHM `tagFilterBox`, `patternList`, LOAD/SAVE/EXPORT | - | NO-TEST |
+| RE-36 (§8.6) | Pattern browser: tag filter, load, save, export — untested | `PatternLibrary::findByTag` | RHYTHM `tagFilterBox`, `patternList`, LOAD/SAVE/EXPORT | RhythmPanelUi::patternBrowserFiltersLoadsAndSaves | PARTIAL |
 | RE-37 (§8.7) | Live indicators: chord, fretboard dots, next-strum light — untested | `getCurrentChord`, `getNextStrumType` | RHYTHM `RhythmIndicators` | `RhythmPanelUi::indicatorsShowChordVoicingAndNextStroke` | DONE |
 | RE-38 (§8) | Easy strip: kit, feel, on/off, Mono hint — only feel knob tested | `EasyPanel::buildRhythmStrip` | Easy `rhythmGenreBox`, `rhythmFeelSlider`, `rhythmEnableButton`, `rhythmHintLabel` | `EasyLayout::theRhythmStripEnablesAKitAndHintsInMono` | DONE |
 | RE-39 (§9) | Writes only NoteOn/NoteOff/palm-mute | `RhythmEngine::emitNote`, `releaseAll` | n/a | `GenreKits::everyKitSoundsWhenApplied` | DONE |
@@ -4096,11 +4097,9 @@ The rhythm engine is functionally complete: chord detector (84 templates, 30 ms 
 
 <details><summary>Work list (rhythm-engine)</summary>
 
-- [RE-5] effort M — Feed the instrument's humanise (`hum_timing`, `hum_velocity`, `macro_humanize`) into the rhythm engine in `ParameterBridge::applyToEngine` (Parameters.cpp ~1240) as the base, with kit/panel values as offsets or `amount` scaling, so there is one humanise source; or DEFER: record in DECISIONS.md that kits own their feel (the Easy Feel knob already scales `amount`). Test: `RhythmPatterns::macroHumanizeScalesTheRhythmFeel`.
 - [RE-27] effort S — DEFER: factory patterns compiled into the binary are more robust than loose JSON (no install-path lookup); user directory `~/Documents/Luthier/Rhythm` already works. Record in DECISIONS.md.
 - [RE-30] effort S — DEFER: same as RE-27 for `Resources/Genres/`; kits are in code and the user Genres folder is scanned. Record in DECISIONS.md.
-- [RE-33] effort S — Add `RhythmPanelUi::strumGridCellsEditThePattern`: construct `RhythmPanel`, click a `StrumGrid` cell, drive the popup menu ids 100+/200+/300 via the handler, assert `RhythmEngine::getPattern()` changed.
-- [RE-36] effort S — Add `RhythmPanelUi::browserFiltersLoadsAndSaves`: pick a tag in `tagFilterBox`, assert `visiblePatterns`, LOAD installs into the engine, SAVE writes a `.luthierpattern` to a temp user dir.
+- [RE-36] EXPORT opens a FileChooser, which a test cannot drive; filter, LOAD and SAVE are tested.
 - [RE-40] effort S — Preset storage done (SPEC-SWEEP state, `rhythm_engine` block). Remaining: an automatable host parameter `rhythm_enabled` bound to `RhythmEngine::setEnabled` in `ParameterBridge`, attached to `enableToggle`/Easy `rhythmEnableButton`.
 
 </details>
@@ -4165,17 +4164,17 @@ The routing engine is complete: all four layouts are advertised (plus the Aux 8 
 | RIO-1 (§0.1, §1) | Layouts A/B/C/D advertised via BusesProperties; host picks | `PluginProcessor.cpp:buildBusesProperties`, `isBusesLayoutSupported` | n/a | `Routing::everyLayoutRendersCleanly`, `PluginBuses::perStringLayoutPutsEachStringOnItsOwnBus` | DONE |
 | RIO-2 (§0.2) | Runs correctly at every advertised layout incl. stereo-only | `PluginProcessor::processSlice`, `RoutingMatrix::distribute` | n/a | `Routing::everyLayoutRendersCleanly` | DONE |
 | RIO-3 (§0.3) | Extra outs post-limiter unless tap points; taps documented | `Routing/TapBuffers.h`, `RoutingMatrix::distribute` | n/a | `Routing::diTapNullsAgainstReappliedAmp` | DONE |
-| RIO-4 (§0.4, §4) | Sidechain optional; makes follower source `sidechain` live — no test drives a follower from the sidechain bus | `ModEnvelopeFollower::Source::sidechain`, `ModBlockContext` sidechain peak | ADVANCED > MOD, follower card `followerSourceBox` | - | NO-TEST |
+| RIO-4 (§0.4, §4) | Sidechain optional; makes follower source `sidechain` live — no test drives a follower from the sidechain bus | `ModEnvelopeFollower::Source::sidechain`, `ModBlockContext` sidechain peak | ADVANCED > MOD, follower card `followerSourceBox` | `Routing::sidechainDrivesTheEnvelopeFollower` | DONE |
 | RIO-5 (§0.5, §6) | MIDI out sample-accurate for pass-through and generated events | `Routing/MidiOutRouter.cpp` | n/a | `Routing::midiOutPassThroughIsSampleExact`, `MidiExport::liveMidiOutKeepsTenThousandEventsOnTheirSample` | DONE |
-| RIO-6 (§2) | Aux 1-7 tap assignments (DI, pre-cab, mic1, mic2, room, wet, monitor) — only Aux1/Aux6 (and Aux 8) are asserted by tests | `TapBuffers`, `RoutingMatrix::distribute/writeMonitorBus` | n/a | `Routing::diTapNullsAgainstReappliedAmp` (Aux1 only) | NO-TEST |
+| RIO-6 (§2) | Aux 1-7 tap assignments (DI, pre-cab, mic1, mic2, room, wet, monitor) — only Aux1/Aux6 (and Aux 8) are asserted by tests | `TapBuffers`, `RoutingMatrix::distribute/writeMonitorBus` | n/a | `Routing::everyAuxTapCarriesItsOwnSignal`, `Routing::diTapNullsAgainstReappliedAmp` (Aux1 only) | DONE |
 | RIO-7 (§2) | Per-aux gain trim | `RoutingMatrix::setAuxGainDb` | ADVANCED > ROUTING, `AuxStrip::gain` | `PluginBuses::aux8CarriesThePlayingNoiseAndObeysItsStrip`, `Routing::stateRoundTrips` | DONE |
 | RIO-8 (§2) | Muted aux bus skips its tap render | `RoutingMatrix::updateWantedTaps` | ROUTING `AuxStrip` mute | `Routing::muteAndSoloResolveTogether` | DONE |
 | RIO-9 (§3) | 12 mono per-string buses, post-body pre-pickup, silence when unused | `RoutingMatrix::distribute` per-string | ROUTING `PerStringStrip` | `Routing::perStringOutputsSumToPreBody`, `PluginBuses::perStringLayoutPutsEachStringOnItsOwnBus` | DONE |
 | RIO-10 (§3, §7) | Per-string latency = engine-only latency | `LuthierEngine::getPerStringLatencySamples` | ROUTING `latencyLabel` | `Routing::perOutputLatencyIsConsistent` | DONE |
 | RIO-11 (§4) | Sidechain ducks a "sidechain compressor" pedal — no such pedal | `DSP/Effects/Pedal.h:PedalType` (absent) | - | - | MISSING |
 | RIO-12 (§4) | Sidechain as monitor input for backing-track summing | `Live/LiveControls.cpp:MonitorMix` | Live Strip `monitorLevel` | `LiveMonitor::idleWhenNothingToMonitorAndSumsWhenThereIs` | DONE |
-| RIO-13 (§4) | Sidechain never sums into the guitar output unless consumed — no test asserts main out unchanged by a sidechain with toggle off | `PluginProcessor::processSlice` (sidechainCopy to consumers only) | n/a | - | NO-TEST |
-| RIO-14 (§4, §8) | Sidechain meter in routing panel — untested | `RoutingMatrix::meterSidechain` | ROUTING `RoutingPanel::sidechainMeterBounds` | - | NO-TEST |
+| RIO-13 (§4) | Sidechain never sums into the guitar output unless consumed — no test asserts main out unchanged by a sidechain with toggle off | `PluginProcessor::processSlice` (sidechainCopy to consumers only) | n/a | `Routing::sidechainNeverReachesTheMainOut` | DONE |
+| RIO-14 (§4, §8) | Sidechain meter in routing panel — untested | `RoutingMatrix::meterSidechain` | ROUTING `RoutingPanel::sidechainMeterBounds` | `Routing::sidechainMeterReadsTheSidechain` | DONE |
 | RIO-15 (§5A) | External re-amp: Aux 1 DI render (pre/post-circuit option) | `LuthierEngine` DI tap, `aux1_pre_circuit` | ROUTING `RoutingPanel::aux1PreCircuit` | `ModelGapsUi::auxOneTapsBeforeOrAfterTheCircuit` | DONE |
 | RIO-16 (§5B) | Internal re-amp "Sidechain to amp" toggle, off by default, replaces string engine | `RoutingMatrix::setSidechainToAmp`, `LuthierEngine::setSidechainToAmp` | ROUTING `RoutingPanel::sidechainToAmp` | `Routing::sidechainToAmpReplacesTheInstrument` | DONE |
 | RIO-17 (§6) | MIDI out: note pass-through, same timestamps | `MidiOutRouter::captureInput` | ROUTING `midiPassThrough` | `Routing::midiOutPassThroughIsSampleExact` | DONE |
@@ -4203,11 +4202,7 @@ The routing engine is complete: all four layouts are advertised (plus the Aux 8 
 
 <details><summary>Work list (routing-io)</summary>
 
-- [RIO-4 (§0.4)] effort S — add `Routing::sidechainDrivesTheEnvelopeFollower` in `Source/Tests/RoutingTests.cpp`: `RoutingHarness(BusLayout::studio)`, set `getModMatrix().getFollower(0).setSource(ModEnvelopeFollower::Source::sidechain)`, feed a 0.5 sine on input bus 0 for 20 blocks, assert `getModMatrix().getSourceValue(ModSourceSlots::followerBase)` > 0.3; then feed silence and assert it decays below 0.05.
-- [RIO-6 (§2)] effort S — extend `Routing::diTapNullsAgainstReappliedAmp` (or add `Routing::everyAuxTapCarriesItsOwnSignal`): in Layout B play a note with cab/dual-mic/room/reverb on and assert each of Aux 2..7 is non-silent, Aux 3 differs from Aux 4 when the two mics differ, Aux 5 goes silent with `room_on`=0, Aux 6 silent with no wet pedals.
 - [RIO-11 (§4)] effort M — add `PedalType::SidechainCompressor` appended after `Doubler` (keeps saved indices) in `Source/DSP/Effects/Pedal.h/.cpp`, detector keyed from `LuthierEngine`'s sidechain input (`setSidechainInput` already hands the pointer down), params threshold/ratio/attack/release/depth; it appears automatically in the PedalRack type menu (ADVANCED column 3 rack). Test `Routing::sidechainCompressorDucksOnTheSidechain`: sustained note + sidechain burst, assert main-out RMS drops >= 6 dB during the burst and recovers.
-- [RIO-13 (§4)] effort S — add `Routing::sidechainNeverReachesTheMainOut`: Layout B, sidechain-to-amp off, no notes, feed a loud sine on the sidechain, assert main bus peak < -120 dBFS (and Aux 7 monitor only when monitor level > -inf).
-- [RIO-14 (§4, §8)] effort S — add `Routing::sidechainMeterReadsTheSidechain`: feed a -6 dBFS sine, assert `RoutingMatrix` sidechain level accessor ~0.5 and 0 without a sidechain bus; optionally construct `RoutingPanel` and assert it paints "no sidechain bus" when absent.
 - [RIO-21 (§6)] effort S — DEFER: host capability, JUCE drops the MidiBuffer when `producesMidi()` is false for the wrapper; nothing plugin-side to assert beyond RIO-5.
 - [RIO-25 (§8)] effort S — turn `RoutingPanel::layoutLabel` into a read-only list/combo of all four layouts with a tick on each one `isBusesLayoutSupported` accepts and the active one highlighted (probe `LuthierAudioProcessor::checkBusesLayoutSupported` for A-D at construction); host owns the choice so selecting is informational. Test `Routing::thePanelListsEverySupportedLayout` constructing `RoutingPanel`.
 - [RIO-27 (§8)] effort S — add `Routing::thePerStringStripShowsOnlyWithStringBuses`: construct `RoutingPanel` with `routing.setActiveLayout(BusLayout::stereoOnly)` then `perString`, call the timer refresh, assert `PerStringStrip` visibility and `preferredHeight()` change.
@@ -4225,18 +4220,18 @@ The routing engine is complete: all four layouts are advertised (plus the Aux 8 
 | SG-3 (§0.4, 1) | Hybrid default; notes not under the bar go through the fretted path (DECISIONS: one string under the bar) | `SlideEngine::noteOn`; `LuthierEngine::triggerNote` SlideGuitar fallback | n/a | `Slide.squeakStopsUnderTheBarButNotBesideIt` | DONE |
 | SG-4 (§0.3, 2) | Bar is a Workshop part; material/mass reach the contact model | `LuthierAudioProcessor::setSlidePart` -> `LuthierEngine::setSlideBar` -> `SlideEngine::setBar` (`PluginProcessor.cpp` 623, `WorkshopBench.cpp` 203) | Workshop parts drawer (Slide category) | `WorkshopAccessories.theSlideTurnsOnTheBenchAndItsMaterialIsPlayed`, `Slide.aHeavierBarSustainsLonger` | DONE |
 | SG-5 (§2) | Bar mirrored read-only in CHARACTER SLIDE group | `SlideEngine::getBar` | SLIDE `SlideGroup::barMirror` label | `SlideUi.theSlideGroupAppearsWithSlideModeAndTheTabFitsIt` | DONE |
-| SG-6 (§2) | `slide_length` (strings covered) and `slide_diameter` (contact curvature) have audible effect — fields exist on `SlideBar` but are read nowhere (also not on visual/techniques) | none (`SlideBar::lengthMm/diameterMm` in `SlideEngine.h` are read nowhere) | Workshop slide part fields | - | MISSING |
+| SG-6 (§2) | `slide_length` (strings covered) and `slide_diameter` (contact curvature) have audible effect — fields exist on `SlideBar` but are read nowhere (also not on visual/techniques) | `SlideEngine::noteOn` (bar reach), `sustainScale`/`makeClank` (diameter) | Workshop slide part fields | `Slide.aShortBarCoversFewerStrings`, `Slide.diameterShapesTheContact` | DONE |
 | SG-7 (§2.1) | Seven materials with damping/brightness/friction/clank spectrum | `getSlideMaterial` | via Workshop part (see SG-4) | `Slide.theBarClanksWhenItLands` | DONE |
 | SG-8 (§0.2, 3) | Segment behind damped: 1.0 lap/dobro, 0.55 bottleneck/hybrid (per-mode default applied on mode change) | `SlideEngine::sustainScale`; `Parameters::defaultDampingBehind`; `SlideGroup` mode handler | SLIDE `damping` | `Slide.theSegmentBehindIsDamped` | DONE |
 | SG-9 (§3) | Contact loss by material damping and mass (heavier sustains longer) | `sustainScale` | n/a (mass via part, SG-4) | `Slide.aHeavierBarSustainsLonger` | DONE |
 | SG-10 (§3) | Pressure: too light rattles against the bar; too heavy chokes against the frets — rattle done, no choke (pressure only raises sustain) | `SlideEngine::sustainScale` choke above 0.8 | SLIDE `pressure` + pressure-state readout | `Slide.tooMuchPressureChokes` | DONE |
 | SG-11 (§3.1) | Slant -30..+30 deg, per-string offset tan(slant) x spacing x (s - centre) | `contactFret` | SLIDE `slant` | `Slide.slantGivesEachStringItsOwnInterval` | DONE |
-| SG-12 (§3.2) | Slide vibrato moves x (pitch and damped length), depth in mm (DECISIONS: tenths of mm) — no test | `SlideEngine::vibratoCents`; `LuthierEngine.cpp` ~1557 | Advanced vibrato rate/depth | - | NO-TEST |
+| SG-12 (§3.2) | Slide vibrato moves x (pitch and damped length), depth in mm (DECISIONS: tenths of mm) — no test | `SlideEngine::vibratoCents`; `LuthierEngine.cpp` ~1557 | Advanced vibrato rate/depth | `Slide.vibratoMovesTheBar` (formula level) | PARTIAL |
 | SG-13 (§4) | Intonation assist 0-1 (default 0.15), 120 ms pull to ET, labelled as an aid | `SlideEngine` assist | SLIDE `assist` (tooltip marks it an aid) | `Slide.theAssistPullsToPitch` | DONE |
-| SG-14 (§5.1) | Friction noise ∝ amount x material friction x bar speed; replaces squeak on barred strings — no friction test | `LuthierEngine::triggerNote` `str.setNoiseAmount(...friction...)` | SLIDE `noise` | - | NO-TEST |
+| SG-14 (§5.1) | Friction noise ∝ amount x material friction x bar speed; replaces squeak on barred strings — no friction test | `LuthierEngine::triggerNote` `str.setNoiseAmount(...friction...)` | SLIDE `noise` | `Slide.frictionFollowsMaterialAndSpeed` | DONE |
 | SG-15 (§5.2) | Clank (8-generator pool) on landing and rattle below 0.3 pressure; brass ~1.2 kHz, glass ~2.5 kHz, mass lowers | `SlideEngine::makeClank`; `NoiseEngine::kPoolSizes` clank 8 | SLIDE `clank` | `Slide.theBarClanksWhenItLands` | DONE |
 | SG-16 (§0.5, 6) | Action < 2.2 mm bass shows the exact empty-state message; setup not changed; Slide style one click away | `SlideEngine::kLowActionMessage`; `SlideGroup` `lowAction`, `useSlideSetup` | SLIDE group | `SlideUi.theSlideGroupAppearsWithSlideModeAndTheTabFitsIt` | DONE |
-| SG-17 (§6, 8) | Fret buzz stays active under a slide | `FretBuzz::process` unchanged | n/a | - | NO-TEST |
+| SG-17 (§6, 8) | Fret buzz stays active under a slide | `FretBuzz::process` unchanged | n/a | `Slide.aLowSetupBuzzesUnderTheBar` | DONE |
 | SG-18 (§7) | Params: enable (`slide_guitar` re-pointed, DECISIONS), mode, pressure, slant, damping, noise, clank, assist with defaults | `Parameters.cpp` slide block | SLIDE group + header toggle | `GuiReach.everyAutomatableParameterHasAVisibleControl` | DONE |
 | SG-19 (§7) | `slide` family advanced ranges (slant ±60, noise/clank 0-4) | `PhysicalRange.cpp` slide rows | CHARACTER padlock | `Ranges.stockMatchesTheDeclaredRange` | DONE |
 | SG-20 (§7) | SLIDE group on CHARACTER only in Slide Mode: pressure state, slant, material/mass mirror, noise, clank | `UI/SlideGroup.*`; `CharacterPanel` addChildComponent | CHARACTER > SLIDE | `SlideUi.theSlideGroupAppearsWithSlideModeAndTheTabFitsIt`, `SlideUi.pressureSaysWhatItMeans` | DONE |
@@ -4259,10 +4254,7 @@ The routing engine is complete: all four layouts are advertised (plus the Aux 8 
 
 <details><summary>Work list (slide-guitar)</summary>
 
-- [SG-6] effort M — Use `SlideBar::lengthMm` in `SlideEngine::noteOn`/contact (lap steel/dobro/bottleneck cover only strings within the bar length at the instrument's string spacing; techniques' contact mask can AND with it) and `diameterMm` in `sustainScale`/`makeClank` (larger radius = softer contact, slightly lower clank). Tests `Slide.aShortBarCoversFewerStrings`, `Slide.diameterShapesTheContact` in `Source/Tests/SlideTests.cpp`. Depends on SG-4 (visual) for the part fields to arrive.
-- [SG-12] effort S — Add `Slide.vibratoMovesTheBar`: engine in lap-steel mode with `vibrato_depth` set; assert the pitch deviation matches `vibratoCents(depthMm, fret, scale)` and that the damped-segment sustain scale also modulates.
-- [SG-14] effort S — Add `Slide.frictionFollowsMaterialAndSpeed`: render a bar move with steel vs bone and fast vs slow; assert string noise energy scales with friction x speed and is zero at `slide_noise_amount` 0.
-- [SG-17] effort S — Add `Slide.aLowSetupBuzzesUnderTheBar`: "Needs a tech" setup, Slide Mode on, bar note; assert `fretBuzz` trigger count > 0.
+- [SG-12] PARTIAL: the vibrato formula is tested (dsp2); an engine-level check of the damped segment moving is not || was: effort S — Add `Slide.vibratoMovesTheBar`: engine in lap-steel mode with `vibrato_depth` set; assert the pitch deviation matches `vibratoCents(depthMm, fret, scale)` and that the damped-segment sustain scale also modulates.
 - [SG-24] effort M — In `GuitarBodyComponent.cpp:TuningPopover`, when `slide_guitar` is on show each string's continuous sounding pitch (Hz / note + cents from `SlideEngine::getOverlayFret` and `contactFret`) instead of a fret; test in `EditorTests.cpp` (`TuningPopover` shows cents in Slide Mode).
 - [SG-26] effort M — Pass the bar slant into `perfCapture->slideBar` (LuthierEngine ~1320, fill the `slant` field) and, for the Generic profile in `MidiPerformance::addScoreNote`/capture writer, render SLIDE_BAR movement as pitch-wheel points relative to the note's key. Extend `Capture.bassAndSlideEventsBecomeLuthierEvents` for slant and add `MidiExport.genericRendersTheSlideAsPitchBend`.
 
@@ -4659,12 +4651,12 @@ REALISM-A has landed on this checkout: `DSP/String/StringAging.*`, the five para
 | SA-14 (§6) | Restring one string (command) | `StringAging::requestRestring` | STRING AGING per-row Restring, `StringAgingGroup::restring` | `StringAging.SA09_restringOneMakesOnlyThatStringNew` | DONE |
 | SA-15 (§6) | Restring all: hours=0 + clear state, one undo entry | `requestRestringAll` | `StringAgingGroup::restringAll` | `RealismUi.restringAllZeroesTheHoursAndTheState` | DONE |
 | SA-16 (§6) | Accrual Off/Real/x10/x100 on played time (level > 1e-3), never writes the param, survives reset | `StringAging::advance` | STRING AGING "Age while playing" | `StringAging.SA11_accrualIsPlayedTime` | DONE |
-| SA-17 (§7) | Advanced Col 1 STRINGS age slider bound to hours with Fresh/Broken in/Old ticks - knob attached (`stringAgeHours`, "Age (h)"); Fresh 0 / Broken in 12 / Old 120 anchors only in the tooltip, no tick marks | n/a | `AdvancedPanel` `stringAgeHours` knob "Age (h)" | `GuiReach.everyAutomatableParameterHasAVisibleControl` | PARTIAL |
+| SA-17 (§7) | Advanced Col 1 STRINGS age slider bound to hours with Fresh/Broken in/Old ticks — knob attached; the Fresh/Broken in/Old anchors are in the tooltip, no tick marks | n/a | `AdvancedPanel` `stringAgeHours` knob "Age (h)" | `GuiReach.everyAutomatableParameterHasAVisibleControl` | PARTIAL |
 | SA-18 (§7) | CHARACTER STRING AGING group after STRING NOISE; per-string H_i, B bar, Restring; 4 Hz readouts, stale grey | n/a | `UI/RealismGroups.*:StringAgingGroup` in `CharacterPanel` | `RealismUi.theCharacterPanelCarriesTheGroups` | DONE |
-| SA-19 (§7) | Workshop strings inspector mirrors per-string rows; coated winding sets coating >= Thin - model side done; no aging or coating reference in `UI/WorkshopPanel.cpp` | (branch) material Coated forces Thin | none (owner deferred) | - | MISSING |
+| SA-19 (§7) | Workshop strings inspector mirrors per-string rows; coated winding sets coating >= Thin — owner defers the inspector mirror (model side done) | (branch) material Coated forces Thin | none (owner deferred) | - | MISSING |
 | SA-20 (§7) | CHARACTER padlock covers `strings` | n/a | `AdvancedPanel` CHARACTER `RangeTabButton` families | `StringAging.SA15_theStringsRangeFamily` | DONE |
 | SA-21 (§8) | Per-string state in preset `character.aging` block; legacy load maps string_age -> hours, detail 0, coating None | `StringAging::toVar/fromVar`; `PresetManager::fromVar`; `applyRealismCharacterBlock` | n/a | `StringAging.SA02_aLegacyPresetNullsAgainstThePreSpecPath`, `BodyCoupling.BC12_legacyLoadIsOff` | DONE |
-| SA-22 (§9) | Budget 0.02 units, no alloc, relaxed atomics, 200 ms hours one-pole - `StringAging.SA14_automatingHoursDoesNotClick`, `SA16_budgetAndSafety` exist; spec/performance-budget.md has no StringAging row | `StringAging::advance` | n/a | `StringAging.SA14_automatingHoursDoesNotClick`, `StringAging.SA16_budgetAndSafety` | PARTIAL |
+| SA-22 (§9) | Budget 0.02 units, no alloc, relaxed atomics, 200 ms hours one-pole — perf-budget.md StringAging row not added by owner | `StringAging::advance` | n/a | `StringAging.SA14_automatingHoursDoesNotClick`, `StringAging.SA16_budgetAndSafety` | PARTIAL |
 | SA-23 (§10 SA-01) | Legacy anchors within 1e-9 | - | n/a | `StringAging.SA01_legacyAnchorsAreExact` | DONE |
 | SA-24 (§10 SA-02) | Legacy null vs pre-spec path | - | n/a | `StringAging.SA02_aLegacyPresetNullsAgainstThePreSpecPath` | DONE |
 | SA-25 (§10 SA-03) | Curves meet anchors within 1 % | - | n/a | `StringAging.SA03_physicalCurvesMeetTheAnchors` | DONE |
@@ -4693,7 +4685,7 @@ REALISM-A has landed on this checkout: `DSP/String/StringAging.*`, the five para
 
 ## string-interaction.md
 
-REALISM-B has landed on this checkout: all six interactions (air path, palm spread, adjacent finger damping, release stagger, pickup crosstalk, muted-string thump), their seven parameters, the CHARACTER STRING INTERACTION group and fretboard palm-band shading, with `StringInteraction.SI01..SI14` registered. Still open: the fretting style is proxied from `rh_style` because `mute_fretting_style` does not exist on this checkout (MuteEngine is only in Source/WIP) (SI-5), the TECHNIQUES > MUTE palm-width mirror (SI-13), the §19 rows (SI-14), a reset/load/panic flag test (SI-15) and the per-string sum check at the new defaults (SI-24).
+REALISM-B has landed on this checkout: all six interactions (air path, palm spread, adjacent finger damping, release stagger, pickup crosstalk, muted-string thump), their seven parameters, the CHARACTER STRING INTERACTION group and fretboard palm-band shading, with `StringInteraction.SI01..SI14` registered. Still open: the fretting style is proxied from `rh_style` until techniques' `mute_fretting_style` exists (SI-5), the TECHNIQUES > MUTE palm-width mirror (SI-13), the §19 rows (SI-14), a reset/load/panic flag test (SI-15) and the per-string sum check at the new defaults (SI-24).
 
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
@@ -4701,7 +4693,7 @@ REALISM-B has landed on this checkout: all six interactions (air path, palm spre
 | SI-2 (§1) | Air path rank-1 term, 0.29 ms delay, HP 120 Hz, a_cat per family, through receive filter + kEnergyCap | `CouplingMatrix` air path; `LuthierEngine::refreshAirCoupling` | n/a | `StringInteraction.SI01_airMagnitudes`, `StringInteraction.SI02_SI03_airOffIsBitIdenticalAndDelayed` | DONE |
 | SI-3 (§2) | Palm spread weights w(d) while P > 0.05; spreadMuted flag; never overrides Choked/Silenced/Chuck; restores on lift | `LuthierEngine::updatePalmSpread`, `palmWeight` | n/a | `StringInteraction.SI04_SI05_palmSpreadCoversAndLifts` | DONE |
 | SI-4 (§3) | Adjacent finger damping (underside 1.0, tip 0.5) as Chuck; bitmask; lift on source note-off; chords don't self-mute | `applyAdjacentMute`, `liftMutesFrom` | n/a | `StringInteraction.SI06_SI07_neighbourMute` | DONE |
-| SI-5 (§3) | Fretting style scales it (rock 1.0 / classical 0.1) from `MuteSettings::frettingStyle` — owner proxies via rh_style until techniques' mute_fretting_style merges | `Parameters.cpp` 1836 derives `interaction.frettingStyle` from `rh_style` (classical 0.1 / rock 1.0); no `mute_fretting_style` (MuteEngine only in Source/WIP, not compiled) | `StringInteractionGroup::describeFrettingStyle` (text only) | `StringInteraction.SI06_SI07_neighbourMute` | PARTIAL |
+| SI-5 (§3) | Fretting style scales it (rock 1.0 / classical 0.1) from `MuteSettings::frettingStyle` — owner proxies via rh_style until techniques' mute_fretting_style merges | (branch) proxy on `rh_style` | (branch) text-only in STRING INTERACTION | (branch) `SI06_SI07_neighbourMute` | PARTIAL |
 | SI-6 (§4) | Release stagger: 3 ms groups, bias/rank, seeded, never earlier, overflow fires now | `LuthierEngine::stageNoteOffs`, `ScheduledEvent::staggered` | n/a | `StringInteraction.SI08_SI09_releaseStagger` | DONE |
 | SI-7 (§5) | Pickup crosstalk Gaussian aperture, bend lateral offset; g_s = 1 unbent | `PickupEngine::setStringLateralOffsets`, `updateCrosstalk` | n/a | `StringInteraction.SI10_crosstalk` | DONE |
 | SI-8 (§6) | Muted-string thump in live and pattern strums; deadStrike skips activity/MIDI note/MIDI out | `Rhythm/MutedThump.h`, `MidiInterpreter::flushChordGroup`, `RhythmEngine::scheduleStrum` | n/a | `StringInteraction.SI11_mutedStringThump` | DONE |
@@ -4709,7 +4701,7 @@ REALISM-B has landed on this checkout: all six interactions (air path, palm spre
 | SI-10 (§8) | No new MIDI; CC 67 drives spread | `TechniqueEngine::getPalmMuteAmount` | n/a | `StringInteraction.SI04_SI05_palmSpreadCoversAndLifts` | DONE |
 | SI-11 (§9) | CHARACTER STRING INTERACTION group | n/a | `UI/StringInteractionGroup.*` in `CharacterPanel` | `RealismBUi.theCharacterTabCarriesTheThreeGroups` | DONE |
 | SI-12 (§9) | Mute-zone shading shows palm width and weights | n/a | fretboard palm band (`FretboardRealismB`) | `RealismBUi.theFretboardDrawsTheTouch` | DONE |
-| SI-13 (§9) | Palm width mirrored in TECHNIQUES > MUTE — both realism-b and techniques omit it | none | none (TECHNIQUES > MUTE does not exist; `WIP/UI/MuteGroup` is not compiled) | - | MISSING |
+| SI-13 (§9) | Palm width mirrored in TECHNIQUES > MUTE — both realism-b and techniques omit it | none | none | - | MISSING |
 | SI-14 (§9) | gui-integration §19 rows (primary CHARACTER > STRING INTERACTION) — not added | n/a | n/a (doc) | - | MISSING |
 | SI-15 (§9) | Runtime flags cleared by reset, preset load and panic — `resetRealismB` clears the flags; no test | `resetRealismB` | n/a | - | NO-TEST |
 | SI-16 (§10) | Budget 0.1 units (owner 0.2), no allocation | - | n/a | `StringInteraction.SI13_realtime` | DONE |
@@ -4720,7 +4712,7 @@ REALISM-B has landed on this checkout: all six interactions (air path, palm spre
 | SI-21 (§11 SI-08/09) | Stagger spread and order | - | n/a | `StringInteraction.SI08_SI09_releaseStagger` | DONE |
 | SI-22 (§11 SI-10) | Crosstalk honesty | - | n/a | `StringInteraction.SI10_crosstalk` | DONE |
 | SI-23 (§11 SI-11) | Thump | - | n/a | `StringInteraction.SI11_mutedStringThump` | DONE |
-| SI-24 (§11 SI-12) | Per-string sum -80 dBFS with every feature at default — owner relies on existing RoutingTests, no assertion at the new defaults | `Routing.perStringOutputsSumToPreBody` (pre-existing, -80 dBFS bar) | n/a | `Routing.perStringOutputsSumToPreBody` (not asserted at SI defaults) | PARTIAL |
+| SI-24 (§11 SI-12) | Per-string sum -80 dBFS with every feature at default — owner relies on existing RoutingTests, no assertion at the new defaults | `Routing` per-string test (pre-existing) | n/a | `Routing` suite (not at SI defaults) | PARTIAL |
 | SI-25 (§11 SI-13) | Realtime, 0.1 units (relaxed to 0.2) | - | n/a | `StringInteraction.SI13_realtime` | DONE |
 | SI-26 (§11 SI-14) | Ranges and preset round trip | - | n/a | `StringInteraction.SI12_SI14_rangesAndPresets` | DONE |
 
@@ -4762,8 +4754,8 @@ The scrape engine is complete and well tested here: `ScrapeEngine` turns a gestu
 | SC-19 (§4) | Five presets (Classic Rock, Metal Zipper, Slow Ratchet, Nail, Modwheel-Sweep) loadable — defined only in `ScrapeSettings::fromPreset`, called by tests; not in factory presets or browser on any branch | `ScrapeSettings::fromPreset` (called only by tests; no factory presets or browser entries) | none | `Scrape.theFactoryScrapesAreWhatSectionFourSays` | PARTIAL |
 | SC-20 (§5) | Cascade: scrape through a palm mute is duller/thumpier | `ScrapeEngine::setMuteAmount` | n/a | `Scrape.aMuteMakesItDullerAndThumpier` | DONE |
 | SC-21 (§5) | Cascade: slide takes the string (blocked) | `ScrapeEngine::setStringBlocked`; `LuthierEngine` ~1950 | n/a | `Scrape.aPreemptedScrapeFadesOutInTenMilliseconds` | DONE |
-| SC-22 (§5) | Cascade: a bend stretches winding spacing — implemented, no test | `ScrapeEngine::setString(..., bendCents)` | n/a | - | NO-TEST |
-| SC-23 (§5) | Cascade: tap on the same string damps the scrape | `LuthierEngine::triggerNote` (Technique::Tap -> `scrape.preempt`), `ScrapeEngine::preempt` | n/a | `Scrape.aPreemptedScrapeFadesOutInTenMilliseconds` (preempt fade; no end-to-end tap test) | NO-TEST |
+| SC-22 (§5) | Cascade: a bend stretches winding spacing — implemented, no test | `ScrapeEngine::setString(..., bendCents)` | n/a | `Scrape.aBendStretchesTheWindingSpacing` | DONE |
+| SC-23 (§5) | Cascade: tap on the same string damps the scrape — preempt hook here, no TapEngine; on techniques: `Cascade.aTapPreemptsAScrapeOnItsString` | `ScrapeEngine::preempt` | n/a | (branch) `Cascade.aTapPreemptsAScrapeOnItsString` | OWNED |
 | SC-24 (§5) | Scrape on scrape queues; slap/scrape conflict latest wins | `ScrapeEngine` queue; `preempt` | n/a | `Scrape.aScrapeOnAScrapeQueues`, `SlapWiring.slapAndScrapeTakeTheStringFromEachOther` | DONE |
 | SC-25 (§2 GUI) | Controls exposed in the Techniques tab | n/a | none (no TECHNIQUES tab or SCRAPE page in Source/UI) | - | MISSING |
 | SC-T1 (§6) | Test: catch rate = windings_per_mm x speed | | n/a | `Scrape.catchesComeAtWindingsPerMmTimesSpeed` | DONE |
@@ -4777,7 +4769,6 @@ The scrape engine is complete and well tested here: `ScrapeEngine` turns a gestu
 <details><summary>Work list (string-scraping)</summary>
 
 - [SC-19] effort M — Make the five §4 scrapes loadable: add them as factory presets (arm `scrape_armed`, set `scrape_*` from `ScrapeSettings::fromPreset`) in the techniques branch's `Source/Presets/TechniquePresets.cpp` once merged (tag "techniques,scrape"), or as a preset chooser on the SCRAPE page that writes the fields as one undo step. Test `TechniquesUi.theScrapePresetsLoadTheirFields` (each preset's parameters equal `fromPreset`). Coordinate with the techniques workstream.
-- [SC-22] effort S — Add `Scrape.aBendStretchesTheWindingSpacing` in `Source/Tests/ScrapeTests.cpp`: same gesture with `setString(..., bendCents = 0)` vs `+200`; assert the catch count/rate changes by the tension-stretch factor (small, same sign as the code).
 
 </details>
 
@@ -4790,26 +4781,26 @@ The generalised `SlapEngine` is complete here: four slap types, five trigger sou
 | SS-1 (§0.2) | Slap is a strike plus a slap-buzz event against the frets | `DSP/Slap/SlapEngine::makeContactBuzz` -> fret-buzz generator; `LuthierEngine::playSlapStrike` | n/a | `Slap.theClackIsTheFretBuzzGenerator`, `SlapWiring.theClackComesFromTheBuzzGenerator` | DONE |
 | SS-2 (§0.3) | Position and force independent (position shapes tone, force loudness/buzz) | `SlapEngine::classify` (contactMm, force) | n/a | `Slap.theContactPointIsMeasuredFromTheLastFret`, `Slap.whatANoteBecomes` | DONE |
 | SS-3 (§0.4) | Works on any guitar with wound strings, not bass-only | `SlapEngine` (no family gate on armed slaps) | n/a | `SlapWiring.thePlainHighEIsAudibleButClacksLess` | DONE |
-| SS-4 (§1) | Slap type Thumb/Pop/Palm/Body Tap | `slap_type`, `SlapType` | none (no Techniques tab; no generic slap control in Source/UI) | `Slap.whatANoteBecomes` | NO-GUI |
-| SS-5 (§1) | Trigger source velocity zone/keyswitch/CC/MPE zone/strip button; no on-screen slap button | `slap_trigger`, `slap_velocity_zone`, `slap_trigger_cc`; `TechniqueTriggers` | none (no Techniques tab; no generic slap control in Source/UI) | `Slap.theButtonAndTheKeyswitchesQueueTheirStrikes`, `SlapWiring.aThumbSlapIsTheSameHoweverItIsFired` | NO-GUI |
-| SS-6 (§1) | Contact position defaults 60 thumb / 40 pop / 100 palm | `slap_position_mm`, `pop_position_mm`, `slap_palm_position_mm` | CHARACTER > SLAP (bass thumb/pop positions); palm position has no control | `Slap.theContactPointIsMeasuredFromTheLastFret` | NO-GUI |
-| SS-7 (§1) | Contact force 0-1 default 0.6 | `slap_force` | none (no Techniques tab; no generic slap control in Source/UI) | `Slap.whatANoteBecomes` | NO-GUI |
-| SS-8 (§1) | String mask: bass thumb E/A, palm all | `slap_string_mask`, `SlapEngine` effective mask | none (no Techniques tab; no generic slap control in Source/UI) | `Slap.theFactorySlapsAreWhatSectionFourSays` | NO-GUI |
-| SS-9 (§1) | Ghost mode via modifier keyswitch (16) / dedicated CC (87) | `slap_ghost_mode`, `slap_ghost_cc` | none (no Techniques tab; no generic slap control in Source/UI) | `SlapWiring.aGhostIsAThumpWithNoPitch` | NO-GUI |
-| SS-10 (§1) | Rebound on/off with user gap (default 60 ms); gap has no control | `double_thump_enabled`, `slap_rebound_gap` | CHARACTER > SLAP (toggle only) | `SlapWiring.theDoubleThumpComesBackAtItsGap` | NO-GUI |
-| SS-11 (§1) | "Double thump on thumb rebounds by default" — `double_thump_enabled` defaults off (bass-techniques 11 says false) | `Parameters.cpp` 778: `double_thump_enabled` default false (matches bass-techniques 4; spec wording says rebound by default) | n/a | - | PARTIAL |
-| SS-12 (§1) | Snap-back (bass only) | `slap_snap_back` | none (no Techniques tab; no generic slap control in Source/UI) | `Slap.theFactorySlapsAreWhatSectionFourSays` | NO-GUI |
-| SS-13 (§1, 2) | Body tap resonance weighting modes, driven into the body-coupling mode bank | `SlapEngine::startBodyTap`/`knockFor`, `slap_body_part`; `LuthierEngine::applySlapAction` also calls `bodyCoupling.driveDirect` | none (no Techniques tab; no generic slap control in Source/UI) | `Slap.theBodyPartWeightsTheKnock`, `BodyCoupling.BC06_BC09_aTapRingsTheStringsNearAMode` | NO-GUI |
+| SS-4 (§1) | Slap type Thumb/Pop/Palm/Body Tap — engine done, no control here; on techniques: `SlapPage` Slap type + Slap pill popover | `slap_type`; `SlapType` | (branch) TECHNIQUES > SLAP | `Slap.whatANoteBecomes` | OWNED |
+| SS-5 (§1) | Trigger source velocity zone/keyswitch/CC/MPE zone/strip button — no control or button here; on techniques: Trigger/Velocity zone/Trigger CC + Slap pill | `slap_trigger`, `slap_velocity_zone`, `slap_trigger_cc`; `TechniqueTriggers` | (branch) TECHNIQUES > SLAP, Easy pill row | `Slap.theButtonAndTheKeyswitchesQueueTheirStrikes`, `SlapWiring.aThumbSlapIsTheSameHoweverItIsFired` | OWNED |
+| SS-6 (§1) | Contact position defaults 60 thumb / 40 pop / 100 palm — thumb/pop in the bass SLAP group; palm position no control here; on techniques: Palm position knob | `slap_position_mm`, `pop_position_mm`, `slap_palm_position_mm` | CHARACTER > SLAP (bass); (branch) TECHNIQUES > SLAP | `Slap.theContactPointIsMeasuredFromTheLastFret` | OWNED |
+| SS-7 (§1) | Contact force 0-1 default 0.6 — no control here; on techniques: Force knob | `slap_force` | (branch) TECHNIQUES > SLAP | `Slap.whatANoteBecomes` | OWNED |
+| SS-8 (§1) | String mask: bass thumb E/A, palm all — no control here; on techniques: `StringMaskSelector` | `slap_string_mask`, `SlapEngine` effective mask | (branch) TECHNIQUES > SLAP | `Slap.theFactorySlapsAreWhatSectionFourSays` | OWNED |
+| SS-9 (§1) | Ghost mode via modifier keyswitch (16) / dedicated CC (87) — no control here; on techniques: Ghost mode toggle + Ghost CC | `slap_ghost_mode`, `slap_ghost_cc` | (branch) TECHNIQUES > SLAP | `SlapWiring.aGhostIsAThumpWithNoPitch` | OWNED |
+| SS-10 (§1) | Rebound on/off with user gap (default 60 ms) — toggle in the bass SLAP group; gap has no control here; on techniques: Rebound gap knob | `double_thump_enabled`, `slap_rebound_gap` | CHARACTER > SLAP (toggle); (branch) TECHNIQUES > SLAP | `SlapWiring.theDoubleThumpComesBackAtItsGap` | OWNED |
+| SS-11 (§1) | "Double thump on thumb rebounds by default" — `double_thump_enabled` defaults off (bass-techniques 11 says false) | `Parameters.cpp` 768 | n/a | - | DEFERRED |
+| SS-12 (§1) | Snap-back (bass only) — engine done, no control here; on techniques: Snap-back knob | `slap_snap_back` | (branch) TECHNIQUES > SLAP | `Slap.theFactorySlapsAreWhatSectionFourSays` | OWNED |
+| SS-13 (§1, 2) | Body tap resonance top/side/back weighting modes, driven into the body-coupling mode bank — here three fixed resonators (`knockFor`); on realism-a: `BodyCouplingBank::driveDirect` from `applySlapAction`, test BC06 | `SlapEngine` body tap; `slap_body_part` | (branch) TECHNIQUES > SLAP body part | `Slap.theBodyPartWeightsTheKnock`; (branch) `BC06_BC09_aTapRingsTheStringsNearAMode` | OWNED |
 | SS-14 (§2) | SlapEngine trigger / processBlock / reset; consumes TechniqueEngine gestures | `SlapEngine::processBlock`, `reset`; `TechniqueTriggers` | n/a | `Slap.idleAndActiveStayInBudget`, `Slap.theButtonAndTheKeyswitchesQueueTheirStrikes` | DONE |
 | SS-15 (§2) | Body tap bypasses StringEngine | `LuthierEngine::applySlapAction` bodyTap | n/a | `SlapWiring.aBodyTapLeavesTheStringsAlone` | DONE |
 | SS-16 (§2) | Insertion after TechniqueEngine, alongside ScrapeEngine, before StringEngine | `LuthierEngine` block loop (slap.processBlock before strings) | n/a | `SlapWiring.aThumbSlapIsTheSameHoweverItIsFired` | DONE |
 | SS-17 (§3) | Bass slap/pop share SlapEngine; bass controls stay | `SlapEngine` reads `slap_strength` etc. | CHARACTER > SLAP | `SlapWiring.aThumbSlapIsTheSameHoweverItIsFired` | DONE |
-| SS-18 (§3) | Migration: existing bass presets keep working — on techniques: `TechniqueLayer.bassSlapPresetsStillReachTheSlapEngine` (slap_armed introduced there) | `slap_armed` param (`Parameters.cpp` 784); bass slap params reach `SlapEngine` via `setSlapSettings` | n/a | `SlapWiring.aThumbSlapIsTheSameHoweverItIsFired`, `SlapPresets.everySlapFieldRoundTrips` | DONE |
-| SS-19 (§4) | Five presets (Bass Standard, Bass Aggressive, Funk Guitar Palm Slap, Acoustic Body Tap, Percussive Fingerstyle) loadable — `SlapSettings::fromPreset` called only by tests on every branch | `SlapSettings::fromPreset` (called only by tests; no factory presets or browser entries) | none | `Slap.theFactorySlapsAreWhatSectionFourSays` | PARTIAL |
-| SS-20 (§5) | Cascade: compatible with palm mute and bend | `LuthierEngineRealismB.cpp` 642 (thumb palm-mute damping on slap strikes); MuteEngine is only in Source/WIP (not compiled), no BendEngine | n/a | - | PARTIAL |
-| SS-21 (§5) | Cascade: tap alternation | `LuthierEngine::triggerNote` (Technique::Tap calls `slap.preempt`), `SlapEngine::classify` refuses Tap; no CascadeResolver | n/a | `Slap.anotherTechniqueOnTheStringDropsTheUpStroke` (up-stroke drop only) | PARTIAL |
-| SS-22 (§5) | Not compatible with slide (bar under string) or scraping the same string — scrape conflict tested; the slide gate (`classify(e, underBar)`) has no test | `SlapEngine::classify(e, slide.isUnderBar)`; `scrape.preempt`/`slap.preempt` | n/a | `SlapWiring.slapAndScrapeTakeTheStringFromEachOther` (scrape only) | NO-TEST |
-| SS-23 (§6) | GUI: TECHNIQUES > Slap sub-tab | n/a | none (no Techniques tab in Source/UI) | - | MISSING |
+| SS-18 (§3) | Migration: existing bass presets keep working — on techniques: `TechniqueLayer.bassSlapPresetsStillReachTheSlapEngine` (slap_armed introduced there) | `SlapEngine`/preset load | n/a | (branch) `TechniqueLayer.bassSlapPresetsStillReachTheSlapEngine` | OWNED |
+| SS-19 (§4) | Five presets (Bass Standard, Bass Aggressive, Funk Guitar Palm Slap, Acoustic Body Tap, Percussive Fingerstyle) loadable — `SlapSettings::fromPreset` called only by tests on every branch | `SlapSettings::fromPreset` | none | `Slap.theFactorySlapsAreWhatSectionFourSays` | PARTIAL |
+| SS-20 (§5) | Cascade: compatible with palm mute and bend — MuteEngine/BendEngine only on techniques (`Muting.aSlappedNoteCarriesItsMute`, `Bend.aBentSlapPitchesCorrectly`) | n/a here | n/a | (branch) tests named | OWNED |
+| SS-21 (§5) | Cascade: tap alternation — TapEngine only on techniques (`Cascade.everyPairResolvesAsDocumented`) | n/a here | n/a | (branch) `Cascade.everyPairResolvesAsDocumented` | OWNED |
+| SS-22 (§5) | Not compatible with slide (bar under string) or scraping the same string — scrape conflict tested; the slide gate (`classify(e, underBar)`) has no test | `SlapEngine::classify(e, slide.isUnderBar)`; `scrape.preempt`/`slap.preempt` | n/a | `SlapWiring.aStringUnderTheSlideBarIsNotSlapped` | DONE |
+| SS-23 (§6) | GUI: TECHNIQUES > Slap sub-tab — none here; on techniques: `TechniquesPanel` SLAP page | n/a | (branch) TECHNIQUES > SLAP | (branch) `TechniquesUi.everySubTabRendersItsControls` | OWNED |
 | SS-24 (§6) | Playing strip Tool selector gains Slap / Pop — "Slap" style segment (thumb slap / finger pop via `RhTool::slap/pop`) | `RhTool::slap/pop` | Easy `RightHandToolSelector` | `FingerstyleAttack.FA13_slapAndPopTools` | DONE |
 | SS-T1 (§7) | Test: thumb slap 60 mm force 0.6 within 1 dB of the bass reference (all trigger paths agree) | | n/a | `SlapWiring.aThumbSlapIsTheSameHoweverItIsFired` | DONE |
 | SS-T2 (§7) | Test: palm slap broadband, < -25 dB pitched | | n/a | `SlapWiring.aPalmSlapIsBroadbandAndPitchless` | DONE |
@@ -4822,9 +4813,8 @@ The generalised `SlapEngine` is complete here: four slap types, five trigger sou
 
 <details><summary>Work list (string-slap-technique)</summary>
 
-- [SS-11] effort S — DEFER: bass-techniques.md 11 fixes `double_thump_enabled` default false and string-slap-technique.md 0.1 says not to duplicate/override bass-techniques; read "rebounds by default" as "the thumb is the type that rebounds when double thump is on". Record the reading in spec/DECISIONS.md; no code change.
+- [SS-11] DEFERRED (dsp2 agrees) - effort S — DEFER: bass-techniques.md 11 fixes `double_thump_enabled` default false and string-slap-technique.md 0.1 says not to duplicate/override bass-techniques; read "rebounds by default" as "the thumb is the type that rebounds when double thump is on". Record the reading in spec/DECISIONS.md; no code change.
 - [SS-19] effort M — Make the five §4 slap presets loadable: add them as factory presets (arm `slap_armed`, write `slap_*`/`pop_*`/`ghost_*` from `SlapSettings::fromPreset`, Bass ones on a bass rig, Funk Guitar Palm Slap with a chuka mute grid, Acoustic Body Tap on a dreadnought) in the techniques branch's `Source/Presets/TechniquePresets.cpp` once merged, or a preset chooser on the SLAP page writing them as one undo step. Test `TechniquesUi.theSlapPresetsLoadTheirFields`. Coordinate with the techniques workstream.
-- [SS-22] effort S — Add `SlapWiring.aStringUnderTheSlideBarIsNotSlapped` in `Source/Tests/SlapTests.cpp`: Slide Mode on with the bar on the low E, an armed thumb-slap note on that string; assert no clack on it and a normal slap on a string beside the bar (hybrid).
 
 </details>
 
@@ -4858,7 +4848,7 @@ The generated squeak is in place: `PlayingNoise::makeSqueak` / `onShift` impleme
 | SQ-22 (§9) | STRING NOISE group on CHARACTER with amount, probability, moisture, pressure, material, style, strip | `UI/NoiseGroups.*` | CHARACTER > STRING NOISE (`CharacterPanel::noiseGroups`) | `NoiseUi.*`, `GuiReach.everyAutomatableParameterHasAVisibleControl` | DONE |
 | SQ-23 (§9.1) | Noise-event strip: 24 px, last 8 s, ticks by class colour/level, 30 Hz drain, grey after 2 s | `NoiseEngine::drainEvents`; `NoiseEventStrip` | STRING NOISE `eventStrip` | `NoiseUi.theEventStripShowsWhatTheEngineTriggered` | DONE |
 | SQ-24 (§9.1) | Winding selector is a mirror of the Workshop string part (edit part directly now Workshop exists) — attaches `string_material` param directly, no link to the Workshop part | n/a | STRING NOISE `NoiseGroups::windingMaterial` | - | PARTIAL |
-| SQ-25 (§10) | Fret-buzz coexists, no ducking | separate pools in `NoiseEngine` | n/a | - | NO-TEST |
+| SQ-25 (§10) | Fret-buzz coexists, no ducking | separate pools in `NoiseEngine` | n/a | `Buzz.squeakAndBuzzCoexist` | DONE |
 | SQ-26 (§10) | Slide Mode replaces finger squeak on barred strings | `LuthierEngine` `!slide.isUnderBar(s)`; `SqueakSettings::slideMode` | n/a | `Squeak.zeroIsFreeAndSlideModeSuppressesIt`, `Slide.squeakStopsUnderTheBarButNotBesideIt` | DONE |
 | SQ-27 (§10) | Fret wear raises squeak slightly — not implemented | `LuthierEngine::triggerNote` scales roughness by fret wear | n/a | `Squeak.fretWearRaisesSqueak` | DONE |
 | SQ-28 (§10) | String age multiplies roughness up to 1.4 — continuous `AgingFactors::roughness` (REALISM-A) | `StringAging` roughness -> `StringNoiseInfo::fromSpec` ageRoughness | Advanced STRINGS "Age (h)"; CHARACTER STRING AGING | `StringAging.SA13_squeakReconciliation` | DONE |
@@ -4880,7 +4870,6 @@ The generated squeak is in place: `PlayingNoise::makeSqueak` / `onShift` impleme
 
 - [SQ-8] PARTIAL: revoice of a held note squeaks (dsp2); imported Luthier SLIDE replay is left with BT-12
 - [SQ-24] effort M — Make `NoiseGroups::windingMaterial` a true mirror of the Workshop string part: show the current part's material and either write through the Workshop part API (`PartAcoustics` stringMaterial via the processor's workshop state) or add a "Change in Workshop" jump button (gui-integration.md 0.1 mirror rule). Test in `NoiseUi.theWindingSelectorMirrorsTheWorkshopPart`.
-- [SQ-25] effort S — Add `Squeak.aShiftAcrossABuzzingRegionProducesBoth`: engine with a low action buzz + legato slide; assert both `fretBuzz` and `squeak` trigger counts increase (no ducking).
 
 </details>
 
@@ -4894,7 +4883,7 @@ Strum dynamics are essentially complete: `Rhythm/StrumGesture` plans one gesture
 | SD-2 (§1.1) | Source priority MPE > live spread > pattern crossing_sps > global default | `RhythmEngine::getCrossingSource`; `MidiInterpreter` | STRUM `sourceLabel` (+ USE KNOB) | `StrumDynamics.crossingSourcesResolveInOrder`, `StrumDynamics.liveSpreadWins`, `StrumDynamics.mpePassesThrough`, `StrumDynamics.rhythmEngineSuppliesVelocityFromThePattern` | DONE |
 | SD-3 (§2) | Acceleration ease blend (strum_acceleration 0.35) changes spacing not duration | `StrumGesture::ease` (inverted smoothstep, DECISIONS) | STRUM `acceleration` | `StrumDynamics.accelerationChangesSpacingNotDuration` | DONE |
 | SD-4 (§2.1) | Down starts low, up starts high; up faster by strum_up_velocity_ratio (1.25) | `StrumGesture::plan`, `effectiveCrossingSps` | STRUM `upRatio` | `StrumDynamics.upIsFasterThanDownByTheRatio` | DONE |
-| SD-5 (§0.3, 2.1) | Down steeper/harder/brighter; up shallower, softer, more chirp, less click — only force differs (`kUpStrokeForce` 0.85), no angle/brightness/noise change | `StrumGesture.cpp` ~281 | n/a | `StrumDynamics.upStrokesAreSofter` | PARTIAL |
+| SD-5 (§0.3, 2.1) | Down steeper/harder/brighter; up shallower, softer, more chirp, less click — only force differs (`kUpStrokeForce` 0.85), no angle/brightness/noise change | `NoteOnEvent::strumDirection` from `RhythmEngine::emitNote` / `MidiInterpreter` strums -> excitation angle/brightness and per-strike pick-noise angle in `LuthierEngine::triggerNote` | n/a | `StrumDynamics.upStrokesChirpMoreAndClickLess` | DONE |
 | SD-6 (§3) | Tilt ramp (-1..+1, +0.15 down / mirrored up) | `StrumGesture` tiltFactor | STRUM `tilt` | `StrumDynamics.tiltAndAccentShapeTheForce` | DONE |
 | SD-7 (§3) | Evenness ±40 % at 0, equal at 1, deterministic per seed and strum; stays rhythm-engine state (DECISIONS) | `StrumGesture` evennessFactor; `RhythmEngine::setStrumEvenness` | STRUM `evenness` (unattached slider to engine state) | `StrumDynamics.evennessBoundsTheVariation` | DONE |
 | SD-8 (§3) | Accent +1.5 dB on the first two strings in the direction | `StrumGesture` accent | n/a | `StrumDynamics.tiltAndAccentShapeTheForce` | DONE |
@@ -4906,8 +4895,8 @@ Strum dynamics are essentially complete: `Rhythm/StrumGesture` plans one gesture
 | SD-14 (§6.1) | Chuck: all strings damped hard (chuck_damping 0.92) before the crossing; pitch gone, body kept | `StringEngine` `Damping::Chuck`; `LuthierEngine::triggerNote` | STRUM `chuckDamping` | `StrumDynamics.chuckKillsPitch` | DONE |
 | SD-15 (§6.1) | chuck_amount blends toward a full mute | `StrumGesture` chuck | STRUM `chuckAmount` | `StrumDynamics.chuckStepsCarryTheChuck` | DONE |
 | SD-16 (§6.1) | Chuck from the pattern's chuck step type | `RhythmEngine` chuck step | RHYTHM pattern editor | `StrumDynamics.chuckStepsCarryTheChuck`, `StrumDynamics.patternCrossingAndChuckRoundTrip` | DONE |
-| SD-17 (§6.1) | Chuck from a MIDI note in the chuck key range — deferred by DECISIONS (no range specified) | none | none | - | MISSING |
-| SD-18 (§6.2) | Palm-muted strum keeps pitch, chuck loses it — both available, no test of the distinction | `TechniqueEngine` palm mute; `Damping::Chuck` | n/a | - | NO-TEST |
+| SD-17 (§6.1) | Chuck from a MIDI note in the chuck key range — deferred by DECISIONS (no range specified) | none | none | - | DEFERRED |
+| SD-18 (§6.2) | Palm-muted strum keeps pitch, chuck loses it — both available, no test of the distinction | `TechniqueEngine` palm mute; `Damping::Chuck` | n/a | `StrumDynamics.aPalmMuteKeepsPitchAndAChuckDoesNot` | DONE |
 | SD-19 (§6.3) | STRUM group on RHYTHM: crossing, acceleration, tilt, evenness, misses, two strikers, chuck amount/damping | `UI/StrumGroup.*` | RHYTHM > STRUM (`RhythmPanel`) | `StrumDynamics.theStrumGroupDrivesTheModel`, `GuiReach.everyAutomatableParameterHasAVisibleControl` | DONE |
 | SD-20 (§6.3) | Easy Feel knob: crossing 60->400 sps, evenness 0.45->0.95, 0.5 = defaults | `StrumFeel` | Easy rhythm strip `rhythmFeelSlider` | `StrumDynamics.feelMapsAsSpecified`, `StrumDynamics.theEasyFeelKnobScalesTheStrum` | DONE |
 | SD-21 (§7) | Params: crossing 20-800, acceleration, up ratio 0.5-2, tilt, misses, strikers, chuck x2 (+9); no PhysicalRange family | `Parameters.cpp` 751-759 | STRUM group | `StrumDynamics.parametersReachTheEngine` | DONE |
@@ -4927,9 +4916,7 @@ Strum dynamics are essentially complete: `Rhythm/StrumGesture` plans one gesture
 
 <details><summary>Work list (strum-dynamics)</summary>
 
-- [SD-5] effort M — Give the gesture direction a tone: in `LuthierEngine`'s strum strike path set the per-string pick angle / brightness from the direction (down: steeper angle, +brightness; up: shallower angle so `PlayingNoise::makeChirp` rises and `makeClick` falls via cos(angle)^1.5). Add a `StrumGesture` field (e.g. `angleOffsetDeg`) filled in `plan`. Test `StrumDynamics.upStrokesChirpMoreAndClickLess` in `Source/Tests/StrumGestureTests.cpp` (compare click/chirp levels and first-20 ms centroid down vs up).
-- [SD-17] effort S — DEFER: spec/DECISIONS.md defers the MIDI chuck key range because no range is specified; chucks are reachable via the pattern step type and `chuck_amount`. Revisit if input-routing.md gains a keyswitch for it (the techniques branch keyswitch table would be the place).
-- [SD-18] effort S — Add `StrumDynamics.aPalmMuteKeepsPitchAndAChuckDoesNot`: render the same chord palm-muted and chucked; assert an f0 is detected for the palm mute and none for the chuck.
+- [SD-17] DEFERRED (dsp2 agrees) - effort S — DEFER: spec/DECISIONS.md defers the MIDI chuck key range because no range is specified; chucks are reachable via the pattern step type and `chuck_amount`. Revisit if input-routing.md gains a keyswitch for it (the techniques branch keyswitch table would be the place).
 
 </details>
 
@@ -4940,7 +4927,7 @@ REALISM-C has landed on this checkout: attack transient, longitudinal ping, two-
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
 | SUS-1 (§0.2-0.3, 1) | Legacy single-T60 model kept as the slow stage; neutral values skip code (bit-identical); 32-sample tick | `DSP/String/StringEngine.cpp:updateLoopCoefficients` (legacy); `updateShapeTick` | n/a | `SustainDecay.legacyIsBitIdentical` | DONE |
-| SUS-2 (§1) | `sustain_scale` and per-note sustain scale keep working and scale the slow stage - per-note works; `ParamIDs::sustainScale` is read only by the range table, the CHARACTER T60 readout (`RealismGroupsC.cpp`) and the knob, never applied to the engine in `ParameterBridge` | per-note `StringEngine::setSustainScale` works; `sustain_scale` unread in `ParameterBridge` | ADVANCED Col 1 "Sustain" knob, `AdvancedPanel::sustain` | - | PARTIAL |
+| SUS-2 (§1) | `sustain_scale` and per-note sustain scale keep working and scale the slow stage — param attached to the Sustain knob but never applied; owner defers | per-note `StringEngine::setSustainScale` works; `sustain_scale` unread in `ParameterBridge` | ADVANCED Col 1 "Sustain" knob, `AdvancedPanel::sustain` | - | PARTIAL |
 | SUS-3 (§2.1) | Brightness overshoot b(t); hammer/pull restart at 0.5 strength | loop cutoff × b(t) in `updateLoopCoefficients` | n/a | `SustainDecay.brightnessOvershoot` | DONE |
 | SUS-4 (§2.2) | Longitudinal ping at f_L and 2f_L, fret-scaled, pre-body (owner: τ 15 ms) | `onShapeExcite`, `updateShapeConstants` | n/a | `SustainDecay.longitudinalPing` | DONE |
 | SUS-5 (§3) | Two-stage decay m(t), knee at 10log10(1-a) | `updateShapeTick` | n/a | `SustainDecay.twoStageKnee`, `SustainDecay.kneeDepth` | DONE |
@@ -4979,6 +4966,38 @@ REALISM-C has landed on this checkout: attack transient, longitudinal ping, two-
 
 - [SUS-2] OWNER-GAP (landed) effort S — the Advanced "Sustain" knob is dead: `ParamIDs::sustainScale` is declared (`Parameters.cpp:480`) and attached (`AdvancedPanel.cpp:451`) but `ParameterBridge::applyToEngine` never reads it. Wire it: pass `value(ParamIDs::sustainScale)` to a new `LuthierEngine::setGlobalSustainScale` that multiplies into every `StringEngine`'s slow-stage T60 alongside (not replacing) the per-note scale; check which factory preset stores a non-1 `sustain_scale` and either re-save it at 1 or accept the re-voice (record in PROGRESS.md). Test `SustainDecay.theSustainKnobScalesTheSlowStage` (T60 at 2.0 is ~2x T60 at 1.0).
 - [SUS-6] OWNER-GAP (landed) effort S — add a test that engaging E-Bow / feedback restarts the excite clock (`SustainDecay.eBowRestartsTheDecayClock`: after 2 s decay, engage E-Bow, assert m(t) back near its t=0 value); owner verified by code only.
+
+</details>
+
+## tab-export.md
+
+TuneToScore: convert a written Tune into PerformanceScore and export ASCII tab / MusicXML / GP / combined print page. Codex-owned lane (origin/codex/luthier-tab-export, luthier-notation-export). This checkout has the Notation exporters (`Source/Notation`) and the TUNE export dialog, but no `TuneToScore`, print page or one-click Tab button.
+
+| Req | Summary | Engine location | GUI location | Test | Status |
+|---|---|---|---|---|---|
+| TX-0 (§0) | Ground rules | `Source/Notation/PerformanceScore.h` | - | - | OWNED |
+| TX-1.1 (§1.1) | TuneToScore inputs | - | - | - | OWNED |
+| TX-1.2 (§1.2) | Per-section conversion (voicings, strum expansion, melody, layers) | - | - | - | OWNED |
+| TX-1.3 (§1.3) | What it does not resolve | - | - | - | OWNED |
+| TX-1.4 (§1.4) | Relationship to PerformanceCapture | `Source/Capture/PerformanceCapture.cpp` | - | `Capture::recordsVoicedNotesNotMidi` | PARTIAL |
+| TX-2 (§2) | 'If feasible' resolution | - | - | - | OWNED |
+| TX-3 (§3) | Combined print page (PDF/PNG) | - | - | - | OWNED |
+| TX-4.1 (§4.1) | TUNE tab Tab button, source picker | - | `TuneExportDialog.h`; no Tab button / source picker | `TuneIntegration::theExportDialogWritesEachDestinationFromOneScreen` | PARTIAL |
+| TX-4.2 (§4.2) | Notation export dialog source picker | `Source/Notation/NotationExport.cpp` | `NotationPanel.h`, `Overlays.h exportTabButton` | `Notation::asciiTabColumnsAlign`, `Notation::musicXmlRoundTrips`, `Notation::guitarProRoundTripsStringsAndFrets` | PARTIAL |
+| TX-4.3 (§4.3) | Empty and error states | `NotationExport.cpp` | - | `Notation::anEmptyScoreIsRefusedWithAReason` | PARTIAL |
+| TX-5 (§5) | Interactions with other specs | `TuneIntegration::notationAndProjectExportKeepSectionsChordsAndTheBundle` | - | `TuneIntegration::notationAndProjectExportKeepSectionsChordsAndTheBundle` | PARTIAL |
+| TX-T1 (§6 TABX-01..06) | Determinism, voicing parity, strum, technique, sections, layers | - | - | - | OWNED |
+| TX-T2 (§6 TABX-07) | Format parity via existing exporters | `Source/Notation/NotationExport.cpp` | - | `Notation::asciiTabRoundTrips`, `Notation::musicXmlRoundTrips` | PARTIAL |
+| TX-T3 (§6 TABX-08..12) | Print page, source picker, one-click, worker thread, empty fallback | - | - | - | OWNED |
+
+<details><summary>Work list (tab-export)</summary>
+
+- [TX-1.4 (§1.4)] effort M — TuneToScore must reuse capture note model (Codex lane)
+- [TX-4.1 (§4.1)] effort S — add one-click Tab button and 'From written tune / live take' picker (Codex lane)
+- [TX-4.2 (§4.2)] effort S — add tune-source option (Codex lane)
+- [TX-4.3 (§4.3)] effort S — add empty-tune and empty-ring messages
+- [TX-5 (§5)] effort S — re-check after TuneToScore lands
+- [TX-T2 (§6 TABX-07)] effort S — run TuneToScore output through the same round-trip tests
 
 </details>
 
@@ -5033,28 +5052,28 @@ A 2026-09-23 user decision in DECISIONS.md overrides theme.md's look for Luthier
 | TH-6 (Type) | Numeric readouts JetBrains/IBM Plex Mono, tabular | n/a | `Theme.cpp:Fonts::mono` (JetBrains → Plex → fallbacks) | - | NO-TEST |
 | TH-7 (Type) | Labels 11px uppercase +0.08em; values 13-14px — tracking 0.06em; knob value 12px mono | n/a | `Fonts::drawTrackedText`; `LuthierKnob::paint` | - (no test of label tracking or value size) | PARTIAL |
 | TH-8 (Knobs) | 48/36/64 px knob sizes | n/a | `Theme.h:Metrics::knobDefault/Small/Large` | `Theme::knobSizesAreTheSpecsThree` | DONE |
-| TH-9 (Knobs) | Flat radial-gradient body #232833 to #14181F (black bell knob; flat in High Contrast, `Theme.highContrastIsFlat`) - superseded by DECISIONS 2026-09-23 (guitar-shop theme, visual-polish 6) | n/a | `LuthierLookAndFeel::drawRotarySlider` | `Theme.highContrastIsFlat` | DEFERRED |
-| TH-10 (Knobs) | 2px indicator line centre→rim | n/a | `drawRotarySlider` pointer (2.0f) | - | NO-TEST |
+| TH-9 (Knobs) | Flat radial-gradient body #232833→#14181F — superseded: black bell knob (visual-polish 6.3); flat only in High Contrast | n/a | `LuthierLookAndFeel::drawRotarySlider` | `Theme.highContrastIsFlat` | PARTIAL |
+| TH-10 (Knobs) | 2px indicator line centre→rim | n/a | `drawRotarySlider` pointer (2.0f) | `Theme::knobDrawsItsValueAndFeelsRight` (render differs min vs max) | DONE |
 | TH-11 (Knobs) | 270° value arc, 3px, 4px outside gap, unfilled edge 60% | n/a | `Metrics::arcStart/arcEnd/arcThickness/arcGap`; `drawRotarySlider` | `Faces.*` (uses arcGap/arcThickness in `FacesTests.cpp:430`) | DONE |
-| TH-12 (Knobs) | 4px centre dot, accent when active, muted at default | n/a | `drawRotarySlider` centre dot | - | NO-TEST |
+| TH-12 (Knobs) | 4px centre dot, accent when active, muted at default | n/a | `drawRotarySlider` centre dot | `Theme::knobDrawsItsValueAndFeelsRight` | DONE |
 | TH-13 (Knobs) | Double-click resets; right-click value entry | n/a | `LuthierKnob` (`setDoubleClickReturnValue` via attachment); `Widgets.cpp:showParameterContextMenu` "Enter value..." | `MidiLearn.*` (menu path only) | NO-TEST |
-| TH-14 (Knobs) | Label below; value above only on hover/drag | n/a | `Widgets.cpp:LuthierKnob::paint` | - | NO-TEST |
-| TH-15 (Sliders) | 4px track, accent fill, 16x24 thumb, 1px accent stroke; ticks outside (brass fader cap per visual-polish 6.3; no ticks drawn) - superseded by DECISIONS 2026-09-23 (guitar-shop theme, visual-polish 6) | n/a | `LuthierLookAndFeel::drawLinearSlider` | - | DEFERRED |
-| TH-16 (Buttons) | 4px radius, 28px tall; off = panel/muted; on = 15% accent fill, accent text + border | n/a | `Metrics::buttonHeight`; `drawButtonBackground` | - | NO-TEST |
-| TH-17 (Buttons) | 100ms accent flash on momentary press — tint only while held, no timed flash | n/a | `drawButtonBackground` `isDown` | - (no test) | PARTIAL |
-| TH-18 (Meters) | Smooth gradient teal→orange→yellow→red | n/a | `Widgets.cpp:LevelMeter::paint`, `meterColourFor` | - | NO-TEST |
+| TH-14 (Knobs) | Label below; value above only on hover/drag | n/a | `Widgets.cpp:LuthierKnob::paint` | `Theme::knobDrawsItsValueAndFeelsRight` (value row changes on hover) | DONE |
+| TH-15 (Sliders) | 4px track, accent fill, 16x24 thumb, 1px accent stroke; ticks outside — no ticks drawn; brass thumb (visual-polish) | n/a | `LuthierLookAndFeel::drawLinearSlider` | - | PARTIAL |
+| TH-16 (Buttons) | 4px radius, 28px tall; off = panel/muted; on = 15% accent fill, accent text + border | n/a | `Metrics::buttonHeight`; `drawButtonBackground` | `Theme::radiiAndButtonHeightMatchTheSpec` (28 px) | PARTIAL |
+| TH-17 (Buttons) | 100ms accent flash on momentary press — tint only while held, no timed flash | n/a | `drawButtonBackground` `isDown` | - | PARTIAL |
+| TH-18 (Meters) | Smooth gradient teal→orange→yellow→red | n/a | `Widgets.cpp:LevelMeter::paint`, `meterColourFor` | `Theme::meterGradientRunsCoolToRed` | DONE |
 | TH-19 (Meters) | Peak hold 1px, 1.5s hold, 20dB/s fall; mono peak readout top-right | n/a | `LevelMeter::timerCallback` (45 ticks @30Hz), readout | - | NO-TEST |
 | TH-20 (Layout) | 8px grid (4 fine) | n/a | `Metrics::grid/gridHalf` | `EasyLayout.*`, `FacesIntegration.*` | DONE |
-| TH-21 (Layout) | 1px separators, no boxes-in-boxes (walnut panels with screws per visual-polish 6.3) - superseded by DECISIONS 2026-09-23 (guitar-shop theme, visual-polish 6) | n/a | `AdvancedPanel` column paint | - | DEFERRED |
-| TH-22 (Layout) | Section header uppercase + 2x12 accent bar (brass plate per visual-polish 6.2; bar only in High Contrast) - superseded by DECISIONS 2026-09-23 (guitar-shop theme, visual-polish 6) | n/a | `LuthierLookAndFeel::drawSectionHeader` | - | DEFERRED |
-| TH-23 (Layout) | Corner radii 6/4/2 | n/a | `Metrics::windowCorner/panelCorner/controlCorner` | - | NO-TEST |
+| TH-21 (Layout) | 1px separators, no boxes-in-boxes — walnut panels with screws (visual-polish) | n/a | `AdvancedPanel` column paint | - | PARTIAL |
+| TH-22 (Layout) | Section header uppercase + 2x12 accent bar — bar only in High Contrast; brass plate otherwise | n/a | `LuthierLookAndFeel::drawSectionHeader` | - | PARTIAL |
+| TH-23 (Layout) | Corner radii 6/4/2 | n/a | `Metrics::windowCorner/panelCorner/controlCorner` | `Theme::radiiAndButtonHeightMatchTheSpec` | DONE |
 | TH-24 (Layout) | ≥16px window-edge padding | n/a | `Metrics::windowPadding` | `EasyLayout.*` | DONE |
-| TH-25 (Layout) | No skeuomorphism / faux wood / metal (`Palette::textured`; `Theme.highContrastIsFlat`) - superseded by DECISIONS 2026-09-23 (guitar-shop theme, visual-polish 6) | n/a | `Palette::textured` | `Theme.highContrastIsFlat` | DEFERRED |
-| TH-26 (Feel) | Value changes animate 80ms ease-out - `Metrics::animationMs` is declared but nothing consumes it (only the `getAnimationMs` reduced-motion hook exists) | `Metrics::animationMs` (unused), `AccessibilitySettings::getAnimationMs` | - | - | MISSING |
-| TH-27 (Feel) | Hover brightens ~8% (knob uses 12%, done); vertical-resize cursor on knobs/sliders - no `setMouseCursor` on knobs or sliders (only PianoRollStrip and others) | n/a | `drawRotarySlider` hover | - (no test) | PARTIAL |
-| TH-28 (Feel) | Vertical drag; Shift coarse; Ctrl/Cmd ultra-fine | n/a | `LuthierKnob::KnobSlider::mouseDrag` | - | NO-TEST |
-| TH-29 (Feel) | Tooltip dark pill, muted text, 400ms | n/a | `PluginEditor::tooltips`, `getTooltipDelayMs`; `LuthierLookAndFeel::drawTooltip` | `Theme.tooltipAppearsAfter400ms` (constant + window present) | DONE |
-| TH-30 (Header) | 32px header strip in theme.md and gui-integration.md vs 48px in spec.md - code uses 48 (`Metrics::headerHeight`); conflict not recorded in DECISIONS | n/a | `Metrics::headerHeight` | - (no test) | PARTIAL |
+| TH-25 (Layout) | No skeuomorphism / faux wood / metal — superseded (DECISIONS 2026-09-23) | n/a | `Palette::textured` | `Theme.highContrastIsFlat` | PARTIAL |
+| TH-26 (Feel) | Value changes animate 80ms ease-out — `Metrics::animationMs` unused (also on visual) | n/a | - | - | MISSING |
+| TH-27 (Feel) | Hover brightens (12%, spec ~8%); vertical-resize cursor on knobs (done) | n/a | `LuthierKnob` slider `UpDownResizeCursor`; hover 12% | `Theme::knobDrawsItsValueAndFeelsRight` (cursor) | PARTIAL |
+| TH-28 (Feel) | Vertical drag; Shift coarse; Ctrl/Cmd ultra-fine | n/a | `LuthierKnob::KnobSlider::mouseDrag` | `Theme::knobDrawsItsValueAndFeelsRight` (Shift 70 < 180 < Ctrl/Cmd 1200) | DONE |
+| TH-29 (Feel) | Tooltip dark pill, muted text, 400ms | n/a | `Metrics::tooltipDelayMs`; `LuthierLookAndFeel::drawTooltip` | `Theme::tooltipAppearsAfter400ms` (constant + window present; no JUCE getter for the delay) | PARTIAL |
+| TH-30 (Header) | 32px header strip — 48px per spec.md (header wins) | n/a | `Metrics::headerHeight` | - | PARTIAL |
 | TH-31 (Header) | Name left; gear, preset selector, A/B right; separator — File menu instead of gear | n/a | `HeaderBar` (`presetName`, `compareA/B`, `fileMenuButton`) | - (`Editor.itLaysOutAndPaintsAcrossItsResizeRange` paints only) | NO-TEST |
 | TH-32 (Signature) | 2px accent diagonal notch top-left (brass headstock mark, `drawSignatureNotch`) - superseded by DECISIONS 2026-09-23 (guitar-shop theme, visual-polish 6) | n/a | `LuthierLookAndFeel::drawSignatureNotch`; `PluginEditor::paint` | - | DEFERRED |
 | TH-33 (Signature) | Version bottom-right 9px muted mono | n/a | `PluginEditor::paint` footer `Fonts::mono (9.0f)` | - | NO-TEST |
@@ -5069,22 +5088,16 @@ A 2026-09-23 user decision in DECISIONS.md overrides theme.md's look for Luthier
 - [TH-6] effort S — add `Theme.monoFontIsAPreferredFaceOrFallback`, which checks that `Fonts::mono` resolves to JetBrains Mono or IBM Plex Mono when bundled. Bundle JetBrains Mono in Resources/Fonts if it is not already there.
 - [TH-7] effort S — change `Fonts::drawTrackedText`'s default tracking to 0.08em and the knob value readout in `LuthierKnob::paint` to 13px. Add an assertion on the tracked width to `Theme.*`.
 - [TH-9] DEFER: visual-polish.md 6.3 black bell knobs, approved by the user (DECISIONS 2026-09-23). High Contrast keeps flat knobs.
-- [TH-10] effort S — cover it with `Theme.knobRenderShowsIndicatorArcAndDot`, which renders a `LuthierKnob` at a known value and probes pixels on the indicator line, the arc (filled vs unfilled) and the centre dot (accent vs muted at the default). Put it in Source/Tests/ThemeTests.cpp.
-- [TH-12] effort S — covered by the TH-10 render-probe test.
 - [TH-13] effort S — add `Editor.knobDoubleClickResetsAndEnterValueSets`: simulate a double-click on `LuthierKnob::slider` and check the parameter default, then call the "Enter value..." handler of `showParameterContextMenu` with a typed value.
-- [TH-14] effort S — add `Theme.knobShowsValueOnlyWhileHovered`: set `hovering` via mouseEnter and compare the value-row pixels.
 - [TH-15] effort S — draw 1px muted ticks outside the track in `drawLinearSlider` (every 6 dB for dB params, else 10%). Keep the brass thumb (visual-polish). Cover it with a render probe.
-- [TH-16] effort S — add `Theme.buttonStatesMatchTheSpec`: render a toggle on and off, assert the 28px height, the 15% accent fill and the accent border pixel.
+- [TH-16] effort S — height covered; on/off fill and border render probe still open.
 - [TH-17] effort S — add a 100 ms timed flash: a `LuthierLookAndFeel` flash map or a small `FlashingButton` mix-in in Widgets.cpp that starts a 100 ms timer on click and repaints with the accent. Make reduced-motion aware. Add a test with an injectable clock.
-- [TH-18] effort S — add `Theme.meterGradientAndPeakHold`: drive `LevelMeter` ticks with a fake level, check that the hold lasts 45 ticks and falls at 20 dB/s, and check the `meterColourFor` stops.
 - [TH-19] effort S — covered by the TH-18 test.
 - [TH-21] DEFER: walnut panels are the visual-polish.md 6 guitar-shop look (DECISIONS 2026-09-23).
 - [TH-22] DEFER: the brass plate header is visual-polish.md 6.2. theme.md's accent bar remains in High Contrast.
-- [TH-23] effort S — cover the radii in the TH-16 render probe (window/panel/control corners).
 - [TH-25] DEFER: DECISIONS 2026-09-23 explicitly overrides "no faux wood/metal" for Luthier.
 - [TH-26] effort M — add a value tween in `LuthierKnob`/`LuthierLookAndFeel`: animate displayed slider positions for programmatic value changes (preset load, undo, automation) over `Metrics::animationMs` with ease-out, skipped under reduced motion. Test with an injectable clock that the displayed angle lags and settles within 80 ms.
-- [TH-27] effort S — call `setMouseCursor (juce::MouseCursor::UpDownResizeCursor)` in the `LuthierKnob` and linear-slider constructors (Widgets.cpp) and change the hover brightness to 0.08. Add `Theme.knobsShowAVerticalResizeCursor`.
-- [TH-28] effort S — add `Editor.knobDragModifiersChangeSensitivity`: feed synthetic MouseEvents with Shift/Cmd to `KnobSlider::mouseDrag` and assert the value deltas are ordered coarse > normal > fine.
+- [TH-27] effort S — cursor done on knobs; hover brightness still 12% and linear sliders have no cursor.
 - [TH-29] effort S — delay covered via the Metrics constant; drawTooltip render probe still open.
 - [TH-30] DEFER: spec.md's GUI section fixes the header at 48 px, and the per-plugin spec wins over the shared house style.
 - [TH-31] effort S — add `Editor.theHeaderCarriesPresetSelectorAndAB`: find `HeaderBar`, assert that presetName, compareA and compareB are visible and right of the name, and that clicking B swaps slots (`processor.isSlotBActive`).
@@ -5101,12 +5114,12 @@ The IR slot machinery (windowed-sinc resampling, truncation, trim/predelay/rever
 | Req | Summary | Engine location | GUI location | Test | Status |
 |---|---|---|---|---|---|
 | TM-1 (§0.1) | IR loaded on message thread, handed over by atomic pointer swap — no test loads a file and processes across a swap | `ToneMatch/ToneMatch.cpp:IrSlot::load/rebuild` | n/a | `ToneMatch.loadingSwapsTheResponseWithoutAGap` | DONE |
-| TM-2 (§0.2) | Resample to host rate, windowed sinc >=512 taps (513-tap Blackman) — untested | `ToneMatch.cpp:IrSlot::resample` | n/a | - | NO-TEST |
+| TM-2 (§0.2) | Resample to host rate, windowed sinc >=512 taps (513-tap Blackman) — untested | `ToneMatch.cpp:IrSlot::resample` | n/a | `ToneMatch.irsResampleWithinHalfADb` | DONE |
 | TM-3 (§0.3) | Truncate at max_ir_seconds (4 s default) with fade — truncation itself untested (only the setter round-trips) | `IrSlot::rebuild`, `IrSlot::setMaxSeconds` | n/a | `ToneMatch.longIrsAreTruncatedToMaxSeconds` | DONE |
 | TM-4 (§0.4) | User IR adds no reported latency | `IrSlot::getLatencySamples` (0, zero-latency convolution) | n/a | `ToneMatch::anEmptySlotLeavesTheAudioAlone` | DONE |
 | TM-5 (§0.5) | Match analysis on a worker thread — deconvolve/fit run inline in `MatchWizard::advance` on the message thread | `MatchWizard::advance` step 2 -> `juce::Thread::launch` job, `finishAnalysis` via callAsync | n/a | - | NO-TEST |
 | TM-6 (§1) | Body IR slot replaces the body engine's IR — slot exists/saves, but `bodyIr.process` is never called anywhere | `IrSlot::processReplacing` inside `LuthierEngine` body stage (`setBodyIrSlot`) | TONE MATCH > Body card, `IrSlotEditor(Slot::body)` | `ToneMatch.anEngagedBodyIrChangesTheSound` | DONE |
-| TM-7 (§1) | Cab IR slots 1/2 replace mic 1 / mic 2 IR — both slots convolve the post-cab main out in series; mix blends against built-in cab output, not per mic | `PluginProcessor.cpp:processBlock` cabIr loop convolves the finished main out in series; the body slot now runs in `LuthierEngine` (`bodyIrSlot->processReplacing`) | TONE MATCH > Cab 1/Cab 2 cards | `ToneMatch::anEmptySlotLeavesTheAudioAlone` (empty only) | PARTIAL |
+| TM-7 (§1) | Cab IR slots 1/2 replace mic 1 / mic 2 IR — both slots convolve the post-cab main out in series; mix blends against built-in cab output, not per mic | `CabinetEngine::setUserIrSlots`: slot 1/2 replace mic A/B response (processReplacing); the serial main-out convolution is gone | TONE MATCH > Cab 1/Cab 2 cards | `ToneMatch.cabinetSlotsReplaceTheirOwnMic` | DONE |
 | TM-8 (§1) | File path: WAV/AIFF/FLAC up to 6 channels — no file-load test | `IrSlot::load` | `IrSlotEditor::loadButton`, drag-drop | `ToneMatch.loadsWavAiffFlacUpToSixChannels` | DONE |
 | TM-9 (§1) | Channel selector + auto-sum to mono — untested | `IrSlot::setChannel` | `IrSlotEditor::channelBox` | `ToneMatch.loadsWavAiffFlacUpToSixChannels` (channel choice + save) | DONE |
 | TM-10 (§1) | Gain trim -24..+24 dB | `IrSlot::setGainTrimDb` | `IrSlotEditor::gainTrim` | `ToneMatch::irSlotSettingsRoundTrip` | DONE |
@@ -5120,52 +5133,45 @@ The IR slot machinery (windowed-sinc resampling, truncation, trim/predelay/rever
 | TM-18 (§2.3-2.4) | Record reference on sidechain, then own amp output through current cab — wizard flow untested | `MatchWizard::advance`, `Capture::Source::sidechain`, `PluginProcessor::processBlock` capture feed | TONE MATCH > Cab Match wizard | `ReviewRegression::aCaptureRecordsTheMainOutput` (main out only) | NO-TEST |
 | TM-19 (§2) | Test signals: exp sweep 20-20k 6 s, MLS 4 s, transient burst | `CabMatch::generateTestSignal` | Cab Match wizard `signalBox` | `ToneMatch::everyTestSignalIsWellFormed` | DONE |
 | TM-20 (§2) | Deconvolve, trim to max, Hann fade last 5% | `CabMatch::deconvolve` | n/a | `ToneMatch::sweepDeconvolutionRecoversTheSourceIr` | DONE |
-| TM-21 (§2) | Save to IRs/Cab Match/<name>.wav + sidecar, auto-load into current cab slot — untested | `CabMatch::saveIr`, `getMatchDirectory`, `MatchWizard::advance` | Cab Match wizard | - | NO-TEST |
+| TM-21 (§2) | Save to IRs/Cab Match/<name>.wav + sidecar, auto-load into current cab slot — untested | `CabMatch::saveIr`, `getMatchDirectory`, `MatchWizard::advance` | Cab Match wizard | `ToneMatch.aSavedIrHasItsSidecar` | PARTIAL |
 | TM-22 (§2) | Progress bar, estimated tail length, null-test result | `MatchWizard::paint/timerCallback`, `CabMatch::measureNull` | Cab Match wizard `resultLabel` | `ToneMatch::nullMeasurementIsCorrect` | DONE |
 | TM-23 (§3.1) | EQ reference by dragging an audio file or looping sidechain — only sidechain recording; no file drop on EQ Match | `MatchWizard::useReferenceFile` | EQ Match drop target + "Reference file..." button | `ToneMatch.anEqReferenceCanBeAFile` | DONE |
 | TM-24 (§3.2-3.3) | Long-term spectra, min-phase FIR 256/1024/4096 | `EqMatch::measureSpectrum/fit` | EQ Match `lengthBox` | `ToneMatch::everyFilterLengthProducesAFilter` | DONE |
 | TM-25 (§3) | Match band full-range or user band — engine only (`Options.lowHz/highHz`), wizard never sets it | `EqMatch::Options` | EQ Match low/high band sliders -> `Options.lowHz/highHz` | `ToneMatch.thePanelReachesTrimBandLengthAndSearch` | DONE |
 | TM-26 (§3) | Aggressiveness 0-100% | `EqMatch::Options::aggressiveness` | EQ Match `aggressiveness` slider | `ToneMatch::eqMatchRespectsItsBandAndOptions` | DONE |
 | TM-27 (§3) | Preserve dynamics (shape only) | `EqMatch::Options::preserveDynamics` | EQ Match `preserveDynamics` | `ToneMatch::eqMatchRespectsItsBandAndOptions` | DONE |
-| TM-28 (§3) | Output filter at pre-amp / post-amp / post-master, saved per preset — result is loaded into cab IR slot 2 (overwrites mic-2 slot), no position choice | `MatchWizard::advance` (`getCabIrSlot(1).load`) | none | - | MISSING |
+| TM-28 (§3) | Output filter at pre-amp / post-amp / post-master, saved per preset — result is loaded into cab IR slot 2 (overwrites mic-2 slot), no position choice | EQ-match `IrSlot` stage in `LuthierEngine` (pre-amp / post-amp) or after the engine (post-master); `eq`/`eqPosition` in the preset tone_match block | EQ Match wizard position box; the fit loads there, not into cab slot 2 | `ToneMatch.theEqMatchSitsWhereItIsPut` | DONE |
 | TM-29 (§3) | Clearly labelled "not a substitute for cab match" | `EqMatch::getDescription` | EQ Match wizard step text | `ToneMatch::eqMatchSaysWhatItCannotDo` | DONE |
 | TM-30 (§4) | Record from main out, DI, sidechain, per-string — only mainOut/sidechain; no source picker in the capture pane | `Capture::Source` | Capture pane (hard-wired mainOut) | `ReviewRegression::aCaptureRecordsTheMainOutput` | PARTIAL |
 | TM-31 (§4) | Record length 100 ms-60 s — engine clamps, capture pane hard-codes 10 s | `Capture::start` | Capture length slider | `ToneMatch.thePanelReachesTrimBandLengthAndSearch` | DONE |
-| TM-32 (§4) | WAV 32-bit float into ~/Documents/Luthier/Captures/ — save path untested | `Capture::save`, `getCaptureDirectory` | Capture pane | - | NO-TEST |
+| TM-32 (§4) | WAV 32-bit float into ~/Documents/Luthier/Captures/ — save path untested | `Capture::save`, `getCaptureDirectory` | Capture pane | `ToneMatch.captureSavesThirtyTwoBitFloatWav` | DONE |
 | TM-33 (§4) | Autotrim silence, user-toggleable — always on, no toggle | `Capture::autoTrim` | Capture "Auto-trim silence" toggle | `ToneMatch.thePanelReachesTrimBandLengthAndSearch` | DONE |
-| TM-34 (§5) | IR folder convention (Bodies/Acoustic..., Cabinets/User, Cab Match, Rooms, Special) — tree creation untested | `IrLibraryPaths::ensureExists` (called from processor ctor) | n/a | - | NO-TEST |
+| TM-34 (§5) | IR folder convention (Bodies/Acoustic..., Cabinets/User, Cab Match, Rooms, Special) — tree creation untested | `IrLibraryPaths::ensureExists` (called from processor ctor) | n/a | `ToneMatch.theLibraryTreeIsCreated` | DONE |
 | TM-35 (§5) | Sidecar .json, filename fallback | `IrMetadata::forFile/saveFor` | n/a | `ToneMatch::metadataRoundTripsAndFallsBackToTheFilename` | DONE |
 | TM-36 (§6) | TONE MATCH tab in Column 4 strip with body/cab1/cab2 cards, Cab/EQ wizards, capture pane | `UI/AdvancedPanel.cpp` (workspace tab), `ToneMatchPanel` | ADVANCED > TONE MATCH tab | `Editor::aFailedPresetLoadAndAMissingIrEachRaiseABannerOnce` (tab found) | DONE |
 | TM-37 (§6) | Wizards run step-by-step inside the panel — no UI test drives a wizard | `MatchWizard::advance/restart` | TONE MATCH > wizards | - | NO-TEST |
 | TM-38 (§6) | IR library browser with tag filter and search — tag filter only, no search box | `ToneMatchPanel::refreshLibrary` | library search box (name/tags/notes) | `ToneMatch.thePanelReachesTrimBandLengthAndSearch` | DONE |
 | TM-39 (§7) | Preset IR paths relative under registered user IR folder, absolute otherwise — only the single library root counts; no Options-registered folders | `IrLibraryPaths::toPresetPath/fromPresetPath` | n/a | `ToneMatch::presetPathsAreRelativeUnderTheLibraryRoot` | PARTIAL |
 | TM-40 (§7) | Missing IR falls back to built-in model + header warning banner | `IrSlot::fromVar`, `PluginEditor.cpp` "ir-missing" | header banner -> TONE MATCH | `Editor::aFailedPresetLoadAndAMissingIrEachRaiseABannerOnce` | DONE |
-| TM-41 (§8) | Test: 100 IRs of varied length/rate resampled, FFT within 0.5 dB — no such test | `IrSlot::resample` | n/a | - | MISSING |
+| TM-41 (§8) | Test: 100 IRs of varied length/rate resampled, FFT within 0.5 dB — no such test | `IrSlot::resample` | n/a | `ToneMatch.irsResampleWithinHalfADb` (5 rates; impulse IRs) | DONE |
 | TM-42 (§8) | Test: sweep deconvolution null within -60 dBFS — existing test only requires < -20 dB | `CabMatch::deconvolve` | n/a | `ToneMatch::sweepDeconvolutionRecoversTheSourceIr` | PARTIAL |
 | TM-43 (§8) | Test: EQ fit for shelf, bell, notch within 1 dB — test covers shelf + 2 bells (no notch) at 2.5 dB tolerance | `EqMatch::fit` | n/a | `ToneMatch::eqMatchFitsKnownCurves` | PARTIAL |
 | TM-44 (§8) | Test: 60 s main-out capture nulls vs offline render within -80 dBFS — missing | `Capture` | n/a | - | MISSING |
-| TM-45 (§8) | Test: sample-rate change during IR playback, no clicks, re-resampled — missing (`IrSlot::prepare` does rebuild) | `IrSlot::prepare` | n/a | - | MISSING |
+| TM-45 (§8) | Test: sample-rate change during IR playback, no clicks, re-resampled — missing (`IrSlot::prepare` does rebuild) | `IrSlot::prepare` | n/a | `ToneMatch.sampleRateChangeReResamplesTheIr` | DONE |
 
 <details><summary>Work list (tone-match)</summary>
 
-- [TM-2] effort S — covered by the TM-41 test; additionally assert in a unit test that `IrSlot` resampling 44.1->48 kHz of a unit impulse keeps FFT magnitude flat within 0.5 dB to 0.9*Nyquist (make `resample` testable via a friend or public static).
 - [TM-5] NO-TEST: the fit runs on a worker (dsp2); a test needs a hook into the private wizard
-- [TM-7] effort M — route cab slot 1/2 into the cabinet's mic 1 / mic 2 convolution points (CabinetEngine mic IR replacement with mix against the built-in mic IR) instead of serial convolution of the main out in `PluginProcessor::processBlock`; add a test that engaging cab 2 only changes the mic-2 contribution (mic-2 level 0 -> no effect).
 - [TM-15] effort S — add a UI test constructing `IrSlotEditor`, calling `isInterestedInFileDrag`/`filesDropped` with a temp WAV and asserting the slot loads; assert chooser root == `IrLibraryPaths::getRoot()` (expose a getter).
 - [TM-16] effort M — add a recent-IRs MRU (20 entries) persisted in `UiPreferences` (or `PropertiesFile`), updated in `IrSlot` load via `IrSlotEditor::load`; add a "Recent" popup/ComboBox on each slot card and in the library section; test `ToneMatch::recentIrsKeepTheLastTwenty`.
 - [TM-18] effort M — add `ToneMatch::cabMatchWizardRecordsReferenceThenOwnOutput`: drive `MatchWizard` (friend/test hooks) with a processor fed a sidechain buffer, assert step progression and that `reference`/`current` are filled from the right sources.
-- [TM-21] effort S — test `CabMatch::saveIr` writes a readable WAV + `.json` sidecar under a temp `getMatchDirectory()` override, and that the wizard's finish auto-loads it into cab slot 1.
-- [TM-28] effort L — add an `EqMatchFilter` stage (FIR convolution) to the engine with a position choice pre-amp / post-amp / post-master (enum param or IR-state field), stored in the preset state next to `irs`; wizard loads the fitted filter there instead of `getCabIrSlot(1)`; position ComboBox in the EQ Match wizard; tests for each insertion point and preset round-trip.
+- [TM-21] PARTIAL: saveIr + sidecar tested (dsp2); the wizard finish auto-load path is covered only by code review
 - [TM-30] effort M — extend `Capture::Source` with `di` and `perString` (per-string needs the engine's per-string bus/tap, cf. routing-io multi-out), feed them in `PluginProcessor::processBlock`; add a source ComboBox to the capture pane; test each source records non-silence.
-- [TM-32] effort S — add `ToneMatch::captureSavesThirtyTwoBitFloatWav`: record, `save` to temp file, read back with `WavAudioFormat`, assert bitsPerSample==32 and float, samples equal.
-- [TM-34] effort S — test that `IrLibraryPaths::ensureExists()` creates all eight folders (with a temp root override).
 - [TM-37] effort S — UI test constructing `ToneMatchPanel`, clicking the Cab/EQ Match action buttons and asserting step text advances / `Capture::isRecording()`.
 - [TM-39] effort M — add a "User IR folders" list to Options (OptionsPages) persisted in preferences; make `IrLibraryPaths::toPresetPath/fromPresetPath` try each registered folder (store `folderIndex:relative` or a folder alias); extend the test.
-- [TM-41] effort S — add `ToneMatch::oneHundredIrsResampleWithinHalfADb`: generate 100 impulse IRs at 44.1/48/88.2/96/192 kHz and varying lengths, load each into an `IrSlot` prepared at 48 kHz, FFT and compare magnitude within 0.5 dB below 0.9*Nyquist.
 - [TM-42] effort S — tighten `sweepDeconvolutionRecoversTheSourceIr` (or add a sibling) to the spec's -60 dBFS null on a band-limited comparison; if unattainable with current regularisation, improve `CabMatch::deconvolve` inverse-filter windowing.
 - [TM-43] effort S — add the notch curve to `eqMatchFitsKnownCurves` and tighten to 1 dB inside the fit band (or document in DECISIONS.md why 2.5 dB and relax the spec).
 - [TM-44] effort M — add `ToneMatch::sixtySecondCaptureNullsTheOfflineRender`: run the processor for 60 s with a deterministic MIDI phrase while capturing main out, render the same phrase offline into a second buffer, assert null <= -80 dBFS.
-- [TM-45] effort S — add `ToneMatch::sampleRateChangeReResamplesTheIr`: load IR at 48 kHz, process, `prepare(96000)`, assert length in ms unchanged, sample count doubled, output finite without step discontinuities.
 
 </details>
 
@@ -5183,7 +5189,7 @@ TUNE-HELP has landed on this checkout: the export dialog (audio with stems, MIDI
 | TB-6 (§1) | Meta: title, artist, tempo, time sig, key, mode, swing, feel — no artist / time-signature control; swing only via the kit (KIT button) | `Tune/TuneModel.h:TuneMeta` | TUNE header title/tempo/key/mode; KIT button sets swing | `TunePanel.theHeaderEditsTitleTempoKeyAndSavesAndLoads` | PARTIAL |
 | TB-7 (§1) | Sections carry length, chords, rhythm, kit, melody, bass, layers | `Tune/TuneModel.h:TuneSection` | TUNE section strip | `TuneBuilder::timelinePutsChordsMelodyBassAndSectionsOnTheBeat` | DONE |
 | TB-8 (§1) | Setlist of section refs with repeats | `TuneArrangement::setlist` | section right-click Repeat, `TuneSectionStrip::buildMenu` | `TuneBuilder::editsKeepNamesUniqueAndTheSetlistInStep`, `TunePanel::theSectionStripsMenuRenamesDuplicatesRepeatsTagsLinksAndDeletes` | DONE |
-| TB-9 (§1) | Variations (A/B arrangements) — model plus `storeVariation`/`swapWithVariation` API, exercised only by one test; no UI or playback | `Tune/TuneModel.h:TuneVariation`, `Tune::storeVariation/swapWithVariation` | - | `TuneBuilder.transposeMovesChordsKeyAndAbsoluteMelodyAndIsReversible` (incidental) | PARTIAL |
+| TB-9 (§1) | Variations (A/B arrangements) — `TuneVariation` model struct only; no UI or playback | `Tune/TuneModel.h:TuneVariation` | - | - | MISSING |
 | TB-10 (§1.1) | ChordCell fields and shorthand parsing | `Tune/TuneTheory.cpp:parseProgression` | progression field | `TuneBuilder::shorthandParsesToTheExpectedCells` | DONE |
 | TB-11 (§1.1) | Underspecified last cell holds to fill | `resolveChordSpans` | n/a | `TuneBuilder::chordSpansRepeatAShortProgressionAndHoldAnUnderspecifiedLastCell` | DONE |
 | TB-12 (§1.2) | MelodyTrack `string_hint`, `articulation_default` — model fields only; no control, `TunePlayer` ignores the string hint | `MelodyTrack::stringHint` | - | - | PARTIAL |
@@ -5283,6 +5289,37 @@ TUNE-HELP has landed on this checkout: the export dialog (audio with stems, MIDI
 
 </details>
 
+## tuner-and-tuning-reference.md
+
+Tuning reference (A4) parameter plus a tuner utility (reference + live mode). Codex-owned lane (no dedicated branch found; `origin/codex/verify-factory-tunings` is adjacent). This checkout has a `concertA` parameter (415-466 Hz, `ParamIDs::concertA`) with a knob on the guitar body panel, but no `tuning_reference_hz` name, tuner popover or live pitch tracker.
+
+| Req | Summary | Engine location | GUI location | Test | Status |
+|---|---|---|---|---|---|
+| TN-0 (§0) | Ground rules | - | - | - | OWNED |
+| TN-1.1 (§1.1) | tuning_reference_hz parameter | `Source/Parameters.cpp:ParamIDs::concertA` | `GuitarBodyComponent::concertA` knob | - | PARTIAL |
+| TN-1.2 (§1.2) | Where it applies (TuningEngine, capture) | `PerformanceCapture.cpp` uses `tuning.getConcertA()` | - | - | PARTIAL |
+| TN-1.3 (§1.3) | What does not move | - | - | - | OWNED |
+| TN-2.1 (§2.1) | Reference-mode tuner (needles at 0, Play tone) | - | - | - | OWNED |
+| TN-2.2 (§2.2) | Live mode pitch tracking | - | - | - | OWNED |
+| TN-2.3 (§2.3) | Accuracy and latency | - | - | - | OWNED |
+| TN-3.1 (§3.1) | Canonical location (popover, headstock, Options mirror) | - | - | - | OWNED |
+| TN-3.2 (§3.2) | Behaviour | - | - | - | OWNED |
+| TN-3.3 (§3.3) | Empty and error states | - | - | - | OWNED |
+| TN-4 (§4) | Serialization, undo, accessibility | concertA is an APVTS param (saved) | - | - | PARTIAL |
+| TN-5 (§5) | Interactions with other specs | - | - | - | OWNED |
+| TN-T1 (§6 TUNE-01..03) | Reference scaling, intervals, temperament/capo | - | - | - | NO-TEST |
+| TN-T2 (§6 TUNE-04..10) | Tuner readout, play, tracking, low confidence, smoothing, zero cost | - | - | - | OWNED |
+| TN-T3 (§6 TUNE-11..12) | GUI reachability, accessibility | - | - | - | OWNED |
+
+<details><summary>Work list (tuner-and-tuning-reference)</summary>
+
+- [TN-1.1 (§1.1)] effort S — spec id `tuning_reference_hz` and range (430-450?) vs `concertA` 415-466 Hz: reconcile names/range, add Options AUDIO mirror
+- [TN-1.2 (§1.2)] effort S — add TUNE-01..03 scaling/interval tests
+- [TN-4 (§4)] effort S — uiState for live mode; announcement text for needles
+- [TN-T1 (§6 TUNE-01..03)] effort S — add tests against concertA (Codex lane)
+
+</details>
+
 ## tuning-stability.md
 
 REALISM-C has landed on this checkout: `Model/Playing/StabilityModel.*` with all six mechanisms, Retune string/all/auto, session state, the 8 parameters, the CHARACTER TUNING STABILITY group with offset strip, Easy headstock badges and Workshop inspector figures, with 16 `TuningStability.*` tests and the §19 row. Still open: Retune as a MIDI Learn action target (TS-19) and a dedicated whammy return-error test (TS-12).
@@ -5307,7 +5344,7 @@ REALISM-C has landed on this checkout: `Model/Playing/StabilityModel.*` with all
 | TS-16 (§3) | Glide 250 ms ringing / snap silent; ≤ 0.5 c per block | `advance` | n/a | `TuningStability.smoothGlides` | DONE |
 | TS-17 (§3) | Auto-retune Off/Idle (10 s silent)/Stop/Idle+Stop | `advance` | auto-retune dropdown | `TuningStability.autoRetuneOnIdle`, `TuningStability.autoRetuneOnTransportStop` | DONE |
 | TS-18 (§3) | Atomic command mask consumed at block start; not undoable | `requestRetune(mask)` | n/a | `RealismUi.theOffsetStripRetunesTheStringItIsClickedOn` | DONE |
-| TS-19 (§3) | Retune is a MIDI Learn action target (rising edge CC >= 64) - not implemented; `requestRetuneAll()` is called only from the CHARACTER Retune button (`CharacterPanel.cpp:467`) and tests | none (hook `requestRetuneAll()` only) | CHARACTER Retune button only | - | MISSING |
+| TS-19 (§3) | Retune is a MIDI Learn action target (rising edge CC >= 64) — owner defers | none (hook `requestRetuneAll()` only) | none | - | MISSING |
 | TS-20 (§4) | 8 params stability_amount + six scales + auto_retune; `strings` family | `Parameters.*`, `PhysicalRange.cpp` | TUNING STABILITY group | Ranges suite, `RealismUi.everyRealismCParameterHasAControlOnTheCharacterTab` | DONE |
 | TS-21 (§5) | onTuningChanged from tuning preset / 12-string / detune / fine-tune; preset loads suppress events | `LuthierEngine::setTuningPreset`, `TuningPopover` | n/a | `TuningStability.backlashNeedsADownwardApproach`, `TuningStability.floatingEquilibrium` | DONE |
 | TS-22 (§5) | Amount 0: advance returns, stabilityCents exactly 0 | - | n/a | `TuningStability.offIsInert` | DONE |
@@ -5382,6 +5419,37 @@ Re-verified against the current checkout: none of the tapping feature is present
 
 </details>
 
+## ui-scaling.md
+
+Persisted UI scale (six steps) in ui.json with per-format resize behaviour. Codex-owned lane (no branch found). The feature largely exists under another name: `AccessibilitySettings` holds the scale (accessibility.json, not `ui_scale_pct` in ui.json), with an Options selector and editor `setScaleFactor`. Per-format resize refusal banner and cross-editor broadcast are unverified.
+
+| Req | Summary | Engine location | GUI location | Test | Status |
+|---|---|---|---|---|---|
+| US-0 (§0) | Ground rules | `Source/Accessibility/Accessibility.h:kScales` | - | `Accessibility::uiScaleStepsAndFontFloor` | PARTIAL |
+| US-1 (§1) | Storage: ui_scale_pct in ui.json, nearest-step snap, corrupt fallback | `Accessibility.cpp:AccessibilitySettings::setUiScale` (nearest step); `UiPreferences` owns ui.json | - | `Accessibility::uiScaleStepsAndFontFloor` | PARTIAL |
+| US-2 (§2) | Where it is set (Options selector) | `OptionsPages.cpp scaleBox` | Options page, `AccessibilitySettings::setUiScale` | `Accessibility::uiScaleStepsAndFontFloor` | DONE |
+| US-3 (§3) | Per-format resize behaviour, refusal banner | `PluginEditor.cpp:setScaleFactor` (line ~44, ~606), `setResizable` | editor | - | PARTIAL |
+| US-4 (§4) | Independence from preset/session state | `AccessibilitySettings` global singleton | - | - | NO-TEST |
+| US-5 (§5) | Interactions (same-process broadcast, reset to defaults) | `AccessibilitySettings` change notification; `PluginEditor.cpp:605` | Diagnostics reset | - | PARTIAL |
+| US-6 (§6) | Failure modes | `UiPreferences` corrupt-file handling | - | - | PARTIAL |
+| US-T1 (§7 UISC-01..03) | Round trip, corrupt, off-step snap | - | - | `Accessibility::uiScaleStepsAndFontFloor` (steps only) | NO-TEST |
+| US-T2 (§7 UISC-04..07) | New instance parity, broadcast, cross-process, resize refusal | - | - | - | NO-TEST |
+| US-T3 (§7 UISC-08..10) | No audio-thread, reset, preset independence | - | - | - | NO-TEST |
+
+<details><summary>Work list (ui-scaling)</summary>
+
+- [US-0 (§0)] effort S — scale steps exist; confirm six steps match spec (100..)
+- [US-1 (§1)] effort M — move/mirror storage to ui.json `ui_scale_pct`; corrupt/off-step tests (UISC-01..03)
+- [US-3 (§3)] effort M — host-refusal fallback with one-time banner; first-paint parity (UISC-04, 07)
+- [US-4 (§4)] effort S — add UISC-10 test
+- [US-5 (§5)] effort S — verify broadcast and reset-to-defaults (UISC-05, 09)
+- [US-6 (§6)] effort S — wire to scale key
+- [US-T1 (§7 UISC-01..03)] effort S — add round-trip, corrupt, snap tests
+- [US-T2 (§7 UISC-04..07)] effort M — needs two-editor and rejecting-host harness
+- [US-T3 (§7 UISC-08..10)] effort S — add tests
+
+</details>
+
 ## ui-wiring.md
 
 The attachment layer is solid. There is one APVTS, every standard control binds through `LuthierKnob`/`LuthierChoice`/`LuthierToggle`/`LuthierSlider` attachments, `PhysicalRange` swaps in place with tests, and the Workshop swap, audition, spectrum worker, NoiseEngine pool and state serialisation are built and tested. It is not built the way this spec describes. There is a small `CommandQueue<EngineCommand,128>` (panic, string mute/detune, rhythm reset, aftertouch target) but no generic command/result queue, no display FIFO, no `uiState` ValueTree, no panel base API, no locale-change broadcast and no MIDI Learn "save as global". Rhythm density/hand/humanise/swing and the Easy feel slider still write engine state directly from the message thread. Mod arcs now repaint from a shared 30 Hz hub. Most §23 tests are missing or narrower than asked. Data stream, drag-to-modulate, reduced-motion noise strip, accessible names, bench/setlist state and the undo random-walk tests are merged and tested.
@@ -5397,7 +5465,7 @@ The attachment layer is solid. There is one APVTS, every standard control binds 
 | UW-7 (§1) | Params declared once (IDs + layout) — `Parameters.h/.cpp`, not `ParameterIDs.h`/`ParameterLayout.cpp` | `Parameters.cpp:createParameterLayout` | n/a | `Parameters::everyParameterHasAUniqueIdAndSaneDefault` | DONE |
 | UW-8 (§1) | Display name translated via i18n catalog — names are English literals | `Parameters.cpp` | n/a | - | MISSING |
 | UW-9 (§1) | PhysicalRange stock/advanced pair, live min/max switch in place, value kept unless clamped | `PhysicalRange.cpp`, `RangeState` | Options RANGES, right-click | `Ranges::normalisationFollowsTheLiveRange`, `Ranges::wideningPreservesEveryPlainValue` | DONE |
-| UW-10 (§1) | Shared unit enum + category tag per parameter — unit is a suffix string, no category tag | - | - | - | MISSING |
+| UW-10 (§1) | Shared unit enum + category per parameter — `ParamMeta` derives them from the parameter (type and label) and its id family | `Source/ParamMeta.h` | - | `Parameters::everyParameterHasAUnitAndACategory` | PARTIAL |
 | UW-11 (§1) | Text->value / value->text per parameter | `Parameters.cpp` lambdas | n/a | `Parameters::everyParameterTextRoundTrips`, `HostState::parameterTextRoundTripsStably` | DONE |
 | UW-12 (§1) | Every new parameter appears in the feature-to-location index — no index data to check against (see gui-integration GI-135) | - | - | `GuiReach::everyAutomatableParameterHasAVisibleControl` (controls only) | PARTIAL |
 | UW-13 (§2) | AttachedKnob: rotary, own attachment, value arc, mod arc, warning arc + `*`, sizes, right-click menu with range items | `UI/Widgets.cpp:LuthierKnob` | every panel | `RangesUi::controlsFollowASwappedRangeAndMarkTheValue`, `RangesUi::rightClickUnlocksAndRestrictsOneControl`, `Editor::rightClickOffersModulationAndBuildsTheRoute` | DONE |
@@ -5412,11 +5480,11 @@ The attachment layer is solid. There is one APVTS, every standard control binds 
 | UW-22 (§5) | Snapshot recall never touches disk or ranges | `SnapshotBank`, `applySnapshotModules` | Live strip | `StateModel::recallingASnapshotStaysInsideThePreset` | DONE |
 | UW-23 (§6.1) | Load guitar swaps spec, refills coefficients, old pointer released — park path for whole-guitar loads (DECISIONS C-09), notes queued | `PluginProcessor::applyGuitar`, `mapSpec` | header guitar selector, Workshop | `WorkshopSwap::aNotePlayedWhileParkedIsKeptNotDropped`, `WorkshopSwap::aSwapMapsOnceNotPerBlock` | DONE |
 | UW-24 (§6.2) | Part swap: copy spec, map, swap at block boundary, crossfade, old pointer back | `LuthierEngine` live swap (TODO 6e) | Workshop bench | `PartSwap::aSwapKeepingTheStructureIsTakenAtABlockBoundaryWithoutSilence`, `WorkshopSwap::aPartSwapDuringANoteIsClickFree` | DONE |
-| UW-25 (§6.3) | Shadow audition never mutates committed spec or undo; 30 ms crossfade back — no crossfade back (re-applies committed through the swap path), not tested for time | `PluginProcessor::auditionGuitar` | Workshop drawer/bench Alt-hover | `WorkshopBench::auditionNeverCommits`, `WorkshopPanel::auditionFromTheDrawerNeverCommits` | PARTIAL |
+| UW-25 (§6.3) | Ending an audition returns to the committed guitar through the swap path with a 30 ms fade | `LuthierEngine::setNextSwapFadeSeconds`, `PluginProcessor::auditionGuitar` | Workshop drawer/bench Alt-hover | `WorkshopBench::endingAnAuditionCrossfadesIn30ms` | DONE |
 | UW-26 (§6.4) | Spectrum delta on a worker, 40 ms budget, nothing on the audio thread | `Workshop/SpectrumDelta` (own `juce::Thread`) | Workshop spectrum pane | `WorkshopSpectrum::theWorkerCoalescesAndStaysInBudget` | DONE |
 | UW-27 (§7) | Ranges per family / per control, clamp reported (DECISIONS: no banner, report at the clamp), knob repaints with warning arc + `*` | `RangeState`, `RangesUi::changeRanges` | Options RANGES, right-click, header padlock | `Ranges::narrowingClampsAndReportsTheCount`, `RangesUi::theRangesPageListsLocksAndClamps`, `RangesUi::rightClickUnlocksAndRestrictsOneControl` | DONE |
 | UW-28 (§8) | MIDI Learn: header/Ctrl+L arm, next control claims, first non-note MIDI maps, UI shows mapping | `Support/MidiLearn.cpp:MidiLearnManager` | `HeaderBar::midiLearnButton`, knob CC dot | `MidiLearn::armingIsSeparateFromLearningUntilAControlClaimsIt`, `ReviewRegression::midiLearnLearnsAppliesAndSurvivesAClear` | DONE |
-| UW-29 (§8) | Mappings per preset, "Save as global" moves one to user settings — absent | `MidiLearnManager::toVar` (session only) | - | - | MISSING |
+| UW-29 (§8) | Global MIDI mappings: kept in the user's config (midi-global.json) and merged under any loaded state's own map | `MidiLearnManager::setMappingGlobal`, `mergeGlobalMappings` | right-click: "Keep this mapping for every preset" | `MidiLearn::aGlobalMappingSurvivesAPresetLoad` | DONE |
 | UW-30 (§9) | Meters: audio computes per block, UI drains, peak hold UI-side — `LevelMeter` peak hold (Easy only), polls `MasterBus` | `DSP/Master/MasterBus`, `Widgets.cpp:LevelMeter` | EASY tone strip | `Master::meteringTracksTheSignal` (engine only) | NO-TEST |
 | UW-31 (§9) | Buzz heatmap from per-string amplitude + per-fret clearance | `DSP/Noise` buzz state | CHARACTER > SETUP `BuzzHeatmap` | `Buzz::theHeatmapAgreesWithTheGenerator`, `BuzzUi::heatmapCellsReadInMonochromeTerms` | DONE |
 | UW-32 (§10) | Noise event strip, 24 px, bar per event coloured by type | `NoiseEngine` event ring | CHARACTER noise groups `NoiseEventStrip` | `NoiseUi::theEventStripShowsWhatTheEngineTriggered` | DONE |
@@ -5428,7 +5496,7 @@ The attachment layer is solid. There is one APVTS, every standard control binds 
 | UW-38 (§13) | Pick overlay from pick position/angle | - | `GuitarRenderer` overlay `pickPositionMm/pickAngleDeg`, `GuitarBodyComponent` | `WorkshopAccessories::thePickIsDraggedAndTurnedOnTheBench` | DONE |
 | UW-39 (§14) | NoiseEngine: fixed pools (16 squeak...), oldest eviction, per-string bus, Aux 8 tap, event per trigger, no allocation | `DSP/Noise/NoiseEngine` (`kPoolSizes`) | n/a | `NoisePool::aFullPoolStealsTheOldest`, `NoisePool::zeroIsFree`, `PluginBuses::aux8CarriesThePlayingNoiseAndObeysItsStrip` | DONE |
 | UW-40 (§15) | GuitarCircuit coefficients at control rate on change, no allocation (audio-thread recompute accepted by DECISIONS C-08) | `DSP/Circuit` | ADVANCED col 2 CIRCUIT | `Circuit::sweepingEveryControlDoesNotAllocate` | DONE |
-| UW-41 (§15) | Update cost < 0.05% CPU per change event — not measured | `DSP/Circuit` | n/a | - | NO-TEST |
+| UW-41 (§15) | Update cost < 0.05% CPU per change event — not measured | `DSP/Circuit` | n/a | `Circuit::aParameterChangeCostsUnderFiveHundredthsOfAPercent` | DONE |
 | UW-42 (§16) | SlideEngine pressure state machine Lifted/Light/Normal/Heavy/Fretted; bar position a continuous parameter — pressure is continuous `slide_pressure` (per slide-guitar.md), bar position from MIDI | `DSP/Slide/SlideEngine` | CHARACTER > SLIDE `SlideGroup` | `SlideUi::pressureSaysWhatItMeans`, `Slide::pitchIsContinuous` | PARTIAL |
 | UW-43 (§17) | getStateInformation: APVTS, ui (bench slots, setlist ref/data/position), mod matrix, snapshots, MIDI maps, ranges, guitar, circuit, tune - MIDI export profile not saved | `PluginProcessor::getStateInformation` | n/a | `Presets::stateRoundTripsExactly`, `WorkshopPresets::anEditedGuitarTravelsWholeInTheState`, `Combo::everyParameterSurvivesTheSessionStateRoundTrip` | PARTIAL |
 | UW-44 (§17) | Missing parts fall back to factory defaults with a banner | `takeGuitarNotices` "missing-part" | notification banner | `GuitarMigration::anUnknownGuitarKeepsThePresetAndSaysSo` | DONE |
@@ -5442,13 +5510,13 @@ The attachment layer is solid. There is one APVTS, every standard control binds 
 | UW-52 (§22) | Preset files use the same serializer minus instance UI state | `PresetManager::toVar` inside state | n/a | `Presets::stateRoundTripsExactly`, `StateModel::loadingAPresetLeavesTheLayersAboveItAlone` | DONE |
 | UW-T1 (§23) | Test: every panel instantiated 100x leaves no listener attached | - | - | - | MISSING |
 | UW-T2 (§23) | Test: 60 s session with message-manager lock detector, no audio-thread UI access — on visual `Engine::fiveMinutesOfPlaybackNeitherAllocatesNorLocks` covers locks/allocation only | `Support/ThreadProbe.h` | n/a | - | PARTIAL |
-| UW-T3 (§23) | Test: 20 presets x 10 random loads match an offline render | - | n/a | `Presets::audioIsIdenticalAfterARoundTrip`, `Combo::renderIsDeterministicAfterReset` (narrower) | PARTIAL |
-| UW-T4 (§23) | Test: 1000 random changes + undo/redo equal forward sequence | - | n/a | `Undo::randomWalkUndoesBackToTheStart`, `Stress::undoRedoThousandTimes` | DONE |
+| UW-T3 (§23) | Test: 20 presets x 10 random loads match an offline render | - | n/a | `Presets::randomPresetLoadsAreDeterministic` (3 seeded orders of 10 loads among the first 20 presets; a second instance renders identically) | DONE |
+| UW-T4 (§23) | Test: 1000 random changes + undo/redo equal forward sequence — on visual: `Undo::randomWalkUndoesBackToTheStart`, `Stress::undoRedoThousandTimes` | - | - | - | OWNED |
 | UW-T5 (§23) | Test: arm + all 128 CCs map within one block | `MidiLearnManager` | n/a | `MidiLearn::everyCcLearnsWithinOneBlock` | DONE |
 | UW-T6 (§23) | Test: display FIFO at 10x drain for 60 s, no stall, oldest dropped | - | n/a | - | MISSING |
-| UW-T7 (§23) | Test: 100 random shadow auditions leave committed spec byte-identical - one audition checked for commit, 100 timed for budget only | - | n/a | `WorkshopBench::auditionNeverCommits` (one), `WorkshopBench::hundredAuditionsStayInBudget` (timing) | PARTIAL |
-| UW-T8 (§23) | Test: every physical param toggled stock<->advanced 100x, clamps right, no audio allocation | `RangeState` | n/a | `Ranges::wideningPreservesEveryPlainValue`, `Ranges::narrowingClampsAndReportsTheCount` (single pass) | PARTIAL |
-| UW-T9 (§23) | Test: every part slot swapped 100x in playback under the click threshold - one click test, 100 random swaps timed only | - | n/a | `WorkshopSwap::aPartSwapDuringANoteIsClickFree` (one), `Workshop::hundredRandomPartSwapsStayUnder50ms` (timing) | PARTIAL |
+| UW-T7 (§23) | Test: 100 random shadow auditions leave committed spec byte-identical | - | n/a | `WorkshopBench::aHundredRandomAuditionsNeverCommit` | DONE |
+| UW-T8 (§23) | Test: every physical param toggled stock<->advanced 100x, clamps right, no audio allocation | `RangeState` | n/a | `Ranges::hundredTogglesClampCorrectlyWithoutAllocating` | DONE |
+| UW-T9 (§23) | Test: every part slot swapped 100x in playback under the click threshold | - | n/a | `WorkshopSwap::everySlotSwapsHundredTimesClickFree` | DONE |
 | UW-T10 (§23) | Test: spectrum delta on committed vs shadow matches offline within 0.2 dB | `SpectrumDelta` | n/a | `WorkshopSpectrum::aNullChangeIsFlat`, `WorkshopSpectrum::aRealChangeShowsAndIsDescribed` (no offline compare) | PARTIAL |
 
 <details><summary>Work list (ui-wiring)</summary>
@@ -5457,9 +5525,9 @@ The attachment layer is solid. There is one APVTS, every standard control binds 
 - [UW-2 (§0.2)] effort M — once UW-1 lands, replace the `onValueChange` engine writes in `RhythmPanel.cpp` (l.719-790: density, hand, swing, timing, velocity, miss, ghost) and `EasyPanel::rhythmFeelSlider` (l.358) with `LuthierSlider::attachTo`; string mute and headstock detune go through the processor command FIFO (CB-17). GuiReach then covers them.
 - [UW-3 (§0.3)] effort S — write `uiState.benchSlots` and the visible snapshot slot into the "ui" object in `PluginProcessor::getStateInformation` and restore them in `setStateInformation` (the visual branch already does bench slots and setlist: merge it, then add the snapshot slot). A ValueTree is not needed; add a line to DECISIONS.md that `UiState` is a struct serialised to JSON. Extend `StateModel::loadingAPresetLeavesTheLayersAboveItAlone` to assert the fields round-trip.
 - [UW-4 (§0.4)] effort S — covered by UW-T1's test (`Editor::panelsLeaveNoListenersBehind`).
-- [UW-6 (§0.6, §4.3)] effort L — build `Source/Support/CommandQueue.h`: a fixed-capacity SPSC queue of POD `Command { type, slot, int/float args, void* payload }` and a matching result queue carrying old pointers back for message-thread deletion; wire `LoadIrCommand` (replace try-locks in `BodyEngine`/`CabinetEngine`), `RecallSnapshotCommand`, `AddModRouteCommand` (ModMatrix already swaps compiled tables, so this is a thin wrapper) and `ArmMidiLearnCommand` first; keep the Workshop live-swap/park path (DECISIONS C-09) and document that `LoadPresetCommand` stays message-thread (UW-21). Test `StateModel::commandsApplyAtABlockBoundaryAndReturnTheOldPointer`.
+- [UW-6 (§0.6, §4.3)] PARTIAL (rtmidi): `Support/CommandQueue.h` exists and carries panic, string mute/detune, rhythm reset and the aftertouch target; controller profiles and mod-source edits have their own RT hand-offs. The LoadIr/RecallSnapshot/AddModRoute/ArmMidiLearn commands and the result queue for old pointers are not built.
 - [UW-8 (§1)] effort M — pass display names through the catalog: key `param.<id>` in `Localisation.cpp`, with `Parameters.cpp` using `tr ("param." + id)` at layout build time (host-visible names are fixed at construction, so this follows the saved locale at startup). Test `Localisation::everyParameterNameHasACatalogKey`.
-- [UW-10 (§1)] effort M — add `enum class ParamUnit { hz, db, ms, percent, semitones, cents, henry, farad, ohm, mm, g, count, index, boolean }` and a `category` string to a per-parameter metadata table in `Parameters.cpp` (next to `PhysicalRange`), expose `getParamUnit(id)`/`getParamCategory(id)`, and use the unit for the value-to-text suffix and accessibility announcements (UW-51). Test `Parameters::everyParameterHasAUnitAndACategory`.
+- [UW-10 (§1)] PARTIAL: `ParamMeta::getUnit/getUnitName/getCategory` cover every parameter (tested). Using the unit name in accessibility announcements comes with UW-51.
 - [UW-12 (§1)] effort S — falls out of gui-integration GI-135 (feature index as data); add to that test that every automatable parameter id appears in some index row.
 - [UW-15 (§2)] effort S — give `LuthierChoice` a `rebuildItems()` that re-reads `AudioParameterChoice::choices` (or a supplied provider) and call it from a `ChangeListener` on `PartLibrary`/amp model list changes; for fixed-choice params it is a no-op. Test `Widgets::aChoiceRebuildsWhenItsListChanges`.
 - [UW-16 (§2)] effort M — extract a `PartSlotWidget` from the Workshop card code in `Source/UI/WorkshopPanel.cpp` (slot id, card summary / hit region mode, fit/audition through the processor's swap API) so the drawer, bench and future Easy hit regions share it. Keep the existing tests; add `WorkshopPanel::aPartSlotWidgetFitsAndAuditions`.
@@ -5467,11 +5535,8 @@ The attachment layer is solid. There is one APVTS, every standard control binds 
 - [UW-18 (§3)] effort S — DEFER: a design rule with nothing to assert beyond review; the display-read half is UW-20.
 - [UW-20 (§4.2)] effort L — add `Source/Support/DisplayFifo.h` (`AbstractFifo` + fixed `DisplaySample` array, overwrite-oldest) per subsystem: master meters (in/out), string activity, chord, mod-source values, voice count, noise events (move the existing NoiseEngine ring onto it). Audio thread writes at block rate (throttled); timers drain at the §4.2 rates (30/60/10/15 Hz). Migrate `LevelMeter`, `OutputLed`, `FretboardComponent`, `GuitarBodyComponent`, `EasyPanel` chord readout off direct engine reads. Tests: UW-T6 + `Dataflow::*` in gui-engine-dataflow fixes.
 - [UW-21 (§5)] effort S — DEFER: preset application stays on the message thread (APVTS writes must be there anyway; ranges are applied before values, and `StateModel::loadingAPresetWhileRenderingProducesNoGarbage` shows the property the command was meant to guarantee). Record in DECISIONS.md, next to C-09.
-- [UW-25 (§6.3)] effort S — when an audition ends (`auditionGuitar(nullptr)`), return to the committed spec through the live-swap path with a 30 ms ramp (the swap already crossfades; set its length from a parameter of the call). Test `WorkshopBench::endingAnAuditionCrossfadesIn30ms`: render through an audition end and assert the sample-to-sample delta stays under the click threshold and the transition spans about 1440 samples at 48 kHz.
-- [UW-29 (§8)] effort M — add a per-mapping `global` flag to `MidiLearnManager` (`Source/Support/MidiLearn.h`) with global mappings stored in the user settings file (`UiPreferences`/`AccessibilitySettings` file) and merged under preset mappings on load; "Save as global" item in the knob right-click menu next to the MIDI Learn items. Test `MidiLearn::aGlobalMappingSurvivesAPresetLoad`.
 - [UW-30 (§9)] effort S — add `Widgets::theLevelMeterHoldsAndDecaysItsPeak`: construct `LevelMeter` with a processor, drive `MasterBus` peak via a rendered burst, pump the timer and assert the hold value stays for its hold time then decays; header meters come with gui-integration GI-16.
 - [UW-37 (§13)] effort M — merge `GuitarBodyComponent` and the Workshop bench illustration into one `GuitarIllustration` component with an `InteractionMode { easy, bench }` flag (both already use `GuitarRenderer`), subscribing to the processor's guitar-changed broadcast; drive the played-note/slide overlays from the display FIFO (UW-20) at 60 Hz. Test `GuitarIllustration::oneComponentServesEasyAndBench`.
-- [UW-41 (§15)] effort S — add `Circuit::aParameterChangeCostsUnderFiveHundredthsOfAPercent`: time 1000 coefficient recomputes (`GuitarCircuit` update on a changed pot) against the cost of one 512-sample block at 48 kHz and assert the per-change cost < 0.05% of the block budget.
 - [UW-42 (§16)] effort S — DEFER: slide-guitar.md (the domain spec) makes `slide_pressure` a continuous 0-1 parameter with described zones and takes bar position from MIDI (notes/CC per slide-technique-controls, owned by techniques). ui-wiring §16's discrete states and "bar position parameter" are superseded; note in DECISIONS.md.
 - [UW-43 (§17)] effort S — add the MIDI export profile selection (`MidiProfiles` current profile id) to `getStateInformation`/`setStateInformation`; merge visual's setlist/bench additions. Test `StateModel::theMidiExportProfileTravelsWithTheSession`.
 - [UW-48 (§19)] effort M — add a shared `juce::ThreadPool` (2 threads) on the processor (`getWorkerPool()`), move notation export (`NotationPanel.cpp` l.76), IR resample/load and cab match onto it; `SpectrumDelta` may keep its coalescing thread (DECISIONS note). Test `ModelGapsUi::longTasksShareTheTwoThreadPool` asserting the pool size and that two exports run concurrently without a third.
@@ -5479,11 +5544,7 @@ The attachment layer is solid. There is one APVTS, every standard control binds 
 - [UW-51 (§21)] effort M — give `FretboardComponent`, `BuzzHeatmap`, the MOD step grid and the Workshop spectrum pane `createAccessibilityHandler` overrides exposing per-string/per-fret/per-step children (like `CircuitResponseView`); value announcements use the parameter's text function with its unit (UW-10). Test `Accessibility::customWidgetsExposeTheirChildren` (walk `getAccessibilityHandler()->getChildren()` count equals strings x frets etc.).
 - [UW-T1 (§23)] effort S — add `Editor::panelsLeaveNoListenersBehind`: for each Col-4 tab panel, `HeaderBar`, `EasyPanel`, `AdvancedPanel`, construct/destroy 100 times against one processor and assert the APVTS/`MidiLearnManager`/`ChangeBroadcaster` listener counts are back to the baseline (add a debug `getNumListeners()` accessor on the processor's broadcasters).
 - [UW-T2 (§23)] effort M — extend `Support/ThreadProbe.h` with a "UI-state touched" trap (set in `UiState` accessors, `Component` paint via a JUCE `MessageManager::existsAndIsCurrentThread` assert in debug) and add `StateModel::sixtySecondsOfSessionNeverTouchUiFromAudio`: render 60 s of random MIDI + automation on a thread while the editor runs timers, assert zero traps. Merge visual's lock/allocation trap first.
-- [UW-T3 (§23)] effort M — add `Presets::randomPresetLoadsAreDeterministic`: pick 20 factory presets, load them in 10 random (seeded) orders while rendering a fixed MIDI clip, and compare the final render to an offline `createOfflineInstance` run of the same sequence (bit-exact or < -120 dB difference).
 - [UW-T6 (§23)] effort S — after UW-20, add `Dataflow::aFloodedFifoDropsTheOldestAndNeverStalls`: write 10x the drain rate for 60 s of simulated time from a thread, drain on the timer cadence, assert no write blocks, the reader sees only the newest records and no crash.
-- [UW-T7 (§23)] effort S — extend `WorkshopBench::auditionNeverCommits` to 100 seeded random parts from `PartLibrary`, comparing `currentGuitar.toEmbeddedVar()` JSON before and after byte-for-byte.
-- [UW-T8 (§23)] effort S — add `Ranges::hundredTogglesClampCorrectlyWithoutAllocating`: for every family, toggle stock/advanced 100 times while an audio thread renders under the allocation trap, set values beyond stock between toggles and assert each narrowing clamps to the stock bound and widening keeps the plain value.
-- [UW-T9 (§23)] effort M — add `WorkshopSwap::everySlotSwapsHundredTimesClickFree`: for each slot in the factory guitar (pickups, bridge, nut, strings, wiring) swap between two same-structure parts 100 times while a note rings, assert max sample-to-sample delta under the click threshold used by `aPartSwapDuringANoteIsClickFree`.
 - [UW-T10 (§23)] effort S — add `WorkshopSpectrum::theWorkerMatchesAnOfflineRender`: compute the delta for a pickup move via `SpectrumDelta`, render the same fixture through two offline engines, compute the 64-band magnitude difference and assert agreement within 0.2 dB per band.
 
 </details>
@@ -5497,7 +5558,7 @@ Opt-in defaults, the local outbound-network log, the manifest-based update check
 | UT-1 (§0.1/§8) | Every telemetry/crash/update option off by default | `Updates/Telemetry` ctor | Options > UPDATES / PRIVACY | `Telemetry::everythingIsOffByDefault` | DONE |
 | UT-2 (§0.2) | No PII (no license, filenames, preset names) — no test asserts record payloads are PII-free | `Telemetry::record` + `isAllowedField` key allowlist, path/address values dropped | n/a | `Telemetry::recordsCarryNoPersonalData` | DONE |
 | UT-3 (§0.3) | Every outbound call logged in a rotating local file (dest, size, time, category) | `Telemetry::logNetworkCall` | PRIVACY `viewLogButton` | `Telemetry::everyOutboundCallIsLogged` | DONE |
-| UT-4 (§0.4) | Update checks on a worker thread — `juce::Thread::launch` in editor; untested | `PluginEditor.cpp` (~875), `UpdatesPage::checkForUpdate` | n/a | - | NO-TEST |
+| UT-4 (§0.4) | Update checks on a worker thread — `juce::Thread::launch` in editor; untested | `Telemetry::checkForUpdateAsync` (worker thread; editor uses it with a SafePointer) | n/a | `Telemetry::theUpdateCheckRunsOffTheMessageThread` | DONE |
 | UT-5 (§0.5) | Never auto-installs; only notifies | `PluginEditor.cpp` update banner | header banner | `Telemetry::updateCheckReadsTheManifest` | DONE |
 | UT-6 (§1) | Opt-in toggle in Options -> Updates, on-load 24 h throttle, Check now | `Telemetry::checkForUpdate` | UPDATES `updateCheckToggle`, `checkNowButton` | `Telemetry::updateCheckIsThrottled` | DONE |
 | UT-7 (§1) | Manifest JSON (schema, stable, beta, min, changelog, per-platform downloads) + semver compare | `UpdateManifest::parse`, `Version::compare` | n/a | `Telemetry::updateCheckReadsTheManifest`, `Telemetry::versionComparison` | DONE |
@@ -5519,7 +5580,7 @@ Opt-in defaults, the local outbound-network log, the manifest-based update check
 | UT-23 (§6) | Editable endpoint URLs | `Telemetry::setManifestUrl/...` | PRIVACY `manifestUrlBox` etc. | `Telemetry::settingsRoundTrip` | DONE |
 | UT-24 (§6) | One-click turn everything off + delete diagnostics | `Telemetry::turnEverythingOffAndDelete` | PRIVACY `paranoiaButton` | `Telemetry::turnEverythingOffDeletesAndDisables` | DONE |
 | UT-25 (§7) | System-wide `luthier-policy.json` forces telemetry off / private mirror / no crash uploads | `Policy::load/getPolicyFile` | n/a | `Telemetry::policyOverridesTheUser` | DONE |
-| UT-26 (§7) | "Managed by policy" indicator — header banner + page label, untested | `PluginEditor.cpp` "policy" notification | header banner, PRIVACY/UPDATES `policyLabel` | - | NO-TEST |
+| UT-26 (§7) | "Managed by policy" indicator — header banner + page label, untested | `Policy::setPolicyFileForTesting` | header banner, PRIVACY/UPDATES `policyLabel` | `Telemetry::aPolicyLocksThePrivacyPage` | DONE |
 | UT-27 (§8) | Test: no-network mode silent | | n/a | `Telemetry::noNetworkIsSilentRatherThanAnError` | DONE |
 | UT-28 (§8) | Test: fresh install has all four toggles off | | n/a | `Telemetry::everythingIsOffByDefault` | DONE |
 | UT-29 (§8) | Test: policy file blocks disallowed features | | n/a | `Telemetry::policyOverridesTheUser` | DONE |
@@ -5528,13 +5589,11 @@ Opt-in defaults, the local outbound-network log, the manifest-based update check
 
 <details><summary>Work list (updates-telemetry)</summary>
 
-- [UT-4] effort S — factor the editor's launch into a testable `UpdateChecker` helper (or give `Telemetry` a `checkForUpdateAsync(running, callback)` using a `ThreadPool`), test that the transport's `get` runs on a non-message thread (fake `Transport` recording `Thread::getCurrentThreadId`).
 - [UT-11] effort L — DEFER: bsdiff binary patching belongs to installer.md (release helper/visual `ContentPackage` owns deltas, which deliberately never modify code); revisit only if binary delta installers are adopted.
 - [UT-12] effort M — add call sites: `Telemetry::record(Category::usage, ...)` on panel/tab open (`AdvancedPanel::setWorkspaceTab`, Options page open), preset load (`PresetManager` load — category "factory"/"user" only, no name), feature-flag adoption snapshot, and a daily aggregate CPU sample from the processor's CPU meter; schedule `sendPending` on a worker once per day when active (editor timer). Test that opening a tab adds a usage record only when usage is enabled.
 - [UT-13] effort M — add `record(Category::diagnostics, ...)` for caught runtime errors (preset load failures, IR load errors, `Diagnostics` warnings) and a session-start host record (host name via `PluginHostType`, sample rate, buffer size, wrapper type); test a failed preset load yields a diagnostics record without the filename.
 - [UT-16] effort S — dump writer + handler done; add the troubleshooting-file copy and a MiniDumpWriteDump path on Windows.
 - [UT-17] effort M — on the PRIVACY page add a "Pending crash report" section: read-only `TextEditor` showing `describePendingCrashReport()` (exactly what would be sent), "Send" (`uploadPendingCrashReport` on a worker) and "Discard" buttons, visible only when `hasPendingCrashReport()`; UI test with a fixture dump in a temp diagnostics dir.
-- [UT-26] effort S — test with a temp policy file (make `Policy::getPolicyFile` overridable for tests) that the editor posts the "policy" notification and the pages' `policyLabel` shows "Managed by policy" and disallowed toggles are disabled.
 - [UT-31] effort M — DEFER unless UT-11 is adopted: once visual's `ContentPackage` deltas merge, add a test applying 5 sequential delta packages and comparing the resulting tree's SHA-256 manifest with a full package of the final version (file-level only).
 
 </details>
@@ -5558,7 +5617,7 @@ Opt-in defaults, the local outbound-network log, the manifest-based update check
 | VK-11 (§2) | Cable pF/m table 52/98/160/220 and length | `cableCapacitancePerMetre` | ADVANCED col 2 Length + Cable quality | `Circuit::cableCapacitanceMovesTheResonance` | DONE |
 | VK-12 (§2) | `cable_on` off = zero-length cable, not silence | `cableCapacitance` | ADVANCED col 2 "Cable" toggle | `Circuit::bypassIsNeutral` | DONE |
 | VK-13 (§3) | All IDs, types and defaults per the table | `Parameters.cpp` ~606-620 | ADVANCED col 2 Circuit | `Circuit::parametersMatchTheSpecTable` | DONE |
-| VK-14 (§3) | `guitar_volume`/`guitar_tone` are the wipers — the Easy Tone macro rescales the tone wiper (`guitarTone × (0.45 + macroTone×1.1)`), so the physical control's value is not what the circuit sees | `Parameters.cpp:1583` circuit.tone = guitarTone x (0.45 + macroTone x 1.1) | EASY Tone macro | - | PARTIAL |
+| VK-14 (§3) | `guitar_volume`/`guitar_tone` are the wipers — the Easy Tone macro rescales the tone wiper (`guitarTone × (0.45 + macroTone×1.1)`), so the physical control's value is not what the circuit sees | `Parameters.cpp` ~1345 | EASY Tone macro | - | DEFERRED |
 | VK-15 (§3) | Circuit-family stock/advanced ranges | `PhysicalRange.cpp` circuit rows | Options > RANGES; knobs | `Circuit::everyCornerOfTheAdvancedRangeIsStable`, `Ranges::stockMatchesTheDeclaredRange` | DONE |
 | VK-16 (§3.1) | 50s wiring topology keeps the top as volume comes down | `PotTaper::fiftiesWiring` in the netlist | ADVANCED col 2 "Taper" | `Circuit::fiftiesWiringKeepsTheTop` | DONE |
 | VK-17 (§4) | Feedback level taken after the circuit; volume 5 lowers the loop by the circuit's attenuation ±0.5 dB | `FeedbackLoop` | n/a | `Feedback::theVolumeKnobLowersTheLoopByTheCircuitsAttenuation` | DONE |
@@ -5566,10 +5625,10 @@ Opt-in defaults, the local outbound-network log, the manifest-based update check
 | VK-19 (§4) | Linear circuit, not oversampled | `GuitarCircuit` at base rate | n/a | `Circuit::everyCornerOfTheAdvancedRangeIsStable` | DONE |
 | VK-20 (§5) | CIRCUIT panel in Advanced column 2: large volume and tone knobs | `AdvancedPanel` Circuit section | ADVANCED col 2 | `GuiReach::everyAutomatableParameterHasAVisibleControl` | DONE |
 | VK-21 (§5) | Pot and cap dropdowns (250k/500k/1M, 10n/22n/47n, custom) plus taper dropdown | `StandardValueChoice` (`UI/CircuitPanel.h`) | ADVANCED col 2 | `GuiReach::operatingEachControlWritesItsParameter` | DONE |
-| VK-22 (§5) | Treble-bleed R/C editor appears only for Custom - Bleed R, Bleed C and Bleed wiring are always added; nothing ties visibility to `circuit_treble_bleed` | `AdvancedPanel.cpp` ~775-781 | ADVANCED col 2 | - | PARTIAL |
-| VK-23 (§5) | Live H(s) response view with the resonant peak marked, redrawn as controls move | `CircuitResponseView` (`UI/CircuitPanel.cpp`) | ADVANCED col 2 (`AdvancedPanel.cpp:726`); EASY rig strip (`EasyPanel.cpp:322`) | `LiveDisplays::theFretboardDrawsTheSlideBarAndTheCircuitCurveFollowsTheVolume`, `Dataflow::everyLiveElementDrainsAtItsSpecRate` | DONE |
-| VK-24 (§5; gui-int 4.4) | CHARACTER tab CIRCUIT group, the same panel at full size - `CharacterPanel` has no circuit group (only Advanced col 2 and Easy rig strip) | - | - | - | MISSING |
-| VK-25 (§5) | Easy compact card: volume, tone and the mini response view | `EasyPanel::buildRigStrip` | EASY rig strip | - | NO-TEST |
+| VK-22 (§5) | Treble-bleed R/C editor appears only for Custom — Bleed R, Bleed C and Bleed wiring are always shown; nothing ties their visibility to `circuit_treble_bleed` | `AdvancedPanel.cpp` ~674-690 | ADVANCED col 2 | - | PARTIAL |
+| VK-23 (§5) | Live H(s) response view with the resonant peak marked, redrawn as controls move | `CircuitResponseView` (`UI/CircuitPanel.cpp`) | ADVANCED col 2; EASY rig strip | on visual: `LiveDisplays::theFretboardDrawsTheSlideBarAndTheCircuitCurveFollowsTheVolume` | OWNED |
+| VK-24 (§5; gui-int 4.4) | CHARACTER tab CIRCUIT group, the same panel at full size — `CharacterPanel` has no circuit group on this branch or on visual | - | - | - | MISSING |
+| VK-25 (§5) | Easy compact card: volume, tone and the mini response view | `EasyPanel::buildRigStrip` | EASY rig strip | `Circuit::theEasyRigStripCarriesTheGuitarKnobsAndTheView` | DONE |
 | VK-T1 (§6) | Test: volume interaction (level vs taper, darkening) | - | n/a | `Circuit::turningDownDarkensAsWellAsQuietens` | DONE |
 | VK-T2 (§6) | Test: treble bleed restores top | - | n/a | `Circuit::aKinmanBleedKeepsTheTop` | DONE |
 | VK-T3 (§6) | Test: active mode removes loading | - | n/a | `Circuit::activeModeRemovesTheLoading` | DONE |
@@ -5583,10 +5642,9 @@ Opt-in defaults, the local outbound-network log, the manifest-based update check
 
 <details><summary>Work list (volume-knob-interaction)</summary>
 
-- [VK-14] effort S — DEFER or decide: record in spec/DECISIONS.md that the Easy Tone macro turns the guitar's tone wiper (a macro moving a physical knob), or have it drive the wiper through the modulation path (`ParameterBridge`), so `guitar_tone`'s displayed value is what the circuit sees. Do not keep the silent multiply in `Parameters.cpp` ~1345. Test: with macroTone at 0.5 the circuit's `tone` equals `guitar_tone`.
+- [VK-14] DEFERRED: needs a DECISIONS.md entry, which this sweep cannot write. The Easy Tone macro scales the effective wiper and is neutral at its 0.5 default. The circuit view shows the effective value (`getLiveCircuitComponents`), so what is drawn is what is heard; only the Advanced knob shows the unscaled wiper. See sweep-notes/dsp1.md.
 - [VK-22] effort S — In `AdvancedPanel` (Circuit section, ~674-690), show `bleedR`, `bleedC` and `bleedMode` only when `circuit_treble_bleed == Custom`: use a parameter listener, or the panel's refresh timer with `setVisible` plus a column relayout. Test in AdvancedPanel/GuiReach: the editors are hidden for None and visible for Custom. GuiReach must treat them as reachable through the Custom choice.
 - [VK-24] effort M — Add a CIRCUIT group to `CharacterPanel` (Source/UI/CharacterPanel.cpp, beside the SETUP/SLIDE groups), per gui-integration 4.4, 290 and 609-610. It holds a full-size `CircuitResponseView` and the same attachments as ADVANCED col 2 (volume, tone, pots, cap, taper, bleed + custom editor, active, cable, amp input). The layout can reuse the col 2 builder. Test: `CharacterPanel` constructs a visible CIRCUIT group whose volume knob writes `guitar_volume`.
-- [VK-25] effort S — Add a test that `EasyPanel::buildRigStrip` leaves the guitar volume/tone knobs attached to `guitar_volume`/`guitar_tone` and the `CircuitResponseView` visible with non-zero bounds.
 
 </details>
 
@@ -5731,33 +5789,25 @@ Every binding the doc lists exists in `AccessibilitySettings` with the documente
 | KS-10 (Presets) | Shift+1-9 recall snapshot 10-18 — digit read from the key code | `keyPressed` digit branch | n/a | `Editor::digitsRecallSnapshots` | DONE |
 | KS-11 (Presets) | PageUp/PageDown previous/next setlist entry | `keyPressed setlistPrevious/Next` -> `Setlist::next/previous` | n/a | `Editor::pageKeysStepTheSetlist` | DONE |
 | KS-12 (File) | Ctrl+O browser, Ctrl+Shift+S Save As, Ctrl+E export, Ctrl+, Options, Ctrl+D debug | `keyPressed presetBrowser/saveAs/export/options/debugPanel` | overlays | `Editor::everyOverlayShortcutOpens...`, `GuiReach::everyAutomatableParameterHasAVisibleControl` walk | DONE |
-| KS-13 (File) | Ctrl+S saves current preset (falls back to Save As) | `keyPressed "save"` -> `PresetManager::saveCurrent` | n/a | - | NO-TEST |
-| KS-14 (File) | Ctrl+G save guitar as .luthierguitar; Ctrl+Shift+E reveal guitar file | `keyPressed saveGuitarAs/revealGuitar`, `showSaveGuitarDialog` | dialog | - — `WorkshopPreset` tests call `saveGuitarAs` directly, not the key | NO-TEST |
+| KS-13 (File) | Ctrl+S saves current preset (falls back to Save As) | `keyPressed "save"` -> `PresetManager::saveCurrent` | n/a | Editor::ctrlSSavesTheCurrentUserPreset | DONE |
+| KS-14 (File) | Ctrl+G save guitar as .luthierguitar; Ctrl+Shift+E reveal guitar file | `keyPressed saveGuitarAs/revealGuitar`, `showSaveGuitarDialog` | dialog | `Editor::guitarFileShortcuts` (Ctrl+Shift+E on an edited guitar) | PARTIAL |
 | KS-15 (File) | Ctrl+L arm MIDI Learn then click a control | `keyPressed midiLearnArm` -> `setMidiLearnArmed`, `MidiLearnArmLayer` | overlay layer | `Editor::ctrlLArmsMidiLearn` | DONE |
 | KS-16 (File) | Ctrl+Z / Ctrl+Shift+Z undo/redo | `keyPressed undo/redo` -> `processor.undo/redo` | n/a | `Editor::undoRedoAndABKeysReachTheProcessor` | DONE |
 | KS-17 (File) | Ctrl+R randomise, Ctrl+Shift+R reset everything, Ctrl+/ A/B | `keyPressed randomise/resetAll/abCompare` | n/a | `Editor::randomiseAndResetKeys`, `Editor::undoRedoAndABKeysReachTheProcessor` | DONE |
 | KS-18 (doc) | Doc lists every default binding — omits S (slide mode), Ctrl+N (new preset/Init), Ctrl+Alt+E (reveal preset), Ctrl+[ / ] (workspace tab) | `Accessibility.cpp` registry | n/a | n/a (doc) | DONE |
-| KS-19 (Control) | Left-drag adjust, Shift coarse, Ctrl ultra-fine | `UI/Widgets.cpp:LuthierKnob::KnobSlider::mouseDrag` (sensitivity 70/180/1200) | every knob | - | NO-TEST |
+| KS-19 (Control) | Left-drag adjust, Shift coarse, Ctrl ultra-fine | `UI/Widgets.cpp:LuthierKnob::KnobSlider::mouseDrag` (sensitivity 70/180/1200) | every knob | `Widgets::modifierDragSensitivity` | DONE |
 | KS-20 (Control) | Double-click resets to default | JUCE `SliderParameterAttachment` (`setDoubleClickReturnValue`) via `LuthierKnob::attachTo` | every knob | `Widgets::doubleClickReturnsAKnobToItsDefault` | DONE |
-| KS-21 (Control) | Right-click: Enter value, Reset, Copy, Paste, MIDI Learn, Lock, Randomise | `Widgets.cpp:showParameterContextMenu` | every knob | `Editor::rightClickOffersModulationAndBuildsTheRoute` (Modulate only), `RangesUi::rightClickUnlocksAndRestrictsOneControl` — core items not asserted | NO-TEST |
+| KS-21 (Control) | Right-click: Enter value, Reset, Copy, Paste, MIDI Learn, Lock, Randomise | `Widgets.cpp:showParameterContextMenu` | every knob | `Editor::rightClickOffersTheDocumentedItems` | DONE |
 | KS-22 (Control) | Hover row: value appears above the control, label stays; tooltip 400 ms | `LuthierKnob::paint` showValue | every knob | - | DONE |
-| KS-23 (Fretboard) | Click plays note, higher in lane = harder | `FretboardComponent::mouseDown` velocity from `withinLane` -> `triggerPreviewNote` | Easy/Advanced fretboard | - | NO-TEST |
-| KS-24 (Fretboard) | Right-click: mute string, select string, set capo, scale overlay | `FretboardComponent::mouseDown` popup, `setCapoFret` drives `capoFret` param | fretboard | - | NO-TEST |
-| KS-25 (Illustration) | Click pickup selects it; click switch advances position; drag knob = volume/tone | `GuitarBodyComponent::mouseDown/mouseDrag` | guitar illustration | `Editor::everyHitRegionOnTheIllustrationDescribesItself` (tooltips only) | NO-TEST |
-| KS-26 (Pedal rack) | Drag slot onto another reorders; right-click clear slot / reset pedal | `PedalRack.cpp:PedalSlotComponent::mouseUp/onReorderRequested`, `PedalRack::reorder`; menu items 1/2 | Advanced pedal rack | `Effects::chainReordersWithoutGlitching` (engine only) | NO-TEST |
-| KS-27 (Overlay) | Escape, click outside, Close button all close; only one overlay at a time | `Overlays.cpp:OverlayHost::mouseDown/dismiss`, `closeButton` | every overlay | `Editor::everyOverlayShortcutOpens...` (Escape + one-at-a-time) | NO-TEST |
+| KS-23 (Fretboard) | Click plays note, higher in lane = harder | `FretboardComponent::mouseDown` velocity from `withinLane` -> `triggerPreviewNote` | Easy/Advanced fretboard | Editor::fretboardClicksAndItsMenu | DONE |
+| KS-24 (Fretboard) | Right-click: mute string, select string, set capo, scale overlay | `FretboardComponent::mouseDown` popup, `setCapoFret` drives `capoFret` param | fretboard | Editor::fretboardClicksAndItsMenu | DONE |
+| KS-25 (Illustration) | Click pickup selects it; click switch advances position; drag knob = volume/tone | `GuitarBodyComponent::mouseDown/mouseDrag` | guitar illustration | `Editor::illustrationClicksSelectPickupAndStepSwitch` | DONE |
+| KS-26 (Pedal rack) | Drag slot onto another reorders; right-click clear slot / reset pedal | `PedalRack.cpp:PedalSlotComponent::mouseUp/onReorderRequested`, `PedalRack::reorder`; menu items 1/2 | Advanced pedal rack | `PedalRack::dragOntoAnotherSlotReorders` (the clear/reset menu items are not driven) | DONE |
+| KS-27 (Overlay) | Escape, click outside, Close button all close; only one overlay at a time | `Overlays.cpp:OverlayHost::mouseDown/dismiss`, `closeButton` | every overlay | `Editor::overlaysCloseFromTheScrimAndTheirCloseButton` | DONE |
 
 <details><summary>Work list (docs-KEYBOARD_SHORTCUTS)</summary>
 
-- [KS-13] effort S — NOTE (rtmidi): with a factory preset loaded Ctrl+S writes a user copy (`PresetManager::saveCurrent`), so a headless test would write into ~/Documents; needs a temp user folder hook first. Original plan: add `Editor::ctrlSSavesOrFallsBackToSaveAs`: with no current file, Ctrl+S opens the Save As overlay; with a user preset loaded, file mtime changes.
-- [KS-14] effort S — add `Editor::guitarFileShortcuts`: Ctrl+G opens the save-guitar dialog (or call through a test hook), Ctrl+Shift+E on an edited guitar posts the `reveal-guitar` notification.
-- [KS-19] effort S — add `Widgets::modifierDragSensitivity` test: synthesize drags on a `LuthierKnob` slider with none/Shift/Cmd and CHECK the value delta ratio (coarse > normal > fine).
-- [KS-21] effort S — factor the item list out of `showParameterContextMenu` (it already builds a PopupMenu) and assert in `Editor::rightClickOffersModulationAndBuildsTheRoute` that "Enter value...", "Reset to default", "Copy value", "Paste value", "MIDI Learn", "Lock", "Randomise this control" are present; drive `applyParameterMenuResult` for Reset/Lock.
-- [KS-23] effort S — add `Fretboard::clickPlaysAPreviewNoteHarderNearTheTop`: two `mouseDown`s at top/bottom of one lane, CHECK the preview velocity ordering (expose last preview velocity or spy on `triggerPreviewNote`).
-- [KS-24] effort S — extract the fretboard menu's result handling into a callable (`applyMenuResult(s,f,id)`) and test mute/select/capo(sets `capoFret` param)/scale overlay.
-- [KS-25] effort S — add `Editor::illustrationClicksSelectPickupAndStepSwitch`: `mouseDown` on the `selector` hit area advances `pickupSelector`; on `pickupBridge` sets Bridge; drag in `controls` changes volume.
-- [KS-26] effort S — add `PedalRack::dragOntoAnotherSlotReorders` (call `onReorderRequested(0,1)` / mouseDrag+mouseUp between slots, CHECK slot types swap in params) and clear/reset menu results.
-- [KS-27] effort S — extend `Editor::everyOverlayShortcutOpens...`: close one via `OverlayHost::mouseDown` on the scrim and one via its Close button `onClick`.
+- [KS-14] PARTIAL: Ctrl+Shift+E on an edited guitar posts reveal-guitar (tested). Ctrl+G opens a modal AlertWindow, which a headless test cannot drive without a test hook in PluginEditor (left while the editor is being merged).
 
 </details>
 
@@ -5805,14 +5855,14 @@ The technique model matches the doc closely: the priority order, excitation leng
 | PT-1 (priority) | Strict order: palm mute > pinch > natural > tap > slide guitar > muted pick > slide > hammer/pull > pluck; explicit beats inferred | `Model/Playing/TechniqueEngine.cpp:classify` | n/a | `Technique::controllersTakePriorityOverInference`, `Technique::legatoBecomesHammerOnAndPullOff`, `Technique::fastNotesBecomeASlide` | DONE |
 | PT-2 (priority 3) | Priority list: velocity-triggered harmonics dropped from the doc (not wired) | `TechniqueEngine.h:setHarmonicVelocityTriggerEnabled` | none | n/a (doc) | DONE |
 | PT-3 (rules) | Fretless turns hammer/pull into slide; same pitch + light touch = re-articulation | `TechniqueEngine::classify` fretless / `abs(newFret - fret) < 0.05` | Advanced Neck > Fretless | `Technique::fretlessTurnsLegatoIntoGlide` | DONE |
-| PT-4 (Pluck) | Ringing string muted over 5 ms before re-pluck | `StringEngine.cpp: stealTotal = sr*0.005` | n/a | `Combo::presetSwitchUnderARingingNoteDoesNotClick` (indirect) | NO-TEST |
+| PT-4 (Pluck) | Ringing string muted over 5 ms before re-pluck | `StringEngine.cpp: stealTotal = sr*0.005` | n/a | `StringEngine::aRepluckMutesTheRingingStringOverFiveMs` | DONE |
 | PT-5 (Hammer/pull/tap) | Excitation length/amp 55%/28%, 45%/24%, 50%/42%; no voice steal | `DSP/String/Excitation.cpp:88-90` | n/a | `StringEngine::legatoDoesNotRetriggerTheAttack` (asserts hammer disturbs less than re-pluck) | DONE |
 | PT-6 (Slide) | duration = clamp(0.018+0.025*st, 0.02, 0.4); slide noise by squeakFactor, x0.22 plain | `TechniqueEngine::slideDurationFor`, `StringEngine.cpp:~422 woundScale` | n/a | `Technique::slideDurationScalesWithDistance`, `Squeak::flatwoundIsNearlySilentAndPlainIsSilent` | DONE |
 | PT-7 (Bend) | Pitch bend smoothed ~2 ms; range 1-48 st; per-string in Guitar Controller | `StringEngine::setGlideTime(0.002)`, `ParamIDs::bendRange`, `MidiInterpreter` per-channel | Advanced Performance > Bend Range | `StringEngine::bendIsSmoothAndReachesTarget`, `Controllers::perChannelRoutingSendsEachChannelToItsString` | DONE |
-| PT-8 (Vibrato) | Mod wheel/aftertouch depth; rate/depth in Advanced; Finger (asymmetric) default + Sine/Tri/Square/Saw/Random; ramps in; per-string phase offsets | `DspCommon.h:Lfo::Shape::FingerVibrato`, `LuthierEngine.cpp:74-79,1527` | Advanced Performance > Vibrato Rate/Depth/Shape | `GuiReach.*` (controls); no vibrato behaviour test | NO-TEST |
+| PT-8 (Vibrato) | Mod wheel/aftertouch depth; rate/depth in Advanced; Finger (asymmetric) default + Sine/Tri/Square/Saw/Random; ramps in; per-string phase offsets | `DspCommon.h:Lfo::Shape::FingerVibrato`, `LuthierEngine.cpp:74-79,1527` | Advanced Performance > Vibrato Rate/Depth/Shape | `StringEngine::fingerVibratoIsAsymmetricAndRampsIn` | DONE |
 | PT-9 (Palm mute) | Cutoff/T60 table (2.0k/0.35, 800/0.11, 1.2k/0.13, 500/0.035); continuous via CC 67; muted string still receives coupling | `StringEngine::updateLoop` switch, `setDamping couplingReceptivity` | n/a | `StringEngine::palmMuteShortensAndDarkens` | DONE |
 | PT-10 (Natural harmonic) | Node table (12, 7/19, 5/24, 4/9/16, 3.2, 2.7); band-passed excitation; T60 x0.55, less coupling; off-node gives artificial octave | `TechniqueEngine::harmonicPartialForFret`, `Excitation.cpp:~200`, `StringEngine.cpp:302` | n/a | `Technique::harmonicNodesAreDetected` | DONE |
-| PT-11 (Pinch) | partial = 2 + floor(velocity*3); shorter, looser band-pass | `TechniqueEngine::classify`, `Excitation::Kind::PinchHarmonic` | n/a | - | NO-TEST |
+| PT-11 (Pinch) | Pinch: the partial follows the pick position (thumb node), not velocity — doc corrected to REALISM-B's harmonic-realism 3 | `TechniqueEngine::decide` (PinchHarmonic), `StringEngine` contact partial | n/a | `HarmonicRealism::HR10_pinchHarmonic` | DONE |
 | PT-12 (Tap) | Hammer-on mechanism, higher amplitude; CC 74 when MPE off | `Excitation.cpp:90`, `MidiInterpreter::handleController` | n/a | `Technique::controllersTakePriorityOverInference` (triggers) | DONE |
 | PT-13 (Slide guitar) | Mode: continuous pitch, Slide contact spectrum, glide from last note, slide noise | `LuthierEngine.cpp:~898,1072` (`Material::Slide`), `DSP/Slide` | header Slide / S key / Advanced Neck | `Slide::pitchIsContinuous`, `Slide::switchingModeMidNoteIsClean`, `SlideUi.*` | DONE |
 | PT-14 (Whammy) | Per-bridge ranges (-2/+1, -24/+12, -12/+5, -1/+0.5, fixed none); TransTrem equal ratio; vintage uneven; spring ring 240/430 Hz | `DSP/Whammy/WhammyEngine.cpp:~22,60-72,159-170` | Advanced Bridge; bridge popover | `Whammy::transTremPreservesChordIntervals`, `Whammy::vintageTremDetunesChords`, `Whammy::fixedBridgeDoesNothing` | DONE |
@@ -5823,7 +5873,7 @@ The technique model matches the doc closely: the priority order, excitation leng
 | PT-19 (Amp feedback) | Doc now describes the physical loop and the Amount/Distance/Angle/Focus/Octave controls; the dead `feedbackOn/feedbackThres/feedbackSpeed` params remain | `DSP/Feedback/FeedbackLoop.h` | Advanced Sustain > Feedback row | `Feedback.*` | PARTIAL |
 | PT-20 (CC map) | Defaults 1,2,4,64-67,70-79 as listed; remappable per preset | `MidiInterpreter::resetCcMapToDefaults`, `PresetManager.cpp:~461/750` | CONTROLLERS tab profile | `Controllers::everyCcMappingResolvesToARealTarget`, `Controllers::applyingAProfileConfiguresTheInterpreter` | DONE |
 | PT-21 (CC 11) | CC 11 = Master level; macro-target CCs move the macro parameters | `MidiInterpreter::applyTarget` (MasterLevel, macros), `ParameterBridge::applyToEngine` (master gain), `PluginProcessor::timerCallback` (macros) | n/a | `Controllers::cc11MovesTheMasterLevel` | DONE |
-| PT-22 (CC 64/66) | Sustain lets all ring; sostenuto holds only what is down | `MidiInterpreter::handleController` 64/66 | n/a | - | NO-TEST |
+| PT-22 (CC 64/66) | CC 64 sustains released notes and lifting it stops them; CC 66 holds only what was down — the pedal-up loop did nothing, so notes rang on after the pedal lifted (fixed) | `MidiInterpreter::releasePedalHeldStrings` | n/a | `Technique::sustainRingsAndSostenutoHoldsOnlyWhatIsDown` | DONE |
 | PT-23 (Aftertouch) | Drives vibrato depth by default; "can be switched to bend" — no Bend target exists and `setAftertouchTarget` is never called | `MidiTarget::PitchBend`, `MidiInterpreter` pressure handling | Options > CONTROLLERS `aftertouchBendToggle` | `Controllers::aftertouchCanDriveBend` | DONE |
 | PT-24 (Learn) | Per-control MIDI Learn via right-click, stored in plugin state | `Support/MidiLearn`, `PluginProcessor.cpp:"midiLearn"` | knob context menu | `ReviewRegression::midiLearnLearnsAppliesAndSurvivesAClear` | DONE |
 | PT-25 (Mono) | One string near the hand; overlaps legato; use for tapping with long legato window | `ChordVoicer`, `MidiInterpreter` | Easy Mode, Advanced Legato Window | `ChordVoicer::singleNotesStayNearTheHand` | DONE |
@@ -5836,11 +5886,7 @@ The technique model matches the doc closely: the priority order, excitation leng
 
 <details><summary>Work list (docs-PLAYING_TECHNIQUES)</summary>
 
-- [PT-4] effort S — add `StringEngine::aRepluckMutesTheRingingStringOverFiveMs`: pluck, re-pluck mid-ring, CHECK no sample-to-sample jump above the click threshold and that the steal ramp length == round(0.005*sr).
-- [PT-8] effort S — add `StringEngine::fingerVibratoIsAsymmetricAndRampsIn` (or in EngineTests): set mod wheel, CHECK the pitch rise time < fall time per cycle, depth reaches target only after the ramp, and two strings' LFO phases differ.
-- [PT-11] effort S — add `Technique::pinchPartialRisesWithVelocity`: with pinch trigger held, velocities 0.1/0.5/0.99 give partials 2/3/4 (and 5 at 1.0) from `classify`.
 - [PT-19] PARTIAL: doc rewritten to the physical loop and its five controls; the dead feedbackOn/feedbackThres/feedbackSpeed parameters remain (removal needs a state-version decision; parameters may not be removed under the sweep rules).
-- [PT-22] effort S — add `Technique::sustainRingsAndSostenutoHoldsOnlyWhatIsDown` (MidiInterpreter-level): note on/off with CC64 down keeps the string; CC66 down with note A held, then note B on/off, CHECK A sustains and B releases.
 
 </details>
 

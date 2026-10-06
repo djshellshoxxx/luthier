@@ -1,0 +1,12 @@
+- [RA-0 (§0)] effort S — DEFERRED (coordinator plan: serialized after the gap helpers) — confirm worker/message-thread only and deterministic seed option
+- [RA-1.1 (§1.1)] effort M — DEFERRED (coordinator plan: serialized after the gap helpers) — category list + popover toggles; restrict randomise to enabled categories
+- [RA-1.2 (§1.2)] effort S — DEFERRED (coordinator plan: serialized after the gap helpers) — Amount slider scaling spread
+- [RA-1.3 (§1.3)] effort M — DEFERRED (coordinator plan: serialized after the gap helpers) — move to triangular-around-current with Amount spread, clamp to live range
+- [RA-1.5 (§1.5)] effort S — DEFERRED (coordinator plan: serialized after the gap helpers) — add RAND-04 test across all category combos
+- [RA-2.3 (§2.3)] effort M — DEFERRED (coordinator plan: serialized after the gap helpers) — flip only writes differing fields (AB-02) and crossfades pedal/guitar changes (AB-03)
+- [RA-2.4 (§2.4)] effort S — DEFERRED (coordinator plan: serialized after the gap helpers) — add Reset both to last-loaded preset
+- [RA-3 (§3)] effort M — DEFERRED (coordinator plan: serialized after the gap helpers) — randomise popover with categories/Amount/respects-stock; persist session choices
+- [RA-4 (§4)] effort S — DEFERRED (coordinator plan: serialized after the gap helpers) — label entry 'randomize' multi-target; add RAND-05 and AB-06 tests
+- [RA-5 (§5)] effort S — DEFERRED (coordinator plan: serialized after the gap helpers) — verify ranges/midi-learn/snapshot interactions when category scope lands
+- [RA-T1 (§6 RAND-01..06)] effort M — DEFERRED (coordinator plan: serialized after the gap helpers) — add RAND-01..06 tests with the features
+- [RA-T2 (§6 AB-01..07)] effort M — DEFERRED (coordinator plan: serialized after the gap helpers) — add AB-02, AB-03, AB-05, AB-06 tests

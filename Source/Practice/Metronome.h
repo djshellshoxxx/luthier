@@ -117,6 +117,17 @@ public:
             setTempo (effectiveBpm);
     }
 
+    /** SPEC-SWEEP (IR-24, input-routing 7): while following and the host is
+        playing, the click grid is placed at the host's position (quarter notes
+        at the block's first sample), so the click starts, stops and relocates
+        with the host rather than free-running beside it. Audio thread; call
+        before processBlock. A no-op while not following or during a ramp. */
+    void lockToHostPosition (double ppqAtBlockStart) noexcept
+    {
+        if (getFollowsTempo() && ! isProgressiveTempoRunning() && ppqAtBlockStart >= 0.0)
+            hostLock = ppqAtBlockStart;
+    }
+
     /** SPEC-SWEEP HI-29 (host-integration 6): while following, the host's
         time signature too. Audio thread; a no-op when the host has none. */
     void followTimeSignature (int hostNumerator, int hostDenominator) noexcept
@@ -263,6 +274,8 @@ private:
     /** Set by setEnabled on the message thread; the audio thread restarts the
         grid, so clickPosition has a single writer. */
     std::atomic<bool> restartPending { false };
+
+    double hostLock = -1.0;   ///< SPEC-SWEEP IR-24: this block's host ppq, or -1
 
     std::array<Voice, kMaxVoices> voices {};
 

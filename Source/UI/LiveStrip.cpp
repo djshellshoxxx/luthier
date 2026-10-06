@@ -321,6 +321,9 @@ void SnapshotStrip::showSlotMenu (int index)
     menu.addItem (1, filled ? "Capture over this snapshot" : "Capture here");
     menu.addItem (2, "Rename", filled);
     menu.addItem (3, "Clear", filled);
+
+    // SPEC-SWEEP: MM-49 - modulation-matrix 6.
+    menu.addItem (4, "Includes modulation", filled, snapshot.includesModulation);
     menu.addSeparator();
 
     juce::PopupMenu colours;
@@ -370,6 +373,11 @@ void SnapshotStrip::showSlotMenu (int index)
         else if (result == 3)
         {
             processor.deleteSnapshotAsUserAction (index, false);   // action-and-undo.md 3.7
+        }
+        else if (result == 4)
+        {
+            processor.setSnapshotIncludesModulation (
+                index, ! processor.getSnapshots().getSnapshot (index).includesModulation);
         }
         else if (result >= 100 && result < 100 + Snapshot::kNumColourTags)
         {

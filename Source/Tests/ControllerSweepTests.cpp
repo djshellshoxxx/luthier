@@ -12,6 +12,7 @@
 #include "../Model/Playing/TuningEngine.h"
 #include "../Model/Playing/TechniqueEngine.h"
 #include "../Model/Playing/RubricVoicer.h"
+#include "../UI/OptionsPages.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -88,6 +89,21 @@ namespace
             buffer.clear();
             processor.processBlock (buffer, (i == 0 && midi != nullptr) ? *midi : empty);
         }
+    }
+
+    template <typename T>
+    T* findChild (juce::Component& root)
+    {
+        for (auto* child : root.getChildren())
+        {
+            if (auto* t = dynamic_cast<T*> (child))
+                return t;
+
+            if (auto* t = findChild<T> (*child))
+                return t;
+        }
+
+        return nullptr;
     }
 
     ControllerProfile profileById (const char* id)
@@ -354,7 +370,7 @@ LUTHIER_TEST (Controllers, cc11MovesTheMasterLevel)
     renderBlocks (processor, 1, &midi);
     processor.getParameterBridge().applyToEngine();
 
-    CHECK_NEAR (processor.getEngine().getMidiInterpreter().getMasterLevel(), 0.5, 0.02);   // CC value to 0..1 as the interpreter maps it
+    CHECK_NEAR (processor.getEngine().getMidiInterpreter().getMasterLevel(), 64.0 / 127.0, 0.01);
     CHECK_MSG (bus.getGainDb() < unity - 5.0, "CC 11 at half left the master at "
                                                  + juce::String (bus.getGainDb(), 1) + " dB");
 
@@ -498,4 +514,142 @@ LUTHIER_TEST (Controllers, linnstrumentGuitarModeMapsRowsToStrings)
 
     if (out.getNumBends() == 1)
         CHECK_NEAR (out.getBend (0).cents, 0.5 * linn.memberPitchBendSemis * 100.0, 1.0);
+}
+
+//==============================================================================
+/*  PT-22 (docs/PLAYING_TECHNIQUES.md, CC 64 / CC 66): the sustain pedal keeps
+    every released note ringing until it lifts; sostenuto keeps only the notes
+    that were down when it was pressed. */
+LUTHIER_TEST (Technique, sustainRingsAndSostenutoHoldsOnlyWhatIsDown)
+{
+    // A key let go under a pedal is a note-off that lets the string ring
+    // (letRing); lifting the pedal is a plain note-off that stops it.
+    auto letRingOffs = [] (const PlayEventQueue& q, bool wanted)
+    {
+        int n = 0;
+
+        for (int i = 0; i < q.getNumNoteOffs(); ++i)
+            n += q.getNoteOff (i).letRing == wanted ? 1 : 0;
+
+        return n;
+    };
+
+    // ---- sustain ---------------------------------------------------------------
+    {
+        MpeFixture f;
+        f.send (juce::MidiMessage::controllerEvent (1, 64, 127));
+        CHECK (f.noteOn (1, 52) >= 0);
+
+        auto out = f.send (juce::MidiMessage::noteOff (1, 52));
+        CHECK_MSG (letRingOffs (out, false) == 0 && letRingOffs (out, true) == 1,
+                   "a note released under the sustain pedal was stopped");
+        CHECK (f.interpreter.isSustainPedalDown());
+
+        out = f.send (juce::MidiMessage::controllerEvent (1, 64, 0));
+        CHECK_MSG (letRingOffs (out, false) == 1, "lifting the pedal stopped " + juce::String (letRingOffs (out, false)) + " strings");
+    }
+
+    // ---- sostenuto -------------------------------------------------------------
+    {
+        MpeFixture f;
+        CHECK (f.noteOn (1, 52) >= 0);                                   // A, held
+        f.send (juce::MidiMessage::controllerEvent (1, 66, 127));        // catches A only
+        CHECK (f.interpreter.isSostenutoDown());
+
+        CHECK (f.noteOn (1, 64) >= 0);                                   // B, after the pedal
+        auto out = f.send (juce::MidiMessage::noteOff (1, 64));
+        CHECK_MSG (letRingOffs (out, false) == 1, "sostenuto held a note that was not down when it was pressed");
+
+        out = f.send (juce::MidiMessage::noteOff (1, 52));
+        CHECK_MSG (letRingOffs (out, true) == 1 && letRingOffs (out, false) == 0,
+                   "sostenuto did not hold the note that was down");
+
+        out = f.send (juce::MidiMessage::controllerEvent (1, 66, 0));
+        CHECK (letRingOffs (out, false) == 1);
+    }
+}
+
+//==============================================================================
+/*  IR-7 (input-routing 1.1 step 5): the technique layer tags a note - palm
+    mute from CC 67, a tap from CC 74, a pinch from CC 72 - and the note still
+    sounds: nothing is consumed. */
+LUTHIER_TEST (InputRouting, techniqueLayerTagsWithoutConsuming)
+{
+    struct Case { int cc; Technique expected; };
+
+    for (const auto& c : { Case { 67, Technique::PalmMute }, Case { 74, Technique::Tap },
+                           Case { 72, Technique::PinchHarmonic } })
+    {
+        MpeFixture f;
+        f.send (juce::MidiMessage::controllerEvent (1, c.cc, 127));
+
+        const auto out = f.send (juce::MidiMessage::noteOn (1, 52, 0.8f));
+        CHECK_MSG (out.getNumNoteOns() == 1, "CC " + juce::String (c.cc) + " held: the note did not sound");
+
+        if (out.getNumNoteOns() == 1)
+            CHECK_MSG (out.getNoteOn (0).technique == c.expected,
+                       "CC " + juce::String (c.cc) + " did not tag the note");
+    }
+
+    // Nothing held: an ordinary pluck.
+    MpeFixture plain;
+    const auto out = plain.send (juce::MidiMessage::noteOn (1, 52, 0.8f));
+    CHECK (out.getNumNoteOns() == 1 && out.getNoteOn (0).technique == Technique::Pluck);
+}
+
+/*  CT-19 (controllers 2): the bend-range check - the page reads the note a full
+    bend reaches, and its stepper sets the profile's range, applied at once and
+    carried into what SAVE writes. */
+LUTHIER_TEST (Controllers, bendRangeCheckWritesTheProfile)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    ControllersPage page (processor);
+    page.setSize (600, 700);
+
+    ControllerProfileLibrary library;
+    const int generic = library.indexOf ("generic-midi");
+    CHECK (generic >= 0);
+
+    if (generic < 0)
+        return;
+
+    auto& box = *findChild<juce::ComboBox> (page);
+    box.setSelectedId (generic + 1, juce::sendNotificationSync);
+    page.refresh();
+
+    page.getBendRangeStepper().setValue (12.0, juce::sendNotificationSync);
+    CHECK_NEAR (page.getEditedProfile().pitchBendSemis, 12.0, 1.0e-9);
+
+    renderBlocks (processor, 1);
+    CHECK_NEAR (processor.getEngine().getMidiInterpreter().getPitchBendRange(), 12.0, 1.0e-6);
+
+    // Play a note and bend it fully up: the readout names where it went.
+    juce::MidiBuffer midi;
+    midi.addEvent (juce::MidiMessage::noteOn (1, 52, 0.8f), 0);
+    midi.addEvent (juce::MidiMessage::pitchWheel (1, 16383), 10);
+    renderBlocks (processor, 1, &midi);
+    page.refresh();
+
+    CHECK_MSG (page.getBendCheckText().contains ("bent to"), "readout: " + page.getBendCheckText());
+}
+
+/*  PT-21: a reset puts CC 11 back to full level, like the pedals and the other
+    controllers. Left at the last value, a second render of the same performance
+    started quieter than the first (MidiExport::luthierRoundTripNullsEveryFactoryPreset). */
+LUTHIER_TEST (Controllers, resetRestoresTheCc11Level)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (kSr, kBlock);
+
+    juce::MidiBuffer midi;
+    midi.addEvent (juce::MidiMessage::controllerEvent (1, 11, 40), 0);
+    renderBlocks (processor, 1, &midi);
+
+    auto& interp = processor.getEngine().getMidiInterpreter();
+    CHECK (interp.getMasterLevel() < 0.5);   // any expression calibration still leaves it low
+
+    processor.getEngine().reset();
+    CHECK_NEAR (interp.getMasterLevel(), 1.0, 1.0e-9);
 }

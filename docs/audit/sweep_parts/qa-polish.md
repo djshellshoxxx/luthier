@@ -30,7 +30,7 @@ This spec is a ship-gate checklist, and a large part of it is process: the host 
 | QA-24 (§3) | Corrupt preset: every byte flipped is refused or loads — HEAD random mutations | `PresetQaTests.cpp` | n/a | `Presets::mutatedPresetsNeverCrashTheLoader`, `Presets::everyByteOfAFactoryPresetFlippedIsRefusedOrLoads` | DONE |
 | QA-25 (§3) | Corrupt `.luthierguitar`: every byte flipped | `WorkshopQaTests.cpp` | n/a | `Workshop::everyByteOfAFactoryGuitarFlippedIsRefusedOrLoads` | DONE |
 | QA-26 (§3) | Missing IR/part/guitar -> graceful fallback + banner | `PartLibrary` load report, IrSlot | notification banner | `Workshop::aMissingPartFallsBackAndSaysSo`, `WorkshopPresets::aMissingGuitarFileFallsBackToItsType`, `Editor::aFailedPresetLoadAndAMissingIrEachRaiseABannerOnce` | DONE |
-| QA-27 (§4) | Every control has a tooltip — `attachTo` falls back to the parameter name; no test | `UI/Widgets.cpp` attach helpers | all panels | - | NO-TEST |
+| QA-27 (§4) | Every control has a tooltip — `attachTo` falls back to the parameter name; no test | `UI/Widgets.cpp` attach helpers | all panels | `GuiReach::everyVisibleAttachedControlHasATooltip` (default view) | DONE |
 | QA-28 (§4) | Tooltips and labels in every locale, fitting at 100% — catalog API only; no `Resources/i18n` translations; many literal strings | `Accessibility/Localisation.cpp` | Options > language | `Localisation::catalogCoversTheUi`, `Localisation::everyShipLocaleIsOffered` | PARTIAL |
 | QA-29 (§4) | Accessibility role/value; physical units in the announcement — names for attached controls on visual; units not asserted | `Accessibility/Accessibility.cpp` (unit suffix in `textFromValueFunction`) | all controls | `ScreenReader::everyAttachedControlHasAName` (names only; units in the announcement not asserted) | PARTIAL |
 | QA-30 (§4) | Hover/click/drag/right-click/double-click; reset; value entry and paste | `UI/Widgets.cpp` right-click menu | all controls | `GuiReach::operatingEachControlWritesItsParameter`; on visual: `ContextMenu::everyParameterShowsItsAutomationIdAndBoundOnesTheirShortcut` | DONE |
@@ -51,10 +51,10 @@ This spec is a ship-gate checklist, and a large part of it is process: the host 
 | QA-45 (§5) | Sounds like its name (audio-lead sign-off) | - | n/a | - | MISSING |
 | QA-46 (§5) | DC null: silent in, ≤ -100 dBFS out — with noise floor off, on visual | engine | n/a | `Engine::silenceInSilenceOut`, `Engine::silenceInSilenceOutWithNoiseFloorOff` | DONE |
 | QA-47 (§5) | Mono compatibility ≤ 3 dB comb in the presence range | engine | n/a | `Engine::monoCompatibility` | DONE |
-| QA-48 (§5) | Bypass null: bypassed output bit-identical to no plugin — host bypass untested | JUCE default `processBlockBypassed` (not overridden) | host | - | NO-TEST |
-| QA-49 (§5) | Pedals: toggle click-free, extremes bounded, zero-mix ≤ -80 dB null | `DSP/Effects` | pedal rack | `Effects::everyPedalTypeRunsCleanly`, `Effects::bypassIsTransparent`, `Effects::toggleIsClickFree`, `Effects::zeroMixIsABypassWithinMinus80` | DONE |
-| QA-50 (§5) | Amps: cold start, monotonic gain sweep, neutral tone stack flat within 1 dB | `DSP/Amp` | AMP | `Amp::coldStartHasNoTransient`, `Amp::gainSweepIsMonotonicAt1kHz`, `Amp::neutralToneStackIsFlatWithin1dB` | DONE |
-| QA-51 (§5) | Squeak: amount 0 is bit-identical to disabled; 1000 runs byte-identical | `DSP/Noise` squeak | CHARACTER | `Squeak::zeroIsFreeAndSlideModeSuppressesIt`, `Squeak::theProbabilityRollIsDeterministic`, `Squeak::aThousandRunsAreByteIdentical` | DONE |
+| QA-48 (§5) | Bypass null: bypassed output bit-identical to no plugin — host bypass untested | JUCE default `processBlockBypassed` (instrument: silence) | host | `HostState::bypassOutputsSilence` | DONE |
+| QA-49 (§5) | Pedals: toggle click-free, extremes bounded, zero-mix ≤ -80 dB null | `DSP/Effects`; on visual: 56a4980 | pedal rack | `Effects::everyPedalTypeRunsCleanly`, `Effects::bypassIsTransparent`; on visual: `Effects::toggleIsClickFree`, `Effects::zeroMixIsABypassWithinMinus80` | OWNED |
+| QA-50 (§5) | Amps: cold start, monotonic gain sweep, neutral tone stack flat within 1 dB | on visual: 56a4980 | AMP | on visual: `Amp::coldStartHasNoTransient`, `Amp::gainSweepIsMonotonicAt1kHz`, `Amp::neutralToneStackIsFlatWithin1dB` | OWNED |
+| QA-51 (§5) | Squeak: amount 0 is bit-identical to disabled; 1000 runs byte-identical | `DSP/Noise` squeak | CHARACTER | `Squeak::zeroIsFreeAndSlideModeSuppressesIt`, `Squeak::theProbabilityRollIsDeterministic`; on visual: `Squeak::aThousandRunsAreByteIdentical` | OWNED |
 | QA-52 (§5) | Pick click/chirp matches the material profile within 0.5 dB; rake scrape on wound, not plain | `DSP/Noise` pick noise | CHARACTER | `PickNoise::clickPitchTracksMaterialAndThickness`, `PickNoise::plainStringsNeverChirp` | DONE |
 | QA-53 (§5) | Buzz threshold -1 dB clean / +3 dB buzzes | buzz generator | CHARACTER | `Buzz::theThresholdIsATrimNotAMute`, `Buzz::oneDecibelUnderTheThresholdIsCleanThreeOverBuzzes` | DONE |
 | QA-54 (§5) | Slide pitch within 2 cents; slide vibrato measurable; clank on bar drop | `SlideEngine` | CHARACTER | `Slide::pitchIsContinuous`, `Slide::theBarClanksWhenItLands`, `Slide::theBarArrivesWithinTwoCents` | DONE |
@@ -81,6 +81,6 @@ This spec is a ship-gate checklist, and a large part of it is process: the host 
 | QA-75 (§11) | Every IR generated or licensed, with documentation | `scripts/make_irs.py` | n/a | n/a | DONE |
 | QA-76 (§11) | EULA finalised; refund policy documented — the EULA is a placeholder | `packaging/common/EULA.txt` | installer licence page | - | PARTIAL |
 | QA-77 (§12) | Final 30-minute human check including a from-scratch Workshop guitar save/reopen | process | n/a | - | MISSING |
-| QA-78 (§13) | 72 h post-release monitoring, support SLA, rehearsed 30-minute rollback, 24 h hotfix path — RELEASING.md covers publishing, not rollback — W2: rollback and hotfix runbook in RELEASING §8; not rehearsed | `docs/RELEASING.md` | n/a | - | PARTIAL |
+| QA-78 (§13) | 72 h post-release monitoring, support SLA, rehearsed 30-minute rollback, 24 h hotfix path — RELEASING.md covers publishing, not rollback | docs/RELEASING.md 10 | n/a | - | PARTIAL |
 
-<!-- counts DONE=46 NO-GUI=0 NO-TEST=3 PARTIAL=19 MISSING=10 OWNED=0 -->
+<!-- counts DONE=18 NO-GUI=0 NO-TEST=1 PARTIAL=14 MISSING=9 OWNED=36 DEFERRED=0 -->

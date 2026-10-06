@@ -5,6 +5,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <functional>   // SPEC-SWEEP NE-4
+#include <map>
 
 namespace luthier
 {
@@ -375,9 +377,79 @@ juce::String NotationExporter::renderMusicXml (const PerformanceScore& score,
                 writtenTo = 0.0;
             }
 
+            double graceBeats = 0.0;   // SPEC-SWEEP NE-9: the grace note before this one took this long
+
             for (size_t noteIndex = 0; noteIndex < voice.notes.size(); ++noteIndex)
             {
-                const auto& note = voice.notes[noteIndex];
+                const auto& noteAsPlayed = voice.notes[noteIndex];
+
+                /*  SPEC-SWEEP NE-9 (notation-export 2.1): a very short note that a
+                    hammer-on or pull-off on the same string follows straight away
+                    is an ornament - written as a grace note slurred to its target,
+                    which takes the grace's time. */
+                const auto isGrace = [&voice] (size_t i)
+                {
+                    const auto& n = voice.notes[i];
+
+                    if (i + 1 >= voice.notes.size() || n.durationBeats >= 0.25 - 1.0e-6)
+                        return false;
+
+                    if (i > 0 && std::abs (voice.notes[i - 1].startBeat - n.startBeat) < 1.0e-6)
+                        return false;
+
+                    const auto& next = voice.notes[i + 1];
+                    return next.stringIndex == n.stringIndex
+                           && std::abs (next.startBeat - (n.startBeat + n.durationBeats)) < 1.0e-6
+                           && (next.hasTechnique (ScoreTechnique::Type::hammerOn)
+                                 || next.hasTechnique (ScoreTechnique::Type::pullOff));
+                };
+
+                if (isGrace (noteIndex))
+                {
+                    if (noteAsPlayed.startBeat > writtenTo + 1.0e-6)
+                    {
+                        const double restBeats = noteAsPlayed.startBeat - writtenTo;
+                        xml << "      <note>\n        <rest/>\n"
+                            << "        <duration>" << (int) std::round (restBeats * divisions) << "</duration>\n"
+                            << "        <voice>" << (voiceIndex + 1) << "</voice>\n"
+                            << "        <type>" << noteTypeForBeats (restBeats) << "</type>\n      </note>\n";
+                        writtenTo = noteAsPlayed.startBeat;
+                    }
+
+                    juce::String graceStep;
+                    int graceAlter = 0, graceOctave = 0;
+                    PerformanceScore::getMusicXmlPitch (noteAsPlayed.midiNote, graceStep, graceAlter, graceOctave);
+
+                    xml << "      <note>\n        <grace slash=\"yes\"/>\n"
+                        << "        <pitch><step>" << graceStep << "</step>";
+
+                    if (graceAlter != 0)
+                        xml << "<alter>" << graceAlter << "</alter>";
+
+                    xml << "<octave>" << graceOctave << "</octave></pitch>\n"
+                        << "        <voice>" << (voiceIndex + 1) << "</voice>\n"
+                        << "        <type>16th</type>\n"
+                        << "        <notations>\n          <technical>\n"
+                        << "            <string>" << (noteAsPlayed.stringIndex + 1) << "</string>\n"
+                        << "            <fret>" << noteAsPlayed.fret << "</fret>\n"
+                        << "          </technical>\n"
+                        << "          <slur type=\"start\"/>\n"
+                        << "        </notations>\n      </note>\n";
+
+                    graceBeats = noteAsPlayed.durationBeats;
+                    continue;
+                }
+
+                // The grace's target starts where the grace did and lasts as long as both.
+                auto note = noteAsPlayed;
+                const bool graceTarget = graceBeats > 0.0;
+
+                if (graceTarget)
+                {
+                    note.startBeat -= graceBeats;
+                    note.durationBeats += graceBeats;
+                    graceBeats = 0.0;
+                }
 
                 // A rest, where the voice is silent before this note.
                 if (note.startBeat > writtenTo + 1.0e-6)
@@ -396,8 +468,8 @@ juce::String NotationExporter::renderMusicXml (const PerformanceScore& score,
                 }
 
                 // Notes that start together are a chord.
-                const bool isChordMember = noteIndex > 0
-                    && std::abs (voice.notes[noteIndex - 1].startBeat - note.startBeat) < 1.0e-6;
+                const bool isChordMember = noteIndex > 0 && ! graceTarget
+                    && std::abs (voice.notes[noteIndex - 1].startBeat - noteAsPlayed.startBeat) < 1.0e-6;
 
                 juce::String step;
                 int alter = 0, octave = 0;
@@ -509,6 +581,9 @@ juce::String NotationExporter::renderMusicXml (const PerformanceScore& score,
 
                     xml << "          </technical>\n";
                 }
+
+                if (graceTarget)
+                    xml << "          <slur type=\"stop\"/>\n";   // SPEC-SWEEP NE-9
 
                 for (const auto& technique : note.techniques)
                 {
@@ -844,10 +919,65 @@ juce::String NotationExporter::renderGuitarProXml (const PerformanceScore& score
         xml << "            <Property name=\"CapoFret\"><Fret>" << track.capoFret
             << "</Fret></Property>\n";
 
+    /*  SPEC-SWEEP NE-13 (notation-export 2.2): real chord diagrams. Each chord's
+        diagram is the voicing played where it first occurs - the string and
+        fret of every note starting within half a beat of the symbol. */
+    juce::StringArray chordNames;
+    juce::String diagramsXml;
+
+    if (options.chordDiagrams)
+    {
+        for (int m = firstMeasure; m <= lastMeasure && juce::isPositiveAndBelow (m, (int) track.measures.size()); ++m)
+        {
+            const auto& measure = track.measures[(size_t) m];
+
+            for (const auto& [beat, symbol] : measure.chordSymbols)
+            {
+                if (chordNames.contains (symbol))
+                    continue;
+
+                std::vector<std::pair<int, int>> frets;   // (GPIF string, fret)
+                int lowest = 99;
+
+                for (const auto* note : measure.collectNotes())
+                    if (note->startBeat >= beat - 1.0e-6 && note->startBeat < beat + 0.5)
+                    {
+                        frets.emplace_back (track.numStrings - 1 - note->stringIndex, note->fret);
+
+                        if (note->fret > 0)
+                            lowest = juce::jmin (lowest, note->fret);
+                    }
+
+                const int baseFret = (lowest == 99 || lowest <= 3) ? 0 : lowest - 1;
+
+                diagramsXml << "              <Item id=\"" << chordNames.size() << "\" name=\"" << escapeXml (symbol) << "\">\n"
+                            << "                <Diagram stringCount=\"" << track.numStrings
+                            << "\" fretCount=\"5\" baseFret=\"" << baseFret << "\">\n";
+
+                for (const auto& [string, fret] : frets)
+                    diagramsXml << "                  <Fret string=\"" << string << "\" fret=\"" << (fret - baseFret) << "\"/>\n";
+
+                diagramsXml << "                </Diagram>\n"
+                            << "              </Item>\n";
+
+                chordNames.add (symbol);
+            }
+        }
+    }
+
     xml << "          </Properties>\n"
         << "        </Staff>\n"
-        << "      </Staves>\n"
-        << "    </Track>\n"
+        << "      </Staves>\n";
+
+    if (chordNames.size() > 0)
+        xml << "      <Properties>\n"
+            << "        <Property name=\"DiagramCollection\">\n"
+            << "          <Items>\n" << diagramsXml
+            << "          </Items>\n"
+            << "        </Property>\n"
+            << "      </Properties>\n";
+
+    xml << "    </Track>\n"
         << "  </Tracks>\n"
         << "  <MasterBars>\n";
 
@@ -855,8 +985,33 @@ juce::String NotationExporter::renderGuitarProXml (const PerformanceScore& score
 
     int beatId = 0;
     int noteId = 0;
+    int barId = 0;
+    int voiceId = 0;
 
-    juce::String beatsXml, notesXml, rhythmsXml;
+    juce::String beatsXml, notesXml, rhythmsXml, barsXml, voicesXml;
+
+    // GPIF's note values, from the MusicXML names this writer already uses.
+    const auto gpNoteValue = [] (double beats)
+    {
+        const auto type = noteTypeForBeats (beats);
+
+        if (type == "breve" || type == "whole") return juce::String ("Whole");
+        if (type == "half")                     return juce::String ("Half");
+        if (type == "quarter")                  return juce::String ("Quarter");
+        if (type == "eighth")                   return juce::String ("Eighth");
+        return type;   // 16th, 32nd, 64th
+    };
+
+    const auto addRhythm = [&rhythmsXml, &gpNoteValue] (int id, double beats)
+    {
+        rhythmsXml << "    <Rhythm id=\"" << id << "\">\n"
+                   << "      <NoteValue>" << gpNoteValue (beats) << "</NoteValue>\n";
+
+        if (const int dots = dotsForBeats (beats); dots > 0)
+            rhythmsXml << "      <AugmentationDot count=\"" << dots << "\"/>\n";
+
+        rhythmsXml << "    </Rhythm>\n";
+    };
 
     for (int measureIndex = firstMeasure; measureIndex <= lastMeasure; ++measureIndex)
     {
@@ -867,7 +1022,8 @@ juce::String NotationExporter::renderGuitarProXml (const PerformanceScore& score
 
         xml << "    <MasterBar>\n"
             << "      <Time>" << measure.timeSignatureNumerator << "/"
-            << measure.timeSignatureDenominator << "</Time>\n";
+            << measure.timeSignatureDenominator << "</Time>\n"
+            << "      <Bars>" << barId << "</Bars>\n";   // SPEC-SWEEP NE-4: one bar per track
 
         if (options.chordDiagrams)
         {
@@ -892,137 +1048,258 @@ juce::String NotationExporter::renderGuitarProXml (const PerformanceScore& score
 
         xml << "    </MasterBar>\n";
 
-        // ---- the beats and notes of this bar ---------------------------------------
-        for (const auto* note : measure.collectNotes())
+        /*  SPEC-SWEEP NE-4 (notation-export 2.2): GPIF's structure - the bar
+            lists its voices, a voice its beats, a beat its notes (all the
+            notes struck together) and its rhythm; a gap is a beat with no
+            notes. It was one beat per note with no bars or voices, which put a
+            chord's notes one after another and no reader could place them. */
+        juce::String voiceList;
+        juce::StringArray chordsPlaced;   // SPEC-SWEEP NE-13: the first note at a symbol carries it
+
+        for (size_t v = 0; v < 4; ++v)
         {
-            beatsXml << "    <Beat id=\"" << beatId << "\">\n"
-                     << "      <Notes>" << noteId << "</Notes>\n"
-                     << "      <Rhythm ref=\"" << beatId << "\"/>\n"
-                     << "    </Beat>\n";
-
-            rhythmsXml << "    <Rhythm id=\"" << beatId << "\">\n"
-                       << "      <NoteValue>" << noteTypeForBeats (note->durationBeats)
-                       << "</NoteValue>\n"
-                       << "      <AugmentationDot count=\"" << dotsForBeats (note->durationBeats)
-                       << "\"/>\n"
-                       << "    </Rhythm>\n";
-
-            notesXml << "    <Note id=\"" << noteId << "\">\n"
-                     << "      <Properties>\n"
-                     << "        <Property name=\"String\"><String>"
-                     << (track.numStrings - 1 - note->stringIndex) << "</String></Property>\n"
-                     << "        <Property name=\"Fret\"><Fret>" << note->fret
-                     << "</Fret></Property>\n";
-
-            // notation-export 2.2 promises full technique fidelity here.
-            for (const auto& technique : note->techniques)
+            if (v >= measure.voices.size() || measure.voices[v].notes.empty())
             {
-                switch (technique.type)
-                {
-                    case ScoreTechnique::Type::bend:
-                    case ScoreTechnique::Type::bendRelease:
-                    case ScoreTechnique::Type::preBend:
-                        notesXml << "        <Property name=\"Bended\"><Enable/></Property>\n"
-                                 << "        <Property name=\"BendDestinationValue\"><Float>"
-                                 << juce::String (technique.value * 50.0, 2)
-                                 << "</Float></Property>\n";
-                        break;
-
-                    case ScoreTechnique::Type::slideUp:
-                        notesXml << "        <Property name=\"Slide\"><Flags>1</Flags></Property>\n";
-                        break;
-
-                    case ScoreTechnique::Type::slideDown:
-                        notesXml << "        <Property name=\"Slide\"><Flags>2</Flags></Property>\n";
-                        break;
-
-                    case ScoreTechnique::Type::slideLegato:
-                        notesXml << "        <Property name=\"Slide\"><Flags>4</Flags></Property>\n";
-                        break;
-
-                    case ScoreTechnique::Type::slideShift:
-                        notesXml << "        <Property name=\"Slide\"><Flags>8</Flags></Property>\n";
-                        break;
-
-                    case ScoreTechnique::Type::slideIn:
-                        notesXml << "        <Property name=\"Slide\"><Flags>16</Flags></Property>\n";
-                        break;
-
-                    case ScoreTechnique::Type::slideOut:
-                        notesXml << "        <Property name=\"Slide\"><Flags>32</Flags></Property>\n";
-                        break;
-
-                    case ScoreTechnique::Type::hammerOn:
-                    case ScoreTechnique::Type::pullOff:
-                        notesXml << "        <Property name=\"HopoOrigin\"><Enable/></Property>\n";
-                        break;
-
-                    case ScoreTechnique::Type::palmMute:
-                        notesXml << "        <Property name=\"PalmMuted\"><Enable/></Property>\n";
-                        break;
-
-                    case ScoreTechnique::Type::naturalHarmonic:
-                        notesXml << "        <Property name=\"HarmonicType\">"
-                                 << "<HType>Natural</HType></Property>\n";
-                        break;
-
-                    case ScoreTechnique::Type::pinchHarmonic:
-                        notesXml << "        <Property name=\"HarmonicType\">"
-                                 << "<HType>Pinch</HType></Property>\n";
-                        break;
-
-                    case ScoreTechnique::Type::artificialHarmonic:
-                        notesXml << "        <Property name=\"HarmonicType\">"
-                                 << "<HType>Artificial</HType></Property>\n";
-                        break;
-
-                    case ScoreTechnique::Type::tapHarmonic:
-                        notesXml << "        <Property name=\"HarmonicType\">"
-                                 << "<HType>Tap</HType></Property>\n";
-                        break;
-
-                    case ScoreTechnique::Type::tap:
-                        notesXml << "        <Property name=\"Tapped\"><Enable/></Property>\n";
-                        break;
-
-                    case ScoreTechnique::Type::vibrato:
-                        notesXml << "        <Property name=\"Vibrato\"><Enable/></Property>\n";
-                        break;
-
-                    case ScoreTechnique::Type::deadNote:
-                        notesXml << "        <Property name=\"Muted\"><Enable/></Property>\n";
-                        break;
-
-                    // auto-articulation.md 9 (FEAT-ASSIST): Guitar Pro's pickstroke.
-                    case ScoreTechnique::Type::pickStrokeUp:
-                        notesXml << "        <Property name=\"PickStroke\"><Direction>Up</Direction></Property>\n";
-                        break;
-
-                    case ScoreTechnique::Type::pickStrokeDown:
-                        notesXml << "        <Property name=\"PickStroke\"><Direction>Down</Direction></Property>\n";
-                        break;
-
-                    case ScoreTechnique::Type::whammy:
-                        // Whammy is a bar event in Guitar Pro, so it is written on
-                        // the beat rather than on the note.
-                        beatsXml << "    <!-- whammy " << juce::String (technique.value, 2)
-                                 << " on beat " << beatId << " -->\n";
-                        break;
-
-                    default:
-                        break;
-                }
+                voiceList << (v > 0 ? " " : "") << "-1";
+                continue;
             }
 
-            notesXml << "      </Properties>\n"
-                     << "    </Note>\n";
+            const auto& voice = measure.voices[v];
+            juce::String beatList;
+            double position = 0.0;
 
-            ++beatId;
-            ++noteId;
+            for (size_t i = 0; i < voice.notes.size();)
+            {
+                // The notes that start together are one beat.
+                size_t end = i + 1;
+
+                while (end < voice.notes.size() && std::abs (voice.notes[end].startBeat - voice.notes[i].startBeat) < 1.0e-6)
+                    ++end;
+
+                const auto& first = voice.notes[i];
+
+                if (first.startBeat > position + 1.0e-6)
+                {
+                    const double gap = first.startBeat - position;
+                    beatsXml << "    <Beat id=\"" << beatId << "\">\n"
+                             << "      <Rhythm ref=\"" << beatId << "\"/>\n"
+                             << "    </Beat>\n";
+                    addRhythm (beatId, gap);
+                    beatList << (beatList.isEmpty() ? "" : " ") << beatId++;
+                }
+
+                double length = first.durationBeats;
+
+                if (end < voice.notes.size())
+                    length = juce::jmin (length, voice.notes[end].startBeat - first.startBeat);
+
+                length = juce::jmax (0.0625, length);
+
+                juce::String noteList;
+
+                for (size_t k = i; k < end; ++k)
+                    noteList << (k > i ? " " : "") << (noteId + (int) (k - i));
+
+                beatsXml << "    <Beat id=\"" << beatId << "\">\n"
+                         << "      <Notes>" << noteList << "</Notes>\n"
+                         << "      <Rhythm ref=\"" << beatId << "\"/>\n";
+
+                // SPEC-SWEEP NE-13: the beat names its chord's diagram.
+                for (const auto& [beat, symbol] : measure.chordSymbols)
+                    if (std::abs (first.startBeat - beat) < 1.0e-6 && ! chordsPlaced.contains (symbol + "@" + juce::String (beat))
+                          && chordNames.contains (symbol))
+                    {
+                        beatsXml << "      <Chord>" << chordNames.indexOf (symbol) << "</Chord>\n";
+                        chordsPlaced.add (symbol + "@" + juce::String (beat));
+                    }
+
+                // SPEC-SWEEP NE-12: whammy is a beat property in GPIF, with its
+                // curve's first, middle and last points (100 = a whole tone).
+                for (size_t k = i; k < end; ++k)
+                {
+                    if (const auto* whammy = voice.notes[k].findTechnique (ScoreTechnique::Type::whammy))
+                    {
+                        const auto valueAt = [whammy] (size_t index)
+                        {
+                            return whammy->curve.empty() ? whammy->value
+                                                         : whammy->curve[juce::jmin (index, whammy->curve.size() - 1)].second;
+                        };
+
+                        const auto middle = whammy->curve.empty() ? (size_t) 0 : whammy->curve.size() / 2;
+                        const auto last = whammy->curve.empty() ? (size_t) 0 : whammy->curve.size() - 1;
+
+                        beatsXml << "      <Properties>\n"
+                                 << "        <Property name=\"WhammyBar\"><Enable/></Property>\n"
+                                 << "        <Property name=\"WhammyBarOriginValue\"><Float>" << juce::String (valueAt (0) * 50.0, 2) << "</Float></Property>\n"
+                                 << "        <Property name=\"WhammyBarMiddleValue\"><Float>" << juce::String (valueAt (middle) * 50.0, 2) << "</Float></Property>\n"
+                                 << "        <Property name=\"WhammyBarDestinationValue\"><Float>" << juce::String (valueAt (last) * 50.0, 2) << "</Float></Property>\n"
+                                 << "      </Properties>\n";
+                        break;
+                    }
+                }
+
+                beatsXml << "    </Beat>\n";
+                addRhythm (beatId, length);
+                beatList << (beatList.isEmpty() ? "" : " ") << beatId++;
+
+                for (size_t k = i; k < end; ++k)
+                {
+                    const auto* note = &voice.notes[k];
+
+                    notesXml << "    <Note id=\"" << noteId << "\">\n"
+                             << "      <Properties>\n"
+                             << "        <Property name=\"String\"><String>"
+                             << (track.numStrings - 1 - note->stringIndex) << "</String></Property>\n"
+                             << "        <Property name=\"Fret\"><Fret>" << note->fret
+                             << "</Fret></Property>\n";
+
+                    // notation-export 2.2 promises full technique fidelity here.
+                    for (const auto& technique : note->techniques)
+                    {
+                        switch (technique.type)
+                        {
+                            case ScoreTechnique::Type::bend:
+                            case ScoreTechnique::Type::bendRelease:
+                            case ScoreTechnique::Type::preBend:
+                                notesXml << "        <Property name=\"Bended\"><Enable/></Property>\n"
+                                         << "        <Property name=\"BendDestinationValue\"><Float>"
+                                         << juce::String (technique.value * 50.0, 2)
+                                         << "</Float></Property>\n";
+                                break;
+
+                            case ScoreTechnique::Type::slideUp:
+                                notesXml << "        <Property name=\"Slide\"><Flags>1</Flags></Property>\n";
+                                break;
+
+                            case ScoreTechnique::Type::slideDown:
+                                notesXml << "        <Property name=\"Slide\"><Flags>2</Flags></Property>\n";
+                                break;
+
+                            case ScoreTechnique::Type::slideLegato:
+                                notesXml << "        <Property name=\"Slide\"><Flags>4</Flags></Property>\n";
+                                break;
+
+                            case ScoreTechnique::Type::slideShift:
+                                notesXml << "        <Property name=\"Slide\"><Flags>8</Flags></Property>\n";
+                                break;
+
+                            case ScoreTechnique::Type::slideIn:
+                                notesXml << "        <Property name=\"Slide\"><Flags>16</Flags></Property>\n";
+                                break;
+
+                            case ScoreTechnique::Type::slideOut:
+                                notesXml << "        <Property name=\"Slide\"><Flags>32</Flags></Property>\n";
+                                break;
+
+                            case ScoreTechnique::Type::hammerOn:
+                            case ScoreTechnique::Type::pullOff:
+                                notesXml << "        <Property name=\"HopoOrigin\"><Enable/></Property>\n";
+                                break;
+
+                            case ScoreTechnique::Type::palmMute:
+                                notesXml << "        <Property name=\"PalmMuted\"><Enable/></Property>\n";
+                                break;
+
+                            case ScoreTechnique::Type::naturalHarmonic:
+                                notesXml << "        <Property name=\"HarmonicType\">"
+                                         << "<HType>Natural</HType></Property>\n";
+                                break;
+
+                            case ScoreTechnique::Type::pinchHarmonic:
+                                notesXml << "        <Property name=\"HarmonicType\">"
+                                         << "<HType>Pinch</HType></Property>\n";
+                                break;
+
+                            case ScoreTechnique::Type::artificialHarmonic:
+                                notesXml << "        <Property name=\"HarmonicType\">"
+                                         << "<HType>Artificial</HType></Property>\n";
+                                break;
+
+                            case ScoreTechnique::Type::tapHarmonic:
+                                notesXml << "        <Property name=\"HarmonicType\">"
+                                         << "<HType>Tap</HType></Property>\n";
+                                break;
+
+                            case ScoreTechnique::Type::tap:
+                                notesXml << "        <Property name=\"Tapped\"><Enable/></Property>\n";
+                                break;
+
+                            case ScoreTechnique::Type::vibrato:
+                                notesXml << "        <Property name=\"Vibrato\"><Enable/></Property>\n";
+                                break;
+
+                            case ScoreTechnique::Type::deadNote:
+                                notesXml << "        <Property name=\"Muted\"><Enable/></Property>\n";
+                                break;
+
+                            // auto-articulation.md 9 (FEAT-ASSIST): Guitar Pro's pickstroke.
+                            case ScoreTechnique::Type::pickStrokeUp:
+                                notesXml << "        <Property name=\"PickStroke\"><Direction>Up</Direction></Property>\n";
+                                break;
+
+                            case ScoreTechnique::Type::pickStrokeDown:
+                                notesXml << "        <Property name=\"PickStroke\"><Direction>Down</Direction></Property>\n";
+                                break;
+
+                            case ScoreTechnique::Type::whammy:
+                                // Whammy is a bar event in Guitar Pro: written on the beat
+                                // above (SPEC-SWEEP NE-12 - it was an XML comment).
+                                break;
+
+                            // SPEC-SWEEP NE-12: the rest of the note-level techniques GPIF has.
+                            case ScoreTechnique::Type::letRing:
+                                notesXml << "        <Property name=\"LetRing\"><Enable/></Property>\n";
+                                break;
+
+                            case ScoreTechnique::Type::ghostNote:
+                                notesXml << "        <Property name=\"AntiAccent\"><Enable/></Property>\n";
+                                break;
+
+                            case ScoreTechnique::Type::accent:
+                                notesXml << "        <Property name=\"Accent\"><Flags>1</Flags></Property>\n";
+                                break;
+
+                            case ScoreTechnique::Type::staccato:
+                                notesXml << "        <Property name=\"Accent\"><Flags>4</Flags></Property>\n";
+                                break;
+
+                            case ScoreTechnique::Type::trill:
+                                notesXml << "        <Property name=\"Trill\"><Fret>"
+                                         << juce::roundToInt (technique.value) << "</Fret></Property>\n";
+                                break;
+
+                            default:
+                                break;
+                        }
+                    }
+
+                    notesXml << "      </Properties>\n"
+                             << "    </Note>\n";
+
+                    ++noteId;
+                }
+
+                position = first.startBeat + length;
+                i = end;
+            }
+
+            voicesXml << "    <Voice id=\"" << voiceId << "\">\n"
+                      << "      <Beats>" << beatList << "</Beats>\n"
+                      << "    </Voice>\n";
+
+            voiceList << (v > 0 ? " " : "") << voiceId++;
         }
+
+        barsXml << "    <Bar id=\"" << barId << "\">\n"
+                << "      <Voices>" << voiceList << "</Voices>\n"
+                << "    </Bar>\n";
+
+        ++barId;
     }
 
     xml << "  </MasterBars>\n"
+        << "  <Bars>\n" << barsXml << "  </Bars>\n"       // SPEC-SWEEP NE-4
+        << "  <Voices>\n" << voicesXml << "  </Voices>\n"
         << "  <Beats>\n" << beatsXml << "  </Beats>\n"
         << "  <Notes>\n" << notesXml << "  </Notes>\n"
         << "  <Rhythms>\n" << rhythmsXml << "  </Rhythms>\n"
@@ -1081,7 +1358,8 @@ bool NotationImporter::canRead (const juce::File& file)
     // reported as unsupported rather than failed.
     return extension == ".txt" || extension == ".tab"
         || extension == ".musicxml" || extension == ".xml"
-        || extension == ".mid" || extension == ".midi";
+        || extension == ".mid" || extension == ".midi"
+        || extension == ".gp";   // SPEC-SWEEP NE-4
 }
 
 bool NotationImporter::read (const juce::File& file, PerformanceScore& destination)
@@ -1096,9 +1374,12 @@ bool NotationImporter::read (const juce::File& file, PerformanceScore& destinati
 
     const auto extension = file.getFileExtension().toLowerCase();
 
-    if (extension == ".gp5" || extension == ".gp" || extension == ".gpx" || extension == ".ptb")
+    if (extension == ".gp")
+        return readGuitarPro (file, destination);   // SPEC-SWEEP NE-4
+
+    if (extension == ".gp5" || extension == ".gpx" || extension == ".ptb")
     {
-        lastError = "Luthier reads ASCII tab and MusicXML. "
+        lastError = "Luthier reads ASCII tab, MusicXML and Guitar Pro 7/8 (.gp). "
                     + extension.substring (1).toUpperCase()
                     + " is a proprietary binary format; export it as MusicXML "
                       "from Guitar Pro and open that instead.";
@@ -1300,6 +1581,7 @@ bool NotationImporter::readMusicXml (const juce::String& text, PerformanceScore&
 
         beat = (double) measureIndex * beatsPerMeasure;
         double voiceBeat = beat;
+        double pendingGraceBeats = 0.0;   // SPEC-SWEEP NE-9
         double lastNoteStart = beat;   // where a <chord/> note starts
 
         for (auto* element : measure->getChildIterator())
@@ -1368,9 +1650,30 @@ bool NotationImporter::readMusicXml (const juce::String& text, PerformanceScore&
                                          (octave + 1) * 12 + offsets[letterIndex] + alter);
             }
 
+            // SPEC-SWEEP NE-9: a grace note takes the first eighth of a beat
+            // of the note it leads into, as the writer made it.
+            if (element->getChildByName ("grace") != nullptr)
+            {
+                constexpr double graceLength = 0.125;
+                destination.noteStarted (stringIndex, fret, midiNote, 440.0, 0.8, voiceBeat);
+                destination.noteEnded (stringIndex, voiceBeat + graceLength);
+                pendingGraceBeats = graceLength;
+                ++notesRead;
+                continue;
+            }
+
             // A <chord/> note sounds with the note before it; voiceBeat has
             // already moved past that one.
-            const double startBeat = isChord ? lastNoteStart : voiceBeat;
+            double startBeat = isChord ? lastNoteStart : voiceBeat;
+            double soundingBeats = duration;
+
+            if (! isChord && pendingGraceBeats > 0.0)
+            {
+                startBeat += pendingGraceBeats;
+                soundingBeats = juce::jmax (0.0625, duration - pendingGraceBeats);
+                pendingGraceBeats = 0.0;
+            }
+
             lastNoteStart = startBeat;
 
             destination.noteStarted (stringIndex, fret, midiNote, 440.0, 0.8, startBeat);
@@ -1419,12 +1722,12 @@ bool NotationImporter::readMusicXml (const juce::String& text, PerformanceScore&
                     destination.addTechnique (stringIndex, { ScoreTechnique::Type::slideLegato });
             }
 
-            destination.noteEnded (stringIndex, startBeat + juce::jmax (0.0625, duration));
+            destination.noteEnded (stringIndex, startBeat + juce::jmax (0.0625, soundingBeats));
 
             ++notesRead;
 
             if (! isChord)
-                voiceBeat += duration;
+                voiceBeat = startBeat + soundingBeats;   // SPEC-SWEEP NE-9: the grace's time included
         }
 
         ++measureIndex;
@@ -1435,6 +1738,300 @@ bool NotationImporter::readMusicXml (const juce::String& text, PerformanceScore&
     if (notesRead == 0)
     {
         lastError = "That MusicXML file contains no notes.";
+        return false;
+    }
+
+    return true;
+}
+
+//==============================================================================
+// SPEC-SWEEP NE-4: Guitar Pro 7/8.
+//==============================================================================
+bool NotationImporter::readGuitarPro (const juce::File& file, PerformanceScore& destination)
+{
+    juce::ZipFile zip (file);
+
+    for (int i = 0; i < zip.getNumEntries(); ++i)
+    {
+        const auto* entry = zip.getEntry (i);
+
+        if (entry == nullptr || ! entry->filename.endsWithIgnoreCase ("score.gpif"))
+            continue;
+
+        std::unique_ptr<juce::InputStream> stream (zip.createStreamForEntry (i));
+
+        if (stream == nullptr)
+            break;
+
+        return readGpif (stream->readEntireStreamAsString(), destination);
+    }
+
+    lastError = file.getFileName() + " is not a Guitar Pro 7/8 file (no Content/score.gpif inside).";
+    return false;
+}
+
+bool NotationImporter::readGpif (const juce::String& text, PerformanceScore& destination)
+{
+    lastError.clear();
+
+    const auto root = juce::parseXML (text);
+
+    if (root == nullptr || ! root->hasTagName ("GPIF"))
+    {
+        lastError = "The Guitar Pro score could not be read.";
+        return false;
+    }
+
+    // Index each list by id.
+    auto indexById = [&root] (const char* listName, const char* itemName)
+    {
+        std::map<int, const juce::XmlElement*> items;
+
+        if (auto* list = root->getChildByName (listName))
+            for (auto* item : list->getChildWithTagNameIterator (itemName))
+                items[item->getIntAttribute ("id", -1)] = item;
+
+        return items;
+    };
+
+    const auto bars = indexById ("Bars", "Bar");
+    const auto voices = indexById ("Voices", "Voice");
+    const auto beats = indexById ("Beats", "Beat");
+    const auto notes = indexById ("Notes", "Note");
+    const auto rhythms = indexById ("Rhythms", "Rhythm");
+
+    auto ids = [] (const juce::String& list)
+    {
+        std::vector<int> out;
+
+        for (const auto& token : juce::StringArray::fromTokens (list, " ", ""))
+            if (token.isNotEmpty())
+                out.push_back (token.getIntValue());
+
+        return out;
+    };
+
+    auto property = [] (const juce::XmlElement* owner, const char* name) -> const juce::XmlElement*
+    {
+        if (owner == nullptr)
+            return nullptr;
+
+        if (auto* properties = owner->getChildByName ("Properties"))
+            for (auto* p : properties->getChildWithTagNameIterator ("Property"))
+                if (p->getStringAttribute ("name") == name)
+                    return p;
+
+        return nullptr;
+    };
+
+    // ---- the score's header ---------------------------------------------------------
+    const double tempo = juce::jlimit (20.0, 400.0, root->getChildByName ("Score") != nullptr
+                                                      ? root->getChildByName ("Score")->getChildElementAllSubText ("Tempo", "120").getDoubleValue()
+                                                      : 120.0);
+    int numerator = 4, denominator = 4;
+
+    if (auto* masterBars = root->getChildByName ("MasterBars"))
+        if (auto* first = masterBars->getChildByName ("MasterBar"))
+        {
+            const auto time = juce::StringArray::fromTokens (first->getChildElementAllSubText ("Time", "4/4"), "/", "");
+
+            if (time.size() == 2)
+                numerator = juce::jmax (1, time[0].getIntValue()), denominator = juce::jmax (1, time[1].getIntValue());
+        }
+
+    destination.beginCapture (tempo > 0.0 ? tempo : 120.0, numerator, denominator);
+
+    if (auto* score = root->getChildByName ("Score"))
+    {
+        destination.getMeta().title = score->getChildElementAllSubText ("Title", {});
+        destination.getMeta().artist = score->getChildElementAllSubText ("Artist", {});
+    }
+
+    auto& track = destination.getTrack (0);
+    std::vector<int> pitches;   // GPIF string 0 is the lowest
+
+    if (auto* tracks = root->getChildByName ("Tracks"))
+        if (auto* firstTrack = tracks->getChildByName ("Track"))
+        {
+            track.name = firstTrack->getChildElementAllSubText ("Name", track.name);
+
+            // The tuning, from the staff's properties.
+            std::function<void (const juce::XmlElement&)> findTuning = [&] (const juce::XmlElement& e)
+            {
+                if (e.hasTagName ("Property") && e.getStringAttribute ("name") == "Tuning")
+                    pitches = ids (e.getChildElementAllSubText ("Pitches", {}));
+                else if (e.hasTagName ("Property") && e.getStringAttribute ("name") == "CapoFret")
+                    track.capoFret = e.getChildElementAllSubText ("Fret", "0").getIntValue();
+
+                for (auto* child : e.getChildIterator())
+                    findTuning (*child);
+            };
+
+            findTuning (*firstTrack);
+        }
+
+    if (pitches.empty())
+        pitches = { 40, 45, 50, 55, 59, 64 };
+
+    track.numStrings = juce::jlimit (1, kMaxStrings, (int) pitches.size());
+
+    for (int s = 0; s < track.numStrings; ++s)
+        track.tuning[(size_t) s] = pitches[(size_t) (track.numStrings - 1 - s)];
+
+    // ---- the bars ----------------------------------------------------------------------
+    const auto noteValueBeats = [] (const juce::XmlElement* rhythm)
+    {
+        if (rhythm == nullptr)
+            return 1.0;
+
+        const auto value = rhythm->getChildElementAllSubText ("NoteValue", "Quarter");
+        double beats = 1.0;
+
+        if (value == "Whole")        beats = 4.0;
+        else if (value == "Half")    beats = 2.0;
+        else if (value == "Quarter") beats = 1.0;
+        else if (value == "Eighth")  beats = 0.5;
+        else if (value == "16th")    beats = 0.25;
+        else if (value == "32nd")    beats = 0.125;
+        else if (value == "64th")    beats = 0.0625;
+
+        const int dots = rhythm->getChildByName ("AugmentationDot") != nullptr
+                           ? rhythm->getChildByName ("AugmentationDot")->getIntAttribute ("count", 0) : 0;
+
+        double add = beats * 0.5, total = beats;
+
+        for (int d = 0; d < dots; ++d, add *= 0.5)
+            total += add;
+
+        return total;
+    };
+
+    int notesRead = 0;
+    double barStart = 0.0;
+
+    if (auto* masterBars = root->getChildByName ("MasterBars"))
+    {
+        for (auto* masterBar : masterBars->getChildWithTagNameIterator ("MasterBar"))
+        {
+            const auto time = juce::StringArray::fromTokens (masterBar->getChildElementAllSubText ("Time", "4/4"), "/", "");
+            const double barBeats = time.size() == 2 ? juce::jmax (1, time[0].getIntValue()) * 4.0 / juce::jmax (1, time[1].getIntValue())
+                                                     : 4.0;
+
+            const auto barIds = ids (masterBar->getChildElementAllSubText ("Bars", {}));
+
+            if (! barIds.empty() && bars.count (barIds.front()) > 0)
+            {
+                for (const int voiceIdNumber : ids (bars.at (barIds.front())->getChildElementAllSubText ("Voices", {})))
+                {
+                    if (voiceIdNumber < 0 || voices.count (voiceIdNumber) == 0)
+                        continue;
+
+                    double position = barStart;
+
+                    for (const int beatIdNumber : ids (voices.at (voiceIdNumber)->getChildElementAllSubText ("Beats", {})))
+                    {
+                        if (beats.count (beatIdNumber) == 0)
+                            continue;
+
+                        const auto* beat = beats.at (beatIdNumber);
+                        const juce::XmlElement* rhythm = nullptr;
+
+                        if (auto* ref = beat->getChildByName ("Rhythm"))
+                            if (rhythms.count (ref->getIntAttribute ("ref", -1)) > 0)
+                                rhythm = rhythms.at (ref->getIntAttribute ("ref", -1));
+
+                        const double length = noteValueBeats (rhythm);
+
+                        for (const int noteIdNumber : ids (beat->getChildElementAllSubText ("Notes", {})))
+                        {
+                            if (notes.count (noteIdNumber) == 0)
+                                continue;
+
+                            const auto* note = notes.at (noteIdNumber);
+                            const auto* stringProperty = property (note, "String");
+                            const auto* fretProperty = property (note, "Fret");
+
+                            if (stringProperty == nullptr || fretProperty == nullptr)
+                                continue;
+
+                            const int gpString = juce::jlimit (0, track.numStrings - 1,
+                                                               stringProperty->getChildElementAllSubText ("String", "0").getIntValue());
+                            const int fret = fretProperty->getChildElementAllSubText ("Fret", "0").getIntValue();
+                            const int stringIndex = track.numStrings - 1 - gpString;
+                            const int midi = juce::jlimit (0, 127, pitches[(size_t) gpString] + fret);
+
+                            destination.noteStarted (stringIndex, fret, midi, 440.0 * std::pow (2.0, (midi - 69) / 12.0),
+                                                     0.8, position);
+
+                            // The note techniques this writer (and GP7) name.
+                            if (auto* bend = property (note, "BendDestinationValue"))
+                            {
+                                ScoreTechnique t;
+                                t.type = ScoreTechnique::Type::bend;
+                                t.value = bend->getChildElementAllSubText ("Float", "0").getDoubleValue() / 50.0;
+                                destination.addTechnique (stringIndex, t);
+                            }
+
+                            if (auto* slide = property (note, "Slide"))
+                            {
+                                const int flags = slide->getChildElementAllSubText ("Flags", "0").getIntValue();
+                                const std::pair<int, ScoreTechnique::Type> slides[] =
+                                {
+                                    { 1, ScoreTechnique::Type::slideUp }, { 2, ScoreTechnique::Type::slideDown },
+                                    { 4, ScoreTechnique::Type::slideLegato }, { 8, ScoreTechnique::Type::slideShift },
+                                    { 16, ScoreTechnique::Type::slideIn }, { 32, ScoreTechnique::Type::slideOut }
+                                };
+
+                                for (const auto& [bit, type] : slides)
+                                    if ((flags & bit) != 0)
+                                        destination.addTechnique (stringIndex, { type });
+                            }
+
+                            if (property (note, "HopoOrigin") != nullptr)
+                                destination.addTechnique (stringIndex, { ScoreTechnique::Type::hammerOn });
+
+                            if (property (note, "PalmMuted") != nullptr)
+                                destination.addTechnique (stringIndex, { ScoreTechnique::Type::palmMute });
+
+                            if (property (note, "Muted") != nullptr)
+                                destination.addTechnique (stringIndex, { ScoreTechnique::Type::deadNote });
+
+                            if (property (note, "Tapped") != nullptr)
+                                destination.addTechnique (stringIndex, { ScoreTechnique::Type::tap });
+
+                            if (property (note, "Vibrato") != nullptr)
+                                destination.addTechnique (stringIndex, { ScoreTechnique::Type::vibrato });
+
+                            if (property (note, "LetRing") != nullptr)
+                                destination.addTechnique (stringIndex, { ScoreTechnique::Type::letRing });
+
+                            if (auto* harmonic = property (note, "HarmonicType"))
+                            {
+                                const auto type = harmonic->getChildElementAllSubText ("HType", "Natural");
+                                destination.addTechnique (stringIndex, { type == "Natural" ? ScoreTechnique::Type::naturalHarmonic
+                                                                       : type == "Pinch"   ? ScoreTechnique::Type::pinchHarmonic
+                                                                       : type == "Tap"     ? ScoreTechnique::Type::tapHarmonic
+                                                                                           : ScoreTechnique::Type::artificialHarmonic });
+                            }
+
+                            destination.noteEnded (stringIndex, position + length);
+                            ++notesRead;
+                        }
+
+                        position += length;
+                    }
+                }
+            }
+
+            barStart += barBeats;
+        }
+    }
+
+    destination.endCapture (barStart);
+
+    if (notesRead == 0)
+    {
+        lastError = "That Guitar Pro file contains no notes Luthier can read.";
         return false;
     }
 
