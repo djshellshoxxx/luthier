@@ -285,3 +285,10 @@ Every impulse response under Resources/BodyIRs and Resources/CabIRs is generated
 by scripts/make_irs.py from the physical models in this repository; none is a
 recording of third-party equipment. The presets, guitars, parts and tunes are
 original works of the Luthier project.
+
+
+Monocypher 4.0.2
+----------------
+Copyright (c) 2017-2023, Loup Vaillant and contributors.
+Dual licensed under BSD-2-Clause OR CC0-1.0.
+The vendored source retains the complete licence text in ThirdParty/monocypher/LICENCE.md.
