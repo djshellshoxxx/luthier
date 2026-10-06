@@ -1,3 +1,8 @@
+// Luthier™
+// Copyright © 2026 Sheldon Davidson. All rights reserved.
+// Proprietary source code. See LICENSE and COPYRIGHT-TRADEMARK.md.
+// SPDX-License-Identifier: LicenseRef-Proprietary
+
 #include "LuthierEngine.h"
 #include "Capture/PerformanceCapture.h"
 #include "ToneMatch/ToneMatch.h"   // SPEC-SWEEP TM-6
