@@ -796,12 +796,31 @@ void DiscoveryLayer::update()
                       || ! std::equal (next.begin(), next.end(), marks.begin(), [] (const Mark& a, const Mark& b)
                          { return a.kind == b.kind && a.key == b.key && a.bounds == b.bounds; });
 
+    // Only the marks' own areas (a pulse ring grows 7 px out, the NEW badge sits
+    // 4 px above): this layer covers the whole window, and a full repaint here
+    // repainted everything under it at the pulse rate.
+    juce::Rectangle<int> dirty;
+    const auto addMark = [&dirty] (const Mark& m, bool pulsesOnly)
+    {
+        if (! pulsesOnly || m.kind == Kind::pulse)
+            dirty = dirty.isEmpty() ? m.bounds.expanded (10) : dirty.getUnion (m.bounds.expanded (10));
+    };
+
+    if (changed)
+        for (const auto& m : marks)
+            addMark (m, false);   // the old marks, to clear them
+
     marks = std::move (next);
 
     const bool pulsing = std::any_of (marks.begin(), marks.end(), [] (const Mark& m) { return m.kind == Kind::pulse; });
+    const bool animating = pulsing && AnimationPolicy::get().mayAnimate (AnimationPolicy::Decorative);
 
-    if (changed || (pulsing && AnimationPolicy::get().mayAnimate (AnimationPolicy::Decorative)))
-        repaint();
+    if (changed || animating)
+        for (const auto& m : marks)
+            addMark (m, ! changed);
+
+    if (! dirty.isEmpty())
+        repaint (dirty);
 }
 
 void DiscoveryLayer::paint (juce::Graphics& g)

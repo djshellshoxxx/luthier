@@ -1,4 +1,5 @@
 #include "AnimationPolicy.h"
+#include <juce_audio_processors/juce_audio_processors.h>
 #include "../Accessibility/Accessibility.h"
 
 namespace luthier
@@ -315,6 +316,10 @@ AnimationPolicy::Registration::Registration (juce::Component& o, MotionClass cls
     policy.registry.emplace (&owner, this);
     policy.addListener (this);
     showingWatcher = std::make_unique<ShowingWatcher> (*this);
+
+    if (! policy.showingSweep.isTimerRunning())
+        policy.showingSweep.startTimerHz (2);
+
     apply();
 }
 
@@ -372,8 +377,7 @@ void AnimationPolicy::Registration::apply()
         collapsed parent) has nothing to draw: its timer stops until it shows
         again (ShowingWatcher). Off-screen components - tests, an editor not yet
         attached to a window - keep the policy's rate. */
-    auto* top = owner.getTopLevelComponent();
-    hidden = top != nullptr && top->isOnDesktop() && ! owner.isShowing();
+    hidden = computeHidden();
 
     if (timer != nullptr)
     {
@@ -389,6 +393,81 @@ void AnimationPolicy::Registration::apply()
     }
 
     AnimationPolicy::get().updateStaticPoll();
+}
+
+bool AnimationPolicy::Registration::computeHidden() const
+{
+    auto* top = owner.getTopLevelComponent();
+
+    if (top != nullptr && top->isOnDesktop())
+        return ! owner.isShowing();
+
+    /*  Not in any window. While an editor window is open that means detached
+        from it - an overlay that is closed, a panel parked out of its viewport -
+        so there is nothing to draw. With no window open (the tests, an editor
+        still being built) the policy's rate stands. */
+    return AnimationPolicy::isEditorWindowOpen();
+}
+
+bool AnimationPolicy::isEditorWindowOpen()
+{
+    // Asked once per detached registration by the sweep: the answer is held for
+    // 100 ms (message thread only).
+    static juce::uint32 checkedAt = 0;
+    static bool open = false;
+    const auto now = juce::Time::getMillisecondCounter();
+
+    if (checkedAt != 0 && now - checkedAt < 100)
+        return open;
+
+    checkedAt = now;
+    open = false;
+
+    // A handful of desktop windows at most; the editor is the window itself in a
+    // plugin host and a child or grandchild of it in the standalone app.
+    std::function<bool (juce::Component&, int)> holdsEditor = [&] (juce::Component& c, int depth)
+    {
+        if (dynamic_cast<juce::AudioProcessorEditor*> (&c) != nullptr)
+            return true;
+
+        if (depth > 0)
+            for (auto* child : c.getChildren())
+                if (holdsEditor (*child, depth - 1))
+                    return true;
+
+        return false;
+    };
+
+    auto& desktop = juce::Desktop::getInstance();
+
+    for (int i = 0; i < desktop.getNumComponents() && ! open; ++i)
+        if (auto* window = desktop.getComponent (i); window != nullptr && window->isVisible() && holdsEditor (*window, 3))
+            open = true;
+
+    return open;
+}
+
+void AnimationPolicy::sweepShowing()
+{
+    if (registry.empty())
+    {
+        showingSweep.stopTimer();
+        return;
+    }
+
+    // Copy first: apply() may let a callback add or remove registrations.
+    std::vector<Registration*> moved;
+
+    for (const auto& [c, r] : registry)
+    {
+        juce::ignoreUnused (c);
+
+        if (r->computeHidden() != r->hidden)
+            moved.push_back (r);
+    }
+
+    for (auto* r : moved)
+        r->apply();
 }
 
 void AnimationPolicy::Registration::motionPolicyChanged()

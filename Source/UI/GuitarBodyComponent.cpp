@@ -277,6 +277,8 @@ void GuitarBodyComponent::updateLiveOverlay (double nowMs)
     const bool reducedMotion = ! AnimationPolicy::get().mayAnimate (AnimationPolicy::Transition);   // cpu-quality-modes 6
 
     bool changed = fade.isActive (nowMs);
+    bool stripChanged = false;          // the slide or capo moved: along all the strings
+    juce::uint32 stringDirty = 0;       // these strings' glow or dot changed
     fade.finishIfDone (nowMs);
 
     // animated-strings.md 2.6 and 4.3: the animator reads its gates on this tick.
@@ -301,16 +303,17 @@ void GuitarBodyComponent::updateLiveOverlay (double nowMs)
         // While the strings animate the level only draws the ghost, which repaints
         // itself; here only the dot turning on or off matters (4.3: no full repaints).
         const bool levelChanged = (motion || overlay.reducedMotion) ? ((level > 0.01f) != (oldLevel > 0.01f))
-                                                                    : std::abs (level - oldLevel) > 0.004f;
+                                                                    : (int) (level * 24.0f) != (int) (oldLevel * 24.0f);   // ~4% steps: a decay repaints a few times a second, not every frame
 
         if (levelChanged || std::abs (fret - overlay.stringFret[(size_t) s]) > 0.01f)
-            changed = true;
+            stringDirty |= 1u << s;
 
         overlay.stringLevel[(size_t) s] = level;
         overlay.stringFret[(size_t) s] = fret;
 
         // Section 19: the dot is on from the first frame and fades over 60 ms after.
-        changed = dots.update (s, level, fret, nowMs, reducedMotion) || changed;
+        if (dots.update (s, level, fret, nowMs, reducedMotion))
+            stringDirty |= 1u << s;
     }
 
     dots.copyTo (overlay);
@@ -320,7 +323,7 @@ void GuitarBodyComponent::updateLiveOverlay (double nowMs)
     if (std::abs (slideFret - overlay.slideFret) > 0.01f)
     {
         overlay.slideFret = slideFret;
-        changed = true;
+        stripChanged = true;
     }
 
     // The capo on the neck (TODO G) and the slide's slant and material
@@ -336,7 +339,7 @@ void GuitarBodyComponent::updateLiveOverlay (double nowMs)
         overlay.capoMask = capoMask;
         overlay.slideSlantDeg = slant;
         overlay.slideColour = slideColour;
-        changed = true;
+        stripChanged = true;
     }
 
     // cpu-quality-modes 6: the policy combines Reduced motion and the level.
@@ -353,6 +356,34 @@ void GuitarBodyComponent::updateLiveOverlay (double nowMs)
 
     if (changed)
         repaint();
+    else if (stripChanged)
+        repaint (getStringStrip (0xffffffffu, 24.0f));   // the slide and capo overhang the strings
+    else if (stringDirty != 0)
+        repaint (getStringStrip (stringDirty, 0.0f));    // just the strings whose glow or dot moved
+}
+
+juce::Rectangle<int> GuitarBodyComponent::getStringStrip (juce::uint32 mask, float extraPx)
+{
+    ensureTransform();
+
+    // A string's glow runs from where it is stopped to the saddle (about 10 px
+    // wide) and its dot is 3 mm across: inside its own line, padded.
+    const float pad = juce::jmax (6.0f, 3.5f * std::sqrt (std::abs (mmToPx.getDeterminant()))) + extraPx;
+    juce::Rectangle<float> strip;
+
+    for (const auto& line : scene.strings)
+    {
+        if (line.index < 0 || line.index > 31 || ((mask >> line.index) & 1u) == 0)
+            continue;
+
+        for (auto p : { line.tail, line.saddle, line.nut, line.post })
+        {
+            const auto px = p.transformedBy (mmToPx);
+            strip = strip.isEmpty() ? juce::Rectangle<float> (px, px) : strip.getUnion (juce::Rectangle<float> (px, px));
+        }
+    }
+
+    return strip.isEmpty() ? getLocalBounds() : strip.expanded (pad).getSmallestIntegerContainer().getIntersection (getLocalBounds());
 }
 
 void GuitarBodyComponent::setGhostDots (const std::vector<std::pair<int, double>>& dots)

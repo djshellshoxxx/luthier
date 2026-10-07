@@ -100,6 +100,7 @@ public:
     /** What paint() draws at `nowMs`: nothing with the option off (the log
         still fills). Under reduced motion every opacity is 0.9 or absent. */
     std::vector<Drawn> computeLabels (double nowMs) const;
+    juce::Rectangle<int> lastLabelArea;   // cleared on the next tick
 
     void paint (juce::Graphics&) override;
 

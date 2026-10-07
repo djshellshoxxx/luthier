@@ -488,7 +488,7 @@ void LuthierAudioProcessorEditor::paint (juce::Graphics& g)
 
         // ---- signature notch, top-left ------------------------------------------------
         LuthierLookAndFeel::drawSignatureNotch (g, bounds);
-    });
+    }, true);   // fillAll first: every pixel is covered
 
     // The hidden target lives at the tip of the notch. Once found it stays faintly
     // marked, so it can be got back to; before that it is invisible.

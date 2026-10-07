@@ -449,6 +449,7 @@ AdvancedPanel::AdvancedPanel (LuthierAudioProcessor& p)
       guitarBody (p),
       fretboard (p)
 {
+    setOpaque (true);   // paint() fills every pixel; spares the editor's paint under it
     juce::ignoreUnused (kKnobRow);
 
     addAndMakeVisible (guitarBody);
@@ -1598,6 +1599,13 @@ void AdvancedPanel::showWorkspaceTab (int index, bool remember)
         one over with deleteWhenRemoved would delete it the next time the tab
         changed. */
     workspaceViewport.setViewedComponent (workspacePanels[workspaceTab], false);
+
+    /*  The panels not in the viewport stay in the tree as hidden children: in
+        the window but not showing, so AnimationPolicy stops their timers (the
+        notation preview, the workshop bench) instead of them running detached. */
+    for (int i = 0; i < workspacePanels.size(); ++i)
+        if (auto* panel = workspacePanels[i]; i != workspaceTab && panel != nullptr && panel->getParentComponent() == nullptr)
+            addChildComponent (panel);
 
     // The WORKSHOP tab changes the column layout, not just what column 4 shows.
     resized();

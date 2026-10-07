@@ -142,6 +142,7 @@ public:
         friend class AnimationPolicy;
         void motionPolicyChanged() override;
         void apply();
+        bool computeHidden() const;
 
         juce::Component& owner;
         MotionClass motionClass;
@@ -227,6 +228,20 @@ private:
     /** A component may hold more than one registration (an illustration's own
         and its StringAnimator's), so this is a multimap. */
     std::multimap<const juce::Component*, Registration*> registry;
+
+    /*  JUCE sends no hierarchy change when a window is first attached, so a
+        Registration made while its editor was still off-screen would never learn
+        it is hidden. Twice a second, any registration whose showing state moved
+        is re-applied; ShowingWatcher covers tab switches at once. */
+    struct ShowingSweep : juce::Timer
+    {
+        void timerCallback() override { AnimationPolicy::get().sweepShowing(); }
+    } showingSweep;
+
+    void sweepShowing();
+
+    /** A plugin editor is in a visible desktop window (plugin host or standalone). */
+    static bool isEditorWindowOpen();
     bool isRegistered (const Registration* r) const;
     bool listeningToAccessibility = false;
 

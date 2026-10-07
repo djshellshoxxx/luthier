@@ -117,6 +117,8 @@ private:
     juce::AffineTransform mmToPx;
     juce::int64 shownKey = 0;
     bool shownAudition = false;
+    juce::uint32 seenGuitarRevision = 0xffffffffu;   // LuthierAudioProcessor::getGuitarRevision
+    int seenPaletteRevision = -1, ticksSinceKeyCheck = 0;
 
     float zoom = 1.0f;
     juce::Point<float> panPx;   ///< view offset after zoom, pixels
@@ -308,6 +310,8 @@ private:
     juce::Rectangle<int> illustrationArea, drawerArea, inspectorArea, setupArea, spectrumArea, headerArea;
     FirstEncounterHint firstHint { FirstEncounterHint::kWorkshopKey, FirstEncounterHint::kWorkshopText };
     juce::int64 shownGuitarKey = 0;
+    juce::uint32 seenGuitarRevision = 0xffffffffu;   // LuthierAudioProcessor::getGuitarRevision
+    int ticksSinceKeyCheck = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (WorkshopPanel)
 };

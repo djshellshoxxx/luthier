@@ -207,6 +207,7 @@ private:
 
     GuitarScene scene;
     juce::AffineTransform mmToPx;
+    juce::Rectangle<int> getStringStrip (juce::uint32 stringMask, float extraPx);   // the overlay's dirty area
     juce::Image cache;
     float cacheScale = 1.0f;
     int ticksSinceKeyCheck = 0;

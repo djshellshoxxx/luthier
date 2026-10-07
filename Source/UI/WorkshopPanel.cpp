@@ -364,7 +364,19 @@ juce::Point<float> BenchIllustration::toPx (juce::Point<float> mm) const
 
 void BenchIllustration::timerCallback()
 {
-    rebuild (false);
+    /*  Outside a gesture or an audition the bench shows the processor's guitar,
+        whose revision says when it changed; the full key (the guitar's JSON,
+        hashed) runs every tick only while a drag or an audition edits a copy,
+        and otherwise as a slow safety net. */
+    if (bench.isInGesture() || bench.isAuditioning() || shownAudition
+        || processor.getGuitarRevision() != seenGuitarRevision || Palette::revision != seenPaletteRevision
+        || ++ticksSinceKeyCheck >= 120)
+    {
+        seenGuitarRevision = processor.getGuitarRevision();
+        seenPaletteRevision = Palette::revision;
+        ticksSinceKeyCheck = 0;
+        rebuild (false);
+    }
 
     if (fade.startMs >= 0.0)
     {
@@ -1803,13 +1815,20 @@ void WorkshopPanel::timerCallback()
     if (isShowing())
         showFirstEncounterHintIfDue();
 
-    const auto key = GuitarRenderer::keyFor (processor.getCurrentGuitar(), {});
-
-    if (key != shownGuitarKey)
+    // The revision catches a replaced guitar at once; the hashed key (a JSON
+    // serialisation of the whole guitar) is a 4 s safety net, not a 20 Hz cost.
+    if (processor.getGuitarRevision() != seenGuitarRevision || ++ticksSinceKeyCheck >= 80)
     {
-        // A commit, an undo, a recall, a preset: show what the last change did.
-        shownGuitarKey = key;
-        refreshAll();
+        seenGuitarRevision = processor.getGuitarRevision();
+        ticksSinceKeyCheck = 0;
+        const auto key = GuitarRenderer::keyFor (processor.getCurrentGuitar(), {});
+
+        if (key != shownGuitarKey)
+        {
+            // A commit, an undo, a recall, a preset: show what the last change did.
+            shownGuitarKey = key;
+            refreshAll();
+        }
     }
 
     SpectrumDelta::Result r;

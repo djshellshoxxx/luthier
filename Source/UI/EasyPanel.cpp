@@ -958,7 +958,7 @@ void EasyPanel::paint (juce::Graphics& g)
             if (juce::String (title) != "Rhythm")
                 LuthierLookAndFeel::drawSectionHeader (g, area.reduced (6, 1).withHeight (16), title);
         }
-    });
+    }, true);   // fillAll first: every pixel is covered
 }
 
 } // namespace luthier

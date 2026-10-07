@@ -246,11 +246,30 @@ void AssistLabelOverlay::timerCallback()
 {
     AssistUi::drain (processor);
 
-    // Repaint while anything is live, and once more to clear the last frame.
-    const bool any = ! computeLabels (processor.getAssistLog().nowMs()).empty();
+    // Repaint while anything is live, and once more to clear the last frame -
+    // only around the labels: this overlay covers its whole host (the guitar or
+    // the fretboard), so a full repaint redrew all of it at 30 Hz.
+    const auto labels = computeLabels (processor.getAssistLog().nowMs());
+    const bool any = ! labels.empty();
 
-    if (any || drewLast)
+    juce::Rectangle<int> dirty;
+
+    for (const auto& l : labels)
+    {
+        const auto r = (l.strum ? juce::Rectangle<float> (l.arrow.getStart(), l.arrow.getEnd()).expanded (8.0f)
+                                : juce::Rectangle<float> (120.0f, 24.0f).withCentre (l.at.translated (0.0f, -9.0f)))
+                           .getSmallestIntegerContainer();
+        dirty = dirty.isEmpty() ? r : dirty.getUnion (r);
+    }
+
+    const auto toRepaint = lastLabelArea.isEmpty() ? dirty : (dirty.isEmpty() ? lastLabelArea : dirty.getUnion (lastLabelArea));
+
+    if ((any || drewLast) && ! toRepaint.isEmpty())
+        repaint (toRepaint);
+    else if (any || drewLast)
         repaint();
+
+    lastLabelArea = dirty;
 
     if (! any)
         drewLast = false;

@@ -501,6 +501,7 @@ private:
     LuthierAudioProcessor* processor = nullptr;
     float brightness = 0.0f;
     bool overThreshold = false;
+    int lastShown = -1;   // tick(): repaint only when the drawn colour changes
     double redSinceMs = -1.0e9;
     double lastFreshMs = -1.0e9;
     juce::uint32 lastBlockCount = 0;

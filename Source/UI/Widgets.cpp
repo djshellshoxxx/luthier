@@ -558,11 +558,24 @@ bool LuthierKnob::pollLearnPulse (double nowMs)
 
 bool LuthierKnob::pollModulationArc()
 {
-    // SPEC-SWEEP (GD-30): the learning outline pulses on the hub's clock.
-    if (processor != nullptr && (pollWhileHidden || isShowing()))
+    if (processor == nullptr)
+        return false;
+
+    // The common case first, in two atomic reads: nothing modulated anywhere, no
+    // MIDI Learn, and no arc or pulse left on this knob to clear.
+    if (! processor->getModMatrix().isActive() && ! lastArcModulated && ! wasLearning && ! learnPulseOn
+        && ! processor->getMidiLearn().isLearning())
+        return false;
+
+    if (! (pollWhileHidden || isShowing()))   // one parent walk per tick
+        return false;
+
+    // SPEC-SWEEP (GD-30): the learning outline pulses on the hub's clock. Only
+    // while MIDI Learn is on, or this knob still shows a pulse to clear.
+    if (wasLearning || learnPulseOn || processor->getMidiLearn().isLearning())
         pollLearnPulse (juce::Time::getMillisecondCounterHiRes());
 
-    if (processor == nullptr || modIndex < 0 || ! (pollWhileHidden || isShowing()))
+    if (modIndex < 0)
         return false;
 
     auto& matrix = processor->getModMatrix();
@@ -1457,7 +1470,15 @@ void OutputLed::tick (double nowMs)
 
     overThreshold = ! stale && (nowMs - redSinceMs) < kRedHoldMs;
 
-    repaint();
+    // Only when what is drawn changes: a silent, dark LED repainted 60 times a
+    // second, and the header under it with it.
+    const int shown = (int) (brightness * 64.0f) + (overThreshold ? 1000 : 0);
+
+    if (shown != lastShown)
+    {
+        lastShown = shown;
+        repaint();
+    }
 }
 
 void OutputLed::paint (juce::Graphics& g)

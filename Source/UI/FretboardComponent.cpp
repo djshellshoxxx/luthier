@@ -192,10 +192,27 @@ void FretboardComponent::timerCallback()
 
         const bool levelMoved = std::abs (level - liveLevel[(size_t) s]) > 0.0008;
 
+        /*  What a level change can show without the motion ghost: the dot's alpha
+            (level * 18) and the string's excitement (level * 14), both saturating
+            near 0.07, in steps nobody can see below 1/48. Most of a decay is
+            above that, so it repaints nothing; the rest repaints only this lane. */
+        const auto visible = [] (double l)
+        {
+            return (int) (juce::jlimit (0.0, 1.0, l * 14.0) * 48.0) * 100       // the string's glow
+                 + (int) (juce::jlimit (0.0, 1.0, l * 18.0) * 48.0)             // the dot's alpha
+                 + (l > 0.0015 ? 100000 : 0) + (l >= 0.002 ? 200000 : 0);       // glow and dot on/off
+        };
+
         if (std::abs (fret - liveFret[(size_t) s]) > 0.01 || note != liveNote[(size_t) s])
             changed = true;
         else if (levelMoved && ! motion)
-            changed = true;
+        {
+            if (visible (level) != visible (liveLevel[(size_t) s]))
+            {
+                const float half = juce::jmax (14.0f, (float) boardArea.getHeight() / (float) juce::jmax (1, numStrings) * 0.5f + 2.0f);
+                repaint (juce::Rectangle<float> (0.0f, stringY (s) - half, (float) getWidth(), half * 2.0f).getSmallestIntegerContainer());
+            }
+        }
         else if (levelMoved)
             repaint (noteDotArea (s, fret));   // the ghost repaints the string itself (4.3)
 
@@ -523,8 +540,26 @@ void FretboardComponent::paint (juce::Graphics& g)
         return;
     }
 
-    staticCache = {};
-    paintStaticLayer (g);
+    // Same layering as always (fret numbers above the live dots), but the board
+    // itself - gradient, inlays, frets, scale overlay - comes from a cache: it is
+    // the bulk of the cost and it does not change while notes play.
+    {
+        const float scale = juce::Component::getApproximateScaleFactorForComponent (this);
+        const auto key = staticLayerKey (scale) ^ 0x5a5a5a5a5a5aLL;   // a different picture: no fret numbers
+
+        if (staticCache.isNull() || key != staticCacheKey)
+        {
+            staticCache = juce::Image (juce::Image::ARGB, juce::jmax (1, juce::roundToInt ((float) getWidth() * scale)),
+                                       juce::jmax (1, juce::roundToInt ((float) getHeight() * scale)), true);
+            juce::Graphics cg (staticCache);
+            cg.addTransform (juce::AffineTransform::scale (scale));
+            paintStaticLayer (cg);
+            staticCacheKey = key;
+        }
+
+        g.drawImage (staticCache, getLocalBounds().toFloat());
+    }
+
     paintLiveLayer (g);
     paintFretNumbers (g);
 }
@@ -535,7 +570,8 @@ juce::int64 FretboardComponent::staticLayerKey (float scale) const
                + "|" + juce::String (numFrets) + "|" + juce::String (numStrings) + "|" + juce::String (capoFret)
                + "|" + juce::String (scaleRoot) + "|" + juce::String ((int) compact)
                + "|" + juce::String ((int) AccessibilitySettings::get().getPalette())
-               + "|" + juce::String ((int) this->scale);
+               + "|" + juce::String ((int) this->scale)
+               + "|" + juce::String (Palette::revision);   // any theme change
 
     // The scale overlay follows the tuning, so its pitch classes are part of the key.
     if (this->scale != ScaleOverlay::None)

@@ -19,8 +19,10 @@ namespace luthier
 class PaintCache
 {
 public:
+    /** `opaque`: the static painting covers every pixel (it starts with a fill),
+        so the cache is an RGB image and blits as a plain copy, with no blending. */
     template <typename PaintFn>
-    void draw (juce::Graphics& g, juce::Rectangle<int> area, juce::int64 key, PaintFn&& paintStatic)
+    void draw (juce::Graphics& g, juce::Rectangle<int> area, juce::int64 key, PaintFn&& paintStatic, bool opaque = false)
     {
         if (area.isEmpty())
             return;
@@ -31,7 +33,7 @@ public:
 
         if (! image.isValid() || fullKey != cachedKey)
         {
-            image = juce::Image (juce::Image::ARGB,
+            image = juce::Image (opaque ? juce::Image::RGB : juce::Image::ARGB,
                                  juce::jmax (1, juce::roundToInt ((float) area.getWidth() * scale)),
                                  juce::jmax (1, juce::roundToInt ((float) area.getHeight() * scale)),
                                  true);
