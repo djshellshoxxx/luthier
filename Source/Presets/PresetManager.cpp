@@ -269,6 +269,20 @@ void PresetManager::scanFolder (const juce::File& folder, bool factory)
         if (file.getParentDirectory().getParentDirectory().getFileName() == "Backup")
             continue;
 
+        // An unchanged file (same stamp and size as last scanned) keeps the
+        // metadata parsed then; only the folder-dependent flags are refreshed.
+        const auto stamp = file.getLastModificationTime();
+        const auto size = file.getSize();
+
+        if (auto cached = scanCache.find (file.getFullPathName());
+            cached != scanCache.end() && cached->second.info.modified == stamp && cached->second.size == size)
+        {
+            auto info = cached->second.info;
+            info.isFactory = factory;
+            presets.add (info);
+            continue;
+        }
+
         PresetInfo info;
         info.file = file;
         info.name = file.getFileNameWithoutExtension();
@@ -331,8 +345,9 @@ void PresetManager::scanFolder (const juce::File& folder, bool factory)
             }
         }
 
-        info.modified = file.getLastModificationTime();
+        info.modified = stamp;
 
+        scanCache[file.getFullPathName()] = { info, size };
         presets.add (info);
     }
 }

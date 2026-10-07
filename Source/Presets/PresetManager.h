@@ -416,6 +416,11 @@ private:
     juce::Array<PresetInfo> presets;
     juce::Array<juce::File> searchFolders;
 
+    /** scanFolder's parsed metadata per file, reused while the file's stamp and
+        size are unchanged: a rescan (every save) no longer parses every preset. */
+    struct ScannedFile { PresetInfo info; juce::int64 size = 0; };
+    std::map<juce::String, ScannedFile> scanCache;
+
     /*  False until the first scan has populated `presets` (see refresh /
         ensureScanned). Atomic so the audio thread's isScanned() guard reads it
         without a data race with the message thread that sets it. */

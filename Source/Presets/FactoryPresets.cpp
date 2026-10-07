@@ -989,7 +989,27 @@ void FactoryPresets::writeAll (const juce::File& folder)
             block while every saved preset has one - so it is regenerated. */
         if (file.existsAsFile())
         {
-            const auto existing = juce::JSON::parse (file);
+            /*  Fast path: a file this generator wrote carries `"factoryRevision": N`
+                verbatim (JSON::toString's key spacing), so a text scan settles the
+                common case - every factory file already current - without parsing
+                all seventy on every refresh (OPTIMISATION_LOG: 50 ms per refresh,
+                and a refresh follows every save). Anything else takes the parse. */
+            const auto text = file.loadFileAsString();
+
+            if (const int at = text.indexOf ("\"factoryRevision\""); at >= 0)
+            {
+                const auto after = text.substring (at + 17).trimStart();   // past the key
+                const auto rest = after.substring (1).trimStart();         // past the colon
+                int revision = 0, digits = 0;
+
+                for (; digits < rest.length() && juce::CharacterFunctions::isDigit (rest[digits]); ++digits)
+                    revision = revision * 10 + (int) (rest[digits] - '0');
+
+                if (after.startsWithChar (':') && digits > 0 && revision >= kFactoryRevision)
+                    continue;
+            }
+
+            const auto existing = juce::JSON::parse (text);
             const bool generated = existing.hasProperty ("factoryRevision")
                                      || (! existing.hasProperty ("guitar")
                                          && existing.getProperty ("author", {}).toString() == "Luthier Audio");
