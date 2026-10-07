@@ -866,7 +866,8 @@ private:
 
     /** Measures the block the matrix's envelope followers watch. */
     void buildModBlockContext (const juce::AudioBuffer<float>& output,
-                               int numSamples, ModBlockContext& context) noexcept;
+                               int numSamples, ModBlockContext& context,
+                               const juce::Optional<HostClockGuard::PositionInfo>& hostPosition) noexcept;
 
     //==========================================================================
     juce::AudioProcessorValueTreeState apvts;
