@@ -400,13 +400,46 @@ bool AnimationPolicy::Registration::computeHidden() const
     auto* top = owner.getTopLevelComponent();
 
     if (top != nullptr && top->isOnDesktop())
-        return ! owner.isShowing();
+        return ! isShowingFast (owner);
 
     /*  Not in any window. While an editor window is open that means detached
         from it - an overlay that is closed, a panel parked out of its viewport -
         so there is nothing to draw. With no window open (the tests, an editor
         still being built) the policy's rate stands. */
     return AnimationPolicy::isEditorWindowOpen();
+}
+
+bool AnimationPolicy::isShowingFast (const juce::Component& c)
+{
+    const juce::Component* top = &c;
+
+    for (; top != nullptr; top = top->getParentComponent())
+    {
+        if (! top->isVisible())
+            return false;
+
+        if (top->getParentComponent() == nullptr)
+            break;
+    }
+
+    auto* peer = top != nullptr ? top->getPeer() : nullptr;
+
+    if (peer == nullptr)
+        return false;
+
+    static juce::ComponentPeer* cachedPeer = nullptr;
+    static juce::uint32 checkedAt = 0;
+    static bool minimised = false;
+    const auto now = juce::Time::getMillisecondCounter();
+
+    if (peer != cachedPeer || checkedAt == 0 || now - checkedAt >= 250)
+    {
+        cachedPeer = peer;
+        checkedAt = now;
+        minimised = peer->isMinimised();
+    }
+
+    return ! minimised;
 }
 
 bool AnimationPolicy::isEditorWindowOpen()
