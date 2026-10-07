@@ -129,6 +129,16 @@ public:
         when the truth is that the format is not supported. */
     static bool canRead (const juce::File& file);
 
+    /** What a file actually is: the bytes decide where they can (MIDI, Guitar
+        Pro, zip containers), the extension where they cannot (text). */
+    enum class FileKind
+    {
+        asciiTab, musicXml, compressedMusicXml, guitarPro7, guitarProLegacy,
+        guitarProGpx, powerTab, midi, unknown
+    };
+
+    static FileKind detectKind (const juce::File& file);
+
     /** Parses a file into a score. Returns false and sets the error otherwise.
         Partial reads (tab-import-export 7) return true and say what was
         skipped in getLastDiagnostics(). */
@@ -155,6 +165,15 @@ public:
     bool readGuitarPro (const juce::File& file, PerformanceScore& destination);
     bool readGpif (const juce::String& xml, PerformanceScore& destination);
 
+    /** Guitar Pro 3/4/5 binary (.gp3/.gp4/.gp5). Partial files import what was
+        readable and say so in the diagnostics. `preferredTrack` is a 0-based
+        track index, or -1 for the first pitched track. */
+    bool readGuitarProLegacy (const void* data, size_t numBytes, PerformanceScore& destination);
+    void setPreferredTrack (int trackIndex) noexcept { preferredTrack = trackIndex; }
+
+    /** Compressed MusicXML (.mxl): a zip whose META-INF/container.xml names the score. */
+    bool readCompressedMusicXml (const juce::File& file, PerformanceScore& destination);
+
     juce::String getLastError() const { return lastError; }
 
     /** What the last read did: bars, notes, skipped lines, guessed tuning. */
@@ -163,6 +182,7 @@ public:
 private:
     juce::String lastError;
     TabImportDiagnostics lastDiagnostics;
+    int preferredTrack = -1;
 };
 
 } // namespace luthier

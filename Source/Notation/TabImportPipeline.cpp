@@ -1,5 +1,6 @@
 #include "TabImportPipeline.h"
 #include "TabDirectiveApplier.h"
+#include "TabChordChart.h"
 
 namespace luthier
 {
@@ -10,13 +11,25 @@ bool TabImportPipeline::read (const juce::String& source, PerformanceScore& dest
     lastError.clear();
     lastDocument = {};
 
+    if (source.trim().isEmpty())
+    {
+        destination.clear();
+        lastError = "No tablature found: that text is empty.";
+        if (diagnostics != nullptr)
+            *diagnostics = {};
+        return false;
+    }
+
     TabDocumentNormalizer normalizer;
     if (! normalizer.normalize (source, lastDocument))
     {
         destination.clear();
-        lastError = lastDocument.diagnostics.warnings.isEmpty()
-                      ? juce::String ("Could not normalize that tablature.")
-                      : lastDocument.diagnostics.warnings.joinIntoString ("; ");
+        lastError = lastDocument.diagnostics.drumLinesSkipped > 0
+                      ? juce::String ("That looks like drum tablature. Luthier plays guitar and bass tab; "
+                                      "no guitar or bass staff was found in it.")
+                      : lastDocument.diagnostics.warnings.isEmpty()
+                          ? juce::String ("Could not read that as tablature.")
+                          : lastDocument.diagnostics.warnings.joinIntoString ("; ");
         if (diagnostics != nullptr)
             *diagnostics = lastDocument.diagnostics;
         return false;
@@ -33,13 +46,36 @@ bool TabImportPipeline::read (const juce::String& source, PerformanceScore& dest
     if (ok)
         TabDirectiveApplier::apply (lastDocument, destination, merged);
 
+    // Chords over lyrics and nothing else: strum the shapes instead of refusing.
+    if (! ok && merged.drumLinesSkipped == 0)
+    {
+        const auto& meta = lastDocument.metadata;
+        const std::vector<int> tuning = (! meta.tuningAmbiguous && meta.tuningMidiHighFirst.size() == 6)
+                                          ? meta.tuningMidiHighFirst : std::vector<int>();
+        TabImportDiagnostics chart = merged;
+
+        if (TabChordChart::read (lastDocument.normalizedText, destination, &chart, tuning,
+                                 meta.capoFret > 0 ? meta.capoFret : 0, meta.tempoBpm))
+        {
+            merged = chart;
+            lastError.clear();
+            lastDocument.diagnostics = merged;
+            if (diagnostics != nullptr)
+                *diagnostics = merged;
+            return true;
+        }
+    }
+
     if (diagnostics != nullptr)
         *diagnostics = merged;
     lastDocument.diagnostics = merged;
 
     if (! ok)
     {
-        lastError = reader.getLastError();
+        lastError = merged.drumLinesSkipped > 0
+                      ? juce::String ("That looks like drum tablature. Luthier plays guitar and bass tab; "
+                                      "no guitar or bass staff was found in it.")
+                      : reader.getLastError();
         return false;
     }
 
@@ -62,7 +98,9 @@ bool TabImportPipeline::read (const juce::File& file, PerformanceScore& destinat
     }
 
     const auto extension = file.getFileExtension().toLowerCase();
-    if (extension.isNotEmpty() && extension != ".txt" && extension != ".tab")
+    static const juce::StringArray structured { ".mid", ".midi", ".gp", ".gp3", ".gp4", ".gp5", ".gpx",
+                                                ".ptb", ".xml", ".musicxml", ".mxl" };
+    if (structured.contains (extension))
     {
         lastDocument = {};
         destination.clear();

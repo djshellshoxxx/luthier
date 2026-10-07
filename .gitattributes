@@ -11,3 +11,10 @@
 # too; other JSON under Resources is deliberately left alone.
 Resources/Riffs/* text eol=lf
 Resources/Guitars/*.json text eol=lf
+
+# Binary Guitar Pro 3-5 fixtures must never be line-ending converted.
+*.gp3 binary
+*.gp4 binary
+*.gp5 binary
+*.mxl binary
+*.mid binary

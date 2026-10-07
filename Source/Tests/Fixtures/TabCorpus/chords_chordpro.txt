@@ -1,0 +1,3 @@
+{title: Invented Tune}
+{capo: 2}
+[Am]Hello [C]there [G]friend [D]now

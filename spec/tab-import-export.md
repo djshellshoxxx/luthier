@@ -115,15 +115,29 @@ time, and that is all. Any player must infer timing. The heuristic used here
 | ASCII / plain text (`.txt`, `.tab`) | ✅ (hardened here) | ✅ (`AsciiTabWriter`) | MUST. Timing inferred by column spacing; techniques parsed. |
 | MusicXML tab (`.xml`, `.musicxml`) | ✅ (reused) | ✅ (reused) | Preferred for reliable playback: real durations. |
 | MIDI (`.mid`) | ✅ Luthier profile (reused) + generic files fingered (§8) | ✅ (reused; bends, slides, vibrato as pitch bend, §8.3) | Real timing; string/fret via the Luthier profile, or guessed. |
-| Guitar Pro (`.gp*`) | ❌ deferred | ⚠️ GPIF bundle (existing, best-effort) | See below. |
+| Guitar Pro 3/4/5 (`.gp3/.gp4/.gp5`) | ✅ `GuitarProLegacyReader` (one track, repeats unrolled, partial files kept) | ❌ | Binary; bounded reads, never crashes on damage. |
+| Guitar Pro 7/8 (`.gp`) | ✅ (GPIF) | ⚠️ GPIF bundle (existing, best-effort) | |
+| Compressed MusicXML (`.mxl`) | ✅ (container.xml, size-capped) | ❌ | |
+| Guitar Pro 6 (`.gpx`), PowerTab (`.ptb`) | ❌ friendly error | ❌ | Proprietary containers; the message says to Save As `.gp`/`.gp5` or export MusicXML. |
 
-**Guitar Pro import is deferred.** The binary `.gp3/4/5` and zipped `.gpx/.gp`
-formats are proprietary and version-specific; a correct importer is a large,
-fragile effort out of proportion to this task. The importer detects these
-extensions and returns a clear message telling the user to export MusicXML from
-Guitar Pro and open that instead (which imports with full timing). Guitar Pro
-*export* already exists as a best-effort GPIF bundle in `NotationExporter` and is
-untouched. Follow-up: a real `.gp5`/`.gpx` reader if demand justifies it.
+**Guitar Pro.** `.gp3/.gp4/.gp5` (binary) are read by `GuitarProLegacyReader`: every
+field read is bounds-checked, counts are capped, a truncated or damaged file keeps
+the bars read so far (with a warning), and one track becomes the score (the first
+pitched track, or `NotationImporter::setPreferredTrack`). Repeats and alternative
+endings are unrolled. `.gp` (GP7/8) is read as GPIF. `.gpx` (GP6) and PowerTab
+`.ptb` stay unread, with a message that says what to do instead.
+
+### 2.1 Robust ASCII import
+
+`TabTextSanitizer` runs first: box-drawing, en/em dashes, full-width bars, NBSP,
+BOM and tabs become plain tab glyphs; numbered strings (`1|` ... `6|`) become
+`e B G D A E`; systems written lowest string first are flipped; drum-kit rows are
+refused with an explanation; lines are capped at 16384 characters and the whole
+normalisation has a wall-clock budget. Rhythm lines (`q q e e h`) and count
+lines (`1 e & a 2 ...`) above a staff place the notes in time. A page with
+chords and no tab (Ultimate-Guitar `[ch]`, ChordPro `[Am]`, plain chord lines)
+becomes one strummed bar per chord (`TabChordChart`). `NotationImporter` uses the
+same pipeline for every text file (`.txt`, `.tab`, `.md`, `.html`, no extension).
 
 ## 3. Architecture
 
@@ -193,8 +207,7 @@ invalid string or with a non-finite/ out-of-range pitch.
   anyone who needs correct rhythm.
 - **Note durations from ASCII** default short (a sixteenth); sustain/let-ring is
   the engine's, not the tab's.
-- **Guitar Pro import deferred** (see §2) — decision needed if the audience
-  demands native `.gp5`/`.gpx` reading.
+- **Guitar Pro 6 (`.gpx`) and PowerTab are not read** (see §2); `.gp3/4/5` and `.gp` are.
 - **Tuning inference**: recognised from named headers; an unnamed exotic tuning
   falls back to standard (frets still parse; pitches may be off). A future
   improvement is deriving tuning from the per-string note-name prefixes the

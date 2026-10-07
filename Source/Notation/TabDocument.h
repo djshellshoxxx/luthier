@@ -130,6 +130,14 @@ struct TabImportDiagnostics
     int ambiguousTokens = 0;
     int metadataConflicts = 0;
 
+    // Appended with the robustness pass (kept after the originals for source compatibility).
+    int unicodeGlyphsMapped = 0;     ///< box-drawing / dash / full-width characters turned into ASCII tab glyphs
+    int linesTruncated = 0;          ///< absurdly long lines cut to the safety limit
+    int stringLabelsRewritten = 0;   ///< numeric string labels (1-6) turned into note names
+    int systemsReversed = 0;         ///< low-to-high systems flipped to highest-string-first
+    int drumLinesSkipped = 0;        ///< drum-kit rows (HH|, SD|, BD|) ignored
+    int chordChartBars = 0;          ///< bars made from a chord-only chart
+
     juce::StringArray warnings;
 
     bool isPartial() const noexcept;
