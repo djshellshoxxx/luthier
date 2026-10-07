@@ -201,8 +201,12 @@ LUTHIER_TEST (HelpTab, theContentCoversWhatIncludeMdAsksFor)
 
     // "the license", and its live state.
     CHECK_MSG (about.contains ("LICENCE") && about.contains ("licensed, not sold"), "About has no licence terms");
+   #if LUTHIER_PRO
     CHECK_MSG (about.contains (License::getStateName (processor->getLicense().getState())),
                "About does not show the licence state");
+   #else
+    CHECK_MSG (about.contains ("Luthier Free (no licence needed)"), "About does not show the Free edition");
+   #endif
 
     // "link to github", "link to homepage", "link to support email": in the text
     // and on a button each.

@@ -382,6 +382,7 @@ if (LUTHIER_BUILD_CLI)
     target_compile_definitions(LuthierRender PRIVATE ${LUTHIER_CONSOLE_DEFS})
 
     target_link_libraries(LuthierRender PRIVATE
+        $<$<BOOL:${LUTHIER_IS_PRO}>:luthier_monocypher>
         juce::juce_audio_utils
         juce::juce_dsp
         juce::juce_cryptography

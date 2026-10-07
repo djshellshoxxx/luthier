@@ -173,15 +173,20 @@ juce::String HelpTab::composeBody (int index) const
     {
         // include.md: the version and the licence. The licence state is
         // License's own, so an expired or grace-period copy says so here too.
-        auto& license = processor.getLicense();
-
         text << "\n\nVERSION\n" << getVersionText()
              << "\nRunning as " << juce::AudioProcessor::getWrapperTypeDescription (processor.wrapperType)
              << " in " << juce::PluginHostType().getHostDescription()
-             << "\n\nLICENCE STATE\n" << License::getStateName (license.getState());
+             << "\n\nLICENCE STATE\n";
+
+       #if LUTHIER_PRO
+        auto& license = processor.getLicense();
+        text << License::getStateName (license.getState());
 
         if (license.getState() == License::State::grace)
             text << ", " << license.getDaysUntilRevalidation() << " days until it must be revalidated";
+       #else
+        text << "Luthier Free (no licence needed)";   // editions.md 2.5
+       #endif
 
         text << "\n\nLINKS\n"
              << "- Homepage: " << HelpContent::homepageUrl << "\n"

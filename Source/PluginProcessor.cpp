@@ -243,7 +243,9 @@ LuthierAudioProcessor::LuthierAudioProcessor()
 
         telemetry.loadSettings();
         telemetry.setTransport (createHttpsTransport());
+       #if LUTHIER_PRO
         license.load();
+       #endif
 
         // tone-match 5: the IR folder tree exists before the user goes looking for
         // somewhere to put a file.
@@ -274,14 +276,20 @@ LuthierAudioProcessor::LuthierAudioProcessor()
             return p != nullptr ? p->getCurrentValueAsText() : juce::String ("?");
         };
 
-        const auto state = license.getState();
         juce::String r;
+
+       #if LUTHIER_PRO
+        const auto state = license.getState();
 
         r << "---- LICENCE ---------------------------------------------------\n"
           << "State:            " << License::getStateName (state) << "\n";
 
         if (state == License::State::activated || state == License::State::grace)
             r << "Revalidate in:    " << license.getDaysUntilRevalidation() << " days\n";
+       #else
+        r << "---- LICENCE ---------------------------------------------------\n"
+          << "State:            Luthier Free (no licence needed)\n";
+       #endif
 
         r << "\n"
           << "---- MIDI ------------------------------------------------------\n"

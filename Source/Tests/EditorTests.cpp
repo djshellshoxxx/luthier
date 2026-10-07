@@ -1578,7 +1578,10 @@ LUTHIER_TEST (Editor, theWindowRaisesSectionFifteensTriggersAndIsQuietWhenItShou
             being tested and saying so is better than failing on it. */
         const bool quiet = ! processor.getTelemetry().isManagedByPolicy()
                              && ! processor.getTelemetry().hasPendingCrashReport()
-                             && processor.getLicense().getState() != License::State::grace;
+                            #if LUTHIER_PRO
+                             && processor.getLicense().getState() != License::State::grace
+                            #endif
+                             ;
 
         if (quiet)
         {
@@ -1600,6 +1603,7 @@ LUTHIER_TEST (Editor, theWindowRaisesSectionFifteensTriggersAndIsQuietWhenItShou
         }
     }
 
+   #if LUTHIER_PRO   // editions.md 2.5: the Free binary has no licence, so no grace banner
     //--------------------------------------------------------------------------
     // A licence in grace says so, and says it as a warning.
     {
@@ -1661,6 +1665,7 @@ LUTHIER_TEST (Editor, theWindowRaisesSectionFifteensTriggersAndIsQuietWhenItShou
             }
         }
     }
+   #endif
 }
 
 //==============================================================================

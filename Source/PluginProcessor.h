@@ -368,7 +368,9 @@ public:
     // Updates and privacy (updates-telemetry.md).
 
     Telemetry& getTelemetry() noexcept { return telemetry; }
-    License&   getLicense() noexcept   { return license; }
+   #if LUTHIER_PRO
+    License&   getLicense() noexcept   { return license; }   // editions.md 2.5: Pro only
+   #endif
 
     //==========================================================================
     /** advanced-ranges.md: the preset's stock/advanced state. */
@@ -1020,7 +1022,9 @@ private:
 
     // --- updates and privacy ---------------------------------------------------------------
     Telemetry telemetry;
-    License license;
+   #if LUTHIER_PRO
+    License license;   // editions.md 2.5 / Q-8: the Free binary has no licensing code
+   #endif
 
     /*  advanced-ranges.md: which parameter families this preset has unlocked.
 

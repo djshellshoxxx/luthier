@@ -1246,7 +1246,9 @@ bool LuthierAudioProcessorEditor::showOptionsPage (const juce::String& tabName)
 void LuthierAudioProcessorEditor::postStartupNotifications()
 {
     auto& telemetry = processor.getTelemetry();
+   #if LUTHIER_PRO
     auto& license = processor.getLicense();
+   #endif
 
     // ---- managed by policy ---------------------------------------------------
     if (telemetry.isManagedByPolicy())
@@ -1260,6 +1262,7 @@ void LuthierAudioProcessorEditor::postStartupNotifications()
     }
 
     // ---- licence grace period ------------------------------------------------
+   #if LUTHIER_PRO
     if (license.getState() == License::State::grace)
     {
         const int days = license.getDaysUntilRevalidation();
@@ -1280,6 +1283,7 @@ void LuthierAudioProcessorEditor::postStartupNotifications()
 
         notifications.post (std::move (n));
     }
+   #endif
 
     // ---- an update, if the user asked us to look ------------------------------
     /*  updates-telemetry 1: the check is opt-in and off by default, and a policy
