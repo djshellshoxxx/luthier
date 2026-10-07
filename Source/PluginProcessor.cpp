@@ -1553,6 +1553,7 @@ void LuthierAudioProcessor::fadeInAfterStructuralChange()
 void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
     const int numSamples = buffer.getNumSamples();
+    const auto hostPosition = hostClock.read (getPlayHead());
 
     // preset-browser-previews 4.3: the live-activity half of the preview gate,
     // read before anything consumes the host's MIDI.
@@ -1616,7 +1617,7 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
     bool hostPlaying = false;
 
     {   // RT-SAFETY P2: the host clock, validated (HostClockGuard)
-        if (auto position = hostClock.read (getPlayHead()))
+        if (hostPosition)
         {
             if (auto bpm = position->getBpm(); bpm && HostClock::isValidTempo (*bpm))
                 hostTempo.store (*bpm);
@@ -1648,7 +1649,7 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
         bool playing = false, hasPosition = false;
 
         {   // RT-SAFETY P2: the host clock, validated (HostClockGuard)
-            if (auto position = hostClock.read (getPlayHead()))
+            if (hostPosition)
             {
                 playing = position->getIsPlaying();
 
@@ -1875,7 +1876,7 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
 
     {
         ModBlockContext modContext;
-        buildModBlockContext (buffer, numSamples, modContext);
+        buildModBlockContext (buffer, numSamples, modContext, hostPosition);
         modMatrix.processBlock (numSamples, modContext);
     }
 
@@ -1905,7 +1906,7 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
         clock.bpm = hostTempo.load();
 
         {   // RT-SAFETY P2: the host clock, validated (HostClockGuard)
-            if (auto position = hostClock.read (getPlayHead()))
+            if (hostPosition)
             {
                 clock.transportPlaying = position->getIsPlaying();
 
@@ -1952,7 +1953,7 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
         ctx.latency = reportedLatency;
 
         {   // RT-SAFETY P2: the host clock, validated (HostClockGuard)
-            if (auto position = hostClock.read (getPlayHead()))
+            if (hostPosition)
             {
                 ctx.hasPlayHead = true;
                 ctx.hostPlaying = position->getIsPlaying();
@@ -2230,11 +2231,7 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
     // the practice block and the click, before the routing distributes - so the
     // looper, recorder, capture, aux buses and MIDI out never contain it.
     {
-        bool previewHostPlaying = false;
-
-        if (auto* playHead = getPlayHead())
-            if (auto position = playHead->getPosition())
-                previewHostPlaying = position->getIsPlaying();
+        const bool previewHostPlaying = hostPosition && hostPosition->getIsPlaying();
 
         auto mainOut = getBusBuffer (buffer, false, 0);
         previewPlayer.publishGate (previewHostPlaying, isNonRealtime(), killSwitch.isActive(),
@@ -2392,14 +2389,15 @@ void LuthierAudioProcessor::feedModulationSources (const juce::MidiBuffer& midi)
 
 void LuthierAudioProcessor::buildModBlockContext (const juce::AudioBuffer<float>& output,
                                                   int numSamples,
-                                                  ModBlockContext& context) noexcept
+                                                  ModBlockContext& context,
+                                                  const juce::Optional<HostClockGuard::PositionInfo>& hostPosition) noexcept
 {
     context.bpm = blockTempo;
     context.positionBeats = -1.0;
     context.transportRunning = false;
 
     {   // RT-SAFETY P2: the host clock, validated (HostClockGuard)
-        if (auto position = hostClock.read (getPlayHead()))
+        if (hostPosition)
         {
             context.transportRunning = position->getIsPlaying();
 
