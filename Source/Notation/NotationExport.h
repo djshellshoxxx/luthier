@@ -32,6 +32,15 @@ namespace luthier
 
 //==============================================================================
 /** Options shared by the exporters (notation-export 5). */
+/** One column of a rendered ASCII tab window: the absolute beat it stands
+    for and the character column (same in every row of the window). */
+struct TabColumnMark
+{
+    double beat = 0.0;
+    int column = 0;
+    int width = 1;
+};
+
 struct NotationExportOptions
 {
     /** ASCII tab line width. */
@@ -42,6 +51,9 @@ struct NotationExportOptions
 
     /** Include chord symbols where the detector found them. */
     bool chordSymbols = true;
+
+    /** Window renders (live view, TAB reader): also draw the chord-name row above the ruler. */
+    bool windowChordRow = false;
 
     /** Export only part of the score. Zero length means all of it. */
     double fromBeat = 0.0;
@@ -100,6 +112,13 @@ public:
     juce::String renderAsciiTabWindow (const PerformanceScore& score,
                                        int firstMeasure, int numMeasures,
                                        const NotationExportOptions& options = {}) const;
+
+    /** As above, also reporting where each beat landed in the rendered rows
+        (universal tab player: the reader highlights the column that is sounding). */
+    juce::String renderAsciiTabWindow (const PerformanceScore& score,
+                                       int firstMeasure, int numMeasures,
+                                       const NotationExportOptions& options,
+                                       std::vector<TabColumnMark>& marks) const;
 
     bool writeMidi (const PerformanceScore& score, const juce::File& destination,
                     const NotationExportOptions& options = {}) const;
