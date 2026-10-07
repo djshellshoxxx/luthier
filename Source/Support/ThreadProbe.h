@@ -20,6 +20,9 @@ namespace luthier::ThreadProbe
     inline thread_local bool isMarkedAudioThread = false;
     inline std::atomic<int> audioThreadFileAccesses { 0 };
     inline std::atomic<int> mapSpecCalls { 0 };
+    // Counts physical scans of the immutable shipped part tree. Performance
+    // tests use this to ensure warm processor construction reuses that index.
+    inline std::atomic<int> factoryPartScans { 0 };
 
     inline void markAsAudioThread (bool isAudio = true) noexcept { isMarkedAudioThread = isAudio; }
 
