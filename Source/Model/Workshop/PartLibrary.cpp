@@ -1,6 +1,7 @@
 #include "PartLibrary.h"
 #include "../../Support/ThreadProbe.h"
 #include "../../Support/IrLibrary.h"
+#include <mutex>
 
 namespace luthier
 {
@@ -421,7 +422,55 @@ juce::File PartLibrary::getUserGuitarsFolder()
 
 void PartLibrary::refresh()
 {
-    refreshFrom (getFactoryPartsFolder(), getUserPartsFolder());
+    using PartMaps = decltype (byType);
+
+    struct FactoryCache
+    {
+        std::mutex mutex;
+        juce::File folder;
+        PartMaps parts;
+        juce::StringArray errors;
+        bool ready = false;
+    };
+
+    static FactoryCache cache;
+    const auto factoryFolder = getFactoryPartsFolder();
+
+    {
+        std::lock_guard<std::mutex> lock (cache.mutex);
+
+        if (! cache.ready || cache.folder != factoryFolder)
+        {
+            PartLibrary factory;
+            factory.scanFolder (factoryFolder, true);
+
+            // Do not permanently cache an absent/incomplete installation. A
+            // later instance in the same host process can recover if Resources
+            // becomes available, while a valid shipped tree is immutable until
+            // the next process/plugin load.
+            if (factoryFolder.isDirectory() && factory.getNumParts() > 0)
+            {
+                cache.folder = factoryFolder;
+                cache.parts = factory.byType;
+                cache.errors = factory.scanErrors;
+                cache.ready = true;
+            }
+
+            byType = factory.byType;
+            scanErrors = factory.scanErrors;
+        }
+        else
+        {
+            // PartPtr is shared_ptr<const Part>, so copying the maps is cheap
+            // and cannot let one processor mutate another's factory objects.
+            byType = cache.parts;
+            scanErrors = cache.errors;
+        }
+    }
+
+    // User parts are intentionally fresh every time and retain override
+    // priority over the cached factory entries.
+    scanFolder (getUserPartsFolder(), false);
 }
 
 void PartLibrary::refreshFrom (const juce::File& factoryParts, const juce::File& userParts)
