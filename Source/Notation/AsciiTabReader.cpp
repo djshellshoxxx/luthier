@@ -1,5 +1,7 @@
 #include "AsciiTabReader.h"
 
+#include <cstring>
+
 #include <algorithm>
 #include <cmath>
 #include <string>
@@ -102,6 +104,7 @@ namespace
         {
             case 'C': return 0;  case 'D': return 2;  case 'E': return 4; case 'F': return 5;
             case 'G': return 7;  case 'A': return 9;  case 'B': return 11;
+            case 'H': return 11;   // German / Scandinavian spelling of B
             default:  return -1;
         }
     }
@@ -115,10 +118,14 @@ namespace
         const auto l = toLine (text);
         std::vector<NameToken> out;
 
-        bool anyUpper = false;
+        bool anyUpper = false, germanH = false;
         for (auto c : l)
+        {
             if (pitchClassOfLetter (c) >= 0 && juce::CharacterFunctions::isUpperCase (c))
                 anyUpper = true;
+            if (c == 'H' || c == 'h')
+                germanH = true;     // "E A D G H E": H is B and a bare B is Bb
+        }
 
         for (int i = 0; i < (int) l.size();)
         {
@@ -138,7 +145,7 @@ namespace
                 return {};
 
             NameToken t;
-            t.pitchClass = pc;
+            t.pitchClass = (germanH && (c == 'B' || c == 'b')) ? 10 : pc;
             t.lower = juce::CharacterFunctions::isLowerCase (c);
             ++i;
 
@@ -216,43 +223,63 @@ namespace
 
     //==========================================================================
     // Named tunings recognised from a "Tuning:" header (tab-import-export 7.1).
-    struct TabTuning { const char* match; int count; int notes[kMaxStrings]; };
+    // Step offsets ("half step down", "1 1/2 steps down") are not in the table:
+    // stepsDownSemitones reads them and they shift whatever base this names.
+    struct TabTuning { const char* match; const char* name; int count; int notes[kMaxStrings]; };
 
     const TabTuning* matchTuning (const juce::String& lower)
     {
         static const TabTuning table[] = {
-            { "drop c#",          6, { 63, 58, 54, 49, 44, 37 } },
-            { "drop db",          6, { 63, 58, 54, 49, 44, 37 } },
-            { "drop c",           6, { 62, 57, 53, 48, 43, 36 } },
-            { "drop b",           6, { 61, 56, 52, 47, 42, 35 } },
-            { "drop a",           7, { 64, 59, 55, 50, 45, 40, 33 } },
-            { "double drop d",    6, { 62, 59, 55, 50, 45, 38 } },
-            { "drop d",           6, { 64, 59, 55, 50, 45, 38 } },
-            { "dadgad",           6, { 62, 57, 55, 50, 45, 38 } },
-            { "open g",           6, { 62, 59, 55, 50, 43, 38 } },
-            { "open d",           6, { 62, 57, 54, 50, 45, 38 } },
-            { "open e",           6, { 64, 59, 56, 52, 47, 40 } },
-            { "open a",           6, { 64, 61, 57, 52, 45, 40 } },
-            { "open c",           6, { 64, 60, 55, 48, 43, 36 } },
-            { "half step",        6, { 63, 58, 54, 49, 44, 39 } },
-            { "half-step",        6, { 63, 58, 54, 49, 44, 39 } },
-            { "1/2 step",         6, { 63, 58, 54, 49, 44, 39 } },
-            { "eb standard",      6, { 63, 58, 54, 49, 44, 39 } },
-            { "e flat",           6, { 63, 58, 54, 49, 44, 39 } },
-            { "whole step",       6, { 62, 57, 53, 48, 43, 38 } },
-            { "d standard",       6, { 62, 57, 53, 48, 43, 38 } },
-            { "c# standard",      6, { 61, 56, 52, 47, 42, 37 } },
-            { "c standard",       6, { 60, 55, 51, 46, 41, 36 } },
-            { "b standard",       7, { 64, 59, 55, 50, 45, 40, 35 } },
-            { "7 string",         7, { 64, 59, 55, 50, 45, 40, 35 } },
-            { "7-string",         7, { 64, 59, 55, 50, 45, 40, 35 } },
-            { "8 string",         8, { 64, 59, 55, 50, 45, 40, 35, 30 } },
-            { "8-string",         8, { 64, 59, 55, 50, 45, 40, 35, 30 } },
-            { "5 string bass",    5, { 43, 38, 33, 28, 23 } },
-            { "5-string bass",    5, { 43, 38, 33, 28, 23 } },
-            { "bass",             4, { 43, 38, 33, 28 } },
-            { "ukulele",          4, { 69, 64, 60, 67 } },
-            { "standard",         6, { 64, 59, 55, 50, 45, 40 } },
+            { "drop c#",            "Drop C#", 6, { 63, 58, 54, 49, 44, 37 } },
+            { "drop db",            "Drop Db", 6, { 63, 58, 54, 49, 44, 37 } },
+            { "drop c",             "Drop C", 6, { 62, 57, 53, 48, 43, 36 } },
+            { "drop b",             "Drop B", 6, { 61, 56, 52, 47, 42, 35 } },
+            { "drop a#",            "Drop A#", 6, { 60, 55, 51, 46, 41, 34 } },
+            { "drop a",             "Drop A", 7, { 64, 59, 55, 50, 45, 40, 33 } },
+            { "drop g#",            "Drop G#", 6, { 59, 54, 50, 45, 40, 32 } },
+            { "drop g",             "Drop G", 6, { 58, 53, 49, 44, 39, 31 } },
+            { "drop e",             "Drop E", 8, { 64, 59, 55, 50, 45, 40, 35, 28 } },
+            { "double drop d",      "Double Drop D", 6, { 62, 59, 55, 50, 45, 38 } },
+            { "drop d",             "Drop D", 6, { 64, 59, 55, 50, 45, 38 } },
+            { "dadgad",             "DADGAD", 6, { 62, 57, 55, 50, 45, 38 } },
+            { "dadf#ad",            "Open D", 6, { 62, 57, 54, 50, 45, 38 } },
+            { "open gm",            "Open Gm", 6, { 62, 58, 55, 50, 43, 38 } },
+            { "open dm",            "Open Dm", 6, { 62, 57, 53, 50, 45, 38 } },
+            { "open em",            "Open Em", 6, { 64, 59, 55, 52, 47, 40 } },
+            { "open g",             "Open G", 6, { 62, 59, 55, 50, 43, 38 } },
+            { "open d",             "Open D", 6, { 62, 57, 54, 50, 45, 38 } },
+            { "open e",             "Open E", 6, { 64, 59, 56, 52, 47, 40 } },
+            { "open a",             "Open A", 6, { 64, 61, 57, 52, 45, 40 } },
+            { "open c",             "Open C", 6, { 64, 60, 55, 48, 43, 36 } },
+            { "nashville",          "Nashville", 6, { 64, 59, 67, 62, 57, 52 } },
+            { "eb standard",        "Eb Standard", 6, { 63, 58, 54, 49, 44, 39 } },
+            { "e flat standard",    "Eb Standard", 6, { 63, 58, 54, 49, 44, 39 } },
+            { "e flat",             "Eb Standard", 6, { 63, 58, 54, 49, 44, 39 } },
+            { "d# standard",        "Eb Standard", 6, { 63, 58, 54, 49, 44, 39 } },
+            { "d standard",         "D Standard", 6, { 62, 57, 53, 48, 43, 38 } },
+            { "db standard",        "C# Standard", 6, { 61, 56, 52, 47, 42, 37 } },
+            { "c# standard",        "C# Standard", 6, { 61, 56, 52, 47, 42, 37 } },
+            { "c standard",         "C Standard", 6, { 60, 55, 51, 46, 41, 36 } },
+            { "b standard",         "B Standard", 7, { 64, 59, 55, 50, 45, 40, 35 } },
+            { "baritone",           "Baritone", 6, { 59, 54, 50, 45, 40, 35 } },
+            { "7 string",           "7-string", 7, { 64, 59, 55, 50, 45, 40, 35 } },
+            { "7-string",           "7-string", 7, { 64, 59, 55, 50, 45, 40, 35 } },
+            { "seven string",       "7-string", 7, { 64, 59, 55, 50, 45, 40, 35 } },
+            { "8 string",           "8-string", 8, { 64, 59, 55, 50, 45, 40, 35, 30 } },
+            { "8-string",           "8-string", 8, { 64, 59, 55, 50, 45, 40, 35, 30 } },
+            { "eight string",       "8-string", 8, { 64, 59, 55, 50, 45, 40, 35, 30 } },
+            { "6 string bass",      "6-string bass", 6, { 48, 43, 38, 33, 28, 23 } },
+            { "6-string bass",      "6-string bass", 6, { 48, 43, 38, 33, 28, 23 } },
+            { "5 string bass",      "5-string bass", 5, { 43, 38, 33, 28, 23 } },
+            { "5-string bass",      "5-string bass", 5, { 43, 38, 33, 28, 23 } },
+            { "bass",               "Bass", 4, { 43, 38, 33, 28 } },
+            { "ukulele",            "Ukulele", 4, { 69, 64, 60, 67 } },
+            { "uke",                "Ukulele", 4, { 69, 64, 60, 67 } },
+            { "mandolin",           "Mandolin", 4, { 76, 69, 62, 55 } },
+            { "banjo",              "Banjo", 5, { 62, 59, 55, 50, 67 } },
+            { "standard",           "Standard", 6, { 64, 59, 55, 50, 45, 40 } },
+            { "normal tuning",      "Standard", 6, { 64, 59, 55, 50, 45, 40 } },
+            { "eadgbe",             "Standard", 6, { 64, 59, 55, 50, 45, 40 } },
         };
 
         for (const auto& t : table)
@@ -261,6 +288,92 @@ namespace
 
         return nullptr;
     }
+
+    /** "half step down", "1/2 step down", "1 step down", "1.5 steps down",
+        "one and a half steps down", "2 whole steps down", "down a half step",
+        "3 semitones down", "tuned down a tone": the semitones to lower a
+        tuning by; 0 when the line says nothing of the kind. */
+    int stepsDownSemitones (const juce::String& lower)
+    {
+        if (! (lower.contains ("down") || lower.contains ("lower") || lower.contains ("flat ")))
+            return 0;
+        if (lower.contains ("step up") || lower.contains ("steps up") || lower.contains ("tuned up"))
+            return 0;
+
+        const bool semitoneUnit = lower.contains ("semitone") || lower.contains ("half-tone") || lower.contains ("halftone");
+        const bool stepUnit = lower.contains ("step") || lower.contains ("tone") || lower.contains ("whole") || lower.contains ("half");
+        if (! semitoneUnit && ! stepUnit)
+            return 0;
+
+        // Compound amounts first ("1 1/2" is not 1), then a bare number, then words.
+        double steps = -1.0;
+        if (lower.contains ("one and a half") || lower.contains ("1 and a half") || lower.contains ("1 1/2") || lower.contains ("1.5")
+             || lower.contains ("1-1/2") || lower.contains ("three half"))
+            steps = 1.5;
+        else if (lower.contains ("two and a half") || lower.contains ("2 1/2") || lower.contains ("2.5"))
+            steps = 2.5;
+
+        // A bare number: "2 steps down", "3 semitones down".
+        for (int i = 0; i < lower.length() && steps < 0.0; ++i)
+        {
+            if (! isDigit (lower[i]) || (i > 0 && (isDigit (lower[i - 1]) || lower[i - 1] == '/' || lower[i - 1] == '.')))
+                continue;
+            if (i + 1 < lower.length() && (lower[i + 1] == '/' || isDigit (lower[i + 1]) || lower[i + 1] == '-'))
+                continue;                      // "1/2" is a word below; "8-string" is not an amount
+            const int v = (int) lower[i] - '0';
+            if (v >= 1 && v <= 6)
+                steps = (double) v;
+            break;
+        }
+
+        if (steps < 0.0)
+        {
+            if (lower.contains ("half") || lower.contains ("1/2") || lower.contains ("semitone"))
+                steps = 0.5;
+            else if (lower.contains ("whole") || lower.contains ("full") || lower.contains ("one ") || lower.contains ("a step") || lower.contains ("a tone"))
+                steps = 1.0;
+            else if (lower.contains ("two ")) steps = 2.0;
+            else if (lower.contains ("three ")) steps = 3.0;
+        }
+
+        if (steps < 0.0)
+            return 0;
+
+        const int semis = semitoneUnit && ! lower.contains ("step") ? (int) std::round (steps)
+                                                                    : (int) std::round (steps * 2.0);
+        return juce::jlimit (0, 12, semis);
+    }
+
+    /** A Roman numeral after a keyword: "Capo III" -> 3, "Capo: IV" -> 4; -1 for none. */
+    int romanNumeralIn (const juce::String& lower, const juce::String& keyword)
+    {
+        const int k = lower.indexOf (keyword);
+        if (k < 0) return -1;
+        auto rest = lower.substring (k + keyword.length()).trim();
+        if (rest.startsWithChar (':') || rest.startsWithChar ('=') || rest.startsWithChar ('-'))
+            rest = rest.substring (1).trim();
+        if (rest.startsWith ("on ")) rest = rest.substring (3).trim();
+        if (rest.startsWith ("at ")) rest = rest.substring (3).trim();
+        if (rest.startsWith ("fret ")) rest = rest.substring (5).trim();
+
+        juce::String numeral;
+        for (int i = 0; i < rest.length() && i < 5; ++i)
+        {
+            const auto c = rest[i];
+            if (c == 'i' || c == 'v' || c == 'x') numeral += juce::String::charToString (c);
+            else break;
+        }
+        if (numeral.isEmpty()) return -1;
+        if (numeral.length() < rest.length() && juce::CharacterFunctions::isLetter (rest[numeral.length()]))
+            return -1;
+
+        static const char* const table[] = { "i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x", "xi", "xii" };
+        for (int n = 0; n < 12; ++n)
+            if (numeral == table[n]) return n + 1;
+        return -1;
+    }
+
+    const char* const kTuningKeywords[] = { "tuning", "tuned", "tune ", "stimmung", "afina", "accordage", "accordatura" };
 
     //==========================================================================
     // Line classification.
@@ -307,6 +420,9 @@ namespace
 
     bool looksLikeChordToken (const juce::String& token)
     {
+        if (token == "N.C." || token == "NC" || token == "N.C" || token == "(N.C.)")
+            return true;
+
         if (token.isEmpty() || pitchClassOfLetter (token[0]) < 0
              || ! juce::CharacterFunctions::isUpperCase (token[0]))
             return false;
@@ -515,7 +631,8 @@ namespace
         int capo = 0;
         juce::String tuningName { "Standard" };
         std::vector<int> tuning;        ///< highest first; empty until a header sets it
-        bool tuningSet = false, tempoSet = false, timeSet = false, capoSet = false;
+        juce::String key;               ///< "Am", "G": the page's own Key: header
+        bool tuningSet = false, tempoSet = false, timeSet = false, capoSet = false, keySet = false;
     };
 
     int firstNumber (const juce::String& s, int lo, int hi)
@@ -578,45 +695,22 @@ namespace
             return v;
         };
 
-        if (lower.contains ("tuning") || lower.contains ("tuned") || lower.startsWith ("tune "))
+        if (AsciiTabReader::looksLikeTuningStatement (lower))
         {
-            juce::String value = valueAfterKeyword ("tuning");
-            if (value.isEmpty()) value = valueAfterKeyword ("tuned");
-            if (value.isEmpty()) value = valueAfterKeyword ("tune");
-
-            const auto whole = lower;
-            if (const auto* t = matchTuning (whole))
+            std::vector<int> midi;
+            juce::String name;
+            if (AsciiTabReader::parseTuningStatement (line, midi, name))
             {
-                h.tuning.assign (t->notes, t->notes + t->count);
-                h.tuningName = value.isNotEmpty() ? value : juce::String (t->match);
-                h.tuningSet = true;
-                used = true;
-            }
-            else if (whole.contains ("down") && (whole.contains ("1/2") || whole.contains ("half")))
-            {
-                h.tuning = { 63, 58, 54, 49, 44, 39 };
-                h.tuningName = "Eb Standard";
-                h.tuningSet = true;
-                used = true;
-            }
-            else if (whole.contains ("down") && (whole.contains ("whole") || whole.contains ("full")))
-            {
-                h.tuning = { 62, 57, 53, 48, 43, 38 };
-                h.tuningName = "D Standard";
+                h.tuning = midi;
+                h.tuningName = name;
                 h.tuningSet = true;
                 used = true;
             }
             else
             {
-                std::vector<int> midi;
-                if (AsciiTabReader::parseTuningNames (value, midi, true))
-                {
-                    h.tuning = midi;
-                    h.tuningName = value;
-                    h.tuningSet = true;
-                    used = true;
-                }
-                else if (value.isNotEmpty())
+                juce::String value = valueAfterKeyword ("tuning");
+                if (value.isEmpty()) value = valueAfterKeyword ("tuned");
+                if (value.isNotEmpty())
                 {
                     warn (d, "tuning \"" + value + "\" not recognised; standard assumed");
                     h.tuningName = value;
@@ -625,12 +719,24 @@ namespace
             }
         }
 
-        if (lower.contains ("capo"))
+        if (lower.contains ("capo") || lower.contains ("capodastre") || lower.contains ("cejilla"))
         {
-            const int n = firstNumber (line, 0, 24);
-            h.capo = (lower.contains ("no capo") || lower.contains ("none")) ? 0 : juce::jmax (0, n);
+            int n = firstNumber (line, 0, 24);
+            if (n < 0) n = romanNumeralIn (lower, "capo");
+            h.capo = (lower.contains ("no capo") || lower.contains ("none") || lower.contains ("without")) ? 0 : juce::jmax (0, n);
             h.capoSet = true;
             used = true;
+        }
+
+        // "Key: Am", "Key of G", "Key - F#m", "Tonart: A-Moll", "Tonalidad: Sol".
+        {
+            int root = -1; bool minor = false;
+            if (AsciiTabReader::parseKeyStatement (line, root, minor))
+            {
+                h.key = AsciiTabReader::keyName (root, minor);
+                h.keySet = true;
+                used = true;
+            }
         }
 
         if (lower.contains ("tempo") || lower.contains ("bpm") || lower.startsWith ("q =")
@@ -644,8 +750,13 @@ namespace
         {
             int num = 4, den = 4;
             const bool wholeLineIsMeter = lower.length() <= 6 && lower.containsChar ('/');
+            // "Tempo: 1/4 = 120" names a note value, not a metre.
+            const int slash = lower.indexOfChar ('/');
+            const bool fractionIsNoteValue = slash > 0 && lower.substring (slash + 1).trim().length() > 1
+                                              && lower.substring (slash + 2).trimStart().startsWithChar ('=');
             if ((lower.contains ("time") || lower.contains ("meter") || lower.contains ("metre")
                   || lower.contains ("tempo") || wholeLineIsMeter)
+                 && ! fractionIsNoteValue
                  && readTimeSignature (line, num, den))
             {
                 h.numerator = num; h.denominator = den; h.timeSet = true;
@@ -869,14 +980,165 @@ namespace
     }
 
     //==========================================================================
+    struct ChordMark { int measure = 0; double beat = 0.0; juce::String name; };
+
     struct System
     {
         std::vector<LineInfo*> lines;
         std::vector<Token> tokens;
+        std::vector<ChordMark> chords;      ///< chord names written above the staff
         int measuresOnLines = 1;
         int repeatStart = -1, repeatEnd = -1, repeatCount = 0;
         bool rhythmApplied = false;
     };
+
+    //==========================================================================
+    // Lines above a staff: chord names, strumming patterns and accents
+    // (universal tab player, item 2). Each glyph is placed by its column: the
+    // note column nearest to it (within three columns, preferring the one at
+    // or after it) says which beat it belongs to.
+
+    struct ColumnMark { int column; juce::String text; };
+
+    std::vector<ColumnMark> columnTokens (const juce::String& raw)
+    {
+        std::vector<ColumnMark> out;
+        const auto l = toLine (raw);
+        for (int i = 0; i < (int) l.size() && out.size() < 256;)
+        {
+            if (isSpace (l[(size_t) i])) { ++i; continue; }
+            const int from = i;
+            while (i < (int) l.size() && ! isSpace (l[(size_t) i])) ++i;
+            out.push_back ({ from, toString (l, from, i) });
+        }
+        return out;
+    }
+
+    /** The token(s) at the note column nearest `column`; empty when none is within reach. */
+    std::vector<Token*> tokensNearColumn (System& sys, int column, int reach = 3)
+    {
+        int bestDistance = reach + 1, bestColumn = -1;
+        for (const auto& t : sys.tokens)
+        {
+            const int distance = std::abs (t.rawColumn - column);
+            // A name is written at or just before the note it labels: prefer rightwards.
+            const int scored = t.rawColumn >= column ? distance : distance + 1;
+            if (scored < bestDistance) { bestDistance = scored; bestColumn = t.rawColumn; }
+        }
+
+        std::vector<Token*> out;
+        if (bestColumn < 0) return out;
+        for (auto& t : sys.tokens)
+            if (t.rawColumn == bestColumn)
+                out.push_back (&t);
+        return out;
+    }
+
+    /** "Am      G       C": chord names over the staff become chord symbols on the beats under them. */
+    int readChordLine (System& sys, const juce::String& raw)
+    {
+        int placed = 0;
+        for (const auto& mark : columnTokens (raw))
+        {
+            if (! looksLikeChordToken (mark.text)) continue;
+            const auto near = tokensNearColumn (sys, mark.column, 4);
+            if (near.empty()) continue;
+            if (sys.chords.size() >= 512) break;
+            sys.chords.push_back ({ near.front()->measure, near.front()->beat, mark.text });
+            ++placed;
+        }
+        return placed;
+    }
+
+    enum class StrumGlyph { none, down, up, mute, rest, accent };
+
+    StrumGlyph strumGlyphFor (const juce::String& g)
+    {
+        if (g == "D" || g == "d" || g == "v" || g == "V" || g == juce::String (juce::CharPointer_UTF8 ("\xe2\x86\x93"))) return StrumGlyph::down;
+        if (g == "U" || g == "u" || g == "^" || g == juce::String (juce::CharPointer_UTF8 ("\xe2\x86\x91")))  return StrumGlyph::up;
+        if (g == "x" || g == "X") return StrumGlyph::mute;
+        if (g == "-" || g == "." || g == "_") return StrumGlyph::rest;
+        if (g == ">") return StrumGlyph::accent;
+        return StrumGlyph::none;
+    }
+
+    /** Splits "DU" / "D-DU" / "↓↑" into one glyph per column; empty unless every glyph is a strum glyph. */
+    std::vector<ColumnMark> strumGlyphs (const juce::String& raw, int& strokes)
+    {
+        std::vector<ColumnMark> out;
+        strokes = 0;
+        auto text = raw;
+        // "Strumming: D DU UDU" / "Pattern - D D U U D U": the glyphs follow the label.
+        const int colon = text.indexOfChar (':');
+        int offset = 0;
+        if (colon >= 0 && colon <= 24 && text.substring (0, colon).trim().containsOnly ("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ ."))
+        {
+            offset = colon + 1;
+            text = text.substring (offset);
+        }
+        for (const auto& mark : columnTokens (text))
+        {
+            int column = mark.column + offset;
+            for (auto t = mark.text.getCharPointer(); ! t.isEmpty(); ++t)
+            {
+                const auto g = juce::String::charToString (*t);
+                const auto kind = strumGlyphFor (g);
+                if (kind == StrumGlyph::none) return {};
+                if (kind == StrumGlyph::down || kind == StrumGlyph::up || kind == StrumGlyph::mute) ++strokes;
+                out.push_back ({ column, g });
+                ++column;
+                if (out.size() > 512) return {};
+            }
+        }
+        return out;
+    }
+
+    bool isStrumLine (const juce::String& raw)
+    {
+        int strokes = 0;
+        const auto glyphs = strumGlyphs (raw, strokes);
+        if (glyphs.empty() || strokes < 2) return false;
+        // "D D D D" over a staff is a strum line, not four D chords, when nothing else is on it.
+        return true;
+    }
+
+    /** A strumming line: every stroke marks the notes under it with a pick direction; "x" mutes them. */
+    int readStrumLine (System& sys, const juce::String& raw)
+    {
+        int strokes = 0;
+        int applied = 0;
+        for (const auto& g : strumGlyphs (raw, strokes))
+        {
+            const auto kind = strumGlyphFor (g.text);
+            if (kind == StrumGlyph::none || kind == StrumGlyph::rest) continue;
+            for (auto* t : tokensNearColumn (sys, g.column, 2))
+            {
+                if (kind == StrumGlyph::mute)
+                {
+                    t->dead = true;
+                    if (! hasType (t->techniques, Type::deadNote)) t->techniques.push_back (make (Type::deadNote));
+                }
+                else if (kind == StrumGlyph::accent)
+                {
+                    if (! hasType (t->techniques, Type::accent)) t->techniques.push_back (make (Type::accent));
+                }
+                else
+                {
+                    const auto type = kind == StrumGlyph::up ? Type::pickStrokeUp : Type::pickStrokeDown;
+                    if (! hasType (t->techniques, type)) t->techniques.push_back (make (type));
+                }
+                ++applied;
+            }
+        }
+        return applied;
+    }
+
+    /** A row of ">" above the staff accents the notes under each mark. */
+    bool isAccentLine (const juce::String& raw)
+    {
+        const auto t = raw.trim();
+        return t.isNotEmpty() && t.containsOnly ("> ") && t.containsChar ('>');
+    }
 
     void parseSystem (System& sys, double beatsPerMeasure, TabImportDiagnostics* d,
                       const std::vector<LineInfo*>& annotationsAbove,
@@ -1543,6 +1805,7 @@ bool AsciiTabReader::read (const juce::String& text, PerformanceScore& destinati
         track.numStrings = numStrings;
         track.name = numStrings <= 5 && track.tuning[0] <= 50 ? "Bass" : "Guitar";
         destination.getMeta().tuningName = header.tuningName;
+        destination.getMeta().key = header.key;   // the page's own Key: header, or empty
     }
 
     const double beatsPerMeasure = (double) juce::jmax (1, header.numerator) * 4.0
@@ -1589,6 +1852,32 @@ bool AsciiTabReader::read (const juce::String& text, PerformanceScore& destinati
 
         if (rhythmLine >= 0 && sys.rhythmApplied)
             lines[(size_t) rhythmLine].kind = LineKind::header;
+
+        // Chord names, strumming patterns and accents above the staff (item 2).
+        for (int i = b.first - 1; i >= 0 && i >= b.first - 5; --i)
+        {
+            auto& li = lines[(size_t) i];
+            if (li.kind == LineKind::staff || li.kind == LineKind::header) break;
+            if (li.kind == LineKind::empty || i == rhythmLine) continue;
+
+            const auto& raw = rawLines[i];
+            if (isStrumLine (raw))
+            {
+                if (readStrumLine (sys, raw) > 0) { li.kind = LineKind::header; ++d->annotationLines; }
+            }
+            else if (li.kind == LineKind::chords)
+            {
+                if (readChordLine (sys, raw) > 0) { li.kind = LineKind::header; ++d->headerLines; }
+            }
+            else if (isAccentLine (raw))
+            {
+                int applied = 0;
+                for (const auto& mark : columnTokens (raw))
+                    for (auto* t : tokensNearColumn (sys, mark.column, 2))
+                        if (! hasType (t->techniques, Type::accent)) { t->techniques.push_back (make (Type::accent)); ++applied; }
+                if (applied > 0) { li.kind = LineKind::header; ++d->annotationLines; }
+            }
+        }
 
         // A repeat count on the line after the block: "x4", "(x3)", "play 3 times".
         for (int i = b.first + b.count; i < (int) lines.size() && i <= b.first + b.count + 1; ++i)
@@ -1660,6 +1949,10 @@ bool AsciiTabReader::read (const juce::String& text, PerformanceScore& destinati
             const int m = playOrder[p];
             const double measureBase = (double) (measureNumber + (int) p) * beatsPerMeasure;
 
+            for (const auto& c : sys.chords)
+                if (c.measure == m)
+                    destination.addChordSymbol (measureBase + c.beat, c.name);
+
             for (const auto& t : sys.tokens)
             {
                 if (t.measure != m || t.tie)
@@ -1724,6 +2017,194 @@ bool AsciiTabReader::read (const juce::String& text, PerformanceScore& destinati
     }
 
     return true;
+}
+
+//==============================================================================
+bool AsciiTabReader::looksLikeTuningStatement (const juce::String& lower)
+{
+    for (const auto* k : kTuningKeywords)
+        if (lower.contains (k))
+            return true;
+
+    // Japanese pages: チューニング.
+    if (lower.contains (juce::String (juce::CharPointer_UTF8 ("\xe3\x83\x81\xe3\x83\xa5\xe3\x83\xbc\xe3\x83\x8b\xe3\x83\xb3\xe3\x82\xb0"))))
+        return true;
+
+    static const char* const names[] = { "drop d", "drop c", "drop b", "drop a", "dadgad", "open g", "open d", "open e",
+                                         "open a", "open c", "standard tuning", "standard (", "normal tuning", "baritone",
+                                         "eadgbe", "half-step", "whole-step",
+                                         "step down", "steps down", "half step", "whole step", "semitone", "eb standard",
+                                         "d standard", "c# standard", "c standard", "b standard" };
+    for (const auto* n : names)
+        if (lower.contains (n))
+            return true;
+    return false;
+}
+
+bool AsciiTabReader::parseTuningStatement (const juce::String& text, std::vector<int>& midiHighFirst,
+                                           juce::String& canonicalName)
+{
+    midiHighFirst.clear();
+    canonicalName.clear();
+
+    const auto line = text.trim();
+    if (line.isEmpty() || line.length() > 200)
+        return false;
+    const auto lower = line.toLowerCase();
+    const int offset = stepsDownSemitones (lower);
+
+    std::vector<int> base;
+    juce::String name;
+
+    if (const auto* t = matchTuning (lower))
+    {
+        base.assign (t->notes, t->notes + t->count);
+        name = t->name;
+    }
+    else
+    {
+        // A note list: after the colon / equals / keyword, or in parentheses.
+        juce::StringArray candidates;
+        const int colon = line.indexOfAnyOf (":=");
+        if (colon >= 0) candidates.add (line.substring (colon + 1));
+        const int open = line.indexOfChar ('('), close = line.lastIndexOfChar (')');
+        if (open >= 0 && close > open) candidates.add (line.substring (open + 1, close));
+        for (const auto* k : kTuningKeywords)
+        {
+            const int at = lower.indexOf (k);
+            if (at >= 0) { candidates.add (line.substring (at + (int) std::strlen (k))); candidates.add (line.substring (0, at)); }
+        }
+        if (candidates.isEmpty()) candidates.add (line);
+
+        for (auto c : candidates)
+        {
+            c = c.trim();
+            // "E A D G B E (half step down)": the list is before the parenthesis.
+            const int paren = c.indexOfChar ('(');
+            if (paren > 0) c = c.substring (0, paren).trim();
+            while (c.startsWithChar (':') || c.startsWithChar ('=') || c.startsWithChar ('-')) c = c.substring (1).trim();
+            if (c.isEmpty() || c.length() > 60) continue;
+            // Strip a trailing "..., half step down" clause.
+            const int comma = c.indexOfChar (',');
+            if (comma > 0 && stepsDownSemitones (c.substring (comma).toLowerCase()) > 0) c = c.substring (0, comma).trim();
+            if (parseTuningNames (c, base, true))
+            {
+                name = c;
+                break;
+            }
+            base.clear();
+
+            // "Tuning: Eb", "Tuning: D": standard, lowered to that top string.
+            const auto single = tokeniseNames (c);
+            if (single.size() == 1 && single.front().octave < 0 && c.length() <= 3)
+            {
+                const int shift = ((4 - single.front().pitchClass) % 12 + 12) % 12;
+                if (shift <= 6)
+                {
+                    base = { 64, 59, 55, 50, 45, 40 };
+                    for (auto& m : base) m -= shift;
+                    static const char* const lowered[] = { "Standard", "Eb Standard", "D Standard", "C# Standard",
+                                                           "C Standard", "B Standard (6-string)", "Bb Standard" };
+                    name = lowered[shift];
+                    break;
+                }
+            }
+        }
+
+        if (base.empty() && offset > 0)
+        {
+            base = { 64, 59, 55, 50, 45, 40 };     // "tuned down a half step" alone means standard, lowered
+            name = "Standard";
+        }
+    }
+
+    if (base.empty())
+        return false;
+
+    if (offset > 0)
+    {
+        for (auto& m : base)
+            m = juce::jlimit (0, 127, m - offset);
+
+        if (name == "Standard")
+        {
+            static const char* const lowered[] = { "Standard", "Eb Standard", "D Standard", "C# Standard", "C Standard" };
+            name = offset <= 4 ? juce::String (lowered[offset])
+                               : juce::String ("Standard, ") + juce::String (offset) + " semitones down";
+        }
+        else
+        {
+            name << ", " << (offset == 1 ? juce::String ("half step down")
+                           : offset == 2 ? juce::String ("whole step down")
+                                         : juce::String (offset) + " semitones down");
+        }
+    }
+
+    midiHighFirst = std::move (base);
+    canonicalName = name;
+    return true;
+}
+
+bool AsciiTabReader::parseKeyStatement (const juce::String& text, int& rootPitchClass, bool& minor)
+{
+    const auto line = text.trim();
+    const auto lower = line.toLowerCase();
+    static const char* const keywords[] = { "key of ", "key:", "key =", "key=", "key -", "key ", "tonart", "tonalidad",
+                                            "tonalite", "tonalit\xc3\xa9", "tonalit\xc3\xa0", "in the key" };
+    int at = -1, len = 0;
+    for (const auto* k : keywords)
+    {
+        const juce::String kw { juce::CharPointer_UTF8 (k) };
+        const int i = lower.indexOf (kw);
+        if (i >= 0 && (i == 0 || ! juce::CharacterFunctions::isLetter (lower[i - 1]))) { at = i; len = kw.length(); break; }
+    }
+    if (at < 0 || line.length() > 120)
+        return false;
+
+    auto rest = line.substring (at + len).trim();
+    while (rest.startsWithChar (':') || rest.startsWithChar ('=') || rest.startsWithChar ('-')) rest = rest.substring (1).trim();
+    if (rest.startsWith ("of ")) rest = rest.substring (3).trim();
+    if (rest.isEmpty())
+        return false;
+
+    // Solfège roots (French / Spanish / Italian pages).
+    static const struct { const char* name; int pc; } solfege[] = {
+        { "do#", 1 }, { "reb", 1 }, { "re#", 3 }, { "mib", 3 }, { "fa#", 6 }, { "solb", 6 }, { "sol#", 8 }, { "lab", 8 },
+        { "la#", 10 }, { "sib", 10 }, { "do", 0 }, { "re", 2 }, { "mi", 4 }, { "fa", 5 }, { "sol", 7 }, { "la", 9 }, { "si", 11 } };
+    const auto restLower = rest.toLowerCase();
+    int root = -1, consumed = 0;
+    const int pc = pitchClassOfLetter (rest[0]);
+    if (pc >= 0 && (rest.length() == 1 || ! juce::CharacterFunctions::isLetter (rest[1]) || rest[1] == 'b' || rest[1] == 'm' || rest[1] == 'M' || rest[1] == 'd'))
+    {
+        root = pc; consumed = 1;
+        if (rest.length() > 1 && (rest[1] == '#' || rest[1] == (juce::juce_wchar) 0x266f)) { root = (root + 1) % 12; consumed = 2; }
+        else if (rest.length() > 1 && (rest[1] == 'b' || rest[1] == (juce::juce_wchar) 0x266d)) { root = (root + 11) % 12; consumed = 2; }
+    }
+    else
+    {
+        for (const auto& sf : solfege)
+            if (restLower.startsWith (sf.name)) { root = sf.pc; consumed = (int) std::strlen (sf.name); break; }
+    }
+    if (root < 0)
+        return false;
+
+    const auto quality = restLower.substring (consumed).trim();
+    minor = quality.startsWith ("m") && ! quality.startsWith ("maj") && ! quality.startsWith ("major");
+    if (quality.startsWith ("-") || quality.startsWith ("moll") || quality.startsWith ("minor") || quality.startsWith ("menor") || quality.startsWith ("mineur"))
+        minor = true;
+    if (quality.startsWith ("dur") || quality.startsWith ("mayor") || quality.startsWith ("majeur"))
+        minor = false;
+
+    rootPitchClass = root;
+    return true;
+}
+
+juce::String AsciiTabReader::keyName (int rootPitchClass, bool minor)
+{
+    static const char* const names[12] = { "C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B" };
+    static const char* const minorNames[12] = { "C", "C#", "D", "Eb", "E", "F", "F#", "G", "G#", "A", "Bb", "B" };
+    const int pc = ((rootPitchClass % 12) + 12) % 12;
+    return juce::String (minor ? minorNames[pc] : names[pc]) + (minor ? "m" : "");
 }
 
 } // namespace luthier

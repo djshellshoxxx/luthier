@@ -128,56 +128,20 @@ namespace
         return -1;
     }
 
-    std::vector<int> namedTuning (const juce::String& lower, juce::String& name)
+    std::vector<int> namedTuning (const juce::String& line, juce::String& name)
     {
-        if (lower.contains ("dadgad"))
-        {
-            name = "DADGAD";
-            return { 62, 57, 55, 50, 45, 38 };
-        }
-        if (lower.contains ("drop d"))
-        {
-            name = "Drop D";
-            return { 64, 59, 55, 50, 45, 38 };
-        }
-        if (lower.contains ("drop c"))
-        {
-            name = "Drop C";
-            return { 62, 57, 53, 48, 43, 36 };
-        }
-        if (lower.contains ("open g"))
-        {
-            name = "Open G";
-            return { 62, 59, 55, 50, 43, 38 };
-        }
-        if (lower.contains ("half step down") || lower.contains ("half-step down")
-            || lower.contains ("1/2 step down") || lower.contains ("tuned down 1/2"))
-        {
-            name = "Eb Standard";
-            return { 63, 58, 54, 49, 44, 39 };
-        }
-        if (lower.contains ("whole step down") || lower.contains ("full step down"))
-        {
-            name = "D Standard";
-            return { 62, 57, 53, 48, 43, 38 };
-        }
-        if (lower.contains ("standard") || lower.contains ("normal tuning")
-            || lower.contains ("eadgbe"))
-        {
-            name = "Standard";
-            return { 64, 59, 55, 50, 45, 40 };
-        }
+        // One parser for every convention (AsciiTabReader::parseTuningStatement):
+        // named tunings, note lists either way round, German H, step offsets.
+        std::vector<int> midi;
+        if (AsciiTabReader::parseTuningStatement (line, midi, name))
+            return midi;
+        name.clear();
         return {};
     }
 
     bool lineLooksLikeTuningStatement (const juce::String& lower)
     {
-        return lower.contains ("tuning") || lower.contains ("tuned ")
-            || lower.contains ("drop d") || lower.contains ("drop c")
-            || lower.contains ("dadgad") || lower.contains ("open g")
-            || lower.contains ("half step down") || lower.contains ("half-step down")
-            || lower.contains ("whole step down") || lower.contains ("normal tuning")
-            || lower.contains ("standard (") || lower.contains ("standard tuning");
+        return AsciiTabReader::looksLikeTuningStatement (lower);
     }
 
     juce::String tuningPayload (const juce::String& line)
@@ -218,7 +182,7 @@ namespace
         candidate.rawText = line.trim();
         candidate.source = { sourceLine, sourceLine, 0, line.length() };
         candidate.confidence = TabConfidence::exact;
-        candidate.midiHighFirst = namedTuning (lower, candidate.canonicalName);
+        candidate.midiHighFirst = namedTuning (line, candidate.canonicalName);
 
         if (candidate.midiHighFirst.empty())
         {

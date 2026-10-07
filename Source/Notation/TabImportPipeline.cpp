@@ -1,6 +1,7 @@
 #include "TabImportPipeline.h"
 #include "TabDirectiveApplier.h"
 #include "TabChordChart.h"
+#include "TabKeyDetector.h"
 
 namespace luthier
 {
@@ -44,13 +45,17 @@ bool TabImportPipeline::read (const juce::String& source, PerformanceScore& dest
     auto merged = TabSemanticAdapter::mergeDiagnostics (lastDocument.diagnostics, semantic);
 
     if (ok)
+    {
         TabDirectiveApplier::apply (lastDocument, destination, merged);
+        TabKeyDetector::apply (destination);     // the page's Key: header, else an estimate
+    }
 
     // Chords over lyrics and nothing else: strum the shapes instead of refusing.
     if (! ok && merged.drumLinesSkipped == 0)
     {
         const auto& meta = lastDocument.metadata;
-        const std::vector<int> tuning = (! meta.tuningAmbiguous && meta.tuningMidiHighFirst.size() == 6)
+        const std::vector<int> tuning = (! meta.tuningAmbiguous && meta.tuningMidiHighFirst.size() >= 4
+                                         && meta.tuningMidiHighFirst.size() <= 8)
                                           ? meta.tuningMidiHighFirst : std::vector<int>();
         TabImportDiagnostics chart = merged;
 
@@ -58,6 +63,7 @@ bool TabImportPipeline::read (const juce::String& source, PerformanceScore& dest
                                  meta.capoFret > 0 ? meta.capoFret : 0, meta.tempoBpm))
         {
             merged = chart;
+            TabKeyDetector::apply (destination);
             lastError.clear();
             lastDocument.diagnostics = merged;
             if (diagnostics != nullptr)

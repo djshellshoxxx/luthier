@@ -40,6 +40,23 @@ public:
     static bool parseTuningNames (const juce::String& text, std::vector<int>& midiHighFirst,
                                   bool lowToHigh = true);
 
+    /** True when a lowercase line talks about tuning ("Tuning:", "tuned down",
+        "Drop D", "Stimmung", "Afinación", "half step down", ...). */
+    static bool looksLikeTuningStatement (const juce::String& lower);
+
+    /** A whole tuning line, in any convention: a named tuning ("Drop D", "Open G",
+        "baritone", "DADGAD"), a note list either way round (German H allowed),
+        and an offset ("half step down", "1 1/2 steps down", "3 semitones
+        down") applied to either. `canonicalName` re-parses to the same list. */
+    static bool parseTuningStatement (const juce::String& line, std::vector<int>& midiHighFirst,
+                                      juce::String& canonicalName);
+
+    /** "Key: Am", "Key of G", "Tonart: A-Moll", "Tonalidad: Sol menor". */
+    static bool parseKeyStatement (const juce::String& line, int& rootPitchClass, bool& minor);
+
+    /** The key spelling the score stores: "Am", "Bb", "F#m". */
+    static juce::String keyName (int rootPitchClass, bool minor);
+
 private:
     juce::String lastError;
 };
