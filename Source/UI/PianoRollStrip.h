@@ -125,6 +125,7 @@ private:
     PianoRollModel::Range range;
     std::uint32_t lastSequence = 0;
     double lastPublishMs = 0.0, lastTickMs = 0.0;
+    bool lastTickQuiet = false;
 
     juce::TextButton modeButton { "ROLL" }, latchButton { "LATCH" }, fingeringButton { "FINGERING" },
                      playButton { "PLAY" }, clearButton { "CLEAR" }, collapseButton;

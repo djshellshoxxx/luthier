@@ -5,6 +5,37 @@
 
 namespace luthier
 {
+/*  The opaque parent whose static background a child can bake into its own
+    cache, so the child is opaque too and the parent is spared the repaint
+    under it on every animated frame. Null when the parent is not opaque, or an
+    earlier (lower) visible sibling overlaps the child: then the child would
+    hide it. The parent's paint() must be static for the child's bounds, which
+    the opaque panels' PaintCache-backed paints are. */
+inline juce::Component* opaqueParentBehind (const juce::Component& c)
+{
+    auto* parent = c.getParentComponent();
+
+    if (parent == nullptr || ! parent->isOpaque())
+        return nullptr;
+
+    const int index = parent->getIndexOfChildComponent (&c);
+
+    for (int i = 0; i < index; ++i)
+        if (auto* s = parent->getChildComponent (i); s != nullptr && s->isVisible() && s->getBounds().intersects (c.getBounds()))
+            return nullptr;
+
+    return parent;
+}
+
+/** Paints `parent`'s background under `c` into `g`, in `c`'s coordinates. */
+inline void paintParentBackgroundUnder (juce::Component& parent, const juce::Component& c, juce::Graphics& g)
+{
+    juce::Graphics::ScopedSaveState save (g);
+    g.setOrigin (-c.getPosition());
+    g.reduceClipRegion (c.getBounds());
+    parent.paint (g);
+}
+
 /*  A component's static painting, rendered once into an image at the screen's
     real pixel density and blitted on every later paint.
 

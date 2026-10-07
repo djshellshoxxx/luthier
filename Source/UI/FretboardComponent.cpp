@@ -1,5 +1,6 @@
 #include "FretboardComponent.h"
 #include "PerformanceAssistUi.h"   // FEAT-ASSIST
+#include "PaintCache.h"
 #include "Techniques/TechniqueOverlay.h"
 #include "../PluginProcessor.h"
 #include "../Accessibility/Accessibility.h"
@@ -514,7 +515,10 @@ void FretboardComponent::paint (juce::Graphics& g)
     AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
 
     if (boardArea.isEmpty())
+    {
+        setOpaque (false);
         return;
+    }
 
     /*  animated-strings.md 4.4 and 11: while the strings animate, the static board
         is blitted from a cache so a dirty-rect frame costs only what moves. With
@@ -526,13 +530,22 @@ void FretboardComponent::paint (juce::Graphics& g)
 
         if (staticCache.isNull() || key != staticCacheKey)
         {
-            staticCache = juce::Image (juce::Image::ARGB, juce::jmax (1, juce::roundToInt ((float) getWidth() * scale)),
+            // An opaque parent's background baked in (PaintCache.h): an RGB cache,
+            // a plain copy per frame, and no parent repaint under the live layer.
+            auto* behind = opaqueParentBehind (*this);
+            staticCache = juce::Image (behind != nullptr ? juce::Image::RGB : juce::Image::ARGB,
+                                       juce::jmax (1, juce::roundToInt ((float) getWidth() * scale)),
                                        juce::jmax (1, juce::roundToInt ((float) getHeight() * scale)), true);
             juce::Graphics cg (staticCache);
             cg.addTransform (juce::AffineTransform::scale (scale));
+
+            if (behind != nullptr)
+                paintParentBackgroundUnder (*behind, *this, cg);
+
             paintStaticLayer (cg);
             paintFretNumbers (cg);
             staticCacheKey = key;
+            setOpaque (behind != nullptr);
         }
 
         g.drawImage (staticCache, getLocalBounds().toFloat());
@@ -549,12 +562,19 @@ void FretboardComponent::paint (juce::Graphics& g)
 
         if (staticCache.isNull() || key != staticCacheKey)
         {
-            staticCache = juce::Image (juce::Image::ARGB, juce::jmax (1, juce::roundToInt ((float) getWidth() * scale)),
+            auto* behind = opaqueParentBehind (*this);
+            staticCache = juce::Image (behind != nullptr ? juce::Image::RGB : juce::Image::ARGB,
+                                       juce::jmax (1, juce::roundToInt ((float) getWidth() * scale)),
                                        juce::jmax (1, juce::roundToInt ((float) getHeight() * scale)), true);
             juce::Graphics cg (staticCache);
             cg.addTransform (juce::AffineTransform::scale (scale));
+
+            if (behind != nullptr)
+                paintParentBackgroundUnder (*behind, *this, cg);
+
             paintStaticLayer (cg);
             staticCacheKey = key;
+            setOpaque (behind != nullptr);
         }
 
         g.drawImage (staticCache, getLocalBounds().toFloat());

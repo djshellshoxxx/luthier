@@ -3334,6 +3334,63 @@ void GuitarRenderer::paintMotionGhost (juce::Graphics& g, const StringMotionFram
     // speaking length as the string moves.
     auto restLine = [&] (juce::Point<float> a, juce::Point<float> b, float alpha)
     {
+        const auto d = b - a;
+
+        if (std::abs (d.x) > 1.0f && std::abs (d.y) <= 0.1f * std::abs (d.x))
+        {
+            /*  A near-horizontal rest line as runs of axis-aligned rectangles, the
+                same quarter-pixel staircase as the swept layers above: a stroked
+                two-point path costs a stroke build and an edge table per string per
+                frame, which was a quarter of the Easy view's paint time (perf,
+                OPTIMISATION_LOG). The dashed winding is the same runs with gaps. */
+            static thread_local juce::RectangleList<float> lineRuns;
+            constexpr float kStep = 0.25f;
+            const float cx0 = clip.getX(), cx1 = clip.getRight();
+            const float len = std::sqrt (d.x * d.x + d.y * d.y);
+            const float ny = std::abs (d.x) / len;   // the normal's y: the band's half-height per unit half-width
+
+            auto addBand = [&] (float t0, float t1, float halfWidth)
+            {
+                // The band from t0 to t1 along the line (0..1), halfWidth px either side.
+                const float xa = a.x + d.x * t0, xb = a.x + d.x * t1;
+                const float ya = a.y + d.y * t0, yb = a.y + d.y * t1;
+                const int steps = juce::jlimit (1, 400, (int) std::ceil (std::abs (yb - ya) / kStep));
+
+                for (int j = 0; j < steps; ++j)
+                {
+                    const float f0 = (float) j / (float) steps, f1 = (float) (j + 1) / (float) steps;
+                    const float ym = ya + (yb - ya) * (f0 + f1) * 0.5f;
+                    float x0 = xa + (xb - xa) * f0, x1 = xa + (xb - xa) * f1;
+                    if (x1 < x0) std::swap (x0, x1);
+                    x0 = juce::jmax (x0, cx0);
+                    x1 = juce::jmin (x1, cx1);
+                    const float h = halfWidth * ny;
+
+                    if (x1 > x0 && h > 0.0f)
+                        lineRuns.addWithoutMerging ({ x0, ym - h, x1 - x0, 2.0f * h });
+                }
+            };
+
+            lineRuns.clear();
+            addBand (0.0f, 1.0f, widthPx * 0.5f);
+            g.setColour (colour.withMultipliedAlpha (alpha));
+            g.fillRectList (lineRuns);
+
+            if (high && look.dashedWinding && widthPx >= 1.2f)
+            {
+                lineRuns.clear();
+                const float dash = juce::jmax (1.0f, widthPx * 0.9f);
+
+                for (float t = 0.0f; t < len; t += 2.0f * dash)
+                    addBand (t / len, juce::jmin (len, t + dash) / len, widthPx * 0.35f);
+
+                g.setColour (look.winding.withMultipliedAlpha (alpha));
+                g.fillRectList (lineRuns);
+            }
+
+            return;
+        }
+
         juce::Path line;
         line.startNewSubPath (a);
         line.lineTo (b);

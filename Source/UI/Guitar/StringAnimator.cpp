@@ -57,7 +57,7 @@ bool StringAnimator::isRunning() const noexcept
 bool StringAnimator::isEffectivelyShowing (const juce::Component& c)
 {
     if (c.getPeer() != nullptr)
-        return c.isShowing();
+        return AnimationPolicy::isShowingFast (c);
 
     // No window (tests, or a component not yet on screen): visible within its
     // own hierarchy.

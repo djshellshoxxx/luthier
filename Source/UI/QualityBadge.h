@@ -66,6 +66,7 @@ private:
     juce::String label, share;
     double load = 0.0;
     bool stale = true;
+    juce::String lastPainted;   // what the last repaint drew
     long long lastBlocks = -1;
     double lastBlocksChangedMs = 0.0;
 };

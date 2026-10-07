@@ -84,21 +84,7 @@ void VuMeter::paint (juce::Graphics& g)
     // The face: cream under the needle, as on a tape machine; flat in High contrast.
     const auto face = Palette::textured ? juce::Colour (0xffe9dcbc) : Palette::panelSunken;
     const auto ink = Palette::textured ? juce::Colour (0xff2a1a0c) : Palette::textPrimary;
-
-    g.setColour (Palette::edge);
-    g.fillRoundedRectangle (b, 4.0f);
     auto inner = b.reduced (2.0f);
-
-    if (Palette::textured)
-    {
-        juce::ColourGradient glow (face.brighter (0.15f), inner.getCentreX(), inner.getBottom(),
-                                   face.darker (0.12f), inner.getCentreX(), inner.getY(), true);
-        g.setGradientFill (glow);
-    }
-    else
-        g.setColour (face);
-
-    g.fillRoundedRectangle (inner, 3.0f);
 
     // The arc and its ticks, pivoting below the face.
     const juce::Point<float> pivot { inner.getCentreX(), inner.getBottom() + inner.getHeight() * 0.25f };
@@ -106,39 +92,58 @@ void VuMeter::paint (juce::Graphics& g)
     const float sweep = 0.78f;   // radians either side of vertical
     auto angleOf = [sweep] (double vu) { return -sweep + 2.0f * sweep * scalePosition (vu); };
 
-    juce::Path arc;
-    arc.addCentredArc (pivot.x, pivot.y, radius * 0.86f, radius * 0.86f, 0.0f, angleOf (kMinVu), angleOf (0.0), true);
-    g.setColour (ink.withAlpha (0.8f));
-    g.strokePath (arc, juce::PathStrokeType (1.2f));
-
-    juce::Path red;
-    red.addCentredArc (pivot.x, pivot.y, radius * 0.86f, radius * 0.86f, 0.0f, angleOf (0.0), angleOf (kMaxVu), true);
-    g.setColour (Palette::clip);
-    g.strokePath (red, juce::PathStrokeType (2.2f));
-
-    g.setFont (Fonts::mono (8.0f));
-
-    for (double vu : { -20.0, -10.0, -7.0, -5.0, -3.0, -2.0, -1.0, 0.0, 1.0, 2.0, 3.0 })
+    // Everything but the needle is static: cached (two arcs, eleven ticks and
+    // six labels were drawn 30 times a second while notes played).
+    faceCache.draw (g, getLocalBounds(), 0, [&] (juce::Graphics& g)
     {
-        const float a = angleOf (vu);
-        const bool labelled = vu == -20.0 || vu == -10.0 || vu == -5.0 || vu == 0.0 || vu == 3.0;
-        const auto p1 = pivot.getPointOnCircumference (radius * (labelled ? 0.79f : 0.83f), a);
-        const auto p2 = pivot.getPointOnCircumference (radius * 0.90f, a);
-        g.setColour (vu > 0.0 ? Palette::clip : ink);
-        g.drawLine ({ p1, p2 }, 1.0f);
+        g.setColour (Palette::edge);
+        g.fillRoundedRectangle (b, 4.0f);
 
-        // Only the landmarks are numbered: the scale crowds toward the top.
-        if (labelled)
+        if (Palette::textured)
         {
-            const auto t = pivot.getPointOnCircumference (radius * 1.0f, a);
-            g.drawText (vu > 0.0 ? "+" + juce::String ((int) vu) : juce::String ((int) vu),
-                        juce::Rectangle<float> (t.x - 10.0f, t.y - 5.0f, 20.0f, 10.0f), juce::Justification::centred, false);
+            juce::ColourGradient glow (face.brighter (0.15f), inner.getCentreX(), inner.getBottom(),
+                                       face.darker (0.12f), inner.getCentreX(), inner.getY(), true);
+            g.setGradientFill (glow);
         }
-    }
+        else
+            g.setColour (face);
 
-    g.setFont (Fonts::display (10.0f));
-    g.setColour (ink.withAlpha (0.7f));
-    g.drawText ("VU", inner.withTrimmedTop (inner.getHeight() * 0.62f), juce::Justification::centred, false);
+        g.fillRoundedRectangle (inner, 3.0f);
+
+        juce::Path arc;
+        arc.addCentredArc (pivot.x, pivot.y, radius * 0.86f, radius * 0.86f, 0.0f, angleOf (kMinVu), angleOf (0.0), true);
+        g.setColour (ink.withAlpha (0.8f));
+        g.strokePath (arc, juce::PathStrokeType (1.2f));
+
+        juce::Path red;
+        red.addCentredArc (pivot.x, pivot.y, radius * 0.86f, radius * 0.86f, 0.0f, angleOf (0.0), angleOf (kMaxVu), true);
+        g.setColour (Palette::clip);
+        g.strokePath (red, juce::PathStrokeType (2.2f));
+
+        g.setFont (Fonts::mono (8.0f));
+
+        for (double vu : { -20.0, -10.0, -7.0, -5.0, -3.0, -2.0, -1.0, 0.0, 1.0, 2.0, 3.0 })
+        {
+            const float a = angleOf (vu);
+            const bool labelled = vu == -20.0 || vu == -10.0 || vu == -5.0 || vu == 0.0 || vu == 3.0;
+            const auto p1 = pivot.getPointOnCircumference (radius * (labelled ? 0.79f : 0.83f), a);
+            const auto p2 = pivot.getPointOnCircumference (radius * 0.90f, a);
+            g.setColour (vu > 0.0 ? Palette::clip : ink);
+            g.drawLine ({ p1, p2 }, 1.0f);
+
+            // Only the landmarks are numbered: the scale crowds toward the top.
+            if (labelled)
+            {
+                const auto t = pivot.getPointOnCircumference (radius * 1.0f, a);
+                g.drawText (vu > 0.0 ? "+" + juce::String ((int) vu) : juce::String ((int) vu),
+                            juce::Rectangle<float> (t.x - 10.0f, t.y - 5.0f, 20.0f, 10.0f), juce::Justification::centred, false);
+            }
+        }
+
+        g.setFont (Fonts::display (10.0f));
+        g.setColour (ink.withAlpha (0.7f));
+        g.drawText ("VU", inner.withTrimmedTop (inner.getHeight() * 0.62f), juce::Justification::centred, false);
+    });
 
     // The needle: grey when stale.
     const float a = angleOf (needleVu);

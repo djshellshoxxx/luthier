@@ -1297,7 +1297,18 @@ void LevelMeter::timerCallback()
 
     displayPeakDb = (float) master.getPeakDb();
 
-    repaint();
+    // Only when what is drawn changes: a silent meter repainted 30 times a
+    // second, and the panel under it with it. Bars are quantised to the pixel
+    // they fill at the largest meter; the readout to its 0.1 dB.
+    const auto q = [] (float v) { return (juce::int64) juce::roundToInt (v * 1024.0f); };
+    const auto shown = q (levelL) ^ (q (levelR) << 11) ^ (q (peakHoldL) << 22) ^ (q (peakHoldR) << 33)
+                       ^ ((juce::int64) juce::roundToInt (juce::jmax (-100.0f, displayPeakDb) * 10.0f) << 44);
+
+    if (shown != lastShown)
+    {
+        lastShown = shown;
+        repaint();
+    }
 }
 
 void LevelMeter::paint (juce::Graphics& g)

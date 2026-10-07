@@ -48,7 +48,7 @@ bool CircuitResponseView::refresh()
 
 void CircuitResponseView::timerCallback()
 {
-    if (isShowing())
+    if (AnimationPolicy::isShowingFast (*this))
         refresh();
 }
 

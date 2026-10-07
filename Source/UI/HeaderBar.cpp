@@ -154,6 +154,7 @@ HeaderBar::HeaderBar (LuthierAudioProcessor& p)
     refreshPresetDisplay();
     updateUndoRedoState();
 
+    setOpaque (true);   // paint() fills every pixel: spares the editor's paint under it
     motion.startTimerHz (*this, 6);
 }
 
@@ -289,9 +290,10 @@ void HeaderBar::timerCallback()
     if (auto* p = processor.getState().getParameter (ParamIDs::slideGuitar))
         slideButton.setToggleState (p->getValue() > 0.5f, juce::dontSendNotification);
 
-    // The MIDI-in indicator blinks when notes arrive.
+    // The MIDI-in indicator blinks when notes arrive: only the dot repaints,
+    // not the whole strip with every button on it (OPTIMISATION_LOG).
     if (processor.getEngine().consumeMidiActivity())
-        repaint();
+        repaint (midiDotArea().getSmallestIntegerContainer());
 }
 
 //==============================================================================
@@ -554,39 +556,47 @@ void HeaderBar::handleFileMenuResult (int result)
 }
 
 //==============================================================================
+juce::Rectangle<float> HeaderBar::midiDotArea() const noexcept
+{
+    const auto logoArea = getLocalBounds().withTrimmedLeft (22).withWidth (102);
+    return { (float) logoArea.getRight() + 2.0f, (float) getLocalBounds().withTrimmedBottom (1).getCentreY() - 3.0f, 6.0f, 6.0f };
+}
+
 void HeaderBar::paint (juce::Graphics& g)
 {
     AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
 
-    auto bounds = getLocalBounds();
+    // The strip is static while notes play; PaintCache keeps the logo's tracked
+    // text and the notch out of the LED's and the dot's small repaints.
+    backgroundCache.draw (g, getLocalBounds(), 0, [this] (juce::Graphics& g)
+    {
+        auto bounds = getLocalBounds();
 
-    g.setColour (Palette::panel);
-    g.fillRect (bounds);
+        g.setColour (Palette::panel);
+        g.fillRect (bounds);
 
-    // The 1 px separator below the header.
-    g.setColour (Palette::edge);
-    g.fillRect (bounds.removeFromBottom (1));
+        // The 1 px separator below the header.
+        g.setColour (Palette::edge);
+        g.fillRect (bounds.removeFromBottom (1));
 
-    // ---- logo: the brass headstock mark and the name in the display face ---------
-    // (visual-polish.md 6.2 and 6.4, TODO V). The window's own notch sits under
-    // this strip, so the mark is drawn here, beside the name.
-    auto logoArea = getLocalBounds().withTrimmedLeft (22).withWidth (102);
+        // ---- logo: the brass headstock mark and the name in the display face ---------
+        // (visual-polish.md 6.2 and 6.4, TODO V). The window's own notch sits under
+        // this strip, so the mark is drawn here, beside the name.
+        auto logoArea = getLocalBounds().withTrimmedLeft (22).withWidth (102);
 
-    LuthierLookAndFeel::drawSignatureNotch (g, { logoArea.getX() - 4, (getHeight() - 28) / 2, 20, 28 }, Palette::accent);
-    logoArea.removeFromLeft (18);
+        LuthierLookAndFeel::drawSignatureNotch (g, { logoArea.getX() - 4, (getHeight() - 28) / 2, 20, 28 }, Palette::accent);
+        logoArea.removeFromLeft (18);
 
-    g.setColour (Palette::textPrimary);
-    g.setFont (Fonts::display (24.0f));
-    Fonts::drawTrackedText (g, "LUTHIER", logoArea, juce::Justification::centredLeft, 0.12f);
+        g.setColour (Palette::textPrimary);
+        g.setFont (Fonts::display (24.0f));
+        Fonts::drawTrackedText (g, "LUTHIER", logoArea, juce::Justification::centredLeft, 0.12f);
+    }, true);
 
     // ---- MIDI activity indicator ---------------------------------------------------
     const bool active = processor.getEngine().getMidiInterpreter().getActiveNoteCount() > 0;
 
-    auto midiDot = juce::Rectangle<float> ((float) logoArea.getRight() + 2.0f,
-                                           (float) bounds.getCentreY() - 3.0f, 6.0f, 6.0f);
-
     g.setColour (active ? Palette::success : Palette::textDisabled);
-    g.fillEllipse (midiDot);
+    g.fillEllipse (midiDotArea());
 }
 
 void HeaderBar::resized()

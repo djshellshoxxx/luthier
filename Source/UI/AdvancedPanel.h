@@ -324,6 +324,7 @@ private:
         juce::String title;
         juce::Array<Item> items;
         int contentHeight = 0;
+        PaintCache backgroundCache;   // the headings' tracked text and plates: static
     };
 
     void buildColumn1();

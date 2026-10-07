@@ -287,6 +287,7 @@ void StringRow::mouseDown (const juce::MouseEvent& e)
 AdvancedPanel::Column::Column (const juce::String& t)
     : title (t)
 {
+    setOpaque (true);   // paint() fills every pixel: spares the panel's paint under it
 }
 
 void AdvancedPanel::Column::addSection (const juce::String& heading)
@@ -408,24 +409,35 @@ void AdvancedPanel::Column::resized()
 
 void AdvancedPanel::Column::paint (juce::Graphics& g)
 {
-    g.fillAll (Palette::background);
-
-    int y = Metrics::grid;
+    // The headings are static between layouts; PaintCache keeps their tracked
+    // text and engraved plates out of every control's small repaint (a preset
+    // load used to re-lay every heading's glyphs: OPTIMISATION_LOG).
+    juce::String layout;
 
     for (const auto& item : items)
+        layout << item.heading << ':' << item.height << ';';
+
+    backgroundCache.draw (g, getLocalBounds(), layout.hashCode64(), [this] (juce::Graphics& g)
     {
-        if (item.heading.isNotEmpty())
+        g.fillAll (Palette::background);
+
+        int y = Metrics::grid;
+
+        for (const auto& item : items)
         {
-            LuthierLookAndFeel::drawSectionHeader (
-                g, { Metrics::grid, y, getWidth() - Metrics::grid * 2, item.height },
-                item.heading);
+            if (item.heading.isNotEmpty())
+            {
+                LuthierLookAndFeel::drawSectionHeader (
+                    g, { Metrics::grid, y, getWidth() - Metrics::grid * 2, item.height },
+                    item.heading);
 
-            LuthierLookAndFeel::drawSeparator (
-                g, { Metrics::grid, y + item.height - 2, getWidth() - Metrics::grid * 2, 1 });
+                LuthierLookAndFeel::drawSeparator (
+                    g, { Metrics::grid, y + item.height - 2, getWidth() - Metrics::grid * 2, 1 });
+            }
+
+            y += item.height + Metrics::gridHalf;
         }
-
-        y += item.height + Metrics::gridHalf;
-    }
+    }, true);
 }
 
 //==============================================================================

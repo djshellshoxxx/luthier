@@ -62,7 +62,20 @@ void QualityBadge::refresh()
                                                             { "percent", juce::String (juce::roundToInt (load * 100.0)) } });
     setTooltip (tip);
     setDescription (tip);
-    repaint();
+
+    // Only when the badge's picture changes (label, cells, zone, text): it used
+    // to repaint on every 4 Hz tick.
+    const bool notHigh = choice != QualityChoice::High || live != QualityLevel::High;
+    const int lit = stale ? 0 : juce::jlimit (0, 5, (int) std::ceil (load * 5.0 - 1.0e-9));
+    const int zone = stale ? -1 : load > 0.8 ? 2 : load >= 0.5 ? 1 : 0;
+    auto painted = label + "|" + share + "|" + juce::String ((int) notHigh) + juce::String (lit) + juce::String (zone)
+                   + juce::String ((int) hasKeyboardFocus (false));
+
+    if (painted != lastPainted)
+    {
+        lastPainted = painted;
+        repaint();
+    }
 }
 
 void QualityBadge::paint (juce::Graphics& g)

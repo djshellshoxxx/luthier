@@ -442,6 +442,26 @@ namespace
     double cmForPadY (float y)   { return std::pow (10.0, 2.0 * juce::jlimit (0.0f, 1.0f, y)); }
 }
 
+void MicPad::timerCallback()
+{
+    // Only when what is drawn moves: the pad followed its 15 Hz tick with a
+    // repaint whether or not a mic had moved (OPTIMISATION_LOG).
+    const auto q = [] (juce::Point<float> p)
+    {
+        return (juce::int64) juce::roundToInt (p.x * 1000.0f) * 1001 + juce::roundToInt (p.y * 1000.0f);
+    };
+
+    const bool ghost = isShowingGhost();
+    const auto shown = q (padPositionOf (0)) ^ (ghost ? (q (padPositionOf (1)) << 21) : 0)
+                       ^ (ghost ? ((juce::int64) 1 << 62) : 0) ^ (hasKeyboardFocus (false) ? ((juce::int64) 1 << 61) : 0);
+
+    if (shown != lastShown)
+    {
+        lastShown = shown;
+        repaint();
+    }
+}
+
 juce::Point<float> MicPad::padPositionOf (int mic) const
 {
     if (MicUi::isAcoustic (processor))

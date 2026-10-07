@@ -172,6 +172,11 @@ public:
     /** First line of every registered component's paint(). */
     static void notePaint (const juce::Component& c) noexcept;
 
+    /** Component::isShowing() for timers: the same visibility walk, but the
+        window's minimised state (an X server round trip per call on Linux) is
+        held for 250 ms per window. Message thread. */
+    static bool isShowingFast (const juce::Component& c);
+
     //==========================================================================
     // For the tests (CQ-21..24) and the debug window.
 
@@ -242,6 +247,7 @@ private:
 
     /** A plugin editor is in a visible desktop window (plugin host or standalone). */
     static bool isEditorWindowOpen();
+
     bool isRegistered (const Registration* r) const;
     bool listeningToAccessibility = false;
 
