@@ -338,7 +338,7 @@ void PerformanceCapture::bassTechnique (int sampleOffset, int stringIndex, const
 }
 
 void PerformanceCapture::noiseEvent (int sampleOffset, NoiseKind kind, int stringIndex,
-                                     double durationMs, double level) noexcept
+                                     double durationMs, double level, double fromFret, double toFret) noexcept
 {
     if (! isRecording())
         return;
@@ -348,6 +348,8 @@ void PerformanceCapture::noiseEvent (int sampleOffset, NoiseKind kind, int strin
     record.stringIndex = (juce::int8) juce::jlimit (-1, kMaxStrings - 1, stringIndex);
     record.fret = (float) durationMs;
     record.value = (float) level;
+    record.fromFret = (float) fromFret;
+    record.toFret = (float) toFret;
     ring.push (record);
 }
 
@@ -573,6 +575,8 @@ void PerformanceCapture::apply (const CaptureRecord& record)
                     captured.event = LuthierEvent::make (LuthierEventClass::squeak, record.sample);
                     captured.event.set ("trigger", (NoiseKind) record.code == NoiseKind::squeakShift ? "shift" : "drag")
                                   .setInt ("str", record.stringIndex)
+                                  .setReal ("start", record.fromFret)   // string-squeak.md 11
+                                  .setReal ("end", record.toFret)
                                   .setReal ("dur", record.fret)
                                   .setReal ("intensity", record.value);
                     break;

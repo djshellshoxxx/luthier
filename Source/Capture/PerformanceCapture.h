@@ -242,7 +242,8 @@ public:
         carries it too. `kind`: 0 pick, 1 squeak (shift), 2 squeak (drag),
         3 buzz, 4 clank. Audio thread. */
     enum class NoiseKind : juce::uint8 { pick = 0, squeakShift, squeakDrag, buzz, clank };
-    void noiseEvent (int sampleOffset, NoiseKind kind, int stringIndex, double durationMs, double level) noexcept;
+    void noiseEvent (int sampleOffset, NoiseKind kind, int stringIndex, double durationMs, double level,
+                     double fromFret = -1.0, double toFret = -1.0) noexcept;   // string-squeak.md 11: a squeak's start / end frets
 
     /** Until the engine reports from triggerNote: the block's string activity,
         after engine.processBlock. Strings are the voicer's; frets are worked

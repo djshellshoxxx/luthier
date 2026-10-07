@@ -2030,8 +2030,8 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
             switch (t.noiseClass)
             {
                 case NoiseClass::pickClick:  performanceCapture.noiseEvent (t.offset, Kind::pick, t.stringIndex, t.durationMs, t.level); break;
-                case NoiseClass::squeak:     performanceCapture.noiseEvent (t.offset, Kind::squeakShift, t.stringIndex, t.durationMs, t.level); break;
-                case NoiseClass::pickScrape: performanceCapture.noiseEvent (t.offset, Kind::squeakDrag, t.stringIndex, t.durationMs, t.level); break;
+                case NoiseClass::squeak:     performanceCapture.noiseEvent (t.offset, Kind::squeakShift, t.stringIndex, t.durationMs, t.level, t.fromFret, t.toFret); break;
+                case NoiseClass::pickScrape: performanceCapture.noiseEvent (t.offset, Kind::squeakDrag, t.stringIndex, t.durationMs, t.level, t.fromFret, t.toFret); break;
                 case NoiseClass::fretBuzz:   performanceCapture.noiseEvent (t.offset, Kind::buzz, t.stringIndex, t.durationMs, t.level); break;
                 case NoiseClass::clank:      performanceCapture.noiseEvent (t.offset, Kind::clank, t.stringIndex, t.durationMs, t.level); break;
                 case NoiseClass::pickChirp:
