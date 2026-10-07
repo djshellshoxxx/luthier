@@ -412,11 +412,20 @@ LUTHIER_TEST (HostState, anOldBlobIsBackedUpBeforeMigration)
     auto after = Diagnostics::getDiagnosticsFolder().findChildFiles (
         juce::File::findFiles, false, "state-backup-*.json");
 
-    CHECK (after.size() > before.size());
+    // A new file, not a larger count: the folder keeps only the newest 20
+    // backups, so at the cap a fresh backup prunes the oldest and the count
+    // stays put.
+    int created = 0;
 
     for (auto& f : after)
         if (! before.contains (f))
+        {
+            ++created;
+            CHECK (f.loadFileAsString() == old);
             f.deleteFile();
+        }
+
+    CHECK_MSG (created == 1, "expected one new state backup, saw " + juce::String (created));
 }
 
 //==============================================================================
