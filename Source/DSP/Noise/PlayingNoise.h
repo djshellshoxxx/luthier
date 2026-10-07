@@ -83,6 +83,24 @@ public:
         "dB under the note" at the output. Measured by the calibration test. */
     static constexpr double kClickInjectionGainDb = 1.0;
 
+    /*  string-squeak.md 0.4: where a shift at amount 1, default pressure and
+        moisture sits under the note at the generator. The ship default (0.25)
+        is 12 dB under this - the quiet end of the "20-30 dB below" a normal
+        shift makes - and the advanced range (4) is 12 dB over it. */
+    static constexpr double kSqueakReferenceDb = -15.0;
+
+    /*  2.2: a hand that lifted and moved to the next chord still brushes the
+        wound strings - at this share of its fretting pressure, and only when
+        the next note lands within this long of the last one's release. */
+    static constexpr double kLiftedShiftContact = 0.75;
+    static constexpr double kLiftedShiftWindowSeconds = 0.3;
+
+    /*  5.1: on an acoustic the mic hears the squeak straight from the
+        fingerboard as well as through the top; a magnetic pickup only hears
+        the little of it that moves the string. */
+    static constexpr double kAcousticDirectAirShare = 0.7;
+    static constexpr double kMagneticPickupShare = 0.5;
+
     //==========================================================================
     // Pick properties (pick-noise.md 2.1). Materials the build's pick list does
     // not have (Ultex, Tortex, stone) have no row.
@@ -115,10 +133,24 @@ public:
 
     /*  A finger shift along a string (string-squeak.md 3). Level 0 when the
         string is plain, the travel is under the minimum, or Slide Mode is on.
-        The probability roll is not here - see onShift. */
+        The probability roll is not here - see onShift.
+
+        `contact` scales the finger's pressure: 1 for a held shift (legato), less
+        for a hand that lifted and moved between chords (2.2). `variation`, when
+        not 0, seeds the per-event scatter (3.1): pitch, length, brightness and
+        level each wander a little so two shifts never sound the same twice. */
     static NoiseEvent makeSqueak (const SqueakSettings& squeak, const StringNoiseInfo& string,
                                   int stringIndex, double travelMm, double seconds,
-                                  double travelFrets) noexcept;
+                                  double travelFrets, double contact = 1.0,
+                                  juce::uint32 variation = 0) noexcept;
+
+    /** The squeak's pitch floor and ceiling, Hz (string-squeak.md 1): the skin's stick-slip range. */
+    static constexpr double kMinSqueakHz = 600.0;
+    static constexpr double kMaxSqueakHz = 5000.0;
+
+    /*  The chance a qualifying shift squeaks (string-squeak.md 6): probability,
+        pulled down by moisture - but 1 is always and 0 is never. */
+    static double squeakChance (const SqueakSettings& squeak) noexcept;
 
     /** Distance along the string between two fret positions, mm. */
     static double fretDistanceMm (double scaleLengthMm, double fromFret, double toFret) noexcept;
@@ -145,7 +177,8 @@ public:
         squeak was started. `shiftIndex` is the deterministic roll's index -
         pass a running count of shifts so a repeated performance repeats. */
     bool onShift (int stringIndex, const StringNoiseInfo& string, double scaleLengthMm,
-                  double fromFret, double toFret, double seconds, juce::uint32 shiftIndex) noexcept;
+                  double fromFret, double toFret, double seconds, juce::uint32 shiftIndex,
+                  double contact = 1.0) noexcept;
 
     /*  A deliberate rake along the wound strings (pick-noise.md 5): one
         scrape crossing per wound string, spread over `seconds`, downward from

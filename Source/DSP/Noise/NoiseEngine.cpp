@@ -118,12 +118,24 @@ double NoiseGenerator::process() noexcept
         envelope *= decayCoefficient;
 
     // ---- glide ----------------------------------------------------------------------
-    if (event.endHz != event.startHz && (sampleIndex % kRetune) == 0 && sampleIndex <= glideSamples)
+    if ((event.endHz != event.startHz || event.peakHz > 0.0) && (sampleIndex % kRetune) == 0 && sampleIndex <= glideSamples)
     {
         const double t = juce::jmin (1.0, (double) sampleIndex / (double) glideSamples);
 
         // Geometric: a glide is heard in pitch, so it moves evenly in log frequency.
-        updateResonators (event.startHz * std::pow (event.endHz / event.startHz, t));
+        if (event.peakHz > 0.0)
+        {
+            // Up to the peak over the first half, back down over the second:
+            // the hand accelerates, then brakes (string-squeak.md 1).
+            if (t < 0.5)
+                updateResonators (event.startHz * std::pow (event.peakHz / event.startHz, t * 2.0));
+            else
+                updateResonators (event.peakHz * std::pow (event.endHz / event.peakHz, (t - 0.5) * 2.0));
+        }
+        else
+        {
+            updateResonators (event.startHz * std::pow (event.endHz / event.startHz, t));
+        }
     }
 
     ++sampleIndex;
@@ -304,7 +316,8 @@ int NoiseEngine::trigger (const NoiseEvent& event) noexcept
     if (numBlockTriggers < kMaxBlockTriggers)
         blockTriggers[(size_t) numBlockTriggers++] = { event.noiseClass, event.stringIndex, triggerOffset,
                                                        (float) event.level,
-                                                       (float) (event.attackMs + event.holdMs + event.decayMs) };
+                                                       (float) (event.attackMs + event.holdMs + event.decayMs),
+                                                       (float) event.fromFret, (float) event.toFret };
 
     auto& pool = pools[(size_t) event.noiseClass];
     const int limit = getPoolLimit (event.noiseClass);
@@ -363,7 +376,7 @@ void NoiseEngine::recordExternalTrigger (NoiseClass c, int stringIndex, int offs
         return;
 
     if (numBlockTriggers < kMaxBlockTriggers)
-        blockTriggers[(size_t) numBlockTriggers++] = { c, stringIndex, offset, level, durationMs };
+        blockTriggers[(size_t) numBlockTriggers++] = { c, stringIndex, offset, level, durationMs, -1.0f, -1.0f };
 
     const int write = eventWrite.load (std::memory_order_relaxed);
     const int next = (write + 1) % kEventRing;
@@ -401,6 +414,7 @@ double NoiseEngine::processSample (double* excitationNoise, double* surfaceNoise
 
     double total = 0.0;
     int stillActive = 0;
+    lastSqueak = 0.0;
 
     for (int c = 0; c < (int) NoiseClass::numClasses; ++c)
     {
@@ -420,6 +434,9 @@ double NoiseEngine::processSample (double* excitationNoise, double* surfaceNoise
                 excitationNoise[s] += v;
             else
                 surfaceNoise[s] += v;
+
+            if ((NoiseClass) c == NoiseClass::squeak)
+                lastSqueak += v;
 
             total += v;
 

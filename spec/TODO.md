@@ -247,6 +247,10 @@ describe is implemented and tested.
       live heatmap and setup styles. (Character fret wear moving buzz,
       fret-buzz.md 8, waits on a per-fret wear height from CharacterEngine.)
 
+- [x] 3a. Finger squeak audible/discoverable (owner 2026-09-26): lifted-hand
+      chord changes squeak, level normalised to 20-30 dB under the note at the
+      output, acoustic direct-air path, per-event scatter, probability 1 = always
+      (string-squeak.md 2.2/3.1/5.1; StringSqueakRealismTests).
 - [x] 3. NoiseEngine pool; pick click/chirp/scrape; finger squeak; CHARACTER
       tab STRING NOISE and PICK groups with style presets, noise-event strip
       and the tab padlock. (Aux 8 is 2f; scrape trigger is 3f.)

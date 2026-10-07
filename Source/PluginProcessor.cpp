@@ -4552,6 +4552,8 @@ void LuthierAudioProcessor::sendLuthierSysEx (const MidiOutConfig& config, juce:
                     sysExOut.push (LuthierEventClass::squeak, at,
                                    { Field::makeWord ("trigger", t.noiseClass == NoiseClass::squeak ? "shift" : "drag"),
                                      Field::makeInt ("str", t.stringIndex),
+                                     Field::makeReal ("start", t.fromFret),    // string-squeak.md 11
+                                     Field::makeReal ("end", t.toFret),
                                      Field::makeReal ("dur", t.durationMs),
                                      Field::makeReal ("intensity", t.level) });
                     break;

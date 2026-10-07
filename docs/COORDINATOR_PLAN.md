@@ -217,7 +217,14 @@ REQUIREMENT (GUI + verify only; assign a Sonnet implementer via check-in):
 No new spec/engine. Additive GUI note in spec/noise-floor.md marking the
 Options surface.
 
-## Finger squeak — make it audible/discoverable (2026-09-26, owner)
+## Finger squeak — make it audible/discoverable (2026-09-26, owner) — DONE 2026-10-07
+
+Done on branch claude/luthier-squeak: lifted-hand chord changes now squeak
+(string-squeak.md 2.2), the level is normalised so the default sits 20-30 dB
+under the note at the output, the acoustic mic hears the squeak directly
+(5.1), every event scatters (3.1), probability 1 is always. Measured in
+Source/Tests/StringSqueakRealismTests.cpp. Controls were already on the
+CHARACTER tab's STRING NOISE group; the manual now says so.
 
 Owner cannot hear finger squeaks. Spec exists (spec/string-squeak.md) and is
 implemented (squeakAmount ~0.25, squeakMinTravel 1.5 frets). Root cause of
