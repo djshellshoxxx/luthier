@@ -105,6 +105,11 @@ namespace luthier::ConvolutionInstaller
                                          juce::dsp::Convolution::Trim::no,
                                          juce::dsp::Convolution::Normalise::no);
 
-        pumpUntilInstalled (convolution, numChannels, blockSize, sizeBefore);
+        // Finish the unit impulse's crossfade before requesting the next IR.
+        // Otherwise JUCE defers that install while the previous engine remains,
+        // and one-sample blocks spend several seconds sleeping through 50 ms
+        // of audio (or exceed the install deadline at high sample rates).
+        pumpUntilInstalled (convolution, numChannels, blockSize, sizeBefore,
+                            4000, (int) std::ceil (0.06 * sampleRate));
     }
 }

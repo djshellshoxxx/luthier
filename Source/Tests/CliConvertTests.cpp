@@ -219,23 +219,23 @@ LUTHIER_TEST (CliConvert, roundTripStability)
 }
 
 //==============================================================================
-// 3. Format auto-detection (canRead), including the .gp rejection.
+// 3. Format auto-detection (canRead), including GP7/8 support.
 //==============================================================================
 LUTHIER_TEST (CliConvert, formatDetection)
 {
     auto dir = tempDir();
 
     const char* readable[] = { "a.mid", "b.midi", "c.tab", "d.txt", "e.musicxml", "f.xml",
-                               "A.MID", "C.TAB" };
+                               "g.gp", "A.MID", "C.TAB", "G.GP" };
     for (auto* n : readable)
         CHECK_MSG (NotationImporter::canRead (dir.getChildFile (n)), juce::String ("should read ") + n);
 
-    const char* unreadable[] = { "g.gp", "h.gp5", "i.gpx", "j.ptb", "k.bin", "l.pdf", "m" };
+    const char* unreadable[] = { "h.gp5", "i.gpx", "j.ptb", "k.bin", "l.pdf", "m" };
     for (auto* n : unreadable)
         CHECK_MSG (! NotationImporter::canRead (dir.getChildFile (n)), juce::String ("should reject ") + n);
 
-    // A .gp file that contains valid tab text is still rejected: detection is by
-    // extension, and .gp is export-only.
+    // A supported extension must not bypass container validation: plain tab
+    // text is not a GP7/8 file.
     auto fakeGp = tempFile ("fake.gp");
     fakeGp.replaceWithText (fixture ("simple.tab").loadFileAsString());
     PerformanceScore score;

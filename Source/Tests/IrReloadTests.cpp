@@ -8,6 +8,7 @@
 #include "TestFramework.h"
 #include "../PluginProcessor.h"
 #include "../Model/Workshop/PartAcoustics.h"
+#include "../DSP/Common/ConvolutionInstaller.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -123,4 +124,41 @@ LUTHIER_TEST (IrReload, throughThePluginAGuitarChangeLeavesNoOnsetDifference)
                    "type " + juce::String ((int) type) + ": the first note differs by "
                        + juce::String (largestDifference (first, second), 6));
     }
+}
+
+LUTHIER_TEST (IrReload, tinyBlocksInstallConsecutiveResponses)
+{
+    for (const double rate : { 44100.0, 96000.0 })
+        for (const int size : { 1, 17 })
+        {
+            juce::dsp::Convolution convolution;
+            convolution.prepare ({ rate, (juce::uint32) size, 1 });
+            auto load = [&] (float gain)
+            {
+                juce::AudioBuffer<float> ir (1, 512);
+                ir.clear();
+                ir.setSample (0, 0, gain);
+                convolution.loadImpulseResponse (std::move (ir), rate,
+                    juce::dsp::Convolution::Stereo::no,
+                    juce::dsp::Convolution::Trim::no,
+                    juce::dsp::Convolution::Normalise::no);
+            };
+            load (1.0f);
+            CHECK (ConvolutionInstaller::pumpUntilInstalled (
+                convolution, 1, size, 1, 1000, (int) (0.06 * rate)));
+            ConvolutionInstaller::installUnitImpulse (convolution, rate, 1, size);
+            CHECK (convolution.getCurrentIRSize() == 1);
+            load (0.5f);
+            CHECK_MSG (ConvolutionInstaller::pumpUntilInstalled (
+                convolution, 1, size, 1, 1000, (int) (0.06 * rate)),
+                "IR reload timed out at " + juce::String (rate) + " Hz / " + juce::String (size) + " samples");
+            convolution.reset();
+            juce::AudioBuffer<float> audio (1, size);
+            audio.clear();
+            audio.setSample (0, 0, 1.0f);
+            juce::dsp::AudioBlock<float> block (audio);
+            juce::dsp::ProcessContextReplacing<float> context (block);
+            convolution.process (context);
+            CHECK (std::abs (audio.getSample (0, 0) - 0.5f) < 1.0e-5f);
+        }
 }
