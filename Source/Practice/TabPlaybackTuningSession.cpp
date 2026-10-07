@@ -74,6 +74,12 @@ bool TabPlaybackTuningSession::begin (const ScoreTrack& track, juce::String* rea
         }
 
         engine.refreshStringPhysics();
+
+        // refreshStringPhysics writes each string's ageing detune into fineTuneCents,
+        // which would leave the imported open pitches slightly off. Playback offsets
+        // stay cleared, as the tab states them.
+        for (int s = 0; s < requestedStrings; ++s)
+            tuning.setFineTuneCents (s, 0.0);
     }
 
     active = true;
@@ -98,6 +104,11 @@ void TabPlaybackTuningSession::end() noexcept
             tuning.setStringTuning (s, saved.strings[(size_t) s]);
 
         engine.refreshStringPhysics();
+
+        // refreshStringPhysics overwrote fineTuneCents with the ageing detune; put the
+        // captured value back so stop restores every field the session captured.
+        for (int s = 0; s < saved.numStrings; ++s)
+            tuning.setFineTuneCents (s, saved.strings[(size_t) s].fineTuneCents);
     }
 
     active = false;
