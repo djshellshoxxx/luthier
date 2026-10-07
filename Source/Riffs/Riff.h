@@ -171,7 +171,11 @@ struct Riff
         its measures into absolute-beat notes, and carries over tuning, capo,
         tempo and metre. Everything is clamped to the riff's limits (kMaxNotes,
         kMaxBeats, kMaxFret) so the result is always safe to compile. */
-    static Riff fromScore (const PerformanceScore& score, int trackIndex = 0);
+    static Riff fromScore (const PerformanceScore& score, int trackIndex = 0, double maxBeats = kMaxBeats);
+
+    /** Universal tab player: an imported tab is not a 16-bar riff. The TAB
+        reader converts with this limit so long pages play to the end. */
+    static constexpr double kMaxImportedBeats = 8192.0;
 
     //==========================================================================
     /** The canonical `.luthierriff` bytes. */

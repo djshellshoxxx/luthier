@@ -502,9 +502,11 @@ PerformanceScore Riff::toScore (const juce::String& title) const
     return score;
 }
 
-Riff Riff::fromScore (const PerformanceScore& score, int trackIndex)
+Riff Riff::fromScore (const PerformanceScore& score, int trackIndex, double maxBeats)
 {
     Riff r;
+    maxBeats = std::isfinite (maxBeats) ? juce::jlimit (1.0, kMaxImportedBeats, maxBeats) : kMaxBeats;
+    const int maxNotes = maxBeats > kMaxBeats ? kMaxNotes * 16 : kMaxNotes;
 
     const int tracks = juce::jmax (1, score.getNumTracks());
     const auto& track = score.getTrack (juce::jlimit (0, tracks - 1, trackIndex));
@@ -519,6 +521,16 @@ Riff Riff::fromScore (const PerformanceScore& score, int trackIndex)
                           ? meta.timeSignatureDenominator : 4;
     r.tuningName = meta.tuningName;
     r.scale = "chromatic";
+
+    // The detected or declared key, so the compiler's transposition and the
+    // chord display know the tonic ("Am" -> "A", "Bb" -> "Bb").
+    if (meta.key.isNotEmpty())
+    {
+        const auto root = meta.key.trim().retainCharacters ("ABCDEFGH#b").substring (0, 2);
+        const auto spelled = root.length() == 2 && root[1] == 'b' ? root : root.substring (0, 1) + (root.endsWithChar ('#') ? "#" : "");
+        if (RiffVocabulary::pitchClassOfRoot (spelled) >= 0)
+            r.keyRoot = spelled;
+    }
 
     const int numStrings = juce::jlimit (1, kMaxStrings, track.numStrings);
     r.capo = juce::jlimit (0, 24, track.capoFret);
@@ -538,14 +550,14 @@ Riff Riff::fromScore (const PerformanceScore& score, int trackIndex)
             {
                 if (! juce::isPositiveAndBelow (note.stringIndex, numStrings))
                     continue;
-                if ((int) r.notes.size() >= kMaxNotes)
+                if ((int) r.notes.size() >= maxNotes)
                     break;
 
                 auto copy = note;
                 copy.startBeat = juce::jmax (0.0, start + note.startBeat);
                 copy.fret = juce::jlimit (0, kMaxFret, note.fret);
 
-                if (copy.startBeat >= kMaxBeats)
+                if (copy.startBeat >= maxBeats)
                     continue;
 
                 // tab-import-export 7.3: a slapped or popped note plays through
@@ -574,13 +586,65 @@ Riff Riff::fromScore (const PerformanceScore& score, int trackIndex)
                    : bar;
     }
 
+    // Chord symbols travel with the riff (the reader shows the one sounding).
+    {
+        double measureStart = 0.0;
+        for (const auto& measure : track.measures)
+        {
+            for (const auto& symbol : measure.chordSymbols)
+                if (std::isfinite (symbol.first) && measureStart + symbol.first < maxBeats && r.chords.size() < 4096)
+                    r.chords.push_back ({ juce::jmax (0.0, measureStart + symbol.first), symbol.second });
+            measureStart += (measure.timeSignatureNumerator > 0 && measure.timeSignatureDenominator > 0)
+                              ? (double) juce::jlimit (1, 32, measure.timeSignatureNumerator) * 4.0
+                                  / (double) juce::jlimit (1, 32, measure.timeSignatureDenominator)
+                              : bar;
+        }
+    }
+
+    // Strums (universal tab player, item 2): notes that start together on two
+    // or more strings are one stroke, staggered by the compiler like a riff's
+    // strum. The direction comes from a strumming line (pickStrokeUp/Down on
+    // the notes); a stroke of dead notes is a muted "chuck".
+    {
+        std::vector<size_t> order (r.notes.size());
+        for (size_t i = 0; i < order.size(); ++i) order[i] = i;
+        std::stable_sort (order.begin(), order.end(), [&r] (size_t a, size_t b) { return r.notes[a].startBeat < r.notes[b].startBeat; });
+
+        for (size_t i = 0; i < order.size();)
+        {
+            size_t j = i;
+            int mask = 0, up = 0, down = 0, dead = 0, count = 0;
+            while (j < order.size() && std::abs (r.notes[order[j]].startBeat - r.notes[order[i]].startBeat) < 1.0e-6)
+            {
+                const auto& n = r.notes[order[j]];
+                if (juce::isPositiveAndBelow (n.stringIndex, kMaxStrings)) mask |= 1 << n.stringIndex;
+                if (n.hasTechnique (ScoreTechnique::Type::pickStrokeUp)) ++up;
+                if (n.hasTechnique (ScoreTechnique::Type::pickStrokeDown)) ++down;
+                if (n.hasTechnique (ScoreTechnique::Type::deadNote)) ++dead;
+                ++count; ++j;
+            }
+
+            if (count >= 2 && r.strums.size() < 4096)
+            {
+                RiffStrum strum;
+                strum.beat = r.notes[order[i]].startBeat;
+                strum.down = up == 0 || down > up;
+                strum.mask = mask;
+                strum.cv = count >= 5 ? 160.0 : 220.0;
+                strum.mute = dead == count ? 1.0 : 0.0;
+                r.strums.push_back (strum);
+            }
+            i = j;
+        }
+    }
+
     // Whole bars, clamped to the riff limit, at least one bar.
     double totalBeats = 0.0;
     for (const auto& note : r.notes)
         totalBeats = juce::jmax (totalBeats, note.startBeat + juce::jmax (0.0625, note.durationBeats));
 
-    const int bars = juce::jmax (1, (int) std::ceil (juce::jmin (totalBeats, kMaxBeats) / bar - 1.0e-6));
-    r.lengthBeats = juce::jmin (kMaxBeats, (double) bars * bar);
+    const int bars = juce::jmax (1, (int) std::ceil (juce::jmin (totalBeats, maxBeats) / bar - 1.0e-6));
+    r.lengthBeats = juce::jmin (maxBeats, (double) bars * bar);
 
     r.updatePitches();
     r.techniques = r.computeTechniques();

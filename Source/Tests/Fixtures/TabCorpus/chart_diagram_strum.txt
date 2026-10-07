@@ -1,0 +1,11 @@
+Chart with diagrams (original fixture)
+Key: C
+Capo: 2
+Strumming: D DU UDU
+
+Am: x02210
+G: 320003
+F: 133211
+
+[Verse]
+Am  G  F  G
