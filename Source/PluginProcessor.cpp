@@ -260,7 +260,8 @@ LuthierAudioProcessor::LuthierAudioProcessor()
     // reads anything, so the first prepare does not move parameters under it
     // (clap-validator: parameters must not change by themselves).
     if (auto* type = apvts.getRawParameterValue (ParamIDs::guitarType))
-        loadGuitarForType ((GuitarType) juce::jlimit (0, (int) GuitarType::NumTypes - 1, (int) type->load()));
+        loadGuitarForType ((GuitarType) juce::jlimit (0, (int) GuitarType::NumTypes - 1,
+                                                      edition::effectiveGuitarIndex ((int) type->load())));   // editions 5.1.3
 
     // action-and-undo.md 3.1: one undo entry per parameter gesture.
     for (auto* parameter : getParameters())
@@ -1011,9 +1012,12 @@ bool LuthierAudioProcessor::switchGuitarFamily (const juce::String& family)
     applyGuitar (switched, type, {}, true);
     loadedGuitarKey = guitarReference + "|" + juce::String (juce::JSON::toString (guitarOverride, true).hashCode64());
 
-    // The type parameter follows, so the bridge sees nothing new to load.
+    // The type parameter follows, so the bridge sees nothing new to load. In Free
+    // a Pro type already plays as this one (editions 5.1.3), and its stored value
+    // stays as the preset wrote it (5.1.6).
     if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (apvts.getParameter (ParamIDs::guitarType)))
-        p->setValueNotifyingHost (p->convertTo0to1 ((float) (int) type));
+        if (edition::effectiveGuitarIndex (juce::roundToInt (p->convertFrom0to1 (p->getValue()))) != (int) type)
+            p->setValueNotifyingHost (p->convertTo0to1 ((float) (int) type));
 
     // guitar-illustration.md 12.3: the amp follows the family when it does not suit it.
     if (const auto amp = FamilyDefaults::applyAmpDefaults (apvts, family); amp.isNotEmpty())

@@ -1,4 +1,5 @@
 #include "EasyPanel.h"
+#include "EditionLocks.h"
 #include "PaintCache.h"
 #include "PedalRack.h"
 #include "../PluginProcessor.h"
@@ -412,6 +413,7 @@ void EasyPanel::buildRigStrip()
 
     // 3. Amp: the model, and the face carrying gain, bass, mid, treble, presence and master.
     ampModel.attachTo (processor, ParamIDs::ampModel, "Amp model");
+    EditionLocks::lockAmps (ampModel.getComboBox());   // editions.md 2.2
     addAndMakeVisible (ampModel);
     addAndMakeVisible (ampFace);
 

@@ -8,6 +8,7 @@
     review by eye. */
 
 #include "TestFramework.h"
+#include "../Edition.h"
 
 #include "../PluginEditor.h"
 #include "../PluginProcessor.h"
@@ -479,7 +480,8 @@ LUTHIER_TEST (FacesIntegration, theAdvancedAmpSectionHasItsControlsOnTheFace)
         set (processor, ParamIDs::ampModel, (float) m);
         face->refresh();
 
-        CHECK_MSG (face->getShownModel() == (AmpModel) m, "the face does not follow the model choice");
+        // editions.md 5.1.3: the face shows what plays - in Free the nearest Free model.
+        CHECK_MSG (face->getShownModel() == (AmpModel) edition::effectiveAmpIndex (m), "the face does not follow the model choice");
         checkAmpFace (ctx, *face, true, "Advanced");
     }
 }

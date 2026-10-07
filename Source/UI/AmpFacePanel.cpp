@@ -1,5 +1,6 @@
 #include "AmpFacePanel.h"
 #include "../PluginProcessor.h"
+#include "../Edition.h"
 
 #include <cmath>
 
@@ -103,7 +104,8 @@ bool AmpFacePanel::parameterIsOn (const char* id) const
 AmpModel AmpFacePanel::modelFromParameter() const
 {
     if (auto* value = processor.getState().getRawParameterValue (ParamIDs::ampModel))
-        return (AmpModel) juce::jlimit (0, (int) AmpModel::NumModels - 1, juce::roundToInt (value->load()));
+        return (AmpModel) juce::jlimit (0, (int) AmpModel::NumModels - 1,
+                                        edition::effectiveAmpIndex (juce::roundToInt (value->load())));   // the face shows what plays (editions 5.1.3)
 
     return AmpModel::FenderTwin;
 }

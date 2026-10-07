@@ -1,4 +1,5 @@
 #include "PedalRack.h"
+#include "EditionLocks.h"
 #include "Faces/FaceMaterials.h"
 #include "../DSP/Effects/PedalsMod.h"
 #include "../PluginProcessor.h"
@@ -109,6 +110,7 @@ PedalSlotComponent::PedalSlotComponent (LuthierAudioProcessor& p, bool post, int
     typeSelector.setLabelVisible (false);
     typeSelector.attachTo (processor, ParamIDs::slotType (postChain, slotIndex),
                            "The pedal in this slot. Empty slots cost nothing.");
+    EditionLocks::lockPedals (typeSelector.getComboBox());   // editions.md 2.2
 
     // visual-polish.md 2: bypass is the pedal's footswitch; its LED is on the face.
     addAndMakeVisible (bypassToggle);

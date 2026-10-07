@@ -2305,9 +2305,12 @@ void ParameterBridge::adoptPedalTypesFromParameters()
             // fresh pick and write the defaults.
             lastSlotType[chain][slot] = type;
 
-            if (fx.getSlotType (slot) != (PedalType) type)
+            // editions.md 5.1.2: a Pro pedal type is bypassed in Free (plays as None).
+            const auto effective = (PedalType) edition::effectivePedalIndex (type);
+
+            if (fx.getSlotType (slot) != effective)
             {
-                fx.setSlotType (slot, (PedalType) type);
+                fx.setSlotType (slot, effective);
                 pushSlotParameters (post, slot);
             }
         }
@@ -2376,9 +2379,13 @@ void ParameterBridge::applyStructural()
 
     // Loading a guitar type resets a lot of downstream state, so it goes first and
     // the explicit parameters below then override whatever it set.
-    if (firstTime || lastGuitarType != (int) engine.getGuitarType())
+    // editions.md 5.1.3 / 7.5: Free plays the nearest Free guitar for a Pro
+    // choice; the stored value stays (effectiveGuitarIndex is the identity in Pro).
+    const int effectiveGuitar = edition::effectiveGuitarIndex (lastGuitarType);
+
+    if (firstTime || effectiveGuitar != (int) engine.getGuitarType())
     {
-        const auto type = (GuitarType) juce::jlimit (0, (int) GuitarType::NumTypes - 1, lastGuitarType);
+        const auto type = (GuitarType) juce::jlimit (0, (int) GuitarType::NumTypes - 1, effectiveGuitar);
 
         if (onLoadGuitarType != nullptr && onLoadGuitarType (type))
             readStructuralValues();   // the guitar's parts are in the parameters now
@@ -2476,7 +2483,7 @@ void ParameterBridge::applyStructural()
         (PlayingMode) juce::jlimit (0, (int) PlayingMode::NumModes - 1, lastPlayingMode));
 
     engine.getAmpEngine().setModel (
-        (AmpModel) juce::jlimit (0, (int) AmpModel::NumModels - 1, lastAmpModel));
+        (AmpModel) juce::jlimit (0, (int) AmpModel::NumModels - 1, edition::effectiveAmpIndex (lastAmpModel)));   // editions 5.1.3
 
     // ---- cabinet -------------------------------------------------------------------
     {
@@ -2516,8 +2523,8 @@ void ParameterBridge::applyStructural()
 
         for (int slot = 0; slot < EffectsChain::kNumSlots; ++slot)
         {
-            const auto type = (PedalType) juce::jlimit (0, (int) PedalType::NumTypes - 1,
-                                                        lastSlotType[chain][slot]);
+            const auto type = (PedalType) edition::effectivePedalIndex (   // editions 5.1.2
+                juce::jlimit (0, (int) PedalType::NumTypes - 1, lastSlotType[chain][slot]));
 
             if (fx.getSlotType (slot) != type)
             {

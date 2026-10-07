@@ -623,7 +623,18 @@ namespace
                 {
                     for (int chain = 0; chain < 2; ++chain)
                         for (int s = 0; s < slots; ++s)
-                            r.setIndex (ParamIDs::slotType (chain == 1, s), 1 + ((base - 1 + chain * slots + s) % juce::jmax (1, pedalTypes - 1)));
+                        {
+                            int type = 1 + ((base - 1 + chain * slots + s) % juce::jmax (1, pedalTypes - 1));
+
+                            // editions.md 5.1.2: Free plays a Pro pedal as an empty slot (bypassed),
+                            // whose bypass and mix are hidden. Fit the next Free pedal instead, so every
+                            // slot shows one and every Free pedal's knobs are still on screen.
+                            if constexpr (! edition::isPro)
+                                while (! edition::isFreePedalIndex (type))
+                                    type = 1 + type % juce::jmax (1, pedalTypes - 1);
+
+                            r.setIndex (ParamIDs::slotType (chain == 1, s), type);
+                        }
                 } });
 
         numContexts = (int) contexts.size();

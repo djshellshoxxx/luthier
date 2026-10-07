@@ -1,4 +1,5 @@
 #include "AdvancedPanel.h"
+#include "EditionLocks.h"
 #include "Onboarding.h"
 #include "UiPreferences.h"
 #include "RangesUi.h"
@@ -1076,6 +1077,7 @@ void AdvancedPanel::buildColumn3()
     addChoice (ampModel, "Amp", ParamIDs::ampModel,
                "Preamp stage count, tone stack topology, power tube type and negative "
                "feedback all change with the model.");
+    EditionLocks::lockAmps (ampModel->getComboBox());   // editions.md 2.2
 
     /*  visual-polish.md 2: the six knobs and three switches that were a column of
         rows here sit on the amp's own face, attached to the same parameters

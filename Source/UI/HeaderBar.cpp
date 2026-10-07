@@ -1,4 +1,5 @@
 #include "HeaderBar.h"
+#include "EditionLocks.h"
 #include "UndoHistoryPanel.h"
 #include "MidiOutPanel.h"
 #include "MidiExportDefaults.h"
@@ -24,6 +25,7 @@ HeaderBar::HeaderBar (LuthierAudioProcessor& p)
     guitarSelector.attachTo (processor, ParamIDs::guitarType,
                              "The instrument. Changing this loads its body, woods, pickups, "
                              "strings, tuning and default rig.");
+    EditionLocks::lockGuitars (guitarSelector.getComboBox());   // editions.md 2.1
 
     addAndMakeVisible (tuningSelector);
     tuningSelector.setLabelVisible (false);
