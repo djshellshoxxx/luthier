@@ -41,7 +41,18 @@ precisely where squeak lives.
 
 Because the hand accelerates and decelerates through a shift, `f_squeak`
 glides - and that glide is what makes a real squeak sound like a finger
-rather than a sine burst.
+rather than a sine burst. The glide is bell-shaped: it rises from about
+half the peak as the hand gets going, reaches the peak mid-shift and falls
+back to about three quarters of it as the hand brakes.
+
+The skin can only follow the wraps so fast. Below **600 Hz** the wraps are
+felt as separate bumps rather than a tone; above **5 kHz** the fingertip
+skates. The peak is clamped to that band, so a thin, finely wound string on
+a long shift whistles at the ceiling rather than disappearing above it.
+
+(The wrap pitch is computed from the string part, not the 6.5 wraps/mm
+quoted above: a 0.046" phosphor-bronze low E has a 0.34 mm wrap, about 2.9
+wraps/mm, and a brisk five-fret shift on it whistles around 2-3 kHz.)
 
 ## 2. Trigger detection
 
@@ -58,6 +69,21 @@ Sources of position change, in `input-routing.md` order:
 Not a trigger: a new pluck at a new position (the finger was lifted), a
 bend (the finger does not travel along the string), vibrato (travel is
 sub-wrap).
+
+### 2.2 The hand shift between chords
+
+A chord change lifts the fingers - but a hand that lifts off one chord and
+lands on the next, further up the neck, brushes the wound strings on the
+way. That is where most of the squeak on an acoustic recording comes from,
+and ordinary plucked MIDI (note off, then note on) never produces a legato
+shift, so without it the squeak was inaudible in normal playback.
+
+A string's note released and then struck again **on the same string within
+300 ms**, at least `squeak_min_travel` away, is a **lifted shift**. It is
+the same generator as 2 at **75 % of the fretting pressure** (the finger is
+leaving, not pressing), with the hand's speed taken over the gap, and it
+rolls against the same probability. A note struck more than 300 ms after
+the release is a new pluck and does not squeak.
 
 ### 2.1 Minimum travel
 
@@ -82,6 +108,20 @@ pitch  = speed × windingPitch(string), glided over the shift
 - Speed is derived from the shift distance and the shift duration the
   technique engine already computes, so a fast shift squeaks higher and
   louder than a slow one over the same distance.
+- The pressure and moisture terms are **normalised at their defaults**
+  (0.5 and 0.35), so `squeak_amount` alone sets where a normal shift sits:
+  amount 1 is 15 dB under the note at the generator, the ship default 0.25
+  is 27 dB under, and the advanced ceiling of 4 is 3 dB under.
+- The squeak's length follows the shift: the whistle holds for the shift
+  and tails off over 20 ms after a fast one, 45 ms after a slow one.
+
+### 3.1 No two alike
+
+Every event scatters a little around the formula, deterministically from
+the instance seed and the shift index: pitch +/- 9 %, level +/- 1.5 dB,
+length +/- 15 %, the glide's starting ratio and the brightness. Two shifts
+of the same distance on the same string never render the same twice, and
+the same seed and sequence always render the same.
 
 ## 4. Per-material spectra
 
@@ -115,13 +155,26 @@ acoustic squeaks so much more obviously than a solidbody.
 
 Also summed to Aux 8 (`routing-io.md`).
 
+### 5.1 What the transducer hears
+
+A squeak is a sound from the fingerboard. On an acoustic the mic hears it
+**directly through the air** as well as through the top, so the internal
+mic path adds 70 % of the raw squeak beside the body's version of it; that
+is why a classical, whose body passes little above 2 kHz, still squeaks
+audibly. The piezo hears only what reaches the saddle. A **magnetic
+pickup** hears only the little squeak that moves the string: on an electric
+or a bass the squeak is generated at half the acoustic's level (0.4).
+
 ## 6. Probability and moisture
 
 Not every shift squeaks, and a model where every shift squeaks sounds
 mechanical.
 
 - `squeak_probability` (default 0.65) is the chance a qualifying shift
-  produces an audible squeak at all.
+  produces an audible squeak at all. The actual chance is
+  `p × (1.35 - moisture)^(1 - p)`: moisture pulls it down in the middle of
+  the range, but **1 is every qualifying shift and 0 is none**, whatever the
+  fingers are like.
 - The roll is **deterministic per instance seed and note index**
   (`character-wear.md` 1), so a repeated performance repeats exactly.
 - `squeak_finger_moisture` (0-1, default 0.35) is the physical reason:
@@ -206,7 +259,7 @@ material and jumps to the Workshop to change it, until
 ## 11. MIDI export
 
 `midi-export.md`'s `squeak` event class carries, per event: string, start
-position, end position, duration, level. In Luthier profile a re-import
+position, end position (frets, -1 for a scrape's drag), duration, level. In Luthier profile a re-import
 reproduces the squeak exactly; in Generic profile squeak events are
 dropped, because there is no standard way to say "finger noise" and
 inventing one would make the file unreadable elsewhere.
@@ -247,3 +300,13 @@ squeak event costs one table read, three biquads and an envelope.
 - **Zero is free.** `squeak_amount` 0 allocates no generator over 10 000
   shifts.
 - **No allocation on the audio thread.**
+- **Audible at the output.** `StringSqueakRealismTests`: a five-fret chord
+  change (lifted and legato) on the Dreadnought with every shift squeaking
+  measures 1-6 kHz squeak energy within 18-36 dB of the note at amount 0.25,
+  12 dB more at amount 1, nothing at 0; the Classical is quieter than the
+  Dreadnought, the electric quieter still, and probability 0 / 1 produce
+  no / every squeak.
+- **No two alike.** Two identical shifts under one seed differ in pitch and
+  length; the same seed repeats them.
+- **Material and speed.** Flatwound sits 15 dB under phosphor bronze at the
+  output; a shift twice as fast peaks higher and tails off sooner.

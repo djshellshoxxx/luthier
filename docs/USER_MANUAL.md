@@ -250,7 +250,7 @@ A tab strip across the top, one panel behind each tab, in this order:
 | **LIVE** | set up for the stage: the 128-snapshot bank, the setlist, crossfade and morph. |
 | **ROUTING** | bus layout, aux buses 1 to 8 (Aux 8 is the playing noise on its own), per-string outputs, the sidechain and MIDI out. |
 | **TONE MATCH** | impulse-response slots, the cab and EQ match wizards, capture, and the IR library. |
-| **CHARACTER** | the character seed, dead spots, fret wear, tuner drift, aged electronics, body age, environment, and the string noise, pick, setup and slide groups. |
+| **CHARACTER** | the character seed, dead spots, fret wear, tuner drift, aged electronics, body age, environment, and the string noise, pick, setup and slide groups. STRING NOISE is where the finger squeak lives: **Squeak** sets how loud a finger squeaks along a wound string and **Probability** how often a shift squeaks at all, with finger moisture, pressure and the minimum travel beside them and a style dropdown (Silent, Studio, Natural, Folk, Exaggerated) that sets them together. Squeaks happen on legato slides and on chord changes that move the hand along the neck; they are louder on bronze and stainless, quieter on nickel and coated strings, nearly absent on flatwounds and never on plain strings. |
 | **PRACTICE** | progress, routines, per-tool defaults, the library and the session recorder. The practice drawer is where you actually practise. |
 | **NOTATION** | capture what you play, a live tab view with chord symbols, and export as MusicXML, Guitar Pro, ASCII tab or MIDI. |
 | **MIDI OUT** | the MIDI export profile (Luthier or Generic), exporting or dragging out the capture, and live MIDI out. |

@@ -223,14 +223,18 @@ NoiseEvent PlayingNoise::makeFingertipNoise (const PickSettings& pick, const Str
 
 NoiseEvent PlayingNoise::makeSqueak (const SqueakSettings& s, const StringNoiseInfo& string,
                                      int stringIndex, double travelMm, double seconds,
-                                     double travelFrets) noexcept
+                                     double travelFrets, double contact, juce::uint32 variation) noexcept
 {
     NoiseEvent e;
     e.noiseClass = NoiseClass::squeak;
     e.stringIndex = stringIndex;
 
-    if (! string.wound || s.slideMode || s.amount <= 0.0 || travelFrets < s.minTravelFrets)
+    if (! string.wound || s.slideMode || s.amount <= 0.0 || travelFrets < s.minTravelFrets || contact <= 0.0)
         return e;
+
+    // 3.1: the scatter. Each draw is a fixed function of the variation seed,
+    // so a repeated performance repeats it. 0 is the nominal event.
+    auto draw = [variation] (juce::uint32 k) { return variation != 0 ? noiseUniform (variation, k) - 0.5 : 0.0; };
 
     const double duration = juce::jmax (0.02, seconds);
     const double speed = travelMm / duration;          // mm/s, average over the shift
@@ -238,27 +242,46 @@ NoiseEvent PlayingNoise::makeSqueak (const SqueakSettings& s, const StringNoiseI
     const double brightness = windingBrightness (string.material);
 
     // Dry fingers catch; damp ones slide (6). Pressure is felt as ^1.3 (3).
-    const double roughness = juce::jlimit (0.0, 1.5, (1.3 - s.moisture) * string.ageRoughness);
+    // Both are normalised at their defaults (moisture 0.35, pressure 0.5), so
+    // `amount` alone sets where a normal shift sits under the note (0.4).
+    const double roughness = juce::jlimit (0.0, 1.5, (1.3 - s.moisture) * string.ageRoughness) / 0.95;
+    const double pressure = juce::jlimit (0.0, 2.0, s.pressure * contact) / 0.5;
 
-    e.level = kNoteReference * dbToGain (-22.0) * s.amount * string.windingDepth
-              * std::pow (juce::jlimit (0.0, 1.0, s.pressure), 1.3) * roughness
-              * juce::jmin (1.0, speed / 300.0) * brightness / 0.75;
+    e.level = kNoteReference * dbToGain (kSqueakReferenceDb) * s.amount * string.windingDepth
+              * std::pow (pressure, 1.3) * roughness
+              * juce::jmin (1.0, speed / 300.0) * brightness / 0.75
+              * dbToGain (3.0 * draw (1));                       // +/- 1.5 dB
 
-    // f = speed x windingPitch. The hand accelerates into a shift, so the
-    // squeak glides up to that from about half of it.
-    const double peak = speed * string.windingPitchPerMm * string.squeakCentroid;   // string-aging.md 3.5
-    e.startHz = peak * 0.5;
-    e.endHz = peak;
+    // f = speed x windingPitch (1), within what a fingertip's skin can follow:
+    // under the floor the wraps are felt as separate bumps, over the ceiling
+    // the skin skates. The hand accelerates into the shift and brakes out of
+    // it, so the pitch rises to that peak mid-shift and falls back.
+    const double peak = juce::jlimit (kMinSqueakHz, kMaxSqueakHz,
+                                      speed * string.windingPitchPerMm * string.squeakCentroid     // string-aging.md 3.5
+                                        * std::pow (2.0, 0.25 * draw (2)));                      // +/- 9 %
+    e.peakHz = peak;
+    e.startHz = peak * (0.55 + 0.12 * draw (3));
+    e.endHz = peak * 0.75;
 
     // Brightness sets the harmonic balance; moisture dulls it.
-    e.brightness = juce::jlimit (0.0, 1.0, brightness * (1.2 - 0.6 * s.moisture));
+    e.brightness = juce::jlimit (0.0, 1.0, brightness * (1.2 - 0.6 * s.moisture) + 0.16 * draw (4));
     e.q = 6.0 + 4.0 * (1.0 - s.pressure);       // pressure coarsens the texture
     e.texture = windingTexture (string.material);
 
+    // A fast shift is a short, clean whistle; a slow one drags out and tails off.
     e.attackMs = 3.0;
-    e.holdMs = duration * 1000.0;
-    e.decayMs = 25.0;
+    e.holdMs = duration * 1000.0 * (0.85 + 0.3 * draw (5));
+    e.decayMs = 20.0 + 25.0 * (1.0 - juce::jmin (1.0, speed / 600.0));
     return e;
+}
+
+double PlayingNoise::squeakChance (const SqueakSettings& s) noexcept
+{
+    const double p = juce::jlimit (0.0, 1.0, s.probability);
+
+    // Moisture lowers the odds (6) - except at the ends: 1 is every qualifying
+    // shift and 0 is none, whatever the fingers are like.
+    return juce::jlimit (0.0, 1.0, p * std::pow (1.35 - juce::jlimit (0.0, 1.0, s.moisture), 1.0 - p));
 }
 
 //==============================================================================
@@ -288,21 +311,26 @@ void PlayingNoise::onPluck (int stringIndex, const StringNoiseInfo& string, doub
 }
 
 bool PlayingNoise::onShift (int stringIndex, const StringNoiseInfo& string, double scaleLengthMm,
-                            double fromFret, double toFret, double seconds, juce::uint32 shiftIndex) noexcept
+                            double fromFret, double toFret, double seconds, juce::uint32 shiftIndex,
+                            double contact) noexcept
 {
     const double travelFrets = std::abs (toFret - fromFret);
     const double travelMm = fretDistanceMm (scaleLengthMm, fromFret, toFret);
 
-    auto event = makeSqueak (squeak, string, stringIndex, travelMm, seconds, travelFrets);
+    // 3.1: the scatter's seed is the instance's and the shift's, never 0.
+    const juce::uint32 variation = noiseHash (seed32 ^ 0x5c4eacu, shiftIndex) | 1u;
+
+    auto event = makeSqueak (squeak, string, stringIndex, travelMm, seconds, travelFrets, contact, variation);
 
     if (event.level <= 0.0)
         return false;
 
+    event.fromFret = fromFret;
+    event.toFret = toFret;
+
     // 6: not every shift squeaks. The roll is deterministic per seed and
     // shift, and moisture lowers the odds as well as the brightness.
-    const double chance = juce::jlimit (0.0, 1.0, squeak.probability * (1.35 - squeak.moisture));
-
-    if (noiseUniform (seed32 ^ 0x51ea4u, shiftIndex) >= chance)
+    if (noiseUniform (seed32 ^ 0x51ea4u, shiftIndex) >= squeakChance (squeak))
         return false;
 
     return pool.trigger (event) >= 0;
@@ -374,6 +402,7 @@ double PlayingNoise::processSample (double* excitationNoise, double* surfaceNois
         for (int s = 0; s < numStrings; ++s)
             excitationNoise[s] = surfaceNoise[s] = 0.0;
 
+        pool.clearLastSqueakSample();
         return 0.0;
     }
 

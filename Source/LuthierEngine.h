@@ -938,6 +938,7 @@ private:
     PlayingNoise playingNoise;
     std::array<double, kMaxStrings> excitationNoise {}, surfaceNoise {};
     std::vector<double> noiseBuffer;
+    std::vector<double> squeakAirBuffer;   ///< string-squeak.md 5.1: the squeak the mic hears straight from the fingerboard
     juce::uint32 shiftCount = 0;
 
     FretBuzz fretBuzzModel;
@@ -1051,6 +1052,16 @@ private:
     SoundingNotes soundingNotes;
     std::atomic<uint64_t> soundingPublishCount { 0 };
     std::array<int64_t, kMaxStrings> noteStartSample {};
+    /*  string-squeak.md 2.2: when and where each string's last fretted note was
+        let go, for the lifted-hand shift to the next chord. -1 is none. */
+    std::array<int64_t, kMaxStrings> releaseSample {};
+    std::array<double, kMaxStrings> releaseFret {};
+
+    /** string-squeak.md 0.4: a magnetic pickup is not a microphone. */
+    double pickupSqueakShare() const noexcept
+    {
+        return spec.category == GuitarCategory::Acoustic ? 1.0 : PlayingNoise::kMagneticPickupShare;
+    }
     std::array<float, kMaxStrings> notePluckPosition {};
     std::array<uint8_t, kMaxStrings> noteStopKind {};
     std::array<double, kMaxStrings> slideStopFret {};     ///< the bar's contact the block used; < 0 = not under a bar

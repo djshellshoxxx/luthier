@@ -140,13 +140,29 @@ LUTHIER_TEST (Squeak, aRevoiceOfAHeldNoteSqueaks)
         CHECK_MSG (rig.squeaks() == 1, "a held note moved five frets did not squeak");
     }
 
-    // The same move with the note released in between: the finger lifted.
+    // The same move with the note released just before: the hand lifted and
+    // moved straight to the next chord, so it brushes the string on the way
+    // (2.2) - lighter than the held shift.
     {
         SqueakRig rig;
         rig.play (juce::MidiMessage::noteOn (6, 43, (juce::uint8) 110));
         rig.play (juce::MidiMessage::noteOff (6, 43));
         rig.play (juce::MidiMessage::noteOn (6, 48, (juce::uint8) 120));
-        CHECK_MSG (rig.squeaks() == 0, "a new pluck after the finger lifted squeaked");
+        CHECK_MSG (rig.squeaks() == 1, "a chord change after the finger lifted did not squeak");
+        CHECK (activeLevel (rig.engine.getPlayingNoise().getPool(), NoiseClass::squeak) > 0.0);
+    }
+
+    // Released long before the next note: the hand went nowhere in particular.
+    {
+        SqueakRig rig;
+        rig.play (juce::MidiMessage::noteOn (6, 43, (juce::uint8) 110));
+        rig.play (juce::MidiMessage::noteOff (6, 43));
+
+        for (int b = 0; b < 80; ++b)   // ~430 ms of silence
+            rig.play (juce::MidiMessage::controllerEvent (6, 1, 0));
+
+        rig.play (juce::MidiMessage::noteOn (6, 48, (juce::uint8) 120));
+        CHECK_MSG (rig.squeaks() == 0, "a new pluck long after the finger lifted squeaked");
     }
 
     // A plain string never squeaks, however it moves (0.1).

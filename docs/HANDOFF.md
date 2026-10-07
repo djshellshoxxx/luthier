@@ -63,7 +63,7 @@ model) · spec/DECISIONS.md.
 ## Known open items
 - Beta report docs/audit/BETA_TEST_REPORT.md (B-xx). Feedback (B-18/B-19) fixed.
 - Requirements recorded in COORDINATOR_PLAN.md: single-coil hum as an Options
-  switch; finger-squeak audibility/discoverability; expression ease-of-use;
+  switch; expression ease-of-use;
   new instruments (Chapman Stick, guitarrón, chitarra sarda, Zon, tenor,
   acoustic bass, extended-range bass).
 

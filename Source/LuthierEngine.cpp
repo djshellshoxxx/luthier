@@ -147,6 +147,8 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
     // --- scratch --------------------------------------------------------------
     stringSumBuffer.assign ((size_t) maxBlock, 0.0);
     noiseBuffer.assign ((size_t) maxBlock, 0.0);
+    squeakAirBuffer.assign ((size_t) maxBlock, 0.0);
+    releaseSample.fill (-1);
     magneticBuffer.assign ((size_t) maxBlock, 0.0);
     piezoSumBuffer.assign ((size_t) maxBlock, 0.0);   // SPEC-SWEEP: CW-19
     saddleGain.fill (1.0);
@@ -1812,14 +1814,35 @@ void LuthierEngine::triggerNote (const NoteOnEvent& e) noexcept
         // travelled, so it can squeak, and the note is still struck below.
         if (e.shiftFromFret >= 0.0 && e.technique != Technique::Slide && ! slide.isUnderBar (s))
             playingNoise.onShift (s, info, spec.scaleLengthMm, e.shiftFromFret, fret,
-                                  e.shiftSeconds > 0.0 ? e.shiftSeconds : 0.12, shiftCount++);
+                                  e.shiftSeconds > 0.0 ? e.shiftSeconds : 0.12, shiftCount++, pickupSqueakShare());
+
+        /*  string-squeak.md 2.2: the hand lifted off this string and landed on
+            it again, further along, within the window of one chord change -
+            fingers that leave a chord brush the wound strings on the way to
+            the next one. Lighter than a held shift, and the speed is the hand's
+            over the gap. 0.4: a magnetic pickup hears half of what a mic does. */
+        if (e.shiftFromFret < 0.0 && e.technique != Technique::Slide && ! slide.isUnderBar (s)
+            && releaseSample[(size_t) s] >= 0 && releaseFret[(size_t) s] > 0.0 && fret > 0.0)
+        {
+            const double gap = (double) (blockStartSample + activeSampleOffset - releaseSample[(size_t) s]) / sr;
+
+            if (gap >= 0.0 && gap <= PlayingNoise::kLiftedShiftWindowSeconds)
+            {
+                const double travel = std::abs (fret - releaseFret[(size_t) s]);
+                const double seconds = juce::jlimit (0.03, 0.3, juce::jmax (gap, 0.018 + travel * 0.025));
+                playingNoise.onShift (s, info, spec.scaleLengthMm, releaseFret[(size_t) s], fret, seconds, shiftCount++,
+                                      PlayingNoise::kLiftedShiftContact * pickupSqueakShare());
+            }
+        }
+
+        releaseSample[(size_t) s] = -1;
 
         if (e.technique == Technique::Slide && e.slideFromFret >= 0.0 && ! slide.isUnderBar (s))
         {
             // The finger stayed down and travelled: that is the squeak's trigger
             // (string-squeak.md 2). A pluck at a new position is not.
             playingNoise.onShift (s, info, spec.scaleLengthMm, e.slideFromFret, fret,
-                                  e.slideSeconds > 0.0 ? e.slideSeconds : 0.12, shiftCount++);
+                                  e.slideSeconds > 0.0 ? e.slideSeconds : 0.12, shiftCount++, pickupSqueakShare());
         }
         else if (p.kind == Excitation::Kind::Pluck || p.kind == Excitation::Kind::PinchHarmonic)
         {
@@ -2128,6 +2151,10 @@ void LuthierEngine::applyNoteOff (const NoteOffEvent& e) noexcept
     // sustain-and-decay.md 5: open strings, a bar and a fretless neck do not sag.
     const double releaseFret = (fretless || slide.isUnderBar (s)) ? 0.0 : currentFret[(size_t) s];
     strings[(size_t) s].release (e.letRing || ebowHolds, releaseFret);
+
+    // string-squeak.md 2.2: where the finger left, for a shift to the next chord.
+    this->releaseSample[(size_t) s] = blockStartSample + activeSampleOffset;
+    this->releaseFret[(size_t) s] = releaseFret;
     qualityNoteOff (s, e.letRing || ebowHolds);   // cpu-quality-modes 2.4
     slide.noteOff (s);
     stringMidiNote[(size_t) s] = -1;
@@ -3134,6 +3161,8 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         // also lets the worn fret itself clear.
     }
 
+    const double stringSumNormalisation = 1.0 / std::sqrt ((double) juce::jmax (1, numStrings));
+
     for (int i = 0; i < numSamples; ++i)
     {
         // Events land on their exact sample, whichever block they arrived in.
@@ -3178,6 +3207,7 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
         noiseBuffer[(size_t) i] = playingNoise.processSample (excitationNoise.data(), surfaceNoise.data(),
                                                               numStrings);
+        squeakAirBuffer[(size_t) i] = playingNoise.getPool().getLastSqueakSample();
 
         // pick-noise.md 1.3: Aux 8 carries every generator, the scrape's catches too.
         if (scrapeOn)
@@ -3238,8 +3268,8 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
                 taps.stringWrite (s)[i] = (float) sanitise (stringOutputs[(size_t) s]);
 
         // Normalise by string count so a 12-string is not twice as loud as a 6.
-        sum *= 1.0 / std::sqrt ((double) juce::jmax (1, numStrings));
-        piezoSum *= 1.0 / std::sqrt ((double) juce::jmax (1, numStrings));
+        sum *= stringSumNormalisation;
+        piezoSum *= stringSumNormalisation;
 
         // Whammy spring noise rides on the instrument bus, not the strings.
         const double springNoise = whammy.processSpringNoise();
@@ -3326,7 +3356,10 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
             // Piezo senses the bridge (the raw string sum); the internal mic hears
             // the body. The blend between them is the acoustic-electric sound.
             const double piezo = pickups.processPiezo (piezoSumBuffer[(size_t) i]);   // SPEC-SWEEP: CW-19
-            const double mic = pickups.processInternalMic ((double) bodyData[i]);
+            // string-squeak.md 5.1: the mic also hears a finger squeak straight
+            // from the fingerboard, not only what the top makes of it.
+            const double mic = pickups.processInternalMic ((double) bodyData[i])
+                               + PlayingNoise::kAcousticDirectAirShare * stringSumNormalisation * squeakAirBuffer[(size_t) i];
             instrument = piezo * (1.0 - micBlend) + mic * micBlend;
         }
         else
@@ -3752,6 +3785,7 @@ double LuthierEngine::getStringFret (int i) const noexcept
 void LuthierEngine::resetSoundingState() noexcept
 {
     noteStartSample.fill (-1);
+    releaseSample.fill (-1);
     notePluckPosition.fill (0.16f);
     noteStopKind.fill (SoundingNotes::open);
     slideStopFret.fill (-1.0);
