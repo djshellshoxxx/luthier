@@ -2641,16 +2641,23 @@ LUTHIER_TEST (BassTechniques, anImportedBassTechGhostsItsNote)
     CHECK_MSG (ghost.getRMSLevel (0, 0, n) < plainRms * 0.6f,
                "a BASS_TECH ghost was not ghosted: " + juce::String (ghost.getRMSLevel (0, 0, n) / plainRms));
 
+    // A slap differs from the plain note in its attack: the thumb is heard before the plain
+    // note's pluck has sounded (the first 25 ms), then both ring the same string. Over the
+    // whole half second the difference was only ~6% of the plain energy (0.063 on Linux, 0.049
+    // on Windows - the same slap, on a threshold of 0.05), so that ratio was a coin toss per
+    // platform. In the attack window the slap is ~400x the plain note, and a slap that was
+    // never applied is exactly 0, so require the difference to exceed the plain note there.
+    const int attack = juce::jmin (1200, n);   // 25 ms at 48 kHz
     double difference = 0.0, energy = 0.0;
 
-    for (int i = 0; i < n; ++i)
+    for (int i = 0; i < attack; ++i)
     {
         const double d = slap.getSample (0, i) - plain.getSample (0, i);
         difference += d * d;
         energy += (double) plain.getSample (0, i) * plain.getSample (0, i);
     }
 
-    CHECK_MSG (difference > energy * 0.05, "a BASS_TECH slap sounded like a plain note: " + juce::String (difference / energy));
+    CHECK_MSG (difference > juce::jmax (energy, 1.0e-9), "a BASS_TECH slap sounded like a plain note: " + juce::String (difference / energy));
 }
 
 //==============================================================================
