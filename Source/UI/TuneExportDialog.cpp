@@ -3,6 +3,7 @@
 #include "../PluginProcessor.h"
 #include "../Accessibility/Accessibility.h"
 #include "../Tune/TuneFile.h"
+#include "../Edition.h"
 
 namespace luthier
 {
@@ -178,6 +179,17 @@ void TuneExportDialog::refreshVisibility()
         c->setVisible (midi);
 
     jamToggle.setVisible (audio || midi);   // FEAT-JAM
+
+    // editions.md 2.3: Free renders the band into the audio but has no Jam MIDI export.
+    if (! edition::has (edition::Feature::midiExport))
+    {
+        auto* jamEnabled = processor.getState().getParameter (ParamIDs::jamEnabled);
+        const bool jamOn = jamEnabled != nullptr && jamEnabled->getValue() > 0.5f;
+        jamToggle.setEnabled (jamOn && ! midi);
+        jamToggle.setTooltip (midi ? "Jam Drums and Jam Bass MIDI tracks are a Luthier Pro feature; the audio export still includes the band."
+                             : jamOn ? "Audio includes the Jam band."
+                                     : "The Jam band is off (arm it in the JAM tab to include it).");
+    }
 
     notationBox.setVisible (notation);
     chordsToggle.setVisible (notation);

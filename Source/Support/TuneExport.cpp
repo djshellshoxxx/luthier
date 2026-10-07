@@ -4,6 +4,7 @@
 #include "../Tune/TuneFile.h"
 #include "../Tune/TuneMidi.h"
 #include "../Jam/JamMidiExport.h"   // FEAT-JAM
+#include "../Edition.h"
 
 namespace luthier
 {
@@ -297,6 +298,14 @@ bool TuneExport::exportMidi (const Tune& tune, const juce::File& destination, co
 bool TuneExport::appendJamTracks (const juce::MemoryBlock& pluginState, const juce::File& midiFile, juce::String& error,
                                   double sampleRate)
 {
+    // editions.md 2.3 / 6: Jam MIDI out and export are Pro. Free keeps the
+    // band in the audio render (it plays on main) but adds no tracks here.
+    if (! edition::has (edition::Feature::midiExport))
+    {
+        error = "Jam MIDI export is a Luthier Pro feature.";
+        return false;
+    }
+
     juce::MidiFile file;
 
     {

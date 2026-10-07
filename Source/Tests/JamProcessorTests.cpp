@@ -929,6 +929,18 @@ LUTHIER_TEST (JamPlugin, JM09_tuneExportIncludesTheBand)
         tracksBefore = file.getNumTracks();
     }
 
+    // editions.md 2.3: Jam MIDI export is Pro. Free refuses with a reason and leaves the file as it was.
+    if constexpr (JamEdition::kIsFree)
+    {
+        CHECK (! TuneExport::appendJamTracks (state, temp.getFile(), error));
+        CHECK_MSG (error.containsIgnoreCase ("Pro"), error);
+        juce::FileInputStream in (temp.getFile());
+        juce::MidiFile file;
+        CHECK (file.readFrom (in));
+        CHECK (file.getNumTracks() == tracksBefore);
+        return;
+    }
+
     CHECK_MSG (TuneExport::appendJamTracks (state, temp.getFile(), error), error);
 
     juce::FileInputStream in (temp.getFile());
