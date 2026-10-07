@@ -174,14 +174,14 @@ function Step-Validate {
     $failed = $false
 
     $pluginval = Get-Pluginval
-    $vst3 = Join-Path $artefacts 'VST3/$productName.vst3'
+    $vst3 = Join-Path $artefacts "VST3/$productName.vst3"
     Write-Step "pluginval strictness ${Strictness}: $vst3"
     & $pluginval --strictness-level $Strictness --validate-in-process --timeout-ms 600000 `
         --output-dir $LogDir --validate $vst3 2>&1 |
         Tee-Object -FilePath (Join-Path $LogDir 'pluginval-Luthier.vst3.log')
     if ($LASTEXITCODE -ne 0) { $failed = $true }
 
-    $clap = Join-Path $artefacts 'CLAP/$productName.clap'
+    $clap = Join-Path $artefacts "CLAP/$productName.clap"
     if (Test-Path $clap) {
         $validator = Get-ClapValidator
         Write-Step "clap-validator: $clap"
@@ -198,10 +198,10 @@ function Step-Stage {
     if (Test-Path $out) { Remove-Item -Recurse -Force $out }
     New-Item -ItemType Directory -Force -Path $out | Out-Null
 
-    Copy-Item -Recurse (Join-Path $artefacts 'VST3/$productName.vst3') $out
-    $clap = Join-Path $artefacts 'CLAP/$productName.clap'
+    Copy-Item -Recurse (Join-Path $artefacts "VST3/$productName.vst3") $out
+    $clap = Join-Path $artefacts "CLAP/$productName.clap"
     if (Test-Path $clap) { Copy-Item $clap $out }
-    Copy-Item (Join-Path $artefacts 'Standalone/$productName.exe') $out
+    Copy-Item (Join-Path $artefacts "Standalone/$productName.exe") $out
     # The console app's file is named after its target; it ships as luthier-render.exe.
     $render = Join-Path $BuildDir "LuthierRender_artefacts/$Config/LuthierRender.exe"
     if (Test-Path $render) { Copy-Item $render (Join-Path $out 'luthier-render.exe') }
