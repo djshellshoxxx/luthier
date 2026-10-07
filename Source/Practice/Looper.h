@@ -22,6 +22,23 @@
 #include <atomic>
 #include <vector>
 
+/* LoopLayer's published sample count is atomic because the audio thread updates
+   it while message/UI code queries layer state. JUCE's same-type jmin/jmax
+   templates cannot deduce a mixed std::atomic<int>/int call, so keep the two
+   existing DSP expressions source-compatible while making their loads explicit. */
+namespace juce
+{
+inline int jmin (const std::atomic<int>& a, int b) noexcept
+{
+    return juce::jmin (a.load (std::memory_order_relaxed), b);
+}
+
+inline int jmax (const std::atomic<int>& a, int b) noexcept
+{
+    return juce::jmax (a.load (std::memory_order_relaxed), b);
+}
+}
+
 namespace luthier
 {
 
@@ -52,8 +69,8 @@ public:
     void prepare (int maxSamples);
     void reset() noexcept;
 
-    bool hasContent() const noexcept { return recordedSamples > 0; }
-    int getRecordedSamples() const noexcept { return recordedSamples; }
+    bool hasContent() const noexcept { return recordedSamples.load (std::memory_order_relaxed) > 0; }
+    int getRecordedSamples() const noexcept { return recordedSamples.load (std::memory_order_relaxed); }
 
     //==========================================================================
     void setMode (LayerMode m) noexcept { mode.store ((int) m, std::memory_order_relaxed); }
@@ -130,7 +147,7 @@ private:
     juce::MidiMessageSequence midi;
 
     int capacity = 0;
-    int recordedSamples = 0;
+    std::atomic<int> recordedSamples { 0 };
     int undoSamples = 0, redoSamples = 0;
     bool undoFilled = false, redoFilled = false;
 
@@ -284,6 +301,40 @@ public:
     static juce::File getUserDirectory();
 
 private:
+    class AudioStorageGuard
+    {
+    public:
+        explicit AudioStorageGuard (const Looper& ownerIn) noexcept : owner (ownerIn)
+        {
+            owner.callbacksInFlight.fetch_add (1, std::memory_order_acq_rel);
+            mayAccess = ! owner.storageAccessPaused.load (std::memory_order_acquire);
+        }
+
+        ~AudioStorageGuard()
+        {
+            owner.callbacksInFlight.fetch_sub (1, std::memory_order_release);
+        }
+
+        bool canAccess() const noexcept { return mayAccess; }
+
+    private:
+        const Looper& owner;
+        bool mayAccess = false;
+    };
+
+    void beginStorageAccess() const noexcept
+    {
+        storageAccessPaused.store (true, std::memory_order_release);
+
+        while (callbacksInFlight.load (std::memory_order_acquire) != 0)
+            juce::Thread::yield();
+    }
+
+    void endStorageAccess() const noexcept
+    {
+        storageAccessPaused.store (false, std::memory_order_release);
+    }
+
     bool writeLayersToFile (const juce::File& file,
                             const juce::Array<int>& layerIndices) const;
 
@@ -293,6 +344,8 @@ private:
     std::array<LoopLayer, kMaxLayers> layers;
 
     std::atomic<int> state { (int) State::stopped };
+    mutable std::atomic<bool> storageAccessPaused { false };
+    mutable std::atomic<int> callbacksInFlight { 0 };
 
     /** The live input of an overdub, kept while the layers play into the
         buffer, so the active layer's old take is heard and only the live

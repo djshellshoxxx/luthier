@@ -1711,6 +1711,10 @@ void TabReaderTab::showStatus (const juce::String& text, bool warning)
 
 bool TabReaderTab::openTab (const juce::File& file, const juce::File& libraryFile)
 {
+    processor.getEngine().getRiffPlayer().stop();
+    tuningSession.end();
+    autoTuneImportedScore = false;
+
     const bool read = importer.read (file, score);
 
     if (read)
@@ -1724,6 +1728,7 @@ bool TabReaderTab::openTab (const juce::File& file, const juce::File& libraryFil
         library.save (libraryFile, error);
 
         scoreTitle = file.getFileNameWithoutExtension();
+        autoTuneImportedScore = importer.lastAsciiHadResolvedTuning();
 
         /*  tab-import-export 7: a page that was only partly readable is still
             opened, and the status says what was skipped ("Loaded 3 bars, 12
@@ -1791,6 +1796,11 @@ bool TabReaderTab::openLivePerformance()
 
 void TabReaderTab::openScore (const PerformanceScore& newScore, const juce::String& title)
 {
+    // Programmatic/live scores do not carry a resolved ASCII tuning declaration.
+    processor.getEngine().getRiffPlayer().stop();
+    tuningSession.end();
+    autoTuneImportedScore = false;
+
     // riff-library 6.4: a riff opened with Learn It.
     score = newScore;
     scoreTitle = title;
@@ -1808,6 +1818,7 @@ void TabReaderTab::togglePlay()
     if (player.isPlaying() || player.isWaiting())
     {
         player.stop();
+        tuningSession.end();
         playButton.setButtonText ("Play");
         return;
     }
@@ -1819,25 +1830,49 @@ void TabReaderTab::togglePlay()
         return;
     }
 
-    // FEAT2-TAB: the parsed score becomes a riff, compiled against the loaded
-    // instrument and handed to the audition player - the same path riffs use.
+    // Same-string-count ASCII tabs with an explicit resolved tuning keep the
+    // author's string/fret choices. The engine is temporarily retuned to that
+    // same score tuning, then restored when playback stops. Other imports use
+    // the existing adaptation path against the currently loaded guitar.
     const auto riff = Riff::fromScore (score);
-    const auto guitar = RiffDestinations::guitarSummary (processor);
+    auto guitar = RiffDestinations::guitarSummary (processor);
+    bool exactImportedTuning = false;
+    juce::String tuningReason;
 
-    player.setCompiled (RiffCompiler::compile (riff, RiffPlaySettings{}, guitar), true);
+    if (autoTuneImportedScore && score.getNumTracks() > 0)
+    {
+        exactImportedTuning = tuningSession.begin (score.getTrack (0), &tuningReason);
+        if (exactImportedTuning)
+            guitar = GuitarSpecSummary::forRiff (riff);
+    }
+
+    auto compiled = RiffCompiler::compile (riff, RiffPlaySettings{}, guitar);
+    if (compiled == nullptr)
+    {
+        tuningSession.end();
+        showStatus ("Could not compile this tab for playback.", true);
+        return;
+    }
+
+    player.setCompiled (compiled, true);
     player.setClockMode (RiffPlayer::ClockMode::own);
     player.setAbsoluteBpm (score.getMeta().tempoBpm);
     player.setLooping (true);
     player.play();
 
     playButton.setButtonText ("Stop");
-    statusLabel.setText ("Playing " + scoreTitle, juce::dontSendNotification);
+    auto playingStatus = "Playing " + scoreTitle;
+    if (exactImportedTuning)
+        playingStatus += " - using tab tuning";
+    else if (autoTuneImportedScore && tuningReason.isNotEmpty())
+        playingStatus += " - " + tuningReason;
+    statusLabel.setText (playingStatus, juce::dontSendNotification);
     statusLabel.setColour (juce::Label::textColourId, Palette::textMuted);
 }
 
 //==============================================================================
 TabReaderTab::TabReaderTab (LuthierAudioProcessor& p)
-    : PracticeTab (p)
+    : PracticeTab (p), tuningSession (p.getEngine())
 {
     openButton.onClick = [this]
     {
@@ -1923,7 +1958,14 @@ TabReaderTab::TabReaderTab (LuthierAudioProcessor& p)
     styleSlider (barsSlider, 1.0, 8.0, 1.0, " bars");
     barsSlider.setValue (4.0, juce::dontSendNotification);
     barsSlider.onValueChange = [this] { refresh(); };
+    barsSlider.setTooltip ("How many bars the view shows at once.");
     addAndMakeVisible (barsSlider);
+
+    // A tab longer than the window is scrolled, not cut off at its first bars.
+    styleSlider (fromBarSlider, 1.0, 1.0, 1.0, "");
+    fromBarSlider.setTooltip ("The first bar shown. Scroll through a long tab.");
+    fromBarSlider.onValueChange = [this] { refresh(); };
+    addAndMakeVisible (fromBarSlider);
 
     styleReadout (statusLabel);
     addAndMakeVisible (statusLabel);
@@ -1946,7 +1988,23 @@ void TabReaderTab::refresh()
     NotationExportOptions options;
     options.lineWidth = 200;
 
-    const auto text = exporter.renderAsciiTabWindow (score, 0, (int) barsSlider.getValue(), options);
+    // The scroller spans the score's bars; a new score pulls it back into range.
+    const int numMeasures = score.getNumTracks() > 0 ? (int) score.getTrack (0).measures.size() : 0;
+    fromBarSlider.setRange (1.0, (double) juce::jmax (1, numMeasures), 1.0);
+    fromBarSlider.setEnabled (numMeasures > 1);
+
+    const auto text = exporter.renderAsciiTabWindow (score, (int) fromBarSlider.getValue() - 1,
+                                                     (int) barsSlider.getValue(), options);
+
+    // The Play button follows the player, which a riff audition or Stop elsewhere can change.
+    auto& player = processor.getEngine().getRiffPlayer();
+    const bool playing = player.isPlaying() || player.isWaiting();
+    playButton.setButtonText (playing ? "Stop" : "Play");
+
+    // Natural completion, Stop elsewhere, or a failed audition all release the
+    // temporary imported tuning just like pressing this tab's Stop button.
+    if (! playing && tuningSession.isActive())
+        tuningSession.end();
 
     if (text != tabView.getText())
         tabView.setText (text, false);
@@ -1965,6 +2023,7 @@ void TabReaderTab::resized()
         formatBox.setBounds (r.take (112));
         exportButton.setBounds (r.take (74));
         barsSlider.setBounds (r.take (116));
+        fromBarSlider.setBounds (r.take (116));
         statusLabel.setBounds (r.rest());
     }
 
