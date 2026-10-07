@@ -11,6 +11,6 @@ class AsciiTabWriter
 public:
     static juce::String render (const PerformanceScore&, const NotationExportOptions&);
     static juce::String renderWindow (const ScoreTrack&, int firstMeasure, int numMeasures,
-                                      const NotationExportOptions&);
+                                      const NotationExportOptions&, std::vector<TabColumnMark>* marks = nullptr);
 };
 }

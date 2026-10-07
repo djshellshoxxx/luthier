@@ -661,6 +661,16 @@ juce::String NotationExporter::renderAsciiTabWindow (const PerformanceScore& sco
     return AsciiTabWriter::renderWindow (score.getTrack (0), firstMeasure, numMeasures, options);
 }
 
+juce::String NotationExporter::renderAsciiTabWindow (const PerformanceScore& score,
+                                                     int firstMeasure, int numMeasures,
+                                                     const NotationExportOptions& options,
+                                                     std::vector<TabColumnMark>& marks) const
+{
+    marks.clear();
+    if (score.getNumTracks() == 0) return {};
+    return AsciiTabWriter::renderWindow (score.getTrack (0), firstMeasure, numMeasures, options, &marks);
+}
+
 juce::String NotationExporter::renderAsciiTab (const PerformanceScore& score,
                                                const NotationExportOptions& options) const
 {

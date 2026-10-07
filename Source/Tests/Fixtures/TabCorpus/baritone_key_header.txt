@@ -1,0 +1,9 @@
+Tuning: baritone
+Key of A minor
+
+B|--0--|
+F#|--1--|
+D|--2--|
+A|--2--|
+E|--0--|
+B|-----|

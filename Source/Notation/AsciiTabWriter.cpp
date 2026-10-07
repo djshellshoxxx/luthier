@@ -228,8 +228,9 @@ namespace
 }
 
 juce::String AsciiTabWriter::renderWindow (const ScoreTrack& track, int first, int count,
-                                          const NotationExportOptions& options)
+                                          const NotationExportOptions& options, std::vector<TabColumnMark>* marks)
 {
+    if (marks != nullptr) marks->clear();
     if (count <= 0 || track.measures.empty()) return {};
     // Preserve the live preview's clamped window contract at either end.
     first = juce::jlimit (0, (int) track.measures.size() - 1, first);
@@ -240,27 +241,45 @@ juce::String AsciiTabWriter::renderWindow (const ScoreTrack& track, int first, i
     for (int m = 0; m < first; ++m) start += barBeats (track.measures[(size_t) m]);
 
     // A window is one unwrapped staff (the existing preview/live-view contract).
-    // Join the per-bar rows, with optional PM spans above the beat ruler.
-    juce::String ruler ("   "), mute ("   ");
+    // Join the per-bar rows, with optional chord names and PM spans above the beat ruler.
+    juce::String ruler ("   "), mute ("   "), chords ("   ");
     juce::StringArray staff;
     for (int s = 0; s < strings; ++s) staff.add (stringName (track, s) + "|");
-    bool hasMute = false;
+    bool hasMute = false, hasChords = false;
     for (int m = first; m < end; ++m)
     {
         const auto& measure = track.measures[(size_t) m];
         const auto bar = layout (measure, strings, start, muted, options);
-        auto rows = juce::StringArray::fromLines (system (track, bar, 0, bar.columns.size(), false));
+        auto rows = juce::StringArray::fromLines (system (track, bar, 0, bar.columns.size(), options.windowChordRow));
         const bool barMuted = std::any_of (bar.columns.begin(), bar.columns.end(), [] (const Column& c) { return c.muted; });
-        const int rulerRow = barMuted ? 1 : 0;
+        const bool barChords = options.windowChordRow
+                            && std::any_of (bar.columns.begin(), bar.columns.end(), [] (const Column& c) { return c.chords.isNotEmpty(); });
+        const int chordRow = barChords ? 0 : -1;
+        const int rulerRow = (barChords ? 1 : 0) + (barMuted ? 1 : 0);
+        const int muteRow = barMuted ? rulerRow - 1 : -1;
+        const int base = ruler.length();
         ruler += rows[rulerRow].substring (3);
         const int barWidth = rows[rulerRow].length() - 3;
-        mute += barMuted ? rows[0].substring (3).paddedRight (' ', barWidth)
+        mute += barMuted ? rows[muteRow].substring (3).paddedRight (' ', barWidth)
                          : juce::String::repeatedString (" ", barWidth);
+        chords += barChords ? rows[chordRow].substring (3).paddedRight (' ', barWidth)
+                            : juce::String::repeatedString (" ", barWidth);
         hasMute = hasMute || barMuted;
+        hasChords = hasChords || barChords;
         for (int s = 0; s < strings; ++s) staff.set (s, staff[s] + rows[rulerRow + 1 + s].substring (3));
+        if (marks != nullptr)
+        {
+            int offset = 0;
+            for (const auto& column : bar.columns)
+            {
+                marks->push_back ({ start + column.beat, base + offset, column.width });
+                offset += column.width;
+            }
+        }
         start += barBeats (measure);
     }
     juce::String out;
+    if (hasChords) out << chords.trimEnd() << "\n";
     if (hasMute) out << mute.trimEnd() << "\n";
     out << ruler << "\n";
     for (const auto& line : staff) out << line << "\n";

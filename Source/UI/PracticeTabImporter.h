@@ -2,6 +2,7 @@
 
 #include "../Notation/NotationExport.h"
 #include "../Notation/TabImportPipeline.h"
+#include "../Notation/TabKeyDetector.h"
 
 namespace luthier
 {
@@ -37,6 +38,8 @@ public:
         const bool ok = importer.read (file, destination);
         lastDiagnostics = importer.getLastDiagnostics();
         lastError = importer.getLastError();
+        if (ok)
+            TabKeyDetector::apply (destination);
         return ok;
     }
 

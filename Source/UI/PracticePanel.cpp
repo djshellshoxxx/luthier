@@ -8,6 +8,8 @@
 #include "../Riffs/RiffCompiler.h"
 #include "../Riffs/RiffDestinations.h"
 #include "../Notation/TabFingering.h"  // tab-import-export 9: the MIDI capture as tab
+#include "../Notation/TabKeyDetector.h"   // universal tab player: key override
+#include <cmath>
 #include "../Export/MidiPerformance.h"
 
 namespace luthier
@@ -1742,8 +1744,15 @@ bool TabReaderTab::openTab (const juce::File& file, const juce::File& libraryFil
     processor.getEngine().getRiffPlayer().stop();
     tuningSession.end();
     autoTuneImportedScore = false;
+    tapTempo.reset();
+    playbackBpm = 0.0;
+    highlightedColumn = -1;
+    playheadBeat = -1.0;
+    lastOpenWasMidi = file.existsAsFile() && NotationImporter::detectKind (file) == NotationImporter::FileKind::midi;
 
     const bool read = importer.read (file, score);
+    writtenScore = score;
+    rebuildOverrideBoxes();
 
     if (read)
     {
@@ -1766,10 +1775,14 @@ bool TabReaderTab::openTab (const juce::File& file, const juce::File& libraryFil
         auto text = (d.notes > 0 ? d.summary() : juce::String (score.getTotalNoteCount()) + " notes.")
                       + " - " + file.getFileName();
 
+        // Item 6 (experimental): a MIDI file's strings and frets are guessed.
+        if (lastOpenWasMidi)
+            text += " - Experimental MIDI-to-tab: strings and frets guessed.";
+
         if (! d.warnings.isEmpty())
             text += "\n" + d.warnings.joinIntoString ("\n");
 
-        showStatus (text, d.isPartial());
+        showStatus (text, d.isPartial() || lastOpenWasMidi);
     }
     else
     {
@@ -1831,6 +1844,11 @@ void TabReaderTab::openScore (const PerformanceScore& newScore, const juce::Stri
 
     // riff-library 6.4: a riff opened with Learn It.
     score = newScore;
+    writtenScore = score;
+    tapTempo.reset();
+    playbackBpm = 0.0;
+    lastOpenWasMidi = false;
+    rebuildOverrideBoxes();
     scoreTitle = title;
     statusLabel.setText (title + " - " + juce::String (score.getTotalNoteCount()) + " notes",
                          juce::dontSendNotification);
@@ -1841,28 +1859,45 @@ void TabReaderTab::openScore (const PerformanceScore& newScore, const juce::Stri
 //==============================================================================
 void TabReaderTab::togglePlay()
 {
-    auto& player = processor.getEngine().getRiffPlayer();
+    if (isPlaying())
+        stopPlayback();
+    else
+        startPlayback();
+}
 
-    if (player.isPlaying() || player.isWaiting())
-    {
-        player.stop();
-        tuningSession.end();
-        playButton.setButtonText ("Play");
-        return;
-    }
+bool TabReaderTab::isPlaying() const
+{
+    auto& player = processor.getEngine().getRiffPlayer();
+    return player.isPlaying() || player.isWaiting();
+}
+
+void TabReaderTab::stopPlayback()
+{
+    processor.getEngine().getRiffPlayer().stop();
+    tuningSession.end();
+    playButton.setButtonText ("Play");
+    highlightedColumn = -1;
+    playheadBeat = -1.0;
+    nowChordLabel.setText ({}, juce::dontSendNotification);
+}
+
+bool TabReaderTab::startPlayback()
+{
+    auto& player = processor.getEngine().getRiffPlayer();
 
     if (score.getTotalNoteCount() == 0)
     {
         statusLabel.setText ("Open a tab first.", juce::dontSendNotification);
         statusLabel.setColour (juce::Label::textColourId, Palette::warning);
-        return;
+        return false;
     }
 
     // Same-string-count ASCII tabs with an explicit resolved tuning keep the
     // author's string/fret choices. The engine is temporarily retuned to that
     // same score tuning, then restored when playback stops. Other imports use
     // the existing adaptation path against the currently loaded guitar.
-    const auto riff = Riff::fromScore (score);
+    // A long page is not a 16-bar riff: the imported limit lets it play to the end.
+    const auto riff = Riff::fromScore (score, 0, Riff::kMaxImportedBeats);
     auto guitar = RiffDestinations::guitarSummary (processor);
     bool exactImportedTuning = false;
     juce::String tuningReason;
@@ -1879,12 +1914,12 @@ void TabReaderTab::togglePlay()
     {
         tuningSession.end();
         showStatus ("Could not compile this tab for playback.", true);
-        return;
+        return false;
     }
 
     player.setCompiled (compiled, true);
     player.setClockMode (RiffPlayer::ClockMode::own);
-    player.setAbsoluteBpm (score.getMeta().tempoBpm);
+    player.setAbsoluteBpm (playbackBpm > 0.0 ? playbackBpm : score.getMeta().tempoBpm);
     player.setLooping (true);
     player.play();
 
@@ -1896,6 +1931,190 @@ void TabReaderTab::togglePlay()
         playingStatus += " - " + tuningReason;
     statusLabel.setText (playingStatus, juce::dontSendNotification);
     statusLabel.setColour (juce::Label::textColourId, Palette::textMuted);
+    return true;
+}
+
+//==============================================================================
+bool TabReaderTab::tap (double seconds)
+{
+    const bool changed = tapTempo.tap (seconds) && tapTempo.hasTempo();
+    if (changed)
+        setPlaybackBpm (tapTempo.getTappedBpm());
+    else
+        tempoLabel.setText (juce::String (tapTempo.getTapCount()) + (tapTempo.getTapCount() == 1 ? " tap" : " taps"),
+                            juce::dontSendNotification);
+    return changed;
+}
+
+void TabReaderTab::setPlaybackBpm (double bpm)
+{
+    playbackBpm = std::isfinite (bpm) && bpm > 0.0 ? juce::jlimit (20.0, 300.0, bpm) : 0.0;
+
+    // The player reads its absolute tempo every block: a change while it is
+    // playing speeds up or slows down in place, nothing restarts.
+    auto& player = processor.getEngine().getRiffPlayer();
+    if (isPlaying())
+        player.setAbsoluteBpm (playbackBpm > 0.0 ? playbackBpm : score.getMeta().tempoBpm);
+
+    updateInfoLabel();
+}
+
+juce::String TabReaderTab::chordAtBeat (double beat) const
+{
+    if (score.getNumTracks() == 0 || beat < 0.0)
+        return {};
+
+    juce::String current;
+    double start = 0.0;
+    for (const auto& measure : score.getTrack (0).measures)
+    {
+        for (const auto& symbol : measure.chordSymbols)
+            if (start + symbol.first <= beat + 1.0e-6)
+                current = symbol.second;
+        start += (double) juce::jmax (1, measure.timeSignatureNumerator) * 4.0
+                   / (double) juce::jmax (1, measure.timeSignatureDenominator);
+        if (start > beat)
+            break;
+    }
+    return current;
+}
+
+void TabReaderTab::updateInfoLabel()
+{
+    if (score.getNumTracks() == 0 || score.getTotalNoteCount() == 0)
+    {
+        infoLabel.setText ({}, juce::dontSendNotification);
+        tempoLabel.setText ({}, juce::dontSendNotification);
+        return;
+    }
+
+    const auto& track = score.getTrack (0);
+    const auto& meta = score.getMeta();
+    juce::String text = meta.tuningName.isNotEmpty() ? meta.tuningName : juce::String ("Standard");
+    juce::String names;
+    for (int s = track.numStrings - 1; s >= 0; --s)
+        names += PerformanceScore::getNoteName (track.tuning[(size_t) s]).replace ("-", "") + (s > 0 ? " " : "");
+    text += " (" + names + ")";
+    if (track.capoFret > 0)
+        text += " - Capo " + juce::String (track.capoFret);
+    text += " - Key " + (meta.key.isNotEmpty() ? meta.key : juce::String ("?"));
+    infoLabel.setText (text, juce::dontSendNotification);
+
+    const double bpm = playbackBpm > 0.0 ? playbackBpm : meta.tempoBpm;
+    tempoLabel.setText (juce::String (bpm, 0) + " bpm" + (playbackBpm > 0.0 ? " (tapped)" : ""), juce::dontSendNotification);
+}
+
+void TabReaderTab::rebuildOverrideBoxes()
+{
+    // Tuning names the reader knows, the written one first.
+    tuningBox.clear (juce::dontSendNotification);
+    tuningBox.addItem ("As written", 1);
+    static const char* const tunings[] = { "Standard", "Eb Standard", "D Standard", "C# Standard", "C Standard",
+                                           "Drop D", "Drop C#", "Drop C", "Drop B", "Double Drop D", "DADGAD",
+                                           "Open G", "Open D", "Open E", "Open A", "Open C", "Baritone",
+                                           "7-string", "8-string", "Bass", "5-string bass", "Ukulele" };
+    int id = 2;
+    for (const auto* name : tunings)
+        tuningBox.addItem (name, id++);
+    tuningBox.setSelectedId (1, juce::dontSendNotification);
+
+    keyBox.clear (juce::dontSendNotification);
+    keyBox.addItem ("As read", 1);
+    id = 2;
+    for (int minor = 0; minor < 2; ++minor)
+        for (int pc = 0; pc < 12; ++pc)
+            keyBox.addItem (AsciiTabReader::keyName (pc, minor == 1), id++);
+    keyBox.setSelectedId (1, juce::dontSendNotification);
+
+    updateInfoLabel();
+}
+
+bool TabReaderTab::setTuningOverride (const juce::String& tuningName)
+{
+    if (score.getNumTracks() == 0)
+        return false;
+
+    if (tuningName.isEmpty() || tuningName == "As written")
+    {
+        score = writtenScore;
+        autoTuneImportedScore = importer.lastAsciiHadResolvedTuning();
+        tuningBox.setSelectedId (1, juce::dontSendNotification);
+        updateInfoLabel();
+        refresh();
+        return true;
+    }
+
+    std::vector<int> midi;
+    juce::String canonical;
+    if (! AsciiTabReader::parseTuningStatement ("Tuning: " + tuningName, midi, canonical))
+        return false;
+
+    auto& track = score.getTrack (0);
+    const int strings = juce::jlimit (1, kMaxStrings, track.numStrings);
+    while ((int) midi.size() < strings)
+        midi.push_back (juce::jmax (0, midi.back() - 5));
+
+    for (int s = 0; s < strings; ++s)
+        track.tuning[(size_t) s] = juce::jlimit (0, 127, midi[(size_t) s]);
+
+    for (auto& measure : track.measures)
+        for (auto& voice : measure.voices)
+            for (auto& note : voice.notes)
+                if (juce::isPositiveAndBelow (note.stringIndex, strings))
+                {
+                    note.midiNote = juce::jlimit (0, 127, track.tuning[(size_t) note.stringIndex] + track.capoFret + note.fret);
+                    note.pitchHz = 440.0 * std::pow (2.0, (note.midiNote - 69) / 12.0);
+                }
+
+    score.getMeta().tuningName = canonical;
+    autoTuneImportedScore = true;   // play at the chosen tuning, not the loaded guitar's
+
+    for (int i = 0; i < tuningBox.getNumItems(); ++i)
+        if (tuningBox.getItemText (i) == tuningName)
+            tuningBox.setSelectedItemIndex (i, juce::dontSendNotification);
+
+    updateInfoLabel();
+    refresh();
+    return true;
+}
+
+void TabReaderTab::setKeyOverride (const juce::String& key)
+{
+    if (key.isEmpty() || key == "As read")
+    {
+        score.getMeta().key = writtenScore.getMeta().key;
+        keyBox.setSelectedId (1, juce::dontSendNotification);
+    }
+    else
+    {
+        int root = -1; bool minor = false;
+        if (! TabKeyDetector::parseKeyName (key, root, minor))
+            return;
+        score.getMeta().key = AsciiTabReader::keyName (root, minor);
+        for (int i = 0; i < keyBox.getNumItems(); ++i)
+            if (keyBox.getItemText (i) == score.getMeta().key)
+                keyBox.setSelectedItemIndex (i, juce::dontSendNotification);
+    }
+    updateInfoLabel();
+}
+
+bool TabReaderTab::exportMidi (const juce::File& destination)
+{
+    if (score.getTotalNoteCount() == 0)
+    {
+        showStatus ("Nothing to export: open a tab or press Live first.", true);
+        return false;
+    }
+
+    NotationExportOptions options;
+    const bool ok = exporter.writeMidi (score, destination, options);
+    showStatus (ok ? "Exported MIDI to " + destination.getFileName() : exporter.getLastError(), ! ok);
+    return ok;
+}
+
+bool TabReaderTab::importMidiAsTab (const juce::File& file, const juce::File& libraryFile)
+{
+    return openTab (file, libraryFile) && lastOpenWasMidi;
 }
 
 //==============================================================================
@@ -1998,6 +2217,51 @@ TabReaderTab::TabReaderTab (LuthierAudioProcessor& p)
     styleReadout (statusLabel);
     addAndMakeVisible (statusLabel);
 
+    // Universal tab player: tuning / capo / key readout and overrides, tap tempo,
+    // the chord sounding, MIDI export.
+    styleReadout (infoLabel);
+    infoLabel.setTooltip ("The tuning, capo and key read from the tab. Override them with the boxes.");
+    addAndMakeVisible (infoLabel);
+
+    tuningBox.setTooltip ("Play the tab in another tuning: notes keep their string and fret.");
+    tuningBox.onChange = [this] { setTuningOverride (tuningBox.getSelectedId() == 1 ? juce::String() : tuningBox.getText()); };
+    addAndMakeVisible (tuningBox);
+
+    keyBox.setTooltip ("Override the detected key.");
+    keyBox.onChange = [this] { setKeyOverride (keyBox.getSelectedId() == 1 ? juce::String() : keyBox.getText()); };
+    addAndMakeVisible (keyBox);
+
+    tapButton.setTooltip ("Tap the tempo: playback follows, even while the tab is playing.");
+    tapButton.onClick = [this] { tap (juce::Time::getMillisecondCounterHiRes() * 0.001); };
+    addAndMakeVisible (tapButton);
+
+    styleReadout (tempoLabel);
+    tempoLabel.setTooltip ("The playback tempo: the tab's own, or the tapped one.");
+    addAndMakeVisible (tempoLabel);
+
+    styleReadout (nowChordLabel);
+    nowChordLabel.setTooltip ("The chord sounding now.");
+    addAndMakeVisible (nowChordLabel);
+
+    midiButton.setTooltip ("Export the shown tab as a MIDI file (Luthier profile: strings, frets, bends, slides).");
+    midiButton.onClick = [this]
+    {
+        chooser = std::make_unique<juce::FileChooser> (
+            "Export MIDI",
+            juce::File::getSpecialLocation (juce::File::userDocumentsDirectory)
+              .getChildFile ((scoreTitle.isNotEmpty() ? scoreTitle : juce::String ("Luthier")) + ".mid"),
+            "*.mid");
+        chooser->launchAsync (juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::warnAboutOverwriting,
+                              [this] (const juce::FileChooser& fc)
+        {
+            if (fc.getResult() != juce::File())
+                exportMidi (fc.getResult());
+        });
+    };
+    addAndMakeVisible (midiButton);
+
+    rebuildOverrideBoxes();
+
     tabView.setMultiLine (true);
     tabView.setReadOnly (true);
     tabView.setScrollbarsShown (true);
@@ -2015,14 +2279,12 @@ void TabReaderTab::refresh()
     // notation-export 3: the live view shows a window of bars.
     NotationExportOptions options;
     options.lineWidth = 200;
+    options.windowChordRow = true;
 
     // The scroller spans the score's bars; a new score pulls it back into range.
     const int numMeasures = score.getNumTracks() > 0 ? (int) score.getTrack (0).measures.size() : 0;
     fromBarSlider.setRange (1.0, (double) juce::jmax (1, numMeasures), 1.0);
     fromBarSlider.setEnabled (numMeasures > 1);
-
-    const auto text = exporter.renderAsciiTabWindow (score, (int) fromBarSlider.getValue() - 1,
-                                                     (int) barsSlider.getValue(), options);
 
     // The Play button follows the player, which a riff audition or Stop elsewhere can change.
     auto& player = processor.getEngine().getRiffPlayer();
@@ -2034,8 +2296,75 @@ void TabReaderTab::refresh()
     if (! playing && tuningSession.isActive())
         tuningSession.end();
 
+    // Follow the music (item 4): the bar that is sounding stays in the window.
+    const int window = juce::jmax (1, (int) barsSlider.getValue());
+    double beat = -1.0;
+    if (playing && numMeasures > 0)
+    {
+        beat = player.getBeatPosition();
+        if (std::isfinite (beat) && beat >= 0.0)
+        {
+            int measureIndex = 0;
+            double beatInMeasure = 0.0;
+            score.beatToMeasure (beat, measureIndex, beatInMeasure);
+            measureIndex = juce::jlimit (0, numMeasures - 1, measureIndex);
+            const int first = (int) fromBarSlider.getValue() - 1;
+            if (measureIndex < first || measureIndex >= first + window)
+                fromBarSlider.setValue ((double) ((measureIndex / window) * window + 1), juce::dontSendNotification);
+        }
+        else
+            beat = -1.0;
+    }
+    playheadBeat = beat;
+
+    std::vector<TabColumnMark> marks;
+    auto text = exporter.renderAsciiTabWindow (score, (int) fromBarSlider.getValue() - 1, window, options, marks);
+
+    int column = -1;
+    if (beat >= 0.0)
+    {
+        for (const auto& mark : marks)
+            if (mark.beat <= beat + 1.0e-6)
+                column = mark.column;
+            else
+                break;
+    }
+    highlightedColumn = column;
+
+    if (column >= 0)
+    {
+        // A playhead row above the staff, so the sounding column is visible in a
+        // plain text view; the top string's cell is selected as well.
+        text = juce::String::repeatedString (" ", column) + "v\n" + text;
+        nowChordLabel.setText (chordAtBeat (beat), juce::dontSendNotification);
+    }
+    else if (nowChordLabel.getText().isNotEmpty())
+        nowChordLabel.setText ({}, juce::dontSendNotification);
+
     if (text != tabView.getText())
         tabView.setText (text, false);
+
+    if (column >= 0)
+    {
+        const auto lines = juce::StringArray::fromLines (text);
+        int offset = 0, stringRow = -1;
+        for (int i = 0; i < lines.size(); ++i)
+        {
+            if (lines[i].length() > 2 && lines[i][2] == '|' && lines[i].containsChar ('-')) { stringRow = i; break; }
+            offset += lines[i].length() + 1;
+        }
+        if (stringRow >= 0)
+        {
+            int width = 1;
+            for (const auto& mark : marks) if (mark.column == column) width = juce::jmax (1, mark.width);
+            tabView.setHighlightedRegion ({ offset + column, offset + column + width });
+        }
+    }
+    else if (! tabView.getHighlightedRegion().isEmpty())
+        tabView.setHighlightedRegion ({});
+
+    if (playing)
+        updateInfoLabel();
 }
 
 void TabReaderTab::resized()
@@ -2053,6 +2382,20 @@ void TabReaderTab::resized()
         barsSlider.setBounds (r.take (116));
         fromBarSlider.setBounds (r.take (116));
         statusLabel.setBounds (r.rest());
+    }
+
+    bounds.removeFromTop (3);
+
+    {
+        RowLayout r { bounds.removeFromTop (Metrics::buttonHeight) };
+
+        tuningBox.setBounds (r.take (132));
+        keyBox.setBounds (r.take (82));
+        tapButton.setBounds (r.take (46));
+        tempoLabel.setBounds (r.take (104));
+        midiButton.setBounds (r.take (64));
+        nowChordLabel.setBounds (r.take (90));
+        infoLabel.setBounds (r.rest());
     }
 
     bounds.removeFromTop (3);

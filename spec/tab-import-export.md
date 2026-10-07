@@ -378,6 +378,42 @@ The status says exactly how much of a page was read (§7.5). `openTab`,
 `openLivePerformance`, `getStatusText` and `getScore` are the test surface
 (`TabPanel` suite).
 
+## 10. Universal tab player (tuning / key / chords / strums / follow / tap / MIDI)
+
+The dialect catalogue behind this section is `docs/research/TAB_FORMATS.md`.
+
+- **Tuning, capo, key headers** (`AsciiTabReader::parseTuningStatement`, shared with the
+  normalizer): named tunings (drop/open/DADGAD/baritone/7-8 string/bass/uke/mandolin/banjo),
+  note lists either way round with German `H` (`E A D G H E`), single-name shorthand
+  (`Tuning: Eb`), and offsets ("half step down", "1 1/2 steps down", "3 semitones down")
+  applied to any base; `Stimmung`/`Afinación`/`Accordage` keywords; Roman-numeral capo
+  (`Capo III`); `Key: Am` / `Key of G` / `Tonart: A-Moll` (`parseKeyStatement`); `Tempo: 1/4 = 120`
+  is a note value, not a metre. The canonical tuning name re-parses to the same list.
+- **Key** (`TabKeyDetector`): the page's `Key:` wins; otherwise a Krumhansl-Kessler profile match
+  over the duration-weighted notes (bass strings weighted up) with chord symbols voting. Stored in
+  `Meta::key` as `Am` / `Bb`; `Riff::fromScore` carries the root as `keyRoot`.
+- **Chord names over a staff** become `ScoreMeasure::chordSymbols` at the note column under the
+  name; **strumming lines** (`D DU UDU`, `↓↑`, `v ^`, `x` mutes, `>` accents, aligned by column)
+  mark the notes with `pickStrokeDown/Up`, `deadNote`, `accent`. `Riff::fromScore` turns every
+  two-or-more-note onset into a `RiffStrum` (direction from the marks, muted when every note is
+  dead), so the compiler staggers it like a riff strum; chords travel as `Riff::chords`.
+- **Chord charts** (`TabChordChart`): inline diagrams (`Am: x02210`, `{define: ...}`) win over
+  names; a non-standard tuning gets a searched voicing (`voicingFor`); `Strumming:` patterns
+  (eight character cells, space = rest) and `Picking: p i m a` patterns shape each bar; Nashville
+  numbers read as chords when a key is known.
+- **Playback** uses `Riff::fromScore (score, 0, Riff::kMaxImportedBeats)` so long pages are not
+  cut at 16 bars. **Tap tempo** (`TabReaderTab::tap`, `TapTempo`) sets the player's absolute
+  BPM, which the player reads every block: a tap while playing changes the rate in place.
+- **Follow the music**: `AsciiTabWriter::renderWindow` reports `TabColumnMark`s (beat → column);
+  the reader scrolls the window to the sounding bar, draws a `v` playhead row, selects the
+  sounding cell, shows the chord row and the chord sounding (`getHighlightedColumn`,
+  `getNowChordText`).
+- **Overrides**: tuning (notes keep string and fret, pitches follow) and key, with "As written" /
+  "As read" restoring the import. **MIDI…** exports the shown score (`exportMidi`); a `.mid`
+  opened in the reader is labelled "Experimental MIDI-to-tab (fingering guessed)".
+- Tests: `TabUniversal` (parsers, fixtures, strums, adversarial) and `TabPlayer` (panel: follow,
+  tap, overrides, MIDI round trip).
+
 ## Sources
 
 - [Wikipedia — ASCII tab](https://en.wikipedia.org/wiki/ASCII_tab)

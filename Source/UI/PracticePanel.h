@@ -21,6 +21,7 @@
 #include "../Practice/PracticeRoutine.h"
 #include "../Practice/PracticeRoutineSetup.h"
 #include "../Practice/TabPlaybackTuningSession.h"
+#include "../Live/TapTempo.h"
 #include "../Notation/NotationExport.h"
 #include "PracticeTabImporter.h"
 
@@ -315,28 +316,78 @@ public:
     juce::Slider& getFromBarSlider() noexcept { return fromBarSlider; }
     juce::String getTabViewText() const { return tabView.getText(); }
 
+    //==========================================================================
+    // Universal tab player.
+
+    /** Starts / stops playback of the shown score through the engine's RiffPlayer
+        (what the Play button does). False when there is nothing to play. */
+    bool startPlayback();
+    void stopPlayback();
+    bool isPlaying() const;
+
+    /** Tap tempo (item 3): a tap at `seconds` on any monotonic clock. Once two
+        taps agree the playback rate follows, including while the tab is playing
+        (a rate change on the player's own clock, not a restart). Returns true
+        when the tempo changed. */
+    bool tap (double seconds);
+    void setPlaybackBpm (double bpm);
+    double getPlaybackBpm() const noexcept { return playbackBpm; }
+
+    /** Follow-the-music (item 4): the character column of the tab view that is
+        sounding (-1 when stopped), the player's beat, and the chord sounding. */
+    int getHighlightedColumn() const noexcept { return highlightedColumn; }
+    double getPlayheadBeat() const noexcept { return playheadBeat; }
+    juce::String getNowChordText() const { return nowChordLabel.getText(); }
+    juce::String getInfoText() const { return infoLabel.getText(); }
+
+    /** Overrides (item 1): a named tuning ("Drop D", "Eb Standard", a note
+        list) or "As written"; a key ("Am") or "As read". Notes keep their
+        string and fret; pitches follow the new tuning. */
+    bool setTuningOverride (const juce::String& tuningName);
+    void setKeyOverride (const juce::String& key);
+    juce::ComboBox& getTuningBox() noexcept { return tuningBox; }
+    juce::ComboBox& getKeyBox() noexcept { return keyBox; }
+
+    /** MIDI export (item 5): the shown score as a Luthier-profile MIDI file. */
+    bool exportMidi (const juce::File& destination);
+
+    /** Experimental (item 6): a MIDI file fingered as tab, through openTab. */
+    bool importMidiAsTab (const juce::File& file, const juce::File& libraryFile = PracticeLibrary::getLibraryFile());
+
 private:
     /** FEAT2-TAB: compiles the parsed score and plays it through the engine's
         RiffPlayer (the audition path). Toggles the button between Play and Stop. */
     void togglePlay();
 
     void showStatus (const juce::String& text, bool warning);
+    void updateInfoLabel();
+    void rebuildOverrideBoxes();
+    juce::String chordAtBeat (double beat) const;
 
     juce::TextButton openButton { "Open..." }, exportButton { "Export..." };
     juce::TextButton playButton { "Play" };
     juce::TextButton liveButton { "Live" };
+    juce::TextButton tapButton { "Tap" };
+    juce::TextButton midiButton { "MIDI..." };
     juce::Label statusLabel;
+    juce::Label infoLabel, tempoLabel, nowChordLabel;
     juce::TextEditor tabView;
-    juce::ComboBox formatBox;
+    juce::ComboBox formatBox, tuningBox, keyBox;
     juce::Slider barsSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
     juce::Slider fromBarSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };   // first bar shown
 
     PerformanceScore score;
+    PerformanceScore writtenScore;      ///< the score as imported, for "As written" / "As read"
     juce::String scoreTitle;
     NotationExporter exporter;
     PracticeTabImporter importer;
     TabPlaybackTuningSession tuningSession;
+    TapTempo tapTempo;
     bool autoTuneImportedScore = false;
+    double playbackBpm = 0.0;           ///< 0: the score's own tempo
+    int highlightedColumn = -1;
+    double playheadBeat = -1.0;
+    bool lastOpenWasMidi = false;
 
     std::unique_ptr<juce::FileChooser> chooser;
 };

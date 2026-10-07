@@ -1,4 +1,5 @@
 #include "TabChordChart.h"
+#include "AsciiTabReader.h"
 
 #include <algorithm>
 #include <cmath>
@@ -205,6 +206,41 @@ bool TabChordChart::parseChord (const juce::String& tokenIn, Chord& out)
 
 std::vector<TabChordChart::Chord> TabChordChart::extractChords (const juce::String& text)
 {
+    return extractChords (text, -1);
+}
+
+namespace
+{
+    /** "1 4 5 1", "6m 4 1 5", "2- 5 1": Nashville numbers; a chord per token when a key is known. */
+    bool nashvilleLine (const juce::StringArray& toks, int keyRoot, std::vector<TabChordChart::Chord>& out)
+    {
+        if (keyRoot < 0 || toks.size() < 2)
+            return false;
+        static const int degreeOffsets[7] = { 0, 2, 4, 5, 7, 9, 11 };
+        static const char* const names[12] = { "C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B" };
+        std::vector<TabChordChart::Chord> found;
+        for (const auto& t : toks)
+        {
+            if (t.isEmpty() || t.length() > 6 || t[0] < '1' || t[0] > '7')
+                return false;
+            auto rest = t.substring (1);
+            int offset = 0;
+            if (rest.startsWithChar ('#')) { offset = 1; rest = rest.substring (1); }
+            else if (rest.startsWithChar ('b')) { offset = -1; rest = rest.substring (1); }
+            const int pc = ((keyRoot + degreeOffsets[t[0] - '1'] + offset) % 12 + 12) % 12;
+            juce::String quality = rest == "-" ? juce::String ("m") : rest;
+            TabChordChart::Chord chord;
+            if (! TabChordChart::parseChord (juce::String (names[pc]) + quality, chord))
+                return false;
+            found.push_back (chord);
+        }
+        out = found;
+        return true;
+    }
+}
+
+std::vector<TabChordChart::Chord> TabChordChart::extractChords (const juce::String& text, int keyRootPitchClass)
+{
     std::vector<Chord> result;
     const auto lines = juce::StringArray::fromLines (text);
 
@@ -240,6 +276,19 @@ std::vector<TabChordChart::Chord> TabChordChart::extractChords (const juce::Stri
             if (toks.size() > 1 && toks[0].length() <= 12 && toks[0].endsWithChar (':')
                 && toks[0].dropLastCharacters (1).containsOnly ("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 "))
                 toks.remove (0);
+
+            // A chord legend line ("Am x02210  G 320003") defines shapes; it is not the progression.
+            if (! extractDiagrams (raw).empty())
+                continue;
+
+            if (nashvilleLine (toks, keyRootPitchClass, lineChords))
+            {
+                for (int r = 0; r < repeats && (int) result.size() < kMaxChords; ++r)
+                    for (const auto& c : lineChords)
+                        if ((int) result.size() < kMaxChords)
+                            result.push_back (c);
+                continue;
+            }
 
             int chordTokens = 0, otherTokens = 0;
             std::vector<Chord> found;
@@ -405,54 +454,346 @@ std::vector<int> TabChordChart::shapeFor (const Chord& chord, int numStrings)
 }
 
 //==============================================================================
+std::vector<int> TabChordChart::voicingFor (const Chord& chord, const std::vector<int>& tuningHighFirst, int capo)
+{
+    const int n = juce::jlimit (1, 12, (int) tuningHighFirst.size());
+    std::vector<int> out ((size_t) n, -1);
+
+    // Chord tones, by quality.
+    const int root = chord.rootPitchClass;
+    const auto q = chord.quality;
+    std::vector<int> tones { root };
+    const bool minor = q == "m" || q == "m7";
+    const bool dim = q == "dim";
+    if (q == "sus2") tones.push_back ((root + 2) % 12);
+    else if (q == "sus4") tones.push_back ((root + 5) % 12);
+    else if (q != "5") tones.push_back ((root + (minor || dim ? 3 : 4)) % 12);
+    tones.push_back ((root + (dim ? 6 : q == "aug" ? 8 : 7)) % 12);
+    if (q == "7" || q == "m7" || q == "9") tones.push_back ((root + 10) % 12);
+    if (q == "maj7") tones.push_back ((root + 11) % 12);
+    if (q == "6") tones.push_back ((root + 9) % 12);
+    if (q == "9" || q == "add9") tones.push_back ((root + 2) % 12);
+    const int bass = chord.bassPitchClass >= 0 ? chord.bassPitchClass : root;
+
+    const auto isTone = [&] (int pc) { return std::find (tones.begin(), tones.end(), ((pc % 12) + 12) % 12) != tones.end(); };
+
+    double bestCost = 1.0e9;
+    for (int base = 0; base <= 9; ++base)
+    {
+        std::vector<int> frets ((size_t) n, -1);
+        double cost = 0.0;
+        int sounding = 0;
+        bool hasRoot = false, hasThird = tones.size() < 2;
+        for (int s = 0; s < n; ++s)
+        {
+            const int open = tuningHighFirst[(size_t) s] + capo;
+            int chosen = -1;
+            if (isTone (open)) chosen = 0;
+            for (int f = base; f <= base + 3 && chosen < 0; ++f)
+                if (f > 0 && isTone (open + f)) chosen = f;
+            frets[(size_t) s] = chosen;
+            if (chosen >= 0)
+            {
+                ++sounding;
+                cost += chosen * 0.3;
+                if (((open + chosen) % 12) == root) hasRoot = true;
+                if (tones.size() >= 2 && ((open + chosen) % 12) == tones[1]) hasThird = true;
+            }
+            else
+                cost += 1.5;
+        }
+        // The lowest sounding string should carry the bass.
+        for (int s = n - 1; s >= 0; --s)
+            if (frets[(size_t) s] >= 0)
+            {
+                if (((tuningHighFirst[(size_t) s] + capo + frets[(size_t) s]) % 12) != bass) cost += 2.0;
+                break;
+            }
+        if (! hasRoot) cost += 6.0;
+        if (! hasThird) cost += 3.0;
+        if (sounding < juce::jmin (3, n)) cost += 10.0;
+        cost += base * 0.2;
+        if (cost < bestCost) { bestCost = cost; out = frets; }
+    }
+    return out;
+}
+
+std::vector<std::pair<juce::String, std::vector<int>>> TabChordChart::extractDiagrams (const juce::String& text)
+{
+    std::vector<std::pair<juce::String, std::vector<int>>> out;
+    const auto lines = juce::StringArray::fromLines (text);
+
+    // One diagram token: "x02210", "x-0-2-2-1-0", "x.0.2.2.1.0", "(x32010)", "X02210".
+    const auto diagramOf = [] (juce::String t, std::vector<int>& frets) -> bool
+    {
+        t = t.removeCharacters ("()[]-.,_");
+        if (t.length() < 4 || t.length() > 8) return false;
+        frets.clear();
+        for (int i = 0; i < t.length(); ++i)
+        {
+            const auto c = t[i];
+            if (c == 'x' || c == 'X') frets.push_back (-1);
+            else if (c >= '0' && c <= '9') frets.push_back ((int) (c - '0'));
+            else return false;
+        }
+        return true;
+    };
+
+    for (const auto& raw : lines)
+    {
+        if (raw.length() > 400 || out.size() >= 256) continue;
+        auto line = raw.trim();
+        const auto lower = line.toLowerCase();
+
+        // ChordPro: {define: Am base-fret 1 frets x 0 2 2 1 0}
+        if (lower.startsWith ("{define") || lower.startsWith ("{chord"))
+        {
+            const int colon = line.indexOfChar (':');
+            const int fretsAt = lower.indexOf ("frets");
+            if (colon < 0 || fretsAt < 0) continue;
+            const auto name = line.substring (colon + 1, fretsAt).upToFirstOccurrenceOf ("base", false, true).trim();
+            int baseFret = 1;
+            const int baseAt = lower.indexOf ("base-fret");
+            if (baseAt >= 0) baseFret = juce::jlimit (1, 24, line.substring (baseAt + 9).trim().getIntValue());
+            auto rest = line.substring (fretsAt + 5).upToFirstOccurrenceOf ("}", false, false).upToFirstOccurrenceOf ("fingers", false, true);
+            std::vector<int> frets;
+            for (const auto& t : tokens (rest))
+            {
+                if (t == "x" || t == "X" || t == "-") frets.push_back (-1);
+                else if (t.containsOnly ("0123456789")) frets.push_back (t.getIntValue() == 0 ? 0 : t.getIntValue() + baseFret - 1);
+            }
+            Chord chord;
+            if (frets.size() >= 4 && frets.size() <= 8 && parseChord (name, chord))
+                out.push_back ({ chord.name, frets });
+            continue;
+        }
+
+        // "Am: x02210", "Am = x 0 2 2 1 0", "Am (x02210)", "Am x02210  G 320003".
+        auto toks = tokens (line.replace (":", " ").replace ("=", " ").replace (" - ", " "));
+        for (int i = 0; i + 1 < toks.size(); ++i)
+        {
+            Chord chord;
+            if (! parseChord (toks[i], chord)) continue;
+            std::vector<int> frets;
+            if (diagramOf (toks[i + 1], frets))
+            {
+                out.push_back ({ chord.name, frets });
+                ++i;
+                continue;
+            }
+            // Six separate cells: x 0 2 2 1 0
+            frets.clear();
+            int j = i + 1;
+            while (j < toks.size() && frets.size() < 8
+                   && (toks[j] == "x" || toks[j] == "X" || (toks[j].length() <= 2 && toks[j].containsOnly ("0123456789"))))
+            {
+                frets.push_back (toks[j] == "x" || toks[j] == "X" ? -1 : toks[j].getIntValue());
+                ++j;
+            }
+            if (frets.size() >= 4)
+            {
+                out.push_back ({ chord.name, frets });
+                i = j - 1;
+            }
+        }
+    }
+    return out;
+}
+
+bool TabChordChart::extractStrumPattern (const juce::String& text, std::vector<int>& pattern)
+{
+    pattern.clear();
+    for (const auto& raw : juce::StringArray::fromLines (text))
+    {
+        const auto lower = raw.trim().toLowerCase();
+        if (raw.length() > 200 || ! (lower.startsWith ("strum") || lower.startsWith ("pattern") || lower.startsWith ("rhythm")))
+            continue;
+        const int colon = raw.indexOfChar (':');
+        if (colon < 0) continue;
+        const auto body = raw.substring (colon + 1).trim();
+        // "D DU UDU": eight character cells, a space is a rest (the UG convention);
+        // anything else is one slot per glyph.
+        const bool cells = body.length() == 8 || body.length() == 16;
+        std::vector<int> found;
+        for (auto p = body.getCharPointer(); ! p.isEmpty();)
+        {
+            const auto c = p.getAndAdvance();
+            if (c == 'D' || c == 'd' || c == 'v' || c == 'V' || c == 0x2193) found.push_back (1);
+            else if (c == 'U' || c == 'u' || c == '^' || c == 0x2191)        found.push_back (-1);
+            else if (c == 'x' || c == 'X')                                    found.push_back (2);
+            else if (c == '-' || c == '.' || c == '_')                        found.push_back (0);
+            else if (c == ' ' || c == '\t')                                   { if (cells) found.push_back (0); continue; }
+            else if (c == ',' || c == '|')                                    continue;
+            else { found.clear(); break; }
+            if (found.size() > 64) { found.clear(); break; }
+        }
+        if (found.size() >= 2)
+        {
+            pattern = found;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool TabChordChart::extractPickingPattern (const juce::String& text, std::vector<int>& order)
+{
+    order.clear();
+    for (const auto& raw : juce::StringArray::fromLines (text))
+    {
+        const auto lower = raw.trim().toLowerCase();
+        if (raw.length() > 200 || ! (lower.startsWith ("pick") || lower.startsWith ("finger") || lower.startsWith ("arpeggio")))
+            continue;
+        const int colon = raw.indexOfChar (':');
+        if (colon < 0) continue;
+        std::vector<int> found;
+        for (const auto& t : tokens (raw.substring (colon + 1)))
+        {
+            const auto l = t.toLowerCase();
+            if (l == "p" || l == "t" || l == "thumb") found.push_back (0);     // bass string of the shape
+            else if (l == "i" || l == "1")              found.push_back (1);   // the third string (G)
+            else if (l == "m" || l == "2")              found.push_back (2);   // B
+            else if (l == "a" || l == "3")              found.push_back (3);   // e
+            else if (l == "-" || l == ".")              found.push_back (-1);
+            else { found.clear(); break; }
+            if (found.size() > 32) { found.clear(); break; }
+        }
+        if (found.size() >= 2)
+        {
+            order = found;
+            return true;
+        }
+    }
+    return false;
+}
+
+//==============================================================================
 bool TabChordChart::read (const juce::String& text, PerformanceScore& destination,
                           TabImportDiagnostics* diagnostics,
                           const std::vector<int>& tuningHighFirst, int capo, double tempoBpm)
 {
-    const auto chords = extractChords (text);
+    // A "Key:" header makes Nashville numbers readable and names the key.
+    int keyRoot = -1; bool keyMinor = false;
+    juce::String keyName;
+    for (const auto& raw : juce::StringArray::fromLines (text))
+        if (raw.length() <= 120 && AsciiTabReader::parseKeyStatement (raw, keyRoot, keyMinor))
+        {
+            keyName = AsciiTabReader::keyName (keyRoot, keyMinor);
+            break;
+        }
+
+    const auto chords = extractChords (text, keyRoot);
 
     if (chords.empty())
         return false;
 
     destination.clear();
     destination.beginCapture (tempoBpm >= 20.0 && tempoBpm <= 300.0 ? tempoBpm : 90.0, 4, 4);
+    destination.getMeta().key = keyName;
     auto& track = destination.getTrack (0);
 
     track.numStrings = 6;
     track.tuning = { { 64, 59, 55, 50, 45, 40, 0, 0, 0, 0, 0, 0 } };
 
-    if (tuningHighFirst.size() == 6)
-        for (size_t i = 0; i < 6; ++i)
-            track.tuning[i] = juce::jlimit (0, 127, tuningHighFirst[i]);
+    std::vector<int> tuning { 64, 59, 55, 50, 45, 40 };
+    if (tuningHighFirst.size() >= 4 && tuningHighFirst.size() <= 8)
+    {
+        tuning = tuningHighFirst;
+        track.numStrings = (int) tuning.size();
+        for (size_t i = 0; i < tuning.size(); ++i)
+            track.tuning[i] = juce::jlimit (0, 127, tuning[i]);
+    }
+    const bool standardSix = tuning == std::vector<int> { 64, 59, 55, 50, 45, 40 };
 
     track.capoFret = juce::jlimit (0, 12, capo);
+
+    // Inline diagrams win over names; otherwise the shape is looked up (standard)
+    // or searched on the actual tuning.
+    const auto diagrams = extractDiagrams (text);
+    const auto shapeOf = [&] (const Chord& chord) -> std::vector<int>
+    {
+        for (const auto& d : diagrams)
+            if (d.first == chord.name && (int) d.second.size() == track.numStrings)
+            {
+                std::vector<int> highFirst (d.second.rbegin(), d.second.rend());   // diagrams are written low to high
+                return highFirst;
+            }
+        return standardSix ? shapeFor (chord, track.numStrings) : voicingFor (chord, tuning, track.capoFret);
+    };
+
+    std::vector<int> strumPattern, picking;
+    const bool hasStrum = extractStrumPattern (text, strumPattern);
+    const bool hasPicking = ! hasStrum && extractPickingPattern (text, picking);
 
     int notes = 0;
     double beat = 0.0;
 
+    const auto strike = [&] (const std::vector<int>& shape, double at, double length, double velocity,
+                             ScoreTechnique::Type stroke, bool muted, int onlyString)
+    {
+        for (int s = 0; s < track.numStrings; ++s)
+        {
+            const int fret = shape[(size_t) s];
+            if (fret < 0 || (onlyString >= 0 && s != onlyString))
+                continue;
+
+            const int midi = juce::jlimit (0, 127, track.tuning[(size_t) s] + track.capoFret + fret);
+            destination.noteStarted (s, fret, midi, 440.0 * std::pow (2.0, (midi - 69) / 12.0), velocity, at);
+            if (stroke == ScoreTechnique::Type::pickStrokeUp || stroke == ScoreTechnique::Type::pickStrokeDown)
+            {
+                ScoreTechnique t; t.type = stroke;
+                destination.addTechnique (s, t);
+            }
+            if (muted)
+            {
+                ScoreTechnique t; t.type = ScoreTechnique::Type::deadNote;
+                destination.addTechnique (s, t);
+            }
+            destination.noteEnded (s, at + length);
+            ++notes;
+        }
+    };
+
     for (const auto& chord : chords)
     {
-        const auto shape = shapeFor (chord, track.numStrings);
+        const auto shape = shapeOf (chord);
         destination.addChordSymbol (beat, chord.name);
 
-        for (const double offset : { 0.0, 2.0 })
+        if (hasStrum)
         {
-            for (int s = 0; s < track.numStrings; ++s)
+            const double slot = 4.0 / (double) strumPattern.size();
+            for (size_t i = 0; i < strumPattern.size(); ++i)
             {
-                const int fret = shape[(size_t) s];
-                if (fret < 0)
-                    continue;
-
-                const int midi = juce::jlimit (0, 127, track.tuning[(size_t) s] + track.capoFret + fret);
-                destination.noteStarted (s, fret, midi, 440.0 * std::pow (2.0, (midi - 69) / 12.0),
-                                         offset == 0.0 ? 0.8 : 0.65, beat + offset);
+                const int p = strumPattern[i];
+                if (p == 0) continue;
+                const bool up = p < 0, mute = p == 2;
+                const double length = mute ? juce::jmin (slot, 0.25) : slot;
+                strike (shape, beat + slot * (double) i, length, up ? 0.6 : (i == 0 ? 0.85 : 0.7),
+                        up ? ScoreTechnique::Type::pickStrokeUp : ScoreTechnique::Type::pickStrokeDown, mute, -1);
             }
-
-            for (int s = 0; s < track.numStrings; ++s)
-                destination.noteEnded (s, beat + offset + 2.0);
-
-            for (int s = 0; s < track.numStrings; ++s)
-                notes += shape[(size_t) s] >= 0 ? 1 : 0;
+        }
+        else if (hasPicking)
+        {
+            int bassString = -1;
+            for (int s = track.numStrings - 1; s >= 0; --s)
+                if (shape[(size_t) s] >= 0) { bassString = s; break; }
+            const double slot = 4.0 / (double) juce::jmax<size_t> (4, picking.size());
+            for (size_t i = 0; i < picking.size() && slot * (double) i < 4.0; ++i)
+            {
+                const int finger = picking[i];
+                if (finger < 0) continue;
+                int str = finger == 0 ? bassString : juce::jlimit (0, track.numStrings - 1, 3 - finger);
+                if (str < 0 || shape[(size_t) str] < 0)
+                    for (int s = 0; s < track.numStrings; ++s) if (shape[(size_t) s] >= 0) { str = s; break; }
+                if (str >= 0 && shape[(size_t) str] >= 0)
+                    strike (shape, beat + slot * (double) i, 4.0 - slot * (double) i, finger == 0 ? 0.8 : 0.65,
+                            ScoreTechnique::Type::numTypes, false, str);
+            }
+        }
+        else
+        {
+            strike (shape, beat, 2.0, 0.8, ScoreTechnique::Type::pickStrokeDown, false, -1);
+            strike (shape, beat + 2.0, 2.0, 0.65, ScoreTechnique::Type::pickStrokeDown, false, -1);
         }
 
         beat += 4.0;
@@ -467,7 +808,9 @@ bool TabChordChart::read (const juce::String& text, PerformanceScore& destinatio
         diagnostics->notes = notes;
         diagnostics->numStrings = track.numStrings;
         diagnostics->warnings.add ("No tab found: " + juce::String ((int) chords.size())
-                                   + " chord(s) were turned into one strummed bar each.");
+                                   + " chord(s) were turned into one strummed bar each"
+                                   + (hasStrum ? " following the strumming pattern." : hasPicking ? " following the picking pattern." : ".")
+                                   + (diagrams.empty() ? juce::String() : " " + juce::String ((int) diagrams.size()) + " chord diagram(s) used."));
     }
 
     return true;
