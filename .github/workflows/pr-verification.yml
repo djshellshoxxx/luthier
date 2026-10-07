@@ -14,7 +14,6 @@ concurrency:
 
 jobs:
   platforms:
-    if: github.event.pull_request.draft == false
     uses: ./.github/workflows/build.yml
     with:
       platforms: linux,windows,macos
