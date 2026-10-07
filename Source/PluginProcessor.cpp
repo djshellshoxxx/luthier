@@ -1619,10 +1619,10 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
     {   // RT-SAFETY P2: the host clock, validated (HostClockGuard)
         if (hostPosition)
         {
-            if (auto bpm = position->getBpm(); bpm && HostClock::isValidTempo (*bpm))
+            if (auto bpm = hostPosition->getBpm(); bpm && HostClock::isValidTempo (*bpm))
                 hostTempo.store (*bpm);
 
-            hostPlaying = position->getIsPlaying();
+            hostPlaying = hostPosition->getIsPlaying();
         }
     }
 
@@ -1651,19 +1651,19 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
         {   // RT-SAFETY P2: the host clock, validated (HostClockGuard)
             if (hostPosition)
             {
-                playing = position->getIsPlaying();
+                playing = hostPosition->getIsPlaying();
 
-                if (auto value = position->getPpqPosition(); value && HostClock::isValidPosition (*value))
+                if (auto value = hostPosition->getPpqPosition(); value && HostClock::isValidPosition (*value))
                 {
                     ppq = *value;
                     hasPosition = true;
                 }
 
-                if (auto seconds = position->getTimeInSeconds(); seconds && HostClock::isValidPosition (*seconds))
+                if (auto seconds = hostPosition->getTimeInSeconds(); seconds && HostClock::isValidPosition (*seconds))
                     hostSeconds = *seconds;
 
                 // SPEC-SWEEP HI-29: the host's metre, for the practice click.
-                if (auto signature = position->getTimeSignature())
+                if (auto signature = hostPosition->getTimeSignature())
                 {
                     hostTimeSigNumerator = signature->numerator;
                     hostTimeSigDenominator = signature->denominator;
@@ -1908,12 +1908,12 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
         {   // RT-SAFETY P2: the host clock, validated (HostClockGuard)
             if (hostPosition)
             {
-                clock.transportPlaying = position->getIsPlaying();
+                clock.transportPlaying = hostPosition->getIsPlaying();
 
-                if (auto ppq = position->getPpqPosition())
+                if (auto ppq = hostPosition->getPpqPosition())
                     clock.blockStartPpq = *ppq;
 
-                if (auto signature = position->getTimeSignature())
+                if (auto signature = hostPosition->getTimeSignature())
                 {
                     clock.timeSigNumerator = signature->numerator;
                     clock.timeSigDenominator = signature->denominator;
@@ -1956,13 +1956,13 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
             if (hostPosition)
             {
                 ctx.hasPlayHead = true;
-                ctx.hostPlaying = position->getIsPlaying();
+                ctx.hostPlaying = hostPosition->getIsPlaying();
 
-                if (auto value = position->getPpqPosition())      { ctx.hostHasPpq = true; ctx.hostPpq = *value; }
-                if (auto value = position->getBpm())              ctx.hostBpm = *value;
-                if (auto value = position->getPpqPositionOfLastBarStart()) { ctx.hostHasBarStart = true; ctx.hostBarStartPpq = *value; }
+                if (auto value = hostPosition->getPpqPosition())      { ctx.hostHasPpq = true; ctx.hostPpq = *value; }
+                if (auto value = hostPosition->getBpm())              ctx.hostBpm = *value;
+                if (auto value = hostPosition->getPpqPositionOfLastBarStart()) { ctx.hostHasBarStart = true; ctx.hostBarStartPpq = *value; }
 
-                if (auto signature = position->getTimeSignature())
+                if (auto signature = hostPosition->getTimeSignature())
                 {
                     ctx.hostHasMeter = true;
                     ctx.hostNumerator = signature->numerator;
@@ -2399,9 +2399,9 @@ void LuthierAudioProcessor::buildModBlockContext (const juce::AudioBuffer<float>
     {   // RT-SAFETY P2: the host clock, validated (HostClockGuard)
         if (hostPosition)
         {
-            context.transportRunning = position->getIsPlaying();
+            context.transportRunning = hostPosition->getIsPlaying();
 
-            if (auto ppq = position->getPpqPosition())
+            if (auto ppq = hostPosition->getPpqPosition())
                 context.positionBeats = *ppq;
         }
     }
