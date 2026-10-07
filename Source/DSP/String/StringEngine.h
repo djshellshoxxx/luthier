@@ -102,7 +102,7 @@ public:
     void setPhysical (const Physical& p) noexcept;
     const Physical& getPhysical() const noexcept { return physical; }
 
-    void setIndex (int i) noexcept { stringIndex = i; rng.setSeed (0x51E3D00Dull + (uint64_t) i * 7919ull); }
+    void setIndex (int i) noexcept { stringIndex = i; rng.setSeed (0x51E3D00Dull + (uint64_t) i * 7919ull); noiseRng.setSeed (0x7A11CE5Dull + (uint64_t) i * 7919ull); }
     int  getIndex() const noexcept { return stringIndex; }
 
     /** Sets the frequency the string is being driven toward. Smoothed internally,
@@ -366,7 +366,12 @@ private:
 
     FractionalDelayLine delayLine;
     Excitation excitation;
-    RtRandom rng { 0x51E3D00Dull };
+    RtRandom rng { 0x51E3D00Dull };            // excitation: drawn once per pluck
+    /** Per-sample noise (fret buzz, slide squeak, fret landing). Separate from `rng` so
+        a sleeping string, which stops drawing, cannot shift the pluck noise of the next
+        note: cpu-quality-modes 3 CQ-12 needs Medium and Low to differ from High only by
+        the stated reductions, not by a different random realisation of the same pluck. */
+    RtRandom noiseRng { 0x7A11CE5Dull };
 
     // --- loop ---------------------------------------------------------------
     OnePoleLP loopFilter;
