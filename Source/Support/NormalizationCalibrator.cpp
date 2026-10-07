@@ -609,7 +609,11 @@ NormalizationCalibrator::Measurement NormalizationCalibrator::renderAndMeasure (
         Bs1770Meter meter;
         meter.prepare (sr, 2);
 
-        const int settle = (int) (NormalizationPhrase::kSettleSeconds * sr);
+        // Whole blocks, so the phrase starts exactly on a block boundary: with a
+        // remainder the first block with pos >= 0 began mid-phrase and dropped
+        // the events before it (the t = 0 strum note), so the reference render
+        // played a different phrase from the one the live instance plays.
+        const int settle = ((int) std::ceil (NormalizationPhrase::kSettleSeconds * sr / block)) * block;
         const int window = (int) (NormalizationPhrase::kWindowSeconds * sr);
         bool finite = true;
 

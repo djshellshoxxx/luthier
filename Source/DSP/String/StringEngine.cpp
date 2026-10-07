@@ -127,6 +127,7 @@ void StringEngine::reset() noexcept
     // this the humanisation noise carries over and two renders of the same
     // preset differ - which would make offline regression testing impossible.
     rng.setSeed (0x51E3D00Dull + (uint64_t) stringIndex * 7919ull);
+    noiseRng.setSeed (0x7A11CE5Dull + (uint64_t) stringIndex * 7919ull);
     lastCoefficientHz = 0.0;
 
     // A slide leaves a long glide behind; the next render must not inherit it.
@@ -1192,7 +1193,7 @@ void StringEngine::beginSample() noexcept
             const double excess = mag - threshold;
             const double clipped = threshold + excess / (1.0 + excess * 9.0 * fretBuzzAmount);
             fb = std::copysign (clipped, fb);
-            fb += rng.nextBipolar() * excess * fretBuzzAmount * 0.30;
+            fb += noiseRng.nextBipolar() * excess * fretBuzzAmount * 0.30;
         }
     }
 
@@ -1244,7 +1245,7 @@ double StringEngine::endSample (double couplingInput, double directInput) noexce
 
         if (slideNoiseEnv > 1.0e-5)
         {
-            const double raw = rng.nextBipolar();
+            const double raw = noiseRng.nextBipolar();
             noise += slideNoiseFilter.process (raw) * slideNoiseEnv * 0.05;
         }
     }
@@ -1256,7 +1257,7 @@ double StringEngine::endSample (double couplingInput, double directInput) noexce
     // Finger landing on a fret: a short, bright click.
     if (fretNoiseEnv > 1.0e-5)
     {
-        noise += fretNoiseBand.process (rng.nextBipolar()) * fretNoiseEnv * fretNoiseAmount * 0.12;
+        noise += fretNoiseBand.process (noiseRng.nextBipolar()) * fretNoiseEnv * fretNoiseAmount * 0.12;
         fretNoiseEnv *= 0.9965;
     }
 

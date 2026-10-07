@@ -457,10 +457,21 @@ ToneFeatures ToneFeatures::analyse (const juce::AudioBuffer<float>& buffer, doub
             env.push_back (10.0 * std::log10 (s / hop + 1.0e-12));
         }
 
+        constexpr double kSilenceDb = -100.0;
         double onsetSum = 0.0;
         int onsets = 0;
 
-        for (size_t i = 3; i < env.size(); ++i)
+        // The clip's lead-in is digital silence (the engine's latency before the
+        // first string sounds, 10-20 ms depending on the preset's chain). The jump
+        // out of it is the clip starting, not a pick attack; counting it made a
+        // riff with few other onsets (Modern Metal Chug) read ~100 dB, an outlier
+        // that pushed it away from every other high-gain preset.
+        size_t first = 0;
+
+        while (first < env.size() && env[first] < kSilenceDb)
+            ++first;
+
+        for (size_t i = first + 3; i < env.size(); ++i)
         {
             const double rise = env[i] - env[i - 3];
 

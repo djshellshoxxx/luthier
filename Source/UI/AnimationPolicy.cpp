@@ -402,6 +402,13 @@ bool AnimationPolicy::Registration::computeHidden() const
     if (top != nullptr && top->isOnDesktop())
         return ! owner.isShowing();
 
+    /*  A top level that is itself an editor is an editor not (yet) on the desktop:
+        still being built, or hosted by a test. The owner is attached to it, not
+        detached, whatever other editor windows exist (a leaked or concurrent one
+        made the browser's hover timer stop, so PB-30's hover preview never began). */
+    if (dynamic_cast<juce::AudioProcessorEditor*> (top) != nullptr)
+        return false;
+
     /*  Not in any window. While an editor window is open that means detached
         from it - an overlay that is closed, a panel parked out of its viewport -
         so there is nothing to draw. With no window open (the tests, an editor
