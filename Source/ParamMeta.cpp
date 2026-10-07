@@ -18,18 +18,21 @@ ParamUnit getUnit (const juce::AudioProcessorParameter& parameter)
     if (label == "s")                                     return ParamUnit::seconds;
     if (label.startsWith ("%"))                           return ParamUnit::percent;
     if (label == "st" || label == "semitones")            return ParamUnit::semitones;
-    if (label == "cents" || label == "c/fret")            return ParamUnit::cents;
+    if (label == "cents" || label == "ct" || label == "c/fret")            return ParamUnit::cents;
     if (label == "H" || label == "mH")                    return ParamUnit::henry;
     if (label == "F" || label == "nF" || label == "pF" || label == "uF") return ParamUnit::farad;
     if (label.endsWithIgnoreCase ("ohm") || label.containsChar (0x03a9) || label == "k") return ParamUnit::ohm;
     if (label == "mm")                                    return ParamUnit::mm;
+    if (label == "ct/s")                                  return ParamUnit::centsPerSecond;
+    if (label == "cm")                                    return ParamUnit::centimetres;
+    if (label == "u")                                     return ParamUnit::amount;  // normalised plate/body units
     if (label == "m")                                     return ParamUnit::metres;
     if (label == "deg")                                   return ParamUnit::degrees;
     if (label == "C")                                     return ParamUnit::celsius;
     if (label == "x")                                     return ParamUnit::multiplier;
     if (label == "sps")                                   return ParamUnit::stringsPerSecond;
     if (label == "h")                                     return ParamUnit::hours;
-    if (label == "frets" || label == "bars" || label == "steps") return ParamUnit::count;
+    if (label == "frets" || label == "fret" || label == "bars" || label == "steps") return ParamUnit::count;
 
     return ParamUnit::unknown;
 }
@@ -50,6 +53,8 @@ juce::String getUnitSuffix (ParamUnit unit)
         case ParamUnit::ohm:              return "ohm";
         case ParamUnit::mm:               return "mm";
         case ParamUnit::metres:           return "m";
+        case ParamUnit::centimetres:      return "cm";
+        case ParamUnit::centsPerSecond:   return "ct/s";
         case ParamUnit::degrees:          return "deg";
         case ParamUnit::celsius:          return "C";
         case ParamUnit::multiplier:       return "x";
@@ -78,6 +83,8 @@ juce::String getUnitName (ParamUnit unit)
         case ParamUnit::ohm:              return "ohms";
         case ParamUnit::mm:               return "millimetres";
         case ParamUnit::metres:           return "metres";
+        case ParamUnit::centimetres:      return "centimetres";
+        case ParamUnit::centsPerSecond:   return "cents per second";
         case ParamUnit::degrees:          return "degrees";
         case ParamUnit::celsius:          return "degrees Celsius";
         case ParamUnit::multiplier:       return "times";

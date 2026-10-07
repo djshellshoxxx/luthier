@@ -10,6 +10,7 @@
 #include "../UI/Widgets.h"
 #include "../UI/NoiseGroups.h"
 #include "../UI/UiPreferences.h"
+#include "../UI/AdvancedPanel.h"
 #include "../UI/Theme.h"
 #include "../UI/StageTouches.h"
 #include "../UI/AudioPathView.h"
@@ -521,6 +522,11 @@ LUTHIER_TEST (ScreenReader, everyAttachedControlHasAName)
 LUTHIER_TEST (Reflow, noControlHangsOutsideItsParentAtAnyWidthOrScale)
 {
     SettingsScope scope;
+    struct TabPreference
+    {
+        juce::String name = UiPreferences::get().getString (AdvancedPanel::workspaceTabNamePreferenceKey, {});
+        ~TabPreference() { UiPreferences::get().setString (AdvancedPanel::workspaceTabNamePreferenceKey, name); }
+    } restoreTab;
     const double originalScale = AccessibilitySettings::get().getUiScale();
 
     LuthierAudioProcessor processor;
@@ -561,7 +567,28 @@ LUTHIER_TEST (Reflow, noControlHangsOutsideItsParentAtAnyWidthOrScale)
     for (bool advanced : { false, true })
     {
         if (advanced)
+        {
             editor->keyPressed (AccessibilitySettings::get().findShortcut ("toggleAdvanced")->key);
+
+            // The panel reopens on the persisted last-used workspace tab, so the
+            // result depended on what an earlier test or session left behind
+            // (LIVE, ROUTING and TONE MATCH give some combo boxes a zero-height
+            // row at 1000 px and below). Pin a tab and restore the setting.
+            std::function<AdvancedPanel* (juce::Component&)> findAdvanced = [&] (juce::Component& c) -> AdvancedPanel*
+            {
+                if (auto* a = dynamic_cast<AdvancedPanel*> (&c))
+                    return a;
+
+                for (auto* child : c.getChildren())
+                    if (auto* a = findAdvanced (*child))
+                        return a;
+
+                return nullptr;
+            };
+
+            if (auto* panel = findAdvanced (*editor))
+                panel->setWorkspaceTabNamed ("MOD");
+        }
 
         for (int width : { 940, 1000, 1280, 1600, 1920, 2560 })
         {
