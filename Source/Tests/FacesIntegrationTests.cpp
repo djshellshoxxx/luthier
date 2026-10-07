@@ -13,6 +13,7 @@
 #include "../PluginProcessor.h"
 #include "../Accessibility/Accessibility.h"
 #include "../UI/AdvancedPanel.h"
+#include "../UI/UiPreferences.h"
 #include "../UI/EasyPanel.h"
 #include "../UI/AmpFacePanel.h"
 #include "../UI/PedalRack.h"
@@ -406,6 +407,18 @@ LUTHIER_TEST (FacesIntegration, theAdvancedAmpSectionHasItsControlsOnTheFace)
 
     auto& advanced = *panels.getFirst();
     CHECK_MSG (advanced.isVisible(), "the Advanced panel is not showing");
+
+    // The panel reopens on the last-used workspace tab (a persisted user
+    // setting). WORKSHOP takes columns 2 and 3 over by design (gui-integration
+    // 6), which hides the AMP section, so the test picks a tab that does not -
+    // and puts the user's setting back afterwards.
+    struct TabPreference
+    {
+        juce::String name = UiPreferences::get().getString (AdvancedPanel::workspaceTabNamePreferenceKey, {});
+        ~TabPreference() { UiPreferences::get().setString (AdvancedPanel::workspaceTabNamePreferenceKey, name); }
+    } restoreTab;
+
+    CHECK (advanced.setWorkspaceTabNamed ("MOD"));
 
     auto* face = findFace (advanced, AmpFacePanel::Style::section);
     CHECK_MSG (face != nullptr, "the AMP section has no amp face");
