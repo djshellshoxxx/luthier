@@ -215,8 +215,10 @@ EasyPanel::EasyPanel (LuthierAudioProcessor& p)
     outputKnob.attachTo (processor, ParamIDs::masterGain, "Output gain, after everything.");
     mixKnob.attachTo (processor, ParamIDs::outputMix, "Wet/dry: the whole rig against the guitar's direct signal.");
     widthKnob.attachTo (processor, ParamIDs::stereoWidth, "Stereo width: mono at the left, as recorded in the middle, wider at the right.");
+    saturationKnob.attachTo (processor, ParamIDs::fxSaturation,
+                             "Saturation: soft clipping ahead of the amp. Turn it up for a thicker, more compressed sound; at zero it is off.");
 
-    for (auto* k : { &inputKnob, &outputKnob, &mixKnob, &widthKnob })
+    for (auto* k : { &inputKnob, &outputKnob, &mixKnob, &widthKnob, &saturationKnob })
         addAndMakeVisible (k);
 
     // ---- style ---------------------------------------------------------------------
@@ -839,7 +841,7 @@ void EasyPanel::resized()
         r.removeFromTop (14);
         const int knobW = juce::jmin (70, r.getWidth() / 10);
 
-        for (auto* k : { &inputKnob, &outputKnob, &mixKnob, &widthKnob })
+        for (auto* k : { &inputKnob, &outputKnob, &mixKnob, &widthKnob, &saturationKnob })
             k->setBounds (r.removeFromLeft (knobW));
 
         r.removeFromLeft (Metrics::grid);

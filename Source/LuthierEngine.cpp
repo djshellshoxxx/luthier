@@ -125,6 +125,7 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
     // --- signal chain ---------------------------------------------------------
     circuit.prepare (sr);
     preEffects.prepare (sr, maxBlock);
+    saturation.prepare (sr);   // FEAT-SAT
     preEffects.setPosition (EffectsChain::Position::PreAmp);
     amp.prepare (sr, maxBlock);
     postEffects.prepare (sr, maxBlock);
@@ -215,6 +216,7 @@ void LuthierEngine::reset() noexcept
     circuit.setComponents (getLiveCircuitComponents());
     circuit.reset();
     preEffects.reset();
+    saturation.reset();   // FEAT-SAT
     amp.reset();
     postEffects.reset();
     cabinet.reset();
@@ -1342,6 +1344,7 @@ void LuthierEngine::settleAfterPrepare() noexcept
     pickups.reset();
     circuit.reset();
     preEffects.reset();
+    saturation.reset();   // FEAT-SAT
     amp.reset();
     postEffects.reset();
     cabinet.reset();
@@ -3416,6 +3419,10 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         }
 
         preEffects.processStereo (dl.data(), dr.data(), numSamples);
+
+        // FEAT-SAT: the closing saturation stage; a true bypass at 0 %.
+        saturation.setAmount (saturationAmount.load (std::memory_order_relaxed));
+        saturation.process (dl.data(), dr.data(), numSamples);
 
         // SPEC-SWEEP TM-28: the EQ-match filter, into the amp.
         const bool eqMatchHere = eqMatchSlot != nullptr && eqMatchSlot->isEngaged()
