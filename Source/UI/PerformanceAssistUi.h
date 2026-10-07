@@ -181,6 +181,7 @@ private:
     double flashUntilMs = -1.0;
     double lastSeenDecisionMs = -1.0e9;
     std::function<double()> testClock;
+    int lastShown = -1;   // what the last repaint drew
     AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "AssistPill" };   // cpu-quality-modes 6
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AssistPill)

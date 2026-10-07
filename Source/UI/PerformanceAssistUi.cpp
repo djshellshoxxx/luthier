@@ -505,7 +505,15 @@ void AssistPill::timerCallback()
     if (summary != getDescription())
         setDescription (summary);
 
-    repaint();
+    // Only when the pill's picture changes (on, flashing, focused): it used to
+    // repaint 30 times a second regardless.
+    const int shown = (AssistUi::isEnabled (processor) ? 1 : 0) | (isDotFlashing() ? 2 : 0) | (hasKeyboardFocus (false) ? 4 : 0);
+
+    if (shown != lastShown)
+    {
+        lastShown = shown;
+        repaint();
+    }
 }
 
 //==============================================================================

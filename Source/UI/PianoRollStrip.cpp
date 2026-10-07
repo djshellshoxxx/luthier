@@ -342,7 +342,14 @@ void PianoRollStrip::tick (double nowMs)
     model.update (nowMs, frame, stale);
     lastTickMs = nowMs;
 
-    if (isShowing())
+    // Nothing lit and the roll's four seconds empty: nothing moves, so no
+    // repaint (the strip used to repaint its keys and roll 30 times a second
+    // while idle). The first quiet tick still paints the last fade out.
+    const bool quiet = model.getBars().empty() && model.countLit (nowMs) == 0;
+    const bool paint = ! (quiet && lastTickQuiet);
+    lastTickQuiet = quiet;
+
+    if (paint && AnimationPolicy::isShowingFast (*this))
         repaint (keysArea.getUnion (rollArea));
 }
 

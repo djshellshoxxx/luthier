@@ -124,6 +124,10 @@ private:
 
     LuthierAudioProcessor& processor;
 
+    /** The MIDI activity dot, the only live pixel of paint(). */
+    juce::Rectangle<float> midiDotArea() const noexcept;
+    PaintCache backgroundCache;   // logo, name and panel: static while playing
+
     OutputLed led;
 
 public:

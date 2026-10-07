@@ -458,6 +458,7 @@ private:
     float peakHoldL = 0.0f, peakHoldR = 0.0f;
     int holdCountL = 0, holdCountR = 0;
     float displayPeakDb = -100.0f;
+    juce::int64 lastShown = -1;   // what the last repaint drew, quantised
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LevelMeter)
 

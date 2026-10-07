@@ -161,10 +161,11 @@ public:
     static constexpr int kWidth = 120, kHeight = 72;
 
 private:
-    void timerCallback() override { repaint(); }
+    void timerCallback() override;
 
     LuthierAudioProcessor& processor;
     std::unique_ptr<MicEdit> drag;
+    juce::int64 lastShown = -1;   // what the last repaint drew, quantised
     AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "MicPad" };   // cpu-quality-modes 6
 
 };

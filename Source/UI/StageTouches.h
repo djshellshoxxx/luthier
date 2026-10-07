@@ -17,6 +17,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "AnimationPolicy.h"   // cpu-quality-modes 6
+#include "PaintCache.h"
 
 namespace luthier
 {
@@ -60,6 +61,7 @@ private:
     AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "VuMeter" };
     double needleVu = kMinVu;
     double lastLevel = -1.0, lastChangeMs = 0.0, lastTickMs = 0.0;
+    PaintCache faceCache;   // the face, arc, ticks and labels: static
     bool stale = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (VuMeter)
