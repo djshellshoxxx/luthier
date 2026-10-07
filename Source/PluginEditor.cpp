@@ -443,46 +443,52 @@ void LuthierAudioProcessorEditor::paint (juce::Graphics& g)
     // clipped: the background fills the rectangle and the cutaway is carved out of
     // the panel surface, which reads as the intended silhouette without the
     // host-dependent behaviour of an actually non-rectangular window.
-    g.fillAll (Palette::backgroundDeep);
+    // Everything up to the notch is static: PaintCache keeps it out of the many
+    // small repaints while notes play (no child is opaque, so each one used to
+    // re-run this path fill and stroke).
+    backgroundCache.draw (g, bounds, 0, [&bounds] (juce::Graphics& g)
+    {
+        g.fillAll (Palette::backgroundDeep);
 
-    juce::Path shape;
-    const float corner = Metrics::windowCorner;
-    const float w = (float) bounds.getWidth();
-    const float h = (float) bounds.getHeight();
+        juce::Path shape;
+        const float corner = Metrics::windowCorner;
+        const float w = (float) bounds.getWidth();
+        const float h = (float) bounds.getHeight();
 
-    const float cutawayDepth = juce::jmin (w * 0.055f, 64.0f);
-    const float cutawayTop = h * 0.44f;
-    const float cutawayBottom = h * 0.86f;
+        const float cutawayDepth = juce::jmin (w * 0.055f, 64.0f);
+        const float cutawayTop = h * 0.44f;
+        const float cutawayBottom = h * 0.86f;
 
-    shape.startNewSubPath (corner, 0.0f);
-    shape.lineTo (w - corner, 0.0f);
-    shape.quadraticTo (w, 0.0f, w, corner);
-    shape.lineTo (w, cutawayTop);
+        shape.startNewSubPath (corner, 0.0f);
+        shape.lineTo (w - corner, 0.0f);
+        shape.quadraticTo (w, 0.0f, w, corner);
+        shape.lineTo (w, cutawayTop);
 
-    // The cutaway: a smooth scoop, like the horn of a double-cut body.
-    shape.cubicTo (w, cutawayTop + h * 0.06f,
-                   w - cutawayDepth, cutawayTop + h * 0.10f,
-                   w - cutawayDepth, (cutawayTop + cutawayBottom) * 0.5f);
-    shape.cubicTo (w - cutawayDepth, cutawayBottom - h * 0.10f,
-                   w, cutawayBottom - h * 0.06f,
-                   w, cutawayBottom);
+        // The cutaway: a smooth scoop, like the horn of a double-cut body.
+        shape.cubicTo (w, cutawayTop + h * 0.06f,
+                       w - cutawayDepth, cutawayTop + h * 0.10f,
+                       w - cutawayDepth, (cutawayTop + cutawayBottom) * 0.5f);
+        shape.cubicTo (w - cutawayDepth, cutawayBottom - h * 0.10f,
+                       w, cutawayBottom - h * 0.06f,
+                       w, cutawayBottom);
 
-    shape.lineTo (w, h - corner);
-    shape.quadraticTo (w, h, w - corner, h);
-    shape.lineTo (corner, h);
-    shape.quadraticTo (0.0f, h, 0.0f, h - corner);
-    shape.lineTo (0.0f, corner);
-    shape.quadraticTo (0.0f, 0.0f, corner, 0.0f);
-    shape.closeSubPath();
+        shape.lineTo (w, h - corner);
+        shape.quadraticTo (w, h, w - corner, h);
+        shape.lineTo (corner, h);
+        shape.quadraticTo (0.0f, h, 0.0f, h - corner);
+        shape.lineTo (0.0f, corner);
+        shape.quadraticTo (0.0f, 0.0f, corner, 0.0f);
+        shape.closeSubPath();
 
-    g.setColour (Palette::background);
-    g.fillPath (shape);
+        g.setColour (Palette::background);
+        g.fillPath (shape);
 
-    g.setColour (Palette::edge);
-    g.strokePath (shape, juce::PathStrokeType (1.0f));
+        g.setColour (Palette::edge);
+        g.strokePath (shape, juce::PathStrokeType (1.0f));
 
-    // ---- signature notch, top-left ------------------------------------------------
-    LuthierLookAndFeel::drawSignatureNotch (g, bounds);
+        // ---- signature notch, top-left ------------------------------------------------
+        LuthierLookAndFeel::drawSignatureNotch (g, bounds);
+    });
 
     // The hidden target lives at the tip of the notch. Once found it stays faintly
     // marked, so it can be got back to; before that it is invisible.

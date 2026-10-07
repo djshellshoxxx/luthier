@@ -314,11 +314,14 @@ AnimationPolicy::Registration::Registration (juce::Component& o, MotionClass cls
     auto& policy = AnimationPolicy::get();
     policy.registry.emplace (&owner, this);
     policy.addListener (this);
+    showingWatcher = std::make_unique<ShowingWatcher> (*this);
     apply();
 }
 
 AnimationPolicy::Registration::~Registration()
 {
+    showingWatcher = nullptr;
+
     auto& policy = AnimationPolicy::get();
     policy.removeListener (this);
 
@@ -365,9 +368,16 @@ void AnimationPolicy::Registration::apply()
         owner.setBufferedToImage (buffer);
     }
 
+    /*  A component in an on-screen window that is not showing (another tab, a
+        collapsed parent) has nothing to draw: its timer stops until it shows
+        again (ShowingWatcher). Off-screen components - tests, an editor not yet
+        attached to a window - keep the policy's rate. */
+    auto* top = owner.getTopLevelComponent();
+    hidden = top != nullptr && top->isOnDesktop() && ! owner.isShowing();
+
     if (timer != nullptr)
     {
-        if (hz > 0)
+        if (hz > 0 && ! hidden)
         {
             if (! timer->isTimerRunning() || timer->getTimerInterval() != juce::jmax (1, 1000 / hz))
                 timer->startTimerHz (hz);

@@ -53,6 +53,7 @@ void Palette::apply (const PaletteColours& c, bool texturedSurfaces)
     shadow         = c.shadow;
 
     textured = texturedSurfaces;
+    ++revision;
 
     // Black bell knobs with cream pointers on every palette but High contrast,
     // where the knob is black and the pointer is the text colour.

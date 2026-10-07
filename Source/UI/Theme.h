@@ -72,6 +72,9 @@ namespace Palette
     /** False under High contrast: no grain, sheen, screws or gradients. */
     inline bool textured = true;
 
+    /** Bumped by apply(): cached backgrounds (PaintCache) redraw when it moves. */
+    inline int revision = 0;
+
     /** Puts a palette in force. Components already built keep their own
         colours; remap() moves those across. Message thread. */
     void apply (const PaletteColours& colours, bool texturedSurfaces);

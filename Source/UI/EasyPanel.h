@@ -1,5 +1,7 @@
 #pragma once
 
+#include "PaintCache.h"
+
 /*  Easy mode (gui-integration.md 3).
 
     +-------------------------------------------------------+--------------+
@@ -262,6 +264,7 @@ private:
 
     juce::Rectangle<int> rigArea, playingArea, toneArea, rhythmArea;
     juce::Array<std::pair<juce::Rectangle<int>, juce::String>> rigCards;
+    PaintCache backgroundCache;   // the cards and areas, redrawn only when the layout or theme changes
 
     juce::Array<int> stylePresetIndices;
 

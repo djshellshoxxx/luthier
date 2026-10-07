@@ -1,4 +1,5 @@
 #include "EasyPanel.h"
+#include "PaintCache.h"
 #include "PedalRack.h"
 #include "../PluginProcessor.h"
 
@@ -124,6 +125,7 @@ EasyPanel::EasyPanel (LuthierAudioProcessor& p)
       vuMeter (p),
       roomLight (p)
 {
+    setOpaque (true);   // paint() fills every pixel; spares the editor's paint under it
     addAndMakeVisible (guitarBody);
 
     // gui-integration 20 (TUNE-HELP-ONBOARDING): a ? on every strip.
@@ -930,23 +932,33 @@ void EasyPanel::resized()
 
 void EasyPanel::paint (juce::Graphics& g)
 {
-    g.fillAll (Palette::background);
-
-    // The rig strip's cards, each a small framed panel with its name.
+    // The cards and areas are static while playing; PaintCache keeps them out of
+    // the 30-60 Hz repaints of the meters and the guitar above them.
+    juce::String layout;
     for (auto& [r, title] : rigCards)
-    {
-        LuthierLookAndFeel::drawPanel (g, r.toFloat());
-        LuthierLookAndFeel::drawSectionHeader (g, r.reduced (6, 2).withHeight (18), title);
-    }
+        layout << r.toString() << title << ';';
+    layout << playingArea.toString() << toneArea.toString() << rhythmArea.toString();
 
-    for (auto [area, title] : { std::pair<juce::Rectangle<int>, const char*> { playingArea, "Playing" },
-                                { toneArea, "Tone" }, { rhythmArea, "Rhythm" } })
+    backgroundCache.draw (g, getLocalBounds(), layout.hashCode64(), [this] (juce::Graphics& g)
     {
-        LuthierLookAndFeel::drawPanel (g, area.toFloat());
+        g.fillAll (Palette::background);
 
-        if (juce::String (title) != "Rhythm")
-            LuthierLookAndFeel::drawSectionHeader (g, area.reduced (6, 1).withHeight (16), title);
-    }
+        // The rig strip's cards, each a small framed panel with its name.
+        for (auto& [r, title] : rigCards)
+        {
+            LuthierLookAndFeel::drawPanel (g, r.toFloat());
+            LuthierLookAndFeel::drawSectionHeader (g, r.reduced (6, 2).withHeight (18), title);
+        }
+
+        for (auto [area, title] : { std::pair<juce::Rectangle<int>, const char*> { playingArea, "Playing" },
+                                    { toneArea, "Tone" }, { rhythmArea, "Rhythm" } })
+        {
+            LuthierLookAndFeel::drawPanel (g, area.toFloat());
+
+            if (juce::String (title) != "Rhythm")
+                LuthierLookAndFeel::drawSectionHeader (g, area.reduced (6, 1).withHeight (16), title);
+        }
+    });
 }
 
 } // namespace luthier

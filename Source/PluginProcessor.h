@@ -403,6 +403,10 @@ public:
         the undo stack are untouched. nullptr puts the committed guitar back. */
     void auditionGuitar (const WorkshopGuitar* candidate);
     const WorkshopGuitar& getCurrentGuitar() const noexcept { return currentGuitar; }
+
+    /** Moves whenever currentGuitar is replaced: a cheap "did the guitar change" for
+        the drawings, which otherwise hash the guitar's whole JSON to find out. */
+    juce::uint32 getGuitarRevision() const noexcept { return guitarRevision; }
     bool hasPartsGuitar() const noexcept { return partsGuitarLoaded; }
 
     /** The factory file a guitar type stands for, relative to Resources/Guitars. */
@@ -1081,6 +1085,7 @@ private:
     PartPtr capoPart;
     PartPtr slidePart;   // VISUAL-WORKSHOP-QA: the fitted slide
     WorkshopGuitar currentGuitar;
+    juce::uint32 guitarRevision = 0;   // getGuitarRevision
     WorkshopBench bench { *this };
     bool partsGuitarLoaded = false;
     juce::String lastGuitarSaveError;   // SPEC-SWEEP ER-44

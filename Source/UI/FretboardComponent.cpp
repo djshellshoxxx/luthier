@@ -299,8 +299,12 @@ bool FretboardComponent::fillMotionGeometry (StringMotionGeometry& geometry)
 
 void FretboardComponent::refreshStringLooks (bool force)
 {
-    if (! force && ++ticksSinceLooksCheck < 15)
+    // The processor's revision catches a guitar change at once; the hashed key
+    // is a slow safety net (it serialises the whole guitar).
+    if (! force && processor.getGuitarRevision() == seenGuitarRevision && ++ticksSinceLooksCheck < 240)
         return;
+
+    seenGuitarRevision = processor.getGuitarRevision();
 
     ticksSinceLooksCheck = 0;
 

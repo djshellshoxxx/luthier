@@ -271,6 +271,7 @@ private:
     std::array<StringLook, 12> looks {};
     juce::int64 looksKey = 0;
     int ticksSinceLooksCheck = 1000;
+    juce::uint32 seenGuitarRevision = 0xffffffffu;   // LuthierAudioProcessor::getGuitarRevision
 
     StringAnimator animator;
     // TECHNIQUES: the overlay layers 33+ draw with the board's own geometry.

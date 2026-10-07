@@ -132,7 +132,11 @@ public:
         int getRequestedHz() const noexcept { return requestedHz; }
         int getAppliedHz() const noexcept { return appliedHz; }
         MotionClass getMotionClass() const noexcept { return motionClass; }
-        bool isStaticPollWanted() const noexcept { return onStaticPoll != nullptr && requestedHz > 0 && appliedHz == 0; }
+        bool isStaticPollWanted() const noexcept { return onStaticPoll != nullptr && requestedHz > 0 && appliedHz == 0 && ! hidden; }
+
+        /** True while the owner sits in an on-screen window but is not showing (a
+            hidden tab, a collapsed group): its timer is stopped until it shows. */
+        bool isHidden() const noexcept { return hidden; }
 
     private:
         friend class AnimationPolicy;
@@ -145,7 +149,20 @@ public:
         std::function<void()> onPolicyChange, onStaticPoll;
         juce::Timer* timer = nullptr;
         int requestedHz = 0, appliedHz = 0;
-        bool buffered = false;
+        bool buffered = false, hidden = false;
+
+        /*  Watches the owner and all its parents, so a tab switch or a collapsed
+            parent stops (and a reveal restarts) the timer with no polling. */
+        struct ShowingWatcher : juce::ComponentMovementWatcher
+        {
+            ShowingWatcher (Registration& r) : juce::ComponentMovementWatcher (&r.owner), reg (r) {}
+            void componentMovedOrResized (bool, bool) override {}
+            void componentPeerChanged() override       { reg.apply(); }
+            void componentVisibilityChanged() override { reg.apply(); }
+            using juce::ComponentMovementWatcher::componentVisibilityChanged;
+            Registration& reg;
+        };
+        std::unique_ptr<ShowingWatcher> showingWatcher;
         std::atomic<int> paints { 0 };
 
         JUCE_DECLARE_NON_COPYABLE (Registration)

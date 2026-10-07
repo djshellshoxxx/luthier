@@ -1789,13 +1789,20 @@ juce::Rectangle<int> SectionPanel::getContentBounds() const
 
 void SectionPanel::paint (juce::Graphics& g)
 {
-    LuthierLookAndFeel::drawPanel (g, getLocalBounds().toFloat().reduced (0.5f), raised);
+    // Panel grain, shadow and the engraved header plate are static: cached, so a
+    // knob or meter repainting inside the section does not redraw them.
+    const auto key = (title + "|" + juce::String (raised ? 1 : 0) + "|" + juce::String ((juce::int64) accent.getARGB())).hashCode64();
 
-    if (title.isNotEmpty())
+    backgroundCache.draw (g, getLocalBounds(), key, [this] (juce::Graphics& g)
     {
-        auto header = getLocalBounds().removeFromTop (headerHeight).reduced (Metrics::grid, 0);
-        LuthierLookAndFeel::drawSectionHeader (g, header, title, accent);
-    }
+        LuthierLookAndFeel::drawPanel (g, getLocalBounds().toFloat().reduced (0.5f), raised);
+
+        if (title.isNotEmpty())
+        {
+            auto header = getLocalBounds().removeFromTop (headerHeight).reduced (Metrics::grid, 0);
+            LuthierLookAndFeel::drawSectionHeader (g, header, title, accent);
+        }
+    });
 }
 
 

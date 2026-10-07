@@ -245,9 +245,12 @@ void GuitarBodyComponent::resized()
 
 void GuitarBodyComponent::timerCallback()
 {
-    // The guitar can change under us (Workshop, preset, type); twice a second is enough to notice.
-    if (++ticksSinceKeyCheck >= 15)
+    // The guitar can change under us (Workshop, preset, type). The processor's
+    // revision catches every replacement at once; the full key (the guitar's
+    // whole JSON, hashed) is only a slow safety net for in-place part edits.
+    if (processor.getGuitarRevision() != seenGuitarRevision || ++ticksSinceKeyCheck >= 240)
     {
+        seenGuitarRevision = processor.getGuitarRevision();
         ticksSinceKeyCheck = 0;
         rebuildScene (false);
     }

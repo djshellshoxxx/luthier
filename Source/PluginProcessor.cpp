@@ -1090,6 +1090,7 @@ juce::File LuthierAudioProcessor::saveGuitarAs (const juce::String& name, bool b
     }
 
     currentGuitar = guitar;
+    ++guitarRevision;
     guitarReference = "User/" + file.getFileName();
     guitarOverride = juce::var();
     loadedGuitarKey = guitarReference;
@@ -1139,6 +1140,7 @@ void LuthierAudioProcessor::applyGuitar (const WorkshopGuitar& guitar, GuitarTyp
                                          const PartLibrary::LoadReport& report, bool writeParameters)
 {
     currentGuitar = guitar;
+    ++guitarRevision;
     partsGuitarLoaded = true;
 
     const auto derived = mapSpec (guitar);

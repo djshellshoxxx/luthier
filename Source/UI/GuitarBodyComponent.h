@@ -210,6 +210,7 @@ private:
     juce::Image cache;
     float cacheScale = 1.0f;
     int ticksSinceKeyCheck = 0;
+    juce::uint32 seenGuitarRevision = 0xffffffffu;   // LuthierAudioProcessor::getGuitarRevision
 
     /*  cpu-quality-modes 6: Decorative. At Off the timer stops; the policy's
         4 Hz poll calls staticRefresh, which draws a fixed glow on the strings

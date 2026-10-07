@@ -1,5 +1,7 @@
 #pragma once
 
+#include "UI/PaintCache.h"
+
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include "PluginProcessor.h"
@@ -274,6 +276,8 @@ private:
 
     /** The palette this window's components were last coloured with. */
     PaletteColours shownPalette;
+
+    PaintCache backgroundCache;   // window shape, cutaway and notch
 
     /** global-search.md (FEAT-SEARCH). Last, so it is destroyed first. */
     std::unique_ptr<search::SearchNavigator> searchNav;

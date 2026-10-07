@@ -15,6 +15,7 @@
 #include "AnimationPolicy.h"   // cpu-quality-modes 6
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "Theme.h"
+#include "PaintCache.h"
 #include "../Modulation/ModMatrix.h"
 
 namespace luthier
@@ -649,6 +650,7 @@ private:
     juce::String title;
     bool raised;
     juce::Colour accent = Palette::accent;
+    PaintCache backgroundCache;   // drawPanel + header plate
 };
 
 
