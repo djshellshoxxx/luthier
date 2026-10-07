@@ -148,7 +148,14 @@ LUTHIER_TEST (JamPanel, JM47_theTabSitsBetweenTuneAndLiveAndLaysOutAt480To1600)
     CHECK (order.size() >= 38);
 
     for (auto* c : order)
-        CHECK_MSG (c->getWantsKeyboardFocus(), c->getTitle() + " is not focusable");
+    {
+        // editions.md 2.3: Free's user-style loader is Pro-only, shown disabled (a disabled
+        // control is not a tab stop), so only the controls that are enabled must be focusable.
+        if (c->isEnabled())
+            CHECK_MSG (c->getWantsKeyboardFocus(), c->getTitle() + " is not focusable");
+        else
+            CHECK_MSG (JamEdition::kIsFree, c->getTitle() + " is disabled in a Pro build");
+    }
 
     auto traverser = panel.createKeyboardFocusTraverser();
     const auto walked = traverser->getAllComponents (&panel);
@@ -161,6 +168,10 @@ LUTHIER_TEST (JamPanel, JM47_theTabSitsBetweenTuneAndLiveAndLaysOutAt480To1600)
 
         if (it == walked.end())
         {
+            // A disabled control (Free's user-style loader) is not a tab stop.
+            if (! c->isEnabled())
+                continue;
+
             inOrder = false;
             continue;
         }
@@ -440,14 +451,15 @@ LUTHIER_TEST (JamPanel, JM51_editionTable)
     CHECK (JamEdition::nearestFree (Item::kit, 3) == 1);
     CHECK (JamEdition::nearestFree (Item::bassVoice, 4) == 1);
 
-    // This tree builds Pro (editions.md 9: the split is the coordinator's): nothing is locked.
-    CHECK (! JamEdition::kIsFree);
+    // Pro locks nothing; Free (editions.md 2.3) locks exactly what is not in its table.
+    CHECK (JamEdition::kIsFree == ! edition::isPro);
 
     for (int i = 0; i < styles.size(); ++i)
-        CHECK (! JamEdition::isLocked (Item::style, i));
+        CHECK (JamEdition::isLocked (Item::style, i) == (JamEdition::kIsFree && ! JamEdition::isInFree (Item::style, i)));
 
     auto processor = makeProcessor();
     set (*processor, ParamIDs::jamStyle, 7.0f);
-    CHECK (processor->getParameterBridge().readJam().style == 7);
+    // The stored value is what the bridge reads in Pro; Free plays the nearest Free style (editions 5.1).
+    CHECK (processor->getParameterBridge().readJam().style == (JamEdition::kIsFree ? JamEdition::nearestFree (Item::style, 7) : 7));
     CHECK (juce::String (JamEdition::upsellText()).contains ("Luthier Pro"));
 }
