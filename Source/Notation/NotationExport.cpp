@@ -1,6 +1,8 @@
 #include "NotationExport.h"
 #include "AsciiTabWriter.h" // FEAT2-TAB
 #include "TabFingering.h"  // tab-import-export 8
+#include "GuitarProLegacyReader.h"
+#include "TabImportPipeline.h"
 #include "../Export/MidiProfiles.h"
 
 #include <algorithm>
@@ -1354,17 +1356,66 @@ bool NotationImporter::canRead (const juce::File& file)
     const auto extension = file.getFileExtension().toLowerCase();
 
     // Stated rather than implied: these are the formats that are actually
-    // parsed. `.gp5`, `.gp` and `.ptb` are binary and proprietary, and are
-    // reported as unsupported rather than failed.
+    // parsed. `.gpx` (Guitar Pro 6) and `.ptb` (PowerTab) are proprietary and
+    // are reported as unsupported, with what to do instead, rather than failed.
     return extension == ".txt" || extension == ".tab"
-        || extension == ".musicxml" || extension == ".xml"
+        || extension == ".md" || extension == ".html" || extension == ".htm"
+        || extension == ".musicxml" || extension == ".xml" || extension == ".mxl"
         || extension == ".mid" || extension == ".midi"
+        || extension == ".gp3" || extension == ".gp4" || extension == ".gp5"
         || extension == ".gp";   // SPEC-SWEEP NE-4
+}
+
+NotationImporter::FileKind NotationImporter::detectKind (const juce::File& file)
+{
+    const auto extension = file.getFileExtension().toLowerCase();
+
+    juce::uint8 head[64] = {};
+    size_t got = 0;
+
+    if (auto stream = file.createInputStream())
+        got = (size_t) juce::jmax (0, stream->read (head, (int) sizeof (head)));
+
+    if (GuitarProLegacyReader::looksLikeLegacyGuitarPro (head, got))   return FileKind::guitarProLegacy;
+    if (GuitarProLegacyReader::looksLikeGpx (head, got))               return FileKind::guitarProGpx;
+    if (GuitarProLegacyReader::looksLikePowerTab (head, got))          return FileKind::powerTab;
+    if (got >= 4 && std::memcmp (head, "MThd", 4) == 0)                return FileKind::midi;
+
+    if (got >= 4 && head[0] == 'P' && head[1] == 'K' && head[2] == 3 && head[3] == 4)
+    {
+        if (extension == ".mxl")
+            return FileKind::compressedMusicXml;
+
+        juce::ZipFile zip (file);
+        for (int i = 0; i < zip.getNumEntries(); ++i)
+            if (auto* entry = zip.getEntry (i))
+                if (entry->filename.endsWithIgnoreCase ("score.gpif"))
+                    return FileKind::guitarPro7;
+
+        return FileKind::compressedMusicXml;
+    }
+
+    if (extension == ".gp3" || extension == ".gp4" || extension == ".gp5") return FileKind::guitarProLegacy;
+    if (extension == ".gpx")                                                return FileKind::guitarProGpx;
+    if (extension == ".ptb")                                                return FileKind::powerTab;
+    if (extension == ".gp")                                                 return FileKind::guitarPro7;
+    if (extension == ".mid" || extension == ".midi")                        return FileKind::midi;
+    if (extension == ".mxl")                                                return FileKind::compressedMusicXml;
+
+    if (extension == ".musicxml" || extension == ".xml")
+        return FileKind::musicXml;
+
+    const juce::String text = juce::String::fromUTF8 ((const char*) head, (int) got).trimStart();
+    if (text.startsWith ("<?xml") && (text.contains ("score-") || extension.isEmpty()))
+        return FileKind::musicXml;
+
+    return FileKind::asciiTab;
 }
 
 bool NotationImporter::read (const juce::File& file, PerformanceScore& destination)
 {
     lastError.clear();
+    lastDiagnostics = {};
 
     if (! file.existsAsFile())
     {
@@ -1372,29 +1423,228 @@ bool NotationImporter::read (const juce::File& file, PerformanceScore& destinati
         return false;
     }
 
-    const auto extension = file.getFileExtension().toLowerCase();
-
-    if (extension == ".gp")
-        return readGuitarPro (file, destination);   // SPEC-SWEEP NE-4
-
-    if (extension == ".gp5" || extension == ".gpx" || extension == ".ptb")
+    switch (detectKind (file))
     {
-        lastError = "Luthier reads ASCII tab, MusicXML and Guitar Pro 7/8 (.gp). "
-                    + extension.substring (1).toUpperCase()
-                    + " is a proprietary binary format; export it as MusicXML "
-                      "from Guitar Pro and open that instead.";
+        case FileKind::guitarPro7:
+            return readGuitarPro (file, destination);   // SPEC-SWEEP NE-4
+
+        case FileKind::compressedMusicXml:
+            return readCompressedMusicXml (file, destination);
+
+        case FileKind::guitarProLegacy:
+        {
+            juce::MemoryBlock bytes;
+            if (! file.loadFileAsData (bytes))
+            {
+                lastError = "Could not read " + file.getFullPathName();
+                return false;
+            }
+            return readGuitarProLegacy (bytes.getData(), bytes.getSize(), destination);
+        }
+
+        case FileKind::guitarProGpx:
+            lastError = "Guitar Pro 6 (.gpx) is a proprietary container Luthier cannot open. "
+                        "In Guitar Pro, use File > Save As to write a .gp (Guitar Pro 7/8) or .gp5 file, "
+                        "or export MusicXML, and open that instead.";
+            return false;
+
+        case FileKind::powerTab:
+            lastError = "PowerTab (.ptb) is a proprietary binary format Luthier cannot open. "
+                        "Export it as MusicXML, MIDI or ASCII tab from PowerTab and open that instead.";
+            return false;
+
+        case FileKind::midi:
+            return readMidi (file, destination);
+
+        case FileKind::musicXml:
+            return readMusicXml (file.loadFileAsString(), destination);
+
+        case FileKind::asciiTab:
+        case FileKind::unknown:
+            break;
+    }
+
+    return readAsciiTab (file.loadFileAsString(), destination);
+}
+
+bool NotationImporter::readGuitarProLegacy (const void* data, size_t numBytes, PerformanceScore& destination)
+{
+    lastError.clear();
+    lastDiagnostics = {};
+
+    if (! GuitarProLegacyReader::looksLikeLegacyGuitarPro (data, numBytes))
+    {
+        lastError = "That does not look like a Guitar Pro 3, 4 or 5 file. "
+                    "If it came from Guitar Pro, export it as MusicXML from there and open that instead.";
         return false;
     }
 
-    if (extension == ".mid" || extension == ".midi")
-        return readMidi (file, destination);
+    GuitarProLegacyReader reader;
+    const bool ok = reader.read (data, numBytes, destination, &lastDiagnostics, preferredTrack);
 
-    const auto text = file.loadFileAsString();
+    if (! ok)
+        lastError = reader.getLastError();
 
-    if (extension == ".musicxml" || extension == ".xml")
-        return readMusicXml (text, destination);
+    return ok;
+}
 
-    return readAsciiTab (text, destination);
+bool NotationImporter::readCompressedMusicXml (const juce::File& file, PerformanceScore& destination)
+{
+    lastError.clear();
+    lastDiagnostics = {};
+
+    juce::ZipFile zip (file);
+    constexpr juce::int64 kMaxEntryBytes = 64ll * 1024 * 1024;
+
+    auto readEntry = [&] (int index) -> juce::String
+    {
+        const auto* entry = zip.getEntry (index);
+        if (entry == nullptr || entry->uncompressedSize > kMaxEntryBytes)
+            return {};
+
+        std::unique_ptr<juce::InputStream> stream (zip.createStreamForEntry (index));
+        return stream != nullptr ? stream->readEntireStreamAsString() : juce::String();
+    };
+
+    juce::String rootPath;
+
+    for (int i = 0; i < zip.getNumEntries(); ++i)
+        if (auto* entry = zip.getEntry (i))
+            if (entry->filename.equalsIgnoreCase ("META-INF/container.xml"))
+                if (auto xml = juce::parseXML (readEntry (i)))
+                    if (auto* roots = xml->getChildByName ("rootfiles"))
+                        if (auto* root = roots->getChildByName ("rootfile"))
+                            rootPath = root->getStringAttribute ("full-path");
+
+    int index = rootPath.isNotEmpty() ? zip.getIndexOfFileName (rootPath, true) : -1;
+
+    for (int i = 0; index < 0 && i < zip.getNumEntries(); ++i)
+        if (auto* entry = zip.getEntry (i))
+            if (! entry->filename.startsWithIgnoreCase ("META-INF")
+                && (entry->filename.endsWithIgnoreCase (".xml") || entry->filename.endsWithIgnoreCase (".musicxml")))
+                index = i;
+
+    if (index < 0)
+    {
+        lastError = file.getFileName() + " is not a compressed MusicXML file (no score inside).";
+        return false;
+    }
+
+    const auto text = readEntry (index);
+
+    if (text.isEmpty())
+    {
+        lastError = "The score inside " + file.getFileName() + " is empty or too large to open.";
+        return false;
+    }
+
+    return readMusicXml (text, destination);
+}
+
+//==============================================================================
+namespace
+{
+    /** A generic multi-track or multi-channel MIDI file is a whole band. The tab
+        wants one guitar-like part: the part with a guitar/bass program, else the
+        busiest pitched one. Drums (channel 10) never become tab. The conductor
+        events (tempo, meter, key) are kept. Returns false when the file already
+        is one part, or cannot be re-read. */
+    bool chooseMelodicPart (const void* data, size_t numBytes, juce::MemoryBlock& out, juce::String& note)
+    {
+        if (numBytes > 32u * 1024u * 1024u)
+            return false;
+
+        juce::MemoryInputStream in (data, numBytes, false);
+        juce::MidiFile file;
+
+        if (! file.readFrom (in) || file.getTimeFormat() <= 0 || file.getNumTracks() > 256)
+            return false;
+
+        struct Group { int track = 0, channel = 0, notes = 0, program = -1; };
+        std::map<std::pair<int, int>, Group> groups;
+        int drumNotes = 0;
+
+        for (int t = 0; t < file.getNumTracks(); ++t)
+        {
+            const auto* seq = file.getTrack (t);
+            for (int i = 0; seq != nullptr && i < seq->getNumEvents(); ++i)
+            {
+                const auto& m = seq->getEventPointer (i)->message;
+
+                // NotationExporter's one-track-per-string layout is one part, not a band.
+                if (m.isTrackNameEvent() && m.getTextFromTextMetaEvent().startsWith ("String "))
+                    return false;
+
+                const int ch = m.getChannel();
+                if (ch < 1)
+                    continue;
+
+                auto& g = groups[{ t, ch }];
+                g.track = t;
+                g.channel = ch;
+
+                if (m.isNoteOn())
+                {
+                    if (ch == 10) ++drumNotes; else ++g.notes;
+                }
+                else if (m.isProgramChange() && g.program < 0)
+                    g.program = m.getProgramChangeNumber();
+            }
+        }
+
+        std::vector<Group> candidates;
+        for (const auto& [key, g] : groups)
+            if (g.notes > 0 && g.channel != 10)
+                candidates.push_back (g);
+
+        if (candidates.empty() || (candidates.size() == 1 && drumNotes == 0))
+            return false;
+
+        const auto weight = [] (const Group& g)
+        {
+            double w = g.notes;
+            if (g.program >= 24 && g.program <= 31) w += 1.0e6;      // guitars
+            else if (g.program >= 32 && g.program <= 39) w += 5.0e5; // basses
+            return w;
+        };
+
+        const Group* best = &candidates.front();
+        for (const auto& g : candidates)
+            if (weight (g) > weight (*best))
+                best = &g;
+
+        juce::MidiFile rebuilt;
+        rebuilt.setTicksPerQuarterNote (file.getTimeFormat());
+
+        juce::MidiMessageSequence conductor, part;
+        for (int t = 0; t < file.getNumTracks(); ++t)
+        {
+            const auto* seq = file.getTrack (t);
+            for (int i = 0; seq != nullptr && i < seq->getNumEvents(); ++i)
+            {
+                const auto& m = seq->getEventPointer (i)->message;
+                if (m.isTempoMetaEvent() || m.isTimeSignatureMetaEvent() || m.isKeySignatureMetaEvent())
+                    conductor.addEvent (m);
+                else if (t == best->track && m.getChannel() == best->channel)
+                    part.addEvent (m);
+            }
+        }
+
+        conductor.updateMatchedPairs();
+        part.updateMatchedPairs();
+        rebuilt.addTrack (conductor);
+        rebuilt.addTrack (part);
+
+        juce::MemoryOutputStream stream;
+        if (! rebuilt.writeTo (stream, 1))
+            return false;
+
+        out = stream.getMemoryBlock();
+        note = "Read track " + juce::String (best->track + 1) + ", channel " + juce::String (best->channel)
+               + " of a " + juce::String ((int) candidates.size() + (drumNotes > 0 ? 1 : 0))
+               + "-part MIDI file" + (drumNotes > 0 ? " (drums ignored)." : ".");
+        return true;
+    }
 }
 
 //==============================================================================
@@ -1420,14 +1670,36 @@ bool NotationImporter::readMidi (const void* data, size_t numBytes, PerformanceS
     lastDiagnostics = {};
 
     constexpr double rate = 48000.0;
-    MidiPerformance performance (rate);
-    const auto result = MidiProfiles::importFromMemory (data, numBytes, performance, rate);
+    auto performancePtr = std::make_unique<MidiPerformance> (rate);
+    auto result = MidiProfiles::importFromMemory (data, numBytes, *performancePtr, rate);
 
     if (! result.ok)
     {
         lastError = result.error.isNotEmpty() ? result.error : juce::String ("Not a MIDI file.");
         return false;
     }
+
+    // A generic multi-part file: take the guitar-like part, not the whole band.
+    juce::String partNote;
+    if (result.detectedProfile != MidiProfile::luthier)
+    {
+        juce::MemoryBlock part;
+        if (chooseMelodicPart (data, numBytes, part, partNote))
+        {
+            auto narrowed = std::make_unique<MidiPerformance> (rate);
+            auto narrowedResult = MidiProfiles::importFromMemory (part.getData(), part.getSize(), *narrowed, rate);
+
+            if (narrowedResult.ok)
+            {
+                performancePtr = std::move (narrowed);
+                result = std::move (narrowedResult);
+            }
+            else
+                partNote.clear();
+        }
+    }
+
+    auto& performance = *performancePtr;
 
     destination.clear();
 
@@ -1479,6 +1751,9 @@ bool NotationImporter::readMidi (const void* data, size_t numBytes, PerformanceS
     for (const auto& w : result.warnings)
         lastDiagnostics.warnings.add (w);
 
+    if (partNote.isNotEmpty())
+        lastDiagnostics.warnings.add (partNote);
+
     const auto& track = destination.getTrack (0);
     lastDiagnostics.notes = destination.getTotalNoteCount();
     lastDiagnostics.measures = (int) track.measures.size();
@@ -1499,14 +1774,20 @@ bool NotationImporter::readAsciiTab (const juce::String& text, PerformanceScore&
 
     // tab-import-export 7: the dialect-tolerant reader; what it skipped is
     // kept so the panel can say how much of the page was read.
-    AsciiTabReader reader;
-    const bool ok = reader.read (text, destination, &lastDiagnostics);
+    // The whole-document recovery pipeline (markdown/HTML wrappers, unicode
+    // dashes, numbered or reversed strings, UG chord markup, chord-only charts,
+    // size and time limits) is the one reader; it wraps the plain reader.
+    TabImportPipeline pipeline;
+    TabImportDiagnostics recovered;
+    const bool ok = pipeline.read (text, destination, &recovered);
+
+    lastDiagnostics = recovered;
 
     if (diagnostics != nullptr)
         *diagnostics = lastDiagnostics;
 
     if (! ok)
-        lastError = reader.getLastError();
+        lastError = pipeline.getLastError();
 
     return ok;
 }
@@ -1524,7 +1805,65 @@ bool NotationImporter::readMusicXml (const juce::String& text, PerformanceScore&
         return false;
     }
 
-    auto* part = xml->getChildByName ("part");
+    if (xml->hasTagName ("score-timewise"))
+    {
+        lastError = "That MusicXML file is time-wise (score-timewise), which Luthier does not read. "
+                    "Re-export it as part-wise MusicXML (the default in most notation programs).";
+        return false;
+    }
+
+    // Which part: the first with string/fret data (a tab part), else the first
+    // pitched part that is not percussion, else the first.
+    const juce::XmlElement* part = nullptr;
+    {
+        const juce::XmlElement* firstPitched = nullptr;
+        int partCount = 0;
+
+        for (auto* candidate : xml->getChildWithTagNameIterator ("part"))
+        {
+            ++partCount;
+            if (partCount > 256)
+                break;
+
+            bool hasFret = false, hasPitch = false, percussion = false;
+            int scanned = 0;
+
+            for (auto* m : candidate->getChildWithTagNameIterator ("measure"))
+            {
+                if (++scanned > 64)
+                    break;
+
+                if (auto* a = m->getChildByName ("attributes"))
+                    if (auto* clef = a->getChildByName ("clef"))
+                        if (clef->getChildElementAllSubText ("sign", {}).equalsIgnoreCase ("percussion"))
+                            percussion = true;
+
+                for (auto* n : m->getChildWithTagNameIterator ("note"))
+                {
+                    if (n->getChildByName ("pitch") != nullptr) hasPitch = true;
+                    if (auto* nt = n->getChildByName ("notations"))
+                        if (auto* tech = nt->getChildByName ("technical"))
+                            if (tech->getChildByName ("fret") != nullptr)
+                                hasFret = true;
+                }
+
+                if (hasFret)
+                    break;
+            }
+
+            if (hasFret && ! percussion)
+            {
+                part = candidate;
+                break;
+            }
+
+            if (hasPitch && ! percussion && firstPitched == nullptr)
+                firstPitched = candidate;
+        }
+
+        if (part == nullptr)
+            part = firstPitched != nullptr ? firstPitched : xml->getChildByName ("part");
+    }
 
     if (part == nullptr)
     {
@@ -1546,9 +1885,17 @@ bool NotationImporter::readMusicXml (const juce::String& text, PerformanceScore&
                 denominator = time->getChildElementAllSubText ("beat-type", "4").getIntValue();
             }
 
-        if (auto* direction = firstMeasure->getChildByName ("direction"))
+        for (auto* direction : firstMeasure->getChildWithTagNameIterator ("direction"))
+        {
             if (auto* sound = direction->getChildByName ("sound"))
-                tempo = sound->getDoubleAttribute ("tempo", 120.0);
+                if (sound->hasAttribute ("tempo"))
+                {
+                    tempo = sound->getDoubleAttribute ("tempo", 120.0);
+                    break;
+                }
+        }
+
+        tempo = juce::jlimit (20.0, 400.0, tempo);
     }
 
     destination.beginCapture (tempo, juce::jmax (1, numerator), juce::jmax (1, denominator));
@@ -1558,6 +1905,24 @@ bool NotationImporter::readMusicXml (const juce::String& text, PerformanceScore&
     int divisions = 480;
     double beat = 0.0;
     int notesRead = 0;
+    int transposeSemitones = 0;
+    bool anyFretData = false, anyFretless = false;
+    std::vector<int> tuningByLine;               // MusicXML line 1 = lowest string
+
+    // A note is held open until the next one on its string (or the end), so a
+    // tie can lengthen it.
+    struct Open { bool open = false; double end = 0.0; };
+    std::array<Open, kMaxStrings> openNotes {};
+
+    auto flushString = [&] (int stringIndex, double at)
+    {
+        auto& o = openNotes[(size_t) juce::jlimit (0, kMaxStrings - 1, stringIndex)];
+        if (o.open)
+        {
+            destination.noteEnded (stringIndex, juce::jmin (o.end, at));
+            o.open = false;
+        }
+    };
 
     const double beatsPerMeasure = (double) juce::jmax (1, numerator) * 4.0
                                      / (double) juce::jmax (1, denominator);
@@ -1571,11 +1936,43 @@ bool NotationImporter::readMusicXml (const juce::String& text, PerformanceScore&
             divisions = juce::jmax (1, attributes->getChildElementAllSubText ("divisions",
                                                                               "480").getIntValue());
 
+            if (auto* transpose = attributes->getChildByName ("transpose"))
+                transposeSemitones = juce::jlimit (-48, 48,
+                                                   transpose->getChildElementAllSubText ("chromatic", "0").getIntValue()
+                                                   + 12 * transpose->getChildElementAllSubText ("octave-change", "0").getIntValue());
+
             if (auto* details = attributes->getChildByName ("staff-details"))
             {
                 track.numStrings = juce::jlimit (
                     1, kMaxStrings,
                     details->getChildElementAllSubText ("staff-lines", "6").getIntValue());
+
+                tuningByLine.assign ((size_t) track.numStrings + 1, -1);
+
+                for (auto* st : details->getChildWithTagNameIterator ("staff-tuning"))
+                {
+                    const int line = st->getIntAttribute ("line", 0);
+                    if (line < 1 || line > track.numStrings)
+                        continue;
+
+                    static const int offs[7] = { 9, 11, 0, 2, 4, 5, 7 };   // A B C D E F G
+                    const auto stepName = st->getChildElementAllSubText ("tuning-step", "E");
+                    const int idx = juce::jlimit (0, 6, (int) (stepName.isEmpty() ? 4 : stepName[0] - 'A'));
+                    const int midi = (st->getChildElementAllSubText ("tuning-octave", "2").getIntValue() + 1) * 12
+                                       + offs[idx] + st->getChildElementAllSubText ("tuning-alter", "0").getIntValue();
+                    tuningByLine[(size_t) line] = juce::jlimit (0, 127, midi);
+                }
+
+                bool complete = ! tuningByLine.empty();
+                for (int line = 1; line <= track.numStrings && complete; ++line)
+                    complete = tuningByLine[(size_t) line] >= 0;
+
+                if (complete)
+                    for (int line = 1; line <= track.numStrings; ++line)
+                        track.tuning[(size_t) (track.numStrings - line)] = tuningByLine[(size_t) line];
+
+                if (auto* capo = details->getChildByName ("capo"))
+                    track.capoFret = juce::jlimit (0, 24, capo->getAllSubText().getIntValue());
             }
         }
 
@@ -1593,6 +1990,13 @@ bool NotationImporter::readMusicXml (const juce::String& text, PerformanceScore&
                       / (double) divisions;
 
                 voiceBeat = juce::jmax (beat, voiceBeat - duration);
+                continue;
+            }
+
+            if (element->hasTagName ("forward"))
+            {
+                voiceBeat += element->getChildElementAllSubText ("duration", "0").getDoubleValue()
+                               / (double) divisions;
                 continue;
             }
 
@@ -1625,14 +2029,18 @@ bool NotationImporter::readMusicXml (const juce::String& text, PerformanceScore&
 
             // MusicXML numbers strings from 1 = the highest, the score from
             // 0 = the highest.
+            if (stringNumber > 0) anyFretData = true; else anyFretless = true;
+
             const int stringIndex = (stringNumber > 0)
-                                      ? juce::jlimit (0, kMaxStrings - 1, stringNumber - 1)
+                                      ? juce::jlimit (0, juce::jmax (1, track.numStrings) - 1, stringNumber - 1)
                                       : 0;
 
             int midiNote = 60;
+            bool havePitch = false;
 
             if (auto* pitch = element->getChildByName ("pitch"))
             {
+                havePitch = true;
                 const auto step = pitch->getChildElementAllSubText ("step", "C");
                 const int alter = pitch->getChildElementAllSubText ("alter", "0").getIntValue();
                 const int octave = pitch->getChildElementAllSubText ("octave", "4").getIntValue();
@@ -1647,14 +2055,30 @@ bool NotationImporter::readMusicXml (const juce::String& text, PerformanceScore&
                         letterIndex = i;
 
                 midiNote = juce::jlimit (0, 127,
-                                         (octave + 1) * 12 + offsets[letterIndex] + alter);
+                                         (octave + 1) * 12 + offsets[letterIndex] + alter + transposeSemitones);
             }
+            else if (stringNumber > 0)
+            {
+                midiNote = juce::jlimit (0, 127, track.tuning[(size_t) stringIndex] + track.capoFret + fret);
+            }
+
+            juce::ignoreUnused (havePitch);
+
+            bool tieStop = false;
+            for (auto* tie : element->getChildWithTagNameIterator ("tie"))
+                if (tie->getStringAttribute ("type") == "stop")
+                    tieStop = true;
+            if (auto* notations = element->getChildByName ("notations"))
+                for (auto* tied : notations->getChildWithTagNameIterator ("tied"))
+                    if (tied->getStringAttribute ("type") == "stop")
+                        tieStop = true;
 
             // SPEC-SWEEP NE-9: a grace note takes the first eighth of a beat
             // of the note it leads into, as the writer made it.
             if (element->getChildByName ("grace") != nullptr)
             {
                 constexpr double graceLength = 0.125;
+                flushString (stringIndex, voiceBeat);
                 destination.noteStarted (stringIndex, fret, midiNote, 440.0, 0.8, voiceBeat);
                 destination.noteEnded (stringIndex, voiceBeat + graceLength);
                 pendingGraceBeats = graceLength;
@@ -1676,7 +2100,21 @@ bool NotationImporter::readMusicXml (const juce::String& text, PerformanceScore&
 
             lastNoteStart = startBeat;
 
-            destination.noteStarted (stringIndex, fret, midiNote, 440.0, 0.8, startBeat);
+            // A tied note lengthens the one it continues rather than restarting.
+            if (tieStop)
+            {
+                auto& o = openNotes[(size_t) stringIndex];
+                if (o.open && std::abs (o.end - startBeat) < 1.0e-3)
+                {
+                    o.end = startBeat + juce::jmax (0.0625, soundingBeats);
+                    if (! isChord)
+                        voiceBeat = startBeat + soundingBeats;
+                    continue;
+                }
+            }
+
+            flushString (stringIndex, startBeat);
+            destination.noteStarted (stringIndex, fret, midiNote, 440.0 * std::pow (2.0, (midiNote - 69) / 12.0), 0.8, startBeat);
 
             // The techniques MusicXML carries, read back.
             if (auto* notations = element->getChildByName ("notations"))
@@ -1722,7 +2160,8 @@ bool NotationImporter::readMusicXml (const juce::String& text, PerformanceScore&
                     destination.addTechnique (stringIndex, { ScoreTechnique::Type::slideLegato });
             }
 
-            destination.noteEnded (stringIndex, startBeat + juce::jmax (0.0625, soundingBeats));
+            openNotes[(size_t) stringIndex].open = true;
+            openNotes[(size_t) stringIndex].end = startBeat + juce::jmax (0.0625, soundingBeats);
 
             ++notesRead;
 
@@ -1733,12 +2172,25 @@ bool NotationImporter::readMusicXml (const juce::String& text, PerformanceScore&
         ++measureIndex;
     }
 
+    for (int i = 0; i < kMaxStrings; ++i)
+        flushString (i, 1.0e12);
+
     destination.endCapture ((double) measureIndex * beatsPerMeasure);
 
     if (notesRead == 0)
     {
         lastError = "That MusicXML file contains no notes.";
         return false;
+    }
+
+    // Notation-only MusicXML (MuseScore, Finale, Sibelius staff exports) has
+    // pitches and no strings: finger it the way a MIDI import is.
+    if (anyFretless && ! anyFretData)
+    {
+        const auto result = TabFingering::assign (destination, 0, 24);
+        lastDiagnostics.notes = notesRead;
+        lastDiagnostics.warnings.add ("That MusicXML has no string/fret data; "
+                                      + juce::String (result.notesFingered) + " notes were fingered automatically.");
     }
 
     return true;
@@ -1757,6 +2209,12 @@ bool NotationImporter::readGuitarPro (const juce::File& file, PerformanceScore& 
 
         if (entry == nullptr || ! entry->filename.endsWithIgnoreCase ("score.gpif"))
             continue;
+
+        if (entry->uncompressedSize > 64ll * 1024 * 1024)
+        {
+            lastError = file.getFileName() + " holds a score too large to open.";
+            return false;
+        }
 
         std::unique_ptr<juce::InputStream> stream (zip.createStreamForEntry (i));
 

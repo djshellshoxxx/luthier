@@ -19,8 +19,7 @@ public:
         lastDiagnostics = {};
         resolvedAsciiTuning = false;
 
-        const auto extension = file.getFileExtension().toLowerCase();
-        if (extension == ".txt" || extension == ".tab")
+        if (file.existsAsFile() && NotationImporter::detectKind (file) == NotationImporter::FileKind::asciiTab)
         {
             TabImportPipeline pipeline;
             const bool ok = pipeline.read (file, destination, &lastDiagnostics);

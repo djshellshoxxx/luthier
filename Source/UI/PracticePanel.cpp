@@ -1908,7 +1908,7 @@ TabReaderTab::TabReaderTab (LuthierAudioProcessor& p)
         chooser = std::make_unique<juce::FileChooser> (
             "Open tablature or MIDI",
             juce::File::getSpecialLocation (juce::File::userDocumentsDirectory),
-            "*.txt;*.tab;*.musicxml;*.xml;*.mid;*.midi");
+            "*.txt;*.tab;*.md;*.html;*.htm;*.musicxml;*.xml;*.mxl;*.gp;*.gp3;*.gp4;*.gp5;*.mid;*.midi");
 
         chooser->launchAsync (juce::FileBrowserComponent::openMode
                                 | juce::FileBrowserComponent::canSelectFiles,

@@ -143,13 +143,19 @@ LUTHIER_TEST (TabDialect, emptyAndJunkInputFailCleanly)
 {
     NotationImporter importer;
 
-    for (const char* junk : { "", "\n\n\n", "just some words\nand more words", "Am G C D", "|||", "-----" })
+    for (const char* junk : { "", "\n\n\n", "just some words\nand more words", "|||", "-----" })
     {
         PerformanceScore score;
         CHECK_MSG (! importer.readAsciiTab (junk, score), juce::String (junk));
         CHECK (importer.getLastError().contains ("No tablature"));
         CHECK (importer.getLastDiagnostics().notes == 0);
     }
+
+    // A page of chord names and nothing else is no longer junk: each chord becomes
+    // a strummed bar (TabChordChart); see TabRobustnessTests.
+    PerformanceScore chords;
+    CHECK (importer.readAsciiTab ("Am G C D", chords));
+    CHECK (chords.getTrack (0).measures.size() == 4);
 }
 
 //==============================================================================

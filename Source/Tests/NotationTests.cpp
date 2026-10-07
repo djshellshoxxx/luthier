@@ -818,13 +818,15 @@ LUTHIER_TEST (Notation, importerIsHonestAboutWhatItReads)
     // What it does not.
     CHECK (NotationImporter::canRead (juce::File ("song.gp")));   // SPEC-SWEEP NE-4: GP7/8 is read now
 
-    CHECK (! NotationImporter::canRead (juce::File ("song.gp5")));
+    CHECK (NotationImporter::canRead (juce::File ("song.gp5")));    // GP3-5 binary is read now
+    CHECK (NotationImporter::canRead (juce::File ("song.mxl")));    // compressed MusicXML
+    CHECK (! NotationImporter::canRead (juce::File ("song.gpx")));
     CHECK (! NotationImporter::canRead (juce::File ("song.ptb")));
 
     // And the message says why, and what to do instead.
-    const auto file = makeTempFile ("unsupported.gp5");
+    const auto file = makeTempFile ("unsupported.ptb");
     file.getParentDirectory().createDirectory();
-    file.replaceWithText ("not really a guitar pro file");
+    file.replaceWithText ("not really a powertab file");
 
     NotationImporter importer;
     PerformanceScore score;

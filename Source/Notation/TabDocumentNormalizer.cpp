@@ -1,4 +1,5 @@
 #include "TabDocumentNormalizer.h"
+#include "TabTextSanitizer.h"
 #include "AsciiTabReader.h"
 
 #include <algorithm>
@@ -564,7 +565,24 @@ bool TabDocumentNormalizer::normalize (const juce::String& source,
         return false;
     }
 
-    juce::String cleaned = source.replace ("\r\n", "\n").replace ("\r", "\n");
+    const auto deadline = juce::Time::getMillisecondCounter() + (juce::uint32) juce::jmax (1, options.maxMillis);
+    const auto timedOut = [deadline]
+    {
+        return (juce::int32) (juce::Time::getMillisecondCounter() - deadline) > 0;
+    };
+
+    // Unicode dashes/box characters, tabs, numbered or reversed strings, drum rows,
+    // and a hard cap on line length before anything quadratic sees the text.
+    juce::String cleaned;
+    {
+        TabTextSanitizer::Options sanitizeOptions;
+        sanitizeOptions.maxLineChars = juce::jmax (4096, options.maxColumnsPerSystem * 2);
+
+        if (! TabTextSanitizer::sanitize (source, cleaned, out.diagnostics, sanitizeOptions))
+            return false;
+    }
+
+    cleaned = cleaned.replace ("\r\n", "\n").replace ("\r", "\n");
     out.diagnostics.entitiesDecoded += countAndReplace (cleaned, "&#x20;", " ");
     out.diagnostics.entitiesDecoded += countAndReplace (cleaned, "&#xA0;", " ");
     out.diagnostics.entitiesDecoded += countAndReplace (cleaned, "&#xa0;", " ");
@@ -587,6 +605,11 @@ bool TabDocumentNormalizer::normalize (const juce::String& source,
 
     for (int i = 0; i < physicalLines.size(); ++i)
     {
+        if (timedOut())
+        {
+            warn (out.diagnostics, "Tab source took too long to analyse and was abandoned");
+            return false;
+        }
         auto line = stripWholeLineMarkdown (physicalLines[i], out.diagnostics.markdownWrappersRemoved);
         auto recovered = options.recoverCollapsedRows ? splitCollapsedLabelledRows (line)
                                                       : juce::StringArray { line };
@@ -614,6 +637,11 @@ bool TabDocumentNormalizer::normalize (const juce::String& source,
     // authority as header declarations before any staff semantics are considered.
     for (const auto& logical : logicalLines)
     {
+        if (timedOut())
+        {
+            warn (out.diagnostics, "Tab source took too long to analyse and was abandoned");
+            return false;
+        }
         const auto& line = logical.text;
         const auto lower = line.toLowerCase();
         addTuningCandidate (out, line, logical.sourceLine);
@@ -694,6 +722,11 @@ bool TabDocumentNormalizer::normalize (const juce::String& source,
 
     for (const auto& logical : logicalLines)
     {
+        if (timedOut())
+        {
+            warn (out.diagnostics, "Tab source took too long to analyse and was abandoned");
+            return false;
+        }
         const auto& line = logical.text;
         const int sourceLine = logical.sourceLine;
         const auto trimmed = line.trim();

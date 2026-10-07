@@ -1,0 +1,17 @@
+Example Riff (original, for tests)
+Tuning: Drop D
+Capo 2
+
+[Intro]
+[tab]e|--0--2--3--|
+B|--1--3--0--|
+G|--0--2--0--|
+D|--2--0--0--|
+A|--3--------|
+D|--0--------|[/tab]
+
+[Verse 1]
+[ch]Am[/ch]        [ch]G[/ch]
+Walking down the open road
+[ch]F[/ch]         [ch]E[/ch]
+Nothing but a made up song

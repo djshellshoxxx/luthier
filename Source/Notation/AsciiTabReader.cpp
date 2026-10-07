@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <string>
 
 namespace luthier
 {
@@ -754,16 +755,132 @@ namespace
     }
 
     //==========================================================================
+    /*  Rhythm and count lines above a staff ("1 e & a 2 e & a", "q q e e h").
+        Each symbol's column becomes a (column, beat) anchor, and the notes of
+        the system are placed by interpolating between anchors, so a tab whose
+        spacing does not follow the rhythm still plays in time. Conservative:
+        a line that is not clearly a rhythm line, or whose anchors do not cover
+        the notes, changes nothing. */
+    struct RhythmAnchor { int column; double beat; };
+
+    std::vector<RhythmAnchor> parseRhythmAnchors (const juce::String& raw, double beatsPerMeasure)
+    {
+        std::vector<RhythmAnchor> anchors;
+
+        if (raw.length() > 600 || beatsPerMeasure <= 0.0)
+            return anchors;
+
+        const std::string text (raw.toRawUTF8());
+        struct Tok { int column; std::string word; };
+        std::vector<Tok> toks;
+
+        for (size_t i = 0; i < text.size();)
+        {
+            if (text[i] == ' ' || text[i] == '\t') { ++i; continue; }
+            const size_t from = i;
+            while (i < text.size() && text[i] != ' ' && text[i] != '\t') ++i;
+            toks.push_back ({ (int) from, text.substr (from, i - from) });
+            if (toks.size() > 200) return anchors;
+        }
+
+        if (toks.size() < 3)
+            return anchors;
+
+        // ---- counting: 1 e & a 2 ... ------------------------------------------------
+        bool allCount = true;
+        int numbers = 0, subs = 0;
+        for (const auto& t : toks)
+        {
+            const auto& w = t.word;
+            if (w.size() == 1 && w[0] >= '1' && w[0] <= '9') ++numbers;
+            else if (w == "&" || w == "+" || w == "e" || w == "a" || w == "and" || w == "E" || w == "A") ++subs;
+            else { allCount = false; break; }
+        }
+
+        if (allCount && numbers >= 2 && subs >= 1)
+        {
+            int measure = 0, lastNumber = 0;
+            double lastBase = 0.0;
+            for (const auto& t : toks)
+            {
+                const auto& w = t.word;
+                double beat;
+                if (w.size() == 1 && w[0] >= '1' && w[0] <= '9')
+                {
+                    const int n = w[0] - '0';
+                    if (n <= lastNumber) ++measure;
+                    lastNumber = n;
+                    lastBase = (double) (n - 1);
+                    beat = measure * beatsPerMeasure + lastBase;
+                }
+                else
+                {
+                    if (lastNumber == 0) return {};
+                    const double frac = (w == "&" || w == "+" || w == "and") ? 0.5
+                                      : (w == "e" || w == "E") ? 0.25 : 0.75;
+                    beat = measure * beatsPerMeasure + lastBase + frac;
+                }
+
+                if (! anchors.empty() && beat <= anchors.back().beat + 1.0e-9)
+                    return {};
+                anchors.push_back ({ t.column, beat });
+            }
+            return anchors;
+        }
+
+        // ---- durations: w h q e s t, with "." (dotted) or "3" (triplet) ---------------
+        double cursor = 0.0;
+        int symbols = 0;
+        for (const auto& t : toks)
+        {
+            const auto& w = t.word;
+            if (w.empty() || w.size() > 3)
+                return {};
+
+            double length;
+            switch (w[0])
+            {
+                case 'w': length = 4.0; break;
+                case 'h': length = 2.0; break;
+                case 'q': length = 1.0; break;
+                case 'e': length = 0.5; break;
+                case 's': length = 0.25; break;
+                case 't': length = 0.125; break;
+                default: return {};
+            }
+
+            for (size_t k = 1; k < w.size(); ++k)
+            {
+                if (w[k] == '.') length *= 1.5;
+                else if (w[k] == '3') length *= 2.0 / 3.0;
+                else return {};
+            }
+
+            anchors.push_back ({ t.column, cursor });
+            cursor += length;
+            ++symbols;
+        }
+
+        // A line of "e e e" is as likely to be string names or chord letters.
+        if (symbols < 3)
+            return {};
+
+        return anchors;
+    }
+
+    //==========================================================================
     struct System
     {
         std::vector<LineInfo*> lines;
         std::vector<Token> tokens;
         int measuresOnLines = 1;
         int repeatStart = -1, repeatEnd = -1, repeatCount = 0;
+        bool rhythmApplied = false;
     };
 
     void parseSystem (System& sys, double beatsPerMeasure, TabImportDiagnostics* d,
-                      const std::vector<LineInfo*>& annotationsAbove)
+                      const std::vector<LineInfo*>& annotationsAbove,
+                      const std::vector<RhythmAnchor>* rhythm = nullptr)
     {
         const int numLines = (int) sys.lines.size();
 
@@ -1150,6 +1267,52 @@ namespace
         if (sys.repeatEnd == -2)
             sys.repeatEnd = sys.measuresOnLines - 1;
 
+        // A rhythm/count line above the staff places the notes in time.
+        if (rhythm != nullptr && rhythm->size() >= 3 && ! sys.tokens.empty())
+        {
+            const auto& anchors = *rhythm;
+            bool covered = true;
+            for (const auto& t : sys.tokens)
+                if (t.rawColumn < anchors.front().column - 1 || t.rawColumn > anchors.back().column + 2)
+                    covered = false;
+
+            if (covered)
+            {
+                for (auto& t : sys.tokens)
+                {
+                    double beat = anchors.back().beat;
+
+                    // A symbol written within one column of the fret is that fret's.
+                    int nearest = -1, nearestDistance = 2;
+                    for (size_t k = 0; k < anchors.size(); ++k)
+                    {
+                        const int dist = std::abs (anchors[k].column - t.rawColumn);
+                        if (dist < nearestDistance)
+                            nearest = (int) k, nearestDistance = dist;
+                    }
+
+                    if (nearest >= 0)
+                        beat = anchors[(size_t) nearest].beat;
+                    else
+                        for (size_t k = 0; k + 1 < anchors.size(); ++k)
+                            if (t.rawColumn < anchors[k + 1].column)
+                            {
+                                const double span = (double) (anchors[k + 1].column - anchors[k].column);
+                                const double f = span > 0.0 ? juce::jlimit (0.0, 1.0, (double) (t.rawColumn - anchors[k].column) / span) : 0.0;
+                                beat = anchors[k].beat + f * (anchors[k + 1].beat - anchors[k].beat);
+                                break;
+                            }
+
+                    const int m = juce::jmax (0, (int) std::floor (beat / beatsPerMeasure + 1.0e-6));
+                    t.measure = m;
+                    t.beat = juce::jlimit (0.0, juce::jmax (0.0, beatsPerMeasure - 0.0625),
+                                           beat - (double) m * beatsPerMeasure);
+                }
+
+                sys.rhythmApplied = true;
+            }
+        }
+
         // Durations: to the next note on the same string, within reason.
         std::vector<int> order (sys.tokens.size());
         for (size_t i = 0; i < order.size(); ++i) order[i] = (int) i;
@@ -1405,7 +1568,27 @@ bool AsciiTabReader::read (const juce::String& text, PerformanceScore& destinati
             else if (li.kind != LineKind::empty) break;
         }
 
-        parseSystem (sys, beatsPerMeasure, d, above);
+        // A rhythm or count line directly above the staff sets the timing.
+        std::vector<RhythmAnchor> rhythm;
+        int rhythmLine = -1;
+        for (int i = b.first - 1; i >= 0 && i >= b.first - 2; --i)
+        {
+            if (lines[(size_t) i].kind == LineKind::empty || lines[(size_t) i].kind == LineKind::staff)
+                break;
+
+            auto anchors = parseRhythmAnchors (rawLines[i], beatsPerMeasure);
+            if (anchors.size() >= 3)
+            {
+                rhythm = std::move (anchors);
+                rhythmLine = i;
+                break;
+            }
+        }
+
+        parseSystem (sys, beatsPerMeasure, d, above, rhythm.empty() ? nullptr : &rhythm);
+
+        if (rhythmLine >= 0 && sys.rhythmApplied)
+            lines[(size_t) rhythmLine].kind = LineKind::header;
 
         // A repeat count on the line after the block: "x4", "(x3)", "play 3 times".
         for (int i = b.first + b.count; i < (int) lines.size() && i <= b.first + b.count + 1; ++i)

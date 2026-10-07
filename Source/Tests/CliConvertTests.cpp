@@ -226,11 +226,11 @@ LUTHIER_TEST (CliConvert, formatDetection)
     auto dir = tempDir();
 
     const char* readable[] = { "a.mid", "b.midi", "c.tab", "d.txt", "e.musicxml", "f.xml",
-                               "g.gp", "A.MID", "C.TAB", "G.GP" };
+                               "g.gp", "A.MID", "C.TAB", "G.GP", "h.gp5", "h4.gp4", "h3.gp3", "i.mxl" };
     for (auto* n : readable)
         CHECK_MSG (NotationImporter::canRead (dir.getChildFile (n)), juce::String ("should read ") + n);
 
-    const char* unreadable[] = { "h.gp5", "i.gpx", "j.ptb", "k.bin", "l.pdf", "m" };
+    const char* unreadable[] = { "i.gpx", "j.ptb", "k.bin", "l.pdf", "m" };
     for (auto* n : unreadable)
         CHECK_MSG (! NotationImporter::canRead (dir.getChildFile (n)), juce::String ("should reject ") + n);
 
