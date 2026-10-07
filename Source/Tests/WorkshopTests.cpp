@@ -4,6 +4,7 @@
 
 #include "../Model/Workshop/PartLibrary.h"
 #include "../Support/IrLibrary.h"
+#include "../Support/ThreadProbe.h"
 
 using namespace luthier;
 using namespace luthier::tests;
