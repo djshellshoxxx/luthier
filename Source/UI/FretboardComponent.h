@@ -92,6 +92,7 @@ public:
     //==========================================================================
     void paint (juce::Graphics&) override;
     void resized() override;
+    void moved() override { staticCache = {}; }   // the baked parent background follows the position
     void mouseDown (const juce::MouseEvent&) override;
     void mouseUp (const juce::MouseEvent&) override;
     void mouseDrag (const juce::MouseEvent&) override;   // TECHNIQUES: slide / bend drags

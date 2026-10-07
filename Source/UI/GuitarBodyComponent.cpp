@@ -3,6 +3,7 @@
 #include "../PluginProcessor.h"
 #include "../Accessibility/Accessibility.h"
 #include "PerformanceAssistUi.h"   // FEAT-ASSIST
+#include "PaintCache.h"
 
 namespace luthier
 {
@@ -132,13 +133,34 @@ void GuitarBodyComponent::rebuildCache()
     const int w = juce::jmax (1, juce::roundToInt ((float) getWidth() * scale));
     const int h = juce::jmax (1, juce::roundToInt ((float) getHeight() * scale));
 
-    cache = juce::Image (juce::Image::ARGB, w, h, true);
+    /*  With an opaque parent behind (EasyPanel, AdvancedPanel) its background is
+        baked in and the cache is RGB: the per-frame blit of the dirty strip is a
+        plain copy, the component is opaque, and the parent no longer repaints
+        under it (OPTIMISATION_LOG: the ARGB blend plus the parent's blit were a
+        sixth of the Easy view's GUI thread). */
+    auto* behind = opaqueParentBehind (*this);
+    cache = juce::Image (behind != nullptr ? juce::Image::RGB : juce::Image::ARGB, w, h, true);
     juce::Graphics g (cache);
     g.addTransform (juce::AffineTransform::scale (scale));
+
+    if (behind != nullptr)
+        paintParentBackgroundUnder (*behind, *this, g);
+
     GuitarRenderer::PaintLayers layers;
     layers.omitSpeakingLengths = cacheOmitsSpeaking;
     GuitarRenderer::paint (g, scene, mmToPx, layers);
+
+    // The name plate: static text, once per cache rather than per frame.
+    g.setColour (Palette::textMuted);
+    g.setFont (Fonts::ui (11.0f, true));
+    const auto& guitar = processor.getCurrentGuitar();
+    g.drawText (guitar.name.isNotEmpty() ? guitar.name : processor.getEngine().getGuitarSpec().name,
+                getLocalBounds().removeFromBottom (16).reduced (Metrics::grid, 0),
+                juce::Justification::centredLeft, true);
+
     cacheScale = scale;
+    cachePaletteRevision = Palette::revision;
+    setOpaque (behind != nullptr);
 }
 
 void GuitarBodyComponent::ensureTransform()
@@ -240,6 +262,11 @@ int GuitarBodyComponent::pickupIndexFor (GuitarRegion r) noexcept
 void GuitarBodyComponent::resized()
 {
     rebuildScene (scene.hits.empty());
+    cache = {};
+}
+
+void GuitarBodyComponent::moved()
+{
     cache = {};
 }
 
@@ -430,7 +457,7 @@ void GuitarBodyComponent::paint (juce::Graphics& g)
 
     const float scale = juce::Component::getApproximateScaleFactorForComponent (this);
 
-    if (cache.isNull() || std::abs (scale - cacheScale) > 0.01f)
+    if (cache.isNull() || std::abs (scale - cacheScale) > 0.01f || cachePaletteRevision != Palette::revision)
         rebuildCache();
 
     g.drawImage (cache, getLocalBounds().toFloat());
@@ -467,13 +494,7 @@ void GuitarBodyComponent::paint (juce::Graphics& g)
     // piano-roll-chord-display.md 4: the chord name, over the lower bout.
     chordName.paint (g, getChordNameArea(), (float) getHeight(), lastFrameMs);
 
-    // ---- name plate -------------------------------------------------------------------
-    g.setColour (Palette::textMuted);
-    g.setFont (Fonts::ui (11.0f, true));
-    const auto& guitar = processor.getCurrentGuitar();
-    g.drawText (guitar.name.isNotEmpty() ? guitar.name : processor.getEngine().getGuitarSpec().name,
-                getLocalBounds().removeFromBottom (16).reduced (Metrics::grid, 0),
-                juce::Justification::centredLeft, true);
+    // The name plate is part of the cache.
 }
 
 //==============================================================================

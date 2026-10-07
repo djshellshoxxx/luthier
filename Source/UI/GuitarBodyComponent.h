@@ -130,6 +130,7 @@ public:
 
     void paint (juce::Graphics&) override;
     void resized() override;
+    void moved() override;   // the baked parent background follows the position
 
     void mouseDown (const juce::MouseEvent&) override;
     void mouseDrag (const juce::MouseEvent&) override;
@@ -210,6 +211,7 @@ private:
     juce::Rectangle<int> getStringStrip (juce::uint32 stringMask, float extraPx);   // the overlay's dirty area
     juce::Image cache;
     float cacheScale = 1.0f;
+    int cachePaletteRevision = -1;
     int ticksSinceKeyCheck = 0;
     juce::uint32 seenGuitarRevision = 0xffffffffu;   // LuthierAudioProcessor::getGuitarRevision
 
