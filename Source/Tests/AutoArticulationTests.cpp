@@ -1125,7 +1125,7 @@ LUTHIER_TEST (AutoArticulationEngine, offAmountZeroAndNoRulesAreTheSameAsNothing
     {
         std::vector<std::vector<float>> renders;
 
-        for (int variant = 0; variant < 4; ++variant)
+        for (int variant = 0; variant < (edition::isPro ? 4 : 3); ++variant)
         {
             combo::Rig rig;
             auto& presets = rig.p().getPresetManager();
@@ -1134,6 +1134,8 @@ LUTHIER_TEST (AutoArticulationEngine, offAmountZeroAndNoRulesAreTheSameAsNothing
 
             if (variant == 1) { rig.setIndex (ParamIDs::aaEnabled, 0); rig.setIndex (ParamIDs::aaStyle, 3); }
             if (variant == 2) { rig.setIndex (ParamIDs::aaEnabled, 1); rig.setPlain (ParamIDs::aaAmount, 0.0f); }
+            // auto-articulation.md 11: in Free aa_rules is always effectively 511, so "no
+            // rules" is a Pro-only configuration (Free runs 3 variants; its forcing is checked below).
             if (variant == 3) { rig.setIndex (ParamIDs::aaEnabled, 1); rig.setIndex (ParamIDs::aaRules, 0); }
 
             rig.apply();
@@ -1146,9 +1148,12 @@ LUTHIER_TEST (AutoArticulationEngine, offAmountZeroAndNoRulesAreTheSameAsNothing
             renders.push_back (rig.renderEvents (timed, (int) total, 0.0).mono);
         }
 
-        for (int v = 1; v < 4; ++v)
+        for (int v = 1; v < (int) renders.size(); ++v)
             CHECK_MSG (renders[(size_t) v] == renders[0], juce::String (preset) + " variant " + juce::String (v) + " differs");
     }
+
+    if (! edition::isPro)
+        CHECK (Parameters::effectiveAssistSettings (true, 0, 60.0f, 0, Edition::free).rules == AssistRule::all);
 }
 
 // AA-03
