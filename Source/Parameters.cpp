@@ -1737,6 +1737,10 @@ void ParameterBridge::applyToEngine() noexcept
 
     engine.setVibratoRate (value (ParamIDs::vibratoRate));
     engine.setVibratoDepthCents (value (ParamIDs::vibratoDepth));
+    // vibrato_shape's choices are vibratoShapeNames() in Lfo::Shape order
+    // (Sine, Triangle, Square, Saw, Random, Finger); it was never pushed before.
+    engine.setVibratoShape ((Lfo::Shape) juce::jlimit (0, (int) Lfo::Shape::FingerVibrato,
+                                                       juce::roundToInt (value (ParamIDs::vibratoShape))));
     {
         EBowSettings ebow;
         ebow.enabled = value (ParamIDs::ebowEnable) > 0.5f;
