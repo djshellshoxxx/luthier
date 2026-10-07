@@ -1345,9 +1345,9 @@ LUTHIER_TEST (AutoArticulationEngine, assistCostsAlmostNothing)
         for (int run = 0; run < 3; ++run)
         {
             EngineRig rig (on ? assistOn (AssistStyle::rock) : AutoArticulationSettings {}, PlayingMode::Poly);
-            const auto t0 = std::chrono::steady_clock::now();
+            const double t0 = threadCpuTimeSeconds();   // the thread's CPU clock: a busy machine does not count
             rig.render (events, ms (4500));
-            best = juce::jmin (best, std::chrono::duration<double> (std::chrono::steady_clock::now() - t0).count());
+            best = juce::jmin (best, threadCpuTimeSeconds() - t0);
         }
 
         return best;
@@ -1369,10 +1369,10 @@ LUTHIER_TEST (AutoArticulationEngine, assistCostsAlmostNothing)
     aa.setTuning (&tuning);
     aa.setSettings (assistOn (AssistStyle::rock));
 
-    const auto t0 = std::chrono::steady_clock::now();
+    const double t0 = threadCpuTimeSeconds();
     for (int i = 0; i < 10000; ++i)
         juce::ignoreUnused (aa.planSingle (40 + i % 40, 0.8, (juce::int64) i * 2000, false, 0));
-    const double perNoteUs = std::chrono::duration<double, std::micro> (std::chrono::steady_clock::now() - t0).count() / 10000.0;
+    const double perNoteUs = 1.0e6 * (threadCpuTimeSeconds() - t0) / 10000.0;
 
     CHECK_MSG (perNoteUs < 3.0, juce::String (perNoteUs, 3) + " us per note-on");
 }

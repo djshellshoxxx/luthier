@@ -522,9 +522,10 @@ LUTHIER_TEST (JamDsp, JM34_budgets)
 {
     auto seconds = [] (auto&& fn)
     {
-        const auto start = juce::Time::getHighResolutionTicks();
+        // The thread's CPU clock (TestFramework), so a busy machine's scheduling does not count.
+        const double start = threadCpuTimeSeconds();
         fn();
-        return juce::Time::highResolutionTicksToSeconds (juce::Time::getHighResolutionTicks() - start);
+        return threadCpuTimeSeconds() - start;
     };
 
     constexpr double kAudio = 8.0;

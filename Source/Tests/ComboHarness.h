@@ -384,11 +384,11 @@ struct Rig
                 ++next;
             }
 
-            const auto t0 = std::chrono::steady_clock::now();
+            // On the calling thread's CPU clock (TestFramework threadCpuTimeSeconds),
+            // so a shared machine's scheduling does not count against the code.
+            const double t0 = luthier::tests::threadCpuTimeSeconds();
             processor->processBlock (buffer, midi);
-            const auto t1 = std::chrono::steady_clock::now();
-
-            const double ms = std::chrono::duration<double, std::milli> (t1 - t0).count();
+            const double ms = 1000.0 * (luthier::tests::threadCpuTimeSeconds() - t0);
             blockMsSum += ms;
             ++blocks;
             stats.maxBlockMs = juce::jmax (stats.maxBlockMs, ms);

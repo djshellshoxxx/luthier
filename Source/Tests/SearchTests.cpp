@@ -482,9 +482,9 @@ LUTHIER_TEST (Search, GS41_performance)
     for (int attempt = 0; attempt < 5; ++attempt)
     {
         index.invalidate();
-        const auto buildStart = std::chrono::steady_clock::now();
+        const double buildStart = threadCpuTimeSeconds();   // the thread's CPU clock: scheduling noise does not count
         index.refreshIfNeeded();
-        buildMs = juce::jmin (buildMs, std::chrono::duration<double, std::milli> (std::chrono::steady_clock::now() - buildStart).count());
+        buildMs = juce::jmin (buildMs, 1000.0 * (threadCpuTimeSeconds() - buildStart));
     }
 
     CHECK (raw->collects == 5);
@@ -496,9 +496,9 @@ LUTHIER_TEST (Search, GS41_performance)
     for (int round = 0; round < 20; ++round)
         for (auto* q : queries)
         {
-            const auto t0 = std::chrono::steady_clock::now();
+            const double t0 = threadCpuTimeSeconds();
             const auto r = index.query (q);
-            times.push_back (std::chrono::duration<double, std::milli> (std::chrono::steady_clock::now() - t0).count());
+            times.push_back (1000.0 * (threadCpuTimeSeconds() - t0));
 
             if (round == 0 && verboseTiming)
                 std::cout << "      '" << q << "' " << times.back() << " ms, " << r.size() << " results" << std::endl;

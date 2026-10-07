@@ -673,17 +673,25 @@ LUTHIER_TEST (NoiseFloor, idleIsFree)
     nf.prepare (48000.0, kBlock);
     CHECK (nf.isIdle());
 
-    // Cost over the baseline: 60 s with the module idle against bypassed.
+    // Cost over the baseline: 20 s with the module idle against bypassed, on
+    // the thread's CPU clock and interleaved best-of-two, so a shared machine's
+    // scheduling noise does not land on one side of the difference.
     auto time = [] (bool bypass)
     {
         Rig rig;
         rig.engine->setNoiseFloorBypassedForTest (bypass);
-        const auto t0 = juce::Time::getMillisecondCounterHiRes();
+        const double t0 = threadCpuTimeSeconds();
         rig.render (20.0);
-        return juce::Time::getMillisecondCounterHiRes() - t0;
+        return 1000.0 * (threadCpuTimeSeconds() - t0);
     };
 
-    const double idle = time (false), bypassed = time (true);
+    double idle = 1.0e9, bypassed = 1.0e9;
+
+    for (int round = 0; round < 2; ++round)
+    {
+        idle = juce::jmin (idle, time (false));
+        bypassed = juce::jmin (bypassed, time (true));
+    }
     // A unit is one real-time core at 48 kHz (performance-budget.md 1); 20 s of
     // audio is 20000 ms of it. Timing noise on a shared machine is larger than
     // the budget, so the check is generous and the figure is logged.

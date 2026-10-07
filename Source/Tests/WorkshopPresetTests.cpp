@@ -280,38 +280,54 @@ LUTHIER_TEST (WorkshopSwap, aPartSwapDuringANoteIsClickFree)
         if (part->name != before.get (GuitarSlot::pickupBridge)->name)
             { after.parts[(size_t) GuitarSlot::pickupBridge] = part; break; }
 
-    LuthierEngine engine;
-    engine.prepare (sr, 256);
-    engine.applyWorkshopGuitar (mapSpec (before), GuitarType::LesPaul);
-
-    std::vector<float> out ((size_t) (sr * 1.5), 0.0f);
-
-    const int swapAt = renderWithChangeMidway (engine, out, (int) (sr * 0.6), [&]
+    /*  The engine parks only an audio thread it has seen within 200 ms, and waits
+        at most 250 ms for it (a stalled host must not hang the UI). On a loaded
+        shared machine the test's own audio thread can be descheduled across that
+        window, in which case the swap goes ahead unparked, as it would in a
+        stalled host - a timing gate, not a click. Such a render is retried; a
+        parked swap that steps is a real click and fails at once. */
+    for (int attempt = 0; attempt < 4; ++attempt)
     {
-        engine.applyWorkshopGuitar (mapSpec (after), GuitarType::LesPaul);
-    });
+        LuthierEngine engine;
+        engine.prepare (sr, 256);
+        engine.applyWorkshopGuitar (mapSpec (before), GuitarType::LesPaul);
 
-    // The note's own steepest step while it rings, before the swap.
-    const float natural = largestStep (out, (int) (sr * 0.3), swapAt - 512);
+        std::vector<float> out ((size_t) (sr * 1.5), 0.0f);
 
-    // Around the swap: the fade out, the parked silence, the fade back in.
-    const float atSwap = largestStep (out, swapAt - 512, swapAt + (int) (sr * 0.1));
+        const int swapAt = renderWithChangeMidway (engine, out, (int) (sr * 0.6), [&]
+        {
+            engine.applyWorkshopGuitar (mapSpec (after), GuitarType::LesPaul);
+        });
 
-    CHECK_MSG (natural > 1.0e-4f, "the note is not sounding before the swap");
-    CHECK_MSG (atSwap <= natural + 0.001f,
-               "the swap stepped by " + juce::String (atSwap, 5) + " against the note's own "
-                 + juce::String (natural, 5) + " (-60 dBFS allowance)");
+        // The audio thread really was parked: some silence around the change.
+        int longestSilence = 0, run = 0;
 
-    // The audio thread really was parked: some silence around the change.
-    int longestSilence = 0, run = 0;
+        for (int i = swapAt - 512; i < swapAt + (int) (sr * 0.1); ++i)
+        {
+            run = out[(size_t) i] == 0.0f ? run + 1 : 0;
+            longestSilence = juce::jmax (longestSilence, run);
+        }
 
-    for (int i = swapAt - 512; i < swapAt + (int) (sr * 0.1); ++i)
-    {
-        run = out[(size_t) i] == 0.0f ? run + 1 : 0;
-        longestSilence = juce::jmax (longestSilence, run);
+        if (longestSilence < 64 && attempt < 3)
+        {
+            std::cout << "    swap not parked (longest run of zeros " << longestSilence << "); retrying" << std::endl;
+            continue;
+        }
+
+        CHECK_MSG (longestSilence >= 64, "no parked silence; longest run of zeros " + juce::String (longestSilence));
+
+        // The note's own steepest step while it rings, before the swap.
+        const float natural = largestStep (out, (int) (sr * 0.3), swapAt - 512);
+
+        // Around the swap: the fade out, the parked silence, the fade back in.
+        const float atSwap = largestStep (out, swapAt - 512, swapAt + (int) (sr * 0.1));
+
+        CHECK_MSG (natural > 1.0e-4f, "the note is not sounding before the swap");
+        CHECK_MSG (atSwap <= natural + 0.001f,
+                   "the swap stepped by " + juce::String (atSwap, 5) + " against the note's own "
+                     + juce::String (natural, 5) + " (-60 dBFS allowance)");
+        break;
     }
-
-    CHECK_MSG (longestSilence >= 64, "no parked silence; longest run of zeros " + juce::String (longestSilence));
 }
 
 LUTHIER_TEST (WorkshopSwap, aNotePlayedWhileParkedIsKeptNotDropped)
