@@ -376,7 +376,7 @@ bool BodyEngine::loadImpulseResponse (const juce::File& file)
 
     if (prepared)
     {
-        if (! ConvolutionInstaller::pumpUntilInstalled (*convolution, 2, maxBlock, 1, 4000, (int) (0.06 * sr)))
+        if (! ConvolutionInstaller::pumpUntilInstalled (*convolution, 2, maxBlock, 1, ConvolutionInstaller::kInstallTimeoutMs, (int) (0.06 * sr)))
             return false;
 
         convolution->reset();
@@ -423,7 +423,7 @@ void BodyEngine::loadImpulseResponse (const float* samples, int numSamples, doub
 
     if (prepared)
     {
-        if (! ConvolutionInstaller::pumpUntilInstalled (*convolution, 2, maxBlock, 1, 4000, (int) (0.06 * sr)))
+        if (! ConvolutionInstaller::pumpUntilInstalled (*convolution, 2, maxBlock, 1, ConvolutionInstaller::kInstallTimeoutMs, (int) (0.06 * sr)))
             return;
 
         convolution->reset();

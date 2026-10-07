@@ -400,7 +400,7 @@ bool CabinetEngine::loadImpulseResponse (int slot, const juce::File& file)
 
     if (prepared)
     {
-        if (! ConvolutionInstaller::pumpUntilInstalled (*path.convolution, 1, maxBlock, 1, 4000, (int) (0.06 * sr)))
+        if (! ConvolutionInstaller::pumpUntilInstalled (*path.convolution, 1, maxBlock, 1, ConvolutionInstaller::kInstallTimeoutMs, (int) (0.06 * sr)))
             return false;
 
         path.convolution->reset();
@@ -447,7 +447,7 @@ void CabinetEngine::loadImpulseResponse (int slot, const float* samples, int num
 
     if (prepared)
     {
-        if (! ConvolutionInstaller::pumpUntilInstalled (*path.convolution, 1, maxBlock, 1, 4000, (int) (0.06 * sr)))
+        if (! ConvolutionInstaller::pumpUntilInstalled (*path.convolution, 1, maxBlock, 1, ConvolutionInstaller::kInstallTimeoutMs, (int) (0.06 * sr)))
             return;
 
         path.convolution->reset();

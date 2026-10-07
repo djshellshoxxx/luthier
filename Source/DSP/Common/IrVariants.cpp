@@ -264,7 +264,7 @@ int IrVariants::build (const juce::AudioBuffer<float>& prepared)
                                   juce::dsp::Convolution::Trim::no,
                                   juce::dsp::Convolution::Normalise::no);
 
-        if (! ConvolutionInstaller::pumpUntilInstalled (conv, channels, maxBlock, 1, 4000, (int) (0.06 * sr)))
+        if (! ConvolutionInstaller::pumpUntilInstalled (conv, channels, maxBlock, 1, ConvolutionInstaller::kInstallTimeoutMs, (int) (0.06 * sr)))
             continue;   // 11: that level uses the full IR
 
         conv.reset();
