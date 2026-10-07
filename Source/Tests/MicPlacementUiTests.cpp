@@ -132,6 +132,12 @@ namespace
 LUTHIER_TEST (MicPlacementUi, advancedCabSectionHasTheViewAndOneEntryDrags)
 {
     Rig rig;
+
+    // The placement view lives in Column 3, which the WORKSHOP tab (the default
+    // landing tab, section 4.4) takes over and hides. Leave it for a tab that
+    // keeps Columns 1-3 on screen, so the view is laid out at its real size.
+    rig.advanced().setWorkspaceTabNamed ("MOD");
+
     auto& view = rig.view();
 
     CHECK (onScreen (view));
@@ -287,6 +293,11 @@ LUTHIER_TEST (MicPlacementUi, handlesAreAccessibleGroupsOfFourSliders)
 LUTHIER_TEST (MicPlacementUi, releaseNearARingSnapsExactly)
 {
     Rig rig;
+
+    // The placement view lives in Column 3, hidden by the default WORKSHOP tab;
+    // leave it so the face is laid out at its real size (MP-26 above).
+    rig.advanced().setWorkspaceTabNamed ("MOD");
+
     auto& face = rig.view().getFace();
     auto& handle = face.getHandle (0);
     rig.set (ParamIDs::micX, 0.8f);
