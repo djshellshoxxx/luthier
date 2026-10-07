@@ -777,7 +777,7 @@ bool TabChordChart::read (const juce::String& text, PerformanceScore& destinatio
             int bassString = -1;
             for (int s = track.numStrings - 1; s >= 0; --s)
                 if (shape[(size_t) s] >= 0) { bassString = s; break; }
-            const double slot = 4.0 / (double) juce::jmax<size_t> (4, picking.size());
+            const double slot = 4.0 / (double) std::max<size_t> (4, picking.size());
             for (size_t i = 0; i < picking.size() && slot * (double) i < 4.0; ++i)
             {
                 const int finger = picking[i];
