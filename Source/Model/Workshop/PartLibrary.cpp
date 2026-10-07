@@ -439,6 +439,9 @@ void PartLibrary::refreshFrom (const juce::File& factoryParts, const juce::File&
 void PartLibrary::scanFolder (const juce::File& root, bool factory)
 {
     ThreadProbe::noteFileAccess();
+
+    if (factory)
+        ThreadProbe::factoryPartScans.fetch_add (1, std::memory_order_relaxed);
     if (! root.isDirectory())
         return;
 
