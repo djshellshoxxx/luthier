@@ -461,6 +461,7 @@ private:
     std::unique_ptr<LuthierKnob> whammyPos, whammyDown, whammyUp, whammySprings, transposeLock;
 
     std::unique_ptr<PedalRack> preRack, postRack;
+    std::unique_ptr<LuthierKnob> fxSaturation;   // FEAT-SAT
 
     std::unique_ptr<LuthierKnob> humTiming, humVelocity, humDetune, humAttack, humNoise, humStrum;
     std::unique_ptr<LuthierKnob> vibratoRate, vibratoDepth, strumSpeed, bendRange, legatoWindow,

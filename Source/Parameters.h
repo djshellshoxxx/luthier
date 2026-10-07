@@ -638,6 +638,11 @@ namespace ParamIDs
     /** The count this block adds (64), for the integration test's arithmetic. */
     inline constexpr int kTechniquesParamCount = 64;
     // ==== END TECHNIQUES params ====
+    // ==== BEGIN FEAT-SAT params ====
+    inline constexpr const char* fxSaturation = "fx_saturation";
+    /** The count this block adds (1), for the integration test's arithmetic. */
+    inline constexpr int kFeatSatParamCount = 1;
+    // ==== END FEAT-SAT params ====
 }
 
 //==============================================================================

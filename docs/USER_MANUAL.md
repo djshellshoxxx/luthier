@@ -202,6 +202,8 @@ does on the real thing.
 
 **Pedalboard (before the amp).** The pre-amp pedal slots.
 
+**Saturation.** One knob after the pedalboard: soft clipping ahead of the amp. Zero is off; turn it up for a thicker, more compressed sound at about the same loudness. Also on the Easy tone strip.
+
 **Playing hand.** Pick or fingers, material, thickness, angle, position, nail
 versus flesh.
 

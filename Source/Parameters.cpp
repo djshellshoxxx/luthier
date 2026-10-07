@@ -1110,6 +1110,9 @@ APVTS::ParameterLayout Parameters::createLayout()
         add (floatParam  (ParamIDs::slideGesturePressure, "Gesture Pressure", 0.0f, 1.0f, 0.7f));
     }
     // ==== END TECHNIQUES params ====
+    // ==== BEGIN FEAT-SAT params ====
+    add (floatParam  (ParamIDs::fxSaturation, "Saturation", 0.0f, 100.0f, 0.0f, 1.0f, "%"));
+    // ==== END FEAT-SAT params ====
 
     return layout;
 }
@@ -2140,6 +2143,10 @@ void ParameterBridge::applyToEngine() noexcept
         engine.setSlideControls (sc);
     }
     // ==== END TECHNIQUES params ====
+    // ==== BEGIN FEAT-SAT params ====
+    // fx_saturation: the pre-amp effects' closing soft-clip stage (Saturation.h).
+    engine.setSaturation (value (ParamIDs::fxSaturation) * 0.01f);
+    // ==== END FEAT-SAT params ====
 
     // ---- structural change detection ---------------------------------------------
     const bool structural = readStructuralValues() || ! structuralInitialised;

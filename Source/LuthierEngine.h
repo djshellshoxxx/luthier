@@ -36,6 +36,7 @@
 #include "DSP/Feedback/EBowDriver.h"
 #include "Model/Workshop/PartAcoustics.h"
 #include "DSP/Effects/EffectsChain.h"
+#include "DSP/Effects/Saturation.h"
 #include "DSP/Effects/SecretEffect.h"
 #include "DSP/Amp/AmpEngine.h"
 #include "DSP/Amp/CabinetEngine.h"
@@ -480,6 +481,10 @@ public:
         (2) is the caller's, after the engine. Owned by the caller. */
     void setEqMatchSlot (IrSlot* slot) noexcept { eqMatchSlot = slot; }
     void setEqMatchPosition (int position) noexcept { eqMatchPosition.store (position, std::memory_order_relaxed); }
+
+    /** fx_saturation, 0..1: the pre-amp effects' closing soft-clip stage. Audio
+        or message thread; the stage smooths it. */
+    void setSaturation (double amount) noexcept { saturationAmount.store (amount, std::memory_order_relaxed); }
 
     /*  SPEC-SWEEP BT-12 (bass-techniques 10, midi-export 9): the next note on
         `stringIndex` (-1: on any string) is played with this BassStepType
@@ -975,6 +980,8 @@ private:
     IrSlot* bodyIrSlot = nullptr;           // SPEC-SWEEP TM-6
     IrSlot* eqMatchSlot = nullptr;          // SPEC-SWEEP TM-28
     std::atomic<int> eqMatchPosition { 1 };
+    std::atomic<double> saturationAmount { 0.0 };   // FEAT-SAT
+    Saturation saturation;                          // FEAT-SAT
     std::vector<float> eqMatchScratch;
     std::array<int, 13> pendingBassTechnique { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };   // SPEC-SWEEP BT-12
     std::vector<float> bodyIrInput;         // SPEC-SWEEP TM-6: the body's excitation, kept for the IR

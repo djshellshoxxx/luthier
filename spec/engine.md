@@ -528,6 +528,8 @@ Add slight capacitive coupling (small mid-boost around 4 kHz) for realism.
 
 Signal chain slots for pedals before the amp. Each slot holds one pedal or is empty (true bypass).
 
+**Saturation (`fx_saturation`, FEAT-SAT)**: one 0-100 % knob after the last pedal slot and before the amp input: a smoothed (~20 ms) tanh soft clip, 0 to +24 dB drive with output compensation, not oversampled; exactly bypassed at 0 %.
+
 **Pedal types** (each is its own DSP module):
 - **Compressor**: standard peak compressor with threshold, ratio, attack, release, makeup gain. Optical or FET character selectable.
 - **Wah**: bandpass filter with sweep pedal control. Q, frequency range, and sweep curve adjustable.

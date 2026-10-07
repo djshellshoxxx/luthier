@@ -191,6 +191,7 @@ private:
     LuthierKnob outputKnob { "Output",  LuthierKnob::Size::Small };
     LuthierKnob mixKnob    { "Wet/Dry", LuthierKnob::Size::Small };
     LuthierKnob widthKnob  { "Width",   LuthierKnob::Size::Small };
+    LuthierKnob saturationKnob { "Saturation", LuthierKnob::Size::Small };   // FEAT-SAT
 
     juce::ComboBox styleBox;
     juce::Label styleLabel { {}, "Style" };

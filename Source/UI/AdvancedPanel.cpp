@@ -975,6 +975,9 @@ void AdvancedPanel::buildColumn2()
 
     preRack = std::make_unique<PedalRack> (processor, false);
     column.addControl (preRack.get(), preRack->getPreferredHeight());
+    addKnob (fxSaturation, "Saturation", ParamIDs::fxSaturation,
+             "Soft clipping ahead of the amp, after the pedals. Turn it up for a thicker, "
+             "more compressed sound; at zero it is off.");   // FEAT-SAT
 
     // ---- right hand ------------------------------------------------------------------
     column.addGap (Metrics::grid);
