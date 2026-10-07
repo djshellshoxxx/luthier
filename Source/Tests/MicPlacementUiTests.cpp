@@ -11,6 +11,7 @@
 #include "../UI/AdvancedPanel.h"
 #include "../UI/EasyPanel.h"
 #include "../UI/Overlays.h"
+#include "../UI/UiPreferences.h"
 #include "../UI/MicPlacementEditor.h"
 #include "../Accessibility/Accessibility.h"
 #include "../Accessibility/Localisation.h"
@@ -58,8 +59,24 @@ namespace
         return true;
     }
 
+    /** The Advanced panel reopens on the persisted last-used workspace tab, and WORKSHOP
+        takes over the columns holding the cab section (so the mic view is zero-sized).
+        The rig pins a tab that does not, and puts the user's setting back afterwards. */
+    struct TabPreference
+    {
+        juce::String name = UiPreferences::get().getString (AdvancedPanel::workspaceTabNamePreferenceKey, {});
+        int index = UiPreferences::get().getInt (AdvancedPanel::workspaceTabPreferenceKey, 0);
+
+        ~TabPreference()
+        {
+            UiPreferences::get().setString (AdvancedPanel::workspaceTabNamePreferenceKey, name);
+            UiPreferences::get().setInt (AdvancedPanel::workspaceTabPreferenceKey, index);
+        }
+    };
+
     struct Rig
     {
+        TabPreference restoreTab;   // first member: restored after the editor is gone
         std::unique_ptr<LuthierAudioProcessor> processor;
         std::unique_ptr<juce::AudioProcessorEditor> editor;
 
@@ -73,7 +90,10 @@ namespace
             editor->setSize (width, height);
 
             if (advanced)
+            {
                 editor->keyPressed (AccessibilitySettings::get().findShortcut ("toggleAdvanced")->key);
+                this->advanced().setWorkspaceTabNamed ("MOD");
+            }
         }
 
         LuthierAudioProcessor& p() { return *processor; }
