@@ -44,9 +44,11 @@ namespace
     struct TempoHead : juce::AudioPlayHead
     {
         double bpm = 120.0;
+        mutable int positionReads = 0;
 
         juce::Optional<PositionInfo> getPosition() const override
         {
+            ++positionReads;
             PositionInfo info;
             info.setIsPlaying (true);
             info.setBpm (bpm);
@@ -75,17 +77,28 @@ LUTHIER_TEST (HostClock, processorRetainsLastValidTempoWhenHostReportsNaN)
 
     // A valid tempo establishes the retained value.
     head.bpm = 142.0;
+    head.positionReads = 0;
     buffer.clear();
     processor.processBlock (buffer, midi);
     CHECK_NEAR (processor.getHostTempo(), 142.0, 1.0e-6);
+    CHECK_MSG (head.positionReads == 1,
+               "one audio block queried the host position " + juce::String (head.positionReads) + " times");
 
-    // A NaN tempo from the host must be rejected: the last valid tempo stands.
+    // A NaN tempo from the host must be rejected once for this block: the same
+    // sanitised snapshot feeds tempo, transport, capture, modulation, jam and
+    // preview code instead of re-querying an externally mutable playhead.
     head.bpm = std::numeric_limits<double>::quiet_NaN();
+    head.positionReads = 0;
+    const int rejectedBefore = processor.getRejectedHostClockCount();
     buffer.clear();
     midi.clear();
     processor.processBlock (buffer, midi);
     CHECK (std::isfinite (processor.getHostTempo()));
     CHECK_NEAR (processor.getHostTempo(), 142.0, 1.0e-6);
+    CHECK_MSG (head.positionReads == 1,
+               "invalid host position was queried " + juce::String (head.positionReads) + " times in one block");
+    CHECK_MSG (processor.getRejectedHostClockCount() == rejectedBefore + 1,
+               "one invalid BPM was counted more than once in one block");
 
     processor.setPlayHead (nullptr);
     processor.releaseResources();
