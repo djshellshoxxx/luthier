@@ -6,6 +6,7 @@
 */
 
 #include "TestFramework.h"
+#include <map>
 #include "QualityTestSupport.h"
 
 #include "../PluginEditor.h"
@@ -552,6 +553,21 @@ LUTHIER_TEST (CpuQualityUi, CQ23_lowMeansNoAnimationRepaints)
 
         decorativePaints = worstReadoutPaints = runningDecorativeTimers = busiestDecorative = 0;
 
+        /*  One paint of a component is one paint, however many registrations it
+            holds: notePaint counts it on each (the guitar drawing and its
+            StringAnimator are two registrations on one component). */
+        std::map<const juce::Component*, int> decorativeByComponent;
+
+        for (const auto& r : counts)
+            if (r.motionClass != AnimationPolicy::LiveReadout)
+                decorativeByComponent[r.component] = juce::jmax (decorativeByComponent[r.component], r.paints);
+
+        for (const auto& [component, paints] : decorativeByComponent)
+        {
+            juce::ignoreUnused (component);
+            decorativePaints += paints;
+        }
+
         for (const auto& r : counts)
         {
             if (r.motionClass == AnimationPolicy::LiveReadout)
@@ -560,7 +576,6 @@ LUTHIER_TEST (CpuQualityUi, CQ23_lowMeansNoAnimationRepaints)
             }
             else
             {
-                decorativePaints += r.paints;
                 busiestDecorative = juce::jmax (busiestDecorative, r.paints);
                 runningDecorativeTimers += r.timerRunning ? 1 : 0;
 
