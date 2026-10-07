@@ -448,7 +448,7 @@ void PartLibrary::refresh()
             // later instance in the same host process can recover if Resources
             // becomes available, while a valid shipped tree is immutable until
             // the next process/plugin load.
-            if (factoryFolder.isDirectory() && factory.getNumParts() > 0)
+            if (factoryFolder.isDirectory() && factory.getNumParts() > 0 && factory.scanErrors.isEmpty())
             {
                 cache.folder = factoryFolder;
                 cache.parts = factory.byType;
