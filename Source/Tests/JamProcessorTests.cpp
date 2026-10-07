@@ -6,6 +6,7 @@
 #include "TestFramework.h"
 #include "../PluginProcessor.h"
 #include "../Jam/JamMidiExport.h"
+#include "../Jam/JamEdition.h"
 #include "../Support/TuneExport.h"
 
 using namespace luthier;
@@ -479,6 +480,20 @@ LUTHIER_TEST (JamPlugin, JM37_separateOutputs)
         return b;
     };
 
+    if constexpr (JamEdition::kIsFree)
+    {
+        // editions.md 2.3: Separate outputs are Pro-only. Free plays the nearest Free choice
+        // (Main) whatever is stored, so the band stays on main and Aux 9 stays silent.
+        auto b = render (true, true, 1);
+        const int drums = busIndex (*b.p, "Jam Drums");
+        CHECK (drums > 0);
+        CHECK_MSG (Plugin::peak (b.buses[(size_t) drums]) < 1.0e-6, "Free put the band on Aux 9");
+        const auto rig = render (true, true, 1, false);
+        CHECK_MSG (b.left != rig.left, "Free's Separate did not leave the band on main");
+        CHECK (Plugin::peak (b.left) > 1.0e-3);
+        CHECK (! b.p->isJamSeparateFallingBack());
+    }
+    else
     {
         auto b = render (true, true, 1);   // layout B, Separate
         const int drums = busIndex (*b.p, "Jam Drums");
@@ -490,6 +505,7 @@ LUTHIER_TEST (JamPlugin, JM37_separateOutputs)
         CHECK (! b.p->isJamSeparateFallingBack());
     }
 
+    if constexpr (! JamEdition::kIsFree)
     {
         auto b = render (true, true, 2);   // Main + Separate
         CHECK (Plugin::peak (b.buses[(size_t) busIndex (*b.p, "Jam Drums")]) > 1.0e-3);
@@ -497,9 +513,9 @@ LUTHIER_TEST (JamPlugin, JM37_separateOutputs)
     }
 
     {
-        auto b = render (false, false, 1);   // layout A: falls back to main
+        auto b = render (false, false, 1);   // layout A: falls back to main (Free: Main already)
         CHECK (Plugin::peak (b.left) > 1.0e-3);
-        CHECK (b.p->isJamSeparateFallingBack());
+        CHECK (b.p->isJamSeparateFallingBack() == ! JamEdition::kIsFree);
     }
 
     // Aux 1-8 and the per-string buses keep their numbers.
@@ -794,7 +810,10 @@ LUTHIER_TEST (JamPlugin, JM45_recallsAndPresetLoadsKeepTheBand)
 {
     Plugin b;
     b.set (ParamIDs::jamEnabled, 1.0f);
-    b.set (ParamIDs::jamStyle, 2.0f);
+    // Funk (2) is Pro-only: Free plays its nearest Free style (editions.md 2.3), so Free
+    // recalls Blues Shuffle (3), which is a style it keeps.
+    const int recalledStyle = JamEdition::kIsFree ? 3 : 2;
+    b.set (ParamIDs::jamStyle, (float) recalledStyle);
     CHECK (b.p->captureSnapshot (0, "Funk"));
     b.set (ParamIDs::jamStyle, 0.0f);
     b.p->getSnapshots().setCrossfadeMs (0.0);
@@ -818,7 +837,7 @@ LUTHIER_TEST (JamPlugin, JM45_recallsAndPresetLoadsKeepTheBand)
     double changedAt = -1.0;
 
     for (const auto& e : b.p->getJam().getCapture().copyLastBars (0))
-        if (e.part == 2 && e.style == 2 && changedAt < 0.0)
+        if (e.part == 2 && e.style == recalledStyle && changedAt < 0.0)
             changedAt = e.ppq;
 
     CHECK_MSG (std::abs (changedAt - 8.0) < 1.0e-6, "the recalled style arrived at ppq " + juce::String (changedAt));
@@ -885,9 +904,17 @@ LUTHIER_TEST (JamPlugin, JM09_tuneExportIncludesTheBand)
     CHECK_MSG (diff > 1.0e-3, "the render with the band is the render without it");
     CHECK_MSG (with.aux.size() == (size_t) TuneExport::kNumAuxStems + 2, "no Jam stems: " + juce::String ((int) with.aux.size()));
 
+    // The Jam stems are the band's Separate output, which Free does not have (editions.md 2.3:
+    // it plays on main, so the render differs above and the stem stays silent).
     if (with.aux.size() == (size_t) TuneExport::kNumAuxStems + 2)
-        CHECK_MSG (with.aux[(size_t) TuneExport::kNumAuxStems].getMagnitude (0, with.aux[(size_t) TuneExport::kNumAuxStems].getNumSamples()) > 1.0e-3,
-                   "the Jam Drums stem is silent");
+    {
+        const auto drumsStem = with.aux[(size_t) TuneExport::kNumAuxStems].getMagnitude (0, with.aux[(size_t) TuneExport::kNumAuxStems].getNumSamples());
+
+        if constexpr (JamEdition::kIsFree)
+            CHECK_MSG (drumsStem < 1.0e-6, "Free put the Jam Drums on a separate stem");
+        else
+            CHECK_MSG (drumsStem > 1.0e-3, "the Jam Drums stem is silent");
+    }
 
     juce::TemporaryFile temp (".mid");
     TuneExport::MidiOptions options;

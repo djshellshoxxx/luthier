@@ -8,6 +8,7 @@
 
 #include "../PluginProcessor.h"
 #include "../Support/ErrorLog.h"
+#include "../Jam/JamEdition.h"
 
 namespace luthier
 {
@@ -220,7 +221,14 @@ void LuthierAudioProcessor::mixJam (juce::AudioBuffer<float>& mainOut, int numSa
 {
     // 7: Main, Separate (Aux 9 and 10), or both; Separate falls back to Main
     // when the host gave no aux (layouts A and C, 8.4).
-    const int output = jamOutputRaw != nullptr ? juce::roundToInt (jamOutputRaw->load()) : 0;
+    int output = jamOutputRaw != nullptr ? juce::roundToInt (jamOutputRaw->load()) : 0;
+
+    // editions.md 2.3: Separate outputs are Pro-only; Free plays the nearest Free choice (Main)
+    // while the stored value stays. Without this a Pro preset's Separate left Free's band on
+    // neither main (no toMain) nor Aux 9/10 (the bus writer already sees the effective value).
+    if constexpr (JamEdition::kIsFree)
+        output = JamEdition::nearestFree (JamEdition::Item::output, output);
+
     bool separateAvailable = false;
 
     if (RoutingMatrix::layoutHasAux (routing.getActiveLayout()))
