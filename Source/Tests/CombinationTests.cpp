@@ -15,6 +15,7 @@
 
 #include "ComboHarness.h"
 
+#include "PresetBrowserTestHelpers.h"
 #include "../Presets/PresetMorph.h"
 #include "../Rhythm/Patterns.h"
 #include "../Rhythm/GenreKit.h"
@@ -1811,13 +1812,40 @@ LUTHIER_TEST (Combo, newFeaturesPairwise)
         if (r % 8 == 0 && rig.param (ParamIDs::jamPlay)->getValue() < 0.5f)
         {
             ++roundTrips;
+
+            // Normalization's calibration is measured on a worker thread and arrives
+            // "some time later" in a realtime render, so what the source and the copy play
+            // at the first block depended on how fast the machine was (a table hit here, a
+            // glide there; 0.096 apart on a slow Windows runner). A non-realtime render
+            // waits for every request (output-normalization 4.6), so both instances are
+            // settled before the state is saved and both play from the stored gain. The
+            // quality level is forced for both, so nothing else changes with the mode.
+            if (normalize)
+            {
+                rig.p().setNonRealtime (true);
+
+                // The structural snapshot the calibration key is hashed from follows a
+                // changed guitar / amp on the message thread's 10 Hz timer (a user's edit is
+                // picked up within 100 ms). Nothing pumps that thread here, so without this
+                // the source keeps the snapshot of the previous row's guitar and saves a
+                // calibration for the wrong state.
+                luthier::tests::browser::pumpMessages (350);
+                rig.processSilence ((int) (3.0 * kSr / kBlock));
+                luthier::tests::browser::pumpMessages (350);
+                rig.processSilence ((int) (3.0 * kSr / kBlock));
+            }
+
             juce::MemoryBlock blob;
             rig.p().getStateInformation (blob);
 
             Rig copy;
             copy.p().getQualityController().forceLevelForTesting (quality);
+            copy.p().setNonRealtime (normalize);
             copy.p().setStateInformation (blob.getData(), (int) blob.getSize());
             copy.apply();
+
+            if (normalize)
+                copy.processSilence ((int) (3.0 * kSr / kBlock));
 
             auto play = [] (Rig& x)
             {
@@ -1841,6 +1869,7 @@ LUTHIER_TEST (Combo, newFeaturesPairwise)
                          + " | " + config.describe (rig));
         }
 
+        rig.p().setNonRealtime (false);
         rig.p().getQualityController().forceLevelForTesting (-1);
         rig.p().getOutputNormalization().setEnabled (false);
         rig.quiet();
