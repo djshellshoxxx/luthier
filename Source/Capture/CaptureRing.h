@@ -47,7 +47,9 @@ struct CaptureRecord
         chord,
         meter,           ///< tempo and time signature
         bassTechnique,
-        slideBar
+        slideBar,
+        autoRules,       ///< auto-articulation.md 9 (FEAT-ASSIST): the sounding note's Assist bits
+        noise            ///< SPEC-SWEEP MX-1: a playing-noise trigger (code = the kind below)
     };
 
     Kind kind = Kind::noteOn;
@@ -64,6 +66,8 @@ struct CaptureRecord
 
     float value = 0.0f;            ///< velocity, cents, a mark's value, bpm, a bar's position
     float fret = 0.0f;             ///< a note's fret; a bass technique's pluck position
+    float fromFret = -1.0f;        ///< string-squeak.md 11: a squeak's start position (frets, -1 unknown)
+    float toFret = -1.0f;          ///< string-squeak.md 11: a squeak's end position
 
     char text[16] = {};            ///< a chord name, a bass technique, a bar's pressure
 

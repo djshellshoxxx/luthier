@@ -43,6 +43,24 @@ void SlideEngine::reset() noexcept
     barString = -1;
     landing = false;
     overlayFret = -1.0;
+
+    // The technique controls' bar state goes back to its start too: left
+    // behind, the auto-vibrato's hold timer, ramp and phase carried on from the
+    // last render, so a reset render shook from its first block where a fresh
+    // one waited out the hold ("Auto-Vibrato Hold", Combo determinism).
+    lastPositionSource = ControlSource::none;
+    controlledFret = -1.0;
+    relativeOffset = 0.0;
+    smoothedTarget = -1.0;
+    relativeActive = false;
+    gestureActive = false;
+    runningGesture = {};
+    gestureElapsed = 0.0;
+    lastControlledFret = -1.0;
+    heldSeconds = 0.0;
+    vibratoPhase = 0.0;
+    vibratoRamp = 0.0;
+    controlVibratoCents = 0.0;
 }
 
 bool SlideEngine::noteOn (int s, int numStrings) noexcept
@@ -50,6 +68,10 @@ bool SlideEngine::noteOn (int s, int numStrings) noexcept
     landing = false;
 
     if (! settings.enabled || ! juce::isPositiveAndBelow (s, kMaxStrings))
+        return false;
+
+    // slide-technique-controls.md 1: a string outside the contact mask is fretted.
+    if (! contactsString (s))
         return false;
 
     bool anyUnder = false;
@@ -65,6 +87,22 @@ bool SlideEngine::noteOn (int s, int numStrings) noexcept
             return false;
 
         barString = s;
+    }
+    else if (anyUnder)
+    {
+        /*  SPEC-SWEEP SG-6 (slide-guitar.md 2): a bar covers only as many
+            strings as its length reaches at the bar's string spacing. A note
+            outside that span, from the strings already under it, cannot be
+            under the same bar - it is fretted. */
+        const int reach = juce::jmax (1, (int) std::floor (bar.lengthMm / kStringSpacingMm) + 1);
+        int lowest = s, highest = s;
+
+        for (int i = 0; i < juce::jmin (numStrings, kMaxStrings); ++i)
+            if (underBar[(size_t) i])
+                lowest = juce::jmin (lowest, i), highest = juce::jmax (highest, i);
+
+        if (highest - lowest + 1 > reach)
+            return false;
     }
 
     landing = ! anyUnder;
@@ -188,12 +226,21 @@ double SlideEngine::sustainScale (int s) const noexcept
     // ...and the bar absorbs energy at the contact: softer materials more,
     // heavier bars less, because they couple less.
     const double massFactor = std::pow (65.0 / juce::jlimit (5.0, 500.0, bar.massGrams), 0.6);
-    const double contact = 1.0 - material.damping * 0.5 * juce::jmin (2.0, massFactor);
+    // SPEC-SWEEP SG-6: a larger diameter is a flatter, softer contact that
+    // absorbs a little less (22 mm, the default, leaves it as it was).
+    const double curvature = std::pow (22.0 / juce::jlimit (5.0, 60.0, bar.diameterMm), 0.3);
+    const double contact = 1.0 - material.damping * 0.5 * juce::jmin (2.0, massFactor) * curvature;
 
     // Too little pressure and the string rides on the bar and loses more.
     const double pressure = 0.85 + 0.15 * juce::jlimit (0.0, 1.0, settings.pressure);
 
-    return juce::jlimit (0.05, 1.0, behind * contact * pressure);
+    // SPEC-SWEEP SG-10 (slide-guitar.md 3): too much, and the string is
+    // pressed onto the frets underneath and chokes - from 0.8 up to a third
+    // off the sustain at full pressure.
+    const double over = juce::jmax (0.0, juce::jlimit (0.0, 1.0, settings.pressure) - 0.8) / 0.2;
+    const double choke = 1.0 - 0.35 * over * over;
+
+    return juce::jlimit (0.05, 1.0, behind * contact * pressure * choke);
 }
 
 NoiseEvent SlideEngine::makeClank (int s, double velocity) const noexcept
@@ -212,7 +259,9 @@ NoiseEvent SlideEngine::makeClank (int s, double velocity) const noexcept
               * (juce::jlimit (0.0, 1.0, velocity) + 0.5 * rattle);
 
     // Spectrum by material, and mass lowers it.
-    e.startHz = e.endHz = material.clankHz * std::pow (65.0 / juce::jlimit (5.0, 500.0, bar.massGrams), 0.25);
+    // SPEC-SWEEP SG-6: a fatter bar clanks slightly lower.
+    e.startHz = e.endHz = material.clankHz * std::pow (65.0 / juce::jlimit (5.0, 500.0, bar.massGrams), 0.25)
+                          * std::pow (22.0 / juce::jlimit (5.0, 60.0, bar.diameterMm), 0.15);
     e.q = 5.0 + 10.0 * (1.0 - material.damping);
     e.brightness = material.brightness * 0.6;
     e.texture = NoiseTexture::metallic;
@@ -227,6 +276,215 @@ NoiseEvent SlideEngine::makeClank (int s, double velocity) const noexcept
     }
 
     return e;
+}
+
+//==============================================================================
+// slide-technique-controls.md (TECHNIQUES)
+//==============================================================================
+TechniqueTriggerConfig SlideControlSettings::triggerConfig (bool slideModeOn) const noexcept
+{
+    // 1, "Slide gesture trigger: keyswitch or CC".
+    TechniqueTriggerConfig c;
+    c.armed = slideModeOn;
+    c.keyswitches = { TechniqueKeyswitch::slideGesture, -1, -1, -1 };
+    c.source = gestureOnCc ? TriggerSource::controller : TriggerSource::keyswitch;
+    c.triggerCc = gestureCc;
+    return c;
+}
+
+int slideContactMaskFor (int choice, int numStrings) noexcept
+{
+    const int n = juce::jlimit (1, SlideEngine::kMaxStrings, numStrings);
+
+    switch (choice)
+    {
+        case 1:  return ((1 << n) - 1) & ~((1 << juce::jmax (0, n - 3)) - 1);   // bass 3: the highest indices
+        case 2:  return (1 << juce::jmin (3, n)) - 1;                             // treble 3: indices 0-2
+        case 0:
+        default: return 0;
+    }
+}
+
+void SlideEngine::setControls (const SlideControlSettings& c) noexcept
+{
+    controls = c;
+    controls.speedLimitCentsPerSecond = juce::jmax (1.0, c.speedLimitCentsPerSecond);
+}
+
+void SlideEngine::setPositionSource (ControlSource source, int cc) noexcept
+{
+    controls.positionSource = source;
+    controls.positionCc = juce::jlimit (0, 127, cc);
+}
+
+bool SlideEngine::contactsString (int s) const noexcept
+{
+    return controls.contactMask == 0 || (juce::isPositiveAndBelow (s, kMaxStrings) && (controls.contactMask & (1 << s)) != 0);
+}
+
+void SlideEngine::triggerGesture (const SlideGesture& g) noexcept
+{
+    runningGesture = g;
+    runningGesture.durationMs = juce::jmax (1.0, g.durationMs);
+    gestureElapsed = 0.0;
+    gestureActive = true;
+    controlledFret = g.fromFret;
+    smoothedTarget = g.fromFret;
+}
+
+double SlideEngine::advanceTowards (double current, double target, double seconds) const noexcept
+{
+    // 1: the speed limit, in cents per second; a fret is a hundred cents.
+    const double maxStep = controls.speedLimitCentsPerSecond / 100.0 * seconds;
+    return current + juce::jlimit (-maxStep, maxStep, target - current);
+}
+
+void SlideEngine::advanceControls (int numSamples, const TechniqueControls& sources, const TechniqueTriggers& triggers) noexcept
+{
+    blockSeconds = (double) numSamples / sr;
+
+    if (gestureRequested.exchange (false) && settings.enabled)
+        triggerGesture (controls.gesture);
+
+    for (int i = 0; i < triggers.getNumEvents(); ++i)
+    {
+        const auto& g = triggers.getEvent (i);
+
+        if (g.technique == TechniqueId::slide && g.role == 0 && g.on)
+            triggerGesture (controls.gesture);
+    }
+
+    // 1: slant and pressure from their sources, when the user picked one.
+    if (controls.slantSource != ControlSource::none && sources.hasValue (controls.slantSource, controls.slantCc, 0))
+        settings.slantDegrees = 30.0 * sources.read (controls.slantSource, controls.slantCc, 0, true);
+
+    if (controls.pressureSource != ControlSource::none && sources.hasValue (controls.pressureSource, controls.pressureCc, 0))
+        settings.pressure = juce::jlimit (0.0, 1.0, sources.read (controls.pressureSource, controls.pressureCc, 0, false));
+
+    bool anyUnder = false;
+
+    for (auto u : underBar)
+        anyUnder = anyUnder || u;
+
+    if (gestureActive)
+    {
+        // 2: a scripted move, on its curve, slant and pressure travelling with it.
+        gestureElapsed += blockSeconds;
+        const double t = juce::jlimit (0.0, 1.0, gestureElapsed * 1000.0 / runningGesture.durationMs);
+
+        double shaped = t;
+
+        switch (runningGesture.curve)
+        {
+            case SlideCurve::easeIn:    shaped = t * t; break;
+            case SlideCurve::easeOut:   shaped = 1.0 - (1.0 - t) * (1.0 - t); break;
+            case SlideCurve::easeInOut: shaped = t * t * (3.0 - 2.0 * t); break;
+            case SlideCurve::linear:
+            case SlideCurve::numCurves:
+            default: break;
+        }
+
+        controlledFret = runningGesture.fromFret + (runningGesture.toFret - runningGesture.fromFret) * shaped;
+        settings.slantDegrees = juce::jmap (t, runningGesture.slantStartDegrees, runningGesture.slantEndDegrees);
+        settings.pressure = juce::jlimit (0.0, 1.0, runningGesture.pressure);
+        relativeActive = false;
+
+        if (t >= 1.0)
+            gestureActive = false;
+    }
+    else if (controls.positionSource != ControlSource::none
+             && sources.hasValue (controls.positionSource, controls.positionCc, 0))
+    {
+        const bool bipolarSource = controls.positionSource == ControlSource::pitchBend;
+        double target;
+
+        if (controls.relative)
+            target = sources.read (controls.positionSource, controls.positionCc, 0, bipolarSource) * controls.relativeRangeFrets;
+        else
+            target = juce::jlimit (0.0, SlideControlSettings::kAbsoluteFrets,
+                                   juce::jmax (0.0, sources.read (controls.positionSource, controls.positionCc, 0, false))
+                                     * SlideControlSettings::kAbsoluteFrets);
+
+        const bool modeChanged = relativeActive != controls.relative;
+        relativeActive = controls.relative;
+
+        if (smoothedTarget < -0.5 || modeChanged)
+        {
+            smoothedTarget = target;
+            (relativeActive ? relativeOffset : controlledFret) = target;
+        }
+
+        // 7: a source swap does not click - the target glides over 10 ms ...
+        const double alpha = 1.0 - std::exp (-blockSeconds / SlideControlSettings::kSourceCrossfadeSeconds);
+        smoothedTarget += (target - smoothedTarget) * alpha;
+
+        // ... and the bar never moves faster than the speed limit.
+        if (relativeActive)
+        {
+            relativeOffset = advanceTowards (relativeOffset, smoothedTarget, blockSeconds);
+            controlledFret = -1.0;
+        }
+        else
+        {
+            controlledFret = advanceTowards (controlledFret < 0.0 ? smoothedTarget : controlledFret, smoothedTarget, blockSeconds);
+        }
+    }
+    else if (! anyUnder)
+    {
+        // Nothing drives the bar and nothing is under it: let go of the last position.
+        controlledFret = -1.0;
+        smoothedTarget = -1.0;
+        relativeActive = false;
+        relativeOffset = 0.0;
+    }
+
+    lastPositionSource = controls.positionSource;
+
+    // 1: "Auto-vibrato on hold": still for more than 300 ms, the bar starts to shake.
+    const double position = controlledFret >= 0.0 ? controlledFret : overlayFret;
+
+    if (controls.autoVibrato && anyUnder && position >= 0.0)
+    {
+        if (std::abs (position - lastControlledFret) < 0.02)
+            heldSeconds += blockSeconds;
+        else
+            heldSeconds = 0.0;
+
+        lastControlledFret = position;
+
+        if (heldSeconds > SlideControlSettings::kAutoVibratoHoldSeconds)
+        {
+            vibratoRamp = juce::jmin (1.0, vibratoRamp + blockSeconds / 0.05);
+            vibratoPhase = std::fmod (vibratoPhase + blockSeconds * controls.autoVibratoRateHz, 1.0);
+            controlVibratoCents = controls.autoVibratoDepthCents * vibratoRamp
+                                    * std::sin (vibratoPhase * juce::MathConstants<double>::twoPi);
+        }
+        else
+        {
+            vibratoRamp = 0.0;
+            controlVibratoCents = 0.0;
+        }
+    }
+    else
+    {
+        heldSeconds = 0.0;
+        vibratoRamp = 0.0;
+        controlVibratoCents = 0.0;
+        lastControlledFret = position;
+    }
+}
+
+double SlideEngine::controlledBarFret (int s, double noteBarFret) noexcept
+{
+    juce::ignoreUnused (s);
+
+    if (relativeActive && ! gestureActive)
+        return juce::jlimit (0.0, SlideControlSettings::kAbsoluteFrets, noteBarFret + relativeOffset);
+
+    if (controlledFret >= 0.0)
+        return controlledFret;
+
+    return noteBarFret;
 }
 
 } // namespace luthier

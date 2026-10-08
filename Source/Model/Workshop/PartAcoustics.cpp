@@ -89,6 +89,7 @@ namespace
         if (id == "x" || id == "scalloped_x") return id == "x" ? Bracing::XBrace : Bracing::ForwardShiftedX;
         if (id == "fan")                      return Bracing::FanBrace;
         if (id == "ladder")                   return Bracing::LadderBrace;
+        if (id == "parallel")                 return Bracing::HollowParallel;   // archtop tone bars
         if (chambering == "semi_hollow")      return Bracing::SemiHollowBlock;
         if (chambering == "hollow")           return Bracing::HollowParallel;
         return Bracing::SolidBodyNone;
@@ -122,6 +123,14 @@ namespace
 
         if (strings >= 8) return GuitarType::EightString;
         if (strings == 7) return GuitarType::SevenString;
+
+        // ACCURACY_AUDIT_EXISTING A-03: a baritone is tuned a fourth low (B
+        // standard). Falling through to its body style gave the factory
+        // Baritone Electric E standard on 14-68 strings at 686 mm: 150-185 N
+        // per string against a real baritone set's 75-105 N at B.
+        if (style.contains ("baritone") || g.name.containsIgnoreCase ("baritone"))
+            return GuitarType::BaritoneElectric;
+
         if (style.contains ("semi"))                 return GuitarType::ES335;
         if (style.contains ("archtop"))              return GuitarType::ES335;
         if (style.contains ("slab"))                 return GuitarType::Telecaster;
@@ -143,7 +152,10 @@ namespace
         if (chambering == "acoustic")
         {
             if (g.family == "resonator")              return BodyShape::Resonator;
-            if (g.family == "classical")              return style.contains ("flamenc") ? BodyShape::Flamenco : BodyShape::Classical;
+            // ACCURACY_AUDIT_EXISTING A-07: the same test baseTypeFor makes, name
+            // included, so a flamenca is not a Flamenco type on a Classical body.
+            if (g.family == "classical")              return style.contains ("flamenc") || g.name.containsIgnoreCase ("flamenc")
+                                                               ? BodyShape::Flamenco : BodyShape::Classical;
             if (style.contains ("parlor"))            return BodyShape::Parlor;
             if (style.contains ("jumbo"))             return g.getStringCount() >= 12 ? BodyShape::TwelveStringDread : BodyShape::Jumbo;
             if (style.contains ("auditorium") || style.contains ("gypsy")) return BodyShape::Auditorium;
@@ -160,19 +172,12 @@ namespace
              : (thicknessMm > 48.0 ? BodyShape::SolidHeavy : BodyShape::SolidStandard);
     }
 
-    StringMaterial materialFor (const Part* strings)
+    StringMaterial materialFromIds (const juce::String& winding, const juce::String& m)
     {
-        if (strings == nullptr)
-            return StringMaterial::NickelPlatedSteel;
-
-        const auto winding = strings->text ("winding", "round");
-
         // 8: the winding style decides before the metal does.
         if (winding == "flat")   return StringMaterial::Flatwound;
         if (winding == "half")   return StringMaterial::Halfwound;
         if (winding == "coated") return StringMaterial::Coated;
-
-        const auto m = strings->text ("winding_material", "nickel_plated_steel");
 
         if (m == "pure_nickel")     return StringMaterial::PureNickel;
         if (m == "stainless")       return StringMaterial::StainlessSteel;
@@ -183,6 +188,14 @@ namespace
         if (m == "nylon")           return StringMaterial::Nylon;
         if (m == "fluorocarbon")    return StringMaterial::Fluorocarbon;
         return StringMaterial::NickelPlatedSteel;
+    }
+
+    StringMaterial materialFor (const Part* strings)
+    {
+        if (strings == nullptr)
+            return StringMaterial::NickelPlatedSteel;
+
+        return materialFromIds (strings->text ("winding", "round"), strings->text ("winding_material", "nickel_plated_steel"));
     }
 
     PickupType pickupTypeFor (const juce::String& family)
@@ -220,6 +233,22 @@ namespace
         if (m == "plastic")  return 0.60;
         if (m == "tusq")     return 0.72;
         return 0.75;                         // bone
+    }
+
+    // SPEC-SWEEP: PA-33 - part-acoustics.md 5's bridge-type table.
+    struct BridgeDefaults { double massG, coupling; };
+
+    BridgeDefaults bridgeTypeDefaults (const juce::String& type)
+    {
+        if (type == "tune_o_matic")                         return { 95.0,  0.55 };
+        if (type == "hardtail" || type == "wraparound")     return { 110.0, 0.70 };
+        if (type == "vintage_tremolo")                      return { 165.0, 0.45 };
+        if (type == "two_point_tremolo")                    return { 150.0, 0.48 };
+        if (type == "floyd_rose")                           return { 320.0, 0.30 };
+        if (type == "bigsby")                               return { 480.0, 0.35 };
+        if (type == "pin_bridge" || type == "tie_block")    return { 28.0,  0.92 };
+        if (type == "resonator_spider")                     return { 45.0,  0.88 };
+        return { 100.0, 0.55 };   // unknown: the reference
     }
 
     // part-acoustics.md 3: joint coupling.
@@ -281,7 +310,8 @@ bool DerivedAcoustics::operator== (const DerivedAcoustics& o) const
 
     for (size_t i = 0; i < gaugesIn.size(); ++i)
         if (! same (gaugesIn[i], o.gaugesIn[i]) || ! same (tensionNewtons[i], o.tensionNewtons[i])
-            || ! same (windingPitchPerMm[i], o.windingPitchPerMm[i]))
+            || ! same (windingPitchPerMm[i], o.windingPitchPerMm[i])
+            || stringMaterialOverride[i] != o.stringMaterialOverride[i] || stringWoundOverride[i] != o.stringWoundOverride[i])
             return false;
 
     for (size_t i = 0; i < pickups.size(); ++i)
@@ -301,8 +331,10 @@ bool DerivedAcoustics::operator== (const DerivedAcoustics& o) const
     return same (couplingFraction, o.couplingFraction) && same (terminationMassG, o.terminationMassG)
         && same (sustainScale, o.sustainScale) && same (fretBrightness, o.fretBrightness)
         && same (nutBrightness, o.nutBrightness) && same (bodyGainDb, o.bodyGainDb)
-        && same (airResonanceHz, o.airResonanceHz) && same (body.scaleWidth, o.body.scaleWidth)
+        && same (airResonanceHz, o.airResonanceHz) && same (airResonanceQ, o.airResonanceQ)
+        && same (finishDampingDb, o.finishDampingDb) && same (body.scaleWidth, o.body.scaleWidth)
         && same (body.resonanceTrim, o.body.resonanceTrim) && same (body.age, o.body.age)
+        && same (body.topLossScale, o.body.topLossScale) && same (body.backLossScale, o.body.backLossScale)
         && same (body.scaleDepth, o.body.scaleDepth) && same (body.topThicknessMm, o.body.topThicknessMm)
         && wiring == o.wiring
         && same (setup.actionTreble, o.setup.actionTreble) && same (setup.fretHeight, o.setup.fretHeight);
@@ -382,15 +414,34 @@ DerivedAcoustics mapSpec (const WorkshopGuitar& g)
     if (top != nullptr)
         d.body.topThicknessMm = top->number ("thickness_mm", 0.0);
 
-    // Density overriding the table (2) moves the modes as sqrt(E / rho).
+    /*  SPEC-SWEEP: PA-7 / PA-8 - the 1 table drives the body. The modal model
+        works from its own coarser wood list; the radiating part's wood (the
+        top when there is one, else the body) moves every mode by
+        sqrt((E / rho)_table / (E / rho)_engine), and a density override moves
+        it further. The loss factor follows the table the same way, per plate.
+        Before this only a density override moved anything. */
     {
+        const Part* radiator = top != nullptr ? top : body;
+        const auto radiatorId = radiator != nullptr ? radiator->text ("wood", radiator == top ? "maple_hard" : "alder")
+                                                    : juce::String ("alder");
         WoodData wood {};
 
-        if (body != nullptr && lookUpWood (body->text ("wood", "alder"), wood))
+        if (radiator != nullptr && lookUpWood (radiatorId, wood))
         {
-            const double density = body->number ("density_kg_m3", wood.densityKgM3);
-            d.body.resonanceTrim = juce::jlimit (0.7, 1.4, std::sqrt (wood.densityKgM3 / juce::jmax (100.0, density)));
+            const auto& engine = BodyModels::getWood (engineWood (radiatorId));
+            const double density = radiator->number ("density_kg_m3", wood.densityKgM3);
+            const double tableSpeed = wood.youngsGPa * 1.0e9 / juce::jmax (100.0, density);
+            const double engineSpeed = engine.youngsModulusPa / juce::jmax (100.0, engine.densityKgM3);
+
+            d.body.resonanceTrim = juce::jlimit (0.7, 1.4, std::sqrt (tableSpeed / juce::jmax (1.0, engineSpeed)));
+            d.body.topLossScale = wood.lossTangent / juce::jmax (1.0e-5, engine.lossFactor);
         }
+
+        WoodData back {};
+        const auto backId = str (body, "wood", "alder");
+
+        if (body != nullptr && lookUpWood (backId, back))
+            d.body.backLossScale = back.lossTangent / juce::jmax (1.0e-5, BodyModels::getWood (engineWood (backId)).lossFactor);
     }
 
     d.body.age = juce::jlimit (0.0, 1.0, 0.3 + 0.7 * g.finish.aging);
@@ -421,9 +472,22 @@ DerivedAcoustics mapSpec (const WorkshopGuitar& g)
         d.airResonanceHz = juce::jlimit (chamber.airLo, chamber.airHi, mid * std::sqrt (typical / volume));
     }
 
+    /*  SPEC-SWEEP: PA-14 / PA-15 - the body engine hears these now. The air
+        mode and its Q go to the modal bank as they are. The modes' gain is
+        against a solid body, so it applies to the electric chamberings; an
+        acoustic's body is its whole sound (the mic), not a colour mixed into
+        a pickup, and its level is the output normalisation's business. */
+    d.body.airHzOverride = d.airResonanceHz;
+    d.body.airQOverride = d.airResonanceQ;
+    d.body.modeGainDb = (chambering == "acoustic") ? 0.0 : d.bodyGainDb;
+
     // ---- termination: masses add, couplings multiply (10) ------------------------------------
-    d.terminationMassG = num (bridge, "mass_g", 100.0) + num (tail, "mass_g", 0.0) + num (guard, "mass_g", 0.0);
-    d.couplingFraction = jointCoupling (str (neck, "joint", "bolt")) * num (bridge, "coupling", 0.55);
+    // SPEC-SWEEP: PA-33 - 5: a bridge that states no mass or coupling takes
+    // its type's row, not one number for every bridge.
+    const auto bridgeDefaults = bridgeTypeDefaults (str (bridge, "type", "tune_o_matic"));
+
+    d.terminationMassG = num (bridge, "mass_g", bridgeDefaults.massG) + num (tail, "mass_g", 0.0) + num (guard, "mass_g", 0.0);
+    d.couplingFraction = jointCoupling (str (neck, "joint", "bolt")) * num (bridge, "coupling", bridgeDefaults.coupling);
 
     // 5: heavier is less lossy and sustains more. Normalised to a 100 g
     // tune-o-matic, a gentle cube root so a 480 g Bigsby is not magic; then
@@ -450,9 +514,20 @@ DerivedAcoustics mapSpec (const WorkshopGuitar& g)
 
     d.nutBrightness = nutMaterialBrightness (str (nut, "material", "bone"));
 
+    // tuning-stability.md 1: "part fields not yet consumed" - consumed there.
+    {
+        const auto* tuners = g.get (GuitarSlot::tuners).get();
+        d.tunerRatio = num (tuners, "ratio", 18.0);
+        d.tunerStability = num (tuners, "stability", 0.85);
+        d.tunerLocking = tuners != nullptr && tuners->flag ("locking", false);
+        d.nutFriction = num (nut, "friction", 0.35);
+    }
+
     // 9: thick gloss damps an acoustic top slightly (up to -0.5 dB).
     if (chambering == "acoustic")
         d.finishDampingDb = -0.5 * juce::jlimit (0.0, 1.0, (g.finish.gloss - 0.5) * 2.0);
+
+    d.body.topDampingDb = d.finishDampingDb;   // SPEC-SWEEP: PA-56
 
     // Hardware colour does nothing, and this file says so (9).
 
@@ -476,11 +551,26 @@ DerivedAcoustics mapSpec (const WorkshopGuitar& g)
             hz = open[juce::jlimit (0, 5, GuitarLibrary::courseForString (s))]
                  * semitonesToRatio (GuitarLibrary::twelveStringOctaveOffset (s));
 
-        const double gauge = juce::isPositiveAndBelow (s, gauges.size()) ? gauges[s] : 0.0;
+        double gauge = juce::isPositiveAndBelow (s, gauges.size()) ? gauges[s] : 0.0;
+
+        // workshop-ui.md 3.3: one string of the set overridden.
+        const auto& over = g.stringOverrides[(size_t) s];
+        auto material = d.stringMaterial;
+
+        if (over.gaugeIn > 0.0)
+            gauge = over.gaugeIn;
+
+        if (over.material.isNotEmpty())
+        {
+            material = materialFromIds ("round", over.material);
+            d.stringMaterialOverride[(size_t) s] = (int) material;
+        }
+
+        d.stringWoundOverride[(size_t) s] = over.wound;
         d.gaugesIn[(size_t) s] = gauge;
 
-        const auto computed = StringMaterials::computeSpec (d.stringMaterial, d.spec.stringGauge, StringAge::Fresh,
-                                                            s, hz, d.spec.scaleLengthMm, gauge);
+        const auto computed = StringMaterials::computeSpec (material, d.spec.stringGauge, StringAge::Fresh,
+                                                            s, hz, d.spec.scaleLengthMm, gauge, over.wound);
         d.tensionNewtons[(size_t) s] = computed.tensionNewtons;
 
         if (computed.wound)
@@ -514,13 +604,24 @@ DerivedAcoustics mapSpec (const WorkshopGuitar& g)
         const auto& placement = g.placements[(size_t) fileIndex];
 
         out.spec = PickupSpec::makeDefault (pickupTypeFor (family), 0.13);
+
+        /*  SPEC-SWEEP: PA-40 - 6: output goes with coil turns, and inductance
+            with their square. Against a typical winding per family, so a part
+            that states only its turns lands at that family's default; a stated
+            inductance wins over the derived one. */
+        const double turns = p->number ("coil_turns", 0.0);
+        const double referenceTurns = family == "humbucker" ? 5000.0 : (family == "p90" ? 10000.0 : 8000.0);
+        const double turnsRatio = turns > 0.0 ? juce::jlimit (0.25, 4.0, turns / referenceTurns) : 1.0;
+
+        out.spec.inductanceHenries *= turnsRatio * turnsRatio;
         out.spec.inductanceHenries = p->number ("inductance_h", out.spec.inductanceHenries);
         out.spec.resistanceKOhm = p->number ("dc_resistance_k", out.spec.resistanceKOhm);
         out.spec.capacitancePf = p->number ("capacitance_pf", out.spec.capacitancePf);
         out.spec.magnet = magnetTypeFor (p->text ("magnet", "alnico5"));
 
         // 6: output goes with turns; the reference level is the part's own.
-        out.spec.outputTrimDb = juce::jlimit (-12.0, 12.0, p->number ("output_dbfs_reference", -6.0) + 6.0);
+        out.spec.outputTrimDb = juce::jlimit (-12.0, 12.0, p->number ("output_dbfs_reference", -6.0) + 6.0
+                                                             + 20.0 * std::log10 (turnsRatio));   // SPEC-SWEEP: PA-40
 
         out.positionMm = placement.positionMm;
         out.heightMm = 0.5 * (placement.heightTrebleMm + placement.heightBassMm);
@@ -543,6 +644,12 @@ DerivedAcoustics mapSpec (const WorkshopGuitar& g)
 
     d.numPickups = slot;
     d.spec.numPickups = juce::jmax (0, slot);
+
+    // SPEC-SWEEP: PA-35 - 5: a bridge with a saddle piezo is a piezo source
+    // too, with no pickup slot used.
+    if (bridge != nullptr && bridge->flag ("piezo"))
+        d.hasPiezo = true;
+
     d.spec.hasPiezo = d.hasPiezo;
 
     for (int i = 0; i < 3; ++i)

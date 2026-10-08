@@ -23,9 +23,38 @@ combination.
 3. Press **AUDITION** to hear it without touching a keyboard.
 4. Play.
 
-Six macro knobs cover most of what you will want to change. When you want more,
+Seven macro knobs cover most of what you will want to change. When you want more,
 press **Advanced** at the top right - nothing is hidden there that is not also
 reachable from Easy mode; Advanced just stops summarising.
+
+### The first launch
+
+A fresh install opens in Easy mode on **Single-Cut Crunch**, a finished rock sound,
+so the first note you play already sounds like a guitar. It follows your system's
+high-contrast, reduced-motion, display-scale and language settings, and makes no
+network connection.
+
+A banner under the header offers a **two-minute tour**: twelve stops, one callout
+each, pointing at the control it describes. **Next**, **Back** and **Skip** move
+through it and **Escape** ends it. **Maybe later** brings the offer back next time
+(three times at most); **Don't ask again** means it. The HELP tab's **Take the
+tour** button starts it at any time.
+
+For your first week (seven launches or seven days) new things are marked: every
+panel's `?` pulses the first time you see it, each workspace tab you have not
+opened carries a small dot, and the Workshop wrench, the TUNE tab and the Slide
+switch pulse once.
+
+Three ways in:
+
+- **30 seconds** - play. The default sound is enough.
+- **2 minutes** - take the tour, then press **Randomise** a few times.
+- **5 minutes** - take the tour, load an example tune in the TUNE tab, press play,
+  and swap the guitar in the Workshop while it loops.
+
+Every panel with more than one row of controls has a `?` in its corner: it opens
+Help on that panel. Right-clicking an empty part of an Advanced column offers the
+same, as **Docs**.
 
 ---
 
@@ -42,8 +71,8 @@ Always visible, in both modes.
 | **Padlock** | Advanced mode only, and only when this preset has advanced ranges unlocked. Opens Options, RANGES. |
 | **File** | save, save as, open, import and export a preset; export audio, save the last MIDI take, export notation; open the preset and render folders; options; randomise; reset. |
 | **A / B** | two comparison slots. `A>B` copies the current one across. |
-| **Undo / Redo** | 64 steps. |
-| **Panic** | stops every string immediately. |
+| **Undo / Redo** | 200 steps. |
+| **Panic** | stops every string immediately, and stops the tune, looper, backing track, metronome and progression (settings are left alone). |
 | **Learn** | arms MIDI Learn: the next control you click is assigned to the next CC you move. |
 | **?** | help. In Advanced mode it opens the HELP tab on the panel you were using; in Easy mode, the same help over the window. |
 | **Advanced** | switches modes. Locked while Live Mode is on. |
@@ -67,9 +96,11 @@ pieces glow with what each string is doing.
 - Click the selector switch to advance its position.
 - Drag the volume and tone knobs on the body.
 
-The **fretboard** below shows every string and fret. Notes light up as they sound -
-and what is lit is what is actually ringing, including notes the chord voicer put
-somewhere you did not expect, which is exactly when you want to see it.
+The fretboard on the illustration shows the notes as they sound - and what is lit
+is what is actually ringing, including notes the chord voicer put somewhere you did
+not expect, which is exactly when you want to see it.
+
+The **playable fretboard** is the strip across the top of Advanced mode:
 
 - Click a fret to hear that note. How high in the string's lane you click sets how
   hard it is picked.
@@ -91,6 +122,7 @@ parameter changes, engine events. It stops when nothing is happening.
 | **Tone** | global tone, dark to bright. Moves the guitar's tone control and the amp's treble together. |
 | **Space** | room and ambience. |
 | **Humanize** | timing, velocity, tuning and attack variation. At zero the plugin is machine-perfect. |
+| **Character** | dead spots, tuner drift, fret wear, body age and string noise together - the amount on the CHARACTER tab, which has each one on its own. |
 
 Under each: a **dice** (randomise just this one) and a **padlock** (exclude it from
 Randomise).
@@ -170,6 +202,8 @@ does on the real thing.
 
 **Pedalboard (before the amp).** The pre-amp pedal slots.
 
+**Saturation.** One knob after the pedalboard: soft clipping ahead of the amp. Zero is off; turn it up for a thicker, more compressed sound at about the same loudness. Also on the Easy tone strip.
+
 **Playing hand.** Pick or fingers, material, thickness, angle, position, nail
 versus flesh.
 
@@ -212,11 +246,11 @@ A tab strip across the top, one panel behind each tab, in this order:
 | **WORKSHOP** | the bench: swap any part of the guitar, drag pickups, compare builds, Save As Guitar. It takes over columns 3 and 4 while it is open. |
 | **MOD** | the modulation matrix - LFOs, envelopes, step sequencers, envelope followers, macros, a random source, and the route table. |
 | **RHYTHM** | the chord voicer, the strum and fingerpick pattern editors, feel, and genre kits. A bass step grid when the guitar is a bass. |
-| **TUNE** | write a whole tune: sections, a chord progression typed in shorthand, a melody piano roll, and a transport. |
+| **TUNE** | write a whole tune: a setlist timeline and sections (drag, Vary), a chord progression typed in shorthand or edited as pills (popover, drag, substitutions, chord tools), a piano roll for the melody, bass line and countermelody (select, nudge, copy, note menu), Sing into the audio input, bass and layers, a transport with TO LOOPER, example tunes, and one-screen export of audio (with stems), MIDI, notation or the project. |
 | **LIVE** | set up for the stage: the 128-snapshot bank, the setlist, crossfade and morph. |
 | **ROUTING** | bus layout, aux buses 1 to 8 (Aux 8 is the playing noise on its own), per-string outputs, the sidechain and MIDI out. |
 | **TONE MATCH** | impulse-response slots, the cab and EQ match wizards, capture, and the IR library. |
-| **CHARACTER** | the character seed, dead spots, fret wear, tuner drift, aged electronics, body age, environment, and the string noise, pick, setup and slide groups. |
+| **CHARACTER** | the character seed, dead spots, fret wear, tuner drift, aged electronics, body age, environment, and the string noise, pick, setup and slide groups. STRING NOISE is where the finger squeak lives: **Squeak** sets how loud a finger squeaks along a wound string and **Probability** how often a shift squeaks at all, with finger moisture, pressure and the minimum travel beside them and a style dropdown (Silent, Studio, Natural, Folk, Exaggerated) that sets them together. Squeaks happen on legato slides and on chord changes that move the hand along the neck; they are louder on bronze and stainless, quieter on nickel and coated strings, nearly absent on flatwounds and never on plain strings. |
 | **PRACTICE** | progress, routines, per-tool defaults, the library and the session recorder. The practice drawer is where you actually practise. |
 | **NOTATION** | capture what you play, a live tab view with chord symbols, and export as MusicXML, Guitar Pro, ASCII tab or MIDI. |
 | **MIDI OUT** | the MIDI export profile (Luthier or Generic), exporting or dragging out the capture, and live MIDI out. |
@@ -238,7 +272,7 @@ Every control behaves the same way.
 | `Shift` + drag | Coarse |
 | `Ctrl` / `Cmd` + drag | Ultra-fine |
 | Double-click | Reset to default |
-| Hover | The value replaces the label; a tooltip follows after 400 ms |
+| Hover | The value appears above the control (the label stays); a tooltip follows after 400 ms |
 | Right-click | Enter value, Reset, Copy, Paste, MIDI Learn, Lock, Randomise, Modulate |
 
 ### MIDI Learn
@@ -256,8 +290,9 @@ knob or pedal.
 A small teal dot appears on any control that has a CC mapped. Right-click again
 to clear it.
 
-Sustain and sostenuto are skipped while learning, so an accidental pedal press
-cannot steal the mapping.
+Sustain (CC64), sostenuto (CC66), All Sound Off (CC120), and All Notes Off
+(CC123) are skipped while learning, so a pedal press or panic message cannot
+steal the mapping.
 
 Mappings are stored with the plugin state, not the preset, so your controller setup
 survives changing sounds.

@@ -66,6 +66,21 @@ void UiPreferences::setBool (const juce::String& key, bool value)
     }
 }
 
+bool UiPreferences::has (const juce::String& key) const
+{
+    auto* object = values.getDynamicObject();
+    return object != nullptr && object->hasProperty (key);
+}
+
+void UiPreferences::remove (const juce::String& key)
+{
+    if (auto* object = values.getDynamicObject(); object != nullptr && object->hasProperty (key))
+    {
+        object->removeProperty (key);
+        save();
+    }
+}
+
 juce::String UiPreferences::getString (const juce::String& key, const juce::String& fallback) const
 {
     if (auto* object = values.getDynamicObject())
@@ -99,6 +114,10 @@ bool UiPreferences::save() const
 
     file.getParentDirectory().createDirectory();
 
+    // SPEC-SWEEP: ER-66 - the file says which schema it is.
+    if (auto* object = values.getDynamicObject())
+        object->setProperty ("schema", kSchema);
+
     return file.replaceWithText (juce::JSON::toString (values, true));
 }
 
@@ -113,9 +132,29 @@ bool UiPreferences::load()
 
     /*  A file that is there but unreadable is treated as no file. Refusing to
         start because a preference file was corrupted would be the worse failure,
-        and every getter here has a default at the call site. */
-    if (parsed.getDynamicObject() == nullptr)
+        and every getter here has a default at the call site.
+
+        SPEC-SWEEP: ER-65/66 - and it is kept aside rather than overwritten by
+        the next save, so whatever was in it can still be recovered, and the
+        window says so. A `schema` newer than this build is treated the same. */
+    const bool unreadable = parsed.getDynamicObject() == nullptr;
+    const bool unknownSchema = ! unreadable && parsed.hasProperty ("schema")
+                                 && (int) parsed.getProperty ("schema", 0) > kSchema;
+
+    if (unreadable || unknownSchema)
+    {
+        const auto stamp = juce::Time::getCurrentTime().formatted ("%Y%m%d-%H%M%S");
+        auto aside = file.getSiblingFile (file.getFileName() + ".corrupted-" + stamp);
+
+        for (int n = 2; aside.exists() && n < 100; ++n)
+            aside = file.getSiblingFile (file.getFileName() + ".corrupted-" + stamp + "-" + juce::String (n));
+
+        file.moveFileTo (aside);
+
+        values = juce::var (new juce::DynamicObject());
+        recoveredFromCorruption = true;
         return false;
+    }
 
     values = parsed;
     return true;

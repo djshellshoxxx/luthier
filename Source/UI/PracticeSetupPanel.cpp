@@ -995,7 +995,7 @@ void PracticeSetupPanel::askToClearHistory()
             .withAssociatedComponent (this),
         [safe = juce::Component::SafePointer<PracticeSetupPanel> (this)] (int result)
         {
-            if (safe != nullptr && result == 1)
+            if (safe != nullptr && result == 0)   // plain index: 0 confirms, 1 is Cancel
                 safe->clearHistoryConfirmed();
         });
 }
@@ -1394,7 +1394,7 @@ void PracticeSetupPanel::askToDeleteRoutine()
             .withAssociatedComponent (this),
         [safe = juce::Component::SafePointer<PracticeSetupPanel> (this)] (int result)
         {
-            if (safe != nullptr && result == 1)
+            if (safe != nullptr && result == 0)   // plain index: 0 confirms, 1 is Cancel
                 safe->deleteRoutineConfirmed();
         });
 }
@@ -1870,7 +1870,7 @@ void PracticeSetupPanel::askToDeleteLoop()
             .withAssociatedComponent (this),
         [safe = juce::Component::SafePointer<PracticeSetupPanel> (this), row] (int result)
         {
-            if (safe != nullptr && result == 1)
+            if (safe != nullptr && result == 0)   // plain index: 0 confirms, 1 is Cancel
                 safe->deleteLoopConfirmed (row);
         });
 }

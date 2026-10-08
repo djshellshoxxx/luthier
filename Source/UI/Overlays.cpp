@@ -1,5 +1,11 @@
+#include "NormalizationOptions.h"   // output-normalization.md 5.4
 #include "Overlays.h"
+#include "OptionsPages.h"
+#include "../Presets/TechniquePresets.h"   // TECHNIQUES
 #include "../PluginProcessor.h"
+#include "../Accessibility/Accessibility.h"   // SPEC-SWEEP: A11Y-10
+#include "../Support/SupportLinks.h"
+#include "QualityOptions.h"   // cpu-quality-modes
 
 namespace luthier
 {
@@ -10,6 +16,11 @@ namespace luthier
 OverlayPanel::OverlayPanel (const juce::String& t)
     : title (t)
 {
+    // The host announces the panel by its name; without one every dialog was
+    // announced as "Dialog opened" (SPEC-SWEEP: A11Y-10).
+    setName (t);
+    setTitle (t);
+
     addAndMakeVisible (closeButton);
     closeButton.setTooltip ("Close (Escape)");
     closeButton.onClick = [this] { if (onDismiss) onDismiss(); };
@@ -55,6 +66,12 @@ void OverlayPanel::resized()
     layoutContent (getContentBounds());
 }
 
+std::unique_ptr<juce::AccessibilityHandler> OverlayPanel::createAccessibilityHandler()
+{
+    // A dialog to a screen reader: it is announced as one, and focus stays inside.
+    return std::make_unique<juce::AccessibilityHandler> (*this, juce::AccessibilityRole::dialogWindow);
+}
+
 bool OverlayPanel::keyPressed (const juce::KeyPress& key)
 {
     if (key == juce::KeyPress::escapeKey)
@@ -88,16 +105,38 @@ void OverlayHost::show (OverlayPanel* panel)
     if (current != nullptr && current != panel)
         dismiss();
 
+    // SPEC-SWEEP: A11Y-11 - remember who opened it, unless that is inside an
+    // overlay itself (one overlay replacing another keeps the first launcher).
+    if (current == nullptr)
+    {
+        auto* focused = juce::Component::getCurrentlyFocusedComponent();
+        launcher = (focused != nullptr && ! isParentOf (focused)) ? focused : nullptr;
+    }
+
     current = panel;
     current->onDismiss = [this] { dismiss(); };
 
+    // JUCE tells a component its look and feel on a change, not on joining a
+    // parent: a panel first shown here would keep JUCE's default slider value
+    // boxes (white text, unreadable on the Light palette).
+    const bool joining = current->getParentComponent() != this;
     addAndMakeVisible (current);
+
+    if (joining)
+        current->sendLookAndFeelChange();
+
     setVisible (true);
     toFront (false);
     resized();
 
     current->overlayShown();
     current->grabKeyboardFocus();
+
+    // SPEC-SWEEP: A11Y-10 - announce it and put focus on its first control, so
+    // tabbing starts inside the dialog. Escape still reaches the panel: an
+    // unhandled key travels up to it.
+    AccessibleSetup::announceOverlayOpened (*current, current->getName().isNotEmpty() ? current->getName()
+                                                                                    : juce::String ("Dialog"));
 }
 
 void OverlayHost::dismiss()
@@ -116,8 +155,13 @@ void OverlayHost::dismiss()
 
     setVisible (false);
 
-    if (auto* parent = getParentComponent())
+    // SPEC-SWEEP: A11Y-11 - focus goes back where it came from.
+    if (auto* back = launcher.getComponent(); back != nullptr && back->isShowing() && back->getWantsKeyboardFocus())
+        back->grabKeyboardFocus();
+    else if (auto* parent = getParentComponent())
         parent->grabKeyboardFocus();
+
+    launcher = nullptr;
 }
 
 void OverlayHost::paint (juce::Graphics& g)
@@ -206,8 +250,8 @@ DebugPanel::DebugPanel (LuthierAudioProcessor& p)
                 .withTitle (file != juce::File() ? "Troubleshooting file written" : "Could not write the file")
                 .withMessage (file != juce::File()
                                 ? "Written to\n" + file.getFullPathName()
-                                  + "\n\nSend this to support@luthieraudio.example with a description "
-                                    "of the problem."
+                                  + "\n\nSend this to " + juce::String (SupportLinks::supportEmail)
+                                  + " with a description of the problem."   // SupportLinks.h (TUNE-HELP-ONBOARDING)
                                 : "The diagnostics folder could not be written to. Check the folder "
                                   "permissions for Documents/Luthier.")
                 .withButton ("OK"),
@@ -223,6 +267,10 @@ DebugPanel::DebugPanel (LuthierAudioProcessor& p)
                                 "diagnostic files and cached data, and reinstalls the factory bank.");
     hardResetButton.onClick = [this]
     {
+        // Taken here: MSVC resolves `this` inside a nested lambda's init-capture
+        // to the enclosing lambda, not the component.
+        juce::Component::SafePointer<DebugPanel> self (this);
+
         juce::NativeMessageBox::showAsync (
             juce::MessageBoxOptions()
                 .withIconType (juce::MessageBoxIconType::WarningIcon)
@@ -233,12 +281,14 @@ DebugPanel::DebugPanel (LuthierAudioProcessor& p)
                               "This cannot be undone.")
                 .withButton ("Reset everything")
                 .withButton ("Cancel"),
-            [this] (int result)
+            [safe = self] (int result)
             {
-                if (result == 1)
+                // NativeMessageBox::showAsync reports the plain button index:
+                // 0 is "Reset everything", 1 is Cancel (and Escape).
+                if (safe != nullptr && result == 0)
                 {
-                    processor.hardResetAndClearCaches();
-                    refreshState();
+                    safe->processor.hardResetAndClearCaches();
+                    safe->refreshState();
                 }
             });
     };
@@ -268,7 +318,7 @@ DebugPanel::DebugPanel (LuthierAudioProcessor& p)
 
 DebugPanel::~DebugPanel()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 void DebugPanel::overlayShown()
@@ -277,12 +327,12 @@ void DebugPanel::overlayShown()
     crashLogToggle.setToggleState (processor.getDiagnostics().isCrashLogEnabled(),
                                    juce::dontSendNotification);
     refreshState();
-    startTimerHz (8);
+    motion.startTimerHz (*this, 8);
 }
 
 void DebugPanel::overlayHidden()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 void DebugPanel::refreshState()
@@ -298,6 +348,7 @@ void DebugPanel::refreshState()
          << "  CPU (this plugin)  " << juce::String (engine.getCpuEstimate(), 1) << " %\n"
          << "  Oversampling       " << engine.getOversamplingFactor() << "x\n"
          << "  Host tempo         " << juce::String (processor.getHostTempo(), 1) << " BPM\n"
+         << QualityDiagnostics::describe (processor)   // cpu-quality-modes 5
          << "\nINSTRUMENT\n"
          << "  Guitar             " << engine.getGuitarSpec().name << "\n"
          << "  Strings            " << engine.getNumStrings() << "\n"
@@ -307,7 +358,13 @@ void DebugPanel::refreshState()
          << "  Freeze             " << (engine.getFreezeOverlay().isHolding() ? "holding"
                                           : engine.getFreezeOverlay().isEnabled() ? "capturing"
                                                                                   : "off") << "\n"
-         << "\nSTRINGS\n";
+         << "\nNORMALIZATION\n";
+
+    // output-normalization.md 5.4: normalization gain and true-peak GR.
+    for (const auto& line : NormalizationUi::diagnosticsLines (processor))
+        text << "  " << line << "\n";
+
+    text << "\nSTRINGS\n";
 
     for (int s = 0; s < engine.getNumStrings(); ++s)
     {
@@ -530,7 +587,7 @@ void MidiLearnArmLayer::mouseDown (const juce::MouseEvent& e)
         onTargetPicked (parameterId);
 }
 
-void OptionsPanel::showShortcutTable()
+void OptionsPanel::showShortcutTable (const juce::String& filter)
 {
     // The shortcut table lives on the Accessibility page. Found by name rather
     // than by a hard-coded index, so that reordering the tabs cannot silently
@@ -539,6 +596,12 @@ void OptionsPanel::showShortcutTable()
         if (pageButtons[i]->getButtonText().containsIgnoreCase ("ACCESSIBILITY"))
         {
             showPage (i);
+
+            // gui-integration 16 item 13: straight to the control's row.
+            for (auto* child : getChildren())
+                if (auto* page = dynamic_cast<AccessibilityPage*> (child))
+                    page->filterShortcuts (filter);
+
             return;
         }
 }
@@ -675,18 +738,20 @@ ExportPanel::ExportPanel (LuthierAudioProcessor& p)
             return;
         }
 
-        auto chooser = std::make_shared<juce::FileChooser> ("Choose a MIDI file to render",
-                                                             PresetManager::getRenderFolder(), "*.mid;*.midi");
-
-        chooser->launchAsync (juce::FileBrowserComponent::openMode
+        // Owned by the panel, so closing it cancels the dialog (chooser lifetime).
+        fileChooser.launch (*this, "Choose a MIDI file to render",
+                            PresetManager::getRenderFolder(), "*.mid;*.midi",
+                            juce::FileBrowserComponent::openMode
                                 | juce::FileBrowserComponent::canSelectFiles,
-                              [this, chooser] (const juce::FileChooser& fc)
+                            [this] (const juce::File& file)
         {
-            importedMidiFile = fc.getResult();
-
-            if (importedMidiFile == juce::File())
-                sourceBox.setSelectedId (1, juce::dontSendNotification);
-
+            importedMidiFile = file;
+            updateEstimate();
+        },
+        [this]
+        {
+            importedMidiFile = juce::File();
+            sourceBox.setSelectedId (1, juce::dontSendNotification);
             updateEstimate();
         });
     };
@@ -764,16 +829,14 @@ ExportPanel::ExportPanel (LuthierAudioProcessor& p)
     addAndMakeVisible (chooseFolderButton);
     chooseFolderButton.onClick = [this]
     {
-        auto chooser = std::make_shared<juce::FileChooser> ("Choose where to save the render",
-                                                             destinationFolder);
-
-        chooser->launchAsync (juce::FileBrowserComponent::openMode
+        fileChooser.launch (*this, "Choose where to save the render", destinationFolder, {},
+                            juce::FileBrowserComponent::openMode
                                 | juce::FileBrowserComponent::canSelectDirectories,
-                              [this, chooser] (const juce::FileChooser& fc)
+                            [this] (const juce::File& folder)
         {
-            if (fc.getResult().isDirectory())
+            if (folder.isDirectory())
             {
-                destinationFolder = fc.getResult();
+                destinationFolder = folder;
                 updateEstimate();
             }
         });
@@ -799,12 +862,12 @@ ExportPanel::ExportPanel (LuthierAudioProcessor& p)
     addAndMakeVisible (progressBar);
     progressBar.setVisible (false);
 
-    startTimerHz (10);
+    motion.startTimerHz (*this, 10);
 }
 
 ExportPanel::~ExportPanel()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 void ExportPanel::overlayShown()
@@ -913,13 +976,17 @@ void ExportPanel::startExport()
     processor.getExporter().startExport (
         options, sequence, state,
         [] { return LuthierAudioProcessor::createOfflineInstance(); },
-        [this] (const AudioExporter::Result& result)
+        [safe = juce::Component::SafePointer<ExportPanel> (this)] (const AudioExporter::Result& result)
         {
-            progressBar.setVisible (false);
-            exportButton.setEnabled (true);
-            cancelButton.setEnabled (false);
-
-            statusLabel.setText (result.message, juce::dontSendNotification);
+            // The exporter belongs to the processor and outlives this panel: the
+            // window may have been closed while it rendered.
+            if (safe != nullptr)
+            {
+                safe->progressBar.setVisible (false);
+                safe->exportButton.setEnabled (true);
+                safe->cancelButton.setEnabled (false);
+                safe->statusLabel.setText (result.message, juce::dontSendNotification);
+            }
 
             // On success the user is told everything the brief asks for: that it
             // worked, where it went, how long it is and at what quality.
@@ -928,13 +995,7 @@ void ExportPanel::startExport()
                     .withIconType (result.success ? juce::MessageBoxIconType::InfoIcon
                                                   : juce::MessageBoxIconType::WarningIcon)
                     .withTitle (result.success ? "Export finished" : "Export failed")
-                    .withMessage (result.success
-                                    ? "Saved\n  " + result.file.getFileName()
-                                      + "\n\nLocation\n  " + result.file.getParentDirectory().getFullPathName()
-                                      + "\n\nLength\n  " + juce::String (result.lengthSeconds, 2) + " seconds"
-                                      + "\n\nQuality\n  " + result.qualityDescription
-                                      + "\n\nPeak\n  " + juce::String (result.peakDb, 2) + " dBFS"
-                                    : result.message)
+                    .withMessage (AudioExporter::describeResult (result))   // SPEC-SWEEP INC-16
                     .withButton ("OK"),
                 nullptr);
         });
@@ -993,333 +1054,6 @@ void ExportPanel::layoutContent (juce::Rectangle<int> content)
     content.removeFromBottom (Metrics::gridHalf);
 
     statusLabel.setBounds (content);
-}
-
-//==============================================================================
-//  PresetBrowserPanel
-//==============================================================================
-int PresetBrowserPanel::PresetListModel::getNumRows()
-{
-    return owner.visibleIndices.size();
-}
-
-void PresetBrowserPanel::PresetListModel::paintListBoxItem (int row, juce::Graphics& g,
-                                                            int width, int height, bool selected)
-{
-    if (! juce::isPositiveAndBelow (row, owner.visibleIndices.size()))
-        return;
-
-    const auto* info = owner.processor.getPresetManager().getPreset (owner.visibleIndices[row]);
-
-    if (info == nullptr)
-        return;
-
-    if (selected)
-    {
-        g.setColour (Palette::accent.withAlpha (0.16f));
-        g.fillRect (0, 0, width, height);
-
-        g.setColour (Palette::accent);
-        g.fillRect (0, 0, 2, height);
-    }
-
-    g.setColour (selected ? Palette::accent : Palette::textPrimary);
-    g.setFont (Fonts::ui (12.5f, selected));
-    g.drawText (info->name, 12, 0, width - 110, height, juce::Justification::centredLeft, true);
-
-    g.setColour (info->isFactory ? Palette::textDisabled : Palette::secondary);
-    g.setFont (Fonts::ui (10.0f));
-    g.drawText (info->isFactory ? info->category : info->category + "  (user)",
-                width - 106, 0, 98, height, juce::Justification::centredRight, true);
-}
-
-void PresetBrowserPanel::PresetListModel::listBoxItemDoubleClicked (int, const juce::MouseEvent&)
-{
-    owner.loadSelected();
-}
-
-void PresetBrowserPanel::PresetListModel::selectedRowsChanged (int lastRow)
-{
-    if (! juce::isPositiveAndBelow (lastRow, owner.visibleIndices.size()))
-    {
-        owner.description.setText ({}, juce::dontSendNotification);
-        return;
-    }
-
-    const auto* info = owner.processor.getPresetManager().getPreset (owner.visibleIndices[lastRow]);
-
-    if (info == nullptr)
-        return;
-
-    juce::String text = info->description;
-
-    if (info->tags.size() > 0)
-        text += (text.isEmpty() ? "" : "\n\n") + juce::String ("Tags: ") + info->tags.joinIntoString (", ");
-
-    text += juce::String (text.isEmpty() ? "" : "\n\n") + info->file.getFullPathName();
-
-    owner.description.setText (text, juce::dontSendNotification);
-    owner.deleteButton.setEnabled (! info->isFactory);
-}
-
-PresetBrowserPanel::PresetBrowserPanel (LuthierAudioProcessor& p)
-    : OverlayPanel ("Presets"), processor (p)
-{
-    addAndMakeVisible (searchBox);
-    searchBox.setTextToShowWhenEmpty ("Search by name or tag...", Palette::textDisabled);
-    searchBox.setColour (juce::TextEditor::backgroundColourId, Palette::panelSunken);
-    searchBox.onTextChange = [this] { rebuildList(); };
-
-    addAndMakeVisible (categoryBox);
-    categoryBox.onChange = [this] { rebuildList(); };
-
-    addAndMakeVisible (list);
-    list.setModel (&listModel);
-    list.setRowHeight (26);
-    list.setColour (juce::ListBox::backgroundColourId, Palette::panelSunken);
-
-    addAndMakeVisible (description);
-    description.setFont (Fonts::ui (11.5f));
-    description.setColour (juce::Label::textColourId, Palette::textMuted);
-    description.setJustificationType (juce::Justification::topLeft);
-
-    addAndMakeVisible (loadButton);
-    loadButton.setColour (juce::TextButton::textColourOffId, Palette::accent);
-    loadButton.onClick = [this] { loadSelected(); };
-
-    // ambiguity-resolutions 5.2: with Morph on, two slots and a slider; a
-    // preset loads into whichever slot is selected, and the sound follows.
-    addAndMakeVisible (morphToggle);
-    morphToggle.setClickingTogglesState (true);
-    morphToggle.setTooltip ("Morph between two presets: continuous settings glide, "
-                            "switches change at the midpoint.");
-    morphToggle.onClick = [this]
-    {
-        processor.getPresetMorph().setEnabled (morphToggle.getToggleState());
-        processor.updatePresetMorph();
-        refreshMorph();
-    };
-
-    for (auto* slot : { &slotAButton, &slotBButton })
-    {
-        addChildComponent (*slot);
-        slot->setClickingTogglesState (true);
-        slot->setRadioGroupId (0x4d52);
-        slot->setTooltip ("Load presets into this slot");
-    }
-
-    slotAButton.onClick = [this] { processor.getPresetMorph().setCurrentSlot (PresetMorph::slotA); };
-    slotBButton.onClick = [this] { processor.getPresetMorph().setCurrentSlot (PresetMorph::slotB); };
-
-    addChildComponent (morphSlider);
-    morphSlider.setTooltip ("From A to B. Automatable as Preset Morph.");
-    morphAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
-        processor.getState(), ParamIDs::presetMorphPosition, morphSlider);
-    morphSlider.onValueChange = [this] { processor.updatePresetMorph(); };
-
-    addAndMakeVisible (deleteButton);
-    deleteButton.setColour (juce::TextButton::textColourOffId, Palette::clip);
-    deleteButton.setEnabled (false);
-    deleteButton.onClick = [this]
-    {
-        const int row = list.getSelectedRow();
-
-        if (! juce::isPositiveAndBelow (row, visibleIndices.size()))
-            return;
-
-        const int index = visibleIndices[row];
-        const auto* info = processor.getPresetManager().getPreset (index);
-
-        if (info == nullptr || info->isFactory)
-            return;
-
-        const auto name = info->name;
-
-        juce::NativeMessageBox::showAsync (
-            juce::MessageBoxOptions()
-                .withIconType (juce::MessageBoxIconType::WarningIcon)
-                .withTitle ("Delete this preset?")
-                .withMessage ("\"" + name + "\" will be deleted from disk. This cannot be undone.")
-                .withButton ("Delete")
-                .withButton ("Cancel"),
-            [this, index] (int result)
-            {
-                if (result == 1)
-                {
-                    processor.getPresetManager().deletePreset (index);
-                    rebuildList();
-                }
-            });
-    };
-
-    addAndMakeVisible (saveAsButton);
-    saveAsButton.onClick = [this]
-    {
-        // Handing straight over to Save As keeps the one-overlay-at-a-time rule.
-        if (saveAsPanelRequested)
-            saveAsPanelRequested();
-        else if (onDismiss)
-            onDismiss();
-    };
-
-    processor.getPresetManager().addChangeListener (this);
-}
-
-PresetBrowserPanel::~PresetBrowserPanel()
-{
-    processor.getPresetManager().removeChangeListener (this);
-}
-
-void PresetBrowserPanel::changeListenerCallback (juce::ChangeBroadcaster*)
-{
-    rebuildList();
-}
-
-void PresetBrowserPanel::overlayShown()
-{
-    auto& manager = processor.getPresetManager();
-
-    const auto previous = categoryBox.getText();
-
-    categoryBox.clear (juce::dontSendNotification);
-    categoryBox.addItem ("All categories", 1);
-
-    int id = 2;
-
-    for (const auto& category : manager.getCategories())
-        categoryBox.addItem (category, id++);
-
-    categoryBox.setText (previous.isNotEmpty() ? previous : "All categories",
-                         juce::dontSendNotification);
-
-    if (categoryBox.getSelectedId() == 0)
-        categoryBox.setSelectedId (1, juce::dontSendNotification);
-
-    rebuildList();
-}
-
-void PresetBrowserPanel::rebuildList()
-{
-    auto& manager = processor.getPresetManager();
-
-    const auto query = searchBox.getText().trim().toLowerCase();
-    const auto category = (categoryBox.getSelectedId() <= 1) ? juce::String()
-                                                             : categoryBox.getText();
-
-    visibleIndices.clear();
-
-    for (int i = 0; i < manager.getNumPresets(); ++i)
-    {
-        const auto* info = manager.getPreset (i);
-
-        if (info == nullptr)
-            continue;
-
-        if (category.isNotEmpty() && info->category != category)
-            continue;
-
-        if (query.isNotEmpty())
-        {
-            const bool matches = info->name.toLowerCase().contains (query)
-                                 || info->description.toLowerCase().contains (query)
-                                 || info->tags.joinIntoString (" ").toLowerCase().contains (query);
-
-            if (! matches)
-                continue;
-        }
-
-        visibleIndices.add (i);
-    }
-
-    list.updateContent();
-    list.repaint();
-
-    const int current = manager.getCurrentPresetIndex();
-    const int row = visibleIndices.indexOf (current);
-
-    if (row >= 0)
-        list.selectRow (row, false, true);
-}
-
-void PresetBrowserPanel::loadSelected()
-{
-    const int row = list.getSelectedRow();
-
-    if (! juce::isPositiveAndBelow (row, visibleIndices.size()))
-        return;
-
-    processor.pushUndoState ("Load preset");
-
-    auto& presets = processor.getPresetManager();
-    presets.loadPreset (visibleIndices[row]);
-    processor.getParameterBridge().applyAllNow();
-
-    // 5.2: while morphing, a load fills the selected slot, and the sound goes
-    // back to wherever the slider is between A and B.
-    auto& morph = processor.getPresetMorph();
-
-    if (morph.isEnabled())
-    {
-        morph.setSlot (morph.getCurrentSlot(), presets.toVar (presets.getCurrentPresetName()),
-                       presets.getCurrentPresetName());
-        refreshMorph();
-    }
-}
-
-void PresetBrowserPanel::refreshMorph()
-{
-    auto& morph = processor.getPresetMorph();
-    const bool on = morph.isEnabled();
-
-    morphToggle.setToggleState (on, juce::dontSendNotification);
-    slotAButton.setVisible (on);
-    slotBButton.setVisible (on);
-    morphSlider.setVisible (on);
-
-    slotAButton.setButtonText ("A: " + (morph.getSlotName (PresetMorph::slotA).isNotEmpty()
-                                          ? morph.getSlotName (PresetMorph::slotA) : juce::String ("empty")));
-    slotBButton.setButtonText ("B: " + (morph.getSlotName (PresetMorph::slotB).isNotEmpty()
-                                          ? morph.getSlotName (PresetMorph::slotB) : juce::String ("empty")));
-    slotAButton.setToggleState (morph.getCurrentSlot() == PresetMorph::slotA, juce::dontSendNotification);
-    slotBButton.setToggleState (morph.getCurrentSlot() == PresetMorph::slotB, juce::dontSendNotification);
-}
-
-void PresetBrowserPanel::layoutContent (juce::Rectangle<int> content)
-{
-    auto top = content.removeFromTop (26);
-    categoryBox.setBounds (top.removeFromRight (180));
-    top.removeFromRight (Metrics::gridHalf);
-    searchBox.setBounds (top);
-
-    content.removeFromTop (Metrics::grid);
-
-    auto buttons = content.removeFromBottom (Metrics::buttonHeight);
-    loadButton.setBounds (buttons.removeFromRight (100));
-    buttons.removeFromRight (Metrics::gridHalf);
-    deleteButton.setBounds (buttons.removeFromRight (100));
-    buttons.removeFromLeft (0);
-    saveAsButton.setBounds (buttons.removeFromLeft (120));
-
-    content.removeFromBottom (Metrics::grid);
-
-    // 5.2's morph row: the toggle always, the slots and slider when it is on.
-    {
-        auto morphRow = content.removeFromBottom (Metrics::buttonHeight);
-        morphToggle.setBounds (morphRow.removeFromLeft (80));
-        morphRow.removeFromLeft (Metrics::gridHalf);
-        slotAButton.setBounds (morphRow.removeFromLeft (170));
-        morphRow.removeFromLeft (Metrics::gridHalf);
-        slotBButton.setBounds (morphRow.removeFromRight (170));
-        morphRow.removeFromRight (Metrics::gridHalf);
-        morphSlider.setBounds (morphRow);
-        content.removeFromBottom (Metrics::gridHalf);
-    }
-
-    description.setBounds (content.removeFromBottom (80));
-    content.removeFromBottom (Metrics::gridHalf);
-
-    list.setBounds (content);
-    refreshMorph();
 }
 
 //==============================================================================
@@ -1612,18 +1346,13 @@ ChordAndTabPanel::ChordAndTabPanel (LuthierAudioProcessor& p)
     addAndMakeVisible (exportTabButton);
     exportTabButton.onClick = [this]
     {
-        auto chooser = std::make_shared<juce::FileChooser> (
-            "Export the tab",
-            PresetManager::getRenderFolder().getChildFile ("Luthier Tab.txt"), "*.txt");
-
-        chooser->launchAsync (juce::FileBrowserComponent::saveMode
+        fileChooser.launch (*this, "Export the tab",
+                            PresetManager::getRenderFolder().getChildFile ("Luthier Tab.txt"), "*.txt",
+                            juce::FileBrowserComponent::saveMode
                                 | juce::FileBrowserComponent::warnAboutOverwriting,
-                              [this, chooser] (const juce::FileChooser& fc)
+                            [this] (const juce::File& file)
         {
-            const auto file = fc.getResult();
-
-            if (file != juce::File())
-                file.replaceWithText (tabView.getText());
+            file.replaceWithText (tabView.getText());
         });
     };
 

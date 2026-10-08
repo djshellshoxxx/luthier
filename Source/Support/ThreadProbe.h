@@ -13,12 +13,16 @@
 */
 
 #include <atomic>
+#include <juce_core/juce_core.h>
 
 namespace luthier::ThreadProbe
 {
     inline thread_local bool isMarkedAudioThread = false;
     inline std::atomic<int> audioThreadFileAccesses { 0 };
     inline std::atomic<int> mapSpecCalls { 0 };
+    // Counts physical scans of the immutable shipped part tree. Performance
+    // tests use this to ensure warm processor construction reuses that index.
+    inline std::atomic<int> factoryPartScans { 0 };
 
     inline void markAsAudioThread (bool isAudio = true) noexcept { isMarkedAudioThread = isAudio; }
 
@@ -29,4 +33,24 @@ namespace luthier::ThreadProbe
     }
 
     inline void noteMapSpec() noexcept { mapSpecCalls.fetch_add (1, std::memory_order_relaxed); }
+
+    /*  performance-budget.md 0.5 / 10: "The audio callback locks nothing." A
+        blocking lock taken on a marked thread is counted. ProbedCriticalSection
+        is a CriticalSection whose enter() notes itself; hold it with
+        ProbedScopedLock. Try-locks are not counted: they never wait. */
+    inline std::atomic<int> audioThreadLocks { 0 };
+
+    inline void noteLock() noexcept
+    {
+        if (isMarkedAudioThread)
+            audioThreadLocks.fetch_add (1, std::memory_order_relaxed);
+    }
+
+    class ProbedCriticalSection : public juce::CriticalSection
+    {
+    public:
+        void enter() const noexcept { noteLock(); juce::CriticalSection::enter(); }
+    };
+
+    using ProbedScopedLock = juce::GenericScopedLock<ProbedCriticalSection>;
 }

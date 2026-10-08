@@ -92,6 +92,12 @@ public:
     void attachRhythm (RhythmEngine* engine, const GenreKitLibrary* kits, const PatternLibrary* patterns);
 
     TuneMidiOptions& getMidiOptions() noexcept { return midiOptions; }
+
+    /** tune-builder 14 (TUNE-HELP-ONBOARDING): the Tune Feel parameter, as the
+        mod matrix and automation have it, added to each section's feel (-1..1).
+        service() applies it at section starts and whenever it moves. */
+    void setFeelOffset (double offset) noexcept { feelOffset = juce::jlimit (-1.0, 1.0, offset); }
+    double getFeelOffset() const noexcept       { return feelOffset; }
     void rebuildTimeline();
 
     /** A message-thread timer's work, at the UI rate: builds the next pass of
@@ -126,6 +132,10 @@ public:
     /** Called after any change (edit, undo, load, selection), for the panel. */
     std::function<void()> onChanged;
 
+    /** jam-mode.md 3.3 (FEAT-JAM): each timeline built for the player, so the
+        Jam band gets the tune's chord map. Message thread. */
+    std::function<void (const TuneTimeline&)> onTimelineBuilt;
+
     /** For tests: where "now" comes from, in milliseconds. */
     void setClock (std::function<double()> clockMs) { clock = std::move (clockMs); }
 
@@ -154,6 +164,10 @@ private:
     const GenreKitLibrary* genreKits = nullptr;
     const PatternLibrary* patternLibrary = nullptr;
     TuneMidiOptions midiOptions;
+
+    double feelOffset = 0.0, appliedFeelOffset = 0.0;
+    TuneRhythmChange lastRhythmChange;
+    bool hasLastRhythmChange = false;
 
     bool recording = false;
     int recordingSection = -1;

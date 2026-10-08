@@ -210,9 +210,17 @@ public:
     void process (double* left, double* right, int numSamples) noexcept override;
 
     int getNumParameters() const noexcept override { return 5; }
-    int getLatencySamples() const noexcept override { return oversampler.getLatencySamples(); }
+    /** cpu-quality-modes 2.2: the nominal factor's latency, whatever it runs at. */
+    int getLatencySamples() const noexcept override { return Oversampler::latencyFor (nominalFactor); }
 
-    void setOversamplingFactor (int factor) noexcept;
+    void setOversamplingFactor (int factor) noexcept { setOversamplingFactor (factor, factor, false); }
+
+    /** cpu-quality-modes 2.2: run at `effective`, pad to `nominal`'s latency,
+        crossfading old and new paths over 10 ms when asked.
+        SPEC-SWEEP JG-4: overrides Pedal's virtual so the chain needs no dynamic_cast. */
+    void setOversamplingFactor (int effective, int nominal, bool crossfade) noexcept override;
+
+    int getEffectiveOversamplingFactor() const noexcept { return oversampler.getFactor(); }
 
 protected:
     void parameterChanged (int index, double value) override;
@@ -226,6 +234,13 @@ protected:
     OnePoleHP dcL, dcR;
     Oversampler oversampler, oversamplerR;
     ExpSmoother driveSmooth, levelSmooth;
+
+    // cpu-quality-modes 2.2: the old path during a crossfade, the pads and the
+    // input history. The shaper is stateless, so only the oversamplers differ.
+    Oversampler oldOversampler, oldOversamplerR;
+    LatencyPad padL, padR, oldPadL, oldPadR;
+    InputHistory historyL, historyR;
+    int nominalFactor = 4, fadeLeft = 0, fadeTotal = 1;
 };
 
 //==============================================================================

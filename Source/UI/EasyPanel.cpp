@@ -1,4 +1,6 @@
 #include "EasyPanel.h"
+#include "EditionLocks.h"
+#include "PaintCache.h"
 #include "PedalRack.h"
 #include "../PluginProcessor.h"
 
@@ -120,9 +122,23 @@ EasyPanel::EasyPanel (LuthierAudioProcessor& p)
     : processor (p),
       guitarBody (p),
       preRack (p, false),
-      postRack (p, true)
+      postRack (p, true),
+      vuMeter (p),
+      roomLight (p)
 {
+    setOpaque (true);   // paint() fills every pixel; spares the editor's paint under it
     addAndMakeVisible (guitarBody);
+
+    // gui-integration 20 (TUNE-HELP-ONBOARDING): a ? on every strip.
+    for (auto* help : getHelpButtons())
+    {
+        addAndMakeVisible (help);
+        help->onHelp = [this] (const juce::String& topic)
+        {
+            if (onOpenHelp != nullptr)
+                onOpenHelp (topic);
+        };
+    }
 
     // ---- playing strip (3.3) -------------------------------------------------------
     struct MacroSetup
@@ -171,18 +187,39 @@ EasyPanel::EasyPanel (LuthierAudioProcessor& p)
     whammyKnob.attachTo (processor, ParamIDs::whammyPos, "The whammy arm's position.");
 
     addAndMakeVisible (playingModeSelector);
+
+    // auto-articulation.md 7.1 (FEAT-ASSIST): AUTO pill and style under the mode.
+    assistPill = std::make_unique<AssistPill> (processor);
+    assistPill->onOpenRhythmTab = [this] { if (onOpenAssistRhythmTab != nullptr) onOpenAssistRhythmTab(); };
+    addAndMakeVisible (*assistPill);
+    assistStyle = std::make_unique<AssistStyleBox> (processor);
+    addAndMakeVisible (*assistStyle);
+    // gui-techniques-updates.md 2 (TECHNIQUES): the Techniques pill row.
+    techniquePills = std::make_unique<TechniquePillRow> (processor);
+    techniquePills->onOpenSubTab = [this] (int subTab)
+    {
+        if (onOpenTechniqueSubTab != nullptr)
+            onOpenTechniqueSubTab (subTab);
+    };
+    addAndMakeVisible (*techniquePills);
     playingModeSelector.attachTo (processor, ParamIDs::playingMode,
                                   "Mono routes every note to one string with legato between them. "
                                   "Poly voices chords across the strings. Guitar Controller maps "
                                   "MIDI channel to string for hex pickups and MPE.");
+
+    // REALISM-B, fingerstyle-attack.md 7: the Tool selector, beside the mode.
+    toolSelector = std::make_unique<RightHandToolSelector> (processor);
+    addAndMakeVisible (*toolSelector);
 
     // ---- tone strip (3.4) ------------------------------------------------------------
     inputKnob.attachTo (processor, ParamIDs::inputGain, "Input gain: how hard the guitar hits the pedals and the amp.");
     outputKnob.attachTo (processor, ParamIDs::masterGain, "Output gain, after everything.");
     mixKnob.attachTo (processor, ParamIDs::outputMix, "Wet/dry: the whole rig against the guitar's direct signal.");
     widthKnob.attachTo (processor, ParamIDs::stereoWidth, "Stereo width: mono at the left, as recorded in the middle, wider at the right.");
+    saturationKnob.attachTo (processor, ParamIDs::fxSaturation,
+                             "Saturation: soft clipping ahead of the amp. Turn it up for a thicker, more compressed sound; at zero it is off.");
 
-    for (auto* k : { &inputKnob, &outputKnob, &mixKnob, &widthKnob })
+    for (auto* k : { &inputKnob, &outputKnob, &mixKnob, &widthKnob, &saturationKnob })
         addAndMakeVisible (k);
 
     // ---- style ---------------------------------------------------------------------
@@ -192,6 +229,7 @@ EasyPanel::EasyPanel (LuthierAudioProcessor& p)
 
     addAndMakeVisible (styleBox);
     styleBox.setTooltip ("Factory sounds, grouped by style. Picking one loads its preset.");
+    AccessibleSetup::configureComboBox (styleBox, "Factory sound");   // A11Y-47: screen readers need a name
     styleBox.onChange = [this]
     {
         const int selected = styleBox.getSelectedItemIndex();
@@ -205,6 +243,7 @@ EasyPanel::EasyPanel (LuthierAudioProcessor& p)
     // ---- audition --------------------------------------------------------------------
     addAndMakeVisible (auditionPhraseBox);
     auditionPhraseBox.setTooltip ("What the Audition button plays");
+    AccessibleSetup::configureComboBox (auditionPhraseBox, "Audition phrase");
 
     for (int i = 0; i < (int) AuditionPhrase::Type::NumTypes; ++i)
         auditionPhraseBox.addItem (AuditionPhrase::getName ((AuditionPhrase::Type) i), i + 1);
@@ -251,6 +290,30 @@ EasyPanel::EasyPanel (LuthierAudioProcessor& p)
 
     // ---- meter and chord readout -------------------------------------------------------
     addAndMakeVisible (meter);
+
+    // output-normalization.md 5.1: the badge under the meter, while on.
+    addChildComponent (normalizationBadge);
+    normalizationBadge.onVisibilityChanged = [this] { resized(); };
+
+    // visual-polish.md 4: the room light sits behind the ROOM card's controls.
+    addAndMakeVisible (roomLight);
+    roomLight.toBack();
+    addChildComponent (vuMeter);
+    vuMeter.setVisible (VuMeter::isEnabledByUser());
+
+    // piano-roll-chord-display.md 1, 3: the piano roll under the guitar; Easy
+    // has no fretboard, so "Show fingering" draws on the illustration.
+    addChildComponent (pianoRoll);
+    pianoRoll.onLayoutChanged = [this] { resized(); };
+    pianoRoll.onGhostDots = [this] (const std::vector<FretboardComponent::GhostDot>& dots)
+    {
+        std::vector<std::pair<int, double>> pairs;
+
+        for (const auto& d : dots)
+            pairs.emplace_back (d.string, d.fret);
+
+        guitarBody.setGhostDots (pairs);
+    };
     meter.setSource (&processor);
 
     addAndMakeVisible (chordLabel);
@@ -261,7 +324,70 @@ EasyPanel::EasyPanel (LuthierAudioProcessor& p)
     buildRigStrip();
     buildRhythmStrip();
 
+    // riff-library 7.3: the Riffs button, and the drawer as the session left it.
+    riffsButton.setTooltip ("Riff library (R)");
+    riffsButton.onClick = [this] { setRiffDrawerOpen (! isRiffDrawerOpen()); };
+    AccessibleSetup::configureButton (riffsButton, "Riffs", "Opens the riff drawer to browse and audition riffs.");
+    addAndMakeVisible (riffsButton);
+
+    if (RiffUiState::fromVar (processor.getUiState().riffs).drawerOpen)
+        setRiffDrawerOpen (true);
+
     startTimerHz (10);
+}
+
+juce::Rectangle<int> EasyPanel::getRiffDrawerBounds() const
+{
+    const auto area = getLocalBounds().reduced (Metrics::windowPadding, Metrics::grid);
+    return area.withLeft (juce::jmax (area.getX(), area.getRight() - kRiffDrawerWidth));
+}
+
+void EasyPanel::setRiffDrawerOpen (bool shouldBeOpen)
+{
+    if (shouldBeOpen && riffDrawer == nullptr)
+    {
+        riffDrawer = std::make_unique<RiffBrowser> (processor, true);
+        riffDrawer->onCloseRequested = [this]
+        {
+            setRiffDrawerOpen (false);
+            riffsButton.grabKeyboardFocus();   // accessibility 1: focus goes back where it came from
+        };
+        addChildComponent (*riffDrawer);
+    }
+
+    if (riffDrawer == nullptr)
+        return;
+
+    riffDrawerOpen = shouldBeOpen;
+    riffsButton.setToggleState (shouldBeOpen, juce::dontSendNotification);
+
+    auto uiState = RiffUiState::fromVar (processor.getUiState().riffs);
+    uiState.drawerOpen = shouldBeOpen;
+    processor.getUiState().riffs = uiState.toVar();
+    riffDrawer->getState().drawerOpen = shouldBeOpen;
+
+    const auto target = getRiffDrawerBounds();
+    const int ms = AccessibilitySettings::get().getAnimationMs (150);
+    auto& animator = juce::Desktop::getInstance().getAnimator();
+
+    if (shouldBeOpen)
+    {
+        riffDrawer->setBounds (ms > 0 ? target.translated (target.getWidth(), 0) : target);
+        riffDrawer->setVisible (true);
+        riffDrawer->toFront (false);
+
+        if (ms > 0)
+            animator.animateComponent (riffDrawer.get(), target, 1.0f, ms, false, 0.0, 0.0);
+
+        riffDrawer->ensureLibraryLoaded();
+        AccessibleSetup::announceOverlayOpened (*riffDrawer, "Riff drawer");
+        riffDrawer->getSearchBox().grabKeyboardFocus();
+    }
+    else
+    {
+        animator.cancelAnimation (riffDrawer.get(), false);
+        riffDrawer->setVisible (false);
+    }
 }
 
 EasyPanel::~EasyPanel()
@@ -287,6 +413,7 @@ void EasyPanel::buildRigStrip()
 
     // 3. Amp: the model, and the face carrying gain, bass, mid, treble, presence and master.
     ampModel.attachTo (processor, ParamIDs::ampModel, "Amp model");
+    EditionLocks::lockAmps (ampModel.getComboBox());   // editions.md 2.2
     addAndMakeVisible (ampModel);
     addAndMakeVisible (ampFace);
 
@@ -299,6 +426,12 @@ void EasyPanel::buildRigStrip()
     for (auto* c : { &cabModel, &mic1, &mic2 })
         addAndMakeVisible (c);
     addAndMakeVisible (micBlend);
+
+    // mic-placement.md 6.3 (FEAT-MIC): bright <-> warm, close <-> far.
+    addAndMakeVisible (micPad);
+    micPad.onOpenEditor = [this] { if (onOpenMicEditor) onOpenMicEditor(); };
+    acMicMix.attachTo (processor, ParamIDs::acMicMix, "Pickup against the external microphones");
+    addChildComponent (acMicMix);
 
     // 6. Room.
     roomSize.attachTo (processor, ParamIDs::roomSize, "Room size");
@@ -323,6 +456,7 @@ void EasyPanel::buildRhythmStrip()
 
     rhythmGenreBox.setTextWhenNothingSelected ("Style");
     rhythmGenreBox.setTooltip ("Genre kit: sets the voicing, the pattern and the feel in one go.");
+    AccessibleSetup::configureComboBox (rhythmGenreBox, "Rhythm style");
 
     rhythmGenreBox.onChange = [this]
     {
@@ -352,6 +486,7 @@ void EasyPanel::buildRhythmStrip()
     rhythmFeelSlider.setRange (0.0, 200.0, 1.0);
     rhythmFeelSlider.setValue (100.0, juce::dontSendNotification);
     rhythmFeelSlider.setDoubleClickReturnValue (true, 100.0);
+    AccessibleSetup::configureSlider (rhythmFeelSlider, "Rhythm feel", " percent");
     rhythmFeelSlider.setTooltip ("Feel. Centre is the style's own feel. Right strums faster and more "
                                  "evenly and loosens the timing; left strums slower and less evenly.");
 
@@ -389,8 +524,16 @@ void EasyPanel::buildRhythmStrip()
     rhythmReadout.setFont (Fonts::mono (13.0f));
     rhythmReadout.setColour (juce::Label::textColourId, Palette::accent);
     rhythmReadout.setJustificationType (juce::Justification::centredRight);
-    rhythmReadout.setTooltip ("The chord the rhythm engine is playing, and the next strum");
+    rhythmReadout.setTooltip ("The chord the rhythm engine is playing");
     addAndMakeVisible (rhythmReadout);
+
+    // SPEC-SWEEP (GD-10): the next strum is its own 60 Hz arrow now.
+    nextStrumArrow = std::make_unique<NextStrumArrow> (processor);
+    nextStrumArrow->setTooltip ("The next strum's direction; it flashes on each stroke");
+    addAndMakeVisible (*nextStrumArrow);
+    // FEAT-JAM (jam-mode 8.2): the band's pill, style, intensity and volume.
+    jamGroup = std::make_unique<JamStripGroup> (processor);
+    addAndMakeVisible (*jamGroup);
 
     refreshRhythmStrip();
 }
@@ -435,13 +578,9 @@ void EasyPanel::refreshRhythmStrip()
 
     if (on)
     {
+        // SPEC-SWEEP (GD-10): the arrow is NextStrumArrow's; this is the chord.
         const auto chord = processor.getEngine().getLastChordName();
-        const auto next = engine.getNextStrumType();
-        const auto arrow = next == StrumType::down || next == StrumType::downMute ? juce::String::fromUTF8 ("\xe2\x86\x93")
-                         : next == StrumType::up || next == StrumType::upMute     ? juce::String::fromUTF8 ("\xe2\x86\x91")
-                         : next == StrumType::rest                                ? juce::String ("-")
-                                                                                  : juce::String ("~");
-        readout = (chord.isNotEmpty() ? chord : juce::String ("--")) + "  " + arrow;
+        readout = chord.isNotEmpty() ? chord : juce::String ("--");
     }
 
     rhythmReadout.setText (readout, juce::dontSendNotification);
@@ -487,23 +626,42 @@ void EasyPanel::applyStylePreset (int listIndex)
     if (! juce::isPositiveAndBelow (listIndex, stylePresetIndices.size()))
         return;
 
-    processor.pushUndoState ("Load style");
-    processor.getPresetManager().loadPreset (stylePresetIndices[listIndex]);
-    processor.getParameterBridge().applyAllNow();
+    processor.loadPresetAsUserAction (stylePresetIndices[listIndex]);   // action-and-undo.md 3.8
+}
+
+//==============================================================================
+// SPEC-SWEEP (GD-9): the last chord stays up, dimmed after three quiet seconds,
+// rather than vanishing the moment the hand lifts.
+void EasyPanel::tickChordReadout (double nowMs)
+{
+    const auto chord = processor.getEngine().getLastChordName();
+    const int activeNotes = processor.getEngine().getMidiInterpreter().getActiveNoteCount();
+
+    if (activeNotes > 0 && chord.isNotEmpty())
+    {
+        if (chordLabel.getText() != chord)
+            chordLabel.setText (chord, juce::dontSendNotification);
+
+        lastChordMs = nowMs;
+    }
+
+    const bool dim = nowMs - lastChordMs > kChordStaleMs;
+    const auto colour = dim ? Palette::textMuted : Palette::accent;
+
+    if (chordLabel.findColour (juce::Label::textColourId) != colour)
+        chordLabel.setColour (juce::Label::textColourId, colour);
 }
 
 //==============================================================================
 void EasyPanel::timerCallback()
 {
+    // FEAT-MIC: the Cabinet card follows the guitar family (6.3).
+    if (MicUi::isAcoustic (processor) != micPadAcoustic)
+        resized();
+
     auditionButton.setButtonText (processor.isAuditioning() ? "Stop" : "Audition");
 
-    const auto chord = processor.getEngine().getLastChordName();
-    const int activeNotes = processor.getEngine().getMidiInterpreter().getActiveNoteCount();
-
-    if (activeNotes == 0)
-        chordLabel.setText ({}, juce::dontSendNotification);
-    else if (chord.isNotEmpty())
-        chordLabel.setText (chord, juce::dontSendNotification);
+    tickChordReadout (juce::Time::getMillisecondCounterHiRes());   // SPEC-SWEEP GD-9
 
     // Keep the style list in step with preset changes made elsewhere.
     const int current = processor.getPresetManager().getCurrentPresetIndex();
@@ -547,7 +705,8 @@ void EasyPanel::resized()
             return inner;
         };
 
-        auto circuit = card (0.20f, "Guitar");
+        // Give the amp face two generous rows while keeping the compact rack rows usable.
+        auto circuit = card (0.12f, "Guitar");
         {
             auto knobs = circuit.removeFromLeft (circuit.getWidth() / 2);
             guitarVolumeKnob.setBounds (knobs.removeFromLeft (knobs.getWidth() / 2));
@@ -555,30 +714,55 @@ void EasyPanel::resized()
             circuitView->setBounds (circuit.reduced (2));
         }
 
-        preRack.setBounds (card (0.12f, "Pre-effects"));
+        preRack.setBounds (card (0.085f, "Pre-effects"));
 
-        auto amp = card (0.26f, "Amp");
+        auto amp = card (0.40f, "Amp");   // the six shares sum to 1, so the Room card keeps its row
         {
-            // TODO 2h: the knobs sit on the face in one row, each with the card's
-            // full width to share, rather than two cramped rows of three.
-            ampModel.setBounds (amp.removeFromTop (juce::jmin (amp.getHeight() / 3, 44)));
+            ampCardArea = amp;
+            ampModel.setBounds (amp.removeFromTop (26));
             amp.removeFromTop (2);
             ampFace.setBounds (amp);
         }
 
-        postRack.setBounds (card (0.12f, "Post-effects"));
+        postRack.setBounds (card (0.085f, "Post-effects"));
 
-        auto cab = card (0.17f, "Cabinet");
+        auto cab = card (0.21f, "Cabinet");   // 0.20 before FEAT-MIC's pad (6.3)
         {
-            auto top = cab.removeFromTop (cab.getHeight() / 2);
-            cabModel.setBounds (top.removeFromLeft (top.getWidth() / 2));
+            // mic-placement.md 6.3 (FEAT-MIC): the pad under the cabinet's
+            // choices; the mics (or, on an acoustic, Pickup <-> Mic) beside it.
+            micPadAcoustic = MicUi::isAcoustic (processor);
+            // Two rows: model and blend, then the pad beside the mics (side by
+            // side, so each keeps its full row height at small window sizes).
+            const int bottomH = juce::jmin (MicPad::kHeight + 4, juce::jmax (cab.getHeight() / 2, cab.getHeight() - 44));
+            auto top = cab.removeFromTop (cab.getHeight() - bottomH);
+            {
+                auto left = top.removeFromLeft (top.getWidth() / 2);
+                cabModel.setBounds (left.withSizeKeepingCentre (left.getWidth(), juce::jmin (left.getHeight(), 40)));
+            }
             micBlend.setBounds (top);
-            mic1.setBounds (cab.removeFromLeft (cab.getWidth() / 2));
-            mic2.setBounds (cab);
+
+            auto padArea = cab.removeFromLeft (juce::jmin (MicPad::kWidth, cab.getWidth() / 2));
+            micPad.setBounds (padArea.withSizeKeepingCentre (padArea.getWidth(), juce::jmin (MicPad::kHeight, padArea.getHeight())));
+            cab.removeFromLeft (4);
+
+            mic1.setVisible (! micPadAcoustic);
+            mic2.setVisible (! micPadAcoustic);
+            acMicMix.setVisible (micPadAcoustic);
+
+            if (micPadAcoustic)
+            {
+                acMicMix.setBounds (cab);
+            }
+            else
+            {
+                mic1.setBounds (cab.removeFromLeft (cab.getWidth() / 2));
+                mic2.setBounds (cab);
+            }
         }
 
-        auto room = card (0.13f, "Room");
+        auto room = card (0.10f, "Room");   // 0.13 before FEAT-MIC's pad
         {
+            roomLight.setBounds (rigCards.getLast().first);
             roomSize.setBounds (room.removeFromLeft (room.getWidth() / 2));
             roomMix.setBounds (room);
         }
@@ -591,21 +775,57 @@ void EasyPanel::resized()
     bounds.removeFromBottom (Metrics::gridHalf);
     toneArea = bounds.removeFromBottom (stripH);
     bounds.removeFromBottom (Metrics::gridHalf);
-    playingArea = bounds.removeFromBottom (stripH);
+    // gui-techniques-updates.md 2 (TECHNIQUES): the Playing strip grows by its
+    // pill row, so the mode column keeps its height at the window's minimum.
+    playingArea = bounds.removeFromBottom (stripH + TechniquePillRow::preferredHeight);
     bounds.removeFromBottom (Metrics::gridHalf);
 
     // 3.1: the guitar, with the level meter and the chord beside it.
     auto guitarArea = bounds;
-    auto meterColumn = guitarArea.removeFromRight (28);
+    auto meterColumn = guitarArea.removeFromRight (normalizationBadge.isVisible() ? NormalizationBadge::preferredWidth : 28);
+
+    if (normalizationBadge.isVisible())   // output-normalization.md 5.1
+        normalizationBadge.setBounds (meterColumn.removeFromBottom (24).reduced (0, 2));
+
     meter.setBounds (meterColumn.reduced (4, Metrics::grid));
     chordLabel.setBounds (guitarArea.removeFromTop (20).removeFromRight (120));
+    // piano-roll-chord-display.md 1: the roll strip under the guitar illustration.
+    pianoRoll.setVisible (pianoRoll.isWanted());
+
+    if (pianoRoll.isVisible())
+    {
+        pianoRoll.setBounds (guitarArea.removeFromBottom (PianoRollStrip::kEasyHeight));
+        guitarArea.removeFromBottom (Metrics::gridHalf);
+    }
+
     guitarBody.setBounds (guitarArea);
+
+    // visual-polish.md 4: the VU needle over the guitar's top-left corner, beside the level meter's column.
+    vuMeter.setBounds (guitarArea.getX() + 4, guitarArea.getY() - 16, 128, 66);
 
     // 3.3 playing strip: mode, then the macros, then the whammy if fitted.
     {
         auto r = playingArea.reduced (4, 2);
         r.removeFromTop (14);
-        playingModeSelector.setBounds (r.removeFromLeft (130).withSizeKeepingCentre (130, juce::jmin (48, r.getHeight())));
+
+        // gui-techniques-updates.md 2 (TECHNIQUES): the pill row along the strip's foot.
+        techniquePills->setBounds (r.removeFromBottom (TechniquePillRow::preferredHeight));
+
+        {
+            // auto-articulation.md 7.1 (FEAT-ASSIST): the 130 px mode column is two rows.
+            auto column = r.removeFromLeft (130);
+            auto second = column.removeFromBottom (AssistPill::kHeight);
+            column.removeFromBottom (2);
+            playingModeSelector.setLabelVisible (column.getHeight() >= 40);
+            playingModeSelector.setBounds (column.withSizeKeepingCentre (130, juce::jmin (48, column.getHeight())));
+            assistPill->setBounds (second.removeFromLeft (AssistPill::kWidth));
+            second.removeFromLeft (4);
+            assistStyle->setBounds (second.removeFromLeft (70));
+        }
+        r.removeFromLeft (Metrics::grid);
+
+        // REALISM-B: the Tool selector takes a share of the strip beside the mode.
+        toolSelector->setBounds (r.removeFromLeft (juce::jlimit (140, 280, r.getWidth() / 3)));
         r.removeFromLeft (Metrics::grid);
 
         juce::Array<LuthierKnob*> knobs { &attackKnob, &bodyKnob, &driveKnob, &toneKnob, &spaceKnob, &humanizeKnob, &characterKnob };
@@ -623,7 +843,7 @@ void EasyPanel::resized()
         r.removeFromTop (14);
         const int knobW = juce::jmin (70, r.getWidth() / 10);
 
-        for (auto* k : { &inputKnob, &outputKnob, &mixKnob, &widthKnob })
+        for (auto* k : { &inputKnob, &outputKnob, &mixKnob, &widthKnob, &saturationKnob })
             k->setBounds (r.removeFromLeft (knobW));
 
         r.removeFromLeft (Metrics::grid);
@@ -643,40 +863,106 @@ void EasyPanel::resized()
         resetButton.setBounds (bottom.reduced (2, 0));
     }
 
+    // gui-integration 20: each strip's ? at its top right.
+    {
+        const int s = PanelHelpButton::kSize;
+        rigHelp.setBounds (rigArea.getRight() - s - 6, rigArea.getY() + 3, s, s);
+        playingHelp.setBounds (playingArea.getRight() - s - 4, playingArea.getY() + 1, s - 2, s - 2);
+        toneHelp.setBounds (toneArea.getRight() - s - 4, toneArea.getY() + 1, s - 2, s - 2);
+        rhythmHelp.setBounds (rhythmArea.getRight() - s - 4, rhythmArea.getCentreY() - s / 2, s, s);
+    }
+
     // 3.5 rhythm strip: kit and dice, feel, on/off, the readout.
     {
         auto r = rhythmArea.reduced (4, 6);
+        r.removeFromRight (PanelHelpButton::kSize + 4);   // the strip's ?
+        /*  FEAT-JAM (jam-mode 8.2): the JAM group sits at the right end and never
+            hides the band's style, level or state, so on a narrow window the
+            rest of the strip gives way first - the hint, then the readout, then
+            the genre box, then the group itself down to its minimum. Only
+            when even that does not fit (narrower than the window's minimum)
+            is the group hidden rather than drawn outside the strip. */
+        const bool hasJam = jamGroup != nullptr;
+        const int fixedW = 56 + 48 + Metrics::grid + 52 + Metrics::grid + 20   // + SPEC-SWEEP GD-10's arrow
+                            + 64 + Metrics::gridHalf;   // + riff-library 7.3's Riffs button
+        constexpr int feelMin = 60;
+        int genreW = 170, readoutW = 110, hintW = hasJam ? 90 : 110;
+        int jamW = hasJam ? JamStripGroup::preferredWidth : 0;
+        int deficit = fixedW + genreW + jamW + readoutW + hintW + feelMin - r.getWidth();
+
+        auto give = [&deficit] (int& w, int minimum)
+        {
+            const int cut = juce::jlimit (0, juce::jmax (0, w - minimum), deficit);
+            w -= cut;
+            deficit -= cut;
+        };
+
+        give (hintW, 0);
+        give (readoutW, 70);
+        give (genreW, 110);
+
+        if (hasJam)
+        {
+            give (jamW, JamStripGroup::minimumWidth);
+            jamGroup->setVisible (deficit <= 0);
+
+            if (deficit > 0)
+                jamW = 0;
+        }
+
         rhythmLabel.setBounds (r.removeFromLeft (56));
-        rhythmGenreBox.setBounds (r.removeFromLeft (170));
+        rhythmGenreBox.setBounds (r.removeFromLeft (genreW));
         rhythmDice.setBounds (r.removeFromLeft (48).reduced (2, 0));
         r.removeFromLeft (Metrics::grid);
         rhythmEnableButton.setBounds (r.removeFromLeft (52));
         r.removeFromLeft (Metrics::grid);
-        rhythmReadout.setBounds (r.removeFromRight (110));
-        rhythmHintLabel.setBounds (r.removeFromRight (110));
+        riffsButton.setBounds (r.removeFromRight (64).reduced (2, 0));   // riff-library 7.3
+        r.removeFromRight (Metrics::gridHalf);
+
+        // The JAM group, SPEC-SWEEP GD-10's next-strum arrow, then readout and
+        // hint - all at adaptive widths from the deficit pass above.
+        if (hasJam)
+            jamGroup->setBounds (r.removeFromRight (jamW));
+
+        nextStrumArrow->setBounds (r.removeFromRight (20));   // SPEC-SWEEP GD-10
+        rhythmReadout.setBounds (r.removeFromRight (readoutW));
+        rhythmHintLabel.setBounds (r.removeFromRight (hintW));
         rhythmFeelSlider.setBounds (r);
     }
+
+    if (riffDrawer != nullptr && riffDrawerOpen)
+        riffDrawer->setBounds (getRiffDrawerBounds());
 }
 
 void EasyPanel::paint (juce::Graphics& g)
 {
-    g.fillAll (Palette::background);
-
-    // The rig strip's cards, each a small framed panel with its name.
+    // The cards and areas are static while playing; PaintCache keeps them out of
+    // the 30-60 Hz repaints of the meters and the guitar above them.
+    juce::String layout;
     for (auto& [r, title] : rigCards)
-    {
-        LuthierLookAndFeel::drawPanel (g, r.toFloat());
-        LuthierLookAndFeel::drawSectionHeader (g, r.reduced (6, 2).withHeight (18), title);
-    }
+        layout << r.toString() << title << ';';
+    layout << playingArea.toString() << toneArea.toString() << rhythmArea.toString();
 
-    for (auto [area, title] : { std::pair<juce::Rectangle<int>, const char*> { playingArea, "Playing" },
-                                { toneArea, "Tone" }, { rhythmArea, "Rhythm" } })
+    backgroundCache.draw (g, getLocalBounds(), layout.hashCode64(), [this] (juce::Graphics& g)
     {
-        LuthierLookAndFeel::drawPanel (g, area.toFloat());
+        g.fillAll (Palette::background);
 
-        if (juce::String (title) != "Rhythm")
-            LuthierLookAndFeel::drawSectionHeader (g, area.reduced (6, 1).withHeight (16), title);
-    }
+        // The rig strip's cards, each a small framed panel with its name.
+        for (auto& [r, title] : rigCards)
+        {
+            LuthierLookAndFeel::drawPanel (g, r.toFloat());
+            LuthierLookAndFeel::drawSectionHeader (g, r.reduced (6, 2).withHeight (18), title);
+        }
+
+        for (auto [area, title] : { std::pair<juce::Rectangle<int>, const char*> { playingArea, "Playing" },
+                                    { toneArea, "Tone" }, { rhythmArea, "Rhythm" } })
+        {
+            LuthierLookAndFeel::drawPanel (g, area.toFloat());
+
+            if (juce::String (title) != "Rhythm")
+                LuthierLookAndFeel::drawSectionHeader (g, area.reduced (6, 1).withHeight (16), title);
+        }
+    }, true);   // fillAll first: every pixel is covered
 }
 
 } // namespace luthier

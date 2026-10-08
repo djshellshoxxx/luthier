@@ -144,6 +144,12 @@ public:
         Audio thread; never allocates. */
     void process (float* const* channels, int numChannels, int numSamples) noexcept;
 
+    /*  SPEC-SWEEP TM-6 (tone-match 1): the body slot replaces the body model's
+        response. `input` is what excites the body; `modelOutput` holds the
+        model's response to it and is blended toward the IR's by the mix. Mono,
+        audio thread, never allocates; untouched when the slot is not engaged. */
+    void processReplacing (const float* input, float* modelOutput, int numSamples) noexcept;
+
     /** The latency the convolution reports. Matches the built-in cabinet's, per
         tone-match 0.4. */
     int getLatencySamples() const noexcept;
@@ -222,6 +228,12 @@ public:
     void start (double seconds) noexcept;
     void stop() noexcept;
 
+    /** tone-match 4: what is recorded. The processor feeds the chosen one;
+        a reference played into the plugin arrives on the sidechain. */
+    enum class Source { mainOut = 0, sidechain };
+    void setSource (Source s) noexcept { source.store ((int) s, std::memory_order_relaxed); }
+    Source getSource() const noexcept { return (Source) source.load (std::memory_order_relaxed); }
+
     bool isRecording() const noexcept { return recording.load (std::memory_order_relaxed); }
     bool isComplete() const noexcept { return complete.load (std::memory_order_relaxed); }
 
@@ -251,6 +263,7 @@ private:
     std::atomic<bool> recording { false };
     std::atomic<bool> complete { false };
     std::atomic<int> recorded { 0 };
+    std::atomic<int> source { (int) Source::mainOut };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Capture)
 };
@@ -346,7 +359,13 @@ public:
     static ImpulseResponse fit (const std::vector<float>& reference,
                                 const std::vector<float>& current,
                                 double sampleRate,
-                                const Options& options = {});
+                                const Options& options);
+    static ImpulseResponse fit (const std::vector<float>& reference,
+                                const std::vector<float>& current,
+                                double sampleRate)
+    {
+        return fit (reference, current, sampleRate, Options {});
+    }
 
     /** The magnitude response of a filter at a frequency, in dB. Used by the
         tests and by the panel's curve display. */

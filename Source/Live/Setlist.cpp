@@ -1,9 +1,11 @@
 #include "Setlist.h"
+#include "../Presets/FactoryPresets.h"   // SPEC-SWEEP: FC-1
 
 namespace luthier
 {
 
 const char* const Setlist::kFileExtension = ".luthierset";
+const char* const Setlist::kMagic = "luthier.setlist";   // SPEC-SWEEP: FF-5
 
 //==============================================================================
 juce::String SetlistEntry::getDisplayName() const
@@ -109,7 +111,9 @@ juce::var Setlist::toVar() const
 {
     auto* root = new juce::DynamicObject();
 
-    root->setProperty ("format", "luthierset");
+    // SPEC-SWEEP: FF-5 - the canonical marker and schema (file-formats 0.2, 0.5).
+    root->setProperty ("magic", kMagic);
+    root->setProperty ("schema", kSchema);
     root->setProperty ("name", name);
     root->setProperty ("notes", notes);
     root->setProperty ("bpm_default", defaultBpm);
@@ -149,16 +153,65 @@ void Setlist::fromVar (const juce::var& state)
 
 bool Setlist::loadFrom (const juce::File& file)
 {
+    /*  SPEC-SWEEP: FF-5, FF-35 (error-recovery 1). Each refusal says why and
+        leaves the current setlist alone. */
+    loadError.clear();
+
     if (! file.existsAsFile())
+    {
+        loadError = "Setlist not found: " + file.getFileName();
         return false;
+    }
 
     const auto parsed = juce::JSON::parse (file.loadFileAsString());
+    auto* root = parsed.getDynamicObject();
 
-    if (parsed.getDynamicObject() == nullptr)
+    if (root == nullptr)
+    {
+        loadError = file.getFileName() + " is not a valid Luthier file.";
         return false;
+    }
+
+    if (root->getProperty ("magic").toString() != kMagic
+          && root->getProperty ("format").toString() != "luthierset")
+    {
+        loadError = file.getFileName() + " is not a Luthier setlist.";
+        return false;
+    }
+
+    if (root->hasProperty ("schema") && (int) root->getProperty ("schema") > kSchema)
+    {
+        loadError = file.getFileName() + " was made by a newer Luthier version. Update to open.";
+        return false;
+    }
 
     fromVar (parsed);
+
+    // SPEC-SWEEP: SM-31 (state-model 5.2): every entry's preset is checked now,
+    // so the LIVE tab can mark the missing ones before the gig rather than at
+    // the song. A renamed factory preset still counts as found.
+    for (auto& entry : entries)
+    {
+        const juce::File preset (juce::File::isAbsolutePath (entry.presetPath) ? juce::File (entry.presetPath)
+                                                                                : juce::File());
+        entry.resolved = preset.existsAsFile()
+                           || (preset != juce::File()
+                                 && preset.getSiblingFile (FactoryPresets::renamedPreset (preset.getFileNameWithoutExtension())
+                                                             + preset.getFileExtension()).existsAsFile());
+    }
+
     return true;
+}
+
+int Setlist::getNumUnresolvedEntries() const noexcept
+{
+    int count = 0;
+
+    for (const auto& entry : entries)
+        if (! entry.resolved)
+            ++count;
+
+    return count;
 }
 
 bool Setlist::saveTo (const juce::File& file) const
@@ -233,7 +286,17 @@ juce::var SetlistPlayer::readEntry (int index)
         return {};
 
     const auto& entry = setlist.getEntry (index);
-    const juce::File file (entry.presetPath);
+    juce::File file (juce::File::isAbsolutePath (entry.presetPath) ? juce::File (entry.presetPath) : juce::File());
+
+    // SPEC-SWEEP: FC-1 - a factory preset renamed in the trademark sweep is
+    // found under its new name beside where the old one was.
+    if (! file.existsAsFile() && file != juce::File())
+    {
+        const auto renamed = FactoryPresets::renamedPreset (file.getFileNameWithoutExtension());
+
+        if (renamed != file.getFileNameWithoutExtension())
+            file = file.getSiblingFile (renamed + file.getFileExtension());
+    }
 
     if (! file.existsAsFile())
     {

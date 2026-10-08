@@ -15,6 +15,8 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "LuthierEngine.h"
 #include "Modulation/ModMatrix.h"
+#include "Jam/JamSettings.h"   // FEAT-JAM
+#include "Support/Edition.h"   // FEAT-ASSIST
 
 namespace luthier
 {
@@ -321,12 +323,326 @@ namespace ParamIDs
     inline constexpr const char* chuckAmount          = "chuck_amount";
     inline constexpr const char* chuckDamping         = "chuck_damping";
 
+    // bass-techniques.md 2-5 and string-slap-technique.md 1 (SlapEngine).
+    inline constexpr const char* slapStrength           = "slap_strength";
+    inline constexpr const char* slapPositionMm         = "slap_position_mm";
+    inline constexpr const char* slapThumbHardness      = "slap_thumb_hardness";
+    inline constexpr const char* slapFretContact        = "slap_fret_contact";
+    inline constexpr const char* popStrength            = "pop_strength";
+    inline constexpr const char* popPositionMm          = "pop_position_mm";
+    inline constexpr const char* doubleThumpEnabled     = "double_thump_enabled";
+    inline constexpr const char* doubleThumpUpRatio     = "double_thump_up_ratio";
+    inline constexpr const char* ghostLevel             = "ghost_level";
+    inline constexpr const char* ghostDamping           = "ghost_damping";
+    inline constexpr const char* ghostAuto              = "ghost_auto";
+    inline constexpr const char* ghostVelocityThreshold = "ghost_velocity_threshold";
+    inline constexpr const char* slapArmed              = "slap_armed";
+    inline constexpr const char* slapType               = "slap_type";
+    inline constexpr const char* slapTrigger            = "slap_trigger";
+    inline constexpr const char* slapVelocityZone       = "slap_velocity_zone";
+    inline constexpr const char* slapTriggerCc          = "slap_trigger_cc";
+    inline constexpr const char* slapGhostCc            = "slap_ghost_cc";
+    inline constexpr const char* slapForce              = "slap_force";
+    inline constexpr const char* slapPalmPositionMm     = "slap_palm_position_mm";
+    inline constexpr const char* slapStringMask         = "slap_string_mask";
+    inline constexpr const char* slapGhostMode          = "slap_ghost_mode";
+    inline constexpr const char* slapReboundGap         = "slap_rebound_gap";
+    inline constexpr const char* slapSnapBack           = "slap_snap_back";
+    inline constexpr const char* slapBodyPart           = "slap_body_part";
+
+    // ==== BEGIN REALISM-A params ====
+    // string-aging.md 4
+    inline constexpr const char* stringAgeHours         = "string_age_hours";
+    inline constexpr const char* stringCorrosivity      = "string_corrosivity";
+    inline constexpr const char* stringAgeDetail        = "string_age_detail";
+    inline constexpr const char* stringCoating          = "string_coating";
+    inline constexpr const char* stringAgeAccrual       = "string_age_accrual";
+    // environment.md 5
+    inline constexpr const char* envTemperatureC        = "env_temperature_c";
+    inline constexpr const char* envTunedAtC            = "env_tuned_at_c";
+    inline constexpr const char* envHumidityPct         = "env_humidity_pct";
+    inline constexpr const char* envProfile             = "env_profile";
+    inline constexpr const char* envClock               = "env_clock";
+    // body-coupling.md 4
+    inline constexpr const char* bodyCouplingAmount     = "body_coupling_amount";
+    inline constexpr const char* bodyModeMassScale      = "body_mode_mass_scale";
+    inline constexpr const char* bodyModeQScale         = "body_mode_q_scale";
+    inline constexpr const char* bodyModeFreqScale      = "body_mode_freq_scale";
+    inline constexpr const char* bodyCouplingModes      = "body_coupling_modes";
+    // ==== END REALISM-A params ====
+
     // --- effect slots ----------------------------------------------------------
     /** `post` selects the chain; `slot` 0-7; `param` 0-9. */
     juce::String slotType (bool post, int slot);
     juce::String slotBypass (bool post, int slot);
     juce::String slotMix (bool post, int slot);
     juce::String slotParam (bool post, int slot, int param);
+
+    // ==== BEGIN MODEL-GAPS params ====
+    // bass-techniques.md 6 (fingerstyle-attack.md reuses both) and
+    // ambiguity-resolutions 8 / routing-io 2's Aux 1 pre / post-circuit toggle.
+    inline constexpr const char* fingerAlternationVariation = "finger_alternation_variation";
+    inline constexpr const char* restStroke                 = "rest_stroke";
+    inline constexpr const char* aux1PreCircuit             = "aux1_pre_circuit";
+    // ==== END MODEL-GAPS params ====
+    // ==== BEGIN REALISM-B params ====
+    // harmonic-realism.md 5 (+8).
+    inline constexpr const char* harmonicTouchPressure    = "harmonic_touch_pressure";
+    inline constexpr const char* harmonicFingerWidth      = "harmonic_finger_width";
+    inline constexpr const char* harmonicTouchTime        = "harmonic_touch_time";
+    inline constexpr const char* harmonicBriefTouch       = "harmonic_brief_touch";
+    inline constexpr const char* pinchThumbOffsetMm       = "pinch_thumb_offset_mm";
+    inline constexpr const char* artificialHarmonicOffset = "artificial_harmonic_offset";
+    inline constexpr const char* tappedHarmonicOffset     = "tapped_harmonic_offset";
+    inline constexpr const char* harmonicNoteMapping      = "harmonic_note_mapping";
+
+    // string-interaction.md 7 (+7).
+    inline constexpr const char* couplingAirAmount        = "coupling_air_amount";
+    inline constexpr const char* palmMuteSpread           = "palm_mute_spread";
+    inline constexpr const char* adjacentMuteAmount       = "adjacent_mute_amount";
+    inline constexpr const char* releaseStaggerMs         = "release_stagger_ms";
+    inline constexpr const char* releaseStaggerBias       = "release_stagger_bias";
+    inline constexpr const char* pickupApertureScale      = "pickup_aperture_scale";
+    inline constexpr const char* mutedThumpLevel          = "muted_thump_level";
+
+    // fingerstyle-attack.md 6 (+14).
+    inline constexpr const char* fingerFleshReleaseMs     = "finger_flesh_release_ms";
+    inline constexpr const char* fingerNailReleaseMs      = "finger_nail_release_ms";
+    inline constexpr const char* thumbPositionOffset      = "thumb_position_offset";
+    inline constexpr const char* restStrokeDamping        = "rest_stroke_damping";
+    inline constexpr const char* rhStroke                 = "rh_stroke";
+    inline constexpr const char* rhStyle                  = "rh_style";
+    inline constexpr const char* thumbPalmMute            = "thumb_palm_mute";
+    inline constexpr const char* hybridSnap               = "hybrid_snap";
+
+    /** rh_string_tool_1 ... _6; string 1 is the high E (routing-io.md 3). */
+    inline const char* rhStringTool (int n) noexcept
+    {
+        static constexpr const char* ids[] = { "rh_string_tool_1", "rh_string_tool_2", "rh_string_tool_3",
+                                               "rh_string_tool_4", "rh_string_tool_5", "rh_string_tool_6" };
+        return ids[juce::jlimit (1, 6, n) - 1];
+    }
+
+    /*  bass-techniques.md 11's IDs, which fingerstyle-attack.md 6 reuses and
+        does not duplicate. Read if another workstream declares them. */
+    inline constexpr const char* bassRestStroke             = "rest_stroke";
+    // ==== END REALISM-B params ====
+    // ==== BEGIN REALISM-C params ====
+    // noise-floor.md 3 (noise_amp_buzz, "Single-coil Hum", is ampBuzz above).
+    inline constexpr const char* noiseMainsHz         = "noise_mains_hz";
+    inline constexpr const char* noisePlayerAngle     = "noise_player_angle";
+    inline constexpr const char* noisePlayerDistance  = "noise_player_distance";
+    inline constexpr const char* noiseFluorescent     = "noise_fluorescent";
+    inline constexpr const char* noisePassiveHiss     = "noise_passive_hiss";
+    inline constexpr const char* noiseCableMovement   = "noise_cable_movement";
+    inline constexpr const char* noiseRadio           = "noise_radio";
+    inline constexpr const char* noiseGroundLoop      = "noise_ground_loop";
+    inline constexpr const char* noiseAmpHiss         = "noise_amp_hiss";
+    inline constexpr const char* noiseMicrophonics    = "noise_microphonics";
+    inline constexpr const char* noiseFloorToAux8     = "noise_floor_to_aux8";
+    inline constexpr const char* noiseFloorStyle      = "noise_floor_style";
+
+    // sustain-and-decay.md 6.
+    inline constexpr const char* sustainAttackTransient = "sustain_attack_transient";
+    inline constexpr const char* sustainAttackTime      = "sustain_attack_time";
+    inline constexpr const char* sustainFastShare       = "sustain_fast_share";
+    inline constexpr const char* sustainFastRatio       = "sustain_fast_ratio";
+    inline constexpr const char* sustainTensionMod      = "sustain_tension_mod";
+    inline constexpr const char* sustainReleaseTime     = "sustain_release_time";
+    inline constexpr const char* sustainReleaseSag      = "sustain_release_sag";
+    inline constexpr const char* sustainReleaseRing     = "sustain_release_ring";
+    inline constexpr const char* sustainStyle           = "sustain_style";
+
+    // tuning-stability.md 4.
+    inline constexpr const char* stabilityAmount      = "stability_amount";
+    inline constexpr const char* stabilitySettling    = "stability_settling";
+    inline constexpr const char* stabilityNutBinding  = "stability_nut_binding";
+    inline constexpr const char* stabilityBacklash    = "stability_backlash";
+    inline constexpr const char* stabilitySaddleCreep = "stability_saddle_creep";
+    inline constexpr const char* stabilityBendMemory  = "stability_bend_memory";
+    inline constexpr const char* stabilityCapoBias    = "stability_capo_bias";
+    inline constexpr const char* stabilityAutoRetune  = "stability_auto_retune";
+    // ==== END REALISM-C params ====
+    // ==== BEGIN TUNE-HELP-ONBOARDING params ====
+    // tune-builder.md 14: section parameters the mod matrix and host automation
+    // can move over the tune's timeline. Both at 0 leave every tune as written.
+    inline constexpr const char* tuneFeelMod            = "tune_feel_mod";      ///< -1..1, added to each section's feel
+    inline constexpr const char* tuneTempoDrift         = "tune_tempo_drift";   ///< -10..10 %, the tune's own clock
+    // ==== END TUNE-HELP-ONBOARDING params ====
+
+    // ==== BEGIN FEAT-JAM params ====
+    // jam-mode.md 10: appended in this order and never reordered.
+    inline constexpr const char* jamEnabled         = "jam_enabled";
+    inline constexpr const char* jamPlay            = "jam_play";
+    inline constexpr const char* jamFillNow         = "jam_fill_now";
+    inline constexpr const char* jamStyle           = "jam_style";
+    inline constexpr const char* jamVariation       = "jam_variation";
+    inline constexpr const char* jamIntensity       = "jam_intensity";
+    inline constexpr const char* jamFillEvery       = "jam_fill_every";
+    inline constexpr const char* jamFollow          = "jam_follow";
+    inline constexpr const char* jamPredict         = "jam_predict";
+    inline constexpr const char* jamChordSource     = "jam_chord_source";
+    inline constexpr const char* jamStartMode       = "jam_start_mode";
+    inline constexpr const char* jamCountInBars     = "jam_count_in_bars";
+    inline constexpr const char* jamStopOnSilence   = "jam_stop_on_silence";
+    inline constexpr const char* jamSilenceBars     = "jam_silence_bars";
+    inline constexpr const char* jamEnding          = "jam_ending";
+    inline constexpr const char* jamDynamicsFollow  = "jam_dynamics_follow";
+    inline constexpr const char* jamSwing           = "jam_swing";
+    inline constexpr const char* jamHumanise        = "jam_humanise";
+    inline constexpr const char* jamKit             = "jam_kit";
+    inline constexpr const char* jamKitAuto         = "jam_kit_auto";
+    inline constexpr const char* jamKitTuning       = "jam_kit_tuning";
+    inline constexpr const char* jamKitDamping      = "jam_kit_damping";
+    inline constexpr const char* jamKitRoom         = "jam_kit_room";
+    inline constexpr const char* jamKitWidth        = "jam_kit_width";
+    inline constexpr const char* jamKitPerspective  = "jam_kit_perspective";
+    inline constexpr const char* jamBassVoice       = "jam_bass_voice";
+    inline constexpr const char* jamBassTone        = "jam_bass_tone";
+    inline constexpr const char* jamVolume          = "jam_volume";
+    inline constexpr const char* jamBalance         = "jam_balance";
+    inline constexpr const char* jamDrumsPan        = "jam_drums_pan";
+    inline constexpr const char* jamBassPan         = "jam_bass_pan";
+    inline constexpr const char* jamDrumsMute       = "jam_drums_mute";
+    inline constexpr const char* jamBassMute        = "jam_bass_mute";
+    inline constexpr const char* jamOutput          = "jam_output";
+
+    /** The 34, in table order (JM-36). */
+    inline constexpr const char* const jamParameters[] = {
+        jamEnabled, jamPlay, jamFillNow, jamStyle, jamVariation, jamIntensity, jamFillEvery,
+        jamFollow, jamPredict, jamChordSource, jamStartMode, jamCountInBars, jamStopOnSilence,
+        jamSilenceBars, jamEnding, jamDynamicsFollow, jamSwing, jamHumanise, jamKit, jamKitAuto,
+        jamKitTuning, jamKitDamping, jamKitRoom, jamKitWidth, jamKitPerspective, jamBassVoice,
+        jamBassTone, jamVolume, jamBalance, jamDrumsPan, jamBassPan, jamDrumsMute, jamBassMute,
+        jamOutput };
+    inline constexpr int kNumJamParameters = 34;
+
+    /** jam-mode 10: performance controls, kept out of presets, snapshots,
+        morph and randomise, and off after a host-state reload. */
+    inline bool isJamTransient (const juce::String& id) noexcept
+    {
+        return id == jamPlay || id == jamFillNow;
+    }
+    // ==== END FEAT-JAM params ====
+    // ==== BEGIN SPEC-SWEEP params ====
+    // live-performance 3 (LP-16): the snapshot morph position, automatable and
+    // a modulation destination. Never captured into a snapshot itself.
+    inline constexpr const char* snapshotMorph = "snapshot_morph";
+    // ==== END SPEC-SWEEP params ====
+    // ==== BEGIN FEAT-ASSIST params ====
+    // auto-articulation.md 6: Performance Assist.
+    inline constexpr const char* aaEnabled = "aa_enabled";
+    inline constexpr const char* aaStyle   = "aa_style";
+    inline constexpr const char* aaAmount  = "aa_amount";
+    inline constexpr const char* aaRules   = "aa_rules";
+    // ==== END FEAT-ASSIST params ====
+    // ==== BEGIN FEAT-MIC params ====
+    // mic-placement.md 7: continuous mic placement. The legacy mic_position /
+    // mic_distance pairs above stay for compatibility; the engine no longer
+    // reads them (section 4).
+    inline constexpr const char* micX           = "mic_x";
+    inline constexpr const char* micY           = "mic_y";
+    inline constexpr const char* micDist        = "mic_dist";
+    inline constexpr const char* micAngle       = "mic_angle";
+    inline constexpr const char* micSpeaker     = "mic_speaker";
+    inline constexpr const char* micRear        = "mic_rear";
+    inline constexpr const char* micX2          = "mic_x_2";
+    inline constexpr const char* micY2          = "mic_y_2";
+    inline constexpr const char* micDist2       = "mic_dist_2";
+    inline constexpr const char* micAngle2      = "mic_angle_2";
+    inline constexpr const char* micSpeaker2    = "mic_speaker_2";
+    inline constexpr const char* micRear2       = "mic_rear_2";
+    inline constexpr const char* micTofMode     = "mic_tof_mode";
+    inline constexpr const char* micLevelMatch  = "mic_level_match";
+    inline constexpr const char* acMicMix       = "ac_mic_mix";
+    inline constexpr const char* acMicAlong     = "ac_mic_along";
+    inline constexpr const char* acMicAcross    = "ac_mic_across";
+    inline constexpr const char* acMicDist      = "ac_mic_dist";
+    inline constexpr const char* acMicAngle     = "ac_mic_angle";
+    inline constexpr const char* acMic2On       = "ac_mic_2_on";
+    inline constexpr const char* acMicAlong2    = "ac_mic_along_2";
+    inline constexpr const char* acMicAcross2   = "ac_mic_across_2";
+    inline constexpr const char* acMicDist2     = "ac_mic_dist_2";
+    inline constexpr const char* acMicAngle2    = "ac_mic_angle_2";
+    inline constexpr const char* acMicBlend     = "ac_mic_blend";
+    inline constexpr int kNumMicPlacementParams = 25;
+    // ==== END FEAT-MIC params ====
+    // ==== BEGIN TECHNIQUES params ====
+    // muting-rhythm.md 3
+    inline constexpr const char* muteArmed          = "mute_armed";
+    inline constexpr const char* muteMasterMode     = "mute_master_mode";
+    inline constexpr const char* mutePalmPosition   = "mute_palm_position";
+    inline constexpr const char* mutePalmPressure   = "mute_palm_pressure";
+    inline constexpr const char* muteFrettingStyle  = "mute_fretting_style";
+    inline constexpr const char* muteChukaSource    = "mute_chuka_source";
+    inline constexpr const char* muteHumanise       = "mute_humanise";
+    inline constexpr const char* muteGhostVelocity  = "mute_ghost_velocity";
+
+    // two-hand-tapping.md 3
+    inline constexpr const char* tapArmed           = "tap_armed";
+    inline constexpr const char* tapSource          = "tap_source";
+    inline constexpr const char* tapChannel         = "tap_channel";
+    inline constexpr const char* tapStrengthCurve   = "tap_strength_curve";
+    inline constexpr const char* tapAutoPullOff     = "tap_auto_pulloff";
+    inline constexpr const char* tapHammerThreshold = "tap_hammer_threshold";
+    inline constexpr const char* tapFlick           = "tap_flick";
+    inline constexpr const char* tapDuration        = "tap_duration";
+    inline constexpr const char* tapMaxConcurrent   = "tap_max_concurrent";
+    inline constexpr const char* tapFretSnap        = "tap_fret_snap";
+
+    // microtonal-bends.md 2
+    inline constexpr const char* bendArmed          = "bend_armed";
+    inline constexpr const char* bendGlobalSource   = "bend_global_source";
+    inline constexpr const char* bendGlobalCc       = "bend_global_cc";
+    inline constexpr const char* bendGlobalRange    = "bend_global_range";
+    inline constexpr const char* bendStringSource   = "bend_string_source";
+    inline constexpr const char* bendStringCc       = "bend_string_cc";
+    juce::String bendStringRange (int stringNumber);   ///< 1-6: "bend_string_range_1" ...
+    inline constexpr const char* bendVibratoSource  = "bend_vibrato_source";
+    inline constexpr const char* bendVibratoRate    = "bend_vibrato_rate";
+    inline constexpr const char* bendVibratoDepth   = "bend_vibrato_depth";
+    inline constexpr const char* bendVibratoOnset   = "bend_vibrato_onset";
+    inline constexpr const char* bendQuantise       = "bend_quantise";
+    inline constexpr const char* bendSnap           = "bend_snap";
+    inline constexpr const char* bendPreBendAmount  = "bend_prebend_amount";
+    inline constexpr const char* bendPreBendTrigger = "bend_prebend_trigger";
+    inline constexpr const char* bendPreBendCc      = "bend_prebend_cc";
+    inline constexpr const char* bendPreBendRelease = "bend_prebend_release";
+    inline constexpr const char* bendCurve          = "bend_curve";
+    inline constexpr const char* bendReleaseCurve   = "bend_release_curve";
+
+    // slide-technique-controls.md 1
+    inline constexpr const char* slidePosSource       = "slide_pos_source";
+    inline constexpr const char* slidePosCc           = "slide_pos_cc";
+    inline constexpr const char* slidePosMode         = "slide_pos_mode";
+    inline constexpr const char* slidePosRange        = "slide_pos_range";
+    inline constexpr const char* slideSlantSource     = "slide_slant_source";
+    inline constexpr const char* slideSlantCc         = "slide_slant_cc";
+    inline constexpr const char* slidePressureSource  = "slide_pressure_source";
+    inline constexpr const char* slidePressureCc      = "slide_pressure_cc";
+    inline constexpr const char* slideContact         = "slide_contact";
+    inline constexpr const char* slideSpeedLimit      = "slide_speed_limit";
+    inline constexpr const char* slideAutoVibrato     = "slide_auto_vibrato";
+    inline constexpr const char* slideAutoVibDepth    = "slide_auto_vib_depth";
+    inline constexpr const char* slideAutoVibRate     = "slide_auto_vib_rate";
+    inline constexpr const char* slideGestureTrigger  = "slide_gesture_trigger";
+    inline constexpr const char* slideGestureCc       = "slide_gesture_cc";
+    inline constexpr const char* slideGestureFrom     = "slide_gesture_from";
+    inline constexpr const char* slideGestureTo       = "slide_gesture_to";
+    inline constexpr const char* slideGestureTime     = "slide_gesture_time";
+    inline constexpr const char* slideGestureCurve    = "slide_gesture_curve";
+    inline constexpr const char* slideGestureSlantStart = "slide_gesture_slant_start";
+    inline constexpr const char* slideGestureSlantEnd = "slide_gesture_slant_end";
+    inline constexpr const char* slideGesturePressure = "slide_gesture_pressure";
+
+    /** The count this block adds (64), for the integration test's arithmetic. */
+    inline constexpr int kTechniquesParamCount = 64;
+    // ==== END TECHNIQUES params ====
+    // ==== BEGIN FEAT-SAT params ====
+    inline constexpr const char* fxSaturation = "fx_saturation";
+    /** The count this block adds (1), for the integration test's arithmetic. */
+    inline constexpr int kFeatSatParamCount = 1;
+    // ==== END FEAT-SAT params ====
 }
 
 //==============================================================================
@@ -346,6 +662,7 @@ public:
     static juce::StringArray stringMaterialNames();
     static juce::StringArray stringGaugeNames();
     static juce::StringArray stringAgeNames();
+    static juce::StringArray envProfileNames();   // environment.md 3.1 (REALISM-A)
     static juce::StringArray pickMaterialNames();
     static juce::StringArray bodyModeNames();
     static juce::StringArray bracingNames();
@@ -388,6 +705,12 @@ public:
     static juce::StringArray roomMaterialNames();
     static juce::StringArray pedalTypeNames();
     static juce::StringArray oversamplingNames();
+
+    /** FEAT-ASSIST (auto-articulation.md 4.2, 11): the four aa_* values as the
+        engine plays them - Free resolves a Pro style to its nearest Free one
+        and plays every rule. */
+    static AutoArticulationSettings effectiveAssistSettings (bool enabled, int style, float amountPercent,
+                                                             int rules, Edition edition) noexcept;
 };
 
 //==============================================================================
@@ -405,12 +728,31 @@ public:
     /** Called at the top of processBlock. Real-time safe. */
     void applyToEngine() noexcept;
 
+    // ==== BEGIN FEAT-JAM params ====
+    /** jam-mode 10: the Jam parameters as JamSettings. The band belongs to
+        the processor (0.2), so this is read every block whether or not the
+        engine lock was taken. Real-time safe. */
+    JamSettings readJam() const noexcept;
+    // ==== END FEAT-JAM params ====
+
     /** Applies everything including structural changes. Message thread only;
         used after a preset load. */
     void applyAllNow();
 
     /** True while a structural change is pending. */
     bool isStructuralChangePending() const noexcept { return structuralPending.load(); }
+
+    /*  Held by the message thread while it rebuilds engine structure (a guitar,
+        a pedal, a body IR) and try-locked by the audio thread around the block.
+        Without it the structural pass ran concurrently with processBlock and
+        freed what the audio thread was using: pluginval's Automation test
+        aborted with "double free or corruption", in ReverbPedal::rebuildLines
+        and RoomEngine::rebuild (docs/audit/BETA_TEST_REPORT.md B-01). */
+    juce::CriticalSection& getEngineLock() noexcept { return engineLock; }
+    /** Runs a pending structural change now, on the calling (message) thread:
+        a host that saves state straight after changing a guitar type must get
+        the state that change produces, not the one before it. */
+    void flushPendingStructuralChange() { handleUpdateNowIfNeeded(); }
 
     /** A preset has just written its pedal types AND their parameters: build
         those pedals keeping the parameters. The structural path otherwise
@@ -433,12 +775,22 @@ public:
     void setModMatrix (ModMatrix* matrix) noexcept { modMatrix = matrix; }
     ModMatrix* getModMatrix() const noexcept { return modMatrix; }
 
+    /** True if `id` was written (by anyone) after the guitar type last was. */
+    bool writtenSinceGuitarType (const juce::String& id) const noexcept;
+
+    /** While false, writes are not stamped for writtenSinceGuitarType(): the
+        processor's own guitar-parameter writes are the guitar's, not the host's. */
+    void setStampingWrites (bool stamp) noexcept { stampingWrites.store (stamp, std::memory_order_relaxed); }
+
+
     /** The unmodulated value, for the UI, which shows the control where
         automation put it rather than where modulation has pushed it. */
     float baseValue (const juce::String& id) const noexcept;
+    float baseValue (const char* id) const noexcept;
 
     /** The parameter's index in the processor's parameter list, or -1. */
     int parameterIndex (const juce::String& id) const noexcept;
+    int parameterIndex (const char* id) const noexcept;
 
     /*  guitar-workshop.md 0.6: a guitar type is a shortcut to a factory
         guitar file. When the type changes the bridge asks this to load it;
@@ -449,6 +801,12 @@ public:
         thread. */
     std::function<bool (GuitarType)> onLoadGuitarType;
 
+    /*  Called around every structural pass on the message thread, outermost
+        pass only: the processor fades its output out before (so a ringing note
+        is not cut mid-cycle - a preset switch clicked at 0.32 of full scale,
+        BETA_TEST_REPORT B-06) and back in after. */
+    std::function<void()> beforeStructuralChange, afterStructuralChange;
+
 private:
     void handleAsyncUpdate() override;
     void applyStructural();
@@ -458,6 +816,32 @@ private:
 
     std::atomic<float>* raw (const juce::String& id) const noexcept;
     float value (const juce::String& id) const noexcept;
+
+    /*  engine.md 0 (no allocation on the audio thread): the audio thread reads
+        parameters by their const char* IDs through this table, built on the
+        message thread in cachePointers(). A juce::String built from a literal
+        allocates, and applyToEngine used to build hundreds per block. */
+    struct FastEntry
+    {
+        juce::uint64 hash = 0;
+        std::string id;
+        std::atomic<float>* pointer = nullptr;
+        int index = -1;
+    };
+
+    static juce::uint64 hashId (const char* id) noexcept;
+    const FastEntry* find (const char* id) const noexcept;
+    std::atomic<float>* raw (const char* id) const noexcept;
+    float value (const char* id) const noexcept;
+
+    std::vector<FastEntry> fastTable;
+    size_t fastMask = 0;
+
+    // The pedal slots' IDs, built once so the audio thread never formats them.
+    std::array<std::array<std::string, EffectsChain::kNumSlots>, 2> slotBypassIds, slotMixIds, slotTypeIds;
+    std::array<std::array<std::array<std::string, Pedal::kMaxParams>, EffectsChain::kNumSlots>, 2> slotParamIds;
+    std::array<std::string, PickupEngine::kMaxPickups> pickupTypeIds, pickupMagnetIds, pickupVolumeIds;
+    std::array<std::string, ParamIDs::kNumNutDepths + 1> nutDepthIds;
 
     juce::AudioProcessorValueTreeState& apvts;
     LuthierEngine& engine;
@@ -472,15 +856,30 @@ private:
         the type, and gets its own defaults when they were not. Counters, so
         the listener is lock-free on whatever thread sets the parameter. */
     void parameterValueChanged (int parameterIndex, float newValue) override;
-    void parameterGestureChanged (int, bool) override {}
+    void parameterGestureChanged (int parameterIndex, bool starting) override;
+
+    /*  guitar-workshop 0.6 / host-integration 3: the order the host wrote
+        parameters in, per parameter. A guitar type is a shortcut that writes
+        the parameters its parts overlap; one the host wrote after the type
+        (a session restoring both, automation at the same time) is kept. */
+    std::unique_ptr<std::atomic<juce::uint32>[]> lastWrite;
+    std::unique_ptr<std::atomic<bool>[]> inGesture;       ///< per parameter: a player is holding it
+    std::atomic<bool> guitarTypeByPlayer { false };        ///< the last guitar type write was a player's pick
+    std::array<std::array<std::atomic<bool>, EffectsChain::kNumSlots>, 2> typeByPlayer {};
+    int numLastWrite = 0;
+    int guitarTypeIndex = -1;
 
     std::vector<int> slotOfParameter;      ///< parameter index -> (chain * slots + slot) * 16 + (param, or 15 for the type)
     std::atomic<juce::uint32> writeSerial { 0 };
+    std::atomic<bool> stampingWrites { true };
     std::array<std::array<std::atomic<juce::uint32>, EffectsChain::kNumSlots>, 2> typeWritten {};
     std::array<std::array<std::atomic<juce::uint32>, EffectsChain::kNumSlots>, 2> paramsWritten {};
     juce::Array<juce::AudioProcessorParameter*> watched;
 
     ModMatrix* modMatrix = nullptr;
+
+    juce::CriticalSection engineLock;
+    int structuralDepth = 0;   ///< message thread: nesting of structural passes
 
     // Cached structural selections, so a change is detected exactly once.
     int lastGuitarType = -1;
@@ -501,6 +900,9 @@ private:
     int lastBridgeType = -1;
     int lastPlayingMode = -1;
     int lastTemperament = -1;
+    // A controller profile owns MPE and the bend range once chosen; the
+    // parameters are pushed to the interpreter only when they change.
+    float lastMpeEnabled = -1.0f, lastBendRange = -1.0f;
 
     /*  The capo is structural: it changes what every open string sounds and how
         many frets are left, so the engine has to be told rather than having it

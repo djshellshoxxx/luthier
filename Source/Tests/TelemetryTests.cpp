@@ -545,6 +545,7 @@ LUTHIER_TEST (Telemetry, crashReportDescribesItself)
 }
 
 //==============================================================================
+#if LUTHIER_PRO
 /*  updates-telemetry 5: the licence key never leaves the machine after
     activation, and the grace period keeps a laptop working offline. */
 LUTHIER_TEST (Telemetry, licenceActivationAndGrace)
@@ -657,3 +658,5 @@ LUTHIER_TEST (Telemetry, revalidationCountdownAndOfflineTolerance)
     CHECK (none.getDaysUntilRevalidation() == 0);
     CHECK (! none.revalidate ("https://licence.example.invalid/revalidate"));
 }
+
+#endif // LUTHIER_PRO

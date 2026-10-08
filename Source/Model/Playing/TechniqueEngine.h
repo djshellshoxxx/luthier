@@ -36,6 +36,17 @@ public:
     void setPinchHarmonicTrigger (bool on) noexcept { pinchTrigger = on; }
     void setNaturalHarmonicTrigger (bool on) noexcept { harmonicTrigger = on; }
     void setTapTrigger (bool on) noexcept { tapTrigger = on; }
+
+    /** harmonic-realism.md 6: CC 103 and CC 104, held. */
+    void setArtificialHarmonicTrigger (bool on) noexcept { artificialTrigger = on; }
+    void setTappedHarmonicTrigger (bool on) noexcept { tappedHarmonicTrigger = on; }
+    bool isNaturalHarmonicTriggerHeld() const noexcept { return harmonicTrigger; }
+    bool isArtificialHarmonicTriggerHeld() const noexcept { return artificialTrigger; }
+    bool isHarmonicVelocityTriggerEnabled() const noexcept { return harmonicVelocityTrigger; }
+
+    /** True when the last decide() returned Tap because the tapped-harmonic
+        trigger was held (a Tap with a touch, harmonic-realism.md 3). */
+    bool lastDecisionWasTappedHarmonic() const noexcept { return lastTappedHarmonic; }
     void setSlideMode (bool on) noexcept { slideMode = on; }
     void setSlideGuitarMode (bool on) noexcept { slideGuitarMode = on; }
     void setFretlessMode (bool on) noexcept { fretless = on; }
@@ -48,6 +59,14 @@ public:
     void setHarmonicVelocityThreshold (double v) noexcept { harmonicVelocity = juce::jlimit (0.0, 1.0, v); }
     void setHarmonicVelocityTriggerEnabled (bool e) noexcept { harmonicVelocityTrigger = e; }
 
+    /** harmonic-realism.md 4.2: whether the next note at this velocity will be a
+        natural harmonic (nothing of higher priority held). */
+    bool isNaturalHarmonicArmed (double velocity) const noexcept
+    {
+        return palmMute <= 0.05 && ! pinchTrigger
+               && (harmonicTrigger || (harmonicVelocityTrigger && velocity >= harmonicVelocity));
+    }
+
     /** Legato window: notes closer together than this on the same string are read
         as a slide rather than two separate articulations. */
     void setLegatoWindowMs (double ms) noexcept { legatoWindowMs = juce::jlimit (5.0, 400.0, ms); }
@@ -58,6 +77,12 @@ public:
     void setLegatoVelocityThreshold (double v) noexcept { legatoVelocity = juce::jlimit (0.0, 1.0, v); }
 
     void setHammerOnEnabled (bool e) noexcept { hammerOnEnabled = e; }
+
+    /*  two-hand-tapping.md 5 (TECHNIQUES): with tapping armed, a soft note on
+        a ringing string within this many ms of the last is a hammer-on or
+        pull-off before it is a slide. 0 (the default) leaves the rules as
+        they were. */
+    void setHammerOnWindowMs (double ms) noexcept { hammerOnWindowMs = juce::jmax (0.0, ms); }
     void setSlideEnabled (bool e) noexcept { slideEnabled = e; }
 
     //==========================================================================
@@ -77,6 +102,19 @@ public:
                       int& harmonicPartial,
                       double& slideFromFret) noexcept;
 
+    /** auto-articulation.md 4.2 (FEAT-ASSIST): the same decision, and whether a
+        controller trigger chose it (the explicit branches: palm mute, pinch,
+        harmonic trigger or velocity, tap, slide guitar, muted pick, Slide
+        Mode). */
+    Technique decide (int stringIndex, double newFret, double velocity, int64_t timestampSamples,
+                      int& harmonicPartial, double& slideFromFret, bool& explicitOut) noexcept;
+
+    /** FEAT-ASSIST: false while Performance Assist owns legato (its rule 1 or 2
+        on); decide() then skips its own hammer-on / slide inference. */
+    void setLegatoInferenceEnabled (bool e) noexcept { legatoInference = e; }
+    bool isLegatoInferenceEnabled() const noexcept { return legatoInference; }
+    bool isSlideMode() const noexcept { return slideMode; }
+
     /** Records that a note ended, so the next note on that string is not treated
         as legato. */
     void noteEnded (int stringIndex, int64_t timestampSamples) noexcept;
@@ -92,7 +130,8 @@ public:
     double slideDurationFor (double semitoneDistance) const noexcept;
 
     /** The partial a natural harmonic at a given fret produces. Returns 0 if that
-        fret is not a node. */
+        fret is not a node. harmonic-realism.md 4.1: the analytic node search
+        (default 648 mm scale, 2.5 mm finger), so fret 3.86 is partial 5. */
     static int harmonicPartialForFret (double fret) noexcept;
 
 private:
@@ -115,6 +154,9 @@ private:
     bool pinchTrigger = false;
     bool harmonicTrigger = false;
     bool tapTrigger = false;
+    bool artificialTrigger = false;
+    bool tappedHarmonicTrigger = false;
+    bool lastTappedHarmonic = false;
     bool slideMode = false;
     bool slideGuitarMode = false;
     bool fretless = false;
@@ -126,6 +168,8 @@ private:
     double legatoVelocity = 0.63;
 
     bool hammerOnEnabled = true;
+    bool legatoInference = true;   // FEAT-ASSIST
+    double hammerOnWindowMs = 0.0;   // TECHNIQUES
     bool slideEnabled = true;
 };
 

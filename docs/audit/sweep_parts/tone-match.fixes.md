@@ -1,0 +1,11 @@
+- [TM-5] NO-TEST: the fit runs on a worker (dsp2); a test needs a hook into the private wizard
+- [TM-15] effort S — add a UI test constructing `IrSlotEditor`, calling `isInterestedInFileDrag`/`filesDropped` with a temp WAV and asserting the slot loads; assert chooser root == `IrLibraryPaths::getRoot()` (expose a getter).
+- [TM-16] effort M — add a recent-IRs MRU (20 entries) persisted in `UiPreferences` (or `PropertiesFile`), updated in `IrSlot` load via `IrSlotEditor::load`; add a "Recent" popup/ComboBox on each slot card and in the library section; test `ToneMatch::recentIrsKeepTheLastTwenty`.
+- [TM-18] effort M — add `ToneMatch::cabMatchWizardRecordsReferenceThenOwnOutput`: drive `MatchWizard` (friend/test hooks) with a processor fed a sidechain buffer, assert step progression and that `reference`/`current` are filled from the right sources.
+- [TM-21] PARTIAL: saveIr + sidecar tested (dsp2); the wizard finish auto-load path is covered only by code review
+- [TM-30] effort M — extend `Capture::Source` with `di` and `perString` (per-string needs the engine's per-string bus/tap, cf. routing-io multi-out), feed them in `PluginProcessor::processBlock`; add a source ComboBox to the capture pane; test each source records non-silence.
+- [TM-37] effort S — UI test constructing `ToneMatchPanel`, clicking the Cab/EQ Match action buttons and asserting step text advances / `Capture::isRecording()`.
+- [TM-39] effort M — add a "User IR folders" list to Options (OptionsPages) persisted in preferences; make `IrLibraryPaths::toPresetPath/fromPresetPath` try each registered folder (store `folderIndex:relative` or a folder alias); extend the test.
+- [TM-42] effort S — tighten `sweepDeconvolutionRecoversTheSourceIr` (or add a sibling) to the spec's -60 dBFS null on a band-limited comparison; if unattainable with current regularisation, improve `CabMatch::deconvolve` inverse-filter windowing.
+- [TM-43] effort S — add the notch curve to `eqMatchFitsKnownCurves` and tighten to 1 dB inside the fit band (or document in DECISIONS.md why 2.5 dB and relax the spec).
+- [TM-44] effort M — add `ToneMatch::sixtySecondCaptureNullsTheOfflineRender`: run the processor for 60 s with a deterministic MIDI phrase while capturing main out, render the same phrase offline into a second buffer, assert null <= -80 dBFS.

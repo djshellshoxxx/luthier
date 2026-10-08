@@ -1,7 +1,21 @@
 #include "Snapshots.h"
+#include "../Parameters.h"   // FEAT-JAM: ParamIDs::isJamTransient
+#include "../Support/ConfigChangeTracker.h"   // output-normalization.md 3.2
+#include "../Presets/MicPlacementMigration.h"   // mic-placement.md 4
+
+#include "../Parameters.h"
+#include "../PhysicalRange.h"   // SPEC-SWEEP: AR-21
 
 namespace luthier
 {
+
+/*  SPEC-SWEEP: LP-16 - the morph position is what drives a morph between two
+    snapshots, so a snapshot never captures or restores it: a snapshot that did
+    would move the knob it is being morphed by. */
+static bool isNeverSnapshotted (const juce::String& id) noexcept
+{
+    return id == ParamIDs::snapshotMorph;
+}
 
 //==============================================================================
 const char* getMorphCurveName (MorphCurve curve) noexcept
@@ -91,6 +105,12 @@ juce::var Snapshot::toVar() const
     object->setProperty ("colour", colourTag);
     object->setProperty ("parameters", parameters);
 
+    if (physicalPlain.getDynamicObject() != nullptr)   // SPEC-SWEEP: AR-21
+        object->setProperty ("physical", physicalPlain);
+
+    if (! includesModulation)                           // SPEC-SWEEP: MM-49
+        object->setProperty ("includesModulation", false);
+
     if (modMatrix.getDynamicObject() != nullptr) object->setProperty ("modMatrix", modMatrix);
     if (rhythm.getDynamicObject() != nullptr)    object->setProperty ("rhythm", rhythm);
     if (bypasses.getDynamicObject() != nullptr)  object->setProperty ("bypasses", bypasses);
@@ -114,6 +134,9 @@ Snapshot Snapshot::fromVar (const juce::var& state)
                                        (int) object->getProperty ("colour"));
 
     snapshot.parameters = object->getProperty ("parameters");
+    snapshot.physicalPlain = object->getProperty ("physical");   // SPEC-SWEEP: AR-21
+    snapshot.includesModulation = ! object->hasProperty ("includesModulation")
+                                    || (bool) object->getProperty ("includesModulation");   // SPEC-SWEEP: MM-49
     snapshot.modMatrix  = object->getProperty ("modMatrix");
     snapshot.rhythm     = object->getProperty ("rhythm");
     snapshot.bypasses   = object->getProperty ("bypasses");
@@ -135,8 +158,12 @@ bool SnapshotBank::isDiscrete (const juce::AudioProcessorParameter& parameter) n
     // A choice or a boolean has no meaningful value between two settings. Asking
     // the parameter itself rather than testing its type catches the custom
     // parameter classes too.
+    // Integer parameters too: here they are string bitmasks and CC numbers,
+    // where a value between two settings is a different mask or controller
+    // (a morph from strings 1-2 to 5-6 passed through arbitrary subsets).
     return parameter.isDiscrete() || parameter.isBoolean()
-             || parameter.getNumSteps() <= 2;
+             || parameter.getNumSteps() <= 2
+             || dynamic_cast<const juce::AudioParameterInt*> (&parameter) != nullptr;
 }
 
 //==============================================================================
@@ -179,9 +206,21 @@ bool SnapshotBank::capture (int index, const juce::String& label, int colourTag)
 
     for (auto* p : processor.getParameters())
         if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (p))
-            parameters->setProperty (withId->paramID, (double) withId->getValue());
+            if (! isNeverSnapshotted (withId->paramID)              // SPEC-SWEEP: LP-16
+                 && ! ParamIDs::isJamTransient (withId->paramID))   // FEAT-JAM: jam-mode 10
+                parameters->setProperty (withId->paramID, (double) withId->getValue());
 
     snapshot.parameters = juce::var (parameters);
+
+    // SPEC-SWEEP: AR-21 - and the physical ones as plain values.
+    auto* plain = new juce::DynamicObject();
+
+    for (auto* p : processor.getParameters())
+        if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (p))
+            if (! isNeverSnapshotted (ranged->paramID) && RangeRegistry::find (ranged->paramID) != nullptr)
+                plain->setProperty (ranged->paramID, (double) ranged->convertFrom0to1 (ranged->getValue()));
+
+    snapshot.physicalPlain = juce::var (plain);
 
     if (label.isNotEmpty())
         snapshot.label = label.substring (0, Snapshot::kMaxLabelLength);
@@ -266,7 +305,7 @@ bool SnapshotBank::recall (int index)
     if (crossfadeMs <= 0.0)
     {
         // No crossfade asked for: apply it outright and be done inside this call.
-        applyBlend (recallFrom, target.parameters, 1.0, false);
+        applyBlend (recallFrom, liveParameters (target), 1.0, false);
         applyNonParameterState (target);
 
         recallActive = false;
@@ -297,7 +336,7 @@ void SnapshotBank::advance (double secondsElapsed)
 
     const auto& target = getSnapshot (recallTarget);
 
-    applyBlend (recallFrom, target.parameters, recallPosition, false);
+    applyBlend (recallFrom, liveParameters (target), recallPosition, false);
 
     // live-performance 1: bypass changes land on the crossfade midpoint, and the
     // rest of the non-parameter state goes with them.
@@ -315,6 +354,34 @@ void SnapshotBank::advance (double secondsElapsed)
 }
 
 //==============================================================================
+juce::var SnapshotBank::liveParameters (const Snapshot& snapshot) const
+{
+    auto* plain = snapshot.physicalPlain.getDynamicObject();
+    auto* stored = snapshot.parameters.getDynamicObject();
+
+    if (plain == nullptr || stored == nullptr)
+        return snapshot.parameters;
+
+    auto* resolved = new juce::DynamicObject();
+
+    for (const auto& property : stored->getProperties())
+        resolved->setProperty (property.name, property.value);
+
+    for (auto* p : processor.getParameters())
+    {
+        auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (p);
+
+        if (ranged == nullptr || ! plain->hasProperty (ranged->paramID))
+            continue;
+
+        const auto& range = ranged->getNormalisableRange();
+        const float value = juce::jlimit (range.start, range.end, (float) (double) plain->getProperty (ranged->paramID));
+        resolved->setProperty (ranged->paramID, (double) range.convertTo0to1 (value));
+    }
+
+    return juce::var (resolved);
+}
+
 void SnapshotBank::applyBlend (const juce::var& from, const juce::var& to, double blend,
                                bool honourExclusions)
 {
@@ -324,13 +391,16 @@ void SnapshotBank::applyBlend (const juce::var& from, const juce::var& to, doubl
     if (toObject == nullptr)
         return;
 
+    // output-normalization.md 3.2: a snapshot is a performance, not a new sound.
+    const PerformanceWriteScope performanceWrites;
+
     const double b = juce::jlimit (0.0, 1.0, blend);
 
     for (auto* p : processor.getParameters())
     {
         auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (p);
 
-        if (withId == nullptr)
+        if (withId == nullptr || isNeverSnapshotted (withId->paramID))   // SPEC-SWEEP: LP-16
             continue;
 
         const juce::Identifier id (withId->paramID);
@@ -418,7 +488,7 @@ void SnapshotBank::setMorphPosition (double position)
     const double shaped = applyMorphCurve (morphPosition, morphCurve,
                                            bezier[0], bezier[1], bezier[2], bezier[3]);
 
-    applyBlend (a.parameters, b.parameters, shaped, true);
+    applyBlend (liveParameters (a), liveParameters (b), shaped, true);
 }
 
 void SnapshotBank::setParameterExcludedFromMorph (const juce::String& parameterId, bool excluded)
@@ -482,7 +552,12 @@ void SnapshotBank::fromVar (const juce::var& state)
     if (const auto* array = root->getProperty ("snapshots").getArray())
         for (const auto& item : *array)
             if ((int) snapshots.size() < kMaxSnapshots)
+            {
                 snapshots.push_back (Snapshot::fromVar (item));
+
+                // mic-placement.md 4: a snapshot from before continuous placement.
+                MicPlacementMigration::apply (snapshots.back().parameters, processor);
+            }
 
     if (root->hasProperty ("crossfadeMs"))
         setCrossfadeMs ((double) root->getProperty ("crossfadeMs"));

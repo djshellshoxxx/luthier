@@ -117,12 +117,13 @@ namespace
         {
             auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (p);
 
-            if (withId == nullptr)
+            // SPEC-SWEEP: LP-16 - the morph position is never snapshotted.
+            if (withId == nullptr || withId->paramID == ParamIDs::snapshotMorph)
                 continue;
 
             const auto entry = expected.find (withId->paramID);
 
-            if (entry == expected.end())
+            if (entry == expected.end() || ParamIDs::isJamTransient (withId->paramID))   // FEAT-JAM: never in a snapshot
                 continue;
 
             if (std::abs ((double) withId->getValue() - entry->second) > tolerance)

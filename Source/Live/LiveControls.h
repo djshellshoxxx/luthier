@@ -51,6 +51,10 @@ public:
 
     void processBlock (juce::AudioBuffer<float>& buffer) noexcept;
 
+    /** jam-mode.md 7 (FEAT-JAM): applies this block's ramp again, to a signal
+        mixed in after processBlock (the Jam band), without advancing it. */
+    void applyBlockRamp (juce::AudioBuffer<float>& buffer, int numSamples) const noexcept;
+
     /** The current gain, for tests and for the UI. */
     double getGain() const noexcept { return gain; }
 
@@ -58,6 +62,7 @@ private:
     double sr = 44100.0;
     double gain = 1.0;
     double step = 1.0;
+    double blockStartGain = 1.0, blockTarget = 1.0;   ///< FEAT-JAM: the last block's ramp
 
     std::atomic<bool> active { false };
 
@@ -222,6 +227,10 @@ public:
 
     juce::Array<int> getCalibratedCcNumbers() const;
 
+    /** SPEC-SWEEP (IR-11): bumped by every change to the calibrations, so the
+        processor knows when to republish its audio-thread lookup table. */
+    juce::uint32 getVersion() const noexcept { return version; }
+
     //==========================================================================
     /** The running state of the calibration wizard (live-performance 8). */
     enum class WizardStage { idle = 0, heel, toe, done };
@@ -251,6 +260,7 @@ public:
 private:
     std::array<ExpressionCalibration, 128> calibrations {};
     std::array<bool, 128> present {};
+    juce::uint32 version = 0;   // SPEC-SWEEP IR-11
 
     // --- wizard --------------------------------------------------------------------
     WizardStage stage = WizardStage::idle;

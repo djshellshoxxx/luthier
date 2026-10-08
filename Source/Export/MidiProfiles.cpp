@@ -86,6 +86,35 @@ namespace
         return juce::MidiMessage::textMetaEvent (1, text);
     }
 
+    /** Strict UTF-8: every continuation byte is 10xxxxxx and nothing is NUL.
+        CharPointer_UTF8::isValidString accepts a lead byte followed by a NUL
+        (C3 00 passes its range check), and walking such a String reads past its
+        terminator - found by ASan on a byte-flipped file. */
+    bool isStrictUtf8 (const juce::uint8* bytes, size_t size) noexcept
+    {
+        for (size_t i = 0; i < size;)
+        {
+            const auto lead = bytes[i];
+
+            if (lead == 0)
+                return false;
+
+            const int extra = lead < 0x80 ? 0 : lead < 0xc2 ? -1 : lead < 0xe0 ? 1
+                            : lead < 0xf0 ? 2 : lead < 0xf5 ? 3 : -1;
+
+            if (extra < 0 || i + (size_t) extra >= size)
+                return false;
+
+            for (int k = 1; k <= extra; ++k)
+                if ((bytes[i + (size_t) k] & 0xc0) != 0x80)
+                    return false;
+
+            i += (size_t) extra + 1;
+        }
+
+        return true;
+    }
+
     /** A meta's text: UTF-8 when it is, Latin-1 when it is not, never an assertion. */
     juce::String readText (const juce::uint8* data, const MidiProfiles::SmfEvent& event)
     {
@@ -94,7 +123,8 @@ namespace
 
         const auto* text = reinterpret_cast<const char*> (data + event.dataOffset);
 
-        if (juce::CharPointer_UTF8::isValidString (text, (int) event.dataSize))
+        if (isStrictUtf8 (data + event.dataOffset, event.dataSize)
+              && juce::CharPointer_UTF8::isValidString (text, (int) event.dataSize))
             return juce::String::fromUTF8 (text, (int) event.dataSize);
 
         juce::String latin;
@@ -1243,9 +1273,50 @@ juce::MemoryBlock exportToMemory (const MidiPerformance& source, const MidiExpor
         chosen = &extracted;
     }
 
+    const bool luthier = options.profile == MidiProfile::luthier;
+
+    /*  SPEC-SWEEP BT-25 (bass-techniques 10): Generic has no BASS_TECH, so the
+        slap/ghost distinction is kept the only way it can be - in velocity. A
+        slap, pop or thump is at least 110; a ghost at most 30. */
+    MidiPerformance velocityAdjusted;
+
+    if (! luthier && chosen->countEvents (LuthierEventClass::bassTech) > 0)
+    {
+        velocityAdjusted = *chosen;
+        auto& messages = velocityAdjusted.getMessagesForEditing();
+        const auto window = (juce::int64) (0.002 * velocityAdjusted.getSampleRate());
+
+        for (const auto& event : chosen->getEvents())
+        {
+            if (event.eventClass != LuthierEventClass::bassTech)
+                continue;
+
+            const auto tech = event.get ("tech");
+            const bool ghost = tech == "ghost";
+            const bool strike = tech == "slap" || tech == "pop" || tech == "thump";
+
+            if (! ghost && ! strike)
+                continue;
+
+            for (auto& m : messages)
+            {
+                if (! m.message.isNoteOn() || std::abs (m.sample - event.sample) > window)
+                    continue;
+
+                const int velocity = m.message.getVelocity();
+                const int adjusted = ghost ? juce::jmin (velocity, 30) : juce::jmax (velocity, 110);
+
+                if (adjusted != velocity)
+                    m.message = juce::MidiMessage::noteOn (m.message.getChannel(), m.message.getNoteNumber(),
+                                                           (juce::uint8) adjusted);
+            }
+        }
+
+        chosen = &velocityAdjusted;
+    }
+
     const auto& performance = *chosen;
 
-    const bool luthier = options.profile == MidiProfile::luthier;
     const int ppq = options.getPpq();
     const auto tempo = makeFileTempoMap (performance, ppq);
 

@@ -12,10 +12,13 @@
     be shown without them.
 */
 
+#include "AnimationPolicy.h"   // cpu-quality-modes 6
 #include <juce_gui_basics/juce_gui_basics.h>
+#include "Guitar/GuitarThumbnails.h"
 #include "Widgets.h"
 #include "OptionsPages.h"
 #include "HelpTab.h"
+#include "OwnedFileChooser.h"
 #include "../DSP/Common/DspCommon.h"
 
 namespace luthier
@@ -44,6 +47,7 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
     bool keyPressed (const juce::KeyPress&) override;
+    std::unique_ptr<juce::AccessibilityHandler> createAccessibilityHandler() override;
 
     /** The area inside the title bar and padding, where subclasses put content. */
     juce::Rectangle<int> getContentBounds() const;
@@ -111,8 +115,13 @@ public:
     void resized() override;
     void mouseDown (const juce::MouseEvent&) override;
 
+    /** SPEC-SWEEP: A11Y-11 - the control that had focus when the overlay
+        opened, which gets it back on dismiss. */
+    juce::Component* getLauncher() const noexcept { return launcher.getComponent(); }
+
 private:
     OverlayPanel* current = nullptr;
+    juce::Component::SafePointer<juce::Component> launcher;   // SPEC-SWEEP: A11Y-11
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OverlayHost)
 };
@@ -175,6 +184,10 @@ private:
     int lastStreamCount = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (DebugPanel)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "DebugPanel" };
 };
 
 //==============================================================================
@@ -199,7 +212,7 @@ public:
 
     /** Opens the page holding the rebindable shortcut table (accessibility 2's
         "show all shortcuts" surface). */
-    void showShortcutTable();
+    void showShortcutTable (const juce::String& filter = {});
 
     /*  The Diagnostics page offers the debug window, and an overlay cannot put
         another overlay on screen - only the editor can - so the request comes out
@@ -272,68 +285,13 @@ private:
     juce::File importedMidiFile;
     double progress = 0.0;
 
+    OwnedFileChooser fileChooser;   // dies (and so cancels) with the panel
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ExportPanel)
-};
-
-//==============================================================================
-/** The preset browser: categories, search, tags, load, delete. */
-class PresetBrowserPanel : public OverlayPanel,
-                           private juce::ChangeListener
-{
-public:
-    explicit PresetBrowserPanel (LuthierAudioProcessor& processor);
-    ~PresetBrowserPanel() override;
-
-    juce::Point<int> getPreferredSize() const override { return { 780, 560 }; }
-
-    /** Raised when the user asks to save the current sound as a new preset. */
-    std::function<void()> saveAsPanelRequested;
-
-    void overlayShown() override;
-
-protected:
-    void layoutContent (juce::Rectangle<int> content) override;
 
 private:
-    void changeListenerCallback (juce::ChangeBroadcaster*) override;
-    void rebuildList();
-    void loadSelected();
-
-    LuthierAudioProcessor& processor;
-
-    juce::TextEditor searchBox;
-    juce::ComboBox categoryBox;
-    juce::ListBox list;
-    juce::Label description;
-    juce::TextButton loadButton { "Load" };
-    juce::TextButton deleteButton { "Delete" };
-    juce::TextButton saveAsButton { "Save As..." };
-
-    // ambiguity-resolutions.md 5.2: Morph, its two slots and the slider.
-    void refreshMorph();
-    juce::TextButton morphToggle { "Morph" };
-    juce::TextButton slotAButton { "A" }, slotBButton { "B" };
-    juce::Slider morphSlider { juce::Slider::LinearHorizontal, juce::Slider::NoTextBox };
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> morphAttachment;
-
-    juce::Array<int> visibleIndices;
-
-    class PresetListModel : public juce::ListBoxModel
-    {
-    public:
-        explicit PresetListModel (PresetBrowserPanel& o) : owner (o) {}
-        int getNumRows() override;
-        void paintListBoxItem (int row, juce::Graphics&, int width, int height, bool selected) override;
-        void listBoxItemDoubleClicked (int row, const juce::MouseEvent&) override;
-        void selectedRowsChanged (int lastRow) override;
-
-    private:
-        PresetBrowserPanel& owner;
-    };
-
-    PresetListModel listModel { *this };
-
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PresetBrowserPanel)
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "ExportPanel" };
 };
 
 //==============================================================================
@@ -422,6 +380,8 @@ private:
     ChordListModel listModel { *this };
     DiagramComponent diagram { *this };
 
+    OwnedFileChooser fileChooser;   // dies (and so cancels) with the panel
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChordAndTabPanel)
 };
 
@@ -451,3 +411,6 @@ private:
 };
 
 } // namespace luthier
+
+// preset-browser-previews.md 7 (FEAT-BROWSER): the browser moved to its own folder.
+#include "PresetBrowser/PresetBrowserPanel.h"

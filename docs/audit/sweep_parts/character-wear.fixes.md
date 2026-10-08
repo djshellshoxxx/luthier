@@ -1,0 +1,1 @@
+- [CW-4] DEFERRED: two back-to-back takes are never bit-identical in this engine because the noise floor and pick noise run free. Determinism at zero character is covered by `CharacterWiring::freshIsBitIdenticalAndWornIsNot` (two engines). See sweep-notes/dsp1.md.

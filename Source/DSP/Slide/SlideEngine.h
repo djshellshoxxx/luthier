@@ -15,6 +15,8 @@
 */
 
 #include "../Noise/NoiseEngine.h"
+#include "../Techniques/TechniqueControls.h"
+#include "../../Model/Playing/TechniqueTriggers.h"
 #include <array>
 
 namespace luthier
@@ -61,6 +63,56 @@ struct SlideSettings
     double clankAmount = 0.45;
     double intonationAssist = 0.15;
 };
+
+//==============================================================================
+/*  slide-technique-controls.md 2 (TECHNIQUES): a scripted slide, from A to B
+    over T with a curve, the bar's slant and pressure moving with it. */
+enum class SlideCurve { linear = 0, easeIn, easeOut, easeInOut, numCurves };
+
+struct SlideGesture
+{
+    double fromFret = 0.0;
+    double toFret = 12.0;
+    double durationMs = 500.0;
+    SlideCurve curve = SlideCurve::easeInOut;
+    double slantStartDegrees = 0.0;
+    double slantEndDegrees = 0.0;
+    double pressure = 0.7;
+};
+
+/** slide-technique-controls.md 1: the user controls. Every field defaults to "as before". */
+struct SlideControlSettings
+{
+    ControlSource positionSource = ControlSource::none;
+    int positionCc = 16;
+    bool relative = false;               ///< Position mode: absolute 0-1 -> fret 0-24, or relative to the fretted note
+    double relativeRangeFrets = 12.0;    ///< how far a full relative throw moves the bar
+
+    ControlSource slantSource = ControlSource::none;
+    int slantCc = 17;
+    ControlSource pressureSource = ControlSource::none;
+    int pressureCc = 18;
+
+    int contactMask = 0;                 ///< strings the bar touches; 0 = all
+    double speedLimitCentsPerSecond = 4800.0;
+
+    bool autoVibrato = false;
+    double autoVibratoDepthCents = 10.0;
+    double autoVibratoRateHz = 5.0;
+
+    bool gestureOnCc = false;            ///< false: keyswitch 21
+    int gestureCc = 23;
+    SlideGesture gesture;
+
+    TechniqueTriggerConfig triggerConfig (bool slideModeOn) const noexcept;
+
+    static constexpr double kAbsoluteFrets = 24.0;       ///< 1: "position 0-1 maps to fret 0-24"
+    static constexpr double kAutoVibratoHoldSeconds = 0.3;
+    static constexpr double kSourceCrossfadeSeconds = 0.010;
+};
+
+/** The contact-mask presets the SLIDE sub-tab offers (1: all, bass 3, treble 3). */
+int slideContactMaskFor (int choice, int numStrings) noexcept;
 
 //==============================================================================
 class SlideEngine
@@ -135,6 +187,37 @@ public:
         when no move is in progress. Once a block per string. */
     double advanceBar (int s, double heldFret, int numSamples) noexcept;
 
+    //==========================================================================
+    // slide-technique-controls.md 3 (TECHNIQUES): control inputs.
+
+    void setControls (const SlideControlSettings& c) noexcept;
+    const SlideControlSettings& getControls() const noexcept { return controls; }
+
+    void setPositionSource (ControlSource source, int cc = 16) noexcept;
+    void setSpeedLimit (double centsPerSecond) noexcept { controls.speedLimitCentsPerSecond = juce::jmax (1.0, centsPerSecond); }
+
+    /** 2: starts a scripted slide. Audio thread; requestGesture from any other. */
+    void triggerGesture (const SlideGesture& g) noexcept;
+    void requestGesture() noexcept { gestureRequested.store (true); }
+    bool isGestureRunning() const noexcept { return gestureActive; }
+
+    /** 1: whether the bar touches string `s` (the contact mask). */
+    bool contactsString (int s) const noexcept;
+
+    /*  Once a block, before the strings: reads the sources, runs the gesture
+        and the speed limit, and applies slant and pressure sources to the
+        settings in force. */
+    void advanceControls (int numSamples, const TechniqueControls& sources, const TechniqueTriggers& triggers) noexcept;
+
+    /** The bar fret for string `s`, given where the notes put it: the source's or the gesture's when one drives. */
+    double controlledBarFret (int s, double noteBarFret) noexcept;
+
+    /** Auto-vibrato on hold, in cents, for this block. */
+    double getControlVibratoCents() const noexcept { return controlVibratoCents; }
+
+    /** For the tests: where the controlled bar is now (-1 when no control drives it). */
+    double getControlledFret() const noexcept { return controlledFret; }
+
     /** The current bar fret for the fretboard overlay; -1 when nothing is under it. */
     double getOverlayFret() const noexcept { return overlayFret; }
     void setOverlayFret (double fret) noexcept { overlayFret = fret; }
@@ -153,6 +236,23 @@ private:
     int barString = -1;
     bool landing = false;
     double overlayFret = -1.0;
+
+    // --- TECHNIQUES: slide-technique-controls.md -----------------------------
+    double advanceTowards (double current, double target, double seconds) const noexcept;
+
+    SlideControlSettings controls;
+    ControlSource lastPositionSource = ControlSource::none;
+    double controlledFret = -1.0;        ///< absolute mode / gesture: the bar
+    double relativeOffset = 0.0;         ///< relative mode: frets added to the note's position
+    double smoothedTarget = -1.0;
+    bool relativeActive = false;
+    bool gestureActive = false;
+    SlideGesture runningGesture;
+    double gestureElapsed = 0.0;
+    std::atomic<bool> gestureRequested { false };
+    double lastControlledFret = -1.0, heldSeconds = 0.0, vibratoPhase = 0.0, vibratoRamp = 0.0;
+    double controlVibratoCents = 0.0;
+    double blockSeconds = 0.0;
 };
 
 } // namespace luthier

@@ -141,17 +141,27 @@ void fillTolex (juce::Graphics& g, const juce::Path& shape, juce::Colour base, j
     {
         keyLight (g, b, 0.10f, 0.22f);
 
-        // The pebbled grain: fine light and dark flecks.
+        // The pebbled grain: fine light and dark flecks. Gathered into one path
+        // per shade and filled once each: 3000 separate fillEllipse calls (an
+        // edge table apiece) were most of an amp face's render on a preset
+        // switch (OPTIMISATION_LOG).
         const int n = (int) juce::jlimit (60.0f, 3000.0f, b.getWidth() * b.getHeight() / 16.0f);
+        juce::Path lightFlecks, darkFlecks;
+        lightFlecks.preallocateSpace (n * 8);
+        darkFlecks.preallocateSpace (n * 8);
 
         for (int i = 0; i < n; ++i)
         {
             const float x = b.getX() + hashNoise (seed, i * 3) * b.getWidth();
             const float y = b.getY() + hashNoise (seed, i * 3 + 1) * b.getHeight();
             const bool light = hashNoise (seed, i * 3 + 2) > 0.5f;
-            g.setColour ((light ? juce::Colours::white : juce::Colours::black).withAlpha (light ? 0.045f : 0.09f));
-            g.fillEllipse (x, y, 1.4f, 1.1f);
+            (light ? lightFlecks : darkFlecks).addEllipse (x, y, 1.4f, 1.1f);
         }
+
+        g.setColour (juce::Colours::white.withAlpha (0.045f));
+        g.fillPath (lightFlecks);
+        g.setColour (juce::Colours::black.withAlpha (0.09f));
+        g.fillPath (darkFlecks);
     });
 }
 

@@ -1,0 +1,1 @@
+- [KS-14] PARTIAL: Ctrl+Shift+E on an edited guitar posts reveal-guitar (tested). Ctrl+G opens a modal AlertWindow, which a headless test cannot drive without a test hook in PluginEditor (left while the editor is being merged).

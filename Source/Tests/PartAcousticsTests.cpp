@@ -333,3 +333,449 @@ LUTHIER_TEST (PartAcoustics, aReferenceGuitarSoundsLikeTheEngineDefault)
     CHECK (std::abs (d.nutBrightness - 0.75) < 1.0e-9);
     CHECK (std::abs (d.fretBrightness / 0.70 - 1.0) < 0.1);
 }
+
+//==============================================================================
+/*  SPEC-SWEEP: PA-14 / PA-15 / PA-T7 - chambering's air mode, its Q and its
+    gain used to be computed and dropped. The body engine now builds its air
+    mode where the mapping put it, and the electric chamberings' modes are
+    louder than solid by the table's gain. */
+LUTHIER_TEST (PartAcoustics, chamberingReachesTheBodyEngine)
+{
+    auto base = factory ("Electric/Vintage Double-Cut.luthierguitar");
+
+    auto modesFor = [] (const DerivedAcoustics& d)
+    {
+        std::vector<BodyMode> modes;
+        BodyModels::buildModes (d.body, modes);
+        return modes;
+    };
+
+    double gainSum[2] = { 0.0, 0.0 };
+
+    for (const char* chambering : { "chambered", "semi_hollow", "hollow", "acoustic" })
+    {
+        auto g = base;
+        g.parts[(size_t) GuitarSlot::body] = withField (base.get (GuitarSlot::body), "chambering", chambering);
+        const auto d = mapSpec (g);
+
+        // The rendered body's air mode sits where the mapping put it.
+        LuthierEngine engine;
+        engine.prepare (48000.0, 256);
+        engine.applyWorkshopGuitar (d);
+        engine.getCharacterEngine().setEnabled (false);   // body break-in (CW-24) would move it
+
+        juce::AudioBuffer<float> block (2, 256);
+        juce::MidiBuffer none;
+        engine.processBlock (block, none);
+
+        CHECK_NEAR (engine.getBodyEngine().getAirResonanceHz(), d.airResonanceHz, 1.0e-6);
+
+        const auto modes = modesFor (d);
+        bool found = false;
+
+        for (const auto& m : modes)
+            if (std::abs (m.frequencyHz - d.airResonanceHz) < 0.01 && std::abs (m.q - d.airResonanceQ * (1.0 + d.body.age * 0.55)) < 0.01)
+                found = true;
+
+        CHECK_MSG (found, juce::String (chambering) + ": no body mode at the mapped air resonance "
+                            + juce::String (d.airResonanceHz, 1) + " Hz, Q " + juce::String (d.airResonanceQ, 1));
+
+        if (juce::String (chambering) == "semi_hollow")
+            for (const auto& m : modes)
+                gainSum[1] += m.gain;
+    }
+
+    for (const auto& m : modesFor (mapSpec (base)))
+        gainSum[0] += m.gain;
+
+    // 2.1: semi-hollow's modes are +6 dB against solid.
+    CHECK_NEAR (gainToDb (gainSum[1] / gainSum[0]), 6.0, 0.01);
+}
+
+/*  SPEC-SWEEP: PA-56 - a full gloss on an acoustic top costs its modes about
+    half a dB and lowers their Q by 8 %; a half gloss costs nothing. */
+LUTHIER_TEST (PartAcoustics, aThickFinishDampsTheTop)
+{
+    auto base = factory ("Acoustic/Dreadnought.luthierguitar");
+
+    auto topPeak = [&base] (double gloss)
+    {
+        auto g = base;
+        g.finish.gloss = gloss;
+        const auto d = mapSpec (g);
+
+        std::vector<BodyMode> modes;
+        BodyModels::buildModes (d.body, modes);
+
+        // The top's fundamental: the largest mode above the air pair.
+        const double top = BodyModels::computeTopFundamental (d.body);
+        BodyMode best;
+        double nearest = 1.0e9;
+
+        for (const auto& m : modes)
+            if (std::abs (m.frequencyHz - top) < nearest)
+            {
+                nearest = std::abs (m.frequencyHz - top);
+                best = m;
+            }
+
+        return best;
+    };
+
+    const auto matte = topPeak (0.5);
+    const auto gloss = topPeak (1.0);
+
+    CHECK_NEAR (gainToDb (gloss.gain / matte.gain), -0.5, 0.01);
+    CHECK_NEAR (gloss.q / matte.q, 0.92, 0.005);
+}
+
+//==============================================================================
+/*  SPEC-SWEEP: PA-40 - twice the turns is +6 dB of output. */
+LUTHIER_TEST (PartAcoustics, coilTurnsSetTheOutput)
+{
+    auto base = factory ("Electric/Vintage Double-Cut.luthierguitar");
+    const auto pickup = base.get (GuitarSlot::pickupBridge);
+    CHECK (pickup != nullptr);
+
+    auto with = [&] (double turns)
+    {
+        auto g = base;
+        g.parts[(size_t) GuitarSlot::pickupBridge] = withField (pickup, "coil_turns", turns);
+        return mapSpec (g).pickups[0].spec.outputTrimDb;
+    };
+
+    CHECK_NEAR (with (16000.0) - with (8000.0), 20.0 * std::log10 (2.0), 1.0e-6);
+}
+
+/*  SPEC-SWEEP: PA-35 - a bridge with a saddle piezo makes the guitar a piezo
+    source without using a pickup slot. */
+LUTHIER_TEST (PartAcoustics, aPiezoBridgeAddsAPiezoSource)
+{
+    auto base = factory ("Electric/Vintage Double-Cut.luthierguitar");
+    CHECK (! mapSpec (base).hasPiezo);
+
+    auto g = base;
+    g.parts[(size_t) GuitarSlot::bridge] = withField (base.get (GuitarSlot::bridge), "piezo", true);
+    const auto d = mapSpec (g);
+
+    CHECK (d.hasPiezo && d.spec.hasPiezo);
+    CHECK (d.numPickups == mapSpec (base).numPickups);
+}
+
+//==============================================================================
+//  SPEC-SWEEP: part-acoustics NO-TEST rows (PA-6, 13, 16, 18, 22, 24, 27, 28,
+//  29, 34, 36/58, 37, 48, 57).
+//==============================================================================
+namespace
+{
+    WorkshopGuitar withPart (const WorkshopGuitar& g, GuitarSlot slot, const char* field, const juce::var& value)
+    {
+        auto copy = g;
+        copy.parts[(size_t) slot] = withField (g.get (slot), field, value);
+        return copy;
+    }
+}
+
+LUTHIER_TEST (PartAcoustics, theWoodTableIsTheSpecs)
+{
+    struct Row { const char* id; double rho, e, tan; };
+
+    const Row rows[] =
+    {
+        { "alder", 420, 9.5, 8.5 },         { "ash_swamp", 480, 11.0, 7.5 },   { "ash_northern", 680, 13.0, 6.5 },
+        { "basswood", 420, 9.0, 11.0 },     { "mahogany", 550, 10.5, 9.0 },    { "mahogany_african", 530, 9.8, 9.5 },
+        { "maple_hard", 705, 12.6, 6.0 },   { "maple_soft", 545, 10.0, 7.5 },  { "korina", 480, 10.0, 8.5 },
+        { "poplar", 455, 10.9, 10.0 },      { "walnut", 610, 11.5, 7.0 },      { "rosewood", 830, 12.0, 6.0 },
+        { "ebony", 1040, 16.0, 4.5 },       { "pau_ferro", 860, 13.5, 5.5 },   { "spruce", 400, 11.0, 7.0 },
+        { "cedar", 350, 8.0, 9.0 },         { "koa", 610, 10.5, 8.0 },
+    };
+
+    for (const auto& r : rows)
+    {
+        WoodData w {};
+        CHECK_MSG (lookUpWood (r.id, w), juce::String ("no wood ") + r.id);
+        CHECK_NEAR (w.densityKgM3, r.rho, 1.0e-9);
+        CHECK_NEAR (w.youngsGPa, r.e, 1.0e-9);
+        CHECK_NEAR (w.lossTangent, r.tan * 1.0e-3, 1.0e-12);
+    }
+}
+
+LUTHIER_TEST (PartAcoustics, chamberingPicksItsShapeAndSustain)
+{
+    auto base = factory ("Electric/Vintage Double-Cut.luthierguitar");
+
+    auto mapped = [&base] (const char* c) { return mapSpec (withPart (base, GuitarSlot::body, "chambering", c)); };
+
+    const auto solid = mapped ("solid");
+    CHECK (mapped ("chambered").body.shape == BodyShape::Chambered);
+    CHECK (mapped ("semi_hollow").body.shape == BodyShape::SemiHollow);
+    CHECK (mapped ("hollow").body.shape == BodyShape::Hollow);
+
+    // PA-13: more cavity, more modes (never fewer).
+    int last = 0;
+    for (const char* c : { "solid", "chambered", "semi_hollow", "hollow" })
+    {
+        std::vector<BodyMode> modes;
+        BodyModels::buildModes (mapped (c).body, modes);
+        CHECK_MSG ((int) modes.size() >= last, juce::String (c) + " has fewer modes than the step before");
+        last = (int) modes.size();
+    }
+
+    // PA-16: -5 / -12 / -20 % sustain against solid.
+    CHECK_NEAR (mapped ("chambered").sustainScale / solid.sustainScale, 0.95, 1.0e-9);
+    CHECK_NEAR (mapped ("semi_hollow").sustainScale / solid.sustainScale, 0.88, 1.0e-9);
+    CHECK_NEAR (mapped ("hollow").sustainScale / solid.sustainScale, 0.80, 1.0e-9);
+}
+
+LUTHIER_TEST (PartAcoustics, bracingSplitsTheAcousticModes)
+{
+    auto base = factory ("Acoustic/Dreadnought.luthierguitar");
+
+    auto modes = [&base] (const char* bracing)
+    {
+        const auto d = mapSpec (withPart (base, GuitarSlot::body, "bracing", bracing));
+        std::vector<BodyMode> m;
+        BodyModels::buildModes (d.body, m);
+        return BodyModels::computeTopFundamental (d.body);
+    };
+
+    const double x = modes ("x"), fan = modes ("fan"), ladder = modes ("ladder");
+    CHECK (x != fan && x != ladder && fan != ladder);
+}
+
+LUTHIER_TEST (PartAcoustics, fretboardFretsAndNutSetTheirBrightness)
+{
+    auto base = factory ("Electric/Vintage Double-Cut.luthierguitar");
+    const auto ref = mapSpec (base);
+
+    // PA-22: an ebony board is brighter than rosewood.
+    CHECK (mapSpec (withPart (base, GuitarSlot::fretboard, "wood", "ebony")).fretBrightness
+             > mapSpec (withPart (base, GuitarSlot::fretboard, "wood", "rosewood")).fretBrightness);
+
+    // PA-24: the material table, against nickel-silver.
+    auto fret = [&base] (const char* m) { return mapSpec (withPart (base, GuitarSlot::frets, "material", m)).fretBrightness; };
+    const double ns = fret ("nickel_silver");
+    CHECK_NEAR (fret ("stainless") / ns, 0.90 / 0.70, 1.0e-9);
+    CHECK_NEAR (fret ("gold_evo") / ns, 0.80 / 0.70, 1.0e-9);
+    CHECK_NEAR (fret ("brass") / ns, 0.60 / 0.70, 1.0e-9);
+
+    // PA-28: the nut sets open strings only.
+    const auto brassNut = mapSpec (withPart (base, GuitarSlot::nut, "material", "brass"));
+    CHECK_NEAR (brassNut.nutBrightness, 0.85, 1.0e-9);
+    CHECK_NEAR (brassNut.fretBrightness, ref.fretBrightness, 1.0e-12);
+
+    // PA-37: a steeper break angle is brighter, monotonically.
+    if (base.get (GuitarSlot::tailpiece) != nullptr)
+    {
+        double previous = 0.0;
+        for (double angle : { 4.0, 8.0, 12.0, 16.0, 20.0 })
+        {
+            const double b = mapSpec (withPart (base, GuitarSlot::tailpiece, "break_angle_deg", angle)).fretBrightness;
+            CHECK (b >= previous);
+            previous = b;
+        }
+    }
+}
+
+LUTHIER_TEST (PartAcoustics, fretCountAndNutSlotsReachTheSetup)
+{
+    auto base = factory ("Electric/Vintage Double-Cut.luthierguitar");
+
+    // PA-27.
+    CHECK (mapSpec (withPart (base, GuitarSlot::frets, "count", 21)).spec.maxFrets == 21);
+    CHECK (mapSpec (withPart (base, GuitarSlot::frets, "count", 24)).spec.maxFrets == 24);
+
+    // PA-29: the nut part's slots fill in what the guitar's setup omits.
+    auto g = withPart (base, GuitarSlot::nut, "slot_depths_mm", juce::var (juce::Array<juce::var> { 0.61, 0.62, 0.63, 0.64, 0.65, 0.66 }));
+    g.setup.nutSlotDepthsMm.clear();
+    const auto d = mapSpec (g);
+    CHECK_NEAR (d.setup.nutDepth[0], 0.61, 1.0e-9);
+    CHECK_NEAR (d.setup.nutDepth[5], 0.66, 1.0e-9);
+}
+
+LUTHIER_TEST (PartAcoustics, bridgeAndTailpieceMapTheirFields)
+{
+    auto single = factory ("Electric/Vintage Single-Cut.luthierguitar");
+
+    // PA-34.
+    auto trem = [&single] (const char* t) { return mapSpec (withPart (single, GuitarSlot::bridge, "tremolo_type", t)).spec.bridge; };
+    CHECK (trem ("floyd") == WhammyEngine::BridgeType::FloydRose);
+    CHECK (trem ("bigsby") == WhammyEngine::BridgeType::Bigsby);
+    CHECK (trem ("vintage") == WhammyEngine::BridgeType::VintageTrem);
+    CHECK (trem ("none") == WhammyEngine::BridgeType::Fixed);
+
+    // PA-36 / PA-58: masses add, exactly.
+    CHECK_MSG (single.get (GuitarSlot::tailpiece) != nullptr, "the single-cut has no tailpiece");
+
+    if (single.get (GuitarSlot::tailpiece) != nullptr)
+    {
+        const double a = mapSpec (withPart (single, GuitarSlot::tailpiece, "mass_g", 40.0)).terminationMassG;
+        const double b = mapSpec (withPart (single, GuitarSlot::tailpiece, "mass_g", 90.0)).terminationMassG;
+        CHECK_NEAR (b - a, 50.0, 1.0e-9);
+    }
+}
+
+LUTHIER_TEST (PartAcoustics, stringsAndFinishMapTheirFields)
+{
+    auto base = factory ("Electric/Vintage Double-Cut.luthierguitar");
+
+    // PA-48: the winding style decides before the metal.
+    auto mat = [&base] (const char* field, const char* v) { return mapSpec (withPart (base, GuitarSlot::strings, field, v)).stringMaterial; };
+    CHECK (mat ("winding", "flat") == StringMaterial::Flatwound);
+    CHECK (mat ("winding", "half") == StringMaterial::Halfwound);
+    CHECK (mat ("winding", "coated") == StringMaterial::Coated);
+    CHECK (mat ("winding_material", "stainless") == StringMaterial::StainlessSteel);
+    CHECK (mat ("winding_material", "pure_nickel") == StringMaterial::PureNickel);
+    CHECK (mat ("winding_material", "phosphor_bronze") == StringMaterial::PhosphorBronze);
+
+    // PA-57: finish aging moves the body's age, and the modes' Q with it.
+    auto aged = base;
+    auto fresh = base;
+    aged.finish.aging = 1.0;
+    fresh.finish.aging = 0.0;
+    const auto da = mapSpec (aged), df = mapSpec (fresh);
+    CHECK (da.body.age > df.body.age);
+
+    std::vector<BodyMode> ma, mf;
+    BodyModels::buildModes (da.body, ma);
+    BodyModels::buildModes (df.body, mf);
+    CHECK (! ma.empty() && ma.size() == mf.size() && ma[0].q > mf[0].q);
+}
+
+/*  SPEC-SWEEP: PA-33 - a bridge that states no mass or coupling takes its
+    type's row of the 5 table. */
+LUTHIER_TEST (PartAcoustics, aBridgeTypeSetsItsDefaults)
+{
+    auto base = factory ("Electric/Vintage Double-Cut.luthierguitar");
+
+    auto withType = [&base] (const char* type)
+    {
+        auto part = std::make_shared<Part> (*base.get (GuitarSlot::bridge));
+        auto fields = juce::JSON::parse (juce::JSON::toString (part->fields));
+        fields.getDynamicObject()->removeProperty ("mass_g");
+        fields.getDynamicObject()->removeProperty ("coupling");
+        fields.getDynamicObject()->setProperty ("type", type);
+        part->fields = fields;
+
+        auto g = base;
+        g.parts[(size_t) GuitarSlot::bridge] = part;
+
+        auto tailless = g;
+        tailless.parts[(size_t) GuitarSlot::tailpiece] = nullptr;
+        tailless.parts[(size_t) GuitarSlot::pickguard] = nullptr;
+        return mapSpec (tailless);
+    };
+
+    struct Row { const char* type; double mass, coupling; };
+
+    for (const auto& row : { Row { "tune_o_matic", 95, 0.55 }, Row { "hardtail", 110, 0.70 },
+                             Row { "vintage_tremolo", 165, 0.45 }, Row { "floyd_rose", 320, 0.30 },
+                             Row { "bigsby", 480, 0.35 }, Row { "pin_bridge", 28, 0.92 } })
+    {
+        const auto d = withType (row.type);
+        CHECK_MSG (std::abs (d.terminationMassG - row.mass) < 1.0e-9,
+                   juce::String (row.type) + ": mass " + juce::String (d.terminationMassG));
+
+        // The joint's factor multiplies it, so compare two types' ratio instead of the value.
+        const auto ref = withType ("tune_o_matic");
+        CHECK_NEAR (d.couplingFraction / ref.couplingFraction, row.coupling / 0.55, 1.0e-9);
+    }
+}
+
+/*  SPEC-SWEEP: PA-41 - 6: steel pole pieces cost top end against alnico, and
+    ceramic ones add it. Through the pickup, at 4 kHz. */
+LUTHIER_TEST (PartAcoustics, polePiecesTiltTheTop)
+{
+    auto base = factory ("Electric/Vintage Double-Cut.luthierguitar");
+
+    auto levelAt4k = [&base] (const char* material)
+    {
+        auto g = base;
+        g.parts[(size_t) GuitarSlot::pickupBridge] = withField (base.get (GuitarSlot::pickupBridge), "pole_piece_material", material);
+        const auto d = mapSpec (g);
+
+        PickupEngine p;
+        p.prepare (48000.0, 1);
+        p.setNumPickups (1);
+
+        auto spec = d.pickups[0].spec;
+        spec.poleBrightness = d.pickups[0].poleBrightness;
+        spec.coverLossDbAt4k = d.pickups[0].coverLossDbAt4k;
+        p.setPickupSpec (0, spec);
+        p.setSelector (PickupSelector::Bridge);
+
+        double power = 0.0;
+        const double delays[1] = { 200.0 };
+
+        for (int i = 0; i < 48000; ++i)
+        {
+            const double in[1] = { std::sin (constants::kTwoPi * 4000.0 * i / 48000.0) };
+            const double out = p.processStrings (in, delays, 1);
+            if (i > 24000) power += out * out;
+        }
+
+        return power;
+    };
+
+    const double alnico = levelAt4k ("alnico"), steel = levelAt4k ("steel"), ceramic = levelAt4k ("ceramic");
+    CHECK_MSG (steel < alnico * 0.95, "steel poles should dull the top: " + juce::String (10.0 * std::log10 (steel / alnico), 2) + " dB");
+    CHECK_MSG (ceramic > alnico * 1.02, "ceramic poles should brighten the top: " + juce::String (10.0 * std::log10 (ceramic / alnico), 2) + " dB");
+}
+
+/*  SPEC-SWEEP: PA-7 - the 1 table moves the body's modes as sqrt(E / rho):
+    swamp ash (11.0 GPa, 480) is a faster wood than basswood (9.0, 420), so
+    its modes sit higher. */
+LUTHIER_TEST (PartAcoustics, stifferLighterWoodRaisesTheModes)
+{
+    auto base = factory ("Electric/Vintage Double-Cut.luthierguitar");
+
+    auto firstMode = [&base] (const char* wood)
+    {
+        auto g = base;
+        // The table's own density: the factory body states its alder's.
+        auto body = std::make_shared<Part> (*base.get (GuitarSlot::body));
+        auto fields = juce::JSON::parse (juce::JSON::toString (body->fields));
+        fields.getDynamicObject()->setProperty ("wood", wood);
+        fields.getDynamicObject()->removeProperty ("density_kg_m3");
+        body->fields = fields;
+
+        g.parts[(size_t) GuitarSlot::body] = body;
+        g.parts[(size_t) GuitarSlot::top] = nullptr;
+        return BodyModels::computeTopFundamental (mapSpec (g).body);
+    };
+
+    const double ash = firstMode ("ash_swamp"), bass = firstMode ("basswood");
+    CHECK_MSG (ash > bass, "ash " + juce::String (ash, 1) + " Hz should be above basswood " + juce::String (bass, 1) + " Hz");
+
+    // And by the table's ratio, not the engine's own wood list.
+    const double expected = std::sqrt ((11.0 / 480.0) / (9.0 / 420.0));
+    CHECK_NEAR (ash / bass, expected, expected * 0.01);
+}
+
+/*  SPEC-SWEEP: PA-8 - the table's loss factor sets the plate Q: an ebony top
+    rings longer than a basswood one by the tan(delta) ratio, 11 / 4.5. */
+LUTHIER_TEST (PartAcoustics, theTableLossSetsThePlateQ)
+{
+    auto base = factory ("Acoustic/Dreadnought.luthierguitar");
+    CHECK (base.get (GuitarSlot::top) != nullptr);
+    if (base.get (GuitarSlot::top) == nullptr) return;
+
+    auto topQ = [&base] (const char* wood)
+    {
+        auto g = base;
+        g.parts[(size_t) GuitarSlot::top] = withField (base.get (GuitarSlot::top), "wood", wood);
+        const auto d = mapSpec (g);
+
+        std::vector<BodyMode> modes;
+        BodyModels::buildModes (d.body, modes);
+
+        const double f = BodyModels::computeTopFundamental (d.body);
+        double best = 1.0e9, q = 0.0;
+        for (const auto& m : modes)
+            if (! m.isAir && std::abs (m.frequencyHz - f) < best) { best = std::abs (m.frequencyHz - f); q = m.q; }
+        return q;
+    };
+
+    const double ratio = topQ ("ebony") / topQ ("basswood");
+    CHECK_NEAR (ratio, 11.0 / 4.5, (11.0 / 4.5) * 0.2);
+}

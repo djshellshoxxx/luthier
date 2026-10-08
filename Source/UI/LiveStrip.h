@@ -18,15 +18,22 @@
     hand while holding a neck, cannot be asked to hit a 20-px button.
 */
 
+#include "AnimationPolicy.h"   // cpu-quality-modes 6
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "Theme.h"
 #include "Widgets.h"
+#include "LiveSetup.h"   // SPEC-SWEEP: LP-11
+#include "JamWidgets.h"   // FEAT-JAM
 
 namespace luthier
 {
 
 class LuthierAudioProcessor;
+
+/** SPEC-SWEEP: GI-4 - one of the sixteen snapshot colour tags, for the LIVE
+    tab's colour button as well as the strip. */
+juce::Colour getSnapshotTagColour (int tag);
 
 //==============================================================================
 /** The bank of eight snapshot buttons plus its prev/next pair
@@ -46,7 +53,25 @@ public:
     void resized() override;
     void mouseDown (const juce::MouseEvent&) override;
 
+    /** SPEC-SWEEP: A11Y-9 - one accessible, focusable button per shown slot,
+        titled with its number and label; pressing it recalls (or captures an
+        empty slot), as a click does. */
+    juce::Button* getSlotAccessor (int slot) const;
+
+    /** SPEC-SWEEP: GI-73 - the text a pad shows: its number and its label cut
+        to twelve characters. */
+    static juce::String getPadText (int index, const juce::String& label);
+    static constexpr int kPadLabelChars = 12;
+
+    /** SPEC-SWEEP: GI-86 - gui-integration 14's empty-slot hint. */
+    static constexpr const char* kEmptySlotHint = "Shift-click to save current state here.";
+    bool isShowingEmptyHint() const noexcept { return showEmptyHint; }
+
 private:
+    class SlotAccessor;
+    juce::OwnedArray<SlotAccessor> slotAccessors;
+    void updateSlotAccessors();
+
     juce::Rectangle<int> buttonBounds (int slot) const;
     int slotAt (juce::Point<int> position) const;
 
@@ -61,6 +86,8 @@ private:
 
     int lastCurrent = -1;
     int lastCount = -1;
+
+    bool showEmptyHint = false;   // SPEC-SWEEP: GI-86
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SnapshotStrip)
 };
@@ -86,7 +113,8 @@ private:
 
     juce::String previousText, currentText, nextText;
 
-    std::unique_ptr<juce::FileChooser> chooser;
+    // SPEC-SWEEP: LP-5 - no FileChooser here: the menu lists the setlists in
+    // the user's folder and nothing on the live surface opens a dialog.
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SetlistTriptych)
 };
@@ -116,6 +144,10 @@ private:
     double displayedBpm = 120.0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TapPad)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::Transition, "TapPad", {}, [this] { timerCallback(); } };
 };
 
 //==============================================================================
@@ -134,6 +166,12 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
+    /** For tests: the JAM pill (FEAT-JAM). */
+    JamPill& getJamPill() noexcept { return *jamPill; }
+
+    /** Shows the JAM pill only while jam_enabled is on; the timer calls it. */
+    void refreshJamPill();
+
 private:
     void timerCallback() override;
 
@@ -145,12 +183,15 @@ private:
     std::unique_ptr<SnapshotStrip> snapshotStrip;
     std::unique_ptr<SetlistTriptych> triptych;
     std::unique_ptr<TapPad> tapPad;
+    std::unique_ptr<LiveActionButton> ccButton;   // SPEC-SWEEP: LP-11
+    std::unique_ptr<JamPill> jamPill;   // FEAT-JAM: jam-mode 8.2, after Tap while jam_enabled is on
 
     // --- morph --------------------------------------------------------------------
     juce::TextButton morphEnable { "MORPH" };
     juce::TextButton slotAButton { "A" }, slotBButton { "B" };
     juce::Slider morphSlider { juce::Slider::RotaryHorizontalVerticalDrag,
                                juce::Slider::NoTextBox };
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> morphAttachment;   // SPEC-SWEEP: LP-16
 
     // --- kill and monitor -----------------------------------------------------------
     juce::TextButton killButton { "KILL" };
@@ -160,6 +201,10 @@ private:
     bool lastKillActive = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LiveStrip)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "LiveStrip" };
 };
 
 } // namespace luthier

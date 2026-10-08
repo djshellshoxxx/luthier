@@ -9,12 +9,16 @@
 
 #include "LuthierEngine.h"
 #include "Parameters.h"
+#include "Model/Playing/AssistDecisionLog.h"   // FEAT-ASSIST
 #include "Presets/PresetManager.h"
 #include "Support/MidiLearn.h"
+#include "Support/UndoHistory.h"
 #include "Support/MidiCapture.h"
 #include "Capture/PerformanceCapture.h"
 #include "Presets/PresetMorph.h"
+#include "Presets/MicPlacementMigration.h"   // mic-placement.md 4
 #include "Tune/TuneSession.h"
+#include "Tune/TuneHumCapture.h"
 #include "Support/AudioExporter.h"
 #include "Support/Diagnostics.h"
 #include "Routing/RoutingMatrix.h"
@@ -25,20 +29,37 @@
 #include "Live/Snapshots.h"
 #include "Live/Setlist.h"
 #include "Live/TapTempo.h"
+#include "Live/MidiClockTempo.h"   // SPEC-SWEEP HI-32
 #include "Live/LiveControls.h"
+#include "Live/LiveInput.h"   // SPEC-SWEEP: LP-11 / LP-33 / LP-34
 #include "Practice/Metronome.h"
 #include "Practice/Looper.h"
 #include "Practice/BackingTrack.h"
 #include "Practice/Trainers.h"
+#include "Practice/PracticeNoteFeed.h"   // SPEC-SWEEP PT-34
 #include "Practice/PracticeRoutineProgress.h"
 #include "Practice/PracticeRoutineSetup.h"
 #include "ToneMatch/ToneMatch.h"
+#include "ToneMatch/TestSignalPlayer.h"   // SPEC-SWEEP TM-17
 #include "Updates/Telemetry.h"
 #include "PhysicalRange.h"
 #include "Model/Workshop/PartAcoustics.h"
 #include "Workshop/WorkshopBench.h"
 #include "Accessibility/Accessibility.h"
 #include "Accessibility/Localisation.h"
+#include "Controllers/ControllerStage.h"   // SPEC-SWEEP CT-2/CT-7
+#include "Support/CommandQueue.h"         // SPEC-SWEEP UW-5
+#include "Live/ExpressionStage.h"          // SPEC-SWEEP IR-11
+#include "Live/MidiClockTransport.h"       // SPEC-SWEEP IR-16
+#include "Export/LuthierSysExIn.h"         // SPEC-SWEEP IR-15
+#include "Jam/JamEngine.h"   // FEAT-JAM
+#include "Support/OutputNormalization.h"   // output-normalization.md
+#include "Support/QualityController.h"   // cpu-quality-modes
+#include "Riffs/RiffLibrary.h"   // riff-library 4
+#include "Support/InstallLayout.h"
+#include "Support/SoundingNotesPublisher.h"
+#include "Presets/Preview/PreviewPlayer.h"   // preset-browser-previews.md 4
+#include "Support/HostClockGuard.h"   // RT-SAFETY P2
 
 namespace luthier
 {
@@ -57,6 +78,25 @@ public:
     void releaseResources() override;
     bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+
+    /** qa-polish QA-48: Luthier is an instrument with no main input, so "bypassed
+        output bit-identical to no plugin" means silence, not whatever the buffer
+        already held. */
+    void processBlockBypassed (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&) override
+    {
+        buffer.clear();
+    }
+
+    /** RT-SAFETY: invalid host clock fields replaced, and MIDI events a bounded
+        copy trimmed (both 0 in a well-behaved session). */
+    int getRejectedHostClockCount() const noexcept { return hostClock.getRejectedCount(); }
+    int getMidiOverflowDropCount() const noexcept
+    {
+        return midiOverflowDrops.load (std::memory_order_relaxed) + engine.getMidiOverflowDropCount();
+    }
+
+    /** cpu-quality-modes 2.6: an offline bounce renders at High. Any thread. */
+    void setNonRealtime (bool isNonRealtime) noexcept override;
 
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override { return ! LUTHIER_HEADLESS; }
@@ -81,12 +121,42 @@ public:
     const juce::String getProgramName (int index) override;
     void changeProgramName (int index, const juce::String& newName) override;
 
+    // host-integration HI-20/HI-24/HI-25: the root JSON's format version. Bumped
+    // whenever a root-level key's meaning changes in a way an older build could
+    // not read correctly.
+    static constexpr int kCurrentStateFormatVersion = 1;
+
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
+
+    /** HI-24: root-level keys this build did not recognise on the last load,
+        kept so a save writes them straight back rather than silently dropping
+        a newer build's data. */
+    juce::NamedValueSet getUnknownHostSections() const noexcept { return unknownHostSections; }
+
+    /*  output-normalization.md 6: undo, redo and A/B recall restore the sound
+        only; the host restores everything, the normalization setting included. */
+    enum class RestoreScope { full, soundOnly };
+    void restoreState (const void* data, int sizeInBytes, RestoreScope scope);
+
+    /*  SPEC-SWEEP HI-20/24/25 (HostStateFormat.cpp): the diagnostics folder,
+        where HI-25's pre-migration copies and an unreadable blob are kept. */
+    static juce::File getStateBackupFolder();
+
+    /** The blob as text: byte-counted, and empty when it is not valid UTF-8. */
+    static juce::String stateBlobToText (const void* data, int sizeInBytes);
+
+    /** output-normalization.md: the switch, the target, the calibration. */
+    OutputNormalization& getOutputNormalization() noexcept { return outputNormalization; }
+    OutputNormalization::Status getNormalizationStatus() const { return outputNormalization.getStatus(); }
 
     //==========================================================================
     LuthierEngine&      getEngine() noexcept        { return engine; }
     juce::AudioProcessorValueTreeState& getState() noexcept { return apvts; }
+
+    /** mic-placement.md 4: follows a session still automating the legacy mic
+        Position / Distance. */
+    MicLegacyAutomation& getMicLegacyAutomation() noexcept { return *micLegacyAutomation; }
     PresetManager&      getPresetManager() noexcept { return presets; }
     MidiLearnManager&   getMidiLearn() noexcept     { return midiLearn; }
     MidiCapture&        getMidiCapture() noexcept   { return midiCapture; }
@@ -94,6 +164,12 @@ public:
     /** notation-export.md 6: what the engine played, voiced, for the NOTATION
         tab, the live TAB view and notation / MIDI export. */
     PerformanceCapture& getPerformanceCapture() noexcept { return performanceCapture; }
+
+    /*  notation-export 3 (MODEL-GAPS, TODO 9): "render the current bar to the
+        on-plugin fretboard as tablature dots". The NOTATION tab's switch; the
+        fretboard reads it. Message thread. */
+    void setTabDotsOnFretboard (bool shouldShow) noexcept { tabDotsOnFretboard = shouldShow; }
+    bool isShowingTabDotsOnFretboard() const noexcept { return tabDotsOnFretboard; }
 
     /** Drains the capture and keeps its tuning current (10 Hz on the message
         thread; tests call it directly). */
@@ -109,6 +185,27 @@ public:
         plays (message thread). */
     TunePlayer&  getTunePlayer() noexcept  { return tunePlayer; }
     TuneSession& getTuneSession() noexcept { return tuneSession; }
+
+    /** riff-library 4: the riff index, shared by the RIFFS tab and the Easy
+        drawer. Nothing loads until one of them first opens. */
+    RiffLibrary& getRiffLibrary() noexcept { return riffLibrary; }
+    /** tune-builder 13: sung / hummed melody capture from the audio input (TUNE-HELP-ONBOARDING). */
+    TuneHumCapture& getHumCapture() noexcept { return humCapture; }
+
+    /** tune-builder 14: a tune parameter's value with automation and modulation,
+        which is how routes move a section over the tune's timeline. Any thread. */
+    float tuneModValue (const char* parameterId) const noexcept;
+
+    /** tune-builder 14: "snapshots capture the current section state, so a live
+        rig can switch sections with a footswitch". What a snapshot keeps of the
+        tune (the section playing or selected, by name), and the recall's
+        request, which the message thread carries out (PluginProcessorTune.cpp). */
+    juce::var captureTuneSnapshotState() const;
+    void requestTuneSnapshotState (const juce::var& state) noexcept;
+    void applyPendingTuneSection();
+
+    /** How many tune state boundaries (8) the audio thread has acted on. */
+    int getNumTuneStateBoundaries() const noexcept { return tuneStateBoundaries.load (std::memory_order_relaxed); }
 
     /** The tune's message-thread work: rhythm changes at section starts,
         improvised passes, old timelines, the take (the timer's; tests call it). */
@@ -160,19 +257,42 @@ public:
     ExpressionCalibrationSet&       getExpression() noexcept       { return expression; }
     const ExpressionCalibrationSet& getExpression() const noexcept { return expression; }
 
+    // SPEC-SWEEP: LP-11 / LP-34 - live actions on CCs, calibrated pedal input.
+    LiveActionMap&   getLiveActions() noexcept    { return liveActions; }
+
+    /** SPEC-SWEEP: LP-16 - where the automatable snapshot morph last moved the
+        bank to (the timer follows the parameter, modulation included). */
+    void updateSnapshotMorph();
+
     /** Captures the live state into a snapshot, including the state of the
         modules that do not live in the parameter tree. */
     bool captureSnapshot (int index, const juce::String& label = {}, int colourTag = -1);
 
+    /** SPEC-SWEEP: MM-49 - whether a snapshot carries the mod matrix. */
+    bool setSnapshotIncludesModulation (int index, bool includes);
+
     /** Recalls a snapshot. The crossfade is carried by the audio thread's own
         clock, so this returns before the fade has finished. */
     bool recallSnapshot (int index);
+
+    /*  action-and-undo.md 3.7: the UI's save and recall, each one entry
+        ("Save snapshot [i] [name]", "Recall snapshot [i] [name]"). MIDI and
+        setlist recalls use recallSnapshot and push nothing. */
+    bool captureSnapshotAsUserAction (int index, const juce::String& label = {});
+    bool recallSnapshotAsUserAction (int index);
+    void renameSnapshotAsUserAction (int index, const juce::String& label);
+    void setSnapshotColourAsUserAction (int index, int colourTag);
+    /** `removeSlot` erases the slot (the bank shifts); false empties it in place. */
+    void deleteSnapshotAsUserAction (int index, bool removeSlot);
 
     void nextSnapshot();
     void previousSnapshot();
 
     /** live-performance 5: registers a tap, using the plugin's own clock. */
     void tapTempoNow();
+
+    /** SPEC-SWEEP: LP-26 - a tap stamped elsewhere (a footswitch CC). */
+    void tapTempoAt (double timeSeconds);
 
     /** The tempo everything tempo-synced should use, host or tapped. */
     double getEffectiveTempo() const noexcept;
@@ -183,10 +303,11 @@ public:
 
     /** Loads a setlist file and moves to its first entry. */
     bool loadSetlist (const juce::File& file);
+    const juce::File& getSetlistFile() const noexcept { return setlistFile; }
 
     /** Applies the setlist's current entry - its preset and its snapshot - and
         pre-loads the one after it. */
-    bool applyCurrentSetlistEntry();
+    bool applyCurrentSetlistEntry (bool asUndoStep = true);   // action-and-undo.md 3.10
 
     //==========================================================================
     // The practice tools (practice-tools.md).
@@ -196,6 +317,8 @@ public:
     BackingTrackPlayer&  getBackingTrack() noexcept { return backingTrack; }
     SessionRecorder&     getSessionRecorder() noexcept { return sessionRecorder; }
     ScaleTrainer&        getScaleTrainer() noexcept { return scaleTrainer; }
+    /** SPEC-SWEEP PT-34: the notes played while the drawer is open, for its trainers. */
+    PracticeNoteFeed&    getPracticeNoteFeed() noexcept { return practiceNoteFeed; }
     EarTrainer&          getEarTrainer() noexcept   { return earTrainer; }
     ProgressionLooper&   getProgressionLooper() noexcept { return progression; }
 
@@ -226,13 +349,28 @@ public:
 
     IrSlot& getBodyIrSlot() noexcept    { return bodyIr; }
     IrSlot& getCabIrSlot (int index) noexcept { return cabIr[(size_t) juce::jlimit (0, 1, index)]; }
+
+    /*  SPEC-SWEEP TM-28 (tone-match 3): the EQ-match filter and its place in
+        the chain - pre-amp, post-amp or post-master - saved with the preset. */
+    enum class EqMatchPosition { preAmp = 0, postAmp, postMaster, numPositions };
+    IrSlot& getEqMatchSlot() noexcept { return eqMatchSlot; }
+    void setEqMatchPosition (EqMatchPosition p) noexcept
+    {
+        eqMatchPosition.store ((int) p, std::memory_order_relaxed);
+        engine.setEqMatchPosition ((int) p);
+    }
+    EqMatchPosition getEqMatchPosition() const noexcept { return (EqMatchPosition) eqMatchPosition.load (std::memory_order_relaxed); }
     Capture& getCapture() noexcept     { return capture; }
+    /** SPEC-SWEEP TM-17: the Cab Match test signal, played out of Aux 1 (or the main out). */
+    TestSignalPlayer& getCabMatchSignal() noexcept { return cabMatchSignal; }
 
     //==========================================================================
     // Updates and privacy (updates-telemetry.md).
 
     Telemetry& getTelemetry() noexcept { return telemetry; }
-    License&   getLicense() noexcept   { return license; }
+   #if LUTHIER_PRO
+    License&   getLicense() noexcept   { return license; }   // editions.md 2.5: Pro only
+   #endif
 
     //==========================================================================
     /** advanced-ranges.md: the preset's stock/advanced state. */
@@ -265,6 +403,10 @@ public:
         the undo stack are untouched. nullptr puts the committed guitar back. */
     void auditionGuitar (const WorkshopGuitar* candidate);
     const WorkshopGuitar& getCurrentGuitar() const noexcept { return currentGuitar; }
+
+    /** Moves whenever currentGuitar is replaced: a cheap "did the guitar change" for
+        the drawings, which otherwise hash the guitar's whole JSON to find out. */
+    juce::uint32 getGuitarRevision() const noexcept { return guitarRevision; }
     bool hasPartsGuitar() const noexcept { return partsGuitarLoaded; }
 
     /** The factory file a guitar type stands for, relative to Resources/Guitars. */
@@ -296,6 +438,13 @@ public:
         file. Returns the file, or an empty File if the write failed. */
     juce::File saveGuitarAs (const juce::String& name, bool bundleParts = false);
 
+    /*  SPEC-SWEEP ER-44, error-recovery 5: why the last saveGuitarAs refused or
+        failed, as a sentence the banner shows; empty after a save that worked. */
+    juce::String getLastGuitarSaveError() const { return lastGuitarSaveError; }
+
+    /** What makes a guitar unsaveable (an empty required slot, no strings), or empty. */
+    static juce::String describeGuitarSaveProblem (const WorkshopGuitar& guitar);
+
     /*  guitar-workshop.md 7: saves a fitted part's current fields as a user
         part under `name`, rescans the library and fits the saved part in its
         slot. Returns the saved part, or nullptr if the slot is empty or the
@@ -312,6 +461,16 @@ public:
     void setCapoPart (const PartPtr& capo);
     PartPtr getCapoPart() const noexcept { return capoPart; }
 
+    /*  The fitted slide (guitar-workshop.md 2, the drawer's Slide card): the
+        engine plays its material, mass and size (slide-guitar.md 2.1). Travels
+        in the preset's guitar block like the capo; nullptr is the engine's own
+        default bar, which is what a preset without one gets (VISUAL-WORKSHOP-QA). */
+    void setSlidePart (const PartPtr& slidePart);
+    PartPtr getSlidePart() const noexcept { return slidePart; }
+
+    /** A slide part's bar as the engine takes it; the default bar for nullptr. */
+    static SlideBar slideBarFor (const Part* slidePart);
+
     /** "Factory/<Family>/<Name>.luthierguitar" or "User/<Name>.luthierguitar". */
     const juce::String& getGuitarReference() const noexcept { return guitarReference; }
 
@@ -323,6 +482,18 @@ public:
 
     /** The notices applyGuitar raised since the last call (gui-integration 15). */
     juce::StringArray takeGuitarNotices();
+
+    /*  SPEC-SWEEP: SM-46 and friends - info banners about what a state change
+        did to the layers around it ("A/B cleared by preset load."). Taken once
+        by the editor. */
+    juce::StringArray takeStateNotices();
+
+    /** An info banner from a panel that has no window of its own to tell
+        (SPEC-SWEEP ER-46: a melody that could not be generated). */
+    void postStateNotice (const juce::String& message) { stateNotices.addIfNotAlreadyThere (message); }
+
+    /** SPEC-SWEEP: FF-35/SM-31 - the same, for warnings (a refused setlist). */
+    juce::StringArray takeStateWarnings();
 
     /*  advanced-ranges.md 5: randomise stays inside stock by default. The
         preference is user-global and lives in UiPreferences, which the engine
@@ -365,11 +536,132 @@ public:
     void releasePreviewNote (int stringIndex);
 
     //==========================================================================
-    /** Releases every string and clears all state. The Panic button. */
+    // piano-roll-chord-display.md 2-3: what the strings sound (published by the
+    // audio thread every block) and notes played from the piano roll's keys,
+    // which reach the engine as channel 1 MIDI like any other note.
+    const SoundingNotes& getSoundingNotes() const noexcept { return soundingNotes; }
+    void playKeyboardNote (int midiNote, float velocity);
+    void releaseKeyboardNote (int midiNote);
+    /** Every note-on at the same sample, so the interpreter strums them as one chord. */
+    void playKeyboardChord (const juce::Array<int>& midiNotes, float velocity);
+    void releaseKeyboardChord (const juce::Array<int>& midiNotes);
+
+    //==========================================================================
+    /** Releases every string and clears all state. The Panic button.
+
+        B-14 / GAPS "Stop everything" (PR #2's RESET & STOP): Panic also stops
+        everything that would start the sound again on its own - the tune
+        player, the looper, the backing track, the metronome, a practice
+        routine, the rhythm engine's free-run (which plays the PRACTICE
+        progression) and the jam band. Parameters are left alone
+        (live-performance 9.5 / 9.6); that is resetEverything's job. */
     void panic();
 
-    /** Restores every parameter, the MIDI map and the UI state to defaults. */
+    /** Panic's transport half on its own: stops the players listed above.
+        Message thread. */
+    void stopAllPlayers();
+
+    /** panic() without the engine command: the players, the audition, the jam
+        band and the preview MIDI. resetEverything panics the engine itself. */
+    void stopEverythingButTheEngine();
+
+    //==========================================================================
+    // SPEC-SWEEP (UW-5 / CB-17): the UI's writes to audio-thread state go
+    // through this queue and are applied at the top of the next block.
+    bool postEngineCommand (const EngineCommand& command) noexcept { return engineCommands.push (command); }
+    int getNumPendingEngineCommands() const noexcept { return engineCommands.getNumPending(); }
+
+    /** String mute (the fretboard's per-string menu): choked, or open again. */
+    void setStringMuted (int stringIndex, bool muted);
+    bool isStringMuted (int stringIndex) const noexcept;
+
+    /** A string's deliberate detune in cents (the headstock popover). */
+    void setStringDetuneCents (int stringIndex, double cents);
+
+    /** SPEC-SWEEP (PT-23): aftertouch bends instead of adding vibrato. Saved
+        with the session; a setting rather than a parameter. */
+    void setAftertouchBends (bool shouldBend);
+    bool doesAftertouchBend() const noexcept { return aftertouchBends.load(); }
+
+    /** SPEC-SWEEP (IR-14, input-routing 1.4): "Bank + PC" (true, the default)
+        lets Bank Select (CC 0) choose the preset; "PC only" passes CC 0 on. */
+    void setBankSelectChoosesPreset (bool on) noexcept { bankSelectsPreset.store (on); }
+    bool doesBankSelectChoosePreset() const noexcept { return bankSelectsPreset.load(); }
+
+    //==========================================================================
+    // SPEC-SWEEP (CT-2/CT-7): the controller profile the player chose. Its
+    // settings reach the interpreter on the audio thread; its MPE flag and bend
+    // range become the mpe_enabled / bend_range parameters, so the parameter
+    // bridge carries them instead of overwriting them.
+    void applyControllerProfile (const ControllerProfile& profile);
+    juce::String getControllerProfileId() const { return controllerStage.getProfileId(); }
+    ControllerStage& getControllerStage() noexcept { return controllerStage; }
+
+    /** SPEC-SWEEP (CT-11): while the latency wizard listens, the metronome
+        clicks even with the practice drawer shut, and every incoming note-on is
+        measured against the click it answers (ms after it; negative if early)
+        on the audio thread. The Controllers page drains the measurements. */
+    void setLatencyWizardListening (bool listening);
+    bool isLatencyWizardListening() const noexcept { return latencyListening.load(); }
+    int drainLatencyMeasurements (LatencyWizard& wizard);
+
+    /** SPEC-SWEEP (IR-11 / LP-34): republishes the expression calibrations to the
+        audio thread and feeds the calibration wizard what the pedal sent. The
+        processor's timer calls it; so can a test. Message thread. */
+    void serviceExpressionCalibration();
+    // Jam mode (jam-mode.md, FEAT-JAM): the band beside the metronome and looper.
+
+    JamEngine&        getJam() noexcept        { return jam; }
+    JamStyleLibrary&  getJamStyles() noexcept  { return jamStyles; }
+
+    /** START / STOP as the J key, the pills and the button (2.1, 2.2). Not
+        undoable (12): transport, like tap tempo. */
+    void jamStartStop();
+    void jamFill();
+
+    /** Alt+J: arms (jam_enabled on) or disarms the band. */
+    void jamArmToggle();
+
+    /** The preset's `jam` block (12). */
+    juce::var getJamBlock() const;
+    void setJamBlock (const juce::var& block);
+
+    /** Picks a user style file (12): one undo entry, "jam-style-file". A
+        malformed file falls back (13) and the warning is returned. */
+    juce::String loadJamStyleFile (const juce::File& file);
+    const juce::String& getJamStyleRef() const noexcept { return jamStyleRef; }
+    const juce::String& getJamStyleWarning() const noexcept { return jamStyleWarning; }
+
+    bool isJamRhythmKitLinked() const noexcept { return jamLinkRhythmKit; }
+    void setJamRhythmKitLinked (bool linked);
+
+    /** 11: "Metronome goes quiet while the band plays", a user preference the
+        editor mirrors here (default on). */
+    void setJamSilencesMetronome (bool silences) noexcept { jamSilencesMetronome.store (silences, std::memory_order_relaxed); }
+    bool doesJamSilenceMetronome() const noexcept { return jamSilencesMetronome.load (std::memory_order_relaxed); }
+
+    /** 8.4: Separate was asked for and the layout has no aux (A or C). */
+    bool isJamSeparateFallingBack() const noexcept { return jamSeparateFallback.load (std::memory_order_relaxed); }
+
+    /** 11: the tune's percussion layer is being replaced by the Jam drums. */
+    bool isTunePercussionReplacedByJam() const noexcept { return jamReplacesPercussion.load (std::memory_order_relaxed); }
+
+    /** The Jam's message-thread work: jam_play mirrored to the band's state,
+        jam_fill_now reset, the linked rhythm kit, garbage (the timer's; tests
+        call it). */
+    void serviceJam();
+
+    /** Tune percussion note-ons that reached the engine so far (JM-42). */
+    int getTunePercussionToEngine() const noexcept { return tunePercussionToEngine.load (std::memory_order_relaxed); }
+
+    /** Restores every parameter, the MIDI map and the UI state to defaults,
+        and stops everything that plays (RESET & STOP): Panic's players, plus
+        the rhythm engine, the session recorder and the kill switch. One undo
+        step. The engine reset runs with the audio thread parked. */
     void resetEverything();
+
+    /** PR #2's name for the same action. */
+    void resetAndStop() { resetEverything(); }
 
     /** The destructive reset in the debug panel: defaults plus removing caches. */
     void hardResetAndClearCaches();
@@ -414,15 +706,40 @@ public:
 
         JUCE_DECLARE_NON_COPYABLE (ScopedUndoAction)
     };
-    bool canUndo() const noexcept { return undoPosition >= 0; }
+    bool canUndo() const noexcept { return undoHistory.canUndo(); }
 
     /** How many actions can be undone (tests, and the Edit menu's count). */
-    int getNumUndoSteps() const noexcept { return undoPosition + 1; }
-    bool canRedo() const noexcept { return undoPosition + 1 < undoStack.size(); }
+    int getNumUndoSteps() const noexcept { return undoHistory.getNumUndoSteps(); }
+    bool canRedo() const noexcept { return undoHistory.canRedo(); }
     void undo();
     void redo();
+
+    // ---- action-and-undo.md 1, 4, 5, 9, 12 (the stack lives in Support/UndoHistory) ----
+    /** An entry with a class and target, so repeats within 200 ms group (4). */
+    void pushUndoAction (const juce::String& description, const juce::String& actionClass,
+                         const juce::String& target);
+    /** A state boundary (5): preset / guitar load, family switch, setlist step. */
+    void pushUndoBoundary (const juce::String& description, const juce::String& actionClass = {});
+    /** An entry for state outside the blob: undo/redo call the functions. */
+    void pushUndoCallback (const juce::String& description, const juce::String& actionClass,
+                           const juce::String& target, std::function<void()> undoFn,
+                           std::function<void()> redoFn);
+    bool isUndoStoppedAtBoundary() const noexcept { return undoHistory.isStoppedAtBoundary(); }
+    /** Ctrl-Alt-Z: one undo that may cross a boundary. */
+    void undoAcrossBoundary();
+    int getNumRedoSteps() const noexcept { return undoHistory.getNumRedoSteps(); }
+    /** Newest first; stepsBack undos reach the state before each entry. */
+    juce::Array<UndoHistory::Item> getUndoHistory (int maxItems = UndoHistory::kMaxEntries) const { return undoHistory.getHistory (maxItems); }
+    /** Undoes `steps` entries, crossing boundaries (the history list's click). */
+    void undoSteps (int steps);
+    void setUndoClock (std::function<double()> clock) { undoHistory.setClock (std::move (clock)); }
     juce::String getUndoDescription() const;
     juce::String getRedoDescription() const;
+
+    /*  action-and-undo.md 3.8: a preset load from the UI - one entry named
+        "Load preset [name]", the load, then the engine update. */
+    bool loadPresetAsUserAction (int index);
+    bool stepPresetAsUserAction (bool forward);
 
     //==========================================================================
     // UI state that belongs with the plugin rather than with the editor.
@@ -430,6 +747,8 @@ public:
     struct UiState
     {
         bool advancedMode = false;
+        bool micGrilleVisible = true;   // mic-placement.md 6.5 (per window, not preset data)
+        int  micFocusedHandle = 0;      // mic-placement.md 6.5
         bool liveMode = false;
         bool tooltipsEnabled = true;
         int  selectedString = 0;
@@ -439,11 +758,44 @@ public:
         int  editorHeight = 720;
         AuditionPhrase::Type auditionType = AuditionPhrase::Type::MajorScale;
 
+        /** onboarding.md 11 (TUNE-HELP-ONBOARDING): the practice drawer reopens as left. */
+        bool practiceDrawerOpen = false;
+
         /** workshop-ui.md 7: the bench's eight A/B guitars, workspace not preset. */
         std::array<juce::var, 8> benchSlots;
+
+        /** cpu-quality-modes 3: this instance's CPU quality, or the global one. */
+        QualityOverride qualityOverride = QualityOverride::Global;
+        /** riff-library 8: the riff browser's per-instance view state
+            (selection, filters, audition settings, Drag-as, drawer), saved
+            with the host project and never in a preset. RiffUiState reads it. */
+        juce::var riffs;
+        // piano-roll-chord-display.md 6: session state, not preset data.
+        bool pianoRollExpanded = true;
+        int  pianoRollHeight = 72;
+        bool pianoLatch = false;
+        bool pianoShowFingering = false;
+        juce::Array<int> pianoLatchedNotes;
+        /** auto-articulation.md 8 (FEAT-ASSIST): the RHYTHM tab's PLAYING group. */
+        bool playingGroupCollapsed = false;
     };
 
     UiState& getUiState() noexcept { return uiState; }
+
+    //==========================================================================
+    // cpu-quality-modes: the CPU quality level and Luthier's own load.
+    QualityController& getQualityController() noexcept { return qualityController; }
+    const CpuLoadMonitor& getCpuLoadMonitor() const noexcept { return cpuLoad; }
+    CpuLoadMonitor& getCpuLoadMonitorForTesting() noexcept { return cpuLoad; }   // CQ-19 E3
+
+    /** Sets uiState.qualityOverride and applies it (not undoable: 9). */
+    void setQualityOverride (QualityOverride o);
+
+    /** The level the engine last applied, and whether E3 is armed. */
+    QualityLevel getAppliedQualityLevel() const noexcept { return (QualityLevel) appliedQuality.load (std::memory_order_relaxed); }
+    /** auto-articulation.md 7 (FEAT-ASSIST): what Performance Assist decided,
+        drained from the engine's feed by whichever view is showing it. */
+    AssistDecisionLog& getAssistLog() noexcept { return assistLog; }
 
     /** Host tempo, updated each block. */
     double getHostTempo() const noexcept { return hostTempo.load(); }
@@ -454,11 +806,50 @@ public:
     /** Factory used by the exporter to make an offline instance. */
     static std::unique_ptr<juce::AudioProcessor> createOfflineInstance();
 
+    /** installer.md 6: what the constructor's first-run check found (first run,
+        or the version this install upgraded from). */
+    const InstallLayout::Result& getInstallLayoutResult() const noexcept { return installLayoutResult; }
+    // ==== BEGIN FEAT-BROWSER (preset-browser-previews.md) ====
+    /** 3.2: an instance that renders previews. Stops the UI timer and the
+        library hooks, so the offline instance never touches the live one's
+        recent list or runs message-thread work under the render. */
+    void setOfflineRenderMode();
+
+    /** Constructing inside this scope makes a render instance: it skips the
+        user-global loads (accessibility, locale, telemetry, licence, practice
+        history), the factory-bank scan and the UI timer, so one can be built on
+        the preview worker without touching state the UI reads. */
+    struct ScopedOfflineRenderConstruction
+    {
+        ScopedOfflineRenderConstruction()  { flag() = true; }
+        ~ScopedOfflineRenderConstruction() { flag() = false; }
+        static bool& flag() noexcept { static thread_local bool f = false; return f; }
+    };
+    bool isOfflineRenderInstance() const noexcept { return offlineRenderInstance; }
+
+    /** Resolves a preset's guitar reference the way a load does (5.1 hash). */
+    static juce::File resolveGuitarFile (const juce::String& reference) { return resolveGuitarReference (reference); }
+
+    /** 4.1: the preview player and the clips it may hold (message thread adds). */
+    PreviewPlayer&   getPreviewPlayer() noexcept   { return previewPlayer; }
+    PreviewClipPool& getPreviewClipPool() noexcept { return previewClipPool; }
+
+    /** 3.3 / 5.6: the preset index and the render service, created lazily on
+        the message thread so an offline instance never starts a worker. */
+    class PresetLibrary& getPresetLibrary();
+    bool hasPresetLibrary() const noexcept { return presetLibrary != nullptr; }
+
+    /** 4.3: whether the tune transport is running (it blocks previews). */
+    bool isTuneTransportRunning() const noexcept;
+    // ==== END FEAT-BROWSER ====
+
 private:
     /** The advertised bus layout. A static member because BusesProperties is
         protected in AudioProcessor, and because it is needed in the constructor's
         initialiser list, before any instance exists. */
     static BusesProperties buildBusesProperties();
+
+    AssistDecisionLog assistLog;   // FEAT-ASSIST: session state, never saved
 
     void timerCallback() override;
     void updateLatency();
@@ -481,7 +872,8 @@ private:
 
     /** Measures the block the matrix's envelope followers watch. */
     void buildModBlockContext (const juce::AudioBuffer<float>& output,
-                               int numSamples, ModBlockContext& context) noexcept;
+                               int numSamples, ModBlockContext& context,
+                               const juce::Optional<HostClockGuard::PositionInfo>& hostPosition) noexcept;
 
     //==========================================================================
     juce::AudioProcessorValueTreeState apvts;
@@ -489,8 +881,10 @@ private:
     ParameterBridge bridge;
     PresetManager presets;
     MidiLearnManager midiLearn;
+    std::unique_ptr<MicLegacyAutomation> micLegacyAutomation;   // mic-placement.md 4
     MidiCapture midiCapture;
     PerformanceCapture performanceCapture;
+    bool tabDotsOnFretboard = false;   // MODEL-GAPS
     PresetMorph presetMorph { *this };
     std::array<int, kMaxStrings> captureOpenNotes {};
     int captureStringCount = -1, captureCapo = -1;
@@ -515,7 +909,31 @@ private:
     std::array<WorkshopChange, kWorkshopQueue> workshopChanges {};
     juce::AbstractFifo workshopFifo { kWorkshopQueue };
     LuthierSysExOut sysExOut;
+
+    // midi-export 2.1 / 6 (MODEL-GAPS, TODO 10): the CHARACTER class's seed and
+    // environment, sent when they change. Audio thread.
+    uint64_t sentCharacterSeed = 0;
+    double sentTemperature = -1000.0, sentHumidity = -1000.0;
+    bool characterStated = false;
+    void sendCharacterChanges() noexcept;
+
+public:
+    /** The CHARACTER event's environment in the file's units (character-wear 9's three steps). */
+    static double temperatureCelsius (Temperature t) noexcept;
+    static double humidityPercent (Humidity h) noexcept;
+
+private:
     ModMatrix modMatrix;
+
+    // cpu-quality-modes: declared before anything that reads them.
+    CpuLoadMonitor cpuLoad;
+    QualityController qualityController { cpuLoad };
+    std::atomic<int> appliedQuality { -1 };
+    int lastAppliedQuality = -1;
+    bool lastNonRealtime = false;
+    juce::int64 samplesSinceStringDrop = 0;
+    void applyQualityForBlock (bool forceHard) noexcept;
+    void stampBlockLoad (double busySeconds, int numSamples) noexcept;
     PatternLibrary patternLibrary;
     GenreKitLibrary genreKits;
 
@@ -524,6 +942,13 @@ private:
     // it); everything else goes to the engine as direct notes.
     TunePlayer tunePlayer;
     TuneSession tuneSession;
+    RiffLibrary riffLibrary;   // riff-library 4
+    TuneHumCapture humCapture;
+    std::atomic<int> pendingTuneSection { -1 };
+    std::atomic<int> tuneStateBoundaries { 0 };
+
+    /** True while undo/redo restores a snapshot: the tune is not part of it. */
+    bool restoringPluginUndo = false;
     juce::MidiBuffer tuneToEngine, tuneToMidiOut, tuneDirect;
     Metronome tuneClick;                  ///< fires on the tune's grid, not its own
     juce::AudioBuffer<float> tuneClickBuffer;
@@ -536,11 +961,34 @@ private:
     KillSwitch killSwitch;
     MonitorMix monitorMix;
     ExpressionCalibrationSet expression;
+    LiveActionMap liveActions;          // SPEC-SWEEP: LP-11
+    float lastSnapshotMorph = -1.0f;    // SPEC-SWEEP: LP-16
 
     /*  The monitor mix is rendered into its own buffer and then written to the
         monitor aux bus, because it must not be summed into the main output: the
         whole point of it is that the audience does not hear it. */
     juce::AudioBuffer<float> monitorBuffer;
+
+    // --- jam mode (FEAT-JAM) ---------------------------------------------------------
+    JamStyleLibrary jamStyles;
+    JamEngine jam;
+    juce::MidiBuffer jamNotes, jamTuneBass, jamScratch;
+    juce::AudioBuffer<float> jamMain;
+    juce::String jamStyleRef, jamStyleWarning;
+    bool jamLinkRhythmKit = false;
+    int jamLinkedStyle = -1;
+    std::atomic<bool> jamSilencesMetronome { true }, jamSeparateFallback { false }, jamReplacesPercussion { false };
+    std::atomic<bool> jamTuneHasBass { false };
+    std::atomic<int> tunePercussionToEngine { 0 };
+    std::atomic<double> jamBlockWallMs { 0.0 };
+    bool jamWasEnabled = false;
+    int jamMirrorState = -1;
+    double jamMirrorSince = 0.0;
+    int jamLooperState = 0;
+    std::atomic<float>* jamOutputRaw = nullptr;   ///< looked up once: a lookup by ID allocates
+
+    void onJamTimeline (const TuneTimeline& timeline);
+    void mixJam (juce::AudioBuffer<float>& mainOut, int numSamples) noexcept;
 
     // --- practice tools ---------------------------------------------------------------
     Metronome metronome;
@@ -548,6 +996,7 @@ private:
     BackingTrackPlayer backingTrack;
     SessionRecorder sessionRecorder;
     ScaleTrainer scaleTrainer;
+    PracticeNoteFeed practiceNoteFeed;   // SPEC-SWEEP PT-34
     EarTrainer earTrainer;
     ProgressionLooper progression;
 
@@ -560,7 +1009,7 @@ private:
     PracticeActivityTracker practiceTracker;
     std::atomic<int> pendingDrawerTool { -1 };
 
-    bool practicePanelOpen = false;
+    std::atomic<bool> practicePanelOpen { false };   // set by the UI, read by the audio thread
 
     /** The metronome's click and the backing track are rendered into their own
         buffers and then mixed, so neither can be written over by the other. */
@@ -569,11 +1018,17 @@ private:
     // --- tone match ---------------------------------------------------------------------
     IrSlot bodyIr;
     std::array<IrSlot, 2> cabIr;
+    IrSlot eqMatchSlot;                              // SPEC-SWEEP TM-28
+    std::atomic<int> eqMatchPosition { (int) EqMatchPosition::postAmp };
     Capture capture;
+    TestSignalPlayer cabMatchSignal;                 // SPEC-SWEEP TM-17
+    juce::AudioBuffer<float> testSignalBuffer;       // SPEC-SWEEP TM-17
 
     // --- updates and privacy ---------------------------------------------------------------
     Telemetry telemetry;
-    License license;
+   #if LUTHIER_PRO
+    License license;   // editions.md 2.5 / Q-8: the Free binary has no licensing code
+   #endif
 
     /*  advanced-ranges.md: which parameter families this preset has unlocked.
 
@@ -584,11 +1039,17 @@ private:
     RangeState ranges;
     bool randomiseRespectsStock = true;
 
+    /*  REALISM-A (string-aging.md 8, environment.md 6): the aging state and the
+        environment reference from the state's character block, and the legacy
+        temperature / humidity conversion. After the character engine's fromVar. */
+    void applyRealismCharacterBlock (const juce::var& characterBlock);
+
     // The guitar as parts (guitar-workshop.md).
     bool loadGuitarForType (GuitarType type);
     bool loadGuitarFrom (const juce::String& reference, const juce::var& override,
                          GuitarType type, bool writeParameters);
     void writeGuitarParameters (const DerivedAcoustics& derived);
+    bool guitarLoadKeepsHostWrites = false;   ///< only a type load defers to the host's writes
 
     /** strum-dynamics 4 / bass-techniques 8: moves the strum parameters still on
         one family's defaults to the other's. */
@@ -598,14 +1059,36 @@ private:
         loaded (or kept) by loadGuitarForType when the bridge next applies. */
     void takeGuitarBlock (const juce::var& block);
 
+    // SPEC-SWEEP: SM-1/SM-16/FF-24..29 - the preset blocks the processor owns
+    // (Presets/PresetBlocks.cpp). Absent blocks go back to defaultPresetBlocks.
+    void writePresetBlocks (juce::DynamicObject& root) const;
+    void readPresetBlocks (const juce::DynamicObject& root);
+    void captureDefaultPresetBlocks();
+    juce::var defaultPresetBlocks;
+
+    // SPEC-SWEEP: SM-46 - what a user-facing preset load clears (state-model 8.1).
+    void presetFileLoaded();
+    juce::StringArray stateNotices, stateWarnings;
+
+    // SPEC-SWEEP HI-20/24/25 (HostStateFormat.cpp).
+    void writeStateFormat (juce::DynamicObject& root) const;
+    void readStateFormat (const juce::DynamicObject& root, const void* data, int sizeInBytes);
+    void noteRestoredPresetBlock (const juce::var& block, bool loaded);
+    void reportUnreadableState (const void* data, int sizeInBytes);
+    juce::var refusedPresetBlock;   // a newer build's preset, written back until another preset loads
+
     /** Resolves a preset's reference to a guitar file: user, then factory. */
     static juce::File resolveGuitarReference (const juce::String& reference);
 
     PartLibrary partLibrary;
+    InstallLayout::Result installLayoutResult;   // installer.md 6
     PartPtr capoPart;
+    PartPtr slidePart;   // VISUAL-WORKSHOP-QA: the fitted slide
     WorkshopGuitar currentGuitar;
+    juce::uint32 guitarRevision = 0;   // getGuitarRevision
     WorkshopBench bench { *this };
     bool partsGuitarLoaded = false;
+    juce::String lastGuitarSaveError;   // SPEC-SWEEP ER-44
     bool strumFamilyIsBass = false;   ///< strum-dynamics 4: the family the strum parameters' defaults follow
     juce::StringArray guitarNotices;
 
@@ -624,6 +1107,17 @@ private:
         and are the refinements to keep, so the load must not overwrite them
         with the guitar's own values. */
     bool guitarParametersFromState = false;
+
+    /*  A factory preset or a reset names its guitar's parts as the winners
+        (guitar block "partsWin") and lists the recipe values to restore over
+        them ("keep", parameter id -> normalised). Applied after the parts are
+        written, then cleared. Message thread. */
+    juce::NamedValueSet pendingGuitarKeep;
+
+    /** Set with partsWin: the parts are written even over values the preset or
+        reset has just written (which the writtenSinceGuitarType guard would
+        otherwise take for the host's). Cleared after the load. */
+    bool guitarPartsWin = false;
 
     /*  live-performance 2: a program change or bank select arrives on the audio
         thread, but acting on either can allocate - a snapshot recall walks the
@@ -647,10 +1141,34 @@ private:
 
     // Transport state, so the matrix can retrigger synced sources exactly once
     // when the host starts rolling.
-    bool transportWasRunning = false;
+    std::atomic<bool> transportWasRunning { false };   // read by getEffectiveTempo on the UI thread
+
+    /** This block's tempo: the host's, or the tapped one when that wins. */
+    double blockTempo = 120.0;
+    MidiClockTempo midiClock;                    // SPEC-SWEEP HI-32
+    std::atomic<double> midiClockBpm { 0.0 };    // SPEC-SWEEP HI-32: 0 = no clock
+    int hostTimeSigNumerator = 0, hostTimeSigDenominator = 0;   // SPEC-SWEEP HI-29: 0 = the host gave none
 
     double currentSampleRate = 44100.0;
+    HostClockGuard hostClock;                    ///< RT-SAFETY P2: every PlayHead read goes through it
+    std::atomic<int> midiOverflowDrops { 0 };     ///< RT-SAFETY P1: events BoundedMidi trimmed
+    bool initialStateApplied = false;   ///< the bridge has built the instrument once (prepare or save)
     int currentBlockSize = 512;
+
+    /*  A host may hand processBlock more samples than it promised in
+        prepareToPlay; every scratch buffer here is sized from that promise, so
+        such a block is rendered in slices of at most currentBlockSize. These
+        carry each slice's MIDI in and the whole block's MIDI out, sized in
+        prepareToPlay. */
+    juce::MidiBuffer sliceMidi, sliceMidiOut;
+    juce::MidiBuffer liveMidiKept;   ///< handleLiveMidi's output, sized in prepareToPlay
+
+    /** The macro parameters' values, looked up once: a lookup by ID builds a
+        String, which is an allocation the audio thread must not make. */
+    std::array<std::atomic<float>*, ParamIDs::kNumMacros> macroValues {};
+    std::array<int, ParamIDs::kNumMacros> macroParamIndex {};   // SPEC-SWEEP: MM-29, index into getParameters()
+
+    void processSlice (juce::AudioBuffer<float>&, juce::MidiBuffer&);
     int reportedLatency = 0;
 
     /*  gui-integration 15: "Sample rate changed to 96 kHz, IRs and circuit filters
@@ -681,8 +1199,32 @@ private:
 
     // --- audition -------------------------------------------------------------
     std::atomic<bool> auditionActive { false };
+
+    /*  Declick around structural changes (ParameterBridge::beforeStructuralChange).
+        The message thread asks for a fade-out and waits (briefly) for the audio
+        thread to finish it; the change is applied into silence; the audio thread
+        then fades back in. The wait is skipped when no audio thread is running
+        (offline, or a caller rendering on the message thread itself). */
+    enum DeclickState { declickIdle = 0, declickFadingOut, declickSilent, declickFadingIn };
+    std::atomic<int> declickState { declickIdle };
+    std::atomic<double> lastAudioCallbackMs { 0.0 };
+    std::atomic<juce::Thread::ThreadID> audioThreadId { nullptr };
+    float declickGain = 1.0f;   ///< audio thread only
+    int declickDepth = 0;       ///< message thread: nesting of fade requests
+    void applyDeclick (juce::AudioBuffer<float>& buffer) noexcept;
+    void fadeOutBeforeStructuralChange();
+    void fadeInAfterStructuralChange();
     AuditionPhrase::Type auditionType = AuditionPhrase::Type::MajorScale;
-    juce::MidiMessageSequence auditionSequence;
+    /*  riff-library (FEAT-RIFFS fix b): startAudition used to rebuild the
+        sequence on the message thread while the audio thread read it. It is
+        now built into a fresh object and handed over as TunePlayer does: a
+        waiting slot under a SpinLock, taken by the audio thread with a
+        ScopedTryLock, the displaced one retired for the timer to free. */
+    juce::SpinLock auditionLock;
+    std::shared_ptr<const juce::MidiMessageSequence> auditionWaiting;      // guarded by auditionLock
+    std::shared_ptr<const juce::MidiMessageSequence> auditionRetired;      // guarded by auditionLock
+    bool auditionHasWaiting = false;                                        // guarded by auditionLock
+    std::shared_ptr<const juce::MidiMessageSequence> auditionSequence;     // audio thread only
     int auditionEventIndex = 0;
     double auditionPositionSeconds = 0.0;
     double auditionEndSeconds = 0.0;
@@ -690,6 +1232,10 @@ private:
     // --- preview notes from the fretboard ---------------------------------------
     juce::MidiBuffer previewMidi;
     juce::CriticalSection previewLock;
+
+    // --- piano-roll-chord-display.md 2 ---------------------------------------------
+    SoundingNotes soundingNotes;
+    SoundingNotesPublisher soundingPublisher;
 
     // --- A/B and undo -------------------------------------------------------------
     juce::MemoryBlock slotA, slotB;
@@ -707,26 +1253,18 @@ private:
     void parameterValueChanged (int parameterIndex, float newValue) override;
     void parameterGestureChanged (int parameterIndex, bool gestureIsStarting) override;
 
-    struct UndoEntry
-    {
-        /** The state before the action. */
-        juce::MemoryBlock state;
+    void undoOnce (bool crossBoundary);
 
-        /** The state after it, filled in when the action is undone. */
-        juce::MemoryBlock redoState;
-
-        juce::String description;
-    };
-
-    void addUndoEntry (UndoEntry&& entry);
+    /*  action-and-undo.md 3.17 / 7: restores an entry's state but leaves the
+        session layers (view, Live Mode, A/B, locks, tune, metronome) alone. */
+    void applyUndoState (const juce::MemoryBlock& state);
+    bool restoringForUndo = false;
 
     bool gestureUndoSuppressed = false;
 
-    juce::Array<UndoEntry> undoStack;
-    int undoPosition = -1;
-
-    /** action-and-undo.md 2. */
-    static constexpr int kMaxUndoSteps = 200;
+    UndoHistory undoHistory;   // action-and-undo.md
+    juce::File setlistFile;    // ui-wiring 17: the loaded setlist's reference
+    double gestureStartMs = 0.0;
 
     /*  The state as it was when the current gesture started, held until the
         gesture ends and we know whether anything actually changed. */
@@ -751,6 +1289,51 @@ private:
     int gestureParameterIndex = -1;
 
     juce::StringArray lockedParameters;
+    juce::NamedValueSet unknownHostSections;   // host-integration HI-24
+
+    // SPEC-SWEEP (UW-5, CT-2/CT-4/CT-7)
+    CommandQueue<EngineCommand, 128> engineCommands;
+    ControllerStage controllerStage;
+    ExpressionStage expressionStage;   // IR-11
+    MidiClockTransport clockTransport; // IR-16
+    LuthierSysExIn sysExIn;            // IR-15
+    bool blockHostPlaying = false;     // IR-24: this block's host transport
+    double blockHostPpq = 0.0;
+
+public:
+    /** SPEC-SWEEP (IR-16): where incoming MIDI clock says the song is. */
+    const MidiClockTransport& getMidiClockTransport() const noexcept { return clockTransport; }
+
+    /** SPEC-SWEEP (IR-15): applies Luthier SysEx that arrived at the input
+        (CHARACTER seed / environment, SNAPSHOT recall, RANGES unlock). The
+        timer calls it; so can a test. Message thread. Returns events applied. */
+    int serviceInboundSysEx();
+    void applyInboundLuthierEvent (const LuthierEvent& event);
+private:
+    juce::MidiBuffer controllerScratch;
+    std::array<std::atomic<bool>, kMaxStrings> stringMuted {};
+    std::atomic<bool> aftertouchBends { false };   // PT-23
+    std::atomic<bool> bankSelectsPreset { true };  // IR-14
+    juce::uint32 loggedClippedNotes = 0;           // CT-14
+
+    // CT-11: the latency wizard's measurements, audio -> message thread.
+    std::atomic<bool> latencyListening { false };
+    static constexpr int kLatencyFifo = 64;
+    juce::AbstractFifo latencyFifo { kLatencyFifo };
+    std::array<float, kLatencyFifo> latencyMeasurements {};
+    void captureLatencyMeasurements (const juce::MidiBuffer& midi) noexcept;
+    void applyEngineCommand (const EngineCommand& command) noexcept;
+    // output-normalization.md: declared last, so every parameter and the engine
+    // exist when its change tracker is built.
+    OutputNormalization outputNormalization { *this };
+
+    // ==== BEGIN FEAT-BROWSER (preset-browser-previews.md 4.1 / 4.2) ====
+    PreviewClipPool previewClipPool;          // before the player: outlives it
+    PreviewPlayer previewPlayer;
+    std::unique_ptr<class PresetLibrary> presetLibrary;     // after the player: goes first
+    bool offlineRenderInstance = false;
+    int previewHeldNotes = 0;                 // audio thread: live notes held (4.3)
+    // ==== END FEAT-BROWSER ====
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LuthierAudioProcessor)
 };

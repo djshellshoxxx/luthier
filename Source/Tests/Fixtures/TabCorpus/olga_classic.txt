@@ -1,0 +1,12 @@
+Fixture Song - Nobody In Particular
+Tabbed by: nobody@example.invalid
+Standard tuning
+
+Key: h = hammer-on, p = pull-off, b = bend, r = release, / = slide up, \ = slide down, ~ = vibrato, x = muted
+
+e|--5h7p5--7/9\7--5b7r5--7~--x----|
+B|--------------------------------|
+G|--------------------------------|
+D|--------------------------------|
+A|--------------------------------|
+E|--------------------------------|

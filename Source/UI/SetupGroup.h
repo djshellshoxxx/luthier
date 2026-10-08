@@ -8,6 +8,7 @@
     watch the low frets light up.
 */
 
+#include "AnimationPolicy.h"   // cpu-quality-modes 6
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Widgets.h"
 
@@ -42,6 +43,16 @@ public:
 
     bool isStale() const noexcept;
 
+    /** SPEC-SWEEP (GD-13, gui-engine-dataflow 6.3): stale after 500 ms without a
+        change, fading out over the next 200 ms rather than switching. 1 is
+        fresh, 0 fully faded, for a map @p ageSeconds old. */
+    static constexpr double kStaleSeconds = 0.5;
+    static constexpr double kFadeSeconds = 0.2;
+    static float freshnessFor (double ageSeconds) noexcept
+    {
+        return (float) juce::jlimit (0.0, 1.0, 1.0 - (ageSeconds - kStaleSeconds) / kFadeSeconds);
+    }
+
 private:
     void timerCallback() override;
 
@@ -50,6 +61,10 @@ private:
     double lastChange = -1.0e9;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BuzzHeatmap)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "BuzzHeatmap" };
 };
 
 //==============================================================================

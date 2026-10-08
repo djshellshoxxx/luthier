@@ -347,7 +347,8 @@ AmpFaceLayout layoutAmpFace (juce::Rectangle<float> bounds, AmpModel model, bool
     l.hasSwitches = withSwitches;
 
     l.cabinet = bounds.reduced (1.0f);
-    const float border = juce::jlimit (3.0f, 14.0f, juce::jmin (l.cabinet.getWidth(), l.cabinet.getHeight()) * 0.07f);
+    // The cabinet's border scales with the face, but a taller card does not widen it (TODO 2h).
+    const float border = juce::jlimit (3.0f, 14.0f, juce::jmin (l.cabinet.getWidth() * 0.045f, l.cabinet.getHeight() * 0.07f));
     auto inner = l.cabinet.reduced (border);
 
     // A narrow column (the Advanced AMP section) takes the knobs in two rows of
@@ -364,7 +365,11 @@ AmpFaceLayout layoutAmpFace (juce::Rectangle<float> bounds, AmpModel model, bool
     {
         if (tall || inner.getHeight() > inner.getWidth() * 0.4f)
         {
-            l.faceplate = inner.removeFromTop (juce::jmax (34.0f, inner.getHeight() * (tall ? 0.66f : 0.44f)));
+            // A card-sized combo (the Easy rig strip) gives the knobs more of the
+            // face: a switchless card (no switch column) hands the faceplate more
+            // of the height so two rows of knobs keep their size on a small window.
+            const float tallShare = withSwitches ? 0.66f : 0.78f;
+            l.faceplate = inner.removeFromTop (juce::jmax (34.0f, inner.getHeight() * (tall ? tallShare : 0.58f)));
             inner.removeFromTop (border * 0.6f);
             l.grille = inner;
 
@@ -399,7 +404,8 @@ AmpFaceLayout layoutAmpFace (juce::Rectangle<float> bounds, AmpModel model, bool
         }
     }
 
-    const float pad = l.faceplate.getHeight() * 0.06f;
+    // A wide single-row face keeps a thin margin, so the knobs keep their width (TODO 2h).
+    const float pad = juce::jmin (l.faceplate.getHeight() * 0.06f, tall ? 1.0e9f : 4.0f);
     auto area = l.faceplate.reduced (pad);
 
     // ---- the name on a faceplate with nowhere else for it: a band across the top, with the inputs
@@ -422,7 +428,7 @@ AmpFaceLayout layoutAmpFace (juce::Rectangle<float> bounds, AmpModel model, bool
     // ---- the inputs down the left of a wide faceplate, their label under them
     if (! tall && ! logoOnPlate)
     {
-        auto left = area.removeFromLeft (area.getWidth() * 0.09f);
+        auto left = area.removeFromLeft (area.getWidth() * 0.075f);
         const float jack = juce::jmin (left.getWidth() * 0.3f, left.getHeight() * 0.16f);
         const auto jackCentre = left.getCentre().translated (0.0f, -jack * 0.5f);
 
@@ -437,7 +443,7 @@ AmpFaceLayout layoutAmpFace (juce::Rectangle<float> bounds, AmpModel model, bool
     if (withSwitches)
         right = area.removeFromRight (area.getWidth() * (tall ? 0.28f : 0.2f));
     else if (band.isEmpty() && strip.isEmpty())
-        right = area.removeFromRight (area.getWidth() * 0.08f);
+        right = area.removeFromRight (area.getWidth() * 0.055f);
 
     // ---- the knobs: one row, or two rows of three, each knob over its label
     const int cols = numAmpKnobs / l.knobRows;

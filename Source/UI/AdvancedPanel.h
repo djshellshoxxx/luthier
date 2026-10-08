@@ -20,6 +20,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Widgets.h"
+#include "PianoRollStrip.h"
 #include "RoutingPanel.h"
 #include "ModMatrixPanel.h"
 #include "RhythmPanel.h"
@@ -33,14 +34,82 @@
 #include "PedalRack.h"
 #include "AmpFacePanel.h"
 #include "TunePanel.h"
+#include "JamPanel.h"   // FEAT-JAM
 #include "PracticeSetupPanel.h"
 #include "HelpTab.h"
+#include "RiffBrowser.h"         // riff-library 7.1
+#include "WorkspaceTabStrip.h"   // FEAT-RIFFS: the strip scrolls when the tabs overflow
+#include "PanelHelpButton.h"
+#include "MicPlacementEditor.h"   // mic-placement.md 6 (FEAT-MIC)
+#include "Techniques/TechniquesPanel.h"   // gui-techniques-updates.md 1 (TECHNIQUES)
 
 namespace luthier
 {
 
 class LuthierAudioProcessor;
 class ControllersPage;
+
+//==============================================================================
+/*  spec/issues.md ISS-7 (PR #2): a Viewport that says when there is more.
+
+    A column that is taller than its window gives no sign of it beyond a thin
+    scrollbar, and users read the bottom of the visible part as the bottom of
+    the column. This viewport overlays a fading strip with an accent chevron at
+    whichever end has content beyond it, with a tooltip saying how to get
+    there; clicking the strip pages the view. The wheel is left alone, so it
+    still reaches the Viewport underneath. */
+class ScrollHintViewport : public juce::Viewport
+{
+public:
+    explicit ScrollHintViewport (const juce::String& componentName = {});
+    ~ScrollHintViewport() override;
+
+    /** The strip's height at each end. */
+    static constexpr int hintHeight = 18;
+
+    /** The glyph's half-width: the only part of a strip that takes a click.
+        The fade either side is a look, and a control scrolled under it must
+        still get the mouse. */
+    static constexpr int hintGlyphHalfWidth = 14;
+
+    void resized() override;
+    void visibleAreaChanged (const juce::Rectangle<int>& newVisibleArea) override;
+
+    /** Content that grows or shrinks without a scroll (a workspace tab
+        switching, a group unfolding) moves the bottom hint too. */
+    void viewedComponentChanged (juce::Component* newComponent) override;
+
+    /** True while the hint at that end is on show, for the tests. */
+    bool isTopHintShowing() const noexcept;
+    bool isBottomHintShowing() const noexcept;
+
+    /** Scrolls by 80% of the visible height, up or down. */
+    void pageBy (int direction);
+
+private:
+    class OverflowChevron;
+
+    void updateHints();
+
+    /*  Watches the viewed component's size. A member, not a second base:
+        juce::Viewport is already (privately) a ComponentListener, so deriving
+        from it again makes `this` an ambiguous ComponentListener* on GCC, and
+        an override of componentMovedOrResized here would become the final
+        overrider for Viewport's own listener too, cutting off its
+        updateVisibleArea() when the content resizes. */
+    struct ContentWatcher : public juce::ComponentListener
+    {
+        explicit ContentWatcher (ScrollHintViewport& viewport) : owner (viewport) {}
+        void componentMovedOrResized (juce::Component&, bool wasMoved, bool wasResized) override;
+        ScrollHintViewport& owner;
+    };
+
+    std::unique_ptr<OverflowChevron> topHint, bottomHint;
+    juce::Component::SafePointer<juce::Component> watchedContent;
+    ContentWatcher contentWatcher { *this };
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ScrollHintViewport)
+};
 class MidiOutPanel;
 class NotationPanel;
 
@@ -90,6 +159,10 @@ public:
     ~AdvancedPanel() override;
 
     void setSelectedString (int index);
+
+    /** cpu-quality-modes 5: column 3's Master oversampling tooltip carries the
+        "Running at 2x while quality is Medium." note ("" when not capped). */
+    void setOversamplingNote (const juce::String& note);
     int getSelectedString() const noexcept { return selectedString; }
 
     /*  Section 4.5: below 1000 points wide, Advanced Mode is unavailable. Three
@@ -99,6 +172,9 @@ public:
     static constexpr int minimumUsableWidth = 1000;
 
     FretboardComponent& getFretboard() noexcept { return fretboard; }
+
+    /** piano-roll-chord-display.md 1: the strip under the fretboard. */
+    PianoRollStrip& getPianoRoll() noexcept { return *pianoRoll; }
 
     //==========================================================================
     /*  Column 4's tab strip (section 4.4).
@@ -122,8 +198,25 @@ public:
     /** True while the WORKSHOP tab has taken over columns 3 and 4. */
     bool isWorkshopShowing() const noexcept;
 
+    /*  mic-placement.md 6.1 / 6.2 (FEAT-MIC): the CAB section's placement view,
+        and the expanded editor, which takes over Columns 3 and 4 the way the
+        Workshop does while Column 4's tab strip stays visible. */
+    MicPlacementView* getMicPlacementView() const noexcept { return micView.get(); }
+    MicPlacementEditor* getMicPlacementEditor() const noexcept { return micEditor.get(); }
+    void openMicEditor();
+    void closeMicEditor();
+    bool isMicEditorShowing() const noexcept { return micEditor != nullptr && micEditor->isVisible(); }
+
     /** The HELP tab (gui-integration 4.4). */
     HelpTab* getHelpTab() const noexcept { return helpTab.get(); }
+
+    /** riff-library 7.1: the RIFFS tab, between TUNE and LIVE. */
+    RiffBrowser* getRiffsPanel() const noexcept { return riffsPanel.get(); }
+
+    /** The strip the tab buttons live in (it scrolls when they overflow). */
+    WorkspaceTabStrip& getWorkspaceTabStrip() noexcept { return workspaceStrip; }
+    /** The TECHNIQUES tab (gui-techniques-updates.md 1). */
+    TechniquesPanel* getTechniquesPanel() const noexcept { return techniquesPanel.get(); }
 
     /** Opens the HELP tab pinned to a topic (a tab name, a column section, an
         Options page). */
@@ -135,6 +228,16 @@ public:
     juce::String getHelpContextFor (const juce::Component* focused) const;
 
     void setWorkspaceTab (int index);
+
+    //==========================================================================
+    /*  TUNE-HELP-ONBOARDING (gui-integration 20, onboarding 3 and 4): the ?
+        icons on every column section and on the workspace, and where the tour
+        and the first-week hints find things. */
+    std::vector<PanelHelpButton*> getHelpButtons() const;
+    PanelHelpButton& getWorkspaceHelpButton() noexcept { return workspaceHelp; }
+    juce::Component* getColumnViewport (int column) noexcept;
+    juce::Button* getWorkspaceTabButton (const juce::String& tabName) const;
+    juce::Rectangle<int> getWorkspaceTabStripBounds() const noexcept { return workspaceTabStrip; }
 
     /*  Selects a tab by the name on it. For callers that want a particular panel
         and should not have to know where it sits - a notification banner offering
@@ -157,6 +260,20 @@ public:
         when no name is stored (a file from an older build). */
     static constexpr const char* workspaceTabPreferenceKey = "advanced.workspaceTab";
     static constexpr const char* workspaceTabNamePreferenceKey = "advanced.workspaceTabName";
+
+    //==========================================================================
+    // global-search.md 3.2 (FEAT-SEARCH): column section headings are drawn,
+    // not components, so the palette asks here.
+
+    /** The section headings of column 1-3, in order. */
+    juce::StringArray getColumnSections (int column) const;
+
+    /** The column (1-3) and section heading holding `c`; empty if none. */
+    juce::String getColumnSectionFor (const juce::Component* c, int& column) const;
+
+    /** Brings a column section on screen (leaving WORKSHOP if it hides the
+        column) and scrolls its heading into view. */
+    bool revealColumnSection (const juce::String& heading);
 
     void paint (juce::Graphics&) override;
     void resized() override;
@@ -181,6 +298,19 @@ private:
         /** The heading of the section holding `c`, or empty. */
         juce::String getSectionContaining (const juce::Component* c) const;
 
+        /** FEAT-SEARCH: the headings, and where one starts (-1 if absent). */
+        juce::StringArray getSections() const;
+        int getSectionY (const juce::String& heading) const;
+        /** Retitles a section in place (mic-placement.md 6.1: "Microphones"). */
+        void renameSection (const juce::String& from, const juce::String& to);
+
+        /** gui-integration 16 and 20: the section heading at a height, the ?
+            on each heading, and Help on either. */
+        juce::String getSectionAt (int y) const;
+        std::function<void (const juce::String&)> onHelp;
+        juce::OwnedArray<PanelHelpButton> helpButtons;
+        void mouseDown (const juce::MouseEvent&) override;
+
     private:
         struct Item
         {
@@ -188,11 +318,13 @@ private:
             juce::String heading;
             int height = 0;
             bool isGap = false;
+            PanelHelpButton* help = nullptr;
         };
 
         juce::String title;
         juce::Array<Item> items;
         int contentHeight = 0;
+        PaintCache backgroundCache;   // the headings' tracked text and plates: static
     };
 
     void buildColumn1();
@@ -211,15 +343,24 @@ private:
     GuitarBodyComponent guitarBody;
     FretboardComponent fretboard;
 
+    // piano-roll-chord-display.md 1: under the fretboard, the strip grown by its height.
+    std::unique_ptr<PianoRollStrip> pianoRoll;
+    int getGuitarStripHeight (int boundsHeight) const;
+
     // Columns 1 to 3. Column 4 is the workspace below, which is not a Column:
     // it shows one panel at a time rather than stacking them.
-    juce::Viewport viewports[3];
+    ScrollHintViewport viewports[3];
     std::unique_ptr<Column> columns[3];
 
     juce::OwnedArray<juce::TextButton> workspaceTabs;
+    WorkspaceTabStrip workspaceStrip;
     juce::Array<juce::Component*> workspacePanels;
-    juce::Viewport workspaceViewport;
+    ScrollHintViewport workspaceViewport;
     int workspaceTab = 0;
+
+    // gui-integration 20: the workspace panel's ?, at the end of the tab strip.
+    PanelHelpButton workspaceHelp;
+    juce::Rectangle<int> workspaceTabStrip;
 
     /*  Where resized() put the column dividers, so paint() draws them in the
         same places. Below 1280 the layout stacks columns 2 and 3, and a paint
@@ -231,12 +372,15 @@ private:
 
     // --- column 1 -----------------------------------------------------------------
     juce::OwnedArray<StringRow> stringRows;
-    std::unique_ptr<LuthierChoice> stringMaterial, stringGauge, stringAge;
+    std::unique_ptr<LuthierChoice> stringMaterial, stringGauge;
+    std::unique_ptr<LuthierKnob> stringAgeHours, bodyCoupling;   // REALISM-A
     std::unique_ptr<LuthierKnob> realismDetune, intonation, sustain;
+    std::unique_ptr<DecayRow> decayRow;   // sustain-and-decay.md 8 (REALISM-C)
     std::unique_ptr<LuthierToggle> driftToggle;
 
     // --- column 2 -----------------------------------------------------------------
     std::unique_ptr<LuthierChoice> temperament, capo;
+    juce::TextButton openWorkshopButton { "Open in Workshop" };   // gui-integration 4.1: GUITAR column
     std::unique_ptr<LuthierKnob> concertA, couplingAmount, fretAction, fretBuzz;
     std::unique_ptr<LuthierToggle> fretlessToggle, slideGuitarToggle;
 
@@ -252,6 +396,7 @@ private:
                                  soundhole, bodyAge, airGain;
 
     std::unique_ptr<LuthierChoice> pickupSelector;
+    std::unique_ptr<LuthierKnob> pickupBlend;   // SPEC-SWEEP: SP-17
     std::unique_ptr<LuthierChoice> pickupType[3];
     std::unique_ptr<LuthierChoice> pickupMagnet[3];
     std::unique_ptr<LuthierKnob> pickupVolume[3];
@@ -271,6 +416,9 @@ private:
     std::unique_ptr<AmpFacePanel> ampFace;
 
     std::unique_ptr<LuthierToggle> cabOn, dualMic;
+    std::unique_ptr<MicPlacementView> micView;          // FEAT-MIC
+    std::unique_ptr<MicPlacementEditor> micEditor;      // FEAT-MIC
+    juce::String micSectionTitle;                       // FEAT-MIC
     std::unique_ptr<LuthierChoice> cabType, cabSpeaker, micType, micPosition, micDistance,
                                    micType2, micPosition2, micDistance2;
     std::unique_ptr<LuthierKnob> speakerAge, micBlend, micWidth, micPhase;
@@ -292,6 +440,8 @@ private:
     std::unique_ptr<ModMatrixPanel> modMatrixPanel;
     std::unique_ptr<RhythmPanel> rhythmPanel;
     std::unique_ptr<TunePanel> tunePanel;
+    std::unique_ptr<JamPanel> jamPanel;   // FEAT-JAM: jam-mode 8.1
+    std::unique_ptr<RiffBrowser> riffsPanel;   // riff-library 7.1
     std::unique_ptr<PracticeSetupPanel> practiceSetupPanel;
     std::unique_ptr<HelpTab> helpTab;
     std::unique_ptr<LivePanel> livePanel;
@@ -304,6 +454,7 @@ private:
         the Options overlay. Held by pointer so this header does not have to pull
         in every other Options page. */
     std::unique_ptr<ControllersPage> controllersPage;
+    std::unique_ptr<TechniquesPanel> techniquesPanel;   // gui-techniques-updates.md 1
     std::unique_ptr<MidiOutPanel> midiOutPanel;
     std::unique_ptr<NotationPanel> notationPanel;
 
@@ -311,6 +462,7 @@ private:
     std::unique_ptr<LuthierKnob> whammyPos, whammyDown, whammyUp, whammySprings, transposeLock;
 
     std::unique_ptr<PedalRack> preRack, postRack;
+    std::unique_ptr<LuthierKnob> fxSaturation;   // FEAT-SAT
 
     std::unique_ptr<LuthierKnob> humTiming, humVelocity, humDetune, humAttack, humNoise, humStrum;
     std::unique_ptr<LuthierKnob> vibratoRate, vibratoDepth, strumSpeed, bendRange, legatoWindow,

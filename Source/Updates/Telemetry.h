@@ -133,6 +133,10 @@ struct Policy
 
     static Policy load();
     static juce::File getPolicyFile();
+
+    /** SPEC-SWEEP: UT-26 - tests point the policy at a temporary file; an
+        empty File restores the system path. */
+    static void setPolicyFileForTesting (const juce::File& file);
 };
 
 //==============================================================================
@@ -177,6 +181,10 @@ public:
     void record (Category category, const juce::String& eventName,
                  const std::map<juce::String, juce::String>& fields = {});
 
+    /** SPEC-SWEEP: UT-2 - whether a field may be recorded at all: an allowlisted
+        key with a value that cannot be a path, an address or free text. */
+    static bool isAllowedField (const juce::String& key, const juce::String& value);
+
     /** Sends the day's records, if the category is on and a day has passed.
         Worker thread. Returns false if there was nothing to send or it was not
         allowed. */
@@ -201,6 +209,12 @@ public:
     /** Checks for an update. Worker thread; never touches the audio thread.
         Throttled to once per 24 hours unless `force` is set. */
     UpdateResult checkForUpdate (const Version& runningVersion, bool force = false);
+
+    /** SPEC-SWEEP: UT-4 - the same check on a worker thread, never the message
+        or audio thread; `onResult` is posted back to the message thread. The
+        Telemetry must outlive the call (it is the processor's). */
+    void checkForUpdateAsync (const Version& runningVersion, bool force,
+                              std::function<void (const UpdateResult&)> onResult);
 
     /** When the last check happened, for the throttle and for the UI. */
     juce::Time getLastUpdateCheckTime() const { return lastUpdateCheck; }
@@ -298,6 +312,7 @@ private:
     Optional: an open-source build never calls any of this. A commercial build
     activates once online and revalidates monthly, with a fortnight of grace so
     that a laptop taken to a gig without a network keeps working. */
+#if LUTHIER_PRO
 class License
 {
 public:
@@ -361,5 +376,6 @@ private:
     static constexpr int kRevalidationDays = 30;
     static constexpr int kGraceDays = 14;
 };
+#endif
 
 } // namespace luthier

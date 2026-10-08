@@ -1,0 +1,1 @@
+- [PT-19] PARTIAL: doc rewritten to the physical loop and its five controls; the dead feedbackOn/feedbackThres/feedbackSpeed parameters remain (removal needs a state-version decision; parameters may not be removed under the sweep rules).

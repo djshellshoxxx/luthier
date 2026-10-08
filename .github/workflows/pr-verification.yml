@@ -1,0 +1,20 @@
+name: PR verification
+
+on:
+  pull_request:
+    branches: [master, main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-verification-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  platforms:
+    uses: ./.github/workflows/build.yml
+    with:
+      platforms: linux,windows,macos
+    secrets: inherit

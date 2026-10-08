@@ -4,7 +4,9 @@
 
     Four formats, written from one PerformanceScore:
 
-      - MusicXML 4.0, which every notation program reads.
+      - MusicXML 4.0, which every notation program reads. Written as a TAB
+        staff by default, or as a standard staff (real noteheads, no tab)
+        when `NotationExportOptions::staffMode` asks for one.
       - Guitar Pro, which is what the target audience actually uses.
       - ASCII tab, which is what gets pasted into a forum post.
       - Standard MIDI, which is what gets dragged into a DAW.
@@ -23,12 +25,22 @@
 */
 
 #include "PerformanceScore.h"
+#include "AsciiTabReader.h"
 
 namespace luthier
 {
 
 //==============================================================================
 /** Options shared by the exporters (notation-export 5). */
+/** One column of a rendered ASCII tab window: the absolute beat it stands
+    for and the character column (same in every row of the window). */
+struct TabColumnMark
+{
+    double beat = 0.0;
+    int column = 0;
+    int width = 1;
+};
+
 struct NotationExportOptions
 {
     /** ASCII tab line width. */
@@ -40,6 +52,9 @@ struct NotationExportOptions
     /** Include chord symbols where the detector found them. */
     bool chordSymbols = true;
 
+    /** Window renders (live view, TAB reader): also draw the chord-name row above the ruler. */
+    bool windowChordRow = false;
+
     /** Export only part of the score. Zero length means all of it. */
     double fromBeat = 0.0;
     double lengthBeats = 0.0;
@@ -47,6 +62,13 @@ struct NotationExportOptions
     /** ASCII tab: how much technique notation to include. */
     enum class SymbolDensity { full = 0, minimal, notesOnly };
     SymbolDensity density = SymbolDensity::full;
+
+    /** MusicXML: which staff to write. The ASCII/GP tab lane owns tablature;
+        `standardStaff` is the plain staff a reader who does not tab needs -
+        noteheads on a five-line staff, treble clef with the standard guitar
+        octave-down convention, no string/fret or tab-only technique marks. */
+    enum class StaffMode { tabStaff = 0, standardStaff };
+    StaffMode staffMode = StaffMode::tabStaff;
 };
 
 //==============================================================================
@@ -91,6 +113,13 @@ public:
                                        int firstMeasure, int numMeasures,
                                        const NotationExportOptions& options = {}) const;
 
+    /** As above, also reporting where each beat landed in the rendered rows
+        (universal tab player: the reader highlights the column that is sounding). */
+    juce::String renderAsciiTabWindow (const PerformanceScore& score,
+                                       int firstMeasure, int numMeasures,
+                                       const NotationExportOptions& options,
+                                       std::vector<TabColumnMark>& marks) const;
+
     bool writeMidi (const PerformanceScore& score, const juce::File& destination,
                     const NotationExportOptions& options = {}) const;
 
@@ -119,18 +148,60 @@ public:
         when the truth is that the format is not supported. */
     static bool canRead (const juce::File& file);
 
-    /** Parses a file into a score. Returns false and sets the error otherwise. */
+    /** What a file actually is: the bytes decide where they can (MIDI, Guitar
+        Pro, zip containers), the extension where they cannot (text). */
+    enum class FileKind
+    {
+        asciiTab, musicXml, compressedMusicXml, guitarPro7, guitarProLegacy,
+        guitarProGpx, powerTab, midi, unknown
+    };
+
+    static FileKind detectKind (const juce::File& file);
+
+    /** Parses a file into a score. Returns false and sets the error otherwise.
+        Partial reads (tab-import-export 7) return true and say what was
+        skipped in getLastDiagnostics(). */
     bool read (const juce::File& file, PerformanceScore& destination);
 
-    /** Parses ASCII tab. Exposed separately because the tab view pastes it. */
-    bool readAsciiTab (const juce::String& text, PerformanceScore& destination);
+    /** Parses ASCII tab (AsciiTabReader). Exposed separately because the tab
+        view pastes it. `diagnostics` receives what was read and skipped; the
+        same report is kept in getLastDiagnostics(). */
+    bool readAsciiTab (const juce::String& text, PerformanceScore& destination,
+                       TabImportDiagnostics* diagnostics = nullptr);
 
     bool readMusicXml (const juce::String& text, PerformanceScore& destination);
 
+    /** tab-import-export 8: a standard MIDI file as a tab. A Luthier-profile
+        file (or a per-string export) keeps its strings and frets; a generic
+        file is fingered by TabFingering's guess. The diagnostics report how
+        many notes were fingered or clamped. */
+    bool readMidi (const juce::File& file, PerformanceScore& destination);
+    bool readMidi (const void* data, size_t numBytes, PerformanceScore& destination);
+    /*  SPEC-SWEEP NE-4 (notation-export 2.2): Guitar Pro 7/8 - a `.gp` zip with
+        Content/score.gpif inside. Reads the structure Luthier writes and GP7
+        uses (master bars -> bars -> voices -> beats -> notes, rhythms, tuning
+        and the note techniques GPIF names). `.gp5`/`.gpx`/`.ptb` stay unread. */
+    bool readGuitarPro (const juce::File& file, PerformanceScore& destination);
+    bool readGpif (const juce::String& xml, PerformanceScore& destination);
+
+    /** Guitar Pro 3/4/5 binary (.gp3/.gp4/.gp5). Partial files import what was
+        readable and say so in the diagnostics. `preferredTrack` is a 0-based
+        track index, or -1 for the first pitched track. */
+    bool readGuitarProLegacy (const void* data, size_t numBytes, PerformanceScore& destination);
+    void setPreferredTrack (int trackIndex) noexcept { preferredTrack = trackIndex; }
+
+    /** Compressed MusicXML (.mxl): a zip whose META-INF/container.xml names the score. */
+    bool readCompressedMusicXml (const juce::File& file, PerformanceScore& destination);
+
     juce::String getLastError() const { return lastError; }
+
+    /** What the last read did: bars, notes, skipped lines, guessed tuning. */
+    const TabImportDiagnostics& getLastDiagnostics() const noexcept { return lastDiagnostics; }
 
 private:
     juce::String lastError;
+    TabImportDiagnostics lastDiagnostics;
+    int preferredTrack = -1;
 };
 
 } // namespace luthier

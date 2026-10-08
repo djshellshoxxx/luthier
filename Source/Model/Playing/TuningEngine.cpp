@@ -97,6 +97,7 @@ void TuningEngine::reset() noexcept
     {
         s.driftCents = 0.0;
         s.characterDriftCents = 0.0;
+        s.stabilityCents = 0.0;   // tuning-stability.md 5
     }
 }
 
@@ -152,7 +153,25 @@ void TuningEngine::setDetuneCents (int stringIndex, double cents) noexcept
 void TuningEngine::setCharacterDriftCents (int stringIndex, double cents) noexcept
 {
     if (juce::isPositiveAndBelow (stringIndex, kMaxStrings))
-        strings[(size_t) stringIndex].characterDriftCents = juce::jlimit (-50.0, 50.0, cents);
+        // environment.md 8: the room's offset rides here too, up to +-300 cents
+        // at the advanced extremes.
+        strings[(size_t) stringIndex].characterDriftCents = juce::jlimit (-350.0, 350.0, cents);
+}
+
+void TuningEngine::setStabilityCents (int stringIndex, double cents) noexcept
+{
+    if (juce::isPositiveAndBelow (stringIndex, kMaxStrings))
+        strings[(size_t) stringIndex].stabilityCents = juce::jlimit (-200.0, 200.0, cents);
+}
+
+void TuningEngine::clearDrift (int stringIndex) noexcept
+{
+    // tuning-stability.md 3: the walk restarts from in tune on this string.
+    if (juce::isPositiveAndBelow (stringIndex, kMaxStrings))
+    {
+        strings[(size_t) stringIndex].driftCents = 0.0;
+        driftTargets[(size_t) stringIndex] = 0.0;
+    }
 }
 
 void TuningEngine::setFineTuneCents (int stringIndex, double cents) noexcept
@@ -165,6 +184,12 @@ void TuningEngine::setIntonationSlope (int stringIndex, double centsPerFret) noe
 {
     if (juce::isPositiveAndBelow (stringIndex, kMaxStrings))
         strings[(size_t) stringIndex].intonationSlope = juce::jlimit (-2.0, 2.0, centsPerFret);
+}
+
+void TuningEngine::setAgingIntonation (int stringIndex, double centsPerFret) noexcept
+{
+    if (juce::isPositiveAndBelow (stringIndex, kMaxStrings))
+        strings[(size_t) stringIndex].agingIntonationSlope = juce::jlimit (0.0, 5.0, centsPerFret);
 }
 
 void TuningEngine::setMaxFrets (int stringIndex, int frets) noexcept
@@ -294,8 +319,16 @@ double TuningEngine::getOpenFrequencyBeforeCapo (int stringIndex) const noexcept
 {
     const auto& s = getStringTuning (stringIndex);
     const double cents = s.detuneCents + s.realismDetuneCents + s.driftCents
-                           + s.fineTuneCents + s.characterDriftCents;
+                           + s.fineTuneCents + s.characterDriftCents
+                           + s.stabilityCents;   // tuning-stability.md 1
     return s.openFrequencyHz * centsToRatio (cents);
+}
+
+double TuningEngine::getMicroOffsetFrets (int stringIndex) const noexcept
+{
+    const auto& s = getStringTuning (stringIndex);
+    return (std::abs (s.realismDetuneCents) + std::abs (s.driftCents) + std::abs (s.fineTuneCents)
+              + std::abs (s.characterDriftCents) + std::abs (s.stabilityCents)) / 100.0;
 }
 
 double TuningEngine::getEffectiveOpenFrequency (int stringIndex) const noexcept
@@ -348,7 +381,7 @@ double TuningEngine::computeFrequency (int stringIndex, double fretPosition, dou
 
     // Real guitars go progressively sharp up the neck: pressing the string down
     // stretches it. The slope is per-string and adjustable.
-    const double intonation = s.intonationSlope * juce::jmax (0.0, absoluteFret);
+    const double intonation = (s.intonationSlope + s.agingIntonationSlope) * juce::jmax (0.0, absoluteFret);
 
     const double totalCents = bendCents + intonation;
 
@@ -395,8 +428,10 @@ double TuningEngine::frequencyToFretPosition (int stringIndex, double hz) const 
 
     // Undo the intonation error, which itself depends on the fret position.
     const auto& s = getStringTuning (stringIndex);
-    if (std::abs (s.intonationSlope) > 1.0e-9)
-        semis -= s.intonationSlope * juce::jmax (0.0, semis) / 100.0;
+    const double slope = s.intonationSlope + s.agingIntonationSlope;
+
+    if (std::abs (slope) > 1.0e-9)
+        semis -= slope * juce::jmax (0.0, semis) / 100.0;
 
     return semis - (double) getCapoFretFor (stringIndex);
 }

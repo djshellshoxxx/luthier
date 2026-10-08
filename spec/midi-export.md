@@ -207,6 +207,11 @@ Options -> MIDI includes:
 - **bass-techniques.md** bass events export as BASS_TECH.
 - **advanced-ranges.md**: parameters outside stock range annotated in
   the Luthier profile so a re-import warns before applying.
+- **tab-export.md**: a Tune's MIDI export may source its
+  `PerformanceScore` from `TuneToScore` (a direct, symbolic conversion of
+  the written tune) instead of from a live `PerformanceCapture` render;
+  either way the same writer in sections 1-2 runs and the same round-trip
+  guarantee (2.2) holds.
 
 ## 10. Backward compatibility
 

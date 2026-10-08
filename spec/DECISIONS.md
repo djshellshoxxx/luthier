@@ -563,3 +563,12 @@ chosen") and `ambiguity-resolutions.md`.
   range is specified). Easy mode's Feel scales the crossing and evenness by
   6.3's map; its existing meaning (more humanise to the right) also stays -
   a UX tension left for review.
+- **Phase 2b range families** (string-aging, environment, body-coupling,
+  sustain-and-decay, tuning-stability). advanced-ranges 2 / file-formats 2 fixed
+  seven families; the new physical parameters need somewhere to live. New
+  families are appended after `modulation` (an absent key reads as stock, an
+  unknown one is ignored), so old presets load unchanged: `strings` (aging,
+  sustain-and-decay, tuning-stability), `environment`, `body`.
+- **Chuck damps every string** (strum-dynamics 6.1 "every string is damped
+  hard"): a string the voicing skips is damped too; before, it rang on
+  sympathetically at about -42 dB and carried the chord's pitch.

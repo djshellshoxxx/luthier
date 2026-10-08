@@ -723,7 +723,10 @@ juce::StringArray applyRoutineSettings (const RoutineEntry& entry, const Practic
         if (! isNumber (*tempo))
             bad ("tempo_bpm", *tempo);
         else if (targets.metronome != nullptr)
+        {
+            targets.metronome->setFollowsTempo (false);   // SPEC-SWEEP PT-6: the routine's tempo stays
             targets.metronome->setTempo (juce::jlimit (20.0, 300.0, (double) *tempo));
+        }
     }
 
     switch (entry.tool)

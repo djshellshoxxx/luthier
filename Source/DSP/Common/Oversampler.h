@@ -21,30 +21,37 @@ namespace luthier
 {
 
 //==============================================================================
-/** Second-order all-pass section, H(z) = (a + z^-2) / (1 + a z^-2).
+/** One all-pass section of a half-band branch.
 
-    In difference-equation form that is
+    The half-band filter is H(z) = 0.5 * (A0(z^2) + z^-1 A1(z^2)), each A a chain
+    of (a + z^-2) / (1 + a z^-2) sections at the oversampled rate. The branches
+    here run at the base rate (one input sample per up() call, one per branch
+    per down() call), where z^2 is one sample, so each section is
 
-        y[n] = a * (x[n] - y[n-2]) + x[n-2]
+        y[n] = a * (x[n] - y[n-1]) + x[n-1]
 
-    The signs matter. The mirror-image form `a*(x + y[n-2]) - x[n-2]` is also a
-    stable all-pass, but its phase response is not the one the half-band pair
-    needs, so the two branches stop being complementary and the filter passes the
-    images it is supposed to remove. There is a test that measures the aliasing. */
+    It used y[n-2] / x[n-2], which at the base rate is A(z^4) at the high rate:
+    the branches stopped being complementary, images were rejected 11-14 dB
+    less, the passband drooped (-4 dB at 16.8 kHz on a 2x stage at 48 kHz), and
+    the round trip delayed about twice what getLatencySamples reports (6.4 /
+    9.5 / 11.1 samples against 3 / 5 / 6, which is what this form measures).
+
+    The signs matter too: the mirror-image form `a*(x + y1) - x1` is a stable
+    all-pass with the wrong phase for the pair. */
 struct PolyphaseSection
 {
     double a = 0.0;
-    double x1 = 0.0, x2 = 0.0, y1 = 0.0, y2 = 0.0;
+    double x1 = 0.0, y1 = 0.0;
 
     inline double process (double x) noexcept
     {
-        const double y = a * (x - y2) + x2;
-        x2 = x1; x1 = x;
-        y2 = y1; y1 = flushDenormal (y);
+        const double y = a * (x - y1) + x1;
+        x1 = x;
+        y1 = flushDenormal (y);
         return y;
     }
 
-    void reset() noexcept { x1 = x2 = y1 = y2 = 0.0; }
+    void reset() noexcept { x1 = y1 = 0.0; }
 };
 
 //==============================================================================
@@ -116,7 +123,14 @@ public:
 
     void setFactor (int f) noexcept
     {
-        factor = (f >= 8) ? 8 : (f >= 4) ? 4 : (f >= 2) ? 2 : 1;
+        const int wanted = (f >= 8) ? 8 : (f >= 4) ? 4 : (f >= 2) ? 2 : 1;
+
+        // Re-sent on every structural change (AmpEngine::setOversamplingFactor):
+        // clearing the filters when nothing changed clicked the amp each time.
+        if (wanted == factor)
+            return;
+
+        factor = wanted;
         reset();
     }
 
@@ -229,15 +243,13 @@ public:
         are not linear phase, so this is the group delay near DC rather than an
         exact figure; it is small enough that reporting it keeps the host's delay
         compensation honest. */
-    int getLatencySamples() const noexcept
+    int getLatencySamples() const noexcept { return latencyFor (factor); }
+
+    /** cpu-quality-modes 2.2: the same table for any factor, so a stage can
+        report its nominal factor's latency while running at a lower one. */
+    static constexpr int latencyFor (int f) noexcept
     {
-        switch (factor)
-        {
-            case 1:  return 0;
-            case 2:  return 3;
-            case 4:  return 5;
-            case 8:  default: return 6;
-        }
+        return f >= 8 ? 6 : f >= 4 ? 5 : f >= 2 ? 3 : 0;
     }
 
 private:
@@ -246,6 +258,82 @@ private:
 
     HalfbandStage upStage[3];
     HalfbandStage downStage[3];
+};
+
+//==============================================================================
+/** cpu-quality-modes 2.2: an integer delay that pads a stage running below its
+    nominal oversampling factor up to the nominal factor's latency, so the
+    latency reported to the host never follows the quality level. Preallocated;
+    a length of 0 is an exact pass-through. */
+class LatencyPad
+{
+public:
+    static constexpr int kMaxSamples = 8;
+
+    void setLength (int samples) noexcept
+    {
+        const int n = samples < 0 ? 0 : (samples > kMaxSamples ? kMaxSamples : samples);
+
+        if (n != length)
+        {
+            length = n;
+            reset();
+        }
+    }
+
+    int getLength() const noexcept { return length; }
+
+    void reset() noexcept
+    {
+        for (auto& v : buffer)
+            v = 0.0;
+
+        index = 0;
+    }
+
+    inline double process (double x) noexcept
+    {
+        if (length == 0)
+            return x;
+
+        const double out = buffer[index];
+        buffer[index] = x;
+        index = (index + 1) % length;
+        return out;
+    }
+
+private:
+    double buffer[kMaxSamples] = {};
+    int length = 0, index = 0;
+};
+
+/** cpu-quality-modes 2.2: the last 32 input samples of a stage, for priming a
+    new oversampling path from the old one's recent input. */
+class InputHistory
+{
+public:
+    static constexpr int kSize = 32;
+
+    void reset() noexcept
+    {
+        for (auto& v : buffer)
+            v = 0.0;
+
+        index = 0;
+    }
+
+    inline void push (double x) noexcept
+    {
+        buffer[index] = x;
+        index = (index + 1) & (kSize - 1);
+    }
+
+    /** Oldest first. */
+    double get (int i) const noexcept { return buffer[(index + i) & (kSize - 1)]; }
+
+private:
+    double buffer[kSize] = {};
+    int index = 0;
 };
 
 } // namespace luthier

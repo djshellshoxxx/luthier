@@ -60,7 +60,7 @@ namespace
 }
 
 //==============================================================================
-juce::File IrLibrary::searchForResources()
+juce::Array<juce::File> IrLibrary::getCandidateFolders()
 {
     juce::Array<juce::File> candidates;
 
@@ -74,6 +74,12 @@ juce::File IrLibrary::searchForResources()
     for (int i = 0; i < 5 && walk.exists(); ++i)
     {
         candidates.add (walk.getChildFile ("Resources"));
+       #if JUCE_LINUX || JUCE_BSD
+        // installer.md 3.1: a packaged VST3 at <prefix>/lib/vst3/Luthier.vst3
+        // finds <prefix>/share/luthier four levels up.
+        if (i == 4)
+            candidates.add (walk.getChildFile ("share").getChildFile ("luthier"));
+       #endif
         walk = walk.getParentDirectory();
     }
 
@@ -88,11 +94,54 @@ juce::File IrLibrary::searchForResources()
     candidates.add (juce::File::getSpecialLocation (juce::File::userDocumentsDirectory)
                       .getChildFile ("Luthier").getChildFile ("Resources"));
 
-    // Shared application data, where an installer would put it.
+    // installer.md 1.1 / 2.1 / 3.1: where each platform's installer puts the
+    // factory content. The folder itself is the content root (BodyIRs, CabIRs,
+    // Presets ... directly inside it).
+   #if JUCE_LINUX || JUCE_BSD
+    // A package installs <prefix>/bin/luthier beside <prefix>/share/luthier, so
+    // a tarball's user install (~/.local) and /usr/local are found as well.
+    candidates.add (exeDir.getParentDirectory().getChildFile ("share").getChildFile ("luthier"));
+    candidates.add (juce::File ("/usr/share/luthier"));
+    candidates.add (juce::File ("/usr/local/share/luthier"));
+    candidates.add (juce::File::getSpecialLocation (juce::File::userHomeDirectory)
+                      .getChildFile (".local/share/luthier"));
+   #elif JUCE_MAC
+    candidates.add (juce::File ("/Library/Application Support/Luthier"));
+    candidates.add (juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
+                      .getChildFile ("Application Support").getChildFile ("Luthier"));
+   #elif JUCE_WINDOWS
+    candidates.add (juce::File::getSpecialLocation (juce::File::commonApplicationDataDirectory)
+                      .getChildFile ("Luthier"));
+   #endif
+
+    // Shared application data, where an older hand-made layout put it.
     candidates.add (juce::File::getSpecialLocation (juce::File::commonApplicationDataDirectory)
                       .getChildFile ("Luthier").getChildFile ("Resources"));
 
-    for (const auto& candidate : candidates)
+    // Where the release installers put the factory content (installer.md 1-3,
+    // docs/RELEASING.md): the plugin bundles ship without it, so every format
+    // shares one copy.
+   #if JUCE_MAC
+    candidates.add (juce::File ("/Library/Application Support/Luthier/Resources"));
+    candidates.add (juce::File::getSpecialLocation (juce::File::userHomeDirectory)
+                      .getChildFile ("Library/Application Support/Luthier/Resources"));
+   #elif JUCE_LINUX || JUCE_BSD
+    // install.sh honours XDG_DATA_HOME, so the content may live under it.
+    if (const auto xdg = juce::SystemStats::getEnvironmentVariable ("XDG_DATA_HOME", {}); xdg.isNotEmpty())
+        candidates.add (juce::File (xdg).getChildFile ("luthier/Resources"));
+
+    candidates.add (juce::File::getSpecialLocation (juce::File::userHomeDirectory)
+                      .getChildFile (".local/share/luthier/Resources"));
+    candidates.add (juce::File ("/usr/local/share/luthier/Resources"));
+    candidates.add (juce::File ("/usr/share/luthier/Resources"));
+   #endif
+
+    return candidates;
+}
+
+juce::File IrLibrary::searchForResources()
+{
+    for (const auto& candidate : getCandidateFolders())
         if (looksRight (candidate))
             return candidate;
 

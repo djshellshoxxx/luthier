@@ -102,6 +102,45 @@ public:
     void setTempo (double bpm) noexcept;
     double getTempo() const noexcept { return bpm.load (std::memory_order_relaxed); }
 
+    /*  SPEC-SWEEP PT-6 (practice-tools 1, live-performance 5): whether the
+        click follows the plugin's own tempo - the host's, or a tapped one
+        while the host is stopped. On for a new session; typing a tempo on the
+        METRO tab turns it off. A running progressive ramp always wins. */
+    void setFollowsTempo (bool shouldFollow) noexcept { followsTempo.store (shouldFollow, std::memory_order_relaxed); }
+    bool getFollowsTempo() const noexcept { return followsTempo.load (std::memory_order_relaxed); }
+
+    /** Audio thread, once a block: the plugin's effective tempo, taken only
+        while following and no ramp is running. */
+    void followTempo (double effectiveBpm) noexcept
+    {
+        if (getFollowsTempo() && ! isProgressiveTempoRunning() && effectiveBpm > 0.0)
+            setTempo (effectiveBpm);
+    }
+
+    /** SPEC-SWEEP (IR-24, input-routing 7): while following and the host is
+        playing, the click grid is placed at the host's position (quarter notes
+        at the block's first sample), so the click starts, stops and relocates
+        with the host rather than free-running beside it. Audio thread; call
+        before processBlock. A no-op while not following or during a ramp. */
+    void lockToHostPosition (double ppqAtBlockStart) noexcept
+    {
+        if (getFollowsTempo() && ! isProgressiveTempoRunning() && ppqAtBlockStart >= 0.0)
+            hostLock = ppqAtBlockStart;
+    }
+
+    /** SPEC-SWEEP HI-29 (host-integration 6): while following, the host's
+        time signature too. Audio thread; a no-op when the host has none. */
+    void followTimeSignature (int hostNumerator, int hostDenominator) noexcept
+    {
+        if (getFollowsTempo() && hostNumerator > 0 && hostDenominator > 0)
+        {
+            const auto now = getTimeSignature();
+
+            if (now.numerator != hostNumerator || now.denominator != hostDenominator)
+                setTimeSignature (hostNumerator, hostDenominator);
+        }
+    }
+
     void setTimeSignature (int numerator, int denominator) noexcept;
     TimeSignature getTimeSignature() const noexcept;
 
@@ -204,6 +243,7 @@ private:
 
     std::atomic<bool> enabled { false };
     std::atomic<double> bpm { 120.0 };
+    std::atomic<bool> followsTempo { true };   // SPEC-SWEEP PT-6
     std::atomic<int> numerator { 4 }, denominator { 4 };
     std::atomic<int> subdivision { (int) ClickSubdivision::quarter };
     std::atomic<int> sound { (int) ClickSound::woodBlock };
@@ -224,8 +264,18 @@ private:
         The click grid is what actually has to be accurate, and expressing the
         position in its own units means a click lands exactly when the fractional
         part of this crosses an integer - no division, no rounding, and no
-        accumulating remainder. */
-    double clickPosition = 0.0;
+        accumulating remainder.
+
+        It starts just below zero, so the first step crosses 0 and click 0 -
+        beat one - sounds; starting at exactly 0 skipped it. */
+    static constexpr double kStartPosition = -1.0e-9;
+    double clickPosition = kStartPosition;
+
+    /** Set by setEnabled on the message thread; the audio thread restarts the
+        grid, so clickPosition has a single writer. */
+    std::atomic<bool> restartPending { false };
+
+    double hostLock = -1.0;   ///< SPEC-SWEEP IR-24: this block's host ppq, or -1
 
     std::array<Voice, kMaxVoices> voices {};
 

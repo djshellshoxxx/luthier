@@ -925,3 +925,293 @@ LUTHIER_TEST (Modulation, curvesPreserveSignAndFixedPoints)
         CHECK (juce::String (getModCurveName (curve)).isNotEmpty());
     }
 }
+
+//==============================================================================
+/*  Review R-010 / R-011: with a route present but the source at zero, a
+    destination must stay where it is. The choice snap used
+    floor (v / (N-1) * N + 0.5), which moves choice 1 of 3 to choice 2; and both
+    the offsets and the result went through the audio guard sanitise(), which
+    clamps to +-4 and so pinned every destination above 4 (Hz, ms, a choice
+    index past 4) to 4. */
+LUTHIER_TEST (Modulation, aRouteAtZeroLeavesAContinuousValueWhereItIs)
+{
+    ModHarness harness;
+    const auto& parameters = harness.getParameters();
+
+    for (int i = 0; i < parameters.size(); ++i)
+    {
+        auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (parameters[i]);
+
+        if (withId == nullptr || withId->paramID != ParamIDs::concertA)
+            continue;
+
+        ModRoute route;
+        route.sourceId = "macro1";
+        route.destinationId = ParamIDs::concertA;
+        route.depth = 1.0f;
+        CHECK (harness.matrix.addRoute (route));
+
+        ModBlockContext context;
+        harness.matrix.setMacroValue (0, 0.0);
+
+        for (int b = 0; b < 64; ++b)
+            harness.matrix.processBlock (kBlock, context);
+
+        CHECK_NEAR (harness.matrix.apply (i, 440.0f), 440.0f, 1.0e-3);
+
+        // And at full depth it reaches the top of the range, not 4 Hz.
+        harness.matrix.setMacroValue (0, 1.0);
+
+        for (int b = 0; b < 64; ++b)
+            harness.matrix.processBlock (kBlock, context);
+
+        CHECK_NEAR (harness.matrix.apply (i, 440.0f), 466.0f, 1.0e-3);
+        return;
+    }
+
+    CHECK_MSG (false, "concert A not found");
+}
+
+LUTHIER_TEST (Modulation, aRouteAtZeroLeavesEveryChoiceWhereItIs)
+{
+    ModHarness harness;
+    const auto& parameters = harness.getParameters();
+
+    for (int i = 0; i < parameters.size(); ++i)
+    {
+        auto* choice = dynamic_cast<juce::AudioParameterChoice*> (parameters[i]);
+
+        if (choice == nullptr || choice->choices.size() < 3)
+            continue;
+
+        ModRoute route;
+        route.sourceId = "macro1";
+        route.destinationId = choice->paramID;
+        route.depth = 1.0f;
+        CHECK (harness.matrix.addRoute (route));
+
+        ModBlockContext context;
+        harness.matrix.setMacroValue (0, 0.0);
+
+        for (int b = 0; b < 64; ++b)
+            harness.matrix.processBlock (kBlock, context);
+
+        for (int k = 0; k < choice->choices.size(); ++k)
+            CHECK_MSG (juce::roundToInt (harness.matrix.apply (i, (float) k)) == k,
+                       choice->paramID + " choice " + juce::String (k) + " moved to "
+                         + juce::String (harness.matrix.apply (i, (float) k)));
+
+        return;   // one selector is enough
+    }
+
+    CHECK_MSG (false, "no choice parameter with three or more options");
+}
+
+//==============================================================================
+/*  SPEC-SWEEP: MM-1 - modulation-matrix 0.1: control rate is a thirty-second
+    of the block, floored at 128 samples. */
+LUTHIER_TEST (Modulation, controlRateIsABlockOver32FlooredAt128)
+{
+    ModHarness harness;
+
+    harness.matrix.prepare (kSr, 512, harness.apvts);
+    CHECK (harness.matrix.getControlRateSamples() == 128);
+    CHECK_NEAR (harness.matrix.getControlRateHz(), kSr / 128.0, 1.0e-9);
+
+    harness.matrix.prepare (kSr, 8192, harness.apvts);
+    CHECK (harness.matrix.getControlRateSamples() == 256);
+    CHECK_NEAR (harness.matrix.getControlRateHz(), kSr / 256.0, 1.0e-9);
+}
+
+/*  SPEC-SWEEP: MM-26 - modulation-matrix 1.5: the note sources follow notes. */
+LUTHIER_TEST (Modulation, noteSourcesFollowNotes)
+{
+    ModHarness harness;
+    auto& m = harness.matrix;
+    ModBlockContext context;
+
+    m.noteOn (64, 0.8);
+    m.processBlock (128, context);   // one tick
+
+    CHECK_NEAR (m.getSourceValue (ModSourceSlots::noteVelocity), 0.8, 1.0e-6);
+    CHECK_NEAR (m.getSourceValue (ModSourceSlots::notePitch), 64.0 / 127.0, 1.0e-6);
+    CHECK_NEAR (m.getSourceValue (ModSourceSlots::noteTrigger), 1.0, 1.0e-6);
+    CHECK (m.getSourceValue (ModSourceSlots::notesHeld) > 0.0f);
+
+    m.processBlock (128, context);   // the trigger is one tick wide
+    CHECK_NEAR (m.getSourceValue (ModSourceSlots::noteTrigger), 0.0, 1.0e-6);
+
+    m.setAftertouch (0.4);
+    m.setPolyAftertouch (0.6);
+    m.processBlock (128, context);
+    CHECK_NEAR (m.getSourceValue (ModSourceSlots::aftertouch), 0.4, 1.0e-6);
+    CHECK_NEAR (m.getSourceValue (ModSourceSlots::polyAftertouch), 0.6, 1.0e-6);
+    CHECK_NEAR (m.getSourceValue (ModSourceSlots::channelPressure), 0.4, 1.0e-6);
+
+    m.noteOff();
+    m.processBlock (128, context);
+    CHECK_NEAR (m.getSourceValue (ModSourceSlots::notesHeld), 0.0, 1.0e-6);
+}
+
+/*  SPEC-SWEEP: MM-27 - modulation-matrix 1.6: CCs, 14-bit pairs, pitch bend
+    and the mod wheel. */
+LUTHIER_TEST (Modulation, controllerSourcesFollowMidi)
+{
+    ModHarness harness;
+    auto& m = harness.matrix;
+    ModBlockContext context;
+
+    m.setControllerValue (74, 0.5);
+    m.setControllerValue (1, 64.0 / 127.0);    // MSB, and the mod wheel
+    m.setControllerValue (33, 0.5);            // its LSB
+    m.setPitchBend (-1.0);
+    m.processBlock (128, context);
+
+    CHECK_NEAR (m.getSourceValue (ModSourceSlots::ccBase + 74), 0.5, 1.0e-6);
+    CHECK_NEAR (m.getSourceValue (ModSourceSlots::modWheel), 64.0 / 127.0, 1.0e-6);
+    CHECK_NEAR (m.getSourceValue (ModSourceSlots::cc14Base + 1), 64.0 / 127.0 + 0.5 / 128.0, 1.0e-6);
+    CHECK_NEAR (m.getSourceValue (ModSourceSlots::pitchBend), -1.0, 1.0e-6);
+
+    // The LSB adds resolution below one MSB step, which is the point of it.
+    CHECK (m.getSourceValue (ModSourceSlots::cc14Base + 1) != m.getSourceValue (ModSourceSlots::ccBase + 1));
+}
+
+//==============================================================================
+/*  SPEC-SWEEP: MM-6 - modulation-matrix 0.5: loading a matrix restarts every
+    source, at the next block (on the thread that ticks them). */
+LUTHIER_TEST (Modulation, loadingAPresetResetsTheSources)
+{
+    ModHarness harness;
+    auto& m = harness.matrix;
+    ModBlockContext context;
+
+    m.getLfo (0).setRateHz (1.0);
+    m.getEnvelope (0).setAttackSeconds (0.01);
+    m.noteOn (60, 1.0);
+
+    for (int i = 0; i < 40; ++i)
+        m.processBlock (kBlock, context);
+
+    CHECK (m.getEnvelope (0).isActive());
+
+    m.fromVar (m.toVar());
+    CHECK (m.isSourceResetPending());
+
+    m.processBlock (128, context);   // one tick after the reset
+    CHECK (! m.isSourceResetPending());
+    CHECK (m.getEnvelope (0).getStage() == ModEnvelope::Stage::idle);
+
+    // The LFO restarted: one tick in, it matches a fresh LFO's first tick.
+    ModHarness fresh;
+    fresh.matrix.getLfo (0).setRateHz (1.0);
+    fresh.matrix.processBlock (128, context);
+    CHECK_NEAR (m.getSourceValue (ModSourceSlots::lfoBase), fresh.matrix.getSourceValue (ModSourceSlots::lfoBase), 1.0e-6);
+}
+
+/*  SPEC-SWEEP: MM-8 / MM-9 / MM-16 - transport start resets the envelopes,
+    followers and random sources, and each LFO per its retrigger mode: an
+    on-transport LFO restarts, an on-note one restarts on a note, a free-running
+    one ignores both. */
+LUTHIER_TEST (Modulation, transportStartAndNotesRetriggerWhereTheySay)
+{
+    auto setUp = [] (ModMatrix& m)
+    {
+        for (int i = 0; i < 3; ++i)
+            m.getLfo (i).setRateHz (0.7);
+
+        m.getLfo (0).setRetrigger (ModLfo::Retrigger::freeRun);
+        m.getLfo (1).setRetrigger (ModLfo::Retrigger::onTransportStart);
+        m.getLfo (2).setRetrigger (ModLfo::Retrigger::onNoteOn);
+    };
+
+    ModHarness fresh;
+    setUp (fresh.matrix);
+    ModBlockContext plain;
+    fresh.matrix.processBlock (128, plain);
+    const float firstTick = fresh.matrix.getSourceValue (ModSourceSlots::lfoBase);
+
+    ModHarness harness;
+    auto& m = harness.matrix;
+    setUp (m);
+    m.getEnvelope (0).setAttackSeconds (0.01);
+    m.noteOn (60, 1.0);
+
+    for (int i = 0; i < 30; ++i)
+        m.processBlock (kBlock, plain);
+
+    CHECK (m.getEnvelope (0).isActive());
+
+    ModBlockContext start;
+    start.transportJustStarted = true;
+    start.transportRunning = true;
+    m.processBlock (128, start);
+
+    CHECK (m.getEnvelope (0).getStage() == ModEnvelope::Stage::idle);
+    CHECK_NEAR (m.getSourceValue (ModSourceSlots::lfoBase + 1), firstTick, 1.0e-6);
+    CHECK_MSG (std::abs (m.getSourceValue (ModSourceSlots::lfoBase) - firstTick) > 1.0e-3,
+               "a free-running LFO must not restart on transport start");
+    CHECK_MSG (std::abs (m.getSourceValue (ModSourceSlots::lfoBase + 2) - firstTick) > 1.0e-3,
+               "an on-note LFO must not restart on transport start");
+
+    // A note restarts the on-note LFO and leaves the free-running one alone.
+    for (int i = 0; i < 10; ++i)
+        m.processBlock (kBlock, plain);
+
+    m.noteOn (64, 1.0);
+    m.processBlock (128, plain);
+    CHECK_NEAR (m.getSourceValue (ModSourceSlots::lfoBase + 2), firstTick, 1.0e-6);
+    CHECK (std::abs (m.getSourceValue (ModSourceSlots::lfoBase) - firstTick) > 1.0e-3);
+}
+
+//==============================================================================
+/*  SPEC-SWEEP: MM-2 - modulation-matrix 0.2: offsets ramp linearly between
+    control ticks and land on the target exactly at the next tick. */
+LUTHIER_TEST (Modulation, offsetsRampLinearlyBetweenTicks)
+{
+    ModHarness harness;
+    auto& m = harness.matrix;
+    ModBlockContext context;
+
+    ModRoute route;
+    route.sourceId = "macro1";
+    route.destinationId = ParamIDs::ampGain;
+    route.depth = 1.0f;
+    CHECK (m.addRoute (route));
+
+    const int index = [&]
+    {
+        const auto& parameters = harness.getParameters();
+        for (int i = 0; i < parameters.size(); ++i)
+            if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (parameters[i]))
+                if (withId->paramID == ParamIDs::ampGain)
+                    return i;
+        return -1;
+    }();
+
+    const int tick = m.getControlRateSamples();
+    const float span = harness.apvts.getParameterRange (ParamIDs::ampGain).getRange().getLength();
+
+    // Settle at zero, then step the macro to full.
+    m.setMacroValue (0, 0.0);
+    for (int i = 0; i < 8; ++i)
+        m.processBlock (tick, context);
+    CHECK_NEAR (m.getOffsetFor (index), 0.0f, 1.0e-6f);
+
+    m.setMacroValue (0, 1.0);
+
+    // Through the next tick in quarters: equal steps up to the full target.
+    std::vector<float> seen;
+    for (int q = 0; q < 4; ++q)
+    {
+        m.processBlock (tick / 4, context);
+        seen.push_back (m.getOffsetFor (index));
+    }
+
+    CHECK_NEAR (seen[3], span, span * 1.0e-5f);
+
+    for (int q = 0; q < 4; ++q)
+    {
+        const float previous = q == 0 ? 0.0f : seen[(size_t) q - 1];
+        CHECK_NEAR (seen[(size_t) q] - previous, span * 0.25f, span * 1.0e-4f);
+    }
+}

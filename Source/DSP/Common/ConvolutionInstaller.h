@@ -26,6 +26,15 @@
 
 namespace luthier::ConvolutionInstaller
 {
+    /*  How long a caller waits for JUCE's background loader. Its thread can be
+        starved on a loaded machine (an offline bounce next to a build, a CI
+        runner); a deadline that passes leaves the response out - the analytic
+        fallback, or the amp with no speaker - and makes the render depend on
+        the machine's load (an ON-02 golden hash differed once under load).
+        Four seconds was too tight for that; the wait only ever runs on the
+        message or a worker thread, never the audio thread. */
+    inline constexpr int kInstallTimeoutMs = 20000;
+
     /** Pushes silent blocks through until the convolution reports a response of a
         different length from `sizeBefore`, which is how a completed swap shows up
         from the outside. Returns true if it installed within the deadline.
@@ -36,11 +45,13 @@ namespace luthier::ConvolutionInstaller
                                     int numChannels,
                                     int blockSize,
                                     int sizeBefore,
-                                    int timeoutMs = 4000,
+                                    int timeoutMs = kInstallTimeoutMs,
                                     int settleSamples = 0)
     {
+        // Never a block larger than the convolution was prepared for: its
+        // internal buffers are sized to `blockSize` (a host at 1 sample is real).
         juce::AudioBuffer<float> silence (juce::jmax (1, numChannels),
-                                          juce::jlimit (16, 4096, blockSize));
+                                          juce::jlimit (1, 4096, blockSize));
 
         const auto deadline = juce::Time::getMillisecondCounter() + (juce::uint32) timeoutMs;
 
@@ -103,6 +114,11 @@ namespace luthier::ConvolutionInstaller
                                          juce::dsp::Convolution::Trim::no,
                                          juce::dsp::Convolution::Normalise::no);
 
-        pumpUntilInstalled (convolution, numChannels, blockSize, sizeBefore);
+        // Finish the unit impulse's crossfade before requesting the next IR.
+        // Otherwise JUCE defers that install while the previous engine remains,
+        // and one-sample blocks spend several seconds sleeping through 50 ms
+        // of audio (or exceed the install deadline at high sample rates).
+        pumpUntilInstalled (convolution, numChannels, blockSize, sizeBefore,
+                            kInstallTimeoutMs, (int) std::ceil (0.06 * sampleRate));
     }
 }

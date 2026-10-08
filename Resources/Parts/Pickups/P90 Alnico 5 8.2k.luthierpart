@@ -12,7 +12,7 @@
   },
   "fields": {
     "family": "p90",
-    "inductance_h": 4.0,
+    "inductance_h": 6.5,
     "dc_resistance_k": 8.2,
     "capacitance_pf": 200,
     "magnet": "alnico5",

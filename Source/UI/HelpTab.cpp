@@ -20,6 +20,10 @@ namespace
 HelpTab::HelpTab (LuthierAudioProcessor& p)
     : processor (p)
 {
+    // global-search.md 6.1 (FEAT-SEARCH).
+    searchField.onOpen = [this] (const juce::String& typed) { if (onOpenSearch) onOpenSearch (typed); };
+    addAndMakeVisible (searchField);
+
     // --- topics -----------------------------------------------------------------------
     topicList.setModel (&topicModel);
     topicList.setRowHeight (24);
@@ -71,6 +75,12 @@ HelpTab::HelpTab (LuthierAudioProcessor& p)
     AccessibleSetup::configureButton (debugButton, "Open Debug Tools",
                                       "Live internals, crash logging, the troubleshooting file and the hard reset");
     addAndMakeVisible (debugButton);
+
+    // onboarding 2: Help -> Take the tour.
+    tourButton.setTooltip ("The two-minute guided tour of the window");
+    tourButton.onClick = [this] { if (onTakeTour) onTakeTour(); };
+    AccessibleSetup::configureButton (tourButton, "Take the tour", "Starts the guided tour of the window.");
+    addAndMakeVisible (tourButton);
 
     sourceButton.setTooltip (HelpContent::sourceUrl);
     sourceButton.onClick = [] { juce::URL (HelpContent::sourceUrl).launchInDefaultBrowser(); };
@@ -163,20 +173,29 @@ juce::String HelpTab::composeBody (int index) const
     {
         // include.md: the version and the licence. The licence state is
         // License's own, so an expired or grace-period copy says so here too.
-        auto& license = processor.getLicense();
-
         text << "\n\nVERSION\n" << getVersionText()
              << "\nRunning as " << juce::AudioProcessor::getWrapperTypeDescription (processor.wrapperType)
              << " in " << juce::PluginHostType().getHostDescription()
-             << "\n\nLICENCE STATE\n" << License::getStateName (license.getState());
+             << "\n\nLICENCE STATE\n";
+
+       #if LUTHIER_PRO
+        auto& license = processor.getLicense();
+        text << License::getStateName (license.getState());
 
         if (license.getState() == License::State::grace)
             text << ", " << license.getDaysUntilRevalidation() << " days until it must be revalidated";
+       #else
+        text << "Luthier Free (no licence needed)";   // editions.md 2.5
+       #endif
 
         text << "\n\nLINKS\n"
              << "- Homepage: " << HelpContent::homepageUrl << "\n"
              << "- Source: " << HelpContent::sourceUrl << "\n"
              << "- Support: " << HelpContent::supportEmail;
+
+        // TUNE-HELP-ONBOARDING: say so while the build still carries the placeholders.
+        if (! SupportLinks::areConfigured())
+            text << "\n(These addresses are placeholders in this build; see Support/SupportLinks.h.)";
     }
 
     return text;
@@ -357,6 +376,8 @@ void HelpTab::resized()
 
     headerBounds = bounds.removeFromTop (kHeader);
     versionBounds = headerBounds.removeFromRight (juce::jmin (160, headerBounds.getWidth() / 2));
+    searchField.setBounds (headerBounds.removeFromRight (juce::jmin (220, headerBounds.getWidth() / 2)).reduced (4, 2));   // FEAT-SEARCH
+    tourButton.setBounds (headerBounds.removeFromRight (110).reduced (0, 2));
     bounds.removeFromTop (kRowGap);
 
     layoutFooter (bounds.removeFromBottom (button));

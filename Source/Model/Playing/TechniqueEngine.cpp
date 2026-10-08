@@ -1,5 +1,6 @@
 #include "TechniqueEngine.h"
 #include "../../DSP/String/StringEngine.h"
+#include "../../DSP/String/Harmonics.h"
 
 namespace luthier
 {
@@ -26,22 +27,10 @@ void TechniqueEngine::reset() noexcept
 //==============================================================================
 int TechniqueEngine::harmonicPartialForFret (double fret) noexcept
 {
-    // A natural harmonic sounds where a node of some partial lies under the finger.
-    // Fret 12 is the halfway point (2nd partial), fret 7 and 19 are thirds (3rd),
-    // fret 5 and 24 are quarters (4th), fret 4 and 9 are fifths (5th).
-    struct NodeFret { double fret; int partial; };
-
-    static const NodeFret nodes[] =
-    {
-        { 12.0, 2 }, { 7.0, 3 }, { 19.0, 3 }, { 5.0, 4 }, { 24.0, 4 },
-        { 4.0, 5 }, { 9.0, 5 }, { 16.0, 5 }, { 3.2, 6 }, { 2.7, 7 }, { 2.3, 8 }
-    };
-
-    for (const auto& n : nodes)
-        if (std::abs (fret - n.fret) < 0.35)
-            return n.partial;
-
-    return 0;
+    // harmonic-realism.md 4.1: the analytic node search replaces the table.
+    // An integer fret is read as tab first, so <4>, <9> and <16> are the 5th
+    // partial's nodes as a player would touch them.
+    return harmonics::partialForFret (harmonics::tabTouchFret (fret));
 }
 
 //==============================================================================
@@ -54,6 +43,7 @@ Technique TechniqueEngine::decide (int stringIndex,
 {
     harmonicPartial = 0;
     slideFromFret = -1.0;
+    lastTappedHarmonic = false;
 
     if (! juce::isPositiveAndBelow (stringIndex, kMaxStrings))
         return Technique::Pluck;
@@ -69,10 +59,9 @@ Technique TechniqueEngine::decide (int stringIndex,
     }
     else if (pinchTrigger)
     {
+        // harmonic-realism.md 3: the partial follows from where the thumb
+        // grazes (the pick position), found by the engine; not from velocity.
         result = Technique::PinchHarmonic;
-        // A pinch usually lands on the 2nd to 5th partial depending on where the
-        // thumb grazes; higher velocity tends to catch a higher one.
-        harmonicPartial = 2 + (int) (velocity * 3.0);
     }
     else if (harmonicTrigger
              || (harmonicVelocityTrigger && velocity >= harmonicVelocity))
@@ -93,9 +82,20 @@ Technique TechniqueEngine::decide (int stringIndex,
             harmonicPartial = 2;
         }
     }
+    else if (artificialTrigger)
+    {
+        // harmonic-realism.md 6: fretted note, touched at fret + offset.
+        result = Technique::ArtificialHarmonic;
+    }
     else if (tapTrigger)
     {
         result = Technique::Tap;
+    }
+    else if (tappedHarmonicTrigger)
+    {
+        // 3: a tap at fret + offset on the fretted string.
+        result = Technique::Tap;
+        lastTappedHarmonic = true;
     }
     else if (slideGuitarMode)
     {
@@ -108,12 +108,19 @@ Technique TechniqueEngine::decide (int stringIndex,
     {
         result = Technique::MutedPick;
     }
-    else if (state.active)
+    else if (state.active && (legatoInference || slideMode))   // FEAT-ASSIST: Assist may own legato
     {
         // ---- legato inference -------------------------------------------------
         const double elapsedMs = (double) (timestampSamples - state.lastNoteSample) * 1000.0 / sr;
 
-        if (slideEnabled && (slideMode || elapsedMs < legatoWindowMs))
+        // two-hand-tapping.md 5 (TECHNIQUES): armed tapping reads a soft, quick
+        // note as a hammer-on or pull-off first.
+        if (hammerOnWindowMs > 0.0 && hammerOnEnabled && elapsedMs < hammerOnWindowMs
+            && velocity < legatoVelocity && std::abs (newFret - state.fret) >= 0.05)
+        {
+            result = (newFret > state.fret) ? Technique::HammerOn : Technique::PullOff;
+        }
+        else if (slideEnabled && (slideMode || elapsedMs < legatoWindowMs))
         {
             result = Technique::Slide;
             slideFromFret = state.fret;
@@ -149,6 +156,20 @@ Technique TechniqueEngine::decide (int stringIndex,
     state.lastTechnique = result;
 
     return result;
+}
+
+Technique TechniqueEngine::decide (int stringIndex, double newFret, double velocity, int64_t timestampSamples,
+                                   int& harmonicPartial, double& slideFromFret, bool& explicitOut) noexcept
+{
+    // auto-articulation.md 4.2 (FEAT-ASSIST): read before decide() moves the state on.
+    const bool active = juce::isPositiveAndBelow (stringIndex, kMaxStrings) && strings[(size_t) stringIndex].active;
+
+    explicitOut = palmMute > 0.05 || pinchTrigger || harmonicTrigger
+                  || (harmonicVelocityTrigger && velocity >= harmonicVelocity)
+                  || tapTrigger || slideGuitarMode || mutedPick > 0.05
+                  || (slideMode && slideEnabled && active);
+
+    return decide (stringIndex, newFret, velocity, timestampSamples, harmonicPartial, slideFromFret);
 }
 
 //==============================================================================

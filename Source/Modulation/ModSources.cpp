@@ -85,17 +85,20 @@ const char* ModLfo::getShapeName (Shape s) noexcept
     }
 }
 
+ModLfo::ModLfo() noexcept
+{
+    // A flat custom shape is a ramp, which is the least surprising thing for a
+    // breakpoint editor to start life as.
+    for (int i = 0; i < kNumBreakpoints; ++i)
+        breakpoints[(size_t) i] = -1.0 + 2.0 * (double) i / (double) (kNumBreakpoints - 1);
+}
+
 void ModLfo::prepare (double controlRateHz, uint64_t seed) noexcept
 {
     controlRate = juce::jmax (1.0, controlRateHz);
     rngSeed = seed;
 
     smoother.prepare (controlRate, smoothingMs * 0.001);
-
-    // A flat custom shape is a ramp, which is the least surprising thing for a
-    // breakpoint editor to start life as.
-    for (int i = 0; i < kNumBreakpoints; ++i)
-        breakpoints[(size_t) i] = -1.0 + 2.0 * (double) i / (double) (kNumBreakpoints - 1);
 
     reset();
 }
@@ -193,6 +196,7 @@ double ModLfo::tick (double beatsPerTick, double hostPositionBeats) noexcept
 {
     const double phaseBefore = phase;
     bool wrapped = false;
+    bool assignedFromHost = false;
 
     // ---- advance the phase ---------------------------------------------------
     if (synced)
@@ -212,6 +216,7 @@ double ModLfo::tick (double beatsPerTick, double hostPositionBeats) noexcept
             // The phase was assigned rather than advanced, so a wrap shows up as
             // the phase going backwards.
             wrapped = (phase < phaseBefore);
+            assignedFromHost = true;
         }
         else
         {
@@ -227,7 +232,10 @@ double ModLfo::tick (double beatsPerTick, double hostPositionBeats) noexcept
     // The phase is wrapped into [0, 1) at the end of every tick, so asking
     // whether floor(phase) changed would answer yes twice per cycle: once when
     // it reaches 1 and again when the wrap takes it back to 0.
-    if (! (synced && retrigger == Retrigger::onSyncBoundary))
+    // Only a phase assigned from the host is already in range. A synced LFO
+    // with the transport stopped free-runs, and skipping this for it let the
+    // phase grow without bound and froze the stepped shapes.
+    if (! assignedFromHost)
     {
         wrapped = (phase >= 1.0);
         phase -= std::floor (phase);
@@ -276,16 +284,19 @@ double ModLfo::tick (double beatsPerTick, double hostPositionBeats) noexcept
 }
 
 //==============================================================================
-void ModEnvelope::prepare (double controlRateHz) noexcept
+ModEnvelope::ModEnvelope() noexcept
 {
-    controlRate = juce::jmax (1.0, controlRateHz);
     curves.fill (ModCurve::linear);
 
     // An exponential decay and release is what an envelope sounds like; a linear
     // one sounds like a fader being pulled.
     curves[(size_t) Stage::decay] = ModCurve::exponential;
     curves[(size_t) Stage::release] = ModCurve::exponential;
+}
 
+void ModEnvelope::prepare (double controlRateHz) noexcept
+{
+    controlRate = juce::jmax (1.0, controlRateHz);
     reset();
 }
 
@@ -478,13 +489,10 @@ double ModEnvelope::tick() noexcept
 }
 
 //==============================================================================
-void ModStepSequencer::prepare (double controlRateHz, uint64_t seed) noexcept
+ModStepSequencer::ModStepSequencer() noexcept
 {
-    controlRate = juce::jmax (1.0, controlRateHz);
-    rngSeed = seed;
-
     // A gentle default ramp, so a newly added sequencer does something audible
-    // rather than nothing at all.
+    // rather than nothing at all. Here, not in prepare() (see ModEnvelope).
     for (int i = 0; i < kMaxSteps; ++i)
     {
         steps[(size_t) i].value = -1.0 + 2.0 * (double) (i % 16) / 15.0;
@@ -492,6 +500,13 @@ void ModStepSequencer::prepare (double controlRateHz, uint64_t seed) noexcept
         steps[(size_t) i].slide = false;
         steps[(size_t) i].probability = 1.0;
     }
+
+}
+
+void ModStepSequencer::prepare (double controlRateHz, uint64_t seed) noexcept
+{
+    controlRate = juce::jmax (1.0, controlRateHz);
+    rngSeed = seed;
 
     reset();
 }
@@ -634,13 +649,13 @@ void ModEnvelopeFollower::reset() noexcept
 
 void ModEnvelopeFollower::setAttackMs (double ms) noexcept
 {
-    attackMs = juce::jlimit (0.1, 500.0, ms);
+    attackMs = ModRanges::followerMs (advancedRange).clamp (ms);   // SPEC-SWEEP: PR-44
     attackCoeff = std::exp (-1.0 / juce::jmax (1.0e-6, attackMs * 0.001 * controlRate));
 }
 
 void ModEnvelopeFollower::setReleaseMs (double ms) noexcept
 {
-    releaseMs = juce::jlimit (1.0, 5000.0, ms);
+    releaseMs = ModRanges::followerMs (advancedRange).clamp (ms);   // SPEC-SWEEP: PR-44
     releaseCoeff = std::exp (-1.0 / juce::jmax (1.0e-6, releaseMs * 0.001 * controlRate));
 }
 

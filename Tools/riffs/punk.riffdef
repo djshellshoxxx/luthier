@@ -1,0 +1,269 @@
+defaults author L origin original date 2026-09-24
+
+# ---------------------------------------------------------------- riffs
+
+riff punk.riff.downpick-blitz-riff-1 "Downpick Blitz Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key E aeolian   tempo 184   meter 4/4   feel driving
+  difficulty 2   tags downstrokes palm-mute power-chords
+  chords 0:E5 2:G5 3:A5 4:E5 6:B5 7:A5 8:E5 10:B5 11:A5 12:E5 13:G5 14:B5 15:A5
+  play:
+    e: 6.0pm 6.0pm 6.0pm 6.0pm [6.3 5.5]! [6.3 5.5] [6.5 5.7]! [6.5 5.7] |
+    e: 6.0pm 6.0pm 6.0pm 6.0pm [5.2 4.4]! [5.2 4.4] q: [5.0 4.2]! |
+    e: 6.0pm 6.0pm 6.0pm 6.0pm [6.7 5.9]! [6.7 5.9] [6.5 5.7]! [6.5 5.7] |
+    e: 6.0pm 6.0pm [6.3 5.5]! 6.0pm q: [5.2 4.4]! [5.0 4.2]! |
+
+riff punk.riff.garage-stab-riff-1 "Garage Stab Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key A mixolydian   tempo 160   meter 4/4   feel straight
+  difficulty 2   tags stabs staccato power-chords
+  chords 0:A5 3:A5 3.5:G5 4:D5 5.5:E5 6:A5
+  play:
+    e: [5.0 4.2 3.2]!' r [5.0 4.2 3.2]' r q: r e: [6.5 5.7 4.7]' [6.3 5.5 4.5]' |
+    e: [4.0 3.2 2.3]!' r [4.0 3.2 2.3]' [4.2 3.4 2.5]' q: [5.0 4.2 3.2]! e: r [5.0 4.2 3.2]' |
+
+riff punk.riff.skate-burst-riff-1 "Skate Burst Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key D mixolydian   tempo 196   meter 4/4   feel driving
+  difficulty 2   tags palm-mute dead-notes fast
+  chords 0:D5 2:G5 4:C5 6:A5 7:D5
+  play:
+    e: [5.5 4.7]pm [5.5 4.7]pm 5.x [5.5 4.7] [6.3 5.5]pm [6.3 5.5]pm 6.x [6.3 5.5] |
+    e: [5.3 4.5]pm [5.3 4.5]pm 5.x [5.3 4.5] q: [6.5 5.7] [5.5 4.7] |
+
+riff punk.riff.basement-shift-riff-1 "Basement Shift Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key G mixolydian   tempo 170   meter 4/4   feel straight
+  difficulty 2   tags slides low-strings   free yes
+  chords 0:G5 1.5:A5 3.5:G5 4:C5 5.5:D5 6:G5 7:A5
+  play:
+    e: 6.3 6.3 6.3s/5 6.5 6.5 6.5 6.5s/3 6.3 |
+    e: 5.3 5.3 5.3s/5 5.5 q: [6.3 5.5 4.5] [6.5 5.7 4.7] |
+
+riff punk.riff.jangle-pick-riff-1 "Jangle Pick Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key G ionian   tempo 150   meter 4/4   feel straight
+  difficulty 3   tags arpeggio let-ring indie
+  chords 0:Cadd9 4:G 8:Em7 12:Dsus4
+  play:
+    e: 5.3lr 4.2lr 3.0lr 2.3lr 1.3lr 2.3 3.0 4.2 |
+    e: 6.3lr 4.0lr 3.0lr 2.3lr 1.3lr 2.3 3.0 5.2 |
+    e: 6.0lr 5.2lr 3.0lr 2.3lr q: 1.3lr e: 2.3 4.2 |
+    e: 4.0lr 3.2lr 2.3lr 1.3lr h: [4.0 3.2 2.3 1.3]lr |
+
+riff punk.riff.feedback-swell-riff-1 "Feedback Swell Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key E aeolian   tempo 140   meter 4/4   feel straight
+  difficulty 3   tags whammy vibrato power-chords
+  chords 0:E5 2:G5 3:A5 4:E5 8:E5 10:C5 11:B5 12:E5
+  play:
+    e: [6.0 5.2 4.2] [6.0 5.2 4.2] r [6.0 5.2 4.2] [6.3 5.5 4.5] r [6.5 5.7 4.7] [6.5 5.7 4.7] |
+    h: 3.9~ 3.9wb-2 |
+    e: [6.0 5.2 4.2] [6.0 5.2 4.2] r [6.0 5.2 4.2] [5.3 4.5 3.5] r [5.2 4.4 3.4] [5.2 4.4 3.4] |
+    h: 2.8~ q: 2.7wb-2 e: r 6.0 |
+
+riff punk.riff.three-chord-rush-riff-1 "Three-Chord Rush Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key A ionian   tempo 176   meter 4/4   feel driving
+  difficulty 1   tags power-chords beginner   free yes
+  chords 0:A5 2:D5 3.5:E5 5.5:D5 6:A5
+  play:
+    q: [6.5 5.7] e: [6.5 5.7] [6.5 5.7] q: [5.5 4.7] e: [5.5 4.7] [5.7 4.9] |
+    q: [5.7 4.9] e: [5.7 4.9] [5.5 4.7] h: [6.5 5.7] |
+
+riff punk.riff.octave-indie-riff-1 "Octave Indie Riff 1"
+  type riff   instrument guitar6   tuning standard   capo 0
+  key A aeolian   tempo 150   meter 4/4   feel straight
+  difficulty 3   tags octaves indie
+  chords 0:Am 4:Am 5.5:F 6:G 7:Am
+  play:
+    e: [4.7 2.10] [4.7 2.10] [4.10 2.13] [4.7 2.10] [4.12 2.15] [4.10 2.13] [4.7 2.10] [4.5 2.8] |
+    q: [4.7 2.10] e: r [4.3 2.6] q: [4.5 2.8] e: [4.7 2.10] [4.7 2.10] |
+
+# ---------------------------------------------------------------- licks
+
+riff punk.lick.snotty-bend-lick-1 "Snotty Bend Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key E minor_pentatonic   tempo 168   meter 4/4   feel straight
+  difficulty 2   tags bends twelfth-fret
+  chords 0:Em 4:Em
+  play:
+    e: 2.12 2.15 3.14b2 ~ 2.15 2.12 q: 3.14 |
+    e: 1.12 2.15 2.12 3.14 q: 3.12 4.14~ |
+
+riff punk.lick.snarl-crawl-lick-1 "Snarl Crawl Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key E chromatic   tempo 150   meter 4/4   feel straight
+  difficulty 3   tags chromatic hammer-ons low-strings
+  chords 0:E5 4:E5
+  play:
+    e: 6.0 h6.1 6.0 h6.2 6.0 h6.3 6.0 h6.4 |
+    e: 6.0 h6.5 4.2 h4.3 q: 4.2 e: 5.2 5.1 |
+
+riff punk.lick.two-note-sneer-lick-1 "Two-Note Sneer Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key E minor_pentatonic   tempo 160   meter 4/4   feel straight
+  difficulty 1   tags staccato beginner   free yes
+  chords 0:Em 4:Em
+  play:
+    q: 2.5' 2.5' e: 2.3' 2.5' q: 2.8 |
+    q: 2.5' 2.5' e: 2.8' 2.5' q: 2.3 |
+
+riff punk.lick.indie-hook-lick-1 "Indie Hook Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key D ionian   tempo 138   meter 4/4   feel straight
+  difficulty 2   tags hook melody indie
+  chords 0:D 4:A 8:Bm 12:G
+  play:
+    e: 2.3 2.3 1.2 2.3 q: 2.5 e: 1.2 1.0 |
+    q.: 2.5 e: 2.3 q: 2.2 3.2 |
+    e: 2.3 2.3 1.2 2.3 q: 1.3 e: 1.2 2.3 |
+    h.: 2.3 q: r |
+
+riff punk.lick.indie-drone-lick-1 "Indie Drone Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key G ionian   tempo 170   meter 4/4   feel straight
+  difficulty 3   tags drone open-string indie
+  chords 0:G 4:C 8:G 12:D
+  play:
+    e: 2.8 3.0 2.7 3.0 2.5 3.0 2.3 3.0 |
+    e: 2.5 3.0 2.3 3.0 2.1 3.0 q: 2.0 |
+    e: 2.8 3.0 2.10 3.0 2.12 3.0 2.10 2.8 |
+    e: 2.7 3.0 2.5 3.0 h: [3.0 2.3] |
+
+riff punk.lick.pogo-tremolo-lick-1 "Pogo Tremolo Lick 1"
+  type lick   instrument guitar6   tuning standard   capo 0
+  key E aeolian   tempo 176   meter 4/4   feel driving
+  difficulty 4   tags tremolo-picking accents
+  chords 0:Em 4:Em 8:C 12:Em
+  play:
+    s: 2.8! 2.8 2.8 2.8 2.7! 2.7 2.7 2.7 2.5! 2.5 2.5 2.5 2.3! 2.3 2.3 2.3 |
+    s: 2.5! 2.5 2.5 2.5 2.7! 2.7 2.7 2.7 2.8! 2.8 2.8 2.8 2.10! 2.10 2.10 2.10 |
+    s: 2.12! 2.12 2.12 2.12 2.10! 2.10 2.10 2.10 2.8! 2.8 2.8 2.8 2.7! 2.7 2.7 2.7 |
+    s: 2.8! 2.8 2.8 2.8 2.8 2.8 2.8 2.8 h: 2.5 |
+
+# ---------------------------------------------------------------- strums
+
+riff punk.strum.buzzsaw-strum-1 "Buzzsaw Strum 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key G mixolydian   tempo 180   meter 4/4   feel driving
+  difficulty 1   tags downstrokes power-chords palm-mute   free yes
+  chords 0:G5 3:C5 5.5:F5 7:G5
+  play:
+    e: D[3-5-5-x-x-x]pm D[3-5-5-x-x-x]pm D[3-5-5-x-x-x] D[3-5-5-x-x-x]pm D[3-5-5-x-x-x]pm D[3-5-5-x-x-x] q: D[x-3-5-5-x-x] |
+    e: D[x-3-5-5-x-x]pm D[x-3-5-5-x-x]pm D[x-3-5-5-x-x] D[1-3-3-x-x-x]pm D[1-3-3-x-x-x]pm D[1-3-3-x-x-x] q: D[3-5-5-x-x-x] |
+
+riff punk.strum.basement-chop-strum-1 "Basement Chop Strum 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key C ionian   tempo 150   meter 4/4   feel straight
+  difficulty 2   tags chucks sixteenths
+  chords 0:C 2:G 4:Am 6:F
+  play:
+    s: D[x32010] r U[x32010] r Dx[x32010] r U[x32010] D[x32010] e: D[320003] U[320003] Dx[320003] U[320003] |
+    s: D[x02210] r U[x02210] r Dx[x02210] r U[x02210] D[x02210] e: D[133211] Dx[133211] q: D[133211] |
+
+riff punk.strum.garage-thrash-strum-1 "Garage Thrash Strum 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key E mixolydian   tempo 184   meter 4/4   feel driving
+  difficulty 1   tags open-chords downstrokes beginner
+  chords 0:E 2:A 4:D 5:A 6:E
+  play:
+    e: D[022100] D[022100] D[022100] D[022100] q: D[x02220] D[x02220] |
+    e: D[xx0232] D[xx0232] D[x02220] D[x02220] h: D[022100] |
+
+riff punk.strum.pogo-stop-start-strum-1 "Pogo Stop-Start Strum 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key G ionian   tempo 164   meter 4/4   feel straight
+  difficulty 2   tags stops accents open-chords
+  chords 0:G 3.5:C 4:D 8:G 9.5:C 11.5:D 14:G
+  play:
+    q: D[320003]! D[320003]! e: r D[320003] U[320003] D[x32010]! |
+    h: r e: D[xx0232] U[xx0232] q: D[xx0232]! |
+    q: D[320003]! D[320003]! e: r D[x32010] U[x32010] D[xx0232]! |
+    q: D[xx0232]! r D[320003]! r |
+
+riff punk.strum.indie-jangle-strum-1 "Indie Jangle Strum 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key C ionian   tempo 132   meter 4/4   feel straight
+  difficulty 2   tags indie sixteenths open-chords
+  chords 0:Fmaj7 3:C 4:C 5.5:Am7 8:G6 12:Fmaj7 14:C
+  play:
+    e: D[xx3210] s: D[xx3210] U[xx3210] e: r U[xx3210] s: D[xx3210] U[xx3210] e: D[xx3210] q: U[x32010] |
+    e: D[x32010] s: D[x32010] U[x32010] e: r U[x32010] s: D[x02010] U[x02010] e: D[x02010] U[x02010] D[x02010] |
+    q: D[320000] e: U[320000] U[320000] s: D[320000] U[320000] e: U[320000] q: D[320000] |
+    h: D[xx3210] D[x32010] |
+
+riff punk.strum.mosh-breakdown-strum-1 "Mosh Breakdown Strum 1"
+  type strum   instrument guitar6   tuning standard   capo 0
+  key E aeolian   tempo 176   meter 4/4   feel half_time
+  difficulty 3   tags breakdown palm-mute chucks
+  chords 0:E5 2.5:G5 3:A5 4:E5 6.5:C5 7:B5
+  play:
+    q: D[0-2-2-x-x-x]! e: Dx[0-2-2-x-x-x] D[0-2-2-x-x-x]pm s: D[0-2-2-x-x-x]pm D[0-2-2-x-x-x]pm e: D[3-5-5-x-x-x] q: D[5-7-7-x-x-x] |
+    q: D[0-2-2-x-x-x]! e: Dx[0-2-2-x-x-x] D[0-2-2-x-x-x]pm s: D[0-2-2-x-x-x]pm D[0-2-2-x-x-x]pm e: D[x-3-5-5-x-x] q: D[x-2-4-4-x-x] |
+
+# ---------------------------------------------------------------- bass
+
+riff punk.bass.racing-root-bass-1 "Racing Root Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key E aeolian   tempo 180   meter 4/4   feel driving
+  difficulty 1   tags eighths root-notes beginner   free yes
+  chords 0:E5 4:A5 6:B5 8:E5 10:A5 11:B5 14:A5 15:E5
+  play:
+    e: 4.0 4.0 4.0 4.0 4.0 4.0 4.2 4.3 |
+    e: 3.0 3.0 3.0 3.0 3.2 3.2 3.2 3.2 |
+    e: 4.0 4.0 4.0 4.0 3.0 3.0 3.2 3.2 |
+    e: 3.2 3.2 3.2 3.2 q: 3.0 4.0 |
+
+riff punk.bass.pogo-walk-bass-1 "Pogo Walk Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key G ionian   tempo 176   meter 4/4   feel driving
+  difficulty 2   tags eighths approach-notes
+  chords 0:G 4:C 8:D 12:G
+  play:
+    e: 4.3 4.3 4.3 4.3 2.0 2.0 4.3 3.2 |
+    e: 3.3 3.3 3.3 3.3 2.2 2.2 3.3 3.4 |
+    e: 2.0 2.0 2.0 2.0 3.0 3.0 2.0 2.4 |
+    e: 4.3 4.3 2.0 4.3 q: 3.0 3.2 |
+
+riff punk.bass.ghosted-drive-bass-1 "Ghosted Drive Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key A aeolian   tempo 168   meter 4/4   feel driving
+  difficulty 2   tags ghost-notes palm-mute eighths
+  chords 0:Am 4:F 6:G 8:C 10:G 12:Am
+  play:
+    e: 3.0pm 3.0g 3.0pm 3.0g 3.0pm 3.3 3.5 3.0pm |
+    e: 4.1pm 4.1g 4.1pm 4.1g 4.3pm 4.3g 4.3 3.2 |
+    e: 3.3pm 3.3g 3.3pm 2.2 4.3pm 4.3g 4.3pm 2.0 |
+    e: 3.0pm 3.0g 3.0pm 3.0g q: 4.3 4.5 |
+
+riff punk.bass.indie-climb-bass-1 "Indie Climb Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key D ionian   tempo 150   meter 4/4   feel straight
+  difficulty 3   tags arpeggio eighths indie
+  chords 0:D 4:A 8:Bm 12:G
+  play:
+    e: 3.5 3.5 2.4 3.5 2.7 2.4 3.5 3.4 |
+    e: 3.0 3.0 3.4 3.0 2.2 3.4 3.0 3.2 |
+    e: 3.2 3.2 2.0 3.2 2.4 2.0 3.2 3.0 |
+    e: 4.3 4.3 3.2 4.3 2.0 3.2 q: 3.0 |
+
+riff punk.bass.pogo-pulse-bass-1 "Pogo Pulse Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key E aeolian   tempo 168   meter 4/4   feel driving
+  difficulty 3   tags gallop eighths
+  chords 0:Em 2:G 3:A 4:C 6:A 7:G
+  play:
+    e: 4.0 s: 4.0 4.0 e: 4.0 s: 4.0 4.0 e: 4.3 4.3 3.0 3.2 |
+    e: 3.3 s: 3.3 3.3 e: 3.3 s: 3.3 3.3 e: 3.0 3.0 4.3 4.2 |
+
+riff punk.bass.breakneck-octave-bass-1 "Breakneck Octave Bass 1"
+  type bass   instrument bass4   tuning standard   capo 0
+  key E aeolian   tempo 200   meter 4/4   feel driving
+  difficulty 4   tags octaves sixteenths fast
+  chords 0:Em 2:G 4:Am 6:G 8:C 10:B 12:Em
+  play:
+    e: 4.0 2.2 4.0 2.2 4.3 2.5 4.3 2.5 |
+    e: 3.0 1.2 3.0 1.2 s: 3.2 3.3 3.2 3.0 e: 4.3 4.2 |
+    e: 3.3 1.5 3.3 1.5 3.2 1.4 3.2 1.4 |
+    s: 4.0 4.2 4.3 4.5 3.2 3.3 3.5 2.2 e: 2.0 3.2 q: 4.0 |

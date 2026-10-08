@@ -4,6 +4,7 @@
 
 #include "../Model/Workshop/PartLibrary.h"
 #include "../Support/IrLibrary.h"
+#include "../Support/ThreadProbe.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -62,6 +63,24 @@ LUTHIER_TEST (Workshop, theFactoryLibraryIsThere)
     CHECK (factoryGuitars().size() >= 15);
 }
 
+LUTHIER_TEST (Workshop, warmRefreshReusesFactoryPartIndex)
+{
+    ThreadProbe::factoryPartScans.store (0, std::memory_order_relaxed);
+
+    PartLibrary first;
+    first.refresh();
+    const int afterFirst = ThreadProbe::factoryPartScans.load (std::memory_order_relaxed);
+
+    PartLibrary second;
+    second.refresh();
+    const int afterSecond = ThreadProbe::factoryPartScans.load (std::memory_order_relaxed);
+
+    CHECK_MSG (afterSecond == afterFirst,
+               "second refresh reparsed the factory part tree ("
+                   + juce::String (afterFirst) + " -> " + juce::String (afterSecond) + " scans)");
+}
+
+//==============================================================================
 LUTHIER_TEST (Workshop, everyFactoryGuitarLoadsAndRoundTrips)
 {
     TempFolder user;

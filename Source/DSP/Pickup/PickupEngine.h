@@ -104,8 +104,13 @@ public:
     /** Per-pickup volume, as on a Les Paul. */
     void setPickupVolume (int slot, double linearGain) noexcept;
 
-    /** Continuous blend between the two outermost active pickups, 0 to 1.
-        Used by the Easy-mode blend knob. */
+    /** SPEC-SWEEP: CW-20 - one string's sensitivity in one pickup (the pole
+        pieces are never quite level), as a linear gain. 1 is nominal. */
+    void setStringBalance (int slot, int stringIndex, double linearGain) noexcept;
+
+    /** Continuous blend between the two outermost active pickups, 0 to 1:
+        0 is the bridge-side pickup alone, 1 the neck-side one alone, 0.5 both at
+        full level (a centre-detent blend pot). No effect with one pickup on. */
     void setBlend (double blend) noexcept;
 
     /*  The coil the switch has selected, as the guitar's circuit sees it
@@ -129,6 +134,17 @@ public:
     void setHumAmount (double amount) noexcept;
     void setMainsFrequency (double hz) noexcept;
 
+    /*  noise-floor.md 2.1: the player's position and angle scale the hum, as a
+        loop antenna in the room's field. 1 (the default) is the legacy path. */
+    void setHumPositionGain (double g) noexcept { humPositionGain = g; }
+
+    /** noise-floor.md 4.1: the share of the active magnetic signal that hears
+        hum (single coils, P90s, soundhole pickups, a tapped humbucker). */
+    double getSingleCoilShare() const noexcept;
+
+    /** The hum this sample carried, for noise-floor.md 4.6's Aux 8 stem. */
+    double getLastHumSample() const noexcept { return lastHum; }
+
     /** Identity rule 4: with every pickup off the instrument is silent and the UI
         must say so. */
     bool isSilent() const noexcept { return activeCount == 0; }
@@ -144,6 +160,30 @@ public:
     double processStrings (const double* stringOutputs,
                            const double* delaySamples,
                            int numStrings) noexcept;
+
+    /*  string-interaction.md 5: pickup crosstalk. A pole senses its string
+        through a Gaussian aperture; a bent string moves off its own pole and
+        toward the next. `mmAtFret` is each string's lateral displacement where
+        it is fretted, `stopFromSaddleMm` how far that point is from the saddle
+        (the displacement falls linearly to the saddle), `bassward` whether it
+        is pushed toward the bass side. Unbent strings are sensed with gain 1
+        exactly; piezo and internal mic are not affected. Block rate. */
+    void setStringLateralOffsets (const double* mmAtFret, const double* stopFromSaddleMm,
+                                  const bool* bassward, int n, double scaleLengthMm,
+                                  double stringSpacingMm, double apertureScale) noexcept;
+
+    /** The aperture gain in use for a slot and string (1 unbent). */
+    double getApertureGain (int slot, int stringIndex) const noexcept
+    {
+        return apertureGain[(size_t) juce::jlimit (0, kMaxPickups - 1, slot)]
+                           [(size_t) juce::jlimit (0, kMaxStrings - 1, stringIndex)];
+    }
+
+    /** The aperture sigma of a pickup type in mm, before the scale (5). */
+    static double apertureSigmaMm (PickupType t) noexcept
+    {
+        return t == PickupType::Humbucker ? 5.0 : t == PickupType::P90 ? 5.5 : 4.0;
+    }
 
     /** Piezo and internal-mic pickups tap the bridge and the body instead of the
         magnetic field, so they get their own inputs. */
@@ -179,6 +219,7 @@ private:
     static void applyMagnetEq (Biquad& eq, MagnetType m, double sr) noexcept;
 
     double combSample (Coil& coil, int stringIndex, double input, double delaySamples) noexcept;
+    static void writeHistory (Coil& coil, int stringIndex, double input) noexcept;   // SPEC-SWEEP: EN-50
 
     double sr = 44100.0;
     int numStrings = 6;
@@ -188,7 +229,16 @@ private:
     std::array<PickupSpec, kMaxPickups> specs {};
     std::array<std::array<Coil, 2>, kMaxPickups> coils {};
     std::array<ExpSmoother, kMaxPickups> slotGain {};
+
+    // string-interaction.md 5: 1 unless a string is bent.
+    std::array<std::array<double, kMaxStrings>, kMaxPickups> apertureGain = [] {
+        std::array<std::array<double, kMaxStrings>, kMaxPickups> a {};
+        for (auto& row : a) row.fill (1.0);
+        return a; }();
+    bool anyApertureGain = false;
     std::array<double, kMaxPickups> userVolume { { 1.0, 1.0, 1.0 } };
+    // SPEC-SWEEP: CW-20 - stored as (gain - 1) so zero-initialised is nominal.
+    std::array<std::array<double, kMaxStrings>, kMaxPickups> stringBalanceDelta {};
 
     PickupSelector selector = PickupSelector::Bridge;
     SwitchCrossfade selectorFade;
@@ -207,6 +257,7 @@ private:
     double humPhase = 0.0;
     double humIncrement = 0.0;
     ExpSmoother humLevel;
+    double humPositionGain = 1.0, lastHum = 0.0;   // noise-floor.md 2.1
 
     DCBlocker outputDc;
 

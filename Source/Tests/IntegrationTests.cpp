@@ -21,6 +21,15 @@
 using namespace luthier;
 using namespace luthier::tests;
 
+/*  SPEC-SWEEP: FactoryPresets keeps the processor it reads ranges from in a
+    static. A test that points it at its own local processor must clear it on
+    the way out, or the next PresetManager (every processor's constructor
+    writes the factory bank) reads a destroyed object. */
+struct FactoryRangesReset
+{
+    ~FactoryRangesReset() { FactoryPresets::setProcessorForRanges (nullptr); }
+};
+
 namespace
 {
     constexpr double kSr = 48000.0;
@@ -416,7 +425,7 @@ LUTHIER_TEST (Engine, sampleRateChangesAreSurvived)
     // Engine rule 5: the plugin must survive a host switching rates mid-session.
     LuthierEngine engine;
 
-    for (double rate : { 44100.0, 48000.0, 88200.0, 96000.0, 192000.0, 44100.0 })
+    for (double rate : { 44100.0, 48000.0, 88200.0, 96000.0, 176400.0, 192000.0, 44100.0 }) // qa-polish.md 1.3
     {
         engine.prepare (rate, kBlock);
 
@@ -580,9 +589,10 @@ LUTHIER_TEST (Engine, cpuStaysWithinBudget)
 
     const double seconds = 3.0;
 
-    /*  Best of three: wall-clock time on a shared machine picks up whatever
-        else is running (virus scans, a VM), and the fastest run is the one
-        that measures the engine rather than the neighbours. */
+    /*  Best of three on the thread's CPU clock (TestFramework): a stopwatch
+        on a shared machine counts whatever else is running (virus scans, a VM,
+        a CI runner's neighbours) against the engine, and the fastest run is
+        the one that measures the engine. */
     double elapsed = 1.0e9;
 
     for (int run = 0; run < 3; ++run)
@@ -594,12 +604,11 @@ LUTHIER_TEST (Engine, cpuStaysWithinBudget)
         for (int note : { 40, 47, 52, 56, 59, 64 })
             notes.addEvent (juce::MidiMessage::noteOn (1, note, 0.9f), 0);
 
-        const auto start = juce::Time::getHighResolutionTicks();
+        const double start = threadCpuTimeSeconds();
 
         render (engine, notes, seconds);
 
-        elapsed = juce::jmin (elapsed, juce::Time::highResolutionTicksToSeconds (
-                                           juce::Time::getHighResolutionTicks() - start));
+        elapsed = juce::jmin (elapsed, threadCpuTimeSeconds() - start);
     }
 
     const double realtimeFactor = elapsed / seconds;
@@ -652,9 +661,20 @@ LUTHIER_TEST (Parameters, everyParameterHasAUniqueIdAndSaneDefault)
         implementation detail, and something that should have to be changed on
         purpose. docs/CHANGELOG.md quotes this number; if you change the set,
         change it there too. */
-    CHECK_MSG (seen.size() == 425,
+    CHECK_MSG (seen.size() == 450 + 3   // MODEL-GAPS
+                             + 15   // REALISM-A
+                             + 29   // REALISM-B
+                             + 29   // REALISM-C
+                             + 2    // TUNE-HELP-ONBOARDING
+                             + 34   // FEAT-JAM
+                             + 1    // SPEC-SWEEP
+                             + 4    // FEAT-ASSIST
+                             + 25   // FEAT-MIC
+                             + 64   // TECHNIQUES
+                             + 1    // FEAT-SAT
+                             ,
                "the parameter list has changed size: " + juce::String (seen.size())
-                 + " parameters, expected 425 - saved host automation is indexed "
+                 + " parameters, not the expected total - saved host automation is indexed "
                    "against this list");
 }
 
@@ -687,6 +707,7 @@ LUTHIER_TEST (Presets, everyFactoryPresetLoadsAndPlays)
     // must load, produce sound, and not produce anything non-finite.
     HarnessProcessor processor;
     FactoryPresets::setProcessorForRanges (&processor);
+    const FactoryRangesReset factoryRangesReset;   // SPEC-SWEEP: no dangling pointer after this test
 
     processor.prepareToPlay (kSr, kBlock);
 
@@ -731,6 +752,7 @@ LUTHIER_TEST (Presets, stateRoundTripsExactly)
 {
     HarnessProcessor processor;
     FactoryPresets::setProcessorForRanges (&processor);
+    const FactoryRangesReset factoryRangesReset;   // SPEC-SWEEP: no dangling pointer after this test
     processor.prepareToPlay (kSr, kBlock);
 
     RtRandom rng { 0xBEEF };
@@ -765,7 +787,8 @@ LUTHIER_TEST (Presets, stateRoundTripsExactly)
 
         // A preset never carries the morph position (ambiguity-resolutions 5).
         if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (p))
-            if (withId->paramID == ParamIDs::presetMorphPosition)
+            if (withId->paramID == ParamIDs::presetMorphPosition
+                  || ParamIDs::isJamTransient (withId->paramID))   // FEAT-JAM: jam-mode 10
                 continue;
 
         if (std::abs (now - then) > 1.0e-4f)
@@ -832,6 +855,7 @@ LUTHIER_TEST (Presets, audioIsIdenticalAfterARoundTrip)
 
     HarnessProcessor processor;
     FactoryPresets::setProcessorForRanges (&processor);
+    const FactoryRangesReset factoryRangesReset;   // SPEC-SWEEP: no dangling pointer after this test
     processor.prepareToPlay (kSr, kBlock);
 
     // Humanisation is deliberately random per note, so it has to be off for a
@@ -1014,6 +1038,25 @@ LUTHIER_TEST (Parameters, fuzzAcrossTenThousandStates)
             {
                 ctx.fail ("fuzz state " + juce::String (i) + " produced non-finite audio");
                 break;
+            }
+
+            // qa-polish.md 2.2: no denormal escapes the engine's flushing.
+            {
+                int tiny = 0;
+
+                for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+                    for (int k = 0; k < buffer.getNumSamples(); ++k)
+                    {
+                        const auto v = std::abs (buffer.getSample (ch, k));
+                        tiny += (v > 0.0f && v < 1.0e-30f) ? 1 : 0;
+                    }
+
+                if (tiny > 0)
+                {
+                    ctx.fail ("fuzz state " + juce::String (i) + " let " + juce::String (tiny)
+                              + " denormal-range samples out");
+                    break;
+                }
             }
 
             auto mono = toMono (buffer);
@@ -1256,6 +1299,7 @@ LUTHIER_TEST (Presets, aFileWithoutTheMagicMarkerIsRefused)
 {
     HarnessProcessor processor;
     FactoryPresets::setProcessorForRanges (&processor);
+    const FactoryRangesReset factoryRangesReset;   // SPEC-SWEEP: no dangling pointer after this test
     processor.prepareToPlay (kSr, kBlock);
 
     processor.presets.captureExtraState();
@@ -1289,6 +1333,7 @@ LUTHIER_TEST (Presets, unknownFieldsSurviveARoundTrip)
 {
     HarnessProcessor processor;
     FactoryPresets::setProcessorForRanges (&processor);
+    const FactoryRangesReset factoryRangesReset;   // SPEC-SWEEP: no dangling pointer after this test
     processor.prepareToPlay (kSr, kBlock);
 
     processor.presets.captureExtraState();
@@ -1341,6 +1386,7 @@ LUTHIER_TEST (Presets, savingBacksUpTheVersionItReplaces)
 {
     HarnessProcessor processor;
     FactoryPresets::setProcessorForRanges (&processor);
+    const FactoryRangesReset factoryRangesReset;   // SPEC-SWEEP: no dangling pointer after this test
     processor.prepareToPlay (kSr, kBlock);
 
     auto folder = juce::File::getSpecialLocation (juce::File::tempDirectory)
@@ -1397,6 +1443,7 @@ LUTHIER_TEST (Presets, mutatedPresetsNeverCrashTheLoader)
 {
     HarnessProcessor processor;
     FactoryPresets::setProcessorForRanges (&processor);
+    const FactoryRangesReset factoryRangesReset;   // SPEC-SWEEP: no dangling pointer after this test
     processor.prepareToPlay (kSr, kBlock);
 
     processor.presets.captureExtraState();
@@ -1554,6 +1601,7 @@ LUTHIER_TEST (ErrorLog, arefusedPresetLoadIsRecordedAndChangesNothing)
 
     HarnessProcessor processor;
     FactoryPresets::setProcessorForRanges (&processor);
+    const FactoryRangesReset factoryRangesReset;   // SPEC-SWEEP: no dangling pointer after this test
     processor.prepareToPlay (kSr, kBlock);
 
     auto file = folder.getChildFile (juce::String ("Impostor") + PresetManager::kFileExtension);
@@ -1574,4 +1622,61 @@ LUTHIER_TEST (ErrorLog, arefusedPresetLoadIsRecordedAndChangesNothing)
 
     ErrorLog::setFolderForTesting ({});
     folder.deleteRecursively();
+}
+
+//==============================================================================
+//  Ported from PR #2 (claude/clever-hopper-07uz7t): chords on free strings.
+/*  The user's "cannot do chords": notes played one after another while the
+    earlier ones are held must each get a string of their own. C4 lands on the B
+    string, E4 on the high E, and G4 - cheapest on the high E at fret 3 - used to
+    take the high E and end E4. Now the held strings are out of bounds for the
+    voicer, so all three ring, and neither of the first two is ever re-struck. */
+LUTHIER_TEST (Engine, notesPlayedWhileOthersAreHeldEachGetTheirOwnString)
+{
+    LuthierEngine engine;
+    engine.prepare (kSr, kBlock);
+    engine.setGuitarType (GuitarType::Dreadnought);
+    engine.getMidiInterpreter().setPlayingMode (PlayingMode::Poly);
+    engine.getMidiInterpreter().setHumanisation ({ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 });
+
+    // Each note arrives well outside the chord window of the one before, so
+    // every one is voiced on its own against what is already held.
+    auto play = [&engine] (int midiNote, double seconds)
+    {
+        juce::MidiBuffer midi;
+        midi.addEvent (juce::MidiMessage::noteOn (1, midiNote, 0.8f), 0);
+        render (engine, midi, seconds);
+    };
+
+    auto stringHolding = [&engine] (int midiNote)
+    {
+        for (int s = 0; s < engine.getNumStrings(); ++s)
+            if (engine.getStringMidiNote (s) == midiNote)
+                return s;
+
+        return -1;
+    };
+
+    play (60, 0.05);
+    const int c = stringHolding (60);
+    CHECK_MSG (c >= 0, "C4 is not sounding on any string");
+
+    play (64, 0.05);
+    const int e = stringHolding (64);
+    CHECK_MSG (e >= 0 && e != c, "E4 did not get a string of its own");
+    CHECK_MSG (stringHolding (60) == c, "E4 took over C4's string");
+
+    play (67, 0.3);
+    const int g = stringHolding (67);
+    CHECK_MSG (g >= 0 && g != c && g != e, "G4 did not get a string of its own");
+    CHECK_MSG (stringHolding (60) == c, "G4 took over C4's string");
+    CHECK_MSG (stringHolding (64) == e, "G4 took over E4's string");
+
+    int ringing = 0;
+
+    for (int s = 0; s < engine.getNumStrings(); ++s)
+        if (engine.getStringLevel (s) > 1.0e-5)
+            ++ringing;
+
+    CHECK_MSG (ringing >= 3, "only " + juce::String (ringing) + " strings are ringing under a held C-E-G");
 }

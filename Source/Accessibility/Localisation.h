@@ -103,12 +103,13 @@ public:
         (accessibility 8). */
     bool needsCjkFallbackFont() const;
 
+    /** The built-in English catalog. Compiled in rather than loaded, so the
+        plugin can always draw its own UI even with no resources installed.
+        Public for the shipped en.json template (SPEC-SWEEP A11Y-32). */
+    static const std::map<juce::String, juce::String>& getBuiltInEnglish();
+
 private:
     Localisation();
-
-    /** The built-in English catalog. Compiled in rather than loaded, so the
-        plugin can always draw its own UI even with no resources installed. */
-    static const std::map<juce::String, juce::String>& getBuiltInEnglish();
 
     bool loadCatalog (const juce::String& code,
                       std::map<juce::String, juce::String>& destination) const;

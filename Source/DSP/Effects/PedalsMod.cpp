@@ -423,6 +423,113 @@ void TremoloPedal::process (double* left, double* right, int numSamples) noexcep
 }
 
 //==============================================================================
+//  Gater (rhythmic gate)
+//==============================================================================
+void GaterPedal::prepare (double sampleRate, int maxBlockSize)
+{
+    prepareBase (sampleRate, maxBlockSize);
+    resetParametersToDefault();
+    reset();
+}
+
+void GaterPedal::reset() noexcept
+{
+    phase = 0.0;
+    lastTempo = tempoBpm;
+    updateIncrement();
+    gateOpenness.store ((float) gainAtPhase (0.0), std::memory_order_relaxed);
+}
+
+const PedalParam& GaterPedal::getParameterDescriptor (int index) const noexcept
+{
+    static const PedalParam params[4] =
+    {
+        { "Rate",      "",   0.0,  8.0,  5.0, 1.0, true,  9, kSyncDiv },   // default 1/8
+        { "Size",      "%",  1.0, 99.0, 50.0, 1.0, false, 0, nullptr },
+        { "Shape",     "",   0.0,  1.0,  0.2, 1.0, false, 0, nullptr },
+        { "Frequency", "Hz", 0.5, 20.0,  4.0, 0.5, false, 0, nullptr }
+    };
+
+    return params[juce::jlimit (0, 3, index)];
+}
+
+void GaterPedal::parameterChanged (int index, double value)
+{
+    switch (index)
+    {
+        case 0: sync = juce::jlimit (0, 8, (int) value); break;
+        case 1: size = juce::jlimit (0.01, 0.99, value * 0.01); break;
+        case 2: shape = juce::jlimit (0.0, 1.0, value); break;
+        case 3: freqHz = juce::jlimit (0.5, 20.0, value); break;
+        default: break;
+    }
+
+    updateIncrement();
+}
+
+double GaterPedal::getEffectiveRateHz() const noexcept
+{
+    if (sync > 0)
+        return (tempoBpm / 60.0) / juce::jmax (0.01, kSyncMultipliers[juce::jlimit (0, 8, sync)]);
+
+    return freqHz;
+}
+
+void GaterPedal::updateIncrement() noexcept
+{
+    inc = juce::jlimit (0.0, 0.49, getEffectiveRateHz() / juce::jmax (1.0, sr));
+}
+
+double GaterPedal::gainAtPhase (double p) const noexcept
+{
+    // Distance from the centre of the open window, in cycles (0 .. 0.5).
+    double d = p - size * 0.5;
+    d -= std::floor (d + 0.5);
+    d = std::abs (d);
+
+    const double half = size * 0.5;                                   // the window's half-width
+    const double fade = shape * 0.5 * juce::jmin (size, 1.0 - size);  // the edge's half-width
+
+    if (d <= half - fade)
+        return 1.0;
+
+    if (d >= half + fade)
+        return 0.0;
+
+    // Raised cosine across the edge: 1 at the inner end, 0 at the outer.
+    const double t = (d - (half - fade)) / juce::jmax (1.0e-9, 2.0 * fade);
+    return 0.5 + 0.5 * std::cos (constants::kPi * t);
+}
+
+void GaterPedal::process (double* left, double* right, int numSamples) noexcept
+{
+    // A tempo change reaches the pedal through setTempoBpm, not a parameter;
+    // one comparison a block keeps a synced Rate following it.
+    if (sync > 0 && tempoBpm != lastTempo)
+    {
+        lastTempo = tempoBpm;
+        updateIncrement();
+    }
+
+    double g = gainAtPhase (phase);
+
+    for (int i = 0; i < numSamples; ++i)
+    {
+        g = gainAtPhase (phase);
+
+        left[i]  = sanitise (left[i]  * g);
+        right[i] = sanitise (right[i] * g);
+
+        phase += inc;
+
+        if (phase >= 1.0)
+            phase -= 1.0;
+    }
+
+    gateOpenness.store ((float) g, std::memory_order_relaxed);
+}
+
+//==============================================================================
 //  Rotary speaker
 //==============================================================================
 void RotaryPedal::prepare (double sampleRate, int maxBlockSize)
@@ -708,8 +815,10 @@ void DelayPedal::process (double* left, double* right, int numSamples) noexcept
 
         writeIndex = (writeIndex + 1) & mask;
 
-        left[i]  = sanitise (dcL.process (left[i]  * (1.0 - mix * 0.35) + wetL * mix));
-        right[i] = sanitise (dcR.process (right[i] * (1.0 - mix * 0.35) + wetR * mix));
+        // qa-polish.md 5.9: the DC blocker is on the wet path only, so the dry
+        // path is untouched and Mix 0 is a true bypass.
+        left[i]  = sanitise (left[i]  * (1.0 - mix * 0.35) + dcL.process (wetL * mix));
+        right[i] = sanitise (right[i] * (1.0 - mix * 0.35) + dcR.process (wetR * mix));
     }
 }
 
@@ -740,6 +849,11 @@ void ReverbPedal::prepare (double sampleRate, int maxBlockSize)
 
     dcL.prepare (sr, 12.0);
     dcR.prepare (sr, 12.0);
+
+    // Sized for the longest line rebuildLines can ask for, so a Size or
+    // Character change on the audio thread never allocates.
+    for (int i = 0; i < kFdnSize; ++i)
+        lines[i].assign ((size_t) (sr * kMaxLineSeconds) + 1, 0.0);
 
     resetParametersToDefault();
     rebuildLines();
@@ -789,11 +903,13 @@ void ReverbPedal::parameterChanged (int index, double value)
 
     switch (index)
     {
-        case 0: size = value; needsRebuild = true; break;
+        // The bridge re-sends every parameter every block; only a real change
+        // may rebuild, or the tail is wiped each block and the pedal is dry.
+        case 0: needsRebuild = value != size; size = value; break;
         case 1: decaySeconds = value; break;
         case 2: damping = value; break;
         case 3: preDelayMs = value; break;
-        case 4: character = (int) value; needsRebuild = true; break;
+        case 4: needsRebuild = (int) value != character; character = (int) value; break;
         case 5: mix = value; break;
         default: break;
     }
@@ -823,8 +939,13 @@ void ReverbPedal::rebuildLines()
 
     for (int i = 0; i < kFdnSize; ++i)
     {
-        lineLengths[i] = juce::jlimit (64, (int) (sr * 0.35), (int) (primes[i] * scale));
-        lines[i].assign ((size_t) lineLengths[i], 0.0);
+        lineLengths[i] = juce::jlimit (64, (int) (sr * kMaxLineSeconds), (int) (primes[i] * scale));
+
+        if (lines[i].size() < (size_t) lineLengths[i])   // only before prepare
+            lines[i].assign ((size_t) lineLengths[i], 0.0);
+        else
+            std::fill (lines[i].begin(), lines[i].begin() + lineLengths[i], 0.0);
+
         lineIndex[i] = 0;
     }
 }
@@ -843,7 +964,7 @@ void ReverbPedal::process (double* left, double* right, int numSamples) noexcept
     avgLength /= (double) kFdnSize;
 
     feedbackGain = std::exp (-6.907755 * avgLength / (juce::jmax (0.05, decaySeconds) * sr));
-    feedbackGain = juce::jlimit (0.0, 0.9985, feedbackGain);
+    feedbackGain = juce::jlimit (0.0, 0.998, feedbackGain);   // SPEC-SWEEP: EN-90, engine.md 20.18
 
     for (int n = 0; n < numSamples; ++n)
     {

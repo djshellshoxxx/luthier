@@ -19,8 +19,11 @@ BRANDS = [
     "Hiwatt", "Soldano", "Bogner", "Diezel", "Ampeg", "SVT", "JCM", "AC30", "Deluxe", "Champ",
     "Bassman", "Twin Reverb", "Celestion", "Greenback", "Jensen", "EVM", "Shure", "SM57", "SM7B", "Royer", "Neumann",
     "Sennheiser", "MD421", "AKG", "C414", "D112", "U87", "Tube Screamer", "Big Muff", "Klon", "Boss",
+    "Fuzz Face",
     "MXR", "Electro-Harmonix", "Uni-Vibe", "Leslie", "D'Addario", "NYXL", "Ernie Ball", "Elixir",
     "Selmer", "Dobro", "Gretsch", "Epiphone", "PRS", "Danelectro", "TransTrem", "Kinman", "Alnico Blue",
+    # SPEC-SWEEP: FC-1 - a pedal and the single-cut's initials in a part name.
+    "Fuzz Face", "LP Wiring",
 ]
 
 LITERAL = re.compile(r'"((?:[^"\\]|\\.)*)"')
@@ -56,6 +59,17 @@ def main():
         brand = matches(os.path.basename(path))
         if brand:
             found.append(f"{path.replace(os.sep, '/')}: {brand}")
+
+    # riff-library 12: the riff catalog's names and tags are shipped names too.
+    catalog = os.path.join("Resources", "Riffs", "catalog.json")
+    if os.path.exists(catalog):
+        import json
+        with open(catalog, encoding="utf-8") as f:
+            for item in json.load(f).get("items", []):
+                for text in [item.get("name", "")] + item.get("tags", []):
+                    brand = matches(text)
+                    if brand:
+                        found.append(f"{catalog}: {item.get('id')}: {brand}: \"{text}\"")
 
     for line in found:
         print(line)

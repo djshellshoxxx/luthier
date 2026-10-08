@@ -1,0 +1,12 @@
+Example riff (original fixture)
+Tuning: Drop D, 1 1/2 steps down
+Capo III
+Key: Bm
+Tempo: 1/4 = 92
+
+e|--0--|
+B|--0--|
+G|--0--|
+D|--0--|
+A|--0--|
+D|--0--|

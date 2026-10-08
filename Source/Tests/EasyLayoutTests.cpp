@@ -156,3 +156,32 @@ LUTHIER_TEST (EasyLayout, theWindowMatchesSection3)
     juce::FileOutputStream out (file);
     juce::PNGImageFormat().writeImageToStream (image, out);
 }
+
+LUTHIER_TEST (EasyLayout, ampKnobsHaveRoomAtCompactWindowSize)
+{
+    LuthierAudioProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
+    editor->setVisible (true);
+    editor->setSize (1200, 720);
+
+    auto* easy = findOne<EasyPanel> (*editor);
+    CHECK (easy != nullptr);
+
+    if (easy == nullptr)
+        return;
+
+    auto* ampFace = findOne<AmpFacePanel> (*easy);
+    CHECK (ampFace != nullptr);
+
+    if (ampFace == nullptr)
+        return;
+
+    const auto face = ampFace->getFaceLayout();
+    CHECK (face.knobRows == 2);
+
+    for (const auto& knob : face.knobs)
+        CHECK_MSG (knob.getWidth() >= 40.0f && knob.getHeight() >= 40.0f,
+                   "amp knob face area is " + juce::String (knob.getWidth()) + " x " + juce::String (knob.getHeight()));
+}

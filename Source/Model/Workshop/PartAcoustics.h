@@ -62,6 +62,10 @@ struct DerivedAcoustics
     std::array<double, 12> gaugesIn {};   ///< per string, 0 = the set's default
     StringMaterial stringMaterial = StringMaterial::NickelPlatedSteel;
 
+    /** workshop-ui.md 3.3: per string, -1 = the set's; else a StringMaterial / 0 plain, 1 wound. */
+    std::array<int, 12> stringMaterialOverride { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
+    std::array<int, 12> stringWoundOverride { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
+
     BodyConfig body;
 
     /** Pickups in the engine's slot order: bridge first. */
@@ -83,6 +87,10 @@ struct DerivedAcoustics
 
     std::array<double, 12> tensionNewtons {};   ///< 3 and 8, for the tests and the UI
     std::array<double, 12> windingPitchPerMm {};
+
+    // tuning-stability.md 1: the tuners' and nut's fields, consumed there.
+    double tunerRatio = 18.0, tunerStability = 0.85, nutFriction = 0.35;
+    bool tunerLocking = false;
 
     CircuitComponents wiring;    ///< 7: the circuit's controls from the wiring part
     SetupGeometry setup;         ///< fret-buzz.md geometry from setup, frets and nut

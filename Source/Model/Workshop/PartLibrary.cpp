@@ -1,6 +1,7 @@
 #include "PartLibrary.h"
 #include "../../Support/ThreadProbe.h"
 #include "../../Support/IrLibrary.h"
+#include <mutex>
 
 namespace luthier
 {
@@ -180,6 +181,29 @@ juce::var WorkshopGuitar::toVar() const
         }
         else
         {
+            // file-formats.md 3: the strings entry carries its per-string overrides.
+            if (slot == GuitarSlot::strings && entry.getDynamicObject() != nullptr)
+            {
+                juce::Array<juce::var> overrides;
+
+                for (int s = 0; s < (int) stringOverrides.size(); ++s)
+                {
+                    const auto& o = stringOverrides[(size_t) s];
+
+                    if (! o.isSet())
+                        continue;
+
+                    auto* item = new juce::DynamicObject();
+                    item->setProperty ("string", s + 1);   // people count from 1 = high E
+                    if (o.gaugeIn > 0.0)          item->setProperty ("gauge_in", o.gaugeIn);
+                    if (o.wound >= 0)             item->setProperty ("wound", o.wound == 1);
+                    if (o.material.isNotEmpty())  item->setProperty ("winding_material", o.material);
+                    overrides.add (juce::var (item));
+                }
+
+                entry.getDynamicObject()->setProperty ("per_string_override", overrides);
+            }
+
             partsObject->setProperty (getSlotId (slot), entry);
         }
     }
@@ -365,6 +389,9 @@ bool WorkshopGuitar::operator== (const WorkshopGuitar& o) const
             || placements[i].heightBassMm != o.placements[i].heightBassMm)
             return false;
 
+    if (stringOverrides != o.stringOverrides)
+        return false;
+
     return setup.actionTrebleMm == o.setup.actionTrebleMm && setup.actionBassMm == o.setup.actionBassMm
         && setup.reliefMm == o.setup.reliefMm && setup.nutSlotDepthsMm == o.setup.nutSlotDepthsMm
         && setup.intonationMm == o.setup.intonationMm
@@ -395,7 +422,55 @@ juce::File PartLibrary::getUserGuitarsFolder()
 
 void PartLibrary::refresh()
 {
-    refreshFrom (getFactoryPartsFolder(), getUserPartsFolder());
+    using PartMaps = decltype (byType);
+
+    struct FactoryCache
+    {
+        std::mutex mutex;
+        juce::File folder;
+        PartMaps parts;
+        juce::StringArray errors;
+        bool ready = false;
+    };
+
+    static FactoryCache cache;
+    const auto factoryFolder = getFactoryPartsFolder();
+
+    {
+        std::lock_guard<std::mutex> lock (cache.mutex);
+
+        if (! cache.ready || cache.folder != factoryFolder)
+        {
+            PartLibrary factory;
+            factory.scanFolder (factoryFolder, true);
+
+            // Do not permanently cache an absent/incomplete installation. A
+            // later instance in the same host process can recover if Resources
+            // becomes available, while a valid shipped tree is immutable until
+            // the next process/plugin load.
+            if (factoryFolder.isDirectory() && factory.getNumParts() > 0 && factory.scanErrors.isEmpty())
+            {
+                cache.folder = factoryFolder;
+                cache.parts = factory.byType;
+                cache.errors = factory.scanErrors;
+                cache.ready = true;
+            }
+
+            byType = factory.byType;
+            scanErrors = factory.scanErrors;
+        }
+        else
+        {
+            // PartPtr is shared_ptr<const Part>, so copying the maps is cheap
+            // and cannot let one processor mutate another's factory objects.
+            byType = cache.parts;
+            scanErrors = cache.errors;
+        }
+    }
+
+    // User parts are intentionally fresh every time and retain override
+    // priority over the cached factory entries.
+    scanFolder (getUserPartsFolder(), false);
 }
 
 void PartLibrary::refreshFrom (const juce::File& factoryParts, const juce::File& userParts)
@@ -413,6 +488,9 @@ void PartLibrary::refreshFrom (const juce::File& factoryParts, const juce::File&
 void PartLibrary::scanFolder (const juce::File& root, bool factory)
 {
     ThreadProbe::noteFileAccess();
+
+    if (factory)
+        ThreadProbe::factoryPartScans.fetch_add (1, std::memory_order_relaxed);
     if (! root.isDirectory())
         return;
 
@@ -486,6 +564,7 @@ juce::String PartLibrary::renamedFactoryPart (const juce::String& name)
         { "Modern Strat Wiring", "Modern Double-Cut Wiring" },   // legacy name (trademark scan skips it)
         { "Active EMG Wiring", "Active Two-Knob Wiring" },   // legacy name (trademark scan skips it)
         { "50s LP Wiring", "50s Single-Cut Wiring" },   // legacy name (trademark scan skips it)
+        { "Modern LP Wiring", "Modern Single-Cut Wiring" },   // legacy name (trademark scan skips it) - SPEC-SWEEP: FC-1
     };
 
     const auto it = renamed.find (name);
@@ -660,6 +739,21 @@ bool PartLibrary::buildGuitar (const juce::var& json, WorkshopGuitar& out, LoadR
         }
 
         g.parts[(size_t) i] = part;
+
+        if (slot == GuitarSlot::strings)
+            if (auto* overrides = entry.getProperty ("per_string_override", juce::var()).getArray())
+                for (const auto& item : *overrides)
+                {
+                    const int s = (int) item.getProperty ("string", 0) - 1;
+
+                    if (! juce::isPositiveAndBelow (s, (int) g.stringOverrides.size()))
+                        continue;
+
+                    auto& o = g.stringOverrides[(size_t) s];
+                    o.gaugeIn = juce::jlimit (0.0, 0.2, (double) item.getProperty ("gauge_in", 0.0));
+                    o.wound = item.hasProperty ("wound") ? ((bool) item.getProperty ("wound", false) ? 1 : 0) : -1;
+                    o.material = item.getProperty ("winding_material", juce::var()).toString();
+                }
 
         if (isPickup)
         {

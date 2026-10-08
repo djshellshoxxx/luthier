@@ -581,10 +581,11 @@ LUTHIER_TEST (Editor, everyWorkspaceTabSelectsAndPaints)
     panel.setVisible (true);
     panel.setSize (1600, 900);
 
-    // In order: tune-builder 3 puts TUNE between RHYTHM and LIVE; practice-tools
+    // In order: tune-builder 3 puts TUNE between RHYTHM and LIVE (jam-mode 8.1: JAM after TUNE); practice-tools
     // 11 puts PRACTICE between CHARACTER and NOTATION.
-    const juce::StringArray tabNames { "WORKSHOP", "MOD", "RHYTHM", "TUNE", "LIVE", "ROUTING", "TONE MATCH",
-                                       "CHARACTER", "PRACTICE", "NOTATION", "MIDI OUT", "CONTROLLERS", "HELP" };
+    // riff-library 7.1 puts RIFFS between TUNE (JAM) and LIVE.
+    const juce::StringArray tabNames { "WORKSHOP", "MOD", "RHYTHM", "TUNE", "JAM", "RIFFS", "LIVE", "ROUTING", "TONE MATCH",
+                                       "CHARACTER", "PRACTICE", "NOTATION", "MIDI OUT", "CONTROLLERS", "TECHNIQUES", "HELP" };   // gui-techniques-updates.md 0.2
 
     CHECK_MSG (panel.getNumWorkspaceTabs() == tabNames.size(),
                "expected " + juce::String (tabNames.size()) + " workspace tabs, found "
@@ -608,7 +609,8 @@ LUTHIER_TEST (Editor, everyWorkspaceTabSelectsAndPaints)
             pass a test that called the method directly. */
         juce::Button* button = nullptr;
 
-        for (auto* child : panel.getChildren())
+        // The buttons live in the tab strip (FEAT-RIFFS: it scrolls when they overflow).
+        for (auto* child : panel.getWorkspaceTabStrip().getChildren())
             if (auto* candidate = dynamic_cast<juce::TextButton*> (child))
                 if (candidate->getButtonText() == name)
                     button = candidate;
@@ -972,6 +974,17 @@ LUTHIER_TEST (Editor, theHeadstockPopoverEditsPerStringTuning)
     if (detune.size() != strings)
         return;
 
+    /*  SPEC-SWEEP (UW-5): the detune goes through the processor's command queue
+        and lands at the top of the next audio block, so each check renders one. */
+    auto renderOneBlock = [&processor]
+    {
+        juce::AudioBuffer<float> buffer (juce::jmax (2, processor.getTotalNumInputChannels(),
+                                                     processor.getTotalNumOutputChannels()), kBlock);
+        juce::MidiBuffer midi;
+        buffer.clear();
+        processor.processBlock (buffer, midi);
+    };
+
     //--------------------------------------------------------------------------
     // Each one writes to its own string, and only to its own string.
     for (int i = 0; i < strings; ++i)
@@ -979,6 +992,7 @@ LUTHIER_TEST (Editor, theHeadstockPopoverEditsPerStringTuning)
         const double wanted = -37.5 + (double) i;
 
         detune[i]->setValue (wanted, juce::sendNotificationSync);
+        renderOneBlock();
 
         CHECK_MSG (std::abs (tuning.getStringTuning (i).detuneCents - wanted) < 1.0e-6,
                    "string " + juce::String (i + 1) + " detune did not reach the engine");
@@ -994,6 +1008,7 @@ LUTHIER_TEST (Editor, theHeadstockPopoverEditsPerStringTuning)
     const double openBefore = tuning.getEffectiveOpenFrequency (0);
 
     detune[0]->setValue (0.0, juce::sendNotificationSync);
+    renderOneBlock();
 
     const double openAtZero = tuning.getEffectiveOpenFrequency (0);
 
@@ -1121,7 +1136,7 @@ LUTHIER_TEST (Editor, everyHitRegionOnTheIllustrationDescribesItself)
     /*  A real MouseEvent, built on the desktop's own mouse source. The component
         has no peer, so nothing delivers events to it - but mouseMove is an
         ordinary method and the event is an ordinary value. */
-    auto& source = juce::Desktop::getInstance().getMainMouseSource();
+    auto source = juce::Desktop::getInstance().getMainMouseSource();
 
     auto tooltipAt = [&body, &source] (juce::Point<float> p)
     {
@@ -1563,7 +1578,10 @@ LUTHIER_TEST (Editor, theWindowRaisesSectionFifteensTriggersAndIsQuietWhenItShou
             being tested and saying so is better than failing on it. */
         const bool quiet = ! processor.getTelemetry().isManagedByPolicy()
                              && ! processor.getTelemetry().hasPendingCrashReport()
-                             && processor.getLicense().getState() != License::State::grace;
+                            #if LUTHIER_PRO
+                             && processor.getLicense().getState() != License::State::grace
+                            #endif
+                             ;
 
         if (quiet)
         {
@@ -1585,6 +1603,7 @@ LUTHIER_TEST (Editor, theWindowRaisesSectionFifteensTriggersAndIsQuietWhenItShou
         }
     }
 
+   #if LUTHIER_PRO   // editions.md 2.5: the Free binary has no licence, so no grace banner
     //--------------------------------------------------------------------------
     // A licence in grace says so, and says it as a warning.
     {
@@ -1646,6 +1665,7 @@ LUTHIER_TEST (Editor, theWindowRaisesSectionFifteensTriggersAndIsQuietWhenItShou
             }
         }
     }
+   #endif
 }
 
 //==============================================================================

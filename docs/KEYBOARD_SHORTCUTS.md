@@ -16,11 +16,15 @@ them with a search box. The defaults are below.
 | `Escape` | Close whatever overlay is open - not rebindable, on purpose |
 | `Space` | Start or stop the audition phrase |
 | `Tab` | Switch between Easy and Advanced |
+| `S` | Slide Mode on or off |
 | `L` | Live Mode on or off |
+| `W` | Toggle Workshop |
 | `D` | Open or close the Practice drawer |
 | `P` | Panic - stop every string immediately |
 | `T` | Tap tempo |
 | `\` | Kill switch |
+| `S` | Slide mode on or off |
+| `Ctrl + [` / `Ctrl + ]` | Previous / next workspace tab (Advanced Mode only) |
 
 ## Presets and snapshots
 
@@ -28,18 +32,21 @@ them with a search box. The defaults are below.
 |---|---|
 | `[` / `]` | Previous / next preset, or snapshot while Live Mode is on |
 | `1` - `9` | Recall snapshot 1 to 9 |
-| `Shift + 1` - `9` | Recall snapshot 10 to 18 |
+| `Shift + 1` - `9` | Recall snapshot 10 to 18 (any keyboard layout: the key, not the symbol it types) |
 | `PageUp` / `PageDown` | Previous / next setlist entry |
 
 ## File and edit
 
 | Key | Action |
 |---|---|
+| `Ctrl + N` | New preset (loads Init) |
 | `Ctrl + O` | Preset browser |
+| `Ctrl + N` | New preset (loads Init) |
 | `Ctrl + S` | Save the current preset |
 | `Ctrl + Shift + S` | Save As |
 | `Ctrl + G` | Save the guitar as a `.luthierguitar` file |
 | `Ctrl + Shift + E` | Show the guitar file on disk |
+| `Ctrl + Alt + E` | Show the preset file on disk |
 | `Ctrl + E` | Export audio |
 | `Ctrl + L` | Arm MIDI Learn, then click a control |
 | `Ctrl + Z` | Undo |
@@ -50,6 +57,12 @@ them with a search box. The defaults are below.
 | `Ctrl + ,` | Options |
 | `Ctrl + D` | Debug tools |
 
+## Advanced mode
+
+| Key | Action |
+|---|---|
+| `Ctrl + [` / `Ctrl + ]` | Previous / next workspace tab |
+
 ## On any control
 
 | Input | Action |
@@ -59,7 +72,7 @@ them with a search box. The defaults are below.
 | `Ctrl` + drag | Ultra-fine |
 | Double-click | Reset to default |
 | Right-click | Enter value, Reset, Copy, Paste, MIDI Learn, Lock, Randomise |
-| Hover | The value replaces the label; a tooltip follows after 400 ms |
+| Hover | The value appears above the control (the label stays); a tooltip follows after 400 ms |
 
 ## On the fretboard
 

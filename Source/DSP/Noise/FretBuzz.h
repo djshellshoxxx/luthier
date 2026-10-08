@@ -37,6 +37,13 @@ struct SetupGeometry
     double buzzThreshold = 0.35;   ///< sensitivity trim, 3.2
     bool sitarMode = false;
 
+    /*  SPEC-SWEEP FB-21 (fret-buzz.md 8, character-wear.md 3): how far each
+        fret's crown has worn below a new one, mm. A worn fret is lower, so the
+        string clears it more easily - but a note fretted on it starts lower
+        too, so the frets ahead of it come closer. Wear moves buzz around
+        rather than removing it. Index 0 is the nut and is ignored. */
+    std::array<double, kMaxFrets + 1> fretWearMm {};
+
     double scaleLengthMm = 648.0;
     int numStrings = 6;
     int numFrets = 22;
@@ -95,10 +102,32 @@ public:
     /*  Runs sense() for every string and starts, updates or releases each
         string's buzz generator in `pool`. `levels`, `fretted` and
         `fundamentalHz` are per string. Audio thread, once a block. */
+    /*  CW-12, character-wear.md 3: a worn fret sits lower than its neighbour, so
+        the string grazes it more easily. `wornMultiplier`, one per string
+        (1 = fresh, higher = more worn - CharacterEngine::getFretBuzzMultiplier),
+        nudges that string's contact closer to buzzing; null skips the bias. */
     void process (NoiseEngine& pool, const double* levels, const double* fretted,
-                  const double* fundamentalHz, int numStrings, double pluckPosition) noexcept;
+                  const double* fundamentalHz, int numStrings, double pluckPosition,
+                  const double* wearMultiplier = nullptr) noexcept;
+
+    /*  SPEC-SWEEP: CW-12 - character-wear 3: a worn fret sits low, so the
+        string stopped on it is this much closer to the fret in front, per unit
+        of CharacterEngine::getFretBuzzMultiplier above 1. */
+    static constexpr double kWearClearanceMm = 0.1;
 
     void reset() noexcept;
+
+    /*  SPEC-SWEEP FB-26 (fret-buzz.md 8): a bend pushes the string across the
+        frets and lifts it slightly: more clearance just past the finger, less
+        further up. Set each block from the string's bend. Audio thread. */
+    void setBendCents (int stringIndex, double cents) noexcept
+    {
+        if (juce::isPositiveAndBelow (stringIndex, SetupGeometry::kMaxStrings))
+            bendCents[(size_t) stringIndex] = cents;
+    }
+
+    /** The clearance with the bend's lift, mm. */
+    double clearanceFor (int stringIndex, double frettedAt, int fret) const noexcept;
 
     //==========================================================================
     /*  The heatmap's source (6.2): the last block's excess for each string at
@@ -114,6 +143,7 @@ public:
 
 private:
     SetupGeometry geometry;
+    std::array<double, SetupGeometry::kMaxStrings> bendCents {};   // SPEC-SWEEP FB-26
 
     std::array<int, SetupGeometry::kMaxStrings> generatorIndex {};
     std::array<std::atomic<int>, SetupGeometry::kMaxStrings> buzzingFret {};

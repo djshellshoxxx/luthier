@@ -16,6 +16,11 @@ const char* getRangeFamilyName (RangeFamily family) noexcept
         case RangeFamily::pick:       return "pick";
         case RangeFamily::slide:      return "slide";
         case RangeFamily::modulation: return "modulation";
+        case RangeFamily::strings:     return "strings";       // REALISM-A
+        case RangeFamily::environment: return "environment";   // REALISM-A
+        case RangeFamily::body:        return "body";          // REALISM-A
+        case RangeFamily::jam:        return "jam";   // FEAT-JAM
+        case RangeFamily::mic:        return "mic";   // mic-placement.md 7
         case RangeFamily::numFamilies:
         default:                      return "none";
     }
@@ -87,7 +92,7 @@ namespace
         rather than parameters, so it is implemented as setter clamps
         (advanced-ranges.md 2.1).
     */
-    const Entry& entryAt (int index)
+    const Entry* allEntries (int& count)
     {
         static const Entry table[] =
         {
@@ -145,16 +150,118 @@ namespace
             { "setup_nut_depth_6",         { 0.0f,  1.2f, 0.0f,  4.0f,  0.45f, 1.0f, RangeFamily::buzz } },
             { ParamIDs::setupFretHeight,   { 0.6f,  1.6f, 0.1f,  5.0f,  1.0f,  1.0f, RangeFamily::buzz } },
 
+            // SPEC-SWEEP BT-6 (bass-techniques.md 11): the slap and pop points
+            // are positions on the instrument, so they join the buzz family.
+            // Stock is the declared 5-400 mm (the spec's narrower 20-200 and
+            // 10-150 would re-map saved values); advanced reaches any bridge.
+            { ParamIDs::slapPositionMm,    { 5.0f, 400.0f, 2.0f, 800.0f, 60.0f, 1.0f, RangeFamily::buzz } },
+            { ParamIDs::popPositionMm,     { 5.0f, 400.0f, 2.0f, 800.0f, 40.0f, 1.0f, RangeFamily::buzz } },
+
             // --- slide (slide-guitar.md 7) ----------------------------------
             { ParamIDs::slideSlant,        { -30.0f, 30.0f, -60.0f, 60.0f, 0.0f,  0.5f, RangeFamily::slide } },
             { ParamIDs::slideNoiseAmount,  { 0.0f,   1.0f,  0.0f,   4.0f,  0.4f,  1.0f, RangeFamily::slide } },
             { ParamIDs::slideClankAmount,  { 0.0f,   1.0f,  0.0f,   4.0f,  0.45f, 1.0f, RangeFamily::slide } },
+
+            // ==== BEGIN REALISM-A ranges ====
+            // --- strings (string-aging.md 4) ---------------------------------
+            { ParamIDs::stringAgeHours,    { 0.0f,  200.0f, 0.0f,   2000.0f, 12.0f, 0.12f, RangeFamily::strings } },
+            { ParamIDs::stringCorrosivity, { 0.5f,  2.0f,   0.0f,   5.0f,    1.0f,  1.0f,  RangeFamily::strings } },
+
+            // --- environment (environment.md 5) ------------------------------
+            { ParamIDs::envTemperatureC,   { 5.0f,  40.0f, -30.0f,  70.0f,  22.0f, 1.0f, RangeFamily::environment } },
+            { ParamIDs::envTunedAtC,       { 5.0f,  40.0f, -30.0f,  70.0f,  22.0f, 1.0f, RangeFamily::environment } },
+            { ParamIDs::envHumidityPct,    { 20.0f, 85.0f,  5.0f,  100.0f,  45.0f, 1.0f, RangeFamily::environment } },
+
+            // --- body (body-coupling.md 4) -----------------------------------
+            { ParamIDs::bodyModeMassScale, { 0.5f,  2.0f,  0.05f,  20.0f,  1.0f, 1.0f / 3.0f, RangeFamily::body } },
+            { ParamIDs::bodyModeQScale,    { 0.5f,  2.0f,  0.1f,   5.0f,   1.0f, 1.0f / 3.0f, RangeFamily::body } },
+            { ParamIDs::bodyModeFreqScale, { 0.9f,  1.1f,  0.5f,   2.0f,   1.0f, 0.5f,        RangeFamily::body } },
+            // ==== END REALISM-A ranges ====
+            // ==== BEGIN REALISM-B ranges ====
+            // harmonic-realism.md 5: right- and left-hand contact joins pick.
+            // Touch pressure's ceiling stays 1: above it (3) is not convex.
+            { ParamIDs::harmonicTouchPressure, { 0.2f,   1.0f,   0.0f,  1.0f,   0.6f,    1.0f, RangeFamily::pick } },
+            { ParamIDs::harmonicFingerWidth,   { 1.0f,   6.0f,   0.1f,  20.0f,  2.5f,    1.0f, RangeFamily::pick } },
+            { ParamIDs::harmonicTouchTime,     { 20.0f,  200.0f, 1.0f,  1000.0f, 70.0f,  1.0f, RangeFamily::pick } },
+            { ParamIDs::harmonicBriefTouch,    { 3.0f,   20.0f,  0.5f,  100.0f, 8.0f,    1.0f, RangeFamily::pick } },
+            { ParamIDs::pinchThumbOffsetMm,    { 2.0f,   12.0f,  0.0f,  40.0f,  6.0f,    1.0f, RangeFamily::pick } },
+            // string-interaction.md 7: the palm is right-hand contact; the
+            // fretting finger is squeak's; the pole aperture is circuit's.
+            { ParamIDs::palmMuteSpread,        { 20.0f,  60.0f,  5.0f,  120.0f, 35.0f,   1.0f, RangeFamily::pick } },
+            { ParamIDs::adjacentMuteAmount,    { 0.0f,   1.0f,   0.0f,  1.0f,   0.6f,    1.0f, RangeFamily::squeak } },
+            { ParamIDs::pickupApertureScale,   { 0.5f,   2.0f,   0.1f,  5.0f,   1.0f,    1.0f, RangeFamily::circuit } },
+            // fingerstyle-attack.md 6.
+            { ParamIDs::fingerFleshReleaseMs,  { 0.04f,  0.20f,  0.01f, 1.0f,   0.0723f, 1.0f, RangeFamily::pick } },
+            { ParamIDs::fingerNailReleaseMs,   { 0.015f, 0.06f,  0.005f, 0.2f,  0.0227f, 1.0f, RangeFamily::pick } },
+            { ParamIDs::thumbPositionOffset,   { -0.05f, 0.10f, -0.20f, 0.30f,  0.04f,   1.0f, RangeFamily::pick } },
+            { ParamIDs::restStrokeDamping,     { 0.0f,   1.0f,   0.0f,  1.0f,   0.8f,    1.0f, RangeFamily::pick } },
+            // ==== END REALISM-B ranges ====
+            // ==== BEGIN REALISM-C ranges ====
+            // noise-floor.md 3: the guitar side is circuit, the rig side amp.
+            // noise_amp_buzz keeps its declared 0-1 as stock (1.0).
+            { ParamIDs::ampBuzz,             { 0.0f, 1.0f,  0.0f, 4.0f,   0.12f, 1.0f,   RangeFamily::circuit } },
+            { ParamIDs::noisePlayerAngle,    { 0.0f, 90.0f, 0.0f, 90.0f,  0.0f,  1.0f,   RangeFamily::circuit } },
+            { ParamIDs::noisePlayerDistance, { 0.3f, 5.0f,  0.1f, 20.0f,  1.0f,  0.149f, RangeFamily::circuit } },
+            { ParamIDs::noiseFluorescent,    { 0.0f, 1.0f,  0.0f, 4.0f,   0.0f,  1.0f,   RangeFamily::circuit } },
+            { ParamIDs::noisePassiveHiss,    { 0.0f, 1.0f,  0.0f, 100.0f, 0.0f,  1.0f,   RangeFamily::circuit } },
+            { ParamIDs::noiseCableMovement,  { 0.0f, 1.0f,  0.0f, 4.0f,   0.0f,  1.0f,   RangeFamily::circuit } },
+            { ParamIDs::noiseRadio,          { 0.0f, 1.0f,  0.0f, 4.0f,   0.0f,  1.0f,   RangeFamily::circuit } },
+            { ParamIDs::noiseGroundLoop,     { 0.0f, 1.0f,  0.0f, 4.0f,   0.0f,  1.0f,   RangeFamily::amp } },
+            { ParamIDs::noiseAmpHiss,        { 0.0f, 1.0f,  0.0f, 4.0f,   0.0f,  1.0f,   RangeFamily::amp } },
+            { ParamIDs::noiseMicrophonics,   { 0.0f, 1.0f,  0.0f, 1.9f,   0.0f,  1.0f,   RangeFamily::amp } },
+
+            // sustain-and-decay.md 6 and tuning-stability.md 4: the strings family.
+            { ParamIDs::sustainScale,           { 0.25f, 3.0f, 0.05f, 4.0f,   1.0f, 0.4f, RangeFamily::strings } },
+            { ParamIDs::sustainAttackTransient, { 0.0f,  1.0f, 0.0f,  3.0f,   0.0f, 1.0f, RangeFamily::strings } },
+            { ParamIDs::sustainAttackTime,      { 5.0f, 80.0f, 1.0f, 300.0f, 30.0f, 1.0f, RangeFamily::strings } },
+            { ParamIDs::sustainFastShare,       { 0.0f,  0.9f, 0.0f,  0.99f,  0.0f, 1.0f, RangeFamily::strings } },
+            { ParamIDs::sustainFastRatio,       { 0.05f, 0.5f, 0.01f, 0.9f,   0.2f, 1.0f, RangeFamily::strings } },
+            { ParamIDs::sustainTensionMod,      { 0.0f,  1.5f, 0.0f,  6.0f,   0.0f, 1.0f, RangeFamily::strings } },
+            { ParamIDs::sustainReleaseTime,     { 0.0f, 60.0f, 0.0f, 300.0f,  0.0f, 1.0f, RangeFamily::strings } },
+            { ParamIDs::sustainReleaseSag,      { 0.0f,  8.0f, 0.0f, 20.0f,   0.0f, 1.0f, RangeFamily::strings } },
+            { ParamIDs::sustainReleaseRing,     { 0.0f,  0.3f, 0.0f,  1.0f,   0.0f, 1.0f, RangeFamily::strings } },
+            { ParamIDs::stabilityAmount,        { 0.0f,  1.0f, 0.0f,  4.0f,   0.0f, 1.0f, RangeFamily::strings } },
+            { ParamIDs::stabilitySettling,      { 0.0f,  2.0f, 0.0f,  8.0f,   1.0f, 1.0f, RangeFamily::strings } },
+            { ParamIDs::stabilityNutBinding,    { 0.0f,  2.0f, 0.0f,  8.0f,   1.0f, 1.0f, RangeFamily::strings } },
+            { ParamIDs::stabilityBacklash,      { 0.0f,  2.0f, 0.0f,  8.0f,   1.0f, 1.0f, RangeFamily::strings } },
+            { ParamIDs::stabilitySaddleCreep,   { 0.0f,  2.0f, 0.0f,  8.0f,   1.0f, 1.0f, RangeFamily::strings } },
+            { ParamIDs::stabilityBendMemory,    { 0.0f,  2.0f, 0.0f,  8.0f,   1.0f, 1.0f, RangeFamily::strings } },
+            { ParamIDs::stabilityCapoBias,      { 0.0f,  2.0f, 0.0f,  8.0f,   1.0f, 1.0f, RangeFamily::strings } },
+            // ==== END REALISM-C ranges ====
+            // --- jam kit (jam-mode.md 10, FEAT-JAM): a tension change and head muffling
+            { ParamIDs::jamKitTuning,      { -6.0f,  6.0f,  -12.0f, 12.0f, 0.0f,  0.5f, RangeFamily::jam } },
+            { ParamIDs::jamKitDamping,     { 10.0f,  90.0f, 0.0f,  100.0f, 40.0f, 1.0f, RangeFamily::jam } },
+            // --- mic (mic-placement.md 7, FEAT-MIC) -------------------------
+            { ParamIDs::micDist,     { 0.0f, 100.0f, 0.0f, 200.0f, 2.5f,  0.4f, RangeFamily::mic } },
+            { ParamIDs::micAngle,    { 0.0f,  90.0f, 0.0f, 180.0f, 0.0f,  1.0f, RangeFamily::mic } },
+            { ParamIDs::micDist2,    { 0.0f, 100.0f, 0.0f, 200.0f, 15.0f, 0.4f, RangeFamily::mic } },
+            { ParamIDs::micAngle2,   { 0.0f,  90.0f, 0.0f, 180.0f, 45.0f, 1.0f, RangeFamily::mic } },
+            { ParamIDs::acMicDist,   { 0.0f, 100.0f, 0.0f, 300.0f, 20.0f, 0.4f, RangeFamily::mic } },
+            { ParamIDs::acMicAngle,  { 0.0f,  90.0f, 0.0f, 180.0f, 15.0f, 1.0f, RangeFamily::mic } },
+            { ParamIDs::acMicDist2,  { 0.0f, 100.0f, 0.0f, 300.0f, 30.0f, 0.4f, RangeFamily::mic } },
+            { ParamIDs::acMicAngle2, { 0.0f,  90.0f, 0.0f, 180.0f, 0.0f,  1.0f, RangeFamily::mic } },
+            // ==== BEGIN TECHNIQUES params ====
+            // slide-technique-controls.md 1: "Advanced range extends higher for effect play".
+            { ParamIDs::slideSpeedLimit,   { 100.0f, 9600.0f, 100.0f, 48000.0f, 4800.0f, 0.5f, RangeFamily::slide } },
+            // two-hand-tapping.md 3: "Default 2 (typical two-hand). Advanced range up to 8".
+            { ParamIDs::tapMaxConcurrent,  { 1.0f,   4.0f,   1.0f,   8.0f,     2.0f,    1.0f, RangeFamily::pick } },
+            // microtonal-bends.md 2: stock covers the Whammy-Style two-octave preset; advanced doubles it.
+            { ParamIDs::bendGlobalRange,   { 0.0f,   2400.0f, 0.0f,  4800.0f,  200.0f,  0.2f, RangeFamily::modulation } },
+            // ==== END TECHNIQUES params ====
         };
 
-        return table[index];
+        count = (int) (sizeof (table) / sizeof (table[0]));
+        return table;
     }
 
-    constexpr int kNumEntries = 32;
+    const Entry& entryAt (int index)
+    {
+        int count = 0;
+        return allEntries (count)[index];
+    }
+
+    // Counted from the table, so appending rows cannot leave it stale.
+    const int kNumEntries = [] { int n = 0; allEntries (n); return n; }();
 }
 
 const PhysicalRange* RangeRegistry::find (const juce::String& parameterId)
@@ -367,8 +474,18 @@ int RangeState::applyTo (juce::AudioProcessorValueTreeState& state) const
             normalisation is what keeps the sound unchanged across a widening
             and makes a narrowing clamp exactly once. */
         const float before = parameter->get();
+        const auto next = physical->makeRange (advanced);
 
-        parameter->range = physical->makeRange (advanced);
+        /*  The range it already has: nothing to do. Re-writing the value through
+            a float plain-value round trip anyway moved it by an ulp (0.45275944
+            -> 0.45275941 on 'Distance to Amp'), and clap-validator's state tests
+            compare parameter values exactly. */
+        if (next.start == parameter->range.start && next.end == parameter->range.end
+            && next.skew == parameter->range.skew && next.symmetricSkew == parameter->range.symmetricSkew
+            && next.interval == parameter->range.interval)
+            continue;
+
+        parameter->range = next;
 
         const float after = juce::jlimit (parameter->range.start,
                                           parameter->range.end,

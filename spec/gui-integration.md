@@ -154,7 +154,9 @@ Vertical stack of module cards, top to bottom:
 2. **Pre-effects rack** (compact, 8 slots)
 3. **Amp** (large: model, gain, bass, mid, treble, presence, master)
 4. **Post-effects rack** (compact, 8 slots)
-5. **Cabinet** (model, mic 1, mic 2, blend)
+5. **Cabinet** (model, mic 1, mic 2, blend; (mic-placement.md, FEAT-MIC): plus the
+   bright <-> warm / close <-> far mic pad, which opens the placement
+   overlay, and on acoustics a Pickup <-> Mic knob in place of the mics)
 6. **Room** (size, wet/dry)
 
 Each effect slot is a click target that opens the pedal's full controls
@@ -181,6 +183,9 @@ Compact per rhythm-engine.md section 8:
   strum-dynamics.md 6).
 - Enable switch.
 - Small readout: current chord symbol, next strum arrow.
+- JAM group at the right end (jam-mode.md 8.2): the 88 x 32 JAM pill
+  (first press arms; ARMED / COUNT / PLAYING / ENDING), the band's style,
+  a 5-dot intensity and a "Band" volume mini-knob.
 
 ### 3.6 What Easy Mode intentionally omits
 
@@ -241,6 +246,11 @@ tab strip at the top.
 - **AMP**: model, tone controls, sag, bright, bias, master.
 - **POST-EFFECTS RACK**: 8 slots.
 - **CAB**: model, mic 1, mic 2, blend, phase, delay.
+  (mic-placement.md, FEAT-MIC): the legacy position / distance combos are replaced by the
+  mic placement view (cabinet face with draggable mic handles, speaker
+  thumbnails, response plot and an expand button that opens the placement
+  editor over Columns 3 and 4). On an acoustic guitar the section reads
+  MICS and shows the body with the external mic handles.
 - **ROOM**: model, size, dampening, wet/dry.
 - **SUSTAIN** (from ambiguity-resolutions.md 2): Freeze row (enable,
   capture ms, level, attack, release, tonal LP / HP). E-Bow row (enable,
@@ -250,7 +260,9 @@ tab strip at the top.
 
 Tab strip at the top, in this fixed order:
 
-`WORKSHOP | MOD | RHYTHM | TUNE | LIVE | ROUTING | TONE MATCH | CHARACTER | PRACTICE | NOTATION | MIDI OUT | CONTROLLERS | HELP`
+`WORKSHOP | MOD | RHYTHM | TUNE | JAM | LIVE | ROUTING | TONE MATCH | CHARACTER | PRACTICE | NOTATION | MIDI OUT | CONTROLLERS | HELP`
+
+(jam-mode.md 8.1: JAM, the backing band, sits directly after TUNE.)
 
 - **WORKSHOP** — enters the bench (section 6). While active, the tab
   expands across Columns 3 + 4 as one workspace; Column 3's panels stack
@@ -326,7 +338,12 @@ Tabs across the top:
 `AUDIO | MIDI | APPEARANCE | ACCESSIBILITY | LOCALIZATION | EXPRESSION | RANGES | UPDATES | PRIVACY | DIAGNOSTICS | FILE LOCATIONS`
 
 - **AUDIO** (Standalone): output device, buffer, sample rate, sidechain
-  input.
+  input. **QUALITY** (both formats; cpu-quality-modes 5): the CPU quality
+  radio group (Auto | High | Medium | Low, default High), "This instance"
+  override, "Now running" status, "Always render offline at High", "Tell
+  me when Auto changes quality", the oversampling control with its
+  "Running at 2x while quality is Medium." note, and the "What each level
+  changes" disclosure Also output normalization (`output-normalization.md` 5.1).
 - **MIDI** (Standalone): input port picker, virtual MIDI out toggle.
 - **APPEARANCE**: theme accent tint, palette, reduced motion, UI scale,
   tooltip toggle, scrolling data-stream toggle, noise-event strip
@@ -460,6 +477,9 @@ Right-click any control includes a "Modulate ->" submenu.
 ## 12. Footer
 
 16 px. Left: version. Centre: status line. Right: CPU %, voice count.
+The CPU % is the `QualityBadge` (cpu-quality-modes 5): level label, a
+five-cell load bar and Luthier's share, a focusable button last in the
+footer tab order that opens Options -> AUDIO -> QUALITY.
 
 Scrolling data stream (theme.md) fills empty vertical space in the main
 area, not the footer. Under reduced motion the stream is a static count
@@ -562,6 +582,7 @@ All rebindable. Defaults:
 | Reset all | Ctrl+Shift+R |
 | A / B compare | Ctrl+/ |
 | Tap tempo | T |
+| Jam band start / stop, fill, arm (jam-mode.md 8.2) | J / Shift+J / Alt+J |
 | MIDI Learn arm | Ctrl+L |
 | Undo / Redo | Ctrl+Z / Ctrl+Shift+Z |
 | Help | F1 |
@@ -593,7 +614,9 @@ the UI.
 
 | Feature | Backend module | Primary UI location | Secondary access | Shortcut |
 |---|---|---|---|---|
+| CPU quality (High / Medium / Low / Auto; cpu-quality-modes) | QualityController, PerformanceSettings | Options -> AUDIO -> QUALITY | Footer `QualityBadge`; Adv Col 3 Master oversampling tooltip | "Cycle CPU quality" (unbound) |
 | Instrument load | Model::GuitarLibrary | Adv Col 1 GUITAR, Preset browser | Header preset | Ctrl+O |
+| Preset previews, tone search, favourites, ratings, Sounds like (preset-browser-previews.md) | Presets/Preview, Presets/Search, PresetLibrary | Preset browser overlay (Easy chip row / Advanced sidebar) | Options -> APPEARANCE -> PRESET BROWSER; Options -> FILE LOCATIONS preview cache; Options -> ACCESSIBILITY "Preset browser" keys | Ctrl+O, then Space / F / S / 0-5 |
 | Save As Guitar | Workshop | Workshop header | - | Ctrl+G |
 | Per-string tuning | TuningEngine | Adv Col 1 GUITAR | Easy: headstock click | - |
 | Capo (fret / partial) | TuningEngine | Adv Col 1 GUITAR, Workshop capo drag | - | - |
@@ -612,6 +635,8 @@ the UI.
 | Post-effects rack | PostEffectsChain | Adv Col 3 POST-FX | Easy rig strip | - |
 | Amp model / tone / sag | AmpEngine | Adv Col 3 AMP | Easy rig strip | - |
 | Cabinet, mic 1, mic 2 | CabinetEngine | Adv Col 3 CAB | Easy rig strip | - |
+| Mic placement (x, y, distance, angle, speaker, rear, ToF, level match) (mic-placement.md, FEAT-MIC) | CabinetEngine `MicPlacementStage` | Adv Col 3 CAB placement view + editor | Easy Cabinet card mic pad + overlay | - |
+| Acoustic external mics (mic-placement.md, FEAT-MIC) | AcousticMicModel | Adv Col 3 MICS (acoustic) | Easy Cabinet card Pickup <-> Mic | - |
 | Room | RoomEngine | Adv Col 3 ROOM | Easy rig strip | - |
 | Feedback simulation | AmpEngine | Adv Col 3 SUSTAIN (feedback readout) | - | - |
 | Freeze | MasterBus overlay | Adv Col 3 SUSTAIN | - | - |
@@ -625,6 +650,7 @@ the UI.
 | Randomize | Support | Header dice | - | Ctrl+R |
 | Reset | Support | Header reset | - | Ctrl+Shift+R |
 | Export audio | AudioExport | File menu, Options AUDIO | - | - |
+| Output normalization | MasterBus::LoudnessNormalizer, NormalizationCalibrator | Options AUDIO | Header meter badge (Easy + Adv) | - |
 | Export MIDI | MidiCapture | Col 4 MIDI OUT tab, drag-out on session recorder | Col 4 NOTATION | - |
 | Import MIDI | MidiCapture | File menu, drag onto plugin | - | - |
 | Help | UI | Header ?, Col 4 HELP | - | F1 |
@@ -650,6 +676,7 @@ the UI.
 | Setlist | LivePerf | Col 4 LIVE | Live Strip | PgUp/Dn |
 | Morph | LivePerf | Col 4 LIVE, Live Strip knob | - | - |
 | Tap tempo | LivePerf | Header tap | Live Strip pad | T |
+| Jam band (jam-mode.md 8) | Jam | Col 4 JAM, Easy rhythm strip JAM group | Live Strip JAM pill (while `jam_enabled`) | J, Shift+J, Alt+J |
 | Kill switch | LivePerf | Live Strip pill | - | \ |
 | Monitor mix | LivePerf | Live Strip, Col 4 LIVE | - | - |
 | Expression cal | LivePerf | Options EXPRESSION | - | - |
@@ -663,6 +690,7 @@ the UI.
 | Character seed / dead spots / fret wear / tuner drift / body age / environment | CharacterWear | Col 4 CHARACTER | Easy character macro | - |
 | String squeak amount / probability / material / style | StringNoise | Col 4 CHARACTER -> STRING NOISE | Easy character macro (amount only) | - |
 | Pick material / thickness / tip / bevel / angle / wear / click / chirp / scrape | PickNoise | Col 4 CHARACTER -> PICK | - | - |
+| Harmonic contact / offsets / mapping | StringEngine contacts | Col 4 CHARACTER -> PICK -> HARMONICS | - | - |
 | Fret buzz thresholds / setup style / sitar mode / heatmap | FretBuzz | Col 4 CHARACTER -> SETUP | Workshop setup strip | - |
 | Slide material / mass / wall / pressure / slant / noise / clank | SlideEngine | Col 4 CHARACTER -> SLIDE (Slide Mode only), Workshop slide part | Header S | S |
 | Guitar circuit visualiser | GuitarCircuit | Adv Col 2 CIRCUIT, Col 4 CHARACTER -> CIRCUIT | - | - |
@@ -688,6 +716,9 @@ the UI.
 | MIDI import | MidiExport | File menu Import MIDI, drag-drop onto window | - | - |
 | Accessibility opts / Localization / UI scale / Palette / Reduced motion | Accessibility | Options ACCESSIBILITY, LOCALIZATION, APPEARANCE | - | - |
 | Updates / Telemetry / Crash reporting / License / Privacy dashboard | Updates | Options UPDATES, PRIVACY | Header notification | - |
+| Noise floor | NoiseFloor | Adv Col 4 CHARACTER NOISE FLOOR | ROUTING Aux 8 switch; Options AUDIO default mains region | - |
+| Sustain shape | StringEngine | Adv Col 1 STRINGS DECAY (style) + Col 4 CHARACTER SUSTAIN SHAPE | - | - |
+| Tuning stability | StabilityModel | Adv Col 4 CHARACTER TUNING STABILITY | Easy headstock popover (per-string offset, Retune) | - |
 
 ## 20. Discoverability rules
 

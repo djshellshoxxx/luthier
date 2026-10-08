@@ -265,6 +265,44 @@ LUTHIER_TEST (Capture, recordsVoicedNotesNotMidi)
     CHECK_MSG (strings.size() == 6, juce::String (strings.size()) + " distinct strings, expected the voicer's six");
 }
 
+/*  string-squeak.md 11 / midi-export 6: a captured squeak carries the same
+    fields the live SysEx sends - string, start and end frets, duration, level -
+    so an exported take re-imports it exactly. */
+LUTHIER_TEST (Capture, aSqueakRecordCarriesItsStartAndEndFrets)
+{
+    PerformanceCapture capture;
+    capture.prepare (kSr);
+    CaptureClock clock;
+    clock.sampleRate = kSr;
+    capture.beginBlock (clock);
+
+    using Kind = PerformanceCapture::NoiseKind;
+    capture.noiseEvent (10, Kind::squeakShift, 2, 85.0, 0.6, 3.0, 7.0);
+    capture.noiseEvent (20, Kind::squeakDrag, 4, 40.0, 0.3, 5.0, -1.0);
+    capture.noiseEvent (30, Kind::buzz, 1, 30.0, 0.2);
+    capture.drain();
+
+    const auto& events = capture.getEvents();
+    CHECK_MSG (events.size() == 3, juce::String ((int) events.size()) + " events captured");
+
+    if (events.size() != 3)
+        return;
+
+    CHECK (events[0].event.eventClass == LuthierEventClass::squeak);
+    CHECK (events[0].event.get ("trigger") == "shift");
+    CHECK (events[0].event.get ("str") == "2");
+    CHECK_NEAR (events[0].event.getReal ("start"), 3.0, 1.0e-6);
+    CHECK_NEAR (events[0].event.getReal ("end"), 7.0, 1.0e-6);
+    CHECK_NEAR (events[0].event.getReal ("dur"), 85.0, 1.0e-4);
+    CHECK_NEAR (events[0].event.getReal ("intensity"), 0.6, 1.0e-6);
+
+    CHECK (events[1].event.get ("trigger") == "drag");
+    CHECK_NEAR (events[1].event.getReal ("start"), 5.0, 1.0e-6);
+    CHECK_NEAR (events[1].event.getReal ("end"), -1.0, 1.0e-6);   // a scrape's drag has no end fret (11)
+
+    CHECK (events[2].event.eventClass == LuthierEventClass::buzz);
+}
+
 /*  7.1: "No allocation on the audio thread during 10 000 captured notes." */
 LUTHIER_TEST (Capture, capturingTenThousandNotesDoesNotAllocate)
 {

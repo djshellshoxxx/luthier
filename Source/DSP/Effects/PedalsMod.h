@@ -10,6 +10,7 @@
 */
 
 #include "Pedal.h"
+#include <atomic>
 #include <vector>
 
 namespace luthier
@@ -188,6 +189,66 @@ private:
 };
 
 //==============================================================================
+/** Gater: a rhythmic (trance) gate. A cyclic window opens and closes the
+    signal's amplitude, chopping it into a stutter rhythm. Unlike the noise
+    gate (level-driven) this one runs on its own clock.
+
+    Knobs:
+      Rate      - the chop speed as a note division of the host tempo (Free,
+                  1/1 ... 1/16). "Free" hands the clock to Frequency.
+      Size      - duty cycle, 1-99 %: the fraction of each cycle the gate is
+                  open, measured at half height so Shape never changes it.
+      Shape     - 0 = hard square edges; 1 = raised-cosine fades. The fades are
+                  centred on the window edges and grow with Shape up to half the
+                  shorter of the open and closed spans, so at Size 50 %,
+                  Shape 1 the gate is one full raised-cosine cycle.
+      Frequency - the free-running clock in Hz (0.5-20), used when Rate is Free.
+                  A synced Rate wins over it; the two never multiply.
+
+    When closed the gate is fully shut (silence); the slot's Blend knob sets how
+    much of the effect is heard. gateOpenness publishes the gain the block ended
+    on, for the face's LED. */
+class GaterPedal : public Pedal
+{
+public:
+    PedalType getType() const noexcept override { return PedalType::Gater; }
+    const char* getName() const noexcept override { return "Gater"; }
+
+    void prepare (double sampleRate, int maxBlockSize) override;
+    void reset() noexcept override;
+    void process (double* left, double* right, int numSamples) noexcept override;
+
+    int getNumParameters() const noexcept override { return 4; }
+    const PedalParam& getParameterDescriptor (int index) const noexcept override;
+
+    /** The gate gain (0 closed .. 1 open) at the end of the last block. Written
+        by the audio thread, read by the UI's LED; never anything else. */
+    std::atomic<float> gateOpenness { 0.0f };
+
+    /** The gate's gain at a phase in cycles (0-1) for the current Size and
+        Shape; public so the tests can look at the window directly. */
+    double gainAtPhase (double phase) const noexcept;
+
+    /** The clock the gate is running at, in Hz, after Rate and tempo. */
+    double getEffectiveRateHz() const noexcept;
+
+protected:
+    void parameterChanged (int index, double value) override;
+
+private:
+    void updateIncrement() noexcept;
+
+    int sync = 0;                   // Rate: 0 = Free, else a kSyncDiv division
+    double size = 0.5;              // duty cycle, 0.01-0.99
+    double shape = 0.0;             // 0 hard .. 1 raised cosine
+    double freqHz = 4.0;            // free-running clock
+
+    double phase = 0.0;             // cycles, 0-1
+    double inc = 0.0;               // cycles per sample
+    double lastTempo = 0.0;         // the tempo inc was computed at
+};
+
+//==============================================================================
 /** Rotary speaker: horn and drum rotating at different speeds, each producing
     Doppler pitch shift and amplitude modulation, picked up by two mics. */
 class RotaryPedal : public Pedal
@@ -279,6 +340,7 @@ private:
     double size = 0.5, decaySeconds = 2.0, damping = 0.5, preDelayMs = 20.0, mix = 0.25;
     int character = 0;   // 0 = plate, 1 = hall, 2 = room, 3 = chamber
 
+    static constexpr double kMaxLineSeconds = 0.35;
     std::vector<double> lines[kFdnSize];
     int lineLengths[kFdnSize] = {};
     int lineIndex[kFdnSize] = {};

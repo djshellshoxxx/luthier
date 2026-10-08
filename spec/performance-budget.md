@@ -33,7 +33,8 @@ core.
 | PreEffectsChain (8 slots) | 1.0 | Average pedal cost |
 | AmpEngine | 1.5 | 4x oversampled |
 | PostEffectsChain (8 slots) | 1.0 | Same as pre |
-| CabinetEngine (2 mics) | 0.4 | Convolution |
+| CabinetEngine (2 mics) | 0.5 | Convolution; mic-placement.md 11 (FEAT-MIC): 0.4 before the placement stage (<= 0.05 per mic) and ToF delay |
+| AcousticMicModel (2 mics) | 0.12 | mic-placement.md 11 (FEAT-MIC); 0 at `ac_mic_mix` 0 |
 | RoomEngine | 0.3 | Convolution |
 | MasterBus | 0.15 | Limiter, metering |
 | MidiInterpreter + Technique | 0.05 | Message thread mostly |
@@ -43,6 +44,7 @@ core.
 | MeterFIFO / display | 0.1 | Peak / RMS calc |
 | Feedback path (when active) | 0.3 | Per ambiguity-resolutions.md 1 |
 | Freeze layer (when active) | 0.2 | Captured-loop synth |
+| Preset preview mix (preset-browser-previews.md 11) | 0.02 | One additive mix of a prepared clip; no allocation or lock. Offline preview renders run on a low-priority worker and pause while a transport runs or CPU relief is on |
 | NoiseEngine::Squeak | 0.4 | 16 generators pool, per string-squeak.md 12 |
 | NoiseEngine::PickClick | 0.15 | Per-note transient synth |
 | NoiseEngine::PickChirp | 0.10 | Wound-string release chirp |
@@ -51,6 +53,13 @@ core.
 | NoiseEngine::Clank | 0.05 | Slide bar events |
 | SlideEngine | 0.3 | State machine + damping + continuous pitch |
 | BassTechniques (slap collision, limiter) | 0.25 | Bass-family only |
+| NoiseFloor | 0.15 | noise-floor.md 7; 0 when idle (every new source at 0) |
+| StringEngine sustain shape (12 strings) | +0.3 | sustain-and-decay.md 10, on the StringEngine row; one branch per tick at Legacy |
+| StabilityModel | 0.02 | tuning-stability.md 8; control rate |
+| JamConductor + JamChordFollower | 0.05 | jam-mode.md 14; control rate; <= 0.02 when stopped; 0 when `jam_enabled` is off |
+| JamDrumKit | 0.9 | jam-mode.md 14; all pieces ringing; typically 0.4 |
+| JamBassVoice | 0.6 | jam-mode.md 14; 2 x StringEngine, tone, 2x OS saturation |
+| JamMixer + kit room | 0.15 | jam-mode.md 14; 4-line FDN, pans, meters. Jam total <= 1.7; scenario "Jam" (Rock, 4 voices, band at 5) <= 10 |
 
 **Totals**:
 - **Idle** (silent input, plugin loaded): <= 1.5 units.
@@ -153,12 +162,20 @@ Above 96 kHz, some oversampled modules downgrade internal factor (4x
 
 ## 8. CPU relief mechanisms
 
+> **Superseded by `cpu-quality-modes.md` 7 (load governor) and 8 (CPU
+> targets per quality level).** The list below is kept for history; the
+> governor's E1-E3 replace it, and the per-level table there (High /
+> Medium / Low, printed by CQ-13) is this spec's budget table once measured
+> on a mid-class runner.
+
 Rolling 200 ms average > 85% of block budget:
 
 1. Drop display FIFO drain rate (UI slows, audio unaffected).
 2. Suspend scrolling data stream.
 3. Reduce mod-matrix control rate 2x.
 4. Drop NoiseEngine pool active generators to 8 (from 16) per class.
+   With it (jam-mode.md 13, the step "between 4 and 5"): Jam cymbal banks
+   48 -> 24 modes, hat 32 -> 16. Jam bass and timing are never degraded.
 5. Reduce reverb tap count in convolution reverbs (audible; only if
    still exhausted).
 6. Freeze the shadow `GuitarSpec` audition (if active).

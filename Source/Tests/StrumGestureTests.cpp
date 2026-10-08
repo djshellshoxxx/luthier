@@ -352,6 +352,35 @@ namespace
         return best;
     }
 
+    /*  How strongly a signal repeats at a given pitch's period (or its octave):
+        the strum's own f0, as opposed to anything else that happens to repeat
+        in the voice range - a body mode, which a chuck keeps (6.1). */
+    double clarityAt (const std::vector<float>& x, int start, int length, double hz)
+    {
+        double best = 0.0;
+
+        for (double period : { kSr / hz, kSr / (2.0 * hz) })
+        {
+            for (int lag = (int) period - 3; lag <= (int) period + 3; ++lag)
+            {
+                double num = 0.0, e1 = 0.0, e2 = 0.0;
+
+                for (int i = start; i < start + length && i + lag < (int) x.size(); ++i)
+                {
+                    const double a = x[(size_t) i], b = x[(size_t) (i + lag)];
+                    num += a * b;
+                    e1 += a * a;
+                    e2 += b * b;
+                }
+
+                if (e1 > 0.0 && e2 > 0.0)
+                    best = juce::jmax (best, num / std::sqrt (e1 * e2));
+            }
+        }
+
+        return best;
+    }
+
     double rms (const std::vector<float>& x, int start, int length)
     {
         double sum = 0.0;
@@ -1062,6 +1091,10 @@ LUTHIER_TEST (StrumDynamics, chuckKillsPitch)
         engine->prepare (kSr, kBlock);
         engine->setAmpBuzzAmount (0.0);   // mains hum repeats in the E range
 
+        // The room's tail is the room remembering the strum, not the string
+        // ringing on: the chuck stops the strings, so hear them dry.
+        engine->getRoomEngine().setEnabled (false);
+
         auto s = flatSettings();
         s.chuckAmount = chuckAmount;
         engine->getRhythmEngine().setStrumSettings (s);
@@ -1073,16 +1106,27 @@ LUTHIER_TEST (StrumDynamics, chuckKillsPitch)
     const auto chuck = renderWith (StrumType::down, 1.0);
     const auto chuckStep = renderWith (StrumType::chuck, 0.0);
 
-    const int start = (int) (0.040 * kSr);
+    // The output carries the chain's own delay (the body and cabinet responses
+    // start a few ms in), so time the window from where the strum arrives.
+    int onset = 0;
+    {
+        const double threshold = 0.01 * peak (normal, 0, (int) normal.size());
+
+        while (onset < (int) normal.size() && std::abs (normal[(size_t) onset]) < threshold)
+            ++onset;
+    }
+
+    const int start = onset + (int) (0.040 * kSr);
     const int length = (int) (0.060 * kSr);
 
-    const double normalClarity = pitchClarity (normal, start, length);
+    const double normalClarity = clarityAt (normal, start, length, 82.407);
     CHECK_MSG (normalClarity > 0.8,
                "the reference strum is not clearly pitched (" + juce::String (normalClarity, 3) + ")");
 
     for (const auto* rendered : { &chuck, &chuckStep })
     {
-        const double clarity = pitchClarity (*rendered, start, length);
+        // The chord is E major on the low E: its f0 is E2's.
+        const double clarity = clarityAt (*rendered, start, length, 82.407);
         const double level = rms (*rendered, start, length) / juce::jmax (1.0e-12, rms (normal, start, length));
 
         // No f0: either nothing repeats, or what is left is under the floor.
@@ -1391,3 +1435,4 @@ LUTHIER_TEST (StrumDynamics, theEasyFeelKnobScalesTheStrum)
     processor->applyGenreKit (0);
     CHECK_NEAR (rhythm.getStrumFeel(), 0.5, 1.0e-9);
 }
+

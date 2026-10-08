@@ -11,15 +11,25 @@ namespace
     //==========================================================================
     // name, density, woundDensity, Young's, woundMass, coreRatio, sustain,
     // brightness, squeak, alwaysWound, plainTrebles
+    //
+    // `density` is the PLAIN string's metal and `Young's` the metal that
+    // resists bending: a plain string, or a wound string's core. In every
+    // steel-string set that is steel (7850 kg/m3, 200 GPa) whatever the wrap -
+    // phosphor bronze, 80/20, pure nickel, cobalt and silk & steel sets all use
+    // plain steel trebles and steel cores; the wrap metal only adds mass, which
+    // `woundDensity` and `woundMass` carry (ACCURACY_AUDIT_EXISTING A-05;
+    // D'Addario's EJ16 lists "Plain Steel .012, .016"). With the wrap's
+    // density and modulus a bronze set's plain strings were 12% too heavy and
+    // every string's inharmonicity 45% too low.
     const MaterialProperties kMaterials[(size_t) StringMaterial::NumMaterials] =
     {
         { "Nickel-Plated Steel", 7900.0, 7900.0, 2.00e11, 0.78, 0.45, 5.0, 5600.0, 1.00, false, false },
-        { "Pure Nickel",         8900.0, 8900.0, 2.10e11, 0.76, 0.45, 4.6, 4400.0, 0.90, false, false },
+        { "Pure Nickel",         7850.0, 8900.0, 2.00e11, 0.76, 0.45, 4.6, 4400.0, 0.90, false, false },
         { "Stainless Steel",     7900.0, 7900.0, 1.93e11, 0.79, 0.45, 5.6, 6600.0, 1.15, false, false },
-        { "Cobalt",              8400.0, 8400.0, 2.07e11, 0.78, 0.45, 5.3, 6200.0, 1.05, false, false },
-        { "Phosphor Bronze",     8800.0, 8800.0, 1.10e11, 0.74, 0.42, 4.8, 5000.0, 1.10, false, false },
-        { "80/20 Bronze",        8750.0, 8750.0, 1.15e11, 0.74, 0.42, 4.4, 5900.0, 1.12, false, false },
-        { "Silk & Steel",        6200.0, 7400.0, 9.00e10, 0.62, 0.40, 3.6, 3400.0, 0.70, false, false },
+        { "Cobalt",              7850.0, 8400.0, 2.00e11, 0.78, 0.45, 5.3, 6200.0, 1.05, false, false },
+        { "Phosphor Bronze",     7850.0, 8800.0, 2.00e11, 0.74, 0.42, 4.8, 5000.0, 1.10, false, false },
+        { "80/20 Bronze",        7850.0, 8750.0, 2.00e11, 0.74, 0.42, 4.4, 5900.0, 1.12, false, false },
+        { "Silk & Steel",        7850.0, 7400.0, 2.00e11, 0.62, 0.40, 3.6, 3400.0, 0.70, false, false },
 
         // Nylon and fluorocarbon are the two materials where the plain trebles and
         // the wound basses are made of entirely different things: the trebles are
@@ -130,7 +140,8 @@ StringSpec StringMaterials::computeSpec (StringMaterial material,
                                          int stringIndex,
                                          double targetHz,
                                          double scaleLengthMm,
-                                         double diameterInchesOverride) noexcept
+                                         double diameterInchesOverride,
+                                         int woundOverride) noexcept
 {
     const auto& mat = get (material);
     const auto& ageFx = kAgeEffects[(size_t) juce::jlimit (0, (int) StringAge::NumAges - 1, (int) age)];
@@ -153,6 +164,9 @@ StringSpec StringMaterials::computeSpec (StringMaterial material,
         wound = (stringIndex >= 3);
     else if (mat.alwaysWound)
         wound = true;
+
+    if (woundOverride >= 0)
+        wound = woundOverride == 1;
 
     spec.wound = wound;
     spec.coreDiameterMm = wound ? spec.diameterMm * mat.coreRatio : spec.diameterMm;
@@ -227,6 +241,9 @@ StringEngine::Physical StringMaterials::toPhysical (const StringSpec& spec, doub
     // Heavier strings drive the bridge harder, so they feed the sympathetic
     // coupling network more strongly.
     p.couplingSend = juce::jlimit (0.4, 1.6, std::pow (spec.linearDensity / 0.004, 0.30));
+
+    // body-coupling.md 3: the string's characteristic impedance at the bridge.
+    p.waveImpedance = std::sqrt (juce::jmax (0.0, spec.tensionNewtons) * juce::jmax (0.0, spec.linearDensity));
 
     return p;
 }

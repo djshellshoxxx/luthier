@@ -1,0 +1,5 @@
+- [IX-9] (see DECISIONS DEC-42 row) — same `.luthierkit` work.
+- [IX-12] effort L — DEFER until the realism, techniques, tune-help and visual branches are merged: run qa-polish.md §8 (bug bash) and §12 (final human check) on the integrated build and write the results to docs/audit.
+- [IX-15] effort M — Put the physical parameters that have no family into one. Pickup height joins an advanced-range family (DECISIONS "Pickup heights clamp at 0.8 - 6 mm" waits on this; the visual branch already unlocks past 0.8 mm). Enforce the `modulation` family's setter clamps (PROGRESS PR-44). Rely on realism-a/c for the new `strings` / `environment` / `body` families. Add `Ranges::everyPhysicalParameterHasAFamily`: iterate a list of physical parameter IDs (setup_*, circuit_*, amp_*, pick_*, slide_*, squeak_*, pickup heights) and assert `RangeRegistry` has a `PhysicalRange` for each.
+- [IX-21] (see GAPS GAP-30 row, CLAUDE_CODE_BRIEF CB-17) — same per-string detune/mute work.
+- [IX-22] effort L — Work through the per-spec `*.fixes.md` NO-TEST rows in docs/audit/sweep_parts. This row is the aggregate, and the individual bullets there are the actionable list.

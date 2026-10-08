@@ -33,6 +33,8 @@ struct ScoreTechnique
         palmMute, deadNote,
         naturalHarmonic, pinchHarmonic, artificialHarmonic, tapHarmonic,
         tap, vibrato, trill, whammy, ghostNote, accent, staccato, letRing,
+        pickStrokeUp, pickStrokeDown,   // auto-articulation.md 9 (FEAT-ASSIST)
+        slap, pop,                      // tab-import-export 7: bass slap (thumb) and pop, append-only
         numTypes
     };
 
@@ -64,6 +66,10 @@ struct ScoreNote
     double velocity = 0.8;
 
     std::vector<ScoreTechnique> techniques;
+
+    /** auto-articulation.md 9 (FEAT-ASSIST): the aa_rules bits Performance
+        Assist applied to this note; 0 when it was played as written. */
+    juce::uint16 autoRules = 0;
 
     bool hasTechnique (ScoreTechnique::Type type) const noexcept;
     const ScoreTechnique* findTechnique (ScoreTechnique::Type type) const noexcept;
@@ -166,6 +172,9 @@ public:
 
     /** Attaches a technique to whichever note is sounding on a string. */
     void addTechnique (int stringIndex, const ScoreTechnique& technique);
+
+    /** FEAT-ASSIST: the sounding note's Performance Assist bits (9). */
+    void setAutoRules (int stringIndex, juce::uint16 rules);
 
     /** Records a chord symbol at a beat. */
     void addChordSymbol (double beat, const juce::String& symbol);

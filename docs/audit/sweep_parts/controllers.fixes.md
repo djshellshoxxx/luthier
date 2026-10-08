@@ -1,0 +1,3 @@
+- [CT-1] effort S — DEFER: the nine factory profiles compiled into `addFactoryProfiles` are more robust than install-relative JSON; the user folder override (§0.4) already works. Record in DECISIONS.md.
+- [CT-22] DEFERRED (rtmidi): a plugin gets one merged MIDI stream, and the standalone app is JUCE's StandaloneFilterWindow, whose device callback cannot tag the source without replacing the wrapper. Documented: a second controller must use distinct channels; per-channel routing already sounds it.
+- [CT-27] DEFERRED with CT-22; `Controllers::multiControllerMergeNeverLosesAString` stands.

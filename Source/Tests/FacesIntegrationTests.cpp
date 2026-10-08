@@ -8,11 +8,13 @@
     review by eye. */
 
 #include "TestFramework.h"
+#include "../Edition.h"
 
 #include "../PluginEditor.h"
 #include "../PluginProcessor.h"
 #include "../Accessibility/Accessibility.h"
 #include "../UI/AdvancedPanel.h"
+#include "../UI/UiPreferences.h"
 #include "../UI/EasyPanel.h"
 #include "../UI/AmpFacePanel.h"
 #include "../UI/PedalRack.h"
@@ -407,6 +409,18 @@ LUTHIER_TEST (FacesIntegration, theAdvancedAmpSectionHasItsControlsOnTheFace)
     auto& advanced = *panels.getFirst();
     CHECK_MSG (advanced.isVisible(), "the Advanced panel is not showing");
 
+    // The panel reopens on the last-used workspace tab (a persisted user
+    // setting). WORKSHOP takes columns 2 and 3 over by design (gui-integration
+    // 6), which hides the AMP section, so the test picks a tab that does not -
+    // and puts the user's setting back afterwards.
+    struct TabPreference
+    {
+        juce::String name = UiPreferences::get().getString (AdvancedPanel::workspaceTabNamePreferenceKey, {});
+        ~TabPreference() { UiPreferences::get().setString (AdvancedPanel::workspaceTabNamePreferenceKey, name); }
+    } restoreTab;
+
+    CHECK (advanced.setWorkspaceTabNamed ("MOD"));
+
     auto* face = findFace (advanced, AmpFacePanel::Style::section);
     CHECK_MSG (face != nullptr, "the AMP section has no amp face");
 
@@ -466,7 +480,8 @@ LUTHIER_TEST (FacesIntegration, theAdvancedAmpSectionHasItsControlsOnTheFace)
         set (processor, ParamIDs::ampModel, (float) m);
         face->refresh();
 
-        CHECK_MSG (face->getShownModel() == (AmpModel) m, "the face does not follow the model choice");
+        // editions.md 5.1.3: the face shows what plays - in Free the nearest Free model.
+        CHECK_MSG (face->getShownModel() == (AmpModel) edition::effectiveAmpIndex (m), "the face does not follow the model choice");
         checkAmpFace (ctx, *face, true, "Advanced");
     }
 }

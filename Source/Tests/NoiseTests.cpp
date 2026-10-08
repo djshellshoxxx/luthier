@@ -278,7 +278,8 @@ LUTHIER_TEST (PickNoise, aClickSitsAboutThirtyDecibelsUnderTheNote)
         for (int b = 0; b < 40; ++b)
         {
             block.clear();
-            engine.processBlock (block, b == 0 ? midi : juce::MidiBuffer());
+            juce::MidiBuffer none;
+            engine.processBlock (block, b == 0 ? midi : none);
 
             for (int i = 0; i < 256; ++i)
                 out.push_back (block.getSample (0, i));
@@ -311,14 +312,16 @@ LUTHIER_TEST (Squeak, pitchTracksSpeedAndWinding)
 
     // 300 mm/s on 6.5 wraps/mm: 90 mm in 0.3 s.
     const auto e = PlayingNoise::makeSqueak (s, woundLowE(), 0, 90.0, 0.3, 4.0);
-    CHECK_MSG (std::abs (e.endHz - 1950.0) / 1950.0 < 0.1,
-               "peak at " + juce::String (e.endHz, 0) + " Hz, expected about 1950");
+    CHECK_MSG (std::abs (e.peakHz - 1950.0) / 1950.0 < 0.1,
+               "peak at " + juce::String (e.peakHz, 0) + " Hz, expected about 1950");
 
     const auto faster = PlayingNoise::makeSqueak (s, woundLowE(), 0, 90.0, 0.15, 4.0);
-    CHECK (std::abs (faster.endHz / e.endHz - 2.0) < 0.05);
+    CHECK (std::abs (faster.peakHz / e.peakHz - 2.0) < 0.05);
 
-    // The glide: an accelerating shift starts well below where it peaks.
-    CHECK (e.endHz > e.startHz * 1.15);
+    // The glide: an accelerating shift starts well below where it peaks, and
+    // the hand brakes out of it, so it ends below the peak too (1).
+    CHECK (e.peakHz > e.startHz * 1.15);
+    CHECK (e.peakHz > e.endHz && e.endHz > e.startHz);
 }
 
 LUTHIER_TEST (Squeak, flatwoundIsNearlySilentAndPlainIsSilent)
@@ -490,17 +493,20 @@ LUTHIER_TEST (Squeak, aShiftSitsTwentyToThirtyDecibelsUnderTheNote)
 
     const auto squeaky = render (0.35), silent = render (0.0);
 
-    double notePeak = 0.0, squeakPeak = 0.0;
+    // "Under the note" is under the note sounding while the finger moves: the
+    // squeak's RMS over the shift against the note's RMS over the same window.
+    double noteSum = 0.0, squeakSum = 0.0;
+    const size_t from = 20 * 256, to = from + (size_t) (0.2 * 48000.0);
 
-    for (size_t i = 0; i < silent.size(); ++i)
+    for (size_t i = from; i < to && i < silent.size(); ++i)
     {
-        notePeak = juce::jmax (notePeak, std::abs (silent[i]));
-        squeakPeak = juce::jmax (squeakPeak, std::abs (squeaky[i] - silent[i]));
+        noteSum += silent[i] * silent[i];
+        squeakSum += (squeaky[i] - silent[i]) * (squeaky[i] - silent[i]);
     }
 
-    const double belowDb = gainToDb (notePeak / juce::jmax (1.0e-12, squeakPeak));
+    const double belowDb = gainToDb (std::sqrt (noteSum) / juce::jmax (1.0e-12, std::sqrt (squeakSum)));
 
-    CHECK_MSG (squeakPeak > 0.0, "the squeak never reached the output");
+    CHECK_MSG (squeakSum > 0.0, "the squeak never reached the output");
     CHECK_MSG (belowDb > 15.0 && belowDb < 35.0,
                "the squeak sits " + juce::String (belowDb, 1) + " dB under the note, not 20-30");
 }

@@ -86,6 +86,7 @@ struct BodyMode
     double frequencyHz = 100.0;
     double q           = 30.0;
     double gain        = 1.0;
+    bool   isAir       = false;   ///< environment.md 4: the two Helmholtz modes scale with the air
 };
 
 /** Everything that defines one body, before it is turned into modes. */
@@ -103,6 +104,16 @@ struct BodyConfig
     double soundHoleScale = 1.0;   ///< Multiplier on the soundhole diameter.
     double age            = 0.3;   ///< 0 new, 1 vintage. Old wood damps less.
     double resonanceTrim  = 1.0;   ///< User multiplier on every mode frequency.
+
+    // SPEC-SWEEP: part-acoustics.md 2.1 and 9, set by the Workshop mapping
+    // (mapSpec). All neutral at their defaults, so a compiled guitar's body is
+    // unchanged.
+    double airHzOverride  = 0.0;   ///< PA-14: chambering's air mode, Hz; 0 = computed from the shape
+    double airQOverride   = 0.0;   ///< PA-14: that mode's Q; 0 = the shape's
+    double modeGainDb     = 0.0;   ///< PA-15: chambering's gain on the body modes, against solid
+    double topDampingDb   = 0.0;   ///< PA-56: finish damping on the top modes (<= 0), Q x0.92 at -0.5 dB
+    double topLossScale   = 1.0;   ///< PA-8: the part table's tan(delta) over the engine wood's, top plate
+    double backLossScale  = 1.0;   ///< PA-8: the same for the back
 };
 
 //==============================================================================

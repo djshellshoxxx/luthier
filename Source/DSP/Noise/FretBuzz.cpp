@@ -29,14 +29,20 @@ double SetupGeometry::clearanceMm (int stringIndex, double frettedAt, int fret) 
     auto fretTop = [this] (double n)
     {
         const double bow = 1.0 - ((n - 7.0) / 7.0) * ((n - 7.0) / 7.0);
-        return -relief * juce::jmax (0.0, bow);
+
+        // SPEC-SWEEP FB-21: a worn crown sits lower than the board line.
+        const int f = (int) std::round (n);
+        const double wear = (f >= 1 && f <= kMaxFrets) ? fretWearMm[(size_t) f] : 0.0;
+
+        return -relief * juce::jmax (0.0, bow) - wear;
     };
 
     // The open string runs from the nut (its slot clearance over fret 1) to
     // the saddle, whose height is whatever makes the 12th-fret action right.
     const double nut = nutDepth[(size_t) juce::jlimit (0, kMaxStrings - 1, stringIndex)];
     const double x12 = fretPositionMm (12.0);
-    const double action12 = actionFor (stringIndex) + fretTop (12.0);
+    // (The setup is measured against the board line, not a worn 12th fret.)
+    const double action12 = actionFor (stringIndex) + fretTop (12.0) + fretWearMm[12];
     const double saddle = nut + (action12 - nut) * length / x12;
 
     const double x = fretPositionMm ((double) fret);
@@ -113,6 +119,26 @@ double FretBuzz::displacementMm (double level, double u, double pluckPosition) n
     return FretBuzz::kMmPerLevelUnit * juce::jmax (0.0, level) * sum / juce::jmax (1.0e-9, norm);
 }
 
+double FretBuzz::clearanceFor (int stringIndex, double frettedAt, int fret) const noexcept
+{
+    const double base = geometry.clearanceMm (stringIndex, frettedAt, fret);
+
+    if (base > 1.0e8 || ! juce::isPositiveAndBelow (stringIndex, SetupGeometry::kMaxStrings))
+        return base;
+
+    /*  SPEC-SWEEP FB-26: about 0.15 mm of lift per bent semitone at the frets
+        next to the finger, falling through zero three frets up and turning
+        into up to the same amount closer beyond. */
+    const double semitones = juce::jlimit (0.0, 4.0, std::abs (bendCents[(size_t) stringIndex]) / 100.0);
+
+    if (semitones <= 0.0)
+        return base;
+
+    const double lift = 0.15 * semitones;
+    const double distance = (double) fret - frettedAt;
+    return base + lift * juce::jlimit (-1.0, 1.0, 1.0 - 2.0 * (distance - 0.5) / 5.0);
+}
+
 FretBuzz::Contact FretBuzz::sense (int stringIndex, double frettedAt, double level, double pluckPosition) const noexcept
 {
     Contact worst;
@@ -126,7 +152,7 @@ FretBuzz::Contact FretBuzz::sense (int stringIndex, double frettedAt, double lev
 
     for (int fret = (int) std::floor (frettedAt) + 1; fret <= geometry.numFrets; ++fret)
     {
-        const double clearance = geometry.clearanceMm (stringIndex, frettedAt, fret);
+        const double clearance = clearanceFor (stringIndex, frettedAt, fret);   // SPEC-SWEEP FB-26
 
         if (clearance > 1.0e8)
             continue;
@@ -155,7 +181,8 @@ double FretBuzz::levelFor (double excessMm) const noexcept
 }
 
 void FretBuzz::process (NoiseEngine& pool, const double* levels, const double* fretted,
-                        const double* fundamentalHz, int numStrings, double pluckPosition) noexcept
+                        const double* fundamentalHz, int numStrings, double pluckPosition,
+                        const double* wearMultiplier) noexcept
 {
     const int strings = juce::jmin (numStrings, SetupGeometry::kMaxStrings);
 
@@ -163,6 +190,10 @@ void FretBuzz::process (NoiseEngine& pool, const double* levels, const double* f
     {
         const double level = levels[s];
         auto contact = sense (s, fretted[s], level, pluckPosition);
+
+        // SPEC-SWEEP: CW-12 - the worn fret under the finger (character-wear 3).
+        if (wearMultiplier != nullptr && wearMultiplier[s] > 1.0 && contact.fret >= 0)
+            contact.excessMm += (wearMultiplier[s] - 1.0) * kWearClearanceMm;
 
         // The heatmap sees every fret, not only the worst one.
         {
@@ -172,7 +203,7 @@ void FretBuzz::process (NoiseEngine& pool, const double* levels, const double* f
 
             for (int fret = 1; fret <= SetupGeometry::kMaxFrets; ++fret)
             {
-                const double clearance = geometry.clearanceMm (s, fretted[s], fret);
+                const double clearance = clearanceFor (s, fretted[s], fret);   // SPEC-SWEEP FB-26
                 float value = -10.0f;
 
                 if (clearance < 1.0e8 && fret <= geometry.numFrets)

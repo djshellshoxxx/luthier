@@ -1,5 +1,7 @@
 #pragma once
 
+#include "UI/PaintCache.h"
+
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include "PluginProcessor.h"
@@ -11,17 +13,36 @@
 #include "UI/EasyPanel.h"
 #include "UI/AdvancedPanel.h"
 #include "UI/Overlays.h"
+#include "UI/BanjoReveal.h"   // easter-egg: Dueling Banjos
 #include "UI/Notifications.h"
+#include "UI/ValidatorNotices.h"   // SP-111 / SP-114
+#include "Export/MidiImportTargets.h"   // midi-export 5 (MODEL-GAPS)
+#include "Support/FileOpenRouter.h"   // root file drop
+#include "UI/Onboarding.h"
+#include "UI/QualityBadge.h"   // cpu-quality-modes
 
 namespace luthier
 {
 
+namespace search { class SearchNavigator; }   // global-search.md (FEAT-SEARCH)
+
 //==============================================================================
 class LuthierAudioProcessorEditor : public juce::AudioProcessorEditor,
+                                    public juce::DragAndDropContainer,   // gui-integration 11.2: drag-to-modulate
+                                    public juce::FileDragAndDropTarget,   // midi-export 5 (MODEL-GAPS)
                                     private juce::Timer,
                                     private juce::ChangeListener
 {
 public:
+    /*  midi-export 5 (MODEL-GAPS): "File -> Import -> MIDI, or drag a .mid file
+        onto the plugin window", then the target: the session, the Tune
+        Builder or the looper. With `target` given (the tests) there is no
+        menu. The outcome is posted as a banner and returned when known. */
+    bool isInterestedInFileDrag (const juce::StringArray& files) override;
+    void filesDropped (const juce::StringArray& files, int x, int y) override;
+    void importMidiFile (const juce::File& file, std::optional<MidiImportTarget> target = {});
+    MidiImportOutcome getLastMidiImport() const { return lastMidiImport; }
+
     explicit LuthierAudioProcessorEditor (LuthierAudioProcessor&);
     ~LuthierAudioProcessorEditor() override;
 
@@ -35,6 +56,15 @@ public:
     static constexpr int defaultHeight = 720;
     static constexpr int minimumWidth = 940;
     static constexpr int minimumHeight = 560;
+
+    /** SPEC-SWEEP (USER_MANUAL UM-60): the footer's CPU share and reported
+        latency, as drawn. */
+    juce::String getFooterText() const;
+
+    /** SPEC-SWEEP (include.md INC-12): applies the tooltip on/off preference to
+        the tooltip window (the timer calls this) and reports the delay it set. */
+    void applyTooltipPreference();
+    int getTooltipDelayMs() const noexcept { return tooltipDelayMs; }
 
     /*  gui-integration 15: the triggers the plugin can raise on its own, checked
         once when the window opens. Public so a test can drive it against a
@@ -62,13 +92,80 @@ public:
         difference between "opened it" and "that page does not exist here". */
     bool showOptionsPage (const juce::String& tabName);
 
+    /** output-normalization.md 5.1: Options -> AUDIO with the switch focused
+        (the header / Easy badge, the banner's [Options]). */
+    void openNormalizationOptions();
+    /*  cpu-quality-modes 5: the footer badge's destination - Options -> AUDIO
+        with focus in the CPU quality group. */
+    void openQualityOptions();
+    QualityBadge& getQualityBadge() noexcept { return qualityBadge; }
+    QualityEditorLink& getQualityLink() noexcept { return qualityLink; }
+
+    /*  global-search.md 4.3 (FEAT-SEARCH): every command, once. This is the body
+        keyPressed used to have, moved as-is: a shortcut, a header button and the
+        search palette all run a command through here, so none of them has its
+        own copy of "save" or "panic". Returns false for an unknown id or when
+        the command did not apply (a tab step in Easy Mode). */
+    bool performAction (const juce::String& actionId);
+
+    /** global-search.md 3.1: this window's search (index, palette, navigator). */
+    search::SearchNavigator& getSearch() noexcept { return *searchNav; }
+
+    /*  global-search.md 8: where search providers register. A feature adds its
+        provider here, after the defaults:
+            getSearch().getIndex().addProvider (std::make_unique<MyProvider> (...)); */
+    void buildSearchProviders();
+    //==========================================================================
+    // onboarding.md 2-4 (TUNE-HELP-ONBOARDING; PluginEditorOnboarding.cpp).
+
+    /** Starts the tour (the welcome banner's Yes, Help -> Take the tour). */
+    void startTour();
+    TourOverlay& getTour() noexcept                { return tour; }
+    WelcomeBanner& getWelcomeBanner() noexcept     { return welcomeBanner; }
+    DiscoveryLayer& getDiscoveryLayer() noexcept   { return discovery; }
+    DiscoveryTooltip& getRandomiseTooltip() noexcept { return randomiseTooltip; }
+
+    /** Where a tour stop points, in this component's coordinates. */
+    juce::Rectangle<int> findTourTarget (const juce::String& stepId);
+
+    /** Makes a stop's target visible: Advanced for the column stops, LIVE for snapshots. */
+    void prepareTourStep (const juce::String& stepId);
+
+    /** Records the launch and puts up the welcome banner if one is due. */
+    void runWelcome();
+
+    /** gui-integration 17 "New tune" (Ctrl+T): the TUNE tab, with its New menu.
+        Returns the tab's panel, or nullptr when it cannot be shown. */
+    TunePanel* openNewTune();
+
+    // ==== BEGIN FEAT-ASSIST ====
+    /** auto-articulation.md 7.5: the PLAYING group's ?. */
+    void openHelpTopic (const juce::String& topic) { openHelp (topic); }
+
+    /** 7.1: the AUTO popover's "More in RHYTHM tab" - Advanced, RHYTHM. */
+    void openAssistInRhythmTab();
+    // ==== END FEAT-ASSIST ====
+
 private:
+    friend class search::SearchNavigator;   // FEAT-SEARCH: navigation reaches the panels
+
     void timerCallback() override;
 
     /** accessibility.md 6: a palette change reaches every panel at once. */
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
+
+    /** accessibility 4 (A11Y-29): the user's scale, stepped down to the largest
+        that lets the minimum window fit this screen. Returns the warning to show,
+        once per session, otherwise empty. */
+    juce::String applyUiScale();
     void setAdvancedMode (bool advanced);
     void showOverlay (OverlayPanel* panel);
+
+    /** gui-integration 17 (W) and the header wrench: the Workshop on, or off
+        again back to the tab or window it came from. VISUAL-WORKSHOP-QA. */
+    void toggleWorkshop();
+    int tabBeforeWorkshop = -1;
+    bool newDotsApplied = false;   // gui-integration 20
 
     /** guitar-workshop.md 6 (Ctrl+G): asks for a name and saves the guitar. */
     void showSaveGuitarDialog();
@@ -97,8 +194,10 @@ private:
 
     LuthierLookAndFeel lookAndFeel;
     juce::TooltipWindow tooltips { this, Metrics::tooltipDelayMs };
+    int tooltipDelayMs = Metrics::tooltipDelayMs;   // SPEC-SWEEP INC-12
 
     HeaderBar header;
+    MidiImportOutcome lastMidiImport;   // MODEL-GAPS
 
     /*  Section 15 puts the banner strip "under the header strip", so it is laid
         out directly beneath the header and above the live strip: the live strip
@@ -106,6 +205,7 @@ private:
         that pushed the live controls up every time it arrived would move the
         buttons under a player's hand mid-set. */
     NotificationCentre notifications;
+    ValidatorNotices validatorNotices;   // SP-111 / SP-114: the validator's corrections, said out loud
 
     LiveStrip liveStrip;
     InlineNotice inlineNotice;
@@ -128,9 +228,32 @@ private:
     SaveAsPanel saveAsPanel;
     ChordAndTabPanel chordPanel;
     WorkshopOverlay workshopOverlay;
+    MicPlacementOverlay micPlacementOverlay;   // mic-placement.md 6.3 (FEAT-MIC)
     SecretPanel secretPanel;
 
+    /** easter-egg: the banjo reveal badge, shown while the banjo voice is on. */
+    BanjoReveal banjoReveal;
+    bool banjoRevealShown = false;
+    void updateBanjoRevealVisibility();
+
+    // onboarding.md 2-4 (TUNE-HELP-ONBOARDING).
+    void setupOnboarding();
+
+    /** onboarding 1: a fresh install starts on the rock overdrive preset. */
+    void applyFirstRunPreset();
+    WelcomeBanner welcomeBanner;
+    TourOverlay tour;
+    DiscoveryLayer discovery;
+    DiscoveryTooltip randomiseTooltip;
+
     juce::TextButton chordButton { "Chords / Tab" };
+
+    // cpu-quality-modes 5 / 6: the footer badge and this editor's link.
+    QualityBadge qualityBadge { processor };
+    QualityEditorLink qualityLink { processor, notifications };
+    /** gui-integration 1 / 12: the footer's scrolling data stream (Options ->
+        Appearance can hide it). VISUAL-WORKSHOP-QA. */
+    DataStreamDisplay dataStream;
 
     bool advancedMode = false;
     bool secretHovered = false;
@@ -139,6 +262,9 @@ private:
         is not reposted. Without these, dismissing a banner about a preset that
         still will not load would put it straight back on screen. */
     juce::String reportedPresetError, reportedIrError;
+    juce::String reportedPresetSaveError;   // SPEC-SWEEP: ER-19
+    juce::uint32 seenMigrationGeneration = 0;   // installer.md 8
+    bool migrationBannerShown = false;
 
     /** Remembered so the layout is only redone when Live Mode actually changes. */
     bool liveModeShown = false;
@@ -150,6 +276,11 @@ private:
 
     /** The palette this window's components were last coloured with. */
     PaletteColours shownPalette;
+
+    PaintCache backgroundCache;   // window shape, cutaway and notch
+
+    /** global-search.md (FEAT-SEARCH). Last, so it is destroyed first. */
+    std::unique_ptr<search::SearchNavigator> searchNav;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LuthierAudioProcessorEditor)
 };

@@ -30,6 +30,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include <vector>
+#include <atomic>
 
 namespace luthier
 {
@@ -68,6 +69,16 @@ struct Snapshot
     /** Parameter id -> normalised value. The same shape a preset stores, so the
         two can be compared and copied without a conversion step. */
     juce::var parameters;
+
+    /*  SPEC-SWEEP: AR-21 - advanced-ranges.md 5: the plain values of the
+        physical parameters (id -> plain), so a recall under a different range
+        mode clamps the value rather than re-mapping its normalised position.
+        Absent in snapshots saved before it; those recall as normalised. */
+    juce::var physicalPlain;
+
+    /*  SPEC-SWEEP: MM-49 - modulation-matrix 6: a snapshot either carries the
+        matrix (the default) or is "preset-level only" and leaves it alone. */
+    bool includesModulation = true;
 
     /** The state of the systems that do not live in the parameter tree. */
     juce::var modMatrix;
@@ -122,9 +133,31 @@ public:
         before returning; otherwise `advance` carries it the rest of the way. */
     bool recall (int index);
 
-    /** Called once per block by the processor, with the block's duration. Moves
-        an in-flight recall along. */
+    /** Message thread. Moves an in-flight recall along by this much time. */
     void advance (double secondsElapsed);
+
+    /** Audio thread: adds a block's duration to the time the next
+        advancePending() applies. The crossfade keeps the audio thread's clock,
+        but its work - a String-keyed read of every parameter, the midpoint's
+        module fromVar calls, the change message - is done on the message
+        thread, which also owns recallFrom and the snapshot list; doing it on
+        the audio thread raced recall() and state restores (use-after-free). */
+    void noteAudioTime (double seconds) noexcept
+    {
+        auto current = pendingSeconds.load (std::memory_order_relaxed);
+        while (! pendingSeconds.compare_exchange_weak (current, current + seconds,
+                                                       std::memory_order_relaxed)) {}
+    }
+
+    /** Message thread (the processor's timer): applies the audio time noted
+        since the last call. */
+    void advancePending()
+    {
+        const double seconds = pendingSeconds.exchange (0.0, std::memory_order_relaxed);
+
+        if (recallActive)
+            advance (seconds);
+    }
 
     bool isRecalling() const noexcept { return recallActive; }
     int getCurrentSnapshot() const noexcept { return currentIndex; }
@@ -146,6 +179,8 @@ public:
     MorphCurve getMorphCurve() const noexcept { return morphCurve; }
 
     void setBezierControlPoints (double x1, double y1, double x2, double y2) noexcept;
+    /** SPEC-SWEEP: LP-19 - control point 0..3 (x1, y1, x2, y2), for the editor. */
+    double getBezierControlPoint (int index) const noexcept { return bezier[juce::jlimit (0, 3, index)]; }
 
     /** Moves the morph. Ignored when morphing is off or the slots are empty. */
     void setMorphPosition (double position);
@@ -179,6 +214,10 @@ public:
     void fromVar (const juce::var& state);
 
 private:
+    /** SPEC-SWEEP: AR-21 - a snapshot's parameters normalised against the
+        ranges live now, physical values clamped into them. */
+    juce::var liveParameters (const Snapshot& snapshot) const;
+
     /** Writes `blend` of the way from `from` to `to` into the parameter tree.
 
         Discrete parameters take `to` once blend passes 0.5 and `from` before
@@ -202,6 +241,7 @@ private:
 
     // --- recall -------------------------------------------------------------------
     bool recallActive = false;
+    std::atomic<double> pendingSeconds { 0.0 };
     bool recallMidpointDone = false;
     double recallPosition = 0.0;
     double recallSeconds = 0.0;

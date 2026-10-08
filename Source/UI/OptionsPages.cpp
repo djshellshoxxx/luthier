@@ -1,8 +1,16 @@
 #include "OptionsPages.h"
+#include "Search/SearchOptionsGroup.h"   // global-search.md 7 (FEAT-SEARCH)
+#include "FirstRun.h"
 #include "RangesUi.h"
+#include "UiPreferences.h"   // REALISM-C
 #include "../PluginProcessor.h"
 #include "../Accessibility/Accessibility.h"
 #include "../Accessibility/Localisation.h"
+#include "NoiseGroups.h"
+#include "StageTouches.h"
+#include "UiPreferences.h"
+#include "VisualAids.h"
+#include "PerformanceAssistUi.h"   // FEAT-ASSIST
 
 namespace luthier
 {
@@ -46,6 +54,10 @@ ControllersPage::ControllersPage (LuthierAudioProcessor& p)
         profileBox.addItem (name, itemId++);
 
     profileBox.setSelectedId (1, juce::dontSendNotification);
+
+    // SPEC-SWEEP (CT-2): show the profile the session is using.
+    if (const int current = library.indexOf (processor.getControllerProfileId()); current >= 0)
+        profileBox.setSelectedId (current + 1, juce::dontSendNotification);
     profileBox.onChange = [this] { if (! updatingControls) applySelectedProfile(); };
     addAndMakeVisible (profileBox);
 
@@ -87,6 +99,7 @@ ControllersPage::ControllersPage (LuthierAudioProcessor& p)
     addAndMakeVisible (minimumNoteSlider);
 
     guitarModeToggle.setTooltip ("On a LinnStrument, map each row to a string.");
+    guitarModeToggle.onClick = [this] { if (! updatingControls) applySelectedProfile(); };   // SPEC-SWEEP CT-9
     addAndMakeVisible (guitarModeToggle);
 
     wizardButton.setTooltip ("Plays a click and measures how long after it your "
@@ -108,21 +121,68 @@ ControllersPage::ControllersPage (LuthierAudioProcessor& p)
         if (! juce::isPositiveAndBelow (index, library.getNumProfiles()))
             return;
 
-        auto profile = library.getProfile (index);
-
-        profile.latencyMsMeasured = latencySlider.getValue();
-        profile.pitchDeadZoneCents = deadZoneSlider.getValue();
-        profile.minimumNoteDurationMs = minimumNoteSlider.getValue();
-        profile.rowsAsStrings = guitarModeToggle.getToggleState();
-
-        library.save (profile);
+        library.save (getEditedProfile());   // SPEC-SWEEP CT-19: with the checked bend range
 
         wizardLabel.setText ("Saved to your Controllers folder.", juce::dontSendNotification);
     };
 
     addAndMakeVisible (saveProfileButton);
 
+    // SPEC-SWEEP (CT-19)
+    styleNote (bendCheckLabel, Palette::textPrimary);
+    bendCheckLabel.setText ("Check bend range: bend fully up and read the note here.", juce::dontSendNotification);
+    addAndMakeVisible (bendCheckLabel);
+
+    bendRangeStepper.setRange (1.0, 96.0, 1.0);
+    bendRangeStepper.setTextValueSuffix (" st bend");
+    bendRangeStepper.setTooltip ("The controller's pitch-bend range. Step it until a full bend reads "
+                                 "the note your controller is set to reach.");
+    bendRangeStepper.onValueChange = [this]
+    {
+        if (! updatingControls)
+            processor.applyControllerProfile (getEditedProfile());
+    };
+    addAndMakeVisible (bendRangeStepper);
+
+    // SPEC-SWEEP (PT-23): controllers.md 2 / PLAYING_TECHNIQUES "it can be
+    // switched to bend". Saved with the session.
+    aftertouchBendToggle.setToggleState (processor.doesAftertouchBend(), juce::dontSendNotification);
+    aftertouchBendToggle.setTooltip ("Channel and poly aftertouch normally deepen the vibrato. "
+                                     "Switched on, pressing harder bends the note up instead.");
+    aftertouchBendToggle.onClick = [this] { processor.setAftertouchBends (aftertouchBendToggle.getToggleState()); };
+    addAndMakeVisible (aftertouchBendToggle);
+
     refresh();
+}
+
+ControllerProfile ControllersPage::getEditedProfile() const
+{
+    const int index = profileBox.getSelectedId() - 1;
+
+    if (! juce::isPositiveAndBelow (index, library.getNumProfiles()))
+        return {};
+
+    auto profile = library.getProfile (index);
+
+    profile.latencyMsMeasured = latencySlider.getValue();
+    profile.pitchDeadZoneCents = deadZoneSlider.getValue();
+    profile.minimumNoteDurationMs = minimumNoteSlider.getValue();
+    profile.rowsAsStrings = guitarModeToggle.getToggleState();
+
+    // SPEC-SWEEP (CT-19): the stepper is the range the profile's mode uses.
+    const double bend = bendRangeStepper.getValue();
+
+    if (profile.mode == ControllerMode::mpe)
+        profile.memberPitchBendSemis = bend;
+    else
+        profile.pitchBendSemis = bend;
+
+    if (profile.mode == ControllerMode::perChannel)
+        for (auto& routing : profile.perString)
+            if (routing.channel > 0)
+                routing.pitchBendSemis = bend;
+
+    return profile;
 }
 
 void ControllersPage::applySelectedProfile()
@@ -132,9 +192,16 @@ void ControllersPage::applySelectedProfile()
     if (! juce::isPositiveAndBelow (index, library.getNumProfiles()))
         return;
 
-    const auto& profile = library.getProfile (index);
+    auto profile = library.getProfile (index);
 
-    ControllerProfileLibrary::apply (profile, processor.getEngine().getMidiInterpreter());
+    // SPEC-SWEEP (CT-9): the guitar-mode switch is part of what is applied.
+    if (profile.id == "linnstrument" && index == lastRefreshedProfile)
+        profile.rowsAsStrings = guitarModeToggle.getToggleState();
+
+    // SPEC-SWEEP (CT-2/CT-7): through the processor, which saves the choice with
+    // the session, sets mpe_enabled / bend_range so the parameter bridge keeps
+    // them, and applies the rest on the audio thread.
+    processor.applyControllerProfile (profile);
 
     refresh();
 }
@@ -152,8 +219,10 @@ void ControllersPage::runWizardStep()
     {
         wizard.begin();
 
+        processor.getMetronome().setFollowsTempo (false);   // SPEC-SWEEP PT-6
         processor.getMetronome().setTempo (100.0);
         processor.getMetronome().setEnabled (true);
+        processor.setLatencyWizardListening (true);   // SPEC-SWEEP CT-11
 
         wizardButton.setButtonText ("Stop measuring");
         wizardLabel.setText ("Play along with the click. Ten notes.",
@@ -162,6 +231,7 @@ void ControllersPage::runWizardStep()
     }
 
     wizard.cancel();
+    processor.setLatencyWizardListening (false);   // SPEC-SWEEP CT-11
     processor.getMetronome().setEnabled (false);
     wizardButton.setButtonText ("Measure latency");
     wizardLabel.setText ("Cancelled.", juce::dontSendNotification);
@@ -220,11 +290,61 @@ void ControllersPage::refresh()
     latencySlider.setValue (profile.getEffectiveLatencyMs(), juce::dontSendNotification);
     deadZoneSlider.setValue (profile.pitchDeadZoneCents, juce::dontSendNotification);
     minimumNoteSlider.setValue (profile.minimumNoteDurationMs, juce::dontSendNotification);
-    guitarModeToggle.setToggleState (profile.rowsAsStrings, juce::dontSendNotification);
+    // SPEC-SWEEP (CT-9): only when the profile changes, so the periodic refresh
+    // does not undo the player's switch.
+    if (index != lastRefreshedProfile)
+        guitarModeToggle.setToggleState (profile.rowsAsStrings, juce::dontSendNotification);
+
+    lastRefreshedProfile = index;
 
     guitarModeToggle.setEnabled (profile.id == "linnstrument");
 
+    // SPEC-SWEEP (CT-19): the stepper shows the profile's range when the profile
+    // changes; the readout follows the last string played and its bend.
+    if (index != lastBendProfile)
+    {
+        bendRangeStepper.setValue (profile.mode == ControllerMode::mpe ? profile.memberPitchBendSemis
+                                                                       : profile.pitchBendSemis,
+                                   juce::dontSendNotification);
+        lastBendProfile = index;
+    }
+
+    {
+        auto& interp = processor.getEngine().getMidiInterpreter();
+        int note = -1, string = -1;
+
+        for (int s = 0; s < interp.getNumStrings() && note < 0; ++s)
+            if (interp.getStringMidiNote (s) >= 0)
+            {
+                note = interp.getStringMidiNote (s);
+                string = s;
+            }
+
+        if (note >= 0)
+        {
+            const double cents = interp.getStringBendCents (string);
+            const int bentTo = note + (int) std::lround (cents / 100.0);
+
+            bendCheckLabel.setText ("Playing " + juce::MidiMessage::getMidiNoteName (note, true, true, 4)
+                                      + ", bent to " + juce::MidiMessage::getMidiNoteName (bentTo, true, true, 4)
+                                      + " (" + juce::String (cents / 100.0, 1) + " st)",
+                                    juce::dontSendNotification);
+        }
+    }
+
     // ---- the wizard's own readout -------------------------------------------------
+    // SPEC-SWEEP (CT-11): the notes the processor measured against the click.
+    if (wizard.isRunning() && processor.isLatencyWizardListening())
+    {
+        processor.drainLatencyMeasurements (wizard);
+
+        if (! wizard.isRunning())
+        {
+            processor.setLatencyWizardListening (false);
+            processor.getMetronome().setEnabled (false);
+        }
+    }
+
     if (wizard.isRunning())
     {
         wizardLabel.setText (juce::String (wizard.getNumMeasurements()) + " of "
@@ -240,9 +360,19 @@ void ControllersPage::refresh()
         {
             latencySlider.setValue (measured, juce::dontSendNotification);
 
-            wizardLabel.setText (juce::String (measured, 2) + " ms, scatter "
-                                   + juce::String (sigma, 2) + " ms. Good enough to use.",
-                                 juce::dontSendNotification);
+            juce::String text = juce::String (measured, 2) + " ms, scatter "
+                                  + juce::String (sigma, 2) + " ms. Good enough to use.";
+
+            // SPEC-SWEEP (CT-12, controllers 3): more than two blocks of latency
+            // is the host buffer, not the controller.
+            const double blockMs = 1000.0 * (double) processor.getBlockSize()
+                                     / juce::jmax (1.0, processor.getSampleRate());
+
+            if (processor.getBlockSize() > 0 && measured > 2.0 * blockMs)
+                text << " Lower the host buffer size: this is more than two audio blocks ("
+                     << juce::String (blockMs, 1) << " ms each).";
+
+            wizardLabel.setText (text, juce::dontSendNotification);
         }
         else
         {
@@ -288,6 +418,14 @@ void ControllersPage::resized()
     minimumNoteSlider.setBounds (bounds.removeFromTop (24));
     bounds.removeFromTop (4);
     guitarModeToggle.setBounds (bounds.removeFromTop (24));
+    bounds.removeFromTop (4);
+    aftertouchBendToggle.setBounds (bounds.removeFromTop (24));   // SPEC-SWEEP PT-23
+    bounds.removeFromTop (4);
+    {   // SPEC-SWEEP CT-19
+        auto r = bounds.removeFromTop (24);
+        bendRangeStepper.setBounds (r.removeFromRight (130));
+        bendCheckLabel.setBounds (r);
+    }
 
     // ---- wizard, pinned to the bottom -------------------------------------------
     auto wizardArea = getLocalBounds().removeFromBottom (96);
@@ -373,6 +511,21 @@ ExpressionPage::ExpressionPage (LuthierAudioProcessor& p)
 
     addAndMakeVisible (heelDeadZone);
     addAndMakeVisible (toeDeadZone);
+
+    heelDeadZone.setTitle ("Heel dead zone");
+    toeDeadZone.setTitle ("Toe dead zone");
+    heelDeadZone.setTooltip ("How far the pedal travels from the heel before the value starts to move");
+    toeDeadZone.setTooltip ("How much of the travel before the toe already reads full");
+
+    for (auto* label : { &heelLabel, &toeLabel })
+    {
+        label->setFont (juce::FontOptions (12.0f));
+        label->setColour (juce::Label::textColourId, Palette::textPrimary.withAlpha (0.75f));
+        addAndMakeVisible (*label);
+    }
+
+    heelLabel.attachToComponent (&heelDeadZone, true);
+    toeLabel.attachToComponent (&toeDeadZone, true);
 
     calibratedList.setModel (&listModel);
     calibratedList.setRowHeight (20);
@@ -539,9 +692,10 @@ void ExpressionPage::resized()
 
     bounds.removeFromTop (8);
 
-    heelDeadZone.setBounds (bounds.removeFromTop (24));
+    // Room on the left for the attached labels.
+    heelDeadZone.setBounds (bounds.removeFromTop (24).withTrimmedLeft (120));
     bounds.removeFromTop (4);
-    toeDeadZone.setBounds (bounds.removeFromTop (24));
+    toeDeadZone.setBounds (bounds.removeFromTop (24).withTrimmedLeft (120));
 
     calibratedList.setBounds (getLocalBounds().removeFromBottom (116));
 }
@@ -554,6 +708,25 @@ AudioPage::AudioPage (LuthierAudioProcessor& p)
     oversampling.attachTo (processor, ParamIDs::oversample,
                            "Oversampling for the amp and the drive pedals. 4x is the default; "
                            "2x sounds very close and costs noticeably less.");
+
+    // cpu-quality-modes 5: the QUALITY section, with its note beside oversampling.
+    addAndMakeVisible (quality);
+    addChildComponent (quality.getOversamplingNote());
+    quality.onLayoutChanged = [this] { resized(); repaint(); };
+
+    // noise-floor.md 3: seeds noise_mains_hz for new (Init) presets only; a
+    // loaded preset keeps its own, so a render is the same on every machine.
+    mainsRegion.addItem ("Auto (from your region)", 1);
+    mainsRegion.addItem ("50 Hz", 2);
+    mainsRegion.addItem ("60 Hz", 3);
+    mainsRegion.setSelectedId (1 + juce::jlimit (0, 2, UiPreferences::get().getInt ("defaultMainsRegion", 0)),
+                               juce::dontSendNotification);
+    mainsRegion.setTooltip ("The mains frequency an Init preset's hum starts at. Loaded presets keep their own.");
+    mainsRegion.onChange = [this] { UiPreferences::get().setInt ("defaultMainsRegion", mainsRegion.getSelectedId() - 1); };
+    addAndMakeVisible (mainsRegion);
+    mainsLabel.setText ("Default mains region", juce::dontSendNotification);
+    styleNote (mainsLabel, Palette::textMuted, 11.0f);
+    addAndMakeVisible (mainsLabel);
 
     addAndMakeVisible (deviceButton);
     deviceButton.setTooltip ("Where the device, sample rate and buffer settings actually live");
@@ -598,11 +771,15 @@ AudioPage::AudioPage (LuthierAudioProcessor& p)
     styleNote (latencyLabel, Palette::textMuted, 11.0f);
     addAndMakeVisible (latencyLabel);
 
+    addAndMakeVisible (normalization);   // output-normalization.md 5.1
+
     refresh();
 }
 
 void AudioPage::refresh()
 {
+    quality.refresh();   // cpu-quality-modes 5
+
     const bool standalone =
         (processor.wrapperType == juce::AudioProcessor::wrapperType_Standalone);
 
@@ -630,8 +807,8 @@ void AudioPage::paint (juce::Graphics& g)
     auto bounds = getLocalBounds();
 
     drawHeading (g, bounds.removeFromTop (18), "QUALITY");
-    drawHeading (g, { 0, 96, getWidth(), 18 }, "DEVICE, RATE AND BUFFER");
-    drawHeading (g, { 0, 214, getWidth(), 18 }, "SIDECHAIN");
+    drawHeading (g, { 0, deviceTop - 22, getWidth(), 18 }, "DEVICE, RATE AND BUFFER");
+    drawHeading (g, { 0, sidechainTop - 22, getWidth(), 18 }, "SIDECHAIN");
 }
 
 void AudioPage::resized()
@@ -640,9 +817,27 @@ void AudioPage::resized()
 
     bounds.removeFromTop (22);
 
-    oversampling.setBounds (bounds.removeFromTop (40).removeFromLeft (200));
+    // cpu-quality-modes 5: the QUALITY section first, then oversampling with
+    // its "Running at 2x while quality is Medium." note beside it.
+    quality.setBounds (bounds.removeFromTop (quality.getPreferredHeight (getWidth())));
+    bounds.removeFromTop (6);
 
-    bounds = getLocalBounds().withTrimmedTop (118);
+    {
+        auto row = bounds.removeFromTop (40);
+        oversampling.setBounds (row.removeFromLeft (200));
+        row.removeFromLeft (16);
+        mainsLabel.setBounds (row.removeFromTop (14).removeFromLeft (200));
+        mainsRegion.setBounds (row.removeFromTop (24).removeFromLeft (200));
+    }
+
+    quality.getOversamplingNote().setBounds (bounds.removeFromTop (18));
+
+    // output-normalization.md 5.1: under Oversampling; everything below moves down.
+    normalization.setBounds (bounds.removeFromTop (NormalizationOptionsGroup::preferredHeight - 8));
+    bounds.removeFromTop (8);
+
+    deviceTop = bounds.getY() + 26;
+    bounds = getLocalBounds().withTrimmedTop (deviceTop);
 
     deviceNote.setBounds (bounds.removeFromTop (34));
     bounds.removeFromTop (4);
@@ -650,7 +845,8 @@ void AudioPage::resized()
     bounds.removeFromTop (4);
     latencyLabel.setBounds (bounds.removeFromTop (18));
 
-    bounds = getLocalBounds().withTrimmedTop (236);
+    sidechainTop = bounds.getY() + 26;
+    bounds = getLocalBounds().withTrimmedTop (sidechainTop);
     sidechainNote.setBounds (bounds.removeFromTop (48));
 }
 
@@ -684,11 +880,29 @@ MidiPage::MidiPage (LuthierAudioProcessor& p)
         refresh();
     };
 
+    // SPEC-SWEEP (IR-14, input-routing 1.4). Program Change always recalls a
+    // snapshot; this decides whether Bank Select also chooses the preset.
+    bankSelectToggle.setTooltip ("On: Bank Select (CC 0) picks the preset and Program Change the snapshot. "
+                                 "Off: only Program Change is used, and CC 0 passes through.");
+    bankSelectToggle.onClick = [this] { processor.setBankSelectChoosesPreset (bankSelectToggle.getToggleState()); };
+    addAndMakeVisible (bankSelectToggle);
+
+    // SPEC-SWEEP (IR-4): MIDI Learn takes CCs, program changes, pressure and
+    // poly aftertouch; notes only when asked, because a learned note stops
+    // playing the string.
+    learnNotesToggle.setTooltip ("On: MIDI Learn also takes a note (a pad or a key as a switch). "
+                                 "Off: notes always play the guitar.");
+    learnNotesToggle.onClick = [this] { processor.getMidiLearn().setLearnNotes (learnNotesToggle.getToggleState()); };
+    addAndMakeVisible (learnNotesToggle);
+
     refresh();
 }
 
 void MidiPage::refresh()
 {
+    bankSelectToggle.setToggleState (processor.doesBankSelectChoosePreset(), juce::dontSendNotification);   // IR-14
+    learnNotesToggle.setToggleState (processor.getMidiLearn().getLearnNotes(), juce::dontSendNotification);   // IR-4
+
     const bool standalone =
         (processor.wrapperType == juce::AudioProcessor::wrapperType_Standalone);
 
@@ -716,7 +930,7 @@ void MidiPage::paint (juce::Graphics& g)
 
     drawHeading (g, bounds.removeFromTop (18), "HOW LUTHIER READS MIDI");
     drawHeading (g, { 0, 120, getWidth(), 18 }, "PORTS");
-    drawHeading (g, { 0, 220, getWidth(), 18 }, "MIDI LEARN");
+    drawHeading (g, { 0, 252, getWidth(), 18 }, "MIDI LEARN");   // SPEC-SWEEP: below the IR-14 toggle
 }
 
 void MidiPage::resized()
@@ -734,18 +948,28 @@ void MidiPage::resized()
     portNote.setBounds (bounds.removeFromTop (30));
     bounds.removeFromTop (4);
     outNote.setBounds (bounds.removeFromTop (48));
+    bankSelectToggle.setBounds (bounds.removeFromTop (24));   // SPEC-SWEEP IR-14
 
-    bounds = getLocalBounds().withTrimmedTop (242);
+    bounds = getLocalBounds().withTrimmedTop (274);
 
     learnLabel.setBounds (bounds.removeFromTop (32));
     bounds.removeFromTop (4);
     clearLearnButton.setBounds (bounds.removeFromTop (Metrics::buttonHeight).removeFromLeft (220));
+    bounds.removeFromTop (4);
+    learnNotesToggle.setBounds (bounds.removeFromTop (24));   // SPEC-SWEEP IR-4
 }
 
 //==============================================================================
 AppearancePage::AppearancePage (LuthierAudioProcessor& p)
     : OptionsPage (p)
 {
+    // auto-articulation.md 7.4 (FEAT-ASSIST): a UiPreferences entry, not preset data.
+    assistLabelsToggle.setTooltip ("Label Performance Assist's decisions on the fretboard: H, P, slides, vibrato, "
+                                   "palm mutes, strokes and bends. The PLAYING group's list fills either way.");
+    assistLabelsToggle.setToggleState (AssistUi::showLabels(), juce::dontSendNotification);
+    assistLabelsToggle.onClick = [this] { AssistUi::setShowLabels (assistLabelsToggle.getToggleState()); };
+    addAndMakeVisible (assistLabelsToggle);
+
     for (int i = 0; i < (int) PaletteId::numPalettes; ++i)
         paletteBox.addItem (getPaletteName ((PaletteId) i), i + 1);
 
@@ -784,9 +1008,16 @@ AppearancePage::AppearancePage (LuthierAudioProcessor& p)
     {
         AccessibilitySettings::get().setReducedMotion (reducedMotionToggle.getToggleState());
         AccessibilitySettings::get().save();
+        visualAids.refresh();   // animated-strings.md 5: the "paused" line
     };
 
     addAndMakeVisible (reducedMotionToggle);
+    addAndMakeVisible (visualAids);   // animated-strings.md 5
+
+    // cpu-quality-modes 5: Low turns animation off without touching this toggle.
+    styleNote (lowMotionNote, Palette::textMuted, 11.0f);
+    lowMotionNote.setText (tr ("quality.lowAnimationsOff"), juce::dontSendNotification);
+    addChildComponent (lowMotionNote);
 
     tooltipsToggle.onClick = [this]
     {
@@ -795,32 +1026,125 @@ AppearancePage::AppearancePage (LuthierAudioProcessor& p)
 
     addAndMakeVisible (tooltipsToggle);
 
+    // mic-placement.md 6.5 (FEAT-MIC).
+    micSnapToggle.setButtonText (tr ("mic.options.snap"));
+    micPlotToggle.setButtonText (tr ("mic.options.plot"));
+    micSnapToggle.onClick = [this] { UiPreferences::get().setBool ("mic.snapToLandmarks", micSnapToggle.getToggleState()); };
+    micPlotToggle.onClick = [this] { UiPreferences::get().setBool ("mic.showResponsePlot", micPlotToggle.getToggleState()); };
+    addAndMakeVisible (micSnapToggle);
+    addAndMakeVisible (micPlotToggle);
+    // piano-roll-chord-display.md 5: user preferences, saved at once, not preset data.
+    chordNamesToggle.setTooltip ("The chord or note sounding, written faintly on the guitar's body, then fading");
+    chordNamesToggle.onClick = [this]
+    {
+        VisualAids::setShowChordNames (chordNamesToggle.getToggleState());
+        refresh();
+    };
+
+    announceChordsToggle.setTooltip ("Screen readers hear the chord names, at most one every 1.5 seconds");
+    announceChordsToggle.onClick = [this] { VisualAids::setAnnounceChordNames (announceChordsToggle.getToggleState()); };
+
+    pianoRollAdvancedToggle.setTooltip ("A piano keyboard under the fretboard that shows and plays the notes");
+    pianoRollAdvancedToggle.onClick = [this] { VisualAids::setShowPianoRoll (true, pianoRollAdvancedToggle.getToggleState()); };
+
+    pianoRollEasyToggle.setTooltip ("A piano keyboard under the guitar in the Easy window");
+    pianoRollEasyToggle.onClick = [this] { VisualAids::setShowPianoRoll (false, pianoRollEasyToggle.getToggleState()); };
+
+    pianoRollShowsBox.addItem ("Piano roll shows: Keys", 1);
+    pianoRollShowsBox.addItem ("Piano roll shows: Keys + Roll", 2);
+    pianoRollShowsBox.setTitle ("Piano roll shows");
+    pianoRollShowsBox.setTooltip ("The keys alone, or the keys with the last four seconds of notes above them");
+    pianoRollShowsBox.onChange = [this]
+    {
+        if (! updatingControls)
+            VisualAids::setPianoRollShowsRoll (pianoRollShowsBox.getSelectedId() == 2);
+    };
+
+    for (auto* c : std::initializer_list<juce::Component*> { &chordNamesToggle, &announceChordsToggle, &pianoRollAdvancedToggle,
+                                                             &pianoRollEasyToggle, &pianoRollShowsBox })
+        addAndMakeVisible (c);
+
     styleNote (contrastLabel, Palette::textMuted);
     addAndMakeVisible (contrastLabel);
 
-    /*  Section 5 also asks for an accent tint, a scrolling data-stream toggle and
-        a noise-event strip toggle. None of the three has a setting behind it -
-        the noise strip waits on pick-noise.md - and a switch that does nothing is
-        worse than an absent one, so they are listed here rather than faked. */
-    styleNote (pendingLabel, Palette::textDisabled);
-    pendingLabel.setText ("Accent tint, the data-stream toggle and the noise-event strip toggle "
-                          "are not built yet.",
-                          juce::dontSendNotification);
-    addAndMakeVisible (pendingLabel);
+    // Section 5's accent tint (visual-polish.md 5): six accents, each held to
+    // 4.5:1 on every palette, or the guitar's own finish colour.
+    {
+        const auto names = AccessibilitySettings::getAccentNames();
+        for (int i = 0; i < names.size(); ++i)
+            accentBox.addItem (names[i], i + 1);
+        accentBox.addSeparator();
+        accentBox.addItem ("Follow the guitar", 100);
+    }
+
+    accentBox.setTooltip ("The accent colour: the aged brass, five others, or the current guitar's finish");
+    accentBox.onChange = [this]
+    {
+        if (updatingControls)
+            return;
+
+        const int id = accentBox.getSelectedId();
+        AccessibilitySettings::get().setAccent (id == 100 ? AccessibilitySettings::kFollowGuitar : id - 1);
+        AccessibilitySettings::get().save();
+        refresh();
+    };
+    addAndMakeVisible (accentBox);
+
+    dataStreamToggle.onClick = [this] { DataStreamDisplay::setEnabledByUser (dataStreamToggle.getToggleState()); };
+    addAndMakeVisible (dataStreamToggle);
+
+    noiseStripToggle.onClick = [this] { NoiseEventStrip::setEnabledByUser (noiseStripToggle.getToggleState()); };
+    addAndMakeVisible (noiseStripToggle);
+
+    // visual-polish.md 4: the needle meter is optional.
+    vuToggle.onClick = [this] { VuMeter::setEnabledByUser (vuToggle.getToggleState()); };
+    addAndMakeVisible (vuToggle);
+
+    styleNote (accentNote, Palette::textMuted);
+    addAndMakeVisible (accentNote);
+
+    addAndMakeVisible (presetBrowserGroup);   // preset-browser-previews 8
 
     refresh();
 }
 
 void AppearancePage::refresh()
 {
+    presetBrowserGroup.refresh();
+
     const juce::ScopedValueSetter<bool> guard (updatingControls, true);
 
     auto& settings = AccessibilitySettings::get();
 
     paletteBox.setSelectedId ((int) settings.getPalette() + 1, juce::dontSendNotification);
+    accentBox.setSelectedId (settings.getAccent() == AccessibilitySettings::kFollowGuitar ? 100 : settings.getAccent() + 1,
+                             juce::dontSendNotification);
+    dataStreamToggle.setToggleState (DataStreamDisplay::isEnabledByUser(), juce::dontSendNotification);
+    noiseStripToggle.setToggleState (NoiseEventStrip::isEnabledByUser(), juce::dontSendNotification);
+    vuToggle.setToggleState (VuMeter::isEnabledByUser(), juce::dontSendNotification);
+    accentNote.setText ("Accent contrast: " + juce::String (AccessibilitySettings::accentContrast (settings.getColours().accent,
+                                                                                                     settings.getColours()), 2)
+                          + " to 1 on this palette's panels", juce::dontSendNotification);
     reducedMotionToggle.setToggleState (settings.isReducedMotion(), juce::dontSendNotification);
+    const bool lowNoteWanted = processor.getQualityController().getLiveLevel() == QualityLevel::Low;
+    const bool lowNoteChanged = lowNoteWanted != lowMotionNote.isVisible();
+    lowMotionNote.setVisible (lowNoteWanted);
     tooltipsToggle.setToggleState (processor.getUiState().tooltipsEnabled,
                                    juce::dontSendNotification);
+    micSnapToggle.setToggleState (UiPreferences::get().getBool ("mic.snapToLandmarks", true), juce::dontSendNotification);
+    micPlotToggle.setToggleState (UiPreferences::get().getBool ("mic.showResponsePlot", true), juce::dontSendNotification);
+
+    chordNamesToggle.setToggleState (VisualAids::showChordNames(), juce::dontSendNotification);
+    announceChordsToggle.setToggleState (VisualAids::announceChordNamesSetting(), juce::dontSendNotification);
+    announceChordsToggle.setEnabled (VisualAids::showChordNames());   // section 5: only with the names on
+    pianoRollAdvancedToggle.setToggleState (VisualAids::showPianoRoll (true), juce::dontSendNotification);
+    pianoRollEasyToggle.setToggleState (VisualAids::showPianoRoll (false), juce::dontSendNotification);
+    pianoRollShowsBox.setSelectedId (VisualAids::pianoRollShowsRoll() ? 2 : 1, juce::dontSendNotification);
+
+    if (lowNoteChanged || visualAids.getHeight() != visualAids.getPreferredHeight())
+        resized();
+
+    visualAids.refresh();   // animated-strings.md 5
 
     for (int i = 0; i < AccessibilitySettings::kNumScales; ++i)
         if (std::abs (AccessibilitySettings::kScales[(size_t) i] - settings.getUiScale()) < 1.0e-6)
@@ -843,7 +1167,8 @@ void AppearancePage::paint (juce::Graphics& g)
     auto bounds = getLocalBounds();
 
     drawHeading (g, bounds.removeFromTop (18), "THEME AND SIZE");
-    drawHeading (g, { 0, 130, getWidth(), 18 }, "NOT BUILT YET");
+    drawHeading (g, { 0, accentTop, getWidth(), 18 }, "ACCENT AND LIVE DISPLAYS");
+    // VISUAL AIDS is drawn by visualAids, over both specs' rows (animated-strings 5).
 }
 
 void AppearancePage::resized()
@@ -870,17 +1195,76 @@ void AppearancePage::resized()
         reducedMotionToggle.setBounds (row.removeFromLeft (160));
     }
 
+    /*  cpu-quality-modes 5: a muted line under Reduced motion while at Low. It
+        belongs to the row above and takes space only while it shows, so VISUAL
+        AIDS still starts directly under that row (animated-strings.md 5). */
+    if (lowMotionNote.isVisible())
+        lowMotionNote.setBounds (bounds.removeFromTop (16).withTrimmedLeft (228));
+
+    // animated-strings.md 5: VISUAL AIDS starts directly under that row.
+    bounds.removeFromTop (4);
+    visualAids.setBounds (bounds.removeFromTop (visualAids.getPreferredHeight()));
+
+    // piano-roll-chord-display.md 5: the piano roll's rows, under the same VISUAL
+    // AIDS heading, directly below the string-animation rows (animated-strings 5).
+    {
+        auto row = bounds.removeFromTop (26);
+        chordNamesToggle.setBounds (row.removeFromLeft (260));
+        row.removeFromLeft (8);
+        announceChordsToggle.setBounds (row.removeFromLeft (220));
+    }
+    {
+        auto row = bounds.removeFromTop (26);
+        pianoRollAdvancedToggle.setBounds (row.removeFromLeft (260));
+        row.removeFromLeft (8);
+        pianoRollEasyToggle.setBounds (row.removeFromLeft (220));
+    }
+    bounds.removeFromTop (2);
+    pianoRollShowsBox.setBounds (bounds.removeFromTop (24).removeFromLeft (260));
+    bounds.removeFromTop (2);
+    // auto-articulation.md 7.4 (FEAT-ASSIST): Show Performance Assist labels, the
+    // last row of VISUAL AIDS.
+    assistLabelsToggle.setBounds (bounds.removeFromTop (26).removeFromLeft (300));
+    bounds.removeFromTop (4);
+    {
+        auto row = bounds.removeFromTop (22);   // mic-placement.md 6.5 (FEAT-MIC)
+        micSnapToggle.setBounds (row.removeFromLeft (260));
+        row.removeFromLeft (8);
+        micPlotToggle.setBounds (row.removeFromLeft (220));
+    }
+
     bounds.removeFromTop (4);
     contrastLabel.setBounds (bounds.removeFromTop (18));
 
-    pendingLabel.setBounds (getLocalBounds().withTrimmedTop (150).withHeight (32));
+    bounds.removeFromTop (6);
+    accentTop = bounds.getY();
+    bounds.removeFromTop (22);
+    {
+        auto row = bounds.removeFromTop (26);
+        accentBox.setBounds (row.removeFromLeft (220));
+        row.removeFromLeft (8);
+        accentNote.setBounds (row);
+    }
+    bounds.removeFromTop (4);
+    dataStreamToggle.setBounds (bounds.removeFromTop (26).removeFromLeft (300));
+    noiseStripToggle.setBounds (bounds.removeFromTop (26).removeFromLeft (300));
+    vuToggle.setBounds (bounds.removeFromTop (26).removeFromLeft (300));
+
+    // preset-browser-previews 8: PRESET BROWSER below ACCENT AND LIVE DISPLAYS.
+    bounds.removeFromTop (8);
+    presetBrowserGroup.setBounds (bounds.removeFromTop (PresetBrowserAppearanceGroup::kHeight));
 }
 
 //==============================================================================
 AccessibilityPage::AccessibilityPage (LuthierAudioProcessor& p)
     : OptionsPage (p)
 {
+    addAndMakeVisible (presetBrowserKeys);   // preset-browser-previews 7.4
+
     setWantsKeyboardFocus (true);
+
+    searchGroup = std::make_unique<search::SearchOptionsGroup>();   // FEAT-SEARCH
+    addAndMakeVisible (*searchGroup);
 
     for (int i = 0; i < (int) AccessibilitySettings::Verbosity::numLevels; ++i)
         verbosityBox.addItem (AccessibilitySettings::getVerbosityName (
@@ -1014,7 +1398,7 @@ void AccessibilityPage::ShortcutModel::paintListBoxItem (int row, juce::Graphics
     g.setColour (capturing ? Palette::backgroundDeep
                            : (binding.isRebound() ? Palette::accent : Palette::textDisabled));
 
-    g.drawText (capturing ? "press a key..." : binding.key.getTextDescription(),
+    g.drawText (capturing ? "press a key..." : binding.key.isValid() ? binding.key.getTextDescription() : juce::String ("(not bound)"),
                 width - 134, 0, 128, height, juce::Justification::centredRight, true);
 }
 
@@ -1083,14 +1467,38 @@ void AccessibilityPage::refresh()
     auto& settings = AccessibilitySettings::get();
 
     verbosityBox.setSelectedId ((int) settings.getVerbosity() + 1, juce::dontSendNotification);
+
+    // The saved font: theme default when none, else its entry in the list.
+    const auto font = settings.getFontOverride();
+    int fontId = 1;
+
+    if (font.isNotEmpty())
+    {
+        fontId = font == juce::Font::getDefaultSansSerifFontName() ? 2 : 0;
+
+        for (int i = 2; fontId == 0 && i < fontBox.getNumItems(); ++i)
+            if (fontBox.getItemText (i) == font)
+                fontId = fontBox.getItemId (i);
+
+        if (fontId == 0)
+            fontId = 1;
+    }
+
+    fontBox.setSelectedId (fontId, juce::dontSendNotification);
+
+    if (auto* group = dynamic_cast<search::SearchOptionsGroup*> (searchGroup.get()))   // FEAT-SEARCH
+        group->refresh();
 }
+
+/** FEAT-SEARCH: the room the Search group takes above the shortcut table. */
+static constexpr int kSearchGroupSpace = 60;
 
 void AccessibilityPage::paint (juce::Graphics& g)
 {
     auto bounds = getLocalBounds();
 
     drawHeading (g, bounds.removeFromTop (18), "SCREEN READER AND TEXT");
-    drawHeading (g, { 0, 76, getWidth(), 18 }, "KEYBOARD SHORTCUTS");
+    drawHeading (g, { 0, 76 + kSearchGroupSpace, getWidth(), 18 }, "KEYBOARD SHORTCUTS");
 }
 
 void AccessibilityPage::resized()
@@ -1107,8 +1515,11 @@ void AccessibilityPage::resized()
         fontBox.setBounds (row.removeFromLeft (220));
     }
 
+    // ---- search (global-search.md 7, FEAT-SEARCH) ---------------------------------------
+    searchGroup->setBounds (0, 56, getWidth(), search::SearchOptionsGroup::preferredHeight);
+
     // ---- shortcuts ---------------------------------------------------------------------
-    bounds = getLocalBounds().withTrimmedTop (96);
+    bounds = getLocalBounds().withTrimmedTop (96 + kSearchGroupSpace);
 
     {
         auto row = bounds.removeFromTop (26);
@@ -1120,6 +1531,11 @@ void AccessibilityPage::resized()
 
     bounds.removeFromTop (2);
     rebindHint.setBounds (bounds.removeFromBottom (18));
+
+    // preset-browser-previews 7.4: the browser's own group.
+    presetBrowserKeys.setBounds (bounds.removeFromBottom (PresetBrowserKeysGroup::kHeight));
+    bounds.removeFromBottom (4);
+
     shortcutList.setBounds (bounds);
 }
 
@@ -1427,7 +1843,8 @@ void RangesPage::clampOne (const juce::String& parameterId)
     if (physical == nullptr || parameter == nullptr)
         return;
 
-    processor.pushUndoState ("Clamp " + parameter->getName (40) + " to stock");
+    // action-and-undo.md 0.1: one entry - the gesture below must not push a second.
+    const LuthierAudioProcessor::ScopedUndoAction undo (processor, "Clamp " + parameter->getName (40) + " to stock");
 
     const float clamped = juce::jlimit (physical->stockMin, physical->stockMax, parameter->get());
 
@@ -1567,6 +1984,19 @@ UpdatesPage::UpdatesPage (LuthierAudioProcessor& p)
     checkNowButton.onClick = [this] { checkForUpdate(); };
     addAndMakeVisible (checkNowButton);
 
+    // installer.md 5.1: "Click opens release notes in browser" and "Download
+    // fetches the platform-appropriate installer to Downloads".
+    releaseNotesButton.onClick = [this]
+    {
+        if (changelogUrl.isNotEmpty())
+            juce::URL (changelogUrl).launchInDefaultBrowser();
+    };
+    downloadButton.onClick = [this] { startDownload(); };
+    releaseNotesButton.setEnabled (false);
+    downloadButton.setEnabled (false);
+    addAndMakeVisible (releaseNotesButton);
+    addAndMakeVisible (downloadButton);
+
     styleNote (updateStatus, Palette::textMuted);
     addAndMakeVisible (updateStatus);
 
@@ -1604,12 +2034,21 @@ void UpdatesPage::checkForUpdate()
     // message thread either - the check goes to a background job.
     updateStatus.setText ("Checking...", juce::dontSendNotification);
 
-    juce::Thread::launch ([this, running]
+    // Review R-101: the page can close while the check runs, so the job holds
+    // the Telemetry (owned by the processor) and the reply a SafePointer.
+    juce::Thread::launch ([&tel = telemetry(), running, safe = juce::Component::SafePointer<UpdatesPage> (this)]
     {
-        const auto result = telemetry().checkForUpdate (running, true);
+        const auto result = tel.checkForUpdate (running, true);
 
-        juce::MessageManager::callAsync ([this, result]
+        juce::MessageManager::callAsync ([safe, result]
         {
+            if (safe == nullptr)
+                return;
+
+            auto* self = safe.getComponent();
+            auto& updateStatus = self->updateStatus;
+            auto& releaseNotes = self->releaseNotes;
+
             if (! result.checked)
             {
                 // A failed check is reported here because the user asked for it.
@@ -1641,7 +2080,36 @@ void UpdatesPage::checkForUpdate()
                 details.add ("Download:        " + result.downloadUrl);
 
             releaseNotes.setText (details.joinIntoString ("\n"), false);
+
+            self->changelogUrl = result.changelogUrl;
+            self->downloadUrl = result.updateAvailable ? result.downloadUrl : juce::String();
+            self->releaseNotesButton.setEnabled (self->changelogUrl.isNotEmpty());
+            self->downloadButton.setEnabled (self->downloadUrl.isNotEmpty() && ! self->downloader.isDownloading());
         });
+    });
+}
+
+void UpdatesPage::startDownload()
+{
+    if (downloadUrl.isEmpty())
+        return;
+
+    downloadButton.setEnabled (false);
+    updateStatus.setText ("Downloading to " + UpdateDownloader::getDownloadsFolder().getFullPathName() + "...",
+                          juce::dontSendNotification);
+
+    juce::Component::SafePointer<UpdatesPage> safe (this);
+
+    downloader.start (downloadUrl, [safe] (UpdateDownloader::Outcome outcome)
+    {
+        if (safe == nullptr)
+            return;
+
+        safe->downloadButton.setEnabled (true);
+        safe->updateStatus.setText (outcome.succeeded
+                                      ? "Downloaded " + outcome.file.getFileName() + " to Downloads. Run it when you are ready."
+                                      : "Download failed: " + outcome.error,
+                                    juce::dontSendNotification);
     });
 }
 
@@ -1685,6 +2153,10 @@ void UpdatesPage::resized()
         updateCheckToggle.setBounds (row.removeFromLeft (240));
         betaToggle.setBounds (row.removeFromLeft (180));
         checkNowButton.setBounds (row.removeFromLeft (100));
+        row.removeFromLeft (6);
+        releaseNotesButton.setBounds (row.removeFromLeft (110));
+        row.removeFromLeft (6);
+        downloadButton.setBounds (row.removeFromLeft (90));
     }
 
     bounds.removeFromTop (2);
@@ -1921,6 +2393,9 @@ void PrivacyPage::resized()
 DiagnosticsPage::DiagnosticsPage (LuthierAudioProcessor& p)
     : OptionsPage (p)
 {
+    styleNote (normalizationLines, Palette::textMuted, 10.5f);   // output-normalization.md 5.4
+    addAndMakeVisible (normalizationLines);
+
     addAndMakeVisible (debugWindowButton);
     debugWindowButton.setTooltip ("The live state and data-stream view (Ctrl+D)");
     debugWindowButton.onClick = [this]
@@ -1946,9 +2421,25 @@ DiagnosticsPage::DiagnosticsPage (LuthierAudioProcessor& p)
         refresh();
     };
 
+    // cpu-quality-modes 5 / 7: E3's opt-out (the old relief 7 opt-out).
+    emergencyDropToggle.setButtonText (tr ("quality.emergencyDrop"));
+    emergencyDropToggle.onClick = [this] { PerformanceSettings::get().setEmergencyStringDrop (emergencyDropToggle.getToggleState()); };
+    addAndMakeVisible (emergencyDropToggle);
+
+    // action-and-undo.md 12: "Show undo depth" puts "Undo: N / 200; Redo: M" in the footer.
+    addAndMakeVisible (undoDepthToggle);
+    undoDepthToggle.setTooltip ("Adds the undo and redo counts to the footer, for support and for "
+                                "checking that a slow drag is one step.");
+    undoDepthToggle.onClick = [this]
+    {
+        UiPreferences::get().setBool (UndoHistory::kShowDepthPreference, undoDepthToggle.getToggleState());
+    };
+
     addAndMakeVisible (troubleshootButton);
-    troubleshootButton.setTooltip ("Writes a file describing the build, the host and the "
-                                   "current state, for a support thread.");
+    // host-integration HI-8: names the exact build (version + git SHA / CI run),
+    // not just the marketing version, so a support thread can tell builds apart.
+    troubleshootButton.setTooltip ("Writes a file describing the build (" + getFullVersionString()
+                                   + "), the host and the current state, for a support thread.");
     troubleshootButton.onClick = [this]
     {
         processor.getPresetManager().captureExtraState();
@@ -1991,11 +2482,41 @@ DiagnosticsPage::DiagnosticsPage (LuthierAudioProcessor& p)
                 .withButton ("Cancel"),
             [this] (int result)
             {
-                if (result == 1)
+                // NativeMessageBox answers the plain button index: 0 is the
+                // first ("Reset everything"), 1 is Cancel (review R-100).
+                if (result == 0)
                 {
                     processor.hardResetAndClearCaches();
+
+                    // output-normalization.md 10: this reset turns the preference off.
+                    UiPreferences::get().setBool (OutputNormalization::kPrefDefaultEnabled, false);
+                    UiPreferences::get().setBool (OutputNormalization::kPrefBannerSuppressed, false);
+                    UiPreferences::get().save();
+                    PerformanceSettings::get().resetToDefaults();   // cpu-quality-modes 10
                     refresh();
                 }
+            });
+    };
+
+    // onboarding.md 12 (TUNE-HELP-ONBOARDING): confirmed with a modal.
+    addAndMakeVisible (restoreFirstRunButton);
+    restoreFirstRunButton.setTooltip ("Clears your settings and one-time hints so the next launch behaves as "
+                                      "a fresh install. Your presets, guitars, tunes and parts are kept.");
+    restoreFirstRunButton.onClick = [this]
+    {
+        juce::NativeMessageBox::showAsync (
+            juce::MessageBoxOptions()
+                .withIconType (juce::MessageBoxIconType::QuestionIcon)
+                .withTitle ("Restore first-run experience?")
+                .withMessage ("Your settings go back to a fresh install's, every one-time hint and the tour "
+                              "come back, and the next launch behaves as the first.\n\n"
+                              "Your presets, guitars, tunes and parts are kept.")
+                .withButton ("Restore")
+                .withButton ("Cancel"),
+            [safe = juce::Component::SafePointer<DiagnosticsPage> (this)] (int result)
+            {
+                if (safe != nullptr && result == 0)   // plain index: 0 is "Restore" (R-100)
+                    safe->restoreFirstRun();
             });
     };
 
@@ -2008,27 +2529,44 @@ DiagnosticsPage::DiagnosticsPage (LuthierAudioProcessor& p)
     styleNote (recorderNote);
     addAndMakeVisible (recorderNote);
 
-    /*  Section 5 wants the Workshop, Slide and advanced-ranges booleans mirrored
-        here, so a user can see what telemetry would report. None of the three
-        exists, so there is nothing to mirror and saying so beats three faked
-        rows that always read false. */
-    styleNote (mirrorNote, Palette::textDisabled);
-    mirrorNote.setText ("The Workshop, Slide and advanced-ranges feature flags are not built "
-                        "yet, so there is nothing to mirror here.",
+    /*  Section 5's Workshop / Slide / advanced-ranges mirror and section 20's
+        live audio path, in one view: the flags as telemetry would see them,
+        under the stages that are sounding (VISUAL-WORKSHOP-QA). */
+    styleNote (mirrorNote, Palette::textMuted);
+    mirrorNote.setText ("Lit stages are doing something; dim ones are off, bypassed or empty. "
+                        "The last line is what telemetry would report for the three feature flags.",
                         juce::dontSendNotification);
     addAndMakeVisible (mirrorNote);
 
+    audioPath = std::make_unique<AudioPathView> (processor);
+    addAndMakeVisible (*audioPath);
+
+    refresh();
+}
+
+void DiagnosticsPage::restoreFirstRun()
+{
+    FirstRun::restoreFirstRunExperience();
+
+    // The processor cannot read UiPreferences, so it is told what Restore left.
+    RangesUi::setRandomiseRespectsStock (processor, RangesUi::randomiseRespectsStock());
     refresh();
 }
 
 void DiagnosticsPage::refresh()
 {
+    // output-normalization.md 5.4: what the normalization stage is doing.
+    normalizationLines.setText (NormalizationUi::diagnosticsLines (processor).joinIntoString ("\n"), juce::dontSendNotification);
+    emergencyDropToggle.setToggleState (PerformanceSettings::get().isEmergencyStringDrop(), juce::dontSendNotification);
+
     crashLogToggle.setToggleState (processor.getDiagnostics().isCrashLogEnabled(),
                                    juce::dontSendNotification);
 
     auto& recorder = processor.getSessionRecorder();
 
     recorderToggle.setToggleState (recorder.isEnabled(), juce::dontSendNotification);
+    undoDepthToggle.setToggleState (UiPreferences::get().getBool (UndoHistory::kShowDepthPreference, false),
+                                    juce::dontSendNotification);   // action-and-undo.md 12
 
     recorderNote.setText (
         "Buffer: " + juce::String (recorder.getCapacityMinutes(), 1) + " minutes allocated, "
@@ -2044,7 +2582,7 @@ void DiagnosticsPage::paint (juce::Graphics& g)
 
     drawHeading (g, bounds.removeFromTop (18), "WHAT LUTHIER RECORDS FOR YOU");
     drawHeading (g, { 0, 150, getWidth(), 18 }, "FILES AND WINDOWS");
-    drawHeading (g, { 0, 262, getWidth(), 18 }, "FEATURE FLAGS");
+    drawHeading (g, { 0, 296, getWidth(), 18 }, "THE AUDIO PATH RIGHT NOW, AND FEATURE FLAGS");
 }
 
 void DiagnosticsPage::resized()
@@ -2059,6 +2597,8 @@ void DiagnosticsPage::resized()
     crashLogToggle.setBounds (bounds.removeFromTop (22));
     recorderToggle.setBounds (bounds.removeFromTop (22));
     recorderNote.setBounds (bounds.removeFromTop (16));
+    emergencyDropToggle.setBounds (bounds.removeFromTop (22));   // cpu-quality-modes
+    undoDepthToggle.setBounds (bounds.removeFromTop (22));   // action-and-undo.md 12
 
     bounds = getLocalBounds().withTrimmedTop (172);
 
@@ -2080,7 +2620,14 @@ void DiagnosticsPage::resized()
         hardResetButton.setBounds (row.removeFromLeft (280));
     }
 
-    mirrorNote.setBounds (getLocalBounds().withTrimmedTop (284).withHeight (32));
+    bounds.removeFromTop (6);
+    restoreFirstRunButton.setBounds (bounds.removeFromTop (Metrics::buttonHeight).removeFromLeft (240));
+
+    mirrorNote.setBounds (getLocalBounds().withTrimmedTop (318).withHeight (32));
+
+    if (audioPath != nullptr)
+        audioPath->setBounds (getLocalBounds().withTrimmedTop (352).withHeight (juce::jmax (80, juce::jmin (130, getHeight() - 356))));
+    normalizationLines.setBounds (getLocalBounds().removeFromBottom (48));   // output-normalization.md 5.4
 }
 
 //==============================================================================
@@ -2098,6 +2645,21 @@ FileLocationsPage::FileLocationsPage (LuthierAudioProcessor& p)
 
     addAndMakeVisible (openDiagnosticsFolder);
     openDiagnosticsFolder.onClick = [] { Diagnostics::getDiagnosticsFolder().revealToUser(); };
+
+    // Section 5: "including ~/Documents/Luthier/Guitars/ and ~/Documents/Luthier/Parts/".
+    addAndMakeVisible (openGuitarsFolder);
+    openGuitarsFolder.onClick = []
+    {
+        PartLibrary::getUserGuitarsFolder().createDirectory();
+        PartLibrary::getUserGuitarsFolder().revealToUser();
+    };
+
+    addAndMakeVisible (openPartsFolder);
+    openPartsFolder.onClick = []
+    {
+        PartLibrary::getUserPartsFolder().createDirectory();
+        PartLibrary::getUserPartsFolder().revealToUser();
+    };
 
     addAndMakeVisible (addFolderButton);
     addFolderButton.onClick = [this]
@@ -2126,6 +2688,54 @@ FileLocationsPage::FileLocationsPage (LuthierAudioProcessor& p)
         folderList.updateContent();
     };
 
+    // SPEC-SWEEP (spec.md SP-108): an added folder can be taken off the search
+    // path again. PresetManager refuses the user and factory folders.
+    addAndMakeVisible (removeFolderButton);
+    removeFolderButton.setTooltip ("Stop scanning the selected folder. The files in it are not touched; "
+                                   "the user and factory folders cannot be removed.");
+    removeFolderButton.onClick = [this]
+    {
+        const auto folders = processor.getPresetManager().getSearchFolders();
+        const int row = folderList.getSelectedRow();
+
+        if (juce::isPositiveAndBelow (row, folders.size()))
+        {
+            processor.getPresetManager().removeSearchFolder (folders[row]);
+            folderList.deselectAllRows();
+            folderList.updateContent();
+            folderList.repaint();
+        }
+    };
+
+    // riff-library 7.1: where user riffs live, and whether selecting one plays it.
+    addAndMakeVisible (chooseRiffsFolder);
+    chooseRiffsFolder.onClick = [this]
+    {
+        chooser = std::make_unique<juce::FileChooser> ("Choose the folder for your riffs", getRiffsUserFolder());
+        chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectDirectories,
+                              [this] (const juce::FileChooser& fc)
+        {
+            if (fc.getResult().isDirectory())
+            {
+                UiPreferences::get().setString ("riffs.userFolder", fc.getResult().getFullPathName());
+                refresh();
+            }
+        });
+    };
+
+    addAndMakeVisible (openRiffsFolder);
+    openRiffsFolder.onClick = []
+    {
+        const auto folder = getRiffsUserFolder();
+        folder.createDirectory();
+        folder.revealToUser();
+    };
+
+    addAndMakeVisible (auditionOnSelect);
+    auditionOnSelect.setToggleState (UiPreferences::get().getBool ("riffs.auditionOnSelect", false), juce::dontSendNotification);
+    auditionOnSelect.onClick = [this] { UiPreferences::get().setBool ("riffs.auditionOnSelect", auditionOnSelect.getToggleState()); };
+    auditionOnSelect.setTooltip ("Selecting a riff in the library plays it");
+
     addAndMakeVisible (pathLabel);
     pathLabel.setFont (Fonts::ui (11.0f));
     pathLabel.setColour (juce::Label::textColourId, Palette::textMuted);
@@ -2142,6 +2752,7 @@ FileLocationsPage::FileLocationsPage (LuthierAudioProcessor& p)
                         juce::dontSendNotification);
 
     addAndMakeVisible (folderList);
+    addAndMakeVisible (previewCacheGroup);   // preset-browser-previews 5.2
     folderList.setModel (&folderModel);
     folderList.setRowHeight (22);
     folderList.setColour (juce::ListBox::backgroundColourId, Palette::panelSunken);
@@ -2174,16 +2785,27 @@ void FileLocationsPage::FolderListModel::paintListBoxItem (int row, juce::Graphi
                 juce::Justification::centredLeft, true);
 }
 
+juce::File FileLocationsPage::getRiffsUserFolder()
+{
+    const auto chosen = UiPreferences::get().getString ("riffs.userFolder", {});
+    return chosen.isNotEmpty() && juce::File::isAbsolutePath (chosen) ? juce::File (chosen)
+                                                                       : RiffLibrary::getDefaultUserFolder();
+}
+
 void FileLocationsPage::refresh()
 {
     pathLabel.setText (
         "User presets   " + PresetManager::getUserPresetFolder().getFullPathName() + "\n"
         "Factory        " + PresetManager::getFactoryPresetFolder().getFullPathName() + "\n"
         "Renders        " + PresetManager::getRenderFolder().getFullPathName() + "\n"
-        "Diagnostics    " + Diagnostics::getDiagnosticsFolder().getFullPathName(),
+        "Diagnostics    " + Diagnostics::getDiagnosticsFolder().getFullPathName() + "\n"
+        "Guitars        " + PartLibrary::getUserGuitarsFolder().getFullPathName() + "\n"
+        "Parts          " + PartLibrary::getUserPartsFolder().getFullPathName() + "\n"
+        "Riffs          " + getRiffsUserFolder().getFullPathName(),
         juce::dontSendNotification);
 
     folderList.updateContent();
+    previewCacheGroup.refresh();
 }
 
 void FileLocationsPage::paint (juce::Graphics& g)
@@ -2191,7 +2813,7 @@ void FileLocationsPage::paint (juce::Graphics& g)
     auto bounds = getLocalBounds();
 
     drawHeading (g, bounds.removeFromTop (18), "WHERE LUTHIER KEEPS THINGS");
-    drawHeading (g, { 0, 178, getWidth(), 18 }, "PRESET SEARCH PATH");
+    drawHeading (g, { 0, 240, getWidth(), 18 }, "PRESET SEARCH PATH");
 }
 
 void FileLocationsPage::resized()
@@ -2200,7 +2822,7 @@ void FileLocationsPage::resized()
 
     bounds.removeFromTop (20);
 
-    pathLabel.setBounds (bounds.removeFromTop (72));
+    pathLabel.setBounds (bounds.removeFromTop (114));
     bounds.removeFromTop (Metrics::gridHalf);
 
     {
@@ -2215,7 +2837,29 @@ void FileLocationsPage::resized()
         openDiagnosticsFolder.setBounds (row.removeFromLeft (190));
     }
 
-    bounds = getLocalBounds().withTrimmedTop (200);
+    bounds.removeFromTop (Metrics::gridHalf);
+
+    {
+        auto row = bounds.removeFromTop (Metrics::buttonHeight);
+
+        openGuitarsFolder.setBounds (row.removeFromLeft (170));
+        row.removeFromLeft (Metrics::gridHalf);
+        openPartsFolder.setBounds (row.removeFromLeft (180));
+    }
+
+    bounds.removeFromTop (Metrics::gridHalf);
+
+    {
+        auto row = bounds.removeFromTop (Metrics::buttonHeight - 4);   // riff-library 7.1
+
+        chooseRiffsFolder.setBounds (row.removeFromLeft (170));
+        row.removeFromLeft (Metrics::gridHalf);
+        openRiffsFolder.setBounds (row.removeFromLeft (150));
+        row.removeFromLeft (Metrics::gridHalf);
+        auditionOnSelect.setBounds (row.removeFromLeft (220));
+    }
+
+    bounds = getLocalBounds().withTrimmedTop (262);
 
     {
         auto row = bounds.removeFromTop (Metrics::buttonHeight);
@@ -2223,11 +2867,17 @@ void FileLocationsPage::resized()
         addFolderButton.setBounds (row.removeFromLeft (180));
         row.removeFromLeft (Metrics::gridHalf);
         rescanButton.setBounds (row.removeFromLeft (140));
+        row.removeFromLeft (Metrics::gridHalf);
+        removeFolderButton.setBounds (row.removeFromLeft (140));
     }
 
     bounds.removeFromTop (Metrics::grid);
 
     formatNote.setBounds (bounds.removeFromBottom (64));
+    bounds.removeFromBottom (Metrics::gridHalf);
+
+    // preset-browser-previews 5.2: "Preview cache: Open / Clear".
+    previewCacheGroup.setBounds (bounds.removeFromBottom (PresetCacheGroup::kHeight));
     bounds.removeFromBottom (Metrics::gridHalf);
 
     folderList.setBounds (bounds);

@@ -1,4 +1,5 @@
 #include "PedalsDrive.h"
+#include "../../Support/QualityProfile.h"
 
 namespace luthier
 {
@@ -475,7 +476,9 @@ double PitchShifterPedal::Shifter::process (double input, double ratio) noexcept
     // Two read heads half a window apart, crossfaded with a raised cosine. As one
     // head drifts too far from the write pointer the other takes over, which is
     // what stops the classic single-head "motorboating".
-    readPhase += (ratio - 1.0);
+    // The delay shrinks as the pitch rises: a head moving towards the write
+    // pointer plays faster than it was written.
+    readPhase -= (ratio - 1.0);
 
     if (readPhase >= (double) windowSamples) readPhase -= (double) windowSamples;
     if (readPhase < 0.0)                     readPhase += (double) windowSamples;
@@ -576,6 +579,9 @@ void DrivePedalBase::prepare (double sampleRate, int maxBlockSize)
 
     oversampler.prepare (sr, 4);
     oversamplerR.prepare (sr, 4);
+    nominalFactor = 4;           // cpu-quality-modes 2.2
+    padL.setLength (0);
+    padR.setLength (0);
 
     driveSmooth.prepare (sr, constants::kParamSmoothSeconds);
     levelSmooth.prepare (sr, constants::kParamSmoothSeconds);
@@ -595,14 +601,61 @@ void DrivePedalBase::reset() noexcept
     dcL.reset();   dcR.reset();
     oversampler.reset();
     oversamplerR.reset();
+    padL.reset();  padR.reset();
+    historyL.reset(); historyR.reset();
+    fadeLeft = 0;
     driveSmooth.snapToTarget();
     levelSmooth.snapToTarget();
 }
 
-void DrivePedalBase::setOversamplingFactor (int factor) noexcept
+void DrivePedalBase::setOversamplingFactor (int effective, int nominal, bool crossfade) noexcept
 {
-    oversampler.setFactor (factor);
-    oversamplerR.setFactor (factor);
+    auto clampFactor = [] (int f) { return f >= 8 ? 8 : f >= 4 ? 4 : f >= 2 ? 2 : 1; };
+    nominal = clampFactor (nominal);
+    effective = juce::jmin (clampFactor (effective), nominal);
+    nominalFactor = nominal;
+
+    const int padLength = Oversampler::latencyFor (nominal) - Oversampler::latencyFor (effective);
+
+    if (effective == oversampler.getFactor())
+    {
+        padL.setLength (padLength);
+        padR.setLength (padLength);
+        return;
+    }
+
+    if (crossfade)
+    {
+        oldOversampler = oversampler;
+        oldOversamplerR = oversamplerR;
+        oldPadL = padL;
+        oldPadR = padR;
+    }
+
+    oversampler.setFactor (effective);
+    oversamplerR.setFactor (effective);
+    padL.setLength (padLength);
+    padR.setLength (padLength);
+
+    if (! crossfade)
+    {
+        fadeLeft = 0;
+        return;
+    }
+
+    // Prime the new path from the last 32 input samples.
+    for (int i = 0; i < InputHistory::kSize; ++i)
+    {
+        double work[Oversampler::kMaxFactor];
+        oversampler.up (historyL.get (i), work);
+        oversampler.down (work);
+        oversamplerR.up (historyR.get (i), work);
+        oversamplerR.down (work);
+    }
+
+    fadeTotal = juce::jmax (1, (int) std::round (QualityProfile::kOversamplerFadeSeconds * sr))
+                  + QualityProfile::kSwitchSettleSamples;
+    fadeLeft = fadeTotal;
 }
 
 void DrivePedalBase::parameterChanged (int index, double value)
@@ -635,8 +688,28 @@ void DrivePedalBase::process (double* left, double* right, int numSamples) noexc
         double xl = preL.process (left[i]) * gain;
         double xr = preR.process (right[i]) * gain;
 
-        xl = oversampler.processSample (xl, [this] (double v) { return shape (v); });
-        xr = oversamplerR.processSample (xr, [this] (double v) { return shape (v); });
+        historyL.push (xl);
+        historyR.push (xr);
+
+        if (fadeLeft > 0)
+        {
+            // cpu-quality-modes 2.2: old and new paths under a linear crossfade.
+            const double t = juce::jlimit (0.0, 1.0, 1.0 - (double) fadeLeft / (double) (fadeTotal - QualityProfile::kSwitchSettleSamples));
+            --fadeLeft;
+
+            const double ol = oldPadL.process (oldOversampler.processSample (xl, [this] (double v) { return shape (v); }));
+            const double orr = oldPadR.process (oldOversamplerR.processSample (xr, [this] (double v) { return shape (v); }));
+            const double nl = padL.process (oversampler.processSample (xl, [this] (double v) { return shape (v); }));
+            const double nr = padR.process (oversamplerR.processSample (xr, [this] (double v) { return shape (v); }));
+
+            xl = ol * (1.0 - t) + nl * t;
+            xr = orr * (1.0 - t) + nr * t;
+        }
+        else
+        {
+            xl = padL.process (oversampler.processSample (xl, [this] (double v) { return shape (v); }));
+            xr = padR.process (oversamplerR.processSample (xr, [this] (double v) { return shape (v); }));
+        }
 
         xl = midL.process (xl);
         xr = midR.process (xr);

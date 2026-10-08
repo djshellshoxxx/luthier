@@ -27,6 +27,8 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include "ModSourceEdit.h"                 // SPEC-SWEEP UW-5
+#include "../Support/CommandQueue.h"       // SPEC-SWEEP UW-5
 #include "ModSources.h"
 
 #include <atomic>
@@ -142,7 +144,33 @@ public:
     /** Control rate in samples, as modulation-matrix 0.1 defines it: a
         thirty-second of the block size, floored at 128. */
     int getControlRateSamples() const noexcept { return controlRateSamples; }
+
+    /*  cpu-quality-modes 2.1: at Low the routes are evaluated every
+        `multiplier` control ticks (a ~5 ms staircase before destination
+        smoothing). Sources still tick at the base rate, so LFO and sequencer
+        timing never changes, and it stays 1 while any LFO runs above
+        `fastLfoHz`. Audio thread; takes effect at the next tick. */
+    void setControlIntervalMultiplier (int multiplier, double fastLfoHz) noexcept
+    {
+        intervalMultiplier = juce::jlimit (1, 8, multiplier);
+        intervalFastLfoHz = fastLfoHz;
+    }
+
+    /** The interval the routes are evaluated at right now, in samples. */
+    int getEffectiveControlInterval() const noexcept { return controlRateSamples * lastEffectiveMultiplier; }
     double getControlRateHz() const noexcept { return controlRateHz; }
+
+    /*  SPEC-SWEEP: PR-44 / AR-15 - advanced-ranges.md 2.1: the `modulation`
+        range family. Locked, every source's rate and time setters clamp to the
+        stock pair, and locking clamps what is already there; unlocked they
+        take the advanced pair. Returns how many values locking clamped.
+        Message thread, like the setters. */
+    int setModulationRangeAdvanced (bool advanced) noexcept;
+    bool isModulationRangeAdvanced() const noexcept { return modulationAdvanced; }
+
+    /** SPEC-SWEEP: AR-12 - re-reads each destination's live range after a
+        range-mode change (called by setModulationRangeAdvanced). */
+    void refreshDestinationRanges() noexcept;
 
     //==========================================================================
     // Routes. Message thread only.
@@ -215,12 +243,22 @@ public:
     ModEnvelopeFollower& getFollower (int index) noexcept;
     ModRandomSource& getRandomSource() noexcept { return randomSource; }
 
+    /** SPEC-SWEEP (UW-5): the UI's way to change a source's settings. Applied
+        by the audio thread at the top of its next processBlock; applied at once
+        when no block has run for kIdleApplyMs (a stopped host). Message thread. */
+    bool postSourceEdit (const ModSourceEdit& edit);
+    int getNumPendingSourceEdits() const noexcept { return sourceEdits.getNumPending(); }
+    static constexpr juce::uint32 kIdleApplyMs = 250;
+
     /** The live value of a source slot, for the UI's source cards. */
     float getSourceValue (int slot) const noexcept;
 
     //==========================================================================
     juce::var toVar() const;
     void fromVar (const juce::var& state);
+
+    /** SPEC-SWEEP: MM-6 - true between a load and the block that restarts the sources. */
+    bool isSourceResetPending() const noexcept { return sourceResetPending.load (std::memory_order_acquire); }
 
 private:
     struct CompiledRoute
@@ -250,6 +288,10 @@ private:
     };
 
     void rebuildTable();
+    void applySourceEdit (const ModSourceEdit& edit) noexcept;   // SPEC-SWEEP UW-5
+    CommandQueue<ModSourceEdit, 64> sourceEdits;
+    std::atomic<juce::uint32> lastBlockMs { 0 };
+    juce::SpinLock idleApplyLock;
     int destinationIndexFor (const juce::String& parameterId) const;
     void updateSources (const ModBlockContext& context) noexcept;
 
@@ -266,6 +308,14 @@ private:
     std::array<ModStepSequencer, ModSourceSlots::numSequencers> sequencers;
     std::array<ModEnvelopeFollower, ModSourceSlots::numFollowers> followers;
     ModRandomSource randomSource;
+    bool modulationAdvanced = false;   // SPEC-SWEEP: PR-44
+
+    /*  SPEC-SWEEP: MM-6 / MM-7 - modulation-matrix 0.5: loading a preset or
+        recalling a snapshot restarts every source. fromVar runs on the message
+        thread and the sources tick on the audio thread, so it only asks; the
+        next processBlock does it. */
+    std::atomic<bool> sourceResetPending { false };
+    void resetSources() noexcept;
 
     std::array<std::atomic<float>, ModSourceSlots::count> sourceValues;
 
@@ -283,6 +333,10 @@ private:
     std::vector<DestinationInfo> destinations;
     std::vector<std::atomic<float>> currentOffsets;
     std::vector<std::atomic<float>> targetOffsets;
+
+    /** SPEC-SWEEP: MM-2 - where each destination's linear ramp started at the
+        last tick. Audio thread only. */
+    std::vector<float> rampStart;
     std::vector<std::atomic<bool>> destinationModulated;
 
     juce::HashMap<juce::String, int> parameterIndexById;
@@ -298,6 +352,10 @@ private:
     std::atomic<bool> anyRoutes { false };
 
     int samplesUntilTick = 0;
+
+    // cpu-quality-modes
+    int intervalMultiplier = 1, tickCounter = 0, lastEffectiveMultiplier = 1;
+    double intervalFastLfoHz = 20.0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ModMatrix)
 };

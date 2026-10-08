@@ -1,0 +1,9 @@
+# Features
+
+Luthier's built product areas include physically modelled strings and sympathetic coupling; guitar bodies, pickups and editable instrument settings; tunings and playing articulations; pedal racks, amplifier, cabinet and room processing; factory presets; VST3 and standalone targets; and an offline MIDI-to-audio renderer. The project also contains user documentation for presets, practice and performance controls, and an extensive set of specifications for broader realism, composition, accessibility and host integration.
+
+The original [`spec/README.md`](https://github.com/djshellshoxxx/luthier/blob/master/spec/README.md) inventories instruments, presets, effects and the audio path, but branch integration is ongoing. [`docs/PRODUCT_OVERVIEW.md`](https://github.com/djshellshoxxx/luthier/blob/master/docs/PRODUCT_OVERVIEW.md) explicitly identifies itself as a living draft. Counts and promised behaviours in these documents should be checked against the branch being built.
+
+For use, read the [user manual](https://github.com/djshellshoxxx/luthier/blob/master/docs/USER_MANUAL.md), [playing techniques](https://github.com/djshellshoxxx/luthier/blob/master/docs/PLAYING_TECHNIQUES.md), and [keyboard shortcuts](https://github.com/djshellshoxxx/luthier/blob/master/docs/KEYBOARD_SHORTCUTS.md). For planned or partly integrated work, use the [spec index](https://github.com/djshellshoxxx/luthier/blob/master/spec/INDEX.md), [coverage notes](https://github.com/djshellshoxxx/luthier/blob/master/docs/spec-coverage.md), and [known issues](https://github.com/djshellshoxxx/luthier/blob/master/docs/KNOWN_ISSUES.md).
+
+A specification page is a design contract, not proof of a released feature. Packaging scripts and target definitions likewise do not establish an independently tested public release.

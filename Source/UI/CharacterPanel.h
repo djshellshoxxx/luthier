@@ -12,6 +12,7 @@
     strip.
 */
 
+#include "AnimationPolicy.h"   // cpu-quality-modes 6
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "Theme.h"
@@ -19,6 +20,13 @@
 #include "NoiseGroups.h"
 #include "SetupGroup.h"
 #include "SlideGroup.h"
+#include "SlapGroup.h"   // bass-techniques 9 (MODEL-GAPS)
+#include "RealismGroups.h"
+#include "HarmonicsGroup.h"          // REALISM-B: harmonic-realism.md 7
+#include "StringInteractionGroup.h"  // REALISM-B: string-interaction.md 9
+#include "RightHandGroup.h"          // REALISM-B: fingerstyle-attack.md 7
+#include "RealismGroupsC.h"   // REALISM-C
+#include "Techniques/TechniqueMirrors.h"   // gui-techniques-updates.md 5 (TECHNIQUES)
 #include "../Character/CharacterEngine.h"
 
 namespace luthier
@@ -43,6 +51,9 @@ public:
     void paint (juce::Graphics&) override;
     void mouseDown (const juce::MouseEvent&) override;
     void mouseDrag (const juce::MouseEvent&) override;
+
+    /** SPEC-SWEEP: CW-29 - the wheel over a spot widens or narrows it (2-5 frets). */
+    void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
 
     static constexpr int rowHeight = 16;
     static constexpr int numFretsShown = 22;
@@ -131,7 +142,7 @@ private:
 
     // --- tuners -------------------------------------------------------------------
     juce::Slider loosenessSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
-    juce::TextButton retuneButton { "Retune" };
+    juce::TextButton retuneButton { "Retune all" };   // tuning-stability.md 3
     juce::Label driftLabel;
 
     // --- electronics ----------------------------------------------------------------
@@ -142,7 +153,6 @@ private:
 
     // --- body and environment ----------------------------------------------------------
     juce::Slider bodyAgeSlider { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
-    juce::ComboBox temperatureBox, humidityBox;
     juce::Label sessionLabel;
 
     // --- presets ------------------------------------------------------------------------
@@ -152,17 +162,54 @@ private:
     std::unique_ptr<NoiseGroups> noiseGroups;
     std::unique_ptr<SetupGroup> setupGroup;
     std::unique_ptr<SlideGroup> slideGroup;
+    std::unique_ptr<SlapGroup> slapGroup;   // bass-techniques 9: only on a bass (MODEL-GAPS)
+
+public:
+    SlapGroup* getSlapGroup() const noexcept { return slapGroup.get(); }
+
+private:
+
+public:
+    // REALISM-A groups; public for the tests.
+    std::unique_ptr<StringAgingGroup> stringAgingGroup;
+    std::unique_ptr<EnvironmentGroup> environmentGroup;
+    std::unique_ptr<BodyCouplingGroup> bodyCouplingGroup;
+
+private:
+
+    // REALISM-B: PICK -> HARMONICS, RIGHT HAND, STRING INTERACTION (gui-integration 4.4).
+    std::unique_ptr<HarmonicsGroup> harmonicsGroup;
+    std::unique_ptr<RightHandGroup> rightHandGroup;
+    std::unique_ptr<StringInteractionGroup> interactionGroup;
+
+    // REALISM-C: tuning-stability.md 6, noise-floor.md 5, sustain-and-decay.md 8.
+    std::unique_ptr<TuningStabilityGroup> tuningStabilityGroup;
+    std::unique_ptr<NoiseFloorGroup> noiseFloorGroup;
+    std::unique_ptr<SustainShapeGroup> sustainShapeGroup;
+
+public:
+    TuningStabilityGroup* getTuningStabilityGroup() noexcept { return tuningStabilityGroup.get(); }
+    NoiseFloorGroup* getNoiseFloorGroup() noexcept { return noiseFloorGroup.get(); }
+    SustainShapeGroup* getSustainShapeGroup() noexcept { return sustainShapeGroup.get(); }
+    juce::TextButton& getRetuneAllButton() noexcept { return retuneButton; }
+
+private:
+    std::unique_ptr<TechniqueMirrors> techniqueMirrors;   // TECHNIQUES
 
     /*  Sizes the panel to its content. The workspace viewport keeps whatever
         height a panel gives itself, and this one never gave itself one - so it
         sat at the viewport's 80-point minimum and scrolled nothing. */
     void fitToContent();
     juce::Label seedHeading, mapsHeading, tunerHeading, electronicsHeading,
-                bodyHeading, environmentHeading;
+                bodyHeading;
 
     bool updatingControls = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CharacterPanel)
+
+private:
+    // cpu-quality-modes 6: the motion switch.
+    AnimationPolicy::Registration motion { *this, AnimationPolicy::LiveReadout, "CharacterPanel" };
 };
 
 } // namespace luthier

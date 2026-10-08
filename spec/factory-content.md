@@ -31,48 +31,58 @@ its slot on the criteria in section 0.
 
 ## 1. Factory presets (36)
 
-| # | Name | Category | Guitar (default) | Notes |
-|---|---|---|---|---|
-| 1 | Fresh Strings Clean | Electric / Clean | Vintage Double-Cut | Bright chime, mild compression |
-| 2 | Class A Break-Up | Electric / Break-Up | Vintage Double-Cut | 15W combo edge |
-| 3 | British Stack Crunch | Electric / Crunch | Vintage Single-Cut | Classic rock rhythm |
-| 4 | Modern Overdrive | Electric / Overdrive | Vintage Single-Cut | Default first-run preset |
-| 5 | Modern Metal Chug | Electric / Metal | 7-String Modern | Palm-mute grid |
-| 6 | Djent Grid | Electric / Metal | 8-String Modern | Extended range |
-| 7 | Fuzz Face Wall | Electric / Fuzz | Vintage Double-Cut | Vintage fuzz character |
-| 8 | Shoegaze Wash | Electric / Ambient | Offset Modern | Reverb bath, tremolo |
-| 9 | Post-Rock Arpeggio | Electric / Ambient | Offset Modern | Long delay swell |
-| 10 | Funk 16th Clean | Electric / Funk | Vintage Double-Cut | Compressed, wah-ready |
-| 11 | Country Twang | Electric / Country | Classic T-Style | Bright single-coil |
-| 12 | Nashville Hot | Electric / Country | Classic T-Style | B-Bender simulation |
-| 13 | Blues Break-Up | Electric / Blues | Semi-Hollow 335 | Warm mid drive |
-| 14 | Chicago Blues | Electric / Blues | Vintage Single-Cut | Bridge humbucker |
-| 15 | Jazz Comping | Electric / Jazz | Full Hollow Archtop | Warm, dark |
-| 16 | Jazz Lead | Electric / Jazz | Semi-Hollow 335 | Neck humbucker warmth |
-| 17 | Punk Downstroke | Electric / Punk | Vintage Double-Cut | Fast, tight |
-| 18 | Indie Jangle | Electric / Indie | Semi-Hollow 335 | Compressed clean |
-| 19 | Surf Twang | Electric / Surf | Offset Modern | Spring reverb + trem |
-| 20 | Slide Blues | Electric / Slide | Resonator Steel | Glass slide default |
-| 21 | Folk Fingerstyle | Acoustic / Folk | Grand Auditorium | Warm mic blend |
-| 22 | Bluegrass Flatpick | Acoustic / Bluegrass | Dreadnought | Bright, punchy |
-| 23 | Contemporary Fingerstyle | Acoustic / Folk | Grand Auditorium | Modern tapping ready |
-| 24 | Delta Blues | Acoustic / Blues | Resonator Steel | Slide-ready |
-| 25 | Piedmont Blues | Acoustic / Blues | Parlor | Fingerstyle syncopation |
-| 26 | 12-String Chime | Acoustic / Folk | 12-String Jumbo | Doubled octaves |
-| 27 | Bossa Nylon | Classical / Bossa | Classical | Warm nylon |
-| 28 | Flamenco Rasgueado | Classical / Flamenco | Flamenca Blanca | Bright, percussive |
-| 29 | Classical Etude | Classical | Classical | Concert hall room |
-| 30 | Gypsy Jazz La Pompe | Acoustic / Jazz | Selmer-Style | Percussive rhythm |
-| 31 | Reggae Skank | Electric / Reggae | Vintage Single-Cut | Off-beat comp |
-| 32 | Motown Fingerstyle | Bass / Soul | P-Style Bass | Muted flatwound feel |
-| 33 | Funk Slap | Bass / Funk | J-Style Bass | Slap-and-pop workflow |
-| 34 | Reggae One-Drop | Bass / Reggae | P-Style Bass | Deep, round |
-| 35 | Punk Pick Bass | Bass / Punk | P-Style Bass | Pick attack, gritty |
-| 36 | Jazz Walking Bass | Bass / Jazz | Full Hollow Bass | Warm upright feel |
+This is the shipped bank, as `Presets/FactoryPresets.cpp` builds it (the
+audit's SPEC/CATALOGUE DRIFT finding reconciled the spec to the code: the
+earlier list of 36 named presets was never built, and the bank is pinned by
+`SampleContent::theFactoryBankIsTheDocumentedThirtySix`). The default
+first-run preset is #3, Single-Cut Crunch, on the Vintage Single-Cut guitar. The feature
+banks (auto-articulation.md's Assist presets, the techniques demos) follow as #37 on.
+A preset's guitar type resolves to the factory guitar for that type; the
+preset's own parts win.
 
-Distribution: 20 electric, 6 acoustic, 3 classical, 1 gypsy jazz, 1
-reggae guitar, 5 bass. Adjusts as the product grows; this is the ship
-list for v1.0.
+| # | Name | Category | Guitar type |
+|---|---|---|---|
+| 1 | Clean Double-Cut Funk | Electric | Double-Cut |
+| 2 | T-Style Country Twang | Electric | T-Style |
+| 3 | Single-Cut Crunch | Electric | Single-Cut |
+| 4 | Modern Metal Chug | Electric | 7-string |
+| 5 | Jazz Hollowbody | Electric | Semi-Hollow |
+| 6 | Blues Slide | Electric | Resonator |
+| 7 | Shred Lead | Electric | Superstrat |
+| 8 | Germanium Fuzz Lead | Electric | Double-Cut |
+| 9 | Surf Reverb | Electric | Offset |
+| 10 | Semi-Hollow Chime | Electric | Semi-Hollow |
+| 11 | Drop C Riff | Electric | Baritone |
+| 12 | Wah Funk Rhythm | Electric | Double-Cut |
+| 13 | Octave Fuzz Stoner | Electric | Double-Horn |
+| 14 | Ambient Swell | Electric | Double-Cut |
+| 15 | 8-String Djent | Electric | 8-string |
+| 16 | Rockabilly Slap | Electric | T-Style |
+| 17 | Tapping Etude | Electric | Superstrat |
+| 18 | Fingerstyle Folk | Acoustic | Dreadnought |
+| 19 | Strummed Dreadnought | Acoustic | Dreadnought |
+| 20 | Parlor Blues | Acoustic | Parlor |
+| 21 | 12-String Jangle | Acoustic | 12-string |
+| 22 | Nylon Classical | Classical | Classical |
+| 23 | Flamenco Rasgueado | Classical | Flamenco |
+| 24 | Nashville High-Strung | Acoustic | Auditorium |
+| 25 | DADGAD Drone | Acoustic | Dreadnought |
+| 26 | Jumbo Bluegrass | Acoustic | Jumbo |
+| 27 | P-Bass Flatwound | Bass | P-style bass |
+| 28 | J-Style Fingerstyle | Bass | J-style bass |
+| 29 | Fretless Mwah | Bass | Fretless bass |
+| 30 | Violin Bass Grind | Bass | Violin bass |
+| 31 | 5-String Low B | Bass | 5-string bass |
+| 32 | Init | Utility | Type default |
+| 33 | Dry Instrument | Utility | Double-Cut |
+| 34 | Physics Showcase | Utility | Dreadnought |
+| 35 | Transposing Trem Chords | Utility | Custom |
+| 36 | Microtonal Just | Utility | Auditorium |
+
+Distribution: 17 electric, 9 acoustic and classical, 5 bass, 5 utility.
+Init and Dry Instrument are utilities, not showcase presets. Regional and
+genre gaps (reggae, indie, punk, bass funk/jazz) are tracked in
+`docs/audit/SPEC_SWEEP.md` FC-4 as post-beta additions.
 
 ## 2. Factory guitars (12 `.luthierguitar` files)
 
@@ -255,17 +265,21 @@ style, setup style, and string-noise style.
 Every entry references only factory presets so the setlist works
 on a fresh install.
 
-## 8. Backing tracks (6 WAV files)
+## 8. Backing tracks (6 FLAC loops)
 
-Royalty-free, produced for the plugin. Under
-`Resources/Practice/BackingTracks/`.
+Original loops rendered by Luthier itself (the guitar and bass are Luthier
+playing generated MIDI through factory presets; the drum kit is synthesised),
+so nothing is third-party. `scripts/make_backing_tracks.py` regenerates them.
+Under `Resources/Practice/BackingTracks/`, listed by the Practice drawer's
+track tab (`Factory...`) and `Practice/BackingTrackLibrary`. Each is a
+32 kHz 16-bit stereo FLAC loop of 30-60 s (whole set well under 15 MB).
 
-1. 12-Bar Blues in E (120 bpm, 3 min)
-2. Funk Groove in D (100 bpm, 4 min)
-3. Bossa Nova in Bb (140 bpm, 3 min)
-4. Rock Jam in A (140 bpm, 3 min)
-5. Country Shuffle in G (110 bpm, 3 min)
-6. Ambient Pad in Am (60 bpm, 5 min)
+1. 12-Bar Blues in A (120 bpm, shuffle, 24 bars)
+2. Pop I-V-vi-IV in G (100 bpm, 16 bars)
+3. Minor Rock in E (120 bpm, 16 bars)
+4. Funk in E9 (100 bpm, 16 bars)
+5. Ballad in C (68 bpm, 12 bars)
+6. Metal Riff in Drop D (140 bpm, 24 bars)
 
 ## 9. Example MIDI clips (12 files)
 
@@ -279,6 +293,13 @@ to 32-bar riff or progression suitable for the kit.
 - 504 cabinet IRs: 10 cabinets * 8 speakers * multiple mic
   positions and axes. All generated deterministically by
   `scripts/make_irs.py`.
+- (mic-placement.md, FEAT-MIC): the engine loads only each cabinet /
+  speaker's anchor IR (Cap Edge, 2.5 cm) and places the mic with a DSP
+  stage; the other positions are browsable user-IR content. Factory
+  presets keep their legacy mic keys, which migrate on load. Acoustic
+  presets could set `ac_mic_mix` ~0.5 to show the external mics; that is
+  left to this spec's next content pass, since the shipped presets must
+  sound as before (mic-placement.md MP-20).
 
 ## 11. Content update packs (post-release)
 
@@ -318,3 +339,4 @@ included, scaled).
 - Every backing track streams at 48 kHz without dropouts.
 - Legal review sign-off recorded for every named entry.
 - Content-size gate: total factory content <= 200 MB compressed.
+- Factory preset previews (preset-browser-previews.md 2): 36 Ogg clips, 3 MB or less, rendered by `scripts/render_previews.sh` at build time and counted in the 200 MB.

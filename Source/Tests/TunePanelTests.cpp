@@ -191,6 +191,22 @@ LUTHIER_TEST (TunePanel, theSectionStripsMenuRenamesDuplicatesRepeatsTagsLinksAn
     CHECK (strip.buildMenu (0).getNumItems() > 0);
 }
 
+LUTHIER_TEST (TunePanel, deletingTheOnlySectionPostsARefusalWithoutAnEdit)
+{
+    Fixture f;
+    auto& strip = f.panel->getSectionStrip();
+    int refusals = 0;
+    strip.onLastSectionDeleteRefused = [&refusals] { ++refusals; };
+
+    const auto before = f.session.getTune().arrangement;
+    const int undoSteps = f.session.getNumUndoSteps();
+    strip.performMenuItem (0, TuneSectionStrip::deleteItem);
+
+    CHECK (refusals == 1);
+    CHECK (f.session.getTune().arrangement == before);
+    CHECK (f.session.getNumUndoSteps() == undoSteps);
+}
+
 LUTHIER_TEST (TunePanel, theRhythmStripSetsTheSectionsKitFeelStrumAndOn)
 {
     Fixture f;
@@ -597,4 +613,26 @@ LUTHIER_TEST (TunePanel, rendersWithTheLookAndFeel)
     CHECK (varied);
 
     f.panel->setLookAndFeel (nullptr);
+}
+
+// action-and-undo.md 3.9: drawing and deleting the same note within 200 ms is
+// one melody entry; a different note is its own.
+LUTHIER_TEST (TunePanel, melodyNoteEditsGroupOnTheSameNote)
+{
+    Fixture f;
+    double now = 5000.0;
+    f.session.setClock ([&now] { return now; });
+
+    auto& roll = f.panel->getPianoRoll();
+    const int before = f.session.getNumUndoSteps();
+
+    CHECK (roll.addNote (1.0, 60, 0.5));
+    now += 100.0;
+    CHECK (roll.deleteNoteAt (1.1, 60));
+    CHECK_MSG (f.session.getNumUndoSteps() == before + 1,
+               "draw + delete of one note made " + juce::String (f.session.getNumUndoSteps() - before) + " entries");
+
+    now += 100.0;
+    CHECK (roll.addNote (2.0, 64, 0.5));
+    CHECK (f.session.getNumUndoSteps() == before + 2);
 }

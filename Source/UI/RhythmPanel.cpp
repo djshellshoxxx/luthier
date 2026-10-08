@@ -1,5 +1,8 @@
 #include "RhythmPanel.h"
 #include "../PluginProcessor.h"
+#include "../PluginEditor.h"   // FEAT-ASSIST: the PLAYING group's ?
+#include "MuteGroup.h"                  // TECHNIQUES: the Mute Row
+#include "Techniques/TechniqueUi.h"
 
 namespace luthier
 {
@@ -193,14 +196,30 @@ void StrumGrid::mouseDown (const juce::MouseEvent& event)
     repaint();
 }
 
-void StrumGrid::showStepMenu (int step)
+namespace
 {
-    auto cell = pattern.getStrumStep (step);
+    // SPEC-SWEEP (RE-33): shared by building the step menu and applying it.
+    constexpr int kStepDynamics[] = { 100, 85, 70, 55, 40 };
+
+    struct StepMask { const char* name; uint16_t mask; };
+    constexpr StepMask kStepMasks[] = {
+        { "All strings",   0x0FFF },
+        { "Top three",     0x0007 },
+        { "Middle three",  0x001C },
+        { "Low strings",   0x0FF8 },
+        { "Bass pair",     0x0FF0 }
+    };
+}
+
+juce::PopupMenu StrumGrid::buildStepMenu (int step) const
+{
+    const auto cell = pattern.getStrumStep (step);
+    const auto& dynamics = kStepDynamics;
+    const auto& masks = kStepMasks;
 
     juce::PopupMenu menu;
 
     juce::PopupMenu dynamicMenu;
-    const int dynamics[] = { 100, 85, 70, 55, 40 };
 
     for (int i = 0; i < 5; ++i)
         dynamicMenu.addItem (100 + i, juce::String (dynamics[i]) + "%", true,
@@ -209,13 +228,6 @@ void StrumGrid::showStepMenu (int step)
     menu.addSubMenu ("Dynamic", dynamicMenu);
 
     juce::PopupMenu maskMenu;
-    struct { const char* name; uint16_t mask; } masks[] = {
-        { "All strings",   0x0FFF },
-        { "Top three",     0x0007 },
-        { "Middle three",  0x001C },
-        { "Low strings",   0x0FF8 },
-        { "Bass pair",     0x0FF0 }
-    };
 
     for (int i = 0; i < 5; ++i)
         maskMenu.addItem (200 + i, masks[i].name, true, cell.stringMask == masks[i].mask);
@@ -225,29 +237,45 @@ void StrumGrid::showStepMenu (int step)
     menu.addSeparator();
     menu.addItem (300, "Clear this step", ! cell.isRest());
 
-    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this),
-                        [this, step, dynamics, masks] (int result)
+    return menu;
+}
+
+void StrumGrid::applyStepMenuResult (int step, int result)
+{
+    if (result == 0 || ! juce::isPositiveAndBelow (step, pattern.getLength()))
+        return;
+
+    auto edited = pattern.getStrumStep (step);
+
+    if (result >= 100 && result < 105)
+        edited.dynamic = kStepDynamics[result - 100] / 100.0;
+    else if (result >= 200 && result < 205)
+        edited.stringMask = kStepMasks[result - 200].mask;
+    else if (result == 300)
+        edited = StrumStep {};
+    else
+        return;
+
+    pattern.setStrumStep (step, edited);
+    commit();
+    repaint();
+}
+
+void StrumGrid::showStepMenu (int step)
+{
+    juce::Component::SafePointer<StrumGrid> safe (this);
+
+    buildStepMenu (step).showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this),
+                                        [safe, step] (int result)
     {
-        if (result == 0)
-            return;
-
-        auto edited = pattern.getStrumStep (step);
-
-        if (result >= 100 && result < 105)
-            edited.dynamic = dynamics[result - 100] / 100.0;
-        else if (result >= 200 && result < 205)
-            edited.stringMask = masks[result - 200].mask;
-        else if (result == 300)
-            edited = StrumStep {};
-
-        pattern.setStrumStep (step, edited);
-        commit();
-        repaint();
+        if (safe != nullptr)
+            safe->applyStepMenuResult (step, result);
     });
 }
 
 void StrumGrid::commit()
 {
+    processor.pushUndoAction ("Edit strum pattern", "rhythm-pattern", "strum");   // gui-integration 18
     processor.getEngine().getRhythmEngine().setPattern (pattern);
 
     if (onPatternEdited != nullptr)
@@ -382,6 +410,7 @@ void FingerpickGrid::mouseDown (const juce::MouseEvent& event)
 
 void FingerpickGrid::commit()
 {
+    processor.pushUndoAction ("Edit fingerpick pattern", "rhythm-pattern", "fingerpick");   // gui-integration 18
     processor.getEngine().getRhythmEngine().setPattern (pattern);
 
     if (onPatternEdited != nullptr)
@@ -587,6 +616,7 @@ RhythmPanel::RhythmPanel (LuthierAudioProcessor& p)
 {
     buildGenreControls();
     buildVoicingControls();
+    buildGridControls();   // SPEC-SWEEP RE-22
 
     strumGrid = std::make_unique<StrumGrid> (processor);
     fingerpickGrid = std::make_unique<FingerpickGrid> (processor);
@@ -595,6 +625,23 @@ RhythmPanel::RhythmPanel (LuthierAudioProcessor& p)
     fingerpickGrid->onPatternEdited = [this] { refreshFromEngine(); };
 
     addAndMakeVisible (*strumGrid);
+
+    // gui-techniques-updates.md 6 (TECHNIQUES): the Mute Row, one cell per step.
+    // A pattern without mute_type shows all open; painting writes the pattern.
+    muteRow = std::make_unique<MuteGridEditor>();
+    muteRow->getNumCells = [this] { return processor.getEngine().getRhythmEngine().getPattern().getLength(); };
+    muteRow->getCell = [this] (int i) { return processor.getEngine().getRhythmEngine().getPattern().getMuteStep (i).type; };
+    muteRow->setCell = [this] (int i, MuteType t) { TechniqueUndo::paintPatternMuteStep (processor, i, t); };
+    muteRow->setBrush (MuteType::palmHeavy);
+    muteRow->setTooltip ("Mute Row: each step's mute (muting-rhythm). Click or drag paints palm mute heavy; "
+                         "right-click a cell for any type.");
+    AccessibleSetup::configureDescriptive (*muteRow, "Mute Row", "The pattern's mute type per step");
+    addAndMakeVisible (*muteRow);
+
+    muteRowLabel.setText ("MUTE ROW", juce::dontSendNotification);
+    muteRowLabel.setFont (Fonts::ui (10.0f, true));
+    muteRowLabel.setColour (juce::Label::textColourId, Palette::textMuted);
+    addAndMakeVisible (muteRowLabel);
     addAndMakeVisible (*fingerpickGrid);
 
     buildFeelControls();
@@ -603,7 +650,51 @@ RhythmPanel::RhythmPanel (LuthierAudioProcessor& p)
     strumGroup = std::make_unique<StrumGroup> (processor);
     addAndMakeVisible (*strumGroup);
 
+    // bass-techniques 9 (MODEL-GAPS): the bass step grid appears on a bass, and
+    // the panel grows or shrinks by its height.
+    // auto-articulation.md 7.2 (FEAT-ASSIST): PLAYING, above the enable row.
+    playingGroup = std::make_unique<PerformanceAssistGroup> (processor);
+    playingGroup->onLayoutChanged = [this]
+    {
+        if (getHeight() > 0)
+            setSize (getWidth(), preferredHeight());
+
+        resized();
+    };
+    playingGroup->onHelp = [this]
+    {
+        if (auto* editor = findParentComponentOfClass<LuthierAudioProcessorEditor>())
+            editor->openHelpTopic ("performance-assist");
+    };
+    addAndMakeVisible (*playingGroup);
+
+    bassGridGroup = std::make_unique<BassGridGroup> (processor);
+    addChildComponent (*bassGridGroup);
+    bassGridGroup->onShownChanged = [this]
+    {
+        if (getHeight() > 0)
+            setSize (getWidth(), preferredHeight());
+
+        resized();
+    };
+
     buildBrowser();
+
+    // accessibility 1 (A11Y-47): the plain JUCE boxes and sliders here carry
+    // no parameter attachment, so they are named for screen readers by hand.
+    AccessibleSetup::configureComboBox (genreBox, "Genre kit");
+    AccessibleSetup::configureComboBox (styleBox, "Voicing style");
+    AccessibleSetup::configureSlider (densitySlider, "Voicing density", " percent");
+    AccessibleSetup::configureSlider (handPositionSlider, "Hand position", " fret");
+    AccessibleSetup::configureSlider (handSpanSlider, "Hand span", " frets");
+    AccessibleSetup::configureComboBox (lengthBox, "Pattern length");
+    AccessibleSetup::configureComboBox (subdivisionBox, "Pattern grid");
+    AccessibleSetup::configureSlider (swingSlider, "Swing");
+    AccessibleSetup::configureSlider (timingSlider, "Timing jitter");
+    AccessibleSetup::configureSlider (velocitySlider, "Velocity jitter");
+    AccessibleSetup::configureSlider (missSlider, "Miss chance");
+    AccessibleSetup::configureSlider (ghostSlider, "Ghost stroke chance");
+    AccessibleSetup::configureComboBox (tagFilterBox, "Pattern tag filter");
 
     indicators = std::make_unique<RhythmIndicators> (processor);
     addAndMakeVisible (*indicators);
@@ -622,12 +713,12 @@ RhythmPanel::RhythmPanel (LuthierAudioProcessor& p)
     refreshFromEngine();
     refreshBrowserList();
 
-    startTimerHz (20);
+    motion.startTimerHz (*this, 20);
 }
 
 RhythmPanel::~RhythmPanel()
 {
-    stopTimer();
+    motion.stopTimer();
 }
 
 RhythmEngine& RhythmPanel::rhythm()
@@ -648,6 +739,7 @@ void RhythmPanel::buildGenreControls()
         if (updatingControls)
             return;
 
+        processor.pushUndoState ("Turn rhythm engine on/off");   // action-and-undo.md (rhythm settings)
         rhythm().setEnabled (enableToggle->getButton().getToggleState());
     };
 
@@ -660,8 +752,11 @@ void RhythmPanel::buildGenreControls()
                               "transport is stopped.");
     freeRunButton.onClick = [this]
     {
-        if (! updatingControls)
-            rhythm().setFreeRun (freeRunButton.getToggleState());
+        if (updatingControls)
+            return;
+
+        processor.pushUndoState ("Toggle rhythm free-run");   // action-and-undo.md (rhythm settings)
+        rhythm().setFreeRun (freeRunButton.getToggleState());
     };
     addAndMakeVisible (freeRunButton);
 
@@ -697,40 +792,111 @@ void RhythmPanel::buildVoicingControls()
 
     styleBox.onChange = [this]
     {
-        if (! updatingControls)
-            rhythm().setVoicingStyle ((VoicingStyle) (styleBox.getSelectedId() - 1));
+        if (updatingControls)
+            return;
+
+        processor.pushUndoAction ("Change voicing style", "rhythm-setting", "voicingStyle");   // action-and-undo.md (rhythm settings)
+        rhythm().setVoicingStyle ((VoicingStyle) (styleBox.getSelectedId() - 1));
     };
     addAndMakeVisible (styleBox);
 
     styleValueSlider (densitySlider, 0.0, 100.0, 1.0, " %");
     densitySlider.onValueChange = [this]
     {
-        if (! updatingControls)
-            rhythm().setVoicingDensity (densitySlider.getValue());
+        if (updatingControls)
+            return;
+
+        processor.pushUndoAction ("Change voicing density", "rhythm-setting", "density");   // action-and-undo.md (rhythm settings)
+        rhythm().setVoicingDensity (densitySlider.getValue());
     };
     addAndMakeVisible (densitySlider);
 
     styleValueSlider (handPositionSlider, 0.0, 22.0, 1.0, " fr");
     handPositionSlider.onValueChange = [this]
     {
-        if (! updatingControls)
-            rhythm().setHandPositionHint ((int) handPositionSlider.getValue());
+        if (updatingControls)
+            return;
+
+        processor.pushUndoAction ("Change hand position", "rhythm-setting", "handPosition");   // action-and-undo.md (rhythm settings)
+        rhythm().setHandPositionHint ((int) handPositionSlider.getValue());
     };
     addAndMakeVisible (handPositionSlider);
+
+    // SPEC-SWEEP (RE-12): how far the hand may stretch.
+    styleValueSlider (handSpanSlider, 3.0, 7.0, 1.0, " fr span");
+    handSpanSlider.setTooltip ("Hand span: the widest stretch, in frets, a voicing may use.");
+    handSpanSlider.onValueChange = [this]
+    {
+        if (! updatingControls)
+            rhythm().setHandSpan ((int) handSpanSlider.getValue());
+    };
+    addAndMakeVisible (handSpanSlider);
 
     capoLabel.setFont (juce::Font (juce::FontOptions (11.0f)).boldened());
     capoLabel.setColour (juce::Label::textColourId, Palette::textPrimary);
     capoLabel.setJustificationType (juce::Justification::centred);
     addAndMakeVisible (capoLabel);
 
-    capoDown.onClick = [this] { rhythm().setCapoFret (rhythm().getCapoFret() - 1); refreshFromEngine(); };
-    capoUp.onClick   = [this] { rhythm().setCapoFret (rhythm().getCapoFret() + 1); refreshFromEngine(); };
+    // SPEC-SWEEP (UW-2): the capo is the capo_fret parameter; writing the tuning
+    // engine from here raced the audio thread and was undone by the bridge.
+    // action-and-undo (integration): one "Change rhythm capo" entry per press.
+    auto moveCapo = [this] (int delta)
+    {
+        if (auto* p = processor.getState().getParameter (ParamIDs::capoFret))
+        {
+            processor.pushUndoAction ("Change rhythm capo", "rhythm-setting", "capo");
+            const int wanted = juce::jlimit (0, 12, rhythm().getCapoFret() + delta);
+            p->setValueNotifyingHost (p->convertTo0to1 ((float) wanted));
+        }
+
+        refreshFromEngine();
+    };
+
+    capoDown.onClick = [moveCapo] { moveCapo (-1); };
+    capoUp.onClick   = [moveCapo] { moveCapo (+1); };
 
     capoDown.setTooltip ("Move the capo down a fret.");
     capoUp.setTooltip ("Move the capo up a fret.");
 
     addAndMakeVisible (capoDown);
     addAndMakeVisible (capoUp);
+}
+
+// SPEC-SWEEP (RE-22, rhythm-engine 8.3): pattern length and subdivision.
+void RhythmPanel::buildGridControls()
+{
+    for (int length : { 4, 6, 8, 12, 16, 24, 32 })
+        lengthBox.addItem (juce::String (length) + " steps", length);
+
+    for (int i = 0; i < (int) Subdivision::numSubdivisions; ++i)
+        subdivisionBox.addItem (juce::String ("1/") + getSubdivisionName ((Subdivision) i), i + 1);
+
+    lengthBox.setTooltip ("Pattern length in grid steps. The grids show the first 16.");
+    subdivisionBox.setTooltip ("Grid: eighths, sixteenths, triplets, dotted notes or thirty-seconds.");
+
+    auto push = [this]
+    {
+        if (updatingControls)
+            return;
+
+        auto pattern = rhythm().getPattern();
+
+        if (lengthBox.getSelectedId() > 0)
+            pattern.setLength (lengthBox.getSelectedId());
+
+        if (subdivisionBox.getSelectedId() > 0)
+            pattern.setSubdivision ((Subdivision) (subdivisionBox.getSelectedId() - 1));
+
+        rhythm().setPattern (pattern);
+        strumGrid->refresh();
+        fingerpickGrid->refresh();
+    };
+
+    lengthBox.onChange = push;
+    subdivisionBox.onChange = push;
+
+    addAndMakeVisible (lengthBox);
+    addAndMakeVisible (subdivisionBox);
 }
 
 void RhythmPanel::buildFeelControls()
@@ -744,6 +910,7 @@ void RhythmPanel::buildFeelControls()
 
         // Swing lives in the pattern rather than in the engine, because it is a
         // property of the figure being played.
+        processor.pushUndoAction ("Change swing", "rhythm-pattern", "swing");   // gui-integration 18
         auto pattern = rhythm().getPattern();
         pattern.setSwing (swingSlider.getValue() / 100.0);
         rhythm().setPattern (pattern);
@@ -822,6 +989,7 @@ void RhythmPanel::applySelectedKit()
     if (! juce::isPositiveAndBelow (index, processor.getGenreKits().getNumKits()))
         return;
 
+    processor.pushUndoState ("Apply genre kit " + genreBox.getText());   // action-and-undo.md (rhythm settings)
     const auto preferredPreset = processor.applyGenreKit (index);
 
     // rhythm-engine 7: the rig is a suggestion. It is named, never loaded.
@@ -848,6 +1016,7 @@ void RhythmPanel::randomiseWithinStyle()
     if (patternIndex < 0)
         return;
 
+    processor.pushUndoState ("Randomise rhythm pattern");   // gui-integration 18
     rhythm().setPattern (processor.getPatternLibrary().getPattern (patternIndex));
     refreshFromEngine();
 }
@@ -880,6 +1049,7 @@ void RhythmPanel::loadSelectedPattern()
     if (! juce::isPositiveAndBelow (row, visiblePatterns.size()))
         return;
 
+    processor.pushUndoState ("Load rhythm pattern");   // gui-integration 18
     rhythm().setPattern (processor.getPatternLibrary().getPattern (visiblePatterns[row]));
     refreshFromEngine();
 }
@@ -919,6 +1089,8 @@ void RhythmPanel::pushHumaniseToEngine()
     if (updatingControls)
         return;
 
+    processor.pushUndoAction ("Change humanise", "rhythm-setting", "humanise");   // action-and-undo.md (rhythm settings)
+
     auto humanise = rhythm().getHumanise();
 
     humanise.timingMs        = timingSlider.getValue();
@@ -941,6 +1113,13 @@ void RhythmPanel::refreshFromEngine()
     styleBox.setSelectedId ((int) engine.getVoicingStyle() + 1, juce::dontSendNotification);
     densitySlider.setValue (engine.getVoicingDensity(), juce::dontSendNotification);
     handPositionSlider.setValue (engine.getHandPositionHint(), juce::dontSendNotification);
+    handSpanSlider.setValue (engine.getHandSpan(), juce::dontSendNotification);   // SPEC-SWEEP RE-12
+
+    {   // SPEC-SWEEP RE-22
+        const auto current = engine.getPattern();
+        lengthBox.setSelectedId (current.getLength(), juce::dontSendNotification);
+        subdivisionBox.setSelectedId ((int) current.getSubdivision() + 1, juce::dontSendNotification);
+    }
 
     const int capo = engine.getCapoFret();
     capoLabel.setText (capo == 0 ? "Capo: off" : "Capo: fret " + juce::String (capo),
@@ -956,8 +1135,10 @@ void RhythmPanel::refreshFromEngine()
     ghostSlider.setValue (humanise.ghostPercent, juce::dontSendNotification);
 
     strumGrid->refresh();
+    muteRow->repaint();   // TECHNIQUES
     fingerpickGrid->refresh();
     strumGroup->refresh();
+    bassGridGroup->refresh();
 }
 
 //==============================================================================
@@ -966,6 +1147,7 @@ void RhythmPanel::timerCallback()
     const int step = rhythm().getCurrentStep();
 
     strumGrid->setPlayingStep (step);
+    muteRow->setPlayingCell (step);   // TECHNIQUES
     fingerpickGrid->setPlayingStep (step);
 
     indicators->refresh();
@@ -986,14 +1168,17 @@ void RhythmPanel::timerCallback()
 //==============================================================================
 int RhythmPanel::preferredHeight() const
 {
-    return 14 + Metrics::buttonHeight            // enable row
+    return (playingGroup != nullptr ? playingGroup->preferredHeight() + 4 : 0)   // PLAYING (FEAT-ASSIST)
+         + 14 + Metrics::buttonHeight            // enable row
          + 16 + 26                               // genre heading + kit row
          + 12                                    // rig hint
-         + 16 + 26 + 22 + 22 + 26                // voicing heading + controls
-         + 16 + StrumGrid::preferredHeight       // strum grid
+         + 16 + 26 + 22 + 22 + 22 + 26           // voicing heading + controls (+ hand span, RE-12)
+         + 16 + 24 + 2 + StrumGrid::preferredHeight   // strum grid (+ length/grid row, RE-22)
+         + 14 + MuteGridEditor::preferredHeight + 2   // Mute Row (TECHNIQUES)
          + 16 + FingerpickGrid::preferredHeight  // fingerpick grid
          + 16 + 22 * 5                           // feel heading + five sliders
          + StrumGroup::preferredHeight + 4       // STRUM group
+         + (bassGridGroup != nullptr && bassGridGroup->isShown() ? bassGridGroup->preferredHeight() + 4 : 0)   // BASS GRID
          + 16 + 26 + 96 + 26                     // browser heading, filter, list, buttons
          + RhythmIndicators::preferredHeight
          + 24;
@@ -1001,6 +1186,8 @@ int RhythmPanel::preferredHeight() const
 
 void RhythmPanel::paint (juce::Graphics& g)
 {
+    AnimationPolicy::notePaint (*this);   // cpu-quality-modes 6
+
     g.setColour (Palette::panel);
     g.fillRoundedRectangle (getLocalBounds().toFloat(), 4.0f);
 
@@ -1018,6 +1205,10 @@ void RhythmPanel::resized()
         bounds.removeFromTop (gap);
         return r;
     };
+
+    // ---- PLAYING (auto-articulation.md 7.2, FEAT-ASSIST) ----------------------------
+    if (playingGroup != nullptr)
+        playingGroup->setBounds (row (playingGroup->preferredHeight(), 4));
 
     // ---- enable ------------------------------------------------------------------
     {
@@ -1044,6 +1235,7 @@ void RhythmPanel::resized()
     styleBox.setBounds (row (26));
     densitySlider.setBounds (row (22));
     handPositionSlider.setBounds (row (22));
+    handSpanSlider.setBounds (row (22));   // SPEC-SWEEP RE-12
     {
         auto r = row (26);
         capoDown.setBounds (r.removeFromLeft (30));
@@ -1053,7 +1245,15 @@ void RhythmPanel::resized()
 
     // ---- pattern editors -----------------------------------------------------------
     strumHeading.setBounds (row (16));
+    {   // SPEC-SWEEP RE-22
+        auto r = row (24);
+        lengthBox.setBounds (r.removeFromLeft (r.getWidth() / 2 - 2));
+        r.removeFromLeft (4);
+        subdivisionBox.setBounds (r);
+    }
     strumGrid->setBounds (row (StrumGrid::preferredHeight));
+    muteRowLabel.setBounds (row (14, 0));                          // TECHNIQUES
+    muteRow->setBounds (row (MuteGridEditor::preferredHeight));
 
     pickHeading.setBounds (row (16));
     fingerpickGrid->setBounds (row (FingerpickGrid::preferredHeight));
@@ -1068,6 +1268,10 @@ void RhythmPanel::resized()
 
     // ---- strum (strum-dynamics 6.3) ----------------------------------------------
     strumGroup->setBounds (row (StrumGroup::preferredHeight, 4));
+
+    // ---- bass step grid (bass-techniques 9, MODEL-GAPS) ----------------------------
+    if (bassGridGroup->isShown())
+        bassGridGroup->setBounds (row (bassGridGroup->preferredHeight(), 4));
 
     // ---- browser -----------------------------------------------------------------
     browserHeading.setBounds (row (16));

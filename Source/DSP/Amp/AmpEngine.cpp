@@ -1,4 +1,5 @@
 #include "AmpEngine.h"
+#include "../../Support/QualityProfile.h"
 
 namespace luthier
 {
@@ -101,11 +102,23 @@ void AmpEngine::prepare (double sampleRate, int /*maxBlockSize*/)
     warmupGain.snapTo (standby ? 0.0 : 1.0);
 
     updateVoicing();
+
+    // cpu-quality-modes 2.2: the pad and the crossfade's old path, made here
+    // on the message thread so a factor change never allocates.
+    nominalFactor = 4;
+    latencyPad.setLength (0);
+
+    if (twin.engine == nullptr)
+        twin.engine = std::make_shared<AmpEngine>();
+
     reset();
 }
 
 void AmpEngine::reset() noexcept
 {
+    latencyPad.reset();
+    history.reset();
+    fadeLeft = 0;
     oversampler.reset();
     toneStack.reset();
     brightShelf.reset();
@@ -149,6 +162,7 @@ void AmpEngine::setModel (AmpModel m) noexcept
 void AmpEngine::updateVoicing() noexcept
 {
     voicing = getVoicing (model);
+    stageRest = tubeShape (0.0, voicing.stageBias);   // qa-polish.md 5.10
 
     if (model == AmpModel::Custom)
     {
@@ -265,8 +279,10 @@ void AmpEngine::setCustomToneStackStyle (int style) noexcept
         updateVoicing();
 }
 
-void AmpEngine::setOversamplingFactor (int factor) noexcept
+void AmpEngine::retuneForFactor (int factor) noexcept
 {
+    // cpu-quality-modes 2.2: the oversampled-rate filters keep their state and
+    // only their coefficients move to the new rate.
     oversampler.setFactor (factor);
     const double newRate = oversampler.getOversampledRate();
 
@@ -275,18 +291,18 @@ void AmpEngine::setOversamplingFactor (int factor) noexcept
 
     osRate = newRate;
 
-    toneStack.prepare (osRate);
+    toneStack.setSampleRateKeepingState (osRate);
 
     for (int i = 0; i < kMaxStages; ++i)
     {
-        stageCoupling[i].prepare (osRate);
-        stageSmoothing[i].prepare (osRate);
+        stageCoupling[i].setSampleRateKeepingState (osRate);
+        stageSmoothing[i].setSampleRateKeepingState (osRate);
     }
 
-    piCoupling.prepare (osRate);
-    transformerHf.prepare (osRate);
-    transformerLf.prepare (osRate);
-    sagFollower.prepare (osRate);
+    piCoupling.setSampleRateKeepingState (osRate);
+    transformerHf.setSampleRateKeepingState (osRate);
+    transformerLf.setSampleRateKeepingState (osRate);
+    sagFollower.setSampleRateKeepingState (osRate);
 
     sagAttack = std::exp (-1.0 / (0.020 * osRate));
     sagRelease = std::exp (-1.0 / (0.350 * osRate));
@@ -295,13 +311,92 @@ void AmpEngine::setOversamplingFactor (int factor) noexcept
     updateVoicing();
 }
 
+void AmpEngine::setOversamplingFactor (int effective, int nominal, bool crossfade) noexcept
+{
+    auto clampFactor = [] (int f) { return f >= 8 ? 8 : f >= 4 ? 4 : f >= 2 ? 2 : 1; };
+    nominal = clampFactor (nominal);
+    effective = juce::jmin (clampFactor (effective), nominal);
+    nominalFactor = nominal;
+
+    const int padLength = Oversampler::latencyFor (nominal) - Oversampler::latencyFor (effective);
+
+    if (effective == oversampler.getFactor())
+    {
+        latencyPad.setLength (padLength);
+        return;
+    }
+
+    if (! crossfade || twin.engine == nullptr)
+    {
+        // A hard switch: exactly what a factor change always did.
+        fadeLeft = 0;
+        oversampler.setFactor (effective);
+        const double newRate = oversampler.getOversampledRate();
+
+        if (std::abs (newRate - osRate) >= 1.0)
+        {
+            osRate = newRate;
+            toneStack.prepare (osRate);
+
+            for (int i = 0; i < kMaxStages; ++i)
+            {
+                stageCoupling[i].prepare (osRate);
+                stageSmoothing[i].prepare (osRate);
+            }
+
+            piCoupling.prepare (osRate);
+            transformerHf.prepare (osRate);
+            transformerLf.prepare (osRate);
+            sagFollower.prepare (osRate);
+
+            sagAttack = std::exp (-1.0 / (0.020 * osRate));
+            sagRelease = std::exp (-1.0 / (0.350 * osRate));
+            sagFollower.setTimes (0.008, 0.220);
+
+            updateVoicing();
+        }
+
+        latencyPad.setLength (padLength);
+        return;
+    }
+
+    // The old path carries on in the twin, exactly as it was (no allocation:
+    // the twin was made in prepare and this is a plain copy).
+    *twin.engine = *this;
+    twin.engine->fadeLeft = 0;
+
+    // The new path: same state, new rate, primed from the recent input so the
+    // half-band filters are not starting from silence.
+    retuneForFactor (effective);
+    oversampler.reset();
+
+    for (int i = 0; i < InputHistory::kSize; ++i)
+    {
+        double work[Oversampler::kMaxFactor];
+        oversampler.up (history.get (i), work);
+        oversampler.down (work);
+    }
+
+    latencyPad.setLength (padLength);
+
+    // A pad whose length changed restarts empty; the crossfade starts on the
+    // old path, so those few samples are not heard.
+    fadeTotal = juce::jmax (1, (int) std::round (QualityProfile::kOversamplerFadeSeconds * sr))
+                  + QualityProfile::kSwitchSettleSamples;
+    fadeLeft = fadeTotal;
+}
+
 //==============================================================================
 inline double AmpEngine::preampStage (double x, int stageIndex) noexcept
 {
     // Asymmetric transfer curve: a triode clips the two halves of the waveform
     // differently, which is what generates the even harmonics that make tube
     // distortion sound warm rather than buzzy.
-    double y = tubeShape (x, voicing.stageBias);
+    // qa-polish.md 5.10: less the curve's resting point. The coupling cap below
+    // removes that constant anyway once it has settled, so the steady-state
+    // sound is unchanged; without the subtraction a cold start stepped from 0
+    // to the bias point and the cascade amplified the step into a thump.
+    double y = tubeShape (x, voicing.stageBias) - stageRest;
 
     // Cathode bypass cap: a low-mid lift on each stage.
     y = stageEq[stageIndex].process (y);
@@ -367,6 +462,23 @@ inline double AmpEngine::powerAmpStage (double x) noexcept
 //==============================================================================
 double AmpEngine::processSample (double x) noexcept
 {
+    history.push (x);
+
+    if (fadeLeft > 0)
+    {
+        // cpu-quality-modes 2.2: both paths for 10 ms under a linear crossfade.
+        const double oldOut = twin.engine->latencyPad.process (twin.engine->processCore (x));
+        const double newOut = latencyPad.process (processCore (x));
+        const double t = juce::jlimit (0.0, 1.0, 1.0 - (double) fadeLeft / (double) (fadeTotal - QualityProfile::kSwitchSettleSamples));
+        --fadeLeft;
+        return sanitise (oldOut * (1.0 - t) + newOut * t);
+    }
+
+    return latencyPad.process (processCore (x));
+}
+
+double AmpEngine::processCore (double x) noexcept
+{
     const double warm = warmupGain.next();
 
     if (warm <= 1.0e-5)
@@ -379,11 +491,29 @@ double AmpEngine::processSample (double x) noexcept
     // here are clean, which matches where the useful range sits on the real thing.
     // Past the knob's end (advanced ranges) the gain keeps climbing, more
     // gently: another 24 dB of drive and 12 dB of master at the limit.
-    const double preGainDb = gain <= 1.0 ? juce::jmap (gain, 0.0, 1.0, -6.0, 40.0) : 40.0 + (gain - 1.0) * 24.0;
-    const double postGainDb = master <= 1.0 ? juce::jmap (master, 0.0, 1.0, -40.0, 8.0) : 8.0 + (master - 1.0) * 12.0;
+    // dbToGain() is a std::pow; the drive/master gains are parked most of the
+    // time, so the conversion is cached and only redone when its smoothed input
+    // actually moves. The gain-to-dB map and the pow are a pure function of
+    // `gain` / `master`, so reusing the cached result while the input is
+    // unchanged is bit-exact (a parked ExpSmoother returns its target verbatim).
+    if (gain != cachedGainInput)
+    {
+        cachedGainInput = gain;
+        const double preGainDb = gain <= 1.0 ? juce::jmap (gain, 0.0, 1.0, -6.0, 40.0) : 40.0 + (gain - 1.0) * 24.0;
+        cachedPreGainPow = dbToGain (preGainDb);
+    }
 
-    const double preGain = voicing.inputGain * dbToGain (preGainDb);
-    const double postGain = dbToGain (postGainDb);
+    if (master != cachedMasterInput)
+    {
+        cachedMasterInput = master;
+        const double postGainDb = master <= 1.0 ? juce::jmap (master, 0.0, 1.0, -40.0, 8.0) : 8.0 + (master - 1.0) * 12.0;
+        cachedPostGain = dbToGain (postGainDb);
+    }
+
+    // voicing.inputGain stays out of the cache: it is one cheap multiply, and
+    // leaving it here means a voicing change takes effect at once, with no key.
+    const double preGain = voicing.inputGain * cachedPreGainPow;
+    const double postGain = cachedPostGain;
 
     const int stages = voicing.preampStages;
 

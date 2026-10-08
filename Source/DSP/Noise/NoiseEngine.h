@@ -76,6 +76,16 @@ struct NoiseEvent
     double startHz = 2000.0;
     double endHz = 2000.0;
 
+    /*  string-squeak.md 1: a hand accelerates into a shift and brakes out of
+        it, so a squeak's pitch rises to a peak mid-shift and falls again. > 0
+        bends the glide through this frequency at its middle; 0 is the plain
+        start-to-end glide every other class uses. */
+    double peakHz = 0.0;
+
+    /** string-squeak.md 11: where the finger travelled, frets, for the export. -1 when not a shift. */
+    double fromFret = -1.0;
+    double toFret = -1.0;
+
     /** Resonator Q. */
     double q = 4.0;
 
@@ -238,6 +248,8 @@ public:
         int offset = 0;
         float level = 0.0f;
         float durationMs = 0.0f;
+        float fromFret = -1.0f;   ///< string-squeak.md 11: a squeak's start and end positions
+        float toFret = -1.0f;
     };
 
     static constexpr int kMaxBlockTriggers = 32;
@@ -260,6 +272,12 @@ public:
 
     const std::vector<float>& getTexture (NoiseTexture t) const noexcept { return textures[(size_t) t]; }
 
+    /*  string-squeak.md 5.1: the squeak generators' sum for the last
+        processSample, before any string took it - what an acoustic's mic hears
+        straight from the fingerboard. */
+    double getLastSqueakSample() const noexcept { return lastSqueak; }
+    void clearLastSqueakSample() noexcept { lastSqueak = 0.0; }
+
 private:
     static void synthesiseTexture (std::vector<float>& table, NoiseTexture texture, juce::uint32 seed);
 
@@ -271,6 +289,7 @@ private:
 
     bool degraded = false;
     int activeCount = 0;
+    double lastSqueak = 0.0;
     juce::int64 startCounter = 0;
     juce::uint32 instanceSeed = 0x5eed1234u;
     juce::int64 samplePosition = 0;

@@ -41,8 +41,8 @@ namespace
         theWorkspaceTopicNamesEveryTabThatExists catches it from the real strip. */
     const char* const kCanonicalTabs[] =
     {
-        "WORKSHOP", "MOD", "RHYTHM", "TUNE", "LIVE", "ROUTING", "TONE MATCH", "CHARACTER",
-        "PRACTICE", "NOTATION", "MIDI OUT", "CONTROLLERS", "HELP"
+        "WORKSHOP", "MOD", "RHYTHM", "TUNE", "JAM", "LIVE", "ROUTING", "TONE MATCH", "CHARACTER",
+        "PRACTICE", "NOTATION", "MIDI OUT", "CONTROLLERS", "TECHNIQUES", "HELP"
     };
 
     /*  UiPreferences writes through to the user's real config file, and opening
@@ -201,8 +201,12 @@ LUTHIER_TEST (HelpTab, theContentCoversWhatIncludeMdAsksFor)
 
     // "the license", and its live state.
     CHECK_MSG (about.contains ("LICENCE") && about.contains ("licensed, not sold"), "About has no licence terms");
+   #if LUTHIER_PRO
     CHECK_MSG (about.contains (License::getStateName (processor->getLicense().getState())),
                "About does not show the licence state");
+   #else
+    CHECK_MSG (about.contains ("Luthier Free (no licence needed)"), "About does not show the Free edition");
+   #endif
 
     // "link to github", "link to homepage", "link to support email": in the text
     // and on a button each.

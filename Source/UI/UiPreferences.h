@@ -27,6 +27,7 @@
 */
 
 #include <juce_core/juce_core.h>
+#include <utility>
 
 namespace luthier
 {
@@ -45,6 +46,11 @@ public:
     juce::String getString (const juce::String& key, const juce::String& fallback) const;
     void setString (const juce::String& key, const juce::String& value);
 
+    /** FEAT-BROWSER (preset-browser-previews 7.4 / 8): whether a key is set, and
+        forgetting one so its getter's fallback applies again. */
+    bool has (const juce::String& key) const;
+    void remove (const juce::String& key);
+
     static juce::File getConfigFile();
 
     /** Drops everything and forgets the file's contents. The file itself is left
@@ -56,10 +62,19 @@ public:
     bool load();
     bool save() const;
 
+    /*  SPEC-SWEEP: ER-65/66, error-recovery 10. A file that exists but does not
+        parse, or names a schema this build does not know, is renamed to
+        `ui.json.corrupted-<yyyymmdd-hhmmss>` and the defaults are used. True
+        once after that happened, for the window's banner. */
+    bool takeCorruptionNotice() noexcept { return std::exchange (recoveredFromCorruption, false); }
+
+    static constexpr int kSchema = 1;
+
 private:
     UiPreferences();
 
     juce::var values;
+    bool recoveredFromCorruption = false;   // SPEC-SWEEP: ER-65
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (UiPreferences)
 };

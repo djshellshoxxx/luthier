@@ -32,7 +32,7 @@ namespace
 
         juce::MouseEvent event (juce::Component& target, juce::Point<float> p, juce::ModifierKeys mods = {})
         {
-            auto& source = juce::Desktop::getInstance().getMainMouseSource();
+            auto source = juce::Desktop::getInstance().getMainMouseSource();
             return juce::MouseEvent (source, p, mods, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,
                                      &target, &target, juce::Time::getCurrentTime(), p,
                                      juce::Time::getCurrentTime(), 1, false);
@@ -305,7 +305,20 @@ LUTHIER_TEST (WorkshopPanel, theGuitarCategorySwitchesFamily)
     // Confirmed (the dialog's answer), the guitar becomes a bass.
     CHECK (b.panel->switchFamily ("bass", true));
     CHECK (b.processor.getCurrentGuitar().family == "bass");
-    CHECK (b.processor.getUndoDescription() == "Change guitar family");
+    CHECK (b.processor.getUndoDescription() == "Change guitar family to bass");
+
+    // action-and-undo.md 5: a family switch is a boundary - its own undo works,
+    // and plain undo stops behind it.
+    {
+        LuthierAudioProcessor& p = b.processor;
+        const int redoBefore = p.getNumRedoSteps();
+        p.undo();
+        CHECK (p.getCurrentGuitar().family != "bass");
+        CHECK (p.getNumRedoSteps() == redoBefore + 1);
+        CHECK_MSG (! p.canUndo(), "plain undo went past the family switch");
+        p.redo();
+        CHECK (p.getCurrentGuitar().family == "bass");
+    }
 
     // After the first confirmation in a session, a card click goes straight through.
     int acoustic = -1;

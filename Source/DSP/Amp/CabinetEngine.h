@@ -15,11 +15,20 @@
 
 #include "../Common/DspCommon.h"
 #include "../Common/ConvolutionInstaller.h"
+#include "../Common/IrVariants.h"
+#include "../../Support/QualityProfile.h"
+#include "RoomEngine.h"
 #include <atomic>
 #include <memory>
 
 namespace luthier
 {
+
+// mic-placement.md 5: the continuous placement stage (MicPlacement.h).
+struct MicPlacement;
+class MicPlacementStage;
+class SlewedDelayLine;
+enum class TofMode;
 
 //==============================================================================
 enum class CabinetType
@@ -62,6 +71,8 @@ struct CabinetConfig
 };
 
 //==============================================================================
+class IrSlot;   // SPEC-SWEEP TM-7
+
 class CabinetEngine
 {
 public:
@@ -100,6 +111,32 @@ public:
     void setPhaseAlignMm (double mm) noexcept;
 
     //==========================================================================
+    /*  mic-placement.md 5. Each mic's convolution holds its anchor IR; where the
+        mic actually is - over which speaker, how far, at what angle, in front
+        or behind - is a continuous stage after it. None of these ever reloads
+        an IR (MP-13). */
+    void setMicPlacement (int slot, const MicPlacement& placement) noexcept;
+    const MicPlacement& getMicPlacement (int slot) const noexcept;
+
+    void setTimeOfFlightMode (TofMode mode) noexcept;
+    TofMode getTimeOfFlightMode() const noexcept { return tofMode; }
+
+    void setLevelMatch (bool on) noexcept;
+    void setRoomMaterialForFloor (RoomMaterial material, bool roomOn) noexcept;
+
+    /** A user IR in this slot has its placement baked in: the stage passes
+        the signal through unchanged (mic-placement.md 9). */
+    void setPlacementBypassed (int slot, bool bypassed) noexcept;
+    bool isPlacementBypassed (int slot) const noexcept;
+
+    MicPlacementStage& getPlacementStage (int slot) noexcept;
+    const SlewedDelayLine& getTofLine (int slot) const noexcept;
+
+    /** The anchor copy of a configuration: Cap Edge, close. The Acoustic DI
+        keeps its own choices, which pick its voicing rather than a place. */
+    static CabinetConfig anchorConfig (const CabinetConfig& cfg) noexcept;
+
+    //==========================================================================
     bool loadImpulseResponse (int slot, const juce::File& file);
     void loadImpulseResponse (int slot, const float* samples, int numSamples, double irSampleRate);
     bool hasImpulseResponse (int slot) const noexcept;
@@ -117,6 +154,11 @@ public:
     void processBlock (juce::AudioBuffer<float>& buffer) noexcept;
 
     int getLatencySamples() const noexcept;
+
+    /** cpu-quality-modes 2.3: each mic's IR variant for the level. Audio thread. */
+    void setQualityLevel (const QualityProfile& profile, bool hard) noexcept;
+
+    const IrVariants& getIrVariants (int slot) const noexcept { return slot == 0 ? pathA.variants : pathB.variants; }
 
     //==========================================================================
     /** Each mic on its own, as it was after its impulse response and the
@@ -146,6 +188,11 @@ public:
 
     int getMicTapNumSamples() const noexcept { return micTapSamples; }
 
+    /*  SPEC-SWEEP TM-7 (tone-match 1): the TONE MATCH cabinet slots replace mic
+        A's and mic B's response while engaged, blended by each slot's mix.
+        Owned by the caller; set before audio starts; nullptr for none. */
+    void setUserIrSlots (IrSlot* micA, IrSlot* micB) noexcept { userSlotA = micA; userSlotB = micB; }
+
 private:
     struct MicPath
     {
@@ -156,14 +203,26 @@ private:
         juce::File loadedFile;
         int loadCount = 0;
 
+        /** A response given as samples before prepare(), installed by prepare()
+            (a file is re-read from loadedFile instead); see BodyEngine::pendingIr. */
+        juce::AudioBuffer<float> pendingIr;
+        double pendingIrRate = 0.0;
+
         // Held while an impulse response is swapped in. The loading thread takes
         // it and blocks; the audio thread try-locks and uses the fallback for the
         // one block a swap can overlap, so neither ever waits on the other.
         juce::SpinLock convolutionLock;
 
+        IrVariants variants;   ///< cpu-quality-modes 2.3
+
         // Procedural fallback: a speaker is a bandpass with a cone-breakup peak
         // and a sharp roll-off above it.
         Biquad lowShelf, bodyPeak, presencePeak, topRoll, topRoll2, highpass;
+
+        // mic-placement.md 5: the placement stage and the time-of-arrival line.
+        std::unique_ptr<MicPlacementStage> stage;
+        std::unique_ptr<SlewedDelayLine> tof;
+        bool userIrBypass = false;
 
         void prepareFallback (double sr, const CabinetConfig& cfg) noexcept;
         void resetFallback() noexcept;
@@ -181,6 +240,7 @@ private:
     };
 
     void rebuildFallbacks() noexcept;
+    void updateStageVoice (MicPath& path, const CabinetConfig& cfg) noexcept;
 
     double sr = 44100.0;
     int maxBlock = 512;
@@ -194,12 +254,17 @@ private:
 
     ExpSmoother blendSmooth, widthSmooth;
     double phaseAlignMm = 0.0;
+    TofMode tofMode {};
 
     // Delay line for the mic-B time-of-flight alignment.
     std::vector<double> alignBuffer;
     int alignSize = 0, alignMask = 0, alignIndex = 0, alignSamples = 0;
 
     juce::AudioBuffer<float> bufferA, bufferB;
+
+    IrSlot* userSlotA = nullptr;          // SPEC-SWEEP TM-7
+    IrSlot* userSlotB = nullptr;
+    std::vector<float> micInput;          // the mono feed, kept for a user slot
 
     // Set at the end of processBlock, cleared when the cabinet is bypassed, so a
     // caller can never read a stale or never-written mic buffer.
