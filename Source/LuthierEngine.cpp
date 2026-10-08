@@ -973,7 +973,12 @@ void LuthierEngine::refreshStringPhysics()
         strings[(size_t) i].setPhysical (physical);
         strings[(size_t) i].setNoiseAmount (slideNoise * s.squeak * aging.getFactors (i).squeakScale, fretNoise);
         strings[(size_t) i].setFretBuzz (fretless ? 0.0 : fretBuzzAmount, fretActionMm);
-        strings[(size_t) i].snapToFrequency (openHz);
+        // A silent string sits at its open pitch. A ringing one keeps the pitch it
+        // is playing: snapping a fretted note to open and gliding it back on the
+        // next block (the per-block retune) is a 2 ms pitch jump mid-note, which
+        // a Workshop part swap under a chord turned into a click (UW-T9).
+        if (! strings[(size_t) i].isRinging())
+            strings[(size_t) i].snapToFrequency (openHz);
 
         coupling.setStringFrequency (i, openHz);
 
