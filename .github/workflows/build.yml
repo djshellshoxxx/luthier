@@ -127,7 +127,7 @@ jobs:
             libasound2-dev libjack-jackd2-dev libxrandr-dev libxcursor-dev libxinerama-dev \
             libxcomposite-dev libfontconfig1-dev libfreetype-dev libcurl4-openssl-dev \
             libgl1-mesa-dev \
-            xvfb clang ninja-build dpkg-dev
+            xvfb clang lld ninja-build dpkg-dev
 
       - name: Ninja
         if: runner.os != 'Linux'

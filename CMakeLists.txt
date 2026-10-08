@@ -156,6 +156,17 @@ target_link_libraries(Luthier PRIVATE
 
 if (LUTHIER_LTO)
     target_link_libraries(Luthier PUBLIC juce::juce_recommended_lto_flags)
+    # clang emits LLVM bitcode under -flto; GNU ld cannot read it and the plugin
+    # targets fail with undefined juce:: symbols (the v1.0.0-beta1 release run).
+    # Link with lld when clang is the compiler on Linux. CI installs it (lld).
+    if (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        find_program(LUTHIER_LLD ld.lld)
+        if (LUTHIER_LLD)
+            target_link_options(Luthier PUBLIC -fuse-ld=lld)
+        else()
+            message(WARNING "LUTHIER_LTO with clang needs ld.lld; install lld or build with -DLUTHIER_LTO=OFF")
+        endif()
+    endif()
 endif()
 
 # Binary size. None of this touches optimisation level or the DSP: -O3 / LTO stay
