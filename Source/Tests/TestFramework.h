@@ -16,6 +16,15 @@
 #include <vector>
 #include <algorithm>
 #include <ctime>
+#if JUCE_WINDOWS
+ #ifndef NOMINMAX
+  #define NOMINMAX
+ #endif
+ #ifndef WIN32_LEAN_AND_MEAN
+  #define WIN32_LEAN_AND_MEAN
+ #endif
+ #include <windows.h>   // GetThreadTimes for threadCpuTimeSeconds()
+#endif
 
 namespace luthier::tests
 {
@@ -157,7 +166,7 @@ double measureThd (const double* samples, int numSamples, double sampleRate, dou
 inline double threadCpuTimeSeconds() noexcept
 {
    #if JUCE_WINDOWS
-    // juce_core's native headers bring windows.h in: the thread's kernel + user time, in 100 ns.
+    // The thread's kernel + user time, in 100 ns ticks.
     FILETIME creation {}, exit {}, kernel {}, user {};
 
     if (! GetThreadTimes (GetCurrentThread(), &creation, &exit, &kernel, &user))
