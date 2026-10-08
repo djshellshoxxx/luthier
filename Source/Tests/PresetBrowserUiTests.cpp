@@ -261,7 +261,8 @@ LUTHIER_TEST (PresetBrowserUi, PB30_hover)
     runAudio (ui.processor, 1);
     CHECK (! ui.processor.getPreviewPlayer().isActive());   // not before 300 ms
 
-    CHECK (waitFor ([&] { runAudio (ui.processor, 1); return ui.processor.getPreviewPlayer().isActive(); }, 1500));
+    CHECK_MSG (waitFor ([&] { runAudio (ui.processor, 1); return ui.processor.getPreviewPlayer().isActive(); }, 1500),
+               "no hover preview within 1.5 s; the gate says \"" + ui.processor.getPresetLibrary().whyBlocked (false) + "\"");
 
     panel->rowUnhovered (entry);
     CHECK (! ui.processor.getPreviewPlayer().isActive());

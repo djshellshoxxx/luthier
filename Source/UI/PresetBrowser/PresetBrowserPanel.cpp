@@ -1073,9 +1073,15 @@ void PresetBrowserPanel::timerCallback()
         && ! library.isWaitingFor (hoverEntry) && now - hoverSince >= kHoverDwellMs && hoverSince > 0.0)
     {
         const int entry = hoverEntry;
-        hoverSince = 0.0;   // once per rest
         startPreview (entry, false);
         hoverStartedPreview = previewingKey.isNotEmpty();
+
+        /*  Once per rest - unless the gate refused it for the moment (the host's
+            callback stalled past 200 ms, a note still ringing): then the dwell
+            stays armed and the next tick asks again, so one slow block does not
+            cost the hover its preview (it did on a loaded CI runner, PB-30). */
+        if (previewingKey.isNotEmpty() || library.whyBlocked (false).isEmpty())
+            hoverSince = 0.0;
     }
 
     // 4.4: the keyboard-selection dwell.

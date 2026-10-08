@@ -203,6 +203,11 @@ private:
         juce::File loadedFile;
         int loadCount = 0;
 
+        /** A response given as samples before prepare(), installed by prepare()
+            (a file is re-read from loadedFile instead); see BodyEngine::pendingIr. */
+        juce::AudioBuffer<float> pendingIr;
+        double pendingIrRate = 0.0;
+
         // Held while an impulse response is swapped in. The loading thread takes
         // it and blocks; the audio thread try-locks and uses the fallback for the
         // one block a swap can overlap, so neither ever waits on the other.

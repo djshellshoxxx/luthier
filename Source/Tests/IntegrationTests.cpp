@@ -589,9 +589,10 @@ LUTHIER_TEST (Engine, cpuStaysWithinBudget)
 
     const double seconds = 3.0;
 
-    /*  Best of three: wall-clock time on a shared machine picks up whatever
-        else is running (virus scans, a VM), and the fastest run is the one
-        that measures the engine rather than the neighbours. */
+    /*  Best of three on the thread's CPU clock (TestFramework): a stopwatch
+        on a shared machine counts whatever else is running (virus scans, a VM,
+        a CI runner's neighbours) against the engine, and the fastest run is
+        the one that measures the engine. */
     double elapsed = 1.0e9;
 
     for (int run = 0; run < 3; ++run)
@@ -603,12 +604,11 @@ LUTHIER_TEST (Engine, cpuStaysWithinBudget)
         for (int note : { 40, 47, 52, 56, 59, 64 })
             notes.addEvent (juce::MidiMessage::noteOn (1, note, 0.9f), 0);
 
-        const auto start = juce::Time::getHighResolutionTicks();
+        const double start = threadCpuTimeSeconds();
 
         render (engine, notes, seconds);
 
-        elapsed = juce::jmin (elapsed, juce::Time::highResolutionTicksToSeconds (
-                                           juce::Time::getHighResolutionTicks() - start));
+        elapsed = juce::jmin (elapsed, threadCpuTimeSeconds() - start);
     }
 
     const double realtimeFactor = elapsed / seconds;
