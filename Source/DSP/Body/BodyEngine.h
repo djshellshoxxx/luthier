@@ -178,6 +178,11 @@ private:
         it runs). Cleared by prepare() and by a response given as samples. */
     juce::File loadedIrFile;
 
+    /** A response given as samples before prepare(), installed by prepare()
+        (a file is re-read from loadedIrFile instead). */
+    juce::AudioBuffer<float> pendingIr;
+    double pendingIrRate = 0.0;
+
 public:
     /** How many responses have really been loaded (cached reloads do not count). */
     int getIrLoadCount() const noexcept { return irLoadCount; }

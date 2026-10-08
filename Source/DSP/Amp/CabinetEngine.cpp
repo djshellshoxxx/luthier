@@ -157,6 +157,10 @@ void CabinetEngine::MicPath::resetFallback() noexcept
 //==============================================================================
 void CabinetEngine::prepare (double sampleRate, int maxBlockSize)
 {
+    // Responses requested before prepare() were only queued with JUCE's
+    // background loader; they are installed again below, synchronously, so the
+    // first block hears them on every machine (see BodyEngine::prepare).
+    const auto pendingA = pathA.loadedFile, pendingB = pathB.loadedFile;
     pathA.loadedFile = juce::File();
     pathB.loadedFile = juce::File();
 
@@ -206,6 +210,23 @@ void CabinetEngine::prepare (double sampleRate, int maxBlockSize)
     dcR.prepare (sr, 10.0);
 
     rebuildFallbacks();
+
+    for (int slot = 0; slot < 2; ++slot)
+    {
+        auto& path = slot == 0 ? pathA : pathB;
+        const auto& pendingFile = slot == 0 ? pendingA : pendingB;
+
+        if (pendingFile.existsAsFile())
+        {
+            loadImpulseResponse (slot, pendingFile);
+        }
+        else if (path.pendingIr.getNumSamples() > 0)
+        {
+            const auto ir = path.pendingIr;   // loadImpulseResponse clears the pending copy
+            loadImpulseResponse (slot, ir.getReadPointer (0), ir.getNumSamples(), path.pendingIrRate);
+        }
+    }
+
     reset();
 }
 
@@ -375,6 +396,7 @@ bool CabinetEngine::loadImpulseResponse (int slot, const juce::File& file)
 
     ThreadProbe::noteFileAccess();
     path.loadedFile = juce::File();
+    path.pendingIr.setSize (0, 0);
 
     if (! file.existsAsFile())
     {
@@ -420,6 +442,7 @@ void CabinetEngine::loadImpulseResponse (int slot, const float* samples, int num
 {
     auto& path = (slot == 0) ? pathA : pathB;
     path.loadedFile = juce::File();
+    path.pendingIr.setSize (0, 0);
 
     if (samples == nullptr || numSamples <= 0)
     {
@@ -430,6 +453,12 @@ void CabinetEngine::loadImpulseResponse (int slot, const float* samples, int num
     juce::AudioBuffer<float> ir (1, numSamples);
     ir.copyFrom (0, 0, samples, numSamples);
     const auto rawForVariants = ir;   // cpu-quality-modes 2.3
+
+    if (! prepared)
+    {
+        path.pendingIr = ir;   // prepare() installs it synchronously
+        path.pendingIrRate = irSampleRate;
+    }
 
     path.loaded.store (false);
 

@@ -23,6 +23,14 @@ BodyEngine::~BodyEngine() = default;
 //==============================================================================
 void BodyEngine::prepare (double sampleRate, int maxBlockSize)
 {
+    /*  A response requested before prepare() (a state restore into a fresh
+        instance: the offline renderer, the calibration render) was only queued:
+        JUCE's loader builds it on its background thread, and prepare() keeps
+        whatever that thread has finished by now. On a loaded machine (a CI
+        runner) the response then lands mid-render with a crossfade, so ON-03's
+        calibration render measured a guitar without its body. It is installed
+        again below, synchronously, once the convolution is prepared. */
+    const auto pendingFile = loadedIrFile;
     loadedIrFile = juce::File();
 
     sr = sampleRate;
@@ -60,6 +68,17 @@ void BodyEngine::prepare (double sampleRate, int maxBlockSize)
     setAirResonanceGainDb (airGainDb);
     rebuildModalBank (config);
     applyStagedBank();
+
+    if (pendingFile.existsAsFile())
+    {
+        loadImpulseResponse (pendingFile);
+    }
+    else if (pendingIr.getNumSamples() > 0)
+    {
+        const auto ir = pendingIr;   // loadImpulseResponse clears the pending copy
+        loadImpulseResponse (ir.getReadPointer (0), ir.getNumSamples(), pendingIrRate);
+    }
+
     reset();
 }
 
@@ -350,6 +369,7 @@ bool BodyEngine::loadImpulseResponse (const juce::File& file)
 
     ThreadProbe::noteFileAccess();
     loadedIrFile = juce::File();
+    pendingIr.setSize (0, 0);
 
     if (! file.existsAsFile())
     {
@@ -396,6 +416,7 @@ bool BodyEngine::loadImpulseResponse (const juce::File& file)
 void BodyEngine::loadImpulseResponse (const float* samples, int numSamples, double irSampleRate)
 {
     loadedIrFile = juce::File();
+    pendingIr.setSize (0, 0);
 
     if (samples == nullptr || numSamples <= 0)
     {
@@ -406,6 +427,12 @@ void BodyEngine::loadImpulseResponse (const float* samples, int numSamples, doub
     juce::AudioBuffer<float> ir (1, numSamples);
     ir.copyFrom (0, 0, samples, numSamples);
     const auto rawForVariants = ir;   // cpu-quality-modes 2.3
+
+    if (! prepared)
+    {
+        pendingIr = ir;   // prepare() installs it synchronously
+        pendingIrRate = irSampleRate;
+    }
 
     irLoaded.store (false);
 
