@@ -819,7 +819,9 @@ LUTHIER_TEST (PresetPreview, PB12_levelAndVolumeSmoothing)
         pool.collectGarbage (player);
     }
 
-    CHECK_MSG (juce::Decibels::gainToDecibels (peak) <= -9.0, juce::String (juce::Decibels::gainToDecibels (peak), 2) + " dBFS");
+    // -3 dBTP through -6 dB is exactly -9 dBFS when a clip's loudest sample is its
+    // true peak; the two float gains round either side of it (Windows: -8.996).
+    CHECK_MSG (juce::Decibels::gainToDecibels (peak) <= -9.0 + 0.02, juce::String (juce::Decibels::gainToDecibels (peak), 3) + " dBFS");
 
     // Volume steps: DC through the player measures the gain directly.
     auto c = std::make_unique<PreviewClip>();
