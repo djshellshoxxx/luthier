@@ -9,6 +9,7 @@
     bounded, audible while played, silent after release, affordable.
 
     The large sweeps honour LUTHIER_COMBO_SCALE (e.g. 0.1 for a quick pass);
+    LUTHIER_COMBO_ROW=48 runs only that row of newFeaturesPairwise (a CI failure's);
     LUTHIER_COMBO_VERBOSE=1 prints every configuration as it runs. Every
     failure prints the exact settings (and seed) that produced it.
 */
@@ -1766,8 +1767,13 @@ LUTHIER_TEST (Combo, newFeaturesPairwise)
 
     int roundTrips = 0;
 
+    const auto* onlyRow = std::getenv ("LUTHIER_COMBO_ROW");
+
     for (int r = 0; r < limit; ++r)
     {
+        if (onlyRow != nullptr && r != juce::String (onlyRow).getIntValue())
+            continue;
+
         const auto& row = rows[(size_t) r];
         Config config;
         int quality = 0;
@@ -1863,9 +1869,17 @@ LUTHIER_TEST (Combo, newFeaturesPairwise)
             for (size_t i = 0; i < juce::jmin (a.size(), b.size()); ++i)
                 maxDiff = juce::jmax (maxDiff, (double) std::abs (a[i] - b[i]));
 
+            auto normalization = [] (Rig& x)
+            {
+                const auto st = x.p().getNormalizationStatus();
+                return juce::String (st.enabled ? "on" : "off") + " gain " + juce::String (st.gainDb, 2) + " applied "
+                     + juce::String (st.appliedGainDb, 2) + " measured " + juce::String (st.measuredLufs, 2)
+                     + " source " + juce::String ((int) st.source) + " hash " + st.hash.substring (0, 12);
+            };
+
             CHECK_MSG (maxDiff < 1.0e-3 && copy.p().getNormalizationStatus().enabled == normalize,
                        "state round trip differs: audio max diff " + juce::String (maxDiff, 6)
-                         + ", normalization " + (copy.p().getNormalizationStatus().enabled ? "on" : "off")
+                         + ", normalization source " + normalization (rig) + ", copy " + normalization (copy)
                          + " | " + config.describe (rig));
         }
 
