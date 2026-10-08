@@ -20,6 +20,11 @@ on:
         required: false
         type: string
         default: ''
+      platforms:
+        description: 'Comma-separated platforms to build: linux, windows, macos (default all)'
+        required: false
+        type: string
+        default: 'linux,windows,macos'
 
 permissions:
   contents: read
@@ -61,6 +66,7 @@ jobs:
     needs: version
     uses: ./.github/workflows/build.yml
     with:
+      platforms: ${{ inputs.platforms || 'linux,windows,macos' }}
       strictness: 10
       lto: true
       package: true
