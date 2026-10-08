@@ -157,7 +157,14 @@ double measureThd (const double* samples, int numSamples, double sampleRate, dou
 inline double threadCpuTimeSeconds() noexcept
 {
    #if JUCE_WINDOWS
-    return juce::Time::getMillisecondCounterHiRes() * 0.001;   // no thread clock without windows.h here
+    // juce_core's native headers bring windows.h in: the thread's kernel + user time, in 100 ns.
+    FILETIME creation {}, exit {}, kernel {}, user {};
+
+    if (! GetThreadTimes (GetCurrentThread(), &creation, &exit, &kernel, &user))
+        return 0.0;
+
+    const auto ticks = [] (const FILETIME& t) { return ((juce::uint64) t.dwHighDateTime << 32) | t.dwLowDateTime; };
+    return (double) (ticks (kernel) + ticks (user)) * 1.0e-7;
    #else
     timespec ts {};
     if (clock_gettime (CLOCK_THREAD_CPUTIME_ID, &ts) != 0)

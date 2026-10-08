@@ -102,16 +102,7 @@ namespace
         return nullptr;
     }
 
-    double threadCpuSeconds()
-    {
-       #if JUCE_LINUX
-        timespec ts {};
-        clock_gettime (CLOCK_THREAD_CPUTIME_ID, &ts);
-        return (double) ts.tv_sec + (double) ts.tv_nsec * 1.0e-9;
-       #else
-        return juce::Time::getMillisecondCounterHiRes() * 0.001;
-       #endif
-    }
+    double threadCpuSeconds() { return threadCpuTimeSeconds(); }   // TestFramework: a thread clock on every platform
 
     /** Pumps the message loop for `seconds`, running the processor a block at
         a time in between. Returns the thread CPU seconds spent dispatching. */
