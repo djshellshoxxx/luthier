@@ -11,6 +11,7 @@ Tools/outline_previews/
 ThirdParty/clap-juce-extensions/
 /ThirdParty/clap-juce-extensions
 build-ci/
+build-free/
 dist/
 build-asan/
 # Also match symlinks (a trailing slash only matches directories).
