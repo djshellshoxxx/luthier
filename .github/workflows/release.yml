@@ -12,9 +12,14 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Existing tag to (re)build a draft release for, e.g. v1.0.0'
+        description: 'Tag to (re)build a draft release for, e.g. v1.0.0 or v1.0.0-beta1'
         required: true
         type: string
+      ref:
+        description: 'Branch or commit to build when the tag does not exist yet; the draft release then creates the tag there'
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -26,14 +31,16 @@ jobs:
     outputs:
       version: ${{ steps.v.outputs.version }}
       tag: ${{ steps.v.outputs.tag }}
+      ref: ${{ steps.v.outputs.ref }}
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.tag || github.ref }}
+          ref: ${{ inputs.ref || inputs.tag || github.ref }}
       - id: v
         name: Tag matches CMakeLists.txt
         env:
           TAG: ${{ inputs.tag || github.ref_name }}
+          REF: ${{ inputs.ref }}
         run: |
           tag="$TAG"
           version="${tag#v}"
@@ -46,6 +53,8 @@ jobs:
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          # What to build: the tag, or the branch/commit that the draft release will tag.
+          echo "ref=${REF:-$tag}" >> "$GITHUB_OUTPUT"
 
   build:
     name: Build and package
@@ -56,7 +65,7 @@ jobs:
       lto: true
       package: true
       version: ${{ needs.version.outputs.version }}
-      ref: ${{ needs.version.outputs.tag }}
+      ref: ${{ needs.version.outputs.ref }}
     secrets: inherit
 
   draft:
@@ -68,7 +77,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.version.outputs.tag }}
+          ref: ${{ needs.version.outputs.ref }}
 
       - uses: actions/download-artifact@v4
         with:
@@ -101,6 +110,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.version.outputs.tag }}
+          target_commitish: ${{ needs.version.outputs.ref }}
           name: Luthier ${{ needs.version.outputs.version }}
           draft: true
           prerelease: ${{ contains(needs.version.outputs.version, '-') }}
