@@ -24,6 +24,14 @@
   #define WIN32_LEAN_AND_MEAN
  #endif
  #include <windows.h>   // GetThreadTimes for threadCpuTimeSeconds()
+ // windef.h's legacy keyword macros collide with identifiers such as BuzzHeatmap::CellState::near.
+ #undef near
+ #undef far
+ #undef NEAR
+ #undef FAR
+ #undef small
+ #undef min
+ #undef max
 #endif
 
 namespace luthier::tests
