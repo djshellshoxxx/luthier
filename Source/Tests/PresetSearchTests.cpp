@@ -301,8 +301,16 @@ LUTHIER_TEST (PresetSearch, PB24_soundsLike)
             if (f.index[r.entry].info.category != "Assist")
                 original.add (f.index[r.entry].info.name);
 
+        // Free plays "8-String Djent" on a substitute guitar (Baritone Electric), so
+        // its measured tone no longer sits near the 6-string chug; there it is only
+        // required to be ranked at all. Pro keeps the top-ten requirement.
+        if constexpr (! luthier::edition::isPro)
+            CHECK_MSG (original.contains ("8-String Djent"), original.joinIntoString (", "));
+
         original.removeRange (10, original.size());   // 8 + 2 of slack: see above
-        CHECK_MSG (original.contains ("8-String Djent"), original.joinIntoString (", "));
+
+        if constexpr (luthier::edition::isPro)
+            CHECK_MSG (original.contains ("8-String Djent"), original.joinIntoString (", "));
     }
 
     CHECK (! names.contains ("Modern Metal Chug"));

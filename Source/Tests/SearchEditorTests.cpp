@@ -270,7 +270,18 @@ LUTHIER_TEST (SearchEditor, GS02_everyParameterNavigates)
 
                 for (int chain = 0; chain < 2; ++chain)
                     for (int s = 0; s < EffectsChain::kNumSlots; ++s)
-                        r.setIndex (ParamIDs::slotType (chain == 1, s), 1 + ((chain * EffectsChain::kNumSlots + s) % juce::jmax (1, types - 1)));
+                    {
+                        int type = 1 + ((chain * EffectsChain::kNumSlots + s) % juce::jmax (1, types - 1));
+
+                        // Free plays only its pedal types: a Pro-only one clamps to
+                        // None and leaves its slot's controls hidden, so cycle
+                        // through the Free ones instead (Pro is unchanged).
+                        if constexpr (! luthier::edition::isPro)
+                            while (type < types - 1 && ! luthier::edition::isFreePedalIndex (type))
+                                ++type;
+
+                        r.setIndex (ParamIDs::slotType (chain == 1, s), type);
+                    }
             } },
     };
 

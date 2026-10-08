@@ -1027,7 +1027,15 @@ LUTHIER_TEST (PresetPreview, PB15_aSaveRendersItsPreview)
     // 3 s on the reference CPU; this machine renders at about half its speed.
     CHECK_MSG (elapsed <= 3000.0 * 2.0, juce::String (elapsed, 0) + " ms");
     CHECK (ToneFeatures::fromVar (sidecar.getProperty ("features", {})).valid);
-    CHECK (sidecar.getProperty ("descriptors", {}).toString().isNotEmpty());
+
+    // Whether the default sound earns a descriptor depends on how it measures against the
+    // calibration; Free plays a substitute for the default Pro guitar, which can measure
+    // under every threshold. There the sidecar must still carry the (possibly empty) field.
+    if constexpr (luthier::edition::isPro)
+        CHECK (sidecar.getProperty ("descriptors", {}).toString().isNotEmpty());
+    else
+        CHECK (sidecar.hasProperty ("descriptors"));
+
     CHECK (sidecar.getProperty ("peaks", {}).size() == PreviewResult::kNumPeaks);
 
     // The saved file carries a uid and nothing derived.

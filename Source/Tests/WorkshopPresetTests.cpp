@@ -36,6 +36,22 @@ namespace
         return nullptr;
     }
 
+    /** Free stores the default guitar type (a Pro one) but plays its substitute, which
+        a restored state then re-applies; these tests are about the workshop's own
+        round trips, so in Free they start from a guitar the edition offers. Pro is
+        unchanged. */
+    void startFromAnEditionGuitar (LuthierAudioProcessor& p)
+    {
+        if constexpr (! luthier::edition::isPro)
+        {
+            auto* type = p.getState().getParameter (ParamIDs::guitarType);
+            type->setValueNotifyingHost (type->convertTo0to1 ((float) GuitarType::Telecaster));
+            p.getParameterBridge().applyAllNow();
+        }
+        else
+            juce::ignoreUnused (p);
+    }
+
     juce::MemoryBlock stateOf (LuthierAudioProcessor& p)
     {
         juce::MemoryBlock block;
@@ -63,6 +79,7 @@ LUTHIER_TEST (WorkshopPresets, anEditedGuitarTravelsWholeInTheState)
 {
     LuthierAudioProcessor source;
     source.prepareToPlay (48000.0, 512);
+    startFromAnEditionGuitar (source);
 
     auto guitar = source.getCurrentGuitar();
     const auto other = anotherPickup (source, GuitarSlot::pickupBridge);
@@ -119,11 +136,16 @@ LUTHIER_TEST (WorkshopPresets, choosingAGuitarTypeFitsItsParts)
     auto* type = processor.getState().getParameter (ParamIDs::guitarType);
     // As the header's selector writes it: inside a gesture.
     type->beginChangeGesture();
-    type->setValueNotifyingHost (type->convertTo0to1 ((float) GuitarType::Classical));
+    // Free plays only its six guitars (a Pro type plays as a substitute), so there
+    // the type picked is one of them.
+    const auto chosen = luthier::edition::isPro ? GuitarType::Classical : GuitarType::Auditorium;
+    const char* chosenName = luthier::edition::isPro ? "Classical" : "Auditorium";
+    type->setValueNotifyingHost (type->convertTo0to1 ((float) chosen));
     type->endChangeGesture();
     processor.getParameterBridge().applyAllNow();
 
-    CHECK (processor.getGuitarReference().contains ("Classical"));
+    CHECK_MSG (processor.getGuitarReference().contains (chosenName),
+               "reference is \"" + processor.getGuitarReference() + "\"");
     CHECK_MSG (std::abs (plainValue (processor, ParamIDs::setupActionTreble)
                          - (float) processor.getCurrentGuitar().setup.actionTrebleMm) < 0.01f,
                "action treble reads " + juce::String (plainValue (processor, ParamIDs::setupActionTreble)));
@@ -133,6 +155,7 @@ LUTHIER_TEST (WorkshopPresets, aMissingGuitarFileFallsBackToItsType)
 {
     LuthierAudioProcessor source;
     source.prepareToPlay (48000.0, 512);
+    startFromAnEditionGuitar (source);
 
     auto preset = source.getPresetManager().toVar ("Missing guitar");
     auto* guitarBlock = new juce::DynamicObject();
@@ -158,6 +181,7 @@ LUTHIER_TEST (WorkshopPresets, saveAsGuitarWritesAFileAndPointsThePresetAtIt)
 {
     LuthierAudioProcessor processor;
     processor.prepareToPlay (48000.0, 512);
+    startFromAnEditionGuitar (processor);
 
     auto guitar = processor.getCurrentGuitar();
     guitar.parts[(size_t) GuitarSlot::pickupBridge] = anotherPickup (processor, GuitarSlot::pickupBridge);
@@ -595,6 +619,7 @@ LUTHIER_TEST (WorkshopFamily, aFamilySwitchKeepsWhatSection12_4Keeps)
 {
     LuthierAudioProcessor processor;
     processor.prepareToPlay (48000.0, 512);
+    startFromAnEditionGuitar (processor);
 
     setPlain (processor, ParamIDs::roomSize, 2.0f);
     const float room = plainValue (processor, ParamIDs::roomSize);
@@ -608,7 +633,11 @@ LUTHIER_TEST (WorkshopFamily, aFamilySwitchKeepsWhatSection12_4Keeps)
     CHECK (processor.getCurrentGuitar().family == "bass");
     CHECK (processor.getCurrentGuitar().getStringCount() == 4);
     CHECK (processor.getEngine().getNumStrings() == 4);
-    CHECK (processor.getCurrentGuitar().seed == seed);
+    // Free: the bass family's template is a Pro guitar, so the bridge then plays (and
+    // reloads) the nearest Free bass, whose file carries its own seed. The seed
+    // carry-over is a Pro behaviour here.
+    if constexpr (luthier::edition::isPro)
+        CHECK (processor.getCurrentGuitar().seed == seed);
     CHECK (processor.getPresetManager().getCurrentPresetName() == presetName);
     CHECK_MSG (std::abs (plainValue (processor, ParamIDs::roomSize) - room) < 1.0e-4f, "the room changed with the family");
 
@@ -635,9 +664,19 @@ LUTHIER_TEST (WorkshopPresets, choosingATypeGivesItsStringCount)
     // brings a tuning that can hold its strings, and a full apply keeps it.
     struct Case { GuitarType type; int strings; };
 
-    for (auto c : { Case { GuitarType::PrecisionBass, 4 }, Case { GuitarType::FiveStringBass, 5 },
-                    Case { GuitarType::SevenString, 7 }, Case { GuitarType::EightString, 8 },
-                    Case { GuitarType::TwelveString, 12 }, Case { GuitarType::Stratocaster, 6 } })
+    // Free plays only its six guitars: the Pro-only types play as a substitute
+    // there, so Free checks its own (a bass among them).
+    std::vector<Case> cases;
+
+    if constexpr (luthier::edition::isPro)
+        cases = { Case { GuitarType::PrecisionBass, 4 }, Case { GuitarType::FiveStringBass, 5 },
+                  Case { GuitarType::SevenString, 7 }, Case { GuitarType::EightString, 8 },
+                  Case { GuitarType::TwelveString, 12 }, Case { GuitarType::Stratocaster, 6 } };
+    else
+        cases = { Case { GuitarType::JazzBass, 4 }, Case { GuitarType::Telecaster, 6 },
+                  Case { GuitarType::SG, 6 }, Case { GuitarType::Auditorium, 6 } };
+
+    for (auto c : cases)
     {
         LuthierAudioProcessor processor;
         processor.prepareToPlay (48000.0, 512);
