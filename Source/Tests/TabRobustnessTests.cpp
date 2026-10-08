@@ -622,6 +622,66 @@ LUTHIER_TEST (TabCorpus, everyDialectLoadsWithTheExpectedShape)
     }
 }
 
+/*  Every text fixture reads the same with LF, CRLF and bare CR line endings:
+    git checks the corpus out with the platform's endings (.gitattributes leaves
+    these alone), and a tab pasted from a Mac Classic or Windows file is real. */
+LUTHIER_TEST (TabCorpus, everyLineEndingReadsTheSame)
+{
+    juce::Array<juce::File> files;
+    corpus ("html_pre.html").getParentDirectory().findChildFiles (files, juce::File::findFiles, false, "*.txt;*.html;*.md");
+    CHECK (files.size() >= 30);
+
+    int compared = 0;
+
+    for (const auto& file : files)
+    {
+        juce::MemoryBlock bytes;
+        CHECK (file.loadFileAsData (bytes));
+        std::string lf ((const char*) bytes.getData(), bytes.getSize());
+        lf.erase (std::remove (lf.begin(), lf.end(), '\r'), lf.end());   // CRLF and CR fixtures start from LF too
+
+        std::string crlf, cr;
+        for (char c : lf)
+        {
+            if (c == '\n') { crlf += "\r\n"; cr += '\r'; }
+            else          { crlf += c;      cr += c;   }
+        }
+
+        auto shape = [] (const juce::File& f, bool& ok)
+        {
+            NotationImporter importer;
+            PerformanceScore score;
+            ok = importer.read (f, score);
+            juce::String s;
+            if (! ok || score.getNumTracks() == 0)
+                return s;
+            const auto& t = score.getTrack (0);
+            s << t.numStrings << "|" << t.capoFret << "|" << (int) t.measures.size() << "|";
+            for (int i = 0; i < t.numStrings; ++i) s << t.tuning[(size_t) i] << ",";
+            for (const auto& n : flatten (score)) s << "|" << n.stringIndex << ":" << n.fret << "@" << juce::String (n.beat, 3);
+            return s;
+        };
+
+        struct Variant { const char* name; const std::string* text; };
+        bool okLf = false;
+        const auto reference = shape (file, okLf);
+
+        for (const auto& v : { Variant { "lf", &lf }, Variant { "crlf", &crlf }, Variant { "cr", &cr } })
+        {
+            const auto temp = tempFile (juce::String ("eol_") + v.name + "_" + file.getFileName());
+            CHECK (temp.replaceWithData (v.text->data(), v.text->size()));
+            bool ok = false;
+            const auto s = shape (temp, ok);
+            CHECK_MSG (ok == okLf && s == reference,
+                       file.getFileName() + " reads differently with " + v.name + " line endings: " + s + " vs " + reference);
+            temp.deleteFile();
+            ++compared;
+        }
+    }
+
+    CHECK (compared >= 90);
+}
+
 LUTHIER_TEST (TabCorpus, tuningNamedInTheHeaderOrFooterIsApplied)
 {
     {

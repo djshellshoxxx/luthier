@@ -313,13 +313,28 @@ namespace
         else if (lower.contains ("two and a half") || lower.contains ("2 1/2") || lower.contains ("2.5"))
             steps = 2.5;
 
-        // A bare number: "2 steps down", "3 semitones down".
+        /*  A bare number, but only as the amount of a unit: "2 steps down",
+            "3 semitones down", "down 2 frets". Any other number on the line is
+            something else's - "Capo 3 & Tuning: half step down" has the capo's 3
+            before the tuning's words (it read as three whole steps down). */
         for (int i = 0; i < lower.length() && steps < 0.0; ++i)
         {
             if (! isDigit (lower[i]) || (i > 0 && (isDigit (lower[i - 1]) || lower[i - 1] == '/' || lower[i - 1] == '.')))
                 continue;
             if (i + 1 < lower.length() && (lower[i + 1] == '/' || isDigit (lower[i + 1]) || lower[i + 1] == '-'))
                 continue;                      // "1/2" is a word below; "8-string" is not an amount
+
+            const auto after = lower.substring (i + 1).trimStart();
+            const auto before = lower.substring (0, i).trimEnd();
+            static const char* const units[] = { "step", "semitone", "half", "whole", "tone", "full", "fret", "and a half" };
+            bool amount = before.endsWith ("down") || before.endsWith ("by") || before.endsWith ("lower") || before.endsWith ("lowered");
+
+            for (const auto* u : units)
+                amount = amount || after.startsWith (u);
+
+            if (! amount)
+                continue;                      // a capo, a string count, a fret
+
             const int v = (int) lower[i] - '0';
             if (v >= 1 && v <= 6)
                 steps = (double) v;
