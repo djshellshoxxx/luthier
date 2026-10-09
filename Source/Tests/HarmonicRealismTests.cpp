@@ -685,6 +685,11 @@ LUTHIER_TEST (HarmonicRealism, HR18_realtime)
                    "harmonics allocated " + juce::String (luthierAllocationsOnThisThread() - before) + " times");
     }
 
+    // Everything below is a machine-relative CPU budget (measured, then asserted): run under
+    // LUTHIER_PERF=1 (the nightly) only. The allocation check above runs everywhere.
+    if (! luthier::tests::perfRunRequested())
+        return;
+
     // Cost: six strings each touched at n = 8, against the same strings free.
     auto timeOneSecond = [] (bool touch)
     {

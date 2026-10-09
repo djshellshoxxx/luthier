@@ -379,6 +379,11 @@ LUTHIER_TEST (Tap, theSlideBarHoldsItsStrings)
     block, against real time. */
 LUTHIER_TEST (Tap, cpuStaysInBudget)
 {
+    // Machine-relative: this is a pure wall-clock/CPU budget, which swings on a shared CI runner.
+    // Run under LUTHIER_PERF=1 (the nightly, controlled runner) only.
+    if (! luthier::tests::perfRunRequested())
+        return;
+
     TapEngine tap;
     tap.prepare (kSr);
     const double open[] = { 64, 59, 55, 50, 45, 40 };

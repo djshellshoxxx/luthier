@@ -1696,7 +1696,8 @@ LUTHIER_TEST (Normalization, ON27_Cache)
         const auto t0 = juce::Time::getMillisecondCounterHiRes();
         NormalizationCalibrator::Measurement m;
         CHECK (NormalizationCalibrator::lookupCached (hash, m));
-        CHECK (juce::Time::getMillisecondCounterHiRes() - t0 < 5.0);
+        if (luthier::tests::perfRunRequested())   // machine-relative wall-clock bound: nightly only
+            CHECK (juce::Time::getMillisecondCounterHiRes() - t0 < 5.0);
         CHECK (m.source == NormalizationCalibrator::Source::memory);
     }
 

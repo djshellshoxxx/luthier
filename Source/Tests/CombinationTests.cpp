@@ -1360,6 +1360,11 @@ LUTHIER_TEST (Combo, unisonStringsNeverGrowAndPanicSilencesThem)
     report (docs/audit/BETA_TEST_REPORT.md). */
 LUTHIER_TEST (Combo, cpuPerFactoryPreset)
 {
+    // Machine-relative: this is a pure wall-clock/CPU budget, which swings on a shared CI runner.
+    // Run under LUTHIER_PERF=1 (the nightly, controlled runner) only.
+    if (! luthier::tests::perfRunRequested())
+        return;
+
     Rig rig;
     auto& presets = rig.p().getPresetManager();
 

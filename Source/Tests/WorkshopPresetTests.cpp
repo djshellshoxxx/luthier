@@ -435,7 +435,9 @@ LUTHIER_TEST (WorkshopSwap, aChangeFromTheAudioThreadItselfDoesNotWait)
     const auto took = juce::Time::getMillisecondCounterHiRes() - start;
 
     CHECK (engine.getGuitarType() == GuitarType::Telecaster);
-    CHECK_MSG (took < 200.0, "the change waited " + juce::String (took, 1) + " ms");
+    // Machine-relative wall-clock bound: enforced only under LUTHIER_PERF=1 (the nightly).
+    if (luthier::tests::perfRunRequested())
+        CHECK_MSG (took < 200.0, "the change waited " + juce::String (took, 1) + " ms");
 }
 
 LUTHIER_TEST (WorkshopPresets, oldPickupPlacementParametersBecomeTheGuitars)

@@ -619,8 +619,10 @@ LUTHIER_TEST (CpuQualityUi, CQ23_lowMeansNoAnimationRepaints)
             CHECK_MSG (busiestHigh > 30, mode + ": the control failed - nothing decorative animated at High (" + juce::String (busiestHigh) + ")");
 
            #if JUCE_LINUX
-            CHECK_MSG (cpuLow <= 0.4 * cpuHigh, mode + ": editor paint time at Low " + juce::String (cpuLow * 1000.0, 1)
-                       + " ms is not 60 % below High's " + juce::String (cpuHigh * 1000.0, 1) + " ms");
+            // Machine-relative paint-time ratio: enforced only under LUTHIER_PERF=1 (the nightly).
+            if (luthier::tests::perfRunRequested())
+                CHECK_MSG (cpuLow <= 0.4 * cpuHigh, mode + ": editor paint time at Low " + juce::String (cpuLow * 1000.0, 1)
+                           + " ms is not 60 % below High's " + juce::String (cpuHigh * 1000.0, 1) + " ms");
            #endif
         }
         else

@@ -331,8 +331,10 @@ LUTHIER_TEST (CpuQuality, CQ11_switchingLevelsDoesNotClick)
     const double switchMax = *std::max_element (switchMs.begin(), switchMs.end());
     std::cout << "    block ms: steady p99 " << juce::String (steadyP99, 3) << ", switching p99 "
               << juce::String (switchP99, 3) << " (max " << juce::String (switchMax, 3) << ")" << std::endl;
-    CHECK_MSG (switchP99 <= 1.3 * steadyP99 + 0.02, "switching p99 " + juce::String (switchP99, 3)
-               + " ms over 1.3x steady " + juce::String (steadyP99, 3) + " ms");
+    // Machine-relative block-time ratio: enforced only under LUTHIER_PERF=1 (the nightly).
+    if (luthier::tests::perfRunRequested())
+        CHECK_MSG (switchP99 <= 1.3 * steadyP99 + 0.02, "switching p99 " + juce::String (switchP99, 3)
+                   + " ms over 1.3x steady " + juce::String (steadyP99, 3) + " ms");
 }
 
 //==============================================================================

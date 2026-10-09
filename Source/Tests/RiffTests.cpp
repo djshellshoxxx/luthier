@@ -1164,7 +1164,9 @@ LUTHIER_TEST (Riffs, searchAndFilterMatchBruteForceQuickly)
         const auto start = juce::Time::getMillisecondCounterHiRes();
         const auto got = library.query (q);
         const auto elapsed = juce::Time::getMillisecondCounterHiRes() - start;
-        CHECK_MSG (elapsed <= 8.0, "query took " + juce::String (elapsed, 2) + " ms");
+        // Machine-relative wall-clock budget: enforced only under LUTHIER_PERF=1 (the nightly).
+        if (luthier::tests::perfRunRequested())
+            CHECK_MSG (elapsed <= 8.0, "query took " + juce::String (elapsed, 2) + " ms");
 
         std::set<int> expected;
 
@@ -1261,6 +1263,11 @@ LUTHIER_TEST (Riffs, playerCompileAndIndexStayInBudget)
         times.push_back (juce::Time::getMillisecondCounterHiRes() - start);
         CHECK (c != nullptr);
     }
+
+    // Everything below is a machine-relative wall-clock / CPU budget (compile median, player cost,
+    // index load): run under LUTHIER_PERF=1 (the nightly) only. The compile checks above run everywhere.
+    if (! luthier::tests::perfRunRequested())
+        return;
 
     std::sort (times.begin(), times.end());
     CHECK_MSG (times[4] <= 2.0, "compile took " + juce::String (times[4], 3) + " ms");

@@ -96,7 +96,9 @@ LUTHIER_TEST (Thumbnails, workerRendersCachesAndEvictsAt200)
         cold = juce::jmin (cold, juce::Time::getMillisecondCounterHiRes() - t0);
         CHECK (image.getWidth() == GuitarThumbnails::kWidth && image.getHeight() == GuitarThumbnails::kHeight);
     }
-    CHECK_MSG (cold < 100.0, "a cold thumbnail took " + juce::String (cold, 1) + " ms");
+    // Machine-relative wall-clock budget: enforced only under LUTHIER_PERF=1 (the nightly).
+    if (luthier::tests::perfRunRequested())
+        CHECK_MSG (cold < 100.0, "a cold thumbnail took " + juce::String (cold, 1) + " ms");
 
     GuitarThumbnails thumbnails;
     CHECK (! thumbnails.get (guitar).isValid());          // queued, not rendered on this thread
@@ -106,7 +108,9 @@ LUTHIER_TEST (Thumbnails, workerRendersCachesAndEvictsAt200)
     const auto hit = thumbnails.get (guitar);
     const double hitMs = juce::Time::getMillisecondCounterHiRes() - t1;
     CHECK (hit.isValid());
-    CHECK_MSG (hitMs < 1.0, "a cache hit took " + juce::String (hitMs, 3) + " ms");
+    // Machine-relative wall-clock budget: enforced only under LUTHIER_PERF=1 (the nightly).
+    if (luthier::tests::perfRunRequested())
+        CHECK_MSG (hitMs < 1.0, "a cache hit took " + juce::String (hitMs, 3) + " ms");
 
     // 200 distinct guitars fill it; the 201st evicts the least recently used (the first).
     const auto firstKey = GuitarThumbnails::keyFor (guitar);
