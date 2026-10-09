@@ -337,7 +337,17 @@ LUTHIER_TEST (Normalization, ON03_FactoryTableDoesNotDrift)
 
         NormalizationCalibrator::Measurement table;
         const bool hit = NormalizationCalibrator::lookupCached (hash, table) && table.source == NormalizationCalibrator::Source::factory;
-        CHECK_MSG (hit, c.key() + " is not in the factory table");
+
+        // NormalizationFactory.json is generated for the Pro catalogue. A Free
+        // binary plays a substitute for any Pro-only amp/pedal a preset carries
+        // (even on a Free guitar), so that combination renders a different sound
+        // whose hash is not in the table - legitimately, not a drift. Require
+        // table membership only in Pro; in Free skip the combos the Pro table
+        // does not cover (Free's normalization is validated by ON-01's -18 LU
+        // target and ON-04's spread, which run in both editions). Any Free combo
+        // that IS in the table still gets the drift check below.
+        if constexpr (luthier::edition::isPro)
+            CHECK_MSG (hit, c.key() + " is not in the factory table");
 
         if (! hit)
             continue;
