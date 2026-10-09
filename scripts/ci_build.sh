@@ -41,9 +41,12 @@ LOG_DIR="${LOG_DIR:-$BUILD_DIR/logs}"
 CONFIG="${CONFIG:-Release}"
 LUTHIER_LTO="${LUTHIER_LTO:-OFF}"
 LUTHIER_EDITION="${LUTHIER_EDITION:-PAID}"
+# Keep in step with cmake/Editions.cmake (product name, plugin code). The
+# packaging scripts (package_linux.sh, package_macos.sh, package_windows.ps1)
+# derive the same product name from LUTHIER_EDITION to find what stage wrote.
 case "$LUTHIER_EDITION" in
-    PAID) PRODUCT_NAME="Luthier Pro" ;;
-    FREE) PRODUCT_NAME="Luthier Free" ;;
+    PAID) PRODUCT_NAME="Luthier Pro";  PLUGIN_CODE=Lthr ;;
+    FREE) PRODUCT_NAME="Luthier Free"; PLUGIN_CODE=Lthf ;;
     *) echo "ci_build.sh: LUTHIER_EDITION must be PAID or FREE" >&2; exit 1 ;;
 esac
 PLUGINVAL_STRICTNESS="${PLUGINVAL_STRICTNESS:-5}"
@@ -240,7 +243,8 @@ do_validate() {
             p="$HOME/Library/Audio/Plug-Ins/Components/$name"
             killall -9 AudioComponentRegistrar 2>/dev/null || true
             auval -a > "$LOG_DIR/auval-list.log" 2>&1 || true
-            auval -strict -v aumu Lthr Ltha 2>&1 | tee "$LOG_DIR/auval.log" || failed=1
+            # type, subtype (the edition's plugin code), manufacturer.
+            auval -strict -v aumu "$PLUGIN_CODE" Ltha 2>&1 | tee "$LOG_DIR/auval.log" || failed=1
         fi
         set +e
         ${wrap[@]+"${wrap[@]}"} "$pluginval" --strictness-level "$PLUGINVAL_STRICTNESS" \
@@ -268,7 +272,13 @@ do_stage() {
     step "Staging products into $out"
     rm -rf "$out"
     mkdir -p "$out"
-    for f in VST3/${PRODUCT_NAME}.vst3 CLAP/${PRODUCT_NAME}.clap AU/${PRODUCT_NAME}.component; do
+    # PRODUCT_NAME has a space ("Luthier Pro"): every expansion below is quoted,
+    # or the word-split names match nothing and the bundles are silently skipped.
+    [ -e "$ARTEFACTS/VST3/${PRODUCT_NAME}.vst3" ] || {
+        echo "ci_build.sh stage: $ARTEFACTS/VST3/${PRODUCT_NAME}.vst3 is missing (LUTHIER_EDITION=$LUTHIER_EDITION); build it first" >&2
+        return 1
+    }
+    for f in "VST3/${PRODUCT_NAME}.vst3" "CLAP/${PRODUCT_NAME}.clap" "AU/${PRODUCT_NAME}.component"; do
         [ -e "$ARTEFACTS/$f" ] && cp -R "$ARTEFACTS/$f" "$out/"
     done
     if [ "$PLATFORM" = macos ]; then
@@ -288,7 +298,7 @@ do_stage() {
 
     # Strip the per-bundle copies the build made, keeping JUCE's moduleinfo.json:
     # the installed plugins read the shared copy.
-    for b in "$out"/${PRODUCT_NAME}.vst3 "$out"/${PRODUCT_NAME}.component "$out"/${PRODUCT_NAME}.clap "$out"/${PRODUCT_NAME}.app; do
+    for b in "$out/${PRODUCT_NAME}.vst3" "$out/${PRODUCT_NAME}.component" "$out/${PRODUCT_NAME}.clap" "$out/${PRODUCT_NAME}.app"; do
         [ -d "$b/Contents/Resources" ] || continue
         for d in BodyIRs CabIRs Examples Fonts Guitars Parts Practice Presets Tunes; do
             rm -rf "$b/Contents/Resources/$d"

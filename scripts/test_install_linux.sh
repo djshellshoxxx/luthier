@@ -30,10 +30,10 @@ absent() { local what="$1"; shift; if "$@" >/dev/null 2>&1; then bad "$what"; el
 make_pkg() { # make_pkg <version> <extra-file-yes|no> <out.tar.gz>
     local v="$1" extra="$2" out="$3" r="$work/pkg-$1/Luthier-$1-linux-x64"
     rm -rf "$work/pkg-$1"
-    mkdir -p "$r/Luthier.vst3/Contents/x86_64-linux" "$r/Resources/Presets" "$r/Resources/BodyIRs" \
+    mkdir -p "$r/Luthier Pro.vst3/Contents/x86_64-linux" "$r/Resources/Presets" "$r/Resources/BodyIRs" \
              "$r/share/applications" "$r/share/mime/packages" "$r/share/icons/hicolor/256x256/apps"
-    echo "vst3 $v" > "$r/Luthier.vst3/Contents/x86_64-linux/Luthier.so"
-    echo "clap $v" > "$r/Luthier.clap"
+    echo "vst3 $v" > "$r/Luthier Pro.vst3/Contents/x86_64-linux/Luthier Pro.so"
+    echo "clap $v" > "$r/Luthier Pro.clap"
     printf '#!/bin/sh\necho luthier %s\n' "$v" > "$r/luthier"
     echo "preset" > "$r/Resources/Presets/a.luthierpreset"
     echo "ir" > "$r/Resources/BodyIRs/a.wav"
@@ -56,6 +56,12 @@ fi
 unpack() { rm -rf "$work/run/$2"; mkdir -p "$work/run/$2"; tar -C "$work/run/$2" -xzf "$1"; echo "$work/run/$2"/*/; }
 dirA="$(unpack "$A" A)"; dirB="$(unpack "$B" B)"
 
+# The bundles carry the edition's product name ("Luthier Pro.vst3", "Luthier Free.clap"):
+# read the names from the package under test.
+shopt -s nullglob; vst3s=("$dirA"*.vst3); claps=("$dirA"*.clap); shopt -u nullglob
+VST3_NAME="${vst3s[0]:-}"; VST3_NAME="${VST3_NAME##*/}"
+CLAP_NAME="${claps[0]:-}"; CLAP_NAME="${CLAP_NAME##*/}"
+
 snapshot() { (cd "$HOME" && find . -type f -o -type l | sort); }
 CONTENT="$XDG_DATA_HOME/luthier"
 MANIFEST="$CONTENT/install-manifest.txt"
@@ -64,7 +70,7 @@ MANIFEST="$CONTENT/install-manifest.txt"
 echo "1. per-user install into a clean HOME"
 snapshot > "$work/before.txt"
 "$dirA/install.sh" --user --yes >"$work/install.log" 2>&1 || { bad "install.sh exited non-zero"; cat "$work/install.log"; }
-check "VST3 bundle is in ~/.vst3"             test -e "$HOME/.vst3/Luthier.vst3"
+check "VST3 bundle is in ~/.vst3"             test -n "$VST3_NAME" -a -e "$HOME/.vst3/$VST3_NAME"
 check "standalone is in ~/.local/bin"         test -x "$HOME/.local/bin/luthier"
 check "content is in the share dir"           test -d "$CONTENT/Resources/Presets"
 check "manifest exists"                       test -s "$MANIFEST"
@@ -105,7 +111,7 @@ check "A's own files are present"             test -d "$CONTENT/Resources/Preset
 # --------------------------------------------------------------- 5. uninstall keeps data
 echo "5. uninstall removes everything installed, keeps user data"
 "$CONTENT/uninstall.sh" --user --yes --quiet || bad "uninstall.sh exited non-zero"
-absent "VST3 removed"                         test -e "$HOME/.vst3/Luthier.vst3"
+absent "VST3 removed"                         test -e "$HOME/.vst3/$VST3_NAME"
 absent "standalone removed"                   test -e "$HOME/.local/bin/luthier"
 absent "content removed"                      test -e "$CONTENT/Resources"
 absent "desktop entry removed"                test -e "$XDG_DATA_HOME/applications/luthier.desktop"
@@ -124,8 +130,8 @@ absent "user data removed by --purge"         test -e "$HOME/Documents/Luthier"
 echo "7. component flags and install.defaults (standalone-only package)"
 echo "--no-vst3 --no-clap" > "$dirA/install.defaults"
 "$dirA/install.sh" --user --yes >/dev/null 2>&1
-absent "no VST3 with install.defaults"        test -e "$HOME/.vst3/Luthier.vst3"
-absent "no CLAP with install.defaults"        test -e "$HOME/.clap/Luthier.clap"
+absent "no VST3 with install.defaults"        test -e "$HOME/.vst3/$VST3_NAME"
+absent "no CLAP with install.defaults"        test -e "$HOME/.clap/$CLAP_NAME"
 check "standalone still installed"            test -x "$HOME/.local/bin/luthier"
 check "content still installed"               test -d "$CONTENT/Resources"
 "$CONTENT/uninstall.sh" --user --yes --quiet
