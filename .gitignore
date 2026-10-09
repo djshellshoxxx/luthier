@@ -14,7 +14,10 @@ build-ci/
 build-free/
 dist/
 build-asan/
+build-verify-pro/
+build-verify-free/
 # Also match symlinks (a trailing slash only matches directories).
 ThirdParty/JUCE
 ThirdParty/clap-juce-extensions
 .claude/worktrees/
+BUILD_GATE_NOTES.md

@@ -16,6 +16,7 @@
 #include "../Rhythm/BassStepGrid.h"
 #include "../Rhythm/GenreKit.h"
 #include "../UI/SlapGroup.h"
+#include "../Edition.h"
 
 #include <set>
 
@@ -181,6 +182,15 @@ namespace
         p->setValueNotifyingHost (p->convertTo0to1 ((float) type));
         processor.getParameterBridge().applyAllNow();
         return processor.getEngine().getGuitarType() == type;
+    }
+
+    /*  A regular (non-bass) electric guitar that loads as itself in the current
+        edition: the Stratocaster in Pro, the Classic T-Style (Telecaster, a Free
+        guitar) in Free. Free clamps a Pro-only type to its substitute, so these
+        bass tests anchor on this to contrast "a guitar" with "a bass". */
+    GuitarType anEditionGuitar() noexcept
+    {
+        return luthier::edition::isPro ? GuitarType::Stratocaster : GuitarType::Telecaster;
     }
 
     std::vector<double> normalised (std::vector<double> x)
@@ -664,9 +674,15 @@ LUTHIER_TEST (BassTechniques, bassDefaultsApplyOnLoad)
     for (auto type : { GuitarType::PrecisionBass, GuitarType::JazzBass, GuitarType::Rickenbacker,
                        GuitarType::FiveStringBass, GuitarType::FretlessBass })
     {
+        // Free offers only the one bass (J-Style / JazzBass); the others clamp to
+        // their substitute and would not load as themselves. Exercise each bass only
+        // where the edition offers it - Pro runs them all.
+        if (! (luthier::edition::isPro || luthier::edition::isFreeGuitarIndex ((int) type)))
+            continue;
+
         LuthierAudioProcessor processor;
         processor.prepareToPlay (kSr, kBlock);
-        CHECK (loadType (processor, GuitarType::Stratocaster));
+        CHECK (loadType (processor, anEditionGuitar()));
         CHECK (loadType (processor, type));
 
         const juce::String name (GuitarLibrary::get (type).name);
@@ -684,7 +700,7 @@ LUTHIER_TEST (BassTechniques, bassDefaultsApplyOnLoad)
                      + juce::String (processor.getEngine().getGuitarSpec().scaleLengthMm, 1) + " mm");
 
         // And back: a guitar gets the guitar's defaults again, the compressor out.
-        CHECK (loadType (processor, GuitarType::Stratocaster));
+        CHECK (loadType (processor, anEditionGuitar()));
         CHECK (std::abs (plain (processor, ParamIDs::squeakPressure) - 0.5) < 1.0e-3);
         CHECK (juce::roundToInt (plain (processor, ParamIDs::setupStyle)) == kDefaultSetupStyle);
         CHECK (juce::roundToInt (plain (processor, ParamIDs::slotType (false, 0))) == (int) PedalType::None);
@@ -696,7 +712,7 @@ LUTHIER_TEST (BassTechniques, aUserSettingSurvivesTheFamilyChange)
 {
     LuthierAudioProcessor processor;
     processor.prepareToPlay (kSr, kBlock);
-    CHECK (loadType (processor, GuitarType::Stratocaster));
+    CHECK (loadType (processor, anEditionGuitar()));
 
     auto* squeak = dynamic_cast<juce::RangedAudioParameter*> (processor.getState().getParameter (ParamIDs::squeakPressure));
     squeak->setValueNotifyingHost (squeak->convertTo0to1 (0.8f));
@@ -912,7 +928,7 @@ LUTHIER_TEST (BassTechniques, theSlapGroupIsShownOnlyOnABass)
 {
     LuthierAudioProcessor processor;
     processor.prepareToPlay (kSr, kBlock);
-    CHECK (loadType (processor, GuitarType::Stratocaster));
+    CHECK (loadType (processor, anEditionGuitar()));
 
     SlapGroup group (processor);
     group.refresh();
