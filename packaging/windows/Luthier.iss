@@ -44,6 +44,14 @@
 ; takes the other's associations with it.
 #define ProgId "Luthier" + EditionSlug + ".File"
 
+; VersionInfoVersion (the Windows file-version resource) must be numeric x.y.z[.w];
+; strip any pre-release suffix (e.g. "-beta1") from AppVersion so a tag like
+; 1.0.0-beta1 still compiles. AppVersion itself keeps the full string for display.
+#define VersionNumeric AppVersion
+#if Pos("-", VersionNumeric) > 0
+  #define VersionNumeric Copy(VersionNumeric, 1, Pos("-", VersionNumeric) - 1)
+#endif
+
 [Setup]
 ; Never change an AppId: it is how an upgrade finds the previous install. Pro and
 ; Free are separate products with their own AppId, so they install, upgrade and
@@ -59,7 +67,7 @@ AppVerName={#AppName} {#AppVersion}
 AppPublisher={#AppPublisher}
 AppPublisherURL=https://luthieraudio.com
 AppSupportURL=https://luthieraudio.com/support
-VersionInfoVersion={#AppVersion}
+VersionInfoVersion={#VersionNumeric}
 DefaultDirName={autopf}\{#AppName}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
