@@ -370,6 +370,13 @@ public:
     Telemetry& getTelemetry() noexcept { return telemetry; }
    #if LUTHIER_PRO
     License&   getLicense() noexcept   { return license; }   // editions.md 2.5: Pro only
+
+    /** Enters a Pro-trial unlock code (spec/trial-lock.md); re-ups 60 days on a
+        correct code and refreshes the runtime lock. Returns false for a wrong one. */
+    bool tryUnlockProTrial (const juce::String& code);
+
+    /** Re-reads the licence state and drives the runtime edition gate from it. */
+    void refreshProLock();
    #endif
 
     //==========================================================================

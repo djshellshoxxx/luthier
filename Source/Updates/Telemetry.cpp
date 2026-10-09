@@ -904,6 +904,7 @@ const char* License::getStateName (State state) noexcept
         case State::activated:  return "Activated";
         case State::grace:      return "Grace period";
         case State::expired:    return "Expired";
+        case State::trial:      return "Trial";
         case State::numStates:
         default:                return "Unlicensed";
     }
@@ -927,22 +928,132 @@ juce::String License::getActivationProof() const
     return hash.toHexString();
 }
 
+namespace
+{
+    constexpr const char* kUnlockSalt = "luthier-trial-unlock-v1";
+
+    /*  Salted SHA-256 of the Pro-trial unlock code (spec/trial-lock.md). The
+        plaintext never appears in the source tree or in the shipped binary's
+        strings - only this digest does. Tests replace it with a known digest
+        through License::setUnlockHashForTesting, so the real code is never
+        written into test source either. */
+    juce::String& activeUnlockHash()
+    {
+        static juce::String hash { "04302da4e9cadcdf221fd7b25ca2ccf22e7d04cf0305792a16cf16764c5c5f87" };
+        return hash;
+    }
+}
+
 void License::updateStateFromDates()
 {
-    if (storedKeyHash.isEmpty())
+    const auto now = juce::Time::getCurrentTime();
+
+    // Monotonic rollback marker (threat T7): lastSeen only moves forward, and
+    // every expiry decision uses effectiveNow = max(now, lastSeen), so winding
+    // the system clock back cannot extend a trial or a grace period.
+    if (now.toMilliseconds() > lastSeen.toMilliseconds())
+        lastSeen = now;
+
+    const auto effectiveNow = lastSeen;
+
+    if (! storedKeyHash.isEmpty())
+    {
+        // An activated (paid) licence is never governed by the trial clock.
+        const double daysSince = (effectiveNow - lastValidated).inDays();
+
+        if (daysSince <= (double) kRevalidationDays)
+            state = State::activated;
+        else if (daysSince <= (double) (kRevalidationDays + kGraceDays))
+            state = State::grace;
+        else
+            state = State::expired;
+
+        return;
+    }
+
+    // Unlicensed: the 60-day Pro trial. With no trial started yet the build
+    // stays "unlicensed" until startTrialIfNeeded() begins one.
+    if (trialExpiresAt.toMilliseconds() <= 0)
     {
         state = State::unlicensed;
         return;
     }
 
-    const double daysSince = (juce::Time::getCurrentTime() - lastValidated).inDays();
+    state = (effectiveNow.toMilliseconds() < trialExpiresAt.toMilliseconds())
+                ? State::trial
+                : State::expired;
+}
 
-    if (daysSince <= (double) kRevalidationDays)
-        state = State::activated;
-    else if (daysSince <= (double) (kRevalidationDays + kGraceDays))
-        state = State::grace;
-    else
-        state = State::expired;
+void License::startTrialIfNeeded()
+{
+    if (storedKeyHash.isEmpty() && trialStartedAt.toMilliseconds() <= 0)
+    {
+        trialStartedAt = juce::Time::getCurrentTime();
+        trialExpiresAt = trialStartedAt + juce::RelativeTime::days ((double) kTrialDays);
+        lastSeen       = trialStartedAt;
+
+        updateStateFromDates();
+        save();
+        return;
+    }
+
+    updateStateFromDates();
+}
+
+void License::refresh()
+{
+    updateStateFromDates();
+}
+
+bool License::proFeaturesUnlocked() const noexcept
+{
+    return state == State::activated || state == State::grace || state == State::trial;
+}
+
+int License::getTrialDaysLeft() const
+{
+    if (! storedKeyHash.isEmpty() || trialExpiresAt.toMilliseconds() <= 0)
+        return 0;
+
+    const auto now = juce::Time::getCurrentTime();
+    const auto effectiveNow = (now.toMilliseconds() > lastSeen.toMilliseconds()) ? now : lastSeen;
+
+    const double daysLeft = (trialExpiresAt - effectiveNow).inDays();
+
+    if (daysLeft <= 0.0)
+        return 0;
+
+    // Round up so day one of a fresh 60-day trial reads "60 days".
+    const int whole = (int) daysLeft;
+    return (daysLeft > (double) whole) ? whole + 1 : whole;
+}
+
+bool License::enterUnlockCode (const juce::String& code)
+{
+    const auto digest = juce::SHA256 ((juce::String (kUnlockSalt) + code).toUTF8()).toHexString();
+
+    if (! digest.equalsIgnoreCase (activeUnlockHash()))
+        return false;
+
+    const auto now  = juce::Time::getCurrentTime();
+    const auto base = (now.toMilliseconds() > lastSeen.toMilliseconds()) ? now : lastSeen;
+
+    if (trialStartedAt.toMilliseconds() <= 0)
+        trialStartedAt = base;
+
+    // Re-up a fresh 60-day window from this moment ("on repeat").
+    trialExpiresAt = base + juce::RelativeTime::days ((double) kTrialDays);
+    lastSeen       = base;
+
+    updateStateFromDates();
+    save();
+
+    return true;
+}
+
+void License::setUnlockHashForTesting (const juce::String& hashHex)
+{
+    activeUnlockHash() = hashHex.trim().toLowerCase();
 }
 
 int License::getDaysUntilRevalidation() const
@@ -1051,6 +1162,9 @@ juce::var License::toVar() const
     root->setProperty ("keyHash", storedKeyHash);
     root->setProperty ("activatedAt", activatedAt.toMilliseconds());
     root->setProperty ("lastValidated", lastValidated.toMilliseconds());
+    root->setProperty ("trialStartedAt", trialStartedAt.toMilliseconds());
+    root->setProperty ("trialExpiresAt", trialExpiresAt.toMilliseconds());
+    root->setProperty ("lastSeen", lastSeen.toMilliseconds());
 
     return { root };
 }
@@ -1065,6 +1179,12 @@ void License::fromVar (const juce::var& state_)
     storedKeyHash = root->getProperty ("keyHash").toString();
     activatedAt = juce::Time ((juce::int64) root->getProperty ("activatedAt"));
     lastValidated = juce::Time ((juce::int64) root->getProperty ("lastValidated"));
+
+    // Trial fields are absent in a pre-trial licence.json; they read back as 0,
+    // so the next startTrialIfNeeded() begins a fresh trial (upgrade path).
+    trialStartedAt = juce::Time ((juce::int64) root->getProperty ("trialStartedAt"));
+    trialExpiresAt = juce::Time ((juce::int64) root->getProperty ("trialExpiresAt"));
+    lastSeen = juce::Time ((juce::int64) root->getProperty ("lastSeen"));
 
     updateStateFromDates();
 }
