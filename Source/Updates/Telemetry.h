@@ -28,6 +28,7 @@
 #include <atomic>
 #include <functional>
 #include <memory>
+#include <thread>
 #include <vector>
 
 namespace luthier
@@ -300,6 +301,14 @@ private:
 
     juce::Time lastUpdateCheck;
 
+    // UT-4: the update check runs on a worker that keeps touching *this and the
+    // MessageManager after a blocking (up to 10 s) network call. Owned and joined
+    // (before each new launch and in ~Telemetry) so it can never outlive this
+    // Telemetry or the MessageManager. Previously a detached juce::Thread::launch,
+    // which could outlive this object - crashing the test binary at teardown and
+    // the plugin at DAW-unload (an intermittent use-after-free on a dangling this).
+    std::thread updateCheckThread;
+
     mutable juce::CriticalSection recordLock;
     std::array<juce::StringArray, (size_t) Category::numCategories> pending;
 
@@ -316,7 +325,7 @@ private:
 class License
 {
 public:
-    enum class State { unlicensed = 0, activated, grace, expired, numStates };
+    enum class State { unlicensed = 0, activated, grace, expired, trial, numStates };
 
     static const char* getStateName (State state) noexcept;
 
@@ -328,6 +337,35 @@ public:
 
     /** Days left before revalidation is required. */
     int getDaysUntilRevalidation() const;
+
+    //==========================================================================
+    // The 60-day Pro trial and its unlock code (spec/trial-lock.md).
+
+    /** Starts a 60-day Pro trial on the first run of an unlicensed Pro build,
+        and persists it. A no-op once a trial or a paid licence already exists. */
+    void startTrialIfNeeded();
+
+    /** Recomputes the state from the stored dates (advancing the monotonic
+        rollback marker). Cheap; call it before reading the state after time may
+        have passed. */
+    void refresh();
+
+    /** True while Pro features may be used: an activated/grace licence, or an
+        unexpired trial. False once the trial has expired (degrade to Free) or
+        the build is unlicensed with no trial. */
+    bool proFeaturesUnlocked() const noexcept;
+
+    /** Whole days left in the trial (0 if not currently in a trial). */
+    int getTrialDaysLeft() const;
+
+    /** Entering the correct unlock code re-ups a fresh 60-day trial window from
+        now ("on repeat"); repeatable. Returns false for a wrong code. The code
+        is checked against a salted hash, so the plaintext is never stored. */
+    bool enterUnlockCode (const juce::String& code);
+
+    /** Tests substitute a known digest so the real unlock code never appears in
+        test source. */
+    static void setUnlockHashForTesting (const juce::String& hashHex);
 
     /** updates-telemetry 5: one online activation. Worker thread. */
     bool activate (const juce::String& licenseKey, const juce::String& url);
@@ -371,10 +409,18 @@ private:
     juce::Time activatedAt;
     juce::Time lastValidated;
 
+    // The 60-day Pro trial (spec/trial-lock.md). lastSeen is a monotonic
+    // wall-clock marker: it only ever moves forward, so winding the system clock
+    // back cannot extend the trial (threat T7).
+    juce::Time trialStartedAt;
+    juce::Time trialExpiresAt;
+    juce::Time lastSeen;
+
     Transport* transport = nullptr;
 
     static constexpr int kRevalidationDays = 30;
     static constexpr int kGraceDays = 14;
+    static constexpr int kTrialDays = 60;
 };
 #endif
 

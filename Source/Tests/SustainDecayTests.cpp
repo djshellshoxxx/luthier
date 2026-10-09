@@ -660,6 +660,11 @@ LUTHIER_TEST (SustainDecay, costAndSafety)
 
     CHECK_MSG (run (true, true) == 0.0, "the shape allocated on the audio path");
 
+    // Everything below is a machine-relative CPU budget (measured, then asserted): run under
+    // LUTHIER_PERF=1 (the nightly) only. The allocation check above runs everywhere.
+    if (! luthier::tests::perfRunRequested())
+        return;
+
     // A unit is one real-time core at 48 kHz: 10 s of audio is 10000 ms of it.
     const double units = (run (true, false) - run (false, false)) / 10000.0;
     std::printf ("      shape cost %.3f units over the legacy strings\n", units);

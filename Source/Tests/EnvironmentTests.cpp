@@ -622,8 +622,12 @@ LUTHIER_TEST (Environment, ENV15_budgetSafetyAndCorners)
         CHECK (luthierAllocationCount() == allocations);
     }
 
-    const double units = 100.0 * best / (blocks * kBlock / kSr);
-    CHECK_MSG (units <= 0.02, "EnvironmentModel costs " + juce::String (units, 4) + " units (budget 0.02)");
+    // Machine-relative CPU budget: enforced only under LUTHIER_PERF=1 (the nightly).
+    if (luthier::tests::perfRunRequested())
+    {
+        const double units = 100.0 * best / (blocks * kBlock / kSr);
+        CHECK_MSG (units <= 0.02, "EnvironmentModel costs " + juce::String (units, 4) + " units (budget 0.02)");
+    }
 
     // 1000 random corners of the advanced ranges, 5 s each: finite everywhere.
     juce::Random random (0xE7u);

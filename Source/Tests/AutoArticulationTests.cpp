@@ -1328,6 +1328,12 @@ LUTHIER_TEST (AutoArticulationEngine, noAllocationInProcessBlockInAnyStyle)
 // AA-31
 LUTHIER_TEST (AutoArticulationEngine, assistCostsAlmostNothing)
 {
+    // This test compares CPU time (assist off vs on, and a per-note micro-benchmark);
+    // on a shared CI runner the measurement swings on scheduling noise wider than the
+    // budget, so it runs under LUTHIER_PERF=1 (the nightly controlled runner) only.
+    if (! luthier::tests::perfRunRequested())
+        return;
+
     // A 16-voice stress: two 8-note chords a beat, every beat, for 4 s, Poly.
     std::vector<Ev> events;
 

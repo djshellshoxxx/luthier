@@ -814,8 +814,12 @@ LUTHIER_TEST (FingerstyleAttack, FA17_rangesRealtimeRoundTrip)
     };
 
     // 16 notes a second, as a share of a second, in units (1 % of a core).
-    const double units = 100.0 * 16.0 * juce::jmax (0.0, noteOnSeconds (RhTool::finger) - noteOnSeconds (RhTool::global));
-    CHECK_MSG (units <= 0.02, "16 notes/s of right-hand work cost " + juce::String (units, 4) + " units");
+    // Machine-relative CPU budget: measured and enforced only under LUTHIER_PERF=1 (the nightly).
+    if (luthier::tests::perfRunRequested())
+    {
+        const double units = 100.0 * 16.0 * juce::jmax (0.0, noteOnSeconds (RhTool::finger) - noteOnSeconds (RhTool::global));
+        CHECK_MSG (units <= 0.02, "16 notes/s of right-hand work cost " + juce::String (units, 4) + " units");
+    }
 
     // Preset round trip of every field.
     std::vector<juce::String> ids { ParamIDs::fingerFleshReleaseMs, ParamIDs::fingerNailReleaseMs, ParamIDs::thumbPositionOffset,

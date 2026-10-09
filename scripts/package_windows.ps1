@@ -3,10 +3,15 @@
     Package the Windows products staged by scripts/ci_build.ps1.
 
 .DESCRIPTION
-    Produces dist\installers\Luthier-<version>-Setup-win64.exe with Inno Setup
-    (packaging\windows\Luthier.iss), and a portable zip containing the full
-    VST3 bundle, standalone executable and factory Resources:
-    dist\installers\Luthier-<version>-portable-win64.zip.
+    Packages one edition per run: -Edition (default $env:LUTHIER_EDITION, then
+    PAID) selects Luthier Pro (PAID) or Luthier Free (FREE), whose staged files
+    are named after the product ("Luthier Pro.exe", "Luthier Free.vst3", ...).
+    <Edition> below is Pro or Free, so the two editions' outputs never collide.
+
+    Produces dist\installers\Luthier-<Edition>-<version>-Setup-win64.exe with
+    Inno Setup (packaging\windows\Luthier.iss), and a portable zip containing
+    the full VST3 bundle, standalone executable and factory Resources:
+    dist\installers\Luthier-<Edition>-<version>-portable-win64.zip.
     -PortableOnly skips Inno Setup and writes a SHA-256 sidecar.
 
     Code signing runs only when WINDOWS_CERT_PFX_BASE64 (a base64 .pfx) and
@@ -19,6 +24,10 @@
     Invoke-Sign below with the provider's signer (Azure Trusted Signing's
     "Azure/trusted-signing-action", DigiCert KeyLocker's smctl, ...) - see
     docs/RELEASING.md.
+
+.PARAMETER Edition
+    PAID (Luthier Pro) or FREE (Luthier Free). Defaults to $env:LUTHIER_EDITION,
+    which build.yml sets for every matrix job, then to PAID.
 
 .PARAMETER BetaReadme
     Path to a completed README-BETA.md. Defaults to docs/beta/README-BETA.md.
@@ -34,6 +43,7 @@
 [CmdletBinding()]
 param(
     [string] $Version = $env:VERSION,
+    [string] $Edition = $env:LUTHIER_EDITION,
     [string] $DistDir = 'dist',
     [string] $BetaReadme = 'docs/beta/README-BETA.md',
     [switch] $PortableOnly
@@ -50,14 +60,26 @@ if (-not $Version) {
     $Version = $m.Matches[0].Groups[1].Value
 }
 
+# The edition decides which names scripts/ci_build.ps1 -Step stage wrote: its
+# $productName is 'Luthier Free' for FREE and 'Luthier Pro' otherwise. Keep this
+# in step with it (and with cmake/Editions.cmake and the EditionSlug rules in
+# packaging/windows/Luthier.iss, which builds "Luthier $slug").
+if (-not $Edition) { $Edition = 'PAID' }
+switch ($Edition.ToUpperInvariant()) {
+    'PAID'  { $Edition = 'PAID'; $slug = 'Pro' }
+    'FREE'  { $Edition = 'FREE'; $slug = 'Free' }
+    default { throw "Edition must be PAID or FREE (got '$Edition')." }
+}
+$productName = "Luthier $slug"
+
 $stage = (Resolve-Path (Join-Path $DistDir 'windows')).Path
 $out   = Join-Path $root "$DistDir/installers"
 New-Item -ItemType Directory -Force -Path $out | Out-Null
 
 # Require the complete Windows VST3 bundle before signing or packaging.
-foreach ($required in 'Luthier.exe', 'Resources', 'Luthier.vst3/Contents/x86_64-win/Luthier.vst3') {
+foreach ($required in "$productName.exe", 'Resources', "$productName.vst3/Contents/x86_64-win/$productName.vst3") {
     if (-not (Test-Path (Join-Path $stage $required))) {
-        throw "Staged Windows product missing: $required (run scripts/ci_build.ps1 -Step stage)."
+        throw "Staged Windows product missing: $required (run scripts/ci_build.ps1 -Step stage -Edition $Edition)."
     }
 }
 
@@ -86,7 +108,7 @@ if ($env:WINDOWS_CERT_PFX_BASE64 -and $env:WINDOWS_CERT_PASSWORD) {
 function Invoke-Sign([string] $file) {
     if (-not $signing) { return }
     & $signtool sign /f $pfx /p $env:WINDOWS_CERT_PASSWORD /fd sha256 /tr $timestamp /td sha256 `
-        /d 'Luthier' $file
+        /d $productName $file
     if ($LASTEXITCODE -ne 0) { throw "Signing $file failed." }
 }
 
@@ -94,8 +116,8 @@ try {
     #-------------------------------------------------------------- binaries
     if ($signing) {
         Write-Step 'Signing binaries'
-        Get-ChildItem -Recurse -Path (Join-Path $stage 'Luthier.vst3') -Filter '*.vst3' -File | ForEach-Object { Invoke-Sign $_.FullName }
-        foreach ($f in 'Luthier.clap', 'Luthier.exe', 'luthier-render.exe') {
+        Get-ChildItem -Recurse -Path (Join-Path $stage "$productName.vst3") -Filter '*.vst3' -File | ForEach-Object { Invoke-Sign $_.FullName }
+        foreach ($f in "$productName.clap", "$productName.exe", 'luthier-render.exe') {
             $p = Join-Path $stage $f
             if (Test-Path $p) { Invoke-Sign $p }
         }
@@ -116,10 +138,12 @@ try {
     }
 
     Write-Step "Building the installer ($Version)"
-    $isccArgs = @("/DAppVersion=$Version", "/DStageDir=$stage", "/DOutputDir=$out")
+    # EditionSlug (Pro or Free) is all the script needs: Luthier.iss derives the
+    # product name, staged file names, AppId and output name from it.
+    $isccArgs = @("/DAppVersion=$Version", "/DEditionSlug=$slug", "/DStageDir=$stage", "/DOutputDir=$out")
     if ($signing) {
         $isccArgs += '/DSign'
-        $isccArgs += "/Ssigntool=`"$signtool`" sign /f `"$pfx`" /p `"$($env:WINDOWS_CERT_PASSWORD)`" /fd sha256 /tr $timestamp /td sha256 /d Luthier `$f"
+        $isccArgs += "/Ssigntool=`"$signtool`" sign /f `"$pfx`" /p `"$($env:WINDOWS_CERT_PASSWORD)`" /fd sha256 /tr $timestamp /td sha256 /d `"$productName`" `$f"
     }
     $isccArgs += (Join-Path $root 'packaging/windows/Luthier.iss')
     & $iscc @isccArgs
@@ -141,25 +165,25 @@ try {
     # installer.md 9: unpacks anywhere; no registry, no start menu. The content
     # sits in Resources beside the exe, where IrLibrary finds it first.
     Write-Step 'Building the portable zip'
-    $portable = Join-Path ([System.IO.Path]::GetTempPath()) ("Luthier-$Version-portable-" + [System.IO.Path]::GetRandomFileName())
+    $portable = Join-Path ([System.IO.Path]::GetTempPath()) ("Luthier-$slug-$Version-portable-" + [System.IO.Path]::GetRandomFileName())
     New-Item -ItemType Directory -Path $portable | Out-Null
     try {
-    Copy-Item (Join-Path $stage 'Luthier.exe') $portable
+    Copy-Item (Join-Path $stage "$productName.exe") $portable
     Copy-Item -LiteralPath $BetaReadme -Destination (Join-Path $portable 'README-BETA.md')
     Copy-Item -Recurse (Join-Path $stage 'Resources') (Join-Path $portable 'Resources')
-    Copy-Item -Recurse (Join-Path $stage 'Luthier.vst3') $portable
-    if (Test-Path (Join-Path $stage 'Luthier.clap')) { Copy-Item (Join-Path $stage 'Luthier.clap') $portable }
+    Copy-Item -Recurse (Join-Path $stage "$productName.vst3") $portable
+    if (Test-Path (Join-Path $stage "$productName.clap")) { Copy-Item (Join-Path $stage "$productName.clap") $portable }
     Set-Content -Path (Join-Path $portable 'README.txt') -Value @"
-Luthier $Version - portable
+$productName $Version - portable
 
-Run Luthier.exe with Resources beside it. This archive does not install
+Run $productName.exe with Resources beside it. This archive does not install
 registry entries or Start menu shortcuts. For VST3, copy the entire
-Luthier.vst3 folder into C:\Program Files\Common Files\VST3\, and copy
+$productName.vst3 folder into C:\Program Files\Common Files\VST3\, and copy
 Resources into C:\ProgramData\Luthier\Resources\ for factory content.
-If included, Luthier.clap belongs in C:\Program Files\Common Files\CLAP\.
+If included, $productName.clap belongs in C:\Program Files\Common Files\CLAP\.
 Close your DAW before replacing the plug-in and rescan after copying.
 "@
-    $zip = Join-Path $out "Luthier-$Version-portable-win64.zip"
+    $zip = Join-Path $out "Luthier-$slug-$Version-portable-win64.zip"
     if (Test-Path $zip) { Remove-Item -Force $zip }
     if (Test-Path "$zip.sha256") { Remove-Item -Force "$zip.sha256" }
     Compress-Archive -Path "$portable\*" -DestinationPath $zip

@@ -1025,9 +1025,19 @@ LUTHIER_TEST (PresetPreview, PB15_aSaveRendersItsPreview)
     CHECK (arrived);
     std::cout << "    save to cached preview " << juce::String (elapsed, 0) << " ms" << std::endl;
     // 3 s on the reference CPU; this machine renders at about half its speed.
-    CHECK_MSG (elapsed <= 3000.0 * 2.0, juce::String (elapsed, 0) + " ms");
+    // Machine-relative wall-clock budget: enforced only under LUTHIER_PERF=1 (the nightly).
+    if (luthier::tests::perfRunRequested())
+        CHECK_MSG (elapsed <= 3000.0 * 2.0, juce::String (elapsed, 0) + " ms");
     CHECK (ToneFeatures::fromVar (sidecar.getProperty ("features", {})).valid);
-    CHECK (sidecar.getProperty ("descriptors", {}).toString().isNotEmpty());
+
+    // Whether the default sound earns a descriptor depends on how it measures against the
+    // calibration; Free plays a substitute for the default Pro guitar, which can measure
+    // under every threshold. There the sidecar must still carry the (possibly empty) field.
+    if constexpr (luthier::edition::isPro)
+        CHECK (sidecar.getProperty ("descriptors", {}).toString().isNotEmpty());
+    else
+        CHECK (sidecar.hasProperty ("descriptors"));
+
     CHECK (sidecar.getProperty ("peaks", {}).size() == PreviewResult::kNumPeaks);
 
     // The saved file carries a uid and nothing derived.
@@ -1161,7 +1171,9 @@ LUTHIER_TEST (PresetPreview, PB18_failures)
 
         CHECK (! result.ok);
         CHECK (result.timedOut);
-        CHECK_MSG (elapsed <= 10500.0, juce::String (elapsed, 0) + " ms");
+        // Machine-relative wall-clock budget: enforced only under LUTHIER_PERF=1 (the nightly).
+        if (luthier::tests::perfRunRequested())
+            CHECK_MSG (elapsed <= 10500.0, juce::String (elapsed, 0) + " ms");
     }
 
     // An unwritable cache plays from memory: one render serves both plays.
@@ -1209,7 +1221,9 @@ LUTHIER_TEST (PresetPreview, PB19_destroyMidRender)
     p.reset();
     const double elapsed = juce::Time::getMillisecondCounterHiRes() - start;
 
-    CHECK_MSG (elapsed <= 500.0, juce::String (elapsed, 0) + " ms");
+    // Machine-relative wall-clock budget: enforced only under LUTHIER_PERF=1 (the nightly).
+    if (luthier::tests::perfRunRequested())
+        CHECK_MSG (elapsed <= 500.0, juce::String (elapsed, 0) + " ms");
     pumpMessages (50);   // anything it posted is now dropped by its WeakReference
     PreviewCache::setDefaultFolderOverride ({});
 }

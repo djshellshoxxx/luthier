@@ -322,6 +322,11 @@ LUTHIER_TEST (WorkshopSpectrum, theWorkerCoalescesAndStaysInBudget)
 
     CHECK_MSG (r.requestId == last, "never got the latest request's result");
 
+    // Everything below is a machine-relative render-time budget (measured, then asserted): run under
+    // LUTHIER_PERF=1 (the nightly) only. The coalescing check above runs everywhere.
+    if (! luthier::tests::perfRunRequested())
+        return;
+
     // Timed again warm, as a drag would see it.
     const auto warm = [&]
     {

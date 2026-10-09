@@ -989,11 +989,14 @@ LUTHIER_TEST (TabAdversarial, tenMegabytesOfDashesIsRefusedQuickly)
     const auto t = readText (juce::String::repeatedString ("-", 10 * 1024 * 1024));
     CHECK (! t.ok);
     CHECK (t.error.isNotEmpty());
-    CHECK_MSG (t.seconds < 5.0, "took " + juce::String (t.seconds) + "s");
+    // Machine-relative wall-clock bounds: enforced only under LUTHIER_PERF=1 (the nightly).
+    if (luthier::tests::perfRunRequested())
+        CHECK_MSG (t.seconds < 5.0, "took " + juce::String (t.seconds) + "s");
 
     const auto lines = readText (juce::String::repeatedString (juce::String::repeatedString ("-", 79) + "\n", 130000));
     CHECK (! lines.ok);
-    CHECK_MSG (lines.seconds < 5.0, "took " + juce::String (lines.seconds) + "s");
+    if (luthier::tests::perfRunRequested())
+        CHECK_MSG (lines.seconds < 5.0, "took " + juce::String (lines.seconds) + "s");
 }
 
 LUTHIER_TEST (TabAdversarial, oneEnormousLineCostsLinearTimeNotQuadratic)
@@ -1002,7 +1005,9 @@ LUTHIER_TEST (TabAdversarial, oneEnormousLineCostsLinearTimeNotQuadratic)
     {
         const auto t = readText (juce::String::repeatedString (unit, 1900000 / (int) std::strlen (unit)));
         CHECK (! t.ok);
-        CHECK_MSG (t.seconds < 8.0, juce::String (unit) + " took " + juce::String (t.seconds) + "s");
+        // Machine-relative wall-clock bound: enforced only under LUTHIER_PERF=1 (the nightly).
+        if (luthier::tests::perfRunRequested())
+            CHECK_MSG (t.seconds < 8.0, juce::String (unit) + " took " + juce::String (t.seconds) + "s");
     }
 }
 
@@ -1015,14 +1020,17 @@ LUTHIER_TEST (TabAdversarial, binaryAndRandomTextAreHandled)
         binary += juce::String::charToString ((juce::juce_wchar) (rng.nextInt (255) + 1));
     const auto b = readText (binary);
     CHECK (! b.ok);
-    CHECK_MSG (b.seconds < 8.0, "binary took " + juce::String (b.seconds));
+    // Machine-relative wall-clock bounds: enforced only under LUTHIER_PERF=1 (the nightly).
+    if (luthier::tests::perfRunRequested())
+        CHECK_MSG (b.seconds < 8.0, "binary took " + juce::String (b.seconds));
 
     juce::String tabby;
     static const char alphabet[] = "-|0123456789ehpbrx/\\~()[]<>\n :.";
     for (int i = 0; i < 400000; ++i)
         tabby += alphabet[rng.nextInt ((int) sizeof (alphabet) - 1)];
     const auto t = readText (tabby);
-    CHECK_MSG (t.seconds < 8.0, "random tab-ish text took " + juce::String (t.seconds));
+    if (luthier::tests::perfRunRequested())
+        CHECK_MSG (t.seconds < 8.0, "random tab-ish text took " + juce::String (t.seconds));
 
     for (const char* s : { "", " ", "\n\n\n", "|", "e|", "e|-", "e|--|", "|||||||", "e|:::|", "e|--0--|x99999999999",
                            "e|--\x7f--|", "[ch][/ch][ch]", "[[[[]]]]", "((((", "\t\t\t", "e|--0--|\nB|--1--|" })
@@ -1033,11 +1041,14 @@ LUTHIER_TEST (TabAdversarial, hugeRepeatCountsAndManySystemsAreBounded)
 {
     const auto r = readText ("e|:--0--:|x999999999\nB|:-----:|\nG|:-----:|\nD|:-----:|\nA|:-----:|\nE|:-----:|\n");
     CHECK (r.ok);
-    CHECK (r.seconds < 5.0);
+    // Machine-relative wall-clock bounds: enforced only under LUTHIER_PERF=1 (the nightly).
+    if (luthier::tests::perfRunRequested())
+        CHECK (r.seconds < 5.0);
 
     const auto many = readText (juce::String::repeatedString (
         "e|:--0--:|x99\nB|:-----:|\nG|:-----:|\nD|:-----:|\nA|:-----:|\nE|:-----:|\n", 2000));
-    CHECK (many.seconds < 8.0);
+    if (luthier::tests::perfRunRequested())
+        CHECK (many.seconds < 8.0);
 }
 
 LUTHIER_TEST (TabAdversarial, stringCountMismatchesNeverCrash)
@@ -1050,7 +1061,9 @@ LUTHIER_TEST (TabAdversarial, stringCountMismatchesNeverCrash)
         text << "\n";
     }
     const auto t = readText (text);
-    CHECK (t.seconds < 5.0);
+    // Machine-relative wall-clock bound (the import itself must still return): enforced only under LUTHIER_PERF=1 (the nightly).
+    if (luthier::tests::perfRunRequested())
+        CHECK (t.seconds < 5.0);
 }
 
 LUTHIER_TEST (TabAdversarial, importerFilesWithWrongContentAreRefusedNotCrashed)

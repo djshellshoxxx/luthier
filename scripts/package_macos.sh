@@ -1,15 +1,17 @@
 #!/bin/bash
-# Build the macOS installer from the universal products scripts/ci_build.sh staged:
+# Build the macOS installer from the universal products scripts/ci_build.sh staged.
+# One edition per run (LUTHIER_EDITION, the same variable ci_build.sh reads):
+# <Edition> is Pro or Free, <Product> is "Luthier Pro" or "Luthier Free".
 #
-#   dist/installers/Luthier-<version>-macOS.dmg   containing Luthier-<version>.pkg
+#   dist/installers/Luthier-<Edition>-<version>-macOS.dmg   containing Luthier-<Edition>-<version>.pkg
 #
 # One component package per part (installer.md 2.1, 2.2), combined by
 # productbuild into a distribution package with a component picker:
-#   AU        /Library/Audio/Plug-Ins/Components/Luthier.component
-#   VST3      /Library/Audio/Plug-Ins/VST3/Luthier.vst3
-#   CLAP      /Library/Audio/Plug-Ins/CLAP/Luthier.clap
-#   App       /Applications/Luthier.app  (+ /Applications/Luthier/Uninstall.command)
-#   Content   /Library/Application Support/Luthier/Resources   (required)
+#   AU        /Library/Audio/Plug-Ins/Components/<Product>.component
+#   VST3      /Library/Audio/Plug-Ins/VST3/<Product>.vst3
+#   CLAP      /Library/Audio/Plug-Ins/CLAP/<Product>.clap
+#   App       /Applications/<Product>.app  (+ /Applications/<Product>/Uninstall.command)
+#   Content   /Library/Application Support/Luthier/Resources   (required, shared by both editions)
 #
 # Signing and notarisation run only when their secrets are present; without them
 # the bundles stay ad-hoc signed and the .pkg unsigned, which is fine for testing
@@ -19,17 +21,30 @@
 #   MACOS_DEV_ID_APP        "Developer ID Application: Name (TEAMID)"
 #   MACOS_DEV_ID_INSTALLER  "Developer ID Installer: Name (TEAMID)"
 #   APPLE_ID, APPLE_APP_PASSWORD, APPLE_TEAM_ID  notarytool credentials
-# Other environment: VERSION (default from CMakeLists.txt), DIST_DIR (dist).
+# Other environment: LUTHIER_EDITION (PAID default, or FREE), VERSION (default from
+# CMakeLists.txt), DIST_DIR (dist).
 set -euo pipefail
 cd "$(dirname "$0")/.."
+
+# The edition decides which names scripts/ci_build.sh stage wrote: keep this
+# case in step with the one there. ID_PREFIX is the edition's BUNDLE_ID from
+# cmake/Editions.cmake, so the two editions' package receipts never collide.
+LUTHIER_EDITION="${LUTHIER_EDITION:-PAID}"
+case "$LUTHIER_EDITION" in
+    PAID) PRODUCT_NAME="Luthier Pro";  EDITION_SLUG=Pro;  ID_PREFIX="com.luthieraudio.luthier" ;;
+    FREE) PRODUCT_NAME="Luthier Free"; EDITION_SLUG=Free; ID_PREFIX="com.luthieraudio.luthierfree" ;;
+    *) echo "package_macos.sh: LUTHIER_EDITION must be PAID or FREE" >&2; exit 1 ;;
+esac
 
 DIST_DIR="${DIST_DIR:-dist}"
 STAGE="$DIST_DIR/macos"
 OUT="$DIST_DIR/installers"
 VERSION="${VERSION:-$(sed -nE 's/^project\(Luthier VERSION ([0-9.]+).*/\1/p' CMakeLists.txt | tr -d '\r')}"
-ID_PREFIX="com.luthieraudio.luthier"
 
-[ -e "$STAGE/Luthier.vst3" ] || { echo "Nothing staged in $STAGE: run scripts/ci_build.sh first" >&2; exit 1; }
+[ -e "$STAGE/$PRODUCT_NAME.vst3" ] || {
+    echo "Nothing staged in $STAGE for $PRODUCT_NAME: run LUTHIER_EDITION=$LUTHIER_EDITION scripts/ci_build.sh stage first" >&2
+    exit 1
+}
 mkdir -p "$OUT"
 work="$(mktemp -d)"
 KEYCHAIN=""
@@ -74,22 +89,31 @@ sign() { # sign <bundle> <entitlements>
 # Each component gets its own payload root so pkgbuild packs exactly one thing.
 payload() { mkdir -p "$work/payload/$1$2"; echo "$work/payload/$1$2"; }
 
-cp -R "$STAGE/Luthier.component" "$(payload au /Library/Audio/Plug-Ins/Components)/"
-cp -R "$STAGE/Luthier.vst3"      "$(payload vst3 /Library/Audio/Plug-Ins/VST3)/"
+cp -R "$STAGE/$PRODUCT_NAME.component" "$(payload au /Library/Audio/Plug-Ins/Components)/"
+cp -R "$STAGE/$PRODUCT_NAME.vst3"      "$(payload vst3 /Library/Audio/Plug-Ins/VST3)/"
 HAVE_CLAP=0
-if [ -e "$STAGE/Luthier.clap" ]; then
-    cp -R "$STAGE/Luthier.clap" "$(payload clap /Library/Audio/Plug-Ins/CLAP)/"
+if [ -e "$STAGE/$PRODUCT_NAME.clap" ]; then
+    cp -R "$STAGE/$PRODUCT_NAME.clap" "$(payload clap /Library/Audio/Plug-Ins/CLAP)/"
     HAVE_CLAP=1
 fi
-cp -R "$STAGE/Luthier.app" "$(payload app /Applications)/"
-mkdir -p "$work/payload/app/Applications/Luthier"
-cp packaging/macos/Uninstall.command "$work/payload/app/Applications/Luthier/"
+cp -R "$STAGE/$PRODUCT_NAME.app" "$(payload app /Applications)/"
+# The uninstaller is the repo's one script with this edition's product name and
+# package-ID prefix written into its two settings lines (sed without -i: BSD
+# and GNU sed disagree about it).
+mkdir -p "$work/payload/app/Applications/$PRODUCT_NAME"
+uninstaller="$work/payload/app/Applications/$PRODUCT_NAME/Uninstall.command"
+sed -e "s|^PRODUCT=.*|PRODUCT=\"$PRODUCT_NAME\"|" -e "s|^ID_PREFIX=.*|ID_PREFIX=\"$ID_PREFIX\"|" \
+    packaging/macos/Uninstall.command > "$uninstaller"
+chmod 755 "$uninstaller"
+grep -qxF "PRODUCT=\"$PRODUCT_NAME\"" "$uninstaller" && grep -qxF "ID_PREFIX=\"$ID_PREFIX\"" "$uninstaller" || {
+    echo "package_macos.sh: could not set the edition in Uninstall.command" >&2; exit 1
+}
 cp -R "$STAGE/Resources" "$(payload content "/Library/Application Support/Luthier")/"
 
-sign "$work/payload/au/Library/Audio/Plug-Ins/Components/Luthier.component" packaging/macos/plugin-entitlements.plist
-sign "$work/payload/vst3/Library/Audio/Plug-Ins/VST3/Luthier.vst3"          packaging/macos/plugin-entitlements.plist
-[ $HAVE_CLAP = 1 ] && sign "$work/payload/clap/Library/Audio/Plug-Ins/CLAP/Luthier.clap" packaging/macos/plugin-entitlements.plist
-sign "$work/payload/app/Applications/Luthier.app" packaging/macos/entitlements.plist
+sign "$work/payload/au/Library/Audio/Plug-Ins/Components/$PRODUCT_NAME.component" packaging/macos/plugin-entitlements.plist
+sign "$work/payload/vst3/Library/Audio/Plug-Ins/VST3/$PRODUCT_NAME.vst3"          packaging/macos/plugin-entitlements.plist
+[ $HAVE_CLAP = 1 ] && sign "$work/payload/clap/Library/Audio/Plug-Ins/CLAP/$PRODUCT_NAME.clap" packaging/macos/plugin-entitlements.plist
+sign "$work/payload/app/Applications/$PRODUCT_NAME.app" packaging/macos/entitlements.plist
 
 #------------------------------------------------------------------ component pkgs
 comp() { # comp <key> <identifier-suffix> [scripts-dir]
@@ -118,15 +142,15 @@ comp content content
 clap_line="" clap_choice="" clap_ref=""
 if [ $HAVE_CLAP = 1 ]; then
     clap_line="<line choice=\"clap\"/>"
-    clap_choice="<choice id=\"clap\" title=\"CLAP plug-in\" description=\"Luthier.clap in /Library/Audio/Plug-Ins/CLAP\"><pkg-ref id=\"$ID_PREFIX.clap\"/></choice>"
+    clap_choice="<choice id=\"clap\" title=\"CLAP plug-in\" description=\"$PRODUCT_NAME.clap in /Library/Audio/Plug-Ins/CLAP\"><pkg-ref id=\"$ID_PREFIX.clap\"/></choice>"
     clap_ref="<pkg-ref id=\"$ID_PREFIX.clap\" version=\"$VERSION\" onConclusion=\"none\">clap.pkg</pkg-ref>"
 fi
 mkdir -p "$work/resources"
 cp packaging/common/EULA.txt "$work/resources/License.txt"
 cat > "$work/resources/Welcome.txt" <<EOF
-Luthier $VERSION
+$PRODUCT_NAME $VERSION
 
-This installs the Luthier instrument as an Audio Unit, VST3 and CLAP plug-in
+This installs the $PRODUCT_NAME instrument as an Audio Unit, VST3 and CLAP plug-in
 and as a standalone application, together with its factory content (body and
 cabinet impulse responses, guitars, parts, presets and tunes).
 
@@ -136,20 +160,20 @@ EOF
 # installer.md 2.1 (IN-19): productbuild cannot run a post-install button, so the
 # last page says what to do next and where the uninstaller is.
 cat > "$work/resources/Conclusion.txt" <<EOF
-Luthier $VERSION is installed.
+$PRODUCT_NAME $VERSION is installed.
 
-Next: open Luthier from /Applications (standalone), or rescan plug-ins in your
+Next: open $PRODUCT_NAME from /Applications (standalone), or rescan plug-ins in your
 DAW (Logic: Settings > Plug-in Manager > Reset & Rescan Selection).
 
-If your DAW does not list Luthier, see docs/TROUBLESHOOTING.md.
+If your DAW does not list $PRODUCT_NAME, see docs/TROUBLESHOOTING.md.
 
-To uninstall, run /Applications/Luthier/Uninstall.command. Your own presets,
+To uninstall, run /Applications/$PRODUCT_NAME/Uninstall.command. Your own presets,
 guitars and tunes in ~/Documents/Luthier are kept.
 EOF
 cat > "$work/distribution.xml" <<EOF
 <?xml version="1.0" encoding="utf-8"?>
 <installer-gui-script minSpecVersion="2">
-    <title>Luthier $VERSION</title>
+    <title>$PRODUCT_NAME $VERSION</title>
     <organization>$ID_PREFIX</organization>
     <domains enable_localSystem="true" enable_currentUserHome="false" enable_anywhere="false"/>
     <options customize="allow" require-scripts="false" hostArchitectures="arm64,x86_64" rootVolumeOnly="true"/>
@@ -164,10 +188,10 @@ cat > "$work/distribution.xml" <<EOF
         <line choice="app"/>
         <line choice="content"/>
     </choices-outline>
-    <choice id="au" title="Audio Unit plug-in" description="Luthier.component in /Library/Audio/Plug-Ins/Components (Logic, GarageBand, ...)"><pkg-ref id="$ID_PREFIX.au"/></choice>
-    <choice id="vst3" title="VST3 plug-in" description="Luthier.vst3 in /Library/Audio/Plug-Ins/VST3"><pkg-ref id="$ID_PREFIX.vst3"/></choice>
+    <choice id="au" title="Audio Unit plug-in" description="$PRODUCT_NAME.component in /Library/Audio/Plug-Ins/Components (Logic, GarageBand, ...)"><pkg-ref id="$ID_PREFIX.au"/></choice>
+    <choice id="vst3" title="VST3 plug-in" description="$PRODUCT_NAME.vst3 in /Library/Audio/Plug-Ins/VST3"><pkg-ref id="$ID_PREFIX.vst3"/></choice>
     $clap_choice
-    <choice id="app" title="Standalone application" description="Luthier.app in /Applications, and the uninstaller"><pkg-ref id="$ID_PREFIX.app"/></choice>
+    <choice id="app" title="Standalone application" description="$PRODUCT_NAME.app in /Applications, and the uninstaller"><pkg-ref id="$ID_PREFIX.app"/></choice>
     <choice id="content" title="Factory content" description="Impulse responses, guitars, parts, presets and tunes (needed by every format)" enabled="false" selected="true"><pkg-ref id="$ID_PREFIX.content"/></choice>
     <pkg-ref id="$ID_PREFIX.au" version="$VERSION" onConclusion="none">au.pkg</pkg-ref>
     <pkg-ref id="$ID_PREFIX.vst3" version="$VERSION" onConclusion="none">vst3.pkg</pkg-ref>
@@ -177,7 +201,7 @@ cat > "$work/distribution.xml" <<EOF
 </installer-gui-script>
 EOF
 
-pkg_name="Luthier-$VERSION.pkg"
+pkg_name="Luthier-$EDITION_SLUG-$VERSION.pkg"
 productbuild --distribution "$work/distribution.xml" --resources "$work/resources" \
              --package-path "$work/pkgs" "$work/unsigned.pkg"
 if [ -n "$INSTALLER_ID" ]; then
@@ -206,16 +230,16 @@ dmg_root="$work/dmg"
 mkdir -p "$dmg_root"
 cp "$work/$pkg_name" "$dmg_root/"
 cat > "$dmg_root/Read me first.txt" <<EOF
-Luthier $VERSION for macOS (Apple Silicon and Intel)
+$PRODUCT_NAME $VERSION for macOS (Apple Silicon and Intel)
 
 1. Double-click $pkg_name and follow the installer.
-2. Open your DAW and rescan plug-ins, or open Luthier from Applications.
+2. Open your DAW and rescan plug-ins, or open $PRODUCT_NAME from Applications.
 
-To uninstall, run /Applications/Luthier/Uninstall.command.
+To uninstall, run /Applications/$PRODUCT_NAME/Uninstall.command.
 EOF
-dmg="$OUT/Luthier-$VERSION-macOS.dmg"
+dmg="$OUT/Luthier-$EDITION_SLUG-$VERSION-macOS.dmg"
 rm -f "$dmg"
-hdiutil create -volname "Luthier $VERSION" -srcfolder "$dmg_root" -fs HFS+ -format UDZO -ov "$dmg"
+hdiutil create -volname "$PRODUCT_NAME $VERSION" -srcfolder "$dmg_root" -fs HFS+ -format UDZO -ov "$dmg"
 if [ "$APP_ID" != "-" ]; then
     codesign --force --timestamp --sign "$APP_ID" "$dmg"
     notarise "$dmg"

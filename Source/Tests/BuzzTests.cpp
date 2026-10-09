@@ -11,6 +11,7 @@
 #include "../LuthierEngine.h"
 #include "../PluginProcessor.h"
 #include "../UI/SetupGroup.h"
+#include "../Edition.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -246,11 +247,18 @@ LUTHIER_TEST (BuzzUi, setupStylesApplyAsOneStepAndReadModified)
     SetupGroup group (processor);
     group.setSize (400, group.preferredHeight());
 
-    CHECK_MSG (group.describeSetupStyle() == "Player-friendly",
-               "a fresh instance reads \"" + group.describeSetupStyle() + "\" (action "
-                 + processor.getState().getParameter (ParamIDs::setupActionTreble)->getCurrentValueAsText() + " / "
-                 + processor.getState().getParameter (ParamIDs::setupActionBass)->getCurrentValueAsText() + ", relief "
-                 + processor.getState().getParameter (ParamIDs::setupRelief)->getCurrentValueAsText() + ")");
+    // Onboarding.md 1: Pro's fresh default is Player-friendly. In Free the default
+    // guitar is a substitute whose setup is not the canonical Player-friendly, so pin
+    // the exact fresh name only in Pro, but capture the fresh baseline in both editions
+    // - the undo at the end must return to whatever that fresh baseline was, which is
+    // the invariant this test is really about.
+    const auto freshStyle = group.describeSetupStyle();
+    if constexpr (luthier::edition::isPro)
+        CHECK_MSG (freshStyle == "Player-friendly",
+                   "a fresh instance reads \"" + freshStyle + "\" (action "
+                     + processor.getState().getParameter (ParamIDs::setupActionTreble)->getCurrentValueAsText() + " / "
+                     + processor.getState().getParameter (ParamIDs::setupActionBass)->getCurrentValueAsText() + ", relief "
+                     + processor.getState().getParameter (ParamIDs::setupRelief)->getCurrentValueAsText() + ")");
 
     group.applySetupStyle (5);
     CHECK (group.describeSetupStyle() == "Needs a tech");
@@ -260,7 +268,7 @@ LUTHIER_TEST (BuzzUi, setupStylesApplyAsOneStepAndReadModified)
     CHECK (group.describeSetupStyle() == "Needs a tech (modified)");
 
     processor.undo();
-    CHECK (group.describeSetupStyle() == "Player-friendly");
+    CHECK (group.describeSetupStyle() == freshStyle);
 }
 
 LUTHIER_TEST (BuzzUi, heatmapCellsReadInMonochromeTerms)

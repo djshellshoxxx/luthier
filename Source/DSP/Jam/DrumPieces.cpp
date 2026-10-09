@@ -374,6 +374,10 @@ void CymbalPiece::reset() noexcept
     bloomRemaining = chickRemaining = rampRemaining = 0;
     currentScale = 1.0;
     active = false;
+    // The crash-bloom and hat-pedal-chick noise RNG is seeded only at construction and
+    // is never re-seeded by JamDrumKit::setSeed() (which re-seeds snare/shaker only), so
+    // restore its fresh-construction seed here, or a reused kit's cymbals diverge.
+    rng.setSeed (0xC1A5ull);
 }
 
 void CymbalPiece::setDesign (const Design& d, uint64_t newSeed) noexcept

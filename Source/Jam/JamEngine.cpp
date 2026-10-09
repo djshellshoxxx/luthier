@@ -148,33 +148,93 @@ void JamEngine::prepare (double sampleRate, int maxBlockSize)
 
 void JamEngine::reset() noexcept
 {
+    /*  reset() is the band's "re-prepare" (13: the clock stopped). It must leave the
+        per-run transport, scheduling and render state identical to a freshly
+        constructed engine, so a reused instance renders the same as a fresh one from
+        the same host state (jam-mode 0.5 determinism). It is only ever called from
+        prepare() and on the jam enable/disable edges (PluginProcessor), never mid-run,
+        so clearing the whole timeline here is safe.
+
+        Everything a *started* band latches across blocks must be cleared below, or a
+        band started via First-Note / Auto leaves residue (an advanced sampleClock, a
+        latched style, applied-parameter guards) that makes the source non-reset-
+        deterministic. Config and cross-thread inputs deliberately persist: installed
+        styles/chord maps, the seed, MIDI channels, pending settings and the command
+        atomics (drained by handleCommands), the status/capture side-channels. */
     clearQueue (false);
+    numEvents = 0;
+    eventOrder = 0;
+
+    // Re-baseline the settings-edge detector like a fresh engine: applySettingsEdges()
+    // sets haveSettings on its first block, so leaving it set makes the first post-reset
+    // block compare against stale previousSettings instead of baselining.
+    haveSettings = false;
+
     kit.reset();
     bass.reset();
     follower.reset();
     predictor.reset();
     bassLine.reset();
 
-    cursor.valid = false;
+    // Chords.
+    cursor = JamCursor {};
     numPendingChords = 0;
     heardChord = bassChord = lastRhythmChord = ChordSymbol {};
     bassMidiNote = -1;
     bassSounding = false;
     lastBassStepMusical = INT64_MIN;
     anticipatedUpTo = -1.0e300;
+    numBarBassNotes = 0;
+    barBassNotesBar = -1;
 
+    // Transport and clock - the timeline the band plays on.
     clockSource = JamStatus::Clock::own;
+    own = mapping = JamClockMapping {};
+    currentBpm = 120.0;
     externalWasRunning = false;
+    lastBlockEndPpq = 0.0;
     haveLastBlockEnd = false;
+    sampleClock = 0;
+    sampleClockAtomic.store (0, std::memory_order_release);
+    bandStartSample = 0;
+    tuneOffset = 0.0;
     pendingJoinAtBar = false;
     endingPending = cutRequested = false;
-    fillActive = fillNowPending = crashNextDownbeat = false;
+    endingBar = 0;
+    pendingOwnBpm = 0.0;
+    barBegun = midBarStart = repluckPending = false;
+    stepPpq = 0.0;
+    hostBarStartKnown = false;
+    hostBarStart = 0.0;
+    playerIsBass = false;
+
+    // What plays - latched style, intensity, fills, markers.
+    latchedStyle = nullptr;
+    latchedStyleIndex = latchedVariation = latchedBassVoice = 0;
+    baseIntensity = effectiveIntensity = 3;
+    dynamicsOffset = hintIntensity = 0;
+    genericGroove = false;
+    fillActive = fillNowPending = crashNextDownbeat = crashThisDownbeat = false;
+    fillStartStep = 0;
+    fillPattern = nullptr;
+    fillPatternOffset = 0;
     fillNowNextBar = -1;
-    numTaps = 0;
-    hitCount = hitWrite = 0;
+    markerStyle = markerVariation = markerIntensity = markerKit = -1;
     lastSection = -1;
-    hintIntensity = 0;
-    dynamicsOffset = 0;
+    firstGrooveBar = 0;
+
+    // Silence and dynamics.
+    lastNoteOnPpq = 0.0;
+    lastNoteOnSample = INT64_MIN;
+    hitCount = hitWrite = 0;
+    numTaps = 0;
+
+    // Kit/bass parameter latches - force a re-apply on the next block, and the
+    // per-block render/status flags.
+    appliedTuning = appliedDamping = appliedTone = -1.0e9;
+    renderedSomething = false;
+    drumsAudible.store (false, std::memory_order_relaxed);
+    tuneBassPlaying.store (false, std::memory_order_relaxed);
 
     state = JamState::armed;
     stateAtomic.store ((int) (settings.enabled ? JamState::armed : JamState::off), std::memory_order_relaxed);

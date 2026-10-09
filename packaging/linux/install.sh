@@ -1,16 +1,19 @@
 #!/bin/bash
 # Luthier for Linux: installer for the .tar.gz release (installer.md 3).
 #
+# The bundles carry the edition's product name, <product> below: "Luthier Pro"
+# or "Luthier Free" (whichever .vst3 / .clap sits beside this script).
+#
 #   ./install.sh            per-user install (the default when not root):
-#                             ~/.vst3/Luthier.vst3
-#                             ~/.clap/Luthier.clap
+#                             ~/.vst3/<product>.vst3
+#                             ~/.clap/<product>.clap
 #                             ~/.local/bin/luthier, ~/.local/bin/luthier-render
 #                             ~/.local/share/luthier/Resources   (factory content)
 #                             ~/.local/share/applications, mime, icons
 #   sudo ./install.sh --system
 #                           system-wide install (the default when root):
-#                             /usr/local/lib/vst3/Luthier.vst3
-#                             /usr/lib/clap/Luthier.clap         (the CLAP system path)
+#                             /usr/local/lib/vst3/<product>.vst3
+#                             /usr/lib/clap/<product>.clap       (the CLAP system path)
 #                             /usr/local/bin/luthier, luthier-render
 #                             /usr/local/share/luthier/Resources
 #                             /usr/local/share/applications, mime, icons
@@ -44,7 +47,7 @@ for arg in $DEFAULTS "$@"; do
         --no-standalone) WANT_APP=0 ;;
         --no-content) WANT_CONTENT=0 ;;
         --yes|-y) ASSUME_YES=1 ;;
-        -h|--help) sed -n '2,27p' "$0"; exit 0 ;;
+        -h|--help) sed -n '2,30p' "$0"; exit 0 ;;
         *) echo "install.sh: unknown option $arg (try --help)" >&2; exit 2 ;;
     esac
 done
@@ -69,9 +72,23 @@ CONTENT_DIR="$SHARE/luthier"
 MANIFEST="$CONTENT_DIR/install-manifest.txt"
 VERSION="$(cat "$HERE/VERSION" 2>/dev/null || echo unknown)"
 
+# Pro and Free ship as differently named bundles; install whichever is here.
+shopt -s nullglob
+vst3_found=("$HERE"/*.vst3)
+clap_found=("$HERE"/*.clap)
+shopt -u nullglob
+VST3_SRC="${vst3_found[0]:-}"
+CLAP_SRC="${clap_found[0]:-}"
+if [ $WANT_VST3 = 1 ] && [ -z "$VST3_SRC" ]; then
+    echo "install.sh: no .vst3 bundle beside this script (a standalone-only package? use --no-vst3)" >&2
+    exit 1
+fi
+VST3_NAME="${VST3_SRC##*/}"
+CLAP_NAME="${CLAP_SRC##*/}"
+
 echo "Luthier $VERSION - $MODE install"
-[ $WANT_VST3 = 1 ]    && echo "  VST3        -> $VST3_DIR/Luthier.vst3"
-[ $WANT_CLAP = 1 ]    && [ -e "$HERE/Luthier.clap" ] && echo "  CLAP        -> $CLAP_DIR/Luthier.clap"
+[ $WANT_VST3 = 1 ]    && echo "  VST3        -> $VST3_DIR/$VST3_NAME"
+[ $WANT_CLAP = 1 ]    && [ -n "$CLAP_SRC" ] && echo "  CLAP        -> $CLAP_DIR/$CLAP_NAME"
 [ $WANT_APP = 1 ]     && echo "  Standalone  -> $BIN_DIR/luthier"
 [ $WANT_CONTENT = 1 ] && echo "  Content     -> $CONTENT_DIR/Resources"
 
@@ -105,10 +122,10 @@ put() { # put <source> <destination>
 }
 
 if [ $WANT_VST3 = 1 ]; then
-    put "$HERE/Luthier.vst3" "$VST3_DIR/Luthier.vst3"
+    put "$VST3_SRC" "$VST3_DIR/$VST3_NAME"
 fi
-if [ $WANT_CLAP = 1 ] && [ -e "$HERE/Luthier.clap" ]; then
-    put "$HERE/Luthier.clap" "$CLAP_DIR/Luthier.clap"
+if [ $WANT_CLAP = 1 ] && [ -n "$CLAP_SRC" ]; then
+    put "$CLAP_SRC" "$CLAP_DIR/$CLAP_NAME"
 fi
 if [ $WANT_CONTENT = 1 ]; then
     put "$HERE/Resources" "$CONTENT_DIR/Resources"
