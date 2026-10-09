@@ -1850,24 +1850,22 @@ LUTHIER_TEST (Combo, newFeaturesPairwise)
         v.expectDecay = ! holdsSound (rig) && ! slotHoldsSound (rig) && ! bandPlaying;
         judgeAndLog (ctx, log, rig, config.describe (rig), stats, v);
 
-        /*  State round trip, band stopped (jam_play is restored off by design).
+        /*  State round trip. The source saves its state, a copy restores it, then both
+            re-prepare (releaseResources / prepareToPlay / reset) and render the same
+            chord: a faithful state plus a deterministic reset must reproduce the audio.
 
-            "Stopped" has to include a band that jam_play does not show: with the rhythm
-            band on and its start mode "First Note" (or "Auto"), the played note has
-            started the band while jam_play still reads off, so `bandPlaying` above is
-            the real test. Such a source does not replay itself: after releaseResources /
-            prepareToPlay / reset() the same chord renders 0.11 apart from its own first
-            pass (max abs diff; reproduced on Linux with Classical / Boutique Lead /
-            Jam Country, Arena kit, First Note, Medium, row 48 on Windows), while two
-            fresh instances restored from the one blob agree to 0.0. The state is intact;
-            it is the already-started band that is not reset-deterministic. That is
-            JamEngine behaviour, outside this file's lane, so the round trip is not
-            asked of a started band (see BUILD_GATE_NOTES.md, Agent 1 notes).
-
-            Which rows reach this branch depends on allPairs() and its std::shuffle,
-            which differs between libstdc++ and MSVC: the same seed visits different
-            combinations on Windows, which is why only Windows saw it. */
-        if (r % 8 == 0 && rig.param (ParamIDs::jamPlay)->getValue() < 0.5f && ! bandPlaying)
+            This once excluded a band started via "First Note" / "Auto" (jam_play reads
+            off, but the played note has already started the band): such a source rendered
+            ~0.11 apart from its own first pass after reset, because JamEngine::reset()
+            left an already-started band's transport latched (an advanced sampleClock, a
+            latched style, the applied-parameter guards), while two fresh instances
+            restored from the one blob agreed to 0.0. That is now fixed - reset() restores
+            the whole per-run timeline to a freshly constructed engine's defaults
+            (JamEngine.cpp) - so the round trip is asked of every jam_play-off row again,
+            started bands included. Only Windows ever reached the failing row because
+            allPairs()'s std::shuffle orders combinations differently under MSVC than
+            libstdc++. */
+        if (r % 8 == 0 && rig.param (ParamIDs::jamPlay)->getValue() < 0.5f)
         {
             ++roundTrips;
 
@@ -1943,6 +1941,94 @@ LUTHIER_TEST (Combo, newFeaturesPairwise)
 
     std::cout << "    new-feature state round trips: " << roundTrips << std::endl;
     log.flush();
+}
+
+//==============================================================================
+/*  Regression for the JamEngine reset bug (BUILD_GATE_NOTES.md): a band started by
+    First Note / Auto (jam_play reads off, but a played note has started it) used to
+    render ~0.11 apart from itself after releaseResources / prepareToPlay / reset(),
+    because reset() left the started band's transport latched (an advanced sampleClock,
+    a latched style, the applied-parameter guards). reset() now restores the whole
+    per-run timeline to a freshly constructed engine's defaults, so a reused instance
+    renders identically to a fresh one. This pins the specific combo (Classical /
+    Country / Arena / First Note) that first surfaced it on Windows, directly, so the
+    path is exercised on every platform rather than only when allPairs() happens to
+    land it.
+
+    The reused-vs-fresh check also caught a last residual: JamBassVoice::reset() left
+    its lastPeak, so JamEngine saw a reused engine as "not idle" for one block, rendered
+    and mixed it, and started the drum-stem gain ramp a block early - the band's first
+    hit came out 3.2 dB louder than a fresh instance's. */
+LUTHIER_TEST (Combo, aBandStartedOnFirstNoteIsResetDeterministic)
+{
+    auto setByText = [] (Rig& rig, const char* id, const juce::String& label) -> bool
+    {
+        if (auto* c = dynamic_cast<juce::AudioParameterChoice*> (rig.param (id)))
+        {
+            const int idx = c->choices.indexOf (label);
+
+            if (idx >= 0)
+            {
+                rig.setIndex (id, idx);
+                return true;
+            }
+        }
+
+        return false;
+    };
+
+    auto configure = [&] (Rig& rig)
+    {
+        rig.setPlain (ParamIDs::guitarType, (float) GuitarType::Classical);
+        rig.setIndex (ParamIDs::jamEnabled, 1);
+        rig.setIndex (ParamIDs::jamPlay, 0);
+        CHECK (setByText (rig, ParamIDs::jamStartMode, "First Note"));   // the band starts on the played note
+        setByText (rig, ParamIDs::jamStyle, "Country");                  // a non-default style, so latchedStyle is set
+        setByText (rig, ParamIDs::jamKit, "Arena");
+        rig.setIndex (ParamIDs::freezeEnable, 1);
+        rig.p().getOutputNormalization().setEnabled (false);            // isolate the band's reset determinism
+        rig.p().setNonRealtime (true);                                  // offline render: deterministic, no worker-thread timing
+        rig.apply();
+    };
+
+    Rig source;
+    configure (source);
+    source.render (Phrase::chord, 1.5);     // the chord starts the band; it keeps time
+
+    juce::MemoryBlock blob;
+    source.p().getStateInformation (blob);
+
+    Rig copy;
+    copy.p().setStateInformation (blob.getData(), (int) blob.getSize());
+    copy.apply();
+
+    auto play = [] (Rig& x)
+    {
+        x.p().releaseResources();
+        x.p().prepareToPlay (kSr, kBlock);
+        x.p().reset();
+        x.apply();
+        return x.render (Phrase::chord, 0.5).mono;
+    };
+
+    const auto a1 = play (source);
+    const auto a2 = play (source);     // the same reused instance, twice
+    const auto b  = play (copy);       // a fresh instance restored from the same state
+
+    auto maxDiff = [] (const std::vector<float>& x, const std::vector<float>& y)
+    {
+        double d = 0.0;
+
+        for (size_t i = 0; i < juce::jmin (x.size(), y.size()); ++i)
+            d = juce::jmax (d, (double) std::abs (x[(size_t) i] - y[(size_t) i]));
+
+        return d;
+    };
+
+    CHECK_MSG (maxDiff (a1, a2) < 1.0e-5,
+               "a re-prepared band is not deterministic with itself: " + juce::String (maxDiff (a1, a2), 6));
+    CHECK_MSG (maxDiff (a1, b) < 1.0e-3,
+               "a reused band diverges from a fresh one after reset: " + juce::String (maxDiff (a1, b), 6));
 }
 
 //==============================================================================

@@ -1940,6 +1940,13 @@ LUTHIER_TEST (Normalization, ON32_EditionIsPartOfTheHash)
 
 LUTHIER_TEST (Normalization, ON33_Performance)
 {
+    // Every assertion here is a machine-relative CPU-budget unit (performance-budget.md:
+    // 1 unit = 1 % of one core in real time); on a shared CI runner the measured cost
+    // swings on scheduling noise. Run under LUTHIER_PERF=1 (the nightly controlled
+    // runner) only.
+    if (! luthier::tests::perfRunRequested())
+        return;
+
     // MasterBus cost on real program material (a factory phrase, rendered
     // with normalization off, fed in as the master's input), in budget units
     // (performance-budget.md: 1 unit = 1 % of one core in real time).
