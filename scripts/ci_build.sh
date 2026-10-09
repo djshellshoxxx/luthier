@@ -151,6 +151,17 @@ do_test() {
     ${wrap[@]+"${wrap[@]}"} "$runner" 2>&1 | tee "$LOG_DIR/unit-tests.log"
     local rc=${PIPESTATUS[0]}
 
+    # Failure recap: re-print every [FAIL] row and its indented detail lines,
+    # plus the summary, at the very end of the step. The per-test rows print
+    # thousands of lines up, above the tail a truncated log viewer shows; this
+    # keeps the failing names visible at the bottom so a CI failure can be read
+    # without downloading the whole log.
+    if [ "$rc" -ne 0 ] && [ -f "$LOG_DIR/unit-tests.log" ]; then
+        echo "===== UNIT TEST FAILURE RECAP ====="
+        grep -nE '\[FAIL\]|^ *line [0-9]+:|[0-9]+ of [0-9]+ tests failed' "$LOG_DIR/unit-tests.log" || true
+        echo "===== END FAILURE RECAP ====="
+    fi
+
     # SPEC-SWEEP (TROUBLESHOOTING TS-1): the documented install paths match the installers.
     cmake -P scripts/check_packaging_paths.cmake || rc=1
 
