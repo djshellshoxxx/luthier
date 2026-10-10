@@ -1241,7 +1241,10 @@ LUTHIER_TEST (MicPlacement, closeMicsBleedTheRoomWhenBackedOff)
     render (0.025, false, false, offNear, unused);
     render (1.0, false, false, offFar, unused);
     CHECK (offNear == offFar);
-    CHECK (RoomEngine::bleedFor (0.025, RoomSize::SmallStudio) == 0.0);
+    // bleedFor is mathematically 0 at the 0.025 m anchor (and jlimit'd to >= 0).
+    // On x86 the difference-of-squares is exactly 0.0; arm64 contracts it into
+    // an FMA that leaves a sub-nano rounding residue, so compare near zero.
+    CHECK_NEAR (RoomEngine::bleedFor (0.025, RoomSize::SmallStudio), 0.0, 1.0e-9);
 }
 
 //==============================================================================

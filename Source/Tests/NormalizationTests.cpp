@@ -928,6 +928,30 @@ LUTHIER_TEST (Normalization, ON14_PerformanceWritesDoNotRecalibrate)
     const int afterEdit = n.getNumRequests();
     CHECK (afterEdit == beforeCapture + 1);
 
+    // Realtime render (setNonRealtime(false) above) means nothing waited for
+    // the amp_gain recalibration, which the worker thread runs; on a contended
+    // host it can still be in flight here, and its late publish would bump the
+    // published word under the recalls/morph below (the request was already
+    // counted when it fired, so the count check above still holds). Pump until
+    // the worker has handled that request so wordAfterEdit is the settled word.
+    // Returns at once on a quiet machine, so Linux/Windows are unaffected; this
+    // mirrors OutputNormalization's own offline-calibration wait.
+    if (auto* cal = n.getCalibrator())
+    {
+        const auto fired = n.getTracker().getRequestSerial();
+        const auto until = juce::Time::getMillisecondCounter() + 30000;
+        juce::AudioBuffer<float> wbuf (2, kBlock);
+
+        while ((std::int32_t) (cal->getHandledSerial() - fired) < 0
+                 && juce::Time::getMillisecondCounter() < until)
+        {
+            juce::MidiBuffer m;
+            wbuf.clear();
+            p->processBlock (wbuf, m);
+            juce::Thread::sleep (1);
+        }
+    }
+
     const auto wordAfterEdit = publishedWord (*p);
     CHECK (snaps.recall (0));
     renderSilence (*p, 0.6);

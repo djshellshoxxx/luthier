@@ -161,7 +161,10 @@ do_test() {
     # without downloading the whole log.
     if [ "$rc" -ne 0 ] && [ -f "$LOG_DIR/unit-tests.log" ]; then
         local recap
-        recap="$(grep -nE '\[FAIL\]|^ *line [0-9]+:|[0-9]+ of [0-9]+ tests failed' "$LOG_DIR/unit-tests.log" || true)"
+        # [FAIL] <test> plus the indented failure lines that follow it (both the
+        # "line N:" CHECK details and custom ctx.fail() messages), then the
+        # summary. -A8 catches multi-assertion failures and free-form messages.
+        recap="$(grep -nE -A8 '\[FAIL\]|[0-9]+ of [0-9]+ tests failed' "$LOG_DIR/unit-tests.log" || true)"
         echo "===== UNIT TEST FAILURE RECAP ====="
         printf '%s\n' "$recap"
         echo "===== END FAILURE RECAP ====="

@@ -1019,7 +1019,7 @@ LUTHIER_TEST (PresetPreview, PB15_aSaveRendersItsPreview)
         hash = library.getIndex()[i].soundHash;
         sidecar = library.getService().getCache().lookup (hash);
         return ! sidecar.isVoid();
-    }, 10000);
+    }, luthier::tests::slowCiHost() ? 60000 : 10000);   // the background render overruns 10 s on the slow macOS arm64 CI host
 
     const double elapsed = juce::Time::getMillisecondCounterHiRes() - start;
     CHECK (arrived);
@@ -1124,7 +1124,7 @@ LUTHIER_TEST (PresetPreview, PB17_twoProcessorsRenderOnce)
         runAudio (a.p, 1);
         runAudio (b.p, 1);
         return a.p.getPreviewPlayer().isActive() && b.p.getPreviewPlayer().isActive();
-    }, 20000);
+    }, luthier::tests::slowCiHost() ? 90000 : 20000);   // the shared background render overruns 20 s on the slow macOS arm64 CI host
 
     CHECK (both);
     CHECK_MSG (la.getService().getNumRenders() + lb.getService().getNumRenders() == 1,
