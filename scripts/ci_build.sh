@@ -160,9 +160,25 @@ do_test() {
     # keeps the failing names visible at the bottom so a CI failure can be read
     # without downloading the whole log.
     if [ "$rc" -ne 0 ] && [ -f "$LOG_DIR/unit-tests.log" ]; then
+        local recap
+        recap="$(grep -nE '\[FAIL\]|^ *line [0-9]+:|[0-9]+ of [0-9]+ tests failed' "$LOG_DIR/unit-tests.log" || true)"
         echo "===== UNIT TEST FAILURE RECAP ====="
-        grep -nE '\[FAIL\]|^ *line [0-9]+:|[0-9]+ of [0-9]+ tests failed' "$LOG_DIR/unit-tests.log" || true
+        printf '%s\n' "$recap"
         echo "===== END FAILURE RECAP ====="
+
+        # Also surface the recap as a GitHub Actions error annotation. The
+        # per-test rows and this recap sit thousands of lines above the end of
+        # the job (the validators below run even on a test failure, by design),
+        # and the full log is not always downloadable (restricted egress blocks
+        # the log/artifact blob host). Annotations are readable from the
+        # check-runs API regardless, so the failing names are never lost.
+        if [ -n "${GITHUB_ACTIONS:-}" ] && [ -n "$recap" ]; then
+            local enc="$recap"
+            enc="${enc//'%'/%25}"
+            enc="${enc//$'\r'/%0D}"
+            enc="${enc//$'\n'/%0A}"
+            echo "::error title=Unit tests failed (${LUTHIER_EDITION:-?}/${PLATFORM})::${enc}"
+        fi
     fi
 
     # SPEC-SWEEP (TROUBLESHOOTING TS-1): the documented install paths match the installers.
@@ -259,7 +275,11 @@ do_validate() {
         local validator; validator="$(fetch_clap_validator)"
         step "clap-validator: $clap"
         set +e
-        ${wrap[@]+"${wrap[@]}"} "$validator" validate "$clap" 2>&1 | tee "$LOG_DIR/clap-validator.log"
+        # Quieten clap-validator's per-call DEBUG trace (thousands of
+        # "TODO: Handle request_flush()" lines) so it does not bury the rest of
+        # the job log; override with RUST_LOG=debug when a validator hang needs
+        # tracing.
+        RUST_LOG="${RUST_LOG:-error}" ${wrap[@]+"${wrap[@]}"} "$validator" validate "$clap" 2>&1 | tee "$LOG_DIR/clap-validator.log"
         [ "${PIPESTATUS[0]}" -eq 0 ] || failed=1
         set -e
     fi
