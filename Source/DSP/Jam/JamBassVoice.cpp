@@ -184,12 +184,23 @@ void JamBassVoice::reset() noexcept
     live = { { false, false } };
     tone.reset();
     active = 0;
+    liveCountdown = 0;      // the 64-sample housekeeping clock's phase: a stale value
+                           // recomputes live[] at a different offset, diverging a reuse
     currentNote = -1;
     lastString = 1;
     lastFret = 0;
     sounding = false;
     fadeGain = 1.0;
     fading = false;
+
+    // The last rendered block's peak. JamEngine::process() decides "armed and idle"
+    // (skip rendering and mixing) from getLastPeak() < 1e-6, and an idle engine does not
+    // render, so nothing would ever clear a stale peak: a reused bass voice read as
+    // "still sounding" for one block after reset, the engine rendered and mixed one
+    // extra block before the band started, and the drum-stem gain ramp (which only
+    // advances in mixed blocks) began a block early, so the first hit of a reused band
+    // was louder than a fresh one's (+3.2 dB, BUILD_GATE_NOTES.md "Drum reset residual").
+    lastPeak = 0.0;
 }
 
 void JamBassVoice::setVoice (JamBassVoiceKind kind) noexcept

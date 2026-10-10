@@ -729,6 +729,16 @@ LUTHIER_TEST (Undo, randomWalkUndoesBackToTheStart)
         processor.undo();
     }
 
+    /*  Free stores the default guitar type (a Pro one) but plays its substitute,
+        which a state restore re-applies: start from a guitar the edition offers so
+        undo is what is compared. Pro is unchanged. */
+    if constexpr (! luthier::edition::isPro)
+    {
+        auto* type = processor.getState().getParameter (ParamIDs::guitarType);
+        type->setValueNotifyingHost (type->convertTo0to1 ((float) GuitarType::Telecaster));
+        processor.getParameterBridge().applyAllNow();
+    }
+
     int ops = 0;
 
     while (ops < 1000)

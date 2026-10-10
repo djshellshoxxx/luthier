@@ -275,7 +275,14 @@ Telemetry::Telemetry()
     refreshPolicy();
 }
 
-Telemetry::~Telemetry() = default;
+Telemetry::~Telemetry()
+{
+    // UT-4: join the update-check worker before this object dies. It dereferences
+    // *this (and posts to the MessageManager) after a blocking network call, so a
+    // detached worker could outlive this Telemetry and fault on freed memory.
+    if (updateCheckThread.joinable())
+        updateCheckThread.join();
+}
 
 void Telemetry::setTransport (std::unique_ptr<Transport> t)
 {
@@ -605,8 +612,17 @@ juce::StringArray Telemetry::readTelemetryLog() const
 void Telemetry::checkForUpdateAsync (const Version& runningVersion, bool force,
                                      std::function<void (const UpdateResult&)> onResult)
 {
-    // SPEC-SWEEP: UT-4
-    juce::Thread::launch ([this, runningVersion, force, onResult = std::move (onResult)]
+    // SPEC-SWEEP: UT-4. Owned and joined rather than detached: a detached worker
+    // outlived this Telemetry at teardown and faulted on a dangling `this` / a
+    // destroyed MessageManager (intermittent, Windows-only; also a plugin crash at
+    // DAW-unload). Join any previous check so at most one runs and none can outlive
+    // this object (see ~Telemetry). The posted callAsync captures are self-contained
+    // (a copied onResult + result; the editor path captures a Component::SafePointer),
+    // so joining skips no destructors and suppresses no genuine fault.
+    if (updateCheckThread.joinable())
+        updateCheckThread.join();
+
+    updateCheckThread = std::thread ([this, runningVersion, force, onResult = std::move (onResult)]
     {
         const auto result = checkForUpdate (runningVersion, force);
 

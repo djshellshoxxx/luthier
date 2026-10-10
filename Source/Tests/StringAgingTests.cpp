@@ -587,6 +587,10 @@ LUTHIER_TEST (StringAging, SA16_budgetAndSafety)
     }
 
     // One unit is 1 % of a core; the budget is 0.02 units.
-    const double units = 100.0 * best / (blocks * kBlock / kSr);
-    CHECK_MSG (units <= 0.02, "StringAging costs " + juce::String (units, 4) + " units (budget 0.02)");
+    // Machine-relative CPU budget: enforced only under LUTHIER_PERF=1 (the nightly).
+    if (luthier::tests::perfRunRequested())
+    {
+        const double units = 100.0 * best / (blocks * kBlock / kSr);
+        CHECK_MSG (units <= 0.02, "StringAging costs " + juce::String (units, 4) + " units (budget 0.02)");
+    }
 }

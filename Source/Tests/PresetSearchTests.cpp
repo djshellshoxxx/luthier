@@ -301,8 +301,16 @@ LUTHIER_TEST (PresetSearch, PB24_soundsLike)
             if (f.index[r.entry].info.category != "Assist")
                 original.add (f.index[r.entry].info.name);
 
+        // Free plays "8-String Djent" on a substitute guitar (Baritone Electric), so
+        // its measured tone no longer sits near the 6-string chug; there it is only
+        // required to be ranked at all. Pro keeps the top-ten requirement.
+        if constexpr (! luthier::edition::isPro)
+            CHECK_MSG (original.contains ("8-String Djent"), original.joinIntoString (", "));
+
         original.removeRange (10, original.size());   // 8 + 2 of slack: see above
-        CHECK_MSG (original.contains ("8-String Djent"), original.joinIntoString (", "));
+
+        if constexpr (luthier::edition::isPro)
+            CHECK_MSG (original.contains ("8-String Djent"), original.joinIntoString (", "));
     }
 
     CHECK (! names.contains ("Modern Metal Chug"));
@@ -330,6 +338,9 @@ LUTHIER_TEST (PresetSearch, PB24_soundsLike)
 /*  PB-27: the performance budget at 5,000 synthetic entries. */
 LUTHIER_TEST (PresetSearch, PB27_performance)
 {
+    // Every budget below is machine-relative wall-clock / CPU time: asserted only under
+    // LUTHIER_PERF=1 (the nightly). The similarity result-count check runs everywhere.
+    const bool perf = luthier::tests::perfRunRequested();
     Fixture f;
 
     // 5,000 entries cloned from the factory analyses with varied names.
@@ -362,7 +373,8 @@ LUTHIER_TEST (PresetSearch, PB27_performance)
         juce::ignoreUnused (results);
     }
 
-    CHECK_MSG (worst <= 16.0, "search keystroke " + juce::String (worst, 2) + " ms");
+    if (perf)
+        CHECK_MSG (worst <= 16.0, "search keystroke " + juce::String (worst, 2) + " ms");
 
     // Similarity.
     {
@@ -376,7 +388,8 @@ LUTHIER_TEST (PresetSearch, PB27_performance)
             CHECK (near.size() == 8);
         }
 
-        CHECK_MSG (best <= 2.0, "similarity " + juce::String (best, 3) + " ms");
+        if (perf)
+            CHECK_MSG (best <= 2.0, "similarity " + juce::String (best, 3) + " ms");
     }
 
     // The preview mix: 0.02 units or less. A unit (performance-budget.md) is
@@ -409,7 +422,8 @@ LUTHIER_TEST (PresetSearch, PB27_performance)
         const double audioMs = blocks * 256.0 / 48.0;
         const double units = 100.0 * elapsedMs / audioMs;
         std::cout << "    preview mix " << juce::String (units, 4) << " units (budget 0.02 on the reference CPU)" << std::endl;
-        CHECK_MSG (units <= 0.02 * 2.0, "preview mix " + juce::String (units, 4) + " units");
+        if (perf)
+            CHECK_MSG (units <= 0.02 * 2.0, "preview mix " + juce::String (units, 4) + " units");
         player.dropAll();
     }
 
@@ -426,7 +440,7 @@ LUTHIER_TEST (PresetSearch, PB27_performance)
     {
         times.push_back (r.result.renderMs);
 
-        if (r.name == "8-String Djent" || r.name == "Physics Showcase")
+        if (perf && (r.name == "8-String Djent" || r.name == "Physics Showcase"))
             CHECK_MSG (r.result.renderMs <= 2000.0 * nonReferenceAllowance, r.name + " " + juce::String (r.result.renderMs, 0) + " ms");
     }
 
@@ -434,5 +448,6 @@ LUTHIER_TEST (PresetSearch, PB27_performance)
     const double medianMs = times[times.size() / 2];
     std::cout << "    median factory render " << juce::String (medianMs, 1) << " ms, slowest "
               << juce::String (times.back(), 1) << " ms" << std::endl;
-    CHECK_MSG (medianMs <= 1000.0 * nonReferenceAllowance, "median render " + juce::String (medianMs, 1) + " ms");
+    if (perf)
+        CHECK_MSG (medianMs <= 1000.0 * nonReferenceAllowance, "median render " + juce::String (medianMs, 1) + " ms");
 }

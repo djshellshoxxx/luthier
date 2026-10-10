@@ -6,7 +6,35 @@ coordinator to schedule a fix for, not something this suite fixed itself.
 
 ## Summary
 
-16 finding(s) across the runs below.
+17 finding(s) across the runs below.
+
+## Fuzz.everyFactoryPresetAcrossExtremeBuffersAndSampleRates
+
+70 (preset, sample rate, block size) cases run across 70 factory presets, block sizes >= 16 only; 0 findings.
+
+None. Every case ran clean (finite output, bounded level, clean state
+round-trip) for the seeds and presets this run covered.
+
+## Fuzz.presetLoadAtTrulyExtremeBufferSizes
+
+70 (preset, sample rate, safe block size >= 16) switch-while-running cases run across 70 factory presets, plus the permanent critical finding below for block sizes <= 4.
+
+- **CRITICAL: heap corruption** — repro: `prepareToPlay(sr, bs) with bs <= 4, with any preset/config whose cabinet or body differs from the compiled-in default (e.g. "Clean Double-Cut Funk" @ 8000 Hz, block 3 or 4) - order of preset-load vs. prepare does not matter` — process aborts (glibc "corrupted size vs. prev_size" / "munmap_chunk(): invalid pointer" / "free(): invalid pointer", varies between runs) from heap corruption; sometimes only detected thousands of render blocks later. Bisected clean at buffer size 5 and up (soak-tested to 20000 blocks at size 5) - see the comment above this test for the full empirical writeup, what was ruled out, and why a byte-precise root cause needs ASan/valgrind this session could not finish
+  - **UPDATE (2026-10-09): root cause found and FIXED.** It was a heap-buffer-overflow in JUCE's Convolution crossover mixer, reached from `ConvolutionInstaller::pumpUntilInstalled` pushing >=16-sample blocks into a convolution prepared for a tiny host block size. Fixed in commit 08e2d479 (clamps the pumped block to the prepared max block at all five call sites). Verified ASan-clean at HEAD across the exercised suite (2298 tests). Recommend a dedicated bs<=4-enabled ASan CI job (e.g. extend IrReloadTests) to lock it. Not a beta blocker; real hosts use >=16.
+
+## Fuzz.randomParameterAndMidiCombosWithReproSeeds
+
+64 random parameter/MIDI seeds run across extreme buffer sizes and sample rates (parameters randomised before the extreme-config prepare); 0 findings.
+
+None. Every case ran clean (finite output, bounded level, clean state
+round-trip) for the seeds and presets this run covered.
+
+## Fuzz.everyFactoryPresetHostStateRoundTrips
+
+70 factory presets round-tripped through getStateInformation/setStateInformation; 0 findings.
+
+None. Every case ran clean (finite output, bounded level, clean state
+round-trip) for the seeds and presets this run covered.
 
 ## Fuzz.randomParameterStatesHostStateRoundTripAtExtremeConfigs
 

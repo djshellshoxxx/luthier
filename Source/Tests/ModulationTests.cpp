@@ -547,6 +547,11 @@ LUTHIER_TEST (Modulation, thousandRouteStressTest)
 
     CHECK_MSG (added == 1000, "only added " + juce::String (added) + " of 1000 routes");
 
+    // Everything below is a machine-relative CPU budget (measured, then asserted): run under
+    // LUTHIER_PERF=1 (the nightly) only. The route-count checks above run everywhere.
+    if (! luthier::tests::perfRunRequested())
+        return;
+
     ModBlockContext context;
 
     // Warm up, so the measurement is not dominated by first-touch page faults.

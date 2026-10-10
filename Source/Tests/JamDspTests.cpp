@@ -520,6 +520,11 @@ LUTHIER_TEST (JamDsp, JM33_noAllocationsAndNoLocks)
 
 LUTHIER_TEST (JamDsp, JM34_budgets)
 {
+    // Every assertion here is a reference-unit budget (performance-budget.md's CPU,
+    // not CI's), so this test is machine-relative and runs under LUTHIER_PERF=1 only.
+    if (! perfRunRequested())
+        return;
+
     auto seconds = [] (auto&& fn)
     {
         // The thread's CPU clock (TestFramework), so a busy machine's scheduling does not count.

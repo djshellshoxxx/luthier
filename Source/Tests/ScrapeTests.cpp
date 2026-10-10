@@ -524,8 +524,10 @@ LUTHIER_TEST (Scrape, idleCostsNothing)
     const double realtime = blocks * 512.0 / kSr;
 
     CHECK (! scrape->hasOutput());
-    CHECK_MSG (best / realtime < 0.0005,
-               "idle cost " + juce::String (100.0 * best / realtime, 4) + "% of real time (budget 0.05%)");
+    // Machine-relative CPU budget: enforced only under LUTHIER_PERF=1 (the nightly).
+    if (luthier::tests::perfRunRequested())
+        CHECK_MSG (best / realtime < 0.0005,
+                   "idle cost " + juce::String (100.0 * best / realtime, 4) + "% of real time (budget 0.05%)");
 }
 
 LUTHIER_TEST (Scrape, anActiveScrapeStaysInBudget)
@@ -554,7 +556,9 @@ LUTHIER_TEST (Scrape, anActiveScrapeStaysInBudget)
         CHECK (scrape->getCatchCount (5) > 0);
     }
 
-    CHECK_MSG (best < 0.005, "a second of scraping took " + juce::String (best * 1000.0, 2) + " ms (budget 5 ms)");
+    // Machine-relative CPU budget: enforced only under LUTHIER_PERF=1 (the nightly).
+    if (luthier::tests::perfRunRequested())
+        CHECK_MSG (best < 0.005, "a second of scraping took " + juce::String (best * 1000.0, 2) + " ms (budget 5 ms)");
 }
 
 LUTHIER_TEST (Scrape, resetRepeatsExactly)

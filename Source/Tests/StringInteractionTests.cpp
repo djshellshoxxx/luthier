@@ -567,6 +567,11 @@ LUTHIER_TEST (StringInteraction, SI13_realtime)
 
     CHECK_MSG (luthierAllocationsOnThisThread() == before, "string interaction allocated on the audio thread");
 
+    // Everything below is a machine-relative CPU budget (measured, then asserted): run under
+    // LUTHIER_PERF=1 (the nightly) only. The allocation check above runs everywhere.
+    if (! luthier::tests::perfRunRequested())
+        return;
+
     // Cost at 12 strings: the air path is the only per-sample part.
     auto seconds = [] (double air)
     {
