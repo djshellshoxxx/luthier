@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: LicenseRef-Proprietary
 
 #include "PluginProcessor.h"
+#include "Support/Edition.h"       // trial-lock.md: the runtime Pro-features gate
 #include "Support/BoundedMidi.h"   // RT-SAFETY P1
 #include "Updates/CrashWriter.h"   // SPEC-SWEEP: UT-16
 #include "Workshop/FamilyDefaults.h"   // guitar-illustration.md 12.3 (VISUAL-WORKSHOP-QA)
@@ -245,6 +246,8 @@ LuthierAudioProcessor::LuthierAudioProcessor()
         telemetry.setTransport (createHttpsTransport());
        #if LUTHIER_PRO
         license.load();
+        license.startTrialIfNeeded();   // trial-lock.md: begin the 60-day trial on first run
+        Editions::setProUnlocked (license.proFeaturesUnlocked());
        #endif
 
         // tone-match 5: the IR folder tree exists before the user goes looking for
@@ -321,6 +324,23 @@ LuthierAudioProcessor::~LuthierAudioProcessor()
         diagnostics.flushCrashLog (diagnostics.buildTroubleshootingReport (
             juce::JSON::toString (presets.toVar(), false), engine.getValidator().getSummary()));
 }
+
+#if LUTHIER_PRO
+//==============================================================================
+// trial-lock.md: the runtime Pro-features gate, driven by the licence state.
+bool LuthierAudioProcessor::tryUnlockProTrial (const juce::String& code)
+{
+    const bool ok = license.enterUnlockCode (code);
+    refreshProLock();
+    return ok;
+}
+
+void LuthierAudioProcessor::refreshProLock()
+{
+    license.refresh();
+    Editions::setProUnlocked (license.proFeaturesUnlocked());
+}
+#endif
 
 //==============================================================================
 void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
