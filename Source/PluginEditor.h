@@ -10,6 +10,7 @@
 #include "UI/HeaderBar.h"
 #include "UI/LiveStrip.h"
 #include "UI/PracticePanel.h"
+#include "UI/ReferencePedalDrawer.h"
 #include "UI/EasyPanel.h"
 #include "UI/AdvancedPanel.h"
 #include "UI/Overlays.h"
@@ -210,6 +211,7 @@ private:
     LiveStrip liveStrip;
     InlineNotice inlineNotice;
     PracticePanel practicePanel;
+    reference::Drawer referencePedalDrawer;
     EasyPanel easyPanel;
     AdvancedPanel advancedPanel;
 
@@ -247,6 +249,7 @@ private:
     DiscoveryTooltip randomiseTooltip;
 
     juce::TextButton chordButton { "Chords / Tab" };
+    juce::TextButton referencePedalsButton { "Ref Pedals" };
 
     // cpu-quality-modes 5 / 6: the footer badge and this editor's link.
     QualityBadge qualityBadge { processor };
