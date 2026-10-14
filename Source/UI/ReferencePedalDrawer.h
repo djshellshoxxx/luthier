@@ -18,6 +18,7 @@ public:
     void resized() override;
     void paint (juce::Graphics&) override;
     void refresh();
+    std::function<void()> onReordered;
 private:
     int instanceId() const noexcept;
     Board& board() const noexcept;
@@ -51,8 +52,9 @@ private:
     juce::TextButton close {"Close"};
     juce::ToggleButton boardOn {"Enable reference pedals"};
     juce::Label description;
-    juce::Viewport viewport;
+    // Contents must outlive viewport (which references it without owning it).
     juce::Component contents;
+    juce::Viewport viewport;
     juce::OwnedArray<Card> cards;
 };
 } // namespace reference
