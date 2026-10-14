@@ -36,6 +36,7 @@
 #include "DSP/Feedback/EBowDriver.h"
 #include "Model/Workshop/PartAcoustics.h"
 #include "DSP/Effects/EffectsChain.h"
+#include "ReferencePedals/ReferenceBoard.h"
 #include "DSP/Effects/Saturation.h"
 #include "DSP/Effects/SecretEffect.h"
 #include "DSP/Amp/AmpEngine.h"
@@ -352,6 +353,7 @@ public:
     EffectsChain&    getPreEffects() noexcept      { return preEffects; }
     AmpEngine&       getAmpEngine() noexcept       { return amp; }
     EffectsChain&    getPostEffects() noexcept     { return postEffects; }
+    refpedals::ReferenceBoard& getReferenceBoard() noexcept { return referenceBoard; }
     CabinetEngine&   getCabinetEngine() noexcept   { return cabinet; }
     RoomEngine&      getRoomEngine() noexcept      { return room; }
 
@@ -892,6 +894,7 @@ private:
     // --- signal chain ---------------------------------------------------------
     GuitarCircuit circuit;
     CircuitComponents circuitControls;
+    refpedals::ReferenceBoard referenceBoard;   // reference pedals: Pre before preEffects, Loop after postEffects
     EffectsChain preEffects;
     AmpEngine amp;
     EffectsChain postEffects;

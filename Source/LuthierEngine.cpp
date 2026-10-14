@@ -124,6 +124,7 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
 
     // --- signal chain ---------------------------------------------------------
     circuit.prepare (sr);
+    referenceBoard.prepare (sr, maxBlock);
     preEffects.prepare (sr, maxBlock);
     saturation.prepare (sr);   // FEAT-SAT
     preEffects.setPosition (EffectsChain::Position::PreAmp);
@@ -217,6 +218,7 @@ void LuthierEngine::reset() noexcept
     // Rebuild a changed circuit now rather than in the first block after.
     circuit.setComponents (getLiveCircuitComponents());
     circuit.reset();
+    referenceBoard.reset();
     preEffects.reset();
     saturation.reset();   // FEAT-SAT
     amp.reset();
@@ -1300,6 +1302,7 @@ void LuthierEngine::panic() noexcept
     circuit.reset();
     secret.reset();
     fretBuzzModel.reset();
+    referenceBoard.reset();   // allocation-free
     preEffects.resetFromAudioThread();
     amp.reset();
     postEffects.resetFromAudioThread();
@@ -1350,6 +1353,7 @@ void LuthierEngine::settleAfterPrepare() noexcept
     body.reset();
     pickups.reset();
     circuit.reset();
+    referenceBoard.reset();
     preEffects.reset();
     saturation.reset();   // FEAT-SAT
     amp.reset();
@@ -3101,7 +3105,7 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
         // What lies between the strings and the amp's output that is the
         // plug-in's latency, not the room's (FeedbackLoop::setProcessingLatency).
-        feedbackLoop.setProcessingLatency (preEffects.getLatencySamples() + amp.getLatencySamples());
+        feedbackLoop.setProcessingLatency (preEffects.getLatencySamples() + referenceBoard.getLatencySamples() + amp.getLatencySamples());
         feedbackLoop.beginBlock (hz.data(), levels.data(), wound.data(), numStrings);
     }
 
@@ -3456,6 +3460,7 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
             dr[(size_t) i] = instrumentBuffer[(size_t) i];
         }
 
+        referenceBoard.processPre (dl.data(), dr.data(), numSamples);
         preEffects.processStereo (dl.data(), dr.data(), numSamples);
 
         // FEAT-SAT: the closing saturation stage; a true bypass at 0 %.
@@ -3523,6 +3528,7 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         }
 
         postEffects.processStereo (dl.data(), dr.data(), numSamples);
+        referenceBoard.processLoop (dl.data(), dr.data(), numSamples);
 
         for (int i = 0; i < numSamples; ++i)
         {
@@ -3690,6 +3696,7 @@ int LuthierEngine::getLatencySamples() const noexcept
     latency += body.getLatencySamples();
     latency += cabinet.getLatencySamples();
     latency += preEffects.getLatencySamples();
+    latency += referenceBoard.getLatencySamples();
     latency += postEffects.getLatencySamples();
     latency += amp.getLatencySamples();
     latency += midi.getLatencySamples();
@@ -3721,14 +3728,14 @@ int LuthierEngine::getLatencySamples (AuxBus bus) const noexcept
 
         case AuxBus::ampPreCab:
             return engineLatency + body.getLatencySamples()
-                     + preEffects.getLatencySamples() + amp.getLatencySamples();
+                     + preEffects.getLatencySamples() + referenceBoard.getLatencySamples() + amp.getLatencySamples();
 
         case AuxBus::cabMic1:
         case AuxBus::cabMic2:
             // Post-cabinet but before the post-amp effects, which the mic taps
             // are branched off ahead of.
             return engineLatency + body.getLatencySamples()
-                     + preEffects.getLatencySamples() + amp.getLatencySamples()
+                     + preEffects.getLatencySamples() + referenceBoard.getLatencySamples() + amp.getLatencySamples()
                      + cabinet.getLatencySamples();
 
         case AuxBus::roomMic:

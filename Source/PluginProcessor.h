@@ -152,6 +152,7 @@ public:
 
     //==========================================================================
     LuthierEngine&      getEngine() noexcept        { return engine; }
+    refpedals::ReferenceBoard& getReferenceBoard() noexcept { return engine.getReferenceBoard(); }
     juce::AudioProcessorValueTreeState& getState() noexcept { return apvts; }
 
     /** mic-placement.md 4: follows a session still automating the legacy mic
