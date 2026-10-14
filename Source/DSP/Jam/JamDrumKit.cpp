@@ -132,9 +132,27 @@ void JamDrumKit::reset() noexcept
     room.reset();
 
     fadeGain = 1.0;
+    fadeStep = 0.0;
     fading = false;
+    fadeHold = false;
     roomRinging = 0;
     lastPeak = 0.0;
+
+    /*  reset() is the kit's re-prepare: it must leave the kit identical to a freshly
+        prepared one, or the band is not reset-deterministic (jam-mode 0.5). Clear the
+        voice-stealing ages and the hit counter (a stale age picks a different voice to
+        steal), the housekeeping clock, and force the per-voice RNGs to be re-seeded:
+        setSeed() skips an unchanged seed once seedApplied is set, so without this the
+        snare and shaker noise generators keep the state a previous run advanced them to.
+        tailStep is configuration (set by prepare() from the sample rate, and prepare()
+        calls reset()), not run state: zeroing it here would stop every stolen voice's
+        2 ms fade-out, leaving its tail at full gain for good. */
+    hitCounter = 0;
+    kickAge = {};
+    snareAge = {};
+    tomAge = {};
+    housekeepCountdown = 0;
+    seedApplied = false;
 }
 
 void JamDrumKit::setSeed (uint64_t newSeed) noexcept

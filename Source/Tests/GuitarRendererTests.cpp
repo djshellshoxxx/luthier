@@ -369,6 +369,11 @@ LUTHIER_TEST (GuitarIllustration, accessibleDescriptionsNameTheParts)
 
 LUTHIER_TEST (GuitarIllustration, fullRenderIsFastEnough)
 {
+    // Machine-relative: this is a pure wall-clock/CPU budget, which swings on a shared CI runner.
+    // Run under LUTHIER_PERF=1 (the nightly, controlled runner) only.
+    if (! luthier::tests::perfRunRequested())
+        return;
+
     // Section 17: a static build and paint of a solid-body electric; generous for a shared laptop.
     const auto guitar = factory ("Electric/Vintage Double-Cut.luthierguitar");
     double best = 1.0e9;

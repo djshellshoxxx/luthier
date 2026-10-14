@@ -7,17 +7,18 @@ support and how to produce it.
 
 ## The plugin does not appear in my host
 
-**Check it is in the right folder.**
+**Check it is in the right folder.** The files carry the edition's name, `Luthier Pro`
+or `Luthier Free`; the table shows Pro, so read `Luthier Free` for the Free edition.
 
 | Format | Location |
 |---|---|
-| Windows VST3 | `C:\Program Files\Common Files\VST3\Luthier.vst3` |
-| Windows CLAP | `C:\Program Files\Common Files\CLAP\Luthier.clap` |
-| macOS VST3 | `/Library/Audio/Plug-Ins/VST3/Luthier.vst3` |
-| macOS AU | `/Library/Audio/Plug-Ins/Components/Luthier.component` |
-| macOS CLAP | `/Library/Audio/Plug-Ins/CLAP/Luthier.clap` |
-| Linux VST3 | `~/.vst3/Luthier.vst3` |
-| Linux CLAP | `~/.clap/Luthier.clap` |
+| Windows VST3 | `C:\Program Files\Common Files\VST3\Luthier Pro.vst3` |
+| Windows CLAP | `C:\Program Files\Common Files\CLAP\Luthier Pro.clap` |
+| macOS VST3 | `/Library/Audio/Plug-Ins/VST3/Luthier Pro.vst3` |
+| macOS AU | `/Library/Audio/Plug-Ins/Components/Luthier Pro.component` |
+| macOS CLAP | `/Library/Audio/Plug-Ins/CLAP/Luthier Pro.clap` |
+| Linux VST3 | `~/.vst3/Luthier Pro.vst3` |
+| Linux CLAP | `~/.clap/Luthier Pro.clap` |
 
 The macOS installer writes to the system `/Library` folders. A bundle copied by hand
 into your own `~/Library/Audio/Plug-Ins/...` works too. The CLAP rows apply to
@@ -25,7 +26,7 @@ builds that include CLAP.
 
 **On macOS,** the installer writes to the system `/Library/` folder. You can also hand-copy the plugin bundle to `~/Library/Audio/Plug-Ins/` (your user Library) if you prefer not to use the installer.
 
-`Luthier.vst3` is a **folder**, not a file. Copy the whole thing, not its contents.
+`Luthier Pro.vst3` (or `Luthier Free.vst3`) is a **folder**, not a file. Copy the whole thing, not its contents.
 
 **Rescan.** Most hosts cache their plugin list:
 
@@ -46,14 +47,15 @@ try again. Every host above has a blocklist or blacklist to clear.
 **On macOS, check quarantine.** Downloaded files get quarantined. In Terminal:
 
 ```
-xattr -dr com.apple.quarantine /Library/Audio/Plug-Ins/VST3/Luthier.vst3
+xattr -dr com.apple.quarantine "/Library/Audio/Plug-Ins/VST3/Luthier Pro.vst3"
 ```
 
 ---
 
 ## Uninstalling by hand
 
-On macOS, run `/Applications/Luthier/Uninstall.command`: it removes the AU,
+On macOS, run `/Applications/Luthier Pro/Uninstall.command` (`Luthier Free` for the Free
+edition): it removes the AU,
 VST3, CLAP, the app and the factory content, and asks before touching your own
 files. Anywhere else, delete the bundle from the folder in the table above.
 

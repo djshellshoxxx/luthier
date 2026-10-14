@@ -121,8 +121,21 @@ function Step-Test {
     $runner = Join-Path $BuildDir "LuthierTests_artefacts/$Config/LuthierTests.exe"
     if (-not (Test-Path $runner)) { throw "Test runner not found at $runner." }
     Write-Step 'Running the unit tests'
-    & $runner 2>&1 | Tee-Object -FilePath (Join-Path $LogDir 'unit-tests.log')
-    if ($LASTEXITCODE -ne 0) { throw "Tests failed ($LASTEXITCODE)." }
+    $testLog = Join-Path $LogDir 'unit-tests.log'
+    & $runner 2>&1 | Tee-Object -FilePath $testLog
+    $testRc = $LASTEXITCODE
+    if ($testRc -ne 0) {
+        # Failure recap: re-print every [FAIL] row and its detail lines plus the
+        # summary at the very end, so the failing test names stay visible in the
+        # tail of a truncated CI log viewer (the per-test rows print far above).
+        Write-Output '===== UNIT TEST FAILURE RECAP ====='
+        if (Test-Path $testLog) {
+            Select-String -Path $testLog -Pattern '\[FAIL\]', '^\s*line [0-9]+:', '[0-9]+ of [0-9]+ tests failed' |
+                ForEach-Object { $_.Line }
+        }
+        Write-Output '===== END FAILURE RECAP ====='
+    }
+    if ($testRc -ne 0) { throw "Tests failed ($testRc)." }
 
     # SPEC-SWEEP (TROUBLESHOOTING TS-1, README RM-17): the documented install
     # paths match the installers, and luthier-render's documented flags work.

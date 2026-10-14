@@ -838,7 +838,9 @@ LUTHIER_TEST (BodyCoupling, BC13_budgetAndSafety)
     // body-coupling.md 7 (amended): 0.1 units on the reference machine, which
     // is a quarter of the matrix's 0.4 - checked as that ratio, because this
     // runner is no 5600X (the 0.4-unit matrix measures about 0.65 here).
-    CHECK_MSG (units <= 0.25 * matrixUnits,
-               "BodyCouplingBank costs " + juce::String (units, 4) + " units against the matrix's "
-                 + juce::String (matrixUnits, 4) + " (budget a quarter of it)");
+    // Machine-relative CPU-timing ratio: enforced only under LUTHIER_PERF=1 (the nightly).
+    if (luthier::tests::perfRunRequested())
+        CHECK_MSG (units <= 0.25 * matrixUnits,
+                   "BodyCouplingBank costs " + juce::String (units, 4) + " units against the matrix's "
+                     + juce::String (matrixUnits, 4) + " (budget a quarter of it)");
 }

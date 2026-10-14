@@ -247,13 +247,17 @@ LUTHIER_TEST (Combo, micPlacementUnderAnLfoWhileStrumming)
     // MP-11's bound on that path.
     double cpuWith = 0.0, cpuPlain = 0.0;
     const double hf = worstHfDb (replay (path, kBlock, cpuWith), kSr);
-    replay (path, kBlock, cpuPlain, false);
     CHECK_MSG (hf <= -80.0, "the LFO'd placement reached " + juce::String (hf, 1) + " dBFS at 8-16 kHz");
 
     // MP-24's bound (its regression gate: the cabinet with a moving mic
-    // against the same cabinet without placement).
-    CHECK_MSG (cpuWith <= juce::jmax (cpuPlain, 1.0e-4) * 1.70 * 1.20,
-               "placement under an LFO took the cabinet from " + juce::String (cpuPlain * 1000.0, 1) + " to "
-                 + juce::String (cpuWith * 1000.0, 1) + " ms");
-    CHECK (wall < 4.0 * 2.0);   // and the whole instrument stays inside real time
+    // against the same cabinet without placement). Machine-relative CPU-timing ratio and wall-clock
+    // budget: measured and enforced only under LUTHIER_PERF=1 (the nightly).
+    if (luthier::tests::perfRunRequested())
+    {
+        replay (path, kBlock, cpuPlain, false);
+        CHECK_MSG (cpuWith <= juce::jmax (cpuPlain, 1.0e-4) * 1.70 * 1.20,
+                   "placement under an LFO took the cabinet from " + juce::String (cpuPlain * 1000.0, 1) + " to "
+                     + juce::String (cpuWith * 1000.0, 1) + " ms");
+        CHECK (wall < 4.0 * 2.0);   // and the whole instrument stays inside real time
+    }
 }

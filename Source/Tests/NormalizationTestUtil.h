@@ -56,6 +56,17 @@ struct Combo
 inline int numGuitarTypes() { return (int) GuitarType::NumTypes; }
 inline int numFactoryPresets() { return FactoryPresets::getNumPresets(); }
 
+/*  A guitar type the running edition actually ships. The factory normalization
+    table is generated for the Pro catalogue; in a Free binary the Pro-only
+    guitars are gated and a combination built on one renders a different sound
+    whose hash is not in the table. So the combo grids below skip guitars the
+    current (compile-time) edition does not have, and every combination they do
+    produce is one the table knows. */
+inline bool editionHasGuitar (int guitarType) noexcept
+{
+    return luthier::edition::isPro || luthier::edition::isFreeGuitarIndex (guitarType);
+}
+
 /** A fresh processor, prepared at 48 kHz / 256. */
 inline std::unique_ptr<LuthierAudioProcessor> makeProcessor (double sr = kSr, int block = kBlock)
 {
@@ -206,7 +217,8 @@ inline std::vector<Combo> goldenGrid (bool full)
         {
             for (int pr = 0; pr < numFactoryPresets(); ++pr)
                 for (int g = 0; g < numGuitarTypes(); ++g)
-                    grid.push_back ({ pr, g, phrase });
+                    if (editionHasGuitar (g))
+                        grid.push_back ({ pr, g, phrase });
         }
         else
         {
@@ -214,7 +226,8 @@ inline std::vector<Combo> goldenGrid (bool full)
                 grid.push_back ({ pr, -1, phrase });
 
             for (int g = 0; g < numGuitarTypes(); ++g)
-                grid.push_back ({ 0, g, phrase });
+                if (editionHasGuitar (g))
+                    grid.push_back ({ 0, g, phrase });
         }
     }
 

@@ -1,17 +1,20 @@
 ; Luthier for Windows: Inno Setup 6.3+ script (installer.md 1).
 ;
 ; Built by scripts/package_windows.ps1 from the products scripts/ci_build.ps1
-; staged in dist\windows. Compile by hand with:
-;   iscc /DAppVersion=1.0.0 /DStageDir=..\..\dist\windows /DOutputDir=..\..\dist\installers packaging\windows\Luthier.iss
+; staged in dist\windows. One edition per build: EditionSlug is Pro or Free, and
+; the product name is "Luthier Pro" / "Luthier Free" - the name ci_build.ps1
+; gives the staged Standalone, VST3 and CLAP files. Compile by hand with:
+;   iscc /DEditionSlug=Pro /DAppVersion=1.0.0 /DStageDir=..\..\dist\windows /DOutputDir=..\..\dist\installers packaging\windows\Luthier.iss
 ; Add /DSign plus /Ssigntool="signtool.exe sign /f cert.pfx /p pass /fd sha256 /tr http://timestamp.digicert.com /td sha256 $f"
 ; to sign the installer and uninstaller.
 ;
-; Layout:
-;   VST3        {commoncf64}\VST3\Luthier.vst3          (C:\Program Files\Common Files\VST3, fixed)
-;   CLAP        {commoncf64}\CLAP\Luthier.clap          (C:\Program Files\Common Files\CLAP, fixed)
-;   Standalone  {autopf}\Luthier\Luthier.exe            (editable: /DIR=...)
+; Layout (<Product> is the product name above):
+;   VST3        {commoncf64}\VST3\<Product>.vst3        (C:\Program Files\Common Files\VST3, fixed)
+;   CLAP        {commoncf64}\CLAP\<Product>.clap        (C:\Program Files\Common Files\CLAP, fixed)
+;   Standalone  {autopf}\<Product>\<Product>.exe        (editable: /DIR=...)
 ;   Content     {commonappdata}\Luthier\Resources        (C:\ProgramData\Luthier, fixed: every
-;               format finds it there - IrLibrary::searchForResources)
+;               format finds it there - IrLibrary::searchForResources. The same
+;               folder for both editions until IrLibrary reads edition::contentFolder.)
 ;   User data   Documents\Luthier - never written by the installer, kept on uninstall
 ;               unless the user ticks "remove user data" (installer.md 1.3).
 
@@ -25,26 +28,52 @@
   #define OutputDir "..\..\dist\installers"
 #endif
 
-#define AppName "Luthier"
+; Passed by scripts/package_windows.ps1 (/DEditionSlug=Pro or Free).
+#ifndef EditionSlug
+  #define EditionSlug "Pro"
+#endif
+#if !SameText(EditionSlug, "Pro") && !SameText(EditionSlug, "Free")
+  #error EditionSlug must be Pro or Free
+#endif
+
+#define ProductName "Luthier " + EditionSlug
+#define AppName ProductName
 #define AppPublisher "Luthier Audio"
-#define AppExe "Luthier.exe"
+#define AppExe ProductName + ".exe"
+; One file-type handler per edition, so installing or removing one never
+; takes the other's associations with it.
+#define ProgId "Luthier" + EditionSlug + ".File"
+
+; VersionInfoVersion (the Windows file-version resource) must be numeric x.y.z[.w];
+; strip any pre-release suffix (e.g. "-beta1") from AppVersion so a tag like
+; 1.0.0-beta1 still compiles. AppVersion itself keeps the full string for display.
+#define VersionNumeric AppVersion
+#if Pos("-", VersionNumeric) > 0
+  #define VersionNumeric Copy(VersionNumeric, 1, Pos("-", VersionNumeric) - 1)
+#endif
 
 [Setup]
-; Never change AppId: it is how an upgrade finds the previous install.
+; Never change an AppId: it is how an upgrade finds the previous install. Pro and
+; Free are separate products with their own AppId, so they install, upgrade and
+; uninstall independently (editions.md 6: Pro keeps the existing GUID).
+#if SameText(EditionSlug, "Free")
+AppId={{53A88AE9-17B2-4F9E-BCBC-307CB43EAB31}
+#else
 AppId={{6E2B7F4A-3C1D-4E8B-9A57-1F0C2D3E4B5A}
+#endif
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppVerName={#AppName} {#AppVersion}
 AppPublisher={#AppPublisher}
 AppPublisherURL=https://luthieraudio.com
 AppSupportURL=https://luthieraudio.com/support
-VersionInfoVersion={#AppVersion}
+VersionInfoVersion={#VersionNumeric}
 DefaultDirName={autopf}\{#AppName}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
 LicenseFile=..\common\EULA.txt
 OutputDir={#OutputDir}
-OutputBaseFilename=Luthier-{#AppVersion}-Setup-win64
+OutputBaseFilename=Luthier-{#EditionSlug}-{#AppVersion}-Setup-win64
 SetupIconFile={#StageDir}\luthier.ico
 UninstallDisplayIcon={app}\{#AppExe}
 UninstallDisplayName={#AppName} {#AppVersion}
@@ -87,19 +116,19 @@ Name: "standalone"; Description: "Standalone application"; Types: full
 Name: "content";    Description: "Factory content (presets, IRs, guitars, parts, tunes)"; Types: full custom; Flags: fixed
 
 [Tasks]
-Name: "associate"; Description: "Open Luthier files (.luthierpreset, .luthierguitar, .luthiertune, .luthierloop, .luthierset, .midprofile) with Luthier"; Components: standalone
+Name: "associate"; Description: "Open Luthier files (.luthierpreset, .luthierguitar, .luthiertune, .luthierloop, .luthierset, .midprofile) with {#AppName}"; Components: standalone
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; Components: standalone; Flags: unchecked
 
 [InstallDelete]
 ; Upgrades replace the bundles wholesale so no file from an older version survives.
-Type: filesandordirs; Name: "{commoncf64}\VST3\Luthier.vst3"
-Type: files;          Name: "{commoncf64}\CLAP\Luthier.clap"
+Type: filesandordirs; Name: "{commoncf64}\VST3\{#ProductName}.vst3"
+Type: files;          Name: "{commoncf64}\CLAP\{#ProductName}.clap"
 Type: filesandordirs; Name: "{commonappdata}\Luthier\Resources"
 
 [Files]
-Source: "{#StageDir}\Luthier.vst3\*"; DestDir: "{commoncf64}\VST3\Luthier.vst3"; Components: vst3; Flags: ignoreversion recursesubdirs createallsubdirs
-#if FileExists(StageDir + "\Luthier.clap")
-Source: "{#StageDir}\Luthier.clap"; DestDir: "{commoncf64}\CLAP"; Components: clap; Flags: ignoreversion
+Source: "{#StageDir}\{#ProductName}.vst3\*"; DestDir: "{commoncf64}\VST3\{#ProductName}.vst3"; Components: vst3; Flags: ignoreversion recursesubdirs createallsubdirs
+#if FileExists(StageDir + "\" + ProductName + ".clap")
+Source: "{#StageDir}\{#ProductName}.clap"; DestDir: "{commoncf64}\CLAP"; Components: clap; Flags: ignoreversion
 #endif
 Source: "{#StageDir}\{#AppExe}"; DestDir: "{app}"; Components: standalone; Flags: ignoreversion
 #if FileExists(StageDir + "\luthier-render.exe")
@@ -122,20 +151,22 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Components: stand
 
 [Registry]
 ; installer.md 1.2: install location and version for scripted management.
-Root: HKLM; Subkey: "Software\Luthier"; ValueType: string; ValueName: "InstallPath"; ValueData: "{app}"; Flags: uninsdeletekey
-Root: HKLM; Subkey: "Software\Luthier"; ValueType: string; ValueName: "Version"; ValueData: "{#AppVersion}"
-Root: HKLM; Subkey: "Software\Luthier"; ValueType: string; ValueName: "ContentPath"; ValueData: "{commonappdata}\Luthier\Resources"
-Root: HKLM; Subkey: "Software\Luthier"; ValueType: string; ValueName: "VST3Path"; ValueData: "{commoncf64}\VST3\Luthier.vst3"
+; Per edition: HKLM\Software\Luthier\Pro and HKLM\Software\Luthier\Free.
+Root: HKLM; Subkey: "Software\Luthier"; Flags: uninsdeletekeyifempty
+Root: HKLM; Subkey: "Software\Luthier\{#EditionSlug}"; ValueType: string; ValueName: "InstallPath"; ValueData: "{app}"; Flags: uninsdeletekey
+Root: HKLM; Subkey: "Software\Luthier\{#EditionSlug}"; ValueType: string; ValueName: "Version"; ValueData: "{#AppVersion}"
+Root: HKLM; Subkey: "Software\Luthier\{#EditionSlug}"; ValueType: string; ValueName: "ContentPath"; ValueData: "{commonappdata}\Luthier\Resources"
+Root: HKLM; Subkey: "Software\Luthier\{#EditionSlug}"; ValueType: string; ValueName: "VST3Path"; ValueData: "{commoncf64}\VST3\{#ProductName}.vst3"
 ; File associations (installer.md 1.1.9).
-Root: HKA; Subkey: "Software\Classes\Luthier.File"; ValueType: string; ValueData: "Luthier file"; Flags: uninsdeletekey; Tasks: associate
-Root: HKA; Subkey: "Software\Classes\Luthier.File\DefaultIcon"; ValueType: string; ValueData: "{app}\luthier.ico"; Tasks: associate
-Root: HKA; Subkey: "Software\Classes\Luthier.File\shell\open\command"; ValueType: string; ValueData: """{app}\{#AppExe}"" ""%1"""; Tasks: associate
-Root: HKA; Subkey: "Software\Classes\.luthierpreset\OpenWithProgids"; ValueType: string; ValueName: "Luthier.File"; ValueData: ""; Flags: uninsdeletevalue; Tasks: associate
-Root: HKA; Subkey: "Software\Classes\.luthierguitar\OpenWithProgids"; ValueType: string; ValueName: "Luthier.File"; ValueData: ""; Flags: uninsdeletevalue; Tasks: associate
-Root: HKA; Subkey: "Software\Classes\.luthiertune\OpenWithProgids"; ValueType: string; ValueName: "Luthier.File"; ValueData: ""; Flags: uninsdeletevalue; Tasks: associate
-Root: HKA; Subkey: "Software\Classes\.luthierloop\OpenWithProgids"; ValueType: string; ValueName: "Luthier.File"; ValueData: ""; Flags: uninsdeletevalue; Tasks: associate
-Root: HKA; Subkey: "Software\Classes\.luthierset\OpenWithProgids"; ValueType: string; ValueName: "Luthier.File"; ValueData: ""; Flags: uninsdeletevalue; Tasks: associate
-Root: HKA; Subkey: "Software\Classes\.midprofile\OpenWithProgids"; ValueType: string; ValueName: "Luthier.File"; ValueData: ""; Flags: uninsdeletevalue; Tasks: associate
+Root: HKA; Subkey: "Software\Classes\{#ProgId}"; ValueType: string; ValueData: "{#AppName} file"; Flags: uninsdeletekey; Tasks: associate
+Root: HKA; Subkey: "Software\Classes\{#ProgId}\DefaultIcon"; ValueType: string; ValueData: "{app}\luthier.ico"; Tasks: associate
+Root: HKA; Subkey: "Software\Classes\{#ProgId}\shell\open\command"; ValueType: string; ValueData: """{app}\{#AppExe}"" ""%1"""; Tasks: associate
+Root: HKA; Subkey: "Software\Classes\.luthierpreset\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: associate
+Root: HKA; Subkey: "Software\Classes\.luthierguitar\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: associate
+Root: HKA; Subkey: "Software\Classes\.luthiertune\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: associate
+Root: HKA; Subkey: "Software\Classes\.luthierloop\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: associate
+Root: HKA; Subkey: "Software\Classes\.luthierset\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: associate
+Root: HKA; Subkey: "Software\Classes\.midprofile\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: associate
 
 [Run]
 ; Optional launch, default off (installer.md 1.1.9).
@@ -175,13 +206,13 @@ var
   Installed: String;
 begin
   Result := True;
-  if RegQueryStringValue(HKLM, 'Software\Luthier', 'Version', Installed) then
+  if RegQueryStringValue(HKLM, 'Software\Luthier\{#EditionSlug}', 'Version', Installed) then
   begin
     if CompareVersions(Installed, '{#AppVersion}') > 0 then
-      Result := SuppressibleMsgBox('Luthier ' + Installed + ' is installed, which is newer than ' +
+      Result := SuppressibleMsgBox('{#AppName} ' + Installed + ' is installed, which is newer than ' +
         '{#AppVersion}. Replace it with this older version?', mbConfirmation, MB_YESNO, IDYES) = IDYES
     else if CompareVersions(Installed, '{#AppVersion}') = 0 then
-      Result := SuppressibleMsgBox('Luthier {#AppVersion} is already installed. Reinstall it?',
+      Result := SuppressibleMsgBox('{#AppName} {#AppVersion} is already installed. Reinstall it?',
         mbConfirmation, MB_YESNO, IDYES) = IDYES;
   end;
 end;

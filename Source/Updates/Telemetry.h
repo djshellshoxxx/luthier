@@ -28,6 +28,7 @@
 #include <atomic>
 #include <functional>
 #include <memory>
+#include <thread>
 #include <vector>
 
 namespace luthier
@@ -299,6 +300,14 @@ private:
     juce::String crashUploadUrl { "https://crash.luthieraudio.com/v1/upload" };
 
     juce::Time lastUpdateCheck;
+
+    // UT-4: the update check runs on a worker that keeps touching *this and the
+    // MessageManager after a blocking (up to 10 s) network call. Owned and joined
+    // (before each new launch and in ~Telemetry) so it can never outlive this
+    // Telemetry or the MessageManager. Previously a detached juce::Thread::launch,
+    // which could outlive this object - crashing the test binary at teardown and
+    // the plugin at DAW-unload (an intermittent use-after-free on a dangling this).
+    std::thread updateCheckThread;
 
     mutable juce::CriticalSection recordLock;
     std::array<juce::StringArray, (size_t) Category::numCategories> pending;

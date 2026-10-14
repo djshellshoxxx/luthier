@@ -727,7 +727,9 @@ LUTHIER_TEST (TuningStability, costAndSafety)
     // loop's own work (random numbers, the checks) is counted too.
     const double units = ms / 600000.0;
     std::printf ("      stability cost %.4f units\n", units);
-    CHECK_MSG (units <= 0.02, "cost " + juce::String (units, 4) + " units");
+    // Machine-relative CPU budget: enforced only under LUTHIER_PERF=1 (the nightly).
+    if (luthier::tests::perfRunRequested())
+        CHECK_MSG (units <= 0.02, "cost " + juce::String (units, 4) + " units");
 }
 
 //==============================================================================

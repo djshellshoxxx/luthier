@@ -623,12 +623,18 @@ struct Verdict
                      + " dBFS with nothing played, " + juce::String (juce::Decibels::gainToDecibels (s.maxWindowRms / s.idleRms), 1)
                      + " dB under the playing level (minimum " + juce::String (minSnrDb, 0) + ")");
 
-        if (s.cpuPercent > cpuCeilingPercent)
-            why.add ("CPU " + juce::String (s.cpuPercent, 1) + "% of real time > " + juce::String (cpuCeilingPercent, 0) + "%");
+        // The two reasons below are machine-relative timing (a CPU budget and a block-time ratio),
+        // which swing on a shared CI runner: judged only under LUTHIER_PERF=1 (the nightly). The
+        // deterministic subnormal-sample count above still catches a denormal regression everywhere.
+        if (luthier::tests::perfRunRequested())
+        {
+            if (s.cpuPercent > cpuCeilingPercent)
+                why.add ("CPU " + juce::String (s.cpuPercent, 1) + "% of real time > " + juce::String (cpuCeilingPercent, 0) + "%");
 
-        if (s.meanBlockMs > 0.05 && s.tailMeanBlockMs > 4.0 * s.meanBlockMs && s.tailMeanBlockMs > 0.5)
-            why.add ("possible denormal storm: tail blocks " + juce::String (s.tailMeanBlockMs, 3)
-                     + " ms vs mean " + juce::String (s.meanBlockMs, 3) + " ms");
+            if (s.meanBlockMs > 0.05 && s.tailMeanBlockMs > 4.0 * s.meanBlockMs && s.tailMeanBlockMs > 0.5)
+                why.add ("possible denormal storm: tail blocks " + juce::String (s.tailMeanBlockMs, 3)
+                         + " ms vs mean " + juce::String (s.meanBlockMs, 3) + " ms");
+        }
 
         return why.joinIntoString ("; ");
     }

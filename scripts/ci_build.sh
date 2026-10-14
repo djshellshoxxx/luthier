@@ -41,9 +41,12 @@ LOG_DIR="${LOG_DIR:-$BUILD_DIR/logs}"
 CONFIG="${CONFIG:-Release}"
 LUTHIER_LTO="${LUTHIER_LTO:-OFF}"
 LUTHIER_EDITION="${LUTHIER_EDITION:-PAID}"
+# Keep in step with cmake/Editions.cmake (product name, plugin code). The
+# packaging scripts (package_linux.sh, package_macos.sh, package_windows.ps1)
+# derive the same product name from LUTHIER_EDITION to find what stage wrote.
 case "$LUTHIER_EDITION" in
-    PAID) PRODUCT_NAME="Luthier Pro" ;;
-    FREE) PRODUCT_NAME="Luthier Free" ;;
+    PAID) PRODUCT_NAME="Luthier Pro";  PLUGIN_CODE=Lthr ;;
+    FREE) PRODUCT_NAME="Luthier Free"; PLUGIN_CODE=Lthf ;;
     *) echo "ci_build.sh: LUTHIER_EDITION must be PAID or FREE" >&2; exit 1 ;;
 esac
 PLUGINVAL_STRICTNESS="${PLUGINVAL_STRICTNESS:-5}"
@@ -151,6 +154,36 @@ do_test() {
     ${wrap[@]+"${wrap[@]}"} "$runner" 2>&1 | tee "$LOG_DIR/unit-tests.log"
     local rc=${PIPESTATUS[0]}
 
+    # Failure recap: re-print every [FAIL] row and its indented detail lines,
+    # plus the summary, at the very end of the step. The per-test rows print
+    # thousands of lines up, above the tail a truncated log viewer shows; this
+    # keeps the failing names visible at the bottom so a CI failure can be read
+    # without downloading the whole log.
+    if [ "$rc" -ne 0 ] && [ -f "$LOG_DIR/unit-tests.log" ]; then
+        local recap
+        # [FAIL] <test> plus the indented failure lines that follow it (both the
+        # "line N:" CHECK details and custom ctx.fail() messages), then the
+        # summary. -A8 catches multi-assertion failures and free-form messages.
+        recap="$(grep -nE -A8 '\[FAIL\]|[0-9]+ of [0-9]+ tests failed' "$LOG_DIR/unit-tests.log" || true)"
+        echo "===== UNIT TEST FAILURE RECAP ====="
+        printf '%s\n' "$recap"
+        echo "===== END FAILURE RECAP ====="
+
+        # Also surface the recap as a GitHub Actions error annotation. The
+        # per-test rows and this recap sit thousands of lines above the end of
+        # the job (the validators below run even on a test failure, by design),
+        # and the full log is not always downloadable (restricted egress blocks
+        # the log/artifact blob host). Annotations are readable from the
+        # check-runs API regardless, so the failing names are never lost.
+        if [ -n "${GITHUB_ACTIONS:-}" ] && [ -n "$recap" ]; then
+            local enc="$recap"
+            enc="${enc//'%'/%25}"
+            enc="${enc//$'\r'/%0D}"
+            enc="${enc//$'\n'/%0A}"
+            echo "::error title=Unit tests failed (${LUTHIER_EDITION:-?}/${PLATFORM})::${enc}"
+        fi
+    fi
+
     # SPEC-SWEEP (TROUBLESHOOTING TS-1): the documented install paths match the installers.
     cmake -P scripts/check_packaging_paths.cmake || rc=1
 
@@ -229,7 +262,8 @@ do_validate() {
             p="$HOME/Library/Audio/Plug-Ins/Components/$name"
             killall -9 AudioComponentRegistrar 2>/dev/null || true
             auval -a > "$LOG_DIR/auval-list.log" 2>&1 || true
-            auval -strict -v aumu Lthr Ltha 2>&1 | tee "$LOG_DIR/auval.log" || failed=1
+            # type, subtype (the edition's plugin code), manufacturer.
+            auval -strict -v aumu "$PLUGIN_CODE" Ltha 2>&1 | tee "$LOG_DIR/auval.log" || failed=1
         fi
         set +e
         ${wrap[@]+"${wrap[@]}"} "$pluginval" --strictness-level "$PLUGINVAL_STRICTNESS" \
@@ -244,7 +278,11 @@ do_validate() {
         local validator; validator="$(fetch_clap_validator)"
         step "clap-validator: $clap"
         set +e
-        ${wrap[@]+"${wrap[@]}"} "$validator" validate "$clap" 2>&1 | tee "$LOG_DIR/clap-validator.log"
+        # Quieten clap-validator's per-call DEBUG trace (thousands of
+        # "TODO: Handle request_flush()" lines) so it does not bury the rest of
+        # the job log; override with RUST_LOG=debug when a validator hang needs
+        # tracing.
+        RUST_LOG="${RUST_LOG:-error}" ${wrap[@]+"${wrap[@]}"} "$validator" validate "$clap" 2>&1 | tee "$LOG_DIR/clap-validator.log"
         [ "${PIPESTATUS[0]}" -eq 0 ] || failed=1
         set -e
     fi
@@ -257,7 +295,13 @@ do_stage() {
     step "Staging products into $out"
     rm -rf "$out"
     mkdir -p "$out"
-    for f in VST3/${PRODUCT_NAME}.vst3 CLAP/${PRODUCT_NAME}.clap AU/${PRODUCT_NAME}.component; do
+    # PRODUCT_NAME has a space ("Luthier Pro"): every expansion below is quoted,
+    # or the word-split names match nothing and the bundles are silently skipped.
+    [ -e "$ARTEFACTS/VST3/${PRODUCT_NAME}.vst3" ] || {
+        echo "ci_build.sh stage: $ARTEFACTS/VST3/${PRODUCT_NAME}.vst3 is missing (LUTHIER_EDITION=$LUTHIER_EDITION); build it first" >&2
+        return 1
+    }
+    for f in "VST3/${PRODUCT_NAME}.vst3" "CLAP/${PRODUCT_NAME}.clap" "AU/${PRODUCT_NAME}.component"; do
         [ -e "$ARTEFACTS/$f" ] && cp -R "$ARTEFACTS/$f" "$out/"
     done
     if [ "$PLATFORM" = macos ]; then
@@ -277,7 +321,7 @@ do_stage() {
 
     # Strip the per-bundle copies the build made, keeping JUCE's moduleinfo.json:
     # the installed plugins read the shared copy.
-    for b in "$out"/${PRODUCT_NAME}.vst3 "$out"/${PRODUCT_NAME}.component "$out"/${PRODUCT_NAME}.clap "$out"/${PRODUCT_NAME}.app; do
+    for b in "$out/${PRODUCT_NAME}.vst3" "$out/${PRODUCT_NAME}.component" "$out/${PRODUCT_NAME}.clap" "$out/${PRODUCT_NAME}.app"; do
         [ -d "$b/Contents/Resources" ] || continue
         for d in BodyIRs CabIRs Examples Fonts Guitars Parts Practice Presets Tunes; do
             rm -rf "$b/Contents/Resources/$d"

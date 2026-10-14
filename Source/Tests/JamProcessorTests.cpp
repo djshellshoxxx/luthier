@@ -235,6 +235,12 @@ LUTHIER_TEST (JamPlugin, JM34_offCostsNothingAndTheJamScenario)
         CHECK (off.p->getJam().getState() == JamState::off || ! off.p->getJam().isBandRunning());
     }
 
+    // The reference-unit budgets below are machine-relative (performance-budget.md's
+    // CPU, not CI's), so they run under LUTHIER_PERF=1 only. The "off costs nothing"
+    // correctness block above always runs.
+    if (! perfRunRequested())
+        return;
+
     auto seconds = [] (auto&& fn)
     {
         // The thread's CPU clock (TestFramework), so a busy machine's scheduling does not count.

@@ -212,4 +212,20 @@ inline bool perfRunRequested()
     return juce::SystemStats::getEnvironmentVariable ("LUTHIER_PERF", {}) == "1";
 }
 
+/** True on the macOS arm64 CI runners, which are shared, capacity-constrained
+    and markedly slower than the Linux/Windows runners (GitHub itself warns of
+    long queue times, and the suite runs ~3x longer here). Wall-clock latency
+    budgets and async-completion waits get extra headroom on this host so a
+    contended scheduler is not mistaken for a regression; the Linux/Windows
+    runners keep the tight budgets, and LUTHIER_PERF=1 (a quiet machine) opts
+    back into the spec numbers everywhere. */
+inline bool slowCiHost()
+{
+   #if JUCE_MAC
+    return ! perfRunRequested();
+   #else
+    return false;
+   #endif
+}
+
 } // namespace luthier::tests

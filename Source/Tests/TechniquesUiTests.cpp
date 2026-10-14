@@ -461,7 +461,9 @@ LUTHIER_TEST (TechniquesUi, theOverlaysDrawInsideTheirBudget)
 
     CHECK (overlay->getLastDrawnCount (TechniqueOverlay::tapMarkers) == 4);
     CHECK (overlay->getLastDrawnCount (TechniqueOverlay::muteZone) == 1);
-    CHECK_MSG (worst < 2.0, "the overlays took " + juce::String (worst, 3) + " ms");
+    // Machine-relative paint-time budget: enforced only under LUTHIER_PERF=1 (the nightly).
+    if (luthier::tests::perfRunRequested())
+        CHECK_MSG (worst < 2.0, "the overlays took " + juce::String (worst, 3) + " ms");
 
     // Each is independently toggleable.
     TechniqueOverlay::setLayerEnabled (TechniqueOverlay::tapMarkers, false);

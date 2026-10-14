@@ -108,7 +108,11 @@ jobs:
     env:
       LUTHIER_EDITION: ${{ matrix.edition }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 180
+    # macOS runners are markedly slower than Linux/Windows for this LTO build +
+    # the sequential render/preset-heavy LuthierTests suite: run #12 (beta1) was
+    # still passing tests (steady progress, no hang) when it hit the 180-min cap.
+    # Give macOS more headroom; Linux/Windows keep the tighter 180-min cap.
+    timeout-minutes: ${{ matrix.os == 'macos-latest' && 300 || 180 }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}

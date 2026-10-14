@@ -200,7 +200,15 @@ LUTHIER_TEST (EBow, theHarmonicChoiceTakesTheString)
             peak - the intermittent failure this test was known for. */
         auto power = [&rig] (double f)
         {
-            const size_t from = (size_t) (2.0 * kSr), n = (size_t) kSr;
+            // The render covers [0, 3 s) but only (int)(3*kSr/kBlock)*kBlock samples
+            // exist (143 872, not 144 000), so a full kSr window from 2 s read 128
+            // samples past the end of rig.out - uninitialised heap that passed when
+            // zero-filled but intermittently collapsed the measured ratio under load.
+            // Clamp the window to the samples that actually exist (both power() calls
+            // share the same length, so the fundamental/octave comparison stays fair).
+            const size_t from = (size_t) (2.0 * kSr);
+            const size_t n = juce::jmin ((size_t) kSr,
+                                         rig.out.size() > from ? rig.out.size() - from : (size_t) 0);
             double best = 0.0;
 
             for (double g = f * 0.985; g <= f * 1.015; g += f * 0.001)

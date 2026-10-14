@@ -939,8 +939,13 @@ LUTHIER_TEST (AnimatedStrings, AS15_frameBudget)
         the software renderer measured here is single-threaded, so the thresholds
         carry that factor. The raw figure is printed above for the dashboard. */
     constexpr double kReferenceCpuFactor = 2.0;
-    CHECK_MSG (median < 1.0 * kReferenceCpuFactor, "median frame " + juce::String (median, 3) + " ms");
-    CHECK_MSG (p99 < 2.0 * kReferenceCpuFactor, "p99 frame " + juce::String (p99, 3) + " ms");
+
+    // Machine-relative frame-time budget: enforced only under LUTHIER_PERF=1 (the nightly).
+    if (luthier::tests::perfRunRequested())
+    {
+        CHECK_MSG (median < 1.0 * kReferenceCpuFactor, "median frame " + juce::String (median, 3) + " ms");
+        CHECK_MSG (p99 < 2.0 * kReferenceCpuFactor, "p99 frame " + juce::String (p99, 3) + " ms");
+    }
 }
 
 //==============================================================================

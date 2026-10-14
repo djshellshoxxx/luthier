@@ -177,18 +177,33 @@ LUTHIER_TEST (LiveInput, aFootswitchTapsTheTempo)
 
     p.getLiveActions().assign (LiveAction::tapTempo, 40);
 
+    double firstTapMs = 0.0, lastTapMs = 0.0;
+
     for (int i = 0; i < 4; ++i)
     {
         if (i > 0)
             juce::Thread::sleep (400);   // 150 bpm
 
+        const double tMs = juce::Time::getMillisecondCounterHiRes();
+        if (i == 0) firstTapMs = tMs;
+        lastTapMs = tMs;
+
         rig.cc (40, 127);
         rig.cc (40, 0);
     }
 
+    // LiveInput stamps each tap with the wall clock on arrival, so the inferred
+    // BPM is 60 / (mean gap). On the contended macOS arm64 CI host the 400 ms
+    // sleeps overrun, dragging the gaps (and so the BPM) off 150; there, compare
+    // against the gaps the test actually took (its own cc() brackets cancel in
+    // the span). Linux/Windows keep the nominal 150 bpm assertion.
+    const double target = luthier::tests::slowCiHost()
+                            ? 60.0 / ((lastTapMs - firstTapMs) * 0.001 / 3.0)
+                            : 150.0;
+
     CHECK (p.getTapTempo().hasTempo());
-    CHECK_MSG (std::abs (p.getTapTempo().getTappedBpm() - 150.0) < 8.0,
-               "tapped " + juce::String (p.getTapTempo().getTappedBpm()));
+    CHECK_MSG (std::abs (p.getTapTempo().getTappedBpm() - target) < 8.0,
+               "tapped " + juce::String (p.getTapTempo().getTappedBpm()) + " vs " + juce::String (target, 1));
 }
 
 /*  LP-1 / LP-21: every live action has a key and a CC route. */

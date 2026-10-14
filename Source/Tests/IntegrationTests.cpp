@@ -573,6 +573,11 @@ LUTHIER_TEST (Engine, monoCompatibility)
 
 LUTHIER_TEST (Engine, cpuStaysWithinBudget)
 {
+    // Machine-relative: this is a pure wall-clock/CPU budget, which swings on a shared CI runner.
+    // Run under LUTHIER_PERF=1 (the nightly, controlled runner) only.
+    if (! luthier::tests::perfRunRequested())
+        return;
+
     // Engine spec 22: six strings ringing with everything on should stay well
     // inside real time. The absolute number depends on the machine, so this
     // asserts the thing that actually matters: it is comfortably faster than

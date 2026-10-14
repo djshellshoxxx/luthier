@@ -39,6 +39,12 @@ scripts/package_linux.sh             # after "stage": .tar.gz and .deb in dist/i
 scripts/package_macos.sh             # after "stage" on a Mac: .pkg in a .dmg
 ```
 
+Both editions build from the same tree. `LUTHIER_EDITION=PAID` (Luthier Pro, the
+default) or `FREE` (Luthier Free) selects the edition for `ci_build.sh` **and** the
+packaging scripts, which must be run with the same value as `stage`: they find the
+staged files by the product name ("Luthier Pro", "Luthier Free") and name their
+outputs after the edition. CI sets it per matrix job.
+
 Windows, from a *Developer PowerShell for VS 2022*:
 
 ```powershell
@@ -46,6 +52,7 @@ scripts/ci_build.ps1                            # every step
 scripts/ci_build.ps1 -Step configure,build -Jobs 2   # a 4 GB machine: 2 jobs
 scripts/ci_build.ps1 -Step validate -Strictness 10
 scripts/package_windows.ps1                     # after "stage": Setup .exe and portable zip
+scripts/ci_build.ps1 -Edition FREE ...          # LUTHIER_EDITION / -Edition PAID|FREE, as above
 ```
 
 The build tree is `build-ci/` (so it never collides with the developer
@@ -70,22 +77,35 @@ nothing changes when running from the build tree.
 
 | | Windows | macOS | Linux (per user / system / .deb) |
 |---|---|---|---|
-| VST3 | `C:\Program Files\Common Files\VST3\Luthier.vst3` | `/Library/Audio/Plug-Ins/VST3/Luthier.vst3` | `~/.vst3` / `/usr/local/lib/vst3` / `/usr/lib/vst3` |
-| CLAP | `C:\Program Files\Common Files\CLAP\Luthier.clap` | `/Library/Audio/Plug-Ins/CLAP/Luthier.clap` | `~/.clap` / `/usr/lib/clap` / `/usr/lib/clap` |
-| AU | | `/Library/Audio/Plug-Ins/Components/Luthier.component` | |
-| Standalone | `C:\Program Files\Luthier\Luthier.exe` | `/Applications/Luthier.app` | `~/.local/bin/luthier` / `/usr/local/bin` / `/usr/bin` |
+| VST3 | `C:\Program Files\Common Files\VST3\Luthier Pro.vst3` | `/Library/Audio/Plug-Ins/VST3/Luthier Pro.vst3` | `~/.vst3` / `/usr/local/lib/vst3` / `/usr/lib/vst3` |
+| CLAP | `C:\Program Files\Common Files\CLAP\Luthier Pro.clap` | `/Library/Audio/Plug-Ins/CLAP/Luthier Pro.clap` | `~/.clap` / `/usr/lib/clap` / `/usr/lib/clap` |
+| AU | | `/Library/Audio/Plug-Ins/Components/Luthier Pro.component` | |
+| Standalone | `C:\Program Files\Luthier Pro\Luthier Pro.exe` | `/Applications/Luthier Pro.app` | `~/.local/bin/luthier` / `/usr/local/bin` / `/usr/bin` |
 | Renderer | `...\Luthier\luthier-render.exe` | (not in the .pkg yet) | `luthier-render` beside the standalone |
 | Content | `C:\ProgramData\Luthier\Resources` | `/Library/Application Support/Luthier/Resources` | `~/.local/share/luthier/Resources` / `/usr/local/share/...` / `/usr/share/...` |
-| Uninstall | Add/Remove Programs | `/Applications/Luthier/Uninstall.command` | `<content dir>/uninstall.sh` / `apt remove luthier` |
+| Uninstall | Add/Remove Programs | `/Applications/Luthier Pro/Uninstall.command` | `<content dir>/uninstall.sh` / `apt remove luthier-pro` |
+
+The table shows Luthier Pro. Luthier Free installs the same layout with
+`Luthier Free` in place of `Luthier Pro` (and `luthier-free` for the packages),
+with its own Windows AppId and macOS package IDs. The two editions share the
+factory content folder (`IrLibrary` does not search an edition-specific one yet)
+and, on Linux, the `luthier` binary and desktop entry, so on Linux the two
+editions replace each other rather than sit side by side (the packages declare
+`Conflicts:`).
 
 User data (`~/Documents/Luthier`) is never touched by an installer; the
 uninstallers remove it only when the user explicitly asks.
 
 Outputs:
 
-- `Luthier-<v>-Setup-win64.exe`, `Luthier-<v>-portable-win64.zip`
-- `Luthier-<v>-macOS.dmg` (holding `Luthier-<v>.pkg`)
-- `Luthier-<v>-linux-x64.tar.gz`, `luthier_<v>_amd64.deb` (+ `.asc` signatures)
+Each edition produces its own set, named with `<Edition>` = `Pro` or `Free`, so
+one tag's draft release carries both without a collision:
+
+- `Luthier-<Edition>-<v>-Setup-win64.exe`, `Luthier-<Edition>-<v>-portable-win64.zip`
+- `Luthier-<Edition>-<v>-macOS.dmg` (holding `Luthier-<Edition>-<v>.pkg`)
+- `Luthier-<Edition>-<v>-linux-x64.tar.gz`, `Luthier-<Edition>-<v>-standalone-linux-x64.tar.gz`,
+  `luthier-pro_<v>_amd64.deb` / `luthier-free_<v>_amd64.deb`, and the best-effort
+  `luthier-pro-<v>-1.x86_64.rpm` / `luthier-free-<v>-1.x86_64.rpm` (+ `.asc` signatures)
 - `SHA256SUMS.txt` (+ `SHA256SUMS.txt.asc`)
 
 ## 4. Signing secrets
@@ -141,13 +161,13 @@ say): *Actions -> release -> Run workflow*, enter the tag.
 - Upgrade over the previous release: no old files left
   (`installer.md` 13).
 - Uninstall: only the installed files go; `~/Documents/Luthier` stays.
-- macOS: `spctl -a -vvv -t install Luthier-<v>.pkg` says *accepted,
-  Notarized Developer ID*; `auval -v aumu Lthr Ltha` passes.
+- macOS: `spctl -a -vvv -t install Luthier-<Edition>-<v>.pkg` says *accepted,
+  Notarized Developer ID*; `auval -v aumu Lthr Ltha` (Free: `Lthf`) passes.
 - Windows: the installer's signature shows the company name; SmartScreen
   behaviour noted.
 - Linux: `scripts/verify_release.sh <dir> [public-key.asc]` (checksums, every
   installer listed, `gpg --verify` on the `.asc` files).
-- Linux install cycle: `scripts/test_install_linux.sh Luthier-<v>-linux-x64.tar.gz`
+- Linux install cycle: `scripts/test_install_linux.sh Luthier-<Edition>-<v>-linux-x64.tar.gz`
   (install, upgrade, downgrade, uninstall, purge, all in a throw-away HOME;
   with no argument it tests synthetic packages built from `packaging/linux`).
 
@@ -204,7 +224,7 @@ Target: a bad release is withdrawn in 30 minutes, a fixed one is out in 24 hours
   restart is needed first. The Inno Setup documentation has the current list.
 - **Managed installs** can pre-place the policy file
   (`luthier-policy.json`, the path `Policy::getPolicyFile` reads):
-  Windows `Luthier-<v>-Setup-win64.exe /VERYSILENT /POLICY=C:\path\luthier-policy.json`
+  Windows `Luthier-<Edition>-<v>-Setup-win64.exe /VERYSILENT /POLICY=C:\path\luthier-policy.json`
   copies it to `C:\ProgramData\Luthier\`; on macOS put it at
   `/Library/Application Support/Luthier/luthier-policy.json`, on Linux at
   `/etc/luthier/luthier-policy.json`. A policy can only remove permissions
@@ -214,7 +234,7 @@ Target: a bad release is withdrawn in 30 minutes, a fixed one is out in 24 hours
   `/Library/Application Support/Luthier/Resources`,
   `$XDG_DATA_HOME|~/.local/share/luthier/Resources`, `/usr/local/share/luthier`,
   `/usr/share/luthier`.
-- **Standalone only:** the Linux `Luthier-<v>-standalone-linux-x64.tar.gz`
+- **Standalone only:** the Linux `Luthier-<Edition>-<v>-standalone-linux-x64.tar.gz`
   installs the app and content without the plug-ins; on Windows and macOS untick
   the plug-in components in the installer.
 

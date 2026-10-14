@@ -14,15 +14,18 @@ file(READ "${ROOT}/packaging/macos/Uninstall.command" macUninstall)
 set(failures "")
 
 # <text the doc shows> | <file variable> | <text that installer must contain>
+# The docs show the Pro names; the Free edition's differ only in "Luthier Free".
+# The installers take the product name from a variable (ISPP ProductName,
+# PRODUCT / PRODUCT_NAME in the shell scripts), so they are matched on that.
 set(pairs
-    "C:\\Program Files\\Common Files\\VST3\\Luthier.vst3|iss|{commoncf64}\\VST3\\Luthier.vst3"
-    "C:\\Program Files\\Common Files\\CLAP\\Luthier.clap|iss|{commoncf64}\\CLAP\\Luthier.clap"
-    "/Library/Audio/Plug-Ins/VST3/Luthier.vst3|mac|/Library/Audio/Plug-Ins/VST3"
-    "/Library/Audio/Plug-Ins/Components/Luthier.component|mac|/Library/Audio/Plug-Ins/Components"
-    "/Library/Audio/Plug-Ins/CLAP/Luthier.clap|macUninstall|/Library/Audio/Plug-Ins/CLAP/Luthier.clap"
-    "/Applications/Luthier/Uninstall.command|mac|/Applications/Luthier/Uninstall.command"
-    "~/.vst3/Luthier.vst3|linux|$HOME/.vst3"
-    "~/.clap/Luthier.clap|linux|~/.clap/Luthier.clap"
+    "C:\\Program Files\\Common Files\\VST3\\Luthier Pro.vst3|iss|{commoncf64}\\VST3\\{#ProductName}.vst3"
+    "C:\\Program Files\\Common Files\\CLAP\\Luthier Pro.clap|iss|{commoncf64}\\CLAP\\{#ProductName}.clap"
+    "/Library/Audio/Plug-Ins/VST3/Luthier Pro.vst3|mac|/Library/Audio/Plug-Ins/VST3"
+    "/Library/Audio/Plug-Ins/Components/Luthier Pro.component|mac|/Library/Audio/Plug-Ins/Components"
+    "/Library/Audio/Plug-Ins/CLAP/Luthier Pro.clap|macUninstall|/Library/Audio/Plug-Ins/CLAP/$PRODUCT.clap"
+    "/Applications/Luthier Pro/Uninstall.command|mac|/Applications/$PRODUCT_NAME/Uninstall.command"
+    "~/.vst3/Luthier Pro.vst3|linux|$HOME/.vst3"
+    "~/.clap/Luthier Pro.clap|linux|$HOME/.clap"
 )
 
 foreach(pair IN LISTS pairs)

@@ -594,6 +594,11 @@ namespace luthier::tests
     does not decide it. */
 LUTHIER_TEST (Circuit, aParameterChangeCostsUnderFiveHundredthsOfAPercent)
 {
+    // Machine-relative: this is a pure wall-clock/CPU budget, which swings on a shared CI runner.
+    // Run under LUTHIER_PERF=1 (the nightly, controlled runner) only.
+    if (! luthier::tests::perfRunRequested())
+        return;
+
     GuitarCircuit circuit;
     circuit.prepare (48000.0);
 

@@ -673,6 +673,11 @@ LUTHIER_TEST (NoiseFloor, idleIsFree)
     nf.prepare (48000.0, kBlock);
     CHECK (nf.isIdle());
 
+    // Everything below is a machine-relative CPU budget (measured, then asserted): run under
+    // LUTHIER_PERF=1 (the nightly) only. The idle-state check above runs everywhere.
+    if (! luthier::tests::perfRunRequested())
+        return;
+
     // Cost over the baseline: 20 s with the module idle against bypassed, on
     // the thread's CPU clock and interleaved best-of-two, so a shared machine's
     // scheduling noise does not land on one side of the difference.

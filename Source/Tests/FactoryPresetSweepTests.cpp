@@ -110,6 +110,10 @@ LUTHIER_TEST (Presets, loadingAFactoryPresetTakesUnder500ms)
 
     std::cout << "    factory preset load: median " << median << " ms, worst " << worst << " ms (" << worstName << ")" << std::endl;
 
-    CHECK_MSG (median < 500.0, "median preset load " + juce::String (median, 1) + " ms");
-    CHECK_MSG (worst < 1000.0, "slowest preset load " + juce::String (worst, 1) + " ms (" + worstName + ")");
+    // Machine-relative wall-clock budget: enforced only under LUTHIER_PERF=1 (the nightly).
+    if (luthier::tests::perfRunRequested())
+    {
+        CHECK_MSG (median < 500.0, "median preset load " + juce::String (median, 1) + " ms");
+        CHECK_MSG (worst < 1000.0, "slowest preset load " + juce::String (worst, 1) + " ms (" + worstName + ")");
+    }
 }
