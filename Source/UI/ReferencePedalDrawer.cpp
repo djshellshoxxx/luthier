@@ -42,8 +42,7 @@ Card::Card (LuthierAudioProcessor& owner, int location)
     earlier.onClick = [this]
     {
         board().move (position, position - 1);
-        if (auto* d = dynamic_cast<Drawer*> (getParentComponent()->getParentComponent()))
-            d->refresh();
+        if (onReordered) onReordered();
     };
     later.onClick = [this]
     {
@@ -140,6 +139,7 @@ Drawer::Drawer (LuthierAudioProcessor& owner) : processor (owner)
     for (int i = 0; i < Board::slotCount; ++i)
     {
         auto* card = cards.add (new Card (processor, i));
+        card->onReordered = [this] { refresh(); };
         contents.addAndMakeVisible (*card);
     }
     boardOn.setToggleState (processor.getEngine().getReferencePedals().isBoardEnabled(), juce::dontSendNotification);
