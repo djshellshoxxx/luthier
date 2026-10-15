@@ -18,6 +18,10 @@ on:
         description: 'Comma-separated: linux, windows, macos'
         type: string
         default: 'linux,windows,macos'
+      editions:
+        description: 'Comma-separated: pro, free'
+        type: string
+        default: 'pro,free'
       strictness:
         description: 'pluginval strictness (1-10)'
         type: number
@@ -32,6 +36,10 @@ on:
         description: 'Comma-separated: linux, windows, macos (ci-cadence.yml picks per push)'
         type: string
         default: 'linux,windows,macos'
+      editions:
+        description: 'Comma-separated: pro, free'
+        type: string
+        default: 'pro,free'
       strictness:
         type: number
         default: 10
@@ -84,21 +92,26 @@ jobs:
       - id: m
         env:
           PLATFORMS: ${{ inputs.platforms || 'linux,windows,macos' }}
+          EDITIONS: ${{ inputs.editions || 'pro,free' }}
         run: |
           items=()
+          add() { # name os platform edition
+            case "$4" in PAID) e=pro;; *) e=free;; esac
+            case ",$EDITIONS," in *,"$e",*) items+=("{\"name\":\"$1\",\"os\":\"$2\",\"platform\":\"$3\",\"edition\":\"$4\"}");; esac
+          }
           case ",$PLATFORMS," in *,linux,*)
-            items+=('{"name":"Linux x64 / Pro","os":"ubuntu-latest","platform":"linux","edition":"PAID"}')
-            items+=('{"name":"Linux x64 / Free","os":"ubuntu-latest","platform":"linux","edition":"FREE"}');;
+            add "Linux x64 / Pro" ubuntu-latest linux PAID
+            add "Linux x64 / Free" ubuntu-latest linux FREE;;
           esac
           case ",$PLATFORMS," in *,windows,*)
-            items+=('{"name":"Windows x64 / Pro","os":"windows-latest","platform":"windows","edition":"PAID"}')
-            items+=('{"name":"Windows x64 / Free","os":"windows-latest","platform":"windows","edition":"FREE"}');;
+            add "Windows x64 / Pro" windows-latest windows PAID
+            add "Windows x64 / Free" windows-latest windows FREE;;
           esac
           case ",$PLATFORMS," in *,macos,*)
-            items+=('{"name":"macOS universal / Pro","os":"macos-latest","platform":"macos","edition":"PAID"}')
-            items+=('{"name":"macOS universal / Free","os":"macos-latest","platform":"macos","edition":"FREE"}');;
+            add "macOS universal / Pro" macos-latest macos PAID
+            add "macOS universal / Free" macos-latest macos FREE;;
           esac
-          if [ ${#items[@]} -eq 0 ]; then echo "::error::no platforms in '$PLATFORMS'"; exit 1; fi
+          if [ ${#items[@]} -eq 0 ]; then echo "::error::no builds for platforms '$PLATFORMS' editions '$EDITIONS'"; exit 1; fi
           joined=$(IFS=,; echo "${items[*]}")
           echo "matrix={\"include\":[$joined]}" >> "$GITHUB_OUTPUT"
 

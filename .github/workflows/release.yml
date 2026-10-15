@@ -25,6 +25,11 @@ on:
         required: false
         type: string
         default: 'linux,windows,macos'
+      editions:
+        description: 'Comma-separated editions to build: pro, free (default both)'
+        required: false
+        type: string
+        default: 'pro,free'
 
 permissions:
   contents: read
@@ -67,6 +72,7 @@ jobs:
     uses: ./.github/workflows/build.yml
     with:
       platforms: ${{ inputs.platforms || 'linux,windows,macos' }}
+      editions: ${{ inputs.editions || 'pro,free' }}
       strictness: 10
       lto: true
       package: true
