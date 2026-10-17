@@ -343,7 +343,14 @@ LUTHIER_TEST (Normalization, ON03_FactoryTableDoesNotDrift)
     for (const auto& c : combinations)
     {
         auto p = makeProcessor();
-        loadCombo (*p, c.preset, c.guitarType);
+        // An unsuccessful preset load leaves the processor's previous/default
+        // state in place. Its hash is not evidence that the factory table drifted.
+        // Report the actual load failure at the source instead of conflating it
+        // with a missing cache entry on a different operating system.
+        const bool comboLoaded = loadCombo (*p, c.preset, c.guitarType);
+        CHECK_MSG (comboLoaded, c.key() + " factory preset failed to load");
+        if (! comboLoaded)
+            continue;
         auto& n = p->getOutputNormalization();
         n.refreshStructuralSnapshot();
         const auto state = n.captureSoundState();
