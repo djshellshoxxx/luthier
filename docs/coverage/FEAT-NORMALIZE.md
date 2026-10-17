@@ -156,3 +156,24 @@ table) valid.
   `PreviewPlayer` (FEAT-BROWSER), which does not exist on this branch.
 - **Full-grid sweeps** run only with `LUTHIER_SLOW_TESTS=1` (about 35 min for
   ON-02 alone); the default run uses fixed seeded samples.
+
+## Cross-platform factory-key investigation (2026-10-17)
+
+ON-03 now runs the same four Pro regression combinations on every platform:
+`p41_g18_phrase`, `p68_g21_phrase`, `p21_g20_phrase`, and `p30_g05_phrase`.
+These failed factory membership in macOS CI run `38824640225`, job
+`116729142256`. The former seeded `std::shuffle` selected different combinations
+with different C++ standard libraries, so passing Linux/Windows samples did not
+establish coverage of the macOS inputs. Full-grid mode and Free-edition gating
+remain unchanged.
+
+A factory cache miss prints its canonical JSON and hash. Set
+`LUTHIER_NORMALIZATION_TRACE_KEYS=1` to capture the corresponding inputs on a
+passing platform. Exact factory membership and the existing 4 LU fresh-render
+drift assertions remain enforced. This adds reproducible diagnostic coverage;
+it does not establish that the production cross-platform cache-key mismatch is
+fixed. A standalone libstdc++ probe of the former 70-by-25 seeded shuffle selected
+`p48_g21`, `p48_g16`, `p43_g15`, and `p58_g12`, confirming that none of
+the macOS failures had been covered by that default Linux sample. The focused
+diff passes `git diff --check`. JUCE test execution and cross-platform key
+comparison are pending.

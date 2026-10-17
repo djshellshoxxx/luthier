@@ -465,13 +465,20 @@ namespace
     }
 
     /** Plays a loaded track to its end (or `maxSeconds`), returning the rendered left channel. */
-    std::vector<float> playTrack (BackingTrackPlayer& player, double maxSeconds)
+    std::vector<float> playTrack (tests::TestContext& ctx, BackingTrackPlayer& player, double maxSeconds)
     {
         juce::AudioBuffer<float> block (2, 512);
         std::vector<float> rendered;
 
-        // The file streams on its own thread; give it time to fill the ring.
-        juce::Thread::sleep (400);
+        // These short fixtures fit the four-second ring, including the shifter's
+        // look-ahead. Wait for actual readiness before rendering faster than real
+        // time: a fixed sleep races the disk-reader thread on busy CI runners.
+        const int inputSamples = (int) std::ceil (player.getLengthSeconds() * 48000.0)
+                                 + TimePitchShifter::kGrainSize * 2 + TimePitchShifter::kSearch + 512;
+        const bool ready = player.waitForBufferedAudio (inputSamples, 5000);
+        CHECK_MSG (ready, "backing track input did not become ready within five seconds");
+        if (! ready)
+            return std::vector<float> (48000, 0.0f);
         player.play();
 
         while (player.isPlaying() && (double) rendered.size() < maxSeconds * 48000.0)
@@ -516,6 +523,24 @@ LUTHIER_TEST (PracticeTrack, loadsEveryAdvertisedFormat)
     }
 }
 
+LUTHIER_TEST (PracticeTrack, bufferingWaitRejectsUnavailableInput)
+{
+    BackingTrackPlayer player;
+    player.prepare (48000.0, 512);
+    CHECK (! player.waitForBufferedAudio (512, 0));
+
+    juce::WavAudioFormat wav;
+    const auto file = writeSine (wav, ".wav", 440.0, 0.5);
+    CHECK (player.load (file));
+    CHECK (! player.waitForBufferedAudio (0, 0));
+    CHECK (! player.waitForBufferedAudio (BackingTrackPlayer::kRingBufferSeconds * 48000, 0));
+    CHECK (player.waitForBufferedAudio (24512, 5000));
+    CHECK_NEAR (player.getPositionSeconds(), 0.0, 0.000001);
+
+    player.unload();
+    file.deleteFile();
+}
+
 LUTHIER_TEST (PracticeTrack, pitchShiftMovesPitchNotTempo)
 {
     // PT-28: +12 semitones is an octave up, and the track takes as long.
@@ -528,7 +553,7 @@ LUTHIER_TEST (PracticeTrack, pitchShiftMovesPitchNotTempo)
     player.setLevelDb (0.0);
     player.setPitchShiftSemitones (12.0);
 
-    const auto rendered = playTrack (player, 6.0);
+    const auto rendered = playTrack (ctx, player, 6.0);
     const double seconds = (double) rendered.size() / 48000.0;
 
     CHECK_MSG (seconds > 1.8 && seconds < 2.3, "a pitch shift changed the duration: " + juce::String (seconds) + " s");
@@ -539,7 +564,7 @@ LUTHIER_TEST (PracticeTrack, pitchShiftMovesPitchNotTempo)
     // And a fifth down.
     player.stop();
     player.setPitchShiftSemitones (-7.0);
-    const auto lower = playTrack (player, 6.0);
+    const auto lower = playTrack (ctx, player, 6.0);
     const double lowerHz = zeroCrossingHz (lower.data() + 24000, 24000, 48000.0);
     CHECK_MSG (std::abs (lowerHz - 440.0 * std::pow (2.0, -7.0 / 12.0)) < 5.0,
                "-7 semitones came out at " + juce::String (lowerHz) + " Hz");
@@ -562,7 +587,7 @@ LUTHIER_TEST (PracticeTrack, tempoShiftChangesDurationNotPitch)
         player.setLevelDb (0.0);
         player.setTempoRatio (ratio);
 
-        const auto rendered = playTrack (player, 8.0);
+        const auto rendered = playTrack (ctx, player, 8.0);
         const double seconds = (double) rendered.size() / 48000.0;
         const double expected = 2.0 / ratio;
 

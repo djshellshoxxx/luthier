@@ -203,6 +203,22 @@ jobs:
         shell: pwsh
         run: scripts/ci_build.ps1 -Step configure,build -Lto ${{ env.LTO }} -Edition ${{ matrix.edition }} -Jobs 4
 
+      # Run the known macOS release blockers first so their diagnostics are
+      # available without waiting for the multi-hour complete suite. The full
+      # suite below remains mandatory; this does not change release gates.
+      - name: Early release regression tests (Unix Pro)
+        if: runner.os != 'Windows' && matrix.edition == 'PAID'
+        env:
+          LUTHIER_NORMALIZATION_TRACE_KEYS: '1'
+        shell: bash
+        run: |
+          set -o pipefail
+          runner="$BUILD_DIR/LuthierTests_artefacts/$CONFIG/LuthierTests"
+          wrap=()
+          if [ "$RUNNER_OS" = Linux ]; then wrap=(xvfb-run -a); fi
+          "${wrap[@]}" "$runner" ON03_FactoryTableDoesNotDrift CQ23_ PracticeTrack \
+            2>&1 | tee "$BUILD_DIR/logs/release-regressions.log"
+
       # ---------------------------------------------------------- test
       - name: Unit tests (Unix)
         if: runner.os != 'Windows' && steps.build_unix.outcome == 'success'
