@@ -54,6 +54,8 @@ jobs:
         run: |
           tag="$TAG"
           version="${tag#v}"
+          # The requested public beta tag abbreviates the numeric patch.
+          [ "$tag" != "v0.1-beta" ] || version="0.1.0-beta"
           # project(Luthier VERSION x.y.z ...) is the one source of the version.
           cmake_version="$(sed -nE 's/^project\(Luthier VERSION ([0-9.]+).*/\1/p' CMakeLists.txt | tr -d '\r')"
           # A pre-release suffix (-beta1, -rc2) is allowed on top of the CMake version.

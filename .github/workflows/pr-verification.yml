@@ -17,4 +17,5 @@ jobs:
     uses: ./.github/workflows/build.yml
     with:
       platforms: linux,windows,macos
+      editions: ${{ github.head_ref == 'codex/luthier-pro-v01-release' && 'pro' || 'pro,free' }}
     secrets: inherit

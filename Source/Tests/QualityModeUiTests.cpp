@@ -526,7 +526,7 @@ LUTHIER_TEST (CpuQualityUi, CQ23_lowMeansNoAnimationRepaints)
 
     int stateChanges = 0;
 
-    auto measure = [&p, &stateChanges] (QualityLevel level, bool advanced, int& decorativePaints, int& worstReadoutPaints,
+    auto measure = [&p, &stateChanges, &ctx] (QualityLevel level, bool advanced, int& decorativePaints, int& worstReadoutPaints,
                                         int& runningDecorativeTimers, double& cpu, int& busiestDecorative)
     {
         EditorOnDesktop shown (p, true);

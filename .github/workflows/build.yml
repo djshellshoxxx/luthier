@@ -81,6 +81,7 @@ env:
   BUILD_DIR: build-ci
   DIST_DIR: dist
   CONFIG: Release
+  LUTHIER_BUILD_STRING: ${{ inputs.version == '0.1.0-beta' && format('beta.{0}', github.sha) || github.sha }}
 
 jobs:
   plan:
@@ -277,6 +278,7 @@ jobs:
         if: inputs.package && runner.os == 'Linux'
         env:
           VERSION: ${{ inputs.version }}
+          BETA_README: ${{ inputs.version == '0.1.0-beta' && 'docs/beta/PRO-V01-RELEASE-NOTES.md' || '' }}
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: scripts/package_linux.sh
@@ -301,7 +303,26 @@ jobs:
           VERSION: ${{ inputs.version }}
           WINDOWS_CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
           WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
-        run: scripts/package_windows.ps1
+        run: |
+          if ($env:VERSION -eq '0.1.0-beta') {
+            scripts/package_windows.ps1 -BetaReadme docs/beta/PRO-V01-RELEASE-NOTES.md
+          } else {
+            scripts/package_windows.ps1
+          }
+
+      - name: Verify and archive universal Pro beta bundles
+        if: inputs.package && runner.os == 'macOS' && matrix.edition == 'PAID' && inputs.version == '0.1.0-beta'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for kind in app vst3 component clap; do
+            bundle="$DIST_DIR/macos/Luthier Pro.$kind"
+            lipo -verify_arch arm64 x86_64 "$bundle/Contents/MacOS/Luthier Pro"
+            codesign --verify --deep --strict "$bundle"
+          done
+          cp docs/beta/PRO-V01-RELEASE-NOTES.md "$DIST_DIR/macos/README-BETA.md"
+          ditto -c -k --sequesterRsrc --keepParent "$DIST_DIR/macos" \
+            "$DIST_DIR/installers/Luthier-Pro-0.1.0-beta-macOS-universal.zip"
 
       - name: Upload installers
         if: inputs.package

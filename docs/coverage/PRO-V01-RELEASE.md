@@ -36,11 +36,19 @@ No branches deleted or shared history rewritten. No reliable API exists to prove
 | Low-mode repaint accounting | Count fixed glow/fret/slide state changes separately from chord changes; per-component budgets, zero animation timer/readout limits retained; new idle-poll regression. | Implemented; runtime pending |
 | Factory normalization lookup | ON03 uses same four failing Mac cases on all Pro platforms, logs canonical keys on miss (opt-in on hit). std::shuffle chose different samples per STL, so previous green Linux tested different states. Membership/drift assertions retained. | Root mismatch unresolved; release blocker |
 | Early CI diagnosis | build.yml runs ON03/CQ23/PracticeTrack first, retaining complete suite and validators. | Pending CI |
-| Version0.1.0-beta / tagv0.1-beta | Current CMake is1.0.0. Need adjust numeric version0.1.0, build suffix and version guard for abbreviated requested tag. | Pending |
-| Platform release builds / checksums / public release | Need full verified native Windows/macOS/Linux builds from final integrated release SHA, package assets and validate checksum manifest before publication. | Pending; no release claimed |
+| Version0.1.0-beta / tagv0.1-beta | CMake numeric0.1.0, beta+SHA build identifier, abbreviated tag guard and changelog prepared. | Implemented; no tag created |
+| Platform release builds / checksums / public release | pro-beta-release.yml runs all3 Pro strictness10/LTO builds only after this exact PR branch merges to master. It refuses existing tag/release, checks actual payload executable architectures, attaches SHA256SUMS/provenance, creates complete draft then publishes and re-downloads/checksums assets. | Workflow implemented; native builds/publication pending |
 
 ## Exact next task
 
 Run targeted early regression job with LUTHIER_NORMALIZATION_TRACE_KEYS=1 on Linux and macOS. Compare ON03 canonical inputs for p41_g18,p68_g21,p21_g20,p30_g05 to find factory cache mismatch. Do not weaken membership assertion or remove sound-affecting fields without evidence. Then full CI and strictness10 release builds. All changed-source platform verification remains pending.
 
 Local bootstrap: standard apt install failed due sandbox setuid/cache permissions; use downloaded/extracted dependencies at /tmp/luthier-native and pip cmake/ninja under /root/.local/bin. JUCE8.0.10 cloned into ThirdParty/JUCE. Build configure log /tmp/luthier-configure.log. These are disposable intermediates, not release artifacts.
+
+## Prepared publication and verification
+
+PR75: https://github.com/djshellshoxxx/luthier/pull/75. Initial checkpoint commit8527de19237f811f3072512cce772730c0d50ae8 started CI39011054986 and CodeQL39011054988; later updates supersede that run. The release workflow is intentionally gated on merging this specific same-repository PR branch and successful native builds. Do not merge before the normalization blocker and all checks pass. Old PR74 is included in ancestry; close/classify it only once this branch integrates.
+
+Source for residual branch dispositions: `PRO-V01-BRANCH-AUDIT.md` (exact equivalence evidence). Prepared Python release-asset gate has11 passing structural tests; actionlint passes the modified workflows. Those synthetic archive tests are parser tests, not native binary verification. Actual-player readiness probe24/24 passed. Complete native verification remains pending.
+
+Local focused build compiles production engine/UI with TestMain, NormalizationTests, QualityModeUiTests and SweepDsp2Tests only, using a disposable deferred CMake source filter `/tmp/luthier-focused-tests.cmake`. It is for diagnosis; CI retains the complete suite. Local CMake cache was configured before the numeric version update; a future complete build must reconfigure without `CMAKE_PROJECT_Luthier_INCLUDE` and restore normal source set.
