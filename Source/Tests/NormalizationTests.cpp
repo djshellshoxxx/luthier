@@ -332,10 +332,25 @@ LUTHIER_TEST (Normalization, ON03_FactoryTableDoesNotDrift)
     NormalizationCalibrator::reloadFactoryTable();
     NormalizationCalibrator::clearMemoryCache();
 
-    for (const auto& c : sampleCombos (4, 27))
+    // std::shuffle is not specified bit-for-bit across standard libraries:
+    // libc++ previously exercised different states from libstdc++/MSVC. Keep
+    // the macOS failure cases on every Pro platform so passing Linux CI also
+    // validates these exact calibration inputs. Free retains its gated grid.
+    const auto combinations = slowTestsEnabled() || ! luthier::edition::isPro
+                                ? sampleCombos (4, 27)
+                                : std::vector<Combo> { { 41, 18 }, { 68, 21 }, { 21, 20 }, { 30, 5 } };
+
+    for (const auto& c : combinations)
     {
         auto p = makeProcessor();
-        loadCombo (*p, c.preset, c.guitarType);
+        // An unsuccessful preset load leaves the processor's previous/default
+        // state in place. Its hash is not evidence that the factory table drifted.
+        // Report the actual load failure at the source instead of conflating it
+        // with a missing cache entry on a different operating system.
+        const bool comboLoaded = loadCombo (*p, c.preset, c.guitarType);
+        CHECK_MSG (comboLoaded, c.key() + " factory preset failed to load");
+        if (! comboLoaded)
+            continue;
         auto& n = p->getOutputNormalization();
         n.refreshStructuralSnapshot();
         const auto state = n.captureSoundState();
@@ -343,6 +358,13 @@ LUTHIER_TEST (Normalization, ON03_FactoryTableDoesNotDrift)
 
         NormalizationCalibrator::Measurement table;
         const bool hit = NormalizationCalibrator::lookupCached (hash, table) && table.source == NormalizationCalibrator::Source::factory;
+
+        // A failed lookup needs the complete cache input, not just its opaque
+        // hash. Opt in on a passing platform to compare the same inputs without
+        // weakening either the factory membership or loudness drift gate.
+        if (! hit || juce::SystemStats::getEnvironmentVariable ("LUTHIER_NORMALIZATION_TRACE_KEYS", {}).getIntValue() > 0)
+            std::cout << "    " << c.key() << " calibration hash " << hash << " canonical "
+                      << NormalizationCalibrator::canonicalSoundState (state, *p) << std::endl;
 
         // NormalizationFactory.json is generated for the Pro catalogue. A Free
         // binary plays a substitute for any Pro-only amp/pedal a preset carries

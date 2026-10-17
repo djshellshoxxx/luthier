@@ -483,6 +483,38 @@ LUTHIER_TEST (CpuQualityUi, CQ22_builtEditorsRegisterEveryTableClassThatExists)
 //==============================================================================
 // CQ-23 Low means no animation repaints, CQ-24 transitions at Low
 //==============================================================================
+LUTHIER_TEST (CpuQualityUi, CQ23_staticOverlayCountsStateChangesOnly)
+{
+    QualityTestSupport::ScopedTempSettings temp;
+    AccessibilitySettings::get().setReducedMotion (false);
+    AnimationPolicy::get().refreshReducedMotion();
+    LuthierAudioProcessor p;
+    p.prepareToPlay (kSr, kBlock);
+    EditorOnDesktop shown (p, true);
+    p.getQualityController().forceLevelForTesting ((int) QualityLevel::Low);
+    shown.editor->getQualityLink().pumpForTesting();
+    pump (p, 0.3, false);
+    auto* body = findChild<GuitarBodyComponent> (*shown.editor);
+    CHECK (body != nullptr);
+
+    if (body != nullptr)
+    {
+        const int idle = body->getStaticOverlayChanges();
+        pump (p, 0.6, false);
+        CHECK (body->getStaticOverlayChanges() == idle);
+        ringChord (p);
+        pump (p, 0.3, false);
+        const int sounding = body->getStaticOverlayChanges();
+        CHECK_MSG (sounding > idle, "a newly sounding string must count as a static overlay change");
+        // Freeze audio state while allowing multiple policy polls. A poll alone
+        // must never earn repaint allowance, even while a string is sounding.
+        pump (p, 0.6, false);
+        CHECK (body->getStaticOverlayChanges() == sounding);
+    }
+
+    p.getQualityController().forceLevelForTesting (-1);
+}
+
 LUTHIER_TEST (CpuQualityUi, CQ23_lowMeansNoAnimationRepaints)
 {
     QualityTestSupport::ScopedTempSettings temp;
@@ -494,7 +526,7 @@ LUTHIER_TEST (CpuQualityUi, CQ23_lowMeansNoAnimationRepaints)
 
     int stateChanges = 0;
 
-    auto measure = [&p, &stateChanges] (QualityLevel level, bool advanced, int& decorativePaints, int& worstReadoutPaints,
+    auto measure = [&p, &stateChanges, &ctx] (QualityLevel level, bool advanced, int& decorativePaints, int& worstReadoutPaints,
                                         int& runningDecorativeTimers, double& cpu, int& busiestDecorative)
     {
         EditorOnDesktop shown (p, true);
@@ -507,14 +539,19 @@ LUTHIER_TEST (CpuQualityUi, CQ23_lowMeansNoAnimationRepaints)
         ringChord (p);
         pump (p, 0.3);
 
-        // The chord name appearing or going (piano-roll-chord-display 4: it
-        // holds 1.2 s) is a change of state, one repaint each, not animation.
-        std::function<int (juce::Component&)> nameChanges = [&nameChanges] (juce::Component& c)
+        // Chord-name and fixed string-overlay changes independently request
+        // repaints at Off. Count both, per body, so a ringing string becoming
+        // silent cannot be mistaken for animation (or excuse another component).
+        std::map<const juce::Component*, int> stateChangesBefore;
+        std::function<int (juce::Component&)> nameChanges = [&] (juce::Component& c)
         {
             int n = 0;
 
             if (auto* body = dynamic_cast<GuitarBodyComponent*> (&c))
+            {
                 n += body->getStaticChordNameChanges();
+                stateChangesBefore[body] = body->getStaticChordNameChanges() + body->getStaticOverlayChanges();
+            }
 
             for (auto* child : c.getChildren())
                 n += nameChanges (*child);
@@ -526,7 +563,12 @@ LUTHIER_TEST (CpuQualityUi, CQ23_lowMeansNoAnimationRepaints)
         AnimationPolicy::get().resetPaintCounts();
         const double paintBefore = shown.host->seconds;
         const double dispatching = pump (p, 2.0);
+        const auto baseline = stateChangesBefore;
         stateChanges = nameChanges (*shown.editor) - namesBefore;
+        std::map<const juce::Component*, int> stateChangeBudgets;
+
+        for (const auto& [component, before] : baseline)
+            stateChangeBudgets[component] = stateChangesBefore.at (component) - before;
         cpu = shown.host->seconds - paintBefore;
 
         // Timing noise: a second window, and the lower paint time. The paint
@@ -555,7 +597,11 @@ LUTHIER_TEST (CpuQualityUi, CQ23_lowMeansNoAnimationRepaints)
 
         for (const auto& [component, paints] : decorativeByComponent)
         {
-            juce::ignoreUnused (component);
+            if (level == QualityLevel::Low)
+                CHECK_MSG (paints <= stateChangeBudgets[component],
+                           component->getName() + ": decorative component painted " + juce::String (paints)
+                           + " times for " + juce::String (stateChangeBudgets[component]) + " static state changes");
+
             decorativePaints += paints;
         }
 
@@ -600,8 +646,8 @@ LUTHIER_TEST (CpuQualityUi, CQ23_lowMeansNoAnimationRepaints)
                   << " paints, worst readout " << readLow << ", " << juce::String (cpuLow * 1000.0, 1) << " ms" << std::endl;
 
         CHECK_MSG (stateChanges <= 2, mode + ": the chord name changed " + juce::String (stateChanges) + " times in 2 s");
-        CHECK_MSG (decoLow <= stateChanges, mode + ": Decorative and Transition registrants painted " + juce::String (decoLow)
-                                            + " times at Low, for " + juce::String (stateChanges) + " chord-name changes");
+        // Every decorative component was checked against its own observed
+        // state-change budget inside measure; unrelated paints get no allowance.
         CHECK_MSG (timersLow == 0, mode + ": " + juce::String (timersLow) + " Decorative / Transition timers still running at Low");
         CHECK_MSG (readLow <= 21, mode + ": a live readout painted " + juce::String (readLow) + " times in 2 s at Low");
 

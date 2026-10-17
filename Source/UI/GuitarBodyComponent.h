@@ -237,10 +237,14 @@ private:
     double lastFrameMs = 0.0;
     juce::String staticChordName;   ///< cpu-quality-modes 6: the chord name shown at Off
     int staticChordNameChanges = 0;
+    int staticOverlayChanges = 0;
 public:
     /** cpu-quality-modes 6: times the chord name appeared, changed or went at
         Off - each one a change of state and one repaint (CQ-23). */
     int getStaticChordNameChanges() const noexcept { return staticChordNameChanges; }
+    /** Actual fixed-glow, fret or slide changes at Off. Decay within the same
+        sounding state does not increment this counter. */
+    int getStaticOverlayChanges() const noexcept { return staticOverlayChanges; }
 private:
 
     int draggingKnob = -1;

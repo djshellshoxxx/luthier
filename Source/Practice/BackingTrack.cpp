@@ -147,6 +147,19 @@ bool BackingTrackPlayer::load (const juce::File& file)
     return true;
 }
 
+bool BackingTrackPlayer::waitForBufferedAudio (int numSamples, juce::uint32 timeoutMilliseconds)
+{
+    const juce::SpinLock::ScopedLockType sl (transportLock);
+
+    if (! isLoaded() || bufferingSource == nullptr || numSamples <= 0
+        || numSamples > (int) (kRingBufferSeconds * fileSampleRate) - 4)
+        return false;
+
+    // JUCE uses only numSamples here; no audio buffer is read or written.
+    const juce::AudioSourceChannelInfo info (nullptr, 0, numSamples);
+    return bufferingSource->waitForNextAudioBlockReady (info, timeoutMilliseconds);
+}
+
 void BackingTrackPlayer::unload()
 {
     playing.store (false, std::memory_order_relaxed);

@@ -91,8 +91,11 @@ inline bool setPlain (LuthierAudioProcessor& p, const juce::String& id, float pl
 inline bool loadCombo (LuthierAudioProcessor& p, int presetIndex, int guitarType)
 {
     auto& presets = p.getPresetManager();
-    const auto& def = FactoryPresets::getPreset (presetIndex);
-    const int index = presets.indexOfPreset (def.name);
+    // getPreset() returns a thread-local view. indexOfPreset() can lazily
+    // refresh the bank, which calls getPreset() again and invalidates def.name.
+    // Snapshot the name before any operation that may refresh factory presets.
+    const juce::String presetName = FactoryPresets::getPreset (presetIndex).name;
+    const int index = presets.indexOfPreset (presetName);
 
     if (index < 0 || ! presets.loadPreset (index))
         return false;
