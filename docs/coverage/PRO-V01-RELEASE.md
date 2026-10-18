@@ -72,3 +72,40 @@ Committed focused ON03 test instrumentation: assert `loadCombo` succeeds and ide
 Native Pro build CI failed on all three platforms. Windows ran 2,361 tests; 1 test case failed (four missing ON03 factory-table entries). Linux/macOS early regression tests showed exactly the same four missing memberships. CodeQL 39028881768 passed. Previous diagnostic fix in NormalizationTestUtil.h corrected a thread-local name-lifetime bug, but **did not** restore these four memberships. Do not claim the calibration bug is fixed.
 
 Commits 73642dc and 2ae39b2 add a conditional **Linux-only factory table regeneration diagnostic** to the reusable build workflow. On release-branch PR validation failure it executes the existing native LuthierRender calibration generator into a separate file, prints old/new key coverage, and uploads the generated JSON and log to a workflow artifact without changing checked-in Resources/NormalizationFactory.json. This is intentionally diagnostic, not a gate bypass. Inspect its generated hashes, verify expected catalogue coverage and measurements, then decide whether to update the committed reference table and run all platform tests. Keep PR75 draft until the real native release gates pass.
+
+## Investigation 2026-10-18 (starting at aea12a77)
+
+PR75 remains draft; master remains ea50a2b5. Baseline native run 39099537500 still fails ON03 on Linux/macOS. New macOS output now matches Linux for p41_g18 but differs for the other three; p30_g05 changed between native runs. This is substantial instrument-state variability, not floating-point hash formatting.
+
+Root-cause candidate traced: `ParameterBridge::writtenSinceGuitarType` preserves writes within 250 ms before a non-gesture guitar selection as accompanying host automation. Both `normtest::loadCombo` and `calibrateFactory` load a preset, then select the requested guitar without a gesture. Depending on elapsed loading time, the previous preset's tuning, body and setup can therefore survive the guitar selection. Linux canonical p21_g20 carries six strings instead of a J-style bass's four; p30_g05 carries five instead of the Offset's six. Existing `HostState::aHostWritingAGuitarTypeWithItsPartsKeepsTheParts` and `WorkshopPresets::choosingAGuitarTypeFitsItsParts` establish the intended host-vs-player semantics. New focused instrument-count regression is being built before correcting the two callers; no runtime fix verification claimed yet. Production host-restoration behavior must remain unchanged.
+
+Additional provenance diagnostics in NormalizationTestUtil report requested recipe, selected file/revision/SHA256, first semantic difference from current generated JSON, and effective guitar/string count. Trace values greater than 1 also print both preset JSON documents.
+
+The initial suspected generator cache-seeding defect was ruled out: RenderCli main already redirects factory loading to an empty temporary file before regeneration. No extra cache reset is needed. The old documented name-lifetime explanation is also unproven: indexOfPreset(const String&) constructs an owning String before lazy refresh when passed a const char*.
+
+Verified tooling repair: regeneration shell script now renders to a temporary sibling and only replaces the committed reference on success. Failed build/render leaves the previous table intact and removes the temporary output. `python3 -m unittest discover -s scripts -p 'test_*.py'`: 14 tests passed, including 3 new tests covering both renderer layouts (6 scenarios); shell syntax/whitespace checks passed. The regression author observed failed-render overwrite on the original script before applying the correction.
+
+Local native bootstrap uses extracted Ubuntu packages under /tmp/luthier-native, environment /tmp/luthier-env.sh, GCC13 Release Pro with LTO off, and disposable focused CMake source filter /tmp/luthier-focused-tests.cmake. Test/renderer build log: /tmp/luthier-build.log. Xvfb uses TCP display 127.0.0.1:78 because Unix sockets are unavailable in this execution environment. Local focused builds are diagnostic evidence only, not native release binaries.
+
+### Confirmed native reproductions
+
+`/tmp/luthier-normalization-red.log`: the new instrument-selection test failed 3/12 checks (p21_g20 six vs four strings; p30_g05 five vs six; p68_g21 six vs four). The four original ON03 memberships also failed. All selected preset files reported `generatedMatch=yes`, ruling out stale factory recipe JSON in this local reproduction.
+
+Independently, retaining every byte of each original canonical input except changing nested `meta.version_created` and `meta.version_modified` from `0.1.0` to `1.0.0` recovers these exact committed factory entries (Python SHA256 matches production's original logged key):
+
+| Combination | Original runtime key (miss) | Version-only 1.0.0 key (factory hit) |
+| --- | --- | --- |
+| p41_g18 | a96b056b04f16579d7016c4c6789b66a8a4a72c019b136e304c25faa14099c33 | 84a680e34fd5c483af6e8d739a0fb555382c3ec691f82c898f29da0c6563082e |
+| p68_g21 | adb6fe306328614d649099ee29690b651dbcf427e37fd99a9b932cfd6d0579dd | 090dd6bc57a9d1c9af832ce5b9c78569b8e4c9543bfaa42a049ccb253f32b30a |
+| p21_g20 | 0d6f2770340c3e36f0b96f149f569f96955e3e9621970ca69e7a475a30d257a2 | fbd965fafa1e0997fc5db246b0622571d0a42d68bd8ac200e3fdead7bcbce2e0 |
+| p30_g05 | a66babc860cf0630949200e1d25aae4ea151912507aee668261ec909fd221f46 | fa4d5de06e842b5880cbbfb30f073492f1f7a795914608e2a91ed45882201f15 |
+
+`stripPresetIdentity` removes legacy top-level metadata but missed the newer nested `meta` object. PresetManager writes that object's versions from JucePlugin_VersionString; its parser consumes the object only as descriptive metadata. This is the direct cause of all four Linux/Windows table misses after the release version change. The independent 250 ms selection issue explains platform/run-dependent guitar state. Both require correction; regenerating the table alone would preserve these defects.
+
+### Verified repair checkpoint (2026-10-18)
+
+Revision-3 native focused run `/tmp/luthier-v3-focused.log` passed **5 tests / 233 checks**: ON26_RolesAndHash, FactoryGuitarOverrideUsesSelectedInstrument, CalibrationHashIgnoresPresetMetadata, aHostWritingAGuitarTypeWithItsPartsKeepsTheParts, choosingAGuitarTypeFitsItsParts. The metadata-invariance regression previously failed 1/3 checks on revision 2 (`/tmp/luthier-metadata-red.log`). These are real GCC13 Release Pro tests, not structural/parser substitutes.
+
+Implemented: exclude nested preset meta from canonical hashing; bump calibration revision to 3; explicit guitar-selection gestures in shared normalization fixture and calibration CLI; refuse incomplete generator output and report successful/expected/unique/duplicate/failure counts; safe temporary publication by regen shell; provenance diagnostics; early focused tests on Windows as well as Unix; CI shell-publication regression and revision validation against the source constant. No production DSP, host-write timing, activation checks or parameter layout changed.
+
+At this source checkpoint the committed factory resource is **still revision 2**, so ON03 remains expected red until a complete measured revision-3 table is reviewed and committed. Factory generation and corrected off-path goldens are the exact next actions. Full native platform verification, merge/tag/publication remain blocked; PR75 must stay draft. Do not reinterpret the five focused passes as release readiness.

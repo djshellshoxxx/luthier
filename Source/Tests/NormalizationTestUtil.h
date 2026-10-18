@@ -97,6 +97,72 @@ inline bool loadCombo (LuthierAudioProcessor& p, int presetIndex, int guitarType
     const juce::String presetName = FactoryPresets::getPreset (presetIndex).name;
     const int index = presets.indexOfPreset (presetName);
 
+    const int trace = juce::SystemStats::getEnvironmentVariable ("LUTHIER_NORMALIZATION_TRACE_KEYS", {}).getIntValue();
+    if (trace > 0 && index >= 0)
+    {
+        const auto file = presets.getPreset (index)->file;
+        juce::MemoryBlock bytes;
+        const bool read = file.loadFileAsData (bytes);
+        const auto selected = juce::JSON::parse (juce::String::fromUTF8 (
+            static_cast<const char*> (bytes.getData()), (int) bytes.getSize()));
+        const auto expected = FactoryPresets::toVar (FactoryPresets::getPreset (presetIndex), p);
+
+        // Compare JSON meaning, not property order or integer/real spelling.
+        // Saved JSON can round a double's last decimal; parameters are floats.
+        std::function<juce::String (const juce::var&, const juce::var&, const juce::String&)> difference;
+        difference = [&difference] (const juce::var& a, const juce::var& b, const juce::String& path) -> juce::String
+        {
+            if (auto* ao = a.getDynamicObject())
+            {
+                if (auto* bo = b.getDynamicObject())
+                {
+                    for (const auto& item : ao->getProperties())
+                    {
+                        if (path.isEmpty() && item.name.toString() == "pluginVersion")
+                            continue;
+                        const auto child = path + "/" + item.name.toString();
+                        if (! bo->hasProperty (item.name))
+                            return child + " missing from generated definition";
+                        if (const auto d = difference (item.value, bo->getProperty (item.name), child); d.isNotEmpty())
+                            return d;
+                    }
+                    for (const auto& item : bo->getProperties())
+                        if (! (path.isEmpty() && item.name.toString() == "pluginVersion") && ! ao->hasProperty (item.name))
+                            return path + "/" + item.name.toString() + " missing from selected file";
+                    return {};
+                }
+            }
+            if (auto* aa = a.getArray())
+                if (auto* ba = b.getArray(); ba != nullptr && aa->size() == ba->size())
+                {
+                    for (int i = 0; i < aa->size(); ++i)
+                        if (const auto d = difference ((*aa)[i], (*ba)[i], path + "/" + juce::String (i)); d.isNotEmpty())
+                            return d;
+                    return {};
+                }
+            const auto numeric = [] (const juce::var& v) { return v.isInt() || v.isInt64() || v.isDouble(); };
+            if (numeric (a) && numeric (b) && std::abs ((double) a - (double) b) <= 1.0e-12)
+                return {};
+            if (! a.isObject() && ! b.isObject() && a == b)
+                return {};
+            return path + " selected=" + juce::JSON::toString (a, true)
+                        + " generated=" + juce::JSON::toString (b, true);
+        };
+        const auto mismatch = difference (selected, expected, {});
+        std::cout << "    preset diagnostic index=" << presetIndex << " name=" << presetName
+                  << " file=" << file.getFullPathName() << " read=" << (read ? "yes" : "no")
+                  << " revision=" << selected.getProperty ("factoryRevision", {}).toString()
+                  << " sha256=" << juce::SHA256 (bytes.getData(), bytes.getSize()).toHexString()
+                  << " generatedMatch=" << (mismatch.isEmpty() ? "yes" : "no") << std::endl;
+        if (mismatch.isNotEmpty())
+        {
+            std::cout << "    preset difference " << mismatch << std::endl;
+            if (trace > 1)
+                std::cout << "    selected preset " << juce::JSON::toString (selected, true)
+                          << "\n    generated preset " << juce::JSON::toString (expected, true) << std::endl;
+        }
+    }
+
     if (index < 0 || ! presets.loadPreset (index))
         return false;
 
@@ -104,9 +170,22 @@ inline bool loadCombo (LuthierAudioProcessor& p, int presetIndex, int guitarType
 
     if (guitarType >= 0)
     {
-        setPlain (p, ParamIDs::guitarType, (float) guitarType);
+        // An explicit grid override is a player selection, not a host batch.
+        // Otherwise the bridge's 250 ms host-restore window can retain the
+        // previous preset's tuning/parts, making this state depend on CPU speed.
+        if (auto* type = p.getState().getParameter (ParamIDs::guitarType))
+        {
+            type->beginChangeGesture();
+            type->setValueNotifyingHost (type->convertTo0to1 ((float) guitarType));
+            type->endChangeGesture();
+        }
         p.getParameterBridge().applyAllNow();
     }
+
+    if (trace > 0)
+        std::cout << "    preset result index=" << presetIndex << " name=" << presets.getCurrentPresetName()
+                  << " requestedGuitar=" << guitarType << " effectiveGuitar=" << (int) p.getEngine().getGuitarType()
+                  << " strings=" << p.getEngine().getNumStrings() << std::endl;
 
     return true;
 }

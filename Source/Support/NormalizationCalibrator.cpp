@@ -496,7 +496,13 @@ juce::String NormalizationCalibrator::canonicalSoundState (const NormalizationSo
     }
     // B-07: the save format's migration marker is not configuration either.
     if (auto* preset = structural.getProperty ("preset", {}).getDynamicObject())
+    {
         preset->removeProperty ("doublerMigrated");
+        // The current preset schema nests identity, notes, timestamps and
+        // creator/modifier versions in meta. None configures sound. Keeping it
+        // made a version bump (or a rename) invalidate otherwise identical keys.
+        preset->removeProperty ("meta");
+    }
 
     root->setProperty ("structural", structural);
 

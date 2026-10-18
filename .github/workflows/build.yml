@@ -191,6 +191,10 @@ jobs:
           python3 Tools/generate_factory_riffs.py
           git diff --exit-code Resources/Riffs
 
+      - name: Factory calibration publication tests
+        if: runner.os == 'Linux'
+        run: python3 -m unittest discover -s scripts -p 'test_regen_normalization_factory.py' -v
+
       # ---------------------------------------------------------- build
       - name: Configure and build (Unix)
         id: build_unix
@@ -217,8 +221,17 @@ jobs:
           runner="$BUILD_DIR/LuthierTests_artefacts/$CONFIG/LuthierTests"
           wrap=()
           if [ "$RUNNER_OS" = Linux ]; then wrap=(xvfb-run -a); fi
-          "${wrap[@]}" "$runner" ON03_FactoryTableDoesNotDrift CQ23_ PracticeTrack \
+          "${wrap[@]}" "$runner" FactoryGuitarOverrideUsesSelectedInstrument CalibrationHashIgnoresPresetMetadata ON03_FactoryTableDoesNotDrift CQ23_ PracticeTrack \
             2>&1 | tee "$BUILD_DIR/logs/release-regressions.log"
+
+      - name: Early release regression tests (Windows Pro)
+        if: runner.os == 'Windows' && matrix.edition == 'PAID'
+        env:
+          LUTHIER_NORMALIZATION_TRACE_KEYS: '1'
+        shell: pwsh
+        run: |
+          & "$env:BUILD_DIR/LuthierTests_artefacts/$env:CONFIG/LuthierTests.exe" FactoryGuitarOverrideUsesSelectedInstrument CalibrationHashIgnoresPresetMetadata ON03_FactoryTableDoesNotDrift CQ23_ PracticeTrack 2>&1 | Tee-Object -FilePath "$env:BUILD_DIR/logs/release-regressions.log"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       # When the committed factory cache misses live Pro hashes, regenerate
       # the complete reference table in an isolated artifact for review. Do
@@ -235,13 +248,17 @@ jobs:
             2>&1 | tee "$BUILD_DIR/normalization-diagnostics/regeneration.log"
           python3 - <<'PY'
           import json
+          import re
           from pathlib import Path
           committed = json.loads(Path('Resources/NormalizationFactory.json').read_text())
           regenerated = json.loads(Path('build-ci/normalization-diagnostics/NormalizationFactory.regenerated.json').read_text())
           old = set(committed['entries'])
           new = set(regenerated['entries'])
           print(f"committed={len(old)} regenerated={len(new)} retained={len(old & new)} added={len(new-old)} removed={len(old-new)}")
-          assert regenerated['revision'] == committed['revision'], 'Unexpected calibration revision'
+          header = Path('Source/Support/NormalizationCalibrator.h').read_text()
+          expected_revision = int(re.search(r'kCalibrationRevision\s*=\s*(\d+)', header).group(1))
+          assert regenerated['revision'] == expected_revision, 'Unexpected calibration revision'
+          print(f"revision committed={committed['revision']} regenerated={regenerated['revision']} expected={expected_revision}")
           assert regenerated['entries'], 'Regenerated factory table is empty'
           PY
 
