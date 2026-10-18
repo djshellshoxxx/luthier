@@ -1,0 +1,93 @@
+# One-shot, release-branch-only refresh of measured revision-3 factory calibration.
+# Builds the actual Linux Pro renderer. No test gates are disabled or modified.
+name: Refresh Pro factory calibration
+on:
+  push:
+    branches: [codex/luthier-pro-v01-release]
+    paths: [.github/workflows/refresh-pro-calibration.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-pro-calibration
+  cancel-in-progress: false
+
+jobs:
+  regenerate:
+    if: github.repository == 'djshellshoxxx/luthier' && github.ref == 'refs/heads/codex/luthier-pro-v01-release'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Install native dependencies
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends \
+            libasound2-dev libjack-jackd2-dev libxrandr-dev libxcursor-dev \
+            libxinerama-dev libxcomposite-dev libfontconfig1-dev libfreetype-dev \
+            libcurl4-openssl-dev libgl1-mesa-dev xvfb clang lld ninja-build
+      - name: Fetch pinned dependencies
+        run: scripts/ci_build.sh deps
+      - name: Configure release Pro renderer
+        env:
+          LUTHIER_EDITION: PAID
+          LUTHIER_LTO: OFF
+        run: scripts/ci_build.sh configure
+      - name: Build renderer
+        run: cmake --build build-ci --config Release --target LuthierRender --parallel 4
+      - name: Generate isolated reference
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build-ci/normalization-diagnostics
+          xvfb-run -a build-ci/LuthierRender_artefacts/Release/LuthierRender \
+            --calibrate-factory "$PWD/build-ci/normalization-diagnostics/NormalizationFactory.json" \
+            2>&1 | tee build-ci/normalization-diagnostics/regeneration.log
+      - name: Verify complete measurements and regression hashes
+        run: |
+          python3 - <<'PY'
+          import json
+          import re
+          from pathlib import Path
+          generated = Path('build-ci/normalization-diagnostics/NormalizationFactory.json')
+          data = json.loads(generated.read_text())
+          header = Path('Source/Support/NormalizationCalibrator.h').read_text()
+          match = re.search(r'kCalibrationRevision\\s*=\\s*(\\d+)', header)
+          assert match, 'Missing declared calibration revision'
+          assert data['revision'] == int(match.group(1)) == 3
+          assert data['edition'] == 'standard'
+          assert len(data['entries']) == 1750, 'Factory entry count changed: investigate before publication'
+          log = Path('build-ci/normalization-diagnostics/regeneration.log').read_text()
+          assert 'successful=1820 expected=1820 unique=1750 duplicates=70 failed=0' in log, 'Incomplete measurements'
+          for key in (
+              '4627fb9b4daa69466e2d0914d72ac0e80611005a593ee73b0acc95d143fb17c6',
+              '4844074b5187ba34b7e1e187b44e40e46fd09f34c606b102586e98f924cae1ad',
+          ):
+              assert key in data['entries'], 'Known cross-platform revision-3 runtime configuration absent'
+          print('Complete Linux native Pro calibration: 1,820/1,820, 1,750 keys, revision 3')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verified-pro-normalization-revision3
+          path: |
+            build-ci/normalization-diagnostics/NormalizationFactory.json
+            build-ci/normalization-diagnostics/regeneration.log
+          retention-days: 30
+      - name: Commit measured reference to release branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp build-ci/normalization-diagnostics/NormalizationFactory.json Resources/NormalizationFactory.json
+          git diff --exit-code --quiet -- Resources/NormalizationFactory.json && {
+            echo 'Reference already matches Linux native calibration.'
+            exit 0
+          }
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- Resources/NormalizationFactory.json
+          git commit -m 'fix: refresh complete measured Pro normalization reference for revision 3'
+          git push origin HEAD:codex/luthier-pro-v01-release
