@@ -231,7 +231,7 @@ jobs:
           renderer="$BUILD_DIR/LuthierRender_artefacts/$CONFIG/LuthierRender"
           test -x "$renderer"
           mkdir -p "$BUILD_DIR/normalization-diagnostics"
-          xvfb-run -a "$renderer" --calibrate-factory "$PWD/$BUILD_DIR/normalization-diagnostics/NormalizationFactory.regenerated.json" \\
+          xvfb-run -a "$renderer" --calibrate-factory "$PWD/$BUILD_DIR/normalization-diagnostics/NormalizationFactory.regenerated.json" \
             2>&1 | tee "$BUILD_DIR/normalization-diagnostics/regeneration.log"
           python3 - <<'PY'
           import json
