@@ -220,6 +220,40 @@ jobs:
           "${wrap[@]}" "$runner" ON03_FactoryTableDoesNotDrift CQ23_ PracticeTrack \
             2>&1 | tee "$BUILD_DIR/logs/release-regressions.log"
 
+      # When the committed factory cache misses live Pro hashes, regenerate
+      # the complete reference table in an isolated artifact for review. Do
+      # not replace the checked-in table or silently turn a failure green.
+      - name: Diagnose stale normalization factory table (Linux Pro)
+        if: ${{ failure() && runner.os == 'Linux' && matrix.edition == 'PAID' && github.head_ref == 'codex/luthier-pro-v01-release' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          renderer="$BUILD_DIR/LuthierRender_artefacts/$CONFIG/LuthierRender"
+          test -x "$renderer"
+          mkdir -p "$BUILD_DIR/normalization-diagnostics"
+          xvfb-run -a "$renderer" --calibrate-factory "$PWD/$BUILD_DIR/normalization-diagnostics/NormalizationFactory.regenerated.json" \\
+            2>&1 | tee "$BUILD_DIR/normalization-diagnostics/regeneration.log"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          committed = json.loads(Path('Resources/NormalizationFactory.json').read_text())
+          regenerated = json.loads(Path('build-ci/normalization-diagnostics/NormalizationFactory.regenerated.json').read_text())
+          old = set(committed['entries'])
+          new = set(regenerated['entries'])
+          print(f"committed={len(old)} regenerated={len(new)} retained={len(old & new)} added={len(new-old)} removed={len(old-new)}")
+          assert regenerated['revision'] == committed['revision'], 'Unexpected calibration revision'
+          assert regenerated['entries'], 'Regenerated factory table is empty'
+          PY
+
+      - name: Upload normalization factory diagnostics
+        if: ${{ always() && runner.os == 'Linux' && matrix.edition == 'PAID' && github.head_ref == 'codex/luthier-pro-v01-release' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: normalization-factory-diagnostics-${{ github.sha }}
+          path: ${{ env.BUILD_DIR }}/normalization-diagnostics/
+          retention-days: 14
+          if-no-files-found: ignore
+
       # ---------------------------------------------------------- test
       - name: Unit tests (Unix)
         if: runner.os != 'Windows' && steps.build_unix.outcome == 'success'
