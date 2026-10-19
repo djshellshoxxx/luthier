@@ -76,8 +76,8 @@ env:
   # package input instead.
   # SPEC-SWEEP HI-43 (host-integration 10): a push to main or master - a
   # merge - validates at strictness 10; other pushes and pull requests at 5.
-  STRICTNESS: ${{ ((github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master')) && !inputs.package) && 5 || (inputs.strictness || 10) }}
-  LTO: ${{ ((github.event_name == 'push' || github.event_name == 'pull_request') && !inputs.package) && 'OFF' || ((github.event_name == 'schedule' || inputs.lto) && 'ON' || 'OFF') }}
+  STRICTNESS: ${{ ((github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master')) && !inputs.package && !inputs.lto) && 5 || (inputs.strictness || 10) }}
+  LTO: ${{ ((github.event_name == 'push' || github.event_name == 'pull_request') && !inputs.package && !inputs.lto) && 'OFF' || ((github.event_name == 'schedule' || inputs.lto) && 'ON' || 'OFF') }}
   BUILD_DIR: build-ci
   DIST_DIR: dist
   CONFIG: Release
