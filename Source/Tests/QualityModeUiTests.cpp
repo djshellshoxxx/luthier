@@ -503,7 +503,15 @@ LUTHIER_TEST (CpuQualityUi, CQ23_staticOverlayCountsStateChangesOnly)
         pump (p, 0.6, false);
         CHECK (body->getStaticOverlayChanges() == idle);
         ringChord (p);
-        pump (p, 0.3, false);
+        // The overlay is refreshed by AnimationPolicy's 4 Hz static timer.
+        // A fixed 300 ms delay is only slightly longer than one poll period
+        // and can miss the callback on a busy macOS CI message thread.
+        // Wait for the observable transition, not a guessed timer phase.
+        const auto deadline = juce::Time::getMillisecondCounterHiRes() + 1500.0;
+        while (body->getStaticOverlayChanges() == idle
+               && juce::Time::getMillisecondCounterHiRes() < deadline)
+            pump (p, 0.05, false);
+
         const int sounding = body->getStaticOverlayChanges();
         CHECK_MSG (sounding > idle, "a newly sounding string must count as a static overlay change");
         // Freeze audio state while allowing multiple policy polls. A poll alone
