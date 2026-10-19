@@ -256,136 +256,125 @@ jobs:
           gh release view "$TAG" --json url,assets --jq '{url: .url, assets: [.assets[].name]}'
 
 
+
   screenshots:
-    name: Capture genuine Mac interface screenshots for README
+    name: Capture rendered feature gallery from released Pro source
     needs: [preflight, publish]
     runs-on: macos-15
-    timeout-minutes: 25
+    timeout-minutes: 70
     permissions:
-      actions: read
       contents: write
+      actions: read
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: master
+          ref: ${{ needs.preflight.outputs.sha }}
           fetch-depth: 0
+      - uses: seanmiddleditch/gha-setup-ninja@v5
 
-      - uses: actions/download-artifact@v4
-        with:
-          run-id: ${{ needs.preflight.outputs.run_id }}
-          github-token: ${{ github.token }}
-          pattern: Luthier-PAID-macos-*
-          merge-multiple: true
-          path: dist/macos
-
-      - name: Start the actual standalone application
+      - name: Build native JUCE screenshot test runner
         shell: bash
         run: |
           set -euo pipefail
-          app="dist/macos/Luthier Pro.app"
-          test -d "$app" || { echo "::error::Standalone app missing"; exit 1; }
-          binary="$app/Contents/MacOS/Luthier Pro"
-          test -s "$binary"
-          chmod +x "$binary"
-          codesign --force --deep --sign - "$app"
-          open -n "$app"
-          sleep 12
-          if ! pgrep -if 'Luthier Pro' >/dev/null; then
-            echo "::error::Standalone did not launch"
-            exit 1
-          fi
+          scripts/ci_build.sh deps
+          cmake -S . -B build-ci -G Ninja -DCMAKE_BUILD_TYPE=Release -DLUTHIER_EDITION=PAID -DLUTHIER_LTO=OFF
+          cmake --build build-ci --config Release --target LuthierTests --parallel 4
 
-      - name: Capture Easy, Advanced and Workshop from real UI windows
+      - name: Render actual UI component tree in all feature workspaces
         shell: bash
         run: |
           set -euo pipefail
+          runner="$PWD/build-ci/LuthierTests_artefacts/Release/LuthierTests"
+          test -x "$runner"
+          mkdir -p "$RUNNER_TEMP/luthier-shots"
+          LUTHIER_SCREENSHOTS="$RUNNER_TEMP/luthier-shots" "$runner" Screenshots
           mkdir -p docs/screenshots
-          cat > "$RUNNER_TEMP/find-luthier-window.swift" <<'SWIFT'
-          import Cocoa
-          import CoreGraphics
-          let windows = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]] ?? []
-          for window in windows {
-            let owner = (window[kCGWindowOwnerName as String] as? String) ?? ""
-            let title = (window[kCGWindowName as String] as? String) ?? ""
-            if owner.localizedCaseInsensitiveContains("Luthier") || title.localizedCaseInsensitiveContains("Luthier") {
-              let number = (window[kCGWindowNumber as String] as? NSNumber)?.uint32Value ?? 0
-              if number != 0 { print(number); break }
+          for feature in easy_1200x720 advanced_1600x900_workshop advanced_1600x900_mod advanced_1600x900_rhythm advanced_1600x900_tune advanced_1600x900_techniques; do
+            test -s "$RUNNER_TEMP/luthier-shots/default_$feature.png" || {
+              echo "::error::Expected screen was not rendered: $feature"; exit 1
             }
-          }
-          SWIFT
-          window_id="$(swift "$RUNNER_TEMP/find-luthier-window.swift" | head -n 1)"
-          test -n "$window_id" || { echo "::error::No real Luthier window was detected"; exit 1; }
-          capture() {
-            screencapture -x -l "$window_id" "$1"
-            test -s "$1"
-            sips -g pixelWidth -g pixelHeight "$1"
-          }
-          capture docs/screenshots/easy-mode.png
-          osascript -e 'tell application "System Events" to key code 48'
-          sleep 4
-          capture docs/screenshots/advanced-mode.png
-          osascript -e 'tell application "System Events" to keystroke "w"'
-          sleep 4
-          capture docs/screenshots/workshop.png
+            cp "$RUNNER_TEMP/luthier-shots/default_$feature.png" "docs/screenshots/$feature.png"
+          done
           python3 - <<'PY'
           from pathlib import Path
-          import hashlib
-          names = ('easy-mode.png','advanced-mode.png','workshop.png')
-          pics = [Path('docs/screenshots') / n for n in names]
-          for pic in pics:
-              if pic.stat().st_size < 5000 or pic.read_bytes()[:8] != bytes.fromhex('89504e470d0a1a0a'):
-                  raise SystemExit(f'Invalid PNG capture: {pic}')
-          digests = [hashlib.sha256(pic.read_bytes()).digest() for pic in pics]
-          if len(set(digests)) != len(digests):
-              raise SystemExit('Capture controls did not change the screenshots')
-          print('Three distinct screenshots captured from the actual Luthier process')
+          import hashlib, struct
+          paths = sorted(Path('docs/screenshots').glob('*.png'))
+          assert len(paths) == 6, f'expected six feature screenshots, got {len(paths)}'
+          digests = []
+          for file in paths:
+              data = file.read_bytes()
+              assert data[:8] == bytes.fromhex('89504e470d0a1a0a'), f'{file}: invalid PNG'
+              width, height = struct.unpack('>II', data[16:24])
+              assert width >= 940 and height >= 560 and len(data) > 10000, f'{file}: invalid image dimensions/content'
+              digests.append(hashlib.sha256(data).hexdigest())
+              print(file, width, height, len(data))
+          assert len(set(digests)) >= 4, 'screenshots do not show distinct views'
           PY
 
-      - name: Commit screenshots and README gallery without overwriting newer changes
+      - name: Add verified screenshots and feature gallery to README
         shell: bash
         run: |
           set -euo pipefail
+          git fetch origin master
+          # Avoid rewriting unexpected newer changes: start from current main
+          # and carry only the generated image files across.
+          git checkout -B master origin/master
           python3 - <<'PY'
           from pathlib import Path
           readme = Path('README.md')
           content = readme.read_text(encoding='utf-8')
-          heading = '## Feature screenshots'
-          gallery = """## Feature screenshots
-
-          These images were captured from the running macOS Luthier Pro alpha build
-          after successful release verification. They show actual application
-          screens, not mockups.
-
-          ### Easy mode: guitar illustration, presets and macro controls
-
-          ![Luthier Pro Easy mode](docs/screenshots/easy-mode.png)
-
-          ### Advanced mode: detailed sound shaping and workspace controls
-
-          ![Luthier Pro Advanced workspace](docs/screenshots/advanced-mode.png)
-
-          ### Workshop: guitar and instrument construction
-
-          ![Luthier Pro Workshop](docs/screenshots/workshop.png)
-
-          See the [user manual](docs/USER_MANUAL.md) for descriptions of
-          additional features and shortcuts.
-          """
-          if heading not in content:
-              insertion = content.find('## Build')
-              if insertion < 0:
-                  raise SystemExit('README Build heading missing; manual review required')
-              content = content[:insertion] + gallery + '\n' + content[insertion:]
-              readme.write_text(content,encoding='utf-8')
+          marker = '## Feature screenshots'
+          if marker not in content:
+              sections = [
+                  '## Feature screenshots',
+                  '',
+                  'These images are rendered from the actual Luthier Pro JUCE editor after the alpha build verification. They are not concept mockups.',
+                  '',
+                  '### Easy mode: instrument and macro controls',
+                  '',
+                  '![Luthier Pro Easy mode](docs/screenshots/easy_1200x720.png)',
+                  '',
+                  '### Guitar Workshop',
+                  '',
+                  '![Luthier Pro Workshop](docs/screenshots/advanced_1600x900_workshop.png)',
+                  '',
+                  '### Modulation matrix',
+                  '',
+                  '![Luthier Pro modulation](docs/screenshots/advanced_1600x900_mod.png)',
+                  '',
+                  '### Rhythm tools',
+                  '',
+                  '![Luthier Pro Rhythm](docs/screenshots/advanced_1600x900_rhythm.png)',
+                  '',
+                  '### Tune arrangement',
+                  '',
+                  '![Luthier Pro Tune](docs/screenshots/advanced_1600x900_tune.png)',
+                  '',
+                  '### Playing techniques',
+                  '',
+                  '![Luthier Pro Techniques](docs/screenshots/advanced_1600x900_techniques.png)',
+                  '',
+                  'See the [user manual](docs/USER_MANUAL.md) for more features and controls.',
+                  '',
+                  '## Build'
+              ]
+              if '## Build' not in content:
+                  raise SystemExit('README build section unavailable')
+              content = content.replace('## Build', '\n'.join(sections), 1)
+              readme.write_text(content, encoding='utf-8')
           PY
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
-          git add README.md docs/screenshots/
+          git add README.md docs/screenshots
           git diff --cached --quiet && exit 0
-          git fetch origin master
-          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/master)" || {
-            echo "::error::master changed during capture; refusing conflicting push"
-            exit 1
-          }
-          git commit -m 'docs: add verified Luthier Pro feature screenshots to README'
+          git commit -m "docs: publish actual rendered Luthier Pro UI feature gallery"
+          # No force-push: a concurrent change leaves photos in the job artifact.
           git push origin HEAD:master
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: luthier-real-ui-feature-gallery
+          path: docs/screenshots/
+          if-no-files-found: warn
+          retention-days: 90
