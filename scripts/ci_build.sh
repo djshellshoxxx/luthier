@@ -266,8 +266,14 @@ do_validate() {
             auval -strict -v aumu "$PLUGIN_CODE" Ltha 2>&1 | tee "$LOG_DIR/auval.log" || failed=1
         fi
         set +e
+        # Linux pluginval v1.0.4 can segfault during in-process shutdown
+        # after completing its VST3 tests (Tracktion/pluginval#185).
+        # Run Linux in the default isolated child process; pluginval still
+        # returns failure if its child crashes or a validation check fails.
+        local isolation_args=()
+        [ "$PLATFORM" = linux ] || isolation_args+=(--validate-in-process)
         ${wrap[@]+"${wrap[@]}"} "$pluginval" --strictness-level "$PLUGINVAL_STRICTNESS" \
-            --validate-in-process --timeout-ms 600000 \
+            "${isolation_args[@]}" --timeout-ms 600000 \
             --output-dir "$LOG_DIR" --validate "$p" 2>&1 | tee "$LOG_DIR/pluginval-$name.log"
         [ "${PIPESTATUS[0]}" -eq 0 ] || failed=1
         set -e
