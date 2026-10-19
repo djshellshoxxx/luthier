@@ -64,7 +64,10 @@ void GuitarBodyComponent::staticRefresh()
     overlay.slideFret = slideFret;
 
     if (changed)
+    {
+        ++staticOverlayChanges;
         repaint();
+    }
 
     // piano-roll-chord-display 4 at Off: the name appears at peak and goes
     // after the hold, with no fade - repainted only when it appears, changes

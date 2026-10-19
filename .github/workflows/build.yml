@@ -18,6 +18,10 @@ on:
         description: 'Comma-separated: linux, windows, macos'
         type: string
         default: 'linux,windows,macos'
+      editions:
+        description: 'Comma-separated: pro, free'
+        type: string
+        default: 'pro,free'
       strictness:
         description: 'pluginval strictness (1-10)'
         type: number
@@ -32,6 +36,10 @@ on:
         description: 'Comma-separated: linux, windows, macos (ci-cadence.yml picks per push)'
         type: string
         default: 'linux,windows,macos'
+      editions:
+        description: 'Comma-separated: pro, free'
+        type: string
+        default: 'pro,free'
       strictness:
         type: number
         default: 10
@@ -68,11 +76,12 @@ env:
   # package input instead.
   # SPEC-SWEEP HI-43 (host-integration 10): a push to main or master - a
   # merge - validates at strictness 10; other pushes and pull requests at 5.
-  STRICTNESS: ${{ ((github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master')) && !inputs.package) && 5 || (inputs.strictness || 10) }}
-  LTO: ${{ ((github.event_name == 'push' || github.event_name == 'pull_request') && !inputs.package) && 'OFF' || ((github.event_name == 'schedule' || inputs.lto) && 'ON' || 'OFF') }}
+  STRICTNESS: ${{ ((github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master')) && !inputs.package && !inputs.lto) && 5 || (inputs.strictness || 10) }}
+  LTO: ${{ ((github.event_name == 'push' || github.event_name == 'pull_request') && !inputs.package && !inputs.lto) && 'OFF' || ((github.event_name == 'schedule' || inputs.lto) && 'ON' || 'OFF') }}
   BUILD_DIR: build-ci
   DIST_DIR: dist
   CONFIG: Release
+  LUTHIER_BUILD_STRING: ${{ inputs.version == '0.1.0-beta' && format('beta.{0}', github.sha) || github.sha }}
 
 jobs:
   plan:
@@ -84,21 +93,26 @@ jobs:
       - id: m
         env:
           PLATFORMS: ${{ inputs.platforms || 'linux,windows,macos' }}
+          EDITIONS: ${{ inputs.editions || 'pro,free' }}
         run: |
           items=()
+          add() { # name os platform edition
+            case "$4" in PAID) e=pro;; *) e=free;; esac
+            case ",$EDITIONS," in *,"$e",*) items+=("{\"name\":\"$1\",\"os\":\"$2\",\"platform\":\"$3\",\"edition\":\"$4\"}");; esac
+          }
           case ",$PLATFORMS," in *,linux,*)
-            items+=('{"name":"Linux x64 / Pro","os":"ubuntu-latest","platform":"linux","edition":"PAID"}')
-            items+=('{"name":"Linux x64 / Free","os":"ubuntu-latest","platform":"linux","edition":"FREE"}');;
+            add "Linux x64 / Pro" ubuntu-latest linux PAID
+            add "Linux x64 / Free" ubuntu-latest linux FREE;;
           esac
           case ",$PLATFORMS," in *,windows,*)
-            items+=('{"name":"Windows x64 / Pro","os":"windows-latest","platform":"windows","edition":"PAID"}')
-            items+=('{"name":"Windows x64 / Free","os":"windows-latest","platform":"windows","edition":"FREE"}');;
+            add "Windows x64 / Pro" windows-latest windows PAID
+            add "Windows x64 / Free" windows-latest windows FREE;;
           esac
           case ",$PLATFORMS," in *,macos,*)
-            items+=('{"name":"macOS universal / Pro","os":"macos-latest","platform":"macos","edition":"PAID"}')
-            items+=('{"name":"macOS universal / Free","os":"macos-latest","platform":"macos","edition":"FREE"}');;
+            add "macOS universal / Pro" macos-latest macos PAID
+            add "macOS universal / Free" macos-latest macos FREE;;
           esac
-          if [ ${#items[@]} -eq 0 ]; then echo "::error::no platforms in '$PLATFORMS'"; exit 1; fi
+          if [ ${#items[@]} -eq 0 ]; then echo "::error::no builds for platforms '$PLATFORMS' editions '$EDITIONS'"; exit 1; fi
           joined=$(IFS=,; echo "${items[*]}")
           echo "matrix={\"include\":[$joined]}" >> "$GITHUB_OUTPUT"
 
@@ -111,8 +125,11 @@ jobs:
     # macOS runners are markedly slower than Linux/Windows for this LTO build +
     # the sequential render/preset-heavy LuthierTests suite: run #12 (beta1) was
     # still passing tests (steady progress, no hang) when it hit the 180-min cap.
-    # Give macOS more headroom; Linux/Windows keep the tighter 180-min cap.
-    timeout-minutes: ${{ matrix.os == 'macos-latest' && 300 || 180 }}
+    # macOS native Pro verification reached the old 300-minute cap in run
+    # 39196004115 after the full unit suite passed, during AU pluginval.
+    # GitHub-hosted jobs permit at most 360 minutes. Keep the full test and
+    # validator gates and give this platform the available headroom.
+    timeout-minutes: ${{ matrix.os == 'macos-latest' && 360 || 180 }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
@@ -177,6 +194,10 @@ jobs:
           python3 Tools/generate_factory_riffs.py
           git diff --exit-code Resources/Riffs
 
+      - name: Factory calibration publication tests
+        if: runner.os == 'Linux'
+        run: python3 -m unittest discover -s scripts -p 'test_regen_normalization_factory.py' -v
+
       # ---------------------------------------------------------- build
       - name: Configure and build (Unix)
         id: build_unix
@@ -189,6 +210,70 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: scripts/ci_build.ps1 -Step configure,build -Lto ${{ env.LTO }} -Edition ${{ matrix.edition }} -Jobs 4
+
+      # Run the known macOS release blockers first so their diagnostics are
+      # available without waiting for the multi-hour complete suite. The full
+      # suite below remains mandatory; this does not change release gates.
+      - name: Early release regression tests (Unix Pro)
+        if: runner.os != 'Windows' && matrix.edition == 'PAID'
+        env:
+          LUTHIER_NORMALIZATION_TRACE_KEYS: '1'
+        shell: bash
+        run: |
+          set -o pipefail
+          runner="$BUILD_DIR/LuthierTests_artefacts/$CONFIG/LuthierTests"
+          wrap=()
+          if [ "$RUNNER_OS" = Linux ]; then wrap=(xvfb-run -a); fi
+          "${wrap[@]}" "$runner" FactoryGuitarOverrideUsesSelectedInstrument CalibrationHashIgnoresPresetMetadata ON03_FactoryTableDoesNotDrift CQ23_ PracticeTrack \
+            2>&1 | tee "$BUILD_DIR/logs/release-regressions.log"
+
+      - name: Early release regression tests (Windows Pro)
+        if: runner.os == 'Windows' && matrix.edition == 'PAID'
+        env:
+          LUTHIER_NORMALIZATION_TRACE_KEYS: '1'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path (Join-Path $env:BUILD_DIR 'logs') | Out-Null
+          & "$env:BUILD_DIR/LuthierTests_artefacts/$env:CONFIG/LuthierTests.exe" FactoryGuitarOverrideUsesSelectedInstrument CalibrationHashIgnoresPresetMetadata ON03_FactoryTableDoesNotDrift CQ23_ PracticeTrack 2>&1 | Tee-Object -FilePath "$env:BUILD_DIR/logs/release-regressions.log"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # When the committed factory cache misses live Pro hashes, regenerate
+      # the complete reference table in an isolated artifact for review. Do
+      # not replace the checked-in table or silently turn a failure green.
+      - name: Diagnose stale normalization factory table (Linux Pro)
+        if: ${{ failure() && runner.os == 'Linux' && matrix.edition == 'PAID' && github.head_ref == 'codex/luthier-pro-v01-release' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          renderer="$BUILD_DIR/LuthierRender_artefacts/$CONFIG/LuthierRender"
+          test -x "$renderer"
+          mkdir -p "$BUILD_DIR/normalization-diagnostics"
+          xvfb-run -a "$renderer" --calibrate-factory "$PWD/$BUILD_DIR/normalization-diagnostics/NormalizationFactory.regenerated.json" \
+            2>&1 | tee "$BUILD_DIR/normalization-diagnostics/regeneration.log"
+          python3 - <<'PY'
+          import json
+          import re
+          from pathlib import Path
+          committed = json.loads(Path('Resources/NormalizationFactory.json').read_text())
+          regenerated = json.loads(Path('build-ci/normalization-diagnostics/NormalizationFactory.regenerated.json').read_text())
+          old = set(committed['entries'])
+          new = set(regenerated['entries'])
+          print(f"committed={len(old)} regenerated={len(new)} retained={len(old & new)} added={len(new-old)} removed={len(old-new)}")
+          header = Path('Source/Support/NormalizationCalibrator.h').read_text()
+          expected_revision = int(re.search(r'kCalibrationRevision\s*=\s*(\d+)', header).group(1))
+          assert regenerated['revision'] == expected_revision, 'Unexpected calibration revision'
+          print(f"revision committed={committed['revision']} regenerated={regenerated['revision']} expected={expected_revision}")
+          assert regenerated['entries'], 'Regenerated factory table is empty'
+          PY
+
+      - name: Upload normalization factory diagnostics
+        if: ${{ always() && runner.os == 'Linux' && matrix.edition == 'PAID' && github.head_ref == 'codex/luthier-pro-v01-release' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: normalization-factory-diagnostics-${{ github.sha }}
+          path: ${{ env.BUILD_DIR }}/normalization-diagnostics/
+          retention-days: 14
+          if-no-files-found: ignore
 
       # ---------------------------------------------------------- test
       - name: Unit tests (Unix)
@@ -248,6 +333,7 @@ jobs:
         if: inputs.package && runner.os == 'Linux'
         env:
           VERSION: ${{ inputs.version }}
+          BETA_README: ${{ inputs.version == '0.1.0-beta' && 'docs/beta/PRO-V01-RELEASE-NOTES.md' || '' }}
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: scripts/package_linux.sh
@@ -272,7 +358,26 @@ jobs:
           VERSION: ${{ inputs.version }}
           WINDOWS_CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
           WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
-        run: scripts/package_windows.ps1
+        run: |
+          if ($env:VERSION -eq '0.1.0-beta') {
+            scripts/package_windows.ps1 -BetaReadme docs/beta/PRO-V01-RELEASE-NOTES.md
+          } else {
+            scripts/package_windows.ps1
+          }
+
+      - name: Verify and archive universal Pro beta bundles
+        if: inputs.package && runner.os == 'macOS' && matrix.edition == 'PAID' && inputs.version == '0.1.0-beta'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for kind in app vst3 component clap; do
+            bundle="$DIST_DIR/macos/Luthier Pro.$kind"
+            lipo -verify_arch arm64 x86_64 "$bundle/Contents/MacOS/Luthier Pro"
+            codesign --verify --deep --strict "$bundle"
+          done
+          cp docs/beta/PRO-V01-RELEASE-NOTES.md "$DIST_DIR/macos/README-BETA.md"
+          ditto -c -k --sequesterRsrc --keepParent "$DIST_DIR/macos" \
+            "$DIST_DIR/installers/Luthier-Pro-0.1.0-beta-macOS-universal.zip"
 
       - name: Upload installers
         if: inputs.package

@@ -60,6 +60,11 @@ public:
 
     void unload();
 
+    /** Waits for input at the current position to be buffered. Message/offline
+        thread only; never call from an audio callback. The requested file-rate
+        samples must fit the streaming ring. Returns false on timeout. */
+    bool waitForBufferedAudio (int numSamples, juce::uint32 timeoutMilliseconds);
+
     bool isLoaded() const noexcept { return loaded.load (std::memory_order_relaxed); }
     juce::File getFile() const { return currentFile; }
     juce::String getTitle() const { return currentFile.getFileNameWithoutExtension(); }

@@ -25,6 +25,11 @@ on:
         required: false
         type: string
         default: 'linux,windows,macos'
+      editions:
+        description: 'Comma-separated editions to build: pro, free (default both)'
+        required: false
+        type: string
+        default: 'pro,free'
 
 permissions:
   contents: read
@@ -49,6 +54,8 @@ jobs:
         run: |
           tag="$TAG"
           version="${tag#v}"
+          # The requested public beta tag abbreviates the numeric patch.
+          [ "$tag" != "v0.1-beta" ] || version="0.1.0-beta"
           # project(Luthier VERSION x.y.z ...) is the one source of the version.
           cmake_version="$(sed -nE 's/^project\(Luthier VERSION ([0-9.]+).*/\1/p' CMakeLists.txt | tr -d '\r')"
           # A pre-release suffix (-beta1, -rc2) is allowed on top of the CMake version.
@@ -67,6 +74,7 @@ jobs:
     uses: ./.github/workflows/build.yml
     with:
       platforms: ${{ inputs.platforms || 'linux,windows,macos' }}
+      editions: ${{ inputs.editions || 'pro,free' }}
       strictness: 10
       lto: true
       package: true
