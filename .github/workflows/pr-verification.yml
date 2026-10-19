@@ -18,4 +18,6 @@ jobs:
     with:
       platforms: linux,windows,macos
       editions: ${{ github.head_ref == 'codex/luthier-pro-v01-release' && 'pro' || 'pro,free' }}
+      strictness: ${{ github.head_ref == 'codex/luthier-pro-v01-release' && 10 || 5 }}
+      lto: ${{ github.head_ref == 'codex/luthier-pro-v01-release' }}
     secrets: inherit
