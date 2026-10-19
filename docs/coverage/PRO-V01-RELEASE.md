@@ -1,6 +1,6 @@
 # Luthier Pro v0.1 Beta release handoff
 
-Updated 2026-10-17. User authorizes consolidation, Windows/macOS/Linux builds and publication as v0.1-beta. This supersedes older coordinator-only merges and platform holds in docs/HANDOFF.md and docs/helpers/EXTERNAL_AGENT_BRIEF.md.
+Updated 2026-10-18. User authorizes consolidation, Windows/macOS/Linux builds and publication as v0.1-beta. This supersedes older coordinator-only merges and platform holds in docs/HANDOFF.md and docs/helpers/EXTERNAL_AGENT_BRIEF.md.
 
 ## Authoritative state
 
@@ -34,14 +34,14 @@ No branches deleted or shared history rewritten. No reliable API exists to prove
 | Previous platform verification | PR74 run38824640225: Windows/Linux Free+Pro builds, unit suites and validators pass; CodeQL38824640217 passes. macOS Free+Pro compile and validators pass; unit suites fail. | Recorded, not evidence for changed sources |
 | Backing tempo regression | BackingTrackPlayer readiness API; tests wait for actual buffered input instead of400ms sleep. Actual-player probe24/24 duration/pitch cases passes (0.5x3.819s439.998Hz;1.5x1.301s439.980Hz). | Focused verified; full platform tests pending |
 | Low-mode repaint accounting | Count fixed glow/fret/slide state changes separately from chord changes; per-component budgets, zero animation timer/readout limits retained; new idle-poll regression. | Implemented; runtime pending |
-| Factory normalization lookup | ON03 uses same four failing Mac cases on all Pro platforms, logs canonical keys on miss (opt-in on hit). std::shuffle chose different samples per STL, so previous green Linux tested different states. Membership/drift assertions retained. | Root mismatch unresolved; release blocker |
+| Factory normalization lookup | ON03 keeps membership and measured-drift assertions. The release-version metadata and non-gesture guitar-selection defects were fixed; the complete revision-3 reference was regenerated natively. | Table generated; cross-platform gate pending |
 | Early CI diagnosis | build.yml runs ON03/CQ23/PracticeTrack first, retaining complete suite and validators. | Pending CI |
 | Version0.1.0-beta / tagv0.1-beta | CMake numeric0.1.0, beta+SHA build identifier, abbreviated tag guard and changelog prepared. | Implemented; no tag created |
 | Platform release builds / checksums / public release | pro-beta-release.yml runs all3 Pro strictness10/LTO builds only after this exact PR branch merges to master. It refuses existing tag/release, checks actual payload executable architectures, attaches SHA256SUMS/provenance, creates complete draft then publishes and re-downloads/checksums assets. | Workflow implemented; native builds/publication pending |
 
 ## Exact next task
 
-Run targeted early regression job with LUTHIER_NORMALIZATION_TRACE_KEYS=1 on Linux and macOS. Compare ON03 canonical inputs for p41_g18,p68_g21,p21_g20,p30_g05 to find factory cache mismatch. Do not weaken membership assertion or remove sound-affecting fields without evidence. Then full CI and strictness10 release builds. All changed-source platform verification remains pending.
+Run the targeted ON03/metadata/instrument-selection regressions against the committed revision-3 table on Windows, Linux and macOS. Then complete full Pro CI and the strictness-10/LTO release builds. Keep PR75 draft until all native builds, tests and validators pass. Do not weaken membership assertions or measured-drift bounds.
 
 Local bootstrap: standard apt install failed due sandbox setuid/cache permissions; use downloaded/extracted dependencies at /tmp/luthier-native and pip cmake/ninja under /root/.local/bin. JUCE8.0.10 cloned into ThirdParty/JUCE. Build configure log /tmp/luthier-configure.log. These are disposable intermediates, not release artifacts.
 
@@ -109,3 +109,12 @@ Revision-3 native focused run `/tmp/luthier-v3-focused.log` passed **5 tests / 2
 Implemented: exclude nested preset meta from canonical hashing; bump calibration revision to 3; explicit guitar-selection gestures in shared normalization fixture and calibration CLI; refuse incomplete generator output and report successful/expected/unique/duplicate/failure counts; safe temporary publication by regen shell; provenance diagnostics; early focused tests on Windows as well as Unix; CI shell-publication regression and revision validation against the source constant. No production DSP, host-write timing, activation checks or parameter layout changed.
 
 At this source checkpoint the committed factory resource is **still revision 2**, so ON03 remains expected red until a complete measured revision-3 table is reviewed and committed. Factory generation and corrected off-path goldens are the exact next actions. Full native platform verification, merge/tag/publication remain blocked; PR75 must stay draft. Do not reinterpret the five focused passes as release readiness.
+
+
+## Calibration refresh checkpoint (2026-10-18)
+
+The temporary Linux Pro calibration refresh workflow ran its native `LuthierRender` generator and completed **1,820/1,820 calibration cases**, producing **1,750 unique revision-3 keys with zero failures**. It confirmed the affected release-version cases were included in the generated table, then committed only `Resources/NormalizationFactory.json` as `eb134fcac5142292065b7ee1e62f313750f3b1f3`. The table currently reads revision 3, edition `standard`, 1,750 entries. The metadata and instrument-selection defect fixes have focused local regression evidence recorded above.
+
+This refresh establishes that a complete measured revision-3 table is now present; it does **not** establish that ON03, full unit tests, plugin validators, or strictness-10/LTO release builds pass on every platform. The latest PR verification and CodeQL runs (39118037835 and 39118037785, head `eb134fc`) ended `action_required` with no jobs returned, so they produced no new native verification. Re-run/approve CI through repository Actions controls if necessary, then record the final SHA and per-platform results here. Keep the PR draft and do not publish until those gates pass.
+
+The temporary `.github/workflows/refresh-pro-calibration.yml` did its one-time purpose and has been removed after committing the measured table. If another table change is required, use the checked-in safe regeneration script and review its complete output before committing.
