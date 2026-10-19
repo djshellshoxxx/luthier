@@ -26,8 +26,7 @@ jobs:
     name: Verify source, test run and release identity
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.head_branch == 'codex/luthier-pro-v01-release' &&
+      (github.event.workflow_run.head_branch == 'codex/luthier-pro-v01-release' &&
        github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
     outputs:
@@ -45,8 +44,17 @@ jobs:
           run_id="${REQUESTED_ID:-$EVENT_ID}"
           test -n "$run_id"
           info="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id")"
-          test "$(jq -r '.conclusion' <<<"$info")" = success
+          test "$(jq -r '.status' <<<"$info")" = completed
           test "$(jq -r '.name' <<<"$info")" = 'PR verification'
+          # Gate on the complete three-platform Pro matrix, not an unrelated
+          # follow-up packaging job in the originating PR workflow.
+          jobs="$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs?per_page=100" --jq '.jobs[] | [.name,.conclusion] | @tsv')"
+          for expected in 'platforms / Linux x64 / Pro' 'platforms / Windows x64 / Pro' 'platforms / macOS universal / Pro'; do
+            printf '%s\n' "$jobs" | grep -Fx -- "$(printf '%s\tsuccess' "$expected")" || {
+              echo "::error::Required strict Pro verification job did not pass: $expected"
+              exit 1
+            }
+          done
           test "$(jq -r '.head_branch' <<<"$info")" = 'codex/luthier-pro-v01-release'
           test "$(jq -r '.head_repository.full_name' <<<"$info")" = "$GITHUB_REPOSITORY"
           sha="$(jq -r '.head_sha' <<<"$info")"
