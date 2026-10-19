@@ -149,10 +149,38 @@ do_test() {
         wrap=(xvfb-run -a -s "-screen 0 1920x1080x24")
     fi
 
-    # The runner exits non-zero on any failure; tee keeps the log either way.
+    # Optional deterministic test sharding for faster macOS/CI verification.
+    # Off by default; enable with TEST_SHARDS=2 after platform QA. Each shard
+    # runs in its own process and writes a separate failure-diagnostic log.
+    local shards="${TEST_SHARDS:-1}"
+    if ! [[ "$shards" =~ ^[1-9][0-9]*$ ]] || [ "$shards" -gt 8 ]; then
+        echo "TEST_SHARDS must be an integer between 1 and 8" >&2
+        return 2
+    fi
+
     set +e
-    ${wrap[@]+"${wrap[@]}"} "$runner" 2>&1 | tee "$LOG_DIR/unit-tests.log"
-    local rc=${PIPESTATUS[0]}
+    local rc=0
+    if [ "$shards" -eq 1 ]; then
+        ${wrap[@]+"${wrap[@]}"} "$runner" 2>&1 | tee "$LOG_DIR/unit-tests.log"
+        rc=${PIPESTATUS[0]}
+    else
+        local -a pids=()
+        local i
+        for ((i=1; i<=shards; i++)); do
+            # tee streams progress live so lengthy audio-render tests do not
+            # appear hung; stdout may interleave but each shard log is intact.
+            (
+                set -o pipefail
+                ${wrap[@]+"${wrap[@]}"} "$runner" "--shard=$i/$shards" 2>&1 | tee "$LOG_DIR/unit-tests-shard-$i.log"
+            ) &
+            pids+=("$!")
+        done
+        : > "$LOG_DIR/unit-tests.log"
+        for ((i=1; i<=shards; i++)); do
+            wait "${pids[i-1]}" || rc=1
+            cat "$LOG_DIR/unit-tests-shard-$i.log" >> "$LOG_DIR/unit-tests.log"
+        done
+    fi
 
     # Failure recap: re-print every [FAIL] row and its indented detail lines,
     # plus the summary, at the very end of the step. The per-test rows print
