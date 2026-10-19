@@ -21,3 +21,108 @@ jobs:
       strictness: ${{ github.head_ref == 'codex/luthier-pro-v01-release' && 10 || 5 }}
       lto: ${{ github.head_ref == 'codex/luthier-pro-v01-release' }}
     secrets: inherit
+
+
+  # A separate Mac-only prerelease, published only after all native Pro CI
+  # platforms have passed. Does not modify the all-platform v0.1-beta workflow.
+  macos-beta-release:
+    name: Publish verified Mac Pro beta
+    needs: platforms
+    if: >-
+      github.event.pull_request.number == 75 &&
+      github.event.pull_request.head.ref == 'codex/luthier-pro-v01-release' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: macos-15
+    timeout-minutes: 45
+    permissions:
+      actions: read
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: v0.1.0-macos-beta1
+      VERSION: '0.1.0'
+      LUTHIER_EDITION: PAID
+    steps:
+      - name: Checkout exact tested merge commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Refuse stale or duplicate release
+        shell: bash
+        run: |
+          set -euo pipefail
+          live="$(gh api "repos/$GITHUB_REPOSITORY/pulls/75" --jq '.head.sha')"
+          test "$live" = "${{ github.event.pull_request.head.sha }}" || {
+            echo "::error::PR source head changed during verification"; exit 1;
+          }
+          if gh release view "$TAG" >/dev/null 2>&1 ||
+             git ls-remote --tags origin "refs/tags/$TAG" | grep -q .; then
+            echo "::error::Mac beta release/tag already exists"; exit 1
+          fi
+
+      - name: Recover Pro Mac bundles from this exact passing CI run
+        uses: actions/download-artifact@v4
+        with:
+          name: Luthier-PAID-macos-${{ github.sha }}
+          path: dist/macos
+
+      - name: Verify AU, VST3, CLAP and standalone universal binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          root=dist/macos
+          for ext in component vst3 clap app; do
+            bundle="$root/Luthier Pro.$ext"
+            test -d "$bundle" || { echo "::error::Missing $bundle"; exit 1; }
+            binary="$(find "$bundle/Contents/MacOS" -maxdepth 1 -type f -print -quit)"
+            test -n "$binary" && test -f "$binary"
+            chmod +x "$binary"
+            lipo "$binary" -verify_arch arm64 x86_64
+            codesign --verify --deep --verbose=2 "$bundle"
+          done
+          test -d "$root/Resources"
+          grep -qxF Release "$root/BUILD_CONFIG"
+
+      - name: Package universal macOS installer
+        shell: bash
+        env:
+          MACOS_CERT_P12_BASE64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+          MACOS_DEV_ID_APP: ${{ secrets.MACOS_DEV_ID_APP }}
+          MACOS_DEV_ID_INSTALLER: ${{ secrets.MACOS_DEV_ID_INSTALLER }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          bash scripts/package_macos.sh
+          dmg=dist/installers/Luthier-Pro-0.1.0-macOS.dmg
+          test -s "$dmg"
+          hdiutil verify "$dmg"
+          mount="$RUNNER_TEMP/luthier-mount"
+          mkdir -p "$mount"
+          hdiutil attach -readonly -nobrowse -mountpoint "$mount" "$dmg"
+          trap 'hdiutil detach "$mount" || true' EXIT
+          test -s "$mount/Luthier-Pro-0.1.0.pkg"
+          pkgutil --expand "$mount/Luthier-Pro-0.1.0.pkg" "$RUNNER_TEMP/luthier-pkg"
+          grep -q 'hostArchitectures="arm64,x86_64"' "$RUNNER_TEMP/luthier-pkg/Distribution"
+          for part in au vst3 clap app content; do
+            test -s "$RUNNER_TEMP/luthier-pkg/$part.pkg"
+          done
+
+      - name: Publish complete verified macOS prerelease
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          cp dist/installers/Luthier-Pro-0.1.0-macOS.dmg release/
+          (cd release && shasum -a 256 *.dmg > SHA256SUMS.txt)
+          printf 'Luthier Pro macOS 0.1.0 beta\nTested CI run: %s/%s/actions/runs/%s\nTested merge commit: %s\nArchitecture: arm64 and x86_64\nFormats: AU, VST3, CLAP, Standalone\nSigning/notarization: see CI logs\n' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$GITHUB_SHA" > release/BUILD-PROVENANCE.txt
+          gh release create "$TAG" release/Luthier-Pro-0.1.0-macOS.dmg             release/SHA256SUMS.txt release/BUILD-PROVENANCE.txt             --target "$GITHUB_SHA" --title 'Luthier Pro v0.1 macOS Beta (Universal)'             --notes-file docs/beta/PRO-V01-RELEASE-NOTES.md --draft --prerelease
+          mkdir -p "$RUNNER_TEMP/downloaded-release"
+          gh release download "$TAG" --dir "$RUNNER_TEMP/downloaded-release"
+          (cd "$RUNNER_TEMP/downloaded-release" && shasum -a 256 -c SHA256SUMS.txt)
+          gh release edit "$TAG" --draft=false --prerelease
+          gh release view "$TAG" --json url,assets --jq '{url: .url, assets: [.assets[].name]}'
