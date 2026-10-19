@@ -1,0 +1,245 @@
+
+name: Luthier Pro verified alpha release
+
+on:
+  workflow_run:
+    workflows: ['PR verification']
+    types: [completed]
+    branches: ['codex/luthier-pro-v01-release']
+  workflow_dispatch:
+    inputs:
+      verified_run_id:
+        description: 'Successful PR verification run ID (PR #75 only)'
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: luthier-pro-alpha-publish
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    name: Verify source, test run and release identity
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'codex/luthier-pro-v01-release' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    outputs:
+      run_id: ${{ steps.check.outputs.run_id }}
+      sha: ${{ steps.check.outputs.sha }}
+    steps:
+      - id: check
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_ID: ${{ inputs.verified_run_id }}
+          EVENT_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          run_id="${REQUESTED_ID:-$EVENT_ID}"
+          test -n "$run_id"
+          info="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id")"
+          test "$(jq -r '.conclusion' <<<"$info")" = success
+          test "$(jq -r '.name' <<<"$info")" = 'PR verification'
+          test "$(jq -r '.head_branch' <<<"$info")" = 'codex/luthier-pro-v01-release'
+          test "$(jq -r '.head_repository.full_name' <<<"$info")" = "$GITHUB_REPOSITORY"
+          sha="$(jq -r '.head_sha' <<<"$info")"
+          test "${#sha}" -eq 40
+          live="$(gh api "repos/$GITHUB_REPOSITORY/pulls/75" --jq '.head.sha')"
+          test "$sha" = "$live" || { echo "::error::PR75 changed since verified build"; exit 1; }
+          if gh release view v0.1.0-alpha1 >/dev/null 2>&1; then
+            echo '::error::Alpha release already exists; will not overwrite'
+            exit 1
+          fi
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v0.1.0-alpha1" >/dev/null 2>&1; then
+            echo '::error::Alpha tag already exists'
+            exit 1
+          fi
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+  package-macos:
+    name: Package macOS Universal AU VST3 CLAP and standalone
+    needs: preflight
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.preflight.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ needs.preflight.outputs.run_id }}
+          github-token: ${{ github.token }}
+          pattern: Luthier-PAID-macos-*
+          merge-multiple: true
+          path: dist/macos
+      - name: Verify universal Pro binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find dist/macos -maxdepth 1 -name 'Luthier Pro.vst3' | wc -l | tr -d ' ')" = 1
+          for ext in vst3 component clap app; do
+            bundle="dist/macos/Luthier Pro.$ext"
+            test -d "$bundle" || { echo "::error::Missing $bundle"; exit 1; }
+            binary="$(find "$bundle/Contents/MacOS" -maxdepth 1 -type f -print -quit)"
+            test -n "$binary" && test -s "$binary"
+            lipo "$binary" -verify_arch arm64 x86_64
+          done
+          test -d dist/macos/Resources
+          grep -qxF Release dist/macos/BUILD_CONFIG
+
+      - name: Package native macOS installer
+        shell: bash
+        env:
+          VERSION: '0.1.0'
+          LUTHIER_EDITION: PAID
+          MACOS_CERT_P12_BASE64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+          MACOS_DEV_ID_APP: ${{ secrets.MACOS_DEV_ID_APP }}
+          MACOS_DEV_ID_INSTALLER: ${{ secrets.MACOS_DEV_ID_INSTALLER }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          bash scripts/package_macos.sh
+          test -s dist/installers/Luthier-Pro-0.1.0-macOS.dmg
+          hdiutil verify dist/installers/Luthier-Pro-0.1.0-macOS.dmg
+          mkdir -p "$RUNNER_TEMP/dmg" "$RUNNER_TEMP/pkg"
+          hdiutil attach -readonly -nobrowse -mountpoint "$RUNNER_TEMP/dmg" dist/installers/Luthier-Pro-0.1.0-macOS.dmg
+          trap 'hdiutil detach "$RUNNER_TEMP/dmg" || true' EXIT
+          test -s "$RUNNER_TEMP/dmg/Luthier-Pro-0.1.0.pkg"
+          pkgutil --expand "$RUNNER_TEMP/dmg/Luthier-Pro-0.1.0.pkg" "$RUNNER_TEMP/pkg/expanded"
+          grep -q 'hostArchitectures="arm64,x86_64"' "$RUNNER_TEMP/pkg/expanded/Distribution"
+          for item in au vst3 clap app content; do
+            test -s "$RUNNER_TEMP/pkg/expanded/$item.pkg"
+          done
+          mv dist/installers/Luthier-Pro-0.1.0-macOS.dmg dist/installers/Luthier-Pro-0.1.0-alpha1-macOS-universal.dmg
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: luthier-alpha-macos-universal
+          path: dist/installers/Luthier-Pro-0.1.0-alpha1-macOS-universal.dmg
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    name: Verify all platform payloads and publish alpha
+    needs: [preflight, package-macos]
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SOURCE_SHA: ${{ needs.preflight.outputs.sha }}
+      VERIFIED_RUN: ${{ needs.preflight.outputs.run_id }}
+      TAG: v0.1.0-alpha1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.preflight.outputs.sha }}
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ needs.preflight.outputs.run_id }}
+          github-token: ${{ github.token }}
+          pattern: Luthier-PAID-windows-*
+          merge-multiple: true
+          path: stage/windows
+
+      - uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ needs.preflight.outputs.run_id }}
+          github-token: ${{ github.token }}
+          pattern: Luthier-PAID-linux-*
+          merge-multiple: true
+          path: stage/linux
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: luthier-alpha-macos-universal
+          path: release
+
+      - name: Verify actual Windows and Linux VST3 CLAP and standalone binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import struct
+          for platform in ('windows', 'linux'):
+              root = Path('stage') / platform
+              expected = [root / 'Luthier Pro.vst3', root / 'Luthier Pro.clap', root / 'Resources']
+              assert all(p.exists() for p in expected), f'{platform}: missing VST3, CLAP, or content'
+              assert (root / 'BUILD_CONFIG').read_text().strip() == 'Release'
+              standalone = root / ('Luthier Pro.exe' if platform == 'windows' else 'luthier')
+              plugins = list((root / 'Luthier Pro.vst3').rglob('*.vst3')) if platform == 'windows' else list((root / 'Luthier Pro.vst3').rglob('*.so'))
+              assert len(plugins) == 1, f'{platform}: invalid VST3 binary layout: {plugins}'
+              for p in (standalone, root / 'Luthier Pro.clap', *plugins):
+                  data = p.read_bytes()
+                  if platform == 'linux':
+                      assert data[:4] == b'\x7fELF' and struct.unpack_from('<H', data, 18)[0] == 62, f'{p}: not ELF64 x86_64'
+                  else:
+                      assert data[:2] == b'MZ', f'{p}: not Windows PE'
+                      offset = struct.unpack_from('<I', data, 0x3c)[0]
+                      assert data[offset:offset+4] == b'PE\0\0'
+                      assert struct.unpack_from('<H', data, offset+4)[0] == 0x8664, f'{p}: not Windows x64'
+                  print(platform, p.name, len(data), 'bytes OK')
+              assert any((root / 'Resources').iterdir()), f'{platform}: factory content empty'
+          PY
+
+      - name: Package portable x64 assets, checksums and provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s release/Luthier-Pro-0.1.0-alpha1-macOS-universal.dmg
+          (cd stage/windows && zip -q -r ../../release/Luthier-Pro-0.1.0-alpha1-Windows-x64.zip .)
+          tar -czf release/Luthier-Pro-0.1.0-alpha1-Linux-x64.tar.gz -C stage/linux .
+          cat > release/BUILD-PROVENANCE.txt <<EOF
+          Luthier Pro v0.1.0 alpha1 (pre-release)
+          Source branch: codex/luthier-pro-v01-release
+          Source SHA: $SOURCE_SHA
+          Verified PR #75 CI: https://github.com/$GITHUB_REPOSITORY/actions/runs/$VERIFIED_RUN
+          Formats: macOS AU/VST3/CLAP/Standalone (arm64+x86_64); Windows/Linux VST3/CLAP/Standalone (x86_64)
+          macOS signing and notarization: inspect package job logs; credentials are optional
+          No claim of tests on physical hosts, all DAWs or hardware
+          EOF
+          (cd release && sha256sum Luthier-Pro-* BUILD-PROVENANCE.txt > SHA256SUMS.txt)
+          (cd release && sha256sum -c SHA256SUMS.txt)
+          cat > "$RUNNER_TEMP/RELEASE_NOTES.md" <<'NOTES'
+          # Luthier Pro v0.1.0 Alpha 1
+          Verified native GitHub Actions Pro builds with full unit suites and
+          strictness-10 VST3/CLAP validation. Packages are included for:
+          - macOS Universal (Intel x86_64 and Apple Silicon arm64): AU, VST3,
+            CLAP and standalone inside a DMG/package installer.
+          - Windows x64: portable VST3, CLAP, standalone and factory Resources.
+          - Linux x64: portable VST3, CLAP, standalone and factory Resources.
+          Downloads include SHA256SUMS.txt and exact source/test provenance.
+          macOS signing/notarization is dependent on configured Apple credentials.
+          This is an alpha build and is not established compatible with every DAW.
+          NOTES
+
+      - name: Create release, verify downloaded assets, then publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          live="$(gh api "repos/$GITHUB_REPOSITORY/pulls/75" --jq '.head.sha')"
+          test "$live" = "$SOURCE_SHA" || { echo "::error::Build is stale"; exit 1; }
+          if gh release view "$TAG" >/dev/null 2>&1 ||
+             gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" >/dev/null 2>&1; then
+            echo "::error::Existing tag/release; not overwriting"; exit 1
+          fi
+          gh release create "$TAG" release/* --target "$SOURCE_SHA"             --title 'Luthier Pro v0.1.0 Alpha 1 (macOS, Windows, Linux)'             --notes-file "$RUNNER_TEMP/RELEASE_NOTES.md" --draft --prerelease
+          mkdir -p "$RUNNER_TEMP/downloaded"
+          gh release download "$TAG" --dir "$RUNNER_TEMP/downloaded"
+          (cd "$RUNNER_TEMP/downloaded" && sha256sum -c SHA256SUMS.txt)
+          gh release edit "$TAG" --draft=false --prerelease
+          gh release view "$TAG" --json url,assets --jq '{url: .url, assets: [.assets[].name]}'
