@@ -1671,6 +1671,32 @@ LUTHIER_TEST (Normalization, ON26_HostWriteTransactionScopesWrites)
     CHECK (! bridge.writtenSinceGuitarType (ParamIDs::ampGain));
 }
 
+// A deliberate player guitar selection must discard the prior preset's
+// structural overrides, even when both changes occur inside one host load scope.
+LUTHIER_TEST (Normalization, ON26_PlayerGuitarSelectionWinsInsideTransaction)
+{
+    auto p = makeProcessor();
+    auto& bridge = p->getParameterBridge();
+    ParameterBridge::ScopedHostWriteTransaction transaction (bridge);
+
+    CHECK (setPlain (*p, ParamIDs::ampGain, 0.31f));
+    CHECK (bridge.writtenSinceGuitarType (ParamIDs::ampGain));
+
+    auto* type = p->getState().getParameter (ParamIDs::guitarType);
+    CHECK (type != nullptr);
+    if (type == nullptr)
+        return;
+    type->beginChangeGesture();
+    type->setValueNotifyingHost (type->convertTo0to1 ((float) GuitarType::JazzBass));
+    type->endChangeGesture();
+
+    // The amplifier gain preceded the explicit player choice; it cannot
+    // override the selected instrument's own defaults.
+    CHECK (! bridge.writtenSinceGuitarType (ParamIDs::ampGain));
+    CHECK (setPlain (*p, ParamIDs::ampBass, 0.37f));
+    CHECK (bridge.writtenSinceGuitarType (ParamIDs::ampBass));
+}
+
 LUTHIER_TEST (Normalization, ON26_RolesAndHash)
 {
     auto p = makeProcessor();
