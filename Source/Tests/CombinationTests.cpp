@@ -1585,6 +1585,9 @@ LUTHIER_TEST (Combo, releasedStringIsDampedQuickly)
         rig.setNormalised (ParamIDs::bodyCouplingAmount, 0.0f);   // body-coupling 3: the body rings the other strings back
         rig.setIndex (ParamIDs::roomOn, 0);
         rig.apply();
+        // SUS-08 measures string damping; resonator body modes ring independently.
+        // Remove the body blend without weakening the existing output threshold.
+        rig.p().getEngine().setBodyAmount (0.0);
         rig.processSilence (4);
 
         const int note = rig.lowestPlayableNote() + 2;   // second fret of the lowest string: fretted, never open
