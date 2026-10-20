@@ -1248,7 +1248,46 @@ LUTHIER_TEST (MicPlacement, closeMicsBleedTheRoomWhenBackedOff)
 }
 
 //==============================================================================
-// MP-19
+// MP-19: the Cathedral's late early-reflections remain separated from the FDN tail.
+LUTHIER_TEST (MicPlacement, cathedralKeepsLateEarlyReflections)
+{
+    const auto lateWetEnergy = [] (int taps)
+    {
+        RoomEngine room;
+        room.prepare (kSr, 256);
+        room.setRoomSize (RoomSize::Cathedral);
+        room.setRoomBlend (1.0);
+        room.setTapCount (taps, true);
+        room.setRoomTapEnabled (true);
+
+        double energy = 0.0;
+        const int total = (int) (3.5 * kSr);
+        for (int pos = 0; pos < total; pos += 256)
+        {
+            juce::AudioBuffer<float> buffer (2, 256);
+            buffer.clear();
+            if (pos == 0)
+            {
+                buffer.setSample (0, 0, 1.0f);
+                buffer.setSample (1, 0, 1.0f);
+            }
+
+            room.processBlock (buffer);
+            if (const auto* wet = room.getRoomTap (0))
+                if (pos >= (int) (2.5 * kSr))
+                    for (int i = 0; i < 256; ++i)
+                        energy += (double) wet[i] * wet[i];
+        }
+        return energy;
+    };
+
+    const double fullTapTail = lateWetEnergy (RoomEngine::kNumTaps);
+    const double singleTapTail = lateWetEnergy (1);
+    CHECK_MSG (fullTapTail > singleTapTail * 1.05,
+               "the Cathedral's late geometric reflections were clamped into the same early ring buffer");
+}
+
+// MP-20
 LUTHIER_TEST (MicPlacement, speakersVaryALittleAndDeterministically)
 {
     const auto evalOn = [] (CabinetType cab, int speaker)

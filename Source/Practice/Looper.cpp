@@ -107,6 +107,10 @@ void LoopLayer::prepareFilters (double sampleRate) noexcept
     sr = juce::jmax (1.0, sampleRate);
     lastLowCut = -1.0;
     lastHighCut = -1.0;
+    lowCutL.reset(); lowCutR.reset();
+    highCutL.reset(); highCutR.reset();
+    readPosition = 0.0;
+    playedOnce = false;
 }
 
 //==============================================================================
@@ -357,18 +361,26 @@ Looper::~Looper() = default;
 
 void Looper::prepare (double sampleRate, double maxSeconds)
 {
-    sr = juce::jmax (1.0, sampleRate);
-
+    const double newSampleRate = juce::jmax (1.0, sampleRate);
     const double seconds = juce::jlimit (kMinLoopSeconds, kMaxLoopSeconds, maxSeconds);
-    capacity = (int) (seconds * sr);
+    const int newCapacity = (int) (seconds * newSampleRate);
+    const bool preserveTake = (sr == newSampleRate && capacity == newCapacity && capacity > 0);
+    const int preservedLoopLength = preserveTake ? loopLength.load (std::memory_order_relaxed) : 0;
+
+    sr = newSampleRate;
+    capacity = newCapacity;
 
     for (auto& layer : layers)
     {
-        layer.prepare (capacity);
+        if (! preserveTake)
+            layer.prepare (capacity);
+
         layer.prepareFilters (sr);
     }
 
     reset();
+    if (preserveTake)
+        loopLength.store (preservedLoopLength, std::memory_order_relaxed);
 }
 
 void Looper::reset() noexcept
