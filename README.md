@@ -8,6 +8,36 @@ samples in it.
 The full front page, with the content counts, architecture, DSP rules and the
 deliberate deviations from the brief, is [spec/README.md](spec/README.md).
 
+## Feature screenshots
+
+These images are rendered from the actual Luthier Pro JUCE editor after the alpha build verification. They are not concept mockups.
+
+### Easy mode: instrument and macro controls
+
+![Luthier Pro Easy mode](docs/screenshots/easy_1200x720.png)
+
+### Guitar Workshop
+
+![Luthier Pro Workshop](docs/screenshots/advanced_1600x900_workshop.png)
+
+### Modulation matrix
+
+![Luthier Pro modulation](docs/screenshots/advanced_1600x900_mod.png)
+
+### Rhythm tools
+
+![Luthier Pro Rhythm](docs/screenshots/advanced_1600x900_rhythm.png)
+
+### Tune arrangement
+
+![Luthier Pro Tune](docs/screenshots/advanced_1600x900_tune.png)
+
+### Playing techniques
+
+![Luthier Pro Techniques](docs/screenshots/advanced_1600x900_techniques.png)
+
+See the [user manual](docs/USER_MANUAL.md) for more features and controls.
+
 ## Build
 
 Requirements: CMake 3.22+, a C++17 compiler (MSVC 2022, Xcode 14, GCC 11 or
