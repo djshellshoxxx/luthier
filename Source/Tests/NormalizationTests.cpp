@@ -1774,14 +1774,20 @@ LUTHIER_TEST (Normalization, ON26_RolesAndHash)
 
 LUTHIER_TEST (Normalization, ON27_Cache)
 {
-    // Every factory preset on its own guitar is a factory-table hit (the real
-    // table in Resources).
+    // The shipped Pro factory table only describes Pro DSP. Free must not
+    // borrow its calibration measurements when a gated guitar/amp is replaced.
     {
         NormalizationCalibrator::setFactoryTableFileForTesting ({});
         NormalizationCalibrator::reloadFactoryTable();
+        if constexpr (! luthier::edition::isPro)
+        {
+            CHECK_MSG (NormalizationCalibrator::getNumFactoryEntries() == 0,
+                       "Free reused the Pro-only factory normalization table");
+        }
         int hits = 0;
         int byName = 0;
 
+        if constexpr (luthier::edition::isPro)
         for (int i = 0; i < numFactoryPresets(); ++i)
         {
             auto p = makeProcessor();
@@ -2067,7 +2073,20 @@ LUTHIER_TEST (Normalization, ON32_EditionIsPartOfTheHash)
 
     NormalizationCalibrator::setFactoryTableFileForTesting ({});
     const auto json = juce::JSON::parse (NormalizationCalibrator::getFactoryTableFile());
-    CHECK (json.getProperty ("edition", {}).toString() == NormalizationCalibrator::getEditionName());
+    const auto shippedEdition = json.getProperty ("edition", {}).toString();
+    // Factory data belongs to Pro ("standard"). Free gets a distinct key
+    // and calibrates its actual substituted sound instead of reusing Pro LUFS.
+    CHECK (NormalizationCalibrator::getEditionName() ==
+           (luthier::edition::isPro ? "standard" : "free"));
+    CHECK (shippedEdition == "standard");
+    if constexpr (luthier::edition::isPro)
+        CHECK (shippedEdition == NormalizationCalibrator::getEditionName());
+    else
+    {
+        CHECK (shippedEdition != NormalizationCalibrator::getEditionName());
+        NormalizationCalibrator::reloadFactoryTable();
+        CHECK (NormalizationCalibrator::getNumFactoryEntries() == 0);
+    }
     CHECK ((int) json.getProperty ("revision", 0) == NormalizationCalibrator::kCalibrationRevision);
 }
 
