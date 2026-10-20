@@ -1619,6 +1619,58 @@ LUTHIER_TEST (Normalization, ON25_NoRecursion)
     CHECK (offline->getOutputNormalization().getCalibrator() == nullptr);
 }
 
+LUTHIER_TEST (Normalization, ON03_ExplicitCalibrationTransactionIgnoresLoadDelay)
+{
+    for (const auto& combo : std::vector<Combo> { { 68, 21 }, { 30, 5 } })
+    {
+        auto fast = makeProcessor();
+        CHECK (loadCombo (*fast, combo.preset, combo.guitarType));
+        fast->getOutputNormalization().refreshStructuralSnapshot();
+        const auto fastState = fast->getOutputNormalization().captureSoundState();
+        const auto fastKey = NormalizationCalibrator::canonicalSoundState (fastState, *fast);
+
+        auto delayed = makeProcessor();
+        ParameterBridge::ScopedHostWriteTransaction transaction (delayed->getParameterBridge());
+        CHECK (loadCombo (*delayed, combo.preset, -1));
+        juce::Thread::sleep (350);
+        CHECK (setPlain (*delayed, ParamIDs::guitarType, (float) combo.guitarType));
+        delayed->getParameterBridge().applyAllNow();
+        delayed->getOutputNormalization().refreshStructuralSnapshot();
+        const auto delayedState = delayed->getOutputNormalization().captureSoundState();
+        const auto delayedKey = NormalizationCalibrator::canonicalSoundState (delayedState, *delayed);
+
+        CHECK_MSG (fastKey == delayedKey, combo.key() + " calibration state depends on time before guitar switch");
+    }
+}
+
+LUTHIER_TEST (Normalization, ON26_HostWriteTransactionScopesWrites)
+{
+    auto p = makeProcessor();
+    auto& bridge = p->getParameterBridge();
+    CHECK (setPlain (*p, ParamIDs::ampGain, 0.2f));
+
+    {
+        ParameterBridge::ScopedHostWriteTransaction outer (bridge);
+        CHECK (! bridge.writtenSinceGuitarType (ParamIDs::ampGain));
+        CHECK (setPlain (*p, ParamIDs::ampGain, 0.3f));
+        CHECK (bridge.writtenSinceGuitarType (ParamIDs::ampGain));
+
+        {
+            ParameterBridge::ScopedHostWriteTransaction inner (bridge);
+            CHECK (bridge.writtenSinceGuitarType (ParamIDs::ampGain));
+            bridge.setStampingWrites (false);
+            CHECK (setPlain (*p, ParamIDs::ampBass, 0.4f));
+            bridge.setStampingWrites (true);
+            CHECK (! bridge.writtenSinceGuitarType (ParamIDs::ampBass));
+        }
+
+        CHECK (bridge.writtenSinceGuitarType (ParamIDs::ampGain));
+    }
+
+    ParameterBridge::ScopedHostWriteTransaction next (bridge);
+    CHECK (! bridge.writtenSinceGuitarType (ParamIDs::ampGain));
+}
+
 LUTHIER_TEST (Normalization, ON26_RolesAndHash)
 {
     auto p = makeProcessor();

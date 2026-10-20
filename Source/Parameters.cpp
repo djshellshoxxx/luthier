@@ -1133,12 +1133,16 @@ ParameterBridge::~ParameterBridge()
 
 void ParameterBridge::parameterValueChanged (int parameterIndex, float)
 {
-    ++writeSerial;
+    const auto serial = ++writeSerial;
 
-    // When, for writtenSinceGuitarType(). Never 0, which means "never written".
+    // Internal guitar defaults disable stamping: they must not become host
+    // overrides in either the timed policy or an explicit transaction.
     if (juce::isPositiveAndBelow (parameterIndex, numLastWrite) && stampingWrites.load (std::memory_order_relaxed))
+    {
         lastWrite[(size_t) parameterIndex].store (juce::jmax ((juce::uint32) 1, juce::Time::getMillisecondCounter()),
                                                   std::memory_order_relaxed);
+        lastHostWriteSerial[(size_t) parameterIndex].store (serial, std::memory_order_relaxed);
+    }
 
     // A type the player picked in the UI arrives inside a gesture (the
     // attachments wrap every edit in one); a host, a session, a preset or a
@@ -1159,7 +1163,6 @@ void ParameterBridge::parameterValueChanged (int parameterIndex, float)
 
     const int which = code % 16;
     const int chain = (code / 16) / EffectsChain::kNumSlots, slot = (code / 16) % EffectsChain::kNumSlots;
-    const auto serial = writeSerial.load (std::memory_order_relaxed);
 
     if (which == 15)
     {
@@ -1176,12 +1179,30 @@ void ParameterBridge::parameterGestureChanged (int parameterIndex, bool starting
         inGesture[(size_t) parameterIndex].store (starting, std::memory_order_relaxed);
 }
 
+ParameterBridge::ScopedHostWriteTransaction::ScopedHostWriteTransaction (ParameterBridge& b) noexcept
+    : bridge (b)
+{
+    if (bridge.hostWriteTransactionDepth++ == 0)
+        bridge.hostWriteTransactionEpoch = bridge.writeSerial.load (std::memory_order_relaxed);
+}
+
+ParameterBridge::ScopedHostWriteTransaction::~ScopedHostWriteTransaction() noexcept
+{
+    --bridge.hostWriteTransactionDepth;
+}
+
 bool ParameterBridge::writtenSinceGuitarType (const juce::String& id) const noexcept
 {
     const int index = parameterIndex (id);
 
     if (! juce::isPositiveAndBelow (index, numLastWrite) || ! juce::isPositiveAndBelow (guitarTypeIndex, numLastWrite))
         return false;
+
+    if (hostWriteTransactionDepth > 0)
+    {
+        const auto written = lastHostWriteSerial[(size_t) index].load (std::memory_order_relaxed);
+        return (juce::int32) (written - hostWriteTransactionEpoch) > 0;
+    }
 
     /*  Written with the type (a session restore, a flush of automation, a
         snapshot - all land within a few ms, in any order) or after it: the
@@ -1287,10 +1308,12 @@ void ParameterBridge::cachePointers()
     // Every parameter reports its writes, for writtenSinceGuitarType().
     numLastWrite = parameters.size();
     lastWrite.reset (new std::atomic<juce::uint32>[(size_t) numLastWrite]);
+    lastHostWriteSerial.reset (new std::atomic<juce::uint32>[(size_t) numLastWrite]);
     inGesture.reset (new std::atomic<bool>[(size_t) numLastWrite]);
     for (int i = 0; i < numLastWrite; ++i)
     {
         lastWrite[(size_t) i].store (0, std::memory_order_relaxed);
+        lastHostWriteSerial[(size_t) i].store (0, std::memory_order_relaxed);
         inGesture[(size_t) i].store (false, std::memory_order_relaxed);
         parameters[i]->addListener (this);
         watched.add (parameters[i]);
