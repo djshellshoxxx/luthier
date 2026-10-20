@@ -1633,7 +1633,15 @@ LUTHIER_TEST (Normalization, ON03_ExplicitCalibrationTransactionIgnoresLoadDelay
         ParameterBridge::ScopedHostWriteTransaction transaction (delayed->getParameterBridge());
         CHECK (loadCombo (*delayed, combo.preset, -1));
         juce::Thread::sleep (350);
-        CHECK (setPlain (*delayed, ParamIDs::guitarType, (float) combo.guitarType));
+        // Match loadCombo's explicit player-selection gesture. A plain
+        // setValueNotifyingHost is a host restore with different precedence.
+        auto* guitarParam = delayed->getState().getParameter (ParamIDs::guitarType);
+        CHECK (guitarParam != nullptr);
+        if (guitarParam == nullptr)
+            continue;
+        guitarParam->beginChangeGesture();
+        guitarParam->setValueNotifyingHost (guitarParam->convertTo0to1 ((float) combo.guitarType));
+        guitarParam->endChangeGesture();
         delayed->getParameterBridge().applyAllNow();
         delayed->getOutputNormalization().refreshStructuralSnapshot();
         const auto delayedState = delayed->getOutputNormalization().captureSoundState();
