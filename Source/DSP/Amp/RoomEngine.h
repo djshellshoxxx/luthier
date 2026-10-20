@@ -101,6 +101,12 @@ public:
 
     static constexpr int kNumTaps = 16;
 
+    /** Delay of an early-reflection tap in samples, after room geometry is applied. */
+    int getEarlyReflectionTapDelaySamples (int tap) const noexcept
+    {
+        return tapDelays[juce::jlimit (0, kNumTaps - 1, tap)];
+    }
+
     /*  cpu-quality-modes 2.1: run only the `count` loudest early-reflection
         taps, energy-compensated so the room's level holds; the FDN tail is
         untouched. Dropped taps ramp to 0 over 20 ms (unless `hard`). */
