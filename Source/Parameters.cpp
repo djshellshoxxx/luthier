@@ -1198,26 +1198,32 @@ bool ParameterBridge::writtenSinceGuitarType (const juce::String& id) const noex
     if (! juce::isPositiveAndBelow (index, numLastWrite) || ! juce::isPositiveAndBelow (guitarTypeIndex, numLastWrite))
         return false;
 
+    // A player gesture is a deliberate instrument switch, even when a preset
+    // restore is still inside a host-write transaction. Earlier preset writes
+    // belong to the previous instrument and must never override the new one's
+    // parts or string count. Serial order is stable across slow preset loads.
+    if (guitarTypeByPlayer.load (std::memory_order_relaxed))
+    {
+        const auto writtenSerial = lastHostWriteSerial[(size_t) index].load (std::memory_order_relaxed);
+        const auto guitarSerial = lastHostWriteSerial[(size_t) guitarTypeIndex].load (std::memory_order_relaxed);
+        return guitarSerial != 0 && (juce::int32) (writtenSerial - guitarSerial) > 0;
+    }
+
     if (hostWriteTransactionDepth > 0)
     {
         const auto written = lastHostWriteSerial[(size_t) index].load (std::memory_order_relaxed);
         return (juce::int32) (written - hostWriteTransactionEpoch) > 0;
     }
 
-    /*  Written with the type (a session restore, a flush of automation, a
-        snapshot - all land within a few ms, in any order) or after it: the
-        host's value. A value set well before the type changed is the old
-        guitar's, and the new guitar replaces it. */
+    /*  A host session restore may write related parameters just before the
+        guitar type; in that case retain writes made within the same 250 ms
+        batch. Writes older than that belong to the previous instrument. */
     constexpr juce::uint32 togetherMs = 250;
     const auto written = lastWrite[(size_t) index].load (std::memory_order_relaxed);
     const auto type = lastWrite[(size_t) guitarTypeIndex].load (std::memory_order_relaxed);
 
     if (written == 0 || type == 0)
         return false;
-
-    // The player picked the guitar: only what they have touched since is theirs.
-    if (guitarTypeByPlayer.load (std::memory_order_relaxed))
-        return (int) (written - type) > 0;
 
     return (int) (written - type) > - (int) togetherMs;
 }
