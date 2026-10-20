@@ -3086,3 +3086,15 @@ the Conflicts section cites it.
 | `spec/GAPS.md` | Gap audit (2026-09-18, partly stale) | none (`n/a`) | Self-described as least trustworthy about what exists; rows re-checked against code |
 | `spec/PROGRESS.md` | Build log | none (`n/a`) | 413 tests green at `753fb05` (448 at `0d225f0`); pluginval 2026-09-19 at `f18bf22` |
 | `spec/REVIEW.md` | Review of the four base specs | none (`n/a`) | Its five ambiguities are resolved by `ambiguity-resolutions.md` |
+
+## Pro v0.1 normalization stabilization (2026-10-18)
+
+Current focused release work is tracked in `coverage/PRO-V01-RELEASE.md`; the historical coverage totals above are not current native release evidence.
+
+| ID | Source | Implementation | Verification | Status |
+| --- | --- | --- | --- | --- |
+| ON-GEN-01 | output-normalization.md 4.4 | RenderCli main redirects to an empty temporary table before generation | Existing CLI isolation inspected; no additional reset needed | inspected |
+| ON-GEN-02 | output-normalization.md 4.4; cli-tools.md 5 | RenderCli calibration output | Failed generation preserves existing destination | pending |
+| ON-HASH-META | output-normalization.md 3.3 | Canonical sound state excludes nested preset meta | CalibrationHashIgnoresPresetMetadata RED on revision 2, GREEN on revision 3; native focused 5 tests/233 checks | verified |
+| ON-GUITAR-SELECT | factory-content.md 0.5; state-model.md 2 | Normalization fixture and CLI use explicit selection gestures | FactoryGuitarOverrideUsesSelectedInstrument RED: 3 wrong string counts; GREEN 12 checks; existing host/player tests GREEN 5 checks | verified |
+| ON-GEN-03 | output-normalization.md 3.3, 4.4, 15 | Factory preset x guitar canonical coverage | Native ON03 exact membership and clean full-grid generation; own-guitar duplicates counted | pending |

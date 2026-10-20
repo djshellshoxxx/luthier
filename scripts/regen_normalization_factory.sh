@@ -23,5 +23,10 @@ else
   echo "LuthierRender binary not found under build/LuthierRender_artefacts/." >&2
   exit 1
 fi
-"$render" --calibrate-factory "$out"
+# A failed or interrupted render must not replace the accepted reference table.
+# Keep the temporary output beside it so successful publication is one rename.
+temporary="$(mktemp "${out}.tmp.XXXXXX")"
+trap 'rm -f "$temporary"' EXIT
+"$render" --calibrate-factory "$temporary"
+mv -f "$temporary" "$out"
 echo "Now check: git diff --stat Resources/NormalizationFactory.json"

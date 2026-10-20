@@ -1307,7 +1307,12 @@ int calibrateFactory (const juce::File& out)
             if (g >= 0)
                 if (auto* prm = p->getState().getParameter (ParamIDs::guitarType))
                 {
+                    // Select the instrument as the header does. A host-style
+                    // write can keep the preceding preset's parts/tuning for
+                    // 250 ms, so calibration would depend on machine speed.
+                    prm->beginChangeGesture();
                     prm->setValueNotifyingHost (prm->convertTo0to1 ((float) g));
+                    prm->endChangeGesture();
                     p->getParameterBridge().applyAllNow();
                 }
 
@@ -1346,6 +1351,17 @@ int calibrateFactory (const juce::File& out)
             if (++done % 25 == 0)
                 std::cout << "calibrated " << done << " / " << presets * (types + 1) << std::endl;
         }
+    }
+
+    const int expected = presets * (types + 1);
+    const int unique = NormalizationCalibrator::getNumFactoryEntries();
+    std::cout << "factory coverage: successful=" << done << " expected=" << expected
+              << " unique=" << unique << " duplicates=" << done - unique
+              << " failed=" << failed << std::endl;
+    if (failed != 0 || done != expected || unique <= 0 || unique > done)
+    {
+        std::cerr << "incomplete factory calibration; destination left unchanged" << std::endl;
+        return 2;
     }
 
     if (! NormalizationCalibrator::writeFactoryTable (out))

@@ -147,11 +147,26 @@ sound the user is now editing.
 - size and mtime of every referenced user IR;
 - the edition (`Edition.h`), and `kCalibrationRevision` (starts at 1).
 
+Preset identity metadata is excluded at both the legacy top level and the
+nested `preset.meta` object: names, authors, categories, descriptions, notes,
+tags, timestamps and creator/modifier versions do not affect the sound.
+Calibration revision **3** removes the nested metadata that revision 2
+incorrectly hashed. Revision-2 factory/disk entries are invalidated and the
+factory table is regenerated with real measurements; stored gains are
+revalidated through the existing revision/hash checks. No SHA-256 algorithm
+or sound-parameter quantization changes.
+
+Explicit factory-grid guitar overrides model a user instrument selection
+through a parameter change gesture, rather than a host restoration batch.
+This prevents recently loaded preset values from being retained by the
+host's 250 ms co-write window. Own-guitar combinations retain their recipe.
+
 The render uses the *quantised* values, so the gain is a pure function of
 the hash. That is what makes caching deterministic (4.6).
-`kCalibrationRevision` is bumped only when the phrase, the meter or the
-engine's level moves (the ON-03 CI gate catches drift beyond 0.5 LU). An
-ordinary update keeps stored project gains.
+`kCalibrationRevision` is bumped when the phrase, meter, engine level or
+canonical cache-key contract changes (the ON-03 CI gate catches level
+drift). An ordinary update with an unchanged sound/key contract keeps
+stored project gains.
 
 ## 4. Engine and processing design
 

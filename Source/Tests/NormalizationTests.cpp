@@ -332,10 +332,25 @@ LUTHIER_TEST (Normalization, ON03_FactoryTableDoesNotDrift)
     NormalizationCalibrator::reloadFactoryTable();
     NormalizationCalibrator::clearMemoryCache();
 
-    for (const auto& c : sampleCombos (4, 27))
+    // std::shuffle is not specified bit-for-bit across standard libraries:
+    // libc++ previously exercised different states from libstdc++/MSVC. Keep
+    // the macOS failure cases on every Pro platform so passing Linux CI also
+    // validates these exact calibration inputs. Free retains its gated grid.
+    const auto combinations = slowTestsEnabled() || ! luthier::edition::isPro
+                                ? sampleCombos (4, 27)
+                                : std::vector<Combo> { { 41, 18 }, { 68, 21 }, { 21, 20 }, { 30, 5 } };
+
+    for (const auto& c : combinations)
     {
         auto p = makeProcessor();
-        loadCombo (*p, c.preset, c.guitarType);
+        // An unsuccessful preset load leaves the processor's previous/default
+        // state in place. Its hash is not evidence that the factory table drifted.
+        // Report the actual load failure at the source instead of conflating it
+        // with a missing cache entry on a different operating system.
+        const bool comboLoaded = loadCombo (*p, c.preset, c.guitarType);
+        CHECK_MSG (comboLoaded, c.key() + " factory preset failed to load");
+        if (! comboLoaded)
+            continue;
         auto& n = p->getOutputNormalization();
         n.refreshStructuralSnapshot();
         const auto state = n.captureSoundState();
@@ -343,6 +358,13 @@ LUTHIER_TEST (Normalization, ON03_FactoryTableDoesNotDrift)
 
         NormalizationCalibrator::Measurement table;
         const bool hit = NormalizationCalibrator::lookupCached (hash, table) && table.source == NormalizationCalibrator::Source::factory;
+
+        // A failed lookup needs the complete cache input, not just its opaque
+        // hash. Opt in on a passing platform to compare the same inputs without
+        // weakening either the factory membership or loudness drift gate.
+        if (! hit || juce::SystemStats::getEnvironmentVariable ("LUTHIER_NORMALIZATION_TRACE_KEYS", {}).getIntValue() > 0)
+            std::cout << "    " << c.key() << " calibration hash " << hash << " canonical "
+                      << NormalizationCalibrator::canonicalSoundState (state, *p) << std::endl;
 
         // NormalizationFactory.json is generated for the Pro catalogue. A Free
         // binary plays a substitute for any Pro-only amp/pedal a preset carries
@@ -2034,4 +2056,58 @@ LUTHIER_TEST (Normalization, ON33_Performance)
     std::cout << "    calibration render: " << ms << " ms" << std::endl;
     CHECK (m.ok);
     CHECK (ms <= 1500.0 * 2.0);   // the spec's 1.5 s is for the CI reference machine; this one is shared
+}
+
+LUTHIER_TEST (Normalization, FactoryGuitarOverrideUsesSelectedInstrument)
+{
+    // These are explicit instrument selections after a preset load, as in the
+    // factory calibration grid. Recent writes from the previous preset must
+    // not be mistaken for host automation accompanying the new guitar.
+    struct Case { int preset, guitar, strings; };
+    for (const auto c : { Case { 21, (int) GuitarType::JazzBass, 4 },
+                          Case { 30, (int) GuitarType::Jazzmaster, 6 },
+                          Case { 41, (int) GuitarType::Resonator, 6 },
+                          Case { 68, (int) GuitarType::Rickenbacker, 4 } })
+    {
+        if (! editionHasGuitar (c.guitar))
+            continue;
+        auto p = makeProcessor();
+        CHECK (loadCombo (*p, c.preset, c.guitar));
+        CHECK_MSG ((int) p->getEngine().getGuitarType() == c.guitar,
+                   "the requested factory guitar type must be selected");
+        CHECK_MSG (p->getEngine().getNumStrings() == c.strings,
+                   "preset " + juce::String (c.preset) + " on guitar " + juce::String (c.guitar)
+                   + " retained " + juce::String (p->getEngine().getNumStrings())
+                   + " strings instead of " + juce::String (c.strings));
+    }
+}
+
+LUTHIER_TEST (Normalization, CalibrationHashIgnoresPresetMetadata)
+{
+    auto p = makeProcessor();
+    CHECK (loadCombo (*p, 2, -1));
+    auto& n = p->getOutputNormalization();
+    n.refreshStructuralSnapshot();
+    const auto base = n.captureSoundState();
+    const auto original = NormalizationCalibrator::hashSoundState (base, *p);
+    auto renamed = base;
+    renamed.structural = base.structural.clone();
+    auto* preset = renamed.structural.getProperty ("preset", {}).getDynamicObject();
+    CHECK (preset != nullptr);
+    if (preset == nullptr)
+        return;
+    auto* meta = new juce::DynamicObject();
+    meta->setProperty ("name", "Renamed sound");
+    meta->setProperty ("author", "Another author");
+    meta->setProperty ("category", "User");
+    meta->setProperty ("description", "Only descriptive metadata changed");
+    meta->setProperty ("notes", "An edited note");
+    meta->setProperty ("created", "2026-10-18");
+    meta->setProperty ("modified", "2026-10-19");
+    meta->setProperty ("version_created", "1.0.0");
+    meta->setProperty ("version_modified", "2.0.0");
+    meta->setProperty ("tags", juce::Array<juce::var> { "renamed" });
+    preset->setProperty ("meta", juce::var (meta));
+    CHECK_MSG (NormalizationCalibrator::hashSoundState (renamed, *p) == original,
+               "preset identity/version metadata must not invalidate a sound calibration");
 }

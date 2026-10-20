@@ -76,8 +76,10 @@ public:
         when the canonical key's contents change. Revision 2 (ON-27): the
         toolchain-derived character aging maps (fretWear, deadSpots) are no
         longer hashed - they are a per-CPU function of the retained seed, so
-        they made the factory table machine-dependent. */
-    static constexpr int kCalibrationRevision = 2;
+        they made the factory table machine-dependent. Revision 3 excludes
+        nested preset metadata (identity/timestamps/software versions), which
+        previously invalidated keys without any change to the sound. */
+    static constexpr int kCalibrationRevision = 3;
 
     /** 4.3: a render is abandoned after this much wall time. */
     static constexpr double kRenderTimeoutSeconds = 10.0;

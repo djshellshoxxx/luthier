@@ -1,10 +1,22 @@
 # Changelog
 
-## Unreleased
+## 0.1.0-beta (release preparation)
 
-The eleven extension specs in `INDEX.md`, built on top of 1.0.0. The version in
-`CMakeLists.txt` is still 1.0.0: this is recorded as unreleased rather than
-numbered, because what it should be called is a release decision.
+Public tag: `v0.1-beta`. The numeric plug-in version is 0.1.0; beta builds include
+the source SHA in diagnostics. This supersedes the development version label
+1.0.0 without replacing its existing draft release or assets. Publication remains
+blocked until the verification recorded in `docs/coverage/PRO-V01-RELEASE.md` passes.
+
+- Prepare Windows x64, macOS universal and Linux x64 Pro archives with verified
+  executable architectures, factory content, source provenance and SHA-256 checksums.
+- Make streamed backing-track tests wait for real input readiness.
+- Account for fixed string-state redraws in Low quality without allowing animation.
+- Exercise the same factory-normalization regression combinations across platforms.
+
+## Earlier unreleased implementation
+
+The eleven extension specs in `INDEX.md` and the subsequent features below were
+implemented under the development version label 1.0.0.
 
 ### Added
 
