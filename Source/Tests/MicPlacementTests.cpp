@@ -1248,7 +1248,7 @@ LUTHIER_TEST (MicPlacement, closeMicsBleedTheRoomWhenBackedOff)
 }
 
 //==============================================================================
-// MP-19: the Cathedral's late early-reflections remain separated from the FDN tail.
+// Regression: the Cathedral's late early-reflections remain separated from the FDN tail.
 LUTHIER_TEST (MicPlacement, cathedralKeepsLateEarlyReflections)
 {
     const auto lateWetEnergy = [] (int taps)
@@ -1287,7 +1287,7 @@ LUTHIER_TEST (MicPlacement, cathedralKeepsLateEarlyReflections)
                "the Cathedral's late geometric reflections were clamped into the same early ring buffer");
 }
 
-// MP-20
+// MP-19
 LUTHIER_TEST (MicPlacement, speakersVaryALittleAndDeterministically)
 {
     const auto evalOn = [] (CabinetType cab, int speaker)
