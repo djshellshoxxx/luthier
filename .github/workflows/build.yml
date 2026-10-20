@@ -204,6 +204,9 @@ jobs:
         if: runner.os != 'Windows'
         env:
           LUTHIER_LTO: ${{ env.LTO }}
+          # Universal macOS builds compile each source for two architectures.
+          # Bound concurrent compiler processes to reduce runner memory pressure.
+          JOBS: ${{ '4' }}
         run: scripts/ci_build.sh configure build
       - name: Configure and build (Windows)
         id: build_windows
