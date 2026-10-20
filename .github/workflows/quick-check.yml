@@ -1,0 +1,88 @@
+# Fast, non-release verification. Full build.yml remains the release gate.
+name: quick-check
+
+on:
+  pull_request:
+    paths:
+      - 'Source/**'
+      - 'Tests/**'
+      - 'CMakeLists.txt'
+      - 'cmake/**'
+      - 'scripts/**'
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quick-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused-linux:
+    name: Focused Linux preflight (Pro)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      BUILD_DIR: build-quick
+      CONFIG: Release
+      LUTHIER_EDITION: PAID
+      LUTHIER_LTO: OFF
+      JOBS: '4'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check shell and Python syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/ci_build.sh scripts/package_macos.sh
+          python3 -m compileall -q scripts
+      - name: Linux build prerequisites
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends \
+            libasound2-dev libjack-jackd2-dev libxrandr-dev libxcursor-dev libxinerama-dev \
+            libxcomposite-dev libfontconfig1-dev libfreetype-dev libcurl4-openssl-dev \
+            libgl1-mesa-dev xvfb clang lld ninja-build dpkg-dev
+      - name: Compiler cache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          variant: ccache
+          key: quick-linux-pro
+          max-size: 2G
+      - name: Cache pinned third-party source
+        uses: actions/cache@v4
+        with:
+          path: |
+            ThirdParty/JUCE
+            ThirdParty/clap-juce-extensions
+          key: thirdparty-Linux-${{ hashFiles('scripts/ci_build.sh', 'scripts/ci_build.ps1') }}
+      - name: Fetch pinned dependencies
+        run: scripts/ci_build.sh deps
+      - name: Configure without LTO
+        run: scripts/ci_build.sh configure
+      - name: Compile focused test runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake --build "$BUILD_DIR" --config "$CONFIG" --parallel "$JOBS" --target LuthierTests -- -k 0
+      - name: Run release blocker smoke tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$BUILD_DIR/logs"
+          runner="$BUILD_DIR/LuthierTests_artefacts/$CONFIG/LuthierTests"
+          test -x "$runner"
+          xvfb-run -a "$runner" FactoryGuitarOverrideUsesSelectedInstrument CalibrationHashIgnoresPresetMetadata ON03_FactoryTableDoesNotDrift CQ23_ PracticeTrack \
+            2>&1 | tee "$BUILD_DIR/logs/focused-regressions.log"
+      - name: Upload diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quick-check-linux-diagnostics
+          path: |
+            build-quick/logs/
+            build-quick/CMakeFiles/CMakeConfigureLog.yaml
+          if-no-files-found: ignore
+          retention-days: 7
