@@ -220,8 +220,13 @@ jobs:
           LUTHIER_NORMALIZATION_TRACE_KEYS: '1'
         shell: bash
         run: |
-          set -o pipefail
+          set -euo pipefail
+          mkdir -p "$BUILD_DIR/logs"
           runner="$BUILD_DIR/LuthierTests_artefacts/$CONFIG/LuthierTests"
+          if [ ! -x "$runner" ]; then
+            echo "::error::Early regression test runner missing or not executable: $runner" >&2
+            exit 1
+          fi
           wrap=()
           if [ "$RUNNER_OS" = Linux ]; then wrap=(xvfb-run -a); fi
           "${wrap[@]}" "$runner" FactoryGuitarOverrideUsesSelectedInstrument CalibrationHashIgnoresPresetMetadata ON03_FactoryTableDoesNotDrift CQ23_ PracticeTrack \
