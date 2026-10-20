@@ -232,7 +232,7 @@ jobs:
           fi
           wrap=()
           if [ "$RUNNER_OS" = Linux ]; then wrap=(xvfb-run -a); fi
-          "${wrap[@]}" "$runner" FactoryGuitarOverrideUsesSelectedInstrument CalibrationHashIgnoresPresetMetadata ON03_FactoryTableDoesNotDrift CQ23_ PracticeTrack \
+          ${wrap[@]+"${wrap[@]}"} "$runner" FactoryGuitarOverrideUsesSelectedInstrument CalibrationHashIgnoresPresetMetadata ON03_FactoryTableDoesNotDrift CQ23_ PracticeTrack \
             2>&1 | tee "$BUILD_DIR/logs/release-regressions.log"
 
       - name: Early release regression tests (Windows Pro)
