@@ -41,6 +41,13 @@ STAGE="$DIST_DIR/macos"
 OUT="$DIST_DIR/installers"
 VERSION="${VERSION:-$(sed -nE 's/^project\(Luthier VERSION ([0-9.]+).*/\1/p' CMakeLists.txt | tr -d '\r')}"
 
+# Installer component versions must be numeric even for a beta release.
+PACKAGE_VERSION="${VERSION%%-*}"
+if ! [[ "$PACKAGE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "package_macos.sh: invalid numeric installer version from $VERSION" >&2
+    exit 1
+fi
+
 [ -e "$STAGE/$PRODUCT_NAME.vst3" ] || {
     echo "Nothing staged in $STAGE for $PRODUCT_NAME: run LUTHIER_EDITION=$LUTHIER_EDITION scripts/ci_build.sh stage first" >&2
     exit 1
@@ -117,7 +124,7 @@ sign "$work/payload/app/Applications/$PRODUCT_NAME.app" packaging/macos/entitlem
 
 #------------------------------------------------------------------ component pkgs
 comp() { # comp <key> <identifier-suffix> [scripts-dir]
-    local args=(--root "$work/payload/$1" --identifier "$ID_PREFIX.$2" --version "$VERSION"
+    local args=(--root "$work/payload/$1" --identifier "$ID_PREFIX.$2" --version "$PACKAGE_VERSION"
                 --install-location / --ownership recommended)
     [ -n "${3:-}" ] && args+=(--scripts "$3")
     # Plug-in and app bundles must land where they are put, never "relocated"
@@ -143,7 +150,7 @@ clap_line="" clap_choice="" clap_ref=""
 if [ $HAVE_CLAP = 1 ]; then
     clap_line="<line choice=\"clap\"/>"
     clap_choice="<choice id=\"clap\" title=\"CLAP plug-in\" description=\"$PRODUCT_NAME.clap in /Library/Audio/Plug-Ins/CLAP\"><pkg-ref id=\"$ID_PREFIX.clap\"/></choice>"
-    clap_ref="<pkg-ref id=\"$ID_PREFIX.clap\" version=\"$VERSION\" onConclusion=\"none\">clap.pkg</pkg-ref>"
+    clap_ref="<pkg-ref id=\"$ID_PREFIX.clap\" version=\"$PACKAGE_VERSION\" onConclusion=\"none\">clap.pkg</pkg-ref>"
 fi
 mkdir -p "$work/resources"
 cp packaging/common/EULA.txt "$work/resources/License.txt"
@@ -193,11 +200,11 @@ cat > "$work/distribution.xml" <<EOF
     $clap_choice
     <choice id="app" title="Standalone application" description="$PRODUCT_NAME.app in /Applications, and the uninstaller"><pkg-ref id="$ID_PREFIX.app"/></choice>
     <choice id="content" title="Factory content" description="Impulse responses, guitars, parts, presets and tunes (needed by every format)" enabled="false" selected="true"><pkg-ref id="$ID_PREFIX.content"/></choice>
-    <pkg-ref id="$ID_PREFIX.au" version="$VERSION" onConclusion="none">au.pkg</pkg-ref>
-    <pkg-ref id="$ID_PREFIX.vst3" version="$VERSION" onConclusion="none">vst3.pkg</pkg-ref>
+    <pkg-ref id="$ID_PREFIX.au" version="$PACKAGE_VERSION" onConclusion="none">au.pkg</pkg-ref>
+    <pkg-ref id="$ID_PREFIX.vst3" version="$PACKAGE_VERSION" onConclusion="none">vst3.pkg</pkg-ref>
     $clap_ref
-    <pkg-ref id="$ID_PREFIX.app" version="$VERSION" onConclusion="none">app.pkg</pkg-ref>
-    <pkg-ref id="$ID_PREFIX.content" version="$VERSION" onConclusion="none">content.pkg</pkg-ref>
+    <pkg-ref id="$ID_PREFIX.app" version="$PACKAGE_VERSION" onConclusion="none">app.pkg</pkg-ref>
+    <pkg-ref id="$ID_PREFIX.content" version="$PACKAGE_VERSION" onConclusion="none">content.pkg</pkg-ref>
 </installer-gui-script>
 EOF
 
