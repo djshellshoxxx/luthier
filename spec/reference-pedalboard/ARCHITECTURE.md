@@ -2,6 +2,8 @@
 
 Version 0.1 | 2026-10-14 | Status: SPEC — NOT IMPLEMENTED
 
+> **SUPERSEDED IN PART (2026-10-21):** the dev-ready contracts are `specs/BOARD_CORE.md`, `specs/MIDI_EXPRESSION.md`, `specs/UI_BOARD_STYLES.md`, `specs/GENERIC_PEDALS.md`, `specs/pedals/*.md`, sequenced by `specs/IMPLEMENTATION_PLAN.md`. This file stays binding ONLY for compatibility/legal/validation gates. Replaced here: the `ReferencePedalProcessor`/`setControlSnapshot` interface (now `IPedal`, BOARD_CORE sec 11), the `Source/UI/ReferencePedals/` slide-out drawer as primary UI (now pop-out `BoardWindow` + docked strip), the 8-slot limit (now 16).
+
 ## Non-negotiable compatibility
 - Existing `Source/DSP/Effects/EffectsChain.*`, `Source/UI/PedalRack.*`, `PedalType` stored IDs and current pre/post racks remain intact. No rename, slot reordering, change in default effect sound, or serialized parameter index changes.
 - Implement as an **additional, optional, separately versioned** component `Source/ReferencePedals/` and `Source/UI/ReferencePedals/` with isolated model catalog. Default disabled, no resource allocation on the RT callback. Do not put brand models in the existing generic `PedalType` switch.
