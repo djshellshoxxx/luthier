@@ -8,9 +8,9 @@
 > - Host lanes `ref_s{nn}_p01..` in this order: `boss_sd1_drive`, `boss_sd1_tone`, `boss_sd1_level`, `boss_sd1_diode_set`, `boss_sd1_lowcut_hz`, `boss_sd1_buffer_colour`.
 > - CC numbers in this spec are the pedal-LOCAL profile (MIDI_EXPRESSION 9): never global, may overlap other pedals. Tempo = `TimeInfo` from `ClockSync`; board tempo param is `ref_board_tempo_bpm` (no per-pedal tempo param unless the hardware has one). Footprint in mm renders at 1.6 px/mm.
 
-Version 1.0 | 2026-10-21 | Status: SPEC. Pedal id: `boss_sd1` (model_id `boss-sd1`, per models/boss-sd1.md).
+Version 1.1 | 2026-10-21 | Status: SPEC (verification pass done, see sec 11). Pedal id: `boss_sd1` (model_id `boss-sd1`, per models/boss-sd1.md).
 Tags: [D]=DOCUMENTED (retailer spec copies of Boss spec sheet / Boss text), [M]=MEASURED (none available here), [E]=ESTIMATED (from memory of service schematic + community analyses; verify vs ref unit).
-Research caveat: web-fetch hosts (boss.info, electrosmash, hobby-hour, scribd, cdn.shopify manual) unreachable from sandbox (DNS fail). Only WebSearch snippets available. Every circuit value marked [E] MUST be reconciled against the service schematic before fidelity claim. Do not claim "authentic".
+Research caveat (retry 2026-10-21): WebFetch to every host tried (electrosmash, electricdruid, barbarach, hobby-hour, freestompboxes, cdn.shopify manual, modulargrid, wikipedia, web.archive.org) failed (DNS/ blocked). Only WebSearch snippets reachable; they quote secondary sources (retailer spec copies, forum posts, Barbarach/hobby-hour text). No schematic image values were readable. Tag [S]=secondary snippet (forum/analysis text, not primary). Every circuit value marked [E] MUST be reconciled against the service schematic before fidelity claim. Do not claim "authentic".
 Sources: 
 - Boss product page https://www.boss.info/global/products/sd-1/ (not fetched; snippet only)
 - Owner's manual PDF https://cdn.shopify.com/s/files/1/0523/4648/6935/files/Boss_SD-1_Super_Overdrive_Owner_s_Manual.pdf (not fetched)
@@ -22,28 +22,28 @@ Sources:
 ## 1 Identity / variants
 - Maker/series: Boss (Roland) compact pedal, overdrive. Introduced 1981 [D]. Evolved from OD-1 (same asymmetric clipping core) + added active TONE and more low-end body [D, Wikipedia/Mixdown].
 - Character [D]: asymmetrical clipping, even+odd harmonics; "tube-like" mid-forward OD; classic stacking-in-front-of-amp use.
-- Variants (catalogue `revision` field):
+- Variants (catalogue `revision` field; only `sd1-std` is modelled in v1, others are OMIT/unverified):
   - `sd1-std` (DEFAULT): current production SD-1. Electronic (buffered) bypass.
-  - `sd1-vintage` (1981-90s Japan, uPC4558C): [E] slightly lower noise floor character, same topology.
-  - `sd1w-waza` (SD-1W Waza Craft, 15 mA [D]): has CUSTOM mode (extra voicing) — out of scope v1; reserve param `sd1_mode` (STANDARD only; CUSTOM = v2, see §10).
-  - `sd1-4a`/mod diode set: user option `sd1_diode_set` (see §3.3).
+  - `sd1-vintage`: OMIT. No source shows a measurable difference (hobby-hour lists uPC4558C for the current board). Alias of `sd1-std`.
+  - `sd1w-waza` (SD-1W Waza Craft, 15 mA [D]): has CUSTOM mode. OMIT: circuit undocumented here (freestompboxes thread t=29267 not readable). Plugin does nothing for it; no `sd1_mode` param.
+  - Mod diode set is a user option `boss_sd1_diode_set` (sec 3.3), not a hardware variant.
 - Not variants: OD-1 (no TONE), OS-2, BD-2.
 - Naming: UI shows "SUPER OVERDRIVE"; never Boss/Roland logo or photo. Descriptor text "inspired by Boss SD-1".
 
 ## 2 Controls (physical, left to right on face)
 | Control | Real | Range | Taper | Default | Behaviour |
 |---|---|---|---|---|---|
-| LEVEL | pot [E 100k A/audio] | 0..10 (0-1 norm) | audio (log-ish) | 5 (0.50) | Post-tone output volume. Unity ~ 0.5..0.6 [E]; max ≈ +14 dB vs dry [E]. |
+| LEVEL | pot [S 10 kΩ (forum: SD-1 10k vs TS 100k); taper E audio] | 0..10 (0-1 norm) | audio (log-ish) | 5 (0.50) | Post-tone output volume. Unity ~ 0.5..0.6 [E]; max ≈ +14 dB vs dry [E]. |
 | TONE | pot [E 20k-25k B (linear)] | 0..10 | linear | 5 (0.50) | Treble contour of active tone stage; centre = flat-ish presence; CCW darker, CW brighter. Not a cut-only LPF. |
-| DRIVE | pot [E 500k B... see below] | 0..10 | see §8 | 3 (0.30) | Sets op-amp feedback R. Min ≈ clean boost (+~4 dB), max ≈ +~36 dB local gain [E]. Asymmetric clip threshold hit progressively. |
-| Footswitch (stomp) | latching SPST electronic | on/off | - | OFF | Toggles effect via electronic switching (buffered bypass). Click-free. |
+| DRIVE | pot [S 1 MΩ linear (forum: SD-1 1M vs TS 500k); linear taper S: 'SD-1 linear, TS808 log'] | 0..10 | see §8 | 3 (0.30) | Sets op-amp feedback R. Min ≈ clean boost (+~4 dB), max ≈ +~36 dB local gain [E]. Asymmetric clip threshold hit progressively. |
+| Footswitch (stomp) | latching SPST electronic [D] | on/off | - | OFF | Toggles effect via electronic switching (buffered bypass). Click-free. |
 | CHECK LED | red LED | on/off | - | off | Lit = effect ON. Also dims/flashes low at low battery (not emulated; optional `sd1_battery_sag` v2). |
 | INPUT jack | 1/4" mono | - | - | - | Z_in 1 MΩ effect ON [D]; (some listings 470k/1M: effect-off vs on) [D]. Plugging in connects battery. |
 | OUTPUT jack | 1/4" mono | - | - | - | Z_out 1 kΩ [D], recommended load ≥10 kΩ [D]. |
-| DC IN | 9 V DC, centre-negative, barrel (PSA) | - | - | - | 9 V; battery 9V 6F22/6LR61 optional [D]. Current 4 mA [spec copy] vs 10 mA [spec copy] — conflict; use 10 mA for budget text, no DSP effect. |
+| DC IN | 9 V DC, centre-negative, barrel (PSA) | - | - | - | 9 V; battery 9V 6F22/6LR61 optional [D]. Current: ModularGrid/Alamo list 10 mA [D]; Music Matter 6 mA, Fair Deal 4 mA - retailer conflict; use 10 mA, no DSP effect. |
 
 Notes:
-- POT labels on real unit order [E]: LEVEL, TONE, DRIVE (left→right). Verify against photo in-house.
+- Pot order LEVEL, TONE, DRIVE (left to right) [E from memory of the unit; no source reached].
 - Pot ranges are 0..10 printed; UI value stored 0..1 normalized.
 - No other switches/jacks exist (no expression, no MIDI, no loop). Anything beyond = virtual-board extras (§5/§6), flagged "VIRTUAL — not on hardware".
 
@@ -58,23 +58,23 @@ IC [E]: dual op-amp uPC4558C / JRC4558 class (GBW ≈ 3 MHz, slew ≈ 1.7 V/µs,
 
 ### 3.2 Gain stage (the voice) [E values]
 Non-inverting: G(f) = 1 + Zf(f)/Zg(f).
-- Zg: R_g = 4.7 kΩ in series with C_g (≈ 47 nF…TS-like; SD-1 body ≈ lower low-cut ⇒ treat C_g ≈ 100 nF as default) shunted by fixed R. Low-cut corner f_hp = 1/(2π·R_g·C_g): 720 Hz (47 nF) .. 340 Hz (100 nF). Default param `sd1_lowcut_hz`=500 (ESTIMATED; "more low-end body than TS" per [D]). 
-- Zf: parallel( R_f(Drive) , C_f ) with R_f = R_fix(51 kΩ[E]) + P_drive(0..500 kΩ[E]) and C_f ≈ 51 pF…100 pF → LPF corner f_lp = 1/(2π·R_f·C_f): ~6 kHz at max drive … > 30 kHz at min. 
-- Max small-signal gain Gmax = 1 + (51k+500k)/4.7k ≈ 118 (41 dB) at f ≫ f_hp — practically limited by GBW(3 MHz)/118 → ~25 kHz, fine. Default clamp at +40 dB. Min gain ≈ 1+51k/4.7k ≈ 11.9 (21.5 dB) [E]: NOTE lower than "+4 dB" — real unit minimum drive still gives a noticeable gain above f_hp because lows pass at unity (flat at LF). Provide shelf: below f_hp gain → 1 (0 dB).
-- Pot→gain mapping is the biggest uncertainty. Calibrate: reference unit sine sweep at DRIVE 0/25/50/75/100%; tune `P_drive` taper exponent (§8) to match.
+- Zg: R_g = 4.7 kΩ [E] in series with C_g. One mod write-up (electric-safari) states stock C3 = 47 nF [S] (mod to 100 nF for more bass), so stock C_g = 47 nF => f_hp = 720 Hz [S+E]. Default `boss_sd1_lowcut_hz` = 720 (was 500 E); range 340..720 kept for mod/user. 
+- Zf: parallel( R_f(Drive) , C_f ) with R_f = R_fix + P_drive(0..1 MΩ [S]); R_fix ≈ 27 kΩ [E, derived below]; C_f ≈ 100 pF [E] → LPF corner f_lp = 1/(2π·R_f·C_f): ~6 kHz at max drive … > 30 kHz at min. 
+- Gain targets [S, Barbarach text]: SD-1 min ≈ 17 dB, max ≈ 47 dB (TS808 21/41 dB). Fit [E]: R_g = 4.7k, 1+R_fix/4.7k = 7.1 => R_fix ≈ 27 kΩ; max 1+(27k+1M)/4.7k ≈ 220 (46.8 dB) with 1 MΩ pot - consistent with [S] 47 dB and the 1 MΩ pot. Op-amp GBW (3 MHz) / 220 limits HF to ~14 kHz at max; model with finite-GBW 1-pole. Below f_hp gain falls toward 1 (0 dB). Supersedes earlier 41 dB / 500k figures.
+- Pot→gain mapping is the biggest uncertainty. Calibrate: reference unit sine sweep at DRIVE 0/25/50/75/100%; tune `P_drive` (linear taper per [S]) to match.
 
 ### 3.3 Asymmetric clipper (in op-amp feedback, parallel with R_f/C_f)
-- Topology [D/E]: 3 silicon diodes in negative feedback path: **one diode in one direction, two in series the other direction** (D_a single, D_b+D_c stack). Thresholds: V_single ≈ 0.6 V (Boss stock 1S2473, Vf ≈ 0.6-0.9 V quoted; forum ~650 mV) ; V_double ≈ 1.2-1.3 V. 
+- Topology [S, hobby-hour + forum]: 3 silicon 1S2473 switching diodes in the feedback path: two in one direction, one in the other (which side is the pair is not readable from snippets; model: single side clips first, polarity const). V_single ≈ 0.6 V [E]; V_double ≈ 1.2-1.3 V [E]. 
 - So clip at ≈ +0.65 V (one polarity) vs ≈ −1.3 V (other) at the op-amp output, referenced to bias. Hence asymmetric waveform → 2nd harmonic + odd. Polarity: single-diode side clips first; mark `sd1_clip_polarity` const (do not expose; flip = 180° test).
-- Model: Shockley, i = Is·(exp(v/(n·Vt)) − 1). Params default: Is = 2.52 nA (1N4148-like) n = 1.752 for `sd1_diode_set`=`stock_1s2473` use Is=1e-9?? → choose Is,n to give Vf(1 mA)=0.62 V: n·Vt = 0.0481 ⇒ Is = 1 mA·exp(−0.62/0.0481)=2.5 nA (=1N4148-ish at n=1.75, Vt=25.85mV ⇒ n·Vt=45 mV). Provide table: 
-  - `stock_1s2473`: Is=2.5e-9, n=1.75 (Vf≈0.62@1mA) [E]
+- Model: Shockley, i = Is·(exp(v/(n·Vt)) − 1). 1S2473 SPICE params unpublished; use 1N4148-class values (same small-signal silicon switching class) [E]. Table:
+  - `stock_1s2473`: Is=2.52e-9, n=1.752 (1N4148 proxy; Vf≈0.62@1mA) [E]
   - `1n4148`: Is=2.52e-9, n=1.752 [DOCUMENTED SPICE default 1N4148]
   - `1n34a` (germanium mod): Is=2e-7, n=1.3 (Vf≈0.25) [E]
-  - `led_red`: Is=1e-18?? use Is=1e-12,n=2 (Vf≈1.7) [E]
-- Op-amp saturation: soft clip to rails ±4.2 V (9 V single supply − headroom [E]) via tanh(x/4.2)·4.2; applied after clipper (rarely hit).
+  - `led_red`: Is=1e-12, n=2 (Vf≈1.7) [E]
+- Op-amp saturation: soft clip to rails ±4.2 V (9 V single supply - headroom [E; 4558 swing ~±3.5-4 V on 9 V, uncertain]) via tanh(x/4.2)·4.2; applied after clipper (rarely hit).
 
 ### 3.4 Active tone stage (IC1B) [E]
-- TS-like Baxandall-ish treble boost/cut around ~1.5-3 kHz with bass bypassed; one-pole shelf with pot-dependent corner. Model as:
+- [S] Tone section nearly identical to Tube Screamer apart from component values and an added cap; one mod write-up gives stock C6 = 10 nF in the tone op-amp feedback [S, mod text - ambiguous], R6 mod from stock unknown. Exact corners unreadable => all numbers below are [E] behavioural fit, not circuit-derived. Model as:
   - H_tone(s) = (1 + s/ω_z)/(1 + s/ω_p), with ω_z, ω_p moving with TONE:
   - TONE=0: shelf −9 dB above ≈ 1.2 kHz [E]; TONE=0.5: ≈ flat ±1 dB, mild +2 dB @2.5 kHz [E]; TONE=1: +9 dB shelf above ≈ 1.8 kHz [E].
   - Implement as 1st-order shelving filter, gain_dB = (tone−0.5)·18, corner f_c = 1.2 kHz + tone·0.8 kHz; plus fixed 1-pole LPF 12 kHz (op-amp/C) [E].
@@ -138,7 +138,7 @@ Hardware has NONE. All below is VIRTUAL, flagged "added by Luthier; not on hardw
   | 15 | `sd1_tone` | |
   | 16 | `sd1_level` | |
   | 17 | `sd1_bypass` | ≥64 = effect ON (matches Boss/Strymon convention) |
-  | 18 | `sd1_mode` | reserved (STANDARD only) |
+  | 18 | (unused) | OMIT: no CUSTOM mode |
   | 100/101 | expression target select (see below) | optional |
 - Program change: recalls pedal snapshot slot 0..127 (stored in board preset), 5 ms parameter ramp, no click.
 - MIDI clock / tap tempo: **not applicable** (no time-based effect). Ignore Start/Stop/Clock. Do NOT add fake sync.
@@ -153,7 +153,7 @@ Hardware has NONE. All below is VIRTUAL, flagged "added by Luthier; not on hardw
 - Priority: UI > MIDI learn > expression > aftertouch > velocity; combined offsets sum then clamp.
 
 ## 7 Visuals
-Original vector art; do not trace Boss artwork. Compact-pedal proportions (real: W 73 × D 129 × H 59 mm, weight ≈ 410 g incl. battery [D, Boss compact class]).
+Original vector art; do not trace Boss artwork. Compact-pedal proportions (real: W 73 × D 129 × H 59 mm [D, retailer listings/Boss]; weight 360 g incl. battery [D, Zedem] vs 400 g [D, Music Matter]; 410 g earlier figure UNSOURCED, dropped).
 - Enclosure: die-cast shell, **yellow** `#F4D21F` base (E), matte; black plastic top-plate features absent; silver label strip top.
 - Face (portrait 73 × 129 mm, scale 4 px/mm = 292×516):
   - Top zone: three knobs in one row centred y = 19 mm from top; centres x = 15.5, 36.5, 57.5 mm (E). Order L→R: LEVEL, TONE, DRIVE. Knob Ø 16 mm, black skirt, white indicator line, pointer-style; legend arcs 0–10 (7 pt) around each at radius 11.5 mm, sweep 7 o'clock to 5 o'clock (−135°..+135°).
@@ -169,13 +169,13 @@ Original vector art; do not trace Boss artwork. Compact-pedal proportions (real:
 IDs prefixed `boss_sd1_`. Normalized 0..1 for APVTS; ranges physical shown.
 | id | name | min | max | default | unit | skew/taper | smooth ms | automatable |
 |---|---|---|---|---|---|---|---|---|
-| boss_sd1_drive | Drive | 0 | 10 | 3 | knob | R_f = 51k + 500k·(x^2.0)?? pot "B" linear→ use `P = 500k·x` and ensure perceptual gain: taper exponent 1.0 (linear B) [E; calibrate to ref] | 20 | yes |
+| boss_sd1_drive | Drive | 0 | 10 | 3 | knob | R_f = 27k + 1 MΩ·x, linear taper [S pot 1M linear; R_fix E] | 20 | yes |
 | boss_sd1_tone | Tone | 0 | 10 | 5 | knob | linear | 20 | yes |
 | boss_sd1_level | Level | 0 | 10 | 5 | knob | audio: g=(e^{3x}−1)/(e^3−1) scaled | 10 | yes |
 | boss_sd1_bypass | Effect on | 0 | 1 | 0 | bool | step | 5 (xfade) | yes |
-| boss_sd1_quality | Quality | 0 | 2 | 1 | enum eco/high/lowcpu→ mapping 0=lowcpu,1=high,2=eco | step | - | no (message thread) |
-| boss_sd1_diode_set | Diode set | 0 | 3 | 0 | enum stock/1n4148/germanium/led | step | 50 (xfade) | yes |
-| boss_sd1_lowcut_hz | Low-cut (internal) | 340 | 720 | 500 | Hz | log | 20 | no (advanced overlay only) |
+| boss_sd1_quality | Quality | 0 | 2 | 1 | enum 0=lowcpu, 1=high, 2=eco | step | - | no (message thread) |
+| boss_sd1_diode_set | Diode set | 0 | 3 | 0 | enum 0=stock_1s2473, 1=1n4148, 2=germanium, 3=led (mod options, not hardware) | step | 50 (xfade) | yes |
+| boss_sd1_lowcut_hz | Low-cut (internal) | 340 | 720 | 720 | Hz | log | 20 | no (advanced overlay only) |
 | boss_sd1_input_trim_db | Input trim | −24 | 24 | 0 | dB | linear | 10 | yes |
 | boss_sd1_buffer_colour | Buffer colour | 0 | 1 | 1 | bool | step | - | no |
 | boss_sd1_footsw_mode | Footswitch mode | 0 | 1 | 0 | latch/momentary | step | - | no |
@@ -184,7 +184,8 @@ IDs prefixed `boss_sd1_`. Normalized 0..1 for APVTS; ranges physical shown.
 | boss_sd1_at_target | Aftertouch target | 0 | 3 | 0 | enum off/drive/tone/level | step | - | no |
 | boss_sd1_at_depth | Aftertouch depth | −1 | 1 | 0 | norm | linear | 15 | yes |
 | boss_sd1_exp_target | EXP target | 0 | 2 | 0 | enum drive/tone/level | step | - | no |
-| boss_sd1_exp_min / _max | EXP range | 0 | 1 | 0 / 1 | norm | linear | 20 | yes |
+| boss_sd1_exp_min | EXP min | 0 | 1 | 0 | norm | linear | 20 | yes |
+| boss_sd1_exp_max | EXP max | 0 | 1 | 1 | norm | linear | 20 | yes |
 Preset/state: store all of the above + `revision` string + schema version; unknown fields preserved. Advanced rows (low-cut, diode_set, buffer, trim) hidden under Advanced overlay, never drawn as physical knobs.
 
 ## 9 Tests / acceptance
@@ -207,13 +208,41 @@ Thresholds PROVISIONAL until reference unit measured; fix after capture. Each te
 Reference null-tests (when unit available): ref capture DI sweep grid 0/25/50/75/100 % ×3 pots ×4 levels; error metric RMS spectral envelope ≤ 2 dB 100 Hz–8 kHz target; thresholds finalised from observed unit-to-unit variation (≥ 2 units).
 
 ## 10 Known inaccuracies / open questions
-- All circuit R/C values [E]: gain-leg R/C, feedback cap, drive pot value/taper, tone corner, buffer coloration. Must be verified against service schematic (links in sources) before fidelity-level claim.
-- Actual drive-pot value conflict: reports 500 kΩ B vs 100 kΩ A in clones; ship as parametric table `Sd1CircuitParams` in `Source/ReferencePedals/Models/boss_sd1_params.h`.
+- Circuit R/C values still mostly [E]: R_g, R_fix, C_f, tone corners, buffer coloration (primary schematic not readable this pass). C_g 47 nF, pot 1M, gains 17/47 dB are [S]. Must be verified against service schematic (links in sources) before fidelity-level claim.
+- Drive-pot value: [S] 1 MΩ linear (forum) fits the 47 dB max-gain figure; earlier 500k was TS value. Ship as parametric table `Sd1CircuitParams` in `Source/ReferencePedals/Models/boss_sd1_params.h`.
 - Diode part (1S2473) spice params not published; approximated.
 - Op-amp slew/rail interaction, 9 V sag/supply ripple, PSU noise, battery mode: not modelled (v2: `sd1_battery_sag`).
 - Input loading by pickup impedance not modelled; transistor buffer coloration approximated by 1-poles.
-- SD-1W CUSTOM mode (extra voicing) not implemented; `sd1_mode` reserved.
-- Current draw conflicting (4 vs 10 mA) irrelevant for DSP.
+- SD-1W CUSTOM mode: OMIT (undocumented here); no param.
+- Current draw conflicting (4/6/10 mA across retailers) irrelevant for DSP.
 - Pot tolerance/unit variance, noise floor (≈ −85 dBu typ [E]) are not reproduced; optional noise with fixed seed `sd1_noise` default OFF.
 - MIDI/expression/velocity features are virtual additions, not hardware.
 - Looper section: N/A for SD-1 (not a looper).
+
+## 11 Verification log
+Retry 2026-10-21. Reached (WebSearch snippets only; all WebFetch/archive.org blocked): hobby-hour.com, barbarach.com, electric-safari.com, forum.seymourduncan.com, alamomusic.com, modulargrid.net, zedem.ca, musicmatter.co.uk, fairdealmusic.co.uk. Not reached: Boss manual PDF, electrosmash, electricdruid, scribd, freestompboxes, wikipedia. Status key: DOCUMENTED (retailer/Boss spec copy), SOURCED-SECONDARY (forum/analysis snippet, not primary), ESTIMATED, OMIT.
+| # | Item | Old -> New | Status | Source |
+|---|---|---|---|---|
+| 1 | Drive pot | 500k B [E] -> 1 MΩ linear | SOURCED-SECONDARY | forum.seymourduncan.com/threads/is-the-ts7-a-good-pedal (snippet), diystompboxes thread; fits item 3 |
+| 2 | Level pot | 100k A [E] -> 10 kΩ (taper still E audio) | SOURCED-SECONDARY | same forum snippet; low confidence |
+| 3 | Gain range | 21.5-41 dB [E] -> 17-47 dB | SOURCED-SECONDARY | barbarach.com/tube-screamer-like-pedals (snippet) |
+| 4 | R_fix | 51k [E] -> 27k | ESTIMATED | derived: 1+R/4.7k=7.1 (17 dB) |
+| 5 | R_g | 4.7k | ESTIMATED | TS-class topology, consistent with fit |
+| 6 | C_g / lowcut default | 100nF / 500 Hz [E] -> 47 nF / 720 Hz | SOURCED-SECONDARY | electric-safari.com mod post (stock C3 47nF -> 100nF) |
+| 7 | C_f | 51-100 pF -> 100 pF | ESTIMATED | TS-class; unverified |
+| 8 | Clipper | 3 Si diodes asymmetric | DOCUMENTED (hobby-hour list: 1S2473 D3-D8; 3 diodes, 2 one way 1 other) | hobby-hour.com |
+| 9 | Diode SPICE | n/a (1S2473 unpublished) -> 1N4148 proxy | ESTIMATED | datasheet class |
+| 10 | Op-amp | uPC4558C | DOCUMENTED | hobby-hour.com |
+| 11 | Tone-stage corners/shelf dB | unchanged | ESTIMATED | only: near-TS tone stage, stock C6 10nF (mod text, ambiguous) |
+| 12 | Z_in 1 MΩ, nominal -20 dBu, Z_out 1 kΩ, load >=10k | unchanged | DOCUMENTED | alamomusic.com, modulargrid.net |
+| 13 | Current | 4 vs 10 mA -> 10 mA (4/6/10 conflict recorded) | DOCUMENTED (conflict) | modulargrid, alamomusic, musicmatter, fairdealmusic |
+| 14 | Dimensions 73x129x59 mm | unchanged | DOCUMENTED | zedem.ca, fairdealmusic |
+| 15 | Weight | 410 g -> 360-400 g (410 unsourced) | DOCUMENTED | zedem.ca, musicmatter.co.uk |
+| 16 | 1981 introduction | unchanged | DOCUMENTED (carried from earlier, wikipedia not re-reached) | - |
+| 17 | `sd1-vintage` variant | modelled -> removed | OMIT | no source of difference |
+| 18 | SD-1W CUSTOM mode, `sd1_mode`, CC 18 | reserved -> removed | OMIT | undocumented; plugin does nothing |
+| 19 | Waza 15 mA | unchanged | DOCUMENTED | alamomusic.com |
+| 20 | MIDI/expression/velocity/aftertouch | virtual | OMIT as hardware; kept as flagged virtual PF_Ext extras (no hardware chart exists) | modulargrid/retail: no MIDI |
+| 21 | Messy rows fixed | '??' in Shockley/led rows, drive taper row, quality enum, exp_min/_max merged row, 'sd1-4a' pseudo-variant | cleaned | this file |
+| 22 | Noise floor -85 dBu, buffer 15 Hz/40 kHz poles, 7 Hz input HPF, rail +-4.2 V | unchanged | ESTIMATED | no source |
+Counts: upgraded 7 (items 1,2,3,6,8,10 + weight 15), kept-estimate ~8 groups, omitted 3 (17,18,20).

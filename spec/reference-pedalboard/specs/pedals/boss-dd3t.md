@@ -52,11 +52,12 @@ SHORT LOOP: retailer text: "captures and continuously loops up to 800 ms" and is
 
 ## 3 Signal path / circuit & DSP model
 Stages:
-1. Input buffer (JFET/opamp), HPF ~ 20 Hz [E], gain 1.
+0. Overall bandwidth 40 Hz-7 kHz (+1/-3 dB) [D2: original DD-3 manual; DD-3T claimed identical sound circuitry per retailer text quoting Boss]. Applies to the wet path; use as hard cap below.
+1. Input buffer (JFET/opamp), HPF 40 Hz -3 dB [D2, replaces earlier 20 Hz estimate], gain 1.
 2. DRY path: buffered, unfiltered, always passes while effect on (and in bypass).
 3. Wet path: input mix (in + feedback) -> pre-emphasis? None in DD-3 digital (analog compander absent) [E] -> anti-alias LPF (4th-order-ish) -> A/D -> RAM delay -> D/A -> reconstruction LPF -> feedback tap + E.LEVEL.
-4. Converter: original DD-3 = 12-bit class [E from analysis], DD-3T same circuit. Model: 12-bit with companding-free quantize + noise shaping off; `boss_dd3t_bits` 12..24 default 12 [E]. Sample rate follows delay (variable sample clock, data memory fixed ~ 64k words [E]): fs_conv = N/Dtotal, N=2^15..2^16 words [E]. Consequence: bandwidth falls with longer delay: S range ~ 12 kHz, M ~ 6-8 kHz?, L ~ 3-4 kHz [E; DD-3 L range audibly dark]. Use LPF fc: S 12 kHz, M 7 kHz, L 3.5 kHz at max time, interpolated by actual D: fc = clamp(0.35*fs_conv, 2.5k, 14k).
-5. Feedback path: wet signal -> HPF 100 Hz? no; feedback LPF = same recon filter, gain g = 0.97*fb_norm^1.2 [E]; soft limit tanh(x) at ±1.0 (0 dBFS=1.0 V ref... see below) so runaway is bounded.
+4. Converter: original DD-3 = 12-bit digital delay with all-analog feedback/mix stage and dry split before the delay chip [D2 Mixdown article]; repeats get progressively lo-fi per pass [D2]. DD-3T 12-bit = ESTIMATED by "identical circuitry" claim (no DD-3T teardown found; sources conflict on whether later DD-3 revisions use a Roland DSP chip). Model: 12-bit, `boss_dd3t_bits` 12..24 default 12 [E]. Variable sample clock with fixed memory [E]: fs_conv = N/Dtotal, N ~ 2^15..2^16 words [E]. Bandwidth falls with delay time [E]. LPF fc: S 7 kHz (cap, [D2] overall 7 kHz), M 5.5 kHz, L 3.5 kHz at max time, fc = clamp(0.35*fs_conv, 2.5k, 7k) [E; cap now 7 kHz instead of 14 kHz].
+5. Feedback path: analog feedback/mix [D2]; feedback LPF = same recon filter, gain g = 0.97*fb_norm^1.2 [E]; soft limit tanh(x) so runaway is bounded [E].
 6. Mix: out = dry + elevel_gain*wet, with elevel_gain = elevel_norm^1.6 (unity at 1.0) [D unity / E curve].
 7. Output buffer, 1 kΩ.
 - Clipping topology: input stage soft clip, symmetric tanh with headroom: 0 dBFS maps to 1.0 = +6 dBu? Use ref: -20 dBu nominal = -18 dBFS [D nominal, E mapping]; clip at +14 dBu peak ~ 0 dBFS-ish; feedback loop soft clip as above. Model `y = tanh(x*1.0)`.
@@ -75,20 +76,21 @@ Per sample (fs host):
 - Feedback: fbState delayed by 1 sample extra not needed; loop includes full delay. Denormal: ScopedNoDenormals + flush |s|<1e-20 -> 0 in all states; add ±1e-25 dither? no, use flush.
 - Smoothing: E.LEVEL, FEEDBACK 20 ms one-pole; bypass 5 ms; time 80 ms; mode step -> time retarget.
 - Short loop FSM: IDLE -> (switch down in LOOP mode) CAPTURE_LATCH: copy last L=lenFromTime samples from ring at press (read from ring head, no alloc; loop store is a separate preallocated 0.8 s buffer) -> PLAYING (loop read ptr, rate r = L_ref/L(t); TIME change alters rate => pitch) -> (switch up) RELEASE: 10 ms xfade back to normal delay line (loop buffer discarded). Input dry continues passing during loop (hardware input is mixed? dry passes [E]).
-- Tap FSM (see sec 6). CPU budget: <0.5% core @48k/512 (conv_sim off), <1.0% on. RT: all buffers in prepare(), params via std::atomic<float>*, no locks, no allocs, no logging.
+- Filters note: HPF is 40 Hz (sec 3). Tap FSM (see sec 6). CPU budget: <0.5% core @48k/512 (conv_sim off), <1.0% on. RT: all buffers in prepare(), params via std::atomic<float>*, no locks, no allocs, no logging.
 - Aliasing: tanh stage 2x OS (31-tap halfband) when fs<=48k; else none.
 
 ## 5 I/O & routing
 - Mono TS in/out. Plugin: stereo bus -> (L+R)*0.5 -> pedal -> L=R out (`boss_dd3t_mono_out_dup` 1). Option `boss_dd3t_stereo_split` (virtual, off): ping-pong not on hardware; if on, L tap D, R tap D*0.75 [E, extension].
 - TEMPO jack: external footswitch input (momentary, tip=tap, TRS for FS-6 polarity) mapped to board tap source (MIDI note/CC/key).
-- No FX loop, no dir out. Board-level tricks supported: (a) series chain order (delay after drive/mod, before reverb), (b) parallel via board A/B split with wet-only (board dry/wet 100%), (c) effects-loop feedback: board send->return routes DD-3T out back to its input; board must hard-limit loop gain <1 and tanh-clip; combined with internal feedback caps loop at +6 dB runaway — oscillation allowed. (d) Two DD-3T series with `time` set to non-integer ratio for pseudo-multitap; (e) stereo split into two DD-3T with different modes.
+- No FX loop. Hardware DIRECT OUT exists [D2] but is OMITTED in plugin (board-level wet/dry covers it). Board-level tricks supported: (a) series chain order (delay after drive/mod, before reverb), (b) parallel via board A/B split with wet-only (board dry/wet 100%), (c) effects-loop feedback: board send->return routes DD-3T out back to its input; board must hard-limit loop gain <1 and tanh-clip; combined with internal feedback caps loop at +6 dB runaway — oscillation allowed. (d) Two DD-3T series with `time` set to non-integer ratio for pseudo-multitap; (e) stereo split into two DD-3T with different modes.
 - Feedback tricks tied to pedal: set FEEDBACK max + sweep TIME for oscillation / pitch dive; SHORT LOOP + TIME for pitch-shifting loop.
 
 ## 6 MIDI / sync / expression (virtual; real unit has none [D], label "Virtual MIDI (not on hardware)")
-- Tap tempo: pedal switch (when in tap function), TEMPO jack, MIDI note, CC `ccTap` (>=64 rising edge). Tempo = 60000/avg(last 3 gaps) ms; gap range 12.5..800 ms -> D_tap = tapInterval*sub, sub: Q=1.0, D8 (dotted eighth)=0.75, QT (quarter-note triplet) = 2/3 [D]. Valid interval after subdivision must be <= 800 ms (clamp, flash LED); reset history if gap >2 s [E]. Min 2 taps. Tap in M/L/S modes ignored.
-- Hold 2 s on switch toggles function BYPASS<->TAP [D from reseller].
+- Tap tempo: pedal switch (when in tap function), TEMPO jack, MIDI note, CC `ccTap` (>=64 rising edge). Accepted tapped interval 133-800 ms (75-300 BPM) [D2 manual]. Note value from MODE: S -> quarter-triplet (x 2/3), M -> dotted eighth (x 0.75), L -> quarter (x 1.0) [D2 manual pairing; earlier S/M/L-ignored-in-tap and separate tap positions were wrong]. Resulting D clamped to the 12.5-800 ms range [D]. Averaging of last 3 gaps, 2 s history reset: [E]. Min 2 taps [E]. In SHORT LOOP mode tap ignored.
+- Hold >= 2 s on switch toggles function BYPASS<->TAP [D2 manual text].
 - MIDI clock sync (`boss_dd3t_sync` off/on, virtual): tempo from 24ppqn clock or host; D = beat_ms*sub; sub choices by MODE tap positions (Q, D8, QT) plus extras `sync_div` {1/4,1/8,1/8D,1/4T,1/16}; if D>800 ms divide by 2 until <=800. Latch change at beat boundary with 80 ms glide.
-- Default CC map (ESTIMATED, remappable): CC14 time, CC15 feedback, CC16 e_level, CC17 mode (0-127 -> 7 steps), CC85 bypass (>=64 on), CC86 tap, CC87 short-loop hold (>=64 = held). Program Change n -> user preset n.
+- Hardware MIDI implementation: none exists (no MIDI chart; OMIT, plugin does nothing for hardware MIDI). Everything below in sec 6 is a DESIGN extension, not documented behaviour.
+- Default virtual CC map (DESIGN, remappable, not from any chart): CC14 time, CC15 feedback, CC16 e_level, CC17 mode (0-127 -> 4 steps), CC85 bypass (>=64 on), CC86 tap, CC87 short-loop hold (>=64 = held). Program Change n -> user preset n.
 - Expression target (virtual): default FEEDBACK (heel=min, toe=max), alt TIME/E.LEVEL; 20 ms smoothing, min/max settable. (Hardware has no expression jack; closest analog is the TEMPO footswitch.)
 - Gesture mapping: footswitch velocity -> bypass xfade time 3 ms (vel127) to 40 ms (vel1) [design]. Keyboard aftertouch (chan/poly) -> FEEDBACK add 0..+0.4 when `boss_dd3t_at_fb` on (swell regen like riding the knob). In SHORT LOOP: note-on = hold start, note-off = release; velocity -> none. Velocity-sensitive tap: tap tempo accepts note-on events; velocity ignored.
 - MIDI Start/Stop/Continue: Start resets tap phase only (no effect on audio).
@@ -106,7 +108,7 @@ Per sample (fs host):
 | boss_dd3t_elevel | E.Level | 0 | 1 | 0.50 | norm | pow 1.6 gain | 20 | y |
 | boss_dd3t_feedback | Feedback | 0 | 1 | 0.40 | norm | gain 0.97*x^1.2 | 20 | y |
 | boss_dd3t_time | Time | 0 | 1 | 0.50 | norm | per time_law | 80 | y |
-| boss_dd3t_mode | Mode | 0 | 6 | 2 | enum | step | - | y |
+| boss_dd3t_mode | Mode | 0 | 3 | 2 | enum {S,M,L,LOOP} | step | - | y |
 | boss_dd3t_active | Active | 0 | 1 | 1 | bool | step | 5 | y |
 | boss_dd3t_loop_hold | Short loop hold | 0 | 1 | 0 | bool | step | 10 | y |
 | boss_dd3t_tap | Tap (trigger) | 0 | 1 | 0 | trig | step | - | y |
@@ -127,18 +129,45 @@ Per sample (fs host):
 ## 9 Tests / acceptance (provisional thresholds until hardware capture)
 - Impulse @48k, FB 0, mode S, time min: wet echo at 12.5 ms ±0.3; time max S 50 ms; M 50-200; L 200-800 ms ±0.5% (L max 800.0 ms ±4).
 - Feedback decay: impulse, FB 0.4, L/400 ms: successive peaks ratio 0.97*0.4^1.2*bandwidth ≈ 0.32-0.40 ±0.03 (E); FB 1.0 stable (no |y|>2.0 within 60 s), tanh-bounded.
-- Tap: 4 taps at 500 ms in TAP_Q -> D=500 ±2 ms; TAP_D8 -> 375; TAP_QT -> 333.3; 2.1 s gap resets.
+- Tap (tap_func=1): 4 taps at 500 ms with MODE L -> D=500 ±2 ms; MODE M (D8) -> 375; MODE S (QT) -> 333.3 ms exceeds the S range, so clamp to 50 ms [clamp rule E]; tap interval <133 or >800 ms rejected [D2]; 2.1 s gap resets [E].
 - Short loop: pressing at t0 captures previous 400 ms (TIME gives 400); loop repeats bit-exact until release; TIME 0->1 shifts pitch by factor 4 over range (+24 st max, 800/200) ±1 st.
-- FRF (E.LEVEL 1, FB 0, wet-only via sub of dry): -3 dB corner S ≈ 12 kHz ±3 dB, M ≈ 7 kHz, L ≈ 3.5 kHz ±1 kHz; HPF 20 Hz -3 dB ±5 Hz.
+- FRF (E.LEVEL 1, FB 0, wet-only via sub of dry): -3 dB corner S ≈ 12 kHz ±3 dB, M ≈ 7 kHz, L ≈ 3.5 kHz ±1 kHz; overall response 40 Hz-7 kHz +1/-3 dB [D2]; HPF 40 Hz -3 dB ±8 Hz.
 - THD @1 kHz -18 dBFS (nominal) wet: <0.5% (bits 24); 12-bit: noise floor -70 ±5 dBFS, THD+N < 1% [E]. At -3 dBFS feedback loop 3rd-harmonic 1-5%.
 - Dry null: boss_dd3t_active=0 -> out == in within -90 dB after 10 ms. E.LEVEL=0 -> output == dry within -80 dB.
 - Silence in -> silence out |out|<1e-6, DC <1e-4. Block sizes 1/4/16/64/512 identical within 1e-6. Sample rates 44.1-192k pass. 30 min randomized soak no NaN/Inf, no alloc (instrumented). State save/restore bit-exact. CPU <0.5% @48k/512.
 - Bypass click < -60 dBFS jump; delay-time sweep no clicks (|d/dt| bounded).
 
 ## 10 Known inaccuracies
-- All filter freqs, converter bits, time law, taper values ESTIMATED; no hardware capture, schematic not read directly (fetch failed). Real 12-bit companding/noise character and variable-clock aliasing only approximated (conv_sim).
-- Exact MODE positions/detent count and tap-hold behaviour from retail text; verify against manual.
-- Trails behaviour on bypass unverified.
+- Overall 40 Hz-7 kHz response is from the DD-3 manual, assumed for DD-3T. Per-range LPF corners, converter bits for DD-3T, time law, tapers ESTIMATED; no hardware capture, schematic not read (all primary fetches blocked). 12-bit companding/noise character and variable-clock aliasing only approximated (conv_sim).
+- MODE positions and tap pairing now from manual text via search snippets (not the PDF itself).
+- Trails behaviour on bypass unverified. Current draw conflicts (45 vs 70 mA).
 - MIDI, expression, sync, AT, stereo split, bit depth, trails are virtual extensions beyond hardware.
 - DD-3T cream/white colour is estimate; original DD-3 was white/silver; do not claim photo match.
 - Looper section: N/A (SHORT LOOP is a hold of <=800 ms, no overdub/undo; do not conflate with phrase loopers).
+
+## 11 Verification log
+Pass 2, 2026-10-21. Reached (search-result text only): boss.info/us product page, manua.ls / manualzz manual text, Roland DD-3 manual, Mixdown Magazine, zzounds, kirstein.de, Sweetwater, B&H. NOT reachable (proxy 403 / DNS): boss.info, static.roland.com, manuals.plus, manualzz, manua.ls, archive.org, music-electronics-forum, stinkfoot, thermionic. No schematic, no ElectroSmash page for DD-3/DD-3T found. Status DOCUMENTED here = quoted by search result from the manufacturer/manual, hence tagged [D2] in text.
+
+| # | item | old -> new | status | source |
+|---|---|---|---|---|
+| 1 | MODE structure | 6/7-position incl. 3 tap positions -> 4 positions S/M/L/SHORT LOOP; mode param max 6 -> 3 | DOCUMENTED | manua.ls manual text; zzounds |
+| 2 | Tap note values | separate tap positions, tap ignored in S/M/L -> S=quarter-triplet, M=dotted-eighth, L=quarter | DOCUMENTED | manua.ls / manualzz manual text |
+| 3 | Tap input range | 12.5-800 ms -> 133-800 ms (75-300 BPM) | DOCUMENTED | manua.ls manual text |
+| 4 | Delay ranges S/M/L | 12.5-50/50-200/200-800 (unchanged) | DOCUMENTED | boss.info; manual text |
+| 5 | Frequency response | HPF 20 Hz, LPF up to 14 kHz -> 40 Hz-7 kHz +1/-3 dB (DD-3 manual, assumed same circuitry) | DOCUMENTED (DD-3; DD-3T by identity claim) | static.roland.com DD-3 manual snippet |
+| 6 | Current draw | 45 mA [D] -> 45 mA, conflict noted (70 mA on one retailer) | DOCUMENTED, conflicting | Sweetwater, B&H, Reverb |
+| 7 | Weight | 420 g -> 420 g (B&H 450 g noted) | DOCUMENTED | boss.info |
+| 8 | Nominal out level | unstated -> -20 dBu | DOCUMENTED | boss.info |
+| 9 | Direct out jack | "no dir out" -> exists; plugin omits | DOCUMENTED / OMIT in plugin | zzounds, retailer text |
+| 10 | Buffered bypass | "D-ish" -> buffered path when disengaged | DOCUMENTED | kirstein.de |
+| 11 | 12-bit converter, analog feedback/mix, dry split | E -> 12-bit documented for DD-3; DD-3T same circuit by Boss claim | DOCUMENTED (DD-3) / ESTIMATED (DD-3T) | mixdownmag.com.au |
+| 12 | Short Loop | captures up to 800 ms, renamed Hold | DOCUMENTED | zzounds, retailer text |
+| 13 | Short Loop pitch change with TIME; capture-at-press semantics | [D] -> downgraded | ESTIMATED | DD-3 Hold lore, no source found |
+| 14 | Hold 2 s toggles bypass/tap | D from reseller -> D from manual text | DOCUMENTED | kirstein.de; manual text |
+| 15 | Variant dd3_classic_12bit | reserved E -> unverified separate variant | OMIT | none |
+| 16 | Hardware MIDI / CC chart | "ESTIMATED CC map" -> hardware has none; CC map is DESIGN only | OMIT (hardware); DESIGN (virtual) | none exists |
+| 17 | Time law (hyperbolic) | E -> E, no source | ESTIMATED | derived: 4:1 range, clock-rate sweep |
+| 18 | Per-range LPF corners (S 7k, M 5.5k, L 3.5k) | 12/7/3.5 kHz -> 7/5.5/3.5 kHz, capped at 7 kHz | ESTIMATED | derived from item 5 plus fs_conv=N/D |
+| 19 | Trails off on bypass | E | ESTIMATED | no source |
+| 20 | Taper/gain curves, fb 0.97, smoothing times, LED duty, colour | E | ESTIMATED | derivation in text |
+| 21 | Tap LED / CHECK indicator | blink at tempo [E] -> manual text mentions CHECK indicator green after 2 s hold, unclear | ESTIMATED | manua.ls snippet |

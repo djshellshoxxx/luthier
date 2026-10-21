@@ -139,13 +139,13 @@ struct LoopSettings
     LoopKind kind = LoopKind::Serial;
     float blend = 1.f;                   // Parallel: loop blend 0..1
     float sendDb = 0.f, returnDb = 0.f;  // -24..+12
-    InstanceId first = InstanceId::null(), last = InstanceId::null();           // the loop covers [first .. last] in the order; send before first, return after last
+    InstanceId first = InstanceId::null(), last = InstanceId::null();   // the loop covers [first .. last] in the order; send before first, return after last
 };
 
 struct FeedbackSettings
 {
     bool on = false;
-    InstanceId src = InstanceId::null(), dst = InstanceId::null();            // tap after src, return at the input of dst; dst must not come after src (r <= s)
+    InstanceId src = InstanceId::null(), dst = InstanceId::null();   // tap after src, return at the input of dst; dst must not come after src (r <= s)
     float gain = 0.5f;                   // 0..1.05; > 0.98 needs runawayOk
     float lpHz = 12000.f;
     bool runawayOk = false;

@@ -9,8 +9,8 @@
 > - CC numbers in this spec are the pedal-LOCAL profile (MIDI_EXPRESSION 9): never global, may overlap other pedals. Tempo = `TimeInfo` from `ClockSync`; board tempo param is `ref_board_tempo_bpm` (no per-pedal tempo param unless the hardware has one). Footprint in mm renders at 1.6 px/mm.
 
 Version 0.1 | 2026-10-21 | model_id `ehx-big-muff-nyc` | param prefix `ehx_big_muff_nyc_` | status SPEC
-Evidence tags: DOCUMENTED (manual/analysis text seen in search excerpts), MEASURED (none yet), ESTIMATED (derived from typical Big Muff schematics / own math; MUST be verified vs. a pinned schematic + hardware capture before any fidelity claim).
-Research note: direct page fetch (ehx.com, electrosmash.com, guitarscience.net) failed in sandbox (DNS ENOTFOUND). Values come from search-result excerpts + well-known Big Muff topology. All component values below = ESTIMATED unless tagged. Do not advertise "authentic/identical".
+Evidence tags: DOCUMENTED (manual/analysis text seen in search excerpts), MEASURED (none yet), ESTIMATED (derived from typical Big Muff schematics / own math; MUST be verified vs. a pinned schematic + hardware capture before any fidelity claim), OMIT (not modelled).
+Research note (re-attempt 2026-10-21): direct fetch of ehx.com, electrosmash.com, kitrae.net, archive.org all failed again (DNS ENOTFOUND; not retried). Only WebSearch excerpts reachable; DOCUMENTED tags below rest on those excerpts (see sec 11). Values not tagged are ESTIMATED. Do not advertise "authentic/identical".
 
 Sources
 - S1 ElectroSmash analysis (4 cascaded common-emitter stages: input booster, 2 diode-feedback clipping stages, passive tone LP/HP blend, tone-recovery output; mids reduced at mid tone): https://www.electrosmash.com/big-muff-pi-analysis
@@ -24,8 +24,8 @@ Sources
 
 ## 1 Identity / variants
 - Real unit: EHX Big Muff Pi, mono, all-analog discrete-transistor fuzz/sustainer, 3 knobs + 1 footswitch + LED. No MIDI, no expression jack, no tempo/sync, no I/O beyond in/out/DC. DOCUMENTED (S2,S8).
-- Power: 9V battery or centre-negative 9.6V DC (EHX 9.6DC-200 PSU). Draw ESTIMATED 5-10 mA (S6 op-amp ver. ~5 mA, S7 15 mA). Zin ESTIMATED 70 kOhm (S6 op-amp ver. 55k; transistor Muff input base network ~ 50-100k). Zout ESTIMATED <= 25 kOhm (volume pot dependent; S7 2.7k is a different buffered design). Bypass: true bypass (S6/S2 family; NYC-reissue confirmation OUTSTANDING -> ESTIMATED).
-- Variant enum `ehx_big_muff_nyc_revision` (hidden in v1): 0=nyc_reissue (DEFAULT, this spec), 1=triangle, 2=rams_head, 3=russian, 4=opamp. Never alias. Revision changes only the constant block `MuffConsts` (sec 3.1). v1 ships rev 0; 1-4 PHASE 2, UI hides selector.
+- Power: 9V battery or centre-negative 9.6V DC (EHX 9.6DC-200 PSU, adapter must supply >= 25 mA). Draw ~3 mA at 9 VDC. DOCUMENTED (V1: EHX manual https://www.ehx.com/wp-content/uploads/2020/11/big-muff-pi.pdf, via search excerpt; Reverb NYC listing https://reverb.com/item/13118748-electro-harmonix-big-muff-pi-v9-nyc-reissue-2000). Zin ESTIMATED 70 kOhm (no NYC figure found; same-family EHX figures: Green Russian manual 130k in / 25k out https://www.fullcompass.com/common/files/30613-ElectroHarmonixGreenRussianBigMuffOperatingInstructions.pdf, Deluxe BMP 130k/300 ohm per Harmony Central; op-amp ver. 55k; Guitar Science paper: Zin dominated by input R1 -> low for a guitar device). Zout ESTIMATED <= 25 kOhm (Green Russian manual 25k nominal; volume-pot dependent). Bypass: true bypass. DOCUMENTED (V2: Reverb V9 EC3003 NYC listing https://reverb.com/item/98206089-electro-harmonix-big-muff-pi-v9-ec3003-frantone-nyc-reissue-big-muff-pi ; loopydemos.com/demos/ehx-big-muff-nyc/).
+- Variant enum `ehx_big_muff_nyc_revision`: only 0=nyc_reissue exists in v1 (single value; selector hidden, param kept for state-compat). Triangle / Rams Head / Russian / Op-Amp variants: OMIT (no verified per-variant constants obtained; plugin does not model them, and must not label anything with those names). Note: Kit Rae's page reports 2006 NYC reissues use 1N6263 Schottky clipping diodes while earlier/generic Muffs use 1N914/1N4148 (V3: https://www.kitrae.net/music/Big_Muff_Mods_and_Tweaks_Page.html via search excerpt); rev 0 here uses 1N914-class silicon (see sec 3.1), Schottky = OMIT.
 - Display name: "Sustainer (Muff-style, NYC)". No logos, no pi glyph copy of trademark art: draw generic Greek-pi-like original mark or omit.
 
 ## 2 Controls (every physical element)
@@ -45,13 +45,13 @@ No other switches, no jumpers. Anything else (input trim, quality, supply) lives
 ## 3 Signal path & circuit/DSP model
 Signal order (rev 0): INPUT -> [true-bypass switch] -> C_in/HPF -> Q1 input booster -> SUSTAIN divider -> clip stage 1 (Q2, diode feedback) -> coupling -> clip stage 2 (Q3, diode feedback) -> coupling -> passive TONE LP/HP blend -> Q4 recovery -> VOLUME -> OUTPUT.
 
-### 3.1 Constants block `MuffConsts` (rev 0, ALL ESTIMATED; verify vs schematic)
+### 3.1 Constants block `MuffConsts` (rev 0; per-row tags below override the blanket word ESTIMATED; schematic PDF itself still unreachable)
 | Name | Value | Note |
 |---|---|---|
-| Vt | 25.85 mV | 300 K |
-| Diode 1N914-like: Is, n | 2.52 nA, 1.752 | Shockley; 1 diode each polarity (antiparallel pair) |
-| Rf (clip feedback) | 470 kOhm | both stages |
-| Cf (clip feedback) | 470 pF | LP corner of Rf*Cf = 720 Hz in linear region |
+| Vt | 25.85 mV | 300 K (physics) |
+| Diode 1N914-like: Is, n | 2.52 nA, 1.752 | Diode type 1N914/1N4148 x4: DOCUMENTED (V4: ElectroSmash excerpt https://www.electrosmash.com/big-muff-pi-analysis). Is, n = typical 1N4148 datasheet/SPICE: ESTIMATED. 1 diode each polarity per stage |
+| Rf (clip feedback) | 470 kOhm | DOCUMENTED value class (V5: ElectroSmash parts list shows 470K x3 incl. R9,R17,R15); which are the feedback R's not confirmed -> assignment ESTIMATED |
+| Cf (clip feedback) | 470 pF | ESTIMATED (Green Russian-style 470/500 pF per aionfx Halo doc https://aionfx.com/app/files/docs/halo_legacy_documentation.pdf; NYC value not confirmed). LP corner of Rf*Cf = 720 Hz in linear region |
 | Rs1 / Rs2 (series base R) | 10 kOhm / 10 kOhm | plus divider Thevenin for stage 1 |
 | Rbe (base input R) | 25 kOhm | hfe*Vt/Ic estimate |
 | A (open loop) | 150 | -A, ~43.5 dB |
@@ -59,9 +59,10 @@ Signal order (rev 0): INPUT -> [true-bypass switch] -> C_in/HPF -> Q1 input boos
 | C_cpl (inter-stage) | 100 nF | HPF fc = 1/(2*pi*(Rs+Rbe)*C_cpl) ~ 45 Hz stage1 |
 | Q1 gain | +20 dB (x10), soft-clip rail 3.0 V | |
 | Q4 recovery gain | +20 dB (x10), soft-clip rail 3.0 V | |
-| Tone: R_lp, C_lp | 39 kOhm, 10 nF | LP corner 408 Hz |
-| Tone: R_hp, C_hp | 22 kOhm, 4 nF | HP corner 1.81 kHz |
-| Tone pot Rp | 100 kOhm | |
+| Tone: R_lp, C_lp | 39 kOhm, 10 nF | LP corner 408 Hz. DOCUMENTED (V4: ElectroSmash 39K R2,R8; 10nF C8). Kit Rae lists 22k/10n for the LP side of reissue (V3, conflicts); ElectroSmash chosen, discrepancy open |
+| Tone: R_hp, C_hp | 22 kOhm, 4 nF | HP corner 1.81 kHz. DOCUMENTED (V4: 22K R5; 4nF C9). Kit Rae reissue entry: 3.9 nF (V3) - within 3% tolerance, no audible difference; keep 4 nF |
+| Tone pot Rp | 100 kOhm | ESTIMATED (standard Muff; pot value not confirmed for NYC) |
+| Transistors Q1-Q4 | 2N5088 (or BC550), hFE ~800 | DOCUMENTED (V3 Kit Rae; V6 1590A schematic summary https://www.scribd.com/document/518928324/Big-Muff-Pi-1590A). Not modelled explicitly; informs Rbe, A below |
 | Output HPF / LPF | 10 Hz / 20 kHz 1-pole | coupling cap / Q4 Miller |
 | Vcc nominal | 9.0 V (`supply_v`) | rail scales with supply_v/9 |
 
@@ -136,7 +137,7 @@ Per OS sample: 2 stages x <=4 Newton iters x (1 exp + ~12 flops) + 2 tanh + 2 bi
 
 ## 6 MIDI / sync / expression emulation (Virtual MIDI, not on hardware; off in "hardware-faithful" preset mode)
 - MIDI clock / tap tempo / DAW sync: N/A (no time-based function). `ehx_big_muff_nyc_*` params never tempo-synced. Documented as "none, same as hardware".
-- Default CC map (ESTIMATED own allocation, free pool BOARD MIDI_EXPRESSION 4.3; channel via `ref_board_midi_chan`): CC70 -> sustain, CC71 -> tone, CC72 -> volume, CC80 -> enabled (>=64 on, <64 off, latch), CC11 -> `@sel.expression` target (default sustain, range 0..1). All soft-takeover ON for knobs, OFF for CC80. 14-bit optional via CC70/102 not needed.
+- Default CC map (plugin design choice, NOT a hardware chart; the hardware has no MIDI so no CC chart exists to verify; OMIT as a "documented" feature, kept only as free-pool allocation, free pool BOARD MIDI_EXPRESSION 4.3; channel via `ref_board_midi_chan`): CC70 -> sustain, CC71 -> tone, CC72 -> volume, CC80 -> enabled (>=64 on, <64 off, latch), CC11 -> `@sel.expression` target (default sustain, range 0..1). All soft-takeover ON for knobs, OFF for CC80. 14-bit optional via CC70/102 not needed.
 - Program Change: board-level preset recall only; no pedal memories.
 - Expression pedal target: `ehx_big_muff_nyc_sustain` (flag `expressionTarget`), alt `volume` (boost-on-heel-toe). Curve default log (matches audio taper) lo=0.0 hi=1.0. Hardware has no jack -> label "virtual expression".
 - Footswitch gestures (BOARD_CORE 9.6 FootController): Note-on key -> latch toggle `enabled` (default key mapped via learn); Momentary mode: note held = ON, release = OFF (min hold 30 ms). Velocity -> `pressSpeed` -> bypass xfade ms = lerp(12,2,speed); NO velocity-to-sustain by default. Optional `softPress` (default off): channel/poly aftertouch force (0..1) drives wet/dry mix of the Muff slot continuously (0 = dry, 1 = wet) while key held; this emulates half-engaged foot only as artistic feature, labelled "not on hardware".
@@ -145,7 +146,7 @@ Per OS sample: 2 stages x <=4 Newton iters x (1 exp + ~12 flops) + 2 tanh + 2 bi
 
 ## 7 Visuals (original vector art; no photo copy)
 - Enclosure: rectangular die-cast box, polished/brushed silver-chrome face (gradient #C9CDD2 -> #8E949B diagonal 20%), 1.5 mm darker bevel edge, 4 hidden corner screws NOT shown. Dimensions ESTIMATED W 111 x D 121 mm (face), H 54 mm (side view only).
-- Layout (face, origin top-left, mm, ESTIMATED): three knobs in one row at y=34; centres x = 27.5 (VOLUME), 55.5 (TONE), 83.5 (SUSTAIN) -> text labels right-to-left reading order matches classic arrangement (Volume | Tone | Sustain). Knob dia 20 mm, skirt dia 24 mm, black plastic with white pointer line 1.2 mm x 8 mm, 11 o'clock to 5 o'clock sweep (-135 deg .. +135 deg).
+- Layout (face, origin top-left, mm, ESTIMATED): three knobs in one row at y=34; centres x = 27.5 (VOLUME), 55.5 (TONE), 83.5 (SUSTAIN) -> left-to-right reading order Volume | Tone | Sustain (matches classic arrangement; ESTIMATED from memory, not verified against a photo/manual). Knob dia 20 mm, skirt dia 24 mm, black plastic with white pointer line 1.2 mm x 8 mm, 11 o'clock to 5 o'clock sweep (-135 deg .. +135 deg).
 - LED: 5 mm red dome at (55.5, 14); lit = #FF2A2A + 6 mm glow; off = #4A0A0A.
 - Footswitch: 12 mm dia chrome stomp, centre (55.5, 92), 17 mm bezel ring.
 - Jacks drawn on side view only: INPUT right side, OUTPUT left side (or per rack side convention), DC jack top edge. Not clickable.
@@ -160,13 +161,11 @@ ehx_big_muff_nyc_enabled | Footswitch | 0 | 1 | 0 | bool | - | xfade 5 | yes
 ehx_big_muff_nyc_sustain | Sustain | 0 | 1 | 0.5 | norm (maps to g(x) k=4.394) | audio (UI linear) | 20 | yes
 ehx_big_muff_nyc_tone | Tone | 0 | 1 | 0.5 | norm (linear pot) | linear | 20 | yes
 ehx_big_muff_nyc_volume | Volume | 0 | 1 | 0.5 | norm (audio taper) | audio | 20 | yes
-ehx_big_muff_nyc_input_trim_db | Input trim (adv) | -12 | 12 | 0 | dB | linear | 20 | yes
 ehx_big_muff_nyc_supply_v | Supply (adv) | 5 | 9.6 | 9.0 | V | linear | 50 | yes
 ehx_big_muff_nyc_quality | Quality (adv) | 0 | 2 | 1 | enum 0=eco2x 1=normal4x 2=hq8x | - | 0 (rebuild) | no
 ehx_big_muff_nyc_stereo_mode | Stereo (adv) | 0 | 1 | 0 | enum 0=dual_mono 1=mono_sum | - | 0 | no
-ehx_big_muff_nyc_revision | Revision | 0 | 4 | 0 | enum (v1 locked 0) | - | 0 | no
-ehx_big_muff_nyc_soft_press | Soft press mix | 0 | 1 | 0 | bool (virtual) | - | 5 | yes
-ehx_big_muff_nyc_midi_chan | MIDI channel | 0 | 16 | 0 | int (0=omni) | - | 0 | no
+ehx_big_muff_nyc_revision | Revision | 0 | 0 | 0 | enum (only 0 exists; variants OMIT) | - | 0 | no
+(Rows input_trim_db, soft_press, midi_chan removed: duplicates of slot/FootController params per RECONCILED header. References to them in sec 4.2, 6, 9 mean the slot trim / FootController softPress / midi.slotChan.)
 Expression targets: sustain (default), volume. Serialization: float norm + enum ints; unknown future keys ignored; revision key absent => 0.
 
 ## 9 Tests / acceptance
@@ -189,9 +188,36 @@ Provisional until MEASURED capture; thresholds marked P.
 
 ## 10 Known inaccuracies
 - All component values ESTIMATED; real NYC-reissue board revisions differ (C values, transistor types 2N5088/BC239 hFE spread). Source fetch blocked => no direct schematic verification.
-- Bypass type of NYC reissue unconfirmed (assume true).
+- Bypass type confirmed true bypass (Reverb listing); schematic still unseen.
+- Tone R/C values from ElectroSmash vs Kit Rae differ slightly (3.9 vs 4 nF; LP-side R 39k vs 22k): unresolved.
+- Clipping diodes: 2006+ NYC units reportedly Schottky 1N6263; model uses silicon 1N914 (OMIT Schottky).
 - Impedance interaction guitar<->Zin, pot loading of tone/sustain, transistor hfe/Ic spread, power-supply sag, supply noise, microphonics, battery vs adaptor tonality, per-unit pot tolerance, transistor noise and hiss: not modelled (noise floor optional later `noise_enable`, default off).
 - Tone-stack loading by Q4 input ignored in v1.
 - Diode model: simple Shockley with series R=0; real clipping asymmetry (diode mismatch) absent. Possible Phase 2 `diode_mismatch` 0..5%.
 - Variants (Triangle, Rams Head, Russian, Op-Amp) not modelled; do not label as such.
 - MIDI/expression/gestures are plugin conveniences, not hardware behaviour.
+
+## 11 Verification log
+Re-research 2026-10-21. Direct fetch blocked (DNS ENOTFOUND: ehx.com, electrosmash.com, kitrae.net, archive.org; not retried). Only WebSearch excerpts reached; DOCUMENTED = stated in excerpt, full page/schematic not read.
+Sources: V1 EHX manual https://www.ehx.com/wp-content/uploads/2020/11/big-muff-pi.pdf | V2 Reverb NYC V9 listings (reverb.com/item/13118748..., /98206089...) | V3 Kit Rae https://www.kitrae.net/music/Big_Muff_Mods_and_Tweaks_Page.html | V4 ElectroSmash https://www.electrosmash.com/big-muff-pi-analysis | V5 same (parts list) | V6 1590A schematic summary https://www.scribd.com/document/518928324/Big-Muff-Pi-1590A | V7 Green Russian manual (fullcompass PDF) | V8 Harmony Central Deluxe BMP review.
+| Item | Old -> New | Status | Source |
+|---|---|---|---|
+| Supply current | ESTIMATED 5-10 mA -> ~3 mA @9V | DOCUMENTED | V1, V2 |
+| Adapter | 9.6DC-200, >=25 mA | DOCUMENTED | V1 |
+| Bypass | ESTIMATED true -> true bypass | DOCUMENTED | V2 |
+| Tone LP R/C | ESTIMATED 39k/10n -> 39k/10n | DOCUMENTED (conflict: Kit Rae 22k/10n) | V4, V3 |
+| Tone HP R/C | ESTIMATED 22k/4n -> 22k/4n (Kit Rae 3.9n) | DOCUMENTED | V4, V3 |
+| Clip diodes | ESTIMATED 1N914 -> 1N914/1N4148 x4 | DOCUMENTED (2006 NYC Schottky 1N6263 per V3: OMIT) | V4, V3 |
+| Transistors | unspecified -> 2N5088/BC550, hFE~800 | DOCUMENTED | V3, V6 |
+| Rf 470k | ESTIMATED -> 470k present in parts list; assignment unconfirmed | ESTIMATED | V5 |
+| Cf 470 pF | ESTIMATED kept (Green Russian-style) | ESTIMATED | aionfx Halo doc |
+| Diode Is, n | kept | ESTIMATED | 1N4148 typical |
+| Zin 70k | kept; family refs 130k/55k | ESTIMATED | V7, V8 |
+| Zout <=25k | kept (Green Russian 25k nominal) | ESTIMATED | V7 |
+| Rs, Rbe, A, C_in, C_cpl, Q1/Q4 gain, rail, Rp, taper, dims, layout | kept | ESTIMATED | topology / typical |
+| Tone checkpoint table, notch 1017 Hz | kept (follows from 39k/22k values; recompute if tone values change) | ESTIMATED | derived |
+| Variants Triangle/RamsHead/Russian/OpAmp | enum 0..4 -> 0 only | OMIT | no verified constants |
+| Hardware MIDI/CC chart | CC map -> labelled plugin design choice | OMIT (no hardware MIDI) | V1 |
+| Params input_trim_db, soft_press, midi_chan | removed from sec 8 (dup of slot/FootController) | cleanup | RECONCILED header |
+| Knob layout wording | "right-to-left" -> left-to-right Volume|Tone|Sustain | ESTIMATED | memory |
+| MEASURED items | none | - | no hardware capture |

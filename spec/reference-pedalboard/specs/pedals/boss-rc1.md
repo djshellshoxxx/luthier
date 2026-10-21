@@ -9,7 +9,7 @@
 > - CC numbers in this spec are the pedal-LOCAL profile (MIDI_EXPRESSION 9): never global, may overlap other pedals. Tempo = `TimeInfo` from `ClockSync`; board tempo param is `ref_board_tempo_bpm` (no per-pedal tempo param unless the hardware has one). Footprint in mm renders at 1.6 px/mm.
 
 Tags: MEASURED = bench-verified; DOCUMENTED = vendor/retailer published; ESTIMATED = inferred/from memory of manual, VERIFY vs official manual before ship.
-Research note: boss.info, manualsnet, effectsdatabase DNS-blocked from sandbox; only search snippets obtained. Every [E] item must be re-checked against the official Owner's Manual (https://www.boss.info/global/support/by-product/rc-1/owners_manuals/) before claiming fidelity. Legal: behaviour/controls only; "inspired by BOSS RC-1"; original vector art; no Boss logos/photos.
+Research note (2nd pass 2026-10-21): all page fetches DNS-blocked (boss.info, static.roland.com, manuals.plus, manualslib, manualzz, bonedo, archive.org); only WebSearch result text obtained, which quotes the official Owner's Manual (https://static.roland.com/assets/media/pdf/RC-1_eng03_W.pdf and RC-1_M_eng01_W.pdf, search-snippet access only, not read in full) plus retailer spec sheets. Items upgraded from that are tagged DOCUMENTED [M]. Remaining ESTIMATED items have no published value. See section 11. Legal: behaviour/controls only; "inspired by BOSS RC-1"; original vector art; no Boss logos/photos.
 
 Sources:
 - S1 https://www.boss.info/global/products/rc-1/ (product page; specs per snippets)
@@ -17,38 +17,41 @@ Sources:
 - S3 https://www.musik-produktiv.com/products/boss-rc-1/ (16 bit/44.1 kHz resolution, 440 g)
 - S4 https://mmrmagazine.com/boss-rc-1-loop-station/ and https://www.woodbrass.com/en-gb/loopers-boss-rc-1-p186049.html (24-LED ring, single-pedal workflow, double-tap stop)
 - S5 https://www.effectsdatabase.com/model/boss/compact/rc1
+- M https://static.roland.com/assets/media/pdf/RC-1_eng03_W.pdf (official Owner's Manual; also RC-1_M_eng01_W.pdf, newer edition) - reached via search-result text only
+- B https://www.bonedo.de/?p=531690 (German review: undo/redo/clear gestures, FS-6 pairing; search-text only)
 
 ## 1 Identity/variants
 - id `boss_rc1`; category looper; 2013 Boss compact; successor RC-3/RC-5 (separate specs). One phrase, no stored banks.
 - Variants: none. Plugin variant flag `rc1_ext_fs` (external FS-5U/FS-6/FS-7 on STOP/UNDO jack) = UI jack option, not a model.
 - Physical [DOCUMENTED S3]: 73 W x 129 D x 59 H mm, 440 g. Power 9V battery (6LR61) or PSA adaptor, 95 mA, ~3 h alkaline.
-- Max record 12 min stereo [DOCUMENTED S1/S4]. Conversion 16-bit/44.1 kHz [DOCUMENTED S3 only; low confidence].
+- Max record ~12 min stereo, min ~0.25 s (pressing earlier keeps recording until ~0.25 s) [DOCUMENTED M]; at max, rec/overdub is interrupted and unit goes to loop playback [DOCUMENTED M]. Conversion 16-bit/44.1 kHz [DOCUMENTED S3 only; low confidence].
 
 ## 2 Controls
 | Control | Range/states | Taper | Default | Behaviour |
 |---|---|---|---|---|
-| LEVEL knob | 0..max (loop playback volume only) | audio, ~log; ESTIMATED 0.5 pos = unity? NO: assume pos 0.75 (~3 o'clock-ish) = 0 dB, max +6 dB headroom [E] | 0.75 | Scales loop playback (incl. overdub layer on playback). Dry input passes through at unity, unaffected. |
+| LEVEL knob | 0..max (loop playback volume only) | audio, ~log; ESTIMATED 0.5 pos = unity? NO: assume pos 0.75 (~3 o'clock-ish) = 0 dB, max +6 dB headroom [E] | 0.75 | Scales loop playback (incl. overdub layer on playback). Dry input passes through at unity, unaffected [ESTIMATED]. LEVEL adjusts loop playback volume only [DOCUMENTED M]. |
 | Pedal switch (single footswitch, large) | momentary | n/a | - | State machine below. |
-| STOP/UNDO jack (TRS 1/4") | ext. footswitch | n/a | none | Ext FS tap = stop; hold ≥ ~2 s [E] = undo/redo toggle (+ clear when stopped hold) [E]. FS-5U/FS-6/FS-7 selectable polarity auto. |
+| STOP/UNDO jack (TRS 1/4") | ext. footswitch | n/a | none | Ext FS single press = stop [DOCUMENTED M]; with a dual FS-6, left = stop, hold 2 s = clear; right = undo/redo [DOCUMENTED B]. Polarity auto-detect: ESTIMATED (not in sources). |
 | INPUT A (mono) / INPUT B | 1/4" TS | - | - | Mono source on A only = dual-mono. A+B = stereo. |
 | OUTPUT A (mono) / OUTPUT B | 1/4" TS | - | - | A only = mono sum? [E] Plug in A only -> L+R mixed to A; both plugged -> stereo. |
 | DC IN | 9V | - | - | n/a plugin |
-| Loop indicator | 24-segment multicolor LED ring | - | off | Ring shows position of loop head (rotating dot/fill, 24 steps per loop length). Colors [E]: red = recording, green = playing, orange = overdubbing, off = stopped/empty. |
+| Loop indicator | 24-segment multicolor LED ring | - | off | Ring shows position of loop head (rotating dot/fill, 24 steps per loop length). Colors [DOCUMENTED M]: red = recording, red+green (renders orange/amber) = overdubbing, green = playback; red rapid blink = erasing, green rapid blink = undo/redo. Off when stopped/empty [ESTIMATED]. Ring is a 24-segment rotating position display [DOCUMENTED S4]. LED colour mix as orange for overdub is ESTIMATED rendering of 'red and green'. |
 | Rec-mode / other | none: RC-1 has no menus, no rhythm, no quantize, no reverse/half-speed/FX (those are RC-3/RC-5/RC-30). | | | |
 
-## Gesture state machine (pedal switch) [E for hold times]
+## Gesture state machine (pedal switch) [hold 2 s and double-press stop DOCUMENTED M; see notes]
 States: EMPTY, REC, PLAY, OVERDUB, STOPPED (loop retained), CLEARED=EMPTY.
 - EMPTY --tap--> REC (ring red; writes buffer from t=0; length unbounded to 12 min; hitting limit auto -> PLAY).
 - REC --tap--> PLAY (sets loop length = elapsed samples; no quantise; seamless wrap).
 - PLAY --tap--> OVERDUB (ring orange; input summed into loop at head).
 - OVERDUB --tap--> PLAY.
 - Cycle order REC -> PLAY -> OVERDUB -> PLAY ... [DOCUMENTED S4 cycle order].
-- PLAY or OVERDUB --double-tap (2 taps <= ~400 ms [E])--> STOPPED (loop kept; ring off). [DOCUMENTED S4: double-click to stop]. Note first tap triggers mode toggle (PLAY<->OVERDUB), second tap stops; on stop discard last toggle effect? Real: stop occurs and overdub state closed. Emulate: first tap applies normally, second tap within window cancels toggle and stops.
+- PLAY or OVERDUB --double-press (2 presses within 1 s [DOCUMENTED M])--> STOPPED (loop kept; ring off). [DOCUMENTED S4: double-click to stop]. Note first tap triggers mode toggle (PLAY<->OVERDUB), second tap stops; on stop discard last toggle effect? Real: stop occurs and overdub state closed. Emulate: first tap applies normally, second tap within window cancels toggle and stops.
 - STOPPED --tap--> PLAY from start (position 0).
-- PLAY/OVERDUB --hold >= 2.0 s [E]--> UNDO (removes last overdub pass layer) ; hold again >= 2.0 s = REDO. One undo level only (single layer) [E].
-- STOPPED --hold >= 2.0 s--> CLEAR (erase phrase, return EMPTY) [E].
+- PLAY/OVERDUB --hold >= 2 s [DOCUMENTED M]--> UNDO (cancels last layer; green LED rapid blink); hold >= 2 s again in PLAY = REDO (restores) [DOCUMENTED M]. Undo depth = exactly one layer: ESTIMATED (manual says 'last layer'; user reports agree, depth not stated).
+- STOPPED --hold >= 2 s [DOCUMENTED M]--> CLEAR (red LED rapid blink, return EMPTY). Do not cut power during blink/rotate or data may be lost [DOCUMENTED M].
+- 'Stop-enabled' mode (double-press stops AND erases phrase; hold 2 s cancels): editions of the manual differ (eng03 vs M_eng01) and entry procedure not retrieved -> OMIT (plugin has no such mode).
 - REC with immediate double-tap -> stop & discard? [E]; plugin: ignore (treat as REC->PLAY then stop).
-- Power-off erases loop on hardware [E: RC-1 has no non-volatile loop memory; contradicts models/boss-rc1.md note]. Plugin option `rc1_keep_loop_on_recall` (default 0) = app persistence extension, flagged NOT authentic.
+- Phrase is SAVED across power-off on hardware [DOCUMENTED M: 'The recorded phrase is saved even if you turn off the power'] (earlier erase assumption was wrong; models/boss-rc1.md note was right). Plugin `boss_rc1_keep_loop` default 1 = authentic.
 
 ## 3 Signal path & DSP model
 - Analog input buffer (1 MΩ in [DOCUMENTED S2], nominal -20 dBu in/out) -> A/D 16-bit/44.1 kHz [S3] -> DSP -> D/A -> output (1 kΩ out, load >= 10 kΩ [S2]).
@@ -82,9 +85,7 @@ Block diagram: in(L,R) -> [mono-detect A-only] -> dryOut ; in -> rec gate -> Loo
 Real RC-1: NO MIDI, NO expression jack, no tempo sync [DOCUMENTED S2: only audio + STOP/UNDO + DC jacks]. Plugin emulation (comparable function, clearly labelled extension "not on hardware"):
 - Footswitch gesture: any MIDI note-on (assignable, default note 60 / learn) or CC#64-style sustain (CC 64 >=64 = down, <64 = up) drives the pedal switch with real press timing (so hold and double-tap work).
 - Ext STOP/UNDO FS: CC 65 (>=64 down) -> tap=stop, hold=undo/redo; or note 62.
-- Velocity/aftertouch: velocity >=100 etc. does not change function (switch is binary); optional `rc1_vel_to_level` (default off): velocity of the toggling note sets one-shot overdub input gain 0.5..1.0 — extension.
-- Channel pressure / poly AT: optional map to LEVEL (CC-style 0..127 -> level taper), default off.
-- CC 7 optional -> LEVEL. Slider/knob MIDI learn via board MIDI map (MIDI_EXPRESSION.md); params all automatable.
+- Velocity/aftertouch/CC7->LEVEL maps: OMIT (no hardware basis; plugin does nothing). Switch is binary, velocity ignored. Slider/knob MIDI learn via board MIDI map (MIDI_EXPRESSION.md); params all automatable.
 - DAW sync: none native. Extension (default off): `rc1_sync_start` quantises REC start/stop and tap to host transport bar if host playing (documented as extension). Not part of RC-1 parity.
 - Program change: none (ignore).
 - Host transport stop must not clear loop.
@@ -106,9 +107,9 @@ Real RC-1: NO MIDI, NO expression jack, no tempo sync [DOCUMENTED S2: only audio
 | boss_rc1_lofi | 16-bit lofi | 0 | 1 | 1 | bool | n/a | 0 | yes |
 | boss_rc1_max_min | Max loop minutes | 1 | 12 | 12 | min | linear | n/a | no |
 | boss_rc1_sync_start | Host-bar quantise (ext) | 0 | 1 | 0 | bool | n/a | 0 | yes |
-| boss_rc1_keep_loop | Keep loop on recall (ext) | 0 | 1 | 0 | bool | n/a | 0 | no |
-| boss_rc1_hold_ms | Hold time | 800 | 3000 | 2000 | ms | linear | n/a | no (tunable) |
-| boss_rc1_dtap_ms | Double-tap window | 150 | 600 | 400 | ms | linear | n/a | no (tunable) |
+| boss_rc1_keep_loop | Keep loop on recall (authentic: HW retains phrase) | 0 | 1 | 1 | bool | n/a | 0 | no |
+| boss_rc1_hold_ms | Hold time | 800 | 3000 | 2000 | ms | linear | n/a | no (tunable); 2000 DOCUMENTED M |
+| boss_rc1_dtap_ms | Double-press window | 150 | 1000 | 1000 | ms | linear | n/a | no (tunable); 1000 DOCUMENTED M |
 Non-param runtime state (not automated): mode enum {EMPTY,REC,PLAY,OVERDUB,STOPPED}, loop length, position.
 
 ## 9 Tests/acceptance
@@ -127,9 +128,33 @@ Non-param runtime state (not automated): mode enum {EMPTY,REC,PLAY,OVERDUB,STOPP
 Frequency response checkpoints (lofi on) [ESTIMATED]: 20 Hz -3 dB, 1 kHz 0, 15 kHz -1 dB, 18 kHz -6 dB. No hardware reference captured.
 
 ## 10 Known inaccuracies
-- Hold times, double-tap window, LED colours, undo depth, power-off erase, LEVEL taper/gain range: ESTIMATED from memory of manual; unverified here (manual host blocked). Existing models/boss-rc1.md claims "retained after power off" — likely wrong for hardware.
-- 16-bit/44.1 kHz from single retailer; converter filter/noise unmeasured.
+- Resolved 2nd pass: hold 2 s, double-press 1 s, LED colours, power-off retention, 12 min / 0.25 s limits. Still ESTIMATED: LEVEL taper/gain range, undo depth, wrap/stop fades, latency.
+- 16-bit/44.1 kHz from single retailer (S3); one review calls RC-1 16-bit vs RC-5 32-bit (corroborates 16-bit, not rate); converter filter/noise unmeasured, no spec sheet value for freq response/dynamic range (checkpoints in sec 9 ESTIMATED).
 - Latency, dither, clipping behaviour on overdub saturation not measured.
 - MIDI/expression/sync are plugin extensions, no hardware analogue.
 - Mono-out summing behaviour with A only unverified.
 - Bypass: dry always buffered; pedal "off" in plugin = loop mode STOPPED, dry through.
+
+## 11 Verification log
+Sources reached (search text only; all direct fetches DNS-blocked): Roland/BOSS Owner's Manual PDFs (M), manuals.plus / manualslib mirrors (via search quotes), reverb/alamo/sweetwater spec listings, bonedo.de review (B), kirstein.de reviews.
+| Item | Old -> New | Status | Source |
+|---|---|---|---|
+| Max loop time | 12 min stereo -> same + min 0.25 s, interrupt-to-playback at cap | DOCUMENTED | M |
+| Input/output impedance, levels | 1 MOhm/1 kOhm/-20 dBu/>=10 kOhm -> confirmed | DOCUMENTED | spec listings (Reverb/Alamo), S2 |
+| Power 9V, 95 mA, ~3 h | confirmed | DOCUMENTED | manuals.plus/manualslib spec text |
+| Double-tap stop window | ~400 ms [E] -> 1 s (param default 1000, range 150-1000) | DOCUMENTED | M |
+| Hold for undo/redo/clear | ~2 s [E] -> 2 s | DOCUMENTED | M, B |
+| Undo scope | PLAY/OVERDUB undo; redo in PLAY | DOCUMENTED | M |
+| Undo depth = 1 layer | [E] kept | ESTIMATED (manual says last layer) | M, user reports |
+| LED colours | red/green/orange [E] -> red rec, green play, red+green overdub; red rapid blink = erase; green rapid blink = undo/redo | DOCUMENTED (orange rendering ESTIMATED) | M |
+| Power-off | erases -> phrase retained; keep_loop default 0 -> 1 | DOCUMENTED | M |
+| LEVEL = loop playback volume only | confirmed | DOCUMENTED | M |
+| LEVEL taper / +6 dB headroom / 0.75 default | kept | ESTIMATED (no published taper; derive: typical Boss 1-knob volume, unity near 3 o'clock) | - |
+| 16-bit / 44.1 kHz | kept | ESTIMATED-leaning (single retailer + 16-bit review corroboration) | S3 |
+| Ext FS: stop single press; FS-6 L=stop/clear, R=undo/redo | [E] -> documented | DOCUMENTED | M, B |
+| Ext FS polarity auto | kept | ESTIMATED | - |
+| Stop-enabled mode | absent -> noted, editions conflict | OMIT | M variants |
+| MIDI vel/aftertouch/CC7 -> level | extension -> removed | OMIT | no hardware MIDI |
+| MIDI note/CC64/CC65 footswitch triggers, host-bar sync | kept, labelled plugin extension | ESTIMATED (design choice, not hardware) | - |
+| Latency 1-2 ms, fades 2-5 ms, freq response checkpoints, mono-out summing | kept | ESTIMATED (no source) | - |
+| Dimensions 73x129x59, 440 g | kept | DOCUMENTED | S3 |

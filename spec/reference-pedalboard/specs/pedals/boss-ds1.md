@@ -35,14 +35,14 @@ Sources
 | Footswitch | momentary latch | - | OFF (bypass) | toggles effect; electronic switching (FET/relay-free), bypass is BUFFERED |
 | Red LED | - | - | off | lit when effect ON; current-limited, fixed brightness |
 | Battery/DC | - | - | - | DC jack 9 V centre-negative; no UI beyond tooltip |
-| INPUT jack | 1/4" mono | - | - | input Z 470k (ESTIMATED from S2 spec); inserting plug powers on battery |
-| OUTPUT jack | 1/4" mono | - | - | output Z 1k (ESTIMATED) |
+| INPUT jack | 1/4" mono | - | - | input Z 470k (DOCUMENTED (secondary): BOSS spec table as reproduced at scan.co.uk; some retailers list 1 MOhm, unresolved, 470k used); nominal input -20 dBu (DOCUMENTED secondary); inserting plug powers on battery |
+| OUTPUT jack | 1/4" mono | - | - | output Z 1k, recommended load >= 10k, nominal output -20 dBu (DOCUMENTED (secondary): BOSS spec table); current draw 10 mA (DOCUMENTED secondary; some retailers say 20 mA) |
 No other knobs/switches. Do NOT add hidden trim knobs; `boss_ds1_input_trim_db` / `boss_ds1_output_trim_db` live in board-level pedal info overlay (Advanced), not on face.
 
 ## 3 Signal path and circuit model
 Order (modern rev). Rnn labels follow S1/S6, treat as ESTIMATED:
 1. Input buffer: emitter follower, Zin 470k, gain ~0 dB, coupling HPF ~ 1.5 Hz (negligible; model as 1-pole HPF 2 Hz for DC safety).
-2. Transistor booster (2 cascaded HPF + common-emitter): ESTIMATED fc1 = 72 Hz (0.047uF... see calib), fc2 = 15 Hz; mid-band gain +35 dB (S1 summary) CLAMPED by supply rails (rail +-4.5 V centred on 4.5 V bias). Model as: HPF 72 Hz -> gain 56x (35 dB) into soft rail clip `y = 4.5*tanh(x/4.5)` -> HPF 15 Hz. (Note: 35 dB figure is for small signal; at guitar levels (0.1-0.3 Vpk) this stage already adds soft asymmetry; add bias asymmetry term k=0.08: `y = 4.5*tanh((x+k*x*x)/4.5)`.)
+2. Transistor booster (2 HPF + common-emitter, Q2 2SC2240): input HPF corners ~33 Hz and ~3.3 Hz (DOCUMENTED (secondary): ElectroSmash figures quoted on DIYstompboxes; a poster disputes them vs the plotted response, so verify); gain ~56x = 35 dB (DOCUMENTED (secondary): ElectroSmash); asymmetric clipping gives even harmonics (DOCUMENTED secondary). Previous estimate 72 Hz / 15 Hz superseded. Mid-band gain +35 dB CLAMPED by supply rails (rail +-4.5 V centred on 4.5 V bias). Model as: HPF 33 Hz -> gain 56x (35 dB) into soft rail clip `y = 4.5*tanh(x/4.5)` -> HPF 15 Hz. (Note: 35 dB figure is for small signal; at guitar levels (0.1-0.3 Vpk) this stage already adds soft asymmetry; add bias asymmetry term k=0.08: `y = 4.5*tanh((x+k*x*x)/4.5)`.)
 3. Op-amp gain stage (non-inverting): Zf = Rf || Cc, Zg = Rg + 1/(sCz).
    - D = DIST taper position 0..1. Rf = 100k*D (+ 100 ohm floor). Rg = 4.7k + 100k*(1-D). Cc = 250 pF across Rf. Cz = 1 uF (S3; schematic may be 0.47 uF; ESTIMATED).
    - H(s) = 1 + Zf/Zg. DC/mid gain G = 1 + 100k*D/(4.7k+100k*(1-D)): D=0 -> 1.0 (0 dB); D=0.5 -> 1.9 (5.6 dB); D=1 -> 22.3 (27 dB). S5 quotes ~25 dB max: consistent (ESTIMATED).
@@ -50,7 +50,7 @@ Order (modern rev). Rnn labels follow S1/S6, treat as ESTIMATED:
    - Additional HPF 23 Hz (C5-R10, S1) before the op-amp input.
    - Op-amp rails 0..9 V centred at 4.5 V: output limited +-4.0 V (ESTIMATED, rail-to-rail not true); slew limit ~0.5 V/us (model as part of clip; neglect at 4x OS).
 4. Clipping: antiparallel 1N4148 pair to bias reference after a series resistor (Rd ~ 2.2k, ESTIMATED) with output node load. Model `i = 2*Is*sinh(v/(n*Vt))` per diode pair; Is = 2.52 nA, n = 1.752, Vt = 25.85 mV (1N4148 typical, ESTIMATED from datasheet-fit). Solve implicit node: `(vin - v)/Rd = 2*Is*sinh(v/(n*Vt)) + v/Rload`, Rload = tone network input (~ 15k). Newton 3 iterations, init from previous sample (warm start); fallback to closed-form Lambert-W approximation (Parker/D'Angelo) when |v|>0.3.
-5. Tone network (passive, Big-Muff-style crossfade, S4): two branches from clipper node: LPF = R 6.8k + C 0.1 uF to ground (fc = 1/(2*pi*6.8k*0.1uF) = 234 Hz, DOCUMENTED S4), HPF = C 0.022 uF + R 2.2k to ground (fc = 3288 Hz, DOCUMENTED S4); 20k linear TONE pot wiper picks mix between the two taps. Model as: `y = (1-T)*LP1(x, 234 Hz) + T*HP1(x, 3290 Hz)` with pot loading correction (insertion loss about -17 dB at centre; wet chain restores via LEVEL stage / makeup fixed +14 dB). Exact nodal solution (3.5 ms-order precompute) preferred: 2x2 state-space, trapezoidal discretisation, coefficients recomputed on TONE change at control rate.
+5. Tone network (passive, Big-Muff-style crossfade, S4): two branches from clipper node: LPF = R 6.8k + C 0.1 uF to ground (fc = 1/(2*pi*6.8k*0.1uF) = 234 Hz, DOCUMENTED S4), HPF = C 0.022 uF + R 2.2k to ground (fc = 3288 Hz, DOCUMENTED S4); 20k linear TONE pot wiper picks mix between the two taps. Model as: `y = (1-T)*LP1(x, 234 Hz) + T*HP1(x, 3290 Hz)` with pot loading correction (ElectroSmash via search summary: overall pedal loss ~ -12 dB with notch near 500 Hz, DOCUMENTED secondary; centre insertion loss of -17 dB here is ESTIMATED; wet chain restores via LEVEL stage / makeup fixed +14 dB). Exact nodal solution (3.5 ms-order precompute) preferred: 2x2 state-space, trapezoidal discretisation, coefficients recomputed on TONE change at control rate.
 6. Level: 100k audio pot into output buffer stage (Zout 1k). Unity: at LEVEL=0.5 and DIST=0.5, TONE=0.5, a 1 kHz sine at -20 dBFS DI yields ~ -12 dBFS out (ESTIMATED; must calibrate in Test T6). Level range -inf..+~14 dB: `g_level = 10^((-60 + 74*L^0.6)/20)`... simpler: `g = pot_audio(L) * 5.0` where pot_audio(L)=L^2 (A taper, 10% at mid) ESTIMATED.
 7. Output buffer: emitter follower, Zout 1k, HPF 5 Hz.
 Calibration: analog volts = DI_sample * 0.5 V per FS (guitar peak ~ 0.25 V at -6 dBFS; ESTIMATED; set via `boss_ds1_input_trim_db`). Rails limit applied in volts then normalised back.
@@ -61,7 +61,7 @@ Calibration: analog volts = DI_sample * 0.5 V per FS (guitar peak ~ 0.25 V at -6
 ## 4 Plugin algorithm
 Block diagram (per channel, mono core; stereo handled by processing L and R independently with linked params, or sum-to-mono per board setting):
 ```
-x -> inHPF2Hz -> HPF72 -> *56 -> softclip(tanh,asym) -> HPF15 -> HPF23 -> opamp(H(s;D)) -> railclip(+-4V)
+x -> inHPF2Hz -> HPF33 -> *56 -> softclip(tanh,asym) -> HPF3.3 -> HPF23 -> opamp(H(s;D)) -> railclip(+-4V)
   -> diodeNode(Newton) -> tonePair(LP234, HP3290, mix T) -> *g_level -> outHPF5Hz -> y
 ```
 - Oversampling: 4x polyphase IIR (half-band cascade, 8th order elliptic, >100 dB stop) for DIST > 0.2; 2x for DIST <= 0.2 (switch with 10 ms crossfade). Enable `boss_ds1_hq` (Off=2x/On=4x, default On). Offline render forces 8x. Linear stages (HPF/LPF/tone) run at base rate except where noted (op-amp H(s) at OS rate because Cc pole near 6 kHz).
@@ -81,7 +81,8 @@ x -> inHPF2Hz -> HPF72 -> *56 -> softclip(tanh,asym) -> HPF15 -> HPF23 -> opamp(
 
 ## 6 MIDI / sync / expression
 Real unit has no MIDI/expression/sync; emulate via Luthier generic mapping layer (see specs/MIDI_EXPRESSION.md):
-- Footswitch gestures: MIDI note-on velocity from keyboard -> `boss_ds1_footswitch` toggle on note-on, momentary mode: on while note held (like holding switch; latch/momentary selectable in mapping). Velocity maps to bypass crossfade time 2 ms (vel 127) .. 25 ms (vel 1) (soft vs. hard stomp feel). Aftertouch (channel pressure/poly) can map to DIST (default off): range D +0..+0.5 added, smoothed 30 ms.
+- OMIT: no MIDI implementation chart exists for the real unit (no MIDI). Everything below is Luthier-local emulation design, not hardware fact; CC numbers are arbitrary pedal-local defaults.
+- Footswitch gestures: MIDI note-on velocity from keyboard -> `boss_ds1_on` toggle on note-on, momentary mode: on while note held (like holding switch; latch/momentary selectable in mapping). Velocity maps to bypass crossfade time 2 ms (vel 127) .. 25 ms (vel 1) (soft vs. hard stomp feel). Aftertouch (channel pressure/poly) can map to DIST (default off): range D +0..+0.5 added, smoothed 30 ms.
 - CC map defaults (all learnable, ch omni): CC 16 DIST, CC 17 TONE, CC 18 LEVEL, CC 19 on/off (>=64 on). 7-bit scaled to 0..1; 14-bit via CC+32 optional. Program Change: selects board preset (board-level), not pedal-level.
 - Expression pedal emulation: any CC/slider/knob can drive DIST, TONE or LEVEL with min/max range + curve (linear/log). Default expression target: LEVEL.
 - Tap tempo / MIDI clock: N/A (no time-based effect). Ignore clock.
@@ -106,8 +107,7 @@ Enclosure: compact die-cast stomp box, 73 W x 129 D x 59 H mm (face 73 x 129 mm,
 | boss_ds1_on | Footswitch on | 0 | 1 | 0 | bool | step | 5 (xfade) | yes |
 | boss_ds1_hq | HQ oversample | 0 | 1 | 1 | bool | step | - | no |
 | boss_ds1_stereo_mode | Stereo mode | 0 | 1 | 0 | enum | step | - | no |
-| boss_ds1_input_trim_db | Input trim (adv) | -24 | 24 | 0 | dB | linear | 20 | yes |
-| boss_ds1_output_trim_db | Output trim (adv) | -24 | 24 | 0 | dB | linear | 20 | yes |
+(trim params removed from this pedal; slot layer `ref_s{nn}_in_db/out_db`, see reconciliation header)
 | boss_ds1_revision | Revision | 0 | 1 | 0 | enum | step | - | no |
 | boss_ds1_noise | Noise on | 0 | 1 | 1 | bool | step | - | no |
 
@@ -132,5 +132,24 @@ Enclosure: compact die-cast stomp box, 73 W x 129 D x 59 H mm (face 73 x 129 mm,
 - Footswitch click/thump and enclosure microphonics not modelled.
 - Noise floor figure is a plausible estimate, not measured.
 - Tapers (A100k, B20k) from parts lists in hobby sources; real units vary by pot batch.
-- Variant (c)/(d) in section 1 intentionally excluded; text on 40th-anniversary variant is unverified and should be removed from product copy.
+- Variant (c)/(d) in section 1 are OMIT; the earlier garbled 40th-anniversary text was removed.
 - No claims of "authentic" or "identical"; label as "inspired by".
+
+## 11 Verification log
+Reachable: WebSearch result summaries only (ElectroSmash, Wikipedia, DIYstompboxes thread, Thermionic Studios table, retailer/BOSS spec tables via scan.co.uk and alamomusic). All direct fetches failed (DNS/denied). No schematic, service manual or primary manual PDF read.
+| # | Item | Old -> New | Status | Source |
+|---|---|---|---|---|
+| 1 | Input Z | 470k ESTIMATED -> 470k (1 MOhm in some retailer listings) | DOCUMENTED (secondary) | https://www.scan.co.uk/products/boss-ds-1-distortion-effect-stompbox-classic-tones-for-all-types-of-music-unique-tone-control |
+| 2 | Output Z / load | 1k ESTIMATED -> 1k, load >=10k | DOCUMENTED (secondary) | same + alamomusic.com listing |
+| 3 | Nominal in/out level, current | none -> -20 dBu / -20 dBu, 10 mA (20 mA conflicting) | DOCUMENTED (secondary) | scan.co.uk; alamomusic.com |
+| 4 | Booster gain | 56x/35 dB estimate -> 56x | DOCUMENTED (secondary) | https://www.electrosmash.com/boss-ds1-analysis (search summary) |
+| 5 | Booster HPF corners | 72 Hz / 15 Hz -> 33 Hz / 3.3 Hz (disputed by a forum poster) | DOCUMENTED (secondary, disputed) | https://www.diystompboxes.com/smfforum/index.php?topic=126980.0 citing ElectroSmash |
+| 6 | Overall loss / notch | -17 dB centre, ~500 Hz -> ~ -12 dB overall, notch ~500 Hz; centre insertion loss figure stays | DOCUMENTED (secondary) / ESTIMATED | ElectroSmash search summary |
+| 7 | Op-amp part history, Q1/Q2 | unstated -> TA7136AP (1978), Rohm then M5223AL (~2000), 2SC2240 | DOCUMENTED (secondary) | https://en.wikipedia.org/wiki/Boss_DS-1 ; https://thermionic-studios.com/wiki/index.php?title=DS-1 |
+| 8 | Variant (c) garbled text, (d) DS-1X | unverified -> removed | OMIT | none |
+| 9 | Revision 1 (TA7136 1978) | PHASE 2 -> not modelled, selector hidden | OMIT | no topology data |
+| 10 | MIDI/CC chart | implied -> none exists on hardware; CC 16-19 are local design | OMIT (hardware) / design choice | n/a |
+| 11 | `boss_ds1_footswitch` vs `boss_ds1_on` | duplicate name -> `boss_ds1_on` | fixed | reconciliation header |
+| 12 | Trim params in table | duplicated slot params -> removed | fixed | reconciliation header |
+| 13 | DIST/LEVEL tapers, Rd 2.2k, Cz, rails, diode Is/n, tone R/C values (234/3290 Hz), 23 Hz HPF, noise floor, calibration 0.5 V/FS, colour | unchanged | ESTIMATED (kept; derivations in sections 2-3; S3/S4 are DIY/model write-ups, not Boss schematics) | n/a |
+
