@@ -36,6 +36,7 @@
 #include "DSP/Feedback/EBowDriver.h"
 #include "Model/Workshop/PartAcoustics.h"
 #include "DSP/Effects/EffectsChain.h"
+#include "ReferencePedals/Board.h"
 #include "DSP/Effects/Saturation.h"
 #include "DSP/Effects/SecretEffect.h"
 #include "DSP/Amp/AmpEngine.h"
@@ -350,6 +351,7 @@ public:
         visualiser, which draws the network the audio is going through. */
     CircuitComponents getLiveCircuitComponents() const noexcept;
     EffectsChain&    getPreEffects() noexcept      { return preEffects; }
+    reference::Board& getReferencePedals() noexcept { return referencePedals; }
     AmpEngine&       getAmpEngine() noexcept       { return amp; }
     EffectsChain&    getPostEffects() noexcept     { return postEffects; }
     CabinetEngine&   getCabinetEngine() noexcept   { return cabinet; }
@@ -892,6 +894,7 @@ private:
     // --- signal chain ---------------------------------------------------------
     GuitarCircuit circuit;
     CircuitComponents circuitControls;
+    reference::Board referencePedals;  // separate experimental rack, default off
     EffectsChain preEffects;
     AmpEngine amp;
     EffectsChain postEffects;
