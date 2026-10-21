@@ -10,7 +10,7 @@
 
 Version 0.1 | 2026-10-21 | model_id `boss-ds1` | param prefix `boss_ds1_` | status SPEC
 Evidence tags: DOCUMENTED (manual/schematic analysis), MEASURED (none yet), ESTIMATED (derived / from memory, must be calibrated).
-Research note: direct page fetch blocked in this sandbox (proxy 403). Values come from search-result excerpts of the sources below + schematic knowledge. Every ESTIMATED value needs verification against schematic before release.
+Research note (rev 2026-10-21b): direct page fetch still blocked in this sandbox (DNS failure for electrosmash.com, rarebuzzer.com, thermionic-studios.com; archive.org denied by tool). Only WebSearch result summaries were reachable. Values tagged "DOCUMENTED (secondary)" come from those search summaries of ElectroSmash/manual spec tables, not from the primary page. See section 11 for the item-by-item log. Every remaining ESTIMATED value needs verification against the schematic before release.
 
 Sources
 - S1 ElectroSmash analysis: https://www.electrosmash.com/boss-ds1-analysis (stages: input buffer, transistor booster, op-amp gain, tone/level, output buffer; C5-R10 HPF 23 Hz; booster ~35 dB per secondary summary)
@@ -23,7 +23,7 @@ Sources
 
 ## 1 Identity / variants
 - Real unit: BOSS DS-1 Distortion, launched 1978, mono, analog, 9 V DC (PSA adaptor) or 9 V battery (006P). No MIDI, no expression jack, no sync. DOCUMENTED.
-- Variants: (a) 1978-1993 TA7136AP preamp IC version (Japan, "Made in Japan" silver-label era): different clipping/tone feel; (b) 1994+ discrete-transistor + op-amp "modern" revision (Taiwan since ~2000): default model; (c) DS-1-4A 40th Anniv. (2018, Keeley-esque? no: BOSS-made 40th gold... ) NOT modelled; (d) DS-1X (DSP "MDP" version) NOT modelled. Variant selector `boss_ds1_revision` enum {0=modern_discrete (default), 1=ta7136_1978}. Rev 1 is PHASE 2; v1 ships rev 0 only, selector hidden.
+- Variants: (a) 1978-1993 TA7136AP preamp IC version (Japan, "Made in Japan" silver-label era): different clipping/tone feel; (b) 1994+ discrete-transistor + op-amp "modern" revision (Taiwan since ~2000): default model; (c) 40th-anniversary and other special editions: OMIT (unverified, not modelled, no product copy); (d) DS-1X (DSP version): OMIT. Op-amp history per Wikipedia/ElectroSmash search summaries: original 1978 used Toshiba TA7136AP (a preamp IC, not an op-amp); later units Rohm op-amp, then Mitsubishi M5223AL from ~2000; transistors Q1/Q2 2SC2240 (Thermionic Studios table, later revision). Variant selector `boss_ds1_revision` enum {0=modern (default), 1=ta7136_1978}. Rev 1 is OMIT (no credible topology data): v1 ships rev 0 only, selector hidden and ignored.
 - Display name must read "Distortion (DS-1 style)"; no trademark logos; original vector art only.
 
 ## 2 Controls

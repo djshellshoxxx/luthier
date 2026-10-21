@@ -8,11 +8,16 @@
 > - Host lanes `ref_s{nn}_p01..` in this order: `boss_dd3t_elevel`, `boss_dd3t_feedback`, `boss_dd3t_time`, `boss_dd3t_mode`, `boss_dd3t_trails`, `boss_dd3t_time_law`.
 > - CC numbers in this spec are the pedal-LOCAL profile (MIDI_EXPRESSION 9): never global, may overlap other pedals. Tempo = `TimeInfo` from `ClockSync`; board tempo param is `ref_board_tempo_bpm` (no per-pedal tempo param unless the hardware has one). Footprint in mm renders at 1.6 px/mm.
 
-Tags: [D]=DOCUMENTED (manual/spec sheet via search snippets) [M]=MEASURED (none yet) [E]=ESTIMATED (verify vs hardware).
-Research note: WebFetch DNS failed for boss.info, adorama, effectsdatabase, stinkfoot, thermionic; values from WebSearch snippets + domain knowledge. Every [E] needs bench confirm before any "accurate" claim. No hardware capture exists.
+Tags: [D]=DOCUMENTED (manual/spec sheet via search snippets) [D2]=DOCUMENTED secondary (retailer/press text quoting manufacturer, or original DD-3 manual) [M]=MEASURED (none) [E]=ESTIMATED (derivation given) [OMIT]=not modelled.
+Research note (pass 2, 2026-10-21): all direct fetches (boss.info, roland static PDF, manuals.plus, manualzz, manua.ls, archive.org) fail at the proxy (403 tunnel / DNS). Values come from WebSearch result text quoting those pages; no schematic read, no hardware capture. See sec 11 for per-item log. Every [E] needs bench confirm before any "accurate" claim.
 
 ## Sources
-- Owner's manual PDF (snippets only): https://www.adorama.com/col/productManuals/BSDD3T.pdf  [S/M/L ranges, short loop 200-800 ms, E.LEVEL, TEMPO jack]
+- Owner's manual PDF (snippets only): https://www.adorama.com/col/productManuals/BSDD3T.pdf  [S/M/L ranges, E.LEVEL, TEMPO jack]
+- Manual text via search (S 12.5-50 / M 50-200 / L 200-800 ms; tap input 133-800 ms = 75-300 BPM; MODE sets tap note value S=quarter-triplet, M=dotted-eighth, L=quarter; 2 s hold toggles bypass/tap): https://www.manua.ls/boss/dd-3t/manual ; https://manualzz.com/doc/65056482/boss-dd-3t-digital-delay-owner-manual (search-snippet only, pages not fetchable)
+- Boss product page (search snippet: -20 dBu in/out, 1 MΩ, 1 kΩ, 10 kΩ load, 420 g, 12.5-800 ms): https://www.boss.info/us/products/dd-3t/
+- Original DD-3 owner's manual (frequency response 40 Hz-7 kHz +1/-3 dB, 12.5-800 ms): https://static.roland.com/assets/media/pdf/DD-3_eng01_W.pdf (search snippet)
+- DD-3 architecture (12-bit, analog feedback/mix, dry split): https://mixdownmag.com.au/?p=73066 (search snippet)
+- Retailer text (Short Loop = renamed Hold, captures up to 800 ms; direct output jack next to OUT; buffered signal path when disengaged): https://www.zzounds.com/item--BOSDD3T ; https://www.kirstein.de/Delay-Echo/Boss-DD-3T-Digital-Delay.html ; https://www.sweetwater.com/store/detail/DD3T--boss-dd-3t-digital-delay-pedal
 - Boss product page: https://www.boss.info/ca/products/dd-3t/
 - Effects Database: https://www.effectsdatabase.com/model/boss/compact/dd3t
 - Retail spec (1 MΩ in, -20 dBu nom in, 1 kΩ out, 10 kΩ load, 45 mA, 420 g): https://www.alamomusic.com/products/boss-dd-3t-digital-delay-pedal
@@ -22,9 +27,10 @@ Research note: WebFetch DNS failed for boss.info, adorama, effectsdatabase, stin
 
 ## 1 Identity / variants
 - id `boss_dd3t`; display "DD-3T Digital Delay" (inspired by BOSS DD-3T). Category delay. Mono in / mono out [D]. DD-3T = DD-3 circuit + tap tempo + TEMPO jack [D, "sound circuitry and controls identical to DD-3"].
-- Power: 9V battery or PSA adaptor, 45 mA [D]. Input Z 1 MΩ, nominal in -20 dBu [D]; out Z 1 kΩ, load >=10 kΩ [D]. Weight 420 g w/ battery [D]. Dims 73 W x 129 D x 59 H mm [D].
-- Variant enum `boss_dd3t_variant` {0 modern_dd3t}. Only one; reserved {1 dd3_classic_12bit} (E, off by default) for lo-fi 12-bit flavour.
-- Bypass: electronic switching, BUFFERED bypass [D-ish, Boss standard]; delay trails are NOT spilled on bypass in the DD-3 family (repeats cut when switched off) [E]. Plugin param `boss_dd3t_trails` default 0 (cut) [E].
+- Power: 9V battery or PSA adaptor. Current 45 mA [D2: Sweetwater, B&H, Reverb list 45 mA; one retailer lists 70 mA - conflict, 45 kept; no audio impact]. Input Z 1 MΩ, nominal in -20 dBu, nominal out -20 dBu [D boss.info]; out Z 1 kΩ, load >=10 kΩ [D]. Weight 420 g w/ battery [D boss.info; B&H says 450 g]. Dims 73 W x 129 D x 59 H mm [D, unchanged].
+- Direct output jack (dry-only, next to OUT, for wet/dry rigs) [D2 retailer text]. OMIT in plugin: no second output on PedalDesc; wet/dry is board-level. (Earlier text "No dir out" was wrong.)
+- Variant enum `boss_dd3t_variant` {0 modern_dd3t}. Only one. Reserved value 1 (dd3_classic_12bit) is UNVERIFIED as a separate variant -> OMIT; param kept for state compatibility, max clamped to 0 in practice.
+- Bypass: buffered signal path maintained when disengaged [D2]. Whether repeats are cut on bypass is [E]: no source found; DD-3 family is understood to cut. `boss_dd3t_trails` default 0 (cut) [E].
 
 ## 2 Controls
 | ctl | range | taper | default | real behaviour |
@@ -32,16 +38,17 @@ Research note: WebFetch DNS failed for boss.info, adorama, effectsdatabase, stin
 | E.LEVEL | 0-10 (norm 0-1) | audio/log-ish B-style [E]; full CW = delay level equals direct level (unity) [D] | 0.50 | wet level mixed with dry. 0 = no repeats audible |
 | FEEDBACK | 0-10 (0-1) | linear [E] | 0.40 | regen. 0 = single repeat; max = near self-oscillation, but bounded (loop gain max 0.97 [E]) |
 | TIME | 0-10 (0-1) | linear in delay time within MODE range [E] | 0.50 | delay time within selected range; short loop: loop length 200-800 ms [D] |
-| MODE | 6-pos rotary [D-ish] | stepped | pos L | S / M / L / tap-1/4 / tap-dotted-1/8 / tap-1/4T. See below |
-| pedal switch | momentary, latching state | - | on | bypass toggle; in TAP mode acts as tap; hold ~2 s toggles Bypass<->Tap function [D from reseller text, verify in manual] |
-| TEMPO jack | 1/4" TRS for FS-5U/FS-6/FS-7 | - | - | external tap; optional footswitch [D] |
-| LED | red | - | - | ON = effect on. In tap mode LED blinks at the tapped tempo [E] |
+| MODE | 4-pos rotary: S / M / L / SHORT LOOP [D2: manual pairs each range with a tap note value; Short Loop is a mode] | stepped | pos L | S / M / L delay ranges; in tap function the same knob picks note value S=quarter-triplet, M=dotted-eighth, L=quarter [D2]. Earlier "6/7 position" model was wrong. |
+| pedal switch | momentary, latching state | - | on | bypass toggle; holding >=2 s toggles Bypass<->Tap function [D2 manual text]; in tap function each press = tap |
+| TEMPO jack | 1/4" TRS for FS-5U/FS-6/FS-7 | - | - | external tap; when external switch connected the onboard switch cannot enter tempo [D2] |
+| DIRECT OUT | 1/4" | - | - | dry output next to OUT [D2]; OMIT in plugin |
+| LED | red | - | - | ON = effect on. Tap-tempo indicator behaviour: one manual text mentions a CHECK indicator lighting green after 2 s hold [D2, unclear]; blink-at-tempo duty is [E] |
 | IN | 1/4" TS | 1 MΩ | | |
 | OUT | 1/4" TS | 1 kΩ | | |
 | DC | 9V centre-neg | | | |
-MODE ranges [D]: S = 12.5-50 ms, M = 50-200 ms, L = 200-800 ms. Positions: `0 S, 1 M, 2 L, 3 SHORT_LOOP, 4..6 tap subdivisions`. Real knob grouping: three delay ranges + SHORT LOOP (HOLD) + tap subdivisions (quarter-note triplet, dotted eighth, quarter) [D]. Param `boss_dd3t_mode` enum {S,M,L,LOOP,TAP_QT,TAP_D8,TAP_Q}. Tap positions allow up to 800 ms [D]. Exact knob detent geometry [E].
-TIME mapping: D_ms = Dmin + (Dmax-Dmin)*time_norm, linear in ms [E] (analog clock-rate sweep is 1/t, but spec says min = 1/4 max so ratio 4:1; clock-rate linear in pot => delay hyperbolic [E]; plugin offers `boss_dd3t_time_law` {0 linear_ms,1 hyperbolic} default 1 hyperbolic: D = Dmax/(1+3*(1-t))... i.e. D = Dmin*Dmax/(Dmax-(Dmax-Dmin)*t); verify).
-SHORT LOOP [D]: hold pedal switch: audio immediately before the press is captured and looped while held; TIME sets loop length 200-800 ms; changing TIME during playback changes pitch (loop read-rate change) [D]. Releasing returns to normal delay.
+MODE ranges [D]: S = 12.5-50 ms, M = 50-200 ms, L = 200-800 ms. Positions: `0 S, 1 M, 2 L, 3 SHORT_LOOP`. Param `boss_dd3t_mode` enum {S,M,L,LOOP} (0..3, default 2). Tap note value is NOT a separate knob position: with `boss_dd3t_tap_func`=1 the S/M/L position selects QT/D8/Q [D2]. Tap-set time up to 800 ms; tap input accepted 133-800 ms (75-300 BPM) [D2]. Knob detent geometry [E].
+TIME mapping: ratio max:min is 4:1 per range [D from ranges]. Shape within range unknown: [E] default hyperbolic (clock-rate linear in pot => delay ~1/rate): D = Dmin*Dmax/(Dmax-(Dmax-Dmin)*t); `boss_dd3t_time_law` {0 linear_ms,1 hyperbolic} default 1. No source found; ESTIMATED.
+SHORT LOOP: retailer text: "captures and continuously loops up to 800 ms" and is the renamed DD-3 Hold [D2]. Capture-at-press while switch held and release-to-normal [E from DD-3 Hold lore; not in found text]. TIME changing loop pitch [E; earlier [D] tag was unsupported].
 
 ## 3 Signal path / circuit & DSP model
 Stages:
