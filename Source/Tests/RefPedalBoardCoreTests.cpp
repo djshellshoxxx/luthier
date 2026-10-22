@@ -49,7 +49,7 @@ LUTHIER_TEST (RefPedalBoardCore, stateSnapshotRoundTrip)
 LUTHIER_TEST (RefPedalBoardCore, instanceMoveRemoveAndUndo)
 {
     BoardModel model;
-    const InstanceId a (juce::Uuid()), b (juce::Uuid());
+    const InstanceId a { juce::Uuid() }, b { juce::Uuid() };
     CHECK (model.apply (cmd::Add { "generic.overdrive", -1, Placement::beforeExistingPre, 0, a }));
     CHECK (model.apply (cmd::Add { "generic.overdrive", -1, Placement::beforeExistingPre, 0, b }));
     CHECK (model.getInstanceCount() == 2);
