@@ -18,6 +18,8 @@ struct BoardModel::Impl
     mutable std::mutex mutex;        // message-thread mutex, never taken on the audio thread
     BoardSettings settings;
     std::vector<PedalInstance> instances;
+    struct History { BoardSettings settings; std::vector<PedalInstance> instances; };
+    std::vector<History> undoStack, redoStack;
     std::vector<Listener*> listeners;
 };
 
@@ -29,13 +31,83 @@ bool BoardModel::apply (const BoardCommand& command, juce::String* rejectReason)
     juce::String reason;
     bool settingsChanged = false;
     bool styleChanged = false;
+    bool orderChanged = false;
+    InstanceId changedId = InstanceId::null();
     {
         const std::lock_guard<std::mutex> lock (impl->mutex);
         auto next = impl->settings;
+        auto nextInstances = impl->instances;
+        auto findPedal = [&] (const InstanceId& id) { return std::find_if (nextInstances.begin(), nextInstances.end(), [&] (const PedalInstance& p) { return p.instanceId == id; }); };
         const bool supported = std::visit ([&] (const auto& cmd) -> bool
         {
             using T = std::decay_t<decltype (cmd)>;
-            if constexpr (std::is_same_v<T, cmd::SetBoardEnabled>)
+            if constexpr (std::is_same_v<T, cmd::Add>)
+            {
+                if (cmd.modelId.empty() || nextInstances.size() >= kMaxSlots
+                    || ! isValidPlacement (static_cast<int> (cmd.placement))
+                    || cmd.lane < 0 || cmd.lane >= kMaxBranches
+                    || cmd.index < -1 || cmd.index > static_cast<int> (nextInstances.size()))
+                    return false;
+                PedalInstance p;
+                p.instanceId = cmd.id.isNull() ? InstanceId() : cmd.id;
+                if (findPedal (p.instanceId) != nextInstances.end()) return false;
+                p.modelId = cmd.modelId;
+                p.placement = cmd.placement;
+                p.lane = cmd.lane;
+                changedId = p.instanceId;
+                const auto index = cmd.index == -1 ? nextInstances.size() : static_cast<size_t> (cmd.index);
+                nextInstances.insert (nextInstances.begin() + static_cast<std::ptrdiff_t> (index), std::move (p));
+                orderChanged = true;
+            }
+            else if constexpr (std::is_same_v<T, cmd::Remove>)
+            {
+                auto it = findPedal (cmd.id);
+                if (it == nextInstances.end()) return false;
+                changedId = cmd.id;
+                nextInstances.erase (it);
+                orderChanged = true;
+            }
+            else if constexpr (std::is_same_v<T, cmd::Move>)
+            {
+                auto it = findPedal (cmd.id);
+                if (it == nextInstances.end() || cmd.newIndex < 0
+                    || cmd.newIndex >= static_cast<int> (nextInstances.size())) return false;
+                PedalInstance p = std::move (*it);
+                nextInstances.erase (it);
+                nextInstances.insert (nextInstances.begin() + cmd.newIndex, std::move (p));
+                changedId = cmd.id;
+                orderChanged = true;
+            }
+            else if constexpr (std::is_same_v<T, cmd::SetEnabled>)
+            {
+                auto it = findPedal (cmd.id);
+                if (it == nextInstances.end()) return false;
+                it->enabled = cmd.enabled;
+                changedId = cmd.id;
+            }
+            else if constexpr (std::is_same_v<T, cmd::SetPlacement>)
+            {
+                auto it = findPedal (cmd.id);
+                if (it == nextInstances.end() || ! isValidPlacement (static_cast<int> (cmd.placement))) return false;
+                it->placement = cmd.placement;
+                changedId = cmd.id;
+            }
+            else if constexpr (std::is_same_v<T, cmd::SetLane>)
+            {
+                auto it = findPedal (cmd.id);
+                if (it == nextInstances.end() || cmd.lane < 0 || cmd.lane >= kMaxBranches) return false;
+                it->lane = cmd.lane;
+                changedId = cmd.id;
+            }
+            else if constexpr (std::is_same_v<T, cmd::SetParam>)
+            {
+                auto it = findPedal (cmd.id);
+                if (it == nextInstances.end() || cmd.paramIdx < 0 || cmd.paramIdx >= kMaxParams
+                    || ! std::isfinite (cmd.norm) || cmd.norm < 0.f || cmd.norm > 1.f) return false;
+                it->params[static_cast<size_t> (cmd.paramIdx)] = cmd.norm;
+                changedId = cmd.id;
+            }
+            else if constexpr (std::is_same_v<T, cmd::SetBoardEnabled>)
                 next.enabled = cmd.enabled;
             else if constexpr (std::is_same_v<T, cmd::SetMix>)
             {
@@ -78,7 +150,11 @@ bool BoardModel::apply (const BoardCommand& command, juce::String* rejectReason)
         }, command);
         if (supported)
         {
+            if (impl->undoStack.size() == 100) impl->undoStack.erase (impl->undoStack.begin());
+            impl->undoStack.push_back ({ impl->settings, impl->instances });
+            impl->redoStack.clear();
             impl->settings = std::move (next);
+            impl->instances = std::move (nextInstances);
             settingsChanged = true;
         }
         else reason = juce::String ("Unsupported or invalid board command: ") + commandName (command);
@@ -89,6 +165,8 @@ bool BoardModel::apply (const BoardCommand& command, juce::String* rejectReason)
     {
         for (auto* listener : impl->listeners)
         {
+            if (orderChanged) listener->orderChanged();
+            if (! changedId.isNull()) listener->instanceChanged (changedId);
             listener->settingsChanged();
             if (styleChanged) listener->styleChanged();
         }
@@ -125,10 +203,36 @@ BoardSettings BoardModel::getBoardSettings() const
     return impl->settings;
 }
 
-bool BoardModel::undo() { return false; }
-bool BoardModel::redo() { return false; }
-bool BoardModel::canUndo() const { return false; }
-bool BoardModel::canRedo() const { return false; }
+bool BoardModel::undo()
+{
+    {
+        const std::lock_guard<std::mutex> lock (impl->mutex);
+        if (impl->undoStack.empty()) return false;
+        impl->redoStack.push_back ({ impl->settings, impl->instances });
+        auto previous = std::move (impl->undoStack.back());
+        impl->undoStack.pop_back();
+        impl->settings = std::move (previous.settings);
+        impl->instances = std::move (previous.instances);
+    }
+    for (auto* l : impl->listeners) { l->orderChanged(); l->settingsChanged(); l->styleChanged(); }
+    return true;
+}
+bool BoardModel::redo()
+{
+    {
+        const std::lock_guard<std::mutex> lock (impl->mutex);
+        if (impl->redoStack.empty()) return false;
+        impl->undoStack.push_back ({ impl->settings, impl->instances });
+        auto next = std::move (impl->redoStack.back());
+        impl->redoStack.pop_back();
+        impl->settings = std::move (next.settings);
+        impl->instances = std::move (next.instances);
+    }
+    for (auto* l : impl->listeners) { l->orderChanged(); l->settingsChanged(); l->styleChanged(); }
+    return true;
+}
+bool BoardModel::canUndo() const { const std::lock_guard<std::mutex> lock (impl->mutex); return ! impl->undoStack.empty(); }
+bool BoardModel::canRedo() const { const std::lock_guard<std::mutex> lock (impl->mutex); return ! impl->redoStack.empty(); }
 void BoardModel::beginTransaction (const juce::String&) {}
 void BoardModel::endTransaction() {}
 
@@ -171,6 +275,8 @@ bool BoardModel::replaceAll (const std::vector<PedalInstance>& orderedInstances,
         const std::lock_guard<std::mutex> lock (impl->mutex);
         impl->instances = orderedInstances;
         impl->settings = settings;
+        impl->undoStack.clear();
+        impl->redoStack.clear();
     }
     for (auto* listener : impl->listeners)
     {
