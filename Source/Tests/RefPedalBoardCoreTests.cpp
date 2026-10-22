@@ -45,3 +45,20 @@ LUTHIER_TEST (RefPedalBoardCore, stateSnapshotRoundTrip)
     CHECK (std::abs (saved.mix - 0.6f) < 1.0e-6f);
     CHECK (saved.style == BoardStyle::velcro);
 }
+
+LUTHIER_TEST (RefPedalBoardCore, instanceMoveRemoveAndUndo)
+{
+    BoardModel model;
+    const InstanceId a, b;
+    CHECK (model.apply (cmd::Add { "generic.overdrive", -1, Placement::beforeExistingPre, 0, a }));
+    CHECK (model.apply (cmd::Add { "generic.overdrive", -1, Placement::beforeExistingPre, 0, b }));
+    CHECK (model.getInstanceCount() == 2);
+    CHECK (model.apply (cmd::Move { a, 1 }));
+    CHECK (model.getOrder()[1] == a);
+    CHECK (model.undo());
+    CHECK (model.getOrder()[0] == a);
+    CHECK (model.redo());
+    CHECK (model.getOrder()[1] == a);
+    CHECK (model.apply (cmd::Remove { a }));
+    CHECK (model.getInstanceCount() == 1);
+}
