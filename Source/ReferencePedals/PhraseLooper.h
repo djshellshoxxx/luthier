@@ -1,3 +1,4 @@
+// OWNER: WP15 (prototype looper, removed when WP15 ends; WP1 added this line only)
 #pragma once
 
 // Stereo dry-through phrase recording primitive for future reference looper
