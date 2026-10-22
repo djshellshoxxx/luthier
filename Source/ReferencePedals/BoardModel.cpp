@@ -1,7 +1,5 @@
-// OWNER: WP2
-// STUB (WP1): the interface is frozen in BoardModel.h; WP2 implements it. This
-// body exists so the facade, the UI headers and the tests link today. apply()
-// rejects everything and the getters report an empty board.
+// Message-thread board edits and bounded snapshot history. Audio topology
+// compilation/publication remains a separate integration work package.
 
 #include "BoardModel.h"
 #include <algorithm>
@@ -13,6 +11,20 @@
 namespace luthier::reference
 {
 
+namespace
+{
+    int firstFreeSlot (const std::vector<PedalInstance>& instances)
+    {
+        std::array<bool, kMaxSlots> used {};
+        for (const auto& pedal : instances)
+            if (pedal.slot >= 0 && pedal.slot < kMaxSlots)
+                used[static_cast<size_t> (pedal.slot)] = true;
+        for (int slot = 0; slot < kMaxSlots; ++slot)
+            if (! used[static_cast<size_t> (slot)]) return slot;
+        return -1;
+    }
+}
+
 struct BoardModel::Impl
 {
     mutable std::mutex mutex;        // message-thread mutex, never taken on the audio thread
@@ -20,6 +32,48 @@ struct BoardModel::Impl
     std::vector<PedalInstance> instances;
     struct History { BoardSettings settings; std::vector<PedalInstance> instances; };
     std::vector<History> undoStack, redoStack;
+    unsigned transactionDepth = 0;
+    bool transactionHasEdits = false;
+
+    struct Gesture
+    {
+        int kind = 0, param = -1;
+        InstanceId id = InstanceId::null();
+        uint32_t number = 0;
+        bool continues (const Gesture& other) const
+        {
+            return number != 0 && number == other.number && kind == other.kind
+                && param == other.param && id == other.id;
+        }
+    } lastGesture;
+
+    static Gesture gestureFor (const BoardCommand& command)
+    {
+        if (const auto* c = std::get_if<cmd::SetParam> (&command))
+            return { 1, c->paramIdx, c->id, c->gesture };
+        if (const auto* c = std::get_if<cmd::SetTrim> (&command))
+            return { 2, -1, c->id, c->gesture };
+        if (const auto* c = std::get_if<cmd::SetMix> (&command))
+            return { 3, -1, InstanceId::null(), c->gesture };
+        return {};
+    }
+
+    // Capture the state before the first accepted edit, never for an empty or
+    // rejected transaction. This also preserves redo until an edit succeeds.
+    void recordUndo (const BoardCommand& command)
+    {
+        const auto gesture = gestureFor (command);
+        const bool capture = transactionDepth != 0 ? ! transactionHasEdits
+                                                   : ! gesture.continues (lastGesture);
+        if (capture)
+        {
+            if (undoStack.size() == 100) undoStack.erase (undoStack.begin());
+            undoStack.push_back ({ settings, instances });
+        }
+        redoStack.clear();
+        if (transactionDepth != 0) transactionHasEdits = true;
+        lastGesture = gesture;
+    }
     std::vector<Listener*> listeners;
 };
 
@@ -51,6 +105,8 @@ bool BoardModel::apply (const BoardCommand& command, juce::String* rejectReason)
                 PedalInstance p;
                 p.instanceId = cmd.id.isNull() ? InstanceId() : cmd.id;
                 if (findPedal (p.instanceId) != nextInstances.end()) return false;
+                p.slot = firstFreeSlot (nextInstances);
+                if (p.slot < 0) return false;
                 p.modelId = cmd.modelId;
                 p.placement = cmd.placement;
                 p.lane = cmd.lane;
@@ -58,6 +114,41 @@ bool BoardModel::apply (const BoardCommand& command, juce::String* rejectReason)
                 const auto index = cmd.index == -1 ? nextInstances.size() : static_cast<size_t> (cmd.index);
                 nextInstances.insert (nextInstances.begin() + static_cast<std::ptrdiff_t> (index), std::move (p));
                 orderChanged = true;
+            }
+            else if constexpr (std::is_same_v<T, cmd::Duplicate>)
+            {
+                const auto it = findPedal (cmd.id);
+                if (it == nextInstances.end() || nextInstances.size() >= kMaxSlots) return false;
+                auto copy = *it;
+                const auto index = std::distance (nextInstances.begin(), it) + 1;
+                copy.instanceId = cmd.newId.isNull() ? InstanceId() : cmd.newId;
+                if (findPedal (copy.instanceId) != nextInstances.end()) return false;
+                // Never alias the source's host-automation storage index.
+                copy.slot = firstFreeSlot (nextInstances);
+                if (copy.slot < 0) return false;
+                // juce::var objects are reference-counted: detach mutable extras.
+                copy.extras = copy.extras.clone();
+                changedId = copy.instanceId;
+                nextInstances.insert (nextInstances.begin() + index, std::move (copy));
+                orderChanged = true;
+            }
+            else if constexpr (std::is_same_v<T, cmd::SetTrim>)
+            {
+                auto it = findPedal (cmd.id);
+                if (it == nextInstances.end() || ! std::isfinite (cmd.inDb) || ! std::isfinite (cmd.outDb)
+                    || cmd.inDb < -12.f || cmd.inDb > 12.f || cmd.outDb < -12.f || cmd.outDb > 12.f)
+                    return false;
+                it->inDb = cmd.inDb;
+                it->outDb = cmd.outDb;
+                changedId = cmd.id;
+            }
+            else if constexpr (std::is_same_v<T, cmd::SetMounting>)
+            {
+                auto it = findPedal (cmd.id);
+                if (it == nextInstances.end() || cmd.mounting > Mounting::none) return false;
+                it->mounting = cmd.mounting;
+                changedId = cmd.id;
+                styleChanged = true;
             }
             else if constexpr (std::is_same_v<T, cmd::Remove>)
             {
@@ -150,9 +241,7 @@ bool BoardModel::apply (const BoardCommand& command, juce::String* rejectReason)
         }, command);
         if (supported)
         {
-            if (impl->undoStack.size() == 100) impl->undoStack.erase (impl->undoStack.begin());
-            impl->undoStack.push_back ({ impl->settings, impl->instances });
-            impl->redoStack.clear();
+            impl->recordUndo (command);
             impl->settings = std::move (next);
             impl->instances = std::move (nextInstances);
             settingsChanged = true;
@@ -207,7 +296,8 @@ bool BoardModel::undo()
 {
     {
         const std::lock_guard<std::mutex> lock (impl->mutex);
-        if (impl->undoStack.empty()) return false;
+        if (impl->transactionDepth != 0 || impl->undoStack.empty()) return false;
+        impl->lastGesture = {};
         impl->redoStack.push_back ({ impl->settings, impl->instances });
         auto previous = std::move (impl->undoStack.back());
         impl->undoStack.pop_back();
@@ -221,7 +311,8 @@ bool BoardModel::redo()
 {
     {
         const std::lock_guard<std::mutex> lock (impl->mutex);
-        if (impl->redoStack.empty()) return false;
+        if (impl->transactionDepth != 0 || impl->redoStack.empty()) return false;
+        impl->lastGesture = {};
         impl->undoStack.push_back ({ impl->settings, impl->instances });
         auto next = std::move (impl->redoStack.back());
         impl->redoStack.pop_back();
@@ -231,10 +322,26 @@ bool BoardModel::redo()
     for (auto* l : impl->listeners) { l->orderChanged(); l->settingsChanged(); l->styleChanged(); }
     return true;
 }
-bool BoardModel::canUndo() const { const std::lock_guard<std::mutex> lock (impl->mutex); return ! impl->undoStack.empty(); }
-bool BoardModel::canRedo() const { const std::lock_guard<std::mutex> lock (impl->mutex); return ! impl->redoStack.empty(); }
-void BoardModel::beginTransaction (const juce::String&) {}
-void BoardModel::endTransaction() {}
+bool BoardModel::canUndo() const { const std::lock_guard<std::mutex> lock (impl->mutex); return impl->transactionDepth == 0 && ! impl->undoStack.empty(); }
+bool BoardModel::canRedo() const { const std::lock_guard<std::mutex> lock (impl->mutex); return impl->transactionDepth == 0 && ! impl->redoStack.empty(); }
+void BoardModel::beginTransaction (const juce::String&)
+{
+    const std::lock_guard<std::mutex> lock (impl->mutex);
+    if (impl->transactionDepth++ == 0)
+    {
+        impl->transactionHasEdits = false;
+        impl->lastGesture = {};
+    }
+}
+void BoardModel::endTransaction()
+{
+    const std::lock_guard<std::mutex> lock (impl->mutex);
+    if (impl->transactionDepth != 0 && --impl->transactionDepth == 0)
+    {
+        impl->transactionHasEdits = false;
+        impl->lastGesture = {};
+    }
+}
 
 void BoardModel::addListener (Listener* l)
 {
@@ -251,6 +358,8 @@ bool BoardModel::replaceAll (const std::vector<PedalInstance>& orderedInstances,
                              const BoardSettings& settings, juce::String* error)
 {
     juce::String reason;
+    auto restored = orderedInstances;
+    std::array<bool, kMaxSlots> usedSlots {};
     if (orderedInstances.size() > static_cast<size_t> (kMaxSlots))
         reason = "Board exceeds 16 pedal slots";
     else if (! std::isfinite (settings.mix) || settings.mix < 0.f || settings.mix > 1.f)
@@ -263,6 +372,14 @@ bool BoardModel::replaceAll (const std::vector<PedalInstance>& orderedInstances,
             if (pedal.instanceId.isNull() || ! isValidPlacement (static_cast<int> (pedal.placement))
                 || pedal.lane < 0 || pedal.lane >= kMaxBranches)
                 { reason = "Invalid pedal identifier, placement or lane"; break; }
+            if (pedal.slot < -1 || pedal.slot >= kMaxSlots)
+                { reason = "Invalid pedal automation slot"; break; }
+            if (pedal.slot >= 0)
+            {
+                auto& used = usedSlots[static_cast<size_t> (pedal.slot)];
+                if (used) { reason = "Duplicate pedal automation slot"; break; }
+                used = true;
+            }
             for (size_t j = 0; j < i; ++j)
                 if (orderedInstances[j].instanceId == pedal.instanceId)
                     { reason = "Duplicate pedal identifier"; break; }
@@ -271,12 +388,19 @@ bool BoardModel::replaceAll (const std::vector<PedalInstance>& orderedInstances,
     }
     if (error != nullptr) *error = reason;
     if (reason.isNotEmpty()) return false;
+    // Reserve all explicit slots before filling omissions: an earlier missing
+    // slot must not steal a later instance's saved automation assignment.
+    for (auto& pedal : restored)
+        if (pedal.slot == -1) pedal.slot = firstFreeSlot (restored);
     {
         const std::lock_guard<std::mutex> lock (impl->mutex);
-        impl->instances = orderedInstances;
+        impl->instances = std::move (restored);
         impl->settings = settings;
         impl->undoStack.clear();
         impl->redoStack.clear();
+        impl->transactionDepth = 0;
+        impl->transactionHasEdits = false;
+        impl->lastGesture = {};
     }
     for (auto* listener : impl->listeners)
     {

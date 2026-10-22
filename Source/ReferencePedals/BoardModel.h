@@ -6,8 +6,8 @@
 // thread never sees it (it sees the compiled Topology). Rule O1: getOrder() is
 // the only ordering authority, a view must never keep its own list.
 //
-// WP1 ships the declaration and a non-functional stub (BoardModel.cpp); WP2
-// implements it.
+// Editing and snapshot history are implemented in BoardModel.cpp. Audio
+// topology compilation/publication remains pending integration.
 
 #include <functional>
 #include <memory>
