@@ -3,6 +3,7 @@
 #include "../ReferencePedals/Board.h"
 #include <array>
 #include <cmath>
+#include <limits>
 using namespace luthier::reference;
 
 LUTHIER_TEST (ReferencePedals, initiallyDisabledDoesNotChangeAudio)
@@ -79,4 +80,36 @@ LUTHIER_TEST (ReferencePedals, smallBlocksAndNullInputAreSafe)
         b.processStereo (l, r, size, Placement::beforeExistingPre);
         for (int i=0;i<size;++i) { CHECK (std::isfinite (l[i])); CHECK (std::isfinite (r[i])); }
     }
+}
+
+LUTHIER_TEST (ReferencePedals, invalidPreparationRatesRemainFinite)
+{
+    // The MIDI router and prototype DSP must both receive a validated rate.
+    for (double rate : {0.0, -1.0, 7999.0,
+                        std::numeric_limits<double>::quiet_NaN(),
+                        std::numeric_limits<double>::infinity()})
+    {
+        Board b;
+        b.prepare (rate, 128);
+        b.setBoardEnabled (true);
+        b.setModel (0, Model::ts808Prototype);
+        double left[128] {}, right[128] {};
+        left[0] = right[0] = 0.2;
+        b.processStereo (left, right, 128, Placement::beforeExistingPre);
+        for (int i = 0; i < 128; ++i)
+        {
+            CHECK (std::isfinite (left[i]));
+            CHECK (std::isfinite (right[i]));
+        }
+    }
+}
+
+LUTHIER_TEST (ReferencePedals, invalidPlacementDoesNotOverwriteValidRouting)
+{
+    Board b;
+    b.setPlacement (0, Placement::afterExistingPost);
+    b.setPlacement (0, static_cast<Placement> (-1));
+    CHECK (b.getPlacement (0) == Placement::afterExistingPost);
+    b.setPlacement (0, static_cast<Placement> (99));
+    CHECK (b.getPlacement (0) == Placement::afterExistingPost);
 }
