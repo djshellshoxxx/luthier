@@ -10,7 +10,7 @@
 
 Version 0.1 | 2026-10-21 | model_id `ehx-deluxe-muff` | param prefix `ehx_deluxe_muff_` | status SPEC
 Tags: DOCUMENTED (manual/retail/official text), MEASURED (none yet), ESTIMATED (derived/from memory; must calibrate).
-RESEARCH LIMITS (honest): sandbox proxy blocks page fetch (ENOTFOUND www.ehx.com / electrosmash.com). Only WebSearch excerpts available. Official manual not read in full. Every ESTIMATED value needs check vs manual/schematic before release. No claim of "authentic/identical" until capture + tolerance report (see 9).
+RESEARCH LIMITS (honest, updated 2026-10-22): sandbox proxy still blocks page fetch (ENOTFOUND www.ehx.com, archive.ehx.com, manuals.plus, electrosmash.com, bigmuffpage.com, images.static-thomann.de; web.archive.org refused). Only WebSearch excerpts (EHX manual/product-page text, retailer spec lists) reached; manual/schematic not read in full. Remaining ESTIMATED values keep their derivation. No claim of "authentic/identical" until capture + tolerance report (see 9). See sec 11 Verification log.
 
 ## Sources
 - S1 EHX product page: https://www.ehx.com/products/deluxe-big-muff-pi/ (archive manual: https://archive.ehx.com/products/deluxe-big-muff-pi/instructions)
@@ -23,11 +23,11 @@ RESEARCH LIMITS (honest): sandbox proxy blocks page fetch (ENOTFOUND www.ehx.com
 - Related spec: spec/reference-pedalboard/models/ehx-deluxe-muff.md, models/ehx-big-muff-nyc.md
 
 ## 1 Identity / variants
-- Real unit: EHX Deluxe Big Muff Pi, mono in/out, analog, 9 V DC (EHX 9.6DC-200 class supply; battery NOT supported on this class -- ESTIMATED; manual to confirm), 2 footswitches. No MIDI, no tap, no clock. Only external control = EXP jack. DOCUMENTED (S1,S3).
+- Real unit: EHX Deluxe Big Muff Pi, mono in/out, analog, 9 V battery (included per Adorama listing) or 9.6VDC-200mA adapter (optional, not included), centre-negative, max 12 V DC, draw 22 mA @ 9 V; true bypass. DOCUMENTED (retailer spec lists: https://www.adorama.com/ehdlxbm.html ; https://fr.audiofanzine.com/fuzz-guitare/electro-harmonix/deluxe-big-muff-pi/ ; not the EHX manual), 2 footswitches. No MIDI, no tap, no clock. Only external control = EXP jack. DOCUMENTED (S1,S3).
 - Core: "NORMAL" mode circuit identical to NYC Big Muff Pi (4 CE transistor stages, 2 diode-clipping stages, passive tone crossfade). DOCUMENTED (S1 manual text).
 - Added: ATTACK path, GATE, BASS BOOST switch, footswitchable parametric MIDS (LEVEL, FREQ, Q hi/lo), EXP pedal sweeps MIDS FREQ. DOCUMENTED.
-- NOT this pedal: Deluxe Big Muff Pi 2 (2026: Wicker switch, BLEND, dual op-amp), Deluxe Bass Big Muff, Sovtek Deluxe (variant-specific exp jack text). Do not mix specs. Original has NO blend knob (S3 summary; ESTIMATED-confirm).
-- Variant enum `ehx_deluxe_muff_revision`: {0=dlx_2014 default}. Single variant v1; selector hidden.
+- NOT this pedal: Deluxe Big Muff Pi 2 (2026: Wicker switch, BLEND, dual op-amp), Deluxe Bass Big Muff, Sovtek Deluxe (variant-specific exp jack text). Do not mix specs. Original has NO blend knob (control list in EHX manual excerpts has none; DOCUMENTED by absence). Sovtek-branded version has an extra internal true/buffered bypass slide switch and trim pots (https://modulargrid.net/p/offers/view/1170676); not modelled.
+- Variant enum `ehx_deluxe_muff_revision`: {0=default}. Single variant v1; selector hidden. The earlier "dlx_2014" year label was unverified: renamed generic `deluxe_guitar`; no production year is claimed.
 - Display name: "Deluxe Muff (Big Muff style)". No logos; original vector art.
 
 ## 2 Controls
@@ -36,20 +36,20 @@ RESEARCH LIMITS (honest): sandbox proxy blocks page fetch (ENOTFOUND www.ehx.com
 | VOLUME | 0..10 | audio A (x^2) ESTIMATED | 0.5 (unity ~ 0.45, ESTIMATED) | output level after tone/mids; range -inf..+~20 dB over unity |
 | TONE | 0..10 | linear B 100k (ESTIMATED) | 0.5 | passive LP/HP crossfade; CCW dark (LP), CW bright (HP), centre = mid notch ~ 1 kHz. DOCUMENTED topology (S4,S5) |
 | SUSTAIN | 0..10 | audio A 100k ESTIMATED | 0.5 | input-stage/pre-clip gain; CW = more fuzz/compression. DOCUMENTED function |
-| ATTACK | 0..10 | linear ESTIMATED | 0 | level of "Attack" effect: pick-definition path mixed in; 0 = off. DOCUMENTED ("volume of the Attack effect"). Circuit unknown -> behavioural model sec 3.6 |
-| GATE | 0..10 | linear ESTIMATED | 0 | input threshold to open gate; full CCW = gate disabled. DOCUMENTED. |
+| ATTACK | 0..10 | linear ESTIMATED | 0 | blends an enhanced version of the dry signal to add pick punch; 0 = off. DOCUMENTED (EHX manual excerpt). Circuit unpublished -> behavioural model sec 3.6, ESTIMATED |
+| GATE | 0..10 | linear ESTIMATED | 0 | CW raises threshold (input must be stronger to open); full CCW = gate disabled. DOCUMENTED (EHX manual; Thomann copy https://images.static-thomann.de/pics/atg/atgdata/document/manual/454336_en.pdf is the Pi 2 manual, wording matches). Threshold dB values ESTIMATED sec 3.7. |
 | MIDS LEVEL | -10..+10 dB (UI 0..1, centre 0.5=0 dB) | linear dB | 0.5 | parametric boost/cut up to +/-10 dB. DOCUMENTED (S3,S1) |
-| MIDS FREQ | 310 Hz..5.0 kHz | log (exp sweep) ESTIMATED | 0.5 (~1.25 kHz geometric centre) | centre freq; also driven by EXP jack. DOCUMENTED range |
-| Q switch | HI / LO | 2-pos | LO | bandwidth. Q values ESTIMATED: LO 0.7, HI 2.5 |
+| MIDS FREQ | 310 Hz..5.0 kHz | log (exp sweep) ESTIMATED taper | 0.5 (~1.25 kHz geometric centre) | centre freq; also driven by EXP jack. Range DOCUMENTED (EHX manual text: "approximately 310Hz to 5.0kHz"; https://www.ehx.com/products/deluxe-big-muff-pi/) |
+| Q switch | HI / LO | 2-pos | LO | LO = broader/rounder, HI = sharper/peakier (DOCUMENTED, EHX manual). Numeric Q ESTIMATED: LO 0.7, HI 2.5 (no published values; HI/LO ratio chosen >=3 for audible contrast) |
 | BASS BOOST switch | NORMAL / BASS BOOST | 2-pos | NORMAL | NORMAL = NYC circuit; BASS BOOST raises bass through the distortion circuit; most useful w/ TONE > noon. DOCUMENTED |
 | BYPASS footswitch | latching | - | OFF | engages whole effect |
 | MIDS footswitch | latching | - | OFF | engages mids EQ (independent of bypass; mids only audible when pedal ON -- ESTIMATED; real unit may let mids-only? Assume NO). |
 | LEDs | 2 | - | off | one per footswitch, red (ESTIMATED), fixed brightness |
-| INPUT | 1/4" mono | - | - | Zin ~ 100k..470k (ESTIMATED; NYC input ~ 70k..100k) |
-| OUTPUT | 1/4" mono | - | - | Zout ~ 1k-10k (ESTIMATED) |
+| INPUT | 1/4" mono | - | - | Zin 130 kOhm DOCUMENTED (retailer spec: Adorama, Audiofanzine; not EHX manual) |
+| OUTPUT | 1/4" mono | - | - | Zout 300 Ohm DOCUMENTED (same retailer sources) |
 | EXP | 1/4" TRS | - | - | expression pedal sweeps MIDS FREQ (heel = low end, toe = high end ESTIMATED). DOCUMENTED existence/target (search excerpts). |
 | DC | barrel 9 V centre-neg | - | - | tooltip only |
-No hidden knobs. `ehx_deluxe_muff_input_trim_db`, `_output_trim_db` live in Advanced overlay only.
+No hidden knobs. Input/output trims are slot-level (`ref_s{nn}_in_db/out_db`), not pedal params (per reconciled header; stale rows removed from sec 8).
 
 ## 3 Signal path and circuit/DSP model
 Order: In -> inbuf -> [gate sidechain tap] -> input booster (Q1) -> clip1 (Q2+diodes) -> clip2 (Q3+diodes) -> tone stack -> [BASS BOOST network] -> output booster (Q4) -> mids EQ (if MIDS on) -> gate VCA -> + attack path -> VOLUME -> Out. Placement of mids/gate/attack in real unit is NOT documented: ESTIMATED order above (mids after output booster as clean EQ; gate before volume).
@@ -62,7 +62,7 @@ Calibration: 0.5 V analog peak per full-scale (trim), rails 9 V, bias 4.5 V.
 3.5 MIDS parametric (semi-parametric peak): RBJ peaking biquad, f0 = 310*(5000/310)^F Hz (F 0..1), gain G in [-10,+10] dB, Q {0.7, 2.5}. Footswitch on/off: crossfade peak gain to 0 dB over 10 ms (gain -> 0, not signal mix). Real unit analog bypass of section, no latency.
 3.6 ATTACK (behavioural, ESTIMATED): reproduces pick-definition by mixing a lightly-clipped, high-passed transient path with the fuzz: `a = HP(x,300Hz) -> tanh(3x)->envelope-driven: tr = x - LP(x_env_slow)`; practical: `attack_path = softclip(HPF(inbuf_out, 250 Hz) * 4)`; transient emphasis `env_fast (1 ms atk, 30 ms rel)` minus `env_slow (20 ms)` clipped >=0, multiply: `p = attack_path * clamp((env_fast-env_slow)/env_slow,0,1)`. Mixed: `y += ATTACK_UI^1.5 * 0.7 * p` before VOLUME. Document as BEHAVIOURAL, not circuit.
 3.7 GATE (behavioural, ESTIMATED): detector on input buffer output (before fuzz): full-wave |x| -> 1-pole env (atk 1 ms, rel 15 ms). Threshold dBFS = -75 + 45*G (G 0..1; G==0 -> disabled; ESTIMATED), hysteresis 4 dB (open at thr, close at thr-4 dB), hold 20 ms, gain attack 2 ms, release 80 ms (smoothed gain, applied post-fuzz to kill sustain tail/hiss). State machine: CLOSED -(env>thr)-> OPEN; OPEN -(env<thr-4dB for hold 20 ms)-> CLOSING -> CLOSED; CLOSING -(env>thr)-> OPEN. Closed floor -60 dB (not infinite; ESTIMATED).
-3.8 Bypass: BUFFERED electronic (EHX class; ESTIMATED -- manual says "true bypass"? Unknown) -> default `ehx_deluxe_muff_true_bypass`=false: input/output buffers stay (transparent), crossfade 5 ms equal-power. Mids FS: gain-ramp 10 ms. Latency 0 samples reported (OS filter latency compensated via linear-phase-free minimum-phase IIR halfbands; reported latency 0 with mild phase shift) . Mono; stereo host: process L,R independent with linked params or sum per board.
+3.8 Bypass: TRUE BYPASS (DOCUMENTED, retailer specs Adorama/Chicago Music Exchange; Sovtek variant adds internal buffered option, not modelled) -> default `ehx_deluxe_muff_true_bypass`=true: bypassed path is bit-exact dry, crossfade 5 ms equal-power (click-free). Set false for buffered behaviour (emulation option). Mids FS: gain-ramp 10 ms. Latency 0 samples reported (OS filter latency compensated via linear-phase-free minimum-phase IIR halfbands; reported latency 0 with mild phase shift) . Mono; stereo host: process L,R independent with linked params or sum per board.
 3.9 Noise (default off in tests; on in product): fuzz hiss -88 dBFS at SUSTAIN>0.5, gated by GATE.
 
 ## 4 Plugin algorithm
@@ -85,10 +85,10 @@ x -> inTrim -> inbuf(HPF2Hz) -+-> gateDet
 
 ## 6 MIDI / sync / expression emulation
 Real unit has NO MIDI/clock/tap; sync features not applicable. Emulation scope = EXP jack + footswitch gestures + generic controller mapping (board-level MIDI learn, spec/reference-pedalboard/specs/MIDI_EXPRESSION.md).
-- EXP: virtual jack `ehx_deluxe_muff_exp` 0..1 (heel..toe). When connected (any CC mapped / not "unplugged"), MIDS FREQ = f(exp) overrides knob: real unit uses knob as offset ESTIMATED -> implement `F_eff = clamp(F_knob_min + exp*(1-F_knob_min))`? v1: exp overrides: `F_eff = exp` when EXP connected. Bit `exp_connected` param.
-- CC map defaults (user re-mappable, 14-bit optional): CC4 (foot controller) -> EXP; CC7 -> VOLUME; CC14 SUSTAIN; CC15 TONE; CC16 ATTACK; CC17 GATE; CC18 MIDS LEVEL; CC19 MIDS FREQ; CC20 Q (>=64 hi); CC21 BASS BOOST (>=64 on); CC22 MIDS FS (>=64 on); CC23 BYPASS FS (>=64 on). Program change: board-preset recall only (real unit has no presets).
-- Footswitch gestures: note-on (key/pad) on mapped note = momentary press: velocity < 40 = light tap (no action beyond toggle); velocity -> LED flash brightness only. Hold >= 600 ms on MIDS FS = momentary mids (release restores) -- emulation, flagged as non-hardware. Real unit: plain latching only.
-- Velocity/aftertouch: channel aftertouch (and poly AT) -> optionally mapped to EXP (smoothed 20 ms); velocity of footswitch note maps to press speed -> switch crossfade length: 3 ms (vel 127) .. 12 ms (vel 1) (comparable emulation of press speed; mark EMULATED). Any knob mappable to slider/knob CC (13-chan MIDI learn, takeover pickup mode: jump/pickup/scale).
+- EXP: virtual jack `ehx_deluxe_muff_exp` 0..1 (heel..toe). Hardware: expression pedal or CV can sweep MIDS FREQ (DOCUMENTED, EHX manual). Knob/EXP interaction and heel/toe polarity are unpublished: ESTIMATED v1 = when EXP connected, `F_eff = exp` (overrides knob; heel = 310 Hz, toe = 5 kHz). Bit `exp_connected` param.
+- CC map: the hardware has NO MIDI, so no manufacturer CC chart exists. OMIT any claim of an official MIDI map. The CCs below are a plugin-local convenience profile (user re-mappable, 14-bit optional; NOT hardware, NOT documented): CC4 -> EXP; CC7 -> VOLUME; CC14 SUSTAIN; CC15 TONE; CC16 ATTACK; CC17 GATE; CC18 MIDS LEVEL; CC19 MIDS FREQ; CC20 Q (>=64 hi); CC21 BASS BOOST (>=64 on); CC22 MIDS FS (>=64 on); CC23 BYPASS/engage FS (>=64 on). Program change: board-preset recall only (real unit has no presets).
+- Footswitch gestures: OMIT hold-for-momentary-mids and velocity/press-speed crossfade gestures (no hardware basis; plugin implements plain latching toggles only, fixed crossfades per 3.5/3.8). Velocity -> LED brightness is cosmetic only.
+- Aftertouch -> EXP mapping and generic MIDI-learn with takeover (jump/pickup/scale) are host/board-layer conveniences, not hardware features; implemented by the board layer, not this pedal.
 - MIDI clock: ignored (no tempo features). Present but disabled "Not applicable" in sync UI.
 
 ## 7 Visuals (original vector art; ESTIMATED dimensions)
@@ -106,7 +106,7 @@ Real unit has NO MIDI/clock/tap; sync features not applicable. Emulation scope =
 ## 8 Parameter table
 | id | name | min | max | default | unit | skew | smoothing ms | automatable |
 |---|---|---|---|---|---|---|---|---|
-| ehx_deluxe_muff_bypass | Bypass | 0 | 1 | 1 | bool(1=bypassed) | - | 5 xfade | yes |
+| ehx_deluxe_muff_bypass | Engage | 0 | 1 | 0 | bool(1=effect engaged, per reconciled header; was mislabelled 1=bypassed) | - | 5 xfade | yes |
 | ehx_deluxe_muff_volume | Volume | 0 | 1 | 0.5 | norm | A (x^2) | 10 | yes |
 | ehx_deluxe_muff_tone | Tone | 0 | 1 | 0.5 | norm | lin | 10 | yes |
 | ehx_deluxe_muff_sustain | Sustain | 0 | 1 | 0.5 | norm | A | 10 | yes |
@@ -119,10 +119,8 @@ Real unit has NO MIDI/clock/tap; sync features not applicable. Emulation scope =
 | ehx_deluxe_muff_bass_boost | Bass Boost | 0 | 1 | 0 | bool | - | 20 xfade | yes |
 | ehx_deluxe_muff_exp | Expression | 0 | 1 | 0 | norm | lin | 5 | yes |
 | ehx_deluxe_muff_exp_connected | Exp connected | 0 | 1 | 0 | bool | - | - | yes |
-| ehx_deluxe_muff_input_trim_db | In trim (adv) | -12 | 12 | 0 | dB | lin | 20 | yes |
-| ehx_deluxe_muff_output_trim_db | Out trim (adv) | -12 | 12 | 0 | dB | lin | 20 | yes |
 | ehx_deluxe_muff_hq | HQ OS | 0 | 1 | 1 | bool | - | - | no |
-| ehx_deluxe_muff_true_bypass | True bypass | 0 | 1 | 0 | bool | - | - | no |
+| ehx_deluxe_muff_true_bypass | True bypass | 0 | 1 | 1 | bool | - | - | no |
 | ehx_deluxe_muff_gate_link | Gate link | 0 | 1 | 0 | bool | - | - | no |
 | ehx_deluxe_muff_stereo_mode | Stereo mode | 0 | 1 | 0 | enum | - | - | no |
 | ehx_deluxe_muff_revision | Revision | 0 | 0 | 0 | enum | - | - | no |
@@ -145,10 +143,11 @@ Persist normalised values; unknown fields preserved.
 - Hardware reference: licensed same-revision unit, 0/25/50/75/100% grid, 4 input levels, 44.1/48/96 k capture; thresholds set after measurement.
 
 ## 10 Known inaccuracies
-- All component values, tapers, Q values, gate thresholds/timings, ATTACK algorithm, BASS BOOST implementation, mids placement, bypass type, LED colour, enclosure dims/colour are ESTIMATED; manual not read in full.
+- Still ESTIMATED: tone-stack and clip-stage component values (sec 3.1-3.3; 39k/10nF and 22k/3.9nF corner arithmetic is correct but source tone-stack values not reached; Sovtek/Deluxe may differ), tapers, numeric Q, gate thresholds/timings, ATTACK algorithm, BASS BOOST implementation, mids placement, LED colour, enclosure dims/colour. Now DOCUMENTED: bypass type, Zin/Zout, power, MIDS range, control semantics.
 - ATTACK and GATE are behavioural, not circuit-accurate; true hardware likely uses VCA/FET detector.
 - Bass boost as shelf approximates in-circuit change.
-- Exp heel/toe polarity and EXP-vs-knob interaction unknown.
+- Exp heel/toe polarity and EXP-vs-knob interaction unknown (ESTIMATED v1 behaviour in sec 6).
+- Battery: retailer listing says battery included; battery sag still not modelled.
 - No transistor-level hFE/ tolerance variation; no supply sag; no battery.
-- Velocity/aftertouch/hold gestures are EMULATION features, not hardware.
+- MIDI CC map is plugin-local, not hardware (sec 6).
 - Next evidence: read official manual (S1/S2), ElectroSmash NYC values, capture from real unit.

@@ -18,6 +18,7 @@ BoardWindow::BoardWindow (BoardModel& model, LuthierAudioProcessor& processor, j
     setResizable (true, true);
     setResizeLimits (480, 260, 4096, 2160);
     setAlwaysOnTop (false);
+    juce::ignoreUnused (boardModel, audioProcessor);   // WP17 binds the content to them
 }
 
 BoardWindow::~BoardWindow() = default;
