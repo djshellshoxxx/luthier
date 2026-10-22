@@ -124,6 +124,7 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
 
     // --- signal chain ---------------------------------------------------------
     circuit.prepare (sr);
+    referencePedals.prepare (sr);
     preEffects.prepare (sr, maxBlock);
     saturation.prepare (sr);   // FEAT-SAT
     preEffects.setPosition (EffectsChain::Position::PreAmp);
@@ -217,6 +218,7 @@ void LuthierEngine::reset() noexcept
     // Rebuild a changed circuit now rather than in the first block after.
     circuit.setComponents (getLiveCircuitComponents());
     circuit.reset();
+    referencePedals.reset();
     preEffects.reset();
     saturation.reset();   // FEAT-SAT
     amp.reset();
@@ -3456,6 +3458,7 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
             dr[(size_t) i] = instrumentBuffer[(size_t) i];
         }
 
+        referencePedals.processStereo (dl.data(), dr.data(), numSamples, reference::Placement::beforeExistingPre);
         preEffects.processStereo (dl.data(), dr.data(), numSamples);
 
         // FEAT-SAT: the closing saturation stage; a true bypass at 0 %.
@@ -3523,6 +3526,7 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         }
 
         postEffects.processStereo (dl.data(), dr.data(), numSamples);
+        referencePedals.processStereo (dl.data(), dr.data(), numSamples, reference::Placement::afterExistingPost);
 
         for (int i = 0; i < numSamples; ++i)
         {

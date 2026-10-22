@@ -27,6 +27,7 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
       header (p),
       liveStrip (p),
       practicePanel (p),
+      referencePedalDrawer (p),
       easyPanel (p),
       advancedPanel (p),
       helpPanel (p),
@@ -69,6 +70,16 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     practicePanel.setOpen (processor.getUiState().practiceDrawerOpen);
     addChildComponent (easyPanel);
     addChildComponent (advancedPanel);
+
+    // Independent experimental reference pedalboard; legacy racks are untouched.
+    addChildComponent (referencePedalDrawer);
+    addAndMakeVisible (referencePedalsButton);
+    referencePedalsButton.setTooltip ("Open separate reference pedal prototypes. Existing racks are unchanged.");
+    referencePedalsButton.onClick = [this]
+    {
+        referencePedalDrawer.setOpen (!referencePedalDrawer.isOpen());
+        resized();
+    };
 
     addAndMakeVisible (chordButton);
 
@@ -586,6 +597,7 @@ void LuthierAudioProcessorEditor::resized()
 
     auto footer = bounds.removeFromBottom (Metrics::footerHeight);
     chordButton.setBounds (footer.withSizeKeepingCentre (110, Metrics::footerHeight - 2));
+    referencePedalsButton.setBounds (footer.removeFromRight (118).reduced (3));
     qualityBadge.setBounds (footer.reduced (Metrics::windowPadding, 1).removeFromLeft (QualityBadge::preferredWidth));   // cpu-quality-modes
 
     // 12: the data stream runs between the CPU readout and the chords button.
@@ -604,6 +616,14 @@ void LuthierAudioProcessorEditor::resized()
 
     easyPanel.setBounds (bounds);
     advancedPanel.setBounds (bounds);
+
+    // Slides over the workspace so opening it never resizes the host window.
+    // A horizontal Viewport keeps every card reachable at 940px and 1080p.
+    auto referenceArea = getLocalBounds();
+    referenceArea.removeFromTop (Metrics::headerHeight);
+    referenceArea.removeFromBottom (Metrics::footerHeight);
+    referencePedalDrawer.setBounds (referenceArea.removeFromBottom (
+        juce::jmin (referencePedalDrawer.getPreferredHeight(), referenceArea.getHeight())));
 
     overlayHost.setBounds (getLocalBounds());
     midiLearnArmLayer.setBounds (getLocalBounds());

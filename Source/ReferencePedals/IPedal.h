@@ -1,0 +1,99 @@
+// OWNER: WP1 (frozen interface I-1; changes only via errata request to the WP1 owner)
+#pragma once
+
+// The one pedal API (errata E6). Every generic and branded pedal implements
+// IPedal; the board never knows a concrete type. juce_core only: no GUI, so
+// this header is safe in the headless renderer. Spec: BOARD_CORE.md sec 11.
+//
+// Thread contract:
+//   message thread   prepare, setServices, saveExtra, loadExtra (may allocate)
+//   audio thread     everything else; noexcept, no alloc, no lock, no log, no IO
+//
+// Dispatch order per block (BOARD_CORE 11): (1) param snapshot via setParam,
+// (2) setTime, (3) transport / foot / param events at their sample offsets
+// (the board splits the block), (4) process.
+
+#include <cstdint>
+#include <memory>
+#include <juce_core/juce_core.h>
+#include "PedalDesc.h"
+
+namespace luthier::reference
+{
+
+class IAssetStore;
+
+struct TimeInfo
+{
+    double bpm = 120;
+    double ppq = 0;
+    bool playing = false;
+    bool clockLocked = false;
+    bool valid = false;
+    int64_t sample = 0;
+};
+
+// Canonical raw event. Only pedals with PedalDesc::wantsRawMidi receive it.
+struct MidiEvent
+{
+    uint8_t status = 0, d1 = 0, d2 = 0;
+    int offset = 0;
+};
+
+// Footswitch press as seen by a pedal: speed and force are 0..1 (MIDI velocity
+// and aftertouch emulation, BOARD_CORE 9.6).
+struct FootEvent
+{
+    bool press = false;
+    float speed = 0.5f;
+    float force = 0.f;
+    int offset = 0;
+};
+
+enum class TransportEvent : uint8_t { Start, Stop, Continue, Locate };
+
+struct PedalServices
+{
+    IAssetStore* assets = nullptr;
+    uint32_t instanceSeed = 0;
+    int maxBlock = 0;
+    double sampleRate = 48000;
+};
+
+class IPedal
+{
+public:
+    virtual ~IPedal() = default;
+
+    virtual const PedalDesc& desc() const noexcept = 0;
+
+    // Message thread, may allocate. Called on prepareToPlay and on sample-rate
+    // or block-size change. oversamplePolicy: 0 Eco, 1 Normal, 2 High.
+    virtual void prepare (double sampleRate, int maxBlock, int oversamplePolicy) = 0;
+    virtual void setServices (const PedalServices&) {}   // message thread, before prepare()
+    virtual void reset() noexcept = 0;                    // clears state, RT-safe
+
+    // Audio thread. In place, n <= maxBlock.
+    virtual void process (double* L, double* R, int n) noexcept = 0;
+    virtual void setParam (int idx, float norm) noexcept = 0;   // norm 0..1; applies taper, smooths; Trigger: rising edge fires
+    virtual float getParam (int idx) const noexcept = 0;
+
+    virtual void setEnabled (bool) noexcept {}            // mirror of BoardModel.enabled (trails state machine); the model is truth
+    virtual int getLatencySamples() const noexcept { return 0; }
+    virtual float getTailEnergyDb() const noexcept { return 0.f; }   // <= -90 lets the board skip process()
+    virtual void setTime (const TimeInfo&) noexcept {}    // once per block, before events
+    virtual void onTransport (TransportEvent, int /*offset*/) noexcept {}
+    virtual void onMidi (const MidiEvent&) noexcept {}    // only if desc().wantsRawMidi
+    virtual int drainMidiOut (MidiEvent*, int /*cap*/) noexcept { return 0; }   // RC-5 clock master; audio thread
+    virtual void onFoot (const FootEvent&) noexcept {}
+    virtual void setExpression (int /*jack*/, float /*v*/) noexcept {}
+    virtual bool isStateless() const noexcept { return false; }
+    virtual bool outputsDualMono() const noexcept { return false; }
+
+    virtual void saveExtra (juce::var&) const {}          // message thread; non-param state (tap time, loop asset refs)
+    virtual void loadExtra (const juce::var&) {}
+};
+
+using PedalFactory = std::unique_ptr<IPedal> (*) ();
+
+} // namespace luthier::reference
