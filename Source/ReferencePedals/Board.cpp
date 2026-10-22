@@ -277,7 +277,9 @@ void Board::prepare (double sampleRate, int maxBlock)
     impl->legacy.prepare (impl->sampleRate);
 }
 
-void Board::releaseResources() {}
+// Called only after audio processing has stopped. Clear effect history so a
+// subsequent prepare cannot replay stale filter/delay state.
+void Board::releaseResources() { impl->legacy.reset(); }
 void Board::reset() noexcept { impl->legacy.reset(); }
 BoardModel& Board::model() noexcept { return impl->model; }
 midi::MidiRouter& Board::midi() noexcept { return impl->router; }
