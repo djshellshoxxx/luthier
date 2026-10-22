@@ -3,6 +3,7 @@
 #include "../ReferencePedals/BoardModel.h"
 #include <cmath>
 #include <limits>
+#include <utility>
 using namespace luthier::reference;
 
 LUTHIER_TEST (RefPedalBoardCore, boardSettingsCommandsRoundTrip)
@@ -264,4 +265,119 @@ LUTHIER_TEST (RefPedalBoardCore, restorePreservesSlotsAndAssignsUnspecifiedOnes)
     CHECK (model.getInstanceCount() == 2);
     first.slot = -2;
     CHECK (! model.replaceAll ({ first }, {}));
+}
+
+LUTHIER_TEST (RefPedalBoardCore, scalarBoardControlsRoundTripAndUndo)
+{
+    BoardModel model;
+    const std::pair<const char*, double> edits[] {
+        { "reportLatency", 0 }, { "limiterOn", 0 }, { "trails", 0 }, { "mixTail", 0 },
+        { "abSelect", 1 }, { "abOut", 1 }, { "parallelNorm", 2 },
+        { "reampEnable", 1 }, { "reampReplace", 1 }, { "reampGainDb", 12 },
+        { "limiterCeilDb", -6 }, { "tempoSource", 2 }, { "numLanes", 4 },
+        { "laneGainDb0", -24 }, { "laneGainDb3", 6 }, { "lanePhase0", 1 }, { "lanePhase3", 1 }
+    };
+    model.beginTransaction ("Board configuration");
+    for (const auto& edit : edits)
+        CHECK (model.apply (cmd::SetBoardParam { edit.first, edit.second }));
+    model.endTransaction();
+    const auto s = model.getBoardSettings();
+    CHECK (! s.reportLatency && ! s.limiterOn && ! s.trails && ! s.mixTail);
+    CHECK (s.abSelect == AbSelect::B && s.abOut == AbOutMode::Dual);
+    CHECK (s.lanes.norm == ParallelNorm::None && s.lanes.numLanes == 4);
+    CHECK (s.reampEnable && s.reampReplace);
+    CHECK_NEAR (s.reampGainDb, 12.f, 1.e-6f);
+    CHECK_NEAR (s.limiterCeilDb, -6.f, 1.e-6f);
+    CHECK (s.tempoSource == TempoSource::MidiClock);
+    CHECK_NEAR (s.lanes.gainDb[0], -24.f, 1.e-6f);
+    CHECK_NEAR (s.lanes.gainDb[3], 6.f, 1.e-6f);
+    CHECK (s.lanes.phaseInvert[0] && s.lanes.phaseInvert[3]);
+    CHECK (model.undo());
+    const auto original = model.getBoardSettings();
+    CHECK (original.reportLatency && original.limiterOn && original.trails && original.mixTail);
+    CHECK (original.lanes.numLanes == 2 && ! original.reampEnable);
+    CHECK (model.redo());
+    CHECK (model.getBoardSettings().lanes.numLanes == 4);
+}
+
+LUTHIER_TEST (RefPedalBoardCore, malformedScalarControlsDoNotMutateOrConsumeHistory)
+{
+    BoardModel model;
+    const std::pair<const char*, double> invalid[] {
+        { "reportLatency", 0.5 }, { "limiterOn", -1 }, { "trails", 2 }, { "mixTail", 1.1 },
+        { "abSelect", 4 }, { "abSelect", 0.5 }, { "abOut", -1 }, { "parallelNorm", 3 },
+        { "reampEnable", 2 }, { "reampReplace", -1 }, { "reampGainDb", 12.1 },
+        { "limiterCeilDb", -6.1 }, { "limiterCeilDb", 6.1 }, { "tempoSource", 4 },
+        { "numLanes", 1 }, { "numLanes", 5 }, { "numLanes", 2.5 },
+        { "laneGainDb4", 0 }, { "laneGainDb-1", 0 }, { "laneGainDb00", 0 },
+        { "laneGainDb0", 6.1 }, { "lanePhase0", 0.5 }, { "lanePhase4", 1 },
+        { "tempoBpm", std::numeric_limits<double>::infinity() },
+        { "cpuCapPct", 0 }, { "midiChan", 17 }
+    };
+    for (const auto& edit : invalid)
+        CHECK (! model.apply (cmd::SetBoardParam { edit.first, edit.second }));
+    CHECK (! model.canUndo());
+    const auto s = model.getBoardSettings();
+    CHECK (s.reportLatency && s.limiterOn && s.trails && s.mixTail);
+    CHECK (s.lanes.numLanes == 2 && s.lanes.gainDb[0] == 0.f && ! s.lanes.phaseInvert[0]);
+}
+
+LUTHIER_TEST (RefPedalBoardCore, invalidRestoredSettingsLeaveBoardAndHistoryIntact)
+{
+    BoardModel model;
+    CHECK (model.apply (cmd::SetMix { 0.4f }));
+    const auto reject = [&] (const BoardSettings& settings)
+    {
+        juce::String reason;
+        CHECK (! model.replaceAll ({}, settings, &reason));
+        CHECK (reason.isNotEmpty());
+        CHECK_NEAR (model.getBoardSettings().mix, 0.4f, 1.e-6f);
+        CHECK (model.canUndo());
+    };
+    BoardSettings s;
+    s.mode = static_cast<Mode> (255); reject (s); s = {};
+    s.mixLaw = static_cast<MixLaw> (255); reject (s); s = {};
+    s.style = static_cast<BoardStyle> (255); reject (s); s = {};
+    s.abSelect = static_cast<AbSelect> (255); reject (s); s = {};
+    s.abOut = static_cast<AbOutMode> (255); reject (s); s = {};
+    s.tempoSource = static_cast<TempoSource> (255); reject (s); s = {};
+    s.lanes.norm = static_cast<ParallelNorm> (255); reject (s); s = {};
+    s.lanes.numLanes = 5; reject (s); s = {};
+    s.lanes.gainDb[2] = std::numeric_limits<float>::quiet_NaN(); reject (s); s = {};
+    s.tempoBpm = std::numeric_limits<double>::infinity(); reject (s); s = {};
+    s.cpuCapPct = 0; reject (s); s = {};
+    s.midiChan = 17; reject (s); s = {};
+    s.limiterCeilDb = 7.f; reject (s); s = {};
+    s.reampGainDb = 13.f; reject (s); s = {};
+    s.loops[0].kind = static_cast<LoopKind> (255); reject (s); s = {};
+    s.loops[1].blend = -0.1f; reject (s); s = {};
+    s.loops[0].sendDb = -25.f; reject (s); s = {};
+    s.loops[1].returnDb = std::numeric_limits<float>::quiet_NaN(); reject (s); s = {};
+    s.fb.gain = 1.1f; reject (s); s = {};
+    s.fb.lpHz = 0.f; reject (s);
+    CHECK (model.undo());
+    CHECK_NEAR (model.getBoardSettings().mix, 1.f, 1.e-6f);
+}
+
+LUTHIER_TEST (RefPedalBoardCore, invalidRestoredPedalControlsDoNotReplaceExistingBoard)
+{
+    BoardModel model;
+    const InstanceId id;
+    CHECK (model.apply (cmd::Add { "generic.overdrive", -1, Placement::beforeExistingPre, 0, id }));
+    const auto reject = [&] (const PedalInstance& pedal)
+    {
+        CHECK (! model.replaceAll ({ pedal }, {}));
+        CHECK (model.getOrder().front() == id);
+        CHECK (model.canUndo());
+    };
+    PedalInstance p; p.modelId = "generic.overdrive";
+    const auto valid = p;
+    p.modelId.clear(); reject (p); p = valid;
+    p.modelRevision = 0; reject (p); p = valid;
+    p.inDb = -13.f; reject (p); p = valid;
+    p.outDb = 13.f; reject (p); p = valid;
+    p.params[0] = std::numeric_limits<float>::quiet_NaN(); reject (p); p = valid;
+    p.params[kMaxParams - 1] = 1.01f; reject (p); p = valid;
+    p.x = std::numeric_limits<float>::infinity(); reject (p); p = valid;
+    p.mounting = static_cast<Mounting> (255); reject (p);
 }

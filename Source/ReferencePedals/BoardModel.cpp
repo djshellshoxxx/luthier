@@ -5,7 +5,8 @@
 #include <algorithm>
 #include <cmath>
 #include <type_traits>
-#include <unordered_set>
+#include <limits>
+#include <utility>
 #include <mutex>
 
 namespace luthier::reference
@@ -13,6 +14,100 @@ namespace luthier::reference
 
 namespace
 {
+    // All scalar commands validate before assigning, so a malformed value
+    // cannot contaminate a snapshot or consume an undo step.
+    bool setBoardScalar (BoardSettings& settings, const std::string& key, double value)
+    {
+        if (! std::isfinite (value)) return false;
+        const auto integer = [&] (auto& target, int minimum, int maximum)
+        {
+            if (value < minimum || value > maximum || std::floor (value) != value) return false;
+            target = static_cast<std::decay_t<decltype (target)>> (value);
+            return true;
+        };
+        const auto real = [&] (auto& target, double minimum, double maximum)
+        {
+            if (value < minimum || value > maximum) return false;
+            target = static_cast<std::decay_t<decltype (target)>> (value);
+            return true;
+        };
+        const std::pair<const char*, bool BoardSettings::*> flags[] {
+            { "reportLatency", &BoardSettings::reportLatency }, { "limiterOn", &BoardSettings::limiterOn },
+            { "trails", &BoardSettings::trails }, { "mixTail", &BoardSettings::mixTail },
+            { "reampEnable", &BoardSettings::reampEnable }, { "reampReplace", &BoardSettings::reampReplace }
+        };
+        for (const auto& flag : flags)
+            if (key == flag.first) return integer (settings.*flag.second, 0, 1);
+
+        if (key == "tempoBpm") return real (settings.tempoBpm, 20.0, 300.0);
+        if (key == "cpuCapPct") return integer (settings.cpuCapPct, 1, 100);
+        if (key == "midiChan") return integer (settings.midiChan, 0, 16);
+        if (key == "abSelect") return integer (settings.abSelect, 0, static_cast<int> (AbSelect::Toggle));
+        if (key == "abOut") return integer (settings.abOut, 0, static_cast<int> (AbOutMode::Dual));
+        if (key == "parallelNorm") return integer (settings.lanes.norm, 0, static_cast<int> (ParallelNorm::None));
+        if (key == "tempoSource") return integer (settings.tempoSource, 0, static_cast<int> (TempoSource::Auto));
+        if (key == "numLanes") return integer (settings.lanes.numLanes, 2, kMaxBranches);
+        if (key == "limiterCeilDb") return real (settings.limiterCeilDb, -6.0, 6.0);
+        // A finite negative dB value may approach silence. Guard the float
+        // conversion as well as the specified upper gain limits.
+        constexpr double lowestGain = -std::numeric_limits<float>::max();
+        if (key == "reampGainDb") return real (settings.reampGainDb, lowestGain, 12.0);
+        for (int lane = 0; lane < kMaxBranches; ++lane)
+        {
+            const auto suffix = std::to_string (lane);
+            if (key == "laneGainDb" + suffix)
+                return real (settings.lanes.gainDb[static_cast<size_t> (lane)], lowestGain, 6.0);
+            if (key == "lanePhase" + suffix)
+                return integer (settings.lanes.phaseInvert[static_cast<size_t> (lane)], 0, 1);
+        }
+        return false;
+    }
+
+    bool inRange (double value, double minimum, double maximum)
+    {
+        return std::isfinite (value) && value >= minimum && value <= maximum;
+    }
+
+    bool validBoardSettings (const BoardSettings& settings)
+    {
+        if (settings.mode > Mode::Loop || settings.mixLaw > MixLaw::ThirdLaw
+            || settings.style > BoardStyle::loose || ! inRange (settings.mix, 0.0, 1.0))
+            return false;
+        // Reuse the command bounds when restoring state; deserialisation must
+        // not provide a second, less restrictive path into the model.
+        BoardSettings checked;
+        const std::pair<const char*, double> scalars[] {
+            { "abSelect", static_cast<int> (settings.abSelect) },
+            { "abOut", static_cast<int> (settings.abOut) },
+            { "parallelNorm", static_cast<int> (settings.lanes.norm) },
+            { "tempoSource", static_cast<int> (settings.tempoSource) },
+            { "numLanes", settings.lanes.numLanes }, { "tempoBpm", settings.tempoBpm },
+            { "cpuCapPct", settings.cpuCapPct }, { "midiChan", settings.midiChan },
+            { "reampGainDb", settings.reampGainDb }, { "limiterCeilDb", settings.limiterCeilDb }
+        };
+        for (const auto& scalar : scalars)
+            if (! setBoardScalar (checked, scalar.first, scalar.second)) return false;
+        for (int lane = 0; lane < kMaxBranches; ++lane)
+            if (! setBoardScalar (checked, "laneGainDb" + std::to_string (lane),
+                                  settings.lanes.gainDb[static_cast<size_t> (lane)]))
+                return false;
+        for (const auto& loop : settings.loops)
+            if (loop.kind > LoopKind::KillDry || ! inRange (loop.blend, 0.0, 1.0)
+                || ! inRange (loop.sendDb, -24.0, 12.0) || ! inRange (loop.returnDb, -24.0, 12.0))
+                return false;
+        return inRange (settings.fb.gain, 0.0, 1.05f)
+            && std::isfinite (settings.fb.lpHz) && settings.fb.lpHz > 0.f;
+    }
+
+    bool validPedalControls (const PedalInstance& pedal)
+    {
+        return ! pedal.modelId.empty() && pedal.modelRevision >= 1
+            && inRange (pedal.inDb, -12.0, 12.0) && inRange (pedal.outDb, -12.0, 12.0)
+            && std::isfinite (pedal.x) && pedal.mounting <= Mounting::none
+            && std::all_of (pedal.params.begin(), pedal.params.end(),
+                            [] (float value) { return inRange (value, 0.0, 1.0); });
+    }
+
     int firstFreeSlot (const std::vector<PedalInstance>& instances)
     {
         std::array<bool, kMaxSlots> used {};
@@ -225,16 +320,7 @@ bool BoardModel::apply (const BoardCommand& command, juce::String* rejectReason)
             }
             else if constexpr (std::is_same_v<T, cmd::SetBoardParam>)
             {
-                if (! std::isfinite (cmd.value)) return false;
-                if (cmd.key == "tempoBpm" && cmd.value >= 20.0 && cmd.value <= 300.0)
-                    next.tempoBpm = cmd.value;
-                else if (cmd.key == "cpuCapPct" && cmd.value >= 1.0 && cmd.value <= 100.0
-                         && std::floor (cmd.value) == cmd.value)
-                    next.cpuCapPct = static_cast<int> (cmd.value);
-                else if (cmd.key == "midiChan" && cmd.value >= 0.0 && cmd.value <= 16.0
-                         && std::floor (cmd.value) == cmd.value)
-                    next.midiChan = static_cast<int> (cmd.value);
-                else return false;
+                if (! setBoardScalar (next, cmd.key, cmd.value)) return false;
             }
             else return false; // Unsupported commands must never report success.
             return true;
@@ -358,12 +444,11 @@ bool BoardModel::replaceAll (const std::vector<PedalInstance>& orderedInstances,
                              const BoardSettings& settings, juce::String* error)
 {
     juce::String reason;
-    auto restored = orderedInstances;
     std::array<bool, kMaxSlots> usedSlots {};
     if (orderedInstances.size() > static_cast<size_t> (kMaxSlots))
         reason = "Board exceeds 16 pedal slots";
-    else if (! std::isfinite (settings.mix) || settings.mix < 0.f || settings.mix > 1.f)
-        reason = "Invalid board mix";
+    else if (! validBoardSettings (settings))
+        reason = "Invalid board settings";
     else
     {
         for (size_t i = 0; i < orderedInstances.size(); ++i)
@@ -372,6 +457,8 @@ bool BoardModel::replaceAll (const std::vector<PedalInstance>& orderedInstances,
             if (pedal.instanceId.isNull() || ! isValidPlacement (static_cast<int> (pedal.placement))
                 || pedal.lane < 0 || pedal.lane >= kMaxBranches)
                 { reason = "Invalid pedal identifier, placement or lane"; break; }
+            if (! validPedalControls (pedal))
+                { reason = "Invalid pedal controls"; break; }
             if (pedal.slot < -1 || pedal.slot >= kMaxSlots)
                 { reason = "Invalid pedal automation slot"; break; }
             if (pedal.slot >= 0)
@@ -388,6 +475,7 @@ bool BoardModel::replaceAll (const std::vector<PedalInstance>& orderedInstances,
     }
     if (error != nullptr) *error = reason;
     if (reason.isNotEmpty()) return false;
+    auto restored = orderedInstances;
     // Reserve all explicit slots before filling omissions: an earlier missing
     // slot must not steal a later instance's saved automation assignment.
     for (auto& pedal : restored)

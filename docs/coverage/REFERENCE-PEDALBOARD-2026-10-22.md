@@ -12,6 +12,8 @@ continues on PR #79 (`claude/affectionate-planck-adfno4`).
 | REF-EDIT-UNDO | 100-step undo/redo, nested grouped transactions, empty/rejected transaction preservation | BOARD_CORE.md §10.6; BoardModel.h | BoardModel.cpp history | RefPedalBoardCore transaction and history tests | locally verified |
 | REF-EDIT-GESTURE | Consecutive writes coalesce by gesture, command kind, instance and parameter | BoardCommand.h; BOARD_CORE.md §10.6 | BoardModel.cpp Gesture | RefPedalBoardCore gesture tests | locally verified |
 | REF-EDIT-SLOT | Stable storage slots across move/duplicate/remove/undo; validate and fill restored slots | BOARD_CORE.md §3, §10.1 | BoardModel.cpp firstFreeSlot, replaceAll | RefPedalBoardCore automation-slot tests | locally verified |
+| REF-EDIT-SETTINGS | Scalar board controls validate exact booleans/enums/ranges and retain undo/redo | BoardCommand.h SetBoardParam; BOARD_CORE.md §6 | BoardModel.cpp setBoardScalar | scalarBoardControlsRoundTripAndUndo; malformedScalarControlsDoNotMutateOrConsumeHistory | locally verified |
+| REF-RESTORE-VALIDATION | Invalid restored settings/controls leave current board and history untouched | BOARD_CORE.md §10.5 | BoardModel.cpp validBoardSettings/validPedalControls, replaceAll | invalidRestoredSettingsLeaveBoardAndHistoryIntact; invalidRestoredPedalControlsDoNotReplaceExistingBoard | locally verified |
 | REF-EDIT-RT | Compile/publish immutable audio topology after accepted edits | BOARD_CORE.md §4 | BoardEngine/TopologyCompiler skeletons | none | pending |
 
 Full native platform CI is required before merge/release. Local verification
@@ -33,3 +35,24 @@ Release blockers observed in this increment:
   host/UI compatibility, plugin validation and native packaging remain gates.
 - Do not merge the whole feature or publish a pedalboard release based only
   on the focused board-model test results in this section.
+
+
+## Additional verification
+
+The expanded focused suite passes 19 tests / 416 checks. New scalar-command
+and restore-validation tests were run against the preceding implementation
+and failed before the corresponding changes. Full native CI for the previous
+editing increment reached unit tests on Windows/Linux and macOS Free; macOS
+Pro was still compiling when checked. These intermediate job steps are not
+passing-suite or release evidence.
+
+The earlier 15-test model/runner build passed AddressSanitizer and UBSan with
+`ASAN_OPTIONS=detect_leaks=0`. LeakSanitizer could not inspect `/proc` in this
+execution environment, so no leak-free claim is made. JUCE core was linked
+from an uninstrumented object; this focused check is not the full sanitizer,
+race, audio-thread, UI, or soak release gate.
+
+The expanded 19-test / 416-check run also passed with BoardModel compiled
+under AddressSanitizer and UBSan (leak detection disabled for the environment
+limitation above). In that expanded run, the test runner and JUCE core were
+uninstrumented. This verifies the changed model paths only.
