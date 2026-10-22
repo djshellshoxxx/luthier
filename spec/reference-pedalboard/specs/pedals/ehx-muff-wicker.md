@@ -10,21 +10,24 @@
 
 Version 0.1 | 2026-10-21 | model_id `ehx-muff-wicker` | param prefix `ehx_muff_wicker_` | status SPEC
 Base: inherits ALL of `specs/pedals/ehx-big-muff-nyc.md` (call NYC-spec) sec 3.1-3.4 constants, Newton clip solver, tone formulas, oversampling, smoothing, denormals, tests. This file = DELTA (Wicker + Tone-bypass switches) + full tables. Share code: `Models/ehx_muff_core.h` (new, used by NYC + Wicker); Wicker = core + 2 switch states.
-Evidence tags: DOCUMENTED / MEASURED (none) / ESTIMATED. Research limits: sandbox DNS blocked all direct fetches (ehx.com, juno PDF, mirosol.kapsi.fi, electrosmash) -> only search-excerpt facts; the Wicker circuit has NO published schematic (a builder blog states they had to trace their own unit, 2013 NYC unit, mostly SMD, ceramic tone caps, BC550C). Every Wicker-specific component value below = ESTIMATED and MUST be replaced by a pinned trace + hardware capture before any fidelity claim. Do not advertise "authentic/identical".
+Evidence tags: DOCUMENTED / MEASURED (none) / ESTIMATED / OMIT. Research limits (retry 2026-10-22): WebFetch DNS-blocked for ehx.com, mirosol.kapsi.fi, tagboardeffects.blogspot.com, bigmuffpage.com; web.archive.org refused by the tool; only WebSearch excerpts reachable (see sec 11). Facts below come from search excerpts only; the Wicker circuit has NO published schematic (a builder blog states they had to trace their own unit, 2013 NYC unit, mostly SMD, ceramic tone caps, BC550C). Every Wicker-specific component value below = ESTIMATED and MUST be replaced by a pinned trace + hardware capture before any fidelity claim. Do not advertise "authentic/identical".
 
 Sources
 - S1 EHX manual doc 560380-01U (hosted https://es.juno.co.uk/downloads/manual/560380-01U.pdf/): battery or external adaptor; clean 9V DC, 50 mA, centre-negative; recommended 9.6DC-200 class PSU; 1-yr warranty. DOCUMENTED (via search excerpt, PDF not read).
 - S2 Retail copy (Thomann https://www.thomann.de/ie/electro_harmonix_big_muff_pi_tone_wicker.htm , Long&McQuade https://www.long-mcquade.com/9890/Guitars/Guitar-Effects/Electro-Harmonix/Big-Muff-PI-with-Tone-Wicker.htm , Sweetwater https://www.sweetwater.com/store/detail/BigMuffPiW--electro-harmonix-big-muff-pi-with-tone-wicker-fuzz-pedal/reviews ): "Wicker switch opens up 3 high-frequency filters"; "Tone switch bypasses tone control"; Wicker off = original Big Muff sound; true bypass; made in USA; listed since Dec 2008. DOCUMENTED.
 - S3 TDPRI owner review https://www.tdpri.com/threads/review-big-muff-with-tone-wicker.155139/ : Wicker brightens; noise much more noticeable with Wicker on at high sustain, esp. Tone off; Tone-off can feed back. Anecdotal -> qualitative targets only.
 - S4 NYC-spec S1-S5 (ElectroSmash/GuitarScience/EffectsDatabase) for base circuit.
-- S5 Mirosol blog trace note https://mirosol.kapsi.fi/?p=2018 (unfetched; lead only).
+- S5 Mirosol blog trace note https://mirosol.kapsi.fi/?p=2018 (unfetched twice; lead only).
+- S7 EHX product page https://www.ehx.com/products/big-muff-pi-with-tone-wicker/ (search excerpt): 4.75 x 4 x 2.25 in, 5 mA, 9V battery or 9.6VDC-200 adapter, mono, true bypass. DOCUMENTED (excerpt).
+- S8 Guitar FX Layouts https://tagboardeffects.blogspot.com/2014/08/ehx-big-muff-pi-with-tone-wicker.html and DIYstompboxes https://www.diystompboxes.com/smfforum/index.php?topic=125999.0 , PedalPCB https://forum.pedalpcb.com/threads/big-muff-tone-bypass-mod.17026/ (search excerpts): Wicker switch lifts the 470 pF collector-base (feedback) caps of the first three stages, switched in the original by a CD4066; tone bypass jumper commonly replaced by ~100-150k to approximate stack loss. Builder/secondhand, not schematic. Used as best available evidence (not MEASURED).
+- S9 bigmuffpage.com (search excerpt): site states it does not post current EHX line schematics (incl. Tone Wicker). No schematic exists publicly -> exact values stay ESTIMATED.
 - S6 internal: spec/reference-pedalboard/models/ehx-muff-wicker.md (research-only note).
 - Outstanding evidence: which 3 nodes/caps the Wicker switch touches; Tone-off path level compensation; exact bypass relay vs mechanical 3PDT. Action: obtain trace or buy unit and scope.
 
 ## 1 Identity / variants
-- Real unit: EHX Big Muff Pi with Tone Wicker (2008+, NYC production, mono, discrete-transistor, 3 knobs + 2 mini toggles + 1 footswitch + LED). No MIDI, no expression, no tempo, no extra jacks, no loop. DOCUMENTED (S2,S6).
+- Real unit: EHX Big Muff Pi with Tone Wicker (2008+, NYC production, mono, transistor core plus CD4066 switch per S8, 3 knobs + 2 mini toggles + 1 footswitch + LED). No MIDI, no expression, no tempo, no extra jacks, no loop. DOCUMENTED (S2,S6,S7).
 - Not to be confused with "Big Muff Pi 2 with Tone Wicker" (dual op-amp, late-70s unpublished Bob Myer design; DIFFERENT circuit) nor Deluxe/Nano. Enum `ehx_muff_wicker_revision`: 0=nyc_2008 (default, only v1 value), 1=bmp2_opamp (RESERVED, unimplemented). Revision changes only `MuffConsts` + Wicker node map.
-- Power S1; draw ESTIMATED 5-10 mA; Zin ESTIMATED 70 kOhm; Zout ESTIMATED <=25 kOhm. Bypass: true bypass DOCUMENTED (S2).
+- Power S1; draw 5 mA DOCUMENTED (S7), was ESTIMATED 5-10 mA; Zin ESTIMATED 70 kOhm; Zout ESTIMATED <=25 kOhm. Bypass: true bypass DOCUMENTED (S2).
 - Display name "Sustainer (Muff-style, Wicker)". No EHX logo/pi glyph/trade dress copy; generic mark.
 
 ## 2 Controls (every physical element)
@@ -49,8 +52,8 @@ All NYC-spec 3.1 values unchanged (Rf 470k, Cf 470 pF, A=150, diode Is 2.52 nA n
 |---|---|---|---|
 | Cf1 (clip1 feedback cap) | 470 pF (fc=1/(2pi*Rf*Cf)=720 Hz) | Cpar 22 pF (fc 15.4 kHz) | W1: Wicker removes HF-limiting feedback cap on stage 1; Cpar = layout/transistor Miller residue |
 | Cf2 (clip2 feedback cap) | 470 pF | 22 pF | W2 |
-| W3: post-clip LP before tone node | 1-pole LP fc3 = 6.0 kHz (R=2.7k, C=10 nF) | bypassed (fc3 -> 60 kHz, i.e. removed) | W3: third "HF filter"; ESTIMATED guess = shunt/series RC at Q3 collector. Replace on trace |
-| Tone-OUT path gain Gt_out | - | - | 1.0 (0 dB) at node into Q4; vs tone stack passband loss 7..14 dB (NYC-spec 3.3 table @t=0.5) => TONE=OUT is ~+9..+13 dB hotter ESTIMATED; param `tone_out_trim_db` adv. default 0 |
+| W3: third lifted 470 pF cap | 1-pole LP fc3 = 6.0 kHz (R=2.7k, C=10 nF) | bypassed (fc3 -> 60 kHz) | ESTIMATED. S8 says all three lifted caps are 470 pF feedback caps of stages 1-3 (the third is most likely the input-boost stage), not a separate RC. This LP is a lumped stand-in for that stage's HF roll-off; no value sourced |
+| Tone-OUT path gain Gt_out | - | - | 1.0 (0 dB) at node into Q4; S8 forum builders use ~100-150k series to match stack loss, so a real unit may be level-comp'd: ESTIMATED, derivation = 100-150k vs ~10 kOhm-scale stack insertion loss ~-7..-14 dB; vs tone stack passband loss 7..14 dB (NYC-spec 3.3 table @t=0.5) => TONE=OUT is ~+9..+13 dB hotter ESTIMATED; param `tone_out_trim_db` adv. default 0 |
 Open question flagged: real unit may level-compensate. Provide adv `tone_out_trim_db` -12..+6 so builder can match scope capture.
 ### 3.2 Behaviour of the three Wicker filters
 - Small-signal gain per clip stage with Cf removed: Rf/Rs ~47 (33 dB) flat to GBW-limited ~15 kHz instead of 33 dB falling above 720 Hz -> large HF gain increase (+20..+26 dB at 5-10 kHz per stage, ESTIMATED). Clipped signal has much more upper harmonic content; fuzz becomes brighter/buzzier ("raspy", S2).
@@ -91,18 +94,18 @@ NYC budget x1.15 for added LP + blend; HF-richer path may need 1-2 extra Newton 
 
 ## 6 MIDI / sync / expression (virtual; not on hardware)
 - MIDI clock / tap / DAW sync: N/A (no time-based function) - state "none, same as hardware".
-- CC map (ESTIMATED own allocation, per MIDI_EXPRESSION 4.3; channel `ref_board_midi_chan`): CC70 sustain, CC71 tone, CC72 volume, CC80 enabled (>=64 on; latch), CC81 tone_in (>=64 IN, <64 OUT), CC82 wicker (>=64 ON), CC11 -> expression target (default sustain). Soft-takeover ON for knobs; switches no takeover. 
+- CC map (plugin-only allocation, no hardware MIDI exists; status OMIT for any 'documented' claim, kept as convenience; per MIDI_EXPRESSION 4.3; channel `ref_board_midi_chan`): CC70 sustain, CC71 tone, CC72 volume, CC80 enabled (>=64 on; latch), CC81 tone_in (>=64 IN, <64 OUT), CC82 wicker (>=64 ON), CC11 -> expression target (default sustain). Soft-takeover ON for knobs; switches no takeover. 
 - Program Change: board preset recall only (hardware has no memories).
 - Expression target default `ehx_muff_wicker_sustain`, alt `volume`, alt `wicker_amount` (virtual continuous 0..1 mapped to w, NOT on hardware; label "virtual"; param `wicker_morph` below). Curve default log for sustain/volume, linear for wicker_morph.
 - Footswitch gesture (FootController): note-on toggles `enabled` (latch) or momentary (held=ON, min hold 30 ms). Velocity -> bypass xfade ms lerp(12,2,speed). Mini-toggle keys: two learnable notes: Tone IN/OUT toggle, Wicker toggle (note-on flips; velocity ignored). Optional `softPress`: aftertouch (channel/poly, 0..1) -> wet/dry of slot while key held (virtual, default off). Aftertouch/mod wheel/pitch bend/sliders/knobs: any param via MIDI-learn.
 - LED: follows `enabled`; 80 ms flash on MIDI-driven toggle.
 
 ## 7 Visuals (original vector art; no photo/logo copy)
-- Enclosure: die-cast rectangle, brushed-chrome face (gradient #C9CDD2 -> #8E949B, 20% diagonal), 1.5 mm darker bevel. W 111 x D 121 mm face (same NYC-line chassis ESTIMATED), H 54 mm side view. Real unit colour/graphics not verified; use neutral silver with a red accent line #B3261E 1.2 mm under the title (ours, not EHX trade dress).
+- Enclosure: die-cast rectangle, brushed-chrome face (gradient #C9CDD2 -> #8E949B, 20% diagonal), 1.5 mm darker bevel. W 120.7 x D 101.6 mm face (4.75 x 4 in DOCUMENTED S7; orientation of long side ESTIMATED), H 57.2 mm (2.25 in) side view. Layout coords below were drawn for 111x121 and are ESTIMATED: rescale to the documented footprint at implementation. Real unit colour/graphics not verified; use neutral silver with a red accent line #B3261E 1.2 mm under the title (ours, not EHX trade dress).
 - Layout (mm, origin top-left, ESTIMATED): knobs row y=34: VOLUME x=27.5, TONE x=55.5, SUSTAIN x=83.5; dia 20, skirt 24, black plastic, white pointer 1.2x8, sweep -135..+135 deg, tick marks 0..10. Title "MUFF SUSTAINER" y=54 (6 mm cap), sub-line "TONE WICKER-STYLE" 3 mm y=59.
 - Toggles (mini bat-handle, 6 mm bushing, chrome tip, handle ~8 mm): TONE switch centre (41.5, 72), labels "IN" above / "OUT" below; WICKER switch centre (69.5, 72), labels "ON" above / "OFF" below; caption under each "TONE", "WICKER" 3.5 mm cap, #151515. Handle animates 120 ms ease between up/down; lit switch-state is purely mechanical (no LED).
 - LED red 5 mm dome (55.5, 14): on #FF2A2A + 6 mm glow, off #4A0A0A. Footswitch 12 mm chrome stomp (55.5, 98), 17 mm bezel (moved down to clear toggles).
-- Side view only: INPUT/OUTPUT/DC jacks, non-clickable. Footprint 111x121 mm; mounting zones 4 corners (UI_BOARD_STYLES). `case_wear` 0..1 procedural, seeded.
+- Side view only: INPUT/OUTPUT/DC jacks, non-clickable. Footprint 120.7 x 101.6 mm (4.75 x 4 in, S7; was 111x121 ESTIMATED), H 57.2 mm; mounting zones 4 corners (UI_BOARD_STYLES). `case_wear` 0..1 procedural, seeded.
 - Text labels exact: "VOLUME","TONE","SUSTAIN","TONE","WICKER","IN","OUT","ON","OFF".
 
 ## 8 Parameter table
@@ -124,9 +127,7 @@ ehx_muff_wicker_stereo_mode | Stereo (adv) | 0 | 1 | 0 | enum dual_mono/mono_sum
 ehx_muff_wicker_noise_enable | Noise (adv) | 0 | 1 | 0 | bool | - | 0 | no
 ehx_muff_wicker_howl | Feedback howl (adv, virtual) | 0 | 1 | 0 | norm | linear | 50 | yes
 ehx_muff_wicker_revision | Revision | 0 | 1 | 0 | enum (v1 locked 0) | - | 0 | no
-ehx_muff_wicker_soft_press | Soft press mix | 0 | 1 | 0 | bool (virtual) | - | 5 | yes
-ehx_muff_wicker_midi_chan | MIDI channel | 0 | 16 | 0 | int (0=omni) | - | 0 | no
-Expression targets: sustain (default), volume, wicker_morph. Serialization: float norm + ints; missing key => default; unknown keys ignored. NYC-spec presets are not auto-imported (different model_id).
+Note: input_trim_db, soft_press, midi_chan rows removed from this table (handled by slot/FootController per RECONCILED header; duplicates fixed). Expression targets: sustain (default), volume, wicker_morph. Serialization: float norm + ints; missing key => default; unknown keys ignored. NYC-spec presets are not auto-imported (different model_id).
 
 ## 9 Tests / acceptance (P = provisional until MEASURED)
 Reuse NYC-spec tests for the 4 switch states; deltas:
@@ -145,10 +146,30 @@ Reuse NYC-spec tests for the 4 switch states; deltas:
 - Fidelity score = weighted MEASURED pass; until hardware capture "model: unverified".
 
 ## 10 Known inaccuracies
-- The three "high-frequency filters": identities (Cf1, Cf2, W3) are a reasoned GUESS from the generic Big Muff topology + retail wording; no schematic/trace verified. Wicker-ON voicing may differ materially.
+- The three "high-frequency filters": now supported secondhand (S8) as the three 470 pF feedback caps of stages 1-3; Cf1/Cf2 mapping is consistent, W3 LP is a lumped stand-in. Cpar 22 pF residue and exact stage assignment remain ESTIMATED; no schematic exists (S9). Wicker-ON voicing may differ materially.
 - Tone-OUT level compensation unknown; trim param provided.
 - All NYC-spec inaccuracies carry over (component values, Zin/Zout interaction, pot loading, hfe spread, supply sag, diode mismatch, noise, microphonics).
 - Hardware feedback on Tone OUT is acoustic/electrical, modelled only by loop tricks or optional `howl`.
 - Bypass type is DOCUMENTED true bypass; relay/3PDT and pop behaviour not modelled (xfade only).
 - MIDI/expression/morph/softPress are plugin conveniences, not hardware.
 - Not a loopers entry: no looper requirements apply.
+
+## 11 Verification log (2026-10-22)
+Reached via WebSearch excerpts only; every WebFetch (ehx.com, mirosol, tagboardeffects, bigmuffpage) failed DNS, archive.org refused. No schematic public (S9).
+| # | Item | Old -> New | Status | Source |
+|---|---|---|---|---|
+| 1 | Supply current | ESTIMATED 5-10 mA -> 5 mA | DOCUMENTED | S7 |
+| 2 | Supply | 9V batt / 9.6VDC-200 adapter | DOCUMENTED | S7, S1 |
+| 3 | Footprint | 111x121x54 mm ESTIMATED -> 120.7x101.6x57.2 mm | DOCUMENTED | S7 |
+| 4 | Wicker function | 3 unnamed filters -> lifts 470 pF feedback caps stages 1-3, CD4066 switched | DOCUMENTED-secondhand (builder, not schematic) | S8 |
+| 5 | Cf1/Cf2 nominal 470 pF | ESTIMATED -> consistent with S8, value 470 pF | DOCUMENTED-secondhand | S8 |
+| 6 | W3 stage-3 cap | RC LP 6 kHz guess -> kept as lumped stand-in | ESTIMATED | derivation sec 3.1 |
+| 7 | Cpar 22 pF | kept | ESTIMATED (Miller/layout residue) | derivation sec 3.1 |
+| 8 | Tone-OUT level comp | 0 dB kept, trim -12..+6 | ESTIMATED (100-150k builder hint) | S8 |
+| 9 | Zin 70k / Zout <=25k | kept | ESTIMATED (NYC-topology) | NYC-spec |
+| 10 | Pot values/tapers (100k) | kept | ESTIMATED | NYC-spec |
+| 11 | Knob/toggle layout mm | kept, rescale to item 3 | ESTIMATED | - |
+| 12 | MIDI CC map, wicker_morph, howl, softPress | no hardware MIDI | OMIT as hardware facts; plugin-only extras | - |
+| 13 | Table duplicates (input_trim, soft_press, midi_chan) | removed from sec 8 | fixed | RECONCILED header |
+| 14 | Variant ambiguity | BMP2 opamp "with Tone Wicker" (2026, 20 mA) is a different product; revision 1 stays reserved | DOCUMENTED | ehx.com BMP2 page excerpt |
+| 15 | Bypass | true bypass | DOCUMENTED | S2, S7 |

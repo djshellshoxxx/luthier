@@ -99,7 +99,7 @@ bypass: crossfade between processed and latency-matched dry (kBypassXfadeMs=5)
 
 ## 6. Routing
 All modes compile to a `Topology`; the audio engine executes a fixed set of node kinds (no dynamic graph on RT).
-Node kinds: `Pedal(slot)`, `Split(k)`, `Sum(k)`, `LaneGain`, `Delay(n)`, `SendTap`, `ReturnInject`, `FbReturn`, `Limiter`, `StereoWidth`.
+Node kinds: `Pedal(slot)`, `Split(k)`, `Sum(k)`, `LaneGain`, `Delay(n)`, `SendTap`, `ReturnInject`, `FbSend`, `FbReturn`, `Limiter`, `StereoWidth` (`FbSend` added by errata E25: the feedback tap after pedal s needs a node of its own). Normative definitions: `Source/ReferencePedals/Topology.h`.
 ### 6.1 Series (default)
 `in -> order[0] -> ... -> order[n-1] -> out`. Visual left-to-right == audio order. Signal arrow on the UI.
 ### 6.2 Parallel (2-4 lanes)
@@ -277,10 +277,10 @@ public:
 using PedalFactory = std::unique_ptr<IPedal>(*)();
 class PedalRegistry { public:
   static void registerAll();                                   // explicit list, idempotent (sec 11 bullets)
-  static void add (const PedalDesc&, PedalFactory);
+  static bool add (const PedalDesc&, PedalFactory);            // false = invalid descriptor or duplicate id/prefix (E25)
   static std::unique_ptr<IPedal> make (const char* modelId);   // message thread only
   static const PedalDesc* find (const char* modelId);
-  static std::span<const PedalDesc* const> all();              // order: generic (GENERIC_PEDALS order), then models (catalog order)
+  static juce::Span<const PedalDesc* const> all();   // C++17: juce::Span, not std::span (E25)              // order: generic (GENERIC_PEDALS order), then models (catalog order)
   static const LaneMap& laneMap (const char* modelId);         // sec 9.1 lane assignment
 };
 }
@@ -299,7 +299,7 @@ class PedalRegistry { public:
 | Message/UI | BoardModel edit, compile, publish, alloc, pool create, reclaim, file IO, state | holding audio-shared locks |
 | Audio | read atomics/live ptr, process, write meters (`std::atomic<float>`), push `SpscRing` events to UI | alloc, free, mutex, log, file, juce::String, std::function, exceptions, `std::sin` heavy per-sample w/o table |
 | Worker (optional) | looper disk IO, IR load, big table gen | touching RT structures |
-- UI->audio: params via atomics; structural via Topology pointer; momentary events via NEW `Source/ReferencePedals/Rt/SpscRing.h` (wait-free SPSC, fixed capacity 256, drop-oldest counter exposed). NOTE: existing `Source/Support/CommandQueue.h` is NOT usable for audio->UI (its `push` takes a SpinLock) and is not used by the board; it stays message->audio only for legacy EngineCommand.
+- UI->audio: params via atomics; structural via Topology pointer; momentary events via NEW `Source/ReferencePedals/Rt/SpscRing.h` (wait-free SPSC, fixed power-of-two capacity, a full ring drops the NEW item and counts it, E25). NOTE: existing `Source/Support/CommandQueue.h` is NOT usable for audio->UI (its `push` takes a SpinLock) and is not used by the board; it stays message->audio only for legacy EngineCommand.
 - Audio->UI: meters, tail state, clock lock, fb_tripped via atomics/SPSC; UI polls 30 Hz.
 - Memory order: publish release/acquire; params relaxed; version epoch release.
 - Denormals: `ScopedNoDenormals` in engine process; plus explicit flush in feedback paths (`if (fabs(s)<1e-30) s=0` per block).

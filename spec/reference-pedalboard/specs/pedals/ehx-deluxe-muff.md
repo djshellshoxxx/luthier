@@ -151,3 +151,23 @@ Persist normalised values; unknown fields preserved.
 - No transistor-level hFE/ tolerance variation; no supply sag; no battery.
 - MIDI CC map is plugin-local, not hardware (sec 6).
 - Next evidence: read official manual (S1/S2), ElectroSmash NYC values, capture from real unit.
+
+## 11 Verification log
+Run 2026-10-22. Reached (WebSearch excerpts only; all direct fetches blocked): EHX product page + manual text (ehx.com), Adorama (https://www.adorama.com/ehdlxbm.html), Audiofanzine FR listing, Coast Sonic, ModularGrid listing, Thomann manual (Pi 2), effectsdatabase. Not reached: ElectroSmash, bigmuffpage.com, archive.org, manuals.plus (fetch blocked).
+| # | Item | Old -> New | Status | Source |
+|---|---|---|---|---|
+| 1 | Input impedance | ~100k..470k -> 130 kOhm | DOCUMENTED (retailer) | Adorama, Audiofanzine |
+| 2 | Output impedance | ~1k-10k -> 300 Ohm | DOCUMENTED (retailer) | Adorama, Audiofanzine |
+| 3 | Bypass type | buffered (est.) -> true bypass; true_bypass default 0 -> 1 | DOCUMENTED (retailer) | Adorama, Chicago Music Exchange |
+| 4 | Power | adapter only, no battery -> battery included, 9.6VDC-200mA optional, 22 mA, max 12 V, centre-neg | DOCUMENTED (retailer) | Adorama, Audiofanzine |
+| 5 | MIDS freq range 310 Hz-5.0 kHz | est. -> confirmed | DOCUMENTED | EHX manual/product page |
+| 6 | MIDS level +/-10 dB, Q HI/LO semantics, EXP sweeps MIDS FREQ, GATE CW=higher threshold / CCW off, ATTACK = enhanced dry blend, BASS BOOST normal=NYC | confirmed text | DOCUMENTED | EHX manual/product page, Thomann |
+| 7 | No blend knob | est. -> confirmed by control list | DOCUMENTED | EHX manual excerpts |
+| 8 | Numeric Q (0.7 / 2.5) | unchanged | ESTIMATED | no published Q; HI/LO ratio >=3 |
+| 9 | Tone stack 39k/10nF, 22k/3.9nF; clip stage, sustain gain, diodes | unchanged | ESTIMATED | topology from ElectroSmash/PedalPCB excerpts; values unverified |
+| 10 | Tapers, gate thresholds/timings, ATTACK algo, BASS BOOST shelf, mids placement, LED colour, enclosure dims, EXP polarity | unchanged | ESTIMATED | derivations in 3.x |
+| 11 | Revision label "dlx_2014" | -> generic `deluxe_guitar`, no year | ESTIMATED (year unverified, removed) | - |
+| 12 | MIDI CC chart (CC4..23) | presented as defaults -> declared plugin-local, no hardware MIDI | OMIT (official chart) | hardware has no MIDI |
+| 13 | Hold-for-momentary-mids, velocity press-speed gestures | present -> removed | OMIT | no hardware basis |
+| 14 | Param table: `bypass` polarity/default (1=bypassed) | -> Engage 1=engaged, default 0 | fixed inconsistency | reconciled header |
+| 15 | Duplicate trim params in sec 8 | removed rows | fixed inconsistency | reconciled header |

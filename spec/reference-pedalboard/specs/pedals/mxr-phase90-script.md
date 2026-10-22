@@ -13,34 +13,36 @@ Tags: MEASURED = from instrument measurement; DOCUMENTED = from cited source; ES
 Name use: descriptive "inspired by" only. No trademark art/photos/text copied. Visuals = original vector description (sec 7).
 
 ## 0 Sources and research status
-Fetch of electrosmash.com / dafx.de / dunlop PDFs was blocked by session proxy (403 CONNECT). Facts below come from web-search excerpts of those pages; anything not excerpted is ESTIMATED. Re-verify items marked `VERIFY`.
+Re-attempt 2026-10-22: WebFetch to electrosmash.com, dafx.de, guitarpcb.com, thermionic-studios.com failed (DNS ENOTFOUND); web.archive.org refused by tool. Only WebSearch excerpts were reachable (ElectroSmash, craveguitars.co.uk, Wikipedia, diystompboxes, circuitbenders excerpts). Anything not excerpted remains ESTIMATED. See sec 11 for the per-item log.
 - S1 ElectroSmash Phase 90 analysis: https://www.electrosmash.com/mxr-phase90 (5 blocks: power, input buffer, phase-shift stage, LFO, output mixer; JFET 2N5952 x4, 2N4125 buffer)
 - S2 Eichas/Zolzer, "Physical Modeling of the MXR Phase 90", DAFx-14: https://dafx.de/paper-archive/2014/dafx14_felix_eichas_physical_modeling_of_the_.pdf (4 allpass, JFET as VCR, R15 feedback)
 - S3 Bernardini/Vergani et al., "Wave Digital Model of the MXR Phase 90 ... Time-Varying Resistor Approximation of JFET", DAFx-24: https://www.dafx.de/paper-archive/2024/papers/DAFx24_paper_13.pdf ; demo https://polimi-ispl.github.io/mxrphase90/ (input R1=10k, C1=0.01uF, R2=470k, Vref=5.1V; example LFO 0.365/1.925/7.675 Hz)
 - S4 Faust vaeffects ve.mxrPhase90 (PR 254): https://github.com/grame-cncm/faustlibraries/pull/254 (asym triangle 65% rise, gate 3.25V +/-0.15V, sweep 330 Hz-3.3 kHz)
 - S5 Cytomic note: https://cytomic.com/mxr-phase-90-jfet-based-phaser/
 - S6 Dunlop M101 manual (50th-anniv M101GLD excerpt): https://jimdunlop.com/content/manuals/M101GLD.pdf (Zin 1 Mohm, Zout 10 ohm, +/-? nominal -20 dBV, noise -97 dBV A-wtd, true bypass, 5 mA, 9V)
-- S7 Script vs Block: Dunlop history + Wikipedia "Phase 90": Block adds 24k feedback resistor (R15) and early Block has 4.7k in place of 10k in LFO (higher max rate). Script = no feedback. (Wikipedia tagged "better source needed" -> ESTIMATED/VERIFY.)
+- S8 ElectroSmash excerpt (via search, 2026-10-22): shifting network uses R=24k, C=47nF; 4x 2N5952 phase JFETs, 2N4125 buffer; six TL061 op-amps are NOT in the 4-stage JFET path per excerpt wording (parts-list ambiguity, VERIFY).
+- S9 Craveguitars Script/Block teardown pages: https://www.craveguitars.co.uk/home/features/effects/feature-1977-mxr-phase-90/ and ...-block-logo/ : claim Block circuit is electrically identical to Script (cosmetic change only). CONFLICTS with S7.
+- S7 Script vs Block (CONFLICTING with S9, unresolved): Dunlop history + Wikipedia "Phase 90": Block adds 24k feedback resistor (R15) and early Block has 4.7k in place of 10k in LFO (higher max rate). Script = no feedback. (Wikipedia tagged "better source needed" -> ESTIMATED/VERIFY.)
 - Prototype notes: spec/reference-pedalboard/models/mxr-phase90-script.md
 
 ## 1 Identity / variants
 | id | variant | feedback | LFO max rate | status |
 |---|---|---|---|---|
-| `mxr-phase90-script` (this spec, default) | 1974-77 Script logo | none (mxr_phase90_script_fb=0) | ~7.5 Hz | ESTIMATED |
-| optional toggle `mxr_phase90_script_variant`=1 | "Block" | R15 24k -> g_fb ~0.35 (ESTIMATED) | ~16 Hz (4.7k LFO R) | S7 |
+| `mxr-phase90-script` (this spec, default) | 1974-77 Script logo | none (g_fb=0 internal, no param) | ~7.5 Hz | ESTIMATED (rate); no-feedback per S7, contested by S9 |
+| optional toggle `mxr_phase90_script_variant`=1 | "Block" | R15 24k -> g_fb ~0.35 (ESTIMATED) | ~16 Hz (4.7k LFO R) ESTIMATED | S7 only; S9 says identical circuit. Unverified variant: kept as optional Advanced extension, tagged ESTIMATED/UNVERIFIED |
 Default variant 0 (Script). Variant toggle is plugin extension (real EVH-style units have a switch; vintage doesn't); hide in "Advanced" overlay, not on face.
-Real unit facts: single knob (SPEED), one footswitch, no LED on vintage Script (LED on modern reissues, red), 9V battery or DC jack on later units, mono in/mono out, true bypass (S6, modern; vintage ESTIMATED same).
+Real unit facts: single knob (SPEED), one footswitch, no LED on vintage Script (LED on modern reissues, red), 9V battery or DC jack on later units, mono in/mono out, true bypass is NOT assured on vintage: ESTIMATED (S6 documents true bypass for modern M101 only).
 
 ## 2 Controls
 | control | range | taper | default | real behaviour |
 |---|---|---|---|---|
 | SPEED knob | 0..1 (rotary 0-300 deg, 7 o'clock to 5 o'clock) | log-ish: rate = 0.3*25^x Hz (0.3..7.5) ESTIMATED; pot audio taper 'A' | x=0.5 (~1.5 Hz) | Sets LFO freq only. Min ~ 1 cycle per 3 s; max ~ 7-8 cycles/s. Changing knob does NOT reset LFO phase. |
-| Footswitch (stomp, SPST momentary-latching) | on/off | - | off (bypass) | On = effect in, off = true bypass (hardwired). Click: mechanical, no electronics. |
+| Footswitch (stomp, SPST momentary-latching) | on/off | - | engaged (bypass=1 means engaged per header normalisation; pedal ships disengaged on a board by user choice) | On = effect in, off = true bypass (hardwired). Click: mechanical, no electronics. |
 | Input jack | 1/4" TS | - | - | Zin 1 Mohm (S6) |
 | Output jack | 1/4" TS | - | - | Zout 10 ohm (S6) |
 | DC jack (later units) | 9V, 5 mA | - | - | Plugin: none |
 | (no depth, mix, feedback, level knobs) | | | | Constants, see sec 3 |
-Plugin extras (NOT on face; Advanced overlay): `mxr_phase90_script_variant`, `mxr_phase90_script_depth_trim`, `mxr_phase90_script_mix_trim`, `mxr_phase90_script_lfo_shape`, sync controls (sec 6).
+Plugin extras (NOT on face; Advanced overlay): `mxr_phase90_script_variant`, `mxr_phase90_script_depth_trim`, `mxr_phase90_script_mix_trim`, sync controls (sec 6). `lfo_shape`, `drive`, `tap`, `led_mod` were referenced in earlier drafts but are not in the param table: OMIT (removed; shape fixed asym triangle, shaper fixed 0.2, no tap/LED param).
 
 ## 3 Signal path / circuit model
 ```
@@ -49,7 +51,7 @@ in -> buffer(JFET 2N4125-type follower, Zin 1M, HP 10k/10nF pole ~1.6 Hz) -> AP1
    [Block only: feedback g_fb * AP4_out -> subtract/add at AP1 input]
 LFO: asym-triangle ~ -> gate bias 3.25V +/-0.15V -> JFET Rds(Vgs)
 ```
-- Stages: 4 identical (matched 2N5952 per S1) first-order allpass: H(z) from analog H(s)=(s - wc)/(s + wc) (sign per stage topology), phase -2*atan(w/wc). Sweep wc/2pi = fc in [330, 3300] Hz (DOCUMENTED S4, measured on model, VERIFY vs hardware).
+- Stages: 4 identical (matched 2N5952 per S1) first-order allpass: H(z) from analog H(s)=(s - wc)/(s + wc) (sign per stage topology), phase -2*atan(w/wc). Sweep wc/2pi = fc in [330, 3300] Hz (DOCUMENTED S4, model-derived not bench; S8 gives fixed R=24k, C=47nF => 141 Hz corner at Rds->0 is not inside this range: unresolved, kept S4 range as ESTIMATED-from-S4).
 - Notch locations (all 4 stages equal fc), with 0.5 sum: total phase -180 deg => notch1 f = tan(22.5deg)*fc = 0.4142*fc; notch2 total -540 => f = 2.4142*fc. So at fc=330..3300: notch1 137..1367 Hz, notch2 797..7966 Hz. Depth is infinite for ideal 1:1; real: finite from stage mismatch (ESTIMATED -25..-40 dB). Param `mxr_phase90_script_stage_mismatch` default 0.02 (2%) per stage.
 - Script: no feedback. Block: positive/negative feedback from AP4 to AP1 input g_fb ~0.35 (ESTIMATED) raising peaks, narrower notches.
 - LFO: free-running relaxation, asymmetric triangle, 65% rise / 35% fall (DOCUMENTED S4), rate 0.3..7.5 Hz (ESTIMATED; S3 demos 0.365, 1.925, 7.675 Hz). Waveform smoothed ~ RC (round corners, 1-pole 20 ms on triangle) ESTIMATED.
@@ -76,7 +78,7 @@ per sample:
 TDF-II allpass as above (denormal-safe with +1e-18 offset or FTZ/DAZ via ScopedNoDenormals).
 - wet=out_AP4 ; `y_mix = 0.5*(x0 + wet)` ; fbState = out_AP4 (1-sample delay in fb loop; Block only, limit g_fb<0.6 for stability).
 - Coefficient update: per-sample for fc (cheap: tan -> use rational approx or 16-sample block update + linear interp). Default: per-sample `tan` approx (Pade 3,2) accurate <0.1% to 0.45 fs.
-- Oversampling: none needed (linear time-varying; shaper mild). Optional 2x polyphase when `mxr_phase90_script_drive`>0.5.
+- Oversampling: none needed (linear time-varying; shaper mild). None (no drive param; OMIT).
 - Smoothing: speed 50 ms 1-pole on log-rate; trims 20 ms; bypass 5 ms xfade.
 - Denormals: ScopedNoDenormals + states flushed if |s|<1e-20.
 - CPU budget: <0.4% single core @48k stereo, 128 buf (est. 25 flops/sample/ch).
@@ -91,13 +93,13 @@ TDF-II allpass as above (denormal-safe with +1e-18 offset or FTZ/DAZ via ScopedN
 ## 6 MIDI / sync / expression (plugin-level emulation; real unit has none)
 - Real unit: none. Comparable analogs: Phase 90 with external LFO-rate expression pedal mods (aftermarket) and tap tempo clones. Mark as EXTENSION.
 - MIDI clock: `mxr_phase90_script_sync` 0=free,1=clock. Rate = tempo_bpm/60 * note_mult; note_mult list {1/1:0.25,1/2:0.5,1/4:1,1/8:2,1/8T:3,1/16:4}; default 1/4 (x1). Phase-lock to host PPQ (host transport) or MIDI clock 24 ppqn; resync on Start/Continue; free-wheel on lost clock after 500 ms. Allow 0.1..16 Hz in sync mode.
-- Tap tempo: Advanced `mxr_phase90_script_tap` button (and mapped footswitch gesture double-tap); avg last 3 taps, timeout 2 s.
-- CC map (ch1 default): CC1 mod wheel -> SPEED; CC11 expression -> SPEED (via `mxr_phase90_script_ext_speed` 0..127 -> 0..1, 5 ms smoothing); CC64 sustain -> bypass toggle (>=64 on, edge-triggered); CC7 -> board level (board-owned). PC 0..3 -> presets (4 speed positions: 0.1,0.35,0.6,0.9).
-- Velocity gesture: footswitch note-on maps: vel<40 = soft tap (bypass fade 20 ms), vel 40..90 = normal (5 ms), vel>90 = hard stomp (1 ms click-equivalent + optional LFO phase reset `mxr_phase90_script_reset_on_stomp`). Aftertouch (channel pressure) -> SPEED offset +0..+0.5 (momentary rate ramp). Poly AT ignored.
+- Tap tempo: OMIT (no hardware basis, no param).
+- CC map (EXTENSION, hardware has no MIDI; OMIT as any 'documented' chart; this is a plugin-local design, ch1 default): CC1 mod wheel -> SPEED; CC11 expression -> SPEED (via `mxr_phase90_script_ext_speed` 0..127 -> 0..1, 5 ms smoothing); CC64 sustain -> bypass toggle (>=64 on, edge-triggered); CC7 -> board level (board-owned). PC presets: OMIT (invented, no source).
+- Velocity gesture and aftertouch mapping: OMIT (invented, unverifiable). Only `mxr_phase90_script_reset_on_stomp` (LFO reset on engage) kept as extension.
 - Mappable: any slider/knob via MIDI learn to mxr_phase90_script_speed (board-level mapping table; 0..1 normalized, linear or exp curve).
 
 ## 7 Visuals (original vector art; do not trace trademark graphics)
-- Enclosure: powder-coat orange (#E8731A approx, ESTIMATED) die-cast box, 111 x 60 x 50 mm (ESTIMATED), rounded corners r=3 mm.
+- Enclosure: powder-coat orange (#E8731A approx, ESTIMATED) die-cast box, 111 x 60 x 50 mm (ESTIMATED; typical Hammond-style enclosure, no dimension source found), rounded corners r=3 mm.
 - Face (top view, origin top-left): knob center (55.5, 18) mm, dia 18 mm, black skirted aluminum-cap style with white pointer line; footswitch center (55.5, 44) mm, dia 20 mm chrome stomp; no LED on Script (optional red LED dia 3 mm at (55.5, 29) when `mxr_phase90_script_led_mod`=1).
 - Text (own typeface, not the original logo): "PHASE 90" cursive-style script in black at y=34 mm height 8 mm; "SPEED" at y=8 mm 3 mm tall below/above knob; small brand placeholder "INSPIRED BY".
 - Side jacks: input left, output right at y=30 mm. Battery door bottom.
@@ -108,7 +110,7 @@ TDF-II allpass as above (denormal-safe with +1e-18 offset or FTZ/DAZ via ScopedN
 | id | name | min | max | default | unit | skew | smooth ms | automatable |
 |---|---|---|---|---|---|---|---|---|
 | mxr_phase90_script_speed | Speed | 0 | 1 | 0.5 | norm | exp rate 0.3..7.5 Hz | 50 | yes |
-| mxr_phase90_script_bypass | Bypass | 0 | 1 | 1 | bool | - | 5 xfade | yes |
+| mxr_phase90_script_bypass | Engage (1 = engaged) | 0 | 1 | 0 | bool | - | 5 xfade | yes |
 | mxr_phase90_script_variant | Script/Block | 0 | 1 | 0 | enum | - | none | no |
 | mxr_phase90_script_depth_trim | Sweep depth | 0 | 1 | 1 | norm | lin | 20 | yes |
 | mxr_phase90_script_mix_trim | Wet trim | 0 | 1 | 1 | norm (1=1:1) | lin | 20 | yes |
@@ -134,9 +136,31 @@ Mixing with board wet/dry (universal) applied outside pedal.
 - Compare vs licensed same-revision unit when available; record uncertainty.
 
 ## 10 Known inaccuracies
-- Allpass R/C values, exact JFET law, pot value and taper, LFO exact range, 1:1 mix, feedback value and Script-vs-Block specifics are not confirmed from primary schematic (source fetch blocked): VERIFY with S1/S2/S3.
+- Exact JFET law, pot value (470k per Grokipedia excerpt vs 500k per circuitbenders post: conflicting), taper, LFO exact range, 1:1 mix, feedback value and Script-vs-Block specifics remain unconfirmed from a primary schematic (fetch blocked again 2026-10-22). Allpass R/C: S8 excerpt says 24k/47nF, not reconciled with the 330-3300 Hz sweep.
 - No JFET parameter spread (Idss/Vp) beyond `stage_mismatch`; real units vary much, including notch depth.
 - Real LFO jitter, supply sag (battery) and temperature drift not modelled.
 - Hardware has no MIDI/sync; all of sec 6 is extension.
 - Not a looper: loop-spec requirement n/a to this pedal.
 - Do not claim "authentic" until measured.
+
+## 11 Verification log
+Run 2026-10-22. Fetch tools blocked (DNS/tool refusal); only search excerpts reachable. Counts: upgraded 2, kept-estimate 14, omitted 8.
+| item | old -> new | status | source |
+|---|---|---|---|
+| Allpass R/C | unknown -> R=24k, C=47nF in shifting network (excerpt; not tied to sweep range) | DOCUMENTED (excerpt only) | https://www.electrosmash.com/mxr-phase90 |
+| Script/Block feedback | Wikipedia-only claim -> conflicting: Craveguitars says electrically identical | ESTIMATED (unresolved, variant optional) | https://www.craveguitars.co.uk/home/features/effects/feature-1977-mxr-phase-90/ ; https://www.wikipedia.com/wiki/Phase_90 |
+| Speed pot value | unspecified -> 470k (Grokipedia) vs 500k (circuitbenders); not adopted | ESTIMATED | https://grokipedia.com/page/MXR_Phase_90 ; https://www.circuitbenders.co.uk/forum/index.php?topic=1532.15 |
+| LFO range 0.3-7.5 Hz | unchanged | ESTIMATED (no Hz range published in excerpts; S3 demo rates 0.365-7.675 Hz) | S3 |
+| Sweep 330-3300 Hz | unchanged | ESTIMATED from S4 model | S4 |
+| 65% rise asym triangle | unchanged | DOCUMENTED (S4, model) | S4 |
+| JFET law, 1:1 mix, saturation, THD, noise shaping | unchanged | ESTIMATED | derivation in sec 3 |
+| True bypass on vintage | DOCUMENTED -> ESTIMATED (S6 covers modern M101 only) | ESTIMATED | S6 |
+| Enclosure size/colour | unchanged | ESTIMATED | none found |
+| Block LFO ~16 Hz (4.7k) | unchanged | ESTIMATED / unverified | S7 |
+| Bypass default 1 vs 'off' inconsistency | fixed: engage polarity, default 0 | fixed | header normalisation |
+| `fb` param name, `lfo_shape`, `drive`, `tap`, `led_mod` | dangling refs -> removed | OMIT | n/a |
+| MIDI CC chart | hardware none; CCs are plugin-local design, not documented | OMIT as hardware fact (extension kept) | n/a |
+| PC presets | removed | OMIT | n/a |
+| Velocity gesture / aftertouch | removed | OMIT | n/a |
+| Tap tempo | removed | OMIT | n/a |
+| Zin 1M / Zout 10R / -20 dBV / -97 dBV / 5 mA | unchanged | DOCUMENTED (S6, modern M101GLD) | S6 |

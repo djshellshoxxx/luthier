@@ -1,6 +1,6 @@
 # IMPLEMENTATION_PLAN: pedalboard feature (work packages, frozen interfaces, defects)
 
-Ver 1.0 | 2026-10-21 | Status PLAN. Audience: parallel implementation agents. Sibling specs: BOARD_CORE.md, GENERIC_PEDALS.md, MIDI_EXPRESSION.md, UI_BOARD_STYLES.md, pedals/*.md, ../ARCHITECTURE.md (compat/legal gates).
+Ver 1.1 | 2026-10-21 | Status PLAN (WP1 delivered: E25-E31 added, prototype CI defect found). Audience: parallel implementation agents. Sibling specs: BOARD_CORE.md, GENERIC_PEDALS.md, MIDI_EXPRESSION.md, UI_BOARD_STYLES.md, pedals/*.md, ../ARCHITECTURE.md (compat/legal gates).
 Tags: [DOC]=verified in repo at this commit, [EST]=chosen. Rule: where specs conflict, SEC 1 of this file wins; the specs were edited to match (their headers say so).
 
 ## 0. Repo facts that shape the plan [DOC]
@@ -38,6 +38,13 @@ Tags: [DOC]=verified in repo at this commit, [EST]=chosen. Rule: where specs con
 | E22 | `boss_dd3t_tempo_bpm` local tempo | read-only mirror of last tap tempo (`saveExtra`), authoritative tempo = `ref_board_tempo_bpm`/`TimeInfo` | this file |
 | E23 | `BoardCommand` list incomplete (UI needs SetStyle etc.) | list extended (BOARD_CORE 10.6) | BOARD_CORE |
 | E24 | Suite naming for filtered runs | suites start with `RefPedal` (`LuthierTests refpedal`); prototype suites `ReferencePedals`, `ReferencePhraseLoop` kept until migrated | this file |
+| E25 | Interface details that C++17 / wait-free rules force: `std::span` unavailable; "drop-oldest" impossible in a wait-free SPSC ring; feedback needs a tap node; registry needs failure reporting | `PedalRegistry::all()` returns `juce::Span<const PedalDesc* const>`; `PedalRegistry::add` returns `bool` (false = invalid/duplicate; quiet, `validate()` explains) and `PedalRegistry::TestScope` swaps in an empty registry for tests; `SpscRing` drops the NEW item and counts it (MIDI clock ticks get a separate ring); node kind `FbSend` added; `RetireList` frees by `lastUsableVersion < oldestInUse` (caller passes the oldest topology version the audio thread can still read, including the outgoing one during a transition) | BOARD_CORE 4.1/6/11/12; MIDI 2 |
+| E26 | `Binding` 32 B does not fit the field list of MIDI_EXPRESSION 4.1 (33 B, no slot) | layout fixed in `Midi/MidiTypes.h`: `target` = global index (`slot*kMaxParams+paramIdx`, board targets from `kTargetBoardBase`), `modeCurve` packs mode (3 bit) and curve (3 bit), `curveParam` float; `MapSnap` is forward-declared there and defined by WP5 in `Midi/MidiMap.h` | MIDI 4.1 |
+| E27 | `BoardModel` is in WP2's file list but UI/state (WP4, WP17, WP22) need it on day 1 | WP1 ships `BoardModel.h` (public interface frozen; owner WP2) plus a non-functional `BoardModel.cpp`; `BoardCommand` is `std::variant` of `cmd::*` structs; commands added: `SetTrim` (slot trims, E4), `SetBoardParam` (scalar board settings by key); `BoardModel::replaceAll/snapshot` are the WP4 state hooks; data types (`PedalInstance`, `BoardSettings`, `LoopSettings`, `FeedbackSettings`, `TopologyInfo`) live in `BoardTypes.h` | plan 2 I-4 |
+| E28 | `Board` facade vs existing callers (`LuthierEngine` calls `prepare(sr)` and `reset()`; prototype UI/tests use `Board::slotCount`) | `Board::prepare(double sr, int maxBlock = 4096)`, `Board::reset()` added, `slotCount == kMaxSlots == 16` (the prototype's 8 is gone; the drawer shows 16 cards until WP17), `modelCount` kept; `Model` enum moved to `LegacyModel.h`; interim `Board.cpp` keeps the prototype engine behind the facade until WP2 | plan 2 I-3 |
+| E29 | `Placement` is a plain int in the legacy shim | `Board::setPlacement` ignores values outside 0..2 (`isValidPlacement`), fixing prototype defect 8 for the widened enum | plan 8 |
+| E30 | `option(LUTHIER_SANITIZE ...)` cannot hold a string | `set(LUTHIER_SANITIZE "" CACHE STRING ...)`: `address`, `undefined`, `address,undefined` or `thread`; LuthierTests only; `RefPedalSuite` / `RefPedalLegacy` ctest entries; configure-time scan fails the build if `Source/ReferencePedals` includes GUI code; one generated translation unit per frozen header proves self-containment | plan 4 WP1 |
+| E31 | Prototype CI failure (PR #79, all six platform jobs red on the prototype commit) | root cause: `Source/Tests/CircuitTests.cpp` defines `reference()` in an anonymous namespace and does `using namespace luthier;`; the prototype added the namespace `luthier::reference` (via `LuthierEngine.h` -> `Board.h`), so every unqualified `reference()` became ambiguous: a compile error in LuthierTests on every OS. Fixed by renaming the helper to `referenceGuitar()`. The namespace name `luthier::reference` is KEPT; test files that use `using namespace luthier;` must not declare an unqualified `reference` | CircuitTests.cpp |
 
 ## 2. Interfaces to freeze FIRST (WP1 output; changes only via errata PR to WP1 owner)
 All headers below are created by WP1 as compilable, documented, test-instrumented skeletons.
@@ -270,6 +277,8 @@ ReferencePedalDrawer
 21. [WP17] Fixed 3 knobs/labels hard-coded per `Model` via `labels[(int)model][3]` (out-of-range if enum grows); no per-model faces, value text/units, tooltips are static strings; no accessibility names/handlers; no focus order; no reduced-motion/high-contrast handling.
 22. [WP17] No pop-out window, no collapse summary chip, no style/mounting, no cables/routing view, no MIDI learn/wet-dry/undo; `Drawer::resized` re-sizes `contents` every layout.
 23. [WP17] Prototype test coupling: `ReferencePedalBoardTests.cpp` asserts `Board::slotCount`, `getIdAtPosition`, `Model::*Prototype` - migrate via shims (WP2), do not delete assertions.
+24. [WP1, FIXED] Build break: the prototype's `luthier::reference` namespace made the unqualified `reference()` helper in `Source/Tests/CircuitTests.cpp` ambiguous (see E31); it failed LuthierTests on all six CI platform jobs. Helper renamed `referenceGuitar()`.
+25. [WP2] `Board::slotCount` is now 16 and `Placement` has 3 values; the prototype drawer builds 16 cards until WP17 rewrites it.
 
 ## 9. Cross-cutting risks
 | Risk | Mitigation |

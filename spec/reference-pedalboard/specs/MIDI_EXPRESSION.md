@@ -45,7 +45,7 @@ Each <= 500 LOC, header-only where hot. No JUCE types on RT path except `juce::M
 ```
 Rules:
 - RT-safe: no alloc, locks, logging, file/UI calls. All containers fixed-capacity (`std::array`/preallocated in `prepare()`).
-- Rings: `uiInRing` SPSC 1024 events (producer = device/UI thread, consumer = audio). Overflow: drop oldest non-clock, increment `std::atomic<uint32> dropped`; UI shows "MIDI overload". Clock bytes (0xF8) never dropped (reserve 256 slot priority sub-ring).
+- Rings: `uiInRing` SPSC 1024 events (producer = device/UI thread, consumer = audio). Overflow: a full ring drops the new item (wait-free SPSC cannot drop the oldest, errata E25), increment `std::atomic<uint32> dropped`; UI shows "MIDI overload". Clock bytes (0xF8) never dropped (reserve 256 slot priority sub-ring).
 - Audio->UI feedback (learn captures, LED/knob echo, meters): SPSC ring<UiEv,512> audio->message; UI polls by 60 Hz timer. No `callAsync` from audio.
 - Map edits: message thread builds new immutable `MapSnap` (flat arrays), publishes via `atomic<const MapSnap*>` release; audio acquires once per block; old snap retired to `RetireQueue` freed on message thread after 2 blocks (epoch counter). Never mutate live snap.
 - Sample-accurate: events carry `sampleOffset` in [0,n). Router sorts stably by offset (insertion sort, n<=256/ block typical; cap 512 events/block, extras dropped+counted). Board splits processing at each distinct offset where a *discrete* event (footswitch, switch, mode, transport, tap) lands; continuous values (CC knobs) are applied via per-sample smoother ramps starting at offset (no split). Minimum split length 16 samples (coalesce events within 16 samples to the next boundary, preserving order; ESTIMATED to bound CPU/overhead).
@@ -115,6 +115,7 @@ Algorithm (DOCUMENTED behavior: tap tempo on DD-3T averages of last taps; exact 
 
 ## 4. CC / PC mapping model
 ### 4.1 Binding record (`Binding`, fixed 32 B in `MapSnap`)
+Normative layout: `Source/ReferencePedals/Midi/MidiTypes.h` (errata E26). `target` is one global index (`slot*kMaxParams+paramIdx`, board targets from `kTargetBoardBase`), mode and curve id share one byte, `curveParam` is a float. The field list below is the logical content.
 `uint16 id; uint8 chan(0=omni); uint8 srcType; uint8 srcNum; uint8 flags(hi_res, relative, invert, latch, soft_takeover, enabled); uint16 targetParamIdx; float inMin,inMax(0..1 normalised source), outMin,outMax(0..1 normalised param); uint8 curveId; float curveParam; uint16 smoothMs; uint8 mode(absolute|relative|toggle|momentary|trigger|step); uint8 priority`.
 Targets: any param descriptor from the pedal's `ParamDesc` list (knob, switch, enum, button, footswitch virtual param `<id>_fs_engage`, `<id>_fs_tap`, etc.), plus board params (`ref_board_mix`, `ref_board_tempo_bpm`, `ref_board_enabled`, `ref_s{nn}_enabled`, `ref_board_scene_next`...). Normalised 0..1 domain: bindings write normalised; pedal applies its own taper (taper stays in pedal spec). Never bypass taper.
 Mode semantics:

@@ -12,12 +12,12 @@ Ver 1.0 | 2026-10-21 | model_id `ehx-nano-360`, param prefix `ehx_nano_360_` | S
 Tags: [DOC]=manufacturer docs/retail listings, [MEAS]=bench measurement (none available), [EST]=design choice/estimate.
 Name use: descriptive "inspired by Electro-Harmonix Nano Looper 360". No manual text/photos copied. Visuals = original vector art.
 
-Research status: WebFetch of ehx.com / effectsdatabase blocked (ENOTFOUND). Facts below from WebSearch snippets of the official manual (ehx.com/wp-content/uploads/2021/01/nano-looper-360-manual.pdf) + retailer listings (gearank, boullard.ch, Adorama, Andertons, manualslib). No schematic/teardown/measurement found. Items not in snippets = [EST], listed in sec 10.
+Research status (re-run 2026-10-22): WebFetch is DNS-blocked for every host tried (ehx.com, bhphotovideo, fullcompass, manualmachine, synthmanuals, looperpedalreviews; web.archive.org refused), so only WebSearch snippets of the manual copies were reachable; upgrades in sec 11 come from those. Earlier status: WebFetch of ehx.com / effectsdatabase blocked (ENOTFOUND). Facts below from WebSearch snippets of the official manual (ehx.com/wp-content/uploads/2021/01/nano-looper-360-manual.pdf) + retailer listings (gearank, boullard.ch, Adorama, Andertons, manualslib). No schematic/teardown/measurement found. Items not in snippets = [EST], listed in sec 10.
 
 ## 1 Identity / variants
 - Real unit: compact (nano) mono phrase looper, 11 independent loop memories, 360 s (6 min) total, 24-bit uncompressed, 44.1 kHz [DOC]. Memories persist until erased [DOC] (non-volatile, survives power-off; "remain in memory until you erase them").
 - Variants: Nano Looper 360 (this), Pico 360 Looper (smaller sibling, announced; same engine, not modelled), 360 Nano Looper = same product. No MIDI, no stereo, no expression jack [DOC: only 1 in + 1 out listed].
-- Retail listing conflict: one says "mono", one says "stereo recording time" [DOC conflict]. Resolve: jacks mono (manual "1/4 mono input and output jacks") -> model mono core.
+- Retail listing conflict: one says "mono", one says "stereo recording time" [DOC conflict]. Resolve: jacks mono (re-confirmed: audio described mono, 24-bit A/D/A, 44.1 kHz, 1 in / 1 out) (manual "1/4 mono input and output jacks") -> model mono core.
 - Plugin deviation (declared): plugin runs host rate; memory stored as float32 at host rate; capacity expressed in SECONDS (360 s) not samples. Optional stereo-in/out in plugin (sec 5) = extension, flagged `ext`.
 
 ## 2 Controls
@@ -31,7 +31,7 @@ Research status: WebFetch of ehx.com / effectsdatabase blocked (ENOTFOUND). Fact
 | 6 | MEM LED | off = selected loop empty; on = loop has audio; flashes fast while LOOP knob scrolls [DOC] | - | - |
 | 7 | IN jack | 1/4" mono, Zin 2.2 MOhm [DOC] | - | - |
 | 8 | OUT jack | 1/4" mono, Zout 470 Ohm [DOC] | - | - |
-| 9 | DC jack | 9.6 VDC 200 mA supplied; needs 90 mA @ 9 VDC, center-negative [DOC]; "does not take batteries" [DOC] (a listing says optional battery: conflict, ignore) | - | - |
+| 9 | DC jack | 9.6 VDC 200 mA supplied; draws 90 mA [DOC ehx.com listing]; center-negative [DOC earlier run, not re-confirmed]. BATTERY CONFLICT RESOLVED: the manual contains a 'Changing the Battery' section (bottom plate, screws; LEDs fail to light on a dead battery) so a battery is supported [DOC]; earlier 'does not take batteries' claim is withdrawn. Battery/power-loss behaviour: OMIT (plugin has no power model), except: loop being recorded at power loss is not saved [DOC] | - | - |
 LED colours not in sources [EST]: REC red, PLAY green, MEM amber (user-selectable skin; no behaviour impact).
 No other knobs, switches, jacks. Do not add physical controls to face. Plugin-only extras live in an Advanced overlay (sec 5/6), not on the face.
 
@@ -45,11 +45,11 @@ IN -> input buffer (Zin 2.2M) -+--------------------------------+--> sum -> OUT 
 - Dry: always passes, analog, unity [DOC]. Hence "bypass" is not a state: looper is effectively always in circuit; stopped = no loop signal. Bypass type: buffered/always-on analog dry path [DOC-derived]; no click possible on dry. Plugin: dry gain exactly 1.0 (bit-exact when loop silent; test T1).
 - Converter: 24-bit @ 44.1 kHz [DOC]. Model by resampling to 44.1k conceptually optional (sec 4.5); default OFF: store at host rate. Converter filter response, noise floor, THD: unknown [MEAS needed]. Placeholder: ADC/DAC lowpass 20 kHz 4th-order ~ flat to 18k [EST], noise floor -98 dBFS A-wtd [EST] (toggle `ehx_nano_360_char_on`, default off).
 - Latency: record/playback aligned to loop; assume zero added latency to dry. Loop-to-dry alignment: playback sample n aligned to recorded sample n (no converter delay modelled; real unit ADC+DAC ~1-2 ms [EST] ignored; optional `ehx_nano_360_conv_lat_ms` 0..3 default 0).
-- Storage: 360 s total shared across 11 memories [DOC]. Allocation: dynamic, not fixed 32.7 s each [EST; manual says "11 independent loops, 6 min total"]. Rule: sum(len_i) <= 360 s. Record auto-stops at remaining budget (acts as "press again": transitions to PLAY) [EST, matches common looper behaviour]. Single loop max = 360 s minus others.
+- Storage: 360 s total shared across 11 memories [DOC]. Allocation: dynamic, not fixed 32.7 s each [EST; manual says "11 independent loops, 6 min total"]. Rule: sum(len_i) <= 360 s. Once the 360 s is used up, NEW recording is blocked until a loop is erased [DOC]. Behaviour when budget runs out MID-take is not documented: plugin auto-transitions to PLAY at exhaustion [EST]. Recording start with 0 s remaining: ignored, LEDs unchanged [EST]. Single loop max = 360 s minus others.
 - Loop overdub: unlimited layers, length fixed by first take [DOC "unlimited overdub"]. Overdub sums new input onto existing material (no feedback decay; 100% sustain) [EST; EHX describes layers, 1.0 feedback].
 
-### 3.2 Footswitch gesture decoder (state machine)
-Gestures [DOC]: tap1 = record start/stop/overdub toggle; double-tap = stop; hold 1 s = undo/redo (after overdub); hold 2 s while stopped = erase.
+### 3.2 Footswitch gesture decoder (state machine). Undo is only accepted in PLAYING (not RECORDING/OVERDUBBING/STOPPED) [DOC]; erase only when STOPPED and MEM lit [DOC]
+Gestures [DOC]: tap1 = record start/stop/overdub toggle; double-tap = stop; hold 1 s DURING PLAYBACK = undo/redo, PLAY LED blinks twice [DOC manualslib/ehx PDF via search]; undo is NOT available during record, overdub or stop [DOC]; stop = two quick presses, both REC and PLAY LEDs go dark on the 2nd press and playback stops immediately [DOC]; hold 2 s while stopped = erase, MEM LED blinks six times then stays off, only enabled when MEM LED is lit [DOC].
 Timing constants [EST unless noted]:
 ```
 kDebounceMs      = 15   // switch bounce reject
@@ -74,7 +74,7 @@ STOPPED         --tap--> PLAYING from head 0
 STOPPED         --hold2s--> ERASED -> EMPTY(m)
 any             --LOOP knob change--> see 3.4
 ```
-Undo model [DOC: single-level undo/redo of last take]: one undo layer (last overdub). "Undo" subtracts the last layer; "redo" restores it. Starting new overdub discards redo layer. Depth 1 [EST; docs say "remove the last take", "hold again restores it"]. Implementation: layer buffer = last overdub delta stored separately (`layerBuf`), main buffer = base+older layers, playback = main + (undone ? 0 : layer) *or* the delta is added into main and subtracted on undo. Choose separate `layerBuf` (RAM +1x of loop length, not counted against 360 s) so undo is exact and fade-free; playback sum on the fly. Commit layer into main on next overdub start or loop change.
+Undo model [DOC: hold 1 s in playback removes the last overdub; hold again restores it; single-level]: one undo layer (last overdub). "Undo" subtracts the last layer; "redo" restores it. Starting new overdub discards redo layer. Depth 1 [EST; docs say "remove the last take", "hold again restores it"]. Implementation: layer buffer = last overdub delta stored separately (`layerBuf`), main buffer = base+older layers, playback = main + (undone ? 0 : layer) *or* the delta is added into main and subtracted on undo. Choose separate `layerBuf` (RAM +1x of loop length, not counted against 360 s) so undo is exact and fade-free; playback sum on the fly. Commit layer into main on next overdub start or loop change.
 
 ### 3.3 Overdub and loop boundaries
 - Playback head wraps at len. Record write head = playback head. Overdub is sample-aligned.
@@ -91,8 +91,8 @@ Knob scroll flashing: MEM LED flashes (fast 8 Hz) for 250 ms after each position
 REC  on  : RECORDING, OVERDUBBING            (else off)
 PLAY on  : PLAYING, OVERDUBBING              (else off) ; blink 2Hz when STOPPED & loop has data? [EST no; off]
 MEM  on  : loop[m].len>0 ; off: empty ; 8Hz flash 250ms after knob move
-Erase confirm: all 3 LEDs flash 3x @ 6 Hz at 2 s hold [EST]
-Undo/redo confirm: REC LED double-flash on undo, single on redo [EST]
+Erase confirm: MEM LED blinks 6 times then stays off [DOC]; blink rate [EST] 6 Hz
+Undo confirm: PLAY LED blinks twice [DOC]; redo confirm blink pattern not documented -> same double blink [EST]
 ```
 
 ## 4 Algorithm for plugin
@@ -140,7 +140,7 @@ Fidelity statement: real unit has NO MIDI, NO tempo sync, NO expression input [D
 - Mappable controllers: sliders/knobs map to LEVEL and LOOP via standard board MIDI-learn; LOOP maps as 11 steps with hysteresis 0.3 step.
 
 ## 7 Visuals (original vector art; no EHX trade dress copy)
-- Enclosure: nano-size, aluminium die-cast look [EST], colour original palette: matte steel-blue `#3b5a73` with off-white silkscreen `#ecece4` (not matching EHX colours exactly). Size real: ~2.75x4.5x2.1 in = 70x114x53 mm [DOC retail]; use w=70, h=114 mm face.
+- Enclosure: nano-size, aluminium die-cast look [EST], colour original palette: matte steel-blue `#3b5a73` with off-white silkscreen `#ecece4` (not matching EHX colours exactly). Size real: 2.75x4.5x2.1 in = 70x115x54 mm [DOC ehx.com / retailer listing]; use w=70, h=115 mm face.
 - Layout (face, origin top-left, mm) [EST layout]:
   - Jacks at top edge: IN at x=14 (left), OUT at x=56 (right), DC at x=35 center, y=0 (edge icons).
   - LEVEL knob: centre (21, 26), dia 16 mm, 270 deg sweep, pointer line, tick labels 0, 5, 10 (or 0-10 arc).
@@ -194,6 +194,7 @@ T14 Denormal: silence after long loop: no CPU spike >2x.
 Frequency response: char_off flat 0 dB +-0.001 (digital); char_on target 20 Hz-18 kHz +-0.5 dB [EST, until MEAS]. THD: char_off < -140 dB, char_on < -85 dB [EST]. No claim of hardware match: fidelity label "behavioural (documented)".
 
 ## 10 Known inaccuracies / unknowns
+(Superseded where sec 11 says so.)
 - Converter filters, noise, THD, true latency: unmeasured [MEAS]. 
 - LED colours; exact knob detent type; footswitch timing constants (double-tap window, debounce) [EST]; manual only says "two quick presses", "about a second", "two seconds".
 - Behaviour of loop switch while playing; record-time exhaustion; behaviour of dtap during rec; undo depth (assumed 1): [EST].
@@ -202,3 +203,39 @@ Frequency response: char_off flat 0 dB +-0.001 (digital); char_on target 20 Hz-1
 - No MIDI/sync/expression on real hardware; all of sec 6 is extension.
 - Plugin memory at host rate, float32 not 24-bit/44.1k; stereo ext not hardware.
 - Unreachable sources this run: ehx.com, effectsdatabase (network). Re-verify against manual PDF https://www.ehx.com/wp-content/uploads/2021/01/nano-looper-360-manual.pdf, https://www.manualslib.com/manual/891780/Electro-Harmonix-Nano-Looper-360.html, https://www.fullcompass.com/common/files/22677-ElectroHarmonixNanoLooper360UserManual.pdf when network permits.
+
+## 11 Verification log
+Tools: WebSearch only (WebFetch blocked on all hosts, archive.org refused). No schematic, teardown, ElectroSmash page, MEAS data, or MIDI chart exists/found; hardware has no MIDI. "Via search" = text returned in search snippets of the cited page.
+Sources: M1 https://www.ehx.com/wp-content/uploads/2021/01/nano-looper-360-manual.pdf ; M2 https://www.manualslib.com/manual/891780/Electro-Harmonix-Nano-Looper-360.html?page=3 ; M3 https://manualmachine.com/electroharmonix/nanolooper360/6496488-instructions ; M4 https://www.fullcompass.com/common/files/22677-ElectroHarmonixNanoLooper360UserManual.pdf ; L1 https://www.ehx.com/products/nano-looper-360 ; L2 https://www.andertons.co.uk/guitar-dept/guitar-pedals/looper-pedals/electro-harmonix-360-nano-looper-pedal
+
+| # | Item | Old -> New | Status | Source |
+|---|---|---|---|---|
+| 1 | Undo confirm LED | REC double-flash -> PLAY LED blinks twice | DOCUMENTED | M1/M3 via search |
+| 2 | Undo availability | stopped/playing/overdub ambiguous -> playback only; not in record/overdub/stop | DOCUMENTED | M1 via search |
+| 3 | Erase confirm | all 3 LEDs flash 3x -> MEM LED blinks 6x then off | DOCUMENTED | M3 |
+| 4 | Erase precondition | stopped -> stopped AND MEM lit (loop has data), 2 s hold | DOCUMENTED | M3 |
+| 5 | Stop gesture | double-tap -> two quick presses; REC+PLAY LEDs both off on 2nd press, immediate stop | DOCUMENTED | M3 |
+| 6 | Memory exhausted | auto-stop assumed -> new recording blocked until a loop erased | DOCUMENTED (blocking); mid-take auto-stop kept | M1 via search; ESTIMATED part: mid-take behaviour |
+| 7 | Battery | "no battery" -> battery supported (manual has Changing the Battery section) | DOCUMENTED | M4 via search |
+| 8 | Power-loss during record | unspecified -> in-progress loop not saved; other loops persist | DOCUMENTED | M1 via search |
+| 9 | Factory restore (new) | absent -> unplug, LOOP=11, replug holding footswitch, 3 LEDs blink, ~4 s, erases ALL loops, lands on loop 11. Plugin: `reset` action in state UI, not a param | DOCUMENTED | M1 via search |
+| 10 | Dimensions | 70x114x53 -> 70x115x54 mm | DOCUMENTED | L1/L2 |
+| 11 | Power draw 90 mA, 9.6 VDC 200 mA | unchanged | DOCUMENTED | L1 |
+| 12 | 24-bit/44.1k, 360 s/11 loops, mono | unchanged | DOCUMENTED | L1/L2 |
+| 13 | Zin 2.2 MOhm, Zout 470 Ohm | unchanged | DOCUMENTED (earlier-run snippet; not re-confirmed this run) | M1 earlier run |
+| 14 | MEM LED flashes fast while scrolling loops; steady on/off by content | unchanged | DOCUMENTED | M1 |
+| 15 | Debounce 15 ms, double-tap window 300 ms | unchanged | ESTIMATED (manual: "two quick presses"; typical looper values) | derivation: common footswitch practice |
+| 16 | Hold thresholds 1 s / 2 s | unchanged | DOCUMENTED nominal (manual 1 s, 2 s); +-5% tolerance ESTIMATED | M1/M3 |
+| 17 | Loop switch while playing (boundary quantised, lockout while rec) | unchanged | ESTIMATED; manual excerpts silent | none found |
+| 18 | LED colours (REC red, PLAY green, MEM amber) | unchanged | ESTIMATED | none found |
+| 19 | Undo depth 1, overdub 100% sustain, separate layer | unchanged | ESTIMATED (consistent with doc) | M1 |
+| 20 | Converter filter 20 kHz, noise -98 dBFS, THD, latency 1-2 ms | unchanged, char_on default off | ESTIMATED (no measurements found) | typical 24-bit codec datasheets |
+| 21 | LEVEL taper -40*(1-x)^1.4 dB | unchanged | ESTIMATED (audio taper, no pot value found) | derivation sec 8 |
+| 22 | Seam crossfade 2.5 ms | unchanged | ESTIMATED (hardware seam unknown; plugin default on) | design choice |
+| 23 | Dynamic vs fixed 32.7 s slots | dynamic -> dynamic ("360 s shared across 11 loops") | DOCUMENTED shared pool | M1 via search |
+| 24 | Pico 360 variant | "same engine, not modelled" | OMIT (unverified; no data) | - |
+| 25 | Retail "stereo recording time" listing conflict | resolved mono; stereo listing treated as retailer typo | DOCUMENTED (mono jacks) | L2 |
+| 26 | MIDI note/CC/PC/AT/expression/tempo sync (sec 6) | extensions | OMIT as hardware features (hardware has none); kept only as flagged `ext` plugin conveniences | L1 |
+| 27 | Battery-life LED indication / dead-battery behaviour | n/a | OMIT | M4 |
+| 28 | Variants conflicts: "Nano Looper 360" = "360 Nano Looper" = "Nano 360" | consolidated | DOCUMENTED naming | L2 |
+| 29 | Compat: rows with garbled skew cell | already fixed by exact taper formula; param table checked: no duplicate ids | fixed | - |
