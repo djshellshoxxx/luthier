@@ -268,10 +268,13 @@ Board::~Board() = default;
 
 void Board::prepare (double sampleRate, int maxBlock)
 {
-    impl->sampleRate = sampleRate;
+    // Keep the router and legacy DSP on the same validated rate. Invalid host
+    // preparation must not pass NaN/zero into MIDI clock calculations.
+    impl->sampleRate = std::isfinite (sampleRate) && sampleRate >= 8000.0
+                           ? sampleRate : 48000.0;
     impl->maxBlock = std::max (1, maxBlock);
-    impl->router.prepare (sampleRate, impl->maxBlock);
-    impl->legacy.prepare (sampleRate);
+    impl->router.prepare (impl->sampleRate, impl->maxBlock);
+    impl->legacy.prepare (impl->sampleRate);
 }
 
 void Board::releaseResources() {}
