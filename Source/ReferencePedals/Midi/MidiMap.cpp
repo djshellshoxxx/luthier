@@ -16,7 +16,15 @@ bool MapSnap::add (const Binding& b) noexcept
 }
 void MapSnap::compile() noexcept
 {
-    std::sort (bindings.begin(), bindings.begin() + numBindings, [] (auto& a, auto& b) { return a.id < b.id; });
+    numBindings = std::clamp (numBindings, 0, kMaxBindings);
+    // Stable insertion keeps descriptor-derived initial values/steps paired.
+    for (int i = 1; i < numBindings; ++i)
+        for (int j = i; j > 0 && bindings[(size_t) j].id < bindings[(size_t) j - 1].id; --j)
+        {
+            std::swap (bindings[(size_t) j], bindings[(size_t) j - 1]);
+            std::swap (initialValues[(size_t) j], initialValues[(size_t) j - 1]);
+            std::swap (steps[(size_t) j], steps[(size_t) j - 1]);
+        }
     for (auto& bucket : lookup) bucket.count = 0;
     for (int i = 0; i < numBindings; ++i)
     {
