@@ -22,7 +22,7 @@ GCC/C++17, -O1, NDEBUG: 56,039 checks, zero failures. Tests establish:
 
 Still unmeasured: chorus delay/pitch-depth and full frequency-response calibration,
 phaser notch counts, mode-switch transient bounds, harmonic crossover response,
-allocator hook, CPU budgets, board-level bypass integration and UI goldens. These
+CPU budgets, board-level bypass integration and UI goldens. These
 are acceptance gaps, not claims of hardware or release validation.
 
 ## WP10 in progress
@@ -34,13 +34,40 @@ all three voicings. Combined WP9+delay runner: 934,095 checks, zero failures.
 
 Delay mode-switch transient and 10-second hold energy measurements remain pending.
 Feedback is always capped at 0.98 outside HOLD because no board runaway permission
-is exposed to IPedal. Registry inclusion awaits the remaining gates.
+is exposed to IPedal. Delay and reverb have factories for their implemented generic algorithms; acoustic
+and host-integration acceptance is still incremental.
 
-Reverb FDN, plate, and spring work is in progress; no reverb factory is registered.
+Reverb has distinct Room/Hall/Ambient 8-line Householder FDNs, a figure-eight
+plate tank, and three 24-stage dispersive spring paths. All five types pass exact
+block partition comparisons, reset/silence, and finite-output tests at the four
+sample rates. Hall RT60 (backward Schroeder integration, -5 to -35 dB extrapolated)
+passes the +/-10% gate at 1/2/4/8 seconds; freeze energy stays within 1 dB over
+10 seconds. The initial fixed lowpass feedback implementation failed RT60 by
+12%; damping now derives its HF shelf loss from the requested RT60 ratio.
+
+Remaining reverb gates: echo density by 200 ms, 60-second randomized sweeps,
+mono-sum compatibility, normalized wet RMS, type-switch transient limit, CPU,
+and freeze behavior across all types/settings. Plate uses published reference-rate
+lengths with figure-eight feedback, but full output-tap calibration remains open.
+
+The allocator hook reports zero allocations across all six generic pedal process,
+setParam, foot, expression, and enable callbacks with parameter changes. No locks
+or I/O appear in their callback call paths. Latest runner before added acoustic
+notch tests: 2,944,199 checks, zero failures.
 
 ## WP14–16
 
-Branded modulation/delay, BBD core, looper core, three first-generation loopers,
+A bounded RAM `LooperCore` slice now implements sample-timestamped SPSC commands,
+record/play/overdub/stop/clear, sparse preallocated overdub layers, cancellation,
+and bit-exact undo/redo. Tests pass command timing/dry-through, null comparisons
+before/after undo and redo, cancelled overdub, auto-close at capacity, strict RAM
+budget, queue overflow reporting, and zero callback allocations. Clear is O(1).
+The core deliberately refuses overdubs at its configured 1–8 layer capacity;
+unlimited compaction, worker spill/persistence, multithreaded ownership testing,
+non-destructive seamless loop crossfades, and named-pedal gesture integration are
+still outstanding. It does not replace the prototype.
+
+Branded modulation/delay, BBD core, three first-generation looper wrappers,
 and RC-5 rhythm/storage/MIDI are not implemented in this slice. Their scaffolds
 remain unregistered. Existing `PhraseLooper.h` and its regression tests remain
 unchanged. No capacity, fidelity, persistence, or pattern-completeness claims are
