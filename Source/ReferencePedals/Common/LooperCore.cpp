@@ -19,7 +19,8 @@ bool LooperCore::prepare(double sampleRate,double seconds,int layers,size_t budg
 void LooperCore::reset() noexcept
 {
     current=State::Empty;loopLength=head=0;activeLayers=redoLayers=0;gain=0;layerLimit=false;
-    ++epoch;timeline=0;hasPending=false;commands.clear();
+    ++epoch;timeline=0;hasPending=false;
+    Command discarded;for(int i=0;i<64 && commands.pop(discarded);++i){}
 }
 void LooperCore::setSeamMilliseconds(double ms) noexcept
 {
