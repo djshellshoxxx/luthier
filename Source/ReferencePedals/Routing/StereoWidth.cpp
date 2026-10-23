@@ -1,11 +1,14 @@
 // OWNER: WP3
-// STUB (WP1): signatures are frozen in RoutingNodes.h; WP3 fills the bodies.
-
 #include "RoutingNodes.h"
-
 namespace luthier::reference::routing
 {
-
-void nodeStereoWidth (const Node&, ExecCtx&) noexcept {}
-
-} // namespace luthier::reference::routing
+void nodeStereoWidth (const Node& node, ExecCtx& ctx) noexcept
+{
+    for (int i = 0; i < ctx.n; ++i)
+    {
+        const double mid = 0.5 * (ctx.bus[node.lane][0][i] + ctx.bus[node.lane][1][i]);
+        const double side = 0.5 * (ctx.bus[node.lane][0][i] - ctx.bus[node.lane][1][i]) * node.f0;
+        ctx.bus[node.lane][0][i] = mid + side; ctx.bus[node.lane][1][i] = mid - side;
+    }
+}
+}
