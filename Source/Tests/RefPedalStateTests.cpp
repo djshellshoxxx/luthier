@@ -303,3 +303,17 @@ LUTHIER_TEST (RefPedalState, rawHostExtractionPreservesOnlyTopLevelBlock)
     CHECK(BoardState::extractFromHostJson("{\"reference\\u0050edals\":{\"schema\":1}}",extracted));
     CHECK(extracted=="{\"schema\":1}");
 }
+LUTHIER_TEST (RefPedalState, windowPreferenceMirrorsLegacyRoot)
+{
+    BoardModel model;
+    CHECK(BoardState::restore(model,juce::String(R"({"schema":1,"window":"popout","ui":{"window":"drawer","vendor":{"preserve":true}}})")));
+    std::vector<PedalInstance> pedals; BoardSettings settings; model.snapshot(pedals,settings);
+    CHECK(settings.ui["window"].toString()=="popout");
+    settings.ui.getDynamicObject()->setProperty("window","drawer");
+    CHECK(model.replaceAll(pedals,settings));
+    juce::var json; CHECK(BoardState::save(model,json));
+    CHECK(json["window"].toString()=="drawer"); CHECK(json["ui"]["window"].toString()=="drawer");
+    CHECK((bool)json["ui"]["vendor"]["preserve"]);
+    CHECK(!BoardState::restore(model,juce::String(R"({"schema":1,"window":3})")));
+    CHECK(!BoardState::restore(model,juce::String(R"({"schema":1,"ui":{"window":3}})")));
+}

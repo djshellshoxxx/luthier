@@ -37,6 +37,8 @@ WP4 skeleton. No prior uncommitted codec was present in this environment.
   as a merge template. Consumers should edit `midi` and `ui` directly rather than
   interpret or rewrite this envelope. The serializer overlays typed controls onto
   cloned source objects; it never mutates the stored template.
+- UI window preference bridges legacy root `window` and `ui.window`; root wins
+  on decode, UI edits are mirrored on save, and unknown string choices survive.
 - `BoardSnapshots::capture/recall/get` provides indices 0..7. The bank persists under
   `referencePedals.snapshots`; individual snapshots contain the board schema and a
   name, without recursively embedding the bank. Capture and recall validate the
@@ -57,9 +59,11 @@ function-section garbage collection; no fake JUCE or registry implementation is
 substituted. The descriptor used for normalization/audio tests is explicitly a
 small test model, not a claim about all shipping registered models.
 
-Latest focused result: **15 cases, 5,245 checks, 0 failures**, in both the normal
+Pre-UI-bridge focused result: **15 cases, 5,245 checks, 0 failures**, in both the normal
 and ASan-instrumented harness. A `-Wall -Wextra -Wpedantic` syntax pass over the
-state/snapshot/asset implementation produced no warnings.
+state/snapshot/asset implementation produced no warnings. The additional UI
+window-preference bridge passes the normal harness: **16 cases, 5,254 checks,
+0 failures**.
 
 Reproduce in this saved environment:
 
