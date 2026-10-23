@@ -20,7 +20,7 @@ public:
     // cannot hold one frame. Capacity is published only after this returns.
     bool prepare(double sampleRate,double seconds,int layers,size_t byteBudget);
     void reset() noexcept; // audio owner or stopped audio only; O(1)
-    bool enqueue(Command command) noexcept { return commands.push(command); } // one producer
+    bool enqueue(Command command) noexcept { return commands.push(command); } // one producer, chronological timestamps
     void apply(Action action) noexcept; // audio thread, exact boundary
     void process(double* left,double* right,int n,double loopGain=1,double dryGain=1) noexcept;
     void setSeamMilliseconds(double ms) noexcept;
