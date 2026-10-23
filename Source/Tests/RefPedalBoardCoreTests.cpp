@@ -381,3 +381,147 @@ LUTHIER_TEST (RefPedalBoardCore, invalidRestoredPedalControlsDoNotReplaceExistin
     p.x = std::numeric_limits<float>::infinity(); reject (p); p = valid;
     p.mounting = static_cast<Mounting> (255); reject (p);
 }
+
+#include "../ReferencePedals/Board.h"
+#include "../ReferencePedals/DelayLine.h"
+#include "../ReferencePedals/WetDryMixer.h"
+#include "../ReferencePedals/BoardLimiter.h"
+
+LUTHIER_TEST (RefPedalBoardCore, modelEditsPublishToFacadeAudio)
+{
+    Board board;
+    board.prepare (48000, 128);
+    const InstanceId id;
+    CHECK (board.model().apply (cmd::Add { "prototype.ts808", -1, Placement::beforeExistingPre, 0, id }));
+    CHECK (board.model().apply (cmd::SetBoardEnabled { true }));
+    CHECK (board.isActive());
+    CHECK (board.model().getTopologyInfo().pedalCount == 1);
+    double l[128], r[128];
+    for (int block = 0; block < 20; ++block)
+    {
+        std::fill_n (l, 128, 0.2); std::fill_n (r, 128, 0.2);
+        board.processStereo (l, r, 128, Placement::beforeExistingPre);
+    }
+    CHECK (std::abs (l[127] - 0.2) > 1.e-4);
+    CHECK (l[127] == r[127]);
+    CHECK (board.model().apply (cmd::SetMix { 0.f }));
+    for (int block = 0; block < 200; ++block)
+    {
+        std::fill_n (l, 128, 0.2); std::fill_n (r, 128, 0.2);
+        board.processStereo (l, r, 128, Placement::beforeExistingPre);
+    }
+    CHECK_NEAR (l[127], 0.2, 1.e-9);
+}
+
+LUTHIER_TEST (RefPedalBoardCore, rejectedUnknownFactoryLeavesModelAndHistoryUntouched)
+{
+    Board board;
+    juce::String reason;
+    CHECK (! board.model().apply (cmd::Add { "does.not.exist" }, &reason));
+    CHECK (reason.isNotEmpty());
+    CHECK (board.model().getInstanceCount() == 0);
+    CHECK (! board.model().canUndo());
+}
+
+LUTHIER_TEST (RefPedalBoardCore, delayAndMixEndpointsAreExact)
+{
+    DelayLine delay;
+    delay.prepare (8);
+    for (int i = 0; i < 20; ++i)
+        CHECK (delay.process (i == 0 ? 1.0 : 0.0, 3) == (i == 3 ? 1.0 : 0.0));
+    CHECK (WetDryMixer::mix (0.25, -0.75, 0.0, MixLaw::EqualPower) == 0.25);
+    CHECK (WetDryMixer::mix (0.25, -0.75, 1.0, MixLaw::EqualPower) == -0.75);
+    CHECK_NEAR (WetDryMixer::mix (1.0, 1.0, 0.5, MixLaw::EqualPower), std::sqrt (2.0), 1.e-12);
+    CHECK (BoardLimiter::process (std::numeric_limits<double>::infinity(), false, 1.0) == 0.0);
+    CHECK (BoardLimiter::process (100.0, false, 1.0) == 16.0);
+    CHECK (BoardLimiter::process (100.0, true, 1.0) <= 1.0);
+}
+
+#include "../ReferencePedals/TopologyCompiler.h"
+#include "../ReferencePedals/PedalRegistry.h"
+#include <thread>
+
+LUTHIER_TEST (RefPedalBoardCore, poolKeepsPedalIdentityAcrossReorderAndControls)
+{
+    PedalRegistry::registerAll(); PedalPool pool; pool.prepare (48000, 64);
+    PedalInstance a, b; a.modelId = "prototype.ds1"; b.modelId = "prototype.ts808"; a.slot = 0; b.slot = 1;
+    juce::String error;
+    auto first = TopologyCompiler::compile ({ a, b }, {}, pool, 1, nullptr, error);
+    CHECK (first != nullptr);
+    auto reordered = TopologyCompiler::compile ({ b, a }, {}, pool, 2, first.get(), error);
+    CHECK (reordered != nullptr);
+    CHECK (first->slots[0] == reordered->slots[0]);
+    CHECK (first->slots[1] == reordered->slots[1]);
+    CHECK (first->structure != reordered->structure);
+    a.params[0] = 0.9f;
+    auto controls = TopologyCompiler::compile ({ b, a }, {}, pool, 3, reordered.get(), error);
+    CHECK (controls->structure == reordered->structure);
+    CHECK (controls->slots[0] == first->slots[0]);
+}
+
+LUTHIER_TEST (RefPedalBoardCore, outputIsIndependentOfHostBlockPartitionIncludingReorder)
+{
+    const auto render = [] (int size)
+    {
+        Board board; board.prepare (48000, 2048);
+        board.setModel (0, Model::ts808Prototype); board.setModel (1, Model::ds1Prototype);
+        board.setBoardEnabled (true);
+        std::vector<double> result (8192), right (8192);
+        for (int i = 0; i < 8192; ++i) result[static_cast<size_t> (i)] = right[static_cast<size_t> (i)] = 0.2 * std::sin (i * 0.037);
+        for (int offset = 0; offset < 8192;)
+        {
+            if (offset == 4096) board.move (0, 1);
+            const int n = std::min ({ size, 8192 - offset, offset < 4096 ? 4096 - offset : 8192 - offset });
+            board.processStereo (result.data() + offset, right.data() + offset, n, Placement::beforeExistingPre);
+            offset += n;
+        }
+        return result;
+    };
+    const auto reference = render (1);
+    for (int size : { 16, 37, 64, 481, 2048 })
+    {
+        const auto actual = render (size);
+        for (size_t i = 0; i < actual.size(); ++i) CHECK_NEAR (actual[i], reference[i], 1.e-9);
+    }
+}
+
+LUTHIER_TEST (RefPedalBoardCore, publicationReclamationAndControlEditsCanOverlapAudio)
+{
+    Board board; board.prepare (48000, 64);
+    board.setModel (0, Model::ts808Prototype); board.setModel (1, Model::ds1Prototype);
+    board.setBoardEnabled (true);
+    std::atomic<bool> stop { false }, finite { true };
+    std::thread audio ([&]
+    {
+        double l[64] {}, r[64] {};
+        while (! stop.load())
+        {
+            std::fill_n (l, 64, 0.1); std::fill_n (r, 64, -0.1);
+            board.processStereo (l, r, 64, Placement::beforeExistingPre);
+            for (int i = 0; i < 64; ++i) if (! std::isfinite (l[i]) || ! std::isfinite (r[i])) finite.store (false);
+        }
+    });
+    for (int edit = 0; edit < 1000; ++edit)
+    {
+        board.move (0, 1); board.setKnob (0, 0, static_cast<double> (edit % 100) / 100.0);
+        if (edit % 17 == 0) board.setModel (1, edit % 2 ? Model::phase90Prototype : Model::ds1Prototype);
+        board.reclaim();
+    }
+    stop.store (true); audio.join();
+    CHECK (finite.load());
+    double l[1024] {}, r[1024] {}; board.processStereo (l, r, 1024, Placement::beforeExistingPre);
+    CHECK (board.reclaim() > 0);
+    board.releaseResources();
+}
+
+LUTHIER_TEST (RefPedalBoardCore, uiMetadataAndSnapshotsDoNotShareMutableVarObjects)
+{
+    BoardModel model;
+    juce::var ui (new juce::DynamicObject()); ui.getDynamicObject()->setProperty ("zoom", 1.0);
+    model.setUiState (ui);
+    ui.getDynamicObject()->setProperty ("zoom", 2.0);
+    CHECK_NEAR (static_cast<double> (model.getBoardSettings().ui["zoom"]), 1.0, 1.e-12);
+    CHECK (! model.canUndo());
+    auto settings = model.getBoardSettings(); settings.ui.getDynamicObject()->setProperty ("zoom", 3.0);
+    CHECK_NEAR (static_cast<double> (model.getBoardSettings().ui["zoom"]), 1.0, 1.e-12);
+}

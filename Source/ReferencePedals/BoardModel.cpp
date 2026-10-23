@@ -1,7 +1,10 @@
+// OWNER: WP2
 // Message-thread board edits and bounded snapshot history. Audio topology
 // compilation/publication remains a separate integration work package.
 
 #include "BoardModel.h"
+#include "PedalRegistry.h"
+#include "Midi/MidiState.h"
 #include <algorithm>
 #include <cmath>
 #include <type_traits>
@@ -99,6 +102,14 @@ namespace
             && std::isfinite (settings.fb.lpHz) && settings.fb.lpHz > 0.f;
     }
 
+    BoardSettings cloneSettings (const BoardSettings& input)
+    {
+        auto result = input; result.midi = input.midi.clone(); result.ui = input.ui.clone(); result.unknown = input.unknown.clone(); return result;
+    }
+    std::vector<PedalInstance> cloneInstances (const std::vector<PedalInstance>& input)
+    {
+        auto result = input; for (auto& instance : result) instance.extras = instance.extras.clone(); return result;
+    }
     bool validPedalControls (const PedalInstance& pedal)
     {
         return ! pedal.modelId.empty() && pedal.modelRevision >= 1
@@ -124,6 +135,8 @@ struct BoardModel::Impl
 {
     mutable std::mutex mutex;        // message-thread mutex, never taken on the audio thread
     BoardSettings settings;
+    TopologyInfo info;
+    Compiler compiler;
     std::vector<PedalInstance> instances;
     struct History { BoardSettings settings; std::vector<PedalInstance> instances; };
     std::vector<History> undoStack, redoStack;
@@ -203,6 +216,9 @@ bool BoardModel::apply (const BoardCommand& command, juce::String* rejectReason)
                 p.slot = firstFreeSlot (nextInstances);
                 if (p.slot < 0) return false;
                 p.modelId = cmd.modelId;
+                if (impl->compiler)
+                    if (const auto* desc = PedalRegistry::find (p.modelId.c_str()))
+                        for (int i = 0; i < desc->numParams; ++i) p.params[static_cast<size_t> (i)] = desc->params[i].defaultNormalised();
                 p.placement = cmd.placement;
                 p.lane = cmd.lane;
                 changedId = p.instanceId;
@@ -226,6 +242,28 @@ bool BoardModel::apply (const BoardCommand& command, juce::String* rejectReason)
                 changedId = copy.instanceId;
                 nextInstances.insert (nextInstances.begin() + index, std::move (copy));
                 orderChanged = true;
+            }
+            else if constexpr (std::is_same_v<T, cmd::SetModel>)
+            {
+                auto it = findPedal (cmd.id);
+                if (it == nextInstances.end()) return false;
+                const auto* desc = PedalRegistry::find (cmd.modelId.c_str());
+                if (! desc) return false;
+                it->modelId = cmd.modelId; it->modelRevision = desc->revision; it->missing = false;
+                it->params.fill (0.f); it->extras = juce::var();
+                for (int i = 0; i < desc->numParams; ++i) it->params[static_cast<size_t> (i)] = desc->params[i].defaultNormalised();
+                changedId = cmd.id;
+            }
+            else if constexpr (std::is_same_v<T, cmd::SetLoop>)
+            {
+                if (cmd.loop < 0 || cmd.loop >= kMaxLoops) return false;
+                next.loops[static_cast<size_t> (cmd.loop)] = cmd.settings;
+                if (! validBoardSettings (next)) return false;
+            }
+            else if constexpr (std::is_same_v<T, cmd::SetFeedback>)
+            {
+                next.fb = cmd.settings;
+                if (! validBoardSettings (next)) return false;
             }
             else if constexpr (std::is_same_v<T, cmd::SetTrim>)
             {
@@ -318,6 +356,39 @@ bool BoardModel::apply (const BoardCommand& command, juce::String* rejectReason)
                 if (cmd.law > MixLaw::ThirdLaw) return false;
                 next.mixLaw = cmd.law;
             }
+            else if constexpr (std::is_same_v<T, cmd::SetSlotChannel>)
+            {
+                auto it = findPedal (cmd.id);
+                if (it == nextInstances.end() || cmd.chan < 0 || cmd.chan > 16) return false;
+                it->extras = it->extras.clone();
+                if (! it->extras.getDynamicObject()) it->extras = new juce::DynamicObject();
+                juce::var midi (new juce::DynamicObject());
+                midi.getDynamicObject()->setProperty ("chan", cmd.chan);
+                midi.getDynamicObject()->setProperty ("useProfile", cmd.useProfile);
+                it->extras.getDynamicObject()->setProperty ("midi", midi);
+                changedId = cmd.id;
+            }
+            else if constexpr (std::is_same_v<T, cmd::SetMidiBinding>)
+            {
+                if (! cmd.binding.getDynamicObject() || ! cmd.binding.getDynamicObject()->hasProperty ("id")) return false;
+                next.midi = next.midi.clone();
+                if (! next.midi.getDynamicObject()) next.midi = new juce::DynamicObject();
+                auto* object = next.midi.getDynamicObject();
+                if (! object->getProperty ("bindings").isArray()) object->setProperty ("bindings", juce::Array<juce::var>());
+                auto* bindings = object->getProperty ("bindings").getArray();
+                int found = -1;
+                for (int i = 0; i < bindings->size(); ++i)
+                    if ((*bindings)[i]["id"] == cmd.binding["id"]) { found = i; break; }
+                if (cmd.op == cmd::SetMidiBinding::Op::Add)
+                { if (found >= 0 || bindings->size() >= midi::kMaxBindings) return false; bindings->add (cmd.binding.clone()); }
+                else
+                {
+                    if (found < 0) return false;
+                    if (cmd.op == cmd::SetMidiBinding::Op::Remove) bindings->remove (found);
+                    else bindings->set (found, cmd.binding.clone());
+                }
+                if (! midi::MidiState::validate (next.midi)) return false;
+            }
             else if constexpr (std::is_same_v<T, cmd::SetBoardParam>)
             {
                 if (! setBoardScalar (next, cmd.key, cmd.value)) return false;
@@ -325,14 +396,17 @@ bool BoardModel::apply (const BoardCommand& command, juce::String* rejectReason)
             else return false; // Unsupported commands must never report success.
             return true;
         }, command);
-        if (supported)
+        auto info = impl->info;
+        const bool compiled = supported && (! impl->compiler || impl->compiler (nextInstances, next, info, reason));
+        if (compiled)
         {
+            impl->info = info;
             impl->recordUndo (command);
             impl->settings = std::move (next);
             impl->instances = std::move (nextInstances);
             settingsChanged = true;
         }
-        else reason = juce::String ("Unsupported or invalid board command: ") + commandName (command);
+        else if (reason.isEmpty()) reason = juce::String ("Unsupported or invalid board command: ") + commandName (command);
     }
     if (rejectReason != nullptr) *rejectReason = reason;
     // Listener callbacks are deliberately outside the message-thread mutex.
@@ -367,15 +441,15 @@ std::optional<PedalInstance> BoardModel::getInstance (const InstanceId& id) cons
 {
     const std::lock_guard<std::mutex> lock (impl->mutex);
     for (const auto& pedal : impl->instances)
-        if (pedal.instanceId == id) return pedal;
+        if (pedal.instanceId == id) { auto copy = pedal; copy.extras = pedal.extras.clone(); return copy; }
     return std::nullopt;
 }
-TopologyInfo BoardModel::getTopologyInfo() const { return {}; }
+TopologyInfo BoardModel::getTopologyInfo() const { const std::lock_guard<std::mutex> lock (impl->mutex); return impl->info; }
 
 BoardSettings BoardModel::getBoardSettings() const
 {
     const std::lock_guard<std::mutex> lock (impl->mutex);
-    return impl->settings;
+    return cloneSettings (impl->settings);
 }
 
 bool BoardModel::undo()
@@ -383,6 +457,10 @@ bool BoardModel::undo()
     {
         const std::lock_guard<std::mutex> lock (impl->mutex);
         if (impl->transactionDepth != 0 || impl->undoStack.empty()) return false;
+        juce::String error; auto info = impl->info;
+        const auto& candidate = impl->undoStack.back();
+        if (impl->compiler && ! impl->compiler (candidate.instances, candidate.settings, info, error)) return false;
+        impl->info = info;
         impl->lastGesture = {};
         impl->redoStack.push_back ({ impl->settings, impl->instances });
         auto previous = std::move (impl->undoStack.back());
@@ -398,6 +476,10 @@ bool BoardModel::redo()
     {
         const std::lock_guard<std::mutex> lock (impl->mutex);
         if (impl->transactionDepth != 0 || impl->redoStack.empty()) return false;
+        juce::String error; auto info = impl->info;
+        const auto& candidate = impl->redoStack.back();
+        if (impl->compiler && ! impl->compiler (candidate.instances, candidate.settings, info, error)) return false;
+        impl->info = info;
         impl->lastGesture = {};
         impl->undoStack.push_back ({ impl->settings, impl->instances });
         auto next = std::move (impl->redoStack.back());
@@ -475,15 +557,19 @@ bool BoardModel::replaceAll (const std::vector<PedalInstance>& orderedInstances,
     }
     if (error != nullptr) *error = reason;
     if (reason.isNotEmpty()) return false;
-    auto restored = orderedInstances;
+    auto restored = cloneInstances (orderedInstances);
     // Reserve all explicit slots before filling omissions: an earlier missing
     // slot must not steal a later instance's saved automation assignment.
     for (auto& pedal : restored)
         if (pedal.slot == -1) pedal.slot = firstFreeSlot (restored);
     {
         const std::lock_guard<std::mutex> lock (impl->mutex);
+        auto info = impl->info;
+        if (impl->compiler && ! impl->compiler (restored, settings, info, reason))
+        { if (error) *error = reason; return false; }
+        impl->info = info;
         impl->instances = std::move (restored);
-        impl->settings = settings;
+        impl->settings = cloneSettings (settings);
         impl->undoStack.clear();
         impl->redoStack.clear();
         impl->transactionDepth = 0;
@@ -502,8 +588,19 @@ bool BoardModel::replaceAll (const std::vector<PedalInstance>& orderedInstances,
 void BoardModel::snapshot (std::vector<PedalInstance>& instances, BoardSettings& settings) const
 {
     const std::lock_guard<std::mutex> lock (impl->mutex);
-    instances = impl->instances;
-    settings = impl->settings;
+    instances = cloneInstances (impl->instances);
+    settings = cloneSettings (impl->settings);
+}
+
+void BoardModel::setCompiler (Compiler compiler)
+{
+    const std::lock_guard<std::mutex> lock (impl->mutex);
+    impl->compiler = std::move (compiler);
+}
+void BoardModel::setUiState (juce::var state)
+{
+    const std::lock_guard<std::mutex> lock (impl->mutex);
+    impl->settings.ui = state.clone();
 }
 
 } // namespace luthier::reference
