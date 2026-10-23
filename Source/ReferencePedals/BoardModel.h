@@ -73,11 +73,14 @@ public:
     // topology. Partial failure keeps the previous model (returns false).
     bool replaceAll (const std::vector<PedalInstance>& orderedInstances, const BoardSettings& settings,
                      juce::String* error = nullptr);
+    void setUiState (juce::var); // presentation-only; no undo or audio publication
     void snapshot (std::vector<PedalInstance>& orderedInstances, BoardSettings& settings) const;
 
 private:
     friend class BoardEngine;
     friend class TopologyCompiler;
+    using Compiler = std::function<bool (const std::vector<PedalInstance>&, const BoardSettings&, TopologyInfo&, juce::String&)>;
+    void setCompiler (Compiler);
     struct Impl;
     std::unique_ptr<Impl> impl;
 };
