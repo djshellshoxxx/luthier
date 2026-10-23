@@ -29,6 +29,11 @@ static_assert (std::is_trivially_copyable_v<MidiEv>, "MidiEv crosses SPSC rings"
 
 enum class MidiOrigin : uint8_t { Host = 0, Device = 1, OnScreen = 2, UiSlider = 3 };
 
+// E36: slot 0xff in ParamWrite addresses one board target. Tempo is normalised
+// over 20..300 BPM. The remaining slots address descriptor parameters.
+enum class BoardTarget : uint16_t { Mix = 0, Tempo = 1, Enabled = 2 };
+constexpr uint8_t kBoardTargetSlot = 0xff;
+
 // Router -> pedal parameter write at a sample offset (errata E7).
 struct ParamWrite
 {
