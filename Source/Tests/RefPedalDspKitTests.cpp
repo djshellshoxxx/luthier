@@ -41,7 +41,7 @@ LUTHIER_TEST(RefPedalDspKit, phaseEnvelopeNoiseAndFiniteRecovery)
  EnvelopeFollower e;e.prepare(48000,10,100);double y=0;for(int i=0;i<480;++i)y=e.process(1);CHECK_NEAR(y,1-std::exp(-1),1e-12);
  NoiseGen a(42),b(42);for(int i=0;i<1000;++i)CHECK(a.next()==b.next());
  Biquad q; q.setLowpass(48000,2000);TptSvf sv;sv.prepare(48000);OnePole lp;lp.setLowpass(48000,2000);
- for(double x:{std::numeric_limits<double>::infinity(),std::numeric_limits<double>::quiet_NaN(),1e-310,1.0,0.0}){CHECK_FINITE(q.process(x));CHECK_FINITE(sv.process(x).low);CHECK_FINITE(lp.process(x));}
+ for(double x:{std::numeric_limits<double>::infinity(),std::numeric_limits<double>::quiet_NaN(),1e-310,1.0,0.0}){CHECK(std::isfinite(q.process(x)));CHECK(std::isfinite(sv.process(x).low));CHECK(std::isfinite(lp.process(x)));}
  CHECK(safe(1e-310)==0);
 }
 LUTHIER_TEST(RefPedalDspKit, oversamplerPolicyDeterminism)
