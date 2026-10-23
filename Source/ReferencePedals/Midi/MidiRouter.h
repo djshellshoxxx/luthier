@@ -31,7 +31,7 @@ public:
     // retired and freed on the message thread (reclaim in Board::reclaim()).
     void publishMap (std::unique_ptr<MapSnap> snapshot);
 
-    int reclaim() noexcept; // message thread; epoch-delayed destruction (E27)
+    int reclaim() noexcept; // message thread; epoch-delayed destruction (E33)
 
     // Device / UI thread -> uiInRing (wait-free; drops and counts when full).
     void pushUiEvent (const MidiEv&) noexcept;

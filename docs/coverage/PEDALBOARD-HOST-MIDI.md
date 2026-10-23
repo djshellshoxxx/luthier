@@ -4,7 +4,11 @@
 
 ## Interface errata
 
-E27 (approved by coordinator): `MidiRouter::reclaim() noexcept -> int` is additive to frozen I-5. Message thread only, called by Board::reclaim. Immutable snapshots remain owned until two completed process calls after publication; process never deletes maps. prepare/destruction require audio stopped, as before.
+E33 (approved by coordinator): `MidiRouter::reclaim() noexcept -> int` is additive to frozen I-5. Message thread only, called by Board::reclaim. Immutable snapshots remain owned until two completed process calls after publication; process never deletes maps. prepare/destruction require audio stopped, as before.
+
+E36 (approved): ParamWrite slot0xff selects BoardTarget enum (Mix0, Tempo1, Enabled2), with normalised tempo20..300 BPM. Other slots retain descriptor indices.
+
+E39 (coordinator interpretation): OFF preserves bit-identical audio and suppresses pedal writes/foot/raw/output MIDI. Clock tracking and the enabled binding remain live for reenable/sync; other board targets are gated while OFF.
 
 WP6 shared pure interfaces, previously empty skeletons: `MidiState::buildMap(orderedInstances, settings)` resolves UUID + descriptor param id to fixed map indices; `MidiState::validate(var,error)` bounds persisted maps. `GestureDecoder` exposes timestamped down/up/advance/pop with configurable tap/double/hold/erase thresholds, and stopped/fast-tap switches. `FootController` owns latch/momentary/auto engagement. `ExprEngine` exposes per-sample one-pole state and pitch-bend conversion. `BoardMidiLearn` owns message-thread timeout/confirmation around frozen router capture API. `GestureEngine` exposes travel/engage/tap compensation and held-key poly-pressure reduction. These APIs do not add GUI dependencies.
 
@@ -12,7 +16,7 @@ WP23 host extension: `LuthierEngine::setReferencePedalTransport(HostTransport)` 
 
 ## Actual native checks
 
-Standalone native harness against JUCE 8 core/audio_basics (2026-10-23):
+Standalone native harness against JUCE 8 core/audio_basics (2026-10-23): 13 cases / 64 checks passing under AddressSanitizer + UndefinedBehaviorSanitizer. Own routing sources instrumented; reused JUCE module objects are uninstrumented.
 
 - RefPedalMidiCore::mappedOffsetsAndReservedGuard — 6 checks, passing.
 - RefPedalMidiCore::clockStartStopLoss — 6 checks, passing.
@@ -22,14 +26,18 @@ Standalone native harness against JUCE 8 core/audio_basics (2026-10-23):
 - RefPedalMidiGesture::momentaryAutoDebounce — 6 checks, passing.
 - RefPedalMidiGesture::expressionStepResponse — 3 checks, passing.
 
+Additional passing cases: noAllocationsDuringRouting (3), concurrentPublicationAndReclamation (1; 200 snapshot replacements), boardTargetsRetainOffsets (5), softTakeoverAndExactChannelPrecedence (5), heldNotesReleaseOriginalSlotAcrossReorder (7), disabledBoardOnlyAllowsEnableTarget (6).
+
+Compiler syntax checks passed for Parameters.cpp, LuthierEngine.cpp, PluginProcessor.cpp, HostStateFormat.cpp and RefPedalHostTests.cpp. Host execution remains pending the full build.
+
 ## Missing gates / current limitations
 
 - Host files and persistent map resolution not compiled in initial native harness; integration/full test build pending.
 - Host automation is a message-thread bidirectional model mirror, not sample-accurate. Fixed 320 slot lanes + enabled/mix/tempo are append-only; continuous audio-thread overrides and dynamic lane names remain pending.
 - Clock median estimate/basic source priority and transport/loss work; specified PLL phase lock, jitter budget, source hysteresis/glide, exact mid-block source arbitration, tap external-master rejection and clock output remain pending.
-- Source map routing supports CC/CC14, notes/velocity, PB, channel/poly pressure, PC, absolute/relative/toggle/momentary/trigger. Step mode currently emits no write; board-target writes have no RouteOut representation and are not applied. Soft takeover, source priority/hold/add, scene recall, local/focus defaults and custom PCHIP curves remain pending.
+- Source map routing supports CC/CC14, notes/velocity, PB, channel/poly pressure, PC, absolute/relative/toggle/momentary/trigger. Step mode uses descriptor-derived step count, soft takeover uses initial model value/pickup crossing, and source priority uses 300ms hold. Board-target writes carry E36 routing data; engine consumption pending coordinated integration. Additive combine, scene recall, local/focus profiles and custom PCHIP curves remain pending.
 - Curve LUT 256 linear interpolation exists; analytic-error budget for steep log curves not yet established. Expression smoother is pure-tested but pedal consumers must advance it; smoothMs is carried through RouteOut, integration pending.
 - Learn distinct-value capture + suppression exists; ambiguous-source competition, duplicate dialog, learn-all and device/UI feedback remain pending.
 - Gesture decoder thresholds and controller modes are pure-tested; individual looper action consumption, pressure-hold and sample-accurate engage crossfade remain pending.
 - Hard event/ring capacities drop newest events and count overload; clock has reserved capacity but an unbounded clock-only flood can overflow the priority ring. Spec absolute 'never dropped' cannot hold with bounded storage under unbounded realtime input.
-- Allocation detector, concurrent snapshot publication/reclaim sanitizer stress, 60s flood performance, 30min fuzz, all sample-rate/block partitions, AU automation crash reproduction, DAW/manual device QA remain pending.
+- ThreadSanitizer, 60s flood performance, 30min fuzz, all sample-rate/block partitions, AU automation crash reproduction, DAW/manual device QA remain pending.
