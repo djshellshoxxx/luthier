@@ -42,7 +42,7 @@ LUTHIER_TEST (RefPedalState, malformedRestoreIsAtomic)
     for (const auto* text : { "null", "[]", "{}", "{\"schema\":1.5}", "{\"schema\":true}",
                              "{\"schema\":-1}", "{\"schema\":1,\"mix\":2}",
                              "{\"schema\":1,\"enabled\":1}", "{\"schema\":1,\"tempoBpm\":1e300}",
-                             "{\"schema\":1,\"instances\":{}}", "{\"schema\":1} trailing",
+                             "{\"schema\":1,\"instances\":{}}", "{\"schema\":1,\"feedback\":[]}", "{\"schema\":1,\"ui\":[]}", "{\"schema\":1} trailing",
                              "{\"schema\":01}", "{\"schema\":1,\"mix\":.5}", "{\"schema\":1,\"mix\":1.}",
                              "{\"schema\":1,\"x\":1e999}", "{\"schema\":1,\"x\":9223372036854775808}",
                              "{\"schema\":1,\"schema\":1}", "{\"schema\":1,\"snapshots\":[3]}",
@@ -205,6 +205,7 @@ LUTHIER_TEST (RefPedalState, assetsVerifyAtomicFailureAndAsyncDrain)
     AssetStore store(dir);
     const auto emptyHash=AssetStore::hashBlob(nullptr,0);
     const auto blocked=dir.getChildFile(emptyHash.toHex()+".blob");
+    CHECK(emptyHash.toHex()=="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
     CHECK(blocked.createDirectory().wasOk());
     CHECK(blocked.getChildFile("sentinel").replaceWithText("keep"));
     CHECK(!store.putBlob(emptyHash,nullptr,0));
@@ -256,4 +257,49 @@ LUTHIER_TEST (RefPedalState, savedSchemaFixtures)
         juce::String saved; CHECK(BoardState::save(model,saved));
         if (juce::String(file).contains("future")) { CHECK(!model.getBoardSettings().enabled); CHECK(saved==fixture.loadFileAsString()); }
     }
+}
+LUTHIER_TEST (RefPedalState, unknownNumbersDoNotLosePrecision)
+{
+    const juce::String text=R"({"schema":1,"vendor":{"a":1.2345678901234567,"b":0.00012345678901234567,"c":1.2345678901234567e-200,"d":9223372036854775807}})";
+    BoardModel model; CHECK(BoardState::restore(model,text));
+    const auto original=model.getBoardSettings().unknown["source"].clone();
+    CHECK((double)original["vendor"]["a"]==1.2345678901234567);
+    CHECK((double)original["vendor"]["b"]==0.00012345678901234567);
+    juce::String saved; CHECK(BoardState::save(model,saved));
+    BoardModel restored; CHECK(BoardState::restore(restored,saved));
+    const auto result=restored.getBoardSettings().unknown["source"].clone();
+    for (const auto* key : {"a","b","c"}) CHECK((double)original["vendor"][key]==(double)result["vendor"][key]);
+    CHECK((juce::int64)original["vendor"]["d"]==(juce::int64)result["vendor"]["d"]);
+}
+LUTHIER_TEST (RefPedalState, invalidRoutingReferencesKeepPrevious)
+{
+    BoardModel model; CHECK(BoardState::restore(model,minimal()));
+    for (const auto* text : {
+        R"({"schema":1,"feedback":{"on":true}})",
+        R"({"schema":1,"loops":[{"used":true}]})",
+        R"({"schema":1,"order":["12345678123412341234123456789abc"],"instances":[{"id":"12345678123412341234123456789abc","model":"unknown"}],"feedback":{"on":true,"src":"12345678123412341234123456789abc","dst":"12345678123412341234123456789abc","gain":1.0}})"
+    })
+    {
+        CHECK(!BoardState::restore(model,juce::String(text)));
+        CHECK(model.getInstanceCount()==0); CHECK(model.getBoardSettings().enabled);
+    }
+}
+LUTHIER_TEST (RefPedalState, rawHostExtractionPreservesOnlyTopLevelBlock)
+{
+    const juce::String board="{ \"schema\": 2, \"text\": \"}referencePedals{\\\"\", \"value\": 1.2345678901234567 }";
+    const auto host="{\"nested\":{\"referencePedals\":{}},\"text\":\"referencePedals: {}\",\"referencePedals\": "+board+",\"after\":[1,2]}";
+    juce::String extracted="keep";
+    CHECK(BoardState::extractFromHostJson(host,extracted)); CHECK(extracted==board);
+    BoardModel model; CHECK(BoardState::restore(model,extracted));
+    juce::String saved; CHECK(BoardState::save(model,saved)); CHECK(saved==board);
+    CHECK(BoardState::extractFromHostJson("{\"nested\":{\"referencePedals\":{}}}",extracted)); CHECK(extracted.isEmpty());
+    for (const auto* malformed : {"[]","{\"referencePedals\":null}","{\"referencePedals\":{}} trailing", "{\"referencePedals\":{},\"referencePedals\":{}}"})
+    {
+        extracted="keep"; CHECK_MSG(!BoardState::extractFromHostJson(malformed,extracted),malformed); CHECK_MSG(extracted=="keep",malformed);
+    }
+    const auto tooLarge="{\"referencePedals\":{\"schema\":1,\"unknown\":\""+juce::String::repeatedString("x",(int)BoardState::maxBytes)+"\"}}";
+    CHECK(!BoardState::extractFromHostJson(tooLarge,extracted)); CHECK(extracted=="keep");
+    // Escaped root member names decode to the same key.
+    CHECK(BoardState::extractFromHostJson("{\"reference\\u0050edals\":{\"schema\":1}}",extracted));
+    CHECK(extracted=="{\"schema\":1}");
 }

@@ -14,6 +14,11 @@ public:
                         juce::var& json, juce::String* error = nullptr);
     static bool decode (const juce::var& json, std::vector<PedalInstance>&,
                         BoardSettings&, juce::String* error = nullptr);
+    // Extract the exact top-level host block before a generic host JSON parser
+    // can round its numbers or discard future-schema formatting. Absent block
+    // succeeds with an empty output; failures leave output unchanged.
+    static bool extractFromHostJson (const juce::String& hostJson, juce::String& boardJson,
+                                     juce::String* error = nullptr);
     static bool save (const BoardModel&, juce::String& json, juce::String* error = nullptr);
     static bool restore (BoardModel&, const juce::String& json, juce::String* error = nullptr);
     static bool save (const BoardModel&, juce::var& json, juce::String* error = nullptr);

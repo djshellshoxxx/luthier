@@ -1,0 +1,100 @@
+# Pedalboard state coverage (WP4)
+
+This implementation reconstructs the codec from the saved schema and the empty
+WP4 skeleton. No prior uncommitted codec was present in this environment.
+
+## Delivered contract
+
+- `BoardState` offers atomic `encode/decode` for typed snapshots and `save/restore`
+  for `BoardModel`, with `juce::var` and JSON string overloads. Failed operations
+  leave their output/model unchanged. Model snapshots/replacement use WP2's hooks.
+- Schema 1 is current; no earlier schema was shipped, so there is no invented
+  migration from schema 0. Invalid/missing schema is rejected. A newer positive
+  integer schema loads an empty disabled board and preserves the entire block.
+- String restore/save preserves a newer block verbatim until a represented board
+  value changes. The var API preserves its complete tree, without promising source
+  whitespace that the caller has already discarded. `extractFromHostJson` extracts
+  the exact top-level `referencePedals` object before generic host parsing. Absent
+  blocks succeed with an empty result; malformed hosts/nonobject blocks/oversized
+  blocks fail without overwriting the previous result.
+- Strict parsing bounds nesting at 64, rejects trailing input/duplicate JSON keys,
+  invalid escapes/nonfinite numbers/integer overflow, and uses `from_chars` to avoid
+  rounding during parsing. Serialization uses `to_chars` with `max_digits10` so
+  unknown doubles survive repeated string round trips. Current-schema output is
+  canonical JSON; unknown field values survive, while their whitespace/number
+  spelling may change. Newer-schema string output retains original spelling.
+- Validation covers scalar types, integral enums, normalized controls, finite
+  values, numeric bounds, up to 16 instances, nonnull valid UUIDs, duplicate UUIDs,
+  exact order membership, loop endpoints, feedback direction/runaway opt-in,
+  and eight snapshots. Multiple instances of the same model are valid. Conflicting
+  automation slots are assigned in authoritative order, reserving other explicit
+  slots before filling omissions. MIDI objects call WP6's `MidiState::validate`.
+- Known parameters use descriptor IDs and normalized descriptor defaults. Missing
+  models are flagged missing and disabled; all original controls/extras/unknown
+  nested fields remain available. Audio bypass creation/publication is WP2's job.
+- `BoardSettings.unknown` contains a private envelope (`source`, plus `baseline`
+  and `verbatim` for forward state). `source` is the original complete tree, used
+  as a merge template. Consumers should edit `midi` and `ui` directly rather than
+  interpret or rewrite this envelope. The serializer overlays typed controls onto
+  cloned source objects; it never mutates the stored template.
+- `BoardSnapshots::capture/recall/get` provides indices 0..7. The bank persists under
+  `referencePedals.snapshots`; individual snapshots contain the board schema and a
+  name, without recursively embedding the bank. Capture and recall validate the
+  entire resulting state and share the 256 KiB cap.
+- `AssetStore` verifies SHA-256 before writes and reads, uses same-directory
+  temporary files plus atomic replacement, keeps prior targets on failure,
+  serializes async work on an owned worker, drains jobs at destruction, and
+  reports deduplicated missing/corrupt assets. Persistent references use
+  `sha256:<digest>` and contain no user path. Loop audio is never emitted by the
+  state codec; audio producers store assets and emit their content references.
+
+## Verification
+
+The focused harness compiles actual BoardModel, PedalRegistry, BoardState,
+BoardSnapshots, AssetStore, MidiState, and RefPedalStateTests against real JUCE
+core/cryptography. Unused package registration functions are discarded with
+function-section garbage collection; no fake JUCE or registry implementation is
+substituted. The descriptor used for normalization/audio tests is explicitly a
+small test model, not a claim about all shipping registered models.
+
+Latest focused result: **15 cases, 5,245 checks, 0 failures**, in both the normal
+and ASan-instrumented harness. A `-Wall -Wextra -Wpedantic` syntax pass over the
+state/snapshot/asset implementation produced no warnings.
+
+Reproduce in this saved environment:
+
+```sh
+bash /workspace/luthier-evidence/state/run.sh
+bash /workspace/luthier-evidence/state/run-asan.sh
+```
+
+Harness source, build commands, and results are under
+`/workspace/luthier-evidence/state/`. ASan instruments the codec, asset store,
+model/registry, MIDI state, and tests; reused JUCE module objects are not ASan
+instrumented. The tests include:
+
+- Atomic rejection of malformed/schema/range/type input and the 256 KiB cap.
+- Verbatim forward schema and replacement after an explicit board edit.
+- Unknown root/nested fields, unknown styles/mounting, missing models, and
+  high-precision vendor numbers.
+- Duplicate UUID rejection, legal repeated model IDs, and authoritative order with
+  conflicting slots.
+- All eight named snapshots across save/restore/recall.
+- 1,000 deterministically seeded boards of 0..16 known/missing model instances.
+- 500 concurrent complete-generation saves while the other thread replaces state.
+- Descriptor defaults, keyed parameters, and bitwise-equal output of a deterministic
+  registered test model after restore.
+- Asset write/hash failure preservation, blocked rename, SHA-256 empty-blob golden,
+  missing references, callback delivery and destruction draining.
+- Exact host-block extraction with nested decoys, strings containing braces,
+  escaped property names, malformed hosts, and oversized blocks.
+
+## Integration limits
+
+The focused harness does not establish full plugin build acceptance, actual-engine
+render equality across restore, transition smoothing/PDC, MIDI PC dispatch to
+snapshots, UI restoration, or a TSan-clean full host session. These require the
+WP2/WP6/host/UI integration gates. Capture/recall use atomic `replaceAll`, whose
+current contract clears undo; undoable snapshot command integration belongs to
+WP2. Existing unknown-field values are retained semantically; exact lexical bytes
+of current-schema unknown JSON subtrees are not promised.
