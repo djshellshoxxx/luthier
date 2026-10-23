@@ -112,8 +112,9 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
             { s.phase = Segment::Out; s.ramp = 0; s.rampStart = s.gain; }
         }
     }
-    if (! newest->settings.enabled && ! running.load()) { s.current = newest; s.pending = nullptr; acknowledge(); return; }
-    if (newest->settings.enabled) running.store (true);
+    if (! newest->settings.enabled && ! running.load())
+    { s.current = newest; s.pending = nullptr; s.phase = Segment::Idle; s.gain = 1.0; s.enable = 0.0; acknowledge(); return; }
+    if (newest->settings.enabled && newest->topology.n > 0) running.store (true);
     double peakIn = 0, peakOut = 0;
     for (int offset = 0; offset < n;)
     {
@@ -126,7 +127,7 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
         int count = std::min ({ kSubBlock, block, n - offset });
         if (s.phase != Segment::Idle) count = std::min (count, dipSamples - s.ramp);
         const bool hasNodes = topology.segBegin[p] != topology.segEnd[p];
-        if (! hasNodes && ! s.pending) { offset += count; continue; }
+        if (! hasNodes && ! s.pending) { s.phase = Segment::Idle; s.gain = 1.0; offset += count; continue; }
         double dry[2][kSubBlock] {};
         for (int c = 0; c < 2; ++c)
             for (int i = 0; i < count; ++i)
@@ -134,7 +135,7 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
                 const double in = (c == 0 ? left : right)[offset + i];
                 peakIn = std::max (peakIn, std::abs (std::isfinite (in) ? in : 0.0));
                 dry[c][i] = s.dry[static_cast<size_t> (c)].process (in, plan.latency[static_cast<size_t> (p)]);
-                buses[0][static_cast<size_t> (c)][static_cast<size_t> (i)] = BoardLimiter::process (in, false, 1.0);
+                buses[0][static_cast<size_t> (c)][static_cast<size_t> (i)] = ! newest->settings.enabled && s.enable == 0.0 ? 0.0 : BoardLimiter::process (in, false, 1.0);
             }
         ExecCtx context; context.n = count; context.topo = &topology;
         context.pedals = topology.pedals; context.sampleRate = rate;
@@ -163,9 +164,13 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
             else if (node.kind == NodeKind::Delay) context.state[index] = &s.lanes[node.aux];
             routing::nodeTable()[static_cast<int> (node.kind)] (node, context);
         }
-        const double targetMix = newest->settings.enabled ? newest->settings.mix : 0.0;
+        const double targetMix = newest->settings.mix;
+        const double enableStep = 1.0 / std::max (1.0, 0.020 * rate);
         for (int i = 0; i < count; ++i)
         {
+            s.enable = std::clamp (s.enable + (newest->settings.enabled ? enableStep : -enableStep), 0.0, 1.0);
+            if (s.enable < 1.e-12) s.enable = 0.0;
+            if (s.enable > 1.0 - 1.e-12) s.enable = 1.0;
             s.mix += mixAlpha * (targetMix - s.mix);
             if (std::abs (s.mix - targetMix) < 1.e-10) s.mix = targetMix;
             if (s.phase != Segment::Idle)
@@ -178,7 +183,7 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
             for (int c = 0; c < 2; ++c)
             {
                 const double wet = dry[c][i] + s.gain * (buses[0][static_cast<size_t> (c)][static_cast<size_t> (i)] - dry[c][i]);
-                const double result = mixer.render (dry[c][i], wet, s.mix, newest->settings.mixLaw);
+                const double result = mixer.render (dry[c][i], wet, s.mix * s.enable, newest->settings.mixLaw);
                 (c == 0 ? left : right)[offset + i] = BoardLimiter::process (result, false, 1.0);
                 peakOut = std::max (peakOut, std::abs ((c == 0 ? left : right)[offset + i]));
             }
@@ -190,9 +195,13 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
         bool silent = true;
         for (int segment = 0; segment < kNumPlacements; ++segment)
             if (newest->topology.segBegin[segment] != newest->topology.segEnd[segment]
-                && segments[static_cast<size_t> (segment)].mix > 1.e-10) silent = false;
+                && segments[static_cast<size_t> (segment)].enable > 0.0) silent = false;
+        if (newest->settings.trails)
+            for (const auto& slot : newest->slots)
+                if (slot && slot->pedal->desc().hasTails && slot->pedal->getTailEnergyDb() > -90.f) silent = false;
         if (silent) running.store (false);
     }
+    if (newest->topology.n == 0 && s.pending == nullptr) running.store (false);
     inputPeak.store (static_cast<float> (20.0 * std::log10 (std::max (1.e-6, peakIn))));
     outputPeak.store (static_cast<float> (20.0 * std::log10 (std::max (1.e-6, peakOut))));
     acknowledge();
