@@ -230,6 +230,13 @@ bool readSettings (const V& root, BoardSettings& s)
     if (has(root,"boardStyle")) { if (! root["boardStyle"].isString()) return false; boardStyleFromString(root["boardStyle"].toString(),s.style); }
     for (const auto* key : { "midi", "ui", "feedback" }) if (has(root,key) && ! root[key].getDynamicObject()) return false;
     s.midi = copy(root["midi"]); s.ui = copy(root["ui"]);
+    if (has(root,"window"))
+    {
+        if (!root["window"].isString()) return false;
+        if (!s.ui.getDynamicObject()) s.ui=object();
+        put(s.ui,"window",root["window"]);
+    }
+    if (has(s.ui,"window") && !s.ui["window"].isString()) return false;
     if (!midi::MidiState::validate(s.midi)) return false;
     const auto& f = root["feedback"];
     if (! flag(f,"on",s.fb.on) || ! flag(f,"runawayOk",s.fb.runawayOk) || ! idField(f,"src",s.fb.src)
@@ -287,6 +294,7 @@ V writeSettings (const BoardSettings& s)
         put(r,"boardStyle",toString(s.style));
     if (! s.midi.isVoid()) put(r,"midi",copy(s.midi));
     if (! s.ui.isVoid()) put(r,"ui",copy(s.ui));
+    if (s.ui["window"].isString()) put(r,"window",s.ui["window"]);
     put(r,"parallelNorm",(int)s.lanes.norm); put(r,"numLanes",s.lanes.numLanes);
     V lanes(juce::Array<V>{}), loops(juce::Array<V>{});
     for (int i=0;i<kMaxBranches;++i)
