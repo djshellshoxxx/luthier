@@ -1,3 +1,4 @@
+// OWNER: WP7
 #pragma once
 #include "TableSin.h"
 namespace luthier::reference::common {
