@@ -453,6 +453,9 @@ public:
     void setTempoBpm (double bpm) noexcept;
     double getTempoBpm() const noexcept { return tempoBpm; }   // SPEC-SWEEP: LP-25 (tests)
 
+    // WP23: validated position already read once by the processor's HostClock.
+    void setReferencePedalTransport (const reference::HostTransport& t) noexcept { referenceTransport = t; }
+
     /** Host transport position, for the rhythm engine's grid. */
     void setTransportPosition (double ppqPosition, bool isPlaying) noexcept
     {
@@ -894,6 +897,7 @@ private:
     // --- signal chain ---------------------------------------------------------
     GuitarCircuit circuit;
     CircuitComponents circuitControls;
+    reference::HostTransport referenceTransport;
     reference::Board referencePedals;  // separate experimental rack, default off
     EffectsChain preEffects;
     AmpEngine amp;

@@ -24,6 +24,13 @@ namespace luthier
 //==============================================================================
 namespace ParamIDs
 {
+    // ==== BEGIN REF-PEDALBOARD params ====
+    inline constexpr const char* refBoardEnabled = "ref_board_enabled";
+    inline constexpr const char* refBoardMix = "ref_board_mix";
+    inline constexpr const char* refBoardTempoBpm = "ref_board_tempo_bpm";
+    juce::String refSlot (int slot, const juce::String& suffix); // slot is 0-based
+    // ==== END REF-PEDALBOARD params ====
+
     // --- macros ---------------------------------------------------------------
     inline constexpr const char* macroAttack   = "macro_attack";
     inline constexpr const char* macroBody     = "macro_body";
