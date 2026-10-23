@@ -1,20 +1,25 @@
-// OWNER: WP5 (interim declaration shipped by WP1 so MidiRouter compiles; WP5 owns the content)
 #pragma once
-
-#include <cstdint>
-#include "MidiTypes.h"
-
+#include "Curves.h"
+#include <array>
 namespace luthier::reference::midi
 {
-
-// Immutable binding table, built on the message thread and published to the
-// audio thread through MidiRouter::publishMap (RCU, MIDI_EXPRESSION 2). WP5
-// replaces this placeholder with the flat lookup table of sec 12; the type
-// name and its use through std::unique_ptr<MapSnap> are frozen.
+constexpr int kMaxBindings = 1024;
+constexpr int kSourceTypes = 14;
+bool reservedCc (int cc) noexcept;
 struct MapSnap
 {
+    struct Bucket { std::array<uint16_t, 8> index {}; uint8_t count = 0; };
     uint32_t version = 0;
     int numBindings = 0;
+    int midiChan = 0;
+    TempoSource tempoSource = TempoSource::Auto;
+    double internalBpm = 120;
+    int keyboardBaseNote = 36, keyboardSlots = 0;
+    std::array<Binding, kMaxBindings> bindings {};
+    std::array<CurveLut, kMaxBindings> curves {};
+    std::array<Bucket, kSourceTypes * 16 * 128> lookup {};
+    bool add (const Binding&) noexcept;
+    void compile() noexcept; // message thread only, before publication
+    const Bucket& find (MidiSrc type, int channel, int number) const noexcept;
 };
-
-} // namespace luthier::reference::midi
+}
