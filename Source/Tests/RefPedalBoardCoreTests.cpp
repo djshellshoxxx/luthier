@@ -457,6 +457,12 @@ LUTHIER_TEST (RefPedalBoardCore, poolKeepsPedalIdentityAcrossReorderAndControls)
     auto controls = TopologyCompiler::compile ({ b, a }, {}, pool, 3, reordered.get(), error);
     CHECK (controls->structure == reordered->structure);
     CHECK (controls->slots[0] == first->slots[0]);
+    a.extras = new juce::DynamicObject(); a.extras.getDynamicObject()->setProperty ("state", 1);
+    auto restored = TopologyCompiler::compile ({ b, a }, {}, pool, 4, controls.get(), error);
+    CHECK (restored->slots[0] != first->slots[0]);
+    a.extras.getDynamicObject()->setProperty ("midi", new juce::DynamicObject());
+    auto mapping = TopologyCompiler::compile ({ b, a }, {}, pool, 5, restored.get(), error);
+    CHECK (mapping->slots[0] == restored->slots[0]);
 }
 
 LUTHIER_TEST (RefPedalBoardCore, outputIsIndependentOfHostBlockPartitionIncludingReorder)
@@ -524,4 +530,40 @@ LUTHIER_TEST (RefPedalBoardCore, uiMetadataAndSnapshotsDoNotShareMutableVarObjec
     CHECK (! model.canUndo());
     auto settings = model.getBoardSettings(); settings.ui.getDynamicObject()->setProperty ("zoom", 3.0);
     CHECK_NEAR (static_cast<double> (model.getBoardSettings().ui["zoom"]), 1.0, 1.e-12);
+}
+
+namespace luthier::tests { long allocationsOnThisThread() noexcept; }
+LUTHIER_TEST (RefPedalBoardCore, callbackAllocatesNothingDuringStructuralTransitions)
+{
+    Board board; board.prepare (48000, 64);
+    board.setModel (0, Model::ts808Prototype); board.setModel (1, Model::ds1Prototype);
+    board.setBoardEnabled (true);
+    juce::MidiBuffer input, output; double left[64] {}, right[64] {};
+    long allocated = 0;
+    for (int iteration = 0; iteration < 100; ++iteration)
+    {
+        board.move (0, 1);
+        const auto before = luthier::tests::allocationsOnThisThread();
+        board.beginBlock (input, {}, 64);
+        for (int p = 0; p < kNumPlacements; ++p) board.processStereo (left, right, 64, static_cast<Placement> (p));
+        board.endBlock (output);
+        allocated += luthier::tests::allocationsOnThisThread() - before;
+        board.reclaim();
+    }
+    CHECK (allocated == 0);
+}
+
+LUTHIER_TEST (RefPedalBoardCore, boardDisableFinishesInTwentyMilliseconds)
+{
+    Board board; board.prepare (48000, 1024); board.setModel (0, Model::ts808Prototype); board.setBoardEnabled (true);
+    double left[1024] {}, right[1024] {};
+    board.processStereo (left, right, 1024, Placement::beforeExistingPre);
+    board.setBoardEnabled (false);
+    board.processStereo (left, right, 959, Placement::beforeExistingPre);
+    CHECK (board.isActive());
+    board.processStereo (left, right, 1, Placement::beforeExistingPre);
+    CHECK (! board.isActive());
+    left[0] = 0.12345; right[0] = -0.98765;
+    board.processStereo (left, right, 1, Placement::beforeExistingPre);
+    CHECK (left[0] == 0.12345 && right[0] == -0.98765);
 }

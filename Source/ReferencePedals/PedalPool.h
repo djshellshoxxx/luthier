@@ -16,6 +16,7 @@ struct PedalRuntime
     InstanceId identity;
     std::string model;
     uint16_t revision = 1;
+    juce::String extrasKey;
     std::array<float, kMaxParams> config {};
     std::array<DelayLine, 2> dry;
     double enableMix = 0.0;
