@@ -47,6 +47,22 @@ Tags: [DOC]=verified in repo at this commit, [EST]=chosen. Rule: where specs con
 | E31 | Prototype CI failure (PR #79, all six platform jobs red on the prototype commit) | root cause: `Source/Tests/CircuitTests.cpp` defines `reference()` in an anonymous namespace and does `using namespace luthier;`; the prototype added the namespace `luthier::reference` (via `LuthierEngine.h` -> `Board.h`), so every unqualified `reference()` became ambiguous: a compile error in LuthierTests on every OS. Fixed by renaming the helper to `referenceGuitar()`. The namespace name `luthier::reference` is KEPT; test files that use `using namespace luthier;` must not declare an unqualified `reference` | CircuitTests.cpp |
 
 ## 2. Interfaces to freeze FIRST (WP1 output; changes only via errata PR to WP1 owner)
+### Additive implementation errata (2026-10-23)
+
+- E32: `IPedal::setSidechain(const double* L, const double* R, int n) noexcept`
+  supplies read-only external detector samples valid only for the immediately
+  following `process()` call. Null means unavailable; external detector mode
+  must expose unavailability and must not silently use internal detection.
+  The core and host must route the real input bus before claiming external
+  sidechain acceptance. This additive default no-op preserves other pedals.
+- E33: `MidiRouter::reclaim()` permits message-thread retirement of immutable
+  MIDI maps after audio readers release them. Reclamation must be proven safe
+  under concurrent processing; no callback deletion or allocation is allowed.
+- E34: `BoardModel::setUiState(juce::var)` updates presentation metadata without
+  audio recompilation or undo entries. Clone nested values on ingress/egress;
+  call only on the message thread. This does not bypass validation of audio
+  controls or structural state.
+
 All headers below are created by WP1 as compilable, documented, test-instrumented skeletons.
 - **I-1 `IPedal`, `PedalDesc`, `ParamDesc`, `ParamFlag`, `TimeInfo`, `MidiEvent`, `FootEvent`, `TransportEvent`, `PedalServices`, `PedalBase<N>`** - verbatim BOARD_CORE sec 11.
 - **I-2 `PedalRegistry`** - BOARD_CORE sec 11 (`registerAll/add/make/find/all/laneMap`). `Registration.h` declares one function per package: `registerGenericA/B/C()`, `registerDriveA()`, `registerDriveB()`, `registerMuffs()`, `registerModDelay()`, `registerLoopers()`, `registerRc5()`, `registerPrototypes()`. `PedalRegistry.cpp` (WP1) calls all; each package owns its `Register*.cpp` (WP1 ships empty bodies).

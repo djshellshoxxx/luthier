@@ -75,6 +75,11 @@ public:
 
     // Audio thread. In place, n <= maxBlock.
     virtual void process (double* L, double* R, int n) noexcept = 0;
+    // Additive sidechain input (implementation erratum E32). The board supplies
+    // read-only buffers for the immediately following process() call only.
+    // Null pointers mean the external bus is unavailable; consumers must never
+    // silently substitute the internal detector when external mode is selected.
+    virtual void setSidechain (const double* /*L*/, const double* /*R*/, int /*n*/) noexcept {}
     virtual void setParam (int idx, float norm) noexcept = 0;   // norm 0..1; applies taper, smooths; Trigger: rising edge fires
     virtual float getParam (int idx) const noexcept = 0;
 
