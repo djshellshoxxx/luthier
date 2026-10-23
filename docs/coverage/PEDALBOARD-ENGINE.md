@@ -19,7 +19,7 @@ Owner: WP2/WP3. Checkpoint 2026-10-23. This is a verified implementation slice, 
 
 Focused native executable built with g++ C++17, JUCE core/audio_basics shared object files and the real Board, BoardEngine, BoardModel, registry, prototype, routing and MIDI sources. Test files: `RefPedalBoardCoreTests.cpp`, `RefPedalRoutingTests.cpp`, `ReferencePedalBoardTests.cpp`.
 
-Result: **36 tests, 56,149 checks, 0 failures**.
+Result: **38 tests, 56,155 checks, 0 failures**.
 
 Covered assertions include all prior core/prototype assertions plus:
 
@@ -31,18 +31,20 @@ Covered assertions include all prior core/prototype assertions plus:
 - 1000 overlapping order/control/model edits versus a real audio thread, finite output, eventual reclamation (not a substitute for TSan);
 - parallel unequal latency impulse alignment and inverted-lane cancellation;
 - bypass/mix 0/0.5/1 impulse alignment; PRE/POST segment latency sums;
-- UI state variants cannot mutate the model by alias.
+- UI state variants cannot mutate the model by alias; changed DSP extras replace runtime identity while MIDI metadata does not.
+- Global allocation counter reports zero allocations across 100 callback scopes with structural edits, including beginBlock/three placement calls/endBlock.
+- No-tail board disable stops after exactly 960 samples at 48 kHz (20 ms), then passes input bit-exact.
 
 Harness and executable used during development: `/tmp/luthier-engine-test/{build.py,tests}` (ephemeral, not a repository deliverable). The three test files are integrated into the existing LuthierTests source list.
 
 ## Remaining gates / limitations
 
 - A/B, send/return, feedback and sidechain reamp compile requests explicitly reject; no silent unsupported graph. Their skeleton routing files are not claimed implemented. Stereo width node exists but has no model command yet.
-- Board disable currently uses the one-pole mix fade; the specified finite 20 ms disable/trails state machine remains pending. Buffered/DSP bypass models require dedicated trails handling; the present wrapper is latency-matched dry bypass.
+- Board disable now uses an exact 20 ms enable envelope and continues processing declared tails with muted input until silent. Buffered/DSP per-slot bypass models still require dedicated trails handling; the present wrapper is latency-matched dry bypass.
 - Changing segment latency switches the dry read tap at the structural zero; the specified separate 10 ms read-tap crossfade is pending.
 - CPU units are reported but not mapped to measured CPU cap; no automatic Eco governor. No false calibrated cap is imposed.
 - MIDI events/foot/transport/raw MIDI and MIDI output drain, audio->model echo, sample-accurate host automation and wah toe requests remain pending. Router time alone is dispatched to pedals.
-- Pedal extras loading is performed for newly constructed objects. Reusing an unchanged model with changed extras needs a dedicated safe replacement policy.
+- Changed DSP extras now construct a fresh runtime (MIDI metadata is excluded from DSP identity); preparation precedes extra-state loading. Pool preparation allows High policy so model quality configuration is not capped at Normal.
 - Unknown models pass transparently only when their persisted `missing` flag is set. A standalone BoardModel remains a data model without a DSP compiler; an attached facade validates factories/latency/routing.
 - No dual-mono CPU shortcut (both channel states remain coherent), oversampling calibration, CPU benchmark, sustained 10-minute RT probe, ASan/UBSan/TSan, full host build, plugin validation or three-OS run claimed.
 - Retired plans remain until all formerly active placement segments advance, or the stopped-audio barrier is called. Host must call all three placement segments per block. No 8-item retire high-water cap/coalescing guarantee yet.
