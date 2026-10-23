@@ -17,6 +17,7 @@ namespace luthier::reference
 {
 
 class BoardModel;
+class BoardRoot;
 
 class BoardWindow : public juce::DocumentWindow
 {
@@ -25,6 +26,8 @@ public:
     BoardWindow (BoardModel& model, LuthierAudioProcessor& processor, juce::Component* anchor);
     ~BoardWindow() override;
 
+    // Additive UI erratum: content is non-owned; its Drawer owner outlives this window.
+    void setBoardContent (BoardRoot&);
     void showWindow();
     void hideWindow();
     bool isShowing() const;
@@ -40,6 +43,11 @@ public:
     std::function<void (bool showing)> onVisibilityChanged;
 
 private:
+    void moved() override;
+    void resized() override;
+    void saveGeometry();
+    std::unique_ptr<BoardRoot> headlessContent;
+    bool restoring = true;
     BoardModel& boardModel;
     LuthierAudioProcessor& audioProcessor;
     juce::Component::SafePointer<juce::Component> anchorComponent;

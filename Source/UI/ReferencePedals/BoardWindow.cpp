@@ -1,54 +1,30 @@
 // OWNER: WP17
-// STUB (WP1): the interface is frozen in BoardWindow.h. WP17 replaces the
-// placeholder content with BoardRoot, persists geometry and adds the dock
-// fallback. Constructing a BoardWindow does not show it.
-
 #include "BoardWindow.h"
-#include "../../ReferencePedals/BoardModel.h"
-
+#include "BoardRoot.h"
+#include "BoardUiState.h"
+#include "../Theme.h"
 namespace luthier::reference
 {
-
-BoardWindow::BoardWindow (BoardModel& model, LuthierAudioProcessor& processor, juce::Component* anchor)
-    : juce::DocumentWindow ("Pedalboard", juce::Colour (0xff15171a), juce::DocumentWindow::closeButton),
-      boardModel (model),
-      audioProcessor (processor),
-      anchorComponent (anchor)
+BoardWindow::BoardWindow(BoardModel& m,LuthierAudioProcessor& p,juce::Component* anchor)
+    :juce::DocumentWindow("Pedalboard",Palette::backgroundDeep,juce::DocumentWindow::closeButton),boardModel(m),audioProcessor(p),anchorComponent(anchor)
 {
-    setResizable (true, true);
-    setResizeLimits (480, 260, 4096, 2160);
-    setAlwaysOnTop (false);
-    juce::ignoreUnused (boardModel, audioProcessor);   // WP17 binds the content to them
+    setUsingNativeTitleBar(true);setResizable(true,true);setResizeLimits(480,260,4096,2160);setAlwaysOnTop(false);setWantsKeyboardFocus(false);
+    const auto state=BoardUiState::read(m.getBoardSettings().ui);
+    auto* display=juce::Desktop::getInstance().getDisplays().getDisplayForRect(state.window);
+    if(!display&&anchor)display=juce::Desktop::getInstance().getDisplays().getDisplayForRect(anchor->getScreenBounds());
+    setBounds(BoardUiState::clampWindow(state.window,display?display->userArea:juce::Rectangle<int>(0,0,1280,800)));restoring=false;
 }
-
-BoardWindow::~BoardWindow() = default;
-
-void BoardWindow::showWindow()
+BoardWindow::~BoardWindow(){saveGeometry();clearContentComponent();}
+void BoardWindow::setBoardContent(BoardRoot& root){setContentNonOwned(&root,false);root.setCompact(false);}
+void BoardWindow::showWindow(){if(!getContentComponent())forceHeadlessContent();setVisible(true);toFront(false);saveGeometry();if(onVisibilityChanged)onVisibilityChanged(true);}
+void BoardWindow::hideWindow(){saveGeometry();setVisible(false);auto s=BoardUiState::read(boardModel.getBoardSettings().ui);s.popoutOpen=false;boardModel.setUiState(s.write(boardModel.getBoardSettings().ui));if(onVisibilityChanged)onVisibilityChanged(false);}
+bool BoardWindow::isShowing() const{return isVisible();}
+void BoardWindow::forceHeadlessContent(){if(!getContentComponent()){headlessContent=std::make_unique<BoardRoot>(boardModel,&audioProcessor);setContentNonOwned(headlessContent.get(),false);}}
+void BoardWindow::closeButtonPressed(){hideWindow();}
+void BoardWindow::moved(){saveGeometry();}
+void BoardWindow::resized(){juce::DocumentWindow::resized();saveGeometry();}
+void BoardWindow::saveGeometry()
 {
-    setVisible (true);
-    if (onVisibilityChanged)
-        onVisibilityChanged (true);
+    if(restoring)return;auto s=BoardUiState::read(boardModel.getBoardSettings().ui);s.window=getBounds();s.popoutOpen=isVisible();boardModel.setUiState(s.write(boardModel.getBoardSettings().ui));
 }
-
-void BoardWindow::hideWindow()
-{
-    setVisible (false);
-    if (onVisibilityChanged)
-        onVisibilityChanged (false);
 }
-
-bool BoardWindow::isShowing() const { return isVisible(); }
-
-void BoardWindow::forceHeadlessContent()
-{
-    if (getContentComponent() == nullptr)
-    {
-        auto* content = new juce::Component();
-        content->setSize (1100, 520);
-        setContentOwned (content, true);
-    }
-}
-
-void BoardWindow::closeButtonPressed() { hideWindow(); }
-
-} // namespace luthier::reference

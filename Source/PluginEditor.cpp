@@ -74,12 +74,15 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     // Independent experimental reference pedalboard; legacy racks are untouched.
     addChildComponent (referencePedalDrawer);
     addAndMakeVisible (referencePedalsButton);
-    referencePedalsButton.setTooltip ("Open separate reference pedal prototypes. Existing racks are unchanged.");
-    referencePedalsButton.onClick = [this]
-    {
-        referencePedalDrawer.setOpen (!referencePedalDrawer.isOpen());
-        resized();
-    };
+    referencePedalsButton.setComponentID ("ref_board_toggle");
+    referencePedalsButton.setTooltip ("Show/hide pedalboard (Ctrl+Shift+B)");
+    referencePedalsButton.setClickingTogglesState (true);
+    referencePedalsButton.onClick = [this] { toggleReferenceBoard(); };
+    referencePedalDrawer.onHeightChanged = [this] { resized(); };
+    auto& boardRoot = referencePedalDrawer.boardRoot();
+    boardRoot.onDock = [this] { dockReferenceBoard(); };
+    boardRoot.onPopout = [this] { popoutReferenceBoard(); };
+    boardRoot.onToggle = [this] { toggleReferenceBoard(); };
 
     addAndMakeVisible (chordButton);
 
@@ -285,11 +288,20 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
         itself makes the strip visible and calls resized(), and everything it
         lays out has to exist by then. */
     postStartupNotifications();
+    const auto boardUi = reference::BoardUiState::read(processor.getEngine().getReferencePedals().model().getBoardSettings().ui);
+    juce::Component::SafePointer<LuthierAudioProcessorEditor> safeEditor(this);
+    juce::MessageManager::callAsync([safeEditor,boardUi]
+    {
+        if (!safeEditor) return;
+        if (boardUi.popoutOpen) safeEditor->popoutReferenceBoard();
+        else if (boardUi.dockOpen) safeEditor->dockReferenceBoard();
+    });
 }
 
 LuthierAudioProcessorEditor::~LuthierAudioProcessorEditor()
 {
     stopTimer();
+    if (boardWindow) { boardWindow->onVisibilityChanged = nullptr; boardWindow.reset(); }
     AccessibilitySettings::get().removeChangeListener (this);
     processor.getOutputNormalization().onEnabledByUser = nullptr;   // output-normalization.md 5.3
 
@@ -614,16 +626,14 @@ void LuthierAudioProcessorEditor::resized()
         inlineNotice.setBounds (bounds.removeFromBottom (InlineNotice::preferredHeight)
                                   .reduced (Metrics::windowPadding, 2));
 
+    // Reserve a dock region before laying out the main controls. Small editors
+    // use the popout; they never cover controls with an overlay.
+    if (referencePedalDrawer.isOpen() && getHeight() < 840)
+        referencePedalDrawer.setOpen (false);
+    referencePedalDrawer.setBounds (bounds.removeFromBottom (referencePedalDrawer.getPreferredHeight()));
     easyPanel.setBounds (bounds);
     advancedPanel.setBounds (bounds);
 
-    // Slides over the workspace so opening it never resizes the host window.
-    // A horizontal Viewport keeps every card reachable at 940px and 1080p.
-    auto referenceArea = getLocalBounds();
-    referenceArea.removeFromTop (Metrics::headerHeight);
-    referenceArea.removeFromBottom (Metrics::footerHeight);
-    referencePedalDrawer.setBounds (referenceArea.removeFromBottom (
-        juce::jmin (referencePedalDrawer.getPreferredHeight(), referenceArea.getHeight())));
 
     overlayHost.setBounds (getLocalBounds());
     midiLearnArmLayer.setBounds (getLocalBounds());
@@ -797,6 +807,9 @@ void LuthierAudioProcessorEditor::timerCallback()
 //==============================================================================
 bool LuthierAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
 {
+    if (key.getModifiers().isCommandDown() && key.getModifiers().isShiftDown()
+        && (key.getKeyCode() == 'B' || key.getKeyCode() == 'b'))
+    { toggleReferenceBoard(); return true; }
     /*  Every binding is looked up in AccessibilitySettings rather than compared
         against a key code here.
 
@@ -1714,3 +1727,39 @@ void LuthierAudioProcessorEditor::importMidiFile (const juce::File& file, std::o
 }
 
 } // namespace luthier
+
+namespace luthier
+{
+void LuthierAudioProcessorEditor::toggleReferenceBoard()
+{
+    if (boardWindow && boardWindow->isShowing()) { boardWindow->hideWindow(); return; }
+    if (referencePedalDrawer.isOpen()) { referencePedalDrawer.setOpen(false); referencePedalsButton.setToggleState(false,juce::dontSendNotification); return; }
+    popoutReferenceBoard();
+}
+void LuthierAudioProcessorEditor::popoutReferenceBoard()
+{
+    referencePedalDrawer.setOpen(false);
+    if (!boardWindow)
+    {
+        boardWindow=std::make_unique<reference::BoardWindow>(processor.getEngine().getReferencePedals().model(),processor,this);
+        boardWindow->onVisibilityChanged=[this](bool shown){referencePedalsButton.setToggleState(shown,juce::dontSendNotification);};
+    }
+    boardWindow->setBoardContent(referencePedalDrawer.boardRoot());
+    boardWindow->showWindow();
+    if (!boardWindow->isOnDesktop() || boardWindow->getPeer()==nullptr)
+    {
+        boardWindow->hideWindow();boardWindow->clearContentComponent();
+        referencePedalDrawer.attachBoard();referencePedalDrawer.setOpen(getHeight()>=840);
+        inlineNotice.show("Pedalboard docked: host does not allow floating windows",InlineNotice::Level::warning);
+    }
+    resized();
+}
+void LuthierAudioProcessorEditor::dockReferenceBoard()
+{
+    if (getHeight()<840)
+    { inlineNotice.show("A taller editor is needed for the docked pedalboard. The pop-out remains available.",InlineNotice::Level::warning); return; }
+    if (boardWindow) { boardWindow->hideWindow();boardWindow->clearContentComponent(); }
+    referencePedalDrawer.attachBoard();referencePedalDrawer.setOpen(true);
+    referencePedalsButton.setToggleState(true,juce::dontSendNotification);resized();
+}
+}
