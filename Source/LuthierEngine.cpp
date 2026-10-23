@@ -124,7 +124,7 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
 
     // --- signal chain ---------------------------------------------------------
     circuit.prepare (sr);
-    referencePedals.prepare (sr);
+    referencePedals.prepare (sr, maxBlock);
     preEffects.prepare (sr, maxBlock);
     saturation.prepare (sr);   // FEAT-SAT
     preEffects.setPosition (EffectsChain::Position::PreAmp);
@@ -333,6 +333,7 @@ void LuthierEngine::reset() noexcept
 
 void LuthierEngine::releaseResources()
 {
+    referencePedals.releaseResources();
     stringSumBuffer.clear();
     magneticBuffer.clear();
     piezoSumBuffer.clear();
@@ -2837,6 +2838,11 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     if (numSamples <= 0 || numChannels <= 0)
         return;
 
+    auto boardHost = referenceTransport;
+    if (boardHost.valid && boardHost.playing)
+        boardHost.ppq += (double) subBlockOffset * boardHost.bpm / (60.0 * sr);
+    referencePedals.beginBlock (midiMessages, boardHost, numSamples);
+
     const auto startTicks = juce::Time::getHighResolutionTicks();
 
     qualityPerBlock();   // cpu-quality-modes 2.4: exemptions, ring-out, the ringing cap
@@ -3575,6 +3581,14 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
                                  juce::jmin (numSamples, cabinet.getMicTapNumSamples()));
     }
 
+    if (referencePedals.isActive())
+    {
+        for (int i = 0; i < numSamples; ++i)
+        { pedalScratchL[(size_t) i] = workBuffer.getSample (0, i); pedalScratchR[(size_t) i] = workBuffer.getSample (1, i); }
+        referencePedals.processStereo (pedalScratchL.data(), pedalScratchR.data(), numSamples, reference::Placement::postCab);
+        for (int i = 0; i < numSamples; ++i)
+        { workBuffer.setSample (0, i, (float) pedalScratchL[(size_t) i]); workBuffer.setSample (1, i, (float) pedalScratchR[(size_t) i]); }
+    }
     room.processBlock (workBuffer);
 
     // Aux 5: the room alone.
@@ -3668,6 +3682,7 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
     qualityAfterBlock (buffer);   // cpu-quality-modes 2.5: silence for a hard switch
 
+    referencePedals.endBlock (midiMessages);
     samplePosition += numSamples;
 
     // ---- CPU estimate ----------------------------------------------------------
@@ -3691,6 +3706,7 @@ int LuthierEngine::getLatencySamples() const noexcept
 {
     int latency = 0;
 
+    latency += referencePedals.getLatencySamples();
     latency += body.getLatencySamples();
     latency += cabinet.getLatencySamples();
     latency += preEffects.getLatencySamples();

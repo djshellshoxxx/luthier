@@ -851,6 +851,9 @@ private:
 
     AssistDecisionLog assistLog;   // FEAT-ASSIST: session state, never saved
 
+    void serviceReferencePedalParameters(); // message thread; model remains order authority
+    std::array<float, 323> referenceParameterMirror {};
+    bool referenceMirrorInitialised = false;
     void timerCallback() override;
     void updateLatency();
     void updateRoutingLatencyReport();
@@ -1168,6 +1171,7 @@ private:
     std::array<std::atomic<float>*, ParamIDs::kNumMacros> macroValues {};
     std::array<int, ParamIDs::kNumMacros> macroParamIndex {};   // SPEC-SWEEP: MM-29, index into getParameters()
 
+    int referenceHostSliceOffset = 0;
     void processSlice (juce::AudioBuffer<float>&, juce::MidiBuffer&);
     int reportedLatency = 0;
 

@@ -16,7 +16,7 @@ WP23 host extension: `LuthierEngine::setReferencePedalTransport(HostTransport)` 
 
 ## Actual native checks
 
-Standalone native harness against JUCE 8 core/audio_basics (2026-10-23): 13 cases / 64 checks passing under AddressSanitizer + UndefinedBehaviorSanitizer. Own routing sources instrumented; reused JUCE module objects are uninstrumented.
+Standalone native harness against JUCE 8 core/audio_basics (2026-10-23): 13 cases / 64 checks passing under AddressSanitizer + UndefinedBehaviorSanitizer and independently under ThreadSanitizer. Own routing sources instrumented; reused JUCE module objects are uninstrumented.
 
 - RefPedalMidiCore::mappedOffsetsAndReservedGuard — 6 checks, passing.
 - RefPedalMidiCore::clockStartStopLoss — 6 checks, passing.
@@ -32,7 +32,7 @@ Compiler syntax checks passed for Parameters.cpp, LuthierEngine.cpp, PluginProce
 
 ## Missing gates / current limitations
 
-- Host files and persistent map resolution not compiled in initial native harness; integration/full test build pending.
+- Host files and host tests compiler-checked; full native execution is pending the shared build. Persistent map resolution compiler-checked.
 - Host automation is a message-thread bidirectional model mirror, not sample-accurate. Fixed 320 slot lanes + enabled/mix/tempo are append-only; continuous audio-thread overrides and dynamic lane names remain pending.
 - Clock median estimate/basic source priority and transport/loss work; specified PLL phase lock, jitter budget, source hysteresis/glide, exact mid-block source arbitration, tap external-master rejection and clock output remain pending.
 - Source map routing supports CC/CC14, notes/velocity, PB, channel/poly pressure, PC, absolute/relative/toggle/momentary/trigger. Step mode uses descriptor-derived step count, soft takeover uses initial model value/pickup crossing, and source priority uses 300ms hold. Board-target writes carry E36 routing data; engine consumption pending coordinated integration. Additive combine, scene recall, local/focus profiles and custom PCHIP curves remain pending.
@@ -40,4 +40,14 @@ Compiler syntax checks passed for Parameters.cpp, LuthierEngine.cpp, PluginProce
 - Learn distinct-value capture + suppression exists; ambiguous-source competition, duplicate dialog, learn-all and device/UI feedback remain pending.
 - Gesture decoder thresholds and controller modes are pure-tested; individual looper action consumption, pressure-hold and sample-accurate engage crossfade remain pending.
 - Hard event/ring capacities drop newest events and count overload; clock has reserved capacity but an unbounded clock-only flood can overflow the priority ring. Spec absolute 'never dropped' cannot hold with bounded storage under unbounded realtime input.
-- ThreadSanitizer, 60s flood performance, 30min fuzz, all sample-rate/block partitions, AU automation crash reproduction, DAW/manual device QA remain pending.
+- 60s flood performance, 30min fuzz, all sample-rate/block partitions, AU automation crash reproduction, DAW/manual device QA remain pending.
+
+## Host checkpoint
+
+- Engine prepare uses promised maxBlock; release calls board releaseResources.
+- Each engine sub-block calls beginBlock/endBlock; PRE/LOOP retained, POST inserted between cabinet and room with prepared double scratch.
+- Processor passes its existing validated host clock, including processor/engine slice offsets. Main latency includes board; message timer reclaims and reports latency.
+- 323 parameters appended after FEAT-SAT: board enabled/mix/BPM, then 16*20 slot enable, p01..p16, input/output trims, position. Bidirectional message-thread mirror preserves model edits when host values did not change and resolves position requests together.
+- Host root referencePedals is a recognized section. Lossless BoardState String codec writes raw JSON and exact opaque doubles; extraction restores original newer-schema bytes. Missing block resets empty/OFF.
+- RefPedalHost execution cases added: appendOnlyLaneIdsAndDefaults; boardStateSurvivesHostReloadAndRateChange; missingBoardBlockRestoresLegacyDefault; repeatedRateAndSmallBlockLifecycle; forwardBoardSectionPreservesRawBytes. These are compiled, not yet run.
+- Host limitations still pending: sample-accurate host automation, dynamic host lane names, per-placement auxiliary latency accounting, actual AU automation failure reproduction, DAW validation and UI control coverage integration.

@@ -15,6 +15,10 @@ using APVTS = juce::AudioProcessorValueTreeState;
 
 namespace ParamIDs
 {
+juce::String refSlot (int slot, const juce::String& suffix)
+{
+    return "ref_s" + juce::String (slot + 1).paddedLeft ('0', 2) + "_" + suffix;
+}
 const char* macroByIndex (int index) noexcept
 {
     switch (index)
@@ -1114,6 +1118,21 @@ APVTS::ParameterLayout Parameters::createLayout()
     add (floatParam  (ParamIDs::fxSaturation, "Saturation", 0.0f, 100.0f, 0.0f, 1.0f, "%"));
     // ==== END FEAT-SAT params ====
 
+    // ==== BEGIN REF-PEDALBOARD params ====
+    add (boolParam (ParamIDs::refBoardEnabled, "Reference Board Enabled", false));
+    add (floatParam (ParamIDs::refBoardMix, "Reference Board Mix", 0.f, 1.f, 1.f));
+    add (floatParam (ParamIDs::refBoardTempoBpm, "Reference Board Tempo", 20.f, 300.f, 120.f, 1.f, "BPM"));
+    for (int slot = 0; slot < reference::kMaxSlots; ++slot)
+    {
+        const auto name = "Reference Slot " + juce::String (slot + 1) + " ";
+        add (boolParam (ParamIDs::refSlot (slot, "enabled"), name + "Enabled", true));
+        for (int lane = 0; lane < reference::kMaxLaneParams; ++lane)
+            add (floatParam (ParamIDs::refSlot (slot, "p" + juce::String (lane + 1).paddedLeft ('0', 2)), name + "Parameter " + juce::String (lane + 1), 0.f, 1.f, 0.f));
+        add (floatParam (ParamIDs::refSlot (slot, "in_db"), name + "Input", -12.f, 12.f, 0.f, 1.f, "dB"));
+        add (floatParam (ParamIDs::refSlot (slot, "out_db"), name + "Output", -12.f, 12.f, 0.f, 1.f, "dB"));
+        add (std::make_unique<juce::AudioParameterInt> (pid (ParamIDs::refSlot (slot, "pos")), name + "Position", 0, 15, slot));
+    }
+    // ==== END REF-PEDALBOARD params ====
     return layout;
 }
 
