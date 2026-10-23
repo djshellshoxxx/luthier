@@ -1,11 +1,13 @@
 // OWNER: WP4
 #include "BoardState.h"
 #include "PedalRegistry.h"
+#include "Midi/MidiState.h"
 #include <algorithm>
 #include <cmath>
 #include <limits>
 #include <set>
 #include <string_view>
+#include <charconv>
 
 namespace luthier::reference
 {
@@ -17,18 +19,19 @@ V copy (const V& v) { return v.clone(); }
 V element (const V& v, int i) { if (const auto* a = v.getArray()) if (i >= 0 && i < a->size()) return a->getReference(i); return {}; }
 void put (V& v, const char* key, const V& value) { v.getDynamicObject()->setProperty (key, value); }
 bool has (const V& v, const char* key) { return v.hasProperty (key); }
-V source (const V& envelope) { auto v = copy (envelope["source"]); return v.isObject() ? v : object(); }
+V source (const V& envelope) { auto v = copy (envelope["source"]); return v.getDynamicObject() ? v : object(); }
 bool fail (juce::String* error, const juce::String& text)
 { if (error) *error = text; return false; }
-// JUCE's parser accepts trailing text and unchecked integer accumulation.
-// Validate syntax and nesting before invoking it on untrusted host state.
+// Bound syntax/nesting and parse numbers without unchecked accumulation or
+// intermediate decimal rounding. JUCE remains the string escape decoder.
 class StrictJson
 {
 public:
     explicit StrictJson(const juce::String& text) : data(text.toRawUTF8(),text.getNumBytesAsUTF8()) {}
-    bool valid() { return value(0) && (space(), pos == data.size()); }
+    bool parse(V& out) { return value(0,out) && (space(), pos == data.size()); }
+    std::string_view boardBlock() const { return block; }
 private:
-    std::string_view data;
+    std::string_view data, block;
     size_t pos = 0;
     void space() { while (pos < data.size() && (data[pos]==' ' || data[pos]=='\t' || data[pos]=='\n' || data[pos]=='\r')) ++pos; }
     bool take(char c) { space(); if (pos < data.size() && data[pos]==c) { ++pos; return true; } return false; }
@@ -63,35 +66,42 @@ private:
         }
         return false;
     }
-    bool value(int depth)
+    bool value(int depth, V& out)
     {
         space(); if (depth > 64 || pos == data.size()) return false;
-        if (data[pos]=='"') return string();
+        if (data[pos]=='"') { juce::String text; if (!string(&text)) return false; out=text; return true; }
         if (take('{'))
         {
-            std::set<juce::String> names;
+            std::set<juce::String> names; out=object();
             if (take('}')) return true;
-            do { juce::String name; if (!string(&name) || !names.insert(name).second || !take(':') || !value(depth+1)) return false; } while (take(','));
+            do
+            {
+                juce::String name; V child;
+                if (!string(&name) || !names.insert(name).second || !take(':')) return false;
+                space(); const auto start=pos;
+                if (!value(depth+1,child)) return false;
+                if (depth==0 && name=="referencePedals") block=data.substr(start,pos-start);
+                out.getDynamicObject()->setProperty(name,std::move(child));
+            } while (take(','));
             return take('}');
         }
         if (take('['))
         {
+            out=juce::Array<V>{};
             if (take(']')) return true;
-            do { if (!value(depth+1)) return false; } while (take(','));
+            do { V child; if (!value(depth+1,child)) return false; out.append(std::move(child)); } while (take(','));
             return take(']');
         }
         for (const auto token : { "true", "false", "null" })
         {
             const std::string_view t(token);
-            if (data.substr(pos,t.size())==t) { pos+=t.size(); return true; }
+            if (data.substr(pos,t.size())==t) { pos+=t.size(); out=token==std::string_view("null") ? V() : V(token==std::string_view("true")); return true; }
         }
         const auto start=pos;
         if (data[pos]=='-') ++pos;
-        const auto digits=pos;
         if (pos == data.size() || data[pos]<'0' || data[pos]>'9') return false;
         if (data[pos]=='0') ++pos;
         else while (pos < data.size() && data[pos]>='0' && data[pos]<='9') ++pos;
-        const auto integerEnd=pos;
         bool floating=false;
         if (pos < data.size() && data[pos]=='.')
         {
@@ -107,12 +117,21 @@ private:
             while (pos < data.size() && data[pos]>='0' && data[pos]<='9') ++pos;
             if (first==pos) return false;
         }
-        if (!floating)
+        if (floating)
         {
-            const auto integer=data.substr(digits,integerEnd-digits);
-            if (integer.size()>19 || (integer.size()==19 && integer>std::string_view("9223372036854775807"))) return false;
+            double n=0;
+            const auto parsed=std::from_chars(data.data()+start,data.data()+pos,n,std::chars_format::general);
+            if (parsed.ec!=std::errc() || parsed.ptr!=data.data()+pos || !std::isfinite(n)) return false;
+            out=n;
         }
-        return std::isfinite(juce::String::fromUTF8(data.data()+start,(int)(pos-start)).getDoubleValue());
+        else
+        {
+            int64_t n=0;
+            const auto parsed=std::from_chars(data.data()+start,data.data()+pos,n);
+            if (parsed.ec!=std::errc() || parsed.ptr!=data.data()+pos) return false;
+            out=n>=std::numeric_limits<int>::min() && n<=std::numeric_limits<int>::max() ? V((int)n) : V((juce::int64)n);
+        }
+        return true;
     }
 };
 bool finiteTree (const V& v, int depth = 0)
@@ -121,7 +140,44 @@ bool finiteTree (const V& v, int depth = 0)
     if (v.isDouble()) return std::isfinite ((double) v);
     if (auto* a = v.getArray()) { for (const auto& x : *a) if (! finiteTree (x, depth + 1)) return false; }
     if (auto* o = v.getDynamicObject()) { for (const auto& p : o->getProperties()) if (! finiteTree (p.value, depth + 1)) return false; }
-    return v.isVoid() || v.isBool() || v.isInt() || v.isInt64() || v.isDouble() || v.isString() || v.isArray() || v.isObject();
+    return v.isVoid() || v.isBool() || v.isInt() || v.isInt64() || v.isDouble() || v.isString() || v.isArray() || v.getDynamicObject();
+}
+// Preserve every binary double, including unknown vendor payloads. JUCE's
+// default decimal-place formatting can round them on repeated saves.
+juce::String jsonText(const V& value)
+{
+    std::string out;
+    std::function<void(const V&)> write = [&](const V& v)
+    {
+        if (v.isDouble())
+        {
+            char number[64];
+            const auto result=std::to_chars(number,number+sizeof(number),(double)v,std::chars_format::general,std::numeric_limits<double>::max_digits10);
+            const std::string_view text(number,(size_t)(result.ptr-number));
+            out.append(text);
+            if (text.find_first_of(".eE")==std::string_view::npos) out+=".0";
+        }
+        else if (const auto* a=v.getArray())
+        {
+            out+='['; bool first=true;
+            for (const auto& x : *a) { if (!first) out+=','; first=false; write(x); }
+            out+=']';
+        }
+        else if (const auto* o=v.getDynamicObject())
+        {
+            out+='{'; bool first=true;
+            for (const auto& p : o->getProperties())
+            {
+                if (!first) out+=',';
+                first=false;
+                out+=juce::JSON::toString(V(p.name.toString()),true).toStdString(); out+=':'; write(p.value);
+            }
+            out+='}';
+        }
+        else out+=juce::JSON::toString(v,true).toStdString();
+    };
+    write(value);
+    return juce::String::fromUTF8(out.data(),(int)out.size());
 }
 bool number (const V& v) { return v.isInt() || v.isInt64() || v.isDouble(); }
 template <typename T> bool real (const V& o, const char* key, T& out, double lo, double hi, bool integer = false)
@@ -142,6 +198,10 @@ bool uuid (const V& v, InstanceId& out, bool nullable = false)
 {
     if (! v.isString()) return false;
     const auto s = v.toString();
+    if (s.length()!=32 && s.length()!=36) return false;
+    if (s.length()==36)
+        for (int i=0;i<s.length();++i)
+            if ((s[i]=='-') != (i==8 || i==13 || i==18 || i==23)) return false;
     const auto hex = s.removeCharacters ("-");
     if (hex.length() != 32 || ! hex.containsOnly ("0123456789abcdefABCDEF")) return false;
     out = InstanceId (s); return nullable || ! out.isNull();
@@ -168,8 +228,9 @@ bool readSettings (const V& root, BoardSettings& s)
         || ! real(root,"reampGainDb",s.reampGainDb,-std::numeric_limits<float>::max(),12)) return false;
     if (has(root,"mode") && (! root["mode"].isString() || ! modeFromString(root["mode"].toString(),s.mode))) return false;
     if (has(root,"boardStyle")) { if (! root["boardStyle"].isString()) return false; boardStyleFromString(root["boardStyle"].toString(),s.style); }
-    for (const auto* key : { "midi", "ui", "feedback" }) if (has(root,key) && ! root[key].isObject()) return false;
+    for (const auto* key : { "midi", "ui", "feedback" }) if (has(root,key) && ! root[key].getDynamicObject()) return false;
     s.midi = copy(root["midi"]); s.ui = copy(root["ui"]);
+    if (!midi::MidiState::validate(s.midi)) return false;
     const auto& f = root["feedback"];
     if (! flag(f,"on",s.fb.on) || ! flag(f,"runawayOk",s.fb.runawayOk) || ! idField(f,"src",s.fb.src)
         || ! idField(f,"dst",s.fb.dst) || ! real(f,"gain",s.fb.gain,0,1.05f)
@@ -179,7 +240,7 @@ bool readSettings (const V& root, BoardSettings& s)
         const auto& lanes = root["lanes"];
         if (! lanes.isArray() || lanes.size() > kMaxBranches) return false;
         for (int i=0;i<lanes.size();++i)
-            if (! lanes[i].isObject() || ! real(lanes[i],"gainDb",s.lanes.gainDb[(size_t)i],-std::numeric_limits<float>::max(),6)
+            if (! lanes[i].getDynamicObject() || ! real(lanes[i],"gainDb",s.lanes.gainDb[(size_t)i],-std::numeric_limits<float>::max(),6)
                 || ! flag(lanes[i],"phaseInvert",s.lanes.phaseInvert[(size_t)i])) return false;
     }
     if (! real(root,"numLanes",s.lanes.numLanes,2,4,true) || ! real(root,"parallelNorm",s.lanes.norm,0,2,true)) return false;
@@ -190,7 +251,7 @@ bool readSettings (const V& root, BoardSettings& s)
         for (int i=0;i<loops.size();++i)
         {
             const auto& l = loops[i]; auto& t = s.loops[(size_t)i];
-            if (! l.isObject() || ! flag(l,"used",t.used) || ! flag(l,"enabled",t.enabled)
+            if (! l.getDynamicObject() || ! flag(l,"used",t.used) || ! flag(l,"enabled",t.enabled)
                 || ! real(l,"kind",t.kind,0,2,true) || ! real(l,"blend",t.blend,0,1)
                 || ! real(l,"sendDb",t.sendDb,-24,12) || ! real(l,"returnDb",t.returnDb,-24,12)
                 || ! idField(l,"first",t.first) || ! idField(l,"last",t.last)) return false;
@@ -203,7 +264,7 @@ bool readSettings (const V& root, BoardSettings& s)
         for (const auto& preset : *bank.getArray())
         {
             if (preset.isVoid()) continue;
-            if (!preset.isObject() || has(preset,"snapshots") || (has(preset,"name") && !preset["name"].isString())) return false;
+            if (!preset.getDynamicObject() || has(preset,"snapshots") || (has(preset,"name") && !preset["name"].isString())) return false;
             std::vector<PedalInstance> pedals; BoardSettings state;
             if (!BoardState::decode(preset,pedals,state)) return false;
         }
@@ -230,18 +291,18 @@ V writeSettings (const BoardSettings& s)
     V lanes(juce::Array<V>{}), loops(juce::Array<V>{});
     for (int i=0;i<kMaxBranches;++i)
     {
-        auto l = element(r["lanes"],i).isObject() ? copy(element(r["lanes"],i)) : object();
+        auto l = element(r["lanes"],i).getDynamicObject() ? copy(element(r["lanes"],i)) : object();
         put(l,"gainDb",s.lanes.gainDb[(size_t)i]); put(l,"phaseInvert",s.lanes.phaseInvert[(size_t)i]); lanes.append(l);
     }
     put(r,"lanes",lanes);
     for (int i=0;i<kMaxLoops;++i)
     {
-        const auto& t = s.loops[(size_t)i]; auto l = element(r["loops"],i).isObject() ? copy(element(r["loops"],i)) : object();
+        const auto& t = s.loops[(size_t)i]; auto l = element(r["loops"],i).getDynamicObject() ? copy(element(r["loops"],i)) : object();
         put(l,"used",t.used); put(l,"enabled",t.enabled); put(l,"kind",(int)t.kind); put(l,"blend",t.blend);
         put(l,"sendDb",t.sendDb); put(l,"returnDb",t.returnDb); put(l,"first",t.first.toString()); put(l,"last",t.last.toString()); loops.append(l);
     }
     put(r,"loops",loops);
-    auto f = r["feedback"].isObject() ? copy(r["feedback"]) : object();
+    auto f = r["feedback"].getDynamicObject() ? copy(r["feedback"]) : object();
     put(f,"on",s.fb.on); put(f,"src",s.fb.src.toString()); put(f,"dst",s.fb.dst.toString()); put(f,"gain",s.fb.gain);
     put(f,"lpHz",s.fb.lpHz); put(f,"runawayOk",s.fb.runawayOk); put(r,"feedback",f);
 #undef WRITE
@@ -249,10 +310,23 @@ V writeSettings (const BoardSettings& s)
 }
 }
 
+bool BoardState::extractFromHostJson(const juce::String& host, juce::String& board, juce::String* error)
+{
+    if (error) error->clear();
+    StrictJson parser(host); V root;
+    if (!parser.parse(root) || !root.getDynamicObject()) return fail(error,"Malformed host JSON");
+    if (!root.hasProperty("referencePedals")) { board.clear(); return true; }
+    if (!root["referencePedals"].getDynamicObject()) return fail(error,"Board state must be an object");
+    const auto block=parser.boardBlock();
+    if (block.size()>maxBytes) return fail(error,"Board exceeds 256 KB");
+    board=juce::String::fromUTF8(block.data(),(int)block.size());
+    return true;
+}
+
 bool BoardState::decode (const V& json, std::vector<PedalInstance>& output, BoardSettings& settings, juce::String* error)
 {
     if (error) error->clear();
-    if (! json.isObject() || ! finiteTree(json) || juce::JSON::toString(json,true).getNumBytesAsUTF8() > maxBytes)
+    if (! json.getDynamicObject() || ! finiteTree(json) || jsonText(json).getNumBytesAsUTF8() > maxBytes)
         return fail(error,"Invalid or oversized board JSON");
     int schema = 0;
     if (! has(json,"schema") || ! real(json,"schema",schema,1,std::numeric_limits<int>::max(),true)) return fail(error,"Invalid board schema");
@@ -263,7 +337,7 @@ bool BoardState::decode (const V& json, std::vector<PedalInstance>& output, Boar
         std::vector<PedalInstance> empty; V baseline;
         BoardSettings clean;
         if (! encode(empty,clean,baseline,error)) return false;
-        put(s.unknown,"baseline",juce::JSON::toString(baseline,true));
+        put(s.unknown,"baseline",jsonText(baseline));
         output.clear(); settings = std::move(s); return true;
     }
     if (! readSettings(json,s)) return fail(error,"Invalid board settings");
@@ -276,7 +350,7 @@ bool BoardState::decode (const V& json, std::vector<PedalInstance>& output, Boar
     for (int i=0;i<instances.size();++i)
     {
         const auto& v = instances[i]; PedalInstance p;
-        if (! v.isObject() || ! uuid(v["id"],p.instanceId) || ! ids.insert(p.instanceId.toString()).second
+        if (! v.getDynamicObject() || ! uuid(v["id"],p.instanceId) || ! ids.insert(p.instanceId.toString()).second
             || ! v["model"].isString() || v["model"].toString().isEmpty()) return fail(error,"Invalid/duplicate pedal identity");
         p.modelId = v["model"].toString().toStdString();
         if (! real(v,"rev",p.modelRevision,1,65535,true) || ! flag(v,"enabled",p.enabled)
@@ -285,12 +359,12 @@ bool BoardState::decode (const V& json, std::vector<PedalInstance>& output, Boar
             || ! real(v,"outDb",p.outDb,-12,12) || ! real(v,"x",p.x,-std::numeric_limits<float>::max(),std::numeric_limits<float>::max())) return fail(error,"Invalid pedal controls");
         // Order wins a duplicate automation assignment; fill conflicts in order below.
         if (has(v,"mounting")) { if (! v["mounting"].isString()) return fail(error,"Invalid mounting"); mountingFromString(v["mounting"].toString(),p.mounting); }
-        if (has(v,"extras") && ! v["extras"].isObject()) return fail(error,"Invalid pedal extras");
+        if (has(v,"extras") && ! v["extras"].getDynamicObject()) return fail(error,"Invalid pedal extras");
         p.extras = copy(v["extras"]);
         const auto* desc = PedalRegistry::find(p.modelId.c_str());
         p.missing = desc == nullptr; if (p.missing) p.enabled = false;
         if (desc) for (int j=0;j<desc->numParams;++j) p.params[(size_t)j] = desc->params[j].defaultNormalised();
-        if (has(v,"params") && ! v["params"].isObject()) return fail(error,"Invalid pedal params");
+        if (has(v,"params") && ! v["params"].getDynamicObject()) return fail(error,"Invalid pedal params");
         if (auto* po = v["params"].getDynamicObject()) for (const auto& param : po->getProperties())
         {
             const auto n = (double)param.value;
@@ -314,6 +388,15 @@ bool BoardState::decode (const V& json, std::vector<PedalInstance>& output, Boar
     }
     for (auto& p : ordered) if (p.slot < 0)
         for (int slot=0;slot<kMaxSlots;++slot) if (slots.insert(slot).second) { p.slot=slot; break; }
+    const auto position=[&](const InstanceId& id)
+    {
+        for (size_t i=0;i<ordered.size();++i) if (ordered[i].instanceId==id) return (int)i;
+        return -1;
+    };
+    if (s.fb.on && (position(s.fb.dst)<0 || position(s.fb.src)<position(s.fb.dst)
+                   || (s.fb.gain>0.98f && !s.fb.runawayOk))) return fail(error,"Invalid feedback endpoints or runaway gain");
+    for (const auto& loop : s.loops)
+        if (loop.used && (position(loop.first)<0 || position(loop.last)<position(loop.first))) return fail(error,"Invalid loop endpoints");
     output = std::move(ordered); settings = std::move(s); return true;
 }
 
@@ -338,7 +421,7 @@ bool BoardState::encode (const std::vector<PedalInstance>& instances, const Boar
         Mounting original;
         if (! has(v,"mounting") || mountingFromString(v["mounting"].toString(),original) || p.mounting != Mounting::automatic)
             put(v,"mounting",toString(p.mounting));
-        V params = v["params"].isObject() ? copy(v["params"]) : object();
+        V params = v["params"].getDynamicObject() ? copy(v["params"]) : object();
         if (const auto* desc = PedalRegistry::find(p.modelId.c_str()))
             for (int i=0;i<desc->numParams;++i) put(params,desc->params[i].id,p.params[(size_t)i]);
         put(v,"params",params); put(v,"extras",p.extras.isVoid() ? object() : copy(p.extras));
@@ -351,10 +434,10 @@ bool BoardState::encode (const std::vector<PedalInstance>& instances, const Boar
     if (! decode(root,checked,checkedSettings,error)) return false;
     if (baseline.isNotEmpty())
     {
-        if (baseline == juce::JSON::toString(root,true)) root = source(settings.unknown);
+        if (baseline == jsonText(root)) root = source(settings.unknown);
         else put(root,"unknown",source(settings.unknown));
     }
-    if (juce::JSON::toString(root,true).getNumBytesAsUTF8() > maxBytes) return fail(error,"Board exceeds 256 KB");
+    if (jsonText(root).getNumBytesAsUTF8() > maxBytes) return fail(error,"Board exceeds 256 KB");
     output = std::move(root); return true;
 }
 bool BoardState::save (const BoardModel& model, V& json, juce::String* error)
@@ -366,7 +449,7 @@ bool BoardState::save (const BoardModel& model, juce::String& json, juce::String
 {
     std::vector<PedalInstance> instances; BoardSettings settings; model.snapshot(instances,settings);
     V v; if (! encode(instances,settings,v,error)) return false;
-    auto text = juce::JSON::toString(v,true);
+    auto text = jsonText(v);
     if ((int)v["schema"] > kSchemaVersion && settings.unknown["verbatim"].isString()) text = settings.unknown["verbatim"].toString();
     if (text.getNumBytesAsUTF8() > maxBytes) return fail(error,"Board exceeds 256 KB");
     json = std::move(text); return true;
@@ -379,9 +462,8 @@ bool BoardState::restore (BoardModel& model, const V& json, juce::String* error)
 bool BoardState::restore (BoardModel& model, const juce::String& text, juce::String* error)
 {
     if (text.getNumBytesAsUTF8() > maxBytes) return fail(error,"Board exceeds 256 KB");
-    if (! StrictJson(text).valid()) return fail(error,"Malformed board JSON");
-    V json; const auto result = juce::JSON::parse(text,json);
-    if (result.failed()) return fail(error,"Malformed board JSON");
+    V json;
+    if (! StrictJson(text).parse(json)) return fail(error,"Malformed board JSON");
     std::vector<PedalInstance> instances; BoardSettings settings;
     if (! decode(json,instances,settings,error)) return false;
     if ((int)json["schema"] > kSchemaVersion) put(settings.unknown,"verbatim",text);

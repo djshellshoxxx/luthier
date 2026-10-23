@@ -61,7 +61,7 @@ bool AssetStore::putBlob(const AssetHash& hash, const uint8_t* data, size_t size
     juce::TemporaryFile temporary(target);
     {
         juce::FileOutputStream stream(temporary.getFile());
-        if (! stream.openedOk() || ! stream.write(data,size)) return false;
+        if (! stream.openedOk() || (size != 0 && ! stream.write(data,size))) return false;
         stream.flush();
         if (stream.getStatus().failed()) return false;
     }

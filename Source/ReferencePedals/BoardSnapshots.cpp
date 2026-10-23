@@ -20,22 +20,23 @@ bool BoardSnapshots::capture (BoardModel& model, int index, const juce::String& 
     juce::var preset;
     if (! BoardState::encode(instances,settings,preset,error)) return false;
     if ((int)preset["schema"] > kSchemaVersion) return invalid(error,"Edit the newer-format board before capturing a snapshot");
+    auto board = preset.clone();
     auto* root = preset.getDynamicObject();
     auto bank = root->getProperty("snapshots").clone();
     if (! bank.isArray()) bank = juce::Array<juce::var>{};
     while (bank.size() < count) bank.append(juce::var());
     root->removeProperty("snapshots"); root->setProperty("name",name);
     bank.getArray()->set(index,preset.clone());
-    root->setProperty("snapshots",bank); root->removeProperty("name");
+    board.getDynamicObject()->setProperty("snapshots",bank);
     // Reparse the whole bank before replacement to enforce the shared cap.
-    return BoardState::restore(model,preset,error);
+    return BoardState::restore(model,board,error);
 }
 bool BoardSnapshots::recall (BoardModel& model, int index, juce::String* error)
 {
     if (index < 0 || index >= count) return invalid(error,"Invalid snapshot index");
     auto settings = model.getBoardSettings();
     auto preset = get(model,index);
-    if (! preset.isObject()) return invalid(error,"Snapshot is empty");
+    if (! preset.getDynamicObject()) return invalid(error,"Snapshot is empty");
     preset.getDynamicObject()->setProperty("snapshots",settings.unknown["source"]["snapshots"].clone());
     preset.getDynamicObject()->removeProperty("name");
     return BoardState::restore(model,preset,error);
