@@ -73,6 +73,7 @@ public:
     // topology. Partial failure keeps the previous model (returns false).
     bool replaceAll (const std::vector<PedalInstance>& orderedInstances, const BoardSettings& settings,
                      juce::String* error = nullptr);
+    bool setMidiFocus (const InstanceId&); // presentation focus, no undo/topology publication
     void setUiState (juce::var); // presentation-only; no undo or audio publication
     void snapshot (std::vector<PedalInstance>& orderedInstances, BoardSettings& settings) const;
 

@@ -102,6 +102,16 @@ struct HostTransport
     int tsNum = 4, tsDen = 4;
 };
 
+// E44: audio-owned copy from cached host parameter atomics. Serial zero means
+// never written. Layout: enabled/mix/BPM, then 16 slots of enabled,16 lanes,
+// input dB,output dB,position. Position is structural and handled off audio.
+struct HostAutomationSnapshot
+{
+    static constexpr int count = 3 + kMaxSlots * 20;
+    std::array<float, count> values {};
+    std::array<uint32_t, count> serials {};
+};
+
 struct BoardMeters
 {
     float inPeakDb = -120.f, outPeakDb = -120.f, cpuPct = 0.f;
