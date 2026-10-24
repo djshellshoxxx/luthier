@@ -1,4 +1,6 @@
 #include "TestFramework.h"
+#include <cstring>
+#include <limits>
 #include "../ReferencePedals/Common/BbdCore.h"
 using luthier::reference::common::BbdCore;
 LUTHIER_TEST(RefPedalBbdCore, clockLawImpulseAndReset)
@@ -43,5 +45,30 @@ LUTHIER_TEST(RefPedalBbdCore, clockEventsRemainDistinctAboveHostRate)
         CHECK(difference>1e-7);CHECK(energy>1);clocked.reset();double silence=0;
         for(int i=0;i<4096;++i)silence+=std::abs(clocked.process(0,3.4,0,true));
         CHECK_NEAR(silence,0,1e-20);
+    }
+}
+
+LUTHIER_TEST(RefPedalBbdCore, sharedPrefixPreservesBothIndependentSuffixHistories)
+{
+    // Independent complete cores are the oracle for two voices sharing only
+    // their identical prefix. Delays, clocks, noise and post filters differ.
+    BbdCore wholeA,wholeB,prefixAndA,suffixB;
+    for(double sr:{44100.,48000.,88200.,96000.,192000.})
+    {
+        for(auto* core:{&wholeA,&wholeB,&prefixAndA,&suffixB})
+        {core->prepare(sr,40,6590,6930);core->setClipLevel(4.5);core->reset(73);}
+        for(int i=0;i<32768;++i)
+        {
+            if(i==16384)for(auto* core:{&wholeA,&wholeB,&prefixAndA,&suffixB})core->reset(17);
+            const double x=i%1021==0?std::numeric_limits<double>::quiet_NaN():.6*std::sin(i*.137);
+            const double delayA=7+3.5*std::sin(i*.0007),delayB=4.5+2.5*std::sin(i*.0007);
+            const double noise=(i/4000)%2?.4:0;const bool clocked=(i/3000)%2;
+            const double prepared=prefixAndA.processInput(x);
+            const double a=wholeA.process(x,delayA,noise,clocked),b=wholeB.process(x,delayB,noise,clocked);
+            const double sharedA=prefixAndA.processPreparedInput(prepared,delayA,noise,clocked);
+            const double sharedB=suffixB.processPreparedInput(prepared,delayB,noise,clocked);
+            CHECK(std::memcmp(&a,&sharedA,sizeof(double))==0);
+            CHECK(std::memcmp(&b,&sharedB,sizeof(double))==0);
+        }
     }
 }

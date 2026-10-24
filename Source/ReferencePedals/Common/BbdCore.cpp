@@ -25,6 +25,10 @@ double BbdCore::clockHz(double delayMs,int stages) noexcept
 }
 double BbdCore::process(double input,double delayMs,double noiseAmount,bool clocked) noexcept
 {
+    return processPreparedInput(processInput(input),delayMs,noiseAmount,clocked);
+}
+double BbdCore::processInput(double input) noexcept
+{
     double x=common::safe(input);for(auto& f:pre)x=f.process(x);
     x=saturation.process(x,[this](double v)
     {
@@ -33,7 +37,12 @@ double BbdCore::process(double input,double delayMs,double noiseAmount,bool cloc
         // C2-continuous compression thereafter, preserving the original ceiling.
         const double magnitude=std::abs(v),span=clipLevel-clipOnset;
         return magnitude<=clipOnset?v:std::copysign(clipOnset+span*common::mildTanh((magnitude-clipOnset)/span),v);
-    });delay.push(x);
+    });
+    return x;
+}
+double BbdCore::processPreparedInput(double filteredInput,double delayMs,double noiseAmount,bool clocked) noexcept
+{
+    delay.push(filteredInput);
     const double ms=std::clamp(common::safe(delayMs),.1,maxDelay);
     double wet=delay.read(std::max(1.,sr*.001*ms-saturation.latencySamples()));
     const double unheld=wet;

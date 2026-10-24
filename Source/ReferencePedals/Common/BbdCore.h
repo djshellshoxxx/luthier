@@ -19,6 +19,10 @@ public:
     void setClipOnset(double level) noexcept {clipOnset=std::clamp(common::safe(level),0.,clipLevel*.99);}
     void setFilters(double preHz,double postHz) noexcept;
     double process(double input,double delayMs,double noiseAmount=0,bool clocked=false) noexcept;
+    // A model may share this prefix only between voices with identical input,
+    // coefficients and reset history. Each voice still advances its own suffix.
+    double processInput(double input) noexcept;
+    double processPreparedInput(double filteredInput,double delayMs,double noiseAmount=0,bool clocked=false) noexcept;
     static double clockHz(double delayMs,int stages=1024) noexcept;
 private:
     FractionalDelay delay;

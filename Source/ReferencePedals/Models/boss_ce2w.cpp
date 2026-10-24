@@ -72,11 +72,14 @@ void BossCe2w::process(double* left,double* right,int n) noexcept
         modeBlend=std::min(1.,modeBlend+fadeStep);
         stereoBlend+=std::clamp(stereoTarget-stereoBlend,-fadeStep,fadeStep);
         const double ce1Input=4.5*(std::tanh(input/4.5+.025)-std::tanh(.025)),triangle=lfo.triangle();
+        // Both CE1 voices have the same pre-delay signal path in every mode.
+        // Voice 1 owns that prefix permanently; voice 2 never resumes its unused
+        // emphasis/prefilter/saturation states. Its complete suffix stays live.
+        const double ce2Prepared=wet[0].processInput(emphasis[0].process(input));
+        const double ce1Prepared=wet[1].processInput(emphasis[1].process(ce1Input));
         auto render=[&](int m) noexcept
         {
-            const double coloured=m>0?ce1Input:input;
-            const double sample=emphasis[m].process(coloured);
-            const double delayed=wet[m].process(sample,centres[m]+depths[m]*depth*triangle,noiseAmount,clocked);
+            const double delayed=wet[m].processPreparedInput(m>0?ce1Prepared:ce2Prepared,centres[m]+depths[m]*depth*triangle,noiseAmount,clocked);
             const double w=deemphasis[m].process(delayed),d=m==2?0:input;
             return std::array<double,2>{d+w,d-w};
         };

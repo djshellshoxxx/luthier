@@ -700,3 +700,27 @@ detection enabled (no diagnostics). It exercises actual registered Generic B/C
 callbacks, all ten models at both control extremes, invalid dynamic-rate refusal,
 reset capacity and reprepare. The unrelated registry groups are empty test-only
 link stubs in this focused runner. `Tools/trademark_scan.py` reports zero hits.
+
+### CE2W identical CE1 prefix sharing (2026-10-24)
+
+CE1 chorus/vibrato voices always receive the same input, emphasis coefficients,
+BBD prefilters and saturation settings/reset history. BbdCore now exposes its
+prefix separately from the delay/clock/noise/postfilter suffix. CE2W permanently
+uses voice 1's prefix for both CE1 voices; voice 2's unused prefix is never resumed.
+All three independent delay, clock, noise, postfilter and deemphasis histories
+still advance every frame, including inaudible modes. This removes duplicate
+execution without changing the transfer, feedback or timing model.
+
+The original complete-core pair is an independent oracle for the shared-prefix
+pair: five rates, distinct modulated delays, clock/noise changes, hostile inputs,
+reset and same-instance reprepare produce bit-identical samples. The immutable
+sanitizer suite passes **328,299 checks, zero failures**, ASan/UBSan/leak detection
+with no diagnostics, including named CE2/CE2W/DD3T and buffered-bypass regressions.
+All 15 audio/public-state hashes from `named-timefx-event-after-results.txt` remain
+identical over 3,967,500 stereo frames with modes, controls, clocks, transport,
+reset and reprepare. New raw traces/CPU are in
+`probes/named-timefx-shared-prefix-results.txt`.
+
+Five local 48k/128 CE2W CPU trials now measure **0.955–1.039%**. Four meet the
+original 1% target, but the worst trial still fails; no acceptance or registration
+claim is made. CE2 and DD3T CPU and CE2W CE1 THD/bypass gates remain open.
