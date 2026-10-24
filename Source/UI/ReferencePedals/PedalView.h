@@ -40,6 +40,7 @@ public:
     bool learnMode=false;
 private:
     void contextMenu();
+    bool moveTo(int index);
     void post(BoardCommand);
     void rebuildControls(const PedalInstance&);
     void placeControls();

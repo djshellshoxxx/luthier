@@ -130,9 +130,9 @@ void PedalView::rebuildControls(const PedalInstance& instance)
         else
         {
             auto* slider=controls.add(new KnobControl());controlParams.push_back(i);parameterControls[(size_t)i]=slider;
-            slider->setRange(0,1,param.kind==ParamKind::Toggle?1:.001);slider->setDoubleClickReturnValue(true,param.defaultNormalised());slider->setTitle(title);
+            slider->setRange(0,1,param.kind==ParamKind::Toggle?1:param.kind==ParamKind::Discrete&&param.steps>1?1.0/(param.steps-1):.001);slider->setDoubleClickReturnValue(true,param.defaultNormalised());slider->setTitle(title);
             slider->valueFromTextFunction=[this,i](const juce::String& text){return descriptor->params[i].toNormalised(text.getDoubleValue());};
-            slider->textFromValueFunction=[this,i](double norm){const auto& d=descriptor->params[i];return juce::String(d.fromNormalised(norm),d.max-d.min>100?0:2)+" "+d.unit;};
+            slider->textFromValueFunction=[this,i](double norm){const auto& d=descriptor->params[i];return juce::String(d.fromNormalised(norm),d.kind==ParamKind::Discrete||d.max-d.min>100?0:2)+" "+d.unit;};
             slider->onDragStart=[this,i]{++gesture;if(learnMode&&onLearn)onLearn(instanceId,i,true);};
             slider->onValueChange=[this,slider,i]{slider->setTooltip(slider->getTitle()+": "+slider->getTextFromValue(slider->getValue())+". Enter or right click edits the value.");if(refreshing)return;if(learnMode&&onLearn){onLearn(instanceId,i,true);refresh();}else if(!attached[(size_t)i])post(cmd::SetParam{instanceId,i,(float)slider->getValue(),gesture});};
         }
@@ -160,9 +160,10 @@ void PedalView::rebuildControls(const PedalInstance& instance)
     for(int n=0;n<controls.size();++n)
     {
         const int index=controlParams[(size_t)n];auto* slider=controls[n];const auto& d=descriptor->params[index];
+        if(d.kind==ParamKind::Discrete&&d.steps>1)slider->setRange(0,1,1.0/(d.steps-1));
         slider->setDoubleClickReturnValue(true,d.defaultNormalised());
         slider->valueFromTextFunction=[this,index](const juce::String& text){return descriptor->params[index].toNormalised(text.getDoubleValue());};
-        slider->textFromValueFunction=[this,index](double norm){const auto& param=descriptor->params[index];return juce::String(param.fromNormalised(norm),param.max-param.min>100?0:2)+" "+param.unit;};
+        slider->textFromValueFunction=[this,index](double norm){const auto& param=descriptor->params[index];return juce::String(param.fromNormalised(norm),param.kind==ParamKind::Discrete||param.max-param.min>100?0:2)+" "+param.unit;};
     }
     provenance.setText(juce::String(descriptor?descriptor->displayName:modelId.c_str())+"\n"+(descriptor&&descriptor->inspiredBy?"Inspired by "+juce::String(descriptor->inspiredBy)+"; independent and unaffiliated.":"Original Luthier pedal.")+"\nCircuit calibration: ESTIMATED. Physical dimensions follow the documented/estimated artwork specification.",juce::dontSendNotification);
     placeControls();
@@ -172,7 +173,7 @@ void PedalView::refresh()
     const auto oldTitle=getTitle();const auto instance=model.getInstance(instanceId);if(!instance)return;const juce::ScopedValueSetter<bool> guard(refreshing,true);
     if(modelId!=instance->modelId||!face)rebuildControls(*instance);
     for(int n=0;n<controls.size();++n){const int index=controlParams[(size_t)n];if(!attached[(size_t)index])controls[n]->setValue(instance->params[(size_t)index],juce::dontSendNotification);}
-    for(int n=0;n<selectors.size();++n){const int index=selectorParams[(size_t)n];if(!attached[(size_t)index])selectors[n]->setSelectedId(1+(int)descriptor->params[index].fromNormalised(instance->params[(size_t)index]),juce::dontSendNotification);}
+    for(int n=0;n<selectors.size();++n){const int index=selectorParams[(size_t)n];if(!attached[(size_t)index])selectors[n]->setSelectedId(1+juce::roundToInt(instance->params[(size_t)index]*(descriptor->params[index].steps-1)),juce::dontSendNotification);}
     for(int n=0;n<switches.size();++n){const int index=switchParams[(size_t)n];if(!attached[(size_t)index])switches[n]->setToggleState(instance->params[(size_t)index]>=.5f,juce::dontSendNotification);}
     if(!enabledAttachment)footswitch.setToggleState(instance->enabled,juce::dontSendNotification);
     footswitch.setEnabled(descriptor&&!instance->missing);footswitch.setTitle("Bypass "+juce::String(descriptor?descriptor->displayName:modelId.c_str()));
@@ -271,7 +272,7 @@ bool PedalView::keyPressed(const juce::KeyPress& key)
         if(mods.isShiftDown()&&(code==juce::KeyPress::leftKey||code==juce::KeyPress::rightKey))
         {const auto item=model.getInstance(instanceId);model.apply(cmd::SetPlacement{instanceId,(Placement)juce::jlimit(0,2,(int)item->placement+(code==juce::KeyPress::leftKey?-1:1))});return true;}
         if(code==juce::KeyPress::leftKey || code==juce::KeyPress::rightKey || code==juce::KeyPress::homeKey || code==juce::KeyPress::endKey)
-        {int n=code==juce::KeyPress::homeKey?0:code==juce::KeyPress::endKey?(int)order.size()-1:pos+(code==juce::KeyPress::leftKey?-1:1);model.apply(cmd::Move{instanceId,juce::jlimit(0,(int)order.size()-1,n)});return true;}
+        {int n=code==juce::KeyPress::homeKey?0:code==juce::KeyPress::endKey?(int)order.size()-1:pos+(code==juce::KeyPress::leftKey?-1:1);moveTo(juce::jlimit(0,(int)order.size()-1,n));return true;}
         if(code==juce::KeyPress::upKey||code==juce::KeyPress::downKey){const auto i=model.getInstance(instanceId);model.apply(cmd::SetLane{instanceId,juce::jlimit(0,3,i->lane+(code==juce::KeyPress::upKey?-1:1))});return true;}
     }
     if(!mods.isCommandDown()&&(code=='I'||code=='i')){showInspector();return true;}
@@ -307,7 +308,7 @@ void PedalView::contextMenu()
     juce::PopupMenu menu;menu.addItem(1,"Move earlier");menu.addItem(2,"Move later");menu.addItem(3,"Duplicate");menu.addItem(4,"Remove");menu.addItem(5,"Learn footswitch");
     juce::Component::SafePointer<PedalView> self(this);
     menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(this),[self](int n){if(!self)return;const auto order=self->model.getOrder();const int pos=(int)std::distance(order.begin(),std::find(order.begin(),order.end(),self->instanceId));
-        if(n==1||n==2)self->model.apply(cmd::Move{self->instanceId,juce::jlimit(0,(int)order.size()-1,pos+(n==1?-1:1))});
+        if(n==1||n==2)self->moveTo(juce::jlimit(0,(int)order.size()-1,pos+(n==1?-1:1)));
         if(n==3)self->post(cmd::Duplicate{self->instanceId});if(n==4)self->post(cmd::Remove{self->instanceId});if(n==5)self->requestFootswitchLearn();});
 }
 }
@@ -337,4 +338,14 @@ bool PedalView::updateMeters(const PedalMeters& next)
 
 namespace luthier::reference {
 void PedalView::requestFootswitchLearn(){for(const auto& control:faceLayout.controls)if(control.kind==FaceControlKind::Button&&control.bounds==faceLayout.footswitch){if(onLearn)onLearn(instanceId,control.paramIdx,false);return;}if(onLearn)onLearn(instanceId,-1,false);}
+}
+
+namespace luthier::reference {
+bool PedalView::moveTo(int index)
+{
+    const auto instance=model.getInstance(instanceId);if(!instance)return false;
+    auto* parameter=parameters?parameters->getParameter("ref_s"+juce::String(instance->slot+1).paddedLeft('0',2)+"_pos"):nullptr;
+    struct HostGesture {juce::RangedAudioParameter* parameter;explicit HostGesture(juce::RangedAudioParameter* p):parameter(p){if(parameter)parameter->beginChangeGesture();}~HostGesture(){if(parameter)parameter->endChangeGesture();}} gesture(parameter);
+    const bool accepted=model.apply(cmd::Move{instanceId,index});if(accepted&&parameter)parameter->setValueNotifyingHost(parameter->convertTo0to1((float)index));return accepted;
+}
 }
