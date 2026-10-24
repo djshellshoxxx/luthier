@@ -623,3 +623,14 @@ Wide routing, approximately7.373MB per instance or118MB for16. The original
 all-slot/rate/range requirements cannot simultaneously fit that cap without an
 explicit resource/admission policy or budget correction. This work does not
 silently reduce delay range/precision or raise the cap; parent review is pending.
+
+Shared LFO wrap optimization preserves the original floor oracle exactly:
+setPhase produces a phase in[0,1] (a tiny negative value can round to1), and
+setRate bounds the increment to at most0.49. Therefore advance needs at most
+one subtraction of1. The helper now branches on phase>=1 instead of evaluating
+floor for every sample. An independent copy of the original floor algorithm
+passes **1,342,784 bitwise checks** for phase, sine and triangle over eight rate
+settings, boundary/hostile phases and rates, randomized rate/phase events and
+reprepare. This is an arithmetic-equivalent helper optimization, not a change to
+rate, waveform or timing specifications. DSP ownership authorization was obtained;
+independent post-commit review is requested before shared adoption.
