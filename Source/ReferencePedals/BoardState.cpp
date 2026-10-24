@@ -368,6 +368,15 @@ V writeSettings (const BoardSettings& s)
 }
 }
 
+bool BoardState::canonicalJson(const V& value,juce::String& output,juce::String* error)
+{
+    if(error)error->clear();
+    if(!finiteTree(value))return fail(error,"Invalid or nonfinite JSON value");
+    auto next=jsonText(value);
+    if(next.getNumBytesAsUTF8()>maxBytes)return fail(error,"JSON exceeds 256 KB");
+    output=std::move(next);return true;
+}
+
 bool BoardState::extractFromHostJson(const juce::String& host, juce::String& board, juce::String* error)
 {
     if (error) error->clear();
