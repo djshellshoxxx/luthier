@@ -29,8 +29,14 @@ public:
     uint64_t reservedStorageBytes() const noexcept;
     void beginRecord() noexcept;
     bool append(double left,double right) noexcept;
+    // Sparse, wrapping overdub delta with a fixed loop length. Unwritten pages
+    // are implicit zero. Existing page data must be resident/read-ahead ready;
+    // a miss fails immediately with explicit underrun/overrun flags.
+    bool beginLayer(uint64_t frames) noexcept;
+    bool add(uint64_t frame,double left,double right) noexcept;
+    bool canAdd(uint64_t frame) const noexcept;
     bool finishRecord() noexcept;
-    bool read(uint64_t frame,double& left,double& right) noexcept;
+    bool read(uint64_t frame,double& left,double& right,uint64_t* version=nullptr,bool allowStale=false) noexcept;
     void prefetch(uint64_t frame) noexcept;
     uint64_t length() const noexcept;
     uint32_t errors() const noexcept;
