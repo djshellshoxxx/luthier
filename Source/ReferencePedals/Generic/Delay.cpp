@@ -26,7 +26,8 @@ const ParamDesc parameters[] {
     {"gen_delay_on","ON","",ParamKind::Toggle,Taper::Linear,0.0f,1.0f,1.0f,1.f,0,nullptr,PF_Engage,20.0f,70},
     {"gen_delay_tap","TAP","",ParamKind::Trigger,Taper::Linear,0.0f,1.0f,0.0f,1.f,0,nullptr,PF_Automatable,20.0f,85},
 };
-const PedalDesc description {"generic.delay","gen_delay_",1,"Delay","Time",nullptr,ChannelMode::TrueStereo,BypassMode::DSP,int(std::size(parameters)),parameters,0,true,false,false,0};
+// ESTIMATED admission budget from GENERIC_PEDALS; highest documented runtime mode.
+const PedalDesc description {"generic.delay","gen_delay_",1,"Delay","Time",nullptr,ChannelMode::TrueStereo,BypassMode::DSP,int(std::size(parameters)),parameters,0,true,false,false,1400,1000};
 }
 const PedalDesc& Delay::descriptor() noexcept { return description; }
 Delay::Delay() : PedalBase(description) {}

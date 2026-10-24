@@ -20,7 +20,8 @@ const ParamDesc parameters[] {
     {"gen_trem_tap","TAP","",ParamKind::Trigger,Taper::Linear,0.0f,1.0f,0.0f,1.f,0,nullptr,PF_Automatable,20.0f,112},
     {"gen_trem_on","ON","",ParamKind::Toggle,Taper::Linear,0.0f,1.0f,1.0f,1.f,0,nullptr,PF_Engage,20.0f,113},
 };
-const PedalDesc description {"generic.tremolo","gen_trem_",1,"Tremolo","Modulation",nullptr,ChannelMode::Stereo,BypassMode::DSP,int(std::size(parameters)),parameters,0,false,false,false,0};
+// ESTIMATED admission budget from GENERIC_PEDALS; highest documented runtime mode.
+const PedalDesc description {"generic.tremolo","gen_trem_",1,"Tremolo","Modulation",nullptr,ChannelMode::Stereo,BypassMode::DSP,int(std::size(parameters)),parameters,0,false,false,false,200,1000};
 }
 const PedalDesc& Tremolo::descriptor() noexcept { return description; }
 Tremolo::Tremolo() : PedalBase(description) {}

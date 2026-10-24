@@ -17,7 +17,8 @@ const ParamDesc parameters[] {
     {"gen_phaser_sync","SYNC","",ParamKind::Enum,Taper::Linear,0.0f,6.0f,0.0f,1.f,7,syncNames,PF_Automatable,20.0f,3},
     {"gen_phaser_on","ON","",ParamKind::Toggle,Taper::Linear,0.0f,1.0f,1.0f,1.f,0,nullptr,PF_Engage,20.0f,9},
 };
-const PedalDesc description {"generic.phaser","gen_phaser_",1,"Phaser","Modulation",nullptr,ChannelMode::MonoInStereoOut,BypassMode::True,int(std::size(parameters)),parameters,0,false,false,false,0};
+// ESTIMATED admission budget from GENERIC_PEDALS; highest documented runtime mode.
+const PedalDesc description {"generic.phaser","gen_phaser_",1,"Phaser","Modulation",nullptr,ChannelMode::MonoInStereoOut,BypassMode::True,int(std::size(parameters)),parameters,0,false,false,false,600,1000};
 }
 const PedalDesc& Phaser::descriptor() noexcept { return description; }
 Phaser::Phaser() : PedalBase(description) {}

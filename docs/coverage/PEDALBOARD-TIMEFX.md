@@ -623,3 +623,18 @@ Wide routing, approximately7.373MB per instance or118MB for16. The original
 all-slot/rate/range requirements cannot simultaneously fit that cap without an
 explicit resource/admission policy or budget correction. This work does not
 silently reduce delay range/precision or raise the cap; parent review is pending.
+
+### Explicit Generic B/C CPU admission estimates (2026-10-24)
+
+The six accepted descriptors previously declared zero cost. They now declare
+original `GENERIC_PEDALS.md` budgets with explicit 1000-units-per-percent scaling:
+Chorus 800 (line149), Phaser 600 (274), Tremolo 200 (240), Wah 500 (258),
+Delay 1400 (183, highest documented Tape mode), Reverb 3000 (213, highest
+documented Plate mode). A static slot estimate must cover available runtime
+modes; digital Delay1.0% and Hall2.5% remain their original individual targets.
+These are **ESTIMATED admission costs**, not measured success or a replacement for
+any CPU gate. One instance of each contributes6.5% instead of six free slots.
+The actual six registry descriptors pass25 focused sanitizer checks with zero
+failures/diagnostics. No DSP arithmetic, parameter mapping or model registration
+changed in this metadata checkpoint. Engine owns normalization and mixed-registry
+budget/prepare enforcement.
