@@ -226,3 +226,74 @@ LUTHIER_TEST (RefPedalRouting, auxSendsAlignDualLanesAndAccumulatePlacementsWith
     board.processStereo (l, r, 128, Placement::beforeExistingPre);
     CHECK_NEAR (l[17], 0.1 / std::sqrt (2.0), 1.e-9); // absent B bus never changes main-A semantics
 }
+
+#include "../ReferencePedals/Routing/Feedback.h"
+LUTHIER_TEST (RefPedalRouting, feedbackHasSixtyFourSampleDelayKillAndSafeGainClamp)
+{
+    const auto render = [&] (int blockSize)
+    {
+        Board board; board.prepare (48000, blockSize);
+        PedalInstance pass; pass.modelId = "missing"; pass.missing = true; pass.slot = 0;
+        BoardSettings settings; settings.enabled = true; settings.limiterOn = false;
+        settings.fb.on = true; settings.fb.src = settings.fb.dst = pass.instanceId; settings.fb.gain = 1.05f;
+        CHECK (board.model().replaceAll ({ pass }, settings));
+        double l[1024] {}, r[1024] {}; board.processStereo (l, r, 1024, Placement::beforeExistingPre);
+        std::array<double, 512> output {};
+        for (int start = 0; start < 512;)
+        {
+            const int n = std::min (blockSize, 512 - start); std::fill_n (l, n, 0.0); std::fill_n (r, n, 0.0);
+            if (start == 0) l[0] = r[0] = 0.1;
+            board.processStereo (l, r, n, Placement::beforeExistingPre);
+            std::copy_n (l, n, output.data() + start); start += n;
+        }
+        CHECK_NEAR (output[0], 0.1, 1.e-10);
+        for (int i = 1; i < 64; ++i) CHECK_NEAR (output[static_cast<size_t> (i)], 0.0, 1.e-12);
+        CHECK_NEAR (output[64], 2.0 * std::tanh (0.1 * 0.98 * (1.0 - std::exp (-1.57079632679489661923)) / 2.0), 1.e-8); // exact safe gain clamp
+        CHECK (board.model().apply (cmd::SetBoardParam { "fbKill", 1.0 }));
+        std::fill_n (l, 1024, 0.0); std::fill_n (r, 1024, 0.0); board.processStereo (l, r, 1024, Placement::beforeExistingPre);
+        CHECK_NEAR (l[1023], 0.0, 1.e-10);
+        CHECK_NEAR (board.model().getBoardSettings().fb.gain, 1.05, 1.e-6);
+        return output;
+    };
+    const auto expected = render (1);
+    for (const int block : { 16, 37, 64, 481 })
+    {
+        const auto actual = render (block);
+        for (size_t i = 0; i < actual.size(); ++i) CHECK_NEAR (actual[i], expected[i], 1.e-12);
+    }
+}
+LUTHIER_TEST (RefPedalRouting, feedbackWatchdogFaultGuardAndExplicitRearm)
+{
+    routing::FeedbackState state; FeedbackCfg cfg; cfg.on = true; cfg.gain = 1.05f; cfg.runawayOk = true;
+    state.configure (cfg, false, 48000);
+    double left[64], right[64]; ExecCtx exec; exec.n = 64; exec.bus[0][0] = left; exec.bus[0][1] = right; exec.state[0] = &state;
+    Node node; node.lane = 0;
+    for (int block = 0; block < 300; ++block)
+    {
+        std::fill_n (left, 64, 16.0); std::fill_n (right, 64, -16.0);
+        state.configure (cfg, false, 48000); routing::nodeFbSend (node, exec);
+        for (const auto& channel : state.ring) for (const double value : channel) CHECK (std::isfinite (value) && std::abs (value) <= 2.0);
+    }
+    CHECK (state.tripped); CHECK_NEAR (state.gain, 0.0, 1.e-12);
+    cfg.srcSlot = 1; state.configure (cfg, false, 48000); CHECK (state.tripped); // edit cannot silently rearm
+    cfg.on = false; state.configure (cfg, false, 48000); cfg.on = true; state.configure (cfg, false, 48000);
+    CHECK (! state.tripped && ! state.fault);
+    left[0] = std::numeric_limits<double>::quiet_NaN(); routing::nodeFbSend (node, exec);
+    CHECK (state.fault); for (const auto& channel : state.ring) for (const double value : channel) CHECK (value == 0.0);
+    state.configure (cfg, false, 48000); CHECK (state.fault);
+    cfg.on = false; state.configure (cfg, false, 48000); cfg.on = true; state.configure (cfg, false, 48000);
+    CHECK (! state.fault);
+}
+LUTHIER_TEST (RefPedalRouting, routingReferencesAreValidatedWithoutAnAttachedEngine)
+{
+    BoardModel model; PedalInstance first, last; first.slot = 0; last.slot = 1;
+    first.modelId = last.modelId = "unknown";
+    BoardSettings settings; settings.fb.on = true; settings.fb.src = last.instanceId; settings.fb.dst = first.instanceId;
+    CHECK (model.replaceAll ({ first, last }, settings));
+    auto invalid = settings; invalid.fb.src = first.instanceId; invalid.fb.dst = last.instanceId;
+    CHECK (! model.replaceAll ({ first, last }, invalid));
+    invalid = settings; invalid.fb.src = InstanceId(); CHECK (! model.replaceAll ({ first, last }, invalid));
+    last.placement = Placement::postCab; CHECK (! model.replaceAll ({ first, last }, settings));
+    CHECK (model.getBoardSettings().fb.src == settings.fb.src);
+    CHECK (! model.apply (cmd::Remove { first.instanceId }));
+}

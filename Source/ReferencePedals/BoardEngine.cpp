@@ -27,6 +27,7 @@ void BoardEngine::prepare (double sampleRate, int maxBlock)
     mixAlpha = 1.0 - std::exp (-1.0 / (0.020 * rate));
     pool.prepare (rate, block);
     hostBoardSerials.fill (0); modelBoardSerials.fill (0);
+    feedback.reset(); feedbackRearmSeen = feedbackKillSeen = 0; feedbackFault.store (false); feedbackTripped.store (false);
     paramPulses.clear(); numPendingPulses = 0; numRawMidi = numMidiOutput = 0;
     for (auto& segment : segments)
     {
@@ -161,6 +162,7 @@ void BoardEngine::syncRouting (midi::MidiRouter& router) const noexcept
 BoardMeters BoardEngine::meters() const noexcept
 {
     BoardMeters result; result.inPeakDb = inputPeak.load(); result.outPeakDb = outputPeak.load();
+    result.fbFault = feedbackFault.load(); result.fbTripped = feedbackTripped.load();
     const auto availability = auxAvailable.load();
     result.auxBAvailable = (availability & 1) != 0; result.auxWetAvailable = (availability & 2) != 0; result.auxDryAvailable = (availability & 4) != 0;
     result.latencySamples = latency(); result.sidechainAvailable = sidechainConnected.load();
@@ -194,6 +196,14 @@ void BoardEngine::beginEvents (const midi::RouteOut& routed) noexcept
     events = &routed;
     const auto* plan = live.load (std::memory_order_acquire);
     if (! plan) return;
+    if (feedbackRearmSeen != plan->feedbackRearm) { feedback.reset(); feedbackRearmSeen = plan->feedbackRearm; }
+    if (! plan->topology.fb.on) feedback.configure (plan->topology.fb, false, rate);
+    if (feedbackKillSeen != plan->feedbackKill)
+    {
+        feedbackKillSeen = plan->feedbackKill;
+        feedback.configure (plan->topology.fb, plan->settings.fb.kill, rate);
+        feedback.killSamples = std::max (1, static_cast<int> (rate * 0.005));
+    }
     int retained = 0;
     for (int i = 0; i < numPendingPulses; ++i)
     {
@@ -286,6 +296,8 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
             s.phase = Segment::In; s.ramp = 0; s.gain = 0.0;
         }
         const auto& plan = *s.current; const auto& topology = plan.topology;
+        for (int nodeIndex = topology.segBegin[p]; nodeIndex < topology.segEnd[p]; ++nodeIndex)
+            if (topology.nodes[nodeIndex].kind == NodeKind::FbSend) { feedback.configure (topology.fb, plan.settings.fb.kill, rate); break; }
         if (events)
             for (int event = 0; event < events->nWrites; ++event)
             {
@@ -445,6 +457,7 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
                     }
                 }
             }
+            else if (node.kind == NodeKind::FbSend || node.kind == NodeKind::FbReturn) context.state[index] = &feedback;
             else if (node.kind == NodeKind::Sum && node.i0 != 0) context.state[index] = &s.ab;
             else if (node.kind == NodeKind::Delay) context.state[index] = &s.lanes[node.aux];
             else if (node.kind == NodeKind::SendTap || node.kind == NodeKind::ReturnInject) context.state[index] = &s.loops[node.aux];
@@ -532,6 +545,7 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
     if (newest->topology.n == 0 && s.pending == nullptr) running.store (false);
     inputPeak.store (static_cast<float> (20.0 * std::log10 (std::max (1.e-6, peakIn))));
     outputPeak.store (static_cast<float> (20.0 * std::log10 (std::max (1.e-6, peakOut))));
+    feedbackFault.store (feedback.fault); feedbackTripped.store (feedback.tripped);
     publishPedalMeters (*s.current);
     acknowledge();
 }
