@@ -2,6 +2,7 @@
 #pragma once
 #include <array>
 #include <atomic>
+#include <mutex>
 #include "BoardModel.h"
 #include "TopologyCompiler.h"
 #include "Routing/LatencyEqualiser.h"
@@ -44,7 +45,9 @@ class BoardEngine
 public:
     explicit BoardEngine (BoardModel&);
     ~BoardEngine();
-    void prepare (double sampleRate, int maxBlock);
+    void prepare (double sampleRate, int maxBlock) noexcept;
+    bool preparationFailed() const noexcept { return preparationFailure.load(); }
+    juce::String preparationError() const;
     void releaseResources(); // stopped-audio barrier
     bool setAssetStore (std::shared_ptr<IAssetStore> store);
     void requestReset() noexcept { resetRequested.store (true, std::memory_order_release); }
@@ -77,6 +80,8 @@ public:
     PedalMeters readPedalMeters (int slot) const noexcept;
 private:
     bool publish (const std::vector<PedalInstance>&, const BoardSettings&, TopologyInfo&, juce::String&, const BoardCommand* intent = nullptr, bool hostEcho = false);
+    void discardRuntime() noexcept;
+    void setPreparationError (const char*) noexcept;
     void acknowledge() noexcept;
     void publishPedalMeters (const RenderPlan&) noexcept;
     struct AtomicPedalMeters
@@ -105,6 +110,10 @@ private:
     std::array<ParamPulse, 256> pendingPulses;
     int numPendingPulses = 0;
     SpscRing<EngageEcho, 256> engageEcho;
+    std::atomic<bool> preparationFailure { false };
+    std::atomic<uint64_t> routingBytes { 0 };
+    mutable std::mutex preparationMutex; // lifecycle/error reads only, never audio
+    std::array<char, 256> preparationMessage {};
     BoardModel& model;
     PedalPool pool;
     std::unique_ptr<RenderPlan> latest;

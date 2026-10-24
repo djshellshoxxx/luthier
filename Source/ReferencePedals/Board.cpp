@@ -51,6 +51,7 @@ void Board::prepare (double rate, int maxBlock)
     impl->engine.prepare (rate, maxBlock); impl->router.prepare (rate, std::max (1, maxBlock));
     impl->sample = 0; impl->explicitlyPrepared = true;
 }
+juce::String Board::getPreparationError() const { return impl->engine.preparationError(); }
 void Board::releaseResources() { impl->engine.releaseResources(); impl->explicitlyPrepared = false; }
 bool Board::setAssetStore (std::shared_ptr<IAssetStore> store)
 { return ! impl->explicitlyPrepared && impl->engine.setAssetStore (std::move (store)); }
@@ -86,6 +87,12 @@ void Board::beginBlock (const juce::MidiBuffer& input, const HostTransport& host
 {
     impl->explicitBlock = true;
     impl->blockSamples = std::max (0, samples);
+    if (impl->engine.preparationFailed())
+    {
+        impl->routed = {}; impl->routed.time.sample = impl->sample;
+        impl->engine.beginRawMidi (impl->emptyMidi, impl->blockSamples);
+        impl->engine.setTime (impl->routed.time); impl->engine.beginEvents (impl->routed); return;
+    }
     impl->engine.beginRawMidi (input, impl->blockSamples);
     impl->engine.syncRouting (impl->router);
     impl->router.process (input, host, impl->sample, impl->blockSamples, impl->routed);

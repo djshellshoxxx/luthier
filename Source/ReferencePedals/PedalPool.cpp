@@ -58,14 +58,43 @@ bool PedalPool::setAssetStore (std::shared_ptr<IAssetStore> store)
     for (const auto& runtime : objects) if (! runtime.expired()) return false;
     assets = std::move (store); assetStoreConfigured = true; return true;
 }
+void PedalPool::setPreparationFormat (double sampleRate, int maxBlock) noexcept
+{ rate = sampleRate; block = maxBlock; objects.clear(); }
 void PedalPool::prepare (double sampleRate, int maxBlock, const std::vector<PedalInstance>& captured)
 {
-    rate = sampleRate; block = maxBlock; objects.clear(); preparedExtras = captured;
+    setPreparationFormat (sampleRate, maxBlock); preparedExtras = captured;
+}
+bool PedalPool::preflightFresh (const std::vector<PedalInstance>& instances, juce::String& error) const
+{
+    if (! std::isfinite (rate) || rate < 8000 || rate > 1000000 || block < 1)
+    { error = "Unsupported pedal preparation sample rate/block"; return false; }
+    uint64_t retained = memoryBudget.used(), scratch = 0;
+    for (const auto& instance : instances)
+    {
+        if (instance.missing) continue;
+        const auto* desc = PedalRegistry::find (instance.modelId.c_str());
+        if (! desc) { error = "Unknown pedal model"; return false; }
+        const auto requirement = PedalRegistry::memoryRequirement (instance.modelId.c_str(), rate, block, 2, instance.params.data());
+        if (requirement.ownedBytes == kUnknownPreparedMemoryBytes || requirement.ownedBytes < sizeof (IPedal))
+        { error = "Prepared memory requirement unavailable for " + juce::String (instance.modelId); return false; }
+        const uint64_t dry = 2 * (static_cast<uint64_t> (desc->maxLatencySamples) + 1) * sizeof (double);
+        if (! addPreparedBytes (retained, sizeof (PedalRuntime), retained)
+            || ! addPreparedBytes (retained, dry, retained)
+            || ! addPreparedBytes (retained, requirement.ownedBytes, retained))
+        { error = "Prepared memory requirement overflow"; return false; }
+        scratch = std::max (scratch, requirement.temporaryBytes);
+    }
+    uint64_t peak;
+    if (! addPreparedBytes (retained, scratch, peak) || peak > kPreparedPedalMemoryLimit)
+    { error = "Prepared pedal memory budget reached (64000000 bytes, including retained runtimes and prepare scratch)"; return false; }
+    return true;
 }
 std::shared_ptr<PedalRuntime> PedalPool::acquire (const PedalInstance& instance, juce::String& error, const PedalRuntime* active, bool restoreExtras)
 try
 {
     if (instance.missing) return {};
+    if (! std::isfinite (rate) || rate < 8000 || rate > 1000000 || block < 1)
+    { error = "Unsupported pedal preparation sample rate/block"; return {}; }
     const auto* desc = PedalRegistry::find (instance.modelId.c_str());
     if (desc == nullptr) { error = "Unknown pedal model: " + juce::String (instance.modelId); return {}; }
     auto extras = instance.extras.clone();
@@ -93,10 +122,25 @@ try
                     matches = false;
             if (matches) return existing;
         }
+    // E69: reserve the whole peak before factory construction or prepare. A
+    // reused shared runtime above already owns its single retained reservation.
+    const auto requirement = PedalRegistry::memoryRequirement (instance.modelId.c_str(), rate, block, 2, instance.params.data());
+    if (requirement.ownedBytes == kUnknownPreparedMemoryBytes || requirement.ownedBytes < sizeof (IPedal))
+    { error = "Prepared memory requirement unavailable for " + juce::String (instance.modelId); return {}; }
+    const uint64_t dryBound = 2 * (static_cast<uint64_t> (desc->maxLatencySamples) + 1) * sizeof (double);
+    uint64_t retainedBound = 0, peak = 0;
+    if (! addPreparedBytes (sizeof (PedalRuntime), dryBound, retainedBound)
+        || ! addPreparedBytes (retainedBound, requirement.ownedBytes, retainedBound)
+        || ! addPreparedBytes (retainedBound, requirement.temporaryBytes, peak))
+    { error = "Prepared memory requirement overflow for " + juce::String (instance.modelId); return {}; }
+    PreparedMemoryBudget::Reservation reservation;
+    if (! memoryBudget.reserve (peak, reservation))
+    { error = "Prepared pedal memory budget reached (64000000 bytes, including retained runtimes and prepare scratch)"; return {}; }
     auto loadExtras = extras.clone();
+    if (! restoreExtras)
     for (auto saved = preparedExtras.begin(); saved != preparedExtras.end(); ++saved)
         if (saved->instanceId == instance.instanceId && saved->modelId == instance.modelId && saved->modelRevision == instance.modelRevision)
-        { loadExtras = saved->extras.clone(); preparedExtras.erase (saved); break; }
+        { loadExtras = saved->extras.clone(); break; }
     if (! restoreExtras && active && active->identity == instance.instanceId && active->model == instance.modelId
         && active->revision == instance.modelRevision && active->extrasKey == extrasKey)
         active->pedal->saveExtra (loadExtras);
@@ -113,6 +157,7 @@ try
         catch (...) { error = "Unable to create persistent pedal asset service"; return {}; }
     }
     auto result = std::make_shared<PedalRuntime>();
+    result->memory = std::move (reservation);
     result->assetOwner = assets; result->sampleRate = rate;
     result->pedal = PedalRegistry::make (instance.modelId.c_str());
     if (! result->pedal) { error = "Pedal factory failed"; return {}; }
@@ -127,8 +172,17 @@ try
     result->pedal->loadExtra (loadExtras);
     result->pedal->setEnabled (instance.enabled);
     const int latency = result->pedal->getLatencySamples();
-    if (latency < 0 || latency > kMaxLatencySamp) { error = "Invalid pedal latency"; return {}; }
+    if (latency < 0 || latency > kMaxLatencySamp || latency > desc->maxLatencySamples)
+    { error = "Invalid pedal latency or exceeded declared maximum"; return {}; }
     for (auto& line : result->dry) line.prepare (latency);
+    const auto modelBytes = result->pedal->getPreparedMemoryBytes();
+    uint64_t actual = sizeof (PedalRuntime);
+    if (modelBytes < sizeof (IPedal) || ! addPreparedBytes (actual, modelBytes, actual)
+        || ! addPreparedBytes (actual, result->dry[0].preparedMemoryBytes(), actual)
+        || ! addPreparedBytes (actual, result->dry[1].preparedMemoryBytes(), actual)
+        || modelBytes > requirement.ownedBytes || actual > retainedBound)
+    { error = "Prepared memory report unavailable or exceeds declared reservation for " + juce::String (instance.modelId); return {}; }
+    result->memory.shrink (actual); // temporary prepare payload and unused dry bound are released off audio
     result->enabled = result->modelEnabled = instance.enabled;
     result->modelParams = instance.params;
     result->inputGain = result->modelInputGain = std::pow (10.f, instance.inDb / 20.f);

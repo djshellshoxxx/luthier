@@ -1,8 +1,8 @@
 # Prepared pedal memory admission proposal
 
-Status: design proposal only; no64MiB enforcement is implemented or claimed by this document. Public contract and scope require coordinator approval before model-owner integration.
+Status: original design rationale, superseded by coordinator-approved E69 and the implementation/evidence in PEDALBOARD-ENGINE.md. The approved cap is exactly64,000,000 bytes (decimal64MB), not64MiB. Strict enforcement is implemented in the engine branch; broader integrated registry qualification remains pending.
 
-BOARD_CORE§12 bounds prepared pedal buffers and explicitly treats looper storage separately. A64MiB admission limit must count prepared instances retained for audio transitions as well as the candidate plan; limiting only the final active16 slots can temporarily double usage and is insufficient. This is an accounted allocation-payload budget, not a total process-RSS guarantee.
+BOARD_CORE§12 bounds prepared pedal buffers and explicitly treats looper storage separately. The64,000,000-byte admission limit must count prepared instances retained for audio transitions as well as the candidate plan; limiting only the final active16 slots can temporarily double usage and is insufficient. This is an accounted allocation-payload budget, not a total process-RSS guarantee.
 
 ## Actual fresh model payloads
 
@@ -24,8 +24,8 @@ Generic Delay prepares two `(floor(sr*2.4)+8+16)`-double histories. Thus16 delay
 2. IPedal supplies a post-prepare actual capacity report. The compiler rejects a candidate whose report is unknown or exceeds its reservation. Missing reports are never silently treated as zero; every accepted registered model needs an audited implementation before universal enforcement is claimed.
 3. PedalPool reserves peak bytes before constructing/preparing/loading a new runtime, then reduces to actual retained bytes after successful preparation. A reservation follows each shared runtime until its final off-audio destruction, covering RCU-retired plans and persistence pins. Shared runtimes are counted once. Candidate failure releases only its reservation and preserves the old model, history and working audio.
 4. A configuration replacement can fail for lack of transition headroom even if its final state alone would fit. Report that explicitly; do not evict or reset an audio-owned old runtime to conceal the peak. Rapid edits cannot bypass the limit by accumulating retired processors. Stopped lifecycle preparation/release must obey the same accounting or report its separate lifecycle guarantee.
-5. Charge each runtime's dry compensation buffers. The coordinator must decide whether the fixed board routing/dry scratch is charged as a shared baseline inside64MiB or separately reported; no claim should hide it. Shared immutable tables need one documented charge. Heap metadata/fragmentation is outside a payload claim unless a bounded allocator is introduced.
-6. Paged-looper PCM, caches and media workers remain under their explicitly separate aggregate reservation. Report that budget beside the DSP budget. State-owner figures include RC-5 roughly54.4MB of paged aggregate at its192kHz maximum; excluding it from this pool must never be described as a64MiB total-RSS bound.
+5. Charge each runtime's dry compensation buffers. The coordinator must decide whether the fixed board routing/dry scratch is charged as a shared baseline inside the approved cap or separately reported; no claim should hide it. Shared immutable tables need one documented charge. Heap metadata/fragmentation is outside a payload claim unless a bounded allocator is introduced.
+6. Paged-looper PCM, caches and media workers remain under their explicitly separate aggregate reservation. Report that budget beside the DSP budget. State-owner figures include RC-5 roughly54.4MB of paged aggregate at its192kHz maximum; excluding it from this pool must never be described as a64MB total-RSS bound.
 
 ## Required evidence before acceptance
 

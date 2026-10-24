@@ -127,6 +127,8 @@ struct BoardMeters
     uint32_t midiDropped = 0;
     bool sidechainAvailable = false;
     bool cpuAvailable = false, cpuGovernorTripped = false, cpuEcoApplied = false, cpuGovernorFailed = false;
+    bool preparationFailed = false; // E69: inactive transparent board until successful edit/reprepare
+    uint64_t preparedMemoryBytes = 0, routingScratchBytes = 0; // logical owned payload; media budgets separate
     bool assetStoreAvailable = false; // service installed; actual IO success is reported by each model
     bool auxBAvailable = false, auxWetAvailable = false, auxDryAvailable = false;
 };
