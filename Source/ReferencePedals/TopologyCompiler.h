@@ -7,6 +7,8 @@ namespace luthier::reference
 struct SlotControl
 {
     bool enabled = true;
+    std::array<int, kMaxLaneParams> laneToParam;
+    SlotControl() { laneToParam.fill (-1); }
     float inputGain = 1.f, outputGain = 1.f;
     std::array<float, kMaxParams> params {};
 };

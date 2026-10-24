@@ -48,7 +48,12 @@ std::shared_ptr<PedalRuntime> PedalPool::acquire (const PedalInstance& instance,
     const int latency = result->pedal->getLatencySamples();
     if (latency < 0 || latency > kMaxLatencySamp) { error = "Invalid pedal latency"; return {}; }
     for (auto& line : result->dry) line.prepare (latency);
-    result->enabled = instance.enabled;
+    result->enabled = result->modelEnabled = instance.enabled;
+    result->modelParams = instance.params;
+    result->inputGain = result->modelInputGain = std::pow (10.f, instance.inDb / 20.f);
+    result->outputGain = result->modelOutputGain = std::pow (10.f, instance.outDb / 20.f);
+    result->bypassSamples = std::max (1.0, rate * 0.005);
+    result->foot.prepare (rate); result->foot.reset (instance.enabled);
     objects.emplace_back (result);
     return result;
 }

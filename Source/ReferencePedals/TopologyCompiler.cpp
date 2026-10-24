@@ -1,5 +1,6 @@
 // OWNER: WP2
 #include "TopologyCompiler.h"
+#include "PedalRegistry.h"
 #include <cmath>
 namespace luthier::reference
 {
@@ -58,6 +59,11 @@ std::unique_ptr<RenderPlan> TopologyCompiler::compile (const std::vector<PedalIn
         t.placement[t.n++] = static_cast<uint8_t> (instance.placement);
         auto& control = result->controls[slot];
         control.enabled = instance.enabled; control.params = instance.params;
+        if (object)
+        {
+            const auto lanes = PedalRegistry::buildLaneMap (object->pedal->desc());
+            for (int lane = 0; lane < lanes.numLanes; ++lane) control.laneToParam[static_cast<size_t> (lane)] = lanes.laneToParam[lane];
+        }
         control.inputGain = gain (instance.inDb); control.outputGain = gain (instance.outDb);
         const int lane = settings.mode == Mode::Parallel ? instance.lane : 0;
         auto& laneList = t.lanes[lane]; laneList.slots[laneList.count++] = static_cast<uint8_t> (slot);

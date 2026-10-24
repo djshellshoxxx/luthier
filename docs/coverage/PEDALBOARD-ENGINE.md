@@ -52,3 +52,17 @@ Harness and executable used during development: `/tmp/luthier-engine-test/{build
 ## Integration
 
 Depends on MIDI checkpoint `9334f459` (locally cherry-picked as `cda82f15`): `MidiState::buildMap` and additive `MidiRouter::reclaim`. Integrate that package before this engine commit. No shared host/CMake/parameter files changed here. Existing Board public API is preserved. `prepare` and `releaseResources` are stopped-audio barriers; `reset` queues an audio-thread reset. No push or merge was performed by this worker.
+
+## Event/automation checkpoint (2026-10-24)
+
+**43 tests, 56,350 checks, 0 failures** in the same focused harness (full header dependency rebuild).
+
+- MIDI parameter, board mix/tempo/enable, transport and foot events dispatch at sample offsets. Pedal parameter overrides persist across blocks until a model change. The engine uses frozen descriptors only; no audio-thread registry/model access.
+- E41 approved additive `IPedal::footControlsEngagement()` defaults true; loopers override false. `consumeEngageToggle()` defaults false and lets a wah request board-owned engagement. Foot engagement uses velocity-dependent 2–12 ms ramps; bounded SPSC engagement echo drains from `Board::reclaim`, coalesces by slot, verifies stable identity and baseline, then writes the model outside its mutex. Toe requests are consumed after a sub-block (at most 64 samples), not falsely advertised sample-exact.
+- E43 approved additive `BoardModel::setMidiFocus(const InstanceId&)`: validates UUID/null, clones MIDI metadata, notifies map listener; no undo step or audio topology publication.
+- E44 approved `HostAutomationSnapshot` and audio-only `Board::setHostAutomation`: 323 fixed raw physical values + serials. Layout: board enabled/mix/BPM, then enabled/16 descriptor lanes/input dB/output dB/position per slot. Position remains structural/off-audio. Serial zero is reserved for never-written; producer skips zero at wrap, consumers compare inequality. Host values apply once per new serial and persist; unchanged serials do not overwrite later model edits. Storage reuse/model replacement consumes old-source serials without applying the previous occupant's controls. A new host serial is needed after such a replacement.
+- New tests verify sample-offset gain change, persistent MIDI override then model edit, foot transport isolation, initially-off MIDI wake, immediate host writes without a message pump/timer, serial persistence/wrap, stale slot-source rejection, and zero allocation with a host update.
+
+Remaining event gates: raw MIDI and pedal MIDI output drain; parameter/board-value UI echo (engagement echo is implemented); bounded split-point coalescing (current exact offsets can exceed the spec's 32 distinct boundaries); UI Trigger pulses coalesced by snapshot publication; full foot mode/pressure policies. Host writes are sampled per block, not independently per every 64-sample interval inside a large host block. Board-level control model echoes still need generation arbitration. The preceding initial-checkpoint statement that no routed events are applied is superseded by this section.
+
+Dependencies added: MIDI E36/E39 commit `5e77e3d0` (local `8cd3d77b`) and approved IPedal sidechain interface `7d91967c` (local `3157bf6a`). Neither dependency is part of this worker's scoped implementation commits; coordinator should integrate their originals first.

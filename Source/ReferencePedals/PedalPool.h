@@ -6,6 +6,7 @@
 #include "BoardTypes.h"
 #include "DelayLine.h"
 #include "IPedal.h"
+#include "FootController.h"
 namespace luthier::reference
 {
 // Shared ownership is ONLY manipulated on the message thread. The audio thread
@@ -19,8 +20,13 @@ struct PedalRuntime
     juce::String extrasKey;
     std::array<float, kMaxParams> config {};
     std::array<DelayLine, 2> dry;
-    double enableMix = 0.0;
-    bool enabled = true;
+    double enableMix = 0.0, bypassSamples = 240.0;
+    FootController foot;
+    bool enabled = true, modelEnabled = true;
+    std::array<float, kMaxParams> modelParams {};
+    std::array<uint32_t, 19> hostSerials {};
+    bool hostInitialised = false;
+    float inputGain = 1.f, outputGain = 1.f, modelInputGain = 1.f, modelOutputGain = 1.f;
     void reset() noexcept;
 };
 class PedalPool

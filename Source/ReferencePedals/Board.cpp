@@ -52,16 +52,18 @@ void Board::releaseResources() { impl->engine.releaseResources(); }
 void Board::reset() noexcept { impl->engine.requestReset(); }
 BoardModel& Board::model() noexcept { return impl->model; }
 midi::MidiRouter& Board::midi() noexcept { return impl->router; }
-int Board::reclaim() noexcept { return impl->engine.reclaim() + impl->router.reclaim(); }
+int Board::reclaim() noexcept { impl->engine.drainControlEcho(); return impl->engine.reclaim() + impl->router.reclaim(); }
 BoardMeters Board::readMeters() const noexcept { auto result = impl->engine.meters(); result.midiDropped = impl->router.droppedCount(); return result; }
+void Board::setHostAutomation (const HostAutomationSnapshot& snapshot) noexcept { impl->engine.setHostAutomation (snapshot); }
 void Board::beginBlock (const juce::MidiBuffer& input, const HostTransport& host, int samples) noexcept
 {
     impl->explicitBlock = true;
     impl->blockSamples = std::max (0, samples);
     impl->router.process (input, host, impl->sample, impl->blockSamples, impl->routed);
     impl->engine.setTime (impl->routed.time);
+    impl->engine.beginEvents (impl->routed);
 }
-void Board::endBlock (juce::MidiBuffer&) noexcept { impl->sample += impl->blockSamples; impl->explicitBlock = false; }
+void Board::endBlock (juce::MidiBuffer&) noexcept { impl->sample += impl->blockSamples; impl->explicitBlock = false; impl->engine.endEvents(); }
 void Board::processStereo (double* left, double* right, int n, Placement placement) noexcept
 {
     const bool standaloneCall = ! impl->explicitBlock;
