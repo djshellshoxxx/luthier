@@ -2,6 +2,8 @@
 #include "../ReferencePedals/Models/boss_ds1.h"
 #include "../ReferencePedals/Models/boss_sd1.h"
 #include "../ReferencePedals/Models/ibanez_ts808.h"
+#include "../ReferencePedals/Models/mxr_distortion_plus.h"
+#include "../ReferencePedals/Models/proco_rat.h"
 #include "TestFramework.h"
 #include <array>
 #include <limits>
@@ -14,10 +16,13 @@ long allocationsOnThisThread() noexcept;
 #endif
 LUTHIER_TEST(RefPedalNamedDrives, automationHostileInputsAndNoAllocations)
 {
+    models::MxrDistortionPlus dp;
+    models::ProcoRat rat;
     models::BossDs1 ds;
     models::BossSd1 sd;
     models::IbanezTs808 ts;
-    for (IPedal *p : {static_cast<IPedal *>(&ds), static_cast<IPedal *>(&sd), static_cast<IPedal *>(&ts)})
+    for (IPedal *p : {static_cast<IPedal *>(&ds), static_cast<IPedal *>(&sd), static_cast<IPedal *>(&ts),
+                      static_cast<IPedal *>(&dp), static_cast<IPedal *>(&rat)})
     {
         p->prepare(48000, 2048, 1);
         std::array<double, 2048> l{}, r{};

@@ -1,0 +1,13 @@
+RefPedalTs808::descriptorAndCircuitContract 26 checks 0 failures
+RefPedalTs808::deterministicCircuitAcrossRatesAndPartitions 245784 checks 0 failures
+RefPedalDs1::descriptorAndPartitioning 245772 checks 0 failures
+RefPedalSd1::parameterContractAndBoundedCircuit 245782 checks 0 failures
+RefPedalDistortionPlus::circuitContractAndPartitioning 245768 checks 0 failures
+RefPedalRat::circuitContractAndPartitioning 245764 checks 0 failures
+RefPedalNamedDrives::automationHostileInputsAndNoAllocations 2621760 checks 0 failures
+RefPedalNamedDrives::sd1ExtensionControlsAreAudible 5 checks 0 failures
+RefPedalLinearGainStage::ds1ComplexTransferAndClipperKcl 16020 checks 0 failures
+RefPedalAsymmetricFeedback::independentTrapezoidalKclOracle 56196 checks 0 failures
+RefPedalDualGainLeg::ratIndependentComplexTransfer 18 checks 0 failures
+RefPedalDualGainLeg::tinyLedSaturationCurrentIsPreserved 4 checks 0 failures
+TOTAL 3922899 checks 0 failures
