@@ -49,6 +49,7 @@ public:
     bool setAssetStore (std::shared_ptr<IAssetStore> store);
     void requestReset() noexcept { resetRequested.store (true, std::memory_order_release); }
     void process (double*, double*, int, Placement) noexcept;
+    void setProcessorLoad (double fraction, bool measuredWindow, double blockAudioSeconds) noexcept;
     void setTime (const TimeInfo& time) noexcept { blockTime = time; }
     void setAuxOutputs (const BoardAuxOutputs& outputs) noexcept
     {
@@ -132,6 +133,7 @@ private:
     float extended (ExtendedHostField field) const noexcept { return extendedValues[static_cast<size_t> (field)]; }
     void applyExtended (const RenderPlan&) noexcept;
     void prepareEventOffsets (const RenderPlan&, int samples) noexcept;
+    void applyCpuRelief(); // message thread only
     HostAutomationSnapshot hostAutomation;
     std::array<uint32_t, 3> hostBoardSerials {}, modelBoardSerials {};
     struct HostSlotSource { InstanceId identity = InstanceId::null(); const char* modelId = nullptr; };
@@ -152,5 +154,8 @@ private:
     double rate = 48000, mixAlpha = 0.001;
     int block = 4096, dipSamples = 288;
     uint32_t version = 0;
+    double cpuHotSeconds = 0; // audio thread only
+    std::atomic<float> processorCpuPct { 0.f };
+    std::atomic<bool> processorCpuAvailable { false }, cpuReliefRequested { false }, cpuGovernorTripped { false }, cpuEcoApplied { false }, cpuGovernorFailed { false };
 };
 }

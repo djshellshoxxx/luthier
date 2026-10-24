@@ -54,6 +54,8 @@ public:
 
     //==========================================================================
     // Audio thread, per processSlice, in this order
+    // E65: measured Luthier callback load, not host-global or board-only load.
+    void setProcessorLoad (double fraction, bool measuredWindow, double blockAudioSeconds) noexcept;
     void setAuxOutputs (const BoardAuxOutputs&) noexcept; // E54: borrowed, pre-cleared float buffers
     void setSidechain (const float* left, const float* right, int samples) noexcept; // audio-only borrowed block input
     void setExtendedHostAutomation (const ExtendedHostAutomationSnapshot&) noexcept;

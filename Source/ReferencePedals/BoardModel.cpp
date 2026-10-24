@@ -4,6 +4,7 @@
 
 #include "BoardModel.h"
 #include "PedalRegistry.h"
+#include "CpuBudget.h"
 #include "Midi/MidiState.h"
 #include <algorithm>
 #include <cmath>
@@ -19,6 +20,8 @@ namespace
 {
     bool validRoutingReferences (const std::vector<PedalInstance>& instances, const BoardSettings& settings, juce::String& error)
     {
+        if (estimatedCpuUnits (instances) > static_cast<uint64_t> (settings.cpuCapPct))
+        { error = "Board CPU budget reached (estimated descriptor units)"; return false; }
         const auto find = [&] (const InstanceId& id) { for (size_t i = 0; i < instances.size(); ++i) if (instances[i].instanceId == id) return static_cast<int> (i); return -1; };
         std::array<int, kMaxSlots> loops; loops.fill (-1);
         for (int index = 0; index < kMaxLoops; ++index)

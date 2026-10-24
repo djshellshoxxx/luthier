@@ -1373,3 +1373,61 @@ LUTHIER_TEST (RefPedalBoardCore, failedRuntimePreparationAndRestoreLeaveWorkingM
     CHECK_NEAR (left[63], 0.025, 1.e-10);
     CHECK (board.model().undo()); CHECK (! board.model().getBoardSettings().enabled); // failure creates no undo entries
 }
+
+namespace
+{
+const PedalDesc costDesc { "test.cost", "test_cost_", 1, "Estimated cost", "Test", nullptr,
+    ChannelMode::Stereo, BypassMode::True, 0, nullptr, 0, false, false, false, 20 };
+const PedalDesc hugeCostDesc { "test.huge_cost", "test_huge_cost_", 1, "Overflow cost", "Test", nullptr,
+    ChannelMode::Stereo, BypassMode::True, 0, nullptr, 0, false, false, false, UINT32_MAX };
+const char* const qualityNames[] { "Eco", "Normal", "High" };
+const ParamDesc qualityParam[] { { "test_quality_quality", "Quality", "", ParamKind::Enum, Taper::Linear, 0, 2, 1, 1, 3, qualityNames, PF_Config, 0, -1 } };
+const PedalDesc qualityDesc { "test.quality", "test_quality_", 1, "Governor quality", "Test", nullptr,
+    ChannelMode::Stereo, BypassMode::True, 1, qualityParam, 0, false, false, false, 4 };
+std::unique_ptr<IPedal> makeCostProbe() { return std::make_unique<EventProbe> (costDesc); }
+std::unique_ptr<IPedal> makeHugeCostProbe() { return std::make_unique<EventProbe> (hugeCostDesc); }
+std::unique_ptr<IPedal> makeQualityProbe() { return std::make_unique<EventProbe> (qualityDesc); }
+}
+LUTHIER_TEST (RefPedalBoardCore, estimatedCpuCapRejectsAtomicallyAndUsesWideAccumulation)
+{
+    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (costDesc, makeCostProbe)); CHECK (PedalRegistry::add (hugeCostDesc, makeHugeCostProbe));
+    BoardModel model; const InstanceId first;
+    CHECK (model.apply (cmd::Add { "test.cost", -1, Placement::beforeExistingPre, 0, first }));
+    juce::String reason; CHECK (! model.apply (cmd::Add { "test.cost", -1, Placement::beforeExistingPre, 0, InstanceId() }, &reason));
+    CHECK (reason.contains ("estimated")); CHECK (model.getInstanceCount() == 1);
+    CHECK (! model.apply (cmd::SetBoardParam { "cpuCapPct", 19 }, &reason)); CHECK (model.getBoardSettings().cpuCapPct == 30);
+    CHECK (model.apply (cmd::SetBoardParam { "cpuCapPct", 40 })); CHECK (model.apply (cmd::Duplicate { first, InstanceId() }));
+    CHECK (model.getInstanceCount() == 2);
+    PedalInstance huge, other; huge.modelId = other.modelId = "test.huge_cost"; huge.slot = 0; other.slot = 1;
+    BoardSettings settings; settings.cpuCapPct = 100;
+    CHECK (! model.replaceAll ({ huge, other }, settings, &reason)); CHECK (model.getInstanceCount() == 2);
+    PedalPool pool; CHECK (pool.setAssetStore (nullptr));
+    CHECK (! TopologyCompiler::compile ({ huge, other }, settings, pool, 1, nullptr, reason));
+    CHECK (reason.contains ("Board CPU budget reached"));
+}
+LUTHIER_TEST (RefPedalBoardCore, measuredProcessorOverloadRequestsEcoOnlyAfterContinuousTwoSeconds)
+{
+    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (qualityDesc, makeQualityProbe));
+    Board board; board.prepare (48000, 64); const InstanceId id;
+    CHECK (board.model().apply (cmd::Add { "test.quality", -1, Placement::beforeExistingPre, 0, id })); CHECK (board.model().apply (cmd::SetBoardEnabled { true }));
+    double left[2048] {}, right[2048] {}; board.processStereo (left, right, 2048, Placement::beforeExistingPre);
+    const auto version = board.model().getTopologyInfo().version;
+    const auto allocations = luthier::tests::allocationsOnThisThread();
+    for (int i = 0; i < 250; ++i) board.setProcessorLoad (0.9, false, 0.01);
+    CHECK (! board.readMeters().cpuGovernorTripped && ! board.readMeters().cpuAvailable);
+    for (int i = 0; i < 199; ++i) board.setProcessorLoad (0.9, true, 0.01);
+    CHECK (! board.readMeters().cpuGovernorTripped);
+    board.setProcessorLoad (0.85, true, 0.01); // threshold is strictly greater; reset the uninterrupted window
+    for (int i = 0; i < 199; ++i) board.setProcessorLoad (0.9, true, 0.01);
+    CHECK (! board.readMeters().cpuGovernorTripped); board.setProcessorLoad (0.9, true, 0.01);
+    CHECK (board.readMeters().cpuGovernorTripped && board.readMeters().cpuAvailable);
+    CHECK_NEAR (board.readMeters().cpuPct, 90.f, 1.e-5);
+    CHECK (luthier::tests::allocationsOnThisThread() == allocations);
+    CHECK (board.model().getInstance (id)->params[0] == 0.5f); // no model mutation on audio
+    board.reclaim(); CHECK (board.readMeters().cpuEcoApplied && ! board.readMeters().cpuGovernorFailed);
+    CHECK (board.model().getInstance (id)->params[0] == 0.f); CHECK (board.model().getTopologyInfo().version > version);
+    for (int i = 0; i < 300; ++i) board.setProcessorLoad (0.1, true, 0.01); board.reclaim();
+    CHECK (board.model().getInstance (id)->params[0] == 0.f); // no automatic quality revert
+    CHECK (board.model().undo()); CHECK (board.model().getInstance (id)->params[0] == 0.5f);
+    board.reclaim(); CHECK (board.model().getInstance (id)->params[0] == 0.5f); // latched request is consumed once
+}
