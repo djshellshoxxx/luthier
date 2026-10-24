@@ -27,12 +27,12 @@ void BossCe2w::prepare(double sampleRate,int,int)
 {
     sr=sampleRate;prepareParams(sr);
     for(int m=0;m<3;++m){wet[m].prepare(sr,40,6590,6930);wet[m].setClipLevel(4.5);emphasis[m].setShelf(sr,1000,6,true);deemphasis[m].setShelf(sr,1000,-6,true);}
-    inputHp.setLowpass(sr,10);lfo.prepare(sr);reset();
+    inputHp.setLowpass(sr,10);for(auto& filter:bypassHp)filter.setLowpass(sr,10);lfo.prepare(sr);reset();
 }
 void BossCe2w::reset() noexcept
 {
     for(int m=0;m<3;++m){wet[m].reset(seed);emphasis[m].reset();deemphasis[m].reset();}
-    inputHp.reset();lfo.setPhase(0);lastRate=-1;engage=enabled?1:0;mode=oldMode=int(value(2));modeBlend=1;stereoBlend=value(4);
+    inputHp.reset();for(auto& filter:bypassHp)filter.reset();lfo.setPhase(0);lastRate=-1;mode=oldMode=int(value(2));modeBlend=1;stereoBlend=value(4);
 }
 void BossCe2w::setTime(const TimeInfo& t) noexcept
 {
@@ -52,7 +52,6 @@ void BossCe2w::process(double* left,double* right,int n) noexcept
         if(mode!=int(value(2))){oldMode=mode;mode=int(value(2));modeBlend=0;}
         modeBlend=std::min(1.,modeBlend+1/(sr*.01));
         stereoBlend+=std::clamp(double(value(4))-stereoBlend,-1/(sr*.01),1/(sr*.01));
-        engage+=std::clamp((enabled?1.:0.)-engage,-1/(sr*.005),1/(sr*.005));
         auto render=[&](int m) noexcept
         {
             double coloured=input;
@@ -67,9 +66,13 @@ void BossCe2w::process(double* left,double* right,int n) noexcept
         const std::array<std::array<double,2>,3> voices{render(0),render(1),render(2)};
         const auto& current=voices[mode];const auto& old=voices[oldMode];
         const double a=old[0]+(current[0]-old[0])*modeBlend,b=old[1]+(current[1]-old[1])*modeBlend;
-        left[i]=softGuard(dry[0]+(a-dry[0])*engage);
-        right[i]=softGuard(dry[1]+(a+(b-a)*stereoBlend-dry[1])*engage);
+        left[i]=softGuard(a); // E60: board owns buffered engagement.
+        right[i]=softGuard(a+(b-a)*stereoBlend);
         lfo.setRate(value(5)>.5f && time.valid ? std::min(10.,common::TempoSync::rate(time.bpm,quarters[int(value(6))])):rate);lfo.advance();
     }
+}
+void BossCe2w::processBypass(double* left,double* right,int n) noexcept
+{
+    for(int i=0;i<n;++i){left[i]=softGuard(bypassHp[0].highpass(softGuard(left[i])));right[i]=softGuard(bypassHp[1].highpass(softGuard(right[i])));}
 }
 }
