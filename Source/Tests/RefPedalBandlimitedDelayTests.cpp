@@ -49,3 +49,27 @@ LUTHIER_TEST(RefPedalBandlimitedDelay, boundedWrapMatchesIntegerHistory)
         }
     }
 }
+
+LUTHIER_TEST(RefPedalBandlimitedDelay, constantTimeResetMatchesZeroFilledOracle)
+{
+    using luthier::reference::common::FractionalDelay;
+    for(int capacity:{1,7,8,127,4096})
+    {
+        FractionalDelay reset,zeroFilled;reset.prepare(capacity);zeroFilled.prepare(capacity);
+        for(int round=0;round<3;++round)
+        {
+            reset.reset();
+            // A fully overwritten zero history is the old physical-clear oracle.
+            for(int i=0;i<capacity+16;++i)zeroFilled.push(0);
+            for(int i=0;i<2*(capacity+16)+37;++i)
+            {
+                for(double age:{1.25,capacity*.5,capacity-.125})
+                {
+                    CHECK(reset.read(age)==zeroFilled.read(age));
+                    CHECK(reset.readBandlimited(age)==zeroFilled.readBandlimited(age));
+                }
+                const double x=.25*std::sin((i+round*31)*.19);reset.push(x);zeroFilled.push(x);
+            }
+        }
+    }
+}
