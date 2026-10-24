@@ -3,6 +3,7 @@
 #include "PedalRegistry.h"
 #include "Services/AssetStore.h"
 #include <algorithm>
+#include <exception>
 namespace luthier::reference
 {
 void PedalRuntime::writeParam (int index, float value, float smoothMs) noexcept
@@ -62,6 +63,7 @@ void PedalPool::prepare (double sampleRate, int maxBlock, const std::vector<Peda
     rate = sampleRate; block = maxBlock; objects.clear(); preparedExtras = captured;
 }
 std::shared_ptr<PedalRuntime> PedalPool::acquire (const PedalInstance& instance, juce::String& error, const PedalRuntime* active)
+try
 {
     if (instance.missing) return {};
     const auto* desc = PedalRegistry::find (instance.modelId.c_str());
@@ -123,6 +125,14 @@ std::shared_ptr<PedalRuntime> PedalPool::acquire (const PedalInstance& instance,
     result->foot.prepare (rate); result->foot.reset (instance.enabled);
     objects.emplace_back (result);
     return result;
+}
+catch (const std::exception& failure)
+{
+    error = "Pedal preparation/restore failed: " + juce::String (failure.what()); return {};
+}
+catch (...)
+{
+    error = "Pedal preparation/restore failed with an unknown error"; return {};
 }
 void PedalPool::reclaim()
 {
