@@ -19,6 +19,7 @@ public:
     void mouseUp (const juce::MouseEvent&) override;
     void focusGained (FocusChangeType) override;
     void focusLost (FocusChangeType) override { repaint(); }
+    void focusOfChildComponentChanged (FocusChangeType) override { if(hasKeyboardFocus(true)&&onFocus)onFocus(*this);repaint(); }
     InstanceId id() const { return instanceId; }
     juce::Point<float> inputJack() const { return {0.f,getHeight()*.42f}; }
     juce::Point<float> outputJack() const { return {(float)getWidth(),getHeight()*.42f}; }

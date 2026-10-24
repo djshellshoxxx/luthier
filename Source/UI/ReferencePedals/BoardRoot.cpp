@@ -65,12 +65,12 @@ BoardRoot::BoardRoot(BoardModel& m,LuthierAudioProcessor* p):model(m),processor(
         processor->getEngine().getReferencePedals().midi().armLearn({(uint8_t)instance->slot,(uint16_t)param,continuous});
         status.setText("Waiting for MIDI for "+juce::String(instance->modelId)+"; Escape cancels",juce::dontSendNotification);startTimerHz(10);
     };
-    canvas.onFocus=[this](PedalView& p){const auto r=p.getBounds();viewport.setViewPosition(juce::jmax(0,(int)(r.getX()*zoom)-24),juce::jmax(0,(int)(r.getY()*zoom)-24));};
+    canvas.onFocus=[this](PedalView& p){model.setMidiFocus(p.id());const auto r=p.getBounds();viewport.setViewPosition(juce::jmax(0,(int)(r.getX()*zoom)-24),juce::jmax(0,(int)(r.getY()*zoom)-24));};
     const auto ui=BoardUiState::read(model.getBoardSettings().ui);cables.setToggleState(ui.cables,juce::dontSendNotification);canvas.setCables(ui.cables);zoomTo(ui.zoom);viewport.setViewPosition(ui.scrollX,ui.scrollY);
     viewport.onScroll=[this]{saveView();};
     model.addListener(this);refresh();
 }
-BoardRoot::~BoardRoot(){viewport.onScroll=nullptr;stopTimer();flushView();model.removeListener(this);toolbarViewport.setViewedComponent(nullptr,false);viewport.setViewedComponent(nullptr,false);}
+BoardRoot::~BoardRoot(){canvas.onFocus=nullptr;canvas.onLearn=nullptr;viewport.onScroll=nullptr;stopTimer();flushView();model.removeListener(this);toolbarViewport.setViewedComponent(nullptr,false);viewport.setViewedComponent(nullptr,false);}
 void BoardRoot::refresh()
 {
     const juce::ScopedValueSetter<bool> guard(refreshing,true);const auto s=model.getBoardSettings();
