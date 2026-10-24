@@ -83,3 +83,14 @@ mailbox and six focused tests are described in
 processor or UI integration is enabled. Exact source/restore/control/host tokens
 and an actual guarded conditional commit are prerequisites, not inferred from
 UiEv Activity or the existing applyHostEcho API.
+
+UI clock feedback follow-up: status cache advances only after a successful ring
+push; failed lock/loss/tempo/overload notices retry after the sole UI consumer
+drains. Activity leaves four fixed ring positions for these notices and skipped
+activity plus ring overflow contribute to droppedCount. Actual routing/offsets
+are independent of presentation drops. Two focused tests observed four failures
+before the fix, then passed11checks normally, under ASan/UBSan and under TSan:
+hidden-UI clock-loss recovery, tempo convergence during continuing512-event CC
+flood, overload accounting, no duplicate acknowledged tempo, and zero callback
+allocations. Evidence: midi-feedback-{red,green,address-undefined,thread}.log.
+This changes no public API and does not establish general parameter persistence.

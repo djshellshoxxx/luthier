@@ -155,7 +155,11 @@ struct MidiRouter::Impl
             out.writes[out.nWrites++] = { b.target >= kTargetBoardBase ? kBoardTargetSlot : (uint8_t) (b.target / kMaxParams),
                 b.target >= kTargetBoardBase ? (uint16_t) (b.target - kTargetBoardBase) : (uint16_t) (b.target % kMaxParams), values[index], b.smoothMs, offset };
             const auto& write = out.writes[out.nWrites - 1];
-            feedback.push ({ UiEvKind::Activity, write.slot, write.paramIdx, write.norm, (uint32_t) offset, 0 });
+            // Leave room for lock/loss/tempo/overload state during CC floods.
+            // Activity is presentation-only; dropping it cannot alter routing.
+            if (feedback.sizeApprox() < feedback.capacity() - 4)
+                feedback.push ({ UiEvKind::Activity, write.slot, write.paramIdx, write.norm, (uint32_t) offset, 0 });
+            else drop();
         }
     }
     bool learnEvent (MidiSrc type, int ch, int num, int value, int64_t t) noexcept
@@ -409,15 +413,21 @@ void MidiRouter::process (const juce::MidiBuffer& in, const HostTransport& host,
     }
     impl->clock.finish (start + n, out);
     const bool lost = impl->clock.isLost();
-    if (out.time.clockLocked != impl->uiClockLocked)
-    { impl->uiClockLocked = out.time.clockLocked; impl->feedback.push ({ UiEvKind::ClockLock, 0xff, 0, impl->uiClockLocked ? 1.f : 0.f }); }
-    if (lost != impl->uiClockLost)
-    { impl->uiClockLost = lost; impl->feedback.push ({ UiEvKind::ClockLost, 0xff, 0, lost ? 1.f : 0.f }); }
-    if (std::abs (out.time.bpm - impl->uiTempo) >= .01)
-    { impl->uiTempo = out.time.bpm; impl->feedback.push ({ UiEvKind::TempoChanged, 0xff, 0, (float) impl->uiTempo }); }
+    // Cache only successfully queued state. A hidden UI can fill the ring;
+    // failed notices remain dirty and retry after its sole consumer drains it.
+    if (out.time.clockLocked != impl->uiClockLocked
+        && impl->feedback.push ({ UiEvKind::ClockLock, 0xff, 0, out.time.clockLocked ? 1.f : 0.f }))
+        impl->uiClockLocked = out.time.clockLocked;
+    if (lost != impl->uiClockLost
+        && impl->feedback.push ({ UiEvKind::ClockLost, 0xff, 0, lost ? 1.f : 0.f }))
+        impl->uiClockLost = lost;
+    if (std::abs (out.time.bpm - impl->uiTempo) >= .01
+        && impl->feedback.push ({ UiEvKind::TempoChanged, 0xff, 0, (float) out.time.bpm }))
+        impl->uiTempo = out.time.bpm;
     const auto dropped = droppedCount();
-    if (dropped != impl->uiDropped)
-    { impl->uiDropped = dropped; impl->feedback.push ({ UiEvKind::Overload, 0xff, 0, 0, dropped, 0 }); }
+    if (dropped != impl->uiDropped
+        && impl->feedback.push ({ UiEvKind::Overload, 0xff, 0, 0, dropped, 0 }))
+        impl->uiDropped = dropped;
     if (out.nTr > 0)
         for (int i = 0; i < out.nTr; ++i) if (out.tr[i] == TransportEvent::Stop)
             for (int slot = 0; slot < kMaxSlots; ++slot) impl->foot (slot, false, .5f, out.trOff[i], out);
@@ -435,5 +445,5 @@ bool MidiRouter::pollLearn (LearnCapture& c)
 }
 int MidiRouter::drainUi (UiEv* out, int cap) noexcept { return out && cap > 0 ? (int) impl->feedback.popMany (out, (size_t) cap) : 0; }
 uint32_t MidiRouter::droppedCount() const noexcept
-{ return impl->dropped.load (std::memory_order_relaxed) + impl->input.dropped() + impl->priority.dropped() + impl->captures.dropped(); }
+{ return impl->dropped.load (std::memory_order_relaxed) + impl->input.dropped() + impl->priority.dropped() + impl->captures.dropped() + impl->feedback.dropped(); }
 }
