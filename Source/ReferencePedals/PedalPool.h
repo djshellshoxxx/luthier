@@ -31,6 +31,16 @@ struct PedalRuntime
     std::array<uint32_t, 19> hostSerials {};
     bool hostInitialised = false;
     float inputGain = 1.f, outputGain = 1.f, modelInputGain = 1.f, modelOutputGain = 1.f;
+    struct ParamRamp { double value = 0, target = 0, coefficient = 0; };
+    std::array<ParamRamp, kMaxParams> ramps {};
+    uint32_t rampMask = 0;
+    double sampleRate = 48000;
+    std::array<MidiEvent, 64> renderedMidi {};
+    int numRenderedMidi = 0;
+    uint32_t midiDropped = 0;
+    void writeParam (int index, float value, float smoothMs = 0) noexcept;
+    void advanceParams() noexcept;
+    void collectMidi (int sampleOffset, int samples) noexcept;
     void reset() noexcept;
 };
 class PedalPool

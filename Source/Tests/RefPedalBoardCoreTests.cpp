@@ -583,7 +583,8 @@ class EventProbe final : public IPedal
 {
 public:
     explicit EventProbe (bool transport = false) : transportFoot (transport) {}
-    const PedalDesc& desc() const noexcept override { return transportFoot ? transportDesc : eventDesc; }
+    explicit EventProbe (const PedalDesc& descriptor) : description (&descriptor) {}
+    const PedalDesc& desc() const noexcept override { return description ? *description : transportFoot ? transportDesc : eventDesc; }
     void prepare (double, int, int) override {}
     void reset() noexcept override {}
     void process (double* l, double* r, int n) noexcept override { samples += n; for (int i = 0; i < n; ++i) { l[i] *= value; r[i] *= value; } }
@@ -601,6 +602,7 @@ public:
     bool footControlsEngagement() const noexcept override { return ! transportFoot; }
 private:
     uint64_t samples = 0;
+    const PedalDesc* description = nullptr;
     bool transportFoot = false;
     float value = 0.5f;
 };
@@ -1116,4 +1118,82 @@ LUTHIER_TEST (RefPedalBoardCore, injectedAssetStoreIsPinnedThroughPedalTeardownA
     board.prepare (48000, 64); board.model().snapshot (instances, settings);
     CHECK (! static_cast<bool> (instances[0].extras["preparedWithAssetService"]));
     board.releaseResources(); CHECK (directory.deleteRecursively());
+}
+
+LUTHIER_TEST (RefPedalBoardCore, continuousMidiSmoothingIsPerSampleAndPartitionIndependent)
+{
+    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (eventDesc, makeEventProbe));
+    const auto render = [&] (int blockSize)
+    {
+        BoardModel model; BoardEngine engine (model); const InstanceId id;
+        CHECK (model.apply (cmd::Add { "test.event", -1, Placement::beforeExistingPre, 0, id }));
+        CHECK (model.apply (cmd::SetBoardEnabled { true }));
+        double left[1024] {}, right[1024] {}; engine.process (left, right, 1024, Placement::beforeExistingPre);
+        std::array<double, 1024> result {};
+        const auto allocations = luthier::tests::allocationsOnThisThread();
+        for (int start = 0; start < 1024;)
+        {
+            const int n = std::min (blockSize, 1024 - start); midi::RouteOut events;
+            for (const int sample : { 17, 500 }) if (sample >= start && sample < start + n)
+                events.writes[events.nWrites++] = { 0, 0, sample == 17 ? 1.f : 0.f, 10, sample - start };
+            std::fill_n (left, n, 0.1); std::fill_n (right, n, 0.1);
+            engine.beginEvents (events); engine.process (left, right, n, Placement::beforeExistingPre); engine.endEvents();
+            std::copy_n (left, n, result.data() + start); start += n;
+        }
+        CHECK (luthier::tests::allocationsOnThisThread() == allocations);
+        double expected = 0.5; const double coefficient = std::exp (-1.0 / 480.0);
+        for (int i = 0; i < 1024; ++i)
+        {
+            if (i >= 17) { const double target = i < 500 ? 1.0 : 0.0; expected = target + coefficient * (expected - target); }
+            CHECK_NEAR (result[static_cast<size_t> (i)], 0.1 * expected, 1.e-8);
+        }
+        CHECK (model.apply (cmd::SetParam { id, 0, 0.5f })); // same stored value cancels an older MIDI ramp
+        midi::RouteOut empty; std::fill_n (left, 64, 0.1); std::fill_n (right, 64, 0.1);
+        engine.beginEvents (empty); engine.process (left, right, 64, Placement::beforeExistingPre); engine.endEvents();
+        CHECK_NEAR (left[0], 0.05, 1.e-8);
+        return result;
+    };
+    const auto expected = render (1024);
+    for (const int size : { 1, 17, 37, 128 })
+    {
+        const auto result = render (size);
+        for (size_t i = 0; i < result.size(); ++i) CHECK_NEAR (result[i], expected[i], 1.e-12);
+    }
+}
+LUTHIER_TEST (RefPedalBoardCore, malformedRawMidiNeverReachesOptedInPedals)
+{
+    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (rawDesc, makeRawProbe));
+    Board board; CHECK (board.model().apply (cmd::Add { "test.raw", -1, Placement::beforeExistingPre, 0, InstanceId() }));
+    CHECK (board.model().apply (cmd::SetBoardEnabled { true }));
+    double left[1024] {}, right[1024] {}; board.processStereo (left, right, 1024, Placement::beforeExistingPre);
+    juce::MidiBuffer input, output; const uint8_t invalid[] { 0xc0, 0xff }, truncated[] { 0xc0 };
+    input.addEvent (invalid, 2, 17); input.addEvent (truncated, 1, 21); input.addEvent (juce::MidiMessage::programChange (1, 127), 33);
+    std::fill_n (left, 64, 0.1); std::fill_n (right, 64, 0.1);
+    const auto allocations = luthier::tests::allocationsOnThisThread();
+    board.beginBlock (input, {}, 64); board.processStereo (left, right, 64, Placement::beforeExistingPre); board.endBlock (output);
+    MidiEvent outgoing[8]; const int count = board.drainMidiOut (outgoing, 8);
+    CHECK (luthier::tests::allocationsOnThisThread() == allocations);
+    CHECK (count == 1 && outgoing[0].offset == 33 && outgoing[0].d1 == 127);
+    for (int i = 0; i < 64; ++i) CHECK_NEAR (left[i], i < 33 ? 0.05 : 0.1, 1.e-10);
+    CHECK (board.readMeters().midiDropped >= 2);
+}
+
+namespace
+{
+const ParamDesc ownGain[] { { "test_own_gain", "Gain", "", ParamKind::Continuous, Taper::Linear, 0, 1, 0.5f, 1, 0, nullptr, PF_Automatable | PF_OwnSmoothing, 0, -1 } };
+const PedalDesc ownEventDesc { "test.own_gain", "test_own_", 1, "Own smoothing probe", "Test", nullptr, ChannelMode::Stereo,
+    BypassMode::True, 1, ownGain, 0, false, false, false, 0 };
+std::unique_ptr<IPedal> makeOwnEventProbe() { return std::make_unique<EventProbe> (ownEventDesc); }
+}
+LUTHIER_TEST (RefPedalBoardCore, ownSmoothingReceivesExactTargetAtOffsetWithoutBindingRamp)
+{
+    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (ownEventDesc, makeOwnEventProbe));
+    BoardModel model; BoardEngine engine (model);
+    CHECK (model.apply (cmd::Add { "test.own_gain", -1, Placement::beforeExistingPre, 0, InstanceId() }));
+    CHECK (model.apply (cmd::SetBoardEnabled { true }));
+    double left[1024] {}, right[1024] {}; engine.process (left, right, 1024, Placement::beforeExistingPre);
+    midi::RouteOut events; events.writes[events.nWrites++] = { 0, 0, 1.f, 500, 13 };
+    std::fill_n (left, 64, 0.1); std::fill_n (right, 64, 0.1);
+    engine.beginEvents (events); engine.process (left, right, 64, Placement::beforeExistingPre); engine.endEvents();
+    for (int i = 0; i < 64; ++i) CHECK_NEAR (left[i], i < 13 ? 0.05 : 0.1, 1.e-8);
 }

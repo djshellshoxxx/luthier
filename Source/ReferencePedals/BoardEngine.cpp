@@ -216,6 +216,15 @@ void BoardEngine::beginRawMidi (const juce::MidiBuffer& input, int samples) noex
         if (metadata.samplePosition < 0 || metadata.samplePosition >= samples) continue;
         if (metadata.numBytes < 1 || metadata.numBytes > 3 || numRawMidi == static_cast<int> (rawMidi.size()))
         { rawDropped.fetch_add (1, std::memory_order_relaxed); continue; }
+        const auto status = metadata.data[0];
+        int expected = 0;
+        if (status >= 0x80 && status < 0xf0) expected = (status & 0xe0) == 0xc0 ? 2 : 3;
+        else if (status == 0xf1 || status == 0xf3) expected = 2;
+        else if (status == 0xf2) expected = 3;
+        else if (status == 0xf6 || status == 0xf8 || status == 0xfa || status == 0xfb || status == 0xfc || status == 0xfe || status == 0xff) expected = 1;
+        bool valid = expected != 0 && metadata.numBytes == expected;
+        for (int byte = 1; valid && byte < metadata.numBytes; ++byte) valid = metadata.data[byte] < 0x80;
+        if (! valid) { rawDropped.fetch_add (1, std::memory_order_relaxed); continue; }
         rawMidi[static_cast<size_t> (numRawMidi++)] = { metadata.data[0],
             static_cast<uint8_t> (metadata.numBytes > 1 ? metadata.data[1] : 0),
             static_cast<uint8_t> (metadata.numBytes > 2 ? metadata.data[2] : 0), metadata.samplePosition };
@@ -392,13 +401,20 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
         if (events)
         {
             const auto split = [&] (int eventOffset) { if (eventOffset > offset) count = std::min (count, eventOffset - offset); };
-            for (int event = 0; event < events->nWrites; ++event) split (events->writes[event].offset);
+            for (int event = 0; event < events->nWrites; ++event)
+            {
+                const auto& write = events->writes[event];
+                bool continuous = false;
+                if (write.slot < kMaxSlots && plan.slots[write.slot] && write.paramIdx < plan.slots[write.slot]->pedal->desc().numParams)
+                {
+                    const auto& param = plan.slots[write.slot]->pedal->desc().params[write.paramIdx];
+                    continuous = ! param.has (PF_Engage) && (param.kind == ParamKind::Continuous || param.kind == ParamKind::Tempo);
+                }
+                if (! continuous) split (write.offset);
+            }
             for (int event = 0; event < events->nFoot; ++event) split (events->foot[event].offset);
             for (int event = 0; event < events->nTr; ++event) split (events->trOff[event]);
         }
-        for (int event = 0; event < numRawMidi; ++event)
-            if (rawMidi[static_cast<size_t> (event)].offset > offset)
-                count = std::min (count, rawMidi[static_cast<size_t> (event)].offset - offset);
         if (s.phase != Segment::Idle) count = std::min (count, dipSamples - s.ramp);
         const bool hasNodes = topology.segBegin[p] != topology.segEnd[p] || (p == 0 && extended (ExtendedHostField::ReampEnable) >= 0.5f && topology.n > 0);
         if (! hasNodes && ! s.pending) { s.phase = Segment::Idle; s.gain = 1.0; offset += count; continue; }
@@ -450,6 +466,13 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
             if (node.kind == NodeKind::Pedal)
             {
                 auto& state = pedalStates[node.slot]; state.runtime = plan.slots[node.slot].get(); state.control = &plan.controls[node.slot];
+                state.events = events; state.offset = offset; state.eventsEnabled = localEnabled; state.processWet = ! wetPaused;
+                state.raw = rawMidi.data(); state.numRaw = numRawMidi;
+                state.sidechain[0] = hasSidechain ? sidechainScratch[0].data() : nullptr;
+                state.sidechain[1] = hasSidechain ? sidechainScratch[1].data() : nullptr;
+                state.time = blockTime; state.time.sample += offset;
+                if (state.time.valid) state.time.ppq += offset * state.time.bpm / (60.0 * rate);
+                if (state.runtime) { state.runtime->numRenderedMidi = 0; state.runtime->midiDropped = 0; }
                 context.state[index] = &state;
                 if (state.runtime)
                 {
@@ -462,7 +485,7 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
                         {
                             state.runtime->modelParamSerials[static_cast<size_t> (param)] = state.control->paramSerials[static_cast<size_t> (param)];
                             state.runtime->modelParams[static_cast<size_t> (param)] = state.control->params[static_cast<size_t> (param)];
-                            pedal.setParam (param, state.control->params[static_cast<size_t> (param)]);
+                            state.runtime->writeParam (param, state.control->params[static_cast<size_t> (param)]);
                         }
                     if (state.runtime->modelEnabledSerial != state.control->enabledSerial)
                     {
@@ -498,7 +521,7 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
                         else if (index <= 16)
                         {
                             const int param = state.control->laneToParam[static_cast<size_t> (index - 1)];
-                            if (param >= 0) pedal.setParam (param, std::clamp (value, 0.f, 1.f));
+                            if (param >= 0) state.runtime->writeParam (param, std::clamp (value, 0.f, 1.f));
                         }
                         else if (index == 17) state.runtime->inputGain = std::pow (10.f, std::clamp (value, -12.f, 12.f) / 20.f);
                         else state.runtime->outputGain = std::pow (10.f, std::clamp (value, -12.f, 12.f) / 20.f);
@@ -508,14 +531,11 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
                         {
                             auto& pulse = pendingPulses[static_cast<size_t> (i)];
                             if (pulse.identity == state.runtime->identity && pulse.modelId == pedal.desc().modelId)
-                            { pedal.setParam (pulse.param, pulse.value); pulse.identity = InstanceId::null(); }
+                            { state.runtime->writeParam (pulse.param, pulse.value); pulse.identity = InstanceId::null(); }
                         }
                     auto time = blockTime;
                     time.sample += offset; if (time.valid) time.ppq += offset * time.bpm / (60.0 * rate);
                     pedal.setTime (time);
-                    if (localEnabled && pedal.desc().wantsRawMidi)
-                        for (int event = 0; event < numRawMidi; ++event)
-                            if (rawMidi[static_cast<size_t> (event)].offset == offset) pedal.onMidi (rawMidi[static_cast<size_t> (event)]);
                     if (events)
                     {
                         for (int event = 0; event < events->nTr; ++event)
@@ -548,7 +568,9 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
                                     state.runtime->foot.reset (state.runtime->enabled);
                                     engageEcho.push ({ state.runtime->identity, node.slot, state.runtime->enabled, state.runtime->modelEnabled });
                                 }
-                                else pedal.setParam (write.paramIdx, write.norm);
+                                else if (pedal.desc().params[write.paramIdx].kind != ParamKind::Continuous
+                                    && pedal.desc().params[write.paramIdx].kind != ParamKind::Tempo)
+                                    state.runtime->writeParam (write.paramIdx, write.norm, write.smoothMs);
                             }
                     }
                 }
@@ -557,14 +579,15 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
             else if (node.kind == NodeKind::Sum && node.i0 != 0) context.state[index] = &s.ab;
             else if (node.kind == NodeKind::Delay) context.state[index] = &s.lanes[node.aux];
             else if (node.kind == NodeKind::SendTap || node.kind == NodeKind::ReturnInject) context.state[index] = &s.loops[node.aux];
-            if (! wetPaused) routing::nodeTable()[static_cast<int> (node.kind)] (node, context);
+            if (! wetPaused || node.kind == NodeKind::Pedal) routing::nodeTable()[static_cast<int> (node.kind)] (node, context);
             if (node.kind == NodeKind::Pedal)
             {
                 auto* runtime = plan.slots[node.slot].get();
                 if (runtime)
                 {
-                    MidiEvent outgoing[64];
-                    const int drained = std::clamp (runtime->pedal->drainMidiOut (outgoing, 64), 0, 64);
+                    const auto& outgoing = runtime->renderedMidi;
+                    const int drained = runtime->numRenderedMidi;
+                    outputDropped.fetch_add (runtime->midiDropped, std::memory_order_relaxed);
                     if (localEnabled)
                         for (int event = 0; event < drained; ++event)
                         {
