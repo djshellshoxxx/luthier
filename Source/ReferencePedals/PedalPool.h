@@ -52,10 +52,10 @@ public:
     bool setAssetStore (std::shared_ptr<IAssetStore>); // stopped; rejects while any runtime is retained
     bool hasAssetStore() const noexcept { return static_cast<bool> (assets); }
     void setPreparationFormat (double sampleRate, int maxBlock) noexcept;
-    void prepare (double sampleRate, int maxBlock, const std::vector<PedalInstance>& captured = {});
+    void prepare (double sampleRate, int maxBlock, const std::vector<PedalInstance>& captured = {}, const std::vector<PedalInstance>& stored = {});
     std::shared_ptr<PedalRuntime> acquire (const PedalInstance&, juce::String& error, const PedalRuntime* active = nullptr, bool restoreExtras = false);
     bool preflightFresh (const std::vector<PedalInstance>&, juce::String& error) const;
-    void published() { preparedExtras.clear(); } // captured extras consumed only by a complete published plan
+    void published() { preparedExtras.clear(); preparedSources.clear(); } // captured extras consumed only by a complete published plan
     void reclaim();
     uint64_t preparedBytes() const noexcept { return memoryBudget.used(); }
 private:
@@ -65,6 +65,6 @@ private:
     double rate = 48000.0;
     int block = 4096;
     std::vector<std::weak_ptr<PedalRuntime>> objects;
-    std::vector<PedalInstance> preparedExtras;
+    std::vector<PedalInstance> preparedExtras, preparedSources;
 };
 }

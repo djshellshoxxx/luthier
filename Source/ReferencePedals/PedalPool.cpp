@@ -1,6 +1,7 @@
 // OWNER: WP2
 #include "PedalPool.h"
 #include "PedalRegistry.h"
+#include "ExtraState.h"
 #include "Services/AssetStore.h"
 #include <algorithm>
 #include <exception>
@@ -60,9 +61,9 @@ bool PedalPool::setAssetStore (std::shared_ptr<IAssetStore> store)
 }
 void PedalPool::setPreparationFormat (double sampleRate, int maxBlock) noexcept
 { rate = sampleRate; block = maxBlock; objects.clear(); }
-void PedalPool::prepare (double sampleRate, int maxBlock, const std::vector<PedalInstance>& captured)
+void PedalPool::prepare (double sampleRate, int maxBlock, const std::vector<PedalInstance>& captured, const std::vector<PedalInstance>& stored)
 {
-    setPreparationFormat (sampleRate, maxBlock); preparedExtras = captured;
+    setPreparationFormat (sampleRate, maxBlock); preparedExtras = captured; preparedSources = stored;
 }
 bool PedalPool::preflightFresh (const std::vector<PedalInstance>& instances, juce::String& error) const
 {
@@ -100,17 +101,20 @@ try
     auto extras = instance.extras.clone();
     if (extras.isVoid()) extras = new juce::DynamicObject(); // absent and empty extras have identical DSP meaning
     if (auto* object = extras.getDynamicObject()) object->removeProperty ("midi");
-    const auto extrasKey = juce::JSON::toString (extras);
+    juce::String extrasKey;
+    if (! BoardState::canonicalJson (extras, extrasKey, &error)) return {};
     bool restoreRuntimeState = false;
     if (restoreExtras && active && active->identity == instance.instanceId && active->model == instance.modelId)
     {
         auto captured = extras.clone(); active->pedal->saveExtra (captured);
         auto liveExtras = extras.clone();
         if (auto* object = liveExtras.getDynamicObject(); object && captured.getDynamicObject())
-            for (const auto& property : captured.getDynamicObject()->getProperties()) object->setProperty (property.name, property.value.clone());
+            for (const auto& property : captured.getDynamicObject()->getProperties()) setExactExtraProperty (*object, property.name, property.value);
         else liveExtras = captured.clone();
         if (auto* object = liveExtras.getDynamicObject()) object->removeProperty ("midi");
-        restoreRuntimeState = juce::JSON::toString (liveExtras) != extrasKey;
+        juce::String liveKey;
+        if (! BoardState::canonicalJson (liveExtras, liveKey, &error)) return {};
+        restoreRuntimeState = liveKey != extrasKey;
     }
     for (auto& weak : objects)
         if (auto existing = weak.lock())
@@ -140,7 +144,21 @@ try
     if (! restoreExtras)
     for (auto saved = preparedExtras.begin(); saved != preparedExtras.end(); ++saved)
         if (saved->instanceId == instance.instanceId && saved->modelId == instance.modelId && saved->modelRevision == instance.modelRevision)
-        { loadExtras = saved->extras.clone(); break; }
+        {
+            bool matchesSource = preparedSources.empty();
+            for (const auto& source : preparedSources)
+                if (source.instanceId == instance.instanceId && source.modelId == instance.modelId && source.modelRevision == instance.modelRevision)
+                {
+                    auto sourceExtras = source.extras.clone();
+                    if (sourceExtras.isVoid()) sourceExtras = new juce::DynamicObject();
+                    if (auto* object = sourceExtras.getDynamicObject()) object->removeProperty ("midi");
+                    juce::String sourceKey;
+                    if (! BoardState::canonicalJson (sourceExtras, sourceKey, &error)) return {};
+                    matchesSource = sourceKey == extrasKey; break;
+                }
+            if (matchesSource) loadExtras = saved->extras.clone();
+            break;
+        }
     if (! restoreExtras && active && active->identity == instance.instanceId && active->model == instance.modelId
         && active->revision == instance.modelRevision && active->extrasKey == extrasKey)
         active->pedal->saveExtra (loadExtras);

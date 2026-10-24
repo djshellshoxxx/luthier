@@ -1,5 +1,6 @@
 // OWNER: WP2
 #include "BoardEngine.h"
+#include "ExtraState.h"
 #include "BoardLimiter.h"
 #include "PedalRegistry.h"
 #include "Routing/RoutingNodes.h"
@@ -25,7 +26,7 @@ BoardEngine::BoardEngine (BoardModel& source) : model (source)
             for (auto& instance : instances)
                 for (size_t i = 0; i < releasedStored.size() && i < releasedCaptured.size(); ++i)
                     if (instance.instanceId == releasedStored[i].instanceId && instance.modelId == releasedStored[i].modelId
-                        && juce::JSON::toString (instance.extras) == juce::JSON::toString (releasedStored[i].extras))
+                        && sameExtraState (instance.extras, releasedStored[i].extras))
                     { instance.extras = releasedCaptured[i].extras.clone(); break; }
         for (auto& instance : instances)
             for (const auto& runtime : pinned)
@@ -33,7 +34,7 @@ BoardEngine::BoardEngine (BoardModel& source) : model (source)
                 {
                     auto extra = instance.extras.clone(); runtime->pedal->saveExtra (extra);
                     if (auto* target = instance.extras.getDynamicObject(); target && extra.getDynamicObject())
-                        for (const auto& property : extra.getDynamicObject()->getProperties()) target->setProperty (property.name, property.value.clone());
+                        for (const auto& property : extra.getDynamicObject()->getProperties()) setExactExtraProperty (*target, property.name, property.value);
                     else instance.extras = extra.clone();
                     break;
                 }
@@ -53,7 +54,7 @@ try
     releaseResources();
     dipSamples = std::max (1, static_cast<int> (std::min (rate, 1000000.0) * 0.006));
     mixAlpha = 1.0 - std::exp (-1.0 / (0.020 * rate));
-    pool.prepare (rate, block, captured);
+    pool.prepare (rate, block, captured, instances);
     extendedModelSerials.fill (0); extendedHostSerials.fill (0);
     hostBoardSerials.fill (0); modelBoardSerials.fill (0);
     routingModelSerials.fill (0); routingHostSerials.fill (0);
