@@ -115,6 +115,14 @@ std::unique_ptr<RenderPlan> TopologyCompiler::compile (const std::vector<PedalIn
         t.placement[t.n++] = static_cast<uint8_t> (instance.placement);
         auto& control = result->controls[slot];
         control.enabled = instance.enabled; control.params = instance.params;
+        control.footMode = static_cast<FootMode> (std::clamp (static_cast<int> (instance.extras["midi"]["fsMode"]), 0, 2));
+        if (object)
+            for (int param = 0; param < object->pedal->desc().numParams; ++param)
+            {
+                const auto& descriptor = object->pedal->desc().params[param];
+                if (juce::String (descriptor.id).endsWith ("_fs_mode"))
+                    control.footMode = static_cast<FootMode> (std::clamp (static_cast<int> (std::lround (descriptor.fromNormalised (instance.params[static_cast<size_t> (param)]))), 0, 2));
+            }
         if (object)
         {
             const auto lanes = PedalRegistry::buildLaneMap (object->pedal->desc());

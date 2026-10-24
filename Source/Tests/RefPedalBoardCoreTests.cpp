@@ -1220,3 +1220,76 @@ LUTHIER_TEST (RefPedalBoardCore, discreteBurstsCoalesceToThirtyTwoPointsAndRetai
         if (left[i] != left[i - 1]) { ++changes; CHECK (i - last >= 16 || i == 4095); last = i; }
     CHECK (changes <= 32);
 }
+
+LUTHIER_TEST (RefPedalBoardCore, slotFootMetadataPreservesUnknownFieldsAndRejectsInvalidRestore)
+{
+    BoardModel model; PedalInstance instance; instance.modelId = "unknown";
+    instance.extras = new juce::DynamicObject(); juce::var midi (new juce::DynamicObject());
+    midi.getDynamicObject()->setProperty ("future", "keep"); midi.getDynamicObject()->setProperty ("fsMode", 2);
+    instance.extras.getDynamicObject()->setProperty ("midi", midi);
+    CHECK (model.replaceAll ({ instance }, {}));
+    CHECK (model.apply (cmd::SetSlotChannel { instance.instanceId, 3, true }));
+    auto saved = model.getInstance (instance.instanceId)->extras;
+    CHECK (static_cast<int> (saved["midi"]["fsMode"]) == 2);
+    CHECK (saved["midi"]["future"].toString() == "keep");
+    CHECK (model.apply (cmd::SetSlotChannel { instance.instanceId, 4, false, 1 }));
+    CHECK (static_cast<int> (model.getInstance (instance.instanceId)->extras["midi"]["fsMode"]) == 1);
+    CHECK (static_cast<int> (saved["midi"]["fsMode"]) == 2); // detached clone
+    CHECK (! model.apply (cmd::SetSlotChannel { instance.instanceId, 4, false, 3 }));
+    for (const juce::var bad : { juce::var (0.5), juce::var ("1"), juce::var (true), juce::var (-1), juce::var (3) })
+    {
+        instance.extras = instance.extras.clone(); instance.extras["midi"].getDynamicObject()->setProperty ("fsMode", bad);
+        CHECK (! model.replaceAll ({ instance }, {}));
+        CHECK (static_cast<int> (model.getInstance (instance.instanceId)->extras["midi"]["fsMode"]) == 1);
+    }
+}
+LUTHIER_TEST (RefPedalBoardCore, configuredMomentaryReleaseUsesVelocityAndAutoRestoresAfterHold)
+{
+    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (eventDesc, makeEventProbe));
+    for (const float releaseVelocity : { 0.f, 64.f / 127.f, 1.f })
+    {
+        BoardModel model; BoardEngine engine (model); const InstanceId id;
+        CHECK (model.apply (cmd::Add { "test.event", -1, Placement::beforeExistingPre, 0, id }));
+        CHECK (model.apply (cmd::SetEnabled { id, false })); CHECK (model.apply (cmd::SetBoardEnabled { true }));
+        CHECK (model.apply (cmd::SetSlotChannel { id, 0, false, 1 }));
+        double left[2048] {}, right[2048] {}; engine.process (left, right, 2048, Placement::beforeExistingPre);
+        midi::RouteOut events; events.nFoot = 1; events.footSlot[0] = 0; events.foot[0] = { true, 1.f, 0, 0 };
+        std::fill_n (left, 2048, 0.1); std::fill_n (right, 2048, 0.1);
+        engine.beginEvents (events); engine.process (left, right, 2048, Placement::beforeExistingPre); engine.endEvents();
+        CHECK_NEAR (left[2047], 0.05, 1.e-8);
+        events.foot[0] = { false, releaseVelocity, 0, 0 };
+        std::fill_n (left, 2048, 0.1); std::fill_n (right, 2048, 0.1);
+        engine.beginEvents (events); engine.process (left, right, 2048, Placement::beforeExistingPre); engine.endEvents();
+        const int ramp = releaseVelocity == 1.f ? 96 : 576;
+        CHECK_NEAR (left[ramp - 1], 0.1, 1.e-8);
+        CHECK_NEAR (left[ramp / 2 - 1], 0.075, 1.e-8);
+        CHECK (model.apply (cmd::SetSlotChannel { id, 0, false, 2 }));
+        TimeInfo time; time.sample = 100000; engine.setTime (time); events.foot[0] = { true, 1.f, 0, 0 };
+        engine.beginEvents (events); engine.process (left, right, 2048, Placement::beforeExistingPre); engine.endEvents();
+        time.sample += 24000; engine.setTime (time); events.foot[0] = { false, 0.f, 0, 0 };
+        std::fill_n (left, 2048, 0.1); std::fill_n (right, 2048, 0.1);
+        engine.beginEvents (events); engine.process (left, right, 2048, Placement::beforeExistingPre); engine.endEvents();
+        CHECK_NEAR (left[2047], 0.1, 1.e-8);
+    }
+}
+
+namespace
+{
+const char* const fsChoices[] { "Latch", "Momentary", "Auto" };
+const ParamDesc fsConfig[] { { "test_fs_mode", "Foot mode", "", ParamKind::Enum, Taper::Linear, 0, 2, 0, 1, 3, fsChoices, PF_Config, 0, -1 } };
+const PedalDesc fsConfigDesc { "test.fs_config", "test_fs_", 1, "Foot config probe", "Test", nullptr,
+    ChannelMode::Stereo, BypassMode::True, 1, fsConfig, 0, false, false, false, 0 };
+std::unique_ptr<IPedal> makeFsConfigProbe() { return std::make_unique<EventProbe> (fsConfigDesc); }
+}
+LUTHIER_TEST (RefPedalBoardCore, modelFootModeConfigOverridesPerSlotFallback)
+{
+    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (fsConfigDesc, makeFsConfigProbe));
+    PedalInstance instance; instance.modelId = "test.fs_config"; instance.slot = 0; instance.params[0] = 0.f;
+    instance.extras = new juce::DynamicObject(); juce::var midi (new juce::DynamicObject()); midi.getDynamicObject()->setProperty ("fsMode", 1);
+    instance.extras.getDynamicObject()->setProperty ("midi", midi);
+    PedalPool pool; CHECK (pool.setAssetStore (nullptr)); pool.prepare (48000, 64); juce::String error;
+    auto plan = TopologyCompiler::compile ({ instance }, {}, pool, 1, nullptr, error);
+    CHECK (plan && plan->controls[0].footMode == FootMode::Latch);
+    instance.params[0] = 1.f; auto second = TopologyCompiler::compile ({ instance }, {}, pool, 2, plan.get(), error);
+    CHECK (second && second->controls[0].footMode == FootMode::Auto);
+}

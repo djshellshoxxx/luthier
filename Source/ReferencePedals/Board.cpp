@@ -6,6 +6,7 @@
 #include "Midi/MidiState.h"
 #include <algorithm>
 #include <numeric>
+#include <mutex>
 namespace luthier::reference
 {
 struct Board::Impl : BoardModel::Listener
@@ -21,10 +22,12 @@ struct Board::Impl : BoardModel::Listener
     std::array<int, kMaxSlots> legacyOrder;
     std::array<Placement, kMaxSlots> emptyPlacement {};
     juce::String mapKey;
+    std::mutex mapPublishMutex; // E61: message/host-state publishers only; never acquired by audio
     Impl() { std::iota (legacyOrder.begin(), legacyOrder.end(), 0); model.addListener (this); settingsChanged(); }
     ~Impl() override { model.removeListener (this); }
     void settingsChanged() override
     {
+        const std::lock_guard<std::mutex> guard (mapPublishMutex);
         std::vector<PedalInstance> instances; BoardSettings settings; model.snapshotStored (instances, settings);
         auto key = juce::JSON::toString (settings.midi) + juce::String (settings.midiChan)
             + ":" + juce::String (settings.enabled ? 1 : 0) + ":" + juce::String (settings.tempoBpm) + ":" + juce::String (static_cast<int> (settings.tempoSource));
