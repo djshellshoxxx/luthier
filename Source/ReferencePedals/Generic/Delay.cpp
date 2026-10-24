@@ -67,7 +67,7 @@ void Delay::onTrigger(int index) noexcept
     if(lastTap>=0)
     {
         const double interval=1000*(samples-lastTap)/sr;
-        if(interval>=60 && interval<=2000) tapMs=interval;
+        if(interval>=60 && interval<=2000){tapMs=interval;publishedTapMs.store(tapMs,std::memory_order_release); }
     }
     lastTap=samples;
 }
@@ -75,12 +75,12 @@ float Delay::getTailEnergyDb() const noexcept { return float(10*std::log10(std::
 void Delay::saveExtra(juce::var& v) const
 {
     if(!v.isObject()) v=new juce::DynamicObject();
-    v.getDynamicObject()->setProperty("tapMs",tapMs);
+    v.getDynamicObject()->setProperty("tapMs",publishedTapMs.load(std::memory_order_acquire));
 }
 void Delay::loadExtra(const juce::var& v)
 {
     const double saved=double(v.getProperty("tapMs",500.));
-    if(std::isfinite(saved)) tapMs=std::clamp(saved,60.0,2000.0);
+    if(std::isfinite(saved)){tapMs=std::clamp(saved,60.0,2000.0);publishedTapMs.store(tapMs,std::memory_order_release); }
 }
 void Delay::process(double* left,double* right,int n) noexcept
 {
