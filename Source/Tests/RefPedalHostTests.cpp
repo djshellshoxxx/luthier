@@ -9,9 +9,10 @@ LUTHIER_TEST (RefPedalHost, appendOnlyLaneIdsAndDefaults)
 {
     auto p = std::make_unique<LuthierAudioProcessor>();
     const auto& parameters = p->getParameters();
-    CHECK (parameters.size() >= 323);
-    CHECK (dynamic_cast<juce::AudioProcessorParameterWithID*> (parameters[parameters.size() - 323])->paramID == "ref_board_enabled");
-    CHECK (dynamic_cast<juce::AudioProcessorParameterWithID*> (parameters.getLast())->paramID == "ref_s16_pos");
+    CHECK (parameters.size() >= 373);
+    CHECK (dynamic_cast<juce::AudioProcessorParameterWithID*> (parameters[parameters.size() - 373])->paramID == "ref_board_enabled");
+    CHECK (dynamic_cast<juce::AudioProcessorParameterWithID*> (parameters[parameters.size() - 51])->paramID == "ref_s16_pos");
+    CHECK (dynamic_cast<juce::AudioProcessorParameterWithID*> (parameters.getLast())->paramID == "ref_board_fb_kill");
     CHECK (! p->getEngine().getReferencePedals().isBoardEnabled());
     for (int slot = 0; slot < kMaxSlots; ++slot)
     {
@@ -77,6 +78,7 @@ LUTHIER_TEST (RefPedalHost, forwardBoardSectionPreservesRawBytes)
 namespace
 {
 std::atomic<float> probeValue { -1.f };
+std::atomic<double> probeBpm { 0.0 };
 const ParamDesc probeParams[] {
     { "host_probe_gain", "Gain", "", ParamKind::Continuous, Taper::Linear, 0, 1, .2f, 1, 0, nullptr, PF_Automatable, 0, -1 }
 };
@@ -88,6 +90,7 @@ public:
     const PedalDesc& desc() const noexcept override { return probeDesc; }
     void prepare (double, int, int) override {}
     void reset() noexcept override {}
+    void setTime (const TimeInfo& time) noexcept override { probeBpm.store (time.bpm, std::memory_order_relaxed); }
     void setParam (int, float value) noexcept override { gain = value; probeValue.store (value, std::memory_order_relaxed); }
     float getParam (int) const noexcept override { return gain; }
     void process (double* l, double* r, int n) noexcept override { for (int i = 0; i < n; ++i) l[i] = r[i] = gain; }
@@ -185,4 +188,46 @@ LUTHIER_TEST (RefPedalHost, outputRouterBoundsCombinedSources)
     router.emitBounded (output, config, activity, 64, 2048);
     const auto after = luthier::tests::allocationsOnThisThread();
     CHECK (before == after); CHECK (output.data.size() <= 2048); CHECK (! output.isEmpty()); CHECK (router.getOverflowCount() > 0);
+}
+
+namespace
+{
+class FixedHostClock final : public juce::AudioPlayHead
+{
+    juce::Optional<PositionInfo> getPosition() const override
+    { PositionInfo p; p.setBpm (180); p.setPpqPosition (20); p.setIsPlaying (true); return p; }
+};
+}
+LUTHIER_TEST (RefPedalHost, extendedTempoSourceAndBpmWithoutMessagePump)
+{
+    PedalRegistry::TestScope scope; CHECK (PedalRegistry::add (probeDesc, makeHostProbe));
+    auto p = std::make_unique<LuthierAudioProcessor>(); auto& model = p->getEngine().getReferencePedals().model();
+    CHECK (model.apply (cmd::Add { "test.host-automation" })); CHECK (model.apply (cmd::SetBoardEnabled { true }));
+    FixedHostClock clock; p->setPlayHead (&clock); p->prepareToPlay (48000,64);
+    auto* source = p->getState().getParameter ("ref_board_tempo_source"); auto* tempo = p->getState().getParameter ("ref_board_tempo_bpm");
+    CHECK (source && tempo); source->setValueNotifyingHost (0); tempo->setValueNotifyingHost (tempo->convertTo0to1 (240));
+    juce::AudioBuffer<float> audio (2,64); juce::MidiBuffer midi;
+    for (int i = 0; i < 40; ++i) { audio.clear(); p->processBlock(audio,midi); }
+    CHECK_NEAR (probeBpm.load(),240,1e-6); CHECK (model.getBoardSettings().tempoSource == TempoSource::Auto); CHECK_NEAR (model.getBoardSettings().tempoBpm,120,1e-9);
+    source->setValueNotifyingHost (source->convertTo0to1 (1));
+    for (int i = 0; i < 40; ++i) { audio.clear(); p->processBlock(audio,midi); }
+    CHECK_NEAR (probeBpm.load(),180,1e-6);
+    p->releaseResources(); p->setPlayHead (nullptr);
+}
+LUTHIER_TEST (RefPedalHost, extendedParameterDefaultsNamesAndLowGainPreservation)
+{
+    PedalRegistry::TestScope scope; CHECK (PedalRegistry::add (probeDesc,makeHostProbe));
+    auto p = std::make_unique<LuthierAudioProcessor>(); auto& model = p->getEngine().getReferencePedals().model();
+    for (const auto& d : extendedHostParameters)
+    {
+        auto* parameter = p->getState().getParameter (d.id); CHECK (parameter != nullptr);
+        CHECK_NEAR (parameter->convertFrom0to1(parameter->getDefaultValue()), d.defaultValue,1e-3);
+    }
+    auto* lane = p->getState().getParameter("ref_s01_p01"); CHECK (lane->getName(128) == "-"); CHECK (!lane->isAutomatable());
+    CHECK (model.apply(cmd::Add{"test.host-automation"})); CHECK (model.apply(cmd::SetBoardParam{"reampGainDb",-200}));
+    juce::MemoryBlock saved; p->getStateInformation(saved); // message-thread metadata/persistence service
+    CHECK (lane->getName(128).contains("Gain")); CHECK (lane->isAutomatable());
+    p->getStateInformation(saved); CHECK_NEAR(model.getBoardSettings().reampGainDb,-200,1e-6);
+    auto* reamp = p->getState().getParameter("ref_board_reamp_gain"); reamp->setValueNotifyingHost(0); p->getStateInformation(saved);
+    CHECK_NEAR(model.getBoardSettings().reampGainDb,-120,1e-6);
 }

@@ -1,4 +1,5 @@
 #include "Parameters.h"
+#include "ReferencePedals/PedalRegistry.h"
 #include "PhysicalRange.h"
 #include "DSP/Amp/MicPlacement.h"   // FEAT-MIC
 #include "Rhythm/StrumGesture.h"
@@ -64,6 +65,27 @@ const char* macroByIndex (int index) noexcept
 //==============================================================================
 namespace
 {
+    class ReferenceLaneParameter final : public juce::AudioParameterFloat
+    {
+    public:
+        ReferenceLaneParameter (const juce::String& id, const juce::String& name)
+            : juce::AudioParameterFloat ({ id, 1 }, name, juce::NormalisableRange<float> (0.f, 1.f), 0.f),
+              displayName (std::make_shared<const juce::String> ("-"))
+        { RangeRegistry::noteDeclaration (id, 0.f, 1.f); }
+        juce::String getName (int maximumLength) const override
+        { const auto name = std::atomic_load (&displayName); return maximumLength > 0 ? name->substring (0, maximumLength) : *name; }
+        bool isAutomatable() const override { return available.load (std::memory_order_relaxed); }
+        bool publishName (const juce::String& name)
+        {
+            if (*std::atomic_load (&displayName) == name) return false;
+            std::atomic_store (&displayName, std::make_shared<const juce::String> (name));
+            available.store (name != "-", std::memory_order_relaxed); return true;
+        }
+    private:
+        std::shared_ptr<const juce::String> displayName; // host metadata reads, message writes
+        std::atomic<bool> available { false };
+    };
+
     template <typename EnumType, typename NameFn>
     juce::StringArray namesFor (int count, NameFn fn)
     {
@@ -1127,13 +1149,45 @@ APVTS::ParameterLayout Parameters::createLayout()
         const auto name = "Reference Slot " + juce::String (slot + 1) + " ";
         add (boolParam (ParamIDs::refSlot (slot, "enabled"), name + "Enabled", true));
         for (int lane = 0; lane < reference::kMaxLaneParams; ++lane)
-            add (floatParam (ParamIDs::refSlot (slot, "p" + juce::String (lane + 1).paddedLeft ('0', 2)), name + "Parameter " + juce::String (lane + 1), 0.f, 1.f, 0.f));
+            add (std::make_unique<ReferenceLaneParameter> (ParamIDs::refSlot (slot, "p" + juce::String (lane + 1).paddedLeft ('0', 2)), name + "Parameter " + juce::String (lane + 1)));
         add (floatParam (ParamIDs::refSlot (slot, "in_db"), name + "Input", -12.f, 12.f, 0.f, 1.f, "dB"));
         add (floatParam (ParamIDs::refSlot (slot, "out_db"), name + "Output", -12.f, 12.f, 0.f, 1.f, "dB"));
         add (std::make_unique<juce::AudioParameterInt> (pid (ParamIDs::refSlot (slot, "pos")), name + "Position", 0, 15, slot));
     }
     // ==== END REF-PEDALBOARD params ====
+    // ==== BEGIN REF-PEDALBOARD-EXTENDED params ====
+    // E57: append after every original lane; existing host indices stay fixed.
+    for (const auto& p : reference::extendedHostParameters)
+    {
+        const auto name = "Reference Board " + juce::String (p.name);
+        if (p.choices) add (choiceParam (p.id, name, juce::StringArray::fromTokens (p.choices, "|", ""), (int) p.defaultValue));
+        else if (p.minimum == 0 && p.maximum == 1 && p.interval == 1) add (boolParam (p.id, name, p.defaultValue >= .5f));
+        else if (p.interval == 1) add (std::make_unique<juce::AudioParameterInt> (pid (p.id), name, (int) p.minimum, (int) p.maximum, (int) p.defaultValue));
+        else add (floatParam (p.id, name, p.minimum, p.maximum, p.defaultValue));
+    }
+    // ==== END REF-PEDALBOARD-EXTENDED params ====
     return layout;
+}
+
+// Host metadata is computed only on the message thread and published by value.
+bool updateReferenceLaneNames (APVTS& state, const std::vector<reference::PedalInstance>& instances)
+{
+    bool changed = false;
+    for (int slot = 0; slot < reference::kMaxSlots; ++slot)
+    {
+        const reference::PedalInstance* instance = nullptr;
+        for (const auto& p : instances) if (p.slot == slot) { instance = &p; break; }
+        const auto* desc = instance ? reference::PedalRegistry::find (instance->modelId.c_str()) : nullptr;
+        const auto* lanes = desc ? &reference::PedalRegistry::laneMap (desc->modelId) : nullptr;
+        for (int lane = 0; lane < reference::kMaxLaneParams; ++lane)
+        {
+            auto* parameter = dynamic_cast<ReferenceLaneParameter*> (state.getParameter (ParamIDs::refSlot (slot, "p" + juce::String (lane + 1).paddedLeft ('0', 2))));
+            if (! parameter) continue;
+            const auto name = lanes && lane < lanes->numLanes ? "Slot " + juce::String (slot + 1) + " " + desc->displayName + " " + desc->params[lanes->laneToParam[lane]].label : juce::String ("-");
+            changed |= parameter->publishName (name);
+        }
+    }
+    return changed;
 }
 
 //==============================================================================

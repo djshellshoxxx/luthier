@@ -377,6 +377,8 @@ LUTHIER_TEST (RefPedalMidiCore, extendedAutomationPhysicalUnitsAndEchoIsolation)
     { ExtendedHostAutomationCapture::EchoScope echo (capture); CHECK (! capture.write (0, 1)); }
     CHECK (capture.serial (0) == 0); CHECK (capture.write (0, 1)); CHECK (capture.value (0) == 2);
     CHECK (! capture.write (50, 1)); CHECK (! capture.write (0, std::numeric_limits<float>::infinity()));
+    CHECK (capture.write ((int) ExtendedHostField::FeedbackKill, 1)); CHECK (! capture.write ((int) ExtendedHostField::FeedbackKill, 0));
+    CHECK (capture.value ((size_t) ExtendedHostField::FeedbackKill) == 1); CHECK (capture.serial ((size_t) ExtendedHostField::FeedbackKill) == 1);
 }
 LUTHIER_TEST (RefPedalMidiCore, virtualExpressionDeliversRealMappedWrites)
 {

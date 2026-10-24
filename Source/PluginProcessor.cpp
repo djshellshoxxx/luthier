@@ -270,7 +270,10 @@ LuthierAudioProcessor::LuthierAudioProcessor()
         loadGuitarForType ((GuitarType) juce::jlimit (0, (int) GuitarType::NumTypes - 1,
                                                       edition::effectiveGuitarIndex ((int) type->load())));   // editions 5.1.3
 
-    referenceParameterBase = getParameters().size() - 323;
+    // Discover by stable ID: future append-only additions cannot shift this base.
+    for (int i = 0; i < getParameters().size(); ++i)
+        if (auto* parameter = dynamic_cast<juce::AudioProcessorParameterWithID*> (getParameters()[i]))
+            if (parameter->paramID == ParamIDs::refBoardEnabled) { referenceParameterBase = i; break; }
     for (int i = 0; i < 323; ++i)
     {
         auto* p = dynamic_cast<juce::AudioProcessorParameterWithID*> (getParameters()[referenceParameterBase + i]);
@@ -3432,12 +3435,17 @@ void LuthierAudioProcessor::setSlotBActive (bool b)
 //==============================================================================
 void LuthierAudioProcessor::parameterValueChanged (int parameterIndex, float value)
 {
-    if (referenceParameterBase >= 0) referenceHostCapture.write (parameterIndex - referenceParameterBase, value);
+    if (referenceParameterBase >= 0)
+    {
+        referenceHostCapture.write (parameterIndex - referenceParameterBase, value);
+        referenceExtendedCapture.write (parameterIndex - referenceParameterBase - reference::HostAutomationSnapshot::count, value);
+    }
 }
 
 void LuthierAudioProcessor::captureReferenceHostAutomation() noexcept
 {
     engine.getReferencePedals().setHostAutomation (referenceHostCapture.snapshot());
+    engine.getReferencePedals().setExtendedHostAutomation (referenceExtendedCapture.snapshot());
 }
 
 void LuthierAudioProcessor::parameterGestureChanged (int parameterIndex, bool gestureIsStarting)
@@ -4299,6 +4307,100 @@ void LuthierAudioProcessor::serviceTune()
     tuneSession.service();
 }
 
+// E57: host scalars persist without manufacturing later UI intent. Structural
+// requests remain validated model commands on this message-thread service.
+void LuthierAudioProcessor::serviceReferenceExtendedParameters()
+{
+    using F = reference::ExtendedHostField;
+    auto& model = engine.getReferencePedals().model();
+    const auto input = referenceExtendedCapture.snapshot();
+    auto changed = [&] (int i) { return input.serials[(size_t) i] != 0 && input.serials[(size_t) i] != referenceExtendedModelSerials[(size_t) i]; };
+    auto v = [&] (F f) { return input.values[(size_t) f]; };
+    auto fresh = [&] (F f) { return changed ((int) f); };
+    auto apply = [&] (const reference::BoardCommand& command, bool structural)
+    { if (structural) model.apply (command); else model.applyHostEcho (command); };
+    const auto old = model.getBoardSettings();
+    if (fresh (F::MixLaw)) apply (reference::cmd::SetMixLaw { (reference::MixLaw) (int) v (F::MixLaw) }, false);
+    if (fresh (F::Mode)) apply (reference::cmd::SetMode { (reference::Mode) (int) v (F::Mode) }, true);
+    const char* scalarKeys[] { nullptr,"reportLatency","limiterOn","limiterCeilDb","trails","mixTail",nullptr,nullptr,nullptr,
+        nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,"abSelect","abOut","reampEnable","reampReplace","reampGainDb",
+        "cpuCapPct","midiChan","tempoSource","numLanes","parallelNorm" };
+    for (int i = 0; i < 25; ++i)
+        if (changed (i) && scalarKeys[i]) apply (reference::cmd::SetBoardParam { scalarKeys[i], input.values[(size_t) i] }, reference::extendedHostParameters[(size_t) i].structural);
+    auto resolveSlot = [&] (float index)
+    {
+        if (index == 0) return reference::InstanceId::null();
+        for (const auto& id : model.getOrder()) if (auto pedal = model.getInstance (id)) if (pedal->slot + 1 == (int) index) return id;
+        return reference::InstanceId::null();
+    };
+    bool feedbackChanged = false; auto feedback = old.fb;
+    if (fresh (F::FeedbackOn)) { feedback.on = v (F::FeedbackOn) >= .5f; feedbackChanged = true; }
+    if (fresh (F::FeedbackGain)) { feedback.gain = v (F::FeedbackGain); feedbackChanged = true; }
+    if (fresh (F::FeedbackLpHz)) { feedback.lpHz = v (F::FeedbackLpHz); feedbackChanged = true; }
+    if (fresh (F::FeedbackRunawayOk)) { feedback.runawayOk = v (F::FeedbackRunawayOk) >= .5f; feedbackChanged = true; }
+    bool feedbackStructural = false;
+    if (fresh (F::FeedbackSrc)) { feedback.src = resolveSlot (v (F::FeedbackSrc)); feedbackChanged = feedbackStructural = true; }
+    if (fresh (F::FeedbackDst)) { feedback.dst = resolveSlot (v (F::FeedbackDst)); feedbackChanged = feedbackStructural = true; }
+    const bool validFeedbackTargets = (! fresh (F::FeedbackSrc) || v (F::FeedbackSrc) == 0 || ! feedback.src.isNull())
+        && (! fresh (F::FeedbackDst) || v (F::FeedbackDst) == 0 || ! feedback.dst.isNull());
+    if (feedbackChanged && validFeedbackTargets) apply (reference::cmd::SetFeedback { feedback }, feedbackStructural);
+    for (int lane = 0; lane < reference::kMaxBranches; ++lane)
+    {
+        const int i = (int) F::Lane1GainDb + 2 * lane;
+        if (changed (i)) apply (reference::cmd::SetBoardParam { "laneGainDb" + std::to_string (lane), input.values[(size_t) i] }, false);
+        if (changed (i + 1)) apply (reference::cmd::SetBoardParam { "lanePhase" + std::to_string (lane), input.values[(size_t) i + 1] }, false);
+    }
+    for (int loop = 0; loop < reference::kMaxLoops; ++loop)
+    {
+        const int base = (int) F::Loop1Used + loop * 8; auto settings = old.loops[(size_t) loop]; bool any = false, structural = false, validEndpoints = true;
+        for (int f = 0; f < 8; ++f) if (changed (base + f))
+        {
+            any = true; structural |= reference::extendedHostParameters[(size_t) base + f].structural;
+            const float value = input.values[(size_t) base + f];
+            switch (f)
+            {
+                case 0: settings.used = value >= .5f; break;
+                case 1: settings.enabled = value >= .5f; break;
+                case 2: settings.kind = (reference::LoopKind) (int) value; break;
+                case 3: settings.blend = value; break;
+                case 4: settings.sendDb = value; break;
+                case 5: settings.returnDb = value; break;
+                case 6: settings.first = resolveSlot (value); validEndpoints &= value == 0 || ! settings.first.isNull(); break;
+                case 7: settings.last = resolveSlot (value); validEndpoints &= value == 0 || ! settings.last.isNull(); break;
+            }
+        }
+        if (any && validEndpoints) apply (reference::cmd::SetLoop { loop, settings }, structural);
+    }
+    const auto settings = model.getBoardSettings(); std::array<float, 50> values {};
+    auto put = [&] (F field, float value) { values[(size_t) field] = value; };
+    put (F::MixLaw,(float) settings.mixLaw); put (F::ReportLatency,settings.reportLatency); put (F::LimiterOn,settings.limiterOn);
+    put (F::LimiterCeilDb,settings.limiterCeilDb); put (F::Trails,settings.trails); put (F::MixTail,settings.mixTail); put (F::Mode,(float) settings.mode);
+    put (F::FeedbackOn,settings.fb.on); put (F::FeedbackGain,settings.fb.gain); put (F::FeedbackLpHz,settings.fb.lpHz); put (F::FeedbackRunawayOk,settings.fb.runawayOk);
+    put (F::AbSelect,(float) settings.abSelect); put (F::AbOut,(float) settings.abOut); put (F::ReampEnable,settings.reampEnable); put (F::ReampReplace,settings.reampReplace);
+    put (F::ReampGainDb,settings.reampGainDb); put (F::CpuCapPct,(float) settings.cpuCapPct); put (F::MidiChan,(float) settings.midiChan); put (F::TempoSource,(float) settings.tempoSource);
+    put (F::NumLanes,(float) settings.lanes.numLanes); put (F::ParallelNorm,(float) settings.lanes.norm);
+    auto slotFor = [&] (const reference::InstanceId& id) { const auto pedal = model.getInstance (id); return pedal ? (float) pedal->slot + 1 : 0.f; };
+    put (F::FeedbackSrc,slotFor(settings.fb.src)); put (F::FeedbackDst,slotFor(settings.fb.dst));
+    for (int lane = 0; lane < reference::kMaxBranches; ++lane)
+    { values[(size_t) F::Lane1GainDb + 2 * lane] = settings.lanes.gainDb[(size_t) lane]; values[(size_t) F::Lane1Phase + 2 * lane] = settings.lanes.phaseInvert[(size_t) lane]; }
+    for (int loop = 0; loop < reference::kMaxLoops; ++loop)
+    {
+        const auto& l = settings.loops[(size_t) loop]; const size_t i = (size_t) F::Loop1Used + (size_t) loop * 8;
+        values[i] = l.used; values[i+1] = l.enabled; values[i+2] = (float) l.kind; values[i+3] = l.blend;
+        values[i+4] = l.sendDb; values[i+5] = l.returnDb; values[i+6] = slotFor(l.first); values[i+7] = slotFor(l.last);
+    }
+    for (int i = 0; i < 50; ++i)
+    {
+        auto* parameter = apvts.getParameter (reference::extendedHostParameters[(size_t) i].id); if (! parameter) continue;
+        if (i == (int) F::Exp1 || i == (int) F::Exp2) values[(size_t) i] = parameter->convertFrom0to1 (parameter->getValue());
+        if (referenceExtendedCapture.serial ((size_t) i) != input.serials[(size_t) i]) continue;
+        referenceExtendedModelSerials[(size_t) i] = input.serials[(size_t) i];
+        const float normalised = parameter->convertTo0to1 (values[(size_t) i]);
+        if (parameter->getValue() != normalised)
+        { const reference::ExtendedHostAutomationCapture::EchoScope echo (referenceExtendedCapture); parameter->setValueNotifyingHost (normalised); }
+    }
+}
+
 // SPEC-SWEEP (IR-11 / LP-34): the expression calibration's audio-thread table
 // follows the set, and the wizard hears the pedal it is listening to.
 void LuthierAudioProcessor::serviceExpressionCalibration()
@@ -4398,6 +4500,11 @@ void LuthierAudioProcessor::serviceReferencePedalParameters()
             p->setValueNotifyingHost (value);
         }
     }
+    serviceReferenceExtendedParameters();
+    std::vector<reference::PedalInstance> namedInstances; reference::BoardSettings namedSettings;
+    model.snapshot (namedInstances, namedSettings);
+    if (updateReferenceLaneNames (apvts, namedInstances))
+        updateHostDisplay (ChangeDetails().withParameterInfoChanged (true));
 }
 
 void LuthierAudioProcessor::timerCallback()
