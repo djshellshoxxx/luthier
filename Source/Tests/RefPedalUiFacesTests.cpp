@@ -23,6 +23,7 @@ LUTHIER_TEST(RefPedalUiFaces, keyboardKnobUsesFineAndCoarseSteps) {
 }
 
 #include "../UI/ReferencePedals/BoardCanvas.h"
+#include "../UI/ReferencePedals/BoardRoot.h"
 LUTHIER_TEST(RefPedalUiFaces, everyDescriptorHasARealFaceOrInspectorControl) {
     PedalRegistry::registerAll();
     for(const auto* desc:PedalRegistry::all()) {
@@ -79,4 +80,14 @@ LUTHIER_TEST(RefPedalUiFaces, physicalLaneAttachmentsAndConfigurationUseRealTarg
     CHECK_NEAR(model.getInstance(model.getOrder()[0])->params[0],0,1e-6); // Host service owns persistence; attachment makes no duplicate model edit.
     quality->setSelectedId(3,juce::sendNotificationSync);CHECK_NEAR(model.getInstance(model.getOrder()[0])->params[4],1,1e-6);
     state.getParameter("ref_s01_enabled")->setValueNotifyingHost(0);CHECK(!bypass->getToggleState());
+}
+LUTHIER_TEST(RefPedalUiFaces, compactKnobHasUnclippedNaturalValueEditor)
+{
+    PedalRegistry::registerAll();BoardModel model;CHECK(model.apply(cmd::Add{"generic.boost"}));
+    BoardRoot root(model);root.setSize(1280,800);auto* view=root.boardCanvas().viewFor(model.getOrder()[0]);KnobControl* gain=nullptr;
+    for(auto* child:view->getChildren())if(child->getProperties()["referenceParamId"].toString()=="gen_boost_gain")gain=dynamic_cast<KnobControl*>(child);
+    CHECK(gain!=nullptr);if(!gain)return;CHECK(gain->getTextBoxPosition()==juce::Slider::NoTextBox);gain->showValueEditor();CHECK(juce::Component::getCurrentlyModalComponent()==nullptr);
+    juce::TextEditor* entry=nullptr;std::function<void(juce::Component&)> collect=[&](auto& parent){for(auto* child:parent.getChildren()){if(auto* editor=dynamic_cast<juce::TextEditor*>(child))if(editor->getTitle().contains("natural value"))entry=editor;collect(*child);}};collect(root);
+    CHECK(entry!=nullptr);if(!entry)return;entry->setText("15 dB",false);entry->onReturnKey();CHECK_NEAR(model.getInstance(model.getOrder()[0])->params[0],.5,1e-6);
+    CHECK(model.apply(cmd::Remove{model.getOrder()[0]}));int callouts=0;for(auto* child:root.getChildren())if(dynamic_cast<juce::CallOutBox*>(child))++callouts;CHECK(callouts==0);
 }
