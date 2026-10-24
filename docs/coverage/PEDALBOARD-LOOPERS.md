@@ -93,3 +93,28 @@ includes sparse/random overdub pages, worker compaction of retired accepted
 layers, cache version handoff during compaction, actual pedal state machines and
 registrations, persistent 11/99-memory ownership, UI meters, and MIDI/rhythm.
 Existing RAM-core tests do not substitute for paged-processor duration tests.
+
+
+## Sparse overdub pages and cache versions
+
+`beginLayer/add/canAdd` now supports fixed-length sparse deltas, arbitrary punch-in
+positions, and accumulating input over repeated loop wraps. Unwritten pages are
+implicit silence and do not create audio assets. Two cache ways preserve the
+previous immutable page while its replacement is read ahead. Page epoch/revision
+are published as one atomic value, preventing old worker results from becoming
+current after a clear/re-record. A storage overrun closes the recording and
+finalizes accepted pages once the worker recovers.
+
+New focused result: **10 cases, 1,987 checks, 0 failures**, normal, ASan and TSan;
+the allocation hook covers append, sparse add, reads and prefetch. Seven wraps
+starting at frame 23 preserve and restore exact binary-fraction deltas. Updated
+90-minute / 48 kHz stereo reservation: **7,031,232 bytes** working RAM and the
+same **2,076,890,704-byte** active storage bound. Full-duration preparation still
+refuses insufficient budgets rather than reducing capacity. Warning-enabled
+syntax checking remains clean.
+
+Off-audio tests explicitly wait for page availability when simulating normal
+worker service. Audio methods themselves never wait; deliberate slow-worker
+fixtures still demonstrate immediate overrun/underrun reporting. Retired-layer
+worker compaction and its output/version handoff remain the next integration
+step, followed by named processors.
