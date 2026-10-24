@@ -34,12 +34,13 @@ struct PedalRuntime
 class PedalPool
 {
 public:
-    void prepare (double sampleRate, int maxBlock);
-    std::shared_ptr<PedalRuntime> acquire (const PedalInstance&, juce::String& error);
+    void prepare (double sampleRate, int maxBlock, const std::vector<PedalInstance>& captured = {});
+    std::shared_ptr<PedalRuntime> acquire (const PedalInstance&, juce::String& error, const PedalRuntime* active = nullptr);
     void reclaim();
 private:
     double rate = 48000.0;
     int block = 4096;
     std::vector<std::weak_ptr<PedalRuntime>> objects;
+    std::vector<PedalInstance> preparedExtras;
 };
 }

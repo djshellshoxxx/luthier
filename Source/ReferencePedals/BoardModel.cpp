@@ -165,6 +165,7 @@ struct BoardModel::Impl
     BoardSettings settings;
     TopologyInfo info;
     Compiler compiler;
+    ExtraCapture extraCapture;
     std::vector<PedalInstance> instances;
     struct History { BoardSettings settings; std::vector<PedalInstance> instances; };
     std::vector<History> undoStack, redoStack;
@@ -648,11 +649,26 @@ bool BoardModel::replaceAll (const std::vector<PedalInstance>& orderedInstances,
     return true;
 }
 
-void BoardModel::snapshot (std::vector<PedalInstance>& instances, BoardSettings& settings) const
+void BoardModel::snapshotStored (std::vector<PedalInstance>& instances, BoardSettings& settings) const
 {
     const std::lock_guard<std::mutex> lock (impl->mutex);
     instances = cloneInstances (impl->instances);
     settings = cloneSettings (impl->settings);
+}
+void BoardModel::snapshot (std::vector<PedalInstance>& instances, BoardSettings& settings) const
+{
+    ExtraCapture capture;
+    {
+        const std::lock_guard<std::mutex> lock (impl->mutex);
+        instances = cloneInstances (impl->instances); settings = cloneSettings (impl->settings);
+        capture = impl->extraCapture;
+    }
+    // Persistence may invoke model services; never hold the model mutex here.
+    if (capture) capture (instances);
+}
+void BoardModel::setExtraCapture (ExtraCapture capture)
+{
+    const std::lock_guard<std::mutex> lock (impl->mutex); impl->extraCapture = std::move (capture);
 }
 
 void BoardModel::setCompiler (Compiler compiler)
