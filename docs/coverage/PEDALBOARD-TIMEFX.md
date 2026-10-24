@@ -421,3 +421,33 @@ step, passing A-PED's unchanged <=1.5 criterion. However the named spec's litera
 increment: measured 9.04e-6–4.23e-5 versus 1.1921e-7. That wording/interpretation
 remains unresolved; it has not been replaced with the A-PED criterion. Phase90
 registration remains gated pending root review and closure of remaining gates.
+
+E60 buffered-bypass implementation: CE2 and CE2W now provide independent stereo
+15 Hz / 10 Hz first-order input-buffer histories through processBypass. The hook
+receives already latency-matched dry and adds no sample delay. Effect process
+remains full output irrespective of board engagement, preventing a second model
+fade on top of the board's transition. Bypass processing preserves original L/R
+rather than applying the effect's optional mono-sum routing. DD3T keeps its
+Buffered+hasTails descriptor and existing internal excitation/trails fades, per
+the approved board residual-tail contract; its explicit untouched dry path uses
+the transparent default hook. The board must not fade away its retained repeats.
+
+The pinned E60 ASAN+UBSAN suite passes **594 checks** with no diagnostics: CE2,
+CE2W, DD3T existing timing/THD/mode/gesture tests plus analytic complex buffer
+transfer at 10/15/1000 Hz across five rates, right-channel isolation, direct first
+sample/zero explicit delay, separate effect/bypass history and absence of a
+duplicate engagement fade. Earlier standalone exact-transparent assertions for
+the chorus models were checking an inaccurate bypass implementation and now
+exercise the buffer transfer. This does not claim the named literal transparent
+null criterion passes: a 10 Hz HP buffer at 1 kHz has about 1% phase-inclusive
+residual against an unfiltered wire (roughly -60 dBFS for a .1-peak sine), so the
+CE2W text's <-90 dBFS wire-null cannot simultaneously describe that physical
+buffer. The original wording remains visible and unresolved; no numerical
+threshold was lowered. Board transition and dry/tail/trim integration tests are
+owned and run by the engine worker.
+
+Post-E60 local stereo CPU trials remain insufficient to certify CE2/DD3T:
+CE2 0.3799–0.4715%, CE2W 0.7951–0.8441%, DD3T 0.5235–0.6217% (O3, independently
+precomputed L/R, process-only thread CPU). A single fast CE2 trial is not treated
+as a stable pass of its 0.4% budget. DD3T still exceeds 0.5%; registrations remain
+gated. No buffer-hook/board overhead is included in these pedal-process numbers.

@@ -17,8 +17,9 @@ LUTHIER_TEST(RefPedalCe2w, modesImpulseStereoAndBypass)
         }
         const double centre=mode==0?6.5:mode==1?7:4.5;CHECK_NEAR(at,sr*centre*.001,sr*.0005);
         if(mode==2){CHECK(initial<1e-8);CHECK(stereoCancellation<1e-12);}
-        p.setEnabled(false);for(int i=0;i<int(sr*.01);++i){double l=.1,r=-.2;p.process(&l,&r,1);}
-        double l=.125,r=-.25;p.process(&l,&r,1);CHECK_NEAR(l,.125,1e-15);CHECK_NEAR(r,-.25,1e-15);
+        p.setEnabled(false);for(int i=0;i<int(sr);++i){double l=.1,r=-.2;p.processBypass(&l,&r,1);}
+        double l=.125,r=-.25;p.processBypass(&l,&r,1);const double gain=1/(1+std::tan(3.14159265358979323846*10/sr));
+        CHECK_NEAR(l,.025*gain,1e-12);CHECK_NEAR(r,-.05*gain,1e-12);
     }
 }
 LUTHIER_TEST(RefPedalCe2w, partitionAndNoiseOffReset)

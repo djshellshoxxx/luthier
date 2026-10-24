@@ -13,17 +13,17 @@ public:
     BossCe2w();static const PedalDesc& descriptor() noexcept;
     void prepare(double,int,int) override;void reset() noexcept override;
     void process(double*,double*,int) noexcept override;
-    void setEnabled(bool e) noexcept override {enabled=e;}
+    void processBypass(double*,double*,int) noexcept override;
     void setServices(const PedalServices& s) override {seed=s.instanceSeed;}
     void setTime(const TimeInfo&) noexcept override;
     void onTransport(TransportEvent,int) noexcept override;
     void setExpression(int,float) noexcept override;
     double modulationPhase() const noexcept {return lfo.phase();}
 private:
-    common::BbdCore wet[3];common::Biquad emphasis[3],deemphasis[3];common::OnePole inputHp;
-    common::Lfo lfo;TimeInfo time;uint32_t seed=1;bool enabled=true;
+    common::BbdCore wet[3];common::Biquad emphasis[3],deemphasis[3];common::OnePole inputHp,bypassHp[2];
+    common::Lfo lfo;TimeInfo time;uint32_t seed=1;
     double lastRate=-1,cachedRate=1;
-    double sr=48000,engage=1,modeBlend=1,stereoBlend=1;
+    double sr=48000,modeBlend=1,stereoBlend=1;
     int mode=0,oldMode=0;
 };
 }

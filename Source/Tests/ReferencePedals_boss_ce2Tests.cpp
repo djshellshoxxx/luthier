@@ -11,8 +11,9 @@ LUTHIER_TEST(RefPedalCe2, impulseTimingSilenceAndBypass)
         for(int i=0;i<int(sr*.012);++i){double l=i==0?.01:0,r=l;p.process(&l,&r,1);if(i>int(sr*.001) && std::abs(l)>peak)peak=std::abs(l),at=i;}
         CHECK_NEAR(at,sr*.0034,sr*.0003);CHECK(peak>1e-5);
         p.reset();double energy=0;for(int i=0;i<1000;++i){double l=0,r=0;p.process(&l,&r,1);energy+=l*l+r*r;}CHECK_NEAR(energy,0,1e-25);
-        p.setEnabled(false);for(int i=0;i<int(sr*.01);++i){double l=.1,r=-.2;p.process(&l,&r,1);}
-        double l=.125,r=-.25;p.process(&l,&r,1);CHECK_NEAR(l,.125,1e-15);CHECK_NEAR(r,-.25,1e-15);
+        p.setEnabled(false);for(int i=0;i<int(sr);++i){double l=.1,r=-.2;p.processBypass(&l,&r,1);}
+        double l=.125,r=-.25;p.processBypass(&l,&r,1);const double gain=1/(1+std::tan(3.14159265358979323846*15/sr));
+        CHECK_NEAR(l,.025*gain,1e-12);CHECK_NEAR(r,-.05*gain,1e-12);
     }
 }
 LUTHIER_TEST(RefPedalCe2, expressionAndBlockPartition)

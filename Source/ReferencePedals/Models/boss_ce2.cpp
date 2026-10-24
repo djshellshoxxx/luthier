@@ -31,13 +31,13 @@ BossCe2::BossCe2() : PedalBase(description) {}
 void BossCe2::prepare(double sampleRate,int,int)
 {
     sr=sampleRate;triangleCoefficient=1-std::exp(-6.283185307179586*72/sr);prepareParams(sr);variant=int(value(3));
-    for(int c=0;c<2;++c){wet[c].prepare(sr,12,variant?7500:6500,variant?6000:5500);wet[c].setClipOnset(.5);inputHp[c].setLowpass(sr,15);}
+    for(int c=0;c<2;++c){wet[c].prepare(sr,12,variant?7500:6500,variant?6000:5500);wet[c].setClipOnset(.5);inputHp[c].setLowpass(sr,15);bypassHp[c].setLowpass(sr,15);}
     lfo.prepare(sr);reset();
 }
 void BossCe2::reset() noexcept
 {
-    for(int c=0;c<2;++c){wet[c].reset(seed);inputHp[c].reset();}
-    lfo.setPhase(0);triangle=0;lastRate=-1;engage=enabled?1:0;force=0;samples=0;lastTap=-1;tapIndex=tapCount=0;
+    for(int c=0;c<2;++c){wet[c].reset(seed);inputHp[c].reset();bypassHp[c].reset();}
+    lfo.setPhase(0);triangle=0;lastRate=-1;force=0;samples=0;lastTap=-1;tapIndex=tapCount=0;
 }
 void BossCe2::setTime(const TimeInfo& t) noexcept
 {
@@ -51,7 +51,7 @@ void BossCe2::onTransport(TransportEvent event,int) noexcept
 void BossCe2::setExpression(int jack,float v) noexcept {if(jack==0)setParam(1,v);else if(jack==1)setParam(0,v);}
 void BossCe2::onFoot(const FootEvent& event) noexcept
 {
-    force=std::clamp(double(event.force),0.,1.);fadeSeconds=.040-.037*std::clamp(double(event.speed),0.,1.);
+    force=std::clamp(double(event.force),0.,1.);
     if(!event.press || value(9)<.5f)return;
     if(lastTap>=0)
     {
@@ -78,7 +78,6 @@ void BossCe2::process(double* left,double* right,int n) noexcept
         const double tri=4*std::abs(phase-.5)-1;
         triangle+=(tri-triangle)*triangleCoefficient;
         const double delayMs=3.4+depth*triangle*(triangle>=0?1.1:1.2),noise=nextSmoothed(5);
-        engage+=std::clamp((enabled?1.:0.)-engage,-1/(sr*fadeSeconds),1/(sr*fadeSeconds));
         const double dry[2]{softGuard(left[i]),softGuard(right[i])};double* outputs[]{left,right};
         const double mono=(dry[0]+dry[1])*.5;
         for(int c=0;c<2;++c)
@@ -87,9 +86,13 @@ void BossCe2::process(double* left,double* right,int n) noexcept
             const double buffered=inputHp[c].highpass(input);
             const double dryPath=value(13)>.5f && value(12)<.5f?dry[c]:buffered;
             const double processed=dryPath+.9440608762859234*wet[c].process(buffered,delayMs,noise,value(4)>.5f);
-            outputs[c][i]=softGuard(dry[c]+(processed-dry[c])*engage);
+            outputs[c][i]=softGuard(processed); // E60: board owns buffered engagement.
         }
         lfo.setRate(value(6)>.5f && time.valid ? common::TempoSync::rate(time.bpm,quarters[int(value(7))]):rate);lfo.advance();
     }
+}
+void BossCe2::processBypass(double* left,double* right,int n) noexcept
+{
+    for(int i=0;i<n;++i){left[i]=softGuard(bypassHp[0].highpass(softGuard(left[i])));right[i]=softGuard(bypassHp[1].highpass(softGuard(right[i])));}
 }
 }
