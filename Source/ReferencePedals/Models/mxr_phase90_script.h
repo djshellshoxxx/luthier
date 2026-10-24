@@ -30,6 +30,8 @@ private:
     common::NoiseGen noise;
     std::array<std::array<double,4>,2> states{};
     std::array<double,4> mismatch{};
+    double allpass[2][4]{},allpassStep[2][4]{},triangleCoefficient=0,fadeStep=0;
+    double lastSpeed=-1,lastVariant=-1,cachedRate=1;int coefficientClock=0;
     double sr=48000,triangle[2]{.5,.5},feedback[2]{},engage=1;
     uint32_t seed=1;
     bool enabled=false;
