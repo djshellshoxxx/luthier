@@ -8,7 +8,7 @@ void nodePedal (const Node& node, ExecCtx& ctx) noexcept
 {
     auto* state = static_cast<PedalNodeState*> (ctx.state[ctx.nodeIndex]);
     if (! state || ! state->runtime) return; // persisted unknown model is a transparent placeholder
-    auto& runtime = *state->runtime; 
+    auto& runtime = *state->runtime;
     auto* left = ctx.bus[node.lane][0]; auto* right = ctx.bus[node.lane][1];
     double dry[2][kSubBlock] {};
     const int latency = ctx.topo->slotLatency[node.slot];

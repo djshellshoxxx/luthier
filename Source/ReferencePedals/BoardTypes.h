@@ -118,6 +118,7 @@ struct BoardMeters
     int latencySamples = 0;
     bool fbTripped = false, fbFault = false, clockLocked = false, clockLost = false;
     uint32_t midiDropped = 0;
+    bool sidechainAvailable = false;
 };
 
 //==============================================================================
