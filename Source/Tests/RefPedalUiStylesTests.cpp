@@ -1,5 +1,6 @@
 // OWNER: WP18
 #include "TestFramework.h"
+#include "RefPedalUiTestSupport.h"
 #include "../UI/ReferencePedals/BoardSurfacePainter.h"
 #include "../UI/Theme.h"
 using namespace luthier;
@@ -28,5 +29,5 @@ LUTHIER_TEST(RefPedalUiStyles, highContrastAndMixedMountingsPaint) {
 #include "../ReferencePedals/PedalRegistry.h"
 LUTHIER_TEST(RefPedalUiStyles, highContrastBypassRetainsBodyContrast)
 {
-    PedalRegistry::registerAll();const juce::ScopedValueSetter<bool> contrast(Palette::textured,false);BoardModel model;CHECK(model.apply(cmd::Add{"generic.boost"}));BoardCanvas canvas(model);const auto id=model.getOrder()[0];auto* view=canvas.viewFor(id);const auto enabled=view->createComponentSnapshot(view->getLocalBounds());CHECK(model.apply(cmd::SetEnabled{id,false}));const auto bypassed=view->createComponentSnapshot(view->getLocalBounds());CHECK(enabled.getPixelAt(8,52)==bypassed.getPixelAt(8,52));
+    PedalRegistry::registerAll();const juce::ScopedValueSetter<bool> contrast(Palette::textured,false);BoardModel model;if(!luthier::tests::requireReferenceEdit(ctx,model,cmd::Add{"generic.boost"}))return;BoardCanvas canvas(model);const auto id=model.getOrder()[0];auto* view=canvas.viewFor(id);const auto enabled=view->createComponentSnapshot(view->getLocalBounds());CHECK(model.apply(cmd::SetEnabled{id,false}));const auto bypassed=view->createComponentSnapshot(view->getLocalBounds());CHECK(enabled.getPixelAt(8,52)==bypassed.getPixelAt(8,52));
 }
