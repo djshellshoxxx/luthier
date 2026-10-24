@@ -36,6 +36,8 @@ private:
     static_assert(std::atomic<double>::is_always_lock_free,"RT tap snapshots require lock-free double atomics");
     std::atomic<double> publishedTapMs{500};
     double drift=0,driftTarget=0,driftPhase=0;
+    double timeCoefficient=0,driftCoefficient=0,energyCoefficient=0,lastCutoff=-1;
+    int lastMode=-1;
     TimeInfo time;
     double sr=48000,currentMs=380,oldMs=380,targetMs=380,tapMs=500,tapBlend=1,inputGain=1,tailGain=1,holdBlend=0,energy=0;
     bool enabled=true;
