@@ -19,7 +19,8 @@ const ParamDesc parameters[] {
     {"gen_wah_toe","TOE SWITCH","",ParamKind::Enum,Taper::Linear,0.0f,1.0f,0.0f,1.f,2,toeNames,PF_Automatable,20.0f,-1},
     {"gen_wah_on","ON","",ParamKind::Toggle,Taper::Linear,0.0f,1.0f,1.0f,1.f,0,nullptr,PF_Engage,20.0f,119},
 };
-const PedalDesc description {"generic.wah","gen_wah_",1,"Wah","Filter",nullptr,ChannelMode::Stereo,BypassMode::True,int(std::size(parameters)),parameters,0,false,false,false,0};
+// ESTIMATED admission budget from GENERIC_PEDALS; highest documented runtime mode.
+const PedalDesc description {"generic.wah","gen_wah_",1,"Wah","Filter",nullptr,ChannelMode::Stereo,BypassMode::True,int(std::size(parameters)),parameters,0,false,false,false,500,1000};
 }
 const PedalDesc& Wah::descriptor() noexcept { return description; }
 Wah::Wah() : PedalBase(description) {}

@@ -21,7 +21,8 @@ const ParamDesc parameters[] {
     {"gen_reverb_freeze","FREEZE","",ParamKind::Momentary,Taper::Linear,0.0f,1.0f,0.0f,1.f,0,nullptr,PF_Automatable,20.0f,102},
     {"gen_reverb_on","ON","",ParamKind::Toggle,Taper::Linear,0.0f,1.0f,1.0f,1.f,0,nullptr,PF_Engage,20.0f,103},
 };
-const PedalDesc description {"generic.reverb","gen_reverb_",1,"Reverb","Time",nullptr,ChannelMode::MonoInStereoOut,BypassMode::DSP,int(std::size(parameters)),parameters,0,true,false,false,0};
+// ESTIMATED admission budget from GENERIC_PEDALS; highest documented runtime mode.
+const PedalDesc description {"generic.reverb","gen_reverb_",1,"Reverb","Time",nullptr,ChannelMode::MonoInStereoOut,BypassMode::DSP,int(std::size(parameters)),parameters,0,true,false,false,3000,1000};
 }
 PreparedMemoryRequirement Reverb::prepareMemory(double sr,int,int,const float*) noexcept
 {
