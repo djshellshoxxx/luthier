@@ -4,16 +4,18 @@
 #include "PedalRegistry.h"
 #include "Routing/RoutingNodes.h"
 #include <limits>
+#include <cstring>
 namespace luthier::reference
 {
 static_assert (std::atomic<const RenderPlan*>::is_always_lock_free, "Audio plan pointer must be lock-free");
+static_assert (std::atomic<uint64_t>::is_always_lock_free && std::atomic<double>::is_always_lock_free && std::atomic<float>::is_always_lock_free, "Pedal meters require lock-free atomics");
 static_assert (std::atomic<uint32_t>::is_always_lock_free, "Audio epoch must be lock-free");
 BoardEngine::BoardEngine (BoardModel& source) : model (source)
 {
     PedalRegistry::registerAll();
     prepare (48000, 4096);
-    model.setCompiler ([this] (const auto& instances, const auto& settings, auto& info, auto& error)
-        { return publish (instances, settings, info, error); });
+    model.setCompiler ([this] (const auto& instances, const auto& settings, auto& info, auto& error, const BoardCommand* intent, bool hostEcho)
+        { return publish (instances, settings, info, error, intent, hostEcho); });
 }
 BoardEngine::~BoardEngine() { model.setCompiler ({}); }
 void BoardEngine::prepare (double sampleRate, int maxBlock)
@@ -24,6 +26,7 @@ void BoardEngine::prepare (double sampleRate, int maxBlock)
     dipSamples = std::max (1, static_cast<int> (rate * 0.006));
     mixAlpha = 1.0 - std::exp (-1.0 / (0.020 * rate));
     pool.prepare (rate, block);
+    hostBoardSerials.fill (0); modelBoardSerials.fill (0);
     for (auto& segment : segments)
     {
         segment = {};
@@ -44,9 +47,9 @@ void BoardEngine::releaseResources()
     running.store (false); targetActive.store (false); latencySamples.store (0);
 }
 bool BoardEngine::publish (const std::vector<PedalInstance>& instances, const BoardSettings& settings,
-    TopologyInfo& info, juce::String& error)
+    TopologyInfo& info, juce::String& error, const BoardCommand* intent, bool hostEcho)
 {
-    auto plan = TopologyCompiler::compile (instances, settings, pool, version + 1, latest.get(), error);
+    auto plan = TopologyCompiler::compile (instances, settings, pool, version + 1, latest.get(), error, intent, hostEcho);
     if (! plan) return false;
     ++version;
     info.version = version; info.mode = settings.mode; info.pedalCount = plan->topology.n;
@@ -90,6 +93,59 @@ void BoardEngine::acknowledge() noexcept
             oldest = segment.current->topology.version;
     if (oldest) audioEpoch.store (oldest, std::memory_order_release);
 }
+void BoardEngine::publishPedalMeters (const RenderPlan& plan) noexcept
+{
+    for (int slot = 0; slot < kMaxSlots; ++slot)
+    {
+        auto& meter = pedalMeters[static_cast<size_t> (slot)];
+        const auto* runtime = plan.slots[static_cast<size_t> (slot)].get();
+        const auto sequence = meter.sequence.load (std::memory_order_relaxed);
+        meter.sequence.store (sequence + 1, std::memory_order_seq_cst);
+        uint64_t identity[2] {};
+        PedalUiMeters ui;
+        if (runtime)
+        {
+            std::memcpy (identity, runtime->identity.getRawData(), sizeof (identity));
+            ui = runtime->pedal->readUiMeters();
+        }
+        meter.identity0.store (identity[0], std::memory_order_relaxed); meter.identity1.store (identity[1], std::memory_order_relaxed);
+        meter.present.store (runtime != nullptr, std::memory_order_relaxed);
+        meter.enabled.store (runtime && runtime->enabled, std::memory_order_relaxed);
+        meter.tail.store (runtime ? runtime->pedal->getTailEnergyDb() : -120.f, std::memory_order_relaxed);
+        meter.available.store (ui.available, std::memory_order_relaxed); meter.transport.store (ui.transport, std::memory_order_relaxed);
+        meter.loopLength.store (ui.loopLength, std::memory_order_relaxed); meter.playhead.store (ui.playhead, std::memory_order_relaxed);
+        meter.bpm.store (ui.bpm, std::memory_order_relaxed); meter.progress.store (ui.progress, std::memory_order_relaxed);
+        meter.faults.store (ui.faults, std::memory_order_relaxed);
+        meter.sequence.store (sequence + 2, std::memory_order_release);
+    }
+}
+PedalMeters BoardEngine::readPedalMeters (int slot) const noexcept
+{
+    if (slot < 0 || slot >= kMaxSlots) return {};
+    const auto& meter = pedalMeters[static_cast<size_t> (slot)];
+    for (int attempt = 0; attempt < 3; ++attempt)
+    {
+        const auto before = meter.sequence.load (std::memory_order_acquire);
+        if (before & 1u) continue;
+        PedalMeters result;
+        uint64_t identity[2] { meter.identity0.load (std::memory_order_relaxed), meter.identity1.load (std::memory_order_relaxed) };
+        result.identity = reinterpret_cast<const uint8_t*> (identity);
+        result.present = meter.present.load (std::memory_order_relaxed); result.enabled = meter.enabled.load (std::memory_order_relaxed);
+        result.tailEnergyDb = meter.tail.load (std::memory_order_relaxed);
+        result.model.available = meter.available.load (std::memory_order_relaxed); result.model.transport = meter.transport.load (std::memory_order_relaxed);
+        result.model.loopLength = meter.loopLength.load (std::memory_order_relaxed); result.model.playhead = meter.playhead.load (std::memory_order_relaxed);
+        result.model.bpm = meter.bpm.load (std::memory_order_relaxed); result.model.progress = meter.progress.load (std::memory_order_relaxed);
+        result.model.faults = meter.faults.load (std::memory_order_relaxed);
+        std::atomic_thread_fence (std::memory_order_acquire);
+        if (before == meter.sequence.load (std::memory_order_relaxed)) return result;
+    }
+    return {}; // contention is unavailable, never a fabricated stale identity
+}
+void BoardEngine::syncRouting (midi::MidiRouter& router) const noexcept
+{
+    if (const auto* plan = live.load (std::memory_order_acquire))
+        router.setModelEnabled (plan->settings.enabled, plan->boardSerials[0]);
+}
 BoardMeters BoardEngine::meters() const noexcept
 {
     BoardMeters result; result.inPeakDb = inputPeak.load(); result.outPeakDb = outputPeak.load();
@@ -101,9 +157,10 @@ void BoardEngine::beginEvents (const midi::RouteOut& routed) noexcept
     events = &routed;
     const auto* plan = live.load (std::memory_order_acquire);
     if (! plan) return;
-    if (modelEnabled != plan->settings.enabled) effectiveEnabled = modelEnabled = plan->settings.enabled;
-    if (modelMix != plan->settings.mix) effectiveMix = modelMix = plan->settings.mix;
-    if (modelTempo != plan->settings.tempoBpm) effectiveTempo = modelTempo = plan->settings.tempoBpm;
+    if (modelBoardSerials[0] != plan->boardSerials[0]) effectiveEnabled = modelEnabled = plan->settings.enabled;
+    if (modelBoardSerials[1] != plan->boardSerials[1]) effectiveMix = modelMix = plan->settings.mix;
+    if (modelBoardSerials[2] != plan->boardSerials[2]) effectiveTempo = modelTempo = plan->settings.tempoBpm;
+    modelBoardSerials = plan->boardSerials;
     for (int index = 0; index < 3; ++index)
         if (hostAutomation.serials[static_cast<size_t> (index)] != 0
             && hostAutomation.serials[static_cast<size_t> (index)] != hostBoardSerials[static_cast<size_t> (index)])
@@ -170,7 +227,7 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
         }
     }
     if (! localEnabled && ! running.load())
-    { s.current = newest; s.pending = nullptr; s.phase = Segment::Idle; s.gain = 1.0; s.enable = 0.0; acknowledge(); return; }
+    { s.current = newest; s.pending = nullptr; s.phase = Segment::Idle; s.gain = 1.0; s.enable = 0.0; publishPedalMeters (*s.current); acknowledge(); return; }
     if (localEnabled && newest->topology.n > 0) running.store (true);
     double peakIn = 0, peakOut = 0;
     for (int offset = 0; offset < n;)
@@ -241,21 +298,23 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
                                         hasSidechain ? sidechainScratch[1].data() : nullptr, hasSidechain ? count : 0);
                     for (int param = 0; param < pedal.desc().numParams; ++param)
                         if (! pedal.desc().params[param].has (PF_Engage)
-                            && state.runtime->modelParams[static_cast<size_t> (param)] != state.control->params[static_cast<size_t> (param)])
+                            && state.runtime->modelParamSerials[static_cast<size_t> (param)] != state.control->paramSerials[static_cast<size_t> (param)])
                         {
+                            state.runtime->modelParamSerials[static_cast<size_t> (param)] = state.control->paramSerials[static_cast<size_t> (param)];
                             state.runtime->modelParams[static_cast<size_t> (param)] = state.control->params[static_cast<size_t> (param)];
                             pedal.setParam (param, state.control->params[static_cast<size_t> (param)]);
                         }
-                    if (state.runtime->modelEnabled != state.control->enabled)
+                    if (state.runtime->modelEnabledSerial != state.control->enabledSerial)
                     {
+                        state.runtime->modelEnabledSerial = state.control->enabledSerial;
                         state.runtime->modelEnabled = state.runtime->enabled = state.control->enabled;
                         state.runtime->bypassSamples = std::max (1.0, 0.005 * rate);
                         state.runtime->foot.reset (state.control->enabled); pedal.setEnabled (state.control->enabled);
                     }
-                    if (state.runtime->modelInputGain != state.control->inputGain)
-                        state.runtime->inputGain = state.runtime->modelInputGain = state.control->inputGain;
-                    if (state.runtime->modelOutputGain != state.control->outputGain)
-                        state.runtime->outputGain = state.runtime->modelOutputGain = state.control->outputGain;
+                    if (state.runtime->modelInputSerial != state.control->inputSerial)
+                    { state.runtime->modelInputSerial = state.control->inputSerial; state.runtime->inputGain = state.runtime->modelInputGain = state.control->inputGain; }
+                    if (state.runtime->modelOutputSerial != state.control->outputSerial)
+                    { state.runtime->modelOutputSerial = state.control->outputSerial; state.runtime->outputGain = state.runtime->modelOutputGain = state.control->outputGain; }
                     const int hostBase = 3 + 20 * node.slot;
                     if (! state.runtime->hostInitialised)
                     {
@@ -378,6 +437,7 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
     if (newest->topology.n == 0 && s.pending == nullptr) running.store (false);
     inputPeak.store (static_cast<float> (20.0 * std::log10 (std::max (1.e-6, peakIn))));
     outputPeak.store (static_cast<float> (20.0 * std::log10 (std::max (1.e-6, peakOut))));
+    publishPedalMeters (*s.current);
     acknowledge();
 }
 }

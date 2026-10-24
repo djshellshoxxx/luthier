@@ -12,6 +12,7 @@
 #include <vector>
 #include <juce_core/juce_core.h>
 #include "PedalDesc.h"
+#include "IPedal.h"
 
 namespace luthier::reference
 {
@@ -125,6 +126,14 @@ struct BoardMeters
 // Message-thread data model (BOARD_CORE 3 and 10.1). Plain copyable structs so
 // the UI, the state reader and the undo stack share one vocabulary.
 using InstanceId = juce::Uuid;   // persisted, stable across reorder and sessions
+
+struct PedalMeters
+{
+    InstanceId identity = InstanceId::null();
+    bool present = false, enabled = false;
+    float tailEnergyDb = -120.f;
+    PedalUiMeters model;
+};
 
 struct PedalInstance
 {

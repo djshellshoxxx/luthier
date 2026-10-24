@@ -60,6 +60,20 @@ struct PedalServices
     double sampleRate = 48000;
 };
 
+enum PedalUiAvailability : uint32_t
+{
+    UiTransport = 1, UiLoop = 2, UiTempo = 4, UiProgress = 8, UiFaults = 16
+};
+struct PedalUiMeters
+{
+    uint32_t available = 0;
+    int transport = 0;
+    uint64_t loopLength = 0, playhead = 0;
+    double bpm = 0;
+    float progress = 0;
+    uint32_t faults = 0;
+};
+
 class IPedal
 {
 public:
@@ -96,6 +110,7 @@ public:
     // E41: audio-thread one-shot request (e.g. a wah toe switch). The board
     // consumes this after processing; only the board owns the bypass envelope.
     virtual bool consumeEngageToggle() noexcept { return false; }
+    virtual PedalUiMeters readUiMeters() const noexcept { return {}; } // E47: AUDIO THREAD ONLY
     virtual void setExpression (int /*jack*/, float /*v*/) noexcept {}
     virtual bool isStateless() const noexcept { return false; }
     virtual bool outputsDualMono() const noexcept { return false; }
