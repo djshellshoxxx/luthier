@@ -22,11 +22,17 @@ unresolved and is not changed by this rhythm module.
   Procedural pitched/noise transients, per-kit prepared coefficients; no audio,
   copyrighted samples, files, allocation, locks or lazy initialization in process.
 - Off-audio prepare(rate,seed), audio reset(), setTempo(bpm), setLevel(percent),
-  select(pattern1to57,variation0or1,kit1to7), setRunning(bool), process(L,R,n).
+  select(pattern1to57,variation0or1,kit1to7), setRunning(bool), locate(ppq), process(L,R,n).
   Select applies immediately stopped, or at the next bar boundary running.
   Starting restarts the phrase. Stopping stops new hits and smooths output down.
+  The final beat of each2/4-bar phrase uses its paired variation as an original fill.
+  Existing voices retain their triggered kit through a kit change. When phrase
+  length changes, the current bar is reduced modulo the new phrase length,
+  including selection committed by an explicit transport seek.
 - A double sample-clock accumulator preserves phase through tempo changes.
-  The wrapper supplies canonical TimeInfo tempo and transport. This helper does
+  The wrapper supplies canonical TimeInfo tempo and transport; full precision is
+  retained internally, while the UI tempo parameter uses0.1BPM steps. Explicit
+  transport seeks call locate after starting; ordinary tempo changes keep phase. This helper does
   not arbitrate host/MIDI clocks, change recorded loop speed or emit MIDI.
 - Rhythm level0–100 uses squared gain and20ms one-pole smoothing. Rhythm is
   centered and added equally to both channels. State is fixed-size/double.
