@@ -10,7 +10,10 @@ void nodePedal (const Node& node, ExecCtx& ctx) noexcept
     if (! state || ! state->runtime) return; // persisted unknown model is a transparent placeholder
     auto& runtime = *state->runtime;
     auto* left = ctx.bus[node.lane][0]; auto* right = ctx.bus[node.lane][1];
-    double dry[2][kSubBlock] {};
+    double dry[2][kSubBlock] {}, originalDry[2][kSubBlock] {};
+    const auto& description = runtime.pedal->desc();
+    const bool buffered = description.bypass == BypassMode::Buffered;
+    const bool tailContract = description.bypass == BypassMode::DSP || (buffered && description.hasTails);
     const int latency = ctx.topo->slotLatency[node.slot];
     if (state->processWet)
         for (int i = 0; i < ctx.n; ++i)
@@ -19,6 +22,11 @@ void nodePedal (const Node& node, ExecCtx& ctx) noexcept
             dry[1][i] = runtime.dry[1].process (right[i], latency);
             left[i] *= runtime.inputGain; right[i] *= runtime.inputGain;
         }
+    if (state->processWet)
+    {
+        for (int c = 0; c < 2; ++c) std::copy_n (dry[c], ctx.n, originalDry[c]);
+        if (buffered) runtime.pedal->processBypass (dry[0], dry[1], ctx.n);
+    }
     const midi::ParamWrite* writes[midi::kMaxRouteWrites]; int numWrites = 0;
     if (state->eventsEnabled && state->events)
         for (int event = 0; event < state->events->nWrites; ++event)
@@ -68,8 +76,18 @@ void nodePedal (const Node& node, ExecCtx& ctx) noexcept
     for (int i = 0; i < ctx.n; ++i)
     {
         runtime.enableMix = std::clamp (runtime.enableMix + (runtime.enabled ? step : -step), 0.0, 1.0);
-        left[i] = BoardLimiter::process (dry[0][i] + runtime.enableMix * (left[i] * runtime.outputGain - dry[0][i]), false, 1.0);
-        right[i] = BoardLimiter::process (dry[1][i] + runtime.enableMix * (right[i] * runtime.outputGain - dry[1][i]), false, 1.0);
+        for (int channel = 0; channel < 2; ++channel)
+        {
+            auto& output = channel == 0 ? left[i] : right[i];
+            const double processed = output * runtime.outputGain;
+            // DSP/Buffered-tail pedals own excitation and wet-tail slews. Only
+            // replace their dry calibration/buffer path; never scale away tails.
+            const double result = tailContract
+                ? (render ? processed + (1.0 - runtime.enableMix) * (dry[channel][i]
+                    - originalDry[channel][i] * runtime.inputGain * runtime.outputGain) : dry[channel][i])
+                : dry[channel][i] + runtime.enableMix * (processed - dry[channel][i]);
+            output = BoardLimiter::process (result, false, 1.0);
+        }
     }
 }
 void nodeLimiter (const Node& node, ExecCtx& ctx) noexcept
