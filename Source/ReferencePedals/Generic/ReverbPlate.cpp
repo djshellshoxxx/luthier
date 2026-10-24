@@ -4,7 +4,7 @@
 #include <algorithm>
 namespace luthier::reference::generic
 {
-void ReverbPlate::prepare(double sampleRate)
+void ReverbPlate::prepare(double sampleRate,uint32_t seed)
 {
     sr=sampleRate; settingsValid=false;
     for(auto& d:inputDiffusion) d.prepare(int(sr*.04)+8);
@@ -12,13 +12,13 @@ void ReverbPlate::prepare(double sampleRate)
     for(auto& d:lateDiffusion) d.prepare(int(sr*.16)+8);
     for(auto& d:firstDelay) d.prepare(int(sr*.27)+8);
     for(auto& d:lastDelay) d.prepare(int(sr*.23)+8);
-    lfo.prepare(sr); lfo.setRate(.3); reset(); set(2.2,1,0,.25,0);
+    lfo.prepare(sr,seed);reset();set(2.2,1,0,.25,0);
 }
 void ReverbPlate::reset() noexcept
 {
     for(auto& d:inputDiffusion) d.reset(); for(auto& d:modDiffusion) d.reset();
     for(auto& d:lateDiffusion) d.reset(); for(auto& d:firstDelay) d.reset(); for(auto& d:lastDelay) d.reset();
-    for(auto& f:damping) f.reset(); feedback[0]=feedback[1]=0; lfo.setPhase(0);
+    for(auto& f:damping) f.reset();feedback[0]=feedback[1]=0;lfo.reset();
 }
 void ReverbPlate::set(double decay,double size,double tone,double modulation,double frozen) noexcept
 {
@@ -41,18 +41,18 @@ std::array<double,2> ReverbPlate::process(double input) noexcept
     double x=input;
     for(int i=0;i<4;++i) x=allpass(inputDiffusion[i],x,std::round(inputLengths[i]*sr/29761),i<2 ? .75:.625);
     constexpr int modLength[]{672,908},firstLength[]{4453,4217},lateLength[]{1800,2656},lastLength[]{3720,3163};
-    double next[2]{},out[2]{};
+    double next[2]{},out[2]{};const double movement=lfo.next();
     for(int c=0;c<2;++c)
     {
         const double gain=decayGain*(1-freeze)+freeze;
         double y=x+feedback[1-c]*gain;
-        y=allpass(modDiffusion[c],y,std::round(modLength[c]*scale)+(c==0 ? 1:-1)*mod*(1-freeze)*sr*.001*lfo.sine(),-.7);
+        y=allpass(modDiffusion[c],y,std::round(modLength[c]*scale)+(c==0 ? 1:-1)*mod*(1-freeze)*sr*.001*movement,-.7);
         const double delayed=firstDelay[c].read(std::round(firstLength[c]*scale)-1); firstDelay[c].push(y);
         y=damping[c].process(delayed)*(1-freeze)+delayed*freeze;
         y=allpass(lateDiffusion[c],y,std::round(lateLength[c]*scale),.5);
         next[c]=lastDelay[c].read(std::round(lastLength[c]*scale)-1); lastDelay[c].push(y);
         out[c]=.5*(delayed+next[c]);
     }
-    feedback[0]=next[0]; feedback[1]=next[1]; lfo.advance(); return {out[0],out[1]};
+    feedback[0]=next[0];feedback[1]=next[1];return {out[0],out[1]};
 }
 }

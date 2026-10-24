@@ -463,3 +463,102 @@ Five local O3 CPU trials have overlapping ranges: before 0.8042–0.8753%, after
 0.7813–0.8863% (medians 0.8397/0.8196%). This is not a stable CPU-gate closure;
 the unchanged 0.5% requirement remains open. These runs occurred on the fresh
 execution host and are not directly comparable to older machine timings.
+
+E66 measured Reverb candidate (review checkpoint, not an all-condition pass):
+Room/Hall/Ambient and Plate now use the independently reviewed prepared seeded
+RandomWalkLfo, replacing the fixed sine oscillators. Each family has a separate
+deterministic seed; reset and sample/block scheduling are reproducible. The
+shared helper's physical-time remainder correction is required. Runtime uses
+fixed state and existing prepared delay buffers, without random-device calls.
+
+Hall's estimated base lengths change from
+30.1/37.3/43.9/53.3/61.3/71.9/89.3/109.7 ms (mean **62.100 ms**) to
+30.1/31.1/32.9/34.3/36.1/37.9/41.3/43.7 ms (mean **35.925 ms**). Both lie in the
+specified 30..110 ms allowed interval; no requirement says to span its endpoints.
+Nearest-prime rounding and SIZE scaling remain. Actual lengths still determine
+the per-line decay gain. This changes modal coloration and early reflection
+timing; it is an estimated design choice, not a measured room or hardware model.
+The frozen original-geometry/sine algorithm from19320228 is executable in
+`probes/reverb-original-geometry.cpp`, with its raw failure results retained.
+
+Shorter Hall geometry alone does not pass the original density gate across
+seeds: minimum raw NED at200ms is0.846962182, with15/90 failures. E66 adds two
+Hall-only output allpasses per channel, after the original8-line Householder
+and four input allpasses, before the wrapper's mix/bypass/type dip. Delay pairs
+are3.1/7.3ms left and4.7/11.1ms right, rounded to integer samples; coefficients
+are+0.6. They use fixed lengths, independent of SIZE. Each transfer is
+`(z^-D-g)/(1-g*z^-D)`, unit magnitude for real |g|<1. Direct feedthrough of the
+pair is0.36: there is no additional constant sample delay/PDC, although phase
+and finite-window energy distribution change. DSP independently reviewed the
+indexing, stability, lossless magnitude and need to keep the stages wet-only.
+
+The complete bounded four-sign experiment is preserved in
+`probes/reverb-e66-sign-grid/` and reproduced by `reverb-e66-variants.py`.
+The generator pins the positive1.4 reference calibration in a temporary wrapper;
+it never mutates product source. All270 raw windows per candidate are retained:
+
+| Coefficients | Minimum200ms (90 cases) | Minimum190/200/210ms (270 cases) |
+|---|---:|---:|
+| +,+ |0.925436714|0.896204169 (one190ms failure)|
+| -,- |0.923287262|0.911797465|
+| +,- |0.918290484|0.914717370|
+| -,+ |0.921863599|0.902211468|
+
+Cases cover44.1/48/88.2/96/192kHz, seeds1/73/0xdeadbeef, zero-input prerolls
+0/.37/1.13s and both channels. The required raw NED>0.9 at200ms passes all90
+cases for every sign candidate. The earlier190ms result is not discarded or
+reported as a pass. Raw impulse,20ms window, mean-removed standard deviation,
+and normalization probability0.317310507862914 remain unchanged.
+
+Fixed per-type output gains are estimated calibration choices:
+Room1.25, Hall **-1.47**, Plate1.45, Spring0.9, Ambient1.9. The Hall sign reverses
+BOTH wet outputs; it preserves wet RMS, NED, RT60 and mono-sum magnitude but
+reverses the coherent dry/wet cross term. DSP independently reviewed that
+mechanism; it does not imply equivalent mixed sound. The unspecified estimated
+FDN tap signs are now the opposite orientation for Hall. There is no adaptive
+gain, hidden normalization, rate-dependent gain or changed acceptance threshold.
+
+Calibration uses the original unfiltered seeded-white10s fixture, measuring the
+last3s, and the common GENERIC_PEDALS line11 default-mix1kHz -18dBFS sine
+criterion, also measured over the last3s of10s. White input seed42 and default
+instance seed1/zero preroll are explicit. With the selected signed Hall gain,
+five-rate full-wet white results span-2.6374..-1.2406dB (original±3), and default
+mix sine spans-1.2477..+1.3574dB (original±1.5). Fresh tests render both actual
+wrapper configurations; these passes are not inferred only from gain scaling.
+
+Expanded limitations remain visible. The90-case original white/sine fixture
+expansion across three seeds/three prerolls has no exact fixed-gain intersection:
+positive reference orientation cannot meet the mixed-sine requirement; reversed
+orientation requires absolute gain>=1.409904 from white and<=1.403404 from one
+mixed-sine case. At selected1.47 the expanded mixed-sine maximum is **+1.642827dB**
+(88.2kHz,seed73,zero preroll), above the original+1.5 limit. This is a known
+seed-dependent failure, not a changed threshold or an all-seed acceptance claim.
+The earlier8s/last3s135-case colored-noise/chord/full-wet-sine diagnostic is also
+retained: full-wet sine itself cannot fit±3 across every seed with one gain.
+Reverb's wet-white normalization does not assert flat frequency response to every
+steady sine. The mandatory default-mix sine criterion remains explicit; no
+Reverb exception was invented. The quadratic interval solver records exact
+mixed-energy coefficients and the empty intersections, including failed sign
+candidates. Parent adoption/acceptance-scope review remains required.
+
+Fresh immutable ASAN+UBSAN validation passes **4,540,261 checks**, zero failures
+and zero diagnostics: existing Delay/Reverb behavior, actual90-case raw density,
+seeded Hall/Plate partition/reset, actual five-rate original level fixtures,
+prime geometry, type-dip stale-history, RT60 and freeze tests. Actual-wrapper
+probes separately pass20 RT60 cases (1/2/4/8s at five rates, original±10%) and
+30 freeze cases (three seeds/five rates/both channels, original±1dB over10s).
+Dark-tail high-frequency decay is faster at all five rates. Local O3 CPU across
+16/128/2048 blocks is Hall1.167–1.388% versus2.5%, Plate0.961–1.085% versus3%;
+silence ratios stay below1.07x, far below the unchanged10x guard. Timing includes
+per-block thread-clock overhead and is not normalized to another machine.
+
+A60s/type/rate randomized-tail soak covers **140,490,000 stereo frames**, all
+five types and rates, blocks1/4/16/64/512/2048, fixed input/control seed73, and
+records every final RNG/frame/block count. Zero callback new/new[] allocations,
+zero nonfinite samples, peak0.088527, zero positive one-second tail-energy steps
+and zero final energy were observed. This run used the earlier positive Hall1.4
+calibration; the final sign/gain is outside the tank and changes Hall output only
+by the constant-1.05 factor. It therefore preserves those decay/finite/allocation
+properties, with Hall peak scaled1.05; it is not labelled a fresh final-gain soak.
+The original architecture, failed density and level rows, sign grid and all
+calibration uncertainties are preserved alongside the revised results.

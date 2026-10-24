@@ -1,0 +1,66 @@
+RT60 sr44100 requested1.0 measured0.994875283 relative_error-0.005124717 pass1
+RT60 sr44100 requested2.0 measured2.007165533 relative_error0.003582766 pass1
+RT60 sr44100 requested4.0 measured4.002630385 relative_error0.000657596 pass1
+RT60 sr44100 requested8.0 measured7.998004535 relative_error-0.000249433 pass1
+freeze sr44100 seed1 channel0 change10seconds_db-0.005158508 pass1
+freeze sr44100 seed1 channel1 change10seconds_db-0.021044104 pass1
+freeze sr44100 seed73 channel0 change10seconds_db-0.004308824 pass1
+freeze sr44100 seed73 channel1 change10seconds_db0.003712679 pass1
+freeze sr44100 seed3735928559 channel0 change10seconds_db-0.018685667 pass1
+freeze sr44100 seed3735928559 channel1 change10seconds_db0.011174404 pass1
+HF sr44100 tone-1 LF_decay_db-29.294407144 HF_decay_db-70.346858452
+HF sr44100 tone1 LF_decay_db-26.855040695 HF_decay_db-27.208040254
+RT60 sr48000 requested1.0 measured0.995583333 relative_error-0.004416667 pass1
+RT60 sr48000 requested2.0 measured2.006541667 relative_error0.003270833 pass1
+RT60 sr48000 requested4.0 measured4.001083333 relative_error0.000270833 pass1
+RT60 sr48000 requested8.0 measured7.999291667 relative_error-0.000088542 pass1
+freeze sr48000 seed1 channel0 change10seconds_db0.001192310 pass1
+freeze sr48000 seed1 channel1 change10seconds_db-0.007280215 pass1
+freeze sr48000 seed73 channel0 change10seconds_db-0.008954320 pass1
+freeze sr48000 seed73 channel1 change10seconds_db-0.019107727 pass1
+freeze sr48000 seed3735928559 channel0 change10seconds_db-0.005273941 pass1
+freeze sr48000 seed3735928559 channel1 change10seconds_db-0.011306556 pass1
+HF sr48000 tone-1 LF_decay_db-29.637581990 HF_decay_db-73.649884764
+HF sr48000 tone1 LF_decay_db-27.195634501 HF_decay_db-27.223722595
+RT60 sr88200 requested1.0 measured0.996870748 relative_error-0.003129252 pass1
+RT60 sr88200 requested2.0 measured2.006303855 relative_error0.003151927 pass1
+RT60 sr88200 requested4.0 measured4.002290249 relative_error0.000572562 pass1
+RT60 sr88200 requested8.0 measured7.999614512 relative_error-0.000048186 pass1
+freeze sr88200 seed1 channel0 change10seconds_db0.012987569 pass1
+freeze sr88200 seed1 channel1 change10seconds_db-0.006288741 pass1
+freeze sr88200 seed73 channel0 change10seconds_db0.010272689 pass1
+freeze sr88200 seed73 channel1 change10seconds_db0.002456994 pass1
+freeze sr88200 seed3735928559 channel0 change10seconds_db-0.016945655 pass1
+freeze sr88200 seed3735928559 channel1 change10seconds_db0.000666091 pass1
+HF sr88200 tone-1 LF_decay_db-29.351480418 HF_decay_db-75.685931089
+HF sr88200 tone1 LF_decay_db-26.934900910 HF_decay_db-27.215852190
+RT60 sr96000 requested1.0 measured0.996208333 relative_error-0.003791667 pass1
+RT60 sr96000 requested2.0 measured2.006187500 relative_error0.003093750 pass1
+RT60 sr96000 requested4.0 measured4.001500000 relative_error0.000375000 pass1
+RT60 sr96000 requested8.0 measured8.000000000 relative_error0.000000000 pass1
+freeze sr96000 seed1 channel0 change10seconds_db0.020489657 pass1
+freeze sr96000 seed1 channel1 change10seconds_db0.003441571 pass1
+freeze sr96000 seed73 channel0 change10seconds_db0.007423286 pass1
+freeze sr96000 seed73 channel1 change10seconds_db-0.002785918 pass1
+freeze sr96000 seed3735928559 channel0 change10seconds_db0.009435157 pass1
+freeze sr96000 seed3735928559 channel1 change10seconds_db-0.014024195 pass1
+HF sr96000 tone-1 LF_decay_db-29.453408009 HF_decay_db-76.570804864
+HF sr96000 tone1 LF_decay_db-27.065917401 HF_decay_db-27.159806338
+RT60 sr192000 requested1.0 measured0.996447917 relative_error-0.003552083 pass1
+RT60 sr192000 requested2.0 measured2.004468750 relative_error0.002234375 pass1
+RT60 sr192000 requested4.0 measured3.999895833 relative_error-0.000026042 pass1
+RT60 sr192000 requested8.0 measured8.000520833 relative_error0.000065104 pass1
+freeze sr192000 seed1 channel0 change10seconds_db0.014120167 pass1
+freeze sr192000 seed1 channel1 change10seconds_db-0.009133506 pass1
+freeze sr192000 seed73 channel0 change10seconds_db0.000029687 pass1
+freeze sr192000 seed73 channel1 change10seconds_db0.008222433 pass1
+freeze sr192000 seed3735928559 channel0 change10seconds_db0.002692010 pass1
+freeze sr192000 seed3735928559 channel1 change10seconds_db-0.019892571 pass1
+HF sr192000 tone-1 LF_decay_db-29.346355585 HF_decay_db-79.121912236
+HF sr192000 tone1 LF_decay_db-26.887445299 HF_decay_db-27.197314662
+CPU type1 trial0 seconds1.198296053 audio_seconds100 core_percent1.198296053 checksum-0.083369272
+CPU type1 trial1 seconds1.171598418 audio_seconds100 core_percent1.171598418 checksum-0.083369272
+CPU type1 trial2 seconds1.219489837 audio_seconds100 core_percent1.219489837 checksum-0.083369272
+CPU type2 trial0 seconds1.029016723 audio_seconds100 core_percent1.029016723 checksum-0.060407700
+CPU type2 trial1 seconds1.048708420 audio_seconds100 core_percent1.048708420 checksum-0.060407700
+CPU type2 trial2 seconds1.048239112 audio_seconds100 core_percent1.048239112 checksum-0.060407700

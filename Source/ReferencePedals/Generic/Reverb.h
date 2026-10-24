@@ -17,6 +17,7 @@ public:
     void reset() noexcept override;
     void process(double*,double*,int) noexcept override;
     void setEnabled(bool e) noexcept override { enabled=e; }
+    void setServices(const PedalServices& services) override {seed=services.instanceSeed;}
     float getTailEnergyDb() const noexcept override;
 private:
     ReverbFdn fdn[3]; ReverbPlate plate; ReverbSpring spring;
@@ -25,6 +26,7 @@ private:
     double sr=48000,inputGain=1,tailGain=1,freeze=0,typeBlend=1,energy=0;
     double lastCut=-1,energyCoefficient=0,typeStep=0;
     int type=1;
+    uint32_t seed=1;
     bool enabled=true;
 };
 }
