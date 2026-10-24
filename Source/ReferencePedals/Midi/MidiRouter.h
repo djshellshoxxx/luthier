@@ -39,6 +39,10 @@ public:
     // A fresh model revision is applied before a fresh host serial.
     void setModelEnabled (bool enabled, uint32_t revision) noexcept;
 
+    void setHostTempoSource (TempoSource, uint32_t serial) noexcept;
+    void setModelTempoSource (TempoSource, uint32_t revision) noexcept;
+    void setHostTempoBpm (double bpm, uint32_t serial) noexcept;
+    void setModelTempoBpm (double bpm, uint32_t revision) noexcept;
     // E57: audio thread, virtual jack1/2; serial0 is unwritten.
     void setVirtualExpression (int source, float normalised, uint32_t serial) noexcept;
 
