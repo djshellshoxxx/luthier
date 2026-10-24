@@ -27,11 +27,13 @@ void BoardEngine::prepare (double sampleRate, int maxBlock)
     mixAlpha = 1.0 - std::exp (-1.0 / (0.020 * rate));
     pool.prepare (rate, block);
     hostBoardSerials.fill (0); modelBoardSerials.fill (0);
+    paramPulses.clear(); numPendingPulses = 0; numRawMidi = numMidiOutput = 0;
     for (auto& segment : segments)
     {
         segment = {};
         for (auto& line : segment.dry) line.prepare (kMaxLatencySamp);
         for (auto& line : segment.lanes) line.prepare (kMaxLatencySamp);
+        for (auto& loop : segment.loops) loop.prepare (kMaxLatencySamp);
     }
     std::vector<PedalInstance> instances; BoardSettings settings;
     model.snapshot (instances, settings);
@@ -60,6 +62,16 @@ bool BoardEngine::publish (const std::vector<PedalInstance>& instances, const Bo
     latencySamples.store (active && settings.reportLatency ? plan->topology.latencyTotal : 0, std::memory_order_release);
     auto old = std::move (latest); latest = std::move (plan);
     live.store (latest.get(), std::memory_order_release);
+    if (! hostEcho && intent)
+        if (const auto* write = std::get_if<cmd::SetParam> (intent))
+            for (const auto& runtime : latest->slots)
+                if (runtime && runtime->identity == write->id && write->paramIdx < runtime->pedal->desc().numParams)
+                {
+                    const auto& descriptor = runtime->pedal->desc();
+                    const auto kind = descriptor.params[write->paramIdx].kind;
+                    if (kind == ParamKind::Trigger || kind == ParamKind::Momentary)
+                        paramPulses.push ({ write->id, descriptor.modelId, write->paramIdx, write->norm });
+                }
     if (old) { const auto oldVersion = old->topology.version; retired.retire (std::move (old), oldVersion); }
     reclaim();
     return true;
@@ -150,13 +162,47 @@ BoardMeters BoardEngine::meters() const noexcept
 {
     BoardMeters result; result.inPeakDb = inputPeak.load(); result.outPeakDb = outputPeak.load();
     result.latencySamples = latency(); result.sidechainAvailable = sidechainConnected.load();
-    result.midiDropped = engageEcho.dropped(); return result;
+    result.midiDropped = engageEcho.dropped() + paramPulses.dropped() + rawDropped.load() + outputDropped.load(); return result;
+}
+void BoardEngine::beginRawMidi (const juce::MidiBuffer& input, int samples) noexcept
+{
+    numRawMidi = 0;
+    if (numMidiOutput > 0) { outputDropped.fetch_add (static_cast<uint32_t> (numMidiOutput), std::memory_order_relaxed); numMidiOutput = 0; }
+    for (const auto metadata : input)
+    {
+        if (metadata.samplePosition < 0 || metadata.samplePosition >= samples) continue;
+        if (metadata.numBytes < 1 || metadata.numBytes > 3 || numRawMidi == static_cast<int> (rawMidi.size()))
+        { rawDropped.fetch_add (1, std::memory_order_relaxed); continue; }
+        rawMidi[static_cast<size_t> (numRawMidi++)] = { metadata.data[0],
+            static_cast<uint8_t> (metadata.numBytes > 1 ? metadata.data[1] : 0),
+            static_cast<uint8_t> (metadata.numBytes > 2 ? metadata.data[2] : 0), metadata.samplePosition };
+    }
+}
+int BoardEngine::drainMidiOut (MidiEvent* destination, int capacity) noexcept
+{
+    if (! destination || capacity <= 0) return 0;
+    const int count = std::min (capacity, numMidiOutput);
+    std::copy_n (midiOutput.data(), count, destination);
+    std::move (midiOutput.begin() + count, midiOutput.begin() + numMidiOutput, midiOutput.begin());
+    numMidiOutput -= count;
+    return count;
 }
 void BoardEngine::beginEvents (const midi::RouteOut& routed) noexcept
 {
     events = &routed;
     const auto* plan = live.load (std::memory_order_acquire);
     if (! plan) return;
+    int retained = 0;
+    for (int i = 0; i < numPendingPulses; ++i)
+    {
+        const auto& pulse = pendingPulses[static_cast<size_t> (i)];
+        for (const auto& runtime : plan->slots)
+            if (runtime && runtime->identity == pulse.identity && runtime->pedal->desc().modelId == pulse.modelId)
+            { pendingPulses[static_cast<size_t> (retained++)] = pulse; break; }
+    }
+    numPendingPulses = retained;
+    while (numPendingPulses < static_cast<int> (pendingPulses.size())
+        && paramPulses.pop (pendingPulses[static_cast<size_t> (numPendingPulses)])) ++numPendingPulses;
     if (modelBoardSerials[0] != plan->boardSerials[0]) effectiveEnabled = modelEnabled = plan->settings.enabled;
     if (modelBoardSerials[1] != plan->boardSerials[1]) effectiveMix = modelMix = plan->settings.mix;
     if (modelBoardSerials[2] != plan->boardSerials[2]) effectiveTempo = modelTempo = plan->settings.tempoBpm;
@@ -213,7 +259,7 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
         for (int slot = 0; slot < kMaxSlots; ++slot)
             if (newest->slots[static_cast<size_t> (slot)]) newest->slots[static_cast<size_t> (slot)]->reset();
         for (auto& seg : segments)
-        { for (auto& d : seg.dry) d.reset(); for (auto& d : seg.lanes) d.reset(); }
+        { for (auto& d : seg.dry) d.reset(); for (auto& d : seg.lanes) d.reset(); for (auto& loop : seg.loops) loop.reset(); }
     }
     if (s.current != newest)
     {
@@ -258,6 +304,9 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
             for (int event = 0; event < events->nFoot; ++event) split (events->foot[event].offset);
             for (int event = 0; event < events->nTr; ++event) split (events->trOff[event]);
         }
+        for (int event = 0; event < numRawMidi; ++event)
+            if (rawMidi[static_cast<size_t> (event)].offset > offset)
+                count = std::min (count, rawMidi[static_cast<size_t> (event)].offset - offset);
         if (s.phase != Segment::Idle) count = std::min (count, dipSamples - s.ramp);
         const bool hasNodes = topology.segBegin[p] != topology.segEnd[p];
         if (! hasNodes && ! s.pending) { s.phase = Segment::Idle; s.gain = 1.0; offset += count; continue; }
@@ -343,10 +392,20 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
                         else if (index == 17) state.runtime->inputGain = std::pow (10.f, std::clamp (value, -12.f, 12.f) / 20.f);
                         else state.runtime->outputGain = std::pow (10.f, std::clamp (value, -12.f, 12.f) / 20.f);
                     }
+                    if (localEnabled)
+                        for (int i = 0; i < numPendingPulses; ++i)
+                        {
+                            auto& pulse = pendingPulses[static_cast<size_t> (i)];
+                            if (pulse.identity == state.runtime->identity && pulse.modelId == pedal.desc().modelId)
+                            { pedal.setParam (pulse.param, pulse.value); pulse.identity = InstanceId::null(); }
+                        }
                     auto time = blockTime;
                     if (localTempo != modelTempo) time.bpm = localTempo;
                     time.sample += offset; if (time.valid) time.ppq += offset * time.bpm / (60.0 * rate);
                     pedal.setTime (time);
+                    if (localEnabled && pedal.desc().wantsRawMidi)
+                        for (int event = 0; event < numRawMidi; ++event)
+                            if (rawMidi[static_cast<size_t> (event)].offset == offset) pedal.onMidi (rawMidi[static_cast<size_t> (event)]);
                     if (events)
                     {
                         for (int event = 0; event < events->nTr; ++event)
@@ -363,7 +422,7 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
                                     if (value != state.runtime->enabled)
                                     {
                                         state.runtime->enabled = value; pedal.setEnabled (value);
-                                        state.runtime->bypassSamples = std::max (1.0, rate * (12.0 - 10.0 * std::clamp (static_cast<double> (foot.speed), 0.0, 1.0)) * 0.001);
+                                        state.runtime->bypassSamples = std::max (1.0, rate * (foot.press ? 25.0 - 23.0 * std::clamp (static_cast<double> (foot.speed), 0.0, 1.0) : 12.0) * 0.001);
                                         engageEcho.push ({ state.runtime->identity, node.slot, value, state.runtime->modelEnabled });
                                     }
                                 }
@@ -385,10 +444,27 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
                 }
             }
             else if (node.kind == NodeKind::Delay) context.state[index] = &s.lanes[node.aux];
+            else if (node.kind == NodeKind::SendTap || node.kind == NodeKind::ReturnInject) context.state[index] = &s.loops[node.aux];
             routing::nodeTable()[static_cast<int> (node.kind)] (node, context);
             if (node.kind == NodeKind::Pedal)
             {
                 auto* runtime = plan.slots[node.slot].get();
+                if (runtime)
+                {
+                    MidiEvent outgoing[64];
+                    const int drained = std::clamp (runtime->pedal->drainMidiOut (outgoing, 64), 0, 64);
+                    if (localEnabled)
+                        for (int event = 0; event < drained; ++event)
+                        {
+                            auto value = outgoing[event]; value.offset = offset + std::clamp (value.offset, 0, count - 1);
+                            if (numMidiOutput == static_cast<int> (midiOutput.size()))
+                            { outputDropped.fetch_add (1, std::memory_order_relaxed); continue; }
+                            int insertion = numMidiOutput++;
+                            while (insertion > 0 && midiOutput[static_cast<size_t> (insertion - 1)].offset > value.offset)
+                            { midiOutput[static_cast<size_t> (insertion)] = midiOutput[static_cast<size_t> (insertion - 1)]; --insertion; }
+                            midiOutput[static_cast<size_t> (insertion)] = value;
+                        }
+                }
                 if (runtime && runtime->pedal->consumeEngageToggle())
                 {
                     runtime->enabled = ! runtime->enabled; runtime->pedal->setEnabled (runtime->enabled);

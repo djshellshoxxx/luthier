@@ -515,6 +515,7 @@ LUTHIER_TEST (RefPedalBoardCore, publicationReclamationAndControlEditsCanOverlap
     }
     stop.store (true); audio.join();
     CHECK (finite.load());
+    board.setKnob (0, 0, 0.333); // deterministic retired plan after concurrent reclamation finishes
     double l[1024] {}, r[1024] {}; board.processStereo (l, r, 1024, Placement::beforeExistingPre);
     CHECK (board.reclaim() > 0);
     board.releaseResources();
@@ -770,6 +771,72 @@ LUTHIER_TEST (RefPedalBoardCore, pedalMetersPublishActualDataAndFullInstanceIden
     CHECK (! board.readPedalMeters (0).present);
 }
 
+namespace
+{
+const ParamDesc pulseParam[] {
+    { "test_pulse_fire", "Fire", "", ParamKind::Trigger, Taper::Linear, 0, 1, 0, 1, 0, nullptr, PF_Automatable, 0, -1 }
+};
+const PedalDesc pulseDesc { "test.pulse", "test_pulse_", 1, "Pulse probe", "Test", nullptr, ChannelMode::Stereo,
+    BypassMode::True, 1, pulseParam, 0, false, false, false, 0 };
+class PulseProbe final : public IPedal
+{
+public:
+    const PedalDesc& desc() const noexcept override { return pulseDesc; }
+    void prepare (double, int, int) override {}
+    void reset() noexcept override { count = 0; value = 0; }
+    void process (double* l, double* r, int n) noexcept override
+    { for (int i = 0; i < n; ++i) l[i] = r[i] = count * 0.01; }
+    void setParam (int, float v) noexcept override { if (v >= 0.5f && value < 0.5f) ++count; value = v; }
+    float getParam (int) const noexcept override { return value; }
+private:
+    int count = 0; float value = 0;
+};
+std::unique_ptr<IPedal> makePulseProbe() { return std::make_unique<PulseProbe>(); }
+}
+LUTHIER_TEST (RefPedalBoardCore, rapidUiTriggerEdgesSurviveSnapshotCoalescing)
+{
+    PedalRegistry::TestScope registryScope;
+    PedalRegistry::add (pulseDesc, makePulseProbe);
+    Board board; const InstanceId id;
+    CHECK (board.model().apply (cmd::Add { "test.pulse", -1, Placement::beforeExistingPre, 0, id }));
+    CHECK (board.model().apply (cmd::SetBoardEnabled { true }));
+    double left[1024] {}, right[1024] {}; board.processStereo (left, right, 1024, Placement::beforeExistingPre);
+    for (int i = 0; i < 3; ++i)
+    {
+        CHECK (board.model().apply (cmd::SetParam { id, 0, 1.f }));
+        CHECK (board.model().apply (cmd::SetParam { id, 0, 0.f }));
+    }
+    const auto before = luthier::tests::allocationsOnThisThread();
+    board.processStereo (left, right, 1024, Placement::beforeExistingPre);
+    CHECK (luthier::tests::allocationsOnThisThread() == before);
+    CHECK_NEAR (left[1023], 0.03, 1.e-10);
+    board.processStereo (left, right, 1024, Placement::beforeExistingPre);
+    CHECK_NEAR (left[1023], 0.03, 1.e-10); // consumed once
+}
+
+LUTHIER_TEST (RefPedalBoardCore, cancelTransactionRestoresOuterBaselineAndExistingHistory)
+{
+    BoardModel model;
+    CHECK (! model.cancelTransaction());
+    CHECK (model.apply (cmd::SetMix { 0.2f }));
+    CHECK (model.apply (cmd::SetMix { 0.4f }));
+    CHECK (model.undo()); // preexisting redo must survive cancelled drag
+    model.beginTransaction ("outer");
+    CHECK (model.apply (cmd::SetMix { 0.6f }));
+    model.beginTransaction ("inner");
+    CHECK (model.apply (cmd::SetMix { 0.8f }));
+    CHECK (model.cancelTransaction());
+    CHECK_NEAR (model.getBoardSettings().mix, 0.2f, 1.e-8);
+    CHECK (model.canUndo() && model.canRedo());
+    CHECK (model.redo()); CHECK_NEAR (model.getBoardSettings().mix, 0.4f, 1.e-8);
+    CHECK (model.undo()); CHECK_NEAR (model.getBoardSettings().mix, 0.2f, 1.e-8);
+    CHECK (model.undo()); CHECK_NEAR (model.getBoardSettings().mix, 1.f, 1.e-8);
+    model.beginTransaction ("rejected");
+    CHECK (! model.apply (cmd::SetMix { -1.f }));
+    CHECK (model.cancelTransaction()); CHECK (model.canRedo());
+    CHECK (! model.cancelTransaction());
+}
+
 LUTHIER_TEST (RefPedalBoardCore, legacyMoveRetainsAllSixteenSlotsWithSparsePedals)
 {
     Board board; board.setModel (0, Model::ds1Prototype);
@@ -788,4 +855,69 @@ LUTHIER_TEST (RefPedalBoardCore, legacyMoveRetainsAllSixteenSlotsWithSparsePedal
     const auto order = board.model().getOrder();
     CHECK (board.model().getInstance (order[0])->slot == 0);
     CHECK (board.model().getInstance (order[1])->slot == 1);
+}
+
+namespace
+{
+const PedalDesc rawDesc { "test.raw", "test_raw_", 1, "Raw MIDI probe", "Test", nullptr, ChannelMode::Stereo,
+    BypassMode::True, 0, nullptr, 0, false, false, true, 0 };
+class RawProbe final : public IPedal
+{
+public:
+    const PedalDesc& desc() const noexcept override { return rawDesc; }
+    void prepare (double, int, int) override {}
+    void reset() noexcept override { pending = 0; value = 0.5; }
+    void process (double* l, double* r, int n) noexcept override { for (int i = 0; i < n; ++i) { l[i] *= value; r[i] *= value; } }
+    void setParam (int, float) noexcept override {}
+    float getParam (int) const noexcept override { return 0; }
+    void onMidi (const MidiEvent& event) noexcept override
+    {
+        if ((event.status & 0xf0) != 0xc0) return;
+        value = event.d1 / 127.0;
+        if (pending < 64) { output[static_cast<size_t> (pending)] = event; output[static_cast<size_t> (pending++)].offset = 0; }
+    }
+    int drainMidiOut (MidiEvent* destination, int capacity) noexcept override
+    {
+        const int count = std::min (pending, capacity); std::copy_n (output.data(), count, destination);
+        std::move (output.begin() + count, output.begin() + pending, output.begin()); pending -= count; return count;
+    }
+private:
+    double value = 0.5;
+    std::array<MidiEvent, 64> output {};
+    int pending = 0;
+};
+std::unique_ptr<IPedal> makeRawProbe() { return std::make_unique<RawProbe>(); }
+}
+LUTHIER_TEST (RefPedalBoardCore, rawMidiAndBoundedOutputPreserveOffsetsWithoutAllocation)
+{
+    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (rawDesc, makeRawProbe));
+    Board board; const InstanceId id;
+    CHECK (board.model().apply (cmd::Add { "test.raw", -1, Placement::beforeExistingPre, 0, id }));
+    CHECK (board.model().apply (cmd::SetBoardEnabled { true }));
+    double l[1024] {}, r[1024] {}; board.processStereo (l, r, 1024, Placement::beforeExistingPre);
+    juce::MidiBuffer input, output;
+    input.addEvent (juce::MidiMessage::programChange (1, 127), 17);
+    input.addEvent (juce::MidiMessage::programChange (1, 0), 72);
+    std::fill_n (l, 128, 0.1); std::fill_n (r, 128, 0.1);
+    MidiEvent outgoing[256];
+    const auto before = luthier::tests::allocationsOnThisThread();
+    board.beginBlock (input, {}, 128); board.processStereo (l, r, 128, Placement::beforeExistingPre); board.endBlock (output);
+    const int count = board.drainMidiOut (outgoing, 256);
+    CHECK (luthier::tests::allocationsOnThisThread() == before);
+    CHECK (count == 2 && outgoing[0].offset == 17 && outgoing[1].offset == 72);
+    for (int i = 0; i < 128; ++i) CHECK_NEAR (l[i], i < 17 ? 0.05 : i < 72 ? 0.1 : 0.0, 1.e-10);
+    CHECK (board.drainMidiOut (outgoing, 256) == 0);
+    CHECK (board.model().apply (cmd::SetBoardEnabled { false }));
+    board.beginBlock (input, {}, 128); board.processStereo (l, r, 128, Placement::beforeExistingPre); board.endBlock (output);
+    CHECK (board.drainMidiOut (outgoing, 256) == 0);
+    CHECK (board.model().apply (cmd::SetBoardEnabled { true }));
+    const InstanceId second;
+    CHECK (board.model().apply (cmd::Add { "test.raw", -1, Placement::beforeExistingPre, 0, second }));
+    input.clear(); board.beginBlock (input, {}, 1024); board.processStereo (l, r, 1024, Placement::beforeExistingPre); board.endBlock (output);
+    for (int i = 0; i < 300; ++i) input.addEvent (juce::MidiMessage::programChange (1, i % 128), i);
+    board.beginBlock (input, {}, 512); board.processStereo (l, r, 512, Placement::beforeExistingPre); board.endBlock (output);
+    CHECK (board.drainMidiOut (outgoing, 256) == 256);
+    for (int i = 1; i < 256; ++i) CHECK (outgoing[i - 1].offset <= outgoing[i].offset);
+    CHECK (outgoing[255].offset == 127); // newest output is dropped deterministically
+    CHECK (board.readMeters().midiDropped >= 300); // 44 raw overflow + 256 output overflow, plus router counters
 }
