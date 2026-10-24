@@ -440,3 +440,29 @@ LUTHIER_TEST (RefPedalMidiCore, autoClockHysteresisPriorityLockAndLoss)
     host.playing = false; out.clear(); clock.begin(host,TempoSource::Auto,100,121000,out); clock.finish(123400,out);
     CHECK (clock.isLost()); CHECK (!out.time.clockLocked); CHECK (!out.time.playing);
 }
+LUTHIER_TEST (RefPedalMidiCore, feedbackReportsActualActivityTempoAndClockLoss)
+{
+    MidiRouter router; router.prepare(48000,128); auto map = std::make_unique<MapSnap>(); map->tempoSource = TempoSource::MidiClock;
+    Binding b; b.srcNum = 20; b.target = 7; map->add(b); router.publishMap(std::move(map));
+    juce::MidiBuffer input; input.addEvent(juce::MidiMessage::controllerEvent(1,20,127),39);
+    input.addEvent(juce::MidiMessage::midiClock(),0); input.addEvent(juce::MidiMessage::midiClock(),1000);
+    RouteOut out; router.process(input,{},0,2048,out); UiEv events[16]; int n = router.drainUi(events,16);
+    bool activity = false, tempo = false;
+    for (int i = 0; i < n; ++i) { activity |= events[i].kind == UiEvKind::Activity && events[i].paramIdx == 7 && events[i].a == 39; tempo |= events[i].kind == UiEvKind::TempoChanged && events[i].value > 0; }
+    CHECK(activity); CHECK(tempo);
+    input.clear(); router.process(input,{},30000,128,out); n = router.drainUi(events,16); bool lost = false;
+    for (int i = 0; i < n; ++i) lost |= events[i].kind == UiEvKind::ClockLost && events[i].value == 1.f;
+    CHECK(lost);
+    router.process(input,{},30128,128,out); CHECK(router.drainUi(events,16) == 0);
+}
+LUTHIER_TEST (RefPedalMidiCore, sliderAndLatchedKeyboardVelocityHaveRealSourceRoutes)
+{
+    MidiRouter router; router.prepare(48000,128); auto map = std::make_unique<MapSnap>();
+    Binding b; b.srcType = (uint8_t) MidiSrc::UiSlider; b.srcNum = 3; b.target = 4; map->add(b);
+    b.id = 1; b.srcType = (uint8_t) MidiSrc::KeyboardVelocity; b.srcNum = 0; b.target = 5; map->add(b);
+    router.publishMap(std::move(map)); router.pushUiEvent({0,0xb0,3,64,(uint8_t) MidiOrigin::UiSlider});
+    juce::MidiBuffer input; input.addEvent(juce::MidiMessage::noteOn(1,60,(juce::uint8)100),40); RouteOut out;
+    router.process(input,{},0,128,out); CHECK(out.nWrites == 2); CHECK(out.writes[0].paramIdx == 4); CHECK(out.writes[0].offset == 0);
+    CHECK(out.writes[1].paramIdx == 5); CHECK(out.writes[1].offset == 40); CHECK_NEAR(out.writes[1].norm,100./127,1e-6);
+    input.clear(); input.addEvent(juce::MidiMessage::noteOff(1,60),0); router.process(input,{},128,128,out); CHECK(out.nWrites == 0);
+}

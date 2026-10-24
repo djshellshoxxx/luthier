@@ -59,6 +59,9 @@ struct MidiRouter::Impl
     std::array<std::array<int8_t, 128>, 16> heldNoteSlots = []
     { std::array<std::array<int8_t, 128>, 16> a {}; for (auto& channel : a) channel.fill (-1); return a; }();
     uint32_t mapVersion = 0, activeVersion = 0;
+    bool uiClockLocked = false, uiClockLost = false;
+    double uiTempo = 0;
+    uint32_t uiDropped = 0;
     int64_t routeSample = 0;
     bool effectiveEnabled = true, modelEnabled = true, modelEnabledKnown = false, hostEnabled = false;
     uint32_t hostEnabledSerial = 0, appliedHostEnabledSerial = 0;
@@ -122,6 +125,8 @@ struct MidiRouter::Impl
             if (out.nWrites == kMaxRouteWrites) { drop(); continue; }
             out.writes[out.nWrites++] = { b.target >= kTargetBoardBase ? kBoardTargetSlot : (uint8_t) (b.target / kMaxParams),
                 b.target >= kTargetBoardBase ? (uint16_t) (b.target - kTargetBoardBase) : (uint16_t) (b.target % kMaxParams), values[index], b.smoothMs, offset };
+            const auto& write = out.writes[out.nWrites - 1];
+            feedback.push ({ UiEvKind::Activity, write.slot, write.paramIdx, write.norm, (uint32_t) offset, 0 });
         }
     }
     bool learnEvent (MidiSrc type, int ch, int num, int value, int64_t t) noexcept
@@ -149,7 +154,8 @@ MidiRouter::~MidiRouter() = default;
 void MidiRouter::prepare (double sr, int)
 {
     impl->sr = std::isfinite (sr) && sr > 0 ? sr : 48000;
-    impl->clock.prepare (impl->sr); impl->input.clear(); impl->priority.clear();
+    impl->clock.prepare (impl->sr); impl->input.clear(); impl->priority.clear(); impl->feedback.clear();
+    impl->uiClockLocked = impl->uiClockLost = false; impl->uiTempo = 0; impl->uiDropped = droppedCount();
     for (auto& channel : impl->heldNoteSlots) channel.fill (-1);
     impl->footHeld.fill (false); impl->held.fill (false); impl->values.fill (0);
     impl->msb = {}; impl->lsb = {}; impl->hasMsb = {};
@@ -275,6 +281,7 @@ void MidiRouter::process (const juce::MidiBuffer& in, const HostTransport& host,
             case 0xe0: type = MidiSrc::PitchBend; num = 0; value = (e.d1 | (e.d2 << 7)) / 16383.f; break;
             default: continue;
         }
+        if (e.src == (uint8_t) MidiOrigin::UiSlider) type = MidiSrc::UiSlider;
         if (impl->learnEvent (type, ch, num, (int) (value * 127), start + off)) continue;
         if (! map) continue;
         impl->routeSample = start + off;
@@ -309,7 +316,11 @@ void MidiRouter::process (const juce::MidiBuffer& in, const HostTransport& host,
             impl->expressionValue[source] = value; impl->expressionKnown[source] = true;
             impl->route (*map, MidiSrc::VirtualExpression, ch, (int) source + 1, value, off, out);
         }
-        if (type == MidiSrc::Note && kind == 0x90 && e.d2 > 0) impl->route (*map, MidiSrc::NoteVel, ch, num, value, off, out);
+        if (type == MidiSrc::Note && kind == 0x90 && e.d2 > 0)
+        {
+            impl->route (*map, MidiSrc::NoteVel, ch, num, value, off, out);
+            impl->route (*map, MidiSrc::KeyboardVelocity, ch, 0, value, off, out);
+        }
         if (type == MidiSrc::CC && num < 64)
         {
             const int base = num & 31; const size_t channel = (size_t) ch - 1;
@@ -320,6 +331,16 @@ void MidiRouter::process (const juce::MidiBuffer& in, const HostTransport& host,
         }
     }
     impl->clock.finish (start + n, out);
+    const bool lost = impl->clock.isLost();
+    if (out.time.clockLocked != impl->uiClockLocked)
+    { impl->uiClockLocked = out.time.clockLocked; impl->feedback.push ({ UiEvKind::ClockLock, 0xff, 0, impl->uiClockLocked ? 1.f : 0.f }); }
+    if (lost != impl->uiClockLost)
+    { impl->uiClockLost = lost; impl->feedback.push ({ UiEvKind::ClockLost, 0xff, 0, lost ? 1.f : 0.f }); }
+    if (std::abs (out.time.bpm - impl->uiTempo) >= .01)
+    { impl->uiTempo = out.time.bpm; impl->feedback.push ({ UiEvKind::TempoChanged, 0xff, 0, (float) impl->uiTempo }); }
+    const auto dropped = droppedCount();
+    if (dropped != impl->uiDropped)
+    { impl->uiDropped = dropped; impl->feedback.push ({ UiEvKind::Overload, 0xff, 0, 0, dropped, 0 }); }
     if (out.nTr > 0)
         for (int i = 0; i < out.nTr; ++i) if (out.tr[i] == TransportEvent::Stop)
             for (int slot = 0; slot < kMaxSlots; ++slot) impl->foot (slot, false, .5f, out.trOff[i], out);
