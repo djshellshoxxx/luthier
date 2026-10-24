@@ -80,7 +80,7 @@ LUTHIER_TEST(RefPedalLooperStorage, slowWriterNeverBlocksAudioAndReportsOverrun)
     for(int i=0;i<16;++i)CHECK(storage.append(.1,.2));CHECK(store.waitForWrite());
     for(int i=0;i<16;++i)CHECK(storage.append(.1,.2));
     CHECK(!storage.append(.1,.2));CHECK((storage.errors()&LooperStorage::writeOverrun)!=0);CHECK(storage.length()==32);
-    store.unblock();
+    store.unblock();AssetHash recovered;CHECK(storage.manifest(recovered));CHECK(!recovered.isNull());
 }
 LUTHIER_TEST(RefPedalLooperStorage, failedWritesPreservePriorManifestOutput)
 {
@@ -124,6 +124,7 @@ LUTHIER_TEST(RefPedalLooperStorage, audioPagingCallsNeverAllocate)
     const auto before=luthier::tests::allocationsOnThisThread();
     storage.beginRecord();for(int i=0;i<128;++i)storage.append(.125,-.25);storage.finishRecord();
     for(int i=0;i<128;++i){double l=0,r=0;storage.read(uint64_t(i),l,r);storage.prefetch(uint64_t(i));}
+    storage.beginLayer(128);for(int i=0;i<128;++i){storage.canAdd(uint64_t(i));storage.add(uint64_t(i),.03125,-.03125);}storage.finishRecord();
     const auto count=luthier::tests::allocationsOnThisThread()-before;CHECK(count==0);
 }
 #endif
@@ -135,4 +136,21 @@ LUTHIER_TEST(RefPedalLooperStorage, restoreWaitsForOldJobsAndTimeoutKeepsLoop)
     CHECK(!storage.restore(hash));CHECK(storage.length()==32);
     store.unblock();CHECK(storage.restore(hash));CHECK(storage.length()==16);
     double l=0,r=0;CHECK(eventually([&]{return storage.read(0,l,r);}));CHECK_NEAR(l,.25,0);CHECK_NEAR(r,-.5,0);
+}
+LUTHIER_TEST(RefPedalLooperStorage, sparsePartialOverdubPagesPersistAndAccumulateAcrossWraps)
+{
+    ControlledStore store;LooperStorage layer;auto c=smallConfig();CHECK(layer.prepare(store,c));CHECK(layer.beginLayer(128));
+    double l=99,r=99;CHECK(layer.read(0,l,r));CHECK(l==0);CHECK(r==0);
+    CHECK(layer.add(79,.25,-.125));CHECK(layer.add(79,.25,-.125));CHECK(layer.finishRecord());
+    AssetHash hash;CHECK(layer.manifest(hash));LooperStorage restored;CHECK(restored.prepare(store,c));CHECK(restored.restore(hash));
+    CHECK(restored.read(0,l,r));CHECK(l==0);CHECK(r==0);
+    CHECK(eventually([&]{return restored.read(79,l,r);}));CHECK_NEAR(l,.5,0);CHECK_NEAR(r,-.25,0);
+    CHECK(layer.beginLayer(64));std::array<double,64> expected{};uint64_t head=23;
+    for(int pass=0;pass<7;++pass)for(int i=0;i<64;++i)
+    {
+        CHECK(eventually([&]{return layer.read(head,l,r)&&layer.canAdd(head);}));
+        CHECK(layer.add(head,.03125,-.015625));expected[size_t(head)]+=.03125;head=(head+1)%64;
+    }
+    CHECK(layer.finishRecord());CHECK(layer.manifest(hash));CHECK(restored.restore(hash));
+    for(uint64_t i=0;i<64;++i){CHECK(eventually([&]{return restored.read(i,l,r);}));CHECK_NEAR(l,expected[size_t(i)],0);CHECK_NEAR(r,-expected[size_t(i)]*.5,0);}
 }
