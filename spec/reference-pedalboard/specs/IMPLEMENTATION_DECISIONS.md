@@ -31,6 +31,27 @@ fuzz, parameter modulation, latency, aliasing and CPU still require validation.
 
 ## Additive contracts
 
+### E51: CE-2 estimated headroom onset (peer reviewed; numerical gates unchanged)
+
+The original `tanh(x)` headroom expression at a 1-unit ceiling distorts below
+the stated onset above -6 dBFS. In the actual wet chain its THD at -12 dBFS
+peak is 1.915–2.345%, conflicting with the original <0.3% requirement; at
+-3 dBFS peak it is 11.24–12.94%, conflicting with the original 2–6% range.
+The reviewed candidate is linear for |x|<=0.5 and otherwise
+`sign(x)*(0.5+0.5*tanh((|x|-0.5)/0.5))`. It preserves the 1-unit ceiling,
+unity slope and C2 continuity at onset. This is an estimated headroom model,
+not a hardware measurement. DSP independently reviewed the proposal before
+timefx adopted it in its isolated worktree.
+
+At 44.1/48/96/192 kHz, coherent 1 kHz peak-amplitude probes measured effectively
+zero low-level THD and 2.683/2.583/2.250/2.179% high-level THD. Original limits
+remain unchanged. Actual-chain alias checks reported worst -114.903 dBc at
+48 kHz (9th folded harmonic), versus -146 dBc for the original expression;
+small-signal gain changed by <0.000103 dB and frequency response by <0.000003 dB.
+Persistent all-rate regressions and raw original/revised results must accompany
+the accepted implementation checkpoint. CE-2W CE-1 headroom remains a separate,
+unresolved measurement; this correction does not authorize changing it.
+
 All additions preserve existing state/parameter identities. Per-lane coverage
 contains actual commit and test evidence; an approved interface alone does not
 mean its full behavior is implemented or accepted.
@@ -52,6 +73,8 @@ mean its full behavior is implemented or accepted.
 | E48 | Model-enabled intent revision enters MIDI before fresh host serials; same-value explicit writes remain observable. |
 | E49 | Green Russian width69.9/depth114.3mm resolves inconsistent orientation using control coordinates; RC5 keeps physical73×129mm and external CTL controls live in inspector. Original geometry retained in UI ledger. |
 | E50 | Host-origin model persistence has no undo/audio-intent revision; explicit UI writes keep intent revisions. Prevent stale timer echoes from defeating newer audio host writes. |
+| E52 | Audio-only `Board::drainMidiOut(MidiEvent*, int capacity)` drains bounded short events without growing a caller's JUCE buffer. Deterministic overflow accounting and host output capacity remain explicit implementation gates. |
+| E53 | `BoardModel::cancelTransaction()` restores the outer transaction baseline and republishes it, clears nesting and preserves the undo/redo history preceding the transaction. No active transaction is a rejected no-op. |
 
 IDs E42 and other gaps are unassigned. A final spec reconciliation must link
 the independent reviews, original/revised conditions, exact accepted source

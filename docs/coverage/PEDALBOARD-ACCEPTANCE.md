@@ -30,8 +30,8 @@ individual pedal specifications. This ledger does not narrow those requirements.
 | WP12 | dsp | Distortion+/RAT/Dyna Comp specification DSP and evidence labels | skeleton |
 | WP13 | dsp | Four Muff variants, gate/mids/expression and alias/CPU tests | skeleton |
 | WP14 | timefx | CE-2/CE-2W/Phase90/DD-3T; BBD, sync, mode transitions | skeleton |
-| WP15 | timefx | LooperCore/Ditto/Nano360/RC-1; gestures, exact undo, bounded storage | experimental prototype only |
-| WP16 | timefx | RC-5, 99 memories, rhythm patterns, storage worker, clock master | skeleton |
+| WP15 | state | LooperCore/Ditto/Nano360/RC-1; gestures, exact undo, bounded storage | experimental prototype only |
+| WP16 | state | RC-5, 99 memories, rhythm patterns, storage worker, clock master | skeleton |
 | WP17 | ui | Single board view, dock/popout, keyboard reorder, geometry, no obscuring controls | prototype overlay |
 | WP18 | ui | 7 styles and 7 mounts, LOD/cache/contrast/DPI tests | skeleton |
 | WP19 | ui | Descriptor controls, footswitches, generic faces, accessibility | skeleton |
