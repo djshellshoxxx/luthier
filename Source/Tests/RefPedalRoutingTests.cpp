@@ -300,3 +300,54 @@ LUTHIER_TEST (RefPedalRouting, routingReferencesAreValidatedWithoutAnAttachedEng
     CHECK (model.getBoardSettings().fb.src == settings.fb.src);
     CHECK (! model.apply (cmd::Remove { first.instanceId }));
 }
+
+LUTHIER_TEST (RefPedalRouting, extendedHostScalarsPersistAndExplicitSameValueModelWritesWin)
+{
+    Board board; board.prepare (48000, 128);
+    PedalInstance a, b; a.modelId = b.modelId = "missing"; a.missing = b.missing = true; a.slot = 0; b.slot = 1; b.lane = 1;
+    BoardSettings settings; settings.enabled = true; settings.mode = Mode::Parallel; settings.limiterOn = false; settings.lanes.norm = ParallelNorm::Unity;
+    CHECK (board.model().replaceAll ({ a, b }, settings));
+    double left[2048] {}, right[2048] {}; board.processStereo (left, right, 2048, Placement::beforeExistingPre);
+    ExtendedHostAutomationSnapshot host;
+    const auto set = [&] (ExtendedHostField field, float value) { const auto i = static_cast<size_t> (field); host.values[i] = value; ++host.serials[i]; };
+    set (ExtendedHostField::Lane2GainDb, -120.f);
+    const auto render = [&] { std::fill_n (left, 128, 0.2); std::fill_n (right, 128, 0.2); board.setExtendedHostAutomation (host); board.processStereo (left, right, 128, Placement::beforeExistingPre); return left[127]; };
+    const auto before = luthier::tests::allocationsOnThisThread();
+    CHECK_NEAR (render(), 0.1, 1.e-8); CHECK_NEAR (render(), 0.1, 1.e-8);
+    CHECK (luthier::tests::allocationsOnThisThread() == before);
+    CHECK (board.model().applyHostEcho (cmd::SetBoardParam { "laneGainDb1", -120.f }));
+    CHECK_NEAR (render(), 0.1, 1.e-8);
+    CHECK (board.model().apply (cmd::SetBoardParam { "laneGainDb1", -120.f }));
+    set (ExtendedHostField::Lane2GainDb, 0.f); CHECK_NEAR (render(), 0.2, 1.e-8);
+    CHECK (board.model().apply (cmd::SetBoardParam { "laneGainDb1", -120.f })); // explicit same stored value wins
+    CHECK_NEAR (render(), 0.1, 1.e-8);
+    CHECK (board.model().applyHostEcho (cmd::SetBoardParam { "laneGainDb1", 0.f })); // late persistence echo cannot win
+    CHECK_NEAR (render(), 0.1, 1.e-8);
+    set (ExtendedHostField::Lane1Phase, 1.f); CHECK_NEAR (render(), -0.1, 1.e-8);
+    set (ExtendedHostField::Mode, static_cast<float> (Mode::Series)); CHECK_NEAR (render(), -0.1, 1.e-8); // structural deferred
+    CHECK (board.model().getBoardSettings().mode == Mode::Parallel);
+}
+LUTHIER_TEST (RefPedalRouting, extendedFeedbackCanEnablePreparedEndpointsWithoutMessagePump)
+{
+    Board board; board.prepare (48000, 32);
+    PedalInstance pass; pass.modelId = "missing"; pass.missing = true; pass.slot = 0;
+    BoardSettings settings; settings.enabled = true; settings.limiterOn = false;
+    settings.fb.src = settings.fb.dst = pass.instanceId; settings.fb.on = false;
+    CHECK (board.model().replaceAll ({ pass }, settings));
+    double left[2048] {}, right[2048] {}; board.processStereo (left, right, 2048, Placement::beforeExistingPre);
+    ExtendedHostAutomationSnapshot host; host.values[static_cast<size_t> (ExtendedHostField::FeedbackOn)] = 1.f;
+    host.serials[static_cast<size_t> (ExtendedHostField::FeedbackOn)] = 1;
+    host.values[static_cast<size_t> (ExtendedHostField::FeedbackGain)] = 0.8f;
+    host.serials[static_cast<size_t> (ExtendedHostField::FeedbackGain)] = 1;
+    board.setExtendedHostAutomation (host); board.processStereo (left, right, 2048, Placement::beforeExistingPre);
+    left[0] = right[0] = 0.2; board.processStereo (left, right, 32, Placement::beforeExistingPre);
+    std::fill_n (left, 32, 0.0); std::fill_n (right, 32, 0.0); board.processStereo (left, right, 32, Placement::beforeExistingPre);
+    std::fill_n (left, 32, 0.0); std::fill_n (right, 32, 0.0); board.processStereo (left, right, 32, Placement::beforeExistingPre);
+    CHECK (left[0] > 0.1); // ring must survive block boundaries while stored model is OFF
+    CHECK (! board.model().getBoardSettings().fb.on);
+    host.values[static_cast<size_t> (ExtendedHostField::FeedbackKill)] = 1.f; host.serials[static_cast<size_t> (ExtendedHostField::FeedbackKill)] = 1;
+    board.setExtendedHostAutomation (host); std::fill_n (left, 2048, 0.0); std::fill_n (right, 2048, 0.0); board.processStereo (left, right, 2048, Placement::beforeExistingPre);
+    CHECK (std::isfinite (left[2047]));
+    std::fill_n (left, 2048, 0.0); std::fill_n (right, 2048, 0.0); left[0] = right[0] = 0.2;
+    board.processStereo (left, right, 2048, Placement::beforeExistingPre); CHECK (left[64] > 0.1); // consumed pulse is not held
+}

@@ -986,3 +986,75 @@ LUTHIER_TEST (RefPedalBoardCore, runtimeExtraCaptureIsIsolatedAndSurvivesPrepare
     CHECK (board.model().apply (cmd::Move { id, 1 })); CHECK (read() == beforeReorder);
     CHECK (board.model().undo()); CHECK (read() == beforeReorder);
 }
+
+LUTHIER_TEST (RefPedalBoardCore, mixTailHostControlPausesWetDspAndResumesWithoutReset)
+{
+    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (transportDesc, makeTransportProbe));
+    Board board; board.prepare (48000, 64);
+    CHECK (board.model().apply (cmd::Add { "test.transport", -1, Placement::beforeExistingPre, 0, InstanceId() }));
+    CHECK (board.model().apply (cmd::SetBoardEnabled { true }));
+    CHECK (board.model().apply (cmd::SetMix { 0.f }));
+    double left[8192] {}, right[8192] {}; for (int warm = 0; warm < 4; ++warm) board.processStereo (left, right, 8192, Placement::beforeExistingPre);
+    ExtendedHostAutomationSnapshot host; const auto field = static_cast<size_t> (ExtendedHostField::MixTail);
+    host.values[field] = 0.f; host.serials[field] = 1; board.setExtendedHostAutomation (host);
+    const auto position = board.readPedalMeters (0).model.playhead;
+    const auto before = luthier::tests::allocationsOnThisThread();
+    std::fill_n (left, 64, 0.2); std::fill_n (right, 64, 0.2);
+    board.processStereo (left, right, 64, Placement::beforeExistingPre);
+    CHECK (board.readPedalMeters (0).model.playhead == position);
+    for (int i = 0; i < 64; ++i) CHECK_NEAR (left[i], 0.2, 1.e-10);
+    host.values[field] = 1.f; host.serials[field] = 2; board.setExtendedHostAutomation (host);
+    board.processStereo (left, right, 64, Placement::beforeExistingPre);
+    CHECK (board.readPedalMeters (0).model.playhead == (position + 64) % 4096);
+    CHECK (luthier::tests::allocationsOnThisThread() == before);
+    host.values[field] = 0.f; host.serials[field] = 3; board.setExtendedHostAutomation (host);
+    CHECK (board.model().apply (cmd::SetMix { 1.f }));
+    board.processStereo (left, right, 64, Placement::beforeExistingPre);
+    CHECK (board.readPedalMeters (0).model.playhead == (position + 128) % 4096);
+    for (int i = 0; i < 64; ++i) CHECK (std::isfinite (left[i]));
+}
+
+namespace
+{
+const PedalDesc clockProbeDesc { "test.clock_probe", "test_clock_probe_", 1, "Clock probe", "Test", nullptr,
+    ChannelMode::Stereo, BypassMode::True, 0, nullptr, 0, false, false, false, 0 };
+class ClockProbe final : public IPedal
+{
+public:
+    const PedalDesc& desc() const noexcept override { return clockProbeDesc; }
+    void prepare (double, int, int) override {}
+    void reset() noexcept override {}
+    void process (double*, double*, int) noexcept override {}
+    void setParam (int, float) noexcept override {}
+    float getParam (int) const noexcept override { return 0; }
+    void setTime (const TimeInfo& time) noexcept override { bpm = time.bpm; }
+    PedalUiMeters readUiMeters() const noexcept override { PedalUiMeters result; result.available = UiTempo; result.bpm = bpm; return result; }
+private:
+    double bpm = 0;
+};
+std::unique_ptr<IPedal> makeClockProbe() { return std::make_unique<ClockProbe>(); }
+}
+LUTHIER_TEST (RefPedalBoardCore, extendedTempoSourceUsesCanonicalPriorityAndExplicitModelIntent)
+{
+    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (clockProbeDesc, makeClockProbe));
+    Board board; board.prepare (48000, 64);
+    CHECK (board.model().apply (cmd::Add { "test.clock_probe", -1, Placement::beforeExistingPre, 0, InstanceId() }));
+    CHECK (board.model().apply (cmd::SetBoardEnabled { true }));
+    CHECK (board.model().apply (cmd::SetBoardParam { "tempoSource", static_cast<int> (TempoSource::Host) }));
+    HostTransport host; host.valid = host.playing = true; host.bpm = 210;
+    HostAutomationSnapshot original; original.values[2] = 90.f; original.serials[2] = 1;
+    ExtendedHostAutomationSnapshot extended; const auto source = static_cast<size_t> (ExtendedHostField::TempoSource);
+    extended.values[source] = static_cast<float> (TempoSource::Host); extended.serials[source] = 1;
+    double left[64] {}, right[64] {}; juce::MidiBuffer input, output;
+    const auto run = [&] { board.setHostAutomation (original); board.setExtendedHostAutomation (extended); board.beginBlock (input, host, 64); board.processStereo (left, right, 64, Placement::beforeExistingPre); board.endBlock (output); };
+    for (int block = 0; block < 80; ++block) run();
+    CHECK_NEAR (board.readPedalMeters (0).model.bpm, 210, 1.e-6);
+    extended.values[source] = static_cast<float> (TempoSource::Internal); extended.serials[source] = 2;
+    const auto allocations = luthier::tests::allocationsOnThisThread();
+    for (int block = 0; block < 80; ++block) run();
+    CHECK_NEAR (board.readPedalMeters (0).model.bpm, 90, 1.e-6);
+    CHECK (luthier::tests::allocationsOnThisThread() == allocations);
+    CHECK (board.model().apply (cmd::SetBoardParam { "tempoSource", static_cast<int> (TempoSource::Host) }));
+    for (int block = 0; block < 80; ++block) run();
+    CHECK_NEAR (board.readPedalMeters (0).model.bpm, 210, 1.e-6);
+}

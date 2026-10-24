@@ -30,9 +30,9 @@ std::unique_ptr<RenderPlan> TopologyCompiler::compile (const std::vector<PedalIn
     if (instances.size() > kMaxSlots) return reject ("Board exceeds 16 pedal slots");
     auto result = std::make_unique<RenderPlan>();
     result->settings = settings;
-    result->feedbackRearm = ! previous || (! previous->settings.fb.on && settings.fb.on) ? version : previous->feedbackRearm;
+    result->feedbackRearm = ! previous || (! hostEcho && ! previous->settings.fb.on && settings.fb.on) ? version : previous->feedbackRearm;
     result->feedbackKill = previous ? previous->feedbackKill : 0;
-    if (settings.fb.kill && (! previous || ! previous->settings.fb.kill)) result->feedbackKill = version;
+    if (! hostEcho && settings.fb.kill && (! previous || ! previous->settings.fb.kill)) result->feedbackKill = version;
     const bool branched = settings.mode == Mode::Parallel || settings.mode == Mode::AB;
     result->abResolved = settings.abSelect == AbSelect::Toggle ? (previous ? previous->abResolved : AbSelect::A) : settings.abSelect;
     if (settings.abSelect == AbSelect::Toggle && intent)
@@ -47,6 +47,7 @@ std::unique_ptr<RenderPlan> TopologyCompiler::compile (const std::vector<PedalIn
         const auto* scalar = std::get_if<cmd::SetBoardParam> (intent);
         if (settings.tempoBpm != previous->settings.tempoBpm || (scalar && scalar->key == "tempoBpm")) result->boardSerials[2] = version;
     }
+    result->extended = compileExtendedControls (settings, instances, previous ? &previous->extended : nullptr, intent, hostEcho, version, result->abResolved);
     auto& t = result->topology;
     t.version = version; t.mode = settings.mode;
     t.numLanes = static_cast<uint8_t> (settings.mode == Mode::AB ? 2 : branched ? settings.lanes.numLanes : 1);
@@ -74,7 +75,7 @@ std::unique_ptr<RenderPlan> TopologyCompiler::compile (const std::vector<PedalIn
             loopForPosition[static_cast<size_t> (position)] = loopIndex;
         }
     }
-    if (settings.fb.on)
+    if (settings.fb.on || (! settings.fb.src.isNull() && ! settings.fb.dst.isNull()))
     {
         int source = -1, destination = -1;
         for (size_t position = 0; position < instances.size(); ++position)
@@ -82,14 +83,18 @@ std::unique_ptr<RenderPlan> TopologyCompiler::compile (const std::vector<PedalIn
             if (instances[position].instanceId == settings.fb.src) source = static_cast<int> (position);
             if (instances[position].instanceId == settings.fb.dst) destination = static_cast<int> (position);
         }
-        if (source < 0 || destination < 0 || destination > source) return reject ("Feedback endpoints must exist with destination before source");
+        if (source < 0 || destination < 0 || destination > source)
+        { if (settings.fb.on) return reject ("Feedback endpoints must exist with destination before source"); }
+        else
+        {
         const auto& src = instances[static_cast<size_t> (source)]; const auto& dst = instances[static_cast<size_t> (destination)];
         if (src.placement != dst.placement || (branched && src.lane != dst.lane)
             || loopForPosition[static_cast<size_t> (source)] != loopForPosition[static_cast<size_t> (destination)])
             return reject ("Feedback endpoints must share a placement and routing lane");
-        t.fb.on = true; t.fb.srcSlot = static_cast<uint8_t> (src.slot); t.fb.dstSlot = static_cast<uint8_t> (dst.slot);
+        result->feedbackAvailable = true; t.fb.on = settings.fb.on; t.fb.srcSlot = static_cast<uint8_t> (src.slot); t.fb.dstSlot = static_cast<uint8_t> (dst.slot);
         t.fb.gain = std::min (settings.fb.gain, settings.fb.runawayOk ? 1.05f : 0.98f);
         t.fb.lpHz = settings.fb.lpHz; t.fb.runawayOk = settings.fb.runawayOk;
+        }
     }
     std::array<bool, kMaxSlots> occupied {};
     for (const auto& instance : instances)
@@ -154,9 +159,9 @@ std::unique_ptr<RenderPlan> TopologyCompiler::compile (const std::vector<PedalIn
     };
     const auto emitPedal = [&] (int slot, int lane)
     {
-        if (t.fb.on && slot == t.fb.dstSlot) emit (NodeKind::FbReturn, 0, lane, 0, 0, 0.f, 0.f);
+        if (result->feedbackAvailable && slot == t.fb.dstSlot) emit (NodeKind::FbReturn, 0, lane, 0, 0, 0.f, 0.f);
         emit (NodeKind::Pedal, slot, lane, 0, 0, 1.f, 0.f);
-        if (t.fb.on && slot == t.fb.srcSlot) emit (NodeKind::FbSend, 0, lane, 0, 0, 0.f, 0.f);
+        if (result->feedbackAvailable && slot == t.fb.srcSlot) emit (NodeKind::FbSend, 0, lane, 0, 0, 0.f, 0.f);
     };
     for (int segment = 0; segment < kNumPlacements; ++segment)
     {
