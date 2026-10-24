@@ -58,7 +58,7 @@ PedalView::PedalView(BoardModel& m,InstanceId id,juce::AudioProcessorValueTreeSt
 {
     setWantsKeyboardFocus(true);setFocusContainerType(FocusContainerType::focusContainer);
     addAndMakeVisible(details);addAndMakeVisible(footswitch);addChildComponent(display);addChildComponent(inspector);inspector.addAndMakeVisible(meterLabel);meterLabel.setTitle("Pedal DSP readback");display.setTitle("Looper DSP display");display.setJustificationType(juce::Justification::centred);display.setFont(juce::FontOptions(10.f));display.setColour(juce::Label::backgroundColourId,juce::Colours::black);display.setColour(juce::Label::textColourId,juce::Colours::white);
-    for(auto* c:std::array<juce::Component*,8>{&placement,&mounting,&channel,&inputTrim,&outputTrim,&lane,&profile,&provenance})inspector.addAndMakeVisible(c);
+    for(auto* c:std::array<juce::Component*,9>{&placement,&mounting,&channel,&inputTrim,&outputTrim,&lane,&profile,&provenance,&footMode})inspector.addAndMakeVisible(c);
     inputLabel.setText("Input trim (dB)",juce::dontSendNotification);outputLabel.setText("Output trim (dB)",juce::dontSendNotification);laneLabel.setText("Routing lane (0 = first)",juce::dontSendNotification);
     for(auto* label:{&inputLabel,&outputLabel,&laneLabel})inspector.addAndMakeVisible(label);
     details.setTitle("Pedal information and extended controls");details.setTooltip("Estimated circuit model. Open all controls, placement, mounting and MIDI settings.");details.onClick=[this]{showInspector();};
@@ -70,6 +70,7 @@ PedalView::PedalView(BoardModel& m,InstanceId id,juce::AudioProcessorValueTreeSt
     mounting.setTitle("Pedal mounting");mounting.onChange=[this]{if(!refreshing)post(cmd::SetMounting{instanceId,(Mounting)(mounting.getSelectedId()-1)});};
     channel.addItem("MIDI: no explicit channel",1);for(int i=1;i<=16;++i)channel.addItem("MIDI channel "+juce::String(i),i+1);
     channel.setTitle("Pedal MIDI channel");channel.onChange=[this]{if(!refreshing)post(cmd::SetSlotChannel{instanceId,channel.getSelectedId()-1,profile.getToggleState()});};
+    footMode.addItem("Footswitch: Latch",1);footMode.addItem("Footswitch: Momentary",2);footMode.addItem("Footswitch: Auto",3);footMode.setTitle("Slot footswitch mode");footMode.onChange=[this]{if(!refreshing)post(cmd::SetSlotChannel{instanceId,channel.getSelectedId()-1,profile.getToggleState(),footMode.getSelectedId()-1});};
     profile.onClick=[this]{if(!refreshing)post(cmd::SetSlotChannel{instanceId,channel.getSelectedId()-1,profile.getToggleState()});};
     for(auto* s:{&inputTrim,&outputTrim,&lane}){s->setSliderStyle(juce::Slider::LinearHorizontal);s->setTextBoxStyle(juce::Slider::TextBoxRight,false,65,22);}
     inputTrim.setRange(-12,12,.1);outputTrim.setRange(-12,12,.1);lane.setRange(0,3,1);
@@ -90,7 +91,7 @@ void PedalView::clearAttachments(){enabledAttachment.reset();buttonAttachments.c
 std::unique_ptr<juce::AccessibilityHandler> PedalView::createAccessibilityHandler(){return std::make_unique<juce::AccessibilityHandler>(*this,juce::AccessibilityRole::group);}
 void PedalView::post(BoardCommand command)
 {
-    if(std::holds_alternative<cmd::SetParam>(command)||std::holds_alternative<cmd::SetEnabled>(command)||std::holds_alternative<cmd::SetTrim>(command))
+    if(std::holds_alternative<cmd::SetParam>(command)||std::holds_alternative<cmd::SetEnabled>(command)||std::holds_alternative<cmd::SetTrim>(command)||std::holds_alternative<cmd::SetSlotChannel>(command))
     {model.apply(command);return;}
     juce::Component::SafePointer<PedalView> self(this);
     juce::MessageManager::callAsync([self,command=std::move(command)]{if(self)self->model.apply(command);});
@@ -173,7 +174,7 @@ void PedalView::refresh()
     if(!enabledAttachment)footswitch.setToggleState(instance->enabled,juce::dontSendNotification);
     footswitch.setEnabled(descriptor&&!instance->missing);footswitch.setTitle("Bypass "+juce::String(descriptor?descriptor->displayName:modelId.c_str()));
     placement.setSelectedId((int)instance->placement+1,juce::dontSendNotification);mounting.setSelectedId((int)instance->mounting+1,juce::dontSendNotification);
-    const auto midi=instance->extras.getProperty("midi",juce::var());channel.setSelectedId(1+(int)midi.getProperty("chan",0),juce::dontSendNotification);profile.setToggleState(midi.getProperty("useProfile",false),juce::dontSendNotification);
+    const auto midi=instance->extras.getProperty("midi",juce::var());channel.setSelectedId(1+(int)midi.getProperty("chan",0),juce::dontSendNotification);profile.setToggleState(midi.getProperty("useProfile",false),juce::dontSendNotification);footMode.setSelectedId(1+(int)midi.getProperty("fsMode",0),juce::dontSendNotification);
     if(!trimAttached[0])inputTrim.setValue(instance->inDb,juce::dontSendNotification);if(!trimAttached[1])outputTrim.setValue(instance->outDb,juce::dontSendNotification);lane.setValue(instance->lane,juce::dontSendNotification);
     const auto order=model.getOrder();const int position=(int)std::distance(order.begin(),std::find(order.begin(),order.end(),instanceId));setExplicitFocusOrder(position+10);
     setTitle(juce::String(descriptor?descriptor->displayName:modelId.c_str())+", position "+juce::String(position+1)+" of "+juce::String((int)order.size())+", "+(instance->enabled?"on":"off")+", "+placement.getText());
@@ -205,6 +206,7 @@ void PedalView::placeControls()
     provenance.setBounds(8,6,320,88);meterLabel.setBounds(8,94,320,28);meterLabel.setText(meterSummary(),juce::dontSendNotification);
     const auto* faceModel=dynamic_cast<ModelFace*>(face.get());const bool lcd=faceModel&&faceModel->faceProfile().detail==FaceProfile::Detail::LooperDisplay;display.setVisible(lcd);if(lcd){display.setBounds(21,16,75,24);display.setText(meterSummary().isEmpty()?"NO READBACK":meterSummary(),juce::dontSendNotification);display.toFront(false);}
     for(auto* component:std::array<juce::Component*,7>{&placement,&mounting,&inputTrim,&outputTrim,&lane,&channel,&profile}){juce::Label* label=component==&inputTrim?&inputLabel:component==&outputTrim?&outputLabel:component==&lane?&laneLabel:nullptr;if(label){label->setBounds(8,y,320,18);y+=18;}component->setBounds(8,y,320,28);y+=32;}
+    bool descriptorMode=false;for(int i=0;descriptor&&i<descriptor->numParams;++i)if(juce::String(descriptor->params[i].id).endsWith("_fs_mode"))descriptorMode=true;footMode.setVisible(!descriptorMode);if(!descriptorMode){footMode.setBounds(8,y,320,28);y+=32;}
     if(momentaryMain){inspector.addAndMakeVisible(footswitch);footswitch.setFaceGeometry({8.f,(float)y,320.f,36.f});y+=40;}
     else{addAndMakeVisible(footswitch);footswitch.setFaceGeometry(faceLayout.footswitch);}
     inspector.setSize(340,y+8);if(details.getParentComponent()==this)details.setBounds(juce::jmax(0,getWidth()-39),juce::jmax(0,getHeight()-16),37,14);details.toFront(false);

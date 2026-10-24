@@ -34,3 +34,9 @@ LUTHIER_TEST(RefPedalUiFacesMod, looperMainFootswitchSendsRealEdgesWithoutBypass
     CHECK(main!=nullptr);if(!main)return;CHECK(!main->getClickingTogglesState());
     main->setState(juce::Button::buttonDown);CHECK_NEAR(model.getInstance(id)->params[1],1,1e-6);main->setState(juce::Button::buttonNormal);CHECK_NEAR(model.getInstance(id)->params[1],0,1e-6);CHECK(model.getInstance(id)->enabled);
 }
+LUTHIER_TEST(RefPedalUiFacesMod, descriptorFootswitchModeReplacesGenericSlotMode)
+{
+    PedalRegistry::TestScope scope;const char* choices[]{"Latch","Momentary","Auto"};const ParamDesc params[]{{"tc_ditto_fs_mode","Footswitch mode","",ParamKind::Enum,Taper::Linear,0,2,2,1,3,choices,PF_Config,0,-1},{"tc_ditto_fs","PEDAL","",ParamKind::Momentary,Taper::Linear,0,1,0,1,0,nullptr,0,0,-1}};
+    const PedalDesc desc{"tc-ditto","tc_ditto_",1,"Looper mode fixture","Fixture",nullptr,ChannelMode::Stereo,BypassMode::True,2,params,0,false,false,false,0};CHECK(PedalRegistry::add(desc,[]()->std::unique_ptr<IPedal>{return {};}));BoardModel model;CHECK(model.apply(cmd::Add{"tc-ditto"}));BoardCanvas canvas(model);auto* view=canvas.viewFor(model.getOrder()[0]);juce::Component* generic=nullptr;juce::Component* own=nullptr;
+    std::function<void(juce::Component&)> collect=[&](auto& parent){for(auto* c:parent.getChildren()){if(c->getTitle()=="Slot footswitch mode")generic=c;if(c->getProperties()["referenceParamId"].toString()=="tc_ditto_fs_mode")own=c;collect(*c);}};collect(*view);CHECK(generic&&own);if(generic&&own){CHECK(!generic->isVisible());CHECK(own->isVisible());}
+}

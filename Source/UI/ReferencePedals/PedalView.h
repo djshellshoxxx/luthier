@@ -53,7 +53,7 @@ private:
     FootswitchButton footswitch {"Engage"};
     juce::TextButton details {"EST ..."};
     juce::ToggleButton profile {"Use pedal CC profile"};
-    juce::ComboBox placement,mounting,channel;
+    juce::ComboBox placement,mounting,channel,footMode;
     juce::Component inspector;
     juce::Label provenance,inputLabel,outputLabel,laneLabel,meterLabel,display;
     PedalMeters meters;
