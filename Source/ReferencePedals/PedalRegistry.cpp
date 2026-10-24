@@ -1,5 +1,6 @@
 // OWNER: WP1
 #include "PedalRegistry.h"
+#include <limits>
 #include <cstring>
 #include <deque>
 #include <mutex>
@@ -114,6 +115,11 @@ bool PedalRegistry::validate (const PedalDesc& d, juce::String* reason)
                     return fail (reason, id + ": " + juce::String (p.id) + " needs min < max");
                 break;
             case ParamKind::Discrete:
+                if (p.steps < 2 || !std::isfinite(p.min) || !std::isfinite(p.max) || !std::isfinite(p.def) || !(p.min < p.max))
+                    return fail(reason, id + ": " + juce::String(p.id) + " needs finite min < max and steps >= 2");
+                if (std::abs(p.fromNormalised(p.defaultNormalised()) - p.def) > 4.0 * std::numeric_limits<float>::epsilon() * std::max(1.0, std::abs((double)p.def)))
+                    return fail(reason, id + ": " + juce::String(p.id) + " default must be a discrete step");
+                break;
             case ParamKind::Enum:
                 if (p.steps < 2)
                     return fail (reason, id + ": " + juce::String (p.id) + " needs steps >= 2");

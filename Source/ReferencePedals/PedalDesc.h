@@ -66,7 +66,8 @@ struct ParamDesc
     //   LogA   (min > 0)          min * (max/min)^n   (frequency-style, geometric)
     //   LogB                      audio-pot taper (10% of travel at mid): (10^(2n)-1)/99
     //   ReverseLog                mirrored LogB: 1 - LogB(1-n)
-    //   Discrete / Enum           round(n * (steps-1)), 0-based index
+    //   Discrete                  min..max snapped to equally spaced steps
+    //   Enum                      round(n * (steps-1)), 0-based index
     //   Toggle / Momentary / Trigger   n >= 0.5 ? 1 : 0
     // Detent and Custom are linear here; the pedal may snap or remap itself.
     double fromNormalised (double n) const noexcept
@@ -76,8 +77,15 @@ struct ParamDesc
         if (kind == ParamKind::Toggle || kind == ParamKind::Momentary || kind == ParamKind::Trigger)
             return n >= 0.5 ? 1.0 : 0.0;
 
-        if (isDiscreteKind() && steps > 1)
+        if (kind == ParamKind::Enum && steps > 1)
             return (double) std::clamp ((int) std::lround (n * (steps - 1)), 0, steps - 1);
+        if (kind == ParamKind::Discrete)
+        {
+            if (steps < 2 || !std::isfinite(min) || !std::isfinite(max) || !(min < max))
+                return std::isfinite(min) ? (double)min : 0.0;
+            const auto position = std::round(n * (steps - 1)) / (steps - 1);
+            return (double)min + ((double)max - min) * position;
+        }
 
         double shaped = n;
         switch (taper)
@@ -107,8 +115,14 @@ struct ParamDesc
         if (kind == ParamKind::Toggle || kind == ParamKind::Momentary || kind == ParamKind::Trigger)
             return v >= 0.5 ? 1.0 : 0.0;
 
-        if (isDiscreteKind() && steps > 1)
+        if (kind == ParamKind::Enum && steps > 1)
             return std::clamp (v / (double) (steps - 1), 0.0, 1.0);
+        if (kind == ParamKind::Discrete)
+        {
+            if (steps < 2 || !std::isfinite(min) || !std::isfinite(max) || !(min < max)) return 0.0;
+            const auto position = std::clamp((v - min) / ((double)max - min), 0.0, 1.0);
+            return std::round(position * (steps - 1)) / (steps - 1);
+        }
 
         const double range = (double) max - (double) min;
         if (std::abs (range) < 1.0e-12)
