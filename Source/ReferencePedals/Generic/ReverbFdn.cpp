@@ -7,6 +7,20 @@ namespace luthier::reference::generic
 void ReverbFdn::prepare(double sampleRate)
 {
     sr=sampleRate; settingsValid=false;
+    // Build a nearest-prime lookup off the callback. SIZE automation then
+    // performs eight bounded indexed reads, never a search/allocation/sieve.
+    const int limit=int(sr*.25)+16;
+    std::vector<bool> prime(size_t(limit*2+1),true);prime[0]=prime[1]=false;
+    for(int p=2;p*p<=limit*2;++p)if(prime[size_t(p)])
+        for(int n=p*p;n<=limit*2;n+=p)prime[size_t(n)]=false;
+    primeLookup.resize(size_t(limit+1));int lower=2;
+    for(int n=0;n<=limit;++n){if(prime[size_t(n)])lower=n;primeLookup[size_t(n)]=lower;}
+    int upper=limit*2;
+    for(int n=limit*2;n>=0;--n)
+    {
+        if(prime[size_t(n)])upper=n;
+        if(n<=limit && upper-n<=std::abs(n-primeLookup[size_t(n)]))primeLookup[size_t(n)]=upper;
+    }
     for(auto& line:lines) line.prepare(int(sr*.25)+16);
     for(auto& line:diffusion) line.prepare(int(sr*.03)+16);
     lfo.prepare(sr); lfo.setRate(.31); reset(); set(2.2,1,0,.25,1,0);
@@ -25,11 +39,14 @@ void ReverbFdn::set(double decay,double size,double tone,double modulation,int f
     if(settingsValid && settings==lastSettings)return;
     lastSettings=settings;settingsValid=true;
     const double* base=family==0 ? room:family==2 ? ambient:hall;
+    constexpr double diffuserMs[]{5.3,7.1,10.6,14.7};
+    const double scale=std::clamp(size,.3,1.7);
+    for(int i=0;i<4;++i)diffuserDelays[i]=std::round(sr*.001*diffuserMs[i]*scale);
     mod=std::clamp(modulation,0.0,1.0); freeze=std::clamp(frozen,0.0,1.0);
     const double cutoff=2000*std::pow(8,(std::clamp(tone,-1.0,1.0)+1)*.5);
     for(int i=0;i<8;++i)
     {
-        delays[i]=std::round(base[i]*std::clamp(size,.3,1.7)*sr);
+        delays[i]=primeLookup[size_t(std::lround(base[i]*scale*sr))];
         gains[i]=std::min(.9995,std::pow(10,-3*delays[i]/sr/std::clamp(decay,.2,12.0)));
         const double ratio=.15+.85*(std::clamp(tone,-1.0,1.0)+1)*.5;
         dampingAmount[i]=1-std::pow(gains[i],1/ratio-1);
@@ -38,11 +55,10 @@ void ReverbFdn::set(double decay,double size,double tone,double modulation,int f
 }
 std::array<double,2> ReverbFdn::process(double input) noexcept
 {
-    constexpr double diffuserMs[]{5.3,7.1,10.6,14.7};
     double x=input;
     for(int i=0;i<4;++i)
     {
-        const double delayed=diffusion[i].read(std::round(sr*.001*diffuserMs[i])-1);
+        const double delayed=diffusion[i].read(diffuserDelays[i]-1);
         const double y=delayed-.6*x;
         diffusion[i].push(x+.6*y); x=y;
     }
