@@ -18,6 +18,8 @@ const PedalDesc delayedDesc { "test.delayed", "test_delayed_", 1, "Delay test", 
 class Delayed final : public IPedal
 {
 public:
+    static PreparedMemoryRequirement prepareMemory (double, int, int, const float*) noexcept { return { sizeof (Delayed) + 2 * 18 * sizeof (double), 0 }; }
+    uint64_t getPreparedMemoryBytes() const noexcept override { return sizeof (*this) + lines[0].preparedMemoryBytes() + lines[1].preparedMemoryBytes(); }
     const PedalDesc& desc() const noexcept override { return delayedDesc; }
     void prepare (double, int, int) override { for (auto& d : lines) d.prepare (17); }
     void reset() noexcept override { for (auto& d : lines) d.reset(); }
@@ -30,7 +32,7 @@ private:
     DelayLine lines[2];
 };
 std::unique_ptr<IPedal> makeDelayed() { return std::make_unique<Delayed>(); }
-void registerDelayed() { PedalRegistry::add (delayedDesc, makeDelayed); }
+void registerDelayed() { PedalRegistry::add (delayedDesc, makeDelayed, &Delayed::prepareMemory); }
 }
 
 LUTHIER_TEST (RefPedalRouting, parallelLatencyAndPolarityCompileAndRender)
@@ -364,6 +366,8 @@ const PedalDesc bypassDescriptions[] {
 class BypassProbe final : public IPedal
 {
 public:
+    static PreparedMemoryRequirement prepareMemory (double, int, int, const float*) noexcept { return { sizeof (BypassProbe) + 2 * 18 * sizeof (double), 0 }; }
+    uint64_t getPreparedMemoryBytes() const noexcept override { return sizeof (*this) + wetDelay[0].preparedMemoryBytes() + wetDelay[1].preparedMemoryBytes(); }
     explicit BypassProbe (int index) : type (index) {}
     const PedalDesc& desc() const noexcept override { return bypassDescriptions[type]; }
     void prepare (double rate, int, int) override { tailStep = 1.0 / (0.020 * rate); for (auto& line : wetDelay) line.prepare (17); }
@@ -407,7 +411,7 @@ LUTHIER_TEST (RefPedalRouting, bypassModesPreserveColourLatencyAndDecayingTailsW
     {
         PedalRegistry::TestScope registryScope;
         std::unique_ptr<IPedal> (*factories[])() { trueBypassProbe, bufferedBypassProbe, dspBypassProbe, bufferedTailProbe };
-        CHECK (PedalRegistry::add (bypassDescriptions[type], factories[type]));
+        CHECK (PedalRegistry::add (bypassDescriptions[type], factories[type], &BypassProbe::prepareMemory));
         for (const float trim : { 0.f, 6.0206f })
         {
             Board board; board.prepare (48000, 64); PedalInstance instance; instance.modelId = bypassDescriptions[type].modelId; instance.slot = 0;
@@ -483,7 +487,7 @@ LUTHIER_TEST (RefPedalRouting, clippedTailDryMustNotBeInferredFromUnclippedSlotI
     for (const int type : { 2, 3 })
     {
         PedalRegistry::TestScope scope;
-        CHECK (PedalRegistry::add (bypassDescriptions[type], type == 2 ? dspBypassProbe : bufferedTailProbe));
+        CHECK (PedalRegistry::add (bypassDescriptions[type], type == 2 ? dspBypassProbe : bufferedTailProbe, &BypassProbe::prepareMemory));
         Board board; board.prepare (48000, 64);
         PedalInstance p; p.slot = 0; p.modelId = bypassDescriptions[type].modelId;
         p.inDb = p.outDb = 12; p.params[0] = 1;
@@ -514,6 +518,7 @@ int unavailableTailFrames = 0;
 class UnavailableTail final : public IPedal
 {
 public:
+    uint64_t getPreparedMemoryBytes() const noexcept override { return sizeof (*this); }
     const PedalDesc& desc() const noexcept override { return unavailableTailDesc; }
     void prepare (double, int, int) override {}
     void reset() noexcept override {}
@@ -526,7 +531,7 @@ public:
 LUTHIER_TEST (RefPedalRouting, missingWetResidualUsesOneRenderAndReportsUnavailable)
 {
     PedalRegistry::TestScope scope;
-    CHECK (PedalRegistry::add (unavailableTailDesc, []() -> std::unique_ptr<IPedal> { return std::make_unique<UnavailableTail>(); }));
+    CHECK (PedalRegistry::add (unavailableTailDesc, []() -> std::unique_ptr<IPedal> { return std::make_unique<UnavailableTail>(); }, &fixedPreparedMemory<UnavailableTail>));
     Board board; board.prepare (48000, 64);
     PedalInstance p; p.slot = 0; p.modelId = unavailableTailDesc.modelId; p.enabled = false; p.inDb = p.outDb = 12;
     BoardSettings settings; settings.enabled = true; settings.limiterOn = false;

@@ -1,6 +1,7 @@
 // OWNER: WP2
 #pragma once
 #include <algorithm>
+#include <cstdint>
 #include <vector>
 
 namespace luthier::reference
@@ -10,6 +11,7 @@ class DelayLine
 {
 public:
     void prepare (int maximumDelay) { data.assign (static_cast<size_t> (std::max (0, maximumDelay) + 1), 0.0); head = 0; currentDelay = targetDelay = -1; fadeRemaining = fadeTotal = 0; }
+    uint64_t preparedMemoryBytes() const noexcept { return static_cast<uint64_t> (data.capacity()) * sizeof (double); }
     void reset() noexcept { std::fill (data.begin(), data.end(), 0.0); head = 0; currentDelay = targetDelay = -1; fadeRemaining = fadeTotal = 0; }
     double process (double input, int delay) noexcept
     {

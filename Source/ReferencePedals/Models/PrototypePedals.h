@@ -12,6 +12,7 @@ public:
     explicit PrototypePedal (Model);
     static const PedalDesc& description (Model);
     void prepare (double, int, int) override;
+    uint64_t getPreparedMemoryBytes() const noexcept override { return sizeof (*this); }
     void reset() noexcept override;
     void process (double*, double*, int) noexcept override;
 private:
