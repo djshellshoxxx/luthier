@@ -8,8 +8,8 @@ namespace luthier::reference::common
 {
 enum class LooperAction { Record, Play, Overdub, Stop, Clear, Undo, Redo, CancelOverdub };
 struct LooperCommand { LooperAction action=LooperAction::Stop; int64_t sample=0; };
-// Bounded RAM slice. Storage paging and unlimited layer compaction are separate
-// outstanding work; this core explicitly refuses overdubs at its layer limit.
+// Bounded RAM and undo history; the oldest accepted layer folds lazily into
+// the base so overdubs remain unlimited. Disk paging is owned by storage.
 class LooperCore
 {
 public:
@@ -34,21 +34,34 @@ public:
     uint32_t droppedCommands() const noexcept { return commands.dropped(); }
 private:
     struct Stereo { double l=0,r=0; };
-    struct LayerSample { Stereo audio; uint64_t generation=0; };
+    struct LayerSample { Stereo audio; uint32_t generation=0; };
+    enum class EpochState : uint8_t { Free, Active, Retired, Discarded };
+    // One epoch per distinct sample generation is a sufficient fixed upper
+    // bound, plus handles for empty active layers. Refcounts recycle records
+    // without allocation, including partially cancelled overdubs.
+    struct Epoch { uint32_t references=0,next=0; uint64_t sequence=0; EpochState state=EpochState::Free; };
+    std::vector<Epoch> epochs;
+    uint32_t freeEpoch=0;
+    uint64_t sequence=0,clearedThrough=0;
+    uint32_t newEpoch() noexcept;
+    void releaseEpoch(uint32_t) noexcept;
+    void markEpoch(uint32_t,EpochState) noexcept;
+    void discardIndex(size_t) noexcept;
+    void foldIndex(size_t) noexcept;
     std::vector<Stereo> base;
-    std::array<std::vector<LayerSample>,8> layer;
-    std::array<uint64_t,8> generation{};
+    std::array<std::vector<LayerSample>,9> layer;
+    std::array<uint32_t,9> generation{};
     SpscRing<Command,64> commands;
     Command pending{};
     bool hasPending=false,layerLimit=false;
     State current=State::Empty;
     size_t maxFrames=0,loopLength=0,head=0,storageBytes=0;
     int maxLayers=1,activeLayers=0,redoLayers=0;
-    uint64_t epoch=1;
     int64_t timeline=0;
     double sr=48000,gain=0;
     size_t seam=0;
     Stereo playback(size_t index) const noexcept;
     void closeRecording() noexcept;
+    void closeOverdub() noexcept;
 };
 }
