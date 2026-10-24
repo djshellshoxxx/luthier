@@ -1,5 +1,5 @@
 import numpy as np
-for model in ['ibanez-ts808','boss-ds1','boss-sd1']:
+for model in ['ibanez-ts808','boss-ds1','boss-sd1','mxr-distortion-plus','proco-rat']:
     x=np.fromfile('/tmp/'+model+'-5k.raw',dtype=np.float64)
     a=np.abs(np.fft.rfft(x))*2/len(x)
     carrier=a[5000]

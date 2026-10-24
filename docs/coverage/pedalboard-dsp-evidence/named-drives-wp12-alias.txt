@@ -1,0 +1,5 @@
+ibanez-ts808: 48k normal4x maxdrive 5k full-scale peak, largest non-harmonic 3000Hz -48.618011324dBFS -43.802274367dBc
+boss-ds1: 48k normal4x maxdrive 5k full-scale peak, largest non-harmonic 12000Hz -34.369919092dBFS -21.001813045dBc
+boss-sd1: 48k normal4x maxdrive 5k full-scale peak, largest non-harmonic 3000Hz -47.956206196dBFS -47.684635718dBc
+mxr-distortion-plus: 48k normal4x maxdrive 5k full-scale peak, largest non-harmonic 3000Hz -60.890631056dBFS -34.163588928dBc
+proco-rat: 48k normal4x maxdrive 5k full-scale peak, largest non-harmonic 1000Hz -38.601239309dBFS -21.675135053dBc

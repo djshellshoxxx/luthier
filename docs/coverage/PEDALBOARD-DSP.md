@@ -50,7 +50,7 @@ Implemented helpers: smoothers, one-pole and shelf, biquad, TPT SVF, DC block, e
 
 WP8 Generic A structural coverage: double audio/state, normalized descriptor mapping, parameter ramps and coefficient updates on absolute sample clock, bit-exact block partitioning, hostile finite recovery, deterministic reset, no callback allocations. Generic Compressor supports explicit sidechain buffer lifetime: pointers are consumed only by the immediately following process call; absent/stale external input passes dry and reports unavailable, never silently falls back to internal detector. Host/engine sidechain wiring and disabled UI availability remain integration work owned elsewhere. Board owns latency-matched5ms bypass; processors do not add a second fade.
 
-Not implemented in this worker: DS-1, TS808, SD-1, Distortion+, RAT, Big Muff NYC, Tone Wicker, Green Russian Muff, Deluxe Big Muff. Those source pairs remain skeletons and are not generic aliases. Reference TS808 spec requires further explicit reconciliation: its literal Rf/Zg circuit is not unity below100Hz at maximum drive(the80Hz gained leg is substantial); the bass-clean≤2dB endpoint condition cannot be inferred from the stated R/C values. Its small-signal diode conductance also affects the quoted unshunted resistor gain. No reference pedal gate is weakened to hide these conflicts.
+Current inventory is updated in the later dated checkpoints below; the initial checkpoint had no named drive implementations. None is a generic alias. Reference TS808 spec requires further explicit reconciliation: its literal Rf/Zg circuit is not unity below100Hz at maximum drive(the80Hz gained leg is substantial); the bass-clean≤2dB endpoint condition cannot be inferred from the stated R/C values. Its small-signal diode conductance also affects the quoted unshunted resistor gain. No reference pedal gate is weakened to hide these conflicts.
 
 BbdCore, LooperCore and GestureDecoder belong to timefx/engine; hub/host/UI/global registry files are not owned or edited here. Full application builds, PDC/bypass integration, UI/state/migration/MIDI routes, audio-device xruns and release acceptance belong to coordinator integration. No hardware captures were available, and no faithful-hardware claim is made.
 
@@ -126,7 +126,7 @@ Implementation choices and unresolved differences remain visible:
   level smoothing, three continuously running diode circuits with a 50 ms weight
   crossfade, estimated tone shelf/12 kHz pole and output coupling. Stock and
   1N4148 intentionally share the same estimated device parameters. The level law
-  is normalized at L=.55, yielding 13.126 dB maximum, rather than silently changing
+  is normalized at L=.55, yielding 13.135 dB maximum, rather than silently changing
   the law to force the incompatible +14 dB claim. This calibration needs review.
   Lowcpu/eco requests are rejected by `setParam`; `qualityAvailable()` exposes
   their absence. The quality descriptor labels both unavailable. Coloured bypass
@@ -166,3 +166,53 @@ AMD EPYC 9V45 shared execution environment. No conversion to a hypothetical 3GHz
 machine or optimistic wall-clock ratio is made. All other original acceptance
 criteria, hardware/null comparison, all-buffer matrix, UI exposure of unavailable
 controls and full integration remain open. Registration is deliberately unchanged.
+
+## WP12 Distortion+ and RAT candidate checkpoint, 2026-10-24
+
+Both formerly empty model pairs now contain separate circuit processors; neither
+is registered. `MxrDistortionPlus` uses the specified 4.7k/47n gain leg,
+10k+1M exponential drive pot, 47p feedback capacitor, estimated 741 bandwidth/
+rail, Ge/Si shunt nodes and the mandated piecewise output law (0/.1/1).
+`ProcoRat` uses both actual gain legs in parallel, common100p feedback, fixed1k
+bilinear prewarp, separate LM308/OP07 bandwidth estimates, slew limiter, rail,
+AC coupling, Si/LED nodes, physical tone RC and audio volume pot. Both have
+20ms variant transitions; RAT keeps three voices running to avoid stale tails.
+The large CPU consequence is measured rather than hidden.
+
+Helper `b735eb42` adds the independently checked dual-leg transfer and extends
+NewtonClipper's scale floor from1e-12 to1e-24 to preserve the RAT LED's explicitly
+specified3e-18 A saturation current. Existing scale values keep identical
+arithmetic. Nine complex transfer fixtures and four tiny-current physical KCL
+fixtures pass. The five-model allocation/stress/component run now passes
+**12 cases /3,922,899 checks**, including exact partition tests at
+44.1/48/96/192k and blocks1/37/2048; see `named-drives-wp12-tests.txt`.
+
+Unimplemented or unresolved original requirements:
+- Distortion+ eco ADAA is unavailable and rejected by `setParam`. The candidate
+  uses the full impedance transfer including Cf followed by the GBW pole; the
+  spec's alternate pseudocode replaces that with a single minimum-cutoff pole.
+  No equivalence is claimed. The estimated5ohm diode bulk resistance is absent.
+  Noise uses the stated20nV/sqrtHz plus a300K4.7k thermal estimate, not a measured
+  A-weighted calibration. Source/output impedance interaction is absent.
+- RAT uses the given1.228345603 voltage multiplier explicitly as volts per unit
+  sample; the spec's mixed RMS/full-scale wording still needs reconciliation.
+  Expression range fields are PF_Ext to preserve the three normative host lanes.
+  Expression/pressure controls are implemented. The coefficient smoother is
+  exponential in knob coordinates, not the prescribed multiplicative gain law.
+  The8x high-gain dynamic switch and state-transition machinery remain absent;
+  the candidate is4x normally and8x under High policy. Supply/follower estimates,
+  RF input159k pole, optional loading and full SPICE comparison remain open.
+- Both use the unaccepted long FIR candidate and report136/140samples honestly.
+  Original physical solver iteration/CPU limits, all-buffers matrix,30-minute
+  soak, precise parameter-spur and bypass tests remain open.
+
+Diagnostic one-second coherent1k measurements after one-second settle use
+-20dBFS **peak** input (50mV for Distortion+,122.835mV for RAT), not the
+100mV hardware-test stimulus. At48k and drive.5: Distortion+ THD20.7905%,
+RAT THD31.7936% (see raw exact table), no acoustic acceptance inferred at the
+wrong amplitude. Max-drive5k full-scale4x spectra: Distortion+ largest false
+harmonic-60.891dBFS /-34.164dBc; RAT-38.601dBFS /-21.675dBc. These do not close
+original44.1/96k Distortion+ or1k RAT alias gates. Process-only stereo48k128
+thread CPU: Distortion+17.6537% versus.8%, RAT25.8257% versus1.2%: **FAIL**.
+Exact code/flags/machine methodology is the WP11 method above. Raw evidence is
+`named-drives-wp12-measurements.txt` and `named-drives-wp12-alias.txt`.
