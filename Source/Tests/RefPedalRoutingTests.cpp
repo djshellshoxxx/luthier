@@ -540,3 +540,66 @@ LUTHIER_TEST (RefPedalRouting, missingWetResidualUsesOneRenderAndReportsUnavaila
     CHECK (! board.readPedalMeters (0).tailResidualAvailable);
     for (int i = 0; i < 64; ++i) { CHECK_NEAR (l[i], 5.0, 1.e-12); CHECK_NEAR (r[i], -5.0, 1.e-12); }
 }
+
+LUTHIER_TEST (RefPedalRouting, registeredDelayAndReverbHotBypassPreserveActualTailsAndDry)
+{
+    PedalRegistry::registerAll();
+    for (const auto* model : { "generic.delay", "generic.reverb" })
+        for (const float trim : { 0.f, 12.f })
+            for (const bool trails : { false, true })
+            {
+                const auto* desc = PedalRegistry::find (model);
+                CHECK (desc != nullptr); if (! desc) continue;
+                PedalInstance p; p.slot = 0; p.modelId = model; p.inDb = p.outDb = trim;
+                for (int param = 0; param < desc->numParams; ++param)
+                {
+                    p.params[static_cast<size_t> (param)] = desc->params[param].defaultNormalised();
+                    if (juce::String (desc->params[param].id).endsWith ("_trails")) p.params[static_cast<size_t> (param)] = trails ? 1.f : 0.f;
+                }
+                Board hot, reference;
+                CHECK (hot.setAssetStore (nullptr) && reference.setAssetStore (nullptr));
+                hot.prepare (48000, 64); reference.prepare (48000, 64);
+                BoardSettings settings; settings.enabled = true; settings.limiterOn = false; settings.trails = trails;
+                CHECK (hot.model().replaceAll ({ p }, settings)); CHECK (reference.model().replaceAll ({ p }, settings));
+                CHECK (hot.getLatencySamples() == reference.getLatencySamples());
+                double hl[64], hr[64], rl[64], rr[64];
+                for (int block = 0; block < 400; ++block)
+                {
+                    for (int i = 0; i < 64; ++i)
+                    {
+                        const double excitation = 0.005 * std::sin (0.071 * (block * 64 + i));
+                        hl[i] = hr[i] = rl[i] = rr[i] = excitation;
+                    }
+                    hot.processStereo (hl, hr, 64, Placement::beforeExistingPre);
+                    reference.processStereo (rl, rr, 64, Placement::beforeExistingPre);
+                }
+                CHECK (hot.model().apply (cmd::SetEnabled { p.instanceId, false }));
+                CHECK (reference.model().apply (cmd::SetEnabled { p.instanceId, false }));
+                // Let the model-owned excitation and20ms trail-cut ramps complete
+                // with identical input before testing independent live dry input.
+                for (int block = 0; block < 32; ++block)
+                {
+                    std::fill_n (hl, 64, 0.0); std::fill_n (hr, 64, 0.0); std::fill_n (rl, 64, 0.0); std::fill_n (rr, 64, 0.0);
+                    hot.processStereo (hl, hr, 64, Placement::beforeExistingPre);
+                    reference.processStereo (rl, rr, 64, Placement::beforeExistingPre);
+                }
+                double tailPeak = 0;
+                const auto allocations = luthier::tests::allocationsOnThisThread();
+                for (int block = 0; block < 32; ++block)
+                {
+                    std::fill_n (hl, 64, 5.0); std::fill_n (hr, 64, -5.0); std::fill_n (rl, 64, 0.0); std::fill_n (rr, 64, 0.0);
+                    hot.processStereo (hl, hr, 64, Placement::beforeExistingPre);
+                    reference.processStereo (rl, rr, 64, Placement::beforeExistingPre);
+                    for (int i = 0; i < 64; ++i)
+                    {
+                        CHECK_NEAR (hl[i] - rl[i], 5.0, 1.e-9);
+                        CHECK_NEAR (hr[i] - rr[i], -5.0, 1.e-9);
+                        CHECK (std::isfinite (hl[i]) && std::isfinite (hr[i]) && std::abs (hl[i]) <= 16 && std::abs (hr[i]) <= 16);
+                        tailPeak = std::max (tailPeak, std::max (std::abs (rl[i]), std::abs (rr[i])));
+                    }
+                }
+                CHECK (luthier::tests::allocationsOnThisThread() == allocations);
+                CHECK (hot.readPedalMeters (0).tailResidualAvailable);
+                CHECK (trails ? tailPeak > 1.e-6 : tailPeak < 1.e-8);
+            }
+}
