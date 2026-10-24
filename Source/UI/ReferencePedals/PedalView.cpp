@@ -58,12 +58,13 @@ PedalView::PedalView(BoardModel& m,InstanceId id,juce::AudioProcessorValueTreeSt
 {
     setWantsKeyboardFocus(true);setFocusContainerType(FocusContainerType::focusContainer);
     addAndMakeVisible(details);addAndMakeVisible(footswitch);addChildComponent(display);addChildComponent(inspector);inspector.addAndMakeVisible(meterLabel);meterLabel.setTitle("Pedal DSP readback");display.setTitle("Looper DSP display");display.setJustificationType(juce::Justification::centred);display.setFont(juce::FontOptions(10.f));display.setColour(juce::Label::backgroundColourId,juce::Colours::black);display.setColour(juce::Label::textColourId,juce::Colours::white);
-    for(auto* c:std::array<juce::Component*,9>{&placement,&mounting,&channel,&inputTrim,&outputTrim,&lane,&profile,&provenance,&footMode})inspector.addAndMakeVisible(c);
+    for(auto* c:std::array<juce::Component*,10>{&placement,&mounting,&channel,&inputTrim,&outputTrim,&lane,&profile,&provenance,&footMode,&position})inspector.addAndMakeVisible(c);
     inputLabel.setText("Input trim (dB)",juce::dontSendNotification);outputLabel.setText("Output trim (dB)",juce::dontSendNotification);laneLabel.setText("Routing lane (0 = first)",juce::dontSendNotification);
     for(auto* label:{&inputLabel,&outputLabel,&laneLabel})inspector.addAndMakeVisible(label);
     details.setTitle("Pedal information and extended controls");details.setTooltip("Estimated circuit model. Open all controls, placement, mounting and MIDI settings.");details.onClick=[this]{showInspector();};
     footswitch.setClickingTogglesState(true);
     footswitch.onClick=[this]{if(refreshing)return;if(learnMode&&onLearn){onLearn(instanceId,-1,false);refresh();}else if(!enabledAttachment)post(cmd::SetEnabled{instanceId,footswitch.getToggleState()});};
+    for(int i=0;i<kMaxSlots;++i)position.addItem("Signal position "+juce::String(i+1),i+1);position.setTitle("Signal chain position");position.onChange=[this]{if(!refreshing&&!positionAttached&&position.getSelectedId()>0&&position.getSelectedId()<=(int)model.getOrder().size())post(cmd::Move{instanceId,position.getSelectedId()-1});};
     placement.addItem("PRE - before effects",1);placement.addItem("LOOP - before cabinet",2);placement.addItem("POST - after cabinet",3);placement.setTitle("Pedal placement");
     placement.onChange=[this]{if(!refreshing)post(cmd::SetPlacement{instanceId,(Placement)(placement.getSelectedId()-1)});};
     for(int i=0;i<=7;++i)mounting.addItem(toString((Mounting)i),i+1);
@@ -87,7 +88,7 @@ PedalView::~PedalView()
     closeInspector();
     clearAttachments();
 }
-void PedalView::clearAttachments(){enabledAttachment.reset();buttonAttachments.clear();comboAttachments.clear();sliderAttachments.clear();attached.fill(false);trimAttached.fill(false);}
+void PedalView::clearAttachments(){positionAttached=false;enabledAttachment.reset();buttonAttachments.clear();comboAttachments.clear();sliderAttachments.clear();attached.fill(false);trimAttached.fill(false);}
 std::unique_ptr<juce::AccessibilityHandler> PedalView::createAccessibilityHandler(){return std::make_unique<juce::AccessibilityHandler>(*this,juce::AccessibilityRole::group);}
 void PedalView::post(BoardCommand command)
 {
@@ -112,7 +113,7 @@ void PedalView::rebuildControls(const PedalInstance& instance)
         }
         else if(param.kind==ParamKind::Momentary||param.kind==ParamKind::Trigger)
         {
-            auto* button=actions.add(new FootswitchButton(param.label));actionParams.push_back(i);parameterControls[(size_t)i]=button;button->setTitle(title);
+            auto* button=actions.add(new FootswitchButton(param.label));actionParams.push_back(i);parameterControls[(size_t)i]=button;button->setTitle(title);button->getProperties().set("referenceMomentary",true);
             button->onStateChange=[this,button,i,wasDown=false]() mutable
             {
                 const bool down=button->isDown();if(down==wasDown)return;wasDown=down;if(refreshing)return;
@@ -149,6 +150,7 @@ void PedalView::rebuildControls(const PedalInstance& instance)
             else if(auto* button=dynamic_cast<juce::ToggleButton*>(component))buttonAttachments.push_back(std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(state,parameter,*button));
             else attached[(size_t)i]=false;
         }
+        if(state.getParameter(prefix+"pos")){positionAttached=true;position.setComponentID(prefix+"pos");comboAttachments.push_back(std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(state,prefix+"pos",position));}
         if(state.getParameter(prefix+"enabled")){footswitch.setComponentID(prefix+"enabled");enabledAttachment=std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(state,prefix+"enabled",footswitch);}
         for(auto entry:std::array<std::pair<juce::Slider*,juce::String>,2>{{{&inputTrim,"in_db"},{&outputTrim,"out_db"}}})if(state.getParameter(prefix+entry.second)){trimAttached[entry.first==&inputTrim?0:1]=true;entry.first->setComponentID(prefix+entry.second);sliderAttachments.push_back(std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(state,prefix+entry.second,*entry.first));}
     }
@@ -176,8 +178,8 @@ void PedalView::refresh()
     placement.setSelectedId((int)instance->placement+1,juce::dontSendNotification);mounting.setSelectedId((int)instance->mounting+1,juce::dontSendNotification);
     const auto midi=instance->extras.getProperty("midi",juce::var());channel.setSelectedId(1+(int)midi.getProperty("chan",0),juce::dontSendNotification);profile.setToggleState(midi.getProperty("useProfile",false),juce::dontSendNotification);footMode.setSelectedId(1+(int)midi.getProperty("fsMode",0),juce::dontSendNotification);
     if(!trimAttached[0])inputTrim.setValue(instance->inDb,juce::dontSendNotification);if(!trimAttached[1])outputTrim.setValue(instance->outDb,juce::dontSendNotification);lane.setValue(instance->lane,juce::dontSendNotification);
-    const auto order=model.getOrder();const int position=(int)std::distance(order.begin(),std::find(order.begin(),order.end(),instanceId));setExplicitFocusOrder(position+10);
-    setTitle(juce::String(descriptor?descriptor->displayName:modelId.c_str())+", position "+juce::String(position+1)+" of "+juce::String((int)order.size())+", "+(instance->enabled?"on":"off")+", "+placement.getText());
+    const auto order=model.getOrder();const int ordinal=(int)std::distance(order.begin(),std::find(order.begin(),order.end(),instanceId));setExplicitFocusOrder(ordinal+10);if(!positionAttached)position.setSelectedId(ordinal+1,juce::dontSendNotification);for(int i=1;i<=kMaxSlots;++i)position.setItemEnabled(i,i<=(int)order.size());
+    setTitle(juce::String(descriptor?descriptor->displayName:modelId.c_str())+", position "+juce::String(ordinal+1)+" of "+juce::String((int)order.size())+", "+(instance->enabled?"on":"off")+", "+placement.getText());
     setDescription("Alt arrows reorder. Space bypasses. Delete removes. I opens pedal information. "+meterSummary());if(!oldTitle.isEmpty()&&oldTitle!=getTitle())if(auto* handler=getAccessibilityHandler())handler->notifyAccessibilityEvent(juce::AccessibilityEvent::titleChanged);resized();repaint();
 }
 juce::Point<int> PedalView::physicalSize() const {const auto size=face?face->designSizeMm()*1.6f:juce::Point<float>(120,200);return {juce::roundToInt(size.x),juce::roundToInt(size.y)};}
@@ -205,7 +207,7 @@ void PedalView::placeControls()
     }
     provenance.setBounds(8,6,320,88);meterLabel.setBounds(8,94,320,28);meterLabel.setText(meterSummary(),juce::dontSendNotification);
     const auto* faceModel=dynamic_cast<ModelFace*>(face.get());const bool lcd=faceModel&&faceModel->faceProfile().detail==FaceProfile::Detail::LooperDisplay;display.setVisible(lcd);if(lcd){display.setBounds(21,16,75,24);display.setText(meterSummary().isEmpty()?"NO READBACK":meterSummary(),juce::dontSendNotification);display.toFront(false);}
-    for(auto* component:std::array<juce::Component*,7>{&placement,&mounting,&inputTrim,&outputTrim,&lane,&channel,&profile}){juce::Label* label=component==&inputTrim?&inputLabel:component==&outputTrim?&outputLabel:component==&lane?&laneLabel:nullptr;if(label){label->setBounds(8,y,320,18);y+=18;}component->setBounds(8,y,320,28);y+=32;}
+    for(auto* component:std::array<juce::Component*,8>{&position,&placement,&mounting,&inputTrim,&outputTrim,&lane,&channel,&profile}){juce::Label* label=component==&inputTrim?&inputLabel:component==&outputTrim?&outputLabel:component==&lane?&laneLabel:nullptr;if(label){label->setBounds(8,y,320,18);y+=18;}component->setBounds(8,y,320,28);y+=32;}
     bool descriptorMode=false;for(int i=0;descriptor&&i<descriptor->numParams;++i)if(juce::String(descriptor->params[i].id).endsWith("_fs_mode"))descriptorMode=true;footMode.setVisible(!descriptorMode);if(!descriptorMode){footMode.setBounds(8,y,320,28);y+=32;}
     if(momentaryMain){inspector.addAndMakeVisible(footswitch);footswitch.setFaceGeometry({8.f,(float)y,320.f,36.f});y+=40;}
     else{addAndMakeVisible(footswitch);footswitch.setFaceGeometry(faceLayout.footswitch);}

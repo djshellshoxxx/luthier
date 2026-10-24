@@ -104,7 +104,7 @@ void BoardMidiPanel::addHostControls(juce::AudioProcessorValueTreeState& state)
         auto* parameter=state.getParameter(d.id);if(!parameter)continue;
         if(juce::String(d.id)=="ref_board_fb_kill")
         {
-            auto* button=new juce::TextButton("Kill feedback (hold)");widgets.add(button);content.addAndMakeVisible(button);button->setComponentID(d.id);button->setTitle(d.name);button->setBounds(6,y,344,28);y+=32;
+            auto* button=new juce::TextButton("Kill feedback (hold)");widgets.add(button);content.addAndMakeVisible(button);button->setComponentID(d.id);button->setTitle(d.name);button->getProperties().set("referenceMomentary",true);button->setBounds(6,y,344,28);y+=32;
             auto gesture=std::make_shared<KillGesture>(*parameter);button->onStateChange=[button,gesture]{gesture->change(button->isDown());};continue;
         }
         const bool endpoint=juce::String(d.id).endsWith("_src")||juce::String(d.id).endsWith("_dst")||juce::String(d.id).endsWith("_first")||juce::String(d.id).endsWith("_last");

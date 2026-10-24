@@ -54,7 +54,7 @@ private:
     FootswitchButton footswitch {"Engage"};
     juce::TextButton details {"EST ..."};
     juce::ToggleButton profile {"Use pedal CC profile"};
-    juce::ComboBox placement,mounting,channel,footMode;
+    juce::ComboBox placement,mounting,channel,footMode,position;
     juce::Component inspector;
     juce::Label provenance,inputLabel,outputLabel,laneLabel,meterLabel,display;
     PedalMeters meters;
@@ -69,7 +69,7 @@ private:
     std::array<bool,kMaxParams> attached {};
     std::array<bool,2> trimAttached {};
     juce::Slider inputTrim,outputTrim,lane;
-    bool refreshing=false,dragging=false;
+    bool refreshing=false,dragging=false,positionAttached=false;
     juce::Point<int> grabOffset;
     uint32_t gesture=0;
     struct InspectorDismissal final : juce::MouseListener
