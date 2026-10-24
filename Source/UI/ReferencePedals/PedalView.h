@@ -16,6 +16,8 @@ public:
     juce::String meterSummary() const;
     void showInspector();
     void requestFootswitchLearn();
+    void beginPositionGesture();
+    void endPositionGesture(int acceptedIndex=-1);
     void closeInspector(bool restoreFocus=false);
     void placeCaptionIn(juce::Component&);
     juce::Point<int> physicalSize() const;
@@ -70,6 +72,7 @@ private:
     std::array<bool,kMaxParams> attached {};
     std::array<bool,2> trimAttached {};
     juce::Slider inputTrim,outputTrim,lane;
+    juce::RangedAudioParameter* activePositionGesture=nullptr;
     bool refreshing=false,dragging=false,positionAttached=false;
     juce::Point<int> grabOffset;
     uint32_t gesture=0;

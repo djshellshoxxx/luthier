@@ -94,16 +94,16 @@ DragController::Target BoardCanvas::dragTarget(juce::Point<int> position) const
 }
 void BoardCanvas::dragTo(PedalView& view,juce::Point<int> point,juce::Point<int> offset,bool end)
 {
-    if(!drag.active())
+    if(!drag.active()||!ghost)
     {
-        const auto settings=model.getBoardSettings();if(!drag.begin(view.id(),juce::Time::getMillisecondCounterHiRes(),settings.ui.getProperty("liveReorder",true)))return;
+        const auto settings=model.getBoardSettings();const auto order=model.getOrder();dragOriginalIndex=(int)std::distance(order.begin(),std::find(order.begin(),order.end(),view.id()));view.beginPositionGesture();if(!drag.begin(view.id(),juce::Time::getMillisecondCounterHiRes(),settings.ui.getProperty("liveReorder",true))){view.endPositionGesture();return;}draggedView=&view;
         closeInspectors();ghost=std::make_unique<Ghost>();ghost->image=view.createComponentSnapshot(view.getLocalBounds(),true,1.04f);const float lift=AnimationPolicy::get().mayAnimate(AnimationPolicy::Transition)?1.04f:1.f;ghost->setSize(juce::roundToInt(view.getWidth()*lift)+28,juce::roundToInt(view.getHeight()*lift)+28);ghost->setInterceptsMouseClicks(false,false);addAndMakeVisible(*ghost);view.setAlpha(.35f);dragOffset=offset;startTimer(16);
     }
     dragPointer=point;ghost->setTopLeftPosition(point-dragOffset-juce::Point<int>(14,14));ghost->toFront(false);
     const auto target=dragTarget(point);const auto now=juce::Time::getMillisecondCounterHiRes();
-    if(end){drag.finish(target,now);finishVisualDrag();}else if(!drag.update(target,now))finishVisualDrag();
+    if(end){if(!dropInside(point)){cancelDrag();return;}const bool accepted=drag.finish(target,now);finishVisualDrag(accepted&&target.index!=dragOriginalIndex?target.index:-1);}else if(!drag.update(target,now))finishVisualDrag();
 }
-void BoardCanvas::finishVisualDrag(){stopTimer();ghost.reset();for(auto& view:views)view.second->setAlpha(1.f);repaint();}
+void BoardCanvas::finishVisualDrag(int acceptedPosition){stopTimer();if(draggedView)draggedView->endPositionGesture(acceptedPosition);draggedView=nullptr;ghost.reset();for(auto& view:views)view.second->setAlpha(1.f);repaint();}
 bool BoardCanvas::cancelDrag(){if(!drag.active())return false;const bool result=drag.cancel();if(result)finishVisualDrag();return result;}
 bool BoardCanvas::keyPressed(const juce::KeyPress& key){return key.getKeyCode()==juce::KeyPress::escapeKey&&cancelDrag();}
 void BoardCanvas::visibilityChanged(){if(!isShowing())cancelDrag();}
@@ -132,5 +132,14 @@ void BoardCanvas::pollMeters()
 {
     if(!meterSource)return;
     for(auto& entry:views)if(const auto instance=model.getInstance(entry.second->id()))entry.second->updateMeters(meterSource(instance->slot));
+}
+}
+
+namespace luthier::reference {
+bool BoardCanvas::dropInside(juce::Point<int> point) const
+{
+    if(!getLocalBounds().contains(point))return false;
+    if(auto* viewport=findParentComponentOfClass<juce::Viewport>())return viewport->getLocalBounds().contains(viewport->getLocalPoint(this,point));
+    return true;
 }
 }

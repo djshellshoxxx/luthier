@@ -32,7 +32,8 @@ public:
 private:
     void dragTo(PedalView&,juce::Point<int>,juce::Point<int>,bool);
     DragController::Target dragTarget(juce::Point<int>) const;
-    void finishVisualDrag();
+    void finishVisualDrag(int acceptedPosition=-1);
+    bool dropInside(juce::Point<int>) const;
     void timerCallback() override;
     void orderChanged() override { refresh(); }
     void instanceChanged (const InstanceId&) override;
@@ -47,6 +48,8 @@ private:
     DragController drag;
     std::unique_ptr<Ghost> ghost;
     juce::Point<int> dragPointer,dragOffset;
+    juce::Component::SafePointer<PedalView> draggedView;
+    int dragOriginalIndex=0;
     AnimationPolicy::Registration paintMetrics {*this,AnimationPolicy::Decorative,"ReferenceBoardCanvas"};
     struct MeterPoll final : juce::Timer {
         explicit MeterPoll(BoardCanvas& p):owner(p),motion(p,AnimationPolicy::LiveReadout,"ReferencePedalMeters"){}
