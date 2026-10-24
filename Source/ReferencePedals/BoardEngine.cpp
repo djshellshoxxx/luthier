@@ -50,6 +50,7 @@ void BoardEngine::prepare (double sampleRate, int maxBlock)
     dipSamples = std::max (1, static_cast<int> (rate * 0.006));
     mixAlpha = 1.0 - std::exp (-1.0 / (0.020 * rate));
     pool.prepare (rate, block, captured);
+    extendedModelSerials.fill (0); extendedHostSerials.fill (0);
     hostBoardSerials.fill (0); modelBoardSerials.fill (0);
     feedback.reset(); feedbackRearmSeen = feedbackKillSeen = 0; feedbackFault.store (false); feedbackTripped.store (false);
     paramPulses.clear(); numPendingPulses = 0; numRawMidi = numMidiOutput = 0;
@@ -184,7 +185,11 @@ PedalMeters BoardEngine::readPedalMeters (int slot) const noexcept
 void BoardEngine::syncRouting (midi::MidiRouter& router) const noexcept
 {
     if (const auto* plan = live.load (std::memory_order_acquire))
+    {
         router.setModelEnabled (plan->settings.enabled, plan->boardSerials[0]);
+        router.setModelTempoBpm (plan->settings.tempoBpm, plan->boardSerials[2]);
+        router.setModelTempoSource (plan->settings.tempoSource, plan->extended.serials[static_cast<size_t> (ExtendedHostField::TempoSource)]);
+    }
 }
 BoardMeters BoardEngine::meters() const noexcept
 {
@@ -218,19 +223,51 @@ int BoardEngine::drainMidiOut (MidiEvent* destination, int capacity) noexcept
     numMidiOutput -= count;
     return count;
 }
+void BoardEngine::applyExtended (const RenderPlan& plan) noexcept
+{
+    const bool wasFeedback = extended (ExtendedHostField::FeedbackOn) >= 0.5f;
+    bool killRequested = false;
+    for (size_t index = 0; index < extendedValues.size(); ++index)
+    {
+        if (extendedModelSerials[index] != plan.extended.serials[index])
+        { extendedValues[index] = plan.extended.values[index]; extendedModelSerials[index] = plan.extended.serials[index]; }
+        const auto serial = extendedHost.serials[index];
+        if (serial == 0 || serial == extendedHostSerials[index]) continue;
+        extendedHostSerials[index] = serial;
+        const auto& descriptor = extendedHostParameters[index];
+        if (descriptor.structural || ! std::isfinite (extendedHost.values[index])) continue;
+        float value = std::clamp (extendedHost.values[index], descriptor.minimum, descriptor.maximum);
+        if (descriptor.interval > 0) value = std::round (value);
+        if (index == static_cast<size_t> (ExtendedHostField::FeedbackKill))
+        {
+            if (value >= 0.5f) killRequested = true;
+            continue; // host momentary is a pulse; held model kill remains independent
+        }
+        if (index == static_cast<size_t> (ExtendedHostField::AbSelect) && value == 3.f)
+            value = extendedValues[index] == 0.f ? 1.f : 0.f;
+        extendedValues[index] = value;
+    }
+    if (! wasFeedback && extended (ExtendedHostField::FeedbackOn) >= 0.5f) feedback.reset();
+    if (killRequested && plan.feedbackAvailable)
+    {
+        auto config = plan.topology.fb; config.on = extended (ExtendedHostField::FeedbackOn) >= 0.5f;
+        feedback.configure (config, false, rate);
+        feedback.killSamples = std::max (1, static_cast<int> (rate * 0.005));
+    }
+}
 void BoardEngine::beginEvents (const midi::RouteOut& routed) noexcept
 {
     events = &routed;
     const auto* plan = live.load (std::memory_order_acquire);
     if (! plan) return;
     if (feedbackRearmSeen != plan->feedbackRearm) { feedback.reset(); feedbackRearmSeen = plan->feedbackRearm; }
-    if (! plan->topology.fb.on) feedback.configure (plan->topology.fb, false, rate);
     if (feedbackKillSeen != plan->feedbackKill)
     {
         feedbackKillSeen = plan->feedbackKill;
         feedback.configure (plan->topology.fb, plan->settings.fb.kill, rate);
         feedback.killSamples = std::max (1, static_cast<int> (rate * 0.005));
     }
+    applyExtended (*plan);
     int retained = 0;
     for (int i = 0; i < numPendingPulses; ++i)
     {
@@ -273,13 +310,14 @@ void BoardEngine::beginEvents (const midi::RouteOut& routed) noexcept
                 break;
         }
     }
-    latencySamples.store (effectiveEnabled && plan->settings.reportLatency ? plan->topology.latencyTotal : 0);
+    latencySamples.store (effectiveEnabled && extended (ExtendedHostField::ReportLatency) >= 0.5f ? plan->topology.latencyTotal : 0);
 }
 void BoardEngine::process (double* left, double* right, int n, Placement placement) noexcept
 {
     if (! left || ! right || n <= 0 || ! isValidPlacement (static_cast<int> (placement))) return;
     const auto* newest = live.load (std::memory_order_acquire);
     if (! newest) return;
+    if (! events) applyExtended (*newest);
     // Empty segments do not need a transition and must not pin a retired plan.
     for (int p = 0; p < kNumPlacements; ++p)
     {
@@ -290,7 +328,6 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
     }
     bool localEnabled = events ? blockEnabled : newest->settings.enabled;
     float localMix = events ? blockMix : newest->settings.mix;
-    double localTempo = events ? blockTempo : newest->settings.tempoBpm;
     const int p = static_cast<int> (placement);
     auto& s = segments[static_cast<size_t> (p)];
     if (resetRequested.exchange (false, std::memory_order_acq_rel))
@@ -324,7 +361,14 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
         }
         const auto& plan = *s.current; const auto& topology = plan.topology;
         for (int nodeIndex = topology.segBegin[p]; nodeIndex < topology.segEnd[p]; ++nodeIndex)
-            if (topology.nodes[nodeIndex].kind == NodeKind::FbSend) { feedback.configure (topology.fb, plan.settings.fb.kill, rate); break; }
+            if (topology.nodes[nodeIndex].kind == NodeKind::FbSend)
+            {
+                auto config = topology.fb; config.on = extended (ExtendedHostField::FeedbackOn) >= 0.5f;
+                config.runawayOk = extended (ExtendedHostField::FeedbackRunawayOk) >= 0.5f;
+                config.gain = std::min (extended (ExtendedHostField::FeedbackGain), config.runawayOk ? 1.05f : 0.98f);
+                config.lpHz = extended (ExtendedHostField::FeedbackLpHz);
+                feedback.configure (config, extended (ExtendedHostField::FeedbackKill) >= 0.5f, rate); break;
+            }
         if (events)
             for (int event = 0; event < events->nWrites; ++event)
             {
@@ -333,7 +377,7 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
                 switch (static_cast<midi::BoardTarget> (write.paramIdx))
                 {
                     case midi::BoardTarget::Mix: localMix = write.norm; break;
-                    case midi::BoardTarget::Tempo: localTempo = 20.0 + 280.0 * write.norm; break;
+                    case midi::BoardTarget::Tempo: break; // canonical router clock owns source priority and glide
                     case midi::BoardTarget::Enabled: localEnabled = write.norm >= 0.5f; break;
                 }
             }
@@ -349,26 +393,28 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
             if (rawMidi[static_cast<size_t> (event)].offset > offset)
                 count = std::min (count, rawMidi[static_cast<size_t> (event)].offset - offset);
         if (s.phase != Segment::Idle) count = std::min (count, dipSamples - s.ramp);
-        const bool hasNodes = topology.segBegin[p] != topology.segEnd[p];
+        const bool hasNodes = topology.segBegin[p] != topology.segEnd[p] || (p == 0 && extended (ExtendedHostField::ReampEnable) >= 0.5f && topology.n > 0);
         if (! hasNodes && ! s.pending) { s.phase = Segment::Idle; s.gain = 1.0; offset += count; continue; }
         const bool hasSidechain = sidechain[0] && sidechain[1] && offset + count <= sidechainSamples;
         if (hasSidechain)
             for (int c = 0; c < 2; ++c)
                 for (int i = 0; i < count; ++i)
                     sidechainScratch[static_cast<size_t> (c)][static_cast<size_t> (i)] = BoardLimiter::process (sidechain[c][offset + i], false, 1.0);
-        const bool reamp = p == 0 && plan.settings.reampEnable && hasSidechain;
-        const double reampGain = reamp ? std::pow (10.0, plan.settings.reampGainDb / 20.0) : 0.0;
+        const bool reamp = p == 0 && (extended (ExtendedHostField::ReampEnable) >= 0.5f) && hasSidechain;
+        const double reampGain = reamp ? (extended (ExtendedHostField::ReampGainDb) <= -120.f ? 0.0 : std::pow (10.0, extended (ExtendedHostField::ReampGainDb) / 20.0)) : 0.0;
         double dry[2][kSubBlock] {};
         for (int c = 0; c < 2; ++c)
             for (int i = 0; i < count; ++i)
             {
                 double in = (c == 0 ? left : right)[offset + i];
-                if (reamp) in = (plan.settings.reampReplace ? 0.0 : in)
+                if (reamp) in = (extended (ExtendedHostField::ReampReplace) >= 0.5f ? 0.0 : in)
                     + reampGain * sidechainScratch[static_cast<size_t> (c)][static_cast<size_t> (i)];
                 peakIn = std::max (peakIn, std::abs (std::isfinite (in) ? in : 0.0));
                 dry[c][i] = s.dry[static_cast<size_t> (c)].process (in, plan.latency[static_cast<size_t> (p)]);
                 buses[0][static_cast<size_t> (c)][static_cast<size_t> (i)] = ! localEnabled && s.enable == 0.0 ? 0.0 : BoardLimiter::process (in, false, 1.0);
             }
+        const bool wetPaused = localMix == 0.f && s.mix == 0.0 && extended (ExtendedHostField::MixTail) < 0.5f;
+        if (wetPaused) for (auto& channel : buses[0]) std::fill_n (channel.data(), count, 0.0);
         ExecCtx context; context.n = count; context.topo = &topology;
         context.pedals = topology.pedals; context.sampleRate = rate;
         for (int bus = 0; bus < kMaxBuses; ++bus)
@@ -376,7 +422,24 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
         std::array<PedalNodeState, kMaxSlots> pedalStates;
         for (int index = topology.segBegin[p]; index < topology.segEnd[p]; ++index)
         {
-            const auto& node = topology.nodes[index]; context.nodeIndex = index;
+            auto node = topology.nodes[index]; context.nodeIndex = index;
+            const auto dbGain = [] (float db) { return db <= -120.f ? 0.f : std::pow (10.f, db / 20.f); };
+            if (node.kind == NodeKind::Limiter)
+            { node.i0 = extended (ExtendedHostField::LimiterOn) >= 0.5f ? 1 : 0; node.f0 = dbGain (extended (ExtendedHostField::LimiterCeilDb)); }
+            if (node.kind == NodeKind::LaneGain)
+                node.f0 = dbGain (extendedValues[static_cast<size_t> (25 + 2 * node.lane)]) * (extendedValues[static_cast<size_t> (26 + 2 * node.lane)] >= 0.5f ? -1.f : 1.f);
+            if (node.kind == NodeKind::Sum && node.i0 != 0)
+            { const auto selection = extended (ExtendedHostField::AbSelect); node.f1 = selection == 0.f ? 0.f : selection == 1.f ? 1.f : 0.5f; }
+            if (node.kind == NodeKind::SendTap || node.kind == NodeKind::ReturnInject)
+            {
+                const int base = 33 + 8 * node.aux; const bool enabled = extendedValues[static_cast<size_t> (base + 1)] >= 0.5f;
+                if (node.kind == NodeKind::SendTap) node.f0 = enabled ? dbGain (extendedValues[static_cast<size_t> (base + 4)]) : 0.f;
+                else
+                {
+                    node.f0 = ! enabled ? 0.f : topology.loops[node.aux].kind == LoopKind::Parallel ? extendedValues[static_cast<size_t> (base + 3)] : 1.f;
+                    node.f1 = dbGain (extendedValues[static_cast<size_t> (base + 5)]);
+                }
+            }
             if (node.kind == NodeKind::Pedal)
             {
                 auto& state = pedalStates[node.slot]; state.runtime = plan.slots[node.slot].get(); state.control = &plan.controls[node.slot];
@@ -441,7 +504,6 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
                             { pedal.setParam (pulse.param, pulse.value); pulse.identity = InstanceId::null(); }
                         }
                     auto time = blockTime;
-                    if (localTempo != modelTempo) time.bpm = localTempo;
                     time.sample += offset; if (time.valid) time.ppq += offset * time.bpm / (60.0 * rate);
                     pedal.setTime (time);
                     if (localEnabled && pedal.desc().wantsRawMidi)
@@ -488,7 +550,7 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
             else if (node.kind == NodeKind::Sum && node.i0 != 0) context.state[index] = &s.ab;
             else if (node.kind == NodeKind::Delay) context.state[index] = &s.lanes[node.aux];
             else if (node.kind == NodeKind::SendTap || node.kind == NodeKind::ReturnInject) context.state[index] = &s.loops[node.aux];
-            routing::nodeTable()[static_cast<int> (node.kind)] (node, context);
+            if (! wetPaused) routing::nodeTable()[static_cast<int> (node.kind)] (node, context);
             if (node.kind == NodeKind::Pedal)
             {
                 auto* runtime = plan.slots[node.slot].get();
@@ -551,7 +613,7 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
             for (int c = 0; c < 2; ++c)
             {
                 const double wet = dry[c][i] + s.gain * (buses[0][static_cast<size_t> (c)][static_cast<size_t> (i)] - dry[c][i]);
-                const double result = mixer.render (dry[c][i], wet, s.mix * s.enable, newest->settings.mixLaw);
+                const double result = mixer.render (dry[c][i], wet, s.mix * s.enable, static_cast<MixLaw> (static_cast<int> (extended (ExtendedHostField::MixLaw))));
                 (c == 0 ? left : right)[offset + i] = BoardLimiter::process (result, false, 1.0);
                 peakOut = std::max (peakOut, std::abs ((c == 0 ? left : right)[offset + i]));
             }
@@ -564,7 +626,7 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
         for (int segment = 0; segment < kNumPlacements; ++segment)
             if (newest->topology.segBegin[segment] != newest->topology.segEnd[segment]
                 && segments[static_cast<size_t> (segment)].enable > 0.0) silent = false;
-        if (newest->settings.trails)
+        if (extended (ExtendedHostField::Trails) >= 0.5f)
             for (const auto& slot : newest->slots)
                 if (slot && slot->pedal->desc().hasTails && slot->pedal->getTailEnergyDb() > -90.f) silent = false;
         if (silent) running.store (false);

@@ -57,10 +57,23 @@ PedalMeters Board::readPedalMeters (int slot) const noexcept { return impl->engi
 BoardMeters Board::readMeters() const noexcept { auto result = impl->engine.meters(); result.midiDropped += impl->router.droppedCount(); return result; }
 void Board::setAuxOutputs (const BoardAuxOutputs& outputs) noexcept { impl->engine.setAuxOutputs (outputs); }
 void Board::setSidechain (const float* left, const float* right, int samples) noexcept { impl->engine.setSidechain (left, right, samples); }
+void Board::setExtendedHostAutomation (const ExtendedHostAutomationSnapshot& snapshot) noexcept
+{
+    impl->engine.setExtendedHostAutomation (snapshot);
+    const auto tempoSource = static_cast<size_t> (ExtendedHostField::TempoSource);
+    if (std::isfinite (snapshot.values[tempoSource]))
+        impl->router.setHostTempoSource (static_cast<TempoSource> (static_cast<int> (std::clamp (snapshot.values[tempoSource], 0.f, 3.f))), snapshot.serials[tempoSource]);
+    for (int source = 1; source <= 2; ++source)
+    {
+        const auto index = static_cast<size_t> (source == 1 ? ExtendedHostField::Exp1 : ExtendedHostField::Exp2);
+        impl->router.setVirtualExpression (source, snapshot.values[index], snapshot.serials[index]);
+    }
+}
 void Board::setHostAutomation (const HostAutomationSnapshot& snapshot) noexcept
 {
     impl->engine.setHostAutomation (snapshot);
     impl->router.setHostEnabled (snapshot.values[0] >= 0.5f, snapshot.serials[0]);
+    impl->router.setHostTempoBpm (snapshot.values[2], snapshot.serials[2]);
 }
 void Board::beginBlock (const juce::MidiBuffer& input, const HostTransport& host, int samples) noexcept
 {
