@@ -10,6 +10,13 @@ class Compressor final : public detail::Processor<11>
   public:
     Compressor();
     static const PedalDesc &descriptor() noexcept;
+    // Audited: all prepared DSP state is embedded; calibration scratch is stack-only.
+    static PreparedMemoryRequirement prepareMemory(double sr, int block, int policy,
+                                                   const float *params) noexcept
+    {
+        return fixedPreparedMemory<Compressor>(sr, block, policy, params);
+    }
+    uint64_t getPreparedMemoryBytes() const noexcept override { return sizeof(*this); }
     void prepare(double, int, int) override;
     void reset() noexcept override;
     void process(double *, double *, int) noexcept override;

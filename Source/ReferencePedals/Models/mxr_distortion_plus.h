@@ -12,6 +12,13 @@ class MxrDistortionPlus final : public common::CircuitPedal<7>
   public:
     MxrDistortionPlus();
     static const PedalDesc &descriptor() noexcept;
+    // Audited: all prepared DSP state is embedded; calibration scratch is stack-only.
+    static PreparedMemoryRequirement prepareMemory(double sr, int block, int policy,
+                                                   const float *params) noexcept
+    {
+        return fixedPreparedMemory<MxrDistortionPlus>(sr, block, policy, params);
+    }
+    uint64_t getPreparedMemoryBytes() const noexcept override { return sizeof(*this); }
     static double driveResistance(double d) noexcept
     {
         return 10000 + 1e6 * std::expm1(5 * std::clamp(d, 0., 1.)) / std::expm1(5.);

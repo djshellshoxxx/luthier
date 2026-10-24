@@ -572,3 +572,62 @@ modified. A fresh local ASan+UBSan+leak-detection run passes **1,342,784 bitwise
 oracle checks** across rates, boundary/hostile phases, setters and reprepare;
 stderr is empty (`lfo-wrap-reviewed-{tests,stderr}.txt`). No latency, transfer,
 state layout or callback ownership changes were introduced.
+
+
+## E69 prepared-memory admission inventory
+
+The additive E69 contract is implemented for all 14 DSP-owned processors.
+Boost, Overdrive, Fuzz, Compressor, TS808, DS1, SD1, Distortion+, RAT and Green
+Russian have only embedded prepared state and report `sizeof(model)`. GenericA
+registrations supply their estimator callbacks. Named registrations remain empty;
+these reports do not qualify any named model's outstanding acoustic or CPU gates.
+
+Dynamic fresh-instance formulas include `sizeof(model)` plus:
+
+- Dyna Comp: two delay vectors of `(23+16)*sizeof(double)` each.
+- NYC: one immutable `PreparedDiodeRoot` object plus its 33×513-double vector,
+  counted once across the four sharing clipping stages.
+- Wicker: the same single root allocation plus two delay vectors of
+  `(ceil(sampleRate*.005)+18)*sizeof(double)` each.
+- Deluxe: four delay vectors of `(reportedOversamplerLatency+18)*sizeof(double)`
+  each, with the exact current HQ/policy selection (128/136/140 samples).
+
+Actual getters use vector **capacity**, including retained storage after a smaller
+reprepare. Preflight bounds apply to fresh factories, as required by the pool;
+repreparing an existing NYC/Wicker can temporarily retain its previous root while
+constructing the replacement. The dynamic estimators reject nonfinite rates,
+rates outside 8–192kHz, and nonpositive blocks before conversion. Blocks of 4096
+are supported. Embedded-only estimators require no rate-dependent allocation or
+conversion. All queries are allocation-free and all DSP processing is unchanged.
+
+E69 measures logical owned allocation payload: embedded state is already covered
+by `sizeof(model)`; ordinary stack scratch, allocator bookkeeping and shared_ptr
+control-block metadata are excluded by the engine owner's explicit contract.
+Fresh preparation uses no additional heap scratch, so `temporaryBytes` is zero.
+The 257×16-double (32,896-byte) static shared sinc coefficient table remains a separate global inventory,
+not a per-pedal allocation. Fresh vector capacities were checked against the
+formulas on this Linux STL; other platform builds must repeat the same admission
+suite rather than assume allocator capacity policy.
+
+Tests were added before implementation and failed to compile because all model
+`prepareMemory` methods were absent. The focused reproducible script is
+`pedalboard-dsp-evidence/run-dsp-memory-tests.sh`; it includes all 14 processors,
+ASan, UBSan, leak detection and the allocation counter. It checks preflight before
+factory construction, actual capacity equality, reset/reprepare retention, all
+mandatory rates plus 8kHz, all policies, invalid dynamic input rejection, and
+Deluxe null/default/explicit HQ configuration. Final result recorded below.
+
+Final focused run: **4 cases / 1,825 checks, zero failures**, ASan+UBSan+leak
+detection, empty stderr. Allocation-counter checks pass for both preflight and
+actual getters. GenericA registration also passes a standalone syntax compile.
+The expanded hostile-parameter test caught an estimator-only defect: mapping
+NaN directly through `fromNormalised` selected HQ off, while `PedalBase::setParam`
+ignores nonfinite values and retains the fresh default HQ on. The estimator now
+matches the setter for NaN and infinity; the failing output is preserved in
+`dsp-memory-before-fix.txt`, with the final run in `dsp-memory-tests.txt`.
+
+The engine owner independently reviewed all four dynamic formulas, the shared
+root count, fresh-instance scratch convention and actual retained-capacity
+reports; no counting mismatch was found. This review did not independently
+rerun the sanitizer suite. Cross-platform admission checks and pool integration
+remain the coordinator/engine build responsibility.

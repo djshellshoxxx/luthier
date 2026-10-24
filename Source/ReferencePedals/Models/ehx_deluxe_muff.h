@@ -15,6 +15,8 @@ class EhxDeluxeMuff final : public common::CircuitPedal<18>
   public:
     EhxDeluxeMuff();
     static const PedalDesc &descriptor() noexcept;
+    static PreparedMemoryRequirement prepareMemory(double, int, int, const float *) noexcept;
+    uint64_t getPreparedMemoryBytes() const noexcept override;
     bool controlAvailable(int i) const noexcept { return i >= 0 && i < 18; }
     void prepare(double, int, int) override;
     void reset() noexcept override;

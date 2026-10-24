@@ -13,6 +13,13 @@ class IbanezTs808 final : public common::CircuitPedal<9>
   public:
     IbanezTs808();
     static const PedalDesc &descriptor() noexcept;
+    // Audited: all prepared DSP state is embedded; calibration scratch is stack-only.
+    static PreparedMemoryRequirement prepareMemory(double sr, int block, int policy,
+                                                   const float *params) noexcept
+    {
+        return fixedPreparedMemory<IbanezTs808>(sr, block, policy, params);
+    }
+    uint64_t getPreparedMemoryBytes() const noexcept override { return sizeof(*this); }
     static double feedbackResistance(double knob) noexcept
     {
         return 51000 + 500000 * std::pow(std::clamp(knob, 0.0, 1.0), 2.5);

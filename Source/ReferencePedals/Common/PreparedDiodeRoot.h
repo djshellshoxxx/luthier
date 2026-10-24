@@ -2,6 +2,7 @@
 #pragma once
 #include "Smoothers.h"
 #include <array>
+#include <cstdint>
 #include <limits>
 #include <vector>
 namespace luthier::reference::common
@@ -17,6 +18,11 @@ class PreparedDiodeRoot
         double voltage = 0, residual = 0;
         int iterations = 0;
     };
+    static constexpr uint64_t preparedAllocationBytes() noexcept
+    {
+        return uint64_t(rows + 1) * (columns + 1) * sizeof(double);
+    }
+    uint64_t ownedMemoryBytes() const noexcept { return uint64_t(roots.capacity()) * sizeof(double); }
     void prepare(double diodeScale, double thermalVoltage, double minimumConductance,
                  double maximumConductance, double maximumCurrent)
     {

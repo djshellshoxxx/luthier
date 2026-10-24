@@ -16,6 +16,8 @@ class MxrDynaComp final : public common::Processor<10>
   public:
     MxrDynaComp();
     static const PedalDesc &descriptor() noexcept;
+    static PreparedMemoryRequirement prepareMemory(double, int, int, const float *) noexcept;
+    uint64_t getPreparedMemoryBytes() const noexcept override;
     void prepare(double, int, int) override;
     int getLatencySamples() const noexcept override { return otaOs[0].latencySamples(); }
     void reset() noexcept override;

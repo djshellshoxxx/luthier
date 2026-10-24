@@ -1,0 +1,6 @@
+RefPedalDspMemory::embeddedGenericAndNamedModels 1260 checks 0 failures
+RefPedalDspMemory::dynamicModelsMatchPreparedCapacities 504 checks 0 failures
+RefPedalDspMemory::retainedCapacityAndInvalidDynamicPreflight 12 checks 0 failures
+RefPedalDspMemory::dynamicBoundsAndDeluxeConfiguration 46 checks 1 failures
+    line 141: expected model.getPreparedMemoryBytes() == models::EhxDeluxeMuff::prepareMemory(48000, 4096, policy, params.data()).ownedBytes
+TOTAL 1822 checks 1 failures

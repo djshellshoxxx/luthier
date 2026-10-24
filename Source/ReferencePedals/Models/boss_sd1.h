@@ -14,6 +14,13 @@ class BossSd1 final : public common::CircuitPedal<15>
   public:
     BossSd1();
     static const PedalDesc &descriptor() noexcept;
+    // Audited: all prepared DSP state is embedded; calibration scratch is stack-only.
+    static PreparedMemoryRequirement prepareMemory(double sr, int block, int policy,
+                                                   const float *params) noexcept
+    {
+        return fixedPreparedMemory<BossSd1>(sr, block, policy, params);
+    }
+    uint64_t getPreparedMemoryBytes() const noexcept override { return sizeof(*this); }
     bool controlAvailable(int i) const noexcept { return i >= 0 && i < 15; }
     bool qualityAvailable(int quality) const noexcept { return quality == 1; }
     void setParam(int, float) noexcept override;

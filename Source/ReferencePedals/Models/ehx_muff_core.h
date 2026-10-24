@@ -45,6 +45,8 @@ class MuffTone
 class MuffClipStage
 {
   public:
+    // The caller counts this immutable allocation once across all sharing stages.
+    uint64_t rootMemoryBytes() const noexcept { return root ? sizeof(*root) + root->ownedMemoryBytes() : 0; }
     using RootTable = std::shared_ptr<const common::PreparedDiodeRoot>;
     static RootTable makeRootTable(double rate)
     {
@@ -101,6 +103,7 @@ class MuffCore
     {
         return std::expm1(4.394 * std::clamp(x, 0., 1.)) / std::expm1(4.394);
     }
+    uint64_t rootMemoryBytes() const noexcept { return clip1.rootMemoryBytes(); }
     void prepare(double rate, const MuffClipStage::RootTable &sharedTable = {})
     {
         sr = common::sampleRate(rate);

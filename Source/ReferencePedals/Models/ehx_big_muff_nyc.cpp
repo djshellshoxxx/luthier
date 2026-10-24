@@ -2,6 +2,19 @@
 #include "ehx_big_muff_nyc.h"
 namespace luthier::reference::models
 {
+PreparedMemoryRequirement EhxBigMuffNyc::prepareMemory(double sr, int block, int, const float *) noexcept
+{
+    if (!std::isfinite(sr) || sr < 8000 || sr > 192000 || block <= 0)
+        return {};
+    return {sizeof(EhxBigMuffNyc) + sizeof(common::PreparedDiodeRoot) +
+                common::PreparedDiodeRoot::preparedAllocationBytes(),
+            0};
+}
+uint64_t EhxBigMuffNyc::getPreparedMemoryBytes() const noexcept
+{
+    return sizeof(*this) + core[0].rootMemoryBytes();
+}
+
 const PedalDesc &EhxBigMuffNyc::descriptor() noexcept
 {
     static const char *const stereo[] = {"Dual mono", "Sum to mono"};

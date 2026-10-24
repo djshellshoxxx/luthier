@@ -1,0 +1,5 @@
+RefPedalDspMemory::embeddedGenericAndNamedModels 1260 checks 0 failures
+RefPedalDspMemory::dynamicModelsMatchPreparedCapacities 504 checks 0 failures
+RefPedalDspMemory::retainedCapacityAndInvalidDynamicPreflight 12 checks 0 failures
+RefPedalDspMemory::dynamicBoundsAndDeluxeConfiguration 49 checks 0 failures
+TOTAL 1825 checks 0 failures

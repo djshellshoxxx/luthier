@@ -2,6 +2,21 @@
 #include "ehx_muff_wicker.h"
 namespace luthier::reference::models
 {
+PreparedMemoryRequirement EhxMuffWicker::prepareMemory(double sr, int block, int, const float *) noexcept
+{
+    if (!std::isfinite(sr) || sr < 8000 || sr > 192000 || block <= 0)
+        return {};
+    const auto delaySamples = static_cast<uint64_t>(std::ceil(sr * .005)) + 18;
+    return {sizeof(EhxMuffWicker) + sizeof(common::PreparedDiodeRoot) +
+                common::PreparedDiodeRoot::preparedAllocationBytes() + 2 * delaySamples * sizeof(double),
+            0};
+}
+uint64_t EhxMuffWicker::getPreparedMemoryBytes() const noexcept
+{
+    return sizeof(*this) + core[0].rootMemoryBytes() + howlDelay[0].ownedMemoryBytes() +
+           howlDelay[1].ownedMemoryBytes();
+}
+
 const PedalDesc &EhxMuffWicker::descriptor() noexcept
 {
     static const char *const stereo[] = {"Dual mono", "Sum to mono"};
@@ -112,7 +127,8 @@ void EhxMuffWicker::process(double *l, double *r, int n) noexcept
             if (p[13] > 0 && p[1] > .8)
                 // The newest stored output is from the previous frame: read()
                 // uses age zero for that value, so remove its one-frame age.
-                x += (1 - toneMix) * common::dbGain(-50 + 20 * p[13]) * p[13] * howlDelay[c].read(sr * .005 - 1);
+                x += (1 - toneMix) * common::dbGain(-50 + 20 * p[13]) * p[13] *
+                     howlDelay[c].read(sr * .005 - 1);
             const double y = bounded(os[c].process(x, [&](double v) { return core[c].process(v); }));
             howlDelay[c].push(std::tanh(howlLp[c].process(howlHp[c].highpass(y))));
             channels[c][i] = y;

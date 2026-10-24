@@ -11,6 +11,8 @@ class EhxMuffWicker final : public common::CircuitPedal<15>
   public:
     EhxMuffWicker();
     static const PedalDesc &descriptor() noexcept;
+    static PreparedMemoryRequirement prepareMemory(double, int, int, const float *) noexcept;
+    uint64_t getPreparedMemoryBytes() const noexcept override;
     bool controlAvailable(int i) const noexcept { return i >= 0 && i < 15 && i != 10 && i != 14; }
     void prepare(double, int, int) override;
     void reset() noexcept override;

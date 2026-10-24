@@ -2,6 +2,26 @@
 #include "ehx_deluxe_muff.h"
 namespace luthier::reference::models
 {
+PreparedMemoryRequirement EhxDeluxeMuff::prepareMemory(double sr, int block, int policy,
+                                                       const float *params) noexcept
+{
+    if (!std::isfinite(sr) || sr < 8000 || sr > 192000 || block <= 0)
+        return {};
+    const auto &hq = descriptor().params[13];
+    // Fresh PedalBase ignores nonfinite setters and retains the descriptor default.
+    const double quality = params && std::isfinite(params[13]) ? hq.fromNormalised(params[13]) : hq.def;
+    const int factor = policy >= 2 ? 8 : (quality < .5 || policy == 0 ? 2 : 4);
+    const uint64_t latency = factor == 8 ? 140 : factor == 4 ? 136 : 128;
+    return {sizeof(EhxDeluxeMuff) + 4 * (latency + 18) * sizeof(double), 0};
+}
+uint64_t EhxDeluxeMuff::getPreparedMemoryBytes() const noexcept
+{
+    uint64_t bytes = sizeof(*this);
+    for (const auto &v : channels)
+        bytes += v.attackDelay.ownedMemoryBytes() + v.detectorDelay.ownedMemoryBytes();
+    return bytes;
+}
+
 const PedalDesc &EhxDeluxeMuff::descriptor() noexcept
 {
     static const char *const q[] = {"LO", "HI"};

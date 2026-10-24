@@ -9,6 +9,8 @@ class EhxBigMuffNyc final : public common::CircuitPedal<8>
   public:
     EhxBigMuffNyc();
     static const PedalDesc &descriptor() noexcept;
+    static PreparedMemoryRequirement prepareMemory(double, int, int, const float *) noexcept;
+    uint64_t getPreparedMemoryBytes() const noexcept override;
     void prepare(double, int, int) override;
     void reset() noexcept override;
     void process(double *, double *, int) noexcept override;
