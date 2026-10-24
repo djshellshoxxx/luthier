@@ -6,6 +6,7 @@
 #include "TopologyCompiler.h"
 #include "Routing/LatencyEqualiser.h"
 #include "Routing/SendReturn.h"
+#include "Routing/AbSwitch.h"
 #include "Rt/RetireList.h"
 #include "Rt/SpscRing.h"
 #include "WetDryMixer.h"
@@ -41,6 +42,12 @@ public:
     void requestReset() noexcept { resetRequested.store (true, std::memory_order_release); }
     void process (double*, double*, int, Placement) noexcept;
     void setTime (const TimeInfo& time) noexcept { blockTime = time; }
+    void setAuxOutputs (const BoardAuxOutputs& outputs) noexcept
+    {
+        auxOutputs = outputs;
+        const auto connected = [] (const BoardAuxOutputs::Stereo& bus) { return bus.left && bus.right && bus.samples > 0; };
+        auxAvailable.store ((connected (outputs.pedalB) ? 1 : 0) | (connected (outputs.wet) ? 2 : 0) | (connected (outputs.dry) ? 4 : 0));
+    }
     void setSidechain (const float* left, const float* right, int samples) noexcept
     {
         sidechain[0] = left; sidechain[1] = right; sidechainSamples = std::max (0, samples);
@@ -51,7 +58,7 @@ public:
     void beginRawMidi (const juce::MidiBuffer&, int samples) noexcept;
     int drainMidiOut (MidiEvent*, int capacity) noexcept;
     void beginEvents (const midi::RouteOut&) noexcept;
-    void endEvents() noexcept { events = nullptr; sidechain[0] = sidechain[1] = nullptr; sidechainSamples = 0; }
+    void endEvents() noexcept { events = nullptr; sidechain[0] = sidechain[1] = nullptr; sidechainSamples = 0; auxOutputs = {}; }
     int reclaim() noexcept;
     void drainControlEcho(); // message thread, outside any BoardModel lock
     bool isActive() const noexcept { return targetActive.load() || running.load(); }
@@ -82,6 +89,7 @@ private:
         std::array<DelayLine, 2> dry;
         std::array<routing::LatencyEqualiser, kMaxBranches> lanes;
         std::array<routing::SendReturnState, kMaxLoops> loops;
+        routing::AbSwitchState ab;
     };
     SpscRing<ParamPulse, 256> paramPulses;
     std::array<ParamPulse, 256> pendingPulses;
@@ -98,6 +106,8 @@ private:
     std::atomic<float> inputPeak { -120.f }, outputPeak { -120.f };
     std::array<Segment, kNumPlacements> segments;
     std::array<std::array<std::array<double, kSubBlock>, 2>, kMaxBuses> buses {};
+    BoardAuxOutputs auxOutputs;
+    std::atomic<uint8_t> auxAvailable { 0 };
     const float* sidechain[2] {};
     int sidechainSamples = 0;
     std::atomic<bool> sidechainConnected { false };

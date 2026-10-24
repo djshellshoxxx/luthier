@@ -113,6 +113,12 @@ struct HostAutomationSnapshot
     std::array<uint32_t, count> serials {};
 };
 
+struct BoardAuxOutputs
+{
+    struct Stereo { float* left = nullptr; float* right = nullptr; int samples = 0; };
+    Stereo pedalB, wet, dry;
+};
+
 struct BoardMeters
 {
     float inPeakDb = -120.f, outPeakDb = -120.f, cpuPct = 0.f;
@@ -120,6 +126,7 @@ struct BoardMeters
     bool fbTripped = false, fbFault = false, clockLocked = false, clockLost = false;
     uint32_t midiDropped = 0;
     bool sidechainAvailable = false;
+    bool auxBAvailable = false, auxWetAvailable = false, auxDryAvailable = false;
 };
 
 //==============================================================================

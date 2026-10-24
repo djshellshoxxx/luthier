@@ -49,6 +49,7 @@ public:
 
     //==========================================================================
     // Audio thread, per processSlice, in this order
+    void setAuxOutputs (const BoardAuxOutputs&) noexcept; // E54: borrowed, pre-cleared float buffers
     void setSidechain (const float* left, const float* right, int samples) noexcept; // audio-only borrowed block input
     void setHostAutomation (const HostAutomationSnapshot&) noexcept; // E44: audio thread, before beginBlock
     void beginBlock (const juce::MidiBuffer& midi, const HostTransport& host, int numSamples) noexcept;

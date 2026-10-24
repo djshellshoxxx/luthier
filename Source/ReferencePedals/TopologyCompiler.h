@@ -25,6 +25,7 @@ struct RenderPlan
     std::array<int, kNumPlacements> latency {};
     // Only processing structure affects this number; controls adopt without a dip.
     uint32_t structure = 0;
+    AbSelect abResolved = AbSelect::AplusB;
 };
 class TopologyCompiler
 {
