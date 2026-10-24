@@ -19,6 +19,12 @@ struct PedalNodeState
 {
     PedalRuntime* runtime = nullptr;
     const SlotControl* control = nullptr;
+    const midi::RouteOut* events = nullptr;
+    const MidiEvent* raw = nullptr;
+    int numRaw = 0, offset = 0;
+    const double* sidechain[2] {};
+    TimeInfo time;
+    bool eventsEnabled = false, processWet = true;
 };
     struct EngageEcho
     {

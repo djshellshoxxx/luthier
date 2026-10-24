@@ -5,6 +5,47 @@
 #include <algorithm>
 namespace luthier::reference
 {
+void PedalRuntime::writeParam (int index, float value, float smoothMs) noexcept
+{
+    if (index < 0 || index >= pedal->desc().numParams || ! std::isfinite (value)) return;
+    value = std::clamp (value, 0.f, 1.f);
+    const auto bit = uint32_t (1) << index;
+    const auto& descriptor = pedal->desc().params[index];
+    auto& ramp = ramps[static_cast<size_t> (index)];
+    if (smoothMs <= 0 || descriptor.has (PF_OwnSmoothing)
+        || (descriptor.kind != ParamKind::Continuous && descriptor.kind != ParamKind::Tempo))
+    {
+        rampMask &= ~bit; ramp.value = ramp.target = value; ramp.coefficient = 0;
+        pedal->setParam (index, value); return;
+    }
+    if ((rampMask & bit) == 0) ramp.value = pedal->getParam (index);
+    ramp.target = value;
+    ramp.coefficient = std::exp (-1.0 / (std::clamp (static_cast<double> (smoothMs), 0.001, 500.0) * 0.001 * sampleRate));
+    rampMask |= bit;
+}
+void PedalRuntime::advanceParams() noexcept
+{
+    for (int param = 0; param < pedal->desc().numParams; ++param)
+    {
+        const auto bit = uint32_t (1) << param;
+        if ((rampMask & bit) == 0) continue;
+        auto& ramp = ramps[static_cast<size_t> (param)];
+        ramp.value = ramp.target + ramp.coefficient * (ramp.value - ramp.target);
+        if (std::abs (ramp.value - ramp.target) < 1.e-7) { ramp.value = ramp.target; rampMask &= ~bit; }
+        if (std::abs (ramp.value) < 1.e-15) ramp.value = 0;
+        pedal->setParam (param, static_cast<float> (ramp.value));
+    }
+}
+void PedalRuntime::collectMidi (int sampleOffset, int samples) noexcept
+{
+    MidiEvent output[64]; const int count = std::clamp (pedal->drainMidiOut (output, 64), 0, 64);
+    for (int i = 0; i < count; ++i)
+    {
+        if (numRenderedMidi == static_cast<int> (renderedMidi.size())) { ++midiDropped; continue; }
+        output[i].offset = sampleOffset + std::clamp (output[i].offset, 0, samples - 1);
+        renderedMidi[static_cast<size_t> (numRenderedMidi++)] = output[i];
+    }
+}
 void PedalRuntime::reset() noexcept
 {
     pedal->reset();
@@ -58,7 +99,7 @@ std::shared_ptr<PedalRuntime> PedalPool::acquire (const PedalInstance& instance,
         catch (...) { error = "Unable to create persistent pedal asset service"; return {}; }
     }
     auto result = std::make_shared<PedalRuntime>();
-    result->assetOwner = assets;
+    result->assetOwner = assets; result->sampleRate = rate;
     result->pedal = PedalRegistry::make (instance.modelId.c_str());
     if (! result->pedal) { error = "Pedal factory failed"; return {}; }
     result->identity = instance.instanceId; result->model = instance.modelId;
