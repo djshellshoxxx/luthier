@@ -156,7 +156,7 @@ void MidiRouter::process (const juce::MidiBuffer& in, const HostTransport& host,
     const auto* map = impl->published.load (std::memory_order_seq_cst);
     if (map && map->version != impl->activeVersion)
     {
-        if (! impl->modelEnabledKnown || impl->modelEnabled != map->boardEnabled)
+        if (impl->modelEnabledRevision == 0 && (! impl->modelEnabledKnown || impl->modelEnabled != map->boardEnabled))
         { impl->effectiveEnabled = impl->modelEnabled = map->boardEnabled; impl->modelEnabledKnown = true; }
         if (! impl->effectiveEnabled) { impl->footHeld.fill (false); for (auto& channel : impl->heldNoteSlots) channel.fill (-1); }
         impl->activeVersion = map->version; impl->held.fill (false); impl->picked.fill (false);
@@ -233,13 +233,20 @@ void MidiRouter::process (const juce::MidiBuffer& in, const HostTransport& host,
                 if (! stillHeld) impl->foot (slot, false, value, off, out);
             }
         }
+        if (type == MidiSrc::CC && impl->effectiveEnabled)
+        {
+            const int slot = map->footCc[(size_t) ch - 1][(size_t) num];
+            const auto& bucket = map->find (type, ch, num);
+            if (slot >= 0 && (bucket.count == 0 || map->layers[bucket.index[0]] >= map->footLayer[(size_t) ch - 1][(size_t) num]))
+            { impl->foot (slot, value >= .5f, value, off, out); continue; }
+        }
         impl->route (*map, type, ch, num, value, off, out);
         if (type == MidiSrc::Note && kind == 0x90 && e.d2 > 0) impl->route (*map, MidiSrc::NoteVel, ch, num, value, off, out);
         if (type == MidiSrc::CC && num < 64)
         {
             const int base = num & 31; const size_t channel = (size_t) ch - 1;
             if (num < 32) { impl->msb[channel][(size_t) base] = e.d2; impl->hasMsb[channel][(size_t) base] = true; }
-            else impl->lsb[channel][(size_t) base] = e.d2;
+            else if (impl->hasMsb[channel][(size_t) base]) impl->lsb[channel][(size_t) base] = e.d2;
             if (impl->hasMsb[channel][(size_t) base]) impl->route (*map, MidiSrc::CC14, ch, base,
                 (impl->msb[channel][(size_t) base] * 128 + impl->lsb[channel][(size_t) base]) / 16383.f, off, out);
         }
