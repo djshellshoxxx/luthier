@@ -89,6 +89,13 @@ public:
 
     // Audio thread. In place, n <= maxBlock.
     virtual void process (double* L, double* R, int n) noexcept = 0;
+    // E68: render exactly once and optionally expose the actual wet contribution
+    // before dry summation/final output guard. Board supplies separate, nonnull
+    // writable residual buffers of n samples, disjoint from L/R. Return true only
+    // when both are fully written, finite and bounded. No added latency/state pass.
+    // False means residual unavailable: the board uses ordinary bypass fading.
+    virtual bool processWithWetResidual (double* L, double* R, double*, double*, int n) noexcept
+    { process (L, R, n); return false; }
     // Additive sidechain input (implementation erratum E32). The board supplies
     // read-only buffers for the immediately following process() call only.
     // Null pointers mean the external bus is unavailable; consumers must never
