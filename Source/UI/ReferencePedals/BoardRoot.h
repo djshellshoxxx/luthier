@@ -26,9 +26,11 @@ public:
     BoardCanvas& boardCanvas(){return canvas;}
 private:
     void refresh();
+    void showError(const juce::String&);
+    void layoutContent();
     void settingsChanged() override {refresh();}
     void orderChanged() override {refresh();}
-    void rejected(const juce::String& text) override {status.setText(text,juce::dontSendNotification);}
+    void rejected(const juce::String& text) override {showError(text);}
     void timerCallback() override;
     void zoomTo(float);
     void flushView();
@@ -52,7 +54,8 @@ private:
     juce::Slider mix,tempo;
     juce::ComboBox style,mode,mixLaw;
     juce::Label status,zoomLabel;
-    bool compact=false,refreshing=false;
+    bool compact=false,refreshing=false,savingView=false,settingFocus=false;
+    juce::String statusError;
     float zoom=1.f;
     uint32_t mixGesture=0;
     bool pendingView=false;
