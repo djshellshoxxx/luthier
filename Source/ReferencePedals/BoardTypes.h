@@ -226,7 +226,7 @@ struct TopologyInfo
     int pedalCount = 0;                  // non-empty instances
     int latencyTotal = 0;                // L_board in samples
     int dryDelay = 0;
-    uint32_t cpuUnits = 0;               // sum of PedalDesc::cpuUnits
+    uint32_t cpuUnits = 0;               // normalized declared cost:1000 units =1%, not measured CPU
     bool feedbackValid = true;
     juce::String note;                   // last compile warning, empty if none
 };

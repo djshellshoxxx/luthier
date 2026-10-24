@@ -100,7 +100,7 @@ struct Topology
     int laneDelay[kMaxBranches] {};      // maxLaneLat - lat_k
     int dryDelay = 0;                    // wet/dry latency compensation (<= kMaxLatencySamp)
     int slotLatency[kMaxSlots] {};
-    uint32_t cpuUnits = 0;
+    uint32_t cpuUnits = 0; // normalized declared cost:1000 units =1%
 
     IPedal* pedals[kMaxSlots] {};        // non-owning; PedalPool keeps them alive while any non-retired Topology references them
 

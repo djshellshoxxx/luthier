@@ -78,6 +78,8 @@ bool PedalRegistry::validate (const PedalDesc& d, juce::String* reason)
         return fail (reason, id + ": empty displayName");
     if (d.revision < 1)
         return fail (reason, id + ": revision must be >= 1");
+    if (d.cpuUnitsPerPercent == 0)
+        return fail (reason, id + ": cpuUnitsPerPercent must be positive");
     if (d.paramPrefix == nullptr || *d.paramPrefix == 0)
         return fail (reason, id + ": empty paramPrefix");
 
