@@ -192,3 +192,18 @@ LUTHIER_TEST (RefPedalMidiCore, hostCaptureUnitsAndThreadLocalEcho)
     const auto snapshot = capture.snapshot(); CHECK (snapshot.serials[4] == 10000); CHECK (snapshot.values[4] == .75f);
     CHECK (capture.write (4, .75f)); CHECK (capture.snapshot().serials[4] == 10001);
 }
+LUTHIER_TEST (RefPedalMidiCore, hostEnableGatesMidiWithoutModelEcho)
+{
+    MidiRouter router; router.prepare (48000, 128);
+    auto map = std::make_unique<MapSnap>(); map->boardEnabled = false;
+    Binding b; b.srcNum = 20; b.target = 1; map->add (b); router.publishMap (std::move (map));
+    juce::MidiBuffer in; in.addEvent (juce::MidiMessage::controllerEvent (1, 20, 127), 37);
+    RouteOut out;
+    router.setHostEnabled (true, 1); router.process (in, {}, 0, 128, out);
+    CHECK (out.nWrites == 1); CHECK (out.writes[0].offset == 37);
+    router.setHostEnabled (false, 2); router.process (in, {}, 128, 128, out); CHECK (out.nWrites == 0);
+    auto changed = std::make_unique<MapSnap>(); changed->boardEnabled = true; changed->add (b);
+    router.publishMap (std::move (changed)); router.setHostEnabled (false, 2);
+    router.process (in, {}, 256, 128, out); CHECK (out.nWrites == 1);
+    router.setHostEnabled (false, 3); router.process (in, {}, 384, 128, out); CHECK (out.nWrites == 0);
+}
