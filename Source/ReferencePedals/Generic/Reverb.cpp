@@ -38,6 +38,10 @@ void Reverb::reset() noexcept
 }
 float Reverb::getTailEnergyDb() const noexcept { return float(10*std::log10(std::max(1e-20,energy))); }
 void Reverb::process(double* left,double* right,int n) noexcept
+{ render(left,right,nullptr,nullptr,n); }
+bool Reverb::processWithWetResidual(double* left,double* right,double* residualL,double* residualR,int n) noexcept
+{ render(left,right,residualL,residualR,n);return true; }
+void Reverb::render(double* left,double* right,double* residualL,double* residualR,int n) noexcept
 {
     constexpr double pi=3.14159265358979323846;
     for(int i=0;i<n;++i)
@@ -82,6 +86,8 @@ void Reverb::process(double* left,double* right,int n) noexcept
         constexpr double calibration[]{1.25,-1.47,1.45,.9,1.9};
         const double wetL=current[0]*typeBlend*calibration[type],wetR=current[1]*typeBlend*calibration[type];
         const double dryGain=1+inputGain*(std::cos(mix*pi*.5)-1),wetGain=std::sin(mix*pi*.5)*tailGain;
+        if(residualL)residualL[i]=wetL*wetGain;
+        if(residualR)residualR[i]=wetR*wetGain;
         left[i]=softGuard(dry[0]*dryGain+wetL*wetGain);right[i]=softGuard(dry[1]*dryGain+wetR*wetGain);
         energy+=(.5*(wetL*wetL+wetR*wetR)-energy)*energyCoefficient;
     }

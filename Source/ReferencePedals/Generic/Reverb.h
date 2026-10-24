@@ -16,10 +16,12 @@ public:
     void prepare(double,int,int) override;
     void reset() noexcept override;
     void process(double*,double*,int) noexcept override;
+    bool processWithWetResidual(double*,double*,double*,double*,int) noexcept override;
     void setEnabled(bool e) noexcept override { enabled=e; }
     void setServices(const PedalServices& services) override {seed=services.instanceSeed;}
     float getTailEnergyDb() const noexcept override;
 private:
+    void render(double*,double*,double*,double*,int) noexcept;
     ReverbFdn fdn[3]; ReverbPlate plate; ReverbSpring spring;
     common::FractionalDelay predelay;
     common::Biquad lowcut;
