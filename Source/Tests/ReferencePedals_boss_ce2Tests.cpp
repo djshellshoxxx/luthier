@@ -1,6 +1,7 @@
 #include "TestFramework.h"
 #include "../ReferencePedals/Models/boss_ce2.h"
 #include <array>
+#include <complex>
 using luthier::reference::models::BossCe2;
 LUTHIER_TEST(RefPedalCe2, impulseTimingSilenceAndBypass)
 {
@@ -31,4 +32,26 @@ LUTHIER_TEST(RefPedalCe2, lfoRateAndSync)
     }
     BossCe2 p;p.setParam(6,1);p.prepare(48000,1,1);luthier::reference::TimeInfo t;t.valid=t.playing=true;t.bpm=120;t.ppq=.25;p.setTime(t);
     CHECK_NEAR(p.modulationPhase(),.25,1e-12);
+}
+
+LUTHIER_TEST(RefPedalCe2, originalDistortionGatesWithEstimatedHeadroom)
+{
+    constexpr double pi=3.14159265358979323846;
+    for(double sr:{44100.,48000.,96000.,192000.})for(double db:{-12.,-3.})
+    {
+        BossCe2 pedal;pedal.setParam(1,0);pedal.prepare(sr,1,1);
+        std::array<std::complex<double>,10> harmonics{};const double amplitude=std::pow(10.,db/20);
+        for(int i=0;i<int(sr*2);++i)
+        {
+            const double angle=2*pi*1000*i/sr;double left=amplitude*std::sin(angle),right=left;pedal.process(&left,&right,1);
+            if(i>=int(sr))
+            {
+                const std::complex<double> rotation(std::cos(angle),-std::sin(angle));auto phase=rotation;
+                for(int h=1;h<10;++h){harmonics[h]+=left*phase;phase*=rotation;}
+            }
+        }
+        double energy=0;for(int h=2;h<10;++h)energy+=std::norm(harmonics[h]);
+        const double thd=std::sqrt(energy)/std::abs(harmonics[1]);
+        if(db==-12)CHECK(thd<.003);else{CHECK(thd>=.02);CHECK(thd<=.06);}
+    }
 }

@@ -30,14 +30,14 @@ const PedalDesc& BossCe2::descriptor() noexcept {return description;}
 BossCe2::BossCe2() : PedalBase(description) {}
 void BossCe2::prepare(double sampleRate,int,int)
 {
-    sr=sampleRate;prepareParams(sr);variant=int(value(3));
-    for(int c=0;c<2;++c){wet[c].prepare(sr,12,variant?7500:6500,variant?6000:5500);inputHp[c].setLowpass(sr,15);}
+    sr=sampleRate;triangleCoefficient=1-std::exp(-6.283185307179586*72/sr);prepareParams(sr);variant=int(value(3));
+    for(int c=0;c<2;++c){wet[c].prepare(sr,12,variant?7500:6500,variant?6000:5500);wet[c].setClipOnset(.5);inputHp[c].setLowpass(sr,15);}
     lfo.prepare(sr);reset();
 }
 void BossCe2::reset() noexcept
 {
     for(int c=0;c<2;++c){wet[c].reset(seed);inputHp[c].reset();}
-    lfo.setPhase(0);triangle=0;engage=enabled?1:0;force=0;samples=0;lastTap=-1;tapIndex=tapCount=0;
+    lfo.setPhase(0);triangle=0;lastRate=-1;engage=enabled?1:0;force=0;samples=0;lastTap=-1;tapIndex=tapCount=0;
 }
 void BossCe2::setTime(const TimeInfo& t) noexcept
 {
@@ -72,11 +72,11 @@ void BossCe2::process(double* left,double* right,int n) noexcept
     for(int i=0;i<n;++i,++samples)
     {
         if(variant!=int(value(3))) {variant=int(value(3));for(auto& b:wet)b.setFilters(variant?7500:6500,variant?6000:5500);}
-        const double rate=.3*std::pow(3.56/.3,nextSmoothed(0));
+        const double knob=nextSmoothed(0);if(knob!=lastRate){lastRate=knob;cachedRate=.3*std::pow(3.56/.3,knob);}const double rate=cachedRate;
         const double depth=std::clamp(double(nextSmoothed(1))+(value(10)>.5f ? force*.5:0),0.,1.);
         double phase=lfo.phase()+nextSmoothed(11)/360;phase-=std::floor(phase);
         const double tri=4*std::abs(phase-.5)-1;
-        triangle+=(tri-triangle)*(1-std::exp(-6.283185307179586*72/sr));
+        triangle+=(tri-triangle)*triangleCoefficient;
         const double delayMs=3.4+depth*triangle*(triangle>=0?1.1:1.2),noise=nextSmoothed(5);
         engage+=std::clamp((enabled?1.:0.)-engage,-1/(sr*fadeSeconds),1/(sr*fadeSeconds));
         const double dry[2]{softGuard(left[i]),softGuard(right[i])};double* outputs[]{left,right};

@@ -37,7 +37,7 @@ const PedalDesc& BossDd3t::descriptor() noexcept {return description;}
 BossDd3t::BossDd3t() : PedalBase(description) {}
 void BossDd3t::prepare(double sampleRate,int,int)
 {
-    sr=sampleRate;prepareParams(sr);
+    sr=sampleRate;timeCoefficient=1-std::exp(-1/(sr*.08));energyCoefficient=1-std::exp(-1/(sr*.05));prepareParams(sr);
     for(int c=0;c<2;++c)
     {
         line[c].prepare(int(sr*.81)+16);history[c].assign(size_t(sr*.81)+16,0);loop[c].assign(size_t(sr*.8)+8,0);
@@ -53,15 +53,15 @@ void BossDd3t::reset() noexcept
         std::fill(history[c].begin(),history[c].end(),0);feedback[c]=heldQuant[c]=previousQuant[c]=0;
     }
     historyHead=loopLength=0;loopPosition=0;holding=false;holdMix=0;
-    samples=0;lastTap=downAt=-1;tapCount=tapIndex=0;energy=0;converterPhase=0;filterCountdown=0;lastCutoff=0;
-    inputGain=wetGain=enabled?1:0;currentMs=targetTime();
+    engageRequest=downWasTap=false;samples=0;lastTap=downAt=-1;tapCount=tapIndex=0;energy=0;converterPhase=0;filterCountdown=0;lastCutoff=0;
+    inputGain=wetGain=enabled?1:0;currentMs=targetTime();lastLevel=lastFeedback=-1;lastBits=-1;
 }
 void BossDd3t::setParam(int idx,float norm) noexcept {PedalBase::setParam(idx,idx==17?0:norm);}
 void BossDd3t::setExpression(int jack,float v) noexcept {if(jack==0)setParam(1,v);else if(jack==1)setParam(2,v);}
 void BossDd3t::setTime(const TimeInfo& time) noexcept
 {
     if(!time.valid || !std::isfinite(time.bpm) || time.bpm<=0 || !std::isfinite(time.ppq))return;
-    const double beat=std::floor(time.ppq);
+    hostBpm=time.bpm;const double beat=std::floor(time.ppq);
     if(!hasSync || beat!=lastBeat)
     {
         constexpr double quarters[]{1,.5,.75,2.0/3,.25};syncMs=60000/time.bpm*quarters[int(value(13))];
@@ -109,14 +109,29 @@ void BossDd3t::beginHold() noexcept
 void BossDd3t::onParamChanged(int index,float v) noexcept
 {
     if(index==5){if(v>.5f)beginHold();else holding=false;}
-    if(index==3 && int(v)!=3)holding=false;
+    if(index==3){downAt=-1;holdActionFired=false;if(int(v)!=3)holding=false;}
 }
 void BossDd3t::onFoot(const FootEvent& event) noexcept
 {
-    force=std::clamp(double(event.force),0.,1.);
+    force=std::clamp(double(event.force),0.,1.);fadeSeconds=.040-.037*std::clamp(double(event.speed),0.,1.);
     if(int(value(3))==3){if(event.press)beginHold();else holding=false;return;}
-    if(event.press){downAt=samples;holdActionFired=false;if(value(7)>.5f)tap();}
-    else downAt=-1;
+    if(event.press){downAt=samples;holdActionFired=false;downWasTap=value(7)>.5f;if(downWasTap)tap();}
+    else
+    {
+        if(downAt>=0 && !holdActionFired && !downWasTap)engageRequest=!engageRequest;
+        downAt=-1;
+    }
+}
+PedalUiMeters BossDd3t::readUiMeters() const noexcept
+{
+    PedalUiMeters meters;meters.available=UiTempo;
+    meters.bpm=value(12)>.5f && hasSync?hostBpm:60000/tapInterval;
+    if(holding && loopLength)
+    {
+        meters.available|=UiLoop|UiProgress;meters.loopLength=loopLength;
+        meters.playhead=uint64_t(loopPosition);meters.progress=float(loopPosition/loopLength);
+    }
+    return meters;
 }
 float BossDd3t::getTailEnergyDb() const noexcept {return float(10*std::log10(std::max(1e-20,energy)));}
 void BossDd3t::saveExtra(juce::var& v) const
@@ -132,11 +147,14 @@ void BossDd3t::process(double* left,double* right,int n) noexcept
     for(int i=0;i<n;++i,++samples)
     {
         if(downAt>=0 && !holdActionFired && samples-downAt>=int64_t(2*sr)){setParam(7,value(7)>.5f?0:1);holdActionFired=true;}
-        currentMs+=(targetTime()-currentMs)*(1-std::exp(-1/(sr*.08)));
-        const double level=std::pow(nextSmoothed(0),1.6),fb=.97*std::pow(std::clamp(double(nextSmoothed(1))+(value(14)>.5f?force*.4:0),0.,1.),1.2);
+        currentMs+=(targetTime()-currentMs)*timeCoefficient;
+        const double levelKnob=nextSmoothed(0),feedbackKnob=std::clamp(double(nextSmoothed(1))+(value(14)>.5f?force*.4:0),0.,1.);
+        if(levelKnob!=lastLevel){lastLevel=levelKnob;cachedLevel=std::pow(levelKnob,1.6);}
+        if(feedbackKnob!=lastFeedback){lastFeedback=feedbackKnob;cachedFeedback=.97*std::pow(feedbackKnob,1.2);}
+        const double level=cachedLevel,fb=cachedFeedback;
         const double dry[2]{softGuard(left[i]),softGuard(right[i])},mono=(dry[0]+dry[1])*.5;
-        inputGain+=std::clamp((enabled?1.:0.)-inputGain,-1/(sr*.005),1/(sr*.005));
-        const double wetTarget=enabled || value(8)>.5f ? 1:0;wetGain+=std::clamp(wetTarget-wetGain,-1/(sr*.01),1/(sr*.01));
+        inputGain+=std::clamp((enabled?1.:0.)-inputGain,-1/(sr*fadeSeconds),1/(sr*fadeSeconds));
+        const double wetTarget=enabled || value(8)>.5f ? 1:0;wetGain+=std::clamp(wetTarget-wetGain,-1/(sr*fadeSeconds),1/(sr*fadeSeconds));
         const int mode=int(value(3));const double cutoff=mode==0?7000:mode==1?5500:7000-3500*std::clamp((currentMs-200)/600,0.,1.);
         if(--filterCountdown<=0)
         {
@@ -149,14 +167,15 @@ void BossDd3t::process(double* left,double* right,int n) noexcept
         bool converterTick=false;
         if(value(11)>.5f){converterPhase+=(32768/(currentMs*.001))/sr;if(converterPhase>=1){converterPhase-=std::floor(converterPhase);converterTick=true;}}
         holdMix+=std::clamp((holding?1.:0.)-holdMix,-1/(sr*.01),1/(sr*.01));
+        const int bits=12+int(value(10));if(bits!=lastBits){lastBits=bits;quantScale=std::ldexp(1.,bits-1);inverseQuantScale=1/quantScale;}
         double wetEnergy=0;double* outputs[]{left,right};
         for(int c=0;c<2;++c)
         {
             const double input=value(18)>.5f?mono:dry[c];
             double x=highpass[c].highpass(input)*inputGain+feedback[c]*fb*wetGain;
-            x=saturation[c].process(x,[](double v){return std::tanh(v);});for(auto& filter:pre[c])x=filter.process(x);
-            const int bits=12+int(value(10));
-            if(bits<24 && std::abs(x)>1e-12){const double scale=std::ldexp(1.,bits-1);x=std::round(x*scale+.5*(noise[c].next()+noise[c].next()))/scale;}
+            x=saturation[c].process(x,[](double v){return common::mildTanh(v);});for(auto& filter:pre[c])x=filter.process(x);
+            if(bits<24 && std::abs(x)>1e-12)
+                x=std::round(x*quantScale+.5*(noise[c].next()+noise[c].next()))*inverseQuantScale;
             if(value(11)>.5f)
             {
                 if(converterTick){previousQuant[c]=heldQuant[c];heldQuant[c]=x;}
@@ -170,7 +189,7 @@ void BossDd3t::process(double* left,double* right,int n) noexcept
             double held=wet;
             if(loopLength && (holding || holdMix>0))
             {
-                const size_t at=size_t(loopPosition)%loopLength,next=(at+1)%loopLength;const double frac=loopPosition-std::floor(loopPosition);
+                const size_t at=size_t(loopPosition),next=at+1==loopLength?0:at+1;const double frac=loopPosition-std::floor(loopPosition);
                 held=loop[c][at]+(loop[c][next]-loop[c][at])*frac;
             }
             const double outWet=holdMix>=1?held:wet+(held-wet)*holdMix;
@@ -180,7 +199,7 @@ void BossDd3t::process(double* left,double* right,int n) noexcept
         }
         if(!history[0].empty() && ++historyHead==history[0].size())historyHead=0;
         if(loopLength && (holding || holdMix>0)){loopPosition+=referenceMs/currentMs;while(loopPosition>=loopLength)loopPosition-=loopLength;}
-        energy+=(.5*wetEnergy-energy)*(1-std::exp(-1/(sr*.05)));
+        energy+=(.5*wetEnergy-energy)*energyCoefficient;
     }
 }
 }

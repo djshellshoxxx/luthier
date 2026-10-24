@@ -56,3 +56,28 @@ LUTHIER_TEST(RefPedalDd3t, fullFeedbackSixtySecondStability)
     for(int block=0;block<1407;++block){p.process(l.data(),r.data(),2048);for(int i=0;i<2048;++i)stable=stable && std::isfinite(l[i]) && std::isfinite(r[i]) && std::abs(l[i])<=2 && std::abs(r[i])<=2;l.fill(0);r.fill(0);}
     CHECK(stable);
 }
+
+LUTHIER_TEST(RefPedalDd3t, audioThreadUiMetersExposeRealTempoAndLoop)
+{
+    BossDd3t p;p.prepare(48000,1,1);auto meter=p.readUiMeters();
+    CHECK(meter.available&UiTempo);CHECK_NEAR(meter.bpm,120,1e-12);
+    TimeInfo t;t.valid=true;t.bpm=90;t.ppq=0;p.setParam(12,1);p.setTime(t);
+    CHECK_NEAR(p.readUiMeters().bpm,90,1e-12);
+    p.setParam(3,1);silence(p,48000);p.onFoot({true,1,1,0});silence(p,1000);
+    meter=p.readUiMeters();CHECK(meter.available&UiLoop);CHECK(meter.available&UiProgress);
+    CHECK(meter.loopLength>0);CHECK(meter.playhead<meter.loopLength);CHECK(meter.progress>=0 && meter.progress<1);
+    p.onFoot({false,1,1,0});CHECK((p.readUiMeters().available&UiLoop)==0);
+}
+
+LUTHIER_TEST(RefPedalDd3t, shortReleaseOwnsEngagementAndLongHoldDoesNot)
+{
+    BossDd3t p;p.prepare(48000,1,1);CHECK(!p.footControlsEngagement());
+    p.onFoot({true,1,1,0});silence(p,4800);p.onFoot({false,1,1,0});
+    CHECK(p.consumeEngageToggle());CHECK(!p.consumeEngageToggle());
+    p.onFoot({true,1,1,0});silence(p,100800);CHECK_NEAR(p.getParam(7),1,1e-12);
+    CHECK(!p.consumeEngageToggle());p.onFoot({false,1,1,0});CHECK(!p.consumeEngageToggle());
+    p.onFoot({true,1,1,0});silence(p,4800);p.onFoot({false,1,1,0});CHECK(!p.consumeEngageToggle());
+    p.onFoot({true,1,1,0});silence(p,100800);CHECK_NEAR(p.getParam(7),0,1e-12);
+    p.onFoot({false,1,1,0});CHECK(!p.consumeEngageToggle());
+    p.setParam(3,1);p.onFoot({true,1,1,0});silence(p,100);p.onFoot({false,1,1,0});CHECK(!p.consumeEngageToggle());
+}
