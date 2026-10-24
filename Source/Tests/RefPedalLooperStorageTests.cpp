@@ -124,6 +124,7 @@ LUTHIER_TEST(RefPedalLooperStorage, audioPagingCallsNeverAllocate)
     const auto before=luthier::tests::allocationsOnThisThread();
     storage.beginRecord();for(int i=0;i<128;++i)storage.append(.125,-.25);storage.finishRecord();
     for(int i=0;i<128;++i){double l=0,r=0;storage.read(uint64_t(i),l,r);storage.prefetch(uint64_t(i));}
+    LooperStorage::Capture captured;storage.capture(captured);
     storage.beginLayer(128);for(int i=0;i<128;++i){storage.canAdd(uint64_t(i));storage.add(uint64_t(i),.03125,-.03125);}storage.finishRecord();
     const auto count=luthier::tests::allocationsOnThisThread()-before;CHECK(count==0);
 }
@@ -153,4 +154,39 @@ LUTHIER_TEST(RefPedalLooperStorage, sparsePartialOverdubPagesPersistAndAccumulat
     }
     CHECK(layer.finishRecord());CHECK(layer.manifest(hash));CHECK(restored.restore(hash));
     for(uint64_t i=0;i<64;++i){CHECK(eventually([&]{return restored.read(i,l,r);}));CHECK_NEAR(l,expected[size_t(i)],0);CHECK_NEAR(r,-expected[size_t(i)]*.5,0);}
+}
+LUTHIER_TEST(RefPedalLooperStorage, atomicCaptureDistinguishesPendingAndNeverReusesOldHash)
+{
+    ControlledStore store;LooperStorage storage;auto c=smallConfig();CHECK(storage.prepare(store,c));
+    LooperStorage::Capture capture;CHECK(storage.capture(capture));CHECK(capture.status==LooperStorage::CaptureStatus::Empty);CHECK(capture.hash.isNull());
+    store.setWriteGate(true);storage.beginRecord();for(int i=0;i<16;++i)CHECK(storage.append(.25,-.25));
+    CHECK(storage.capture(capture));CHECK(capture.status==LooperStorage::CaptureStatus::Recording);CHECK(capture.frames==16);CHECK(capture.hash.isNull());
+    CHECK(storage.finishRecord());CHECK(store.waitForWrite());CHECK(storage.capture(capture));
+    CHECK(capture.status==LooperStorage::CaptureStatus::Pending);CHECK(capture.hash.isNull());
+    store.unblock();AssetHash first;CHECK(storage.manifest(first));CHECK(storage.capture(capture));
+    CHECK(capture.status==LooperStorage::CaptureStatus::Ready);CHECK(capture.hash==first);const auto generation=capture.generation;
+    storage.beginRecord();CHECK(storage.capture(capture));CHECK(capture.generation!=generation);CHECK(capture.status==LooperStorage::CaptureStatus::Recording);CHECK(capture.hash.isNull());
+    store.setWriteGate(false,true);for(int i=0;i<16;++i)CHECK(storage.append(.5,-.5));storage.finishRecord();
+    CHECK(eventually([&]{return storage.capture(capture)&&capture.status==LooperStorage::CaptureStatus::Failed;}));CHECK(capture.hash.isNull());
+}
+LUTHIER_TEST(RefPedalLooperStorage, concurrentAtomicCaptureReportsCompleteGenerations)
+{
+    ControlledStore store;LooperStorage storage;auto c=smallConfig();CHECK(storage.prepare(store,c));
+    std::vector<LooperStorage::Capture> captures;captures.reserve(50000);std::atomic<bool> stop{false};
+    std::thread reader([&]{while(!stop.load()){LooperStorage::Capture next;if(storage.capture(next)&&captures.size()<50000)captures.push_back(next);}});
+    std::array<AssetHash,101> expected{};
+    for(int generation=0;generation<100;++generation)
+    {
+        storage.beginRecord();for(int i=0;i<16;++i)storage.append(double(generation)/128.,-.25);
+        storage.finishRecord();AssetHash hash;CHECK(storage.manifest(hash));LooperStorage::Capture next;CHECK(storage.capture(next));
+        CHECK(next.generation>=2 && next.generation<=101);expected[size_t(next.generation-1)]=hash;
+    }
+    stop=true;reader.join();CHECK(!captures.empty());
+    bool valid=true;for(const auto& capture:captures)
+    {
+        if(capture.status==LooperStorage::CaptureStatus::Ready)
+            valid=valid && capture.generation>=2 && capture.generation<=101 && capture.hash==expected[size_t(capture.generation-1)] && capture.frames==16;
+        else valid=valid && capture.hash.isNull();
+    }
+    CHECK(valid);
 }

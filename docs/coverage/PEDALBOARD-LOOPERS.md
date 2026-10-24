@@ -118,3 +118,5 @@ worker service. Audio methods themselves never wait; deliberate slow-worker
 fixtures still demonstrate immediate overrun/underrun reporting. Retired-layer
 worker compaction and its output/version handoff remain the next integration
 step, followed by named processors.
+
+Atomic manifest capture checkpoint: `capture(Capture&)` uses bounded atomic loads and leaves the output unchanged after eight contended attempts. Epoch/phase/frame rereads reject mixed generations; a single writer sequence protects four atomic hash words. Empty, Recording, Pending and Failed captures have null hashes; Ready alone carries the current generation manifest. Tests gate actual writes to verify Recording→Pending→Ready and new-generation/failure hash redaction, and concurrently capture 100 recording generations. Normal/ASAN/TSAN storage suite: 12 cases / 2345 checks / 0 failures; the final acquire-fence and capture allocation-hook additions were rerun under TSAN. JUCE shared objects remain unsanitized. This is the storage primitive; named model `saveExtra` integration remains outstanding.
