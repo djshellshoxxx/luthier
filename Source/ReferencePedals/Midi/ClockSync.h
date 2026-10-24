@@ -15,10 +15,10 @@ public:
         internalBpm = std::isfinite (internal) ? std::clamp (internal, 20., 300.) : 120.;
         const bool valid = h.valid && std::isfinite (h.bpm) && h.bpm > 0 && std::isfinite (h.ppq);
         useHost = valid && (s == TempoSource::Host || (s == TempoSource::Auto && h.playing));
+        if (previousHostPlaying && (! useHost || ! h.playing)) emit (TransportEvent::Stop, start, out);
         if (useHost)
         {
             if (h.playing && ! previousHostPlaying) emit (std::abs (h.ppq) < 1e-9 ? TransportEvent::Start : TransportEvent::Continue, start, out);
-            else if (! h.playing && previousHostPlaying) emit (TransportEvent::Stop, start, out);
             else if (h.playing && previousHostValid && std::abs (h.ppq - expectedHostPpq) > .05) emit (TransportEvent::Locate, start, out);
             expectedHostPpq = h.ppq;
         }
