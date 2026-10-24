@@ -70,8 +70,11 @@ bool AssetStore::putBlob(const AssetHash& hash, const uint8_t* data, size_t size
 juce::File AssetStore::getBlobPath(const AssetHash& hash) const
 {
     const auto file = impl->directory.getChildFile(hash.toHex() + ".blob");
-    juce::MemoryBlock data;
-    if (! file.loadFileAsData(data) || hashBlob(static_cast<const uint8_t*>(data.getData()),data.getSize()) != hash) return {};
+    juce::FileInputStream stream(file);
+    if (!stream.openedOk()) return {};
+    const auto raw=juce::SHA256(stream).getRawData();
+    AssetHash actual;std::copy_n(static_cast<const uint8_t*>(raw.getData()),actual.bytes.size(),actual.bytes.begin());
+    if (stream.getStatus().failed() || actual!=hash) return {};
     return file;
 }
 bool AssetStore::hasBlob(const AssetHash& hash) const { return getBlobPath(hash) != juce::File(); }

@@ -43,7 +43,8 @@ WP4 skeleton. No prior uncommitted codec was present in this environment.
   `referencePedals.snapshots`; individual snapshots contain the board schema and a
   name, without recursively embedding the bank. Capture and recall validate the
   entire resulting state and share the 256 KiB cap.
-- `AssetStore` verifies SHA-256 before writes and reads, uses same-directory
+- `AssetStore` verifies SHA-256 before writes and reads (path checks stream the
+  file rather than allocate its full size), uses same-directory
   temporary files plus atomic replacement, keeps prior targets on failure,
   serializes async work on an owned worker, drains jobs at destruction, and
   reports deduplicated missing/corrupt assets. Persistent references use
