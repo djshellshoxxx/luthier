@@ -276,3 +276,20 @@ accesses changing DSP members. The platform must provide lock-free double atomic
 Concurrent audio taps/message-thread serialization passes ThreadSanitizer with
 four checks and no race diagnostics. ASAN+UBSAN concurrent/precision round trips
 pass 11 checks, including preservation of the adjacent-double mantissa value.
+
+A separate acceptance-only numerical probe now exercises the Phase90 recurrence
+at feedback 0.6 for 60 seconds at 44.1/48/88.2/96/192 kHz, with a 16 Hz moving
+sweep. Its 15 finite/peak/tail-energy assertions pass. This closes the independent
+0.6 stability experiment without changing the physical Block variant's fixed
+0.35 feedback or adding a new control. The complete focused Phase90 suite has
+42 passing checks.
+
+Bounded Phase90 oversampling proposal (`probes/phase90-2x-proposal.cpp`): running
+the same allpass formula at 2x and placing the 31-tap FIR around the common dry/wet
+sum moves the high endpoint notch to 7796.96 Hz at 44.1 kHz (−2.133%) and 7822.54 Hz
+at 48 kHz (−1.812%), satisfying the original 3% frequency tolerance. It genuinely
+adds 15 host samples, violating the explicit zero-sample latency requirement.
+Its measured core-only stereo CPU is 0.5395%, already above 0.4% before host,
+parameter and buffer overhead. Independent DSP review confirms that common-path
+filtering preserves cancellation phase; wet-only filtering would alter it. The
+proposal is not adopted and does not amend either original latency or CPU gate.
