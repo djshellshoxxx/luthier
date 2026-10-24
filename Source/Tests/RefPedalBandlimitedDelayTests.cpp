@@ -31,3 +31,21 @@ LUTHIER_TEST(RefPedalBandlimitedDelay, boundaryContinuityAndInvalidDelay)
     FractionalDelay shortLine;shortLine.prepare(2);shortLine.push(1);shortLine.push(0);
     CHECK_NEAR(shortLine.readBandlimited(1),1,1e-14);
 }
+
+LUTHIER_TEST(RefPedalBandlimitedDelay, boundedWrapMatchesIntegerHistory)
+{
+    for(int size:{1,2,7,8,9,16,100,1024})
+    {
+        luthier::reference::common::FractionalDelay delay;delay.prepare(size);
+        for(int i=0;i<3*(size+16);++i)
+        {
+            delay.push(i+1);
+            for(int age:{1,std::max(1,size/2),size})
+            {
+                const double expected=i>=age?i-age+1:0;
+                CHECK_NEAR(delay.read(age),expected,1e-12);
+                if(size>=8 && age>=8)CHECK_NEAR(delay.readBandlimited(age),expected,1e-9);
+            }
+        }
+    }
+}
