@@ -29,10 +29,13 @@ std::unique_ptr<RenderPlan> TopologyCompiler::compile (const std::vector<PedalIn
     const auto reject = [&] (const char* message) -> std::unique_ptr<RenderPlan> { error = message; return {}; };
     if (instances.size() > kMaxSlots) return reject ("Board exceeds 16 pedal slots");
     if (settings.fb.on) return reject ("Feedback routing is not implemented yet");
-    if (settings.mode == Mode::AB)
-        return reject ("This routing mode is not implemented yet");
     auto result = std::make_unique<RenderPlan>();
     result->settings = settings;
+    const bool branched = settings.mode == Mode::Parallel || settings.mode == Mode::AB;
+    result->abResolved = settings.abSelect == AbSelect::Toggle ? (previous ? previous->abResolved : AbSelect::A) : settings.abSelect;
+    if (settings.abSelect == AbSelect::Toggle && intent)
+        if (const auto* scalar = std::get_if<cmd::SetBoardParam> (intent); scalar && scalar->key == "abSelect")
+            result->abResolved = previous && previous->abResolved == AbSelect::A ? AbSelect::B : AbSelect::A;
     if (previous) result->boardSerials = previous->boardSerials;
     if (! previous || ! intent) result->boardSerials.fill (version);
     else if (! hostEcho)
@@ -44,7 +47,7 @@ std::unique_ptr<RenderPlan> TopologyCompiler::compile (const std::vector<PedalIn
     }
     auto& t = result->topology;
     t.version = version; t.mode = settings.mode;
-    t.numLanes = static_cast<uint8_t> (settings.mode == Mode::Parallel ? settings.lanes.numLanes : 1);
+    t.numLanes = static_cast<uint8_t> (settings.mode == Mode::AB ? 2 : branched ? settings.lanes.numLanes : 1);
     if (t.numLanes < 1 || t.numLanes > kMaxBranches) return reject ("Invalid lane count");
     std::array<int, kMaxSlots> loopForPosition;
     loopForPosition.fill (-1);
@@ -75,7 +78,7 @@ std::unique_ptr<RenderPlan> TopologyCompiler::compile (const std::vector<PedalIn
         if (instance.slot < 0 || instance.slot >= kMaxSlots || occupied[static_cast<size_t> (instance.slot)])
             return reject ("Invalid or duplicate pedal slot");
         occupied[static_cast<size_t> (instance.slot)] = true;
-        if (settings.mode == Mode::Parallel && (instance.lane < 0 || instance.lane >= t.numLanes))
+        if (branched && (instance.lane < 0 || instance.lane >= t.numLanes))
             return reject ("Pedal lane exceeds active lane count");
         auto object = pool.acquire (instance, error);
         if (! object && ! instance.missing) return {};
@@ -121,7 +124,7 @@ std::unique_ptr<RenderPlan> TopologyCompiler::compile (const std::vector<PedalIn
             control.enabledSerial = control.inputSerial = control.outputSerial = version;
             control.paramSerials.fill (version);
         }
-        const int lane = settings.mode == Mode::Parallel ? instance.lane : 0;
+        const int lane = branched ? instance.lane : 0;
         auto& laneList = t.lanes[lane]; laneList.slots[laneList.count++] = static_cast<uint8_t> (slot);
     }
     const auto emit = [&] (NodeKind kind, int slot, int lane, int aux, int integer, float f0, float f1)
@@ -139,7 +142,7 @@ std::unique_ptr<RenderPlan> TopologyCompiler::compile (const std::vector<PedalIn
             if (static_cast<int> (instance.placement) == segment)
             {
                 present = true;
-                const int lane = settings.mode == Mode::Parallel ? instance.lane : 0;
+                const int lane = branched ? instance.lane : 0;
                 latency[static_cast<size_t> (lane)] += t.slotLatency[instance.slot];
             }
         if (! present) { t.segEnd[segment] = t.numNodes; continue; }
@@ -147,14 +150,14 @@ std::unique_ptr<RenderPlan> TopologyCompiler::compile (const std::vector<PedalIn
         result->latency[static_cast<size_t> (segment)] = longest;
         t.latencyTotal += longest;
         if (t.latencyTotal > kMaxLatencySamp) return reject ("Board latency exceeds 8192 samples");
-        if (settings.mode == Mode::Parallel) emit (NodeKind::Split, 0, 0, t.numLanes, 0, 1.f, 0.f);
+        if (branched) emit (NodeKind::Split, 0, 0, t.numLanes, 0, 1.f, 0.f);
         for (int lane = 0; lane < t.numLanes; ++lane)
         {
             for (size_t position = 0; position < instances.size(); ++position)
             {
                 const auto& instance = instances[position];
                 if (static_cast<int> (instance.placement) != segment
-                    || (settings.mode == Mode::Parallel && instance.lane != lane)) continue;
+                    || (branched && instance.lane != lane)) continue;
                 const int loopIndex = loopForPosition[position];
                 if (loopIndex >= 0)
                 {
@@ -172,7 +175,7 @@ std::unique_ptr<RenderPlan> TopologyCompiler::compile (const std::vector<PedalIn
                 }
                 else emit (NodeKind::Pedal, instance.slot, lane, 0, 0, 1.f, 0.f);
             }
-            if (settings.mode == Mode::Parallel)
+            if (branched)
             {
                 const int delay = longest - latency[static_cast<size_t> (lane)];
                 t.laneDelay[lane] = std::max (t.laneDelay[lane], delay);
@@ -181,11 +184,13 @@ std::unique_ptr<RenderPlan> TopologyCompiler::compile (const std::vector<PedalIn
                     gain (settings.lanes.gainDb[static_cast<size_t> (lane)]) * (settings.lanes.phaseInvert[static_cast<size_t> (lane)] ? -1.f : 1.f), 0.f);
             }
         }
-        if (settings.mode == Mode::Parallel)
+        if (branched)
         {
             const float norm = settings.lanes.norm == ParallelNorm::Sqrt ? 1.f / std::sqrt (static_cast<float> (t.numLanes))
                 : settings.lanes.norm == ParallelNorm::Unity ? 1.f / t.numLanes : 1.f;
-            emit (NodeKind::Sum, 0, 0, t.numLanes, 0, norm, 0.f);
+            emit (NodeKind::Sum, 0, 0, t.numLanes,
+                settings.mode == Mode::AB ? (settings.abOut == AbOutMode::Dual ? 2 : 1) : 0, norm,
+                result->abResolved == AbSelect::A ? 0.f : result->abResolved == AbSelect::B ? 1.f : 0.5f);
         }
         emit (NodeKind::Limiter, 0, 0, 0, settings.limiterOn ? 1 : 0, gain (settings.limiterCeilDb), 0.f);
         t.segEnd[segment] = t.numNodes;

@@ -10,6 +10,7 @@
 #include <array>
 #include <cmath>
 using namespace luthier::reference;
+namespace luthier::tests { long allocationsOnThisThread() noexcept; }
 namespace
 {
 const PedalDesc delayedDesc { "test.delayed", "test_delayed_", 1, "Delay test", "Test", nullptr,
@@ -158,4 +159,70 @@ LUTHIER_TEST (RefPedalRouting, invalidLoopEndpointsAndOverlapRejectAtomically)
     b.placement = Placement::postCab;
     CHECK (! board.model().replaceAll ({ a, b, c }, valid));
     CHECK (board.model().getTopologyInfo().version == version);
+}
+
+LUTHIER_TEST (RefPedalRouting, abSwitchIsEqualPowerForTenMillisecondsAndToggleIsSticky)
+{
+    Board board; board.prepare (48000, 37);
+    PedalInstance a, b; a.modelId = b.modelId = "missing"; a.missing = b.missing = true;
+    a.slot = 0; b.slot = 1; b.lane = 1;
+    BoardSettings settings; settings.enabled = true; settings.mode = Mode::AB; settings.abSelect = AbSelect::A;
+    settings.limiterOn = false; settings.lanes.phaseInvert[1] = true;
+    CHECK (board.model().replaceAll ({ a, b }, settings));
+    double l[1024], r[1024]; std::fill_n (l, 1024, 0.1); std::fill_n (r, 1024, 0.1);
+    board.processStereo (l, r, 1024, Placement::beforeExistingPre);
+    CHECK_NEAR (l[1023], 0.1, 1.e-10);
+    CHECK (board.model().apply (cmd::SetBoardParam { "abSelect", static_cast<int> (AbSelect::B) }));
+    std::fill_n (l, 1024, 0.1); std::fill_n (r, 1024, 0.1);
+    board.processStereo (l, r, 1024, Placement::beforeExistingPre);
+    for (int i = 0; i < 480; ++i)
+    {
+        const double angle = (i + 1) * 1.57079632679489661923 / 480.0;
+        CHECK_NEAR (l[i], 0.1 * (std::cos (angle) - std::sin (angle)), 1.e-9);
+    }
+    CHECK_NEAR (l[480], -0.1, 1.e-10);
+    for (const double expected : { 0.1, -0.1 })
+    {
+        CHECK (board.model().apply (cmd::SetBoardParam { "abSelect", static_cast<int> (AbSelect::Toggle) }));
+        CHECK (board.model().apply (cmd::SetBoardParam { "tempoBpm", 130.0 })); // unrelated publish does not toggle again
+        std::fill_n (l, 1024, 0.1); std::fill_n (r, 1024, 0.1);
+        board.processStereo (l, r, 1024, Placement::beforeExistingPre);
+        CHECK_NEAR (l[1023], expected, 1.e-10);
+    }
+}
+
+LUTHIER_TEST (RefPedalRouting, auxSendsAlignDualLanesAndAccumulatePlacementsWithoutAllocation)
+{
+    PedalRegistry::TestScope registryScope; registerDelayed();
+    Board board; board.prepare (48000, 128);
+    PedalInstance a, b, post; a.modelId = "test.delayed"; a.slot = 0;
+    b.modelId = post.modelId = "missing"; b.missing = post.missing = true; b.slot = 1; b.lane = 1;
+    post.slot = 2; post.placement = Placement::postCab;
+    BoardSettings settings; settings.enabled = true; settings.mode = Mode::AB; settings.abOut = AbOutMode::Dual;
+    settings.abSelect = AbSelect::AplusB; settings.limiterOn = false;
+    CHECK (board.model().replaceAll ({ a, b, post }, settings));
+    double l[1024] {}, r[1024] {};
+    board.processStereo (l, r, 1024, Placement::beforeExistingPre); board.processStereo (l, r, 1024, Placement::postCab);
+    float auxB[2][128] {}, wet[2][128] {}, dry[2][128] {};
+    BoardAuxOutputs outputs; outputs.pedalB = { auxB[0], auxB[1], 128 }; outputs.wet = { wet[0], wet[1], 128 }; outputs.dry = { dry[0], dry[1], 128 };
+    juce::MidiBuffer input, midiOut;
+    l[0] = r[0] = 0.1;
+    const auto before = luthier::tests::allocationsOnThisThread();
+    board.setAuxOutputs (outputs); board.beginBlock (input, {}, 128);
+    board.processStereo (l, r, 128, Placement::beforeExistingPre);
+    CHECK_NEAR (l[17], 0.1 / std::sqrt (2.0), 1.e-9);
+    std::fill_n (l, 128, 0.0); std::fill_n (r, 128, 0.0); l[17] = r[17] = 0.2;
+    board.processStereo (l, r, 128, Placement::postCab); board.endBlock (midiOut);
+    CHECK (luthier::tests::allocationsOnThisThread() == before);
+    for (int i = 0; i < 128; ++i)
+    {
+        CHECK_NEAR (auxB[0][i], i == 17 ? 0.3 / std::sqrt (2.0) : 0.0, 1.e-7);
+        CHECK_NEAR (wet[0][i], i == 17 ? 0.3 / std::sqrt (2.0) : 0.0, 1.e-7);
+        CHECK_NEAR (dry[0][i], i == 17 ? 0.3 : 0.0, 1.e-7);
+    }
+    CHECK (board.readMeters().auxBAvailable && board.readMeters().auxWetAvailable && board.readMeters().auxDryAvailable);
+    board.setAuxOutputs ({}); CHECK (! board.readMeters().auxBAvailable);
+    std::fill_n (l, 128, 0.0); std::fill_n (r, 128, 0.0); l[0] = r[0] = 0.1;
+    board.processStereo (l, r, 128, Placement::beforeExistingPre);
+    CHECK_NEAR (l[17], 0.1 / std::sqrt (2.0), 1.e-9); // absent B bus never changes main-A semantics
 }
