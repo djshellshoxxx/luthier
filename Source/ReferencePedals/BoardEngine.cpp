@@ -53,6 +53,8 @@ void BoardEngine::prepare (double sampleRate, int maxBlock)
     extendedModelSerials.fill (0); extendedHostSerials.fill (0);
     hostBoardSerials.fill (0); modelBoardSerials.fill (0);
     routingModelSerials.fill (0); routingHostSerials.fill (0);
+    cpuHotSeconds = 0; processorCpuAvailable.store (false); cpuReliefRequested.store (false);
+    cpuGovernorTripped.store (false); cpuEcoApplied.store (false); cpuGovernorFailed.store (false);
     feedback.reset(); feedbackRearmSeen = feedbackKillSeen = 0; feedbackFault.store (false); feedbackTripped.store (false);
     paramPulses.clear(); numPendingPulses = 0; numRawMidi = numMidiOutput = 0;
     for (auto& segment : segments)
@@ -117,8 +119,44 @@ int BoardEngine::reclaim() noexcept
     const int freed = retired.reclaim (audioEpoch.load (std::memory_order_acquire));
     pool.reclaim(); return freed;
 }
+void BoardEngine::setProcessorLoad (double fraction, bool measuredWindow, double seconds) noexcept
+{
+    const bool valid = measuredWindow && std::isfinite (fraction) && fraction >= 0 && std::isfinite (seconds) && seconds > 0;
+    processorCpuAvailable.store (valid, std::memory_order_relaxed);
+    if (! valid) { cpuHotSeconds = 0; return; }
+    processorCpuPct.store (static_cast<float> (std::min (fraction, 100.0) * 100.0), std::memory_order_relaxed);
+    cpuHotSeconds = isActive() && fraction > 0.85 ? std::min (2.0, cpuHotSeconds + seconds) : 0.0;
+    if (cpuHotSeconds >= 2.0 - 1.e-12 && ! cpuGovernorTripped.exchange (true, std::memory_order_acq_rel))
+        cpuReliefRequested.store (true, std::memory_order_release);
+}
+void BoardEngine::applyCpuRelief()
+{
+    std::vector<PedalInstance> instances; BoardSettings settings; model.snapshotStored (instances, settings);
+    std::vector<cmd::SetParam> changes;
+    for (const auto& instance : instances)
+        if (const auto* descriptor = PedalRegistry::find (instance.modelId.c_str()))
+            for (int param = 0; param < descriptor->numParams; ++param)
+            {
+                const auto& control = descriptor->params[param];
+                if (! control.has (PF_Config) || ! control.choices || ! juce::String (control.id).containsIgnoreCase ("quality")) continue;
+                for (int choice = 0; choice < control.steps; ++choice)
+                    if (juce::String (control.choices[choice]).equalsIgnoreCase ("Eco"))
+                    {
+                        const auto eco = static_cast<float> (control.toNormalised (choice));
+                        if (instance.params[static_cast<size_t> (param)] != eco) changes.push_back ({ instance.instanceId, param, eco });
+                        break;
+                    }
+            }
+    if (changes.empty()) { cpuGovernorFailed.store (true); return; }
+    model.beginTransaction ("CPU overload: Eco quality");
+    for (const auto& change : changes)
+        if (! model.apply (change))
+        { model.cancelTransaction(); cpuGovernorFailed.store (true); return; }
+    model.endTransaction(); cpuEcoApplied.store (true);
+}
 void BoardEngine::drainControlEcho()
 {
+    if (cpuReliefRequested.exchange (false, std::memory_order_acq_rel)) applyCpuRelief();
     std::array<EngageEcho, kMaxSlots> last;
     std::array<bool, kMaxSlots> seen {};
     EngageEcho event;
@@ -256,6 +294,8 @@ BoardMeters BoardEngine::meters() const noexcept
     result.auxBAvailable = (availability & 1) != 0; result.auxWetAvailable = (availability & 2) != 0; result.auxDryAvailable = (availability & 4) != 0;
     result.latencySamples = latency(); result.sidechainAvailable = sidechainConnected.load();
     result.assetStoreAvailable = assetStoreAvailable.load();
+    result.cpuPct = processorCpuPct.load(); result.cpuAvailable = processorCpuAvailable.load();
+    result.cpuGovernorTripped = cpuGovernorTripped.load(); result.cpuEcoApplied = cpuEcoApplied.load(); result.cpuGovernorFailed = cpuGovernorFailed.load();
     result.midiDropped = engageEcho.dropped() + paramPulses.dropped() + rawDropped.load() + outputDropped.load(); return result;
 }
 void BoardEngine::beginRawMidi (const juce::MidiBuffer& input, int samples) noexcept

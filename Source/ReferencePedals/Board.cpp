@@ -60,6 +60,8 @@ midi::MidiRouter& Board::midi() noexcept { return impl->router; }
 int Board::reclaim() noexcept { impl->engine.drainControlEcho(); return impl->engine.reclaim() + impl->router.reclaim(); }
 PedalMeters Board::readPedalMeters (int slot) const noexcept { return impl->engine.readPedalMeters (slot); }
 BoardMeters Board::readMeters() const noexcept { auto result = impl->engine.meters(); result.midiDropped += impl->router.droppedCount(); return result; }
+void Board::setProcessorLoad (double fraction, bool measuredWindow, double seconds) noexcept
+{ impl->engine.setProcessorLoad (fraction, measuredWindow, seconds); }
 void Board::setAuxOutputs (const BoardAuxOutputs& outputs) noexcept { impl->engine.setAuxOutputs (outputs); }
 void Board::setSidechain (const float* left, const float* right, int samples) noexcept { impl->engine.setSidechain (left, right, samples); }
 void Board::setExtendedHostAutomation (const ExtendedHostAutomationSnapshot& snapshot) noexcept

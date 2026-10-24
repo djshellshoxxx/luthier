@@ -1,6 +1,7 @@
 // OWNER: WP2
 #include "TopologyCompiler.h"
 #include "PedalRegistry.h"
+#include "CpuBudget.h"
 #include <cmath>
 namespace luthier::reference
 {
@@ -28,6 +29,8 @@ std::unique_ptr<RenderPlan> TopologyCompiler::compile (const std::vector<PedalIn
     error.clear();
     const auto reject = [&] (const char* message) -> std::unique_ptr<RenderPlan> { error = message; return {}; };
     if (instances.size() > kMaxSlots) return reject ("Board exceeds 16 pedal slots");
+    if (estimatedCpuUnits (instances) > static_cast<uint64_t> (settings.cpuCapPct))
+        return reject ("Board CPU budget reached (estimated descriptor units)");
     auto result = std::make_unique<RenderPlan>();
     result->settings = settings;
     result->feedbackRearm = ! previous || (! hostEcho && ! previous->settings.fb.on && settings.fb.on) ? version : previous->feedbackRearm;
