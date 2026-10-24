@@ -1,6 +1,7 @@
 // BoardModel regression tests: message-thread state must not silently reject edits.
 #include "TestFramework.h"
 #include "../ReferencePedals/BoardModel.h"
+#include "../ReferencePedals/BoardSnapshots.h"
 #include <cmath>
 #include <limits>
 #include <utility>
@@ -1490,4 +1491,33 @@ LUTHIER_TEST (RefPedalBoardCore, explicitSnapshotRecallOverridesConsumedHostSeri
     CHECK_NEAR (left[63], 0.08, 1.e-8); CHECK (board.model().apply (cmd::ApplySnapshot { 0, {} }));
     board.setHostAutomation (host); std::fill_n (left, 64, 0.1); std::fill_n (right, 64, 0.1); board.processStereo (left, right, 64, Placement::beforeExistingPre);
     CHECK_NEAR (left[63], 0.05, 1.e-8);
+}
+
+LUTHIER_TEST (RefPedalBoardCore, snapshotHelpersKeepUndoRedoAndCaptureRuntimeExtras)
+{
+    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (captureDesc, makeCaptureProbe));
+    Board board; board.prepare (48000, 64);
+    PedalInstance p; p.modelId = captureDesc.modelId; p.slot = 0;
+    BoardSettings settings; settings.enabled = true;
+    CHECK (board.model().replaceAll ({ p }, settings));
+    CHECK (board.model().apply (cmd::SetMix { 0.25f }));
+    double l[1024] {}, r[1024] {}; board.processStereo (l, r, 1024, Placement::beforeExistingPre);
+    CHECK (BoardSnapshots::capture (board.model(), 0, "Captured runtime"));
+    CHECK (static_cast<int> (BoardSnapshots::get (board.model(), 0)["instances"][0]["extras"]["frames"]) == 1024);
+    auto clone = BoardSnapshots::get (board.model(), 0); clone.getDynamicObject()->setProperty ("name", "Mutated copy");
+    CHECK (BoardSnapshots::get (board.model(), 0)["name"].toString() == "Captured runtime");
+    CHECK (board.model().undo()); CHECK (BoardSnapshots::get (board.model(), 0).isVoid());
+    CHECK_NEAR (board.model().getBoardSettings().mix, 0.25, 1.e-9);
+    CHECK (board.model().undo()); CHECK_NEAR (board.model().getBoardSettings().mix, 1.0, 1.e-9);
+    CHECK (board.model().redo()); CHECK (board.model().redo());
+    CHECK (board.model().apply (cmd::SetMix { 0.75f }));
+    CHECK (BoardSnapshots::capture (board.model(), 1, "Second"));
+    CHECK (BoardSnapshots::recall (board.model(), 0));
+    CHECK_NEAR (board.model().getBoardSettings().mix, 0.25, 1.e-9);
+    CHECK (BoardSnapshots::get (board.model(), 1)["name"].toString() == "Second");
+    CHECK (board.model().undo()); CHECK_NEAR (board.model().getBoardSettings().mix, 0.75, 1.e-9);
+    juce::String error;
+    CHECK (! BoardSnapshots::capture (board.model(), -1, {}, &error)); CHECK (error.isNotEmpty());
+    CHECK (! BoardSnapshots::recall (board.model(), 7, &error)); CHECK (error.isNotEmpty());
+    CHECK (board.model().redo()); CHECK_NEAR (board.model().getBoardSettings().mix, 0.25, 1.e-9);
 }
