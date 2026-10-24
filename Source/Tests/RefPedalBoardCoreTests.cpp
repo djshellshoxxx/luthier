@@ -1431,3 +1431,63 @@ LUTHIER_TEST (RefPedalBoardCore, measuredProcessorOverloadRequestsEcoOnlyAfterCo
     CHECK (board.model().undo()); CHECK (board.model().getInstance (id)->params[0] == 0.5f);
     board.reclaim(); CHECK (board.model().getInstance (id)->params[0] == 0.5f); // latched request is consumed once
 }
+
+#include "../ReferencePedals/BoardState.h"
+LUTHIER_TEST (RefPedalBoardCore, sceneCommandsPreserveBankAndMakeRecallOneUndoableIntent)
+{
+    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (eventDesc, makeEventProbe));
+    Board board; const InstanceId id; CHECK (board.model().apply (cmd::Add { "test.event", -1, Placement::beforeExistingPre, 0, id }));
+    CHECK (board.model().apply (cmd::SetBoardEnabled { true }));
+    CHECK (board.model().apply (cmd::SetScene { 0, {} }));
+    CHECK (board.model().apply (cmd::SetParam { id, 0, 0.25f })); CHECK (board.model().apply (cmd::SetMix { 0.3f }));
+    juce::var preset; CHECK (BoardState::save (board.model(), preset)); preset.getDynamicObject()->setProperty ("name", "Quarter gain");
+    CHECK (board.model().apply (cmd::SetScene { 1, preset }));
+    CHECK (board.model().getBoardSettings().unknown["source"]["snapshots"][1]["name"].toString() == "Quarter gain");
+    CHECK (board.model().apply (cmd::ApplySnapshot { 0, {} }));
+    CHECK_NEAR (board.model().getInstance (id)->params[0], 0.5, 1.e-8); CHECK_NEAR (board.model().getBoardSettings().mix, 1.0, 1.e-8);
+    CHECK (board.model().getBoardSettings().unknown["source"]["snapshots"][1]["name"].toString() == "Quarter gain");
+    CHECK (! board.model().getBoardSettings().unknown["source"].hasProperty ("name"));
+    CHECK (board.model().undo()); CHECK_NEAR (board.model().getInstance (id)->params[0], 0.25, 1.e-8); CHECK_NEAR (board.model().getBoardSettings().mix, 0.3, 1.e-6);
+    CHECK (board.model().redo()); CHECK_NEAR (board.model().getInstance (id)->params[0], 0.5, 1.e-8);
+    CHECK (board.model().undo()); CHECK (board.model().undo()); // undo capture1, not an old cleared history
+    CHECK (board.model().getBoardSettings().unknown["source"]["snapshots"][1].isVoid());
+    CHECK (board.model().getBoardSettings().unknown["source"]["snapshots"][0].getDynamicObject() != nullptr);
+    const auto version = board.model().getTopologyInfo().version; juce::String reason;
+    CHECK (! board.model().apply (cmd::ApplySnapshot { 7, {} }, &reason)); CHECK (reason.contains ("empty"));
+    CHECK (! board.model().apply (cmd::SetScene { -1, preset }, &reason));
+    auto bad = preset.clone(); bad.getDynamicObject()->setProperty ("instances", "bad");
+    CHECK (! board.model().apply (cmd::ApplySnapshot { 0, bad }, &reason));
+    auto huge = preset.clone(); huge.getDynamicObject()->setProperty ("oversizedVendor", juce::String::repeatedString ("x", 270000));
+    CHECK (! board.model().apply (cmd::SetScene { 2, huge }, &reason));
+    CHECK (board.model().getTopologyInfo().version == version);
+}
+LUTHIER_TEST (RefPedalBoardCore, snapshotRecallAndHistoryCaptureRuntimeExtrasOutsideTheModelLock)
+{
+    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (captureDesc, makeCaptureProbe));
+    Board board; const InstanceId id; CHECK (board.model().apply (cmd::Add { "test.capture", -1, Placement::beforeExistingPre, 0, id }));
+    CHECK (board.model().apply (cmd::SetBoardEnabled { true }));
+    double left[2048] {}, right[2048] {}; board.processStereo (left, right, 1024, Placement::beforeExistingPre);
+    CHECK (board.model().apply (cmd::SetScene { 0, {} }));
+    CHECK (static_cast<int> (board.model().getBoardSettings().unknown["source"]["snapshots"][0]["instances"][0]["extras"]["frames"]) == 1024);
+    board.processStereo (left, right, 512, Placement::beforeExistingPre);
+    const auto frames = [&] { std::vector<PedalInstance> instances; BoardSettings settings; board.model().snapshot (instances, settings); return static_cast<int> (instances[0].extras["frames"]); };
+    CHECK (frames() == 1536); CHECK (board.model().apply (cmd::ApplySnapshot { 0, {} })); CHECK (frames() == 1024);
+    CHECK (board.model().undo()); CHECK (frames() == 1536); CHECK (board.model().redo()); CHECK (frames() == 1024);
+    board.processStereo (left, right, 1024, Placement::beforeExistingPre); const int baseline = frames(); CHECK (baseline > 1024);
+    board.model().beginTransaction ("config and recall");
+    CHECK (board.model().apply (cmd::SetParam { id, 0, 1.f })); CHECK (frames() == baseline);
+    CHECK (board.model().apply (cmd::ApplySnapshot { 0, {} })); CHECK (frames() == 1024);
+    CHECK (board.model().cancelTransaction()); CHECK (frames() == baseline);
+}
+LUTHIER_TEST (RefPedalBoardCore, explicitSnapshotRecallOverridesConsumedHostSerialEvenAtSameStoredValue)
+{
+    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (eventDesc, makeEventProbe));
+    Board board; const InstanceId id; CHECK (board.model().apply (cmd::Add { "test.event", -1, Placement::beforeExistingPre, 0, id }));
+    CHECK (board.model().apply (cmd::SetBoardEnabled { true })); CHECK (board.model().apply (cmd::SetScene { 0, {} }));
+    double left[2048] {}, right[2048] {}; board.processStereo (left, right, 2048, Placement::beforeExistingPre);
+    HostAutomationSnapshot host; host.values[4] = 0.8f; host.serials[4] = 1;
+    board.setHostAutomation (host); std::fill_n (left, 64, 0.1); std::fill_n (right, 64, 0.1); board.processStereo (left, right, 64, Placement::beforeExistingPre);
+    CHECK_NEAR (left[63], 0.08, 1.e-8); CHECK (board.model().apply (cmd::ApplySnapshot { 0, {} }));
+    board.setHostAutomation (host); std::fill_n (left, 64, 0.1); std::fill_n (right, 64, 0.1); board.processStereo (left, right, 64, Placement::beforeExistingPre);
+    CHECK_NEAR (left[63], 0.05, 1.e-8);
+}
