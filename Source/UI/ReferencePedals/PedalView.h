@@ -30,7 +30,8 @@ public:
     juce::Point<float> inputJack() const;
     juce::Point<float> outputJack() const;
     std::function<void(InstanceId,int,bool)> onLearn;
-    std::function<void(PedalView&,juce::Point<int>,bool)> onDrag;
+    std::function<void(PedalView&,juce::Point<int>,juce::Point<int>,bool)> onDrag;
+    std::function<bool()> onCancelDrag;
     std::function<void(PedalView&)> onFocus;
     std::function<void(InstanceId,int)> onNavigate;
     bool learnMode=false;
@@ -64,7 +65,7 @@ private:
     std::array<bool,2> trimAttached {};
     juce::Slider inputTrim,outputTrim,lane;
     bool refreshing=false,dragging=false;
-    double lastDragCommit=0;
+    juce::Point<int> grabOffset;
     uint32_t gesture=0;
     struct InspectorDismissal final : juce::MouseListener
     {
