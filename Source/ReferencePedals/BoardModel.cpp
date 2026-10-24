@@ -140,6 +140,8 @@ struct BoardModel::Impl
     std::vector<PedalInstance> instances;
     struct History { BoardSettings settings; std::vector<PedalInstance> instances; };
     std::vector<History> undoStack, redoStack;
+    History transactionBaseline;
+    std::vector<History> transactionUndo, transactionRedo;
     unsigned transactionDepth = 0;
     bool transactionHasEdits = false;
 
@@ -508,6 +510,8 @@ void BoardModel::beginTransaction (const juce::String&)
     const std::lock_guard<std::mutex> lock (impl->mutex);
     if (impl->transactionDepth++ == 0)
     {
+        impl->transactionBaseline = { impl->settings, impl->instances };
+        impl->transactionUndo = impl->undoStack; impl->transactionRedo = impl->redoStack;
         impl->transactionHasEdits = false;
         impl->lastGesture = {};
     }
@@ -517,9 +521,28 @@ void BoardModel::endTransaction()
     const std::lock_guard<std::mutex> lock (impl->mutex);
     if (impl->transactionDepth != 0 && --impl->transactionDepth == 0)
     {
+        impl->transactionBaseline = {}; impl->transactionUndo.clear(); impl->transactionRedo.clear();
         impl->transactionHasEdits = false;
         impl->lastGesture = {};
     }
+}
+
+bool BoardModel::cancelTransaction()
+{
+    {
+        const std::lock_guard<std::mutex> lock (impl->mutex);
+        if (impl->transactionDepth == 0) return false;
+        juce::String error; auto info = impl->info;
+        const auto& candidate = impl->transactionBaseline;
+        if (impl->compiler && ! impl->compiler (candidate.instances, candidate.settings, info, error, nullptr, false)) return false;
+        impl->info = info;
+        impl->settings = std::move (impl->transactionBaseline.settings);
+        impl->instances = std::move (impl->transactionBaseline.instances);
+        impl->undoStack = std::move (impl->transactionUndo); impl->redoStack = std::move (impl->transactionRedo);
+        impl->transactionDepth = 0; impl->transactionHasEdits = false; impl->lastGesture = {};
+    }
+    for (auto* listener : impl->listeners) { listener->orderChanged(); listener->settingsChanged(); listener->styleChanged(); }
+    return true;
 }
 
 void BoardModel::addListener (Listener* l)

@@ -29,10 +29,8 @@ std::unique_ptr<RenderPlan> TopologyCompiler::compile (const std::vector<PedalIn
     const auto reject = [&] (const char* message) -> std::unique_ptr<RenderPlan> { error = message; return {}; };
     if (instances.size() > kMaxSlots) return reject ("Board exceeds 16 pedal slots");
     if (settings.fb.on) return reject ("Feedback routing is not implemented yet");
-    if (settings.mode == Mode::Loop || settings.mode == Mode::AB)
+    if (settings.mode == Mode::AB)
         return reject ("This routing mode is not implemented yet");
-    for (const auto& loop : settings.loops)
-        if (loop.used) return reject ("Send/return routing is not implemented yet");
     auto result = std::make_unique<RenderPlan>();
     result->settings = settings;
     if (previous) result->boardSerials = previous->boardSerials;
@@ -48,6 +46,29 @@ std::unique_ptr<RenderPlan> TopologyCompiler::compile (const std::vector<PedalIn
     t.version = version; t.mode = settings.mode;
     t.numLanes = static_cast<uint8_t> (settings.mode == Mode::Parallel ? settings.lanes.numLanes : 1);
     if (t.numLanes < 1 || t.numLanes > kMaxBranches) return reject ("Invalid lane count");
+    std::array<int, kMaxSlots> loopForPosition;
+    loopForPosition.fill (-1);
+    for (int loopIndex = 0; loopIndex < kMaxLoops; ++loopIndex)
+    {
+        const auto& loop = settings.loops[static_cast<size_t> (loopIndex)];
+        if (! loop.used) continue;
+        if (settings.mode != Mode::Series && settings.mode != Mode::Loop)
+            return reject ("Send/return loops require series or loop mode");
+        const auto find = [&] (const InstanceId& id) { for (size_t i = 0; i < instances.size(); ++i) if (instances[i].instanceId == id) return static_cast<int> (i); return -1; };
+        const int first = find (loop.first), last = find (loop.last);
+        if (first < 0 || last < first) return reject ("Loop endpoints must exist in forward order");
+        auto& compiled = t.loops[loopIndex];
+        compiled.used = true; compiled.enabled = loop.enabled; compiled.kind = loop.kind;
+        compiled.firstPos = static_cast<uint8_t> (first); compiled.lastPos = static_cast<uint8_t> (last);
+        compiled.blend = loop.blend; compiled.sendGain = gain (loop.sendDb); compiled.returnGain = gain (loop.returnDb);
+        for (int position = first; position <= last; ++position)
+        {
+            if (instances[static_cast<size_t> (position)].placement != instances[static_cast<size_t> (first)].placement)
+                return reject ("A send/return loop cannot cross placement boundaries");
+            if (loopForPosition[static_cast<size_t> (position)] >= 0) return reject ("Send/return loops cannot overlap");
+            loopForPosition[static_cast<size_t> (position)] = loopIndex;
+        }
+    }
     std::array<bool, kMaxSlots> occupied {};
     for (const auto& instance : instances)
     {
@@ -129,10 +150,28 @@ std::unique_ptr<RenderPlan> TopologyCompiler::compile (const std::vector<PedalIn
         if (settings.mode == Mode::Parallel) emit (NodeKind::Split, 0, 0, t.numLanes, 0, 1.f, 0.f);
         for (int lane = 0; lane < t.numLanes; ++lane)
         {
-            for (const auto& instance : instances)
-                if (static_cast<int> (instance.placement) == segment
-                    && (settings.mode != Mode::Parallel || instance.lane == lane))
-                    emit (NodeKind::Pedal, instance.slot, lane, 0, 0, 1.f, 0.f);
+            for (size_t position = 0; position < instances.size(); ++position)
+            {
+                const auto& instance = instances[position];
+                if (static_cast<int> (instance.placement) != segment
+                    || (settings.mode == Mode::Parallel && instance.lane != lane)) continue;
+                const int loopIndex = loopForPosition[position];
+                if (loopIndex >= 0)
+                {
+                    const auto& loop = t.loops[loopIndex];
+                    if (position == loop.firstPos)
+                    {
+                        int loopLatency = 0;
+                        for (int pos = loop.firstPos; pos <= loop.lastPos; ++pos) loopLatency += t.slotLatency[instances[static_cast<size_t> (pos)].slot];
+                        emit (NodeKind::SendTap, 0, 0, loopIndex, loopLatency, loop.enabled ? loop.sendGain : 0.f, 0.f);
+                    }
+                    emit (NodeKind::Pedal, instance.slot, kBusLoopBase + loopIndex, 0, 0, 1.f, 0.f);
+                    if (position == loop.lastPos)
+                        emit (NodeKind::ReturnInject, 0, 0, loopIndex, 0,
+                            ! loop.enabled ? 0.f : loop.kind == LoopKind::Parallel ? loop.blend : 1.f, loop.returnGain);
+                }
+                else emit (NodeKind::Pedal, instance.slot, lane, 0, 0, 1.f, 0.f);
+            }
             if (settings.mode == Mode::Parallel)
             {
                 const int delay = longest - latency[static_cast<size_t> (lane)];
