@@ -6,6 +6,10 @@
 #include "../ReferencePedals/Generic/Delay.h"
 #include "../ReferencePedals/Generic/Reverb.h"
 #include "../ReferencePedals/Common/LooperCore.h"
+#include "../ReferencePedals/Models/boss_ce2.h"
+#include "../ReferencePedals/Models/boss_ce2w.h"
+#include "../ReferencePedals/Models/boss_dd3t.h"
+#include "../ReferencePedals/Models/mxr_phase90_script.h"
 #include <array>
 #if LUTHIER_ALLOCATION_COUNTER
 namespace luthier::tests { long allocationsOnThisThread() noexcept; }
@@ -29,6 +33,8 @@ LUTHIER_TEST(RefPedalTimeFxRt, noAudioCallbackAllocations)
     CHECK(allocations<generic::Chorus>()==0);CHECK(allocations<generic::Phaser>()==0);
     CHECK(allocations<generic::Tremolo>()==0);CHECK(allocations<generic::Wah>()==0);
     CHECK(allocations<generic::Delay>()==0);CHECK(allocations<generic::Reverb>()==0);
+    CHECK(allocations<models::BossCe2>()==0);CHECK(allocations<models::BossCe2w>()==0);
+    CHECK(allocations<models::BossDd3t>()==0);CHECK(allocations<models::MxrPhase90Script>()==0);
     common::LooperCore core;core.prepare(48000,1,2,2000000);
     std::array<double,2048> l{},r{};
     const auto before=luthier::tests::allocationsOnThisThread();
