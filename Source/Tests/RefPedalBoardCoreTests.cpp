@@ -1293,3 +1293,43 @@ LUTHIER_TEST (RefPedalBoardCore, modelFootModeConfigOverridesPerSlotFallback)
     instance.params[0] = 1.f; auto second = TopologyCompiler::compile ({ instance }, {}, pool, 2, plan.get(), error);
     CHECK (second && second->controls[0].footMode == FootMode::Auto);
 }
+
+#include "../ReferencePedals/Midi/MidiMap.h"
+LUTHIER_TEST (RefPedalBoardCore, relativeMidiUsesResolvedHostModelAndSourceGenerationTargets)
+{
+    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (eventDesc, makeEventProbe));
+    Board board; board.prepare (48000, 64); InstanceId id;
+    CHECK (board.model().apply (cmd::Add { "test.event", -1, Placement::beforeExistingPre, 0, id }));
+    CHECK (board.model().apply (cmd::SetBoardEnabled { true }));
+    const auto installMap = [&]
+    {
+        auto map = std::make_unique<midi::MapSnap>(); map->boardEnabled = true;
+        midi::Binding binding; binding.id = 1; binding.target = 0; binding.chan = 1;
+        binding.srcType = static_cast<uint8_t> (midi::MidiSrc::CC); binding.srcNum = 20; binding.smoothMs = 0;
+        binding.setModeCurve (midi::BindMode::Relative, midi::CurveId::Linear);
+        CHECK (map->add (binding)); map->initialValues[0] = 0.5f; board.midi().publishMap (std::move (map));
+    };
+    installMap(); double left[2048] {}, right[2048] {}; board.processStereo (left, right, 2048, Placement::beforeExistingPre);
+    juce::MidiBuffer input, output; input.addEvent (juce::MidiMessage::controllerEvent (1, 20, 1), 0);
+    HostAutomationSnapshot host;
+    const auto run = [&]
+    {
+        std::fill_n (left, 64, 0.1); std::fill_n (right, 64, 0.1);
+        board.setHostAutomation (host); board.beginBlock (input, {}, 64); board.processStereo (left, right, 64, Placement::beforeExistingPre); board.endBlock (output);
+        return left[63];
+    };
+    const auto allocations = luthier::tests::allocationsOnThisThread();
+    CHECK_NEAR (run(), 0.1 * (0.5 + 1.0 / 128), 1.e-8);
+    host.values[4] = 0.8f; host.serials[4] = 1;
+    CHECK_NEAR (run(), 0.1 * (0.8 + 1.0 / 128), 1.e-8);
+    CHECK_NEAR (run(), 0.1 * (0.8 + 2.0 / 128), 1.e-8); // consumed host serial cannot replay over MIDI
+    CHECK (luthier::tests::allocationsOnThisThread() == allocations);
+    CHECK (board.model().apply (cmd::SetParam { id, 0, 0.5f }));
+    CHECK_NEAR (run(), 0.1 * (0.5 + 1.0 / 128), 1.e-8);
+    CHECK (board.model().applyHostEcho (cmd::SetParam { id, 0, 0.8f }));
+    CHECK_NEAR (run(), 0.1 * (0.5 + 2.0 / 128), 1.e-8);
+    CHECK (board.model().apply (cmd::Remove { id })); id = InstanceId();
+    CHECK (board.model().apply (cmd::Add { "test.event", -1, Placement::beforeExistingPre, 0, id })); installMap();
+    std::fill_n (left, 2048, 0.0); std::fill_n (right, 2048, 0.0); board.processStereo (left, right, 2048, Placement::beforeExistingPre);
+    CHECK_NEAR (run(), 0.1 * (0.5 + 1.0 / 128), 1.e-8); // old slot host serial does not attach to the new UUID
+}
