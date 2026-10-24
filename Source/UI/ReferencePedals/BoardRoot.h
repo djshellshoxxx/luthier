@@ -4,6 +4,7 @@
 #include "PedalBrowser.h"
 #include "BoardUiState.h"
 #include "BoardViewport.h"
+#include "OwnedCallout.h"
 #include <juce_audio_processors/juce_audio_processors.h>
 namespace luthier {class LuthierAudioProcessor;}
 namespace luthier::reference
@@ -20,6 +21,7 @@ public:
     juce::String statusText() const {return status.getText();}
     void setCompact(bool);
     void saveView();
+    void openSettings();
     std::function<void()> onDock, onPopout, onToggle, onReturnFocus;
     BoardCanvas& boardCanvas(){return canvas;}
 private:
@@ -34,6 +36,7 @@ private:
     void showSettings();
     BoardModel& model;
     LuthierAudioProcessor* processor;
+    OwnedCallout settingsPopup;
     BoardCanvas canvas;
     BoardViewport viewport;
     class ToolbarViewport final : public juce::Viewport {
@@ -56,6 +59,7 @@ private:
     double viewChangedAt=0;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> mixAttachment,tempoAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> enabledAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> modeAttachment,mixLawAttachment;
     InstanceId learnId=InstanceId::null();int learnParam=0;bool learnContinuous=true;bool learnBoard=false;
     double learnStart=0;
 };

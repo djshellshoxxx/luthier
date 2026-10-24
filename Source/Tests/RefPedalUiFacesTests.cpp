@@ -100,3 +100,20 @@ LUTHIER_TEST(RefPedalUiFaces, actualMetersRequireFullIdentityAndAvailability)
     meters.model.available=UiTransport;CHECK(view->updateMeters(meters));CHECK(!view->meterSummary().contains("BPM"));CHECK(!view->meterSummary().contains("48000"));CHECK(!view->meterSummary().contains("FAULT"));
     meters.present=false;CHECK(view->updateMeters(meters));CHECK(view->meterSummary().contains("pending"));
 }
+#include "../UI/ReferencePedals/BoardMidiPanel.h"
+#include "../ReferencePedals/Midi/ExtendedHostAutomation.h"
+LUTHIER_TEST(RefPedalUiFaces, everyExtendedHostParameterHasARealAttachedControl)
+{
+    FaceAttachmentProcessor processor;juce::AudioProcessorValueTreeState::ParameterLayout layout;
+    for(const auto& d:extendedHostParameters){if(d.choices)layout.add(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID{d.id,1},d.name,juce::StringArray::fromTokens(d.choices,"|",""),(int)d.defaultValue));else if(d.minimum==0&&d.maximum==1&&d.interval==1)layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{d.id,1},d.name,d.defaultValue>.5));else layout.add(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{d.id,1},d.name,juce::NormalisableRange<float>(d.minimum,d.maximum,d.interval),d.defaultValue));}
+    juce::AudioProcessorValueTreeState state(processor,nullptr,"extended_parameters",std::move(layout));BoardModel model;BoardMidiPanel panel(model,&state);std::map<juce::String,juce::Component*> actual;
+    std::function<void(juce::Component&)> collect=[&](auto& parent){for(auto* c:parent.getChildren()){if(c->getComponentID().startsWith("ref_board_"))actual.emplace(c->getComponentID(),c);collect(*c);}};collect(panel);
+    CHECK(actual.size()==extendedHostParameters.size());for(const auto& d:extendedHostParameters){auto it=actual.find(d.id);CHECK(it!=actual.end());if(it==actual.end())continue;CHECK(it->second->getTitle().isNotEmpty());CHECK(dynamic_cast<juce::Slider*>(it->second)||dynamic_cast<juce::ComboBox*>(it->second)||dynamic_cast<juce::Button*>(it->second));}
+    auto* gain=dynamic_cast<juce::Slider*>(actual["ref_board_fb_gain"]);CHECK(gain!=nullptr);if(gain){{juce::Slider::ScopedDragNotification gesture(*gain);gain->setValue(.73,juce::sendNotificationSync);}CHECK_NEAR(state.getRawParameterValue("ref_board_fb_gain")->load(),.73,.001);CHECK_NEAR(model.getBoardSettings().fb.gain,.5,1e-6);}
+    auto* mode=dynamic_cast<juce::ComboBox*>(actual["ref_board_mode"]);CHECK(mode!=nullptr);if(mode){mode->setSelectedId(2,juce::sendNotificationSync);CHECK_NEAR(state.getRawParameterValue("ref_board_mode")->load(),1,1e-6);CHECK(model.getBoardSettings().mode==Mode::Series);}
+    auto* kill=dynamic_cast<juce::Button*>(actual["ref_board_fb_kill"]);CHECK(kill!=nullptr);if(kill){kill->setState(juce::Button::buttonDown);CHECK_NEAR(state.getRawParameterValue("ref_board_fb_kill")->load(),1,1e-6);kill->setState(juce::Button::buttonNormal);CHECK_NEAR(state.getRawParameterValue("ref_board_fb_kill")->load(),0,1e-6);}
+    GestureCapture capture;auto* killParameter=state.getParameter("ref_board_fb_kill");killParameter->addListener(&capture);
+    {auto closing=std::make_unique<BoardMidiPanel>(model,&state);juce::Button* held=nullptr;std::function<void(juce::Component&)> find=[&](auto& parent){for(auto* c:parent.getChildren()){if(c->getComponentID()=="ref_board_fb_kill")held=dynamic_cast<juce::Button*>(c);find(*c);}};find(*closing);CHECK(held!=nullptr);if(held)held->setState(juce::Button::buttonDown);CHECK_NEAR(killParameter->getValue(),1,1e-6);}
+    CHECK_NEAR(killParameter->getValue(),0,1e-6);CHECK(capture.gestures==std::vector<bool>({true,false}));killParameter->removeListener(&capture);
+
+}
