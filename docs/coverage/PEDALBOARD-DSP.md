@@ -434,3 +434,35 @@ residual<7e-18A. Both original and bracketed measurements are retained;
 `prepared-diode-bracket-{tests,stderr,measurements}.txt` records the revision.
 No pedal uses the helper yet. Original Muff component tests plus the new
 moving-capacitor baseline pass49,610 checks before any substitution.
+
+## Original named harmonic fixtures at their stated control positions
+
+`measure-original-named-thd.cpp` now renders the original DS-1/TS808/SD-1/
+Distortion+/RAT/Deluxe drive positions at44.1/48/96/192k, one second settling
+and one second coherent1k measurement, noise disabled. The fixture records
+both peak and RMS interpretations of the stated input level instead of silently
+resolving source ambiguity. Distortion+ uses100mV andOUTPUT=1; RAT uses10mV at
+drive0 and100mV at.5/1 withFILTER=0; SD-1 uses-24dBFS and measuresTHD+N as
+specified. DS-1/TS808/Deluxe use-20dBFS. Voltage inputs use each candidate's
+documented digital-to-voltage scale. THD is harmonics2..10; THD+N is residual
+power after removing the coherent fundamental and DC. No thresholds changed.
+
+Results: **56/136 individual harmonic-band fixtures pass;80 fail**. This is
+acceptance evidence, not a passing unit-test summary or qualification of any
+model. At48k with the stated level interpreted as peak:
+
+| Model | Drive positions | Measured harmonic metric | Original bands |
+|---|---|---|---|
+| DS-1 |.2 /1|150.050% /211.862% THD|1–6% /25–40%:bothFAIL|
+| TS808 |.2 /1|6.059% /13.534% THD|.5–5% FAIL /12–35% PASS|
+| SD-1 |0 /.25 /.5 /.75 /1|10.003 /26.850 /27.384 /27.267 /26.936% THD+N|.5–2 /3–8 /8–20 FAIL;15–30 /20–40 PASS|
+| Distortion+ |.25 /.5 /1|17.981 /25.459 /39.301% THD|5–15 FAIL;10–35 /25–60 PASS|
+| RAT |0 /.5 /1|.000090 /39.926 /42.335% THD|<1 PASS;5–30 FAIL;>25 PASS|
+| Deluxe |.1 /1|76.658 /78.399% THD|5–20 /25–60:bothFAIL|
+
+The same pass/fail pattern holds across the tested rates and both amplitude
+interpretations. The source's DS-1 tone branches substantially suppress the
+1k fundamental, so outputTHD can legitimately exceed100%; this is retained as
+a failure of the stated output criterion, not reclassified as a pass at another
+node. SD-1 asymmetry gates and Deluxe low-sustain behavior remain failures.
+Raw measurements preserve all136 cases in `original-named-thd.txt`.
