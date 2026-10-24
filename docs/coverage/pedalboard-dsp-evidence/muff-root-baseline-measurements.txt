@@ -1,0 +1,6 @@
+ehx-big-muff-nyc trial0 prepare 0.000018367s process-only stereo CPU 25.578199750% checksum 90.985218897806448
+ehx-big-muff-nyc trial1 prepare 0.000017556s process-only stereo CPU 25.619712750% checksum 90.985218897806448
+ehx-big-muff-nyc trial2 prepare 0.000017225s process-only stereo CPU 23.898951900% checksum 90.985218897806448
+ehx-muff-wicker trial0 prepare 0.000018988s process-only stereo CPU 24.780831600% checksum 95.573787499576042
+ehx-muff-wicker trial1 prepare 0.000018568s process-only stereo CPU 25.130109200% checksum 95.573787499576042
+ehx-muff-wicker trial2 prepare 0.000024737s process-only stereo CPU 25.323752050% checksum 95.573787499576042

@@ -1,0 +1,4 @@
+RefPedalMuffCircuit::toneGoldenTableAndIndependentTransfer 450 checks 0 failures
+RefPedalMuffCircuit::transistorFeedbackIndependentKcl 49152 checks 0 failures
+RefPedalMuffCircuit::movingComponentValuesPreserveCapacitorHistory 8 checks 0 failures
+TOTAL 49610 checks 0 failures

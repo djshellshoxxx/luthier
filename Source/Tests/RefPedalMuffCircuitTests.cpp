@@ -77,3 +77,42 @@ LUTHIER_TEST(RefPedalMuffCircuit, transistorFeedbackIndependentKcl)
             }
         }
 }
+LUTHIER_TEST(RefPedalMuffCircuit, movingComponentValuesPreserveCapacitorHistory)
+{
+    for (double sr : {88200., 192000., 768000., 1536000.})
+    {
+        models::MuffClipStage stage;
+        stage.prepare(sr);
+        long double previousV = 0, previousI = 0;
+        double worstVoltageError = 0, worstResidual = 0;
+        for (int i = 0; i < 8192; ++i)
+        {
+            // Alternate smooth changes and abrupt component jumps. Include
+            // conductances outside the intended Wicker/NYC lookup domain.
+            const long double cf =
+                (i / 257) % 2 ? 22e-12 : (22 + 448 * (.5 + .5 * std::sin(i * .019))) * 1e-12;
+            const long double rs = i % 509 == 0 ? 1000 : 10000 + 25000 * (.5 + .5 * std::sin(i * .013));
+            stage.configure((double)rs, (double)cf);
+            const long double x = .5 * std::sin(2 * common::pi * 5000 * i / sr), k = 2 * sr;
+            const long double g = (1 / rs + 1.L / 25000) / 151 + 1.L / 470000 + k * cf;
+            const long double rhs = x / rs + k * cf * previousV + previousI;
+            long double lo = -1.3, hi = 1.3;
+            for (int j = 0; j < 80; ++j)
+            {
+                const long double v = (lo + hi) / 2;
+                if (g * v + 2 * 2.52e-9L * std::sinh(v / (1.752L * .02585L)) > rhs)
+                    hi = v;
+                else
+                    lo = v;
+            }
+            const long double vd = (lo + hi) / 2;
+            const double y = stage.process((double)x);
+            worstVoltageError = std::max(worstVoltageError, std::abs(y - (double)(-150 * vd / 151)));
+            worstResidual = std::max(worstResidual, std::abs(stage.lastResidualAmps()));
+            previousI = k * cf * (vd - previousV) - previousI;
+            previousV = vd;
+        }
+        CHECK(worstVoltageError < 1e-10);
+        CHECK(worstResidual < 1e-12);
+    }
+}

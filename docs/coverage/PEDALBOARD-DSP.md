@@ -466,3 +466,37 @@ interpretations. The source's DS-1 tone branches substantially suppress the
 a failure of the stated output criterion, not reclassified as a pass at another
 node. SD-1 asymmetry gates and Deluxe low-sustain behavior remain failures.
 Raw measurements preserve all136 cases in `original-named-thd.txt`.
+
+## WIP NYC/Wicker prepared-root trial
+
+After the independent review of3fd1455e's physical bracket, the two shared
+MuffClipStage instances in each channel now use prepared initial guesses and
+bracketed refinement. The original TPT capacitor-voltage/current history,
+component values, tone, gain calibration and maximum8 iterations are unchanged.
+The previous "no pedal uses the helper" statements above describe the isolated
+checkpoints and are superseded by this **unregistered candidate-only** trial.
+Timefx reviewed the revised bound/iteration mechanism and RT properties; it did
+not rerun the oracle suite or qualify the complete pedals.
+
+The original component oracle plus a new32,768-sample moving-R/C oracle passes
+the same<1e-10V and<1e-12A limits. The complete named suite now passes
+**28cases /11,314,802 checks**, ASan+UBSan+leak detection and callback allocation
+counter, empty stderr. No callback allocation was introduced; table preparation
+is off-thread. Evidence:`named-prepared-root-tests.txt` and
+`named-prepared-root-stderr.txt`; the existing named-suite script reproduces it.
+
+The actual two-model stereo automation corpus covers262,144 values at four
+rates, changing sustain/tone/volume/Wicker controls and hostile-input recovery.
+Maximum difference from the previous direct solver is3.5721e-13; largest RMS
+difference9.0026e-15(-280.91dBFS). This is numerical agreement on that corpus,
+not a fresh alias pass. The exact probe and comparison script are retained in
+`measure-muff-prepared-root.cpp` and `compare-muff-root.py`; baseline processor
+code is at50cf3a1f, before this candidate substitution.
+
+At48k, stereo128-frame callbacks, O2/no-fast-math/threadCPU, the three-trial
+medians changed from25.5782% to21.0234% for NYC and25.1301% to22.1339% for Wicker.
+Both still **FAIL** their2%/2.5% budgets. Off-thread prepare increased from
+about20microseconds to~.4seconds per pedal; four separate tables total558,144
+bytes of coefficient storage per stereo pedal, excluding object metadata.
+This startup/memory cost is material and remains a candidate limitation.
+All original THD/alias/calibration/CPU acceptance failures remain visible.

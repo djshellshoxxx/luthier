@@ -1,6 +1,7 @@
 // OWNER: WP13
 #pragma once
 #include "../Common/OnePole.h"
+#include "../Common/PreparedDiodeRoot.h"
 #include "../Common/Smoothers.h"
 namespace luthier::reference::models
 {
@@ -43,9 +44,16 @@ class MuffTone
 class MuffClipStage
 {
   public:
-    void prepare(double rate) noexcept
+    void prepare(double rate)
     {
         sr = common::sampleRate(rate);
+        // Prepared physical range covers NYC/Wicker's 10k..35k source and
+        // 22pF..470pF feedback capacitor. Other values use the helper fallback.
+        const double minimumG =
+            (1. / 35000 + 1 / MuffConsts::rbe) / (1 + MuffConsts::a) + 1 / MuffConsts::rf + 2 * sr * 22e-12;
+        const double maximumG =
+            (1. / 10000 + 1 / MuffConsts::rbe) / (1 + MuffConsts::a) + 1 / MuffConsts::rf + 2 * sr * 470e-12;
+        root.prepare(2 * MuffConsts::is, MuffConsts::vt, minimumG, maximumG, .01);
         configure(10000, 470e-12);
         reset();
     }
@@ -59,17 +67,10 @@ class MuffClipStage
     double process(double input) noexcept
     {
         const double x = std::clamp(common::safe(input), -16., 16.), history = capG * vd + capCurrent,
-                     rhs = x * inputG + history, mag = std::abs(rhs);
-        double value = std::min(mag / linearG, MuffConsts::vt * std::asinh(mag / (2 * MuffConsts::is)));
-        for (int i = 0; i < 8; ++i)
-        {
-            const double f = linearG * value + 2 * MuffConsts::is * std::sinh(value / MuffConsts::vt) - mag;
-            if (std::abs(f) < 1e-18)
-                break;
-            value -= f / (linearG + 2 * MuffConsts::is / MuffConsts::vt * std::cosh(value / MuffConsts::vt));
-        }
-        const double next = std::copysign(value, rhs);
-        residual = linearG * next + 2 * MuffConsts::is * std::sinh(next / MuffConsts::vt) - rhs;
+                     rhs = x * inputG + history;
+        const auto solution = root.solve(rhs, linearG);
+        const double next = solution.voltage;
+        residual = solution.residual;
         capCurrent = common::safe(capG * (next - vd) - capCurrent);
         vd = next;
         return common::safe(-MuffConsts::a * vd / (1 + MuffConsts::a));
@@ -77,6 +78,7 @@ class MuffClipStage
     double lastResidualAmps() const noexcept { return residual; }
 
   private:
+    common::PreparedDiodeRoot root;
     double sr = 48000, inputG = 1e-4, capG = 0, linearG = 0, vd = 0, capCurrent = 0, residual = 0;
 };
 class MuffCore
@@ -86,7 +88,7 @@ class MuffCore
     {
         return std::expm1(4.394 * std::clamp(x, 0., 1.)) / std::expm1(4.394);
     }
-    void prepare(double rate) noexcept
+    void prepare(double rate)
     {
         sr = common::sampleRate(rate);
         inputHp.setLowpass(sr, 23);
