@@ -86,7 +86,7 @@ The immutable core executable completed successfully (exit0,1810.19s driver wall
 time including startup/collection) with seed0x51a7 and1800s requested workload:
 180,000edits,18,318rejectededits,6,913,402blocks,3,049,960,869samples,
 callback_new0,invalid0. Combined sweep/soak:3tests/6111checks/0failures.
-Memory sampled every10s peaked at29,212KiB resident/high-water; the final
+Memory sampled every10s peaked at26,628KiB resident; kernel high-water was29,212KiB. The final
 resident sample was11,932KiB. C++new is intercepted; Cmalloc/hostwrapper
 allocation and locks are not certified by this hook. This source snapshot
 predates E47 and the later routing/host/UI/paged-looper integrations.

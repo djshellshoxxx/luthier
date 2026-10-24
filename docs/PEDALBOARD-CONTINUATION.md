@@ -1,7 +1,7 @@
 # Pedalboard continuation handoff
 
 Updated 2026-10-24 UTC. Implementation and QA are ongoing; no release/tag has been created.
-Coordinator source checkpoint: `05bbdb8e233964a37a874455c28291c5b0f15ba2`. Query `git rev-parse HEAD` for this handoff and later commits.
+Coordinator source checkpoint: `5eab2aae80dfe0b931a780e9bd2d86db0c1a78bb`. Query `git rev-parse HEAD` for this handoff and later commits.
 Repository `/workspace/luthier`, branch `codex/luthier-pedalboard-completion`.
 Draft PR80: https://github.com/djshellshoxxx/luthier/pull/80 (base master; retains PR79 ancestry).
 PR79: `0b319c0b9b480d17605674374818711de94f7cb7`; master: `0f62c3d67bdba055b41e66c7ab8ac9ab4b728662`.
@@ -70,3 +70,43 @@ Incremental0299fe14 package also saved in Library, SHA256904e4d04369889365ad5e69
 Newer checkpoint bundles require that complete-history base; verify checksums and `git bundle verify`.
 Release archive secret scanning remains mandatory; prior tracked scan flags chiefly existing calibration hashes,
 known parameter IDs/test UUIDs. Never copy credentials, private keys, dependency caches or build caches to archives.
+
+## Latest coordinator update, 2026-10-24 00:53 UTC
+
+Source through5eab2aae is now integrated locally; CI/PR80 remains at pushed
+e5d350e5994c96e02277f9c8a00606073df47213 to allow the running six native jobs
+to finish. Do not keep cancelling long CI runs for small checkpoint pushes;
+a separate backup branch may preserve later source without updating PR80.
+Native checkpoint2 PASSED206tests/5,649,492checks40.1s at05bbdb8e. The prior
+legacy release-decay failure remains unresolved. Subsequent feedback/AB/aux,
+boundedMIDI, physical/dragUI, E55publishedstate and paging changes need the next
+coherent build. Extended50field host surface is still being wired by workers.
+
+The30-minute wall-clock core soak completedPASS: seed0x51a7,180000edits,
+6913402blocks,3049960869samples,callback_new0,invalid0. Immutable source
+347f0ce558b72fb5f3a37f3e5b15c552f7c8cd95;3tests6111checks0failures.
+Peak sampledRSS26628KiB, kernelHWM29212KiB. A new focused1000 malformed
+state-load/liveaudio test PASSED7004checks at72232279+testWIP, nowcommitted075d943b.
+SeeQA ledger for exact scopes; this is not finalwholepluginQA.
+
+JUCE standaloneconstructor reserve65536 patch is nowverified/applied through
+cmake/JuceMidiCapacity.cmake, pre/postfullfilehash pinned8.0.10. Bothoriginal
+andpatchedsource pass4isolatedpatchtests; --check andCMakeconfigurepassed.
+No target-widecompiledefine was needed. Linux pluginvalv1.0.4 andclap-validator
+0.3.2 downloaded/extracted/runhelp/version successfully, but pluginsnotyetvalidated.
+
+Checkpoint e5d350e5 all-worker incrementalbundle savedLibrary:
+/luthier-checkpoint-e5d350e5.tar.gz, SHA256
+4fe422a16d141ce1a303e4470f2e3c711d0f53e72306c85c84fd9a8dccaa90e6
+(libfile_676f4ed72bd48191bf9fee2162ef8ee2). Containsacceptedcoordinator AND
+explicitworkerWIP branches, requires the earlier e733841e full-historybundle.
+Theenvironmentbrieflyreportedunavailable thenimmediatelyreturned; read-only
+verificationfoundprocesses/work intact. Noactionwasdenied, no newenvironmentstarted.
+
+Remainingmajorwork:12nameddrive/dynamics/Muff processors, namedloopers/paged
+transport+memories/rhythm, actualassetserviceE59, E57extendedhost/MIDIclock/learn
+completion, acoustic/CPUgateclosure andfinalUIvisual/idle/nativepeeracceptance.
+E58Phase90 two-anchorprewarp proposal preservesnotch/zero-lookaheadgoals and
+needsreviewedmeasuredadoption; the2xFIRalternative15sample/.54%proposalwasrejected.
+SharedTanhADAA2 b1aa654b reviewedindependently bytimefx+coordinator; integrated
+asEXPERIMENTALhelperonly, noall-pedalalias/CPUclaim. Originalrequirementsremain.
