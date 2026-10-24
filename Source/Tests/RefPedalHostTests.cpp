@@ -172,6 +172,7 @@ LUTHIER_TEST (RefPedalHost, appendedAuxBusesPreserveLayoutAndRenderSlicedSends)
 }
 
 #include "../Routing/MidiOutRouter.h"
+namespace luthier::tests { long allocationsOnThisThread() noexcept; }
 LUTHIER_TEST (RefPedalHost, outputRouterBoundsCombinedSources)
 {
     luthier::MidiOutRouter router; router.prepare (48000, 64);
