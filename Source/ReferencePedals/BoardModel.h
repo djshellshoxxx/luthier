@@ -67,6 +67,7 @@ public:
     bool canRedo() const;
     void beginTransaction (const juce::String& name);
     void endTransaction();
+    bool cancelTransaction(); // E53: restore outer baseline and its undo/redo, cancel all nesting
 
     void addListener (Listener*);
     void removeListener (Listener*);

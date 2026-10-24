@@ -119,3 +119,46 @@ LUTHIER_TEST (RefPedalRouting, reampUsesActualSidechainOnceAtPreAndDisconnectIsT
     CHECK (l[127] == 0.1 && r[127] == 0.1);
     CHECK (! board.readMeters().sidechainAvailable);
 }
+
+LUTHIER_TEST (RefPedalRouting, sendReturnBlendAndBypassKeepExactLatency)
+{
+    PedalRegistry::TestScope registryScope;
+    registerDelayed();
+    for (const bool enabled : { false, true })
+        for (const auto kind : { LoopKind::Serial, LoopKind::Parallel, LoopKind::KillDry })
+        {
+            Board board; board.prepare (48000, 37);
+            PedalInstance delayed; delayed.modelId = "test.delayed"; delayed.slot = 0;
+            BoardSettings settings; settings.enabled = true; settings.limiterOn = false; settings.mode = Mode::Loop;
+            auto& loop = settings.loops[0]; loop.used = true; loop.enabled = enabled; loop.kind = kind;
+            loop.first = loop.last = delayed.instanceId; loop.blend = 0.25f;
+            loop.sendDb = -6.f; loop.returnDb = 3.f;
+            CHECK (board.model().replaceAll ({ delayed }, settings));
+            CHECK (board.getLatencySamples() == 17);
+            double l[1024] {}, r[1024] {}; board.processStereo (l, r, 1024, Placement::beforeExistingPre);
+            l[0] = r[0] = 0.1; board.processStereo (l, r, 128, Placement::beforeExistingPre);
+            const double wet = std::pow (10.0, -3.0 / 20.0);
+            const double expected = ! enabled ? 1.0 : kind == LoopKind::Parallel ? 0.75 + 0.25 * wet : wet;
+            for (int i = 0; i < 128; ++i) CHECK_NEAR (l[i], i == 17 ? 0.1 * expected : 0.0, 1.e-8);
+        }
+}
+
+LUTHIER_TEST (RefPedalRouting, invalidLoopEndpointsAndOverlapRejectAtomically)
+{
+    Board board; PedalInstance a, b, c;
+    a.modelId = b.modelId = c.modelId = "missing"; a.missing = b.missing = c.missing = true;
+    a.slot = 0; b.slot = 1; c.slot = 2;
+    BoardSettings valid; valid.enabled = true; valid.mode = Mode::Loop;
+    valid.loops[0].used = true; valid.loops[0].first = a.instanceId; valid.loops[0].last = b.instanceId;
+    CHECK (board.model().replaceAll ({ a, b, c }, valid));
+    const auto version = board.model().getTopologyInfo().version;
+    auto invalid = valid; invalid.loops[0].last = InstanceId();
+    CHECK (! board.model().replaceAll ({ a, b, c }, invalid));
+    invalid = valid; invalid.loops[0].first = c.instanceId;
+    CHECK (! board.model().replaceAll ({ a, b, c }, invalid));
+    invalid = valid; invalid.loops[1].used = true; invalid.loops[1].first = b.instanceId; invalid.loops[1].last = c.instanceId;
+    CHECK (! board.model().replaceAll ({ a, b, c }, invalid));
+    b.placement = Placement::postCab;
+    CHECK (! board.model().replaceAll ({ a, b, c }, valid));
+    CHECK (board.model().getTopologyInfo().version == version);
+}
