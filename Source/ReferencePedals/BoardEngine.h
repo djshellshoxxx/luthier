@@ -54,6 +54,7 @@ public:
         sidechain[0] = left; sidechain[1] = right; sidechainSamples = std::max (0, samples);
         sidechainConnected.store (left && right && samples > 0, std::memory_order_relaxed);
     }
+    void setExtendedHostAutomation (const ExtendedHostAutomationSnapshot& snapshot) noexcept { extendedHost = snapshot; }
     void setHostAutomation (const HostAutomationSnapshot& snapshot) noexcept { hostAutomation = snapshot; }
     void syncRouting (midi::MidiRouter&) const noexcept; // audio thread, retained model intent
     void beginRawMidi (const juce::MidiBuffer&, int samples) noexcept;
@@ -118,6 +119,11 @@ private:
     std::atomic<bool> sidechainConnected { false };
     std::array<std::array<double, kSubBlock>, 2> sidechainScratch {};
     WetDryMixer mixer;
+    ExtendedHostAutomationSnapshot extendedHost;
+    std::array<float, ExtendedHostAutomationSnapshot::count> extendedValues {};
+    std::array<uint32_t, ExtendedHostAutomationSnapshot::count> extendedModelSerials {}, extendedHostSerials {};
+    float extended (ExtendedHostField field) const noexcept { return extendedValues[static_cast<size_t> (field)]; }
+    void applyExtended (const RenderPlan&) noexcept;
     HostAutomationSnapshot hostAutomation;
     std::array<uint32_t, 3> hostBoardSerials {}, modelBoardSerials {};
     struct HostSlotSource { InstanceId identity = InstanceId::null(); const char* modelId = nullptr; };

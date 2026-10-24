@@ -17,6 +17,7 @@
 #include <memory>
 #include <juce_audio_basics/juce_audio_basics.h>
 #include "BoardTypes.h"
+#include "Midi/ExtendedHostAutomation.h"
 #include "LegacyModel.h"
 
 namespace luthier::reference
@@ -51,6 +52,7 @@ public:
     // Audio thread, per processSlice, in this order
     void setAuxOutputs (const BoardAuxOutputs&) noexcept; // E54: borrowed, pre-cleared float buffers
     void setSidechain (const float* left, const float* right, int samples) noexcept; // audio-only borrowed block input
+    void setExtendedHostAutomation (const ExtendedHostAutomationSnapshot&) noexcept;
     void setHostAutomation (const HostAutomationSnapshot&) noexcept; // E44: audio thread, before beginBlock
     void beginBlock (const juce::MidiBuffer& midi, const HostTransport& host, int numSamples) noexcept;
     void processStereo (double* left, double* right, int n, Placement p) noexcept;   // up to 3x per block; early-out BEFORE touching buffers when !isActive()
