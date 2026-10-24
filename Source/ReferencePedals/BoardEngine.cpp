@@ -477,7 +477,8 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
                 if (reamp) in = (extended (ExtendedHostField::ReampReplace) >= 0.5f ? 0.0 : in)
                     + reampGain * sidechainScratch[static_cast<size_t> (c)][static_cast<size_t> (i)];
                 peakIn = std::max (peakIn, std::abs (std::isfinite (in) ? in : 0.0));
-                dry[c][i] = s.dry[static_cast<size_t> (c)].process (in, plan.latency[static_cast<size_t> (p)]);
+                const int dryLatency = s.pending ? s.pending->latency[static_cast<size_t> (p)] : plan.latency[static_cast<size_t> (p)];
+                dry[c][i] = s.dry[static_cast<size_t> (c)].processCrossfade (in, dryLatency, std::max (1, static_cast<int> (rate * 0.010)));
                 buses[0][static_cast<size_t> (c)][static_cast<size_t> (i)] = ! localEnabled && s.enable == 0.0 ? 0.0 : BoardLimiter::process (in, false, 1.0);
             }
         const bool wetPaused = localMix == 0.f && s.mix == 0.0 && extended (ExtendedHostField::MixTail) < 0.5f;
