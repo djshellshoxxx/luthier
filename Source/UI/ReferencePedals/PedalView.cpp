@@ -166,7 +166,7 @@ void PedalView::rebuildControls(const PedalInstance& instance)
 }
 void PedalView::refresh()
 {
-    const auto instance=model.getInstance(instanceId);if(!instance)return;const juce::ScopedValueSetter<bool> guard(refreshing,true);
+    const auto oldTitle=getTitle();const auto instance=model.getInstance(instanceId);if(!instance)return;const juce::ScopedValueSetter<bool> guard(refreshing,true);
     if(modelId!=instance->modelId||!face)rebuildControls(*instance);
     for(int n=0;n<controls.size();++n){const int index=controlParams[(size_t)n];if(!attached[(size_t)index])controls[n]->setValue(instance->params[(size_t)index],juce::dontSendNotification);}
     for(int n=0;n<selectors.size();++n){const int index=selectorParams[(size_t)n];if(!attached[(size_t)index])selectors[n]->setSelectedId(1+(int)descriptor->params[index].fromNormalised(instance->params[(size_t)index]),juce::dontSendNotification);}
@@ -178,7 +178,7 @@ void PedalView::refresh()
     if(!trimAttached[0])inputTrim.setValue(instance->inDb,juce::dontSendNotification);if(!trimAttached[1])outputTrim.setValue(instance->outDb,juce::dontSendNotification);lane.setValue(instance->lane,juce::dontSendNotification);
     const auto order=model.getOrder();const int position=(int)std::distance(order.begin(),std::find(order.begin(),order.end(),instanceId));setExplicitFocusOrder(position+10);
     setTitle(juce::String(descriptor?descriptor->displayName:modelId.c_str())+", position "+juce::String(position+1)+" of "+juce::String((int)order.size())+", "+(instance->enabled?"on":"off")+", "+placement.getText());
-    setDescription("Alt arrows reorder. Space bypasses. Delete removes. I opens pedal information. "+meterSummary());resized();repaint();
+    setDescription("Alt arrows reorder. Space bypasses. Delete removes. I opens pedal information. "+meterSummary());if(!oldTitle.isEmpty()&&oldTitle!=getTitle())if(auto* handler=getAccessibilityHandler())handler->notifyAccessibilityEvent(juce::AccessibilityEvent::titleChanged);resized();repaint();
 }
 juce::Point<int> PedalView::physicalSize() const {const auto size=face?face->designSizeMm()*1.6f:juce::Point<float>(120,200);return {juce::roundToInt(size.x),juce::roundToInt(size.y)};}
 juce::Point<float> PedalView::inputJack() const {for(const auto& jack:faceLayout.jacks)if(jack.kind==FaceJack::Kind::In)return jack.position;return {0,getHeight()*.42f};}
@@ -245,7 +245,7 @@ void PedalView::paint(juce::Graphics& g)
     AnimationPolicy::notePaint(*this);const auto instance=model.getInstance(instanceId);if(!instance)return;
     FaceState state;state.enabled=meterSeen?(meters.present&&meters.enabled):instance->enabled;state.tailActive=meterSeen&&meters.present&&meters.tailEnergyDb>-90;state.missing=instance->missing||!descriptor;state.highContrast=!Palette::textured;
     if(face){const auto image=PedalFaceCache::get(*face,modelId.c_str(),descriptor?descriptor->revision:1,{getWidth(),getHeight()},g.getInternalContext().getPhysicalPixelScaleFactor(),state);g.drawImage(image,getLocalBounds().toFloat());}
-    if(!state.enabled){g.setColour(juce::Colours::black.withAlpha(.18f));g.fillRoundedRectangle(getLocalBounds().toFloat(),5);}
+    if(!state.enabled){if(Palette::textured){g.setColour(juce::Colours::black.withAlpha(.18f));g.fillRoundedRectangle(getLocalBounds().toFloat(),5);}else{g.setColour(Palette::textPrimary);g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(2),4,1);}}
     if(!faceLayout.led.isEmpty()){g.setColour(state.enabled&&!state.missing?Palette::clip:Palette::clip.darker(.75f));g.fillEllipse(faceLayout.led);}
     const auto* faceModel=dynamic_cast<ModelFace*>(face.get());
     if(faceModel&&faceModel->faceProfile().detail==FaceProfile::Detail::LooperRing)
@@ -278,7 +278,7 @@ bool PedalView::keyPressed(const juce::KeyPress& key)
     {
         for(const auto& control:faceLayout.controls)if(control.kind==FaceControlKind::Button&&control.bounds==faceLayout.footswitch)
             if(auto* button=dynamic_cast<juce::Button*>(parameterControls[(size_t)control.paramIdx])){button->triggerClick();return true;}
-        const auto i=model.getInstance(instanceId);model.apply(cmd::SetEnabled{instanceId,!i->enabled});return true;
+        footswitch.triggerClick();return true;
     }
     if(!mods.isCommandDown()&&(code=='l'||code=='L'))
     {
@@ -286,7 +286,7 @@ bool PedalView::keyPressed(const juce::KeyPress& key)
         for(int i=0;i<kMaxParams;++i)if(auto* control=parameterControls[(size_t)i])if(control==focused||control->isParentOf(focused))
         {if(onLearn)onLearn(instanceId,i,descriptor->params[i].kind==ParamKind::Continuous);return true;}
         for(const auto& control:faceLayout.controls)if(control.kind==FaceControlKind::Button&&control.bounds==faceLayout.footswitch){if(onLearn)onLearn(instanceId,control.paramIdx,false);return true;}
-        if(onLearn)onLearn(instanceId,-1,false);return true;
+        requestFootswitchLearn();return true;
     }
     if(code==juce::KeyPress::F10Key&&mods.isShiftDown()){contextMenu();return true;}
     if(code==juce::KeyPress::leftKey||code==juce::KeyPress::rightKey){if(onNavigate)onNavigate(instanceId,code==juce::KeyPress::leftKey?-1:1);return true;}
@@ -305,7 +305,7 @@ void PedalView::contextMenu()
     juce::Component::SafePointer<PedalView> self(this);
     menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(this),[self](int n){if(!self)return;const auto order=self->model.getOrder();const int pos=(int)std::distance(order.begin(),std::find(order.begin(),order.end(),self->instanceId));
         if(n==1||n==2)self->model.apply(cmd::Move{self->instanceId,juce::jlimit(0,(int)order.size()-1,pos+(n==1?-1:1))});
-        if(n==3)self->post(cmd::Duplicate{self->instanceId});if(n==4)self->post(cmd::Remove{self->instanceId});if(n==5&&self->onLearn)self->onLearn(self->instanceId,-1,false);});
+        if(n==3)self->post(cmd::Duplicate{self->instanceId});if(n==4)self->post(cmd::Remove{self->instanceId});if(n==5)self->requestFootswitchLearn();});
 }
 }
 
@@ -330,4 +330,8 @@ bool PedalView::updateMeters(const PedalMeters& next)
     const bool announce=!meterSeen||meters.enabled!=next.enabled||meters.model.transport!=next.model.transport||meters.model.faults!=next.model.faults;
     meters=next;meterSeen=true;const auto text=meterSummary();setDescription("Alt arrows reorder. Space bypasses. Delete removes. I opens pedal information. "+text);meterLabel.setText(text,juce::dontSendNotification);juce::String compact=text;if(next.present){juce::StringArray lines;const auto& data=next.model;if(data.available&UiTransport){const char* names[]{"EMPTY","REC","PLAY","OVERDUB","STOP"};lines.add(data.transport>=0&&data.transport<5?names[data.transport]:"STATE");}if((data.available&UiTempo)&&std::isfinite(data.bpm)&&data.bpm>0)lines.add(juce::String(data.bpm,1)+" BPM");else if((data.available&UiLoop)&&data.loopLength>0)lines.add(juce::String((int)juce::jlimit(0.,100.,100.*data.playhead/data.loopLength))+"%");compact=lines.isEmpty()?"NO DATA":lines.joinIntoString(" ");}display.setText(compact,juce::dontSendNotification);display.setTooltip(text);if(announce)if(auto* handler=getAccessibilityHandler())handler->notifyAccessibilityEvent(juce::AccessibilityEvent::valueChanged);repaint();return true;
 }
+}
+
+namespace luthier::reference {
+void PedalView::requestFootswitchLearn(){for(const auto& control:faceLayout.controls)if(control.kind==FaceControlKind::Button&&control.bounds==faceLayout.footswitch){if(onLearn)onLearn(instanceId,control.paramIdx,false);return;}if(onLearn)onLearn(instanceId,-1,false);}
 }
