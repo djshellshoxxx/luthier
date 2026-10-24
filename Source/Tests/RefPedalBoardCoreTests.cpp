@@ -1333,3 +1333,43 @@ LUTHIER_TEST (RefPedalBoardCore, relativeMidiUsesResolvedHostModelAndSourceGener
     std::fill_n (left, 2048, 0.0); std::fill_n (right, 2048, 0.0); board.processStereo (left, right, 2048, Placement::beforeExistingPre);
     CHECK_NEAR (run(), 0.1 * (0.5 + 1.0 / 128), 1.e-8); // old slot host serial does not attach to the new UUID
 }
+
+#include <stdexcept>
+namespace
+{
+const ParamDesc failureConfig[] { { "test_failure_depth", "Depth", "", ParamKind::Toggle, Taper::Linear, 0, 1, 0, 1, 2, nullptr, PF_Config, 0, -1 } };
+const PedalDesc failureDesc { "test.failure", "test_failure_", 1, "Preparation failure", "Test", nullptr, ChannelMode::Stereo,
+    BypassMode::True, 1, failureConfig, 0, false, false, false, 0 };
+class FailureProbe final : public IPedal
+{
+public:
+    const PedalDesc& desc() const noexcept override { return failureDesc; }
+    void setParam (int, float v) noexcept override { value = v; }
+    float getParam (int) const noexcept override { return value; }
+    void prepare (double, int, int) override { if (value >= 0.5f) throw std::runtime_error ("test budget exceeded"); }
+    void loadExtra (const juce::var& extra) override { if (static_cast<bool> (extra["reject"])) throw std::runtime_error ("test asset restore failed"); }
+    void reset() noexcept override {}
+    void process (double* l, double* r, int n) noexcept override { for (int i = 0; i < n; ++i) { l[i] *= 0.25; r[i] *= 0.25; } }
+private:
+    float value = 0;
+};
+std::unique_ptr<IPedal> makeFailureProbe() { return std::make_unique<FailureProbe>(); }
+}
+LUTHIER_TEST (RefPedalBoardCore, failedRuntimePreparationAndRestoreLeaveWorkingModelUntouched)
+{
+    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (failureDesc, makeFailureProbe));
+    Board board; CHECK (board.model().apply (cmd::Add { "test.failure", -1, Placement::beforeExistingPre, 0, InstanceId() }));
+    CHECK (board.model().apply (cmd::SetBoardEnabled { true }));
+    double left[2048] {}, right[2048] {}; board.processStereo (left, right, 2048, Placement::beforeExistingPre);
+    const auto id = board.model().getOrder()[0]; const auto version = board.model().getTopologyInfo().version;
+    juce::String reason; CHECK (! board.model().apply (cmd::SetParam { id, 0, 1.f }, &reason));
+    CHECK (reason.contains ("test budget exceeded")); CHECK (board.model().getInstance (id)->params[0] == 0.f);
+    CHECK (board.model().getTopologyInfo().version == version);
+    std::vector<PedalInstance> instances; BoardSettings settings; board.model().snapshot (instances, settings);
+    instances[0].extras = new juce::DynamicObject(); instances[0].extras.getDynamicObject()->setProperty ("reject", true);
+    CHECK (! board.model().replaceAll (instances, settings, &reason)); CHECK (reason.contains ("test asset restore failed"));
+    CHECK (board.model().getTopologyInfo().version == version);
+    std::fill_n (left, 64, 0.1); std::fill_n (right, 64, 0.1); board.processStereo (left, right, 64, Placement::beforeExistingPre);
+    CHECK_NEAR (left[63], 0.025, 1.e-10);
+    CHECK (board.model().undo()); CHECK (! board.model().getBoardSettings().enabled); // failure creates no undo entries
+}
