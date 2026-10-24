@@ -131,11 +131,14 @@ private:
     std::array<uint32_t, ExtendedHostAutomationSnapshot::count> extendedModelSerials {}, extendedHostSerials {};
     float extended (ExtendedHostField field) const noexcept { return extendedValues[static_cast<size_t> (field)]; }
     void applyExtended (const RenderPlan&) noexcept;
+    void prepareEventOffsets (const RenderPlan&, int samples) noexcept;
     HostAutomationSnapshot hostAutomation;
     std::array<uint32_t, 3> hostBoardSerials {}, modelBoardSerials {};
     struct HostSlotSource { InstanceId identity = InstanceId::null(); const char* modelId = nullptr; };
     std::array<HostSlotSource, kMaxSlots> hostSlotSources;
     TimeInfo blockTime;
+    midi::RouteOut blockEvents;
+    bool eventOffsetsPrepared = false;
     const midi::RouteOut* events = nullptr;
     std::array<MidiEvent, 256> rawMidi {}, midiOutput {};
     int numRawMidi = 0, numMidiOutput = 0;
