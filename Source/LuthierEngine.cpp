@@ -109,6 +109,7 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
     scrape.prepare (sr, maxBlock);
     scrapeMidi.ensureSize (8192);
     techniqueMidi.ensureSize (8192);
+    referenceMidiOut.ensureSize (BoundedMidi::kReserveBytes);
     sliceMidi.ensureSize ((size_t) BoundedMidi::kReserveBytes);   // RT-SAFETY P1
     directSlice.ensureSize ((size_t) BoundedMidi::kReserveBytes);
     slap.prepare (sr);
@@ -124,6 +125,7 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
 
     // --- signal chain ---------------------------------------------------------
     circuit.prepare (sr);
+    referencePedals.prepare (sr, maxBlock);
     preEffects.prepare (sr, maxBlock);
     saturation.prepare (sr);   // FEAT-SAT
     preEffects.setPosition (EffectsChain::Position::PreAmp);
@@ -217,6 +219,7 @@ void LuthierEngine::reset() noexcept
     // Rebuild a changed circuit now rather than in the first block after.
     circuit.setComponents (getLiveCircuitComponents());
     circuit.reset();
+    referencePedals.reset();
     preEffects.reset();
     saturation.reset();   // FEAT-SAT
     amp.reset();
@@ -331,6 +334,7 @@ void LuthierEngine::reset() noexcept
 
 void LuthierEngine::releaseResources()
 {
+    referencePedals.releaseResources();
     stringSumBuffer.clear();
     magneticBuffer.clear();
     piezoSumBuffer.clear();
@@ -2535,6 +2539,7 @@ void LuthierEngine::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
     const int numSamples = buffer.getNumSamples();
 
     audioThreadId.store (juce::Thread::getCurrentThreadId(), std::memory_order_relaxed);
+    referenceMidiOut.clear();
     hostBlockStart = samplePosition;   // MODEL-GAPS: the capture's offsets count from here
     lastProcessMs.store (juce::Time::getMillisecondCounter(), std::memory_order_relaxed);
 
@@ -2563,7 +2568,7 @@ void LuthierEngine::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
 
     if (! parkedMidi.isEmpty())
     {
-        midiMessages.addEvents (parkedMidi, 0, -1, 0);
+        midiOverflowDrops.fetch_add (BoundedMidi::addEvents (midiMessages, BoundedMidi::kReserveBytes, parkedMidi, 0, -1, 0), std::memory_order_relaxed);
         parkedMidi.clear();
     }
 
@@ -2834,6 +2839,27 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
     if (numSamples <= 0 || numChannels <= 0)
         return;
+
+    auto boardHost = referenceTransport;
+    if (boardHost.valid && boardHost.playing)
+        boardHost.ppq += (double) subBlockOffset * boardHost.bpm / (60.0 * sr);
+    if (sidechainChannels != nullptr && sidechainNumChannels > 0 && sidechainReadOffset < sidechainNumSamples)
+    {
+        const auto* left = sidechainChannels[0] + sidechainReadOffset;
+        const auto* right = sidechainChannels[sidechainNumChannels > 1 ? 1 : 0] + sidechainReadOffset;
+        referencePedals.setSidechain (left, right, std::min (numSamples, sidechainNumSamples - sidechainReadOffset));
+    }
+    else
+        referencePedals.setSidechain (nullptr, nullptr, 0);
+    auto aux = referenceAuxOutputs;
+    for (auto* bus : { &aux.pedalB, &aux.wet, &aux.dry })
+    {
+        if (bus->left && bus->right && subBlockOffset < bus->samples)
+        { bus->left += subBlockOffset; bus->right += subBlockOffset; bus->samples = std::min (numSamples, bus->samples - subBlockOffset); }
+        else *bus = {};
+    }
+    referencePedals.setAuxOutputs (aux);
+    referencePedals.beginBlock (midiMessages, boardHost, numSamples);
 
     const auto startTicks = juce::Time::getHighResolutionTicks();
 
@@ -3456,6 +3482,7 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
             dr[(size_t) i] = instrumentBuffer[(size_t) i];
         }
 
+        referencePedals.processStereo (dl.data(), dr.data(), numSamples, reference::Placement::beforeExistingPre);
         preEffects.processStereo (dl.data(), dr.data(), numSamples);
 
         // FEAT-SAT: the closing saturation stage; a true bypass at 0 %.
@@ -3523,6 +3550,7 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         }
 
         postEffects.processStereo (dl.data(), dr.data(), numSamples);
+        referencePedals.processStereo (dl.data(), dr.data(), numSamples, reference::Placement::afterExistingPost);
 
         for (int i = 0; i < numSamples; ++i)
         {
@@ -3571,6 +3599,14 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
                                  juce::jmin (numSamples, cabinet.getMicTapNumSamples()));
     }
 
+    if (referencePedals.isActive())
+    {
+        for (int i = 0; i < numSamples; ++i)
+        { pedalScratchL[(size_t) i] = workBuffer.getSample (0, i); pedalScratchR[(size_t) i] = workBuffer.getSample (1, i); }
+        referencePedals.processStereo (pedalScratchL.data(), pedalScratchR.data(), numSamples, reference::Placement::postCab);
+        for (int i = 0; i < numSamples; ++i)
+        { workBuffer.setSample (0, i, (float) pedalScratchL[(size_t) i]); workBuffer.setSample (1, i, (float) pedalScratchR[(size_t) i]); }
+    }
     room.processBlock (workBuffer);
 
     // Aux 5: the room alone.
@@ -3664,6 +3700,17 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
     qualityAfterBlock (buffer);   // cpu-quality-modes 2.5: silence for a hard switch
 
+    referencePedals.endBlock (midiMessages);
+    reference::MidiEvent boardMidi[256];
+    const int boardMidiCount = referencePedals.drainMidiOut (boardMidi, 256);
+    for (int i = 0; i < boardMidiCount; ++i)
+    {
+        const auto& event = boardMidi[i];
+        const juce::uint8 bytes[] { event.status, event.d1, event.d2 };
+        const int size = juce::MidiMessage::getMessageLengthFromFirstByte (event.status);
+        if (size > 0 && size <= 3 && ! BoundedMidi::add (referenceMidiOut, bytes, size, event.offset + subBlockOffset))
+            midiOverflowDrops.fetch_add (1, std::memory_order_relaxed);
+    }
     samplePosition += numSamples;
 
     // ---- CPU estimate ----------------------------------------------------------
@@ -3687,6 +3734,7 @@ int LuthierEngine::getLatencySamples() const noexcept
 {
     int latency = 0;
 
+    latency += referencePedals.getLatencySamples();
     latency += body.getLatencySamples();
     latency += cabinet.getLatencySamples();
     latency += preEffects.getLatencySamples();

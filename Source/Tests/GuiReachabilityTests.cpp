@@ -27,6 +27,8 @@
 #include "../UI/Overlays.h"
 #include "../UI/OptionsPages.h"
 #include "../UI/PracticePanel.h"
+#include "../UI/ReferencePedalDrawer.h"
+#include "../ReferencePedals/PedalRegistry.h"
 #include "../UI/Widgets.h"
 #include "../UI/GuitarBodyComponent.h"
 #include "../UI/RightHandGroup.h"
@@ -149,6 +151,7 @@ namespace
         juce::StringArray views;
         juce::StringArray problems;
         int operated = 0;
+        std::set<juce::String> expectedReferenceParameters;
     };
 
     //==========================================================================
@@ -209,6 +212,11 @@ namespace
         else if (auto* t = dynamic_cast<juce::Button*> (c))
         {
             juce::Component::SafePointer<juce::Button> safe (t);
+            if ((bool)t->getProperties()["referenceMomentary"])
+            {
+                t->setState(juce::Button::buttonDown);drain();
+                t->setState(juce::Button::buttonNormal);drain();return ids;
+            }
             const bool was = t->getToggleState();
             t->setToggleState (! was, juce::sendNotificationSync); drain();
 
@@ -353,10 +361,11 @@ namespace
             const bool isMask   = dynamic_cast<StringMaskSelector*> (c) != nullptr;
             const bool isCustom = dynamic_cast<StringToolCell*> (c) != nullptr || dynamic_cast<PositionPad*> (c) != nullptr;
             auto* button = dynamic_cast<juce::Button*> (c);
+            const bool isMomentary = button != nullptr && (bool)button->getProperties()["referenceMomentary"];
             const bool isToggle = button != nullptr && button->getClickingTogglesState()
                                   && button->getRadioGroupId() == 0;
 
-            if (! (isSlider || isCombo || isToggle || isMask || isCustom))
+            if (! (isSlider || isCombo || isToggle || isMomentary || isMask || isCustom))
                 continue;
 
             if (! onScreen (c, &root) || operatedControls.count (c) > 0)
@@ -566,6 +575,27 @@ namespace
             editor->keyPressed (juce::KeyPress (juce::KeyPress::escapeKey));
             p.getPresetMorph().setEnabled (morphWasOn);
         }
+        // Follow the actual reference-board dock/settings/inspector flow. The
+        // model and the APVTS attachments are the ones used by this editor.
+        if (context == "reference-pedalboard")
+        {
+            if (auto* drawer=findOne<reference::Drawer>(root))
+            {
+                auto& board=drawer->boardRoot();if(board.onDock)board.onDock();else walk.problems.add(context+": dock action missing");editor->resized();
+                scanView(context+"/Dock",root,p,rec,walk,operated);
+                board.openSettings();scanView(context+"/Settings",root,p,rec,walk,operated);
+                board.keyPressed({juce::KeyPress::escapeKey,juce::ModifierKeys(),0});
+                const auto order=p.getEngine().getReferencePedals().model().getOrder();
+                for(const auto& id:order)if(auto* pedal=board.boardCanvas().viewFor(id))
+                {
+                    if(board.boardCanvas().onFocus)board.boardCanvas().onFocus(*pedal);
+                    pedal->showInspector();scanView(context+"/Inspector/"+id.toString(),root,p,rec,walk,operated);pedal->closeInspector();
+                }
+                drawer->setOpen(false);editor->resized();
+            }
+            else walk.problems.add(context+": reference board drawer missing");
+        }
+
     }
 
     /** The contexts the walk runs in, so every conditional panel appears. */
@@ -636,6 +666,30 @@ namespace
                             r.setIndex (ParamIDs::slotType (chain == 1, s), type);
                         }
                 } });
+
+        contexts.push_back({"reference-pedalboard",[&walk](Rig& r)
+        {
+            reference::PedalRegistry::registerAll();auto& board=r.p().getEngine().getReferencePedals().model();
+            for(const auto& id:board.getOrder())board.apply(reference::cmd::Remove{id});
+            board.apply(reference::cmd::SetBoardParam{"cpuCapPct",100});
+            const reference::PedalDesc* richest=nullptr;int lanes=-1;
+            for(const auto* descriptor:reference::PedalRegistry::all())
+            {
+                const int count=reference::PedalRegistry::laneMap(descriptor->modelId).numLanes;
+                if(count>lanes){richest=descriptor;lanes=count;}
+            }
+            if(!richest){walk.problems.add("reference-pedalboard: no registered models");return;}
+            for(int slot=0;slot<reference::kMaxSlots;++slot)
+            {
+                juce::String error;if(!board.apply(reference::cmd::Add{richest->modelId},&error)){walk.problems.add("reference-pedalboard: Add failed: "+error);break;}
+            }
+            for(const auto& id:board.getOrder())if(const auto instance=board.getInstance(id))
+            {
+                const auto prefix="ref_s"+juce::String(instance->slot+1).paddedLeft('0',2)+"_";
+                for(const auto* suffix:{"enabled","in_db","out_db","pos"})walk.expectedReferenceParameters.insert(prefix+suffix);
+                const auto& map=reference::PedalRegistry::laneMap(instance->modelId.c_str());for(int lane=0;lane<map.numLanes;++lane)walk.expectedReferenceParameters.insert(prefix+"p"+juce::String(lane+1).paddedLeft('0',2));
+            }
+        }});
 
         numContexts = (int) contexts.size();
 
@@ -718,6 +772,14 @@ LUTHIER_TEST (GuiReach, everyAutomatableParameterHasAVisibleControl)
 
     for (auto& id : hiddenOnly)
         CHECK_MSG (false, id + " has a control that never appears on screen in any view walked");
+
+    // Empty processor lanes may be non-automatable. Every real lane populated
+    // by the reference context must still have been reached and operated.
+    for(const auto& id:walk.expectedReferenceParameters)
+    {
+        const auto it=walk.reach.find(id);CHECK_MSG(it!=walk.reach.end()&&!it->second.visibleIn.empty(),id+" has no visible control in populated reference board");
+        CHECK_MSG(it!=walk.reach.end()&&it->second.operatedOk,id+" was not operated through its actual reference control");
+    }
 
     for (auto& p : walk.problems)
         CHECK_MSG (false, p);

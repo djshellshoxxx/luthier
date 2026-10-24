@@ -204,6 +204,9 @@ jobs:
         if: runner.os != 'Windows'
         env:
           LUTHIER_LTO: ${{ env.LTO }}
+          # Universal macOS builds compile each source for two architectures.
+          # Bound concurrent compiler processes to reduce runner memory pressure.
+          JOBS: ${{ runner.os == 'macOS' && '4' || '8' }}
         run: scripts/ci_build.sh configure build
       - name: Configure and build (Windows)
         id: build_windows
@@ -220,11 +223,16 @@ jobs:
           LUTHIER_NORMALIZATION_TRACE_KEYS: '1'
         shell: bash
         run: |
-          set -o pipefail
+          set -euo pipefail
+          mkdir -p "$BUILD_DIR/logs"
           runner="$BUILD_DIR/LuthierTests_artefacts/$CONFIG/LuthierTests"
+          if [ ! -x "$runner" ]; then
+            echo "::error::Early regression test runner missing or not executable: $runner" >&2
+            exit 1
+          fi
           wrap=()
           if [ "$RUNNER_OS" = Linux ]; then wrap=(xvfb-run -a); fi
-          "${wrap[@]}" "$runner" FactoryGuitarOverrideUsesSelectedInstrument CalibrationHashIgnoresPresetMetadata ON03_FactoryTableDoesNotDrift CQ23_ PracticeTrack \
+          ${wrap[@]+"${wrap[@]}"} "$runner" FactoryGuitarOverrideUsesSelectedInstrument CalibrationHashIgnoresPresetMetadata ON03_FactoryTableDoesNotDrift CQ23_ PracticeTrack \
             2>&1 | tee "$BUILD_DIR/logs/release-regressions.log"
 
       - name: Early release regression tests (Windows Pro)
@@ -333,7 +341,7 @@ jobs:
         if: inputs.package && runner.os == 'Linux'
         env:
           VERSION: ${{ inputs.version }}
-          BETA_README: ${{ inputs.version == '0.1.0-beta' && 'docs/beta/PRO-V01-RELEASE-NOTES.md' || '' }}
+          BETA_README: ${{ inputs.version == '0.1.0-beta2' && 'docs/beta/PRO-V01-BETA2-RELEASE-NOTES.md' || (inputs.version == '0.1.0-beta' && 'docs/beta/PRO-V01-RELEASE-NOTES.md' || '') }}
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: scripts/package_linux.sh
@@ -359,14 +367,16 @@ jobs:
           WINDOWS_CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
           WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
         run: |
-          if ($env:VERSION -eq '0.1.0-beta') {
+          if ($env:VERSION -eq '0.1.0-beta2') {
+            scripts/package_windows.ps1 -BetaReadme docs/beta/PRO-V01-BETA2-RELEASE-NOTES.md
+          } elseif ($env:VERSION -eq '0.1.0-beta') {
             scripts/package_windows.ps1 -BetaReadme docs/beta/PRO-V01-RELEASE-NOTES.md
           } else {
             scripts/package_windows.ps1
           }
 
       - name: Verify and archive universal Pro beta bundles
-        if: inputs.package && runner.os == 'macOS' && matrix.edition == 'PAID' && inputs.version == '0.1.0-beta'
+        if: inputs.package && runner.os == 'macOS' && matrix.edition == 'PAID' && (inputs.version == '0.1.0-beta' || inputs.version == '0.1.0-beta2')
         shell: bash
         run: |
           set -euo pipefail
@@ -375,9 +385,14 @@ jobs:
             lipo -verify_arch arm64 x86_64 "$bundle/Contents/MacOS/Luthier Pro"
             codesign --verify --deep --strict "$bundle"
           done
-          cp docs/beta/PRO-V01-RELEASE-NOTES.md "$DIST_DIR/macos/README-BETA.md"
+          if [ "${{ inputs.version }}" = "0.1.0-beta2" ]; then
+            beta_readme=docs/beta/PRO-V01-BETA2-RELEASE-NOTES.md
+          else
+            beta_readme=docs/beta/PRO-V01-RELEASE-NOTES.md
+          fi
+          cp "$beta_readme" "$DIST_DIR/macos/README-BETA.md"
           ditto -c -k --sequesterRsrc --keepParent "$DIST_DIR/macos" \
-            "$DIST_DIR/installers/Luthier-Pro-0.1.0-beta-macOS-universal.zip"
+            "$DIST_DIR/installers/Luthier-Pro-${{ inputs.version }}-macOS-universal.zip"
 
       - name: Upload installers
         if: inputs.package

@@ -17,11 +17,28 @@ import zipfile
 
 VERSION = "0.1.0-beta"
 TAG = "v0.1-beta"
-CONTRACT = {
-    "windows": (f"Luthier-Pro-{VERSION}-portable-win64.zip", f"Luthier-Pro-{TAG}-Windows-x64.zip"),
-    "linux": (f"Luthier-Pro-{VERSION}-linux-x64.tar.gz", f"Luthier-Pro-{TAG}-Linux-x64.tar.gz"),
-    "macos": (f"Luthier-Pro-{VERSION}-macOS-universal.zip", f"Luthier-Pro-{TAG}-macOS-universal.zip"),
-}
+
+
+def make_contract(version: str, tag: str) -> dict:
+    return {
+        "windows": (f"Luthier-Pro-{version}-portable-win64.zip", f"Luthier-Pro-{tag}-Windows-x64.zip"),
+        "linux": (f"Luthier-Pro-{version}-linux-x64.tar.gz", f"Luthier-Pro-{tag}-Linux-x64.tar.gz"),
+        "macos": (f"Luthier-Pro-{version}-macOS-universal.zip", f"Luthier-Pro-{tag}-macOS-universal.zip"),
+    }
+
+
+CONTRACT = make_contract(VERSION, TAG)
+
+
+def configure_release(version: str, tag: str) -> None:
+    """Bind all archive and provenance identities to one validated beta version."""
+    import re
+    if not re.fullmatch(r"0\.1\.0-beta[0-9]+", version):
+        raise ValueError("invalid beta version")
+    if tag != "v" + version:
+        raise ValueError("beta tag does not match version")
+    global VERSION, TAG, CONTRACT
+    VERSION, TAG, CONTRACT = version, tag, make_contract(version, tag)
 
 
 def executable(data: bytes, platform: str) -> bool:
@@ -159,8 +176,16 @@ def main() -> None:
     parser.add_argument("--input", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--source-sha", required=True)
+    parser.add_argument("--version", default=None,
+                        help="Explicit beta archive version, for example 0.1.0-beta2")
+    parser.add_argument("--tag", default=None,
+                        help="Matching immutable release tag, for example v0.1.0-beta2")
     args = parser.parse_args()
     try:
+        if (args.version is None) != (args.tag is None):
+            raise ValueError("version and tag must be specified together")
+        if args.version is not None:
+            configure_release(args.version, args.tag)
         prepare(args.input, args.output, args.source_sha)
     except (ValueError, OSError, zipfile.BadZipFile, tarfile.TarError) as error:
         parser.exit(1, f"release asset validation failed: {error}\n")

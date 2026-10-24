@@ -1,0 +1,192 @@
+# Only reviewed PR #77 merging into master authorizes this beta2 publication.
+# Other PR merges, forks and tag pushes cannot activate this workflow.
+name: Luthier Pro v0.1.0 Beta 2
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: luthier-pro-v010-beta2-publication
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    if: >-
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.number == 77 &&
+      github.event.pull_request.head.ref == 'codex/preflight-build-hardening-2026-10-20'
+    runs-on: ubuntu-latest
+    outputs:
+      source-sha: ${{ steps.source.outputs.sha }}
+    steps:
+      - name: Validate immutable merged source and refuse existing release
+        id: source
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const sha = pr.merge_commit_sha;
+            if (!/^[0-9a-f]{40}$/.test(sha || '')) {
+              throw new Error('Missing exact merge commit SHA');
+            }
+            const repo = {owner: context.repo.owner, repo: context.repo.repo};
+            const absent = async (route, params) => {
+              try { await github.request(route, {...repo, ...params}); }
+              catch (error) { if (error.status === 404) return; throw error; }
+              throw new Error('v0.1.0-beta2 already exists; refusing to overwrite');
+            };
+            await absent('GET /repos/{owner}/{repo}/git/ref/{ref}', {ref: 'tags/v0.1.0-beta2'});
+            await absent('GET /repos/{owner}/{repo}/releases/tags/{tag}', {tag: 'v0.1.0-beta2'});
+            core.setOutput('sha', sha);
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.source.outputs.sha }}
+          persist-credentials: false
+
+      - name: Check numeric project version and release preparation tests
+        run: |
+          python3 - <<'PY'
+          import pathlib
+          import re
+          text = pathlib.Path('CMakeLists.txt').read_text()
+          if not re.search(r'^project\(Luthier VERSION 0\.1\.0(?:\s|\))', text, re.MULTILINE):
+              raise SystemExit('Pro beta requires project VERSION 0.1.0')
+          PY
+          python3 -m unittest discover -s scripts -p 'test_prepare_pro_beta_assets.py' -v
+
+  build:
+    name: Verify and package Pro on all platforms
+    needs: preflight
+    uses: ./.github/workflows/build.yml
+    with:
+      platforms: linux,windows,macos
+      editions: pro
+      strictness: 10
+      lto: true
+      package: true
+      version: 0.1.0-beta2
+      ref: ${{ needs.preflight.outputs.source-sha }}
+    secrets: inherit
+
+  publish:
+    name: Publish verified v0.1.0-beta2 assets
+    needs: [preflight, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.preflight.outputs.source-sha }}
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: installers-PAID-*
+          path: beta-input
+          merge-multiple: false
+
+      - name: Validate actual binaries and prepare checksums
+        env:
+          SOURCE_SHA: ${{ needs.preflight.outputs.source-sha }}
+        run: |
+          python3 scripts/prepare_pro_beta_assets.py --input beta-input --output beta-release \
+            --source-sha "$SOURCE_SHA" --version 0.1.0-beta2 --tag v0.1.0-beta2
+          cd beta-release
+          sha256sum --check SHA256SUMS
+
+      - name: Refuse existing tag or release immediately before publication
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const repo = {owner: context.repo.owner, repo: context.repo.repo};
+            for (const [route, params] of [
+              ['GET /repos/{owner}/{repo}/git/ref/{ref}', {ref: 'tags/v0.1.0-beta2'}],
+              ['GET /repos/{owner}/{repo}/releases/tags/{tag}', {tag: 'v0.1.0-beta2'}]
+            ]) {
+              try { await github.request(route, {...repo, ...params}); }
+              catch (error) { if (error.status === 404) continue; throw error; }
+              throw new Error('v0.1.0-beta2 appeared during the build; refusing to overwrite');
+            }
+
+      # Create the tag only after every build and archive gate succeeds. The
+      # API fails atomically if another actor created this name in the meantime.
+      - name: Tag exactly the verified merge commit
+        uses: actions/github-script@v7
+        env:
+          SOURCE_SHA: ${{ needs.preflight.outputs.source-sha }}
+        with:
+          script: |
+            await github.rest.git.createRef({
+              owner: context.repo.owner, repo: context.repo.repo,
+              ref: 'refs/tags/v0.1.0-beta2', sha: process.env.SOURCE_SHA
+            });
+
+      # Upload to a draft first so the public release never has partial assets.
+      # A failure leaves that draft for investigation; retries refuse to overwrite.
+      - name: Create complete prerelease at the verified merge SHA
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SOURCE_SHA: ${{ needs.preflight.outputs.source-sha }}
+        run: |
+          set -euo pipefail
+          gh release create v0.1.0-beta2 --verify-tag --target "$SOURCE_SHA" \
+            --title 'Luthier Pro v0.1.0 Beta 2' --draft --prerelease \
+            --notes-file docs/beta/PRO-V01-BETA2-RELEASE-NOTES.md beta-release/*
+          gh release edit v0.1.0-beta2 --draft=false --prerelease
+
+      - name: Verify published metadata, tag and complete asset list
+        uses: actions/github-script@v7
+        env:
+          SOURCE_SHA: ${{ needs.preflight.outputs.source-sha }}
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const crypto = require('crypto');
+            const repo = {owner: context.repo.owner, repo: context.repo.repo};
+            const {data: release} = await github.rest.repos.getReleaseByTag({...repo, tag: 'v0.1.0-beta2'});
+            if (release.draft || !release.prerelease || release.tag_name !== 'v0.1.0-beta2' ||
+                release.name !== 'Luthier Pro v0.1.0 Beta 2') {
+              throw new Error('Published release metadata does not match the verified Pro beta');
+            }
+            const {data: tag} = await github.rest.git.getRef({...repo, ref: 'tags/v0.1.0-beta2'});
+            if (tag.object.type !== 'commit' || tag.object.sha !== process.env.SOURCE_SHA) {
+              throw new Error('Published tag does not resolve to the verified merge commit');
+            }
+            const expected = fs.readdirSync('beta-release').sort();
+            const actual = release.assets.map(asset => asset.name).sort();
+            if (JSON.stringify(expected) !== JSON.stringify(actual)) {
+              throw new Error('Published asset names differ from the complete verified payload');
+            }
+            for (const asset of release.assets) {
+              const local = fs.readFileSync(path.join('beta-release', asset.name));
+              if (asset.state !== 'uploaded' || asset.size <= 0 || asset.size !== local.length) {
+                throw new Error(`Published asset is incomplete: ${asset.name}`);
+              }
+              const digest = 'sha256:' + crypto.createHash('sha256').update(local).digest('hex');
+              if (asset.digest && asset.digest !== digest) {
+                throw new Error(`Published asset digest mismatch: ${asset.name}`);
+              }
+            }
+            core.info(`Published metadata and asset digests verified: ${release.html_url}`);
+
+      - name: Download published assets and verify every checksum
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh release download v0.1.0-beta2 --dir beta-published \
+            --pattern 'Luthier-Pro-v0.1.0-beta2-*' --pattern SHA256SUMS --pattern BUILD-PROVENANCE.json
+          cmp beta-release/SHA256SUMS beta-published/SHA256SUMS
+          cd beta-published
+          sha256sum --check ../beta-release/SHA256SUMS

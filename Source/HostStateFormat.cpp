@@ -37,7 +37,7 @@ namespace
             "preset", "midiLearn", "ui", "setlist", "lockedParameters", "slotBActive",
             "routing", "modulation", "rhythm", "snapshots", "liveMode", "controllerProfile",
             "character", "stability", "toneMatch", "metronome", "clickToMain", "normalization",
-            "tune", "presetMorphPosition", "formatVersion", "savedBy",
+            "referencePedals", "tune", "presetMorphPosition", "formatVersion", "savedBy",
             "aftertouchBends", "bankSelectsPreset",
             "jamPlayValue", "jamFillNowValue"   // jam-mode 10 (FEAT-JAM)
         };
