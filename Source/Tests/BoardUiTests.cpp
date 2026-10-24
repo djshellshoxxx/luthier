@@ -76,3 +76,18 @@ LUTHIER_TEST (RefPedalUi, rejectedEditRestoresNativeControlState)
     bypass->setToggleState(false,juce::dontSendNotification);CHECK(!bypass->getToggleState());
     CHECK(!model.apply(cmd::Move{InstanceId::null(),999}));CHECK(bypass->getToggleState()==model.getInstance(model.getOrder()[0])->enabled);
 }
+LUTHIER_TEST (RefPedalUi, canvasUsesPhysicalFaceSize)
+{
+    PedalRegistry::registerAll();BoardModel model;CHECK(model.apply(cmd::Add{"generic.boost"}));
+    BoardCanvas canvas(model);auto* view=canvas.viewFor(model.getOrder()[0]);CHECK(view!=nullptr);if(!view)return;
+    CHECK_NEAR(view->getWidth(),54*1.6,.5);CHECK_NEAR(view->getHeight(),90*1.6,.5);
+}
+LUTHIER_TEST (RefPedalUi, inspectorIsNonmodalAndClosesWithItsPedal)
+{
+    PedalRegistry::registerAll();BoardModel model;CHECK(model.apply(cmd::Add{"generic.boost"}));
+    BoardRoot root(model);root.setSize(1100,520);auto* view=root.boardCanvas().viewFor(model.getOrder()[0]);
+    view->showInspector();CHECK(juce::Component::getCurrentlyModalComponent()==nullptr);
+    int callouts=0;for(auto* child:root.getChildren())if(dynamic_cast<juce::CallOutBox*>(child))++callouts;CHECK(callouts==1);
+    CHECK(model.apply(cmd::Remove{model.getOrder()[0]}));
+    callouts=0;for(auto* child:root.getChildren())if(dynamic_cast<juce::CallOutBox*>(child))++callouts;CHECK(callouts==0);
+}

@@ -10,13 +10,14 @@ bool KnobControl::keyPressed(const juce::KeyPress& key)
     if(c==juce::KeyPress::upKey||c==juce::KeyPress::rightKey||c==juce::KeyPress::downKey||c==juce::KeyPress::leftKey)
     {
         const auto step=key.getModifiers().isCommandDown()?.001:key.getModifiers().isShiftDown()?.1:.01;
+        juce::Slider::ScopedDragNotification drag(*this);
         setValue(getValue()+((c==juce::KeyPress::upKey||c==juce::KeyPress::rightKey)?step:-step),juce::sendNotificationSync);return true;
     }
     return juce::Slider::keyPressed(key);
 }
 void KnobControl::mouseWheelMove(const juce::MouseEvent&,const juce::MouseWheelDetails& wheel)
 {
-    const auto delta=wheel.deltaY!=0?wheel.deltaY:wheel.deltaX;if(delta!=0)setValue(getValue()+(delta>0?.01:-.01),juce::sendNotificationSync);
+    const auto delta=wheel.deltaY!=0?wheel.deltaY:wheel.deltaX;if(delta!=0){juce::Slider::ScopedDragNotification drag(*this);setValue(getValue()+(delta>0?.01:-.01),juce::sendNotificationSync);}
 }
 void KnobControl::mouseDown(const juce::MouseEvent& event){startValue=getValue();juce::Slider::mouseDown(event);}
 void KnobControl::mouseDrag(const juce::MouseEvent& event)
