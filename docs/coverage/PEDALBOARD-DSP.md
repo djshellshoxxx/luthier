@@ -683,3 +683,23 @@ The linked descriptor fixture verifies all original amounts and all 14 scales:
 **28 checks, zero failures**. Reproduce with
 `pedalboard-dsp-evidence/run-dsp-cpu-units-tests.sh`; raw output is adjacent.
 No audio processing, allocation, state serialization or threshold changed.
+
+
+## Independently reviewed paired biquad helper
+
+Timefx helpera56bf0e9 (locald35ce0f8) adds a static two-filter processing entry
+point. SSE2 lanes retain each filter's existing direct-form-II association and
+finite/denormal guards. Passing the same filter twice takes the explicitly
+sequential scalar path. FMA/AVX2/fast-math targets use scalar processing to retain
+the compiler's scalar arithmetic contract. Existing single-filter processing,
+shelf slope, peak response, storage layout and reset are unchanged.
+
+Independent read-only inspection found no mask, lane, state-order or aliasing
+issue. Fresh local runs each pass **933,888 bitwise checks**: O1 ASan+UBSan+leak
+detection, and O3 `-mavx2 -mfma` fallback. Both stderr files are empty. Raw outputs
+and `run-biquad-pair-review.sh` are in the evidence directory. The oracle covers
+seven rates, coefficient changes, resets, hostile inputs and shared-object use.
+Windows/ARM compiler behavior still requires those platform builds.
+
+This is helper acceptance only. Timefx measured no actual DD3T CPU improvement
+and reverted its product use; no pedal CPU gate is closed by this helper.

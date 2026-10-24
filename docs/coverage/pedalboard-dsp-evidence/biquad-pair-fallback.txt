@@ -1,0 +1,3 @@
+RefPedalBiquadPair::scalarBitOracleThroughCoefficientsResetsAndHostileSamples 917504 checks 0 failures
+RefPedalBiquadPair::aliasedFiltersUseSequentialScalarState 16384 checks 0 failures
+TOTAL 933888 checks 0 failures
