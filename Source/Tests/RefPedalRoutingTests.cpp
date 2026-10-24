@@ -34,6 +34,7 @@ void registerDelayed() { PedalRegistry::add (delayedDesc, makeDelayed); }
 
 LUTHIER_TEST (RefPedalRouting, parallelLatencyAndPolarityCompileAndRender)
 {
+    PedalRegistry::TestScope registryScope;
     registerDelayed();
     Board board; board.prepare (48000, 128);
     PedalInstance delayed; delayed.modelId = "test.delayed"; delayed.slot = 0; delayed.lane = 0;
@@ -55,6 +56,7 @@ LUTHIER_TEST (RefPedalRouting, parallelLatencyAndPolarityCompileAndRender)
 
 LUTHIER_TEST (RefPedalRouting, slotBypassAndBoardDryHaveIdenticalLatency)
 {
+    PedalRegistry::TestScope registryScope;
     registerDelayed();
     for (float mix : { 0.f, 0.5f, 1.f })
     {
@@ -73,6 +75,7 @@ LUTHIER_TEST (RefPedalRouting, slotBypassAndBoardDryHaveIdenticalLatency)
 
 LUTHIER_TEST (RefPedalRouting, segmentLatencyIsSummedAndDryIsSegmentLocal)
 {
+    PedalRegistry::TestScope registryScope;
     registerDelayed();
     Board board; board.prepare (48000, 128);
     PedalInstance a, b; a.modelId = b.modelId = "test.delayed"; a.slot = 0; b.slot = 1;
