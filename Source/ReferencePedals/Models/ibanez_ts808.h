@@ -24,9 +24,11 @@ class IbanezTs808 final : public common::CircuitPedal<9>
     void prepare(double, int, int) override;
     void reset() noexcept override;
     void process(double *, double *, int) noexcept override;
+    void processBypass(double *, double *, int) noexcept override;
     void setServices(const PedalServices &s) override { seed = s.instanceSeed; }
 
   private:
+    std::array<common::OnePole, 2> bypassHp, bypassLp;
     void update() noexcept;
     std::array<common::FeedbackDiodeStage, 2> clip;
     std::array<common::OnePole, 2> inputHp, couplingHp, gbw, postClip, toneLp, outputHp;

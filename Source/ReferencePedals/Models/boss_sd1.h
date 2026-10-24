@@ -14,17 +14,19 @@ class BossSd1 final : public common::CircuitPedal<15>
   public:
     BossSd1();
     static const PedalDesc &descriptor() noexcept;
-    bool controlAvailable(int i) const noexcept { return i >= 0 && i < 15 && i != 7; }
+    bool controlAvailable(int i) const noexcept { return i >= 0 && i < 15; }
     bool qualityAvailable(int quality) const noexcept { return quality == 1; }
     void setParam(int, float) noexcept override;
     void prepare(double, int, int) override;
     void reset() noexcept override;
     void process(double *, double *, int) noexcept override;
+    void processBypass(double *, double *, int) noexcept override;
     void onFoot(const FootEvent &) noexcept override;
     void onMidi(const MidiEvent &) noexcept override;
     void setExpression(int, float) noexcept override;
 
   private:
+    std::array<common::OnePole, 2> bypassHp, bypassLp;
     void controls() noexcept;
     void update() noexcept;
     std::array<std::array<common::AsymmetricFeedbackDiodeStage, 3>, 2> clip;

@@ -46,6 +46,11 @@ void IbanezTs808::prepare(double rate, int, int policy)
         postClip[c].setLowpass(os[c].rate(), 20000);
         clip[c].prepare(os[c].rate());
     }
+    for (int c = 0; c < 2; ++c)
+    {
+        bypassHp[c].setLowpass(sr, 8);
+        bypassLp[c].setLowpass(sr, 35000);
+    }
     reset();
 }
 void IbanezTs808::update() noexcept
@@ -61,6 +66,11 @@ void IbanezTs808::update() noexcept
 }
 void IbanezTs808::reset() noexcept
 {
+    for (int c = 0; c < 2; ++c)
+    {
+        bypassHp[c].reset();
+        bypassLp[c].reset();
+    }
     resetCircuit();
     random = seed ? seed : 1;
     for (int c = 0; c < 2; ++c)
@@ -75,6 +85,18 @@ void IbanezTs808::reset() noexcept
         clip[c].reset();
     }
     update();
+}
+void IbanezTs808::processBypass(double *l, double *r, int n) noexcept
+{
+    if (!l || !r)
+        return;
+    for (int i = 0; i < n; ++i)
+    {
+        const double a = bypassLp[0].process(bypassHp[0].highpass(bounded(l[i])));
+        const double b = bypassLp[1].process(bypassHp[1].highpass(bounded(r[i])));
+        l[i] = a;
+        r[i] = b;
+    }
 }
 void IbanezTs808::process(double *l, double *r, int n) noexcept
 {

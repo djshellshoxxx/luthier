@@ -1,0 +1,8 @@
+SD1 coloured bypass sr44100 f40 gain -0.571426405dB (original ±.1dB40..15k gate)
+SD1 coloured bypass sr44100 f15000 gain -0.014198662dB (original ±.1dB40..15k gate)
+SD1 coloured bypass sr48000 f40 gain -0.571426788dB (original ±.1dB40..15k gate)
+SD1 coloured bypass sr48000 f15000 gain -0.009598191dB (original ±.1dB40..15k gate)
+SD1 coloured bypass sr96000 f40 gain -0.571428870dB (original ±.1dB40..15k gate)
+SD1 coloured bypass sr96000 f15000 gain -0.088186914dB (original ±.1dB40..15k gate)
+SD1 coloured bypass sr192000 f40 gain -0.571431890dB (original ±.1dB40..15k gate)
+SD1 coloured bypass sr192000 f15000 gain -0.439768370dB (original ±.1dB40..15k gate)

@@ -18,9 +18,11 @@ class BossDs1 final : public common::CircuitPedal<8>
     void prepare(double, int, int) override;
     void reset() noexcept override;
     void process(double *, double *, int) noexcept override;
+    void processBypass(double *, double *, int) noexcept override;
     void setServices(const PedalServices &s) override { seed = s.instanceSeed; }
 
   private:
+    std::array<common::OnePole, 2> bypassHp, bypassLp;
     void update() noexcept;
     std::array<common::LinearGainStage, 2> amplifier;
     std::array<common::NewtonClipper, 2> diode;

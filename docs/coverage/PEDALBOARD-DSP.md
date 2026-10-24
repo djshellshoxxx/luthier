@@ -209,10 +209,134 @@ Unimplemented or unresolved original requirements:
 Diagnostic one-second coherent1k measurements after one-second settle use
 -20dBFS **peak** input (50mV for Distortion+,122.835mV for RAT), not the
 100mV hardware-test stimulus. At48k and drive.5: Distortion+ THD20.7905%,
-RAT THD31.7936% (see raw exact table), no acoustic acceptance inferred at the
+RAT THD31.8417% (see raw exact table), no acoustic acceptance inferred at the
 wrong amplitude. Max-drive5k full-scale4x spectra: Distortion+ largest false
 harmonic-60.891dBFS /-34.164dBc; RAT-38.601dBFS /-21.675dBc. These do not close
 original44.1/96k Distortion+ or1k RAT alias gates. Process-only stereo48k128
 thread CPU: Distortion+17.6537% versus.8%, RAT25.8257% versus1.2%: **FAIL**.
 Exact code/flags/machine methodology is the WP11 method above. Raw evidence is
 `named-drives-wp12-measurements.txt` and `named-drives-wp12-alias.txt`.
+
+## WP13 complete candidate inventory and finite evidence, 2026-10-24
+
+NYC, Tone Wicker, Green Russian and Deluxe Muff now have separate unregistered
+processors and complete reconciled parameter inventories (8/15/8/18). NYC and
+Wicker share `ehx_muff_core.h`; Green and Deluxe use their own prescribed,
+explicitly estimated algorithms. These are not generic-fuzz aliases, and none is
+advertised as faithful to hardware. All owned named source pairs now contain
+processing; acceptance and integration remain substantially incomplete.
+`registerDriveA`, `registerDriveB`, and `registerMuffs` remain empty. The earlier
+WIP Dyna Comp registration was removed in6d25e80e, since its gates still fail.
+
+The NYC core uses the actual stated base/collector feedback KCL with Rbe25k,
+open-loop A150, Rf470k, dynamic Cf, two sign-inverting stages, coupling filters,
+loaded sustain divider and the exact two-node tone transfer. Its independent
+long-double physical-capacitor oracle and all50 tone-table points across three
+rates pass:49,602 checks. This validates the specified estimates mathematically,
+not a real unit. The bounded solver currently allows8 Newton iterations rather
+than the prescribed4/6; original solver/CPU limits remain open.
+
+**Explicitly permitted NYC level calibration:** §3.4 and T-LEVEL direct the
+implementation to tune Gcal. The literal estimated Gcal4 gave+13.063634348dB gain
+at48k4x,1kHz100mVpeak, sustain/tone/volume=.5, supply9V, loaded-divider model.
+The original-6..+6dB acceptance test failed at all four rates. Fixing Gcal to
+0.88895192336804296 (4×10^(-13.063634348/20)) gives0dB at that reference and passes
+the same original gate at44.1/48/96/192k. This is one fixed output scalar, with no
+per-drive compensation or clipping-law change. The shared Wicker chain becomes
+-.392994dB at the same settings. Baseline and revised measurements are both
+retained. THD and alias dBc remain unchanged; the THD failures are not hidden.
+
+Wicker implements both switch ramps, continuous morph of the two feedback
+capacitors470pF→22pF and the prescribed estimated W3 pole6k→60k, live tone bypass,
+trim, supply, seeded optional noise, and bounded delayed80–800Hz howl. Tone-out
+invariance is tested exactly. Automatic OS switching and the reserved op-amp
+revision remain explicitly labelled/queryable unavailable. Fixed quality changes
+still require prepare, and no auto-OS equivalence is claimed. Noise amplitude is
+an estimate, not calibrated to a captured unit. Enable pre-roll/input-history
+handoff from the board remains unimplemented for NYC/Wicker.
+
+Continuation review corrected the Wicker howl read-before-write age by one
+sample: a stored output already has age one when the next frame reads it.
+The line therefore reads `0.005*sampleRate-1` before pushing the current output.
+The independent impulse-centroid fixture retains exactly 5ms at all four
+tested rates, including the fractional 220.5-sample case at44.1k. The complete
+named sanitizer suite was rerun after the source correction with the same
+11,264,866 checks; the additional timing fixture is recorded separately in
+`wicker-feedback-age-tests.txt` (24,012 checks, zero failures).
+
+Green follows its distinct closed-form asinh+feedback-pole approximation with
+no Newton iterations, biased Q1/Q4, log-domain gain ramps, pressure modulation,
+physical tone RC values and the specified estimated insertion-loss endpoints.
+The source omits several numerical laws; this candidate explicitly chooses:
+Rf470k from the shared family estimate, clipping gains1+99×audioPot and47,
+interstage cutoff100−90×audioPot Hz, and loss-9−44T(1−T)dB. Those are new estimates,
+not sourced component values or adopted specification corrections. It uses the
+physical first-order RC branches from §3 rather than the inconsistent second-
+order wording in §4. Their overlapping corners do not establish the required
+15–25dB relative notch. That original notch gate remains open. Input loading is
+unavailable because no upstream-source impedance is supplied by IPedal.
+
+Deluxe implements its separate estimated booster/clipping topology, nodal tone,
+bass shelf, mids peak/Q/switch, expression, gate hysteresis/hold/link, and
+behavioural transient path. Gate detector and attack are delayed by the actual
+oversampler latency to align with the wet circuit. Missing unpublished node
+values are explicitly estimated as10k source and100k shunt resistance; stage
+gain30dB, feedback-pole100k/470p and recovery22dB come from the source estimates.
+Volume uses10L² to represent the stated+20dB maximum gain. **That uncalibrated
+chain is far too loud** (+41.596dB reference gain) and reaches the mandated±16
+safety guard under strong input; no useful product-level calibration or fidelity
+claim is made. The original limits remain unchanged. Bass uses the existing RBJ
+shelf with default slope rather than the prescribedS=.7. Coefficient interpolation,
+minimum-phase oversampling, dynamic sustain-dependent factor changes, exact
+attack/gate quantitative gates and product-noise calibration remain incomplete.
+
+Finite evidence:
+- Initial family suite:11cases /7,381,148 checks, zero failures; later original
+  NYC level gate:4 assertions, failed before calibration and passed after.
+- Latest combined named suite: **24cases /11,264,866 checks, zero failures** with
+  ASan+UBSan+leak detection and the callback allocation counter. stderr is empty.
+  Covers nine new named pedals (Dyna has its earlier separate evidence), four
+  sample rates, exact1/37/2048 partition equality, stereo independence, silence/
+  reset, hostile inputs, parameter/MIDI/expression stress and buffer-only calls.
+  This is not a30-minute soak, all required buffer/rate combinations, hardware
+  comparison or full registry/host acceptance.
+- Reproduce using `pedalboard-dsp-evidence/run-named-candidate-tests.sh`; it uses
+  the coordinator's cached JUCE core object, with an override variable documented
+  in the script. Actual checks are in `named-candidates-asan-tests.txt`.
+
+At48k,4x, default tone/volume,1kHz100mVpeak (Deluxe50mV because its calibration is
+.5V/FS), original limits are preserved:
+
+| Model | THD at sustain.5 | Largest false harmonic,5kFS diagnostic | Stereo callback CPU |
+|---|---:|---:|---:|
+| NYC |57.5365% vs15–35%:FAIL| -40.169dBc |20.9558% vs2%:FAIL|
+| Wicker OFF |49.8927% vs15–35%:FAIL| -40.348dBc |19.4827% vs2.5%:FAIL|
+| Green |10.7872% vs15–40%:FAIL| -19.567dBc vs-60:FAIL |4.8025%; prescribed1.5% is summed mono, not this stereo measurement|
+| Deluxe |76.8565%; required.1/1 sustain gates still open| -25.186dBc; required2.5–4k stimulus still open |17.5030% vs2.5%:FAIL|
+
+CPU method/flags/machine match the WP11 evidence above.5k48k is an explicit
+stress diagnostic; it does not substitute for the NYC/Wicker1.2k or Deluxe2.5–4k
+original alias tests. At1.2k48k, folded products coincide with harmonic bins, so
+merely masking harmonics in an FFT would falsely certify alias rejection; a
+high-rate independent reference is still required. No false pass is reported.
+
+## E60 buffer-only bypass hook implementation
+
+Parent's additive IPedal header1d69e090 was cherry-picked as8c40559f. TS808, DS-1,
+and SD-1 now override `processBypass` using independent prepared filter states;
+Deluxe supports its true/buffered option too. The board provides the already
+latency-aligned dry stream and owns the sole enable crossfade. No additional
+sample delay or internal wet/dry fade is introduced. SD-1 `buffer_colour` is now
+available; the earlier unavailable entry is superseded. Its colour-off path is
+bit-exact while the filter histories continue to advance. TS variable bypass
+fade remains unavailable because E60 does not configure the board ramp duration.
+
+Tests first failed all three changed-output assertions with the default no-op
+hook, then passed **24,779 checks**, including proof that bypass histories do not
+alter wet histories and exact SD-1 colour-off samples. TS uses its specified8Hz
+bypass HP and an explicitly estimated35kHz LP (>30k); DS-1 uses2Hz/35k; SD-1
+uses literal15Hz/40k. The helper clamps unrepresentable cutoffs to.49fs. The SD-1
+original±.1dB40Hz–15k gate **fails**:40Hz is-.57143dB at all rates, and15k is
+-.43977dB at192k. These follow from the literal poles; no cutoff was silently
+changed to force a pass. Raw measurements and source are retained as
+`named-buffer-measurements.txt` and `measure-named-buffers.cpp`.

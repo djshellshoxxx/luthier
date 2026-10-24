@@ -50,6 +50,11 @@ void BossDs1::prepare(double rate, int, int policy)
         toneLp[c].setLowpass(sr, 1 / (2 * common::pi * 6800 * .1e-6));
         toneHp[c].setLowpass(sr, 1 / (2 * common::pi * 2200 * .022e-6));
     }
+    for (int c = 0; c < 2; ++c)
+    {
+        bypassHp[c].setLowpass(sr, 2);
+        bypassLp[c].setLowpass(sr, 35000);
+    }
     reset();
 }
 void BossDs1::update() noexcept
@@ -60,6 +65,11 @@ void BossDs1::update() noexcept
 }
 void BossDs1::reset() noexcept
 {
+    for (int c = 0; c < 2; ++c)
+    {
+        bypassHp[c].reset();
+        bypassLp[c].reset();
+    }
     resetCircuit();
     noise.reset(seed);
     for (int c = 0; c < 2; ++c)
@@ -76,6 +86,18 @@ void BossDs1::reset() noexcept
         outputHp[c].reset();
     }
     update();
+}
+void BossDs1::processBypass(double *l, double *r, int n) noexcept
+{
+    if (!l || !r)
+        return;
+    for (int i = 0; i < n; ++i)
+    {
+        const double a = bypassLp[0].process(bypassHp[0].highpass(bounded(l[i])));
+        const double b = bypassLp[1].process(bypassHp[1].highpass(bounded(r[i])));
+        l[i] = a;
+        r[i] = b;
+    }
 }
 void BossDs1::process(double *l, double *r, int n) noexcept
 {

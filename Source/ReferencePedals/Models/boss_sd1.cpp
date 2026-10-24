@@ -18,7 +18,7 @@ const PedalDesc &BossSd1::descriptor() noexcept
             common::choice("boss_sd1_quality", "QUALITY", quality, 3, 1, -1, PF_Config),
             common::choice("boss_sd1_diode_set", "DIODES", diodes, 4, 0, -1),
             common::continuous("boss_sd1_lowcut_hz", "LOW CUT", "Hz", 340, 720, 720, -1, Taper::LogA),
-            toggle("boss_sd1_buffer_colour", "BUFFER COLOUR (unavailable)", true, PF_Automatable),
+            toggle("boss_sd1_buffer_colour", "BUFFER COLOUR", true, PF_Automatable),
             common::continuous("boss_sd1_vel_to_level", "VELOCITY LEVEL", "dB", -12, 12, 0, -1),
             common::continuous("boss_sd1_vel_to_drive", "VELOCITY DRIVE", "", -1, 1, 0, -1),
             common::choice("boss_sd1_at_target", "PRESSURE TARGET", at, 4, 0, -1, PF_Ext),
@@ -77,10 +77,20 @@ void BossSd1::prepare(double rate, int, int policy)
             stage.prepare(os[c].rate(), Sd1CircuitParams::gainLegR, Sd1CircuitParams::stockGainLegC,
                           Sd1CircuitParams::feedbackC);
     }
+    for (int c = 0; c < 2; ++c)
+    {
+        bypassHp[c].setLowpass(sr, 15);
+        bypassLp[c].setLowpass(sr, 40000);
+    }
     reset();
 }
 void BossSd1::reset() noexcept
 {
+    for (int c = 0; c < 2; ++c)
+    {
+        bypassHp[c].reset();
+        bypassLp[c].reset();
+    }
     resetCircuit();
     rf = 27000 + 1e6 * value(0) / 10;
     tone = value(1) / 10;
@@ -176,6 +186,21 @@ void BossSd1::update() noexcept
         }
         shelf[c].set(os[c].rate(), 1200 + 800 * tone, (tone - .5) * 18, true);
         gbw[c].setLowpass(os[c].rate(), 3e6 / (1 + rf / 4700));
+    }
+}
+void BossSd1::processBypass(double *l, double *r, int n) noexcept
+{
+    if (!l || !r)
+        return;
+    for (int i = 0; i < n; ++i)
+    {
+        const double a = bypassLp[0].process(bypassHp[0].highpass(bounded(l[i])));
+        const double b = bypassLp[1].process(bypassHp[1].highpass(bounded(r[i])));
+        if (value(7) >= .5)
+        {
+            l[i] = a;
+            r[i] = b;
+        }
     }
 }
 void BossSd1::process(double *l, double *r, int n) noexcept

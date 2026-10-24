@@ -16,7 +16,7 @@ LUTHIER_TEST(RefPedalSd1, parameterContractAndBoundedCircuit)
         lanes += !d.isLaneExcluded();
     }
     CHECK(lanes == 6);
-    CHECK(!p.controlAvailable(7));
+    CHECK(p.controlAvailable(7));
     CHECK(!p.qualityAvailable(0));
     CHECK(!p.qualityAvailable(2));
     CHECK(p.qualityAvailable(1));

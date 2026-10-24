@@ -1,0 +1,12 @@
+RefPedalMuffNyc::descriptorAndSilence 8195 checks 0 failures
+RefPedalMuffWicker::descriptorAndToneOutInvariance 24004 checks 0 failures
+RefPedalGreenRussian::descriptorAndPressure 12004 checks 0 failures
+RefPedalDeluxeMuff::descriptorAndFunctionalMids 12007 checks 0 failures
+RefPedalMuffCircuit::toneGoldenTableAndIndependentTransfer 450 checks 0 failures
+RefPedalMuffCircuit::transistorFeedbackIndependentKcl 49152 checks 0 failures
+RefPedalMuffContracts::nyc 1818816 checks 0 failures
+RefPedalMuffContracts::wicker 1818816 checks 0 failures
+RefPedalMuffContracts::green 1818816 checks 0 failures
+RefPedalMuffContracts::deluxe 1818816 checks 0 failures
+RefPedalPeakFilter::centreGainAllRatesAndQ 72 checks 0 failures
+TOTAL 7381148 checks 0 failures

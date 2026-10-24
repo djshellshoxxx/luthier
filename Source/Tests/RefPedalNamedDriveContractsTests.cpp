@@ -46,6 +46,7 @@ LUTHIER_TEST(RefPedalNamedDrives, automationHostileInputsAndNoAllocations)
             p->onFoot({j % 2 == 0, .8f, .4f, 0});
             p->onMidi({0xd0, (uint8_t)(j * 2), 0, 0});
             p->setExpression(0, j / 63.f);
+            p->processBypass(l.data(), r.data(), 2048);
             p->process(l.data(), r.data(), 2048);
 #if defined(LUTHIER_ALLOCATION_COUNTER)
             CHECK(luthier::tests::allocationsOnThisThread() == before);

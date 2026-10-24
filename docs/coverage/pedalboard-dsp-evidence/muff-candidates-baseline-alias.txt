@@ -1,0 +1,4 @@
+ehx-big-muff-nyc: 48k normal4x maxdrive 5k full-scale peak, largest non-harmonic 7000Hz -41.716214322dBFS -40.169148370dBc
+ehx-muff-wicker: 48k normal4x maxdrive 5k full-scale peak, largest non-harmonic 3000Hz -43.638567481dBFS -40.347975740dBc
+ehx-green-russian: 48k normal4x maxdrive 5k full-scale peak, largest non-harmonic 2000Hz -56.636203997dBFS -19.566665756dBc
+ehx-deluxe-muff: 48k normal4x maxdrive 5k full-scale peak, largest non-harmonic 23000Hz -0.548639820dBFS -25.186325062dBc
