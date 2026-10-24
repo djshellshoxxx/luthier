@@ -91,3 +91,12 @@ LUTHIER_TEST(RefPedalUiFaces, compactKnobHasUnclippedNaturalValueEditor)
     CHECK(entry!=nullptr);if(!entry)return;entry->setText("15 dB",false);entry->onReturnKey();CHECK_NEAR(model.getInstance(model.getOrder()[0])->params[0],.5,1e-6);
     CHECK(model.apply(cmd::Remove{model.getOrder()[0]}));int callouts=0;for(auto* child:root.getChildren())if(dynamic_cast<juce::CallOutBox*>(child))++callouts;CHECK(callouts==0);
 }
+LUTHIER_TEST(RefPedalUiFaces, actualMetersRequireFullIdentityAndAvailability)
+{
+    PedalRegistry::registerAll();BoardModel model;CHECK(model.apply(cmd::Add{"generic.boost"}));
+    BoardCanvas canvas(model);const auto id=model.getOrder()[0];auto* view=canvas.viewFor(id);PedalMeters meters;meters.present=true;meters.identity=InstanceId();meters.enabled=true;meters.model.available=UiTransport|UiLoop|UiTempo|UiFaults;meters.model.transport=2;meters.model.loopLength=48000;meters.model.playhead=12000;meters.model.bpm=123.5;meters.model.faults=4;
+    CHECK(!view->updateMeters(meters));CHECK(view->meterSummary().isEmpty());meters.identity=id;
+    CHECK(view->updateMeters(meters));CHECK(view->meterSummary().contains("PLAY"));CHECK(view->meterSummary().contains("12000/48000"));CHECK(view->meterSummary().contains("123.5 BPM"));CHECK(view->meterSummary().contains("FAULT"));CHECK(!view->updateMeters(meters));
+    meters.model.available=UiTransport;CHECK(view->updateMeters(meters));CHECK(!view->meterSummary().contains("BPM"));CHECK(!view->meterSummary().contains("48000"));CHECK(!view->meterSummary().contains("FAULT"));
+    meters.present=false;CHECK(view->updateMeters(meters));CHECK(view->meterSummary().contains("pending"));
+}

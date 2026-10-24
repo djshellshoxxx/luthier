@@ -41,7 +41,8 @@ void ModelFace::paintFace(juce::Graphics& g,const FaceState& state)
     g.fillRoundedRectangle(body,5);g.setColour(state.highContrast?Palette::textPrimary:fill.brighter(.4f));g.drawRoundedRectangle(body.reduced(1),4,1.2f);
     g.setColour(state.highContrast?Palette::textPrimary:profile.lettering);
     g.setFont(juce::FontOptions(juce::jlimit(9.f,16.f,size.x*.095f)).withStyle("Bold"));
-    g.drawFittedText(profile.title,4,(int)(profile.titleY*1.6f),(int)size.x-8,22,juce::Justification::centred,2);
+    const int titleHeight=profile.titleY<15||profile.detail==FaceProfile::Detail::LooperRing?12:juce::jlimit(12,22,(int)(profile.footswitchMm.getY()*1.6f-profile.titleY*1.6f-3));
+    g.drawFittedText(profile.title,4,(int)(profile.titleY*1.6f),(int)size.x-8,titleHeight,juce::Justification::centred,2);
     FaceLayout plan;layout(plan);g.setFont(juce::FontOptions(10.f));
     for(const auto& control:plan.controls)
     {

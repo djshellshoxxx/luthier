@@ -12,6 +12,8 @@ public:
     PedalView(BoardModel&,InstanceId,juce::AudioProcessorValueTreeState* = nullptr);
     ~PedalView() override;
     void refresh();
+    bool updateMeters(const PedalMeters&);
+    juce::String meterSummary() const;
     void showInspector();
     void closeInspector(bool restoreFocus=false);
     void placeCaptionIn(juce::Component&);
@@ -53,7 +55,9 @@ private:
     juce::ToggleButton profile {"Use pedal CC profile"};
     juce::ComboBox placement,mounting,channel;
     juce::Component inspector;
-    juce::Label provenance,inputLabel,outputLabel,laneLabel;
+    juce::Label provenance,inputLabel,outputLabel,laneLabel,meterLabel,display;
+    PedalMeters meters;
+    bool meterSeen=false;
     juce::OwnedArray<juce::Slider> controls;
     juce::OwnedArray<juce::ComboBox> selectors;
     juce::OwnedArray<FootswitchButton> actions;
