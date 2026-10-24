@@ -120,6 +120,7 @@ struct BoardMeters
     bool fbTripped = false, fbFault = false, clockLocked = false, clockLost = false;
     uint32_t midiDropped = 0;
     bool sidechainAvailable = false;
+    bool cpuAvailable = false, cpuGovernorTripped = false, cpuEcoApplied = false, cpuGovernorFailed = false;
 };
 
 //==============================================================================
