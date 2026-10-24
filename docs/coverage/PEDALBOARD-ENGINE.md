@@ -66,3 +66,9 @@ Depends on MIDI checkpoint `9334f459` (locally cherry-picked as `cda82f15`): `Mi
 Remaining event gates: raw MIDI and pedal MIDI output drain; parameter/board-value UI echo (engagement echo is implemented); bounded split-point coalescing (current exact offsets can exceed the spec's 32 distinct boundaries); UI Trigger pulses coalesced by snapshot publication; full foot mode/pressure policies. Host writes are sampled per block, not independently per every 64-sample interval inside a large host block. Board-level control model echoes still need generation arbitration. The preceding initial-checkpoint statement that no routed events are applied is superseded by this section.
 
 Dependencies added: MIDI E36/E39 commit `5e77e3d0` (local `8cd3d77b`) and approved IPedal sidechain interface `7d91967c` (local `3157bf6a`). Neither dependency is part of this worker's scoped implementation commits; coordinator should integrate their originals first.
+
+## Sidechain/reamp checkpoint
+
+**44 tests, 56,356 checks, 0 failures**. `Board::setSidechain(const float*,const float*,int)` borrows the actual host input slice until endBlock. The executor converts only the current <=64 samples into fixed double scratch and supplies fresh pointers/count to every pedal; absence supplies null/zero. EndBlock clears borrowed pointers. The meter's atomic `sidechainAvailable` reports the most recent input availability.
+
+Reamp settings now compile. PRE input adds or replaces with the connected sidechain, with the configured gain; it is injected once even when the first pedal is POST. A disabled input bus has zero effect, as required by BOARD_CORE 6.8. Source latency relative to the instrument remains uncompensated. Test verifies stereo replacement and disconnect through a board whose only pedal is POST. Host bus capture/copy is owned by WP23 and must call the hook before beginBlock. Runtime reamp source/gain switching does not yet have an independent input crossfade.
