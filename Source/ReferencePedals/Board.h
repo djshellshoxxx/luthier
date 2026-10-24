@@ -24,6 +24,7 @@ namespace luthier::reference
 {
 
 class BoardModel;
+class IAssetStore;
 namespace midi { class MidiRouter; }
 
 class Board final
@@ -41,6 +42,9 @@ public:
     // Message thread
     void prepare (double sampleRate, int maxBlock = 4096);   // allocates pool, delay lines, scratch; idempotent
     void releaseResources();
+    // E59: before prepare or after stopped release; false if prepared/runtimes retained.
+    // Null explicitly disables persistent storage; the default is lazy app-data storage.
+    bool setAssetStore (std::shared_ptr<IAssetStore>);
     void reset() noexcept;                                   // clears DSP state (legacy name; prepare() calls it)
     BoardModel& model() noexcept;                            // single truth; edits via model().apply(BoardCommand)
     midi::MidiRouter& midi() noexcept;

@@ -1,6 +1,7 @@
 // OWNER: WP2
 #include "PedalPool.h"
 #include "PedalRegistry.h"
+#include "Services/AssetStore.h"
 #include <algorithm>
 namespace luthier::reference
 {
@@ -9,6 +10,11 @@ void PedalRuntime::reset() noexcept
     pedal->reset();
     for (auto& line : dry) line.reset();
     enableMix = 0.0;
+}
+bool PedalPool::setAssetStore (std::shared_ptr<IAssetStore> store)
+{
+    for (const auto& runtime : objects) if (! runtime.expired()) return false;
+    assets = std::move (store); assetStoreConfigured = true; return true;
 }
 void PedalPool::prepare (double sampleRate, int maxBlock, const std::vector<PedalInstance>& captured)
 {
@@ -40,12 +46,24 @@ std::shared_ptr<PedalRuntime> PedalPool::acquire (const PedalInstance& instance,
         && active->revision == instance.modelRevision && active->extrasKey == extrasKey)
         active->pedal->saveExtra (loadExtras);
     if (auto* object = loadExtras.getDynamicObject()) object->removeProperty ("midi");
+    if (! assetStoreConfigured)
+    {
+        try
+        {
+            const auto directory = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
+                .getChildFile ("Luthier").getChildFile ("ReferencePedals").getChildFile ("assets");
+            // AssetStore creates directories only on an actual worker/message-thread write.
+            assets = std::make_shared<AssetStore> (directory); assetStoreConfigured = true;
+        }
+        catch (...) { error = "Unable to create persistent pedal asset service"; return {}; }
+    }
     auto result = std::make_shared<PedalRuntime>();
+    result->assetOwner = assets;
     result->pedal = PedalRegistry::make (instance.modelId.c_str());
     if (! result->pedal) { error = "Pedal factory failed"; return {}; }
     result->identity = instance.instanceId; result->model = instance.modelId;
     result->revision = instance.modelRevision; result->config = instance.params; result->extrasKey = extrasKey;
-    PedalServices services; services.sampleRate = rate; services.maxBlock = block;
+    PedalServices services; services.sampleRate = rate; services.maxBlock = block; services.assets = result->assetOwner.get();
     services.instanceSeed = static_cast<uint32_t> (instance.instanceId.hash());
     result->pedal->setServices (services);
     for (int i = 0; i < desc->numParams; ++i)

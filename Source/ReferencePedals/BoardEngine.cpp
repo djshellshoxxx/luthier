@@ -64,6 +64,11 @@ void BoardEngine::prepare (double sampleRate, int maxBlock)
     TopologyInfo info; juce::String error;
     publish (instances, settings, info, error);
 }
+bool BoardEngine::setAssetStore (std::shared_ptr<IAssetStore> store)
+{
+    if (! pool.setAssetStore (std::move (store))) return false;
+    assetStoreAvailable.store (pool.hasAssetStore()); return true;
+}
 void BoardEngine::releaseResources()
 {
     if (latest)
@@ -81,6 +86,7 @@ bool BoardEngine::publish (const std::vector<PedalInstance>& instances, const Bo
     TopologyInfo& info, juce::String& error, const BoardCommand* intent, bool hostEcho)
 {
     auto plan = TopologyCompiler::compile (instances, settings, pool, version + 1, latest.get(), error, intent, hostEcho);
+    assetStoreAvailable.store (pool.hasAssetStore());
     if (! plan) return false;
     ++version;
     info.version = version; info.mode = settings.mode; info.pedalCount = plan->topology.n;
@@ -198,6 +204,7 @@ BoardMeters BoardEngine::meters() const noexcept
     const auto availability = auxAvailable.load();
     result.auxBAvailable = (availability & 1) != 0; result.auxWetAvailable = (availability & 2) != 0; result.auxDryAvailable = (availability & 4) != 0;
     result.latencySamples = latency(); result.sidechainAvailable = sidechainConnected.load();
+    result.assetStoreAvailable = assetStoreAvailable.load();
     result.midiDropped = engageEcho.dropped() + paramPulses.dropped() + rawDropped.load() + outputDropped.load(); return result;
 }
 void BoardEngine::beginRawMidi (const juce::MidiBuffer& input, int samples) noexcept

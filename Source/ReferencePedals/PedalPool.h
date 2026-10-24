@@ -13,6 +13,8 @@ namespace luthier::reference
 // borrows a raw pointer while its published plan remains protected by the epoch.
 struct PedalRuntime
 {
+    // Destroy pedal (including its workers) before releasing the borrowed service owner.
+    std::shared_ptr<IAssetStore> assetOwner;
     std::unique_ptr<IPedal> pedal;
     InstanceId identity;
     std::string model;
@@ -34,10 +36,14 @@ struct PedalRuntime
 class PedalPool
 {
 public:
+    bool setAssetStore (std::shared_ptr<IAssetStore>); // stopped; rejects while any runtime is retained
+    bool hasAssetStore() const noexcept { return static_cast<bool> (assets); }
     void prepare (double sampleRate, int maxBlock, const std::vector<PedalInstance>& captured = {});
     std::shared_ptr<PedalRuntime> acquire (const PedalInstance&, juce::String& error, const PedalRuntime* active = nullptr);
     void reclaim();
 private:
+    std::shared_ptr<IAssetStore> assets;
+    bool assetStoreConfigured = false;
     double rate = 48000.0;
     int block = 4096;
     std::vector<std::weak_ptr<PedalRuntime>> objects;
