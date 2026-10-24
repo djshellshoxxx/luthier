@@ -1,4 +1,5 @@
 #include "MidiState.h"
+#include "MidiDefaults.h"
 #include "../PedalRegistry.h"
 namespace luthier::reference::midi
 {
@@ -69,7 +70,7 @@ std::unique_ptr<MapSnap> MidiState::buildMap (const std::vector<PedalInstance>& 
     for (size_t i = 0; i < instances.size() && i < kMaxSlots; ++i)
         if (map->keyboardBaseNote + (int) i < 128 && instances[i].slot >= 0 && instances[i].slot < kMaxSlots)
             map->noteToSlot[(size_t) (map->keyboardBaseNote + (int) i)] = (int8_t) instances[i].slot;
-    if (! midi) { map->compile(); return map; }
+    if (! midi) { addDefaultMaps (*map, instances, settings); map->compile(); return map; }
     if (auto* kbd = midi->getProperty ("kbd").getDynamicObject())
         map->keyboardBaseNote = std::clamp ((int) kbd->getProperty ("baseNote"), 0, 127);
     map->noteToSlot.fill (-1);
@@ -77,7 +78,7 @@ std::unique_ptr<MapSnap> MidiState::buildMap (const std::vector<PedalInstance>& 
         if (map->keyboardBaseNote + (int) i < 128 && instances[i].slot >= 0 && instances[i].slot < kMaxSlots)
             map->noteToSlot[(size_t) (map->keyboardBaseNote + (int) i)] = (int8_t) instances[i].slot;
     const auto* bindings = midi->getProperty ("bindings").getArray();
-    if (! bindings) { map->compile(); return map; }
+    if (! bindings) { addDefaultMaps (*map, instances, settings); map->compile(); return map; }
     for (const auto& value : *bindings)
     {
         const auto* o = value.getDynamicObject(); if (! o) continue;
@@ -134,6 +135,6 @@ std::unique_ptr<MapSnap> MidiState::buildMap (const std::vector<PedalInstance>& 
                 map->initialValues[(size_t) index] = paramId == "ref_board_mix" ? settings.mix : paramId == "ref_board_enabled" ? (settings.enabled ? 1.f : 0.f) : (float) ((settings.tempoBpm - 20.) / 280.);
         }
     }
-    map->compile(); return map;
+    addDefaultMaps (*map, instances, settings); map->compile(); return map;
 }
 }

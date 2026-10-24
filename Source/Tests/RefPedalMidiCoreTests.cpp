@@ -222,3 +222,51 @@ LUTHIER_TEST (RefPedalMidiCore, sameValueModelDisableDefeatsConsumedHostWrite)
     router.prepare (96000, 128); router.setModelEnabled (false, 2); router.setHostEnabled (false, 2);
     router.process (in, {}, 0, 128, out); CHECK (out.nWrites == 0);
 }
+LUTHIER_TEST (RefPedalMidiCore, highResolutionCcIgnoresOrphanLsb)
+{
+    MidiRouter router; router.prepare (48000, 128);
+    auto map = std::make_unique<MapSnap>(); Binding b; b.srcNum = 20; b.flags |= BF_HiRes; CHECK (map->add (b));
+    b.srcNum = 7; CHECK (! map->add (b)); router.publishMap (std::move (map));
+    juce::MidiBuffer in; in.addEvent (juce::MidiMessage::controllerEvent (1, 52, 127), 0);
+    RouteOut out; router.process (in, {}, 0, 128, out); CHECK (out.nWrites == 0);
+    in.clear(); in.addEvent (juce::MidiMessage::controllerEvent (1, 20, 64), 1);
+    in.addEvent (juce::MidiMessage::controllerEvent (1, 52, 127), 2);
+    router.process (in, {}, 128, 128, out); CHECK (out.nWrites == 2);
+    CHECK_NEAR (out.writes[0].norm, 8192.f / 16383.f, 1e-6);
+    CHECK_NEAR (out.writes[1].norm, 8319.f / 16383.f, 1e-6);
+}
+
+#include "../ReferencePedals/Midi/MidiState.h"
+#include "../ReferencePedals/PedalRegistry.h"
+namespace
+{
+const ParamDesc mapTestParams[] {
+    { "map_test_gain", "Gain", "", ParamKind::Continuous, Taper::Linear, 0, 1, .5f, 1, 0, nullptr, PF_Automatable | PF_ExprTarget, 10, 14 },
+    { "map_test_on", "On", "", ParamKind::Toggle, Taper::Linear, 0, 1, 1, 1, 0, nullptr, PF_Engage, 0, 85 }
+};
+const PedalDesc mapTestDesc { "test.midi-map", "map_test_", 1, "MIDI map test", "Test", nullptr,
+    ChannelMode::Stereo, BypassMode::DSP, 2, mapTestParams, 0, false, false, false, 1 };
+std::unique_ptr<IPedal> makeMapTest() { return nullptr; }
+}
+LUTHIER_TEST (RefPedalMidiCore, stableUuidFocusAndLocalProfilePrecedence)
+{
+    PedalRegistry::TestScope scope; CHECK (PedalRegistry::add (mapTestDesc, makeMapTest));
+    std::vector<PedalInstance> instances (2);
+    for (int i = 0; i < 2; ++i)
+    {
+        instances[(size_t) i].modelId = "test.midi-map"; instances[(size_t) i].slot = i == 0 ? 5 : 2;
+        instances[(size_t) i].params[0] = .5f;
+        instances[(size_t) i].extras = new juce::DynamicObject();
+        juce::var local (new juce::DynamicObject()); local.getDynamicObject()->setProperty ("chan", 2);
+        instances[(size_t) i].extras.getDynamicObject()->setProperty ("midi", local);
+    }
+    BoardSettings settings; settings.enabled = true; settings.midi = new juce::DynamicObject();
+    settings.midi.getDynamicObject()->setProperty ("selectedInstance", instances[1].instanceId.toString());
+    auto map = MidiState::buildMap (instances, settings);
+    const auto& focus = map->find (MidiSrc::CC, 1, 70); CHECK (focus.count == 1);
+    CHECK (map->bindings[focus.index[0]].target == 2 * kMaxParams);
+    const auto& local = map->find (MidiSrc::CC, 2, 14); CHECK (local.count == 1);
+    CHECK (map->bindings[local.index[0]].target == 5 * kMaxParams);
+    CHECK (map->find (MidiSrc::CC, 1, 14).count == 0); CHECK (map->footCc[0][64] == 2);
+    CHECK (map->footCc[1][85] == 5); CHECK (map->noteToSlot[36] == 5); CHECK (map->noteToSlot[37] == 2);
+}
