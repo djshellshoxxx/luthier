@@ -7,7 +7,7 @@
 #include "BoardMidiPanel.h"
 namespace luthier::reference
 {
-BoardRoot::BoardRoot(BoardModel& m,LuthierAudioProcessor* p):model(m),processor(p),canvas(m),browser(m)
+BoardRoot::BoardRoot(BoardModel& m,LuthierAudioProcessor* p):model(m),processor(p),canvas(m,p?&p->getState():nullptr),browser(m)
 {
     setWantsKeyboardFocus(true);setTitle("Pedalboard");setFocusContainerType(FocusContainerType::focusContainer);
     viewport.setViewedComponent(&canvas,false);viewport.setScrollBarsShown(true,true);viewport.setScrollBarThickness(12);
@@ -70,7 +70,7 @@ BoardRoot::BoardRoot(BoardModel& m,LuthierAudioProcessor* p):model(m),processor(
     viewport.onScroll=[this]{saveView();};
     model.addListener(this);refresh();
 }
-BoardRoot::~BoardRoot(){canvas.onFocus=nullptr;canvas.onLearn=nullptr;viewport.onScroll=nullptr;stopTimer();flushView();model.removeListener(this);toolbarViewport.setViewedComponent(nullptr,false);viewport.setViewedComponent(nullptr,false);}
+BoardRoot::~BoardRoot(){canvas.closeInspectors();canvas.onFocus=nullptr;canvas.onLearn=nullptr;viewport.onScroll=nullptr;stopTimer();flushView();model.removeListener(this);toolbarViewport.setViewedComponent(nullptr,false);viewport.setViewedComponent(nullptr,false);}
 void BoardRoot::refresh()
 {
     const juce::ScopedValueSetter<bool> guard(refreshing,true);const auto s=model.getBoardSettings();
@@ -104,7 +104,7 @@ void BoardRoot::showAddMenu()
     juce::Component::SafePointer<BoardRoot> self(this);menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&add),[self,ids](int n){if(self&&n>0&&n<=(int)ids.size())self->model.apply(cmd::Add{ids[(size_t)n-1]});});
 }
 void BoardRoot::showSettings(){juce::CallOutBox::launchAsynchronously(std::make_unique<BoardMidiPanel>(model),getLocalArea(&settings,settings.getLocalBounds()),this);}
-void BoardRoot::visibilityChanged(){if(!isShowing()){stopTimer();if(processor)processor->getEngine().getReferencePedals().midi().cancelLearn();learnId=InstanceId::null();learnBoard=false;learn.setToggleState(false,juce::dontSendNotification);canvas.setLearn(false);saveView();}}
+void BoardRoot::visibilityChanged(){if(!isShowing()){canvas.closeInspectors();stopTimer();if(processor)processor->getEngine().getReferencePedals().midi().cancelLearn();learnId=InstanceId::null();learnBoard=false;learn.setToggleState(false,juce::dontSendNotification);canvas.setLearn(false);saveView();}}
 void BoardRoot::timerCallback()
 {
     const auto now=juce::Time::getMillisecondCounterHiRes();
