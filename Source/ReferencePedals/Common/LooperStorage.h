@@ -67,6 +67,7 @@ public:
     // page revision already includes this token. Old cached revisions remain
     // usable while their replacement is being read ahead.
     bool mergedAt(uint64_t frame,uint64_t actualVersion,uint64_t token) const noexcept;
+    uint64_t generation() const noexcept; // atomic, any thread
     uint64_t length() const noexcept;
     uint32_t errors() const noexcept;
     // Message/worker thread; bounded wait for page writes already queued by
