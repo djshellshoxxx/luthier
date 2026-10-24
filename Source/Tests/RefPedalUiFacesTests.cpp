@@ -1,5 +1,6 @@
 // OWNER: WP19
 #include "TestFramework.h"
+#include "RefPedalUiTestSupport.h"
 #include "../UI/ReferencePedals/PedalFaceFactory.h"
 #include "../UI/ReferencePedals/KnobControl.h"
 #include "../ReferencePedals/PedalRegistry.h"
@@ -27,7 +28,7 @@ LUTHIER_TEST(RefPedalUiFaces, keyboardKnobUsesFineAndCoarseSteps) {
 LUTHIER_TEST(RefPedalUiFaces, everyDescriptorHasARealFaceOrInspectorControl) {
     PedalRegistry::registerAll();
     for(const auto* desc:PedalRegistry::all()) {
-        BoardModel model;CHECK(model.apply(cmd::Add{desc->modelId}));BoardCanvas canvas(model);auto* view=canvas.viewFor(model.getOrder()[0]);
+        BoardModel model;if(!luthier::tests::requireReferenceEdit(ctx,model,cmd::Add{desc->modelId}))return;BoardCanvas canvas(model);auto* view=canvas.viewFor(model.getOrder()[0]);
         std::vector<juce::Component*> found;
         std::function<void(juce::Component&)> collect=[&](auto& root){for(auto* child:root.getChildren()){if(child->getProperties().contains("referenceParamId"))found.push_back(child);collect(*child);}};collect(*view);
         for(int i=0;i<desc->numParams;++i)if(!desc->params[i].has(PF_Engage)) {
@@ -63,7 +64,7 @@ LUTHIER_TEST(RefPedalUiFaces, physicalLaneAttachmentsAndConfigurationUseRealTarg
     layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"ref_s01_enabled",1},"Enable",true));
     for(const auto& id:{"ref_s01_in_db","ref_s01_out_db"})layout.add(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{id,1},id,-12.f,12.f,0.f));
     juce::AudioProcessorValueTreeState state(processor,nullptr,"face_parameters",std::move(layout));
-    BoardModel model;CHECK(model.apply(cmd::Add{"generic.boost"}));BoardCanvas canvas(model,&state);auto* view=canvas.viewFor(model.getOrder()[0]);
+    BoardModel model;if(!luthier::tests::requireReferenceEdit(ctx,model,cmd::Add{"generic.boost"}))return;BoardCanvas canvas(model,&state);auto* view=canvas.viewFor(model.getOrder()[0]);
     juce::Slider* gain=nullptr;juce::ComboBox* quality=nullptr;juce::Button* bypass=nullptr;
     std::function<void(juce::Component&)> collect=[&](auto& parent){for(auto* c:parent.getChildren()){
         if(c->getComponentID()=="ref_s01_p01")gain=dynamic_cast<juce::Slider*>(c);
@@ -83,7 +84,7 @@ LUTHIER_TEST(RefPedalUiFaces, physicalLaneAttachmentsAndConfigurationUseRealTarg
 }
 LUTHIER_TEST(RefPedalUiFaces, compactKnobHasUnclippedNaturalValueEditor)
 {
-    PedalRegistry::registerAll();BoardModel model;CHECK(model.apply(cmd::Add{"generic.boost"}));
+    PedalRegistry::registerAll();BoardModel model;if(!luthier::tests::requireReferenceEdit(ctx,model,cmd::Add{"generic.boost"}))return;
     BoardRoot root(model);root.setSize(1280,800);auto* view=root.boardCanvas().viewFor(model.getOrder()[0]);KnobControl* gain=nullptr;
     for(auto* child:view->getChildren())if(child->getProperties()["referenceParamId"].toString()=="gen_boost_gain")gain=dynamic_cast<KnobControl*>(child);
     CHECK(gain!=nullptr);if(!gain)return;CHECK(gain->getTextBoxPosition()==juce::Slider::NoTextBox);gain->showValueEditor();CHECK(juce::Component::getCurrentlyModalComponent()==nullptr);
@@ -93,7 +94,7 @@ LUTHIER_TEST(RefPedalUiFaces, compactKnobHasUnclippedNaturalValueEditor)
 }
 LUTHIER_TEST(RefPedalUiFaces, actualMetersRequireFullIdentityAndAvailability)
 {
-    PedalRegistry::registerAll();BoardModel model;CHECK(model.apply(cmd::Add{"generic.boost"}));
+    PedalRegistry::registerAll();BoardModel model;if(!luthier::tests::requireReferenceEdit(ctx,model,cmd::Add{"generic.boost"}))return;
     BoardCanvas canvas(model);const auto id=model.getOrder()[0];auto* view=canvas.viewFor(id);PedalMeters meters;meters.present=true;meters.identity=InstanceId();meters.enabled=true;meters.model.available=UiTransport|UiLoop|UiTempo|UiFaults;meters.model.transport=2;meters.model.loopLength=48000;meters.model.playhead=12000;meters.model.bpm=123.5;meters.model.faults=4;
     CHECK(!view->updateMeters(meters));CHECK(view->meterSummary().isEmpty());meters.identity=id;
     CHECK(view->updateMeters(meters));CHECK(view->meterSummary().contains("PLAY"));CHECK(view->meterSummary().contains("12000/48000"));CHECK(view->meterSummary().contains("123.5 BPM"));CHECK(view->meterSummary().contains("FAULT"));CHECK(!view->updateMeters(meters));
@@ -120,14 +121,14 @@ LUTHIER_TEST(RefPedalUiFaces, everyExtendedHostParameterHasARealAttachedControl)
 #include "../UI/ReferencePedals/MappingCallout.h"
 LUTHIER_TEST(RefPedalUiFaces, expressionMappingPreservesNestedMetadataAndScrolls)
 {
-    PedalRegistry::registerAll();BoardModel model;CHECK(model.apply(cmd::Add{"generic.boost"}));auto binding=juce::JSON::parse(R"({"id":7,"paramId":"gen_boost_gain","flags":32,"src":{"type":0,"num":11,"vendor":"keep"},"curve":{"id":0,"p":1.5,"vendor":19}})");binding.getDynamicObject()->setProperty("instanceId",model.getOrder()[0].toString());CHECK(model.apply(cmd::SetMidiBinding{cmd::SetMidiBinding::Op::Add,binding}));
+    PedalRegistry::registerAll();BoardModel model;if(!luthier::tests::requireReferenceEdit(ctx,model,cmd::Add{"generic.boost"}))return;auto binding=juce::JSON::parse(R"({"id":7,"paramId":"gen_boost_gain","flags":32,"src":{"type":0,"num":11,"vendor":"keep"},"curve":{"id":0,"p":1.5,"vendor":19}})");binding.getDynamicObject()->setProperty("instanceId",model.getOrder()[0].toString());CHECK(model.apply(cmd::SetMidiBinding{cmd::SetMidiBinding::Op::Add,binding}));
     MappingCallout editor(model,binding);editor.setSize(340,180);juce::ComboBox* source=nullptr;juce::Slider* number=nullptr;juce::TextButton* apply=nullptr;juce::Viewport* scrolling=nullptr;
     std::function<void(juce::Component&)> collect=[&](auto& parent){for(auto* child:parent.getChildren()){if(child->getTitle()=="MIDI source")source=dynamic_cast<juce::ComboBox*>(child);if(child->getTitle()=="CC / note number")number=dynamic_cast<juce::Slider*>(child);if(auto* button=dynamic_cast<juce::TextButton*>(child))if(button->getButtonText()=="Apply mapping")apply=button;if(auto* viewport=dynamic_cast<juce::Viewport*>(child))scrolling=viewport;collect(*child);}};collect(editor);
     CHECK(source&&number&&apply&&scrolling);if(!source||!number||!apply||!scrolling)return;CHECK(scrolling->getViewedComponent()->getHeight()>scrolling->getHeight());source->setSelectedId(15,juce::sendNotificationSync);number->setValue(2,juce::sendNotificationSync);apply->onClick();const auto result=model.getBoardSettings().midi["bindings"][0];CHECK(result["src"]["type"].toString()=="virtualExpression");CHECK((int)result["src"]["num"]==2);CHECK(result["src"]["vendor"].toString()=="keep");CHECK((int)result["curve"]["vendor"]==19);CHECK_NEAR((double)result["curve"]["p"],1.5,1e-6);
 }
 LUTHIER_TEST(RefPedalUiFaces, slotFootswitchModeUsesModelAndPreservesUnknownMetadata)
 {
-    PedalRegistry::registerAll();BoardModel model;CHECK(model.apply(cmd::Add{"generic.boost"}));auto pedal=*model.getInstance(model.getOrder()[0]);pedal.extras=juce::JSON::parse(R"({"vendor":17,"midi":{"vendorMidi":true,"chan":3,"useProfile":true}})");CHECK(model.replaceAll({pedal},model.getBoardSettings()));BoardCanvas canvas(model);auto* view=canvas.viewFor(pedal.instanceId);juce::ComboBox* mode=nullptr;
+    PedalRegistry::registerAll();BoardModel model;if(!luthier::tests::requireReferenceEdit(ctx,model,cmd::Add{"generic.boost"}))return;auto pedal=*model.getInstance(model.getOrder()[0]);pedal.extras=juce::JSON::parse(R"({"vendor":17,"midi":{"vendorMidi":true,"chan":3,"useProfile":true}})");CHECK(model.replaceAll({pedal},model.getBoardSettings()));BoardCanvas canvas(model);auto* view=canvas.viewFor(pedal.instanceId);juce::ComboBox* mode=nullptr;
     std::function<void(juce::Component&)> find=[&](auto& parent){for(auto* child:parent.getChildren()){if(child->getTitle()=="Slot footswitch mode")mode=dynamic_cast<juce::ComboBox*>(child);find(*child);}};find(*view);CHECK(mode!=nullptr);if(!mode)return;CHECK(mode->isVisible());mode->setSelectedId(3,juce::sendNotificationSync);const auto changed=model.getInstance(pedal.instanceId);CHECK((int)changed->extras["midi"]["fsMode"]==2);CHECK((int)changed->extras["midi"]["chan"]==3);CHECK((bool)changed->extras["midi"]["vendorMidi"]);CHECK((int)changed->extras["vendor"]==17);
 }
 #include "../ParamMeta.h"
@@ -138,25 +139,25 @@ LUTHIER_TEST(RefPedalUiFaces, boardTempoHasItsRealBeatsPerMinuteUnit)
 }
 LUTHIER_TEST(RefPedalUiFaces, positionSelectorUsesRealHostIndexAndDisablesVacantPositions)
 {
-    FaceAttachmentProcessor processor;juce::AudioProcessorValueTreeState::ParameterLayout layout;layout.add(std::make_unique<juce::AudioParameterInt>(juce::ParameterID{"ref_s01_pos",1},"Position",0,15,0));juce::AudioProcessorValueTreeState state(processor,nullptr,"position_parameters",std::move(layout));PedalRegistry::registerAll();BoardModel model;CHECK(model.apply(cmd::Add{"generic.boost"}));CHECK(model.apply(cmd::Add{"generic.boost"}));const auto before=model.getOrder();BoardCanvas canvas(model,&state);juce::ComboBox* position=nullptr;
+    FaceAttachmentProcessor processor;juce::AudioProcessorValueTreeState::ParameterLayout layout;layout.add(std::make_unique<juce::AudioParameterInt>(juce::ParameterID{"ref_s01_pos",1},"Position",0,15,0));juce::AudioProcessorValueTreeState state(processor,nullptr,"position_parameters",std::move(layout));PedalRegistry::registerAll();BoardModel model;if(!luthier::tests::requireReferenceEdit(ctx,model,cmd::Add{"generic.boost"}))return;if(!luthier::tests::requireReferenceEdit(ctx,model,cmd::Add{"generic.boost"}))return;const auto before=model.getOrder();BoardCanvas canvas(model,&state);juce::ComboBox* position=nullptr;
     std::function<void(juce::Component&)> collect=[&](auto& parent){for(auto* child:parent.getChildren()){if(child->getComponentID()=="ref_s01_pos")position=dynamic_cast<juce::ComboBox*>(child);collect(*child);}};collect(*canvas.viewFor(before[0]));CHECK(position!=nullptr);if(!position)return;CHECK(position->getNumItems()==16);CHECK(position->isItemEnabled(1));CHECK(position->isItemEnabled(2));CHECK(!position->isItemEnabled(3));position->setSelectedId(2,juce::sendNotificationSync);CHECK_NEAR(state.getRawParameterValue("ref_s01_pos")->load(),1,1e-6);CHECK(model.getOrder()==before);
 }
 LUTHIER_TEST(RefPedalUiFaces, physicalSelectorKeepsItsUnclippedStateAfterThemeChange)
 {
-    PedalRegistry::registerAll();BoardModel model;CHECK(model.apply(cmd::Add{"generic.boost"}));BoardCanvas canvas(model);auto* view=canvas.viewFor(model.getOrder()[0]);juce::ComboBox* selector=nullptr;for(auto* child:view->getChildren())if(child->getProperties()["referenceParamId"].toString()=="gen_boost_mode")selector=dynamic_cast<juce::ComboBox*>(child);CHECK(selector!=nullptr);if(!selector)return;selector->lookAndFeelChanged();int labels=0;for(auto* child:selector->getChildren())if(dynamic_cast<juce::Label*>(child)){++labels;CHECK(!child->isVisible());}CHECK(labels>0);
+    PedalRegistry::registerAll();BoardModel model;if(!luthier::tests::requireReferenceEdit(ctx,model,cmd::Add{"generic.boost"}))return;BoardCanvas canvas(model);auto* view=canvas.viewFor(model.getOrder()[0]);juce::ComboBox* selector=nullptr;for(auto* child:view->getChildren())if(child->getProperties()["referenceParamId"].toString()=="gen_boost_mode")selector=dynamic_cast<juce::ComboBox*>(child);CHECK(selector!=nullptr);if(!selector)return;selector->lookAndFeelChanged();int labels=0;for(auto* child:selector->getChildren())if(dynamic_cast<juce::Label*>(child)){++labels;CHECK(!child->isVisible());}CHECK(labels>0);
 }
 LUTHIER_TEST(RefPedalUiFaces, keyboardReorderRecordsAcceptedHostPositionInsideGesture)
 {
-    FaceAttachmentProcessor processor;juce::AudioProcessorValueTreeState::ParameterLayout layout;layout.add(std::make_unique<juce::AudioParameterInt>(juce::ParameterID{"ref_s01_pos",1},"Position",0,15,0));juce::AudioProcessorValueTreeState state(processor,nullptr,"reorder_parameters",std::move(layout));PedalRegistry::registerAll();BoardModel model;CHECK(model.apply(cmd::Add{"generic.boost"}));CHECK(model.apply(cmd::Add{"generic.boost"}));const auto before=model.getOrder();BoardCanvas canvas(model,&state);GestureCapture capture;auto* parameter=state.getParameter("ref_s01_pos");parameter->addListener(&capture);CHECK(canvas.viewFor(before[0])->keyPressed({juce::KeyPress::rightKey,juce::ModifierKeys(juce::ModifierKeys::altModifier),0}));CHECK(model.getOrder()[1]==before[0]);CHECK_NEAR(state.getRawParameterValue("ref_s01_pos")->load(),1,1e-6);CHECK(capture.gestures==std::vector<bool>({true,false}));CHECK(model.undo());CHECK(model.getOrder()==before);parameter->removeListener(&capture);
+    FaceAttachmentProcessor processor;juce::AudioProcessorValueTreeState::ParameterLayout layout;layout.add(std::make_unique<juce::AudioParameterInt>(juce::ParameterID{"ref_s01_pos",1},"Position",0,15,0));juce::AudioProcessorValueTreeState state(processor,nullptr,"reorder_parameters",std::move(layout));PedalRegistry::registerAll();BoardModel model;if(!luthier::tests::requireReferenceEdit(ctx,model,cmd::Add{"generic.boost"}))return;if(!luthier::tests::requireReferenceEdit(ctx,model,cmd::Add{"generic.boost"}))return;const auto before=model.getOrder();BoardCanvas canvas(model,&state);GestureCapture capture;auto* parameter=state.getParameter("ref_s01_pos");parameter->addListener(&capture);CHECK(canvas.viewFor(before[0])->keyPressed({juce::KeyPress::rightKey,juce::ModifierKeys(juce::ModifierKeys::altModifier),0}));CHECK(model.getOrder()[1]==before[0]);CHECK_NEAR(state.getRawParameterValue("ref_s01_pos")->load(),1,1e-6);CHECK(capture.gestures==std::vector<bool>({true,false}));CHECK(model.undo());CHECK(model.getOrder()==before);parameter->removeListener(&capture);
 }
 LUTHIER_TEST(RefPedalUiFaces, discreteChoiceUsesNormalizedIndexAcrossNaturalOffset)
 {
-    PedalRegistry::TestScope scope;const char* choices[]{"1","2","3","4","5","6","7","8"};const ParamDesc params[]{{"fixture_memory","MEMORY","",ParamKind::Discrete,Taper::Linear,1,8,1,1,8,choices,PF_Config,0,-1}};const PedalDesc desc{"fixture.discrete","fixture_",1,"Discrete UI fixture","Fixture",nullptr,ChannelMode::Stereo,BypassMode::True,1,params,0,false,false,false,0};CHECK(PedalRegistry::add(desc,[]()->std::unique_ptr<IPedal>{return {};}));BoardModel model;CHECK(model.apply(cmd::Add{"fixture.discrete"}));BoardCanvas canvas(model);const auto id=model.getOrder()[0];juce::ComboBox* selector=nullptr;
+    PedalRegistry::TestScope scope;const char* choices[]{"1","2","3","4","5","6","7","8"};const ParamDesc params[]{{"fixture_memory","MEMORY","",ParamKind::Discrete,Taper::Linear,1,8,1,1,8,choices,PF_Config,0,-1}};const PedalDesc desc{"fixture.discrete","fixture_",1,"Discrete UI fixture","Fixture",nullptr,ChannelMode::Stereo,BypassMode::True,1,params,0,false,false,false,0};CHECK(PedalRegistry::add(desc,[]()->std::unique_ptr<IPedal>{return {};}));BoardModel model;if(!luthier::tests::requireReferenceEdit(ctx,model,cmd::Add{"fixture.discrete"}))return;BoardCanvas canvas(model);const auto id=model.getOrder()[0];juce::ComboBox* selector=nullptr;
     std::function<void(juce::Component&)> find=[&](auto& parent){for(auto* c:parent.getChildren()){if(c->getProperties()["referenceParamId"].toString()=="fixture_memory")selector=dynamic_cast<juce::ComboBox*>(c);find(*c);}};find(*canvas.viewFor(id));CHECK(selector!=nullptr);if(!selector)return;CHECK(model.apply(cmd::SetParam{id,0,1}));CHECK(selector->getSelectedId()==8);CHECK(model.apply(cmd::SetParam{id,0,0}));CHECK(selector->getSelectedId()==1);
 }
 LUTHIER_TEST(RefPedalUiFaces, liveDragRecordsOnlyAcceptedFinalPositionAndBalancesEveryExit)
 {
-    FaceAttachmentProcessor processor;juce::AudioProcessorValueTreeState::ParameterLayout layout;layout.add(std::make_unique<juce::AudioParameterInt>(juce::ParameterID{"ref_s01_pos",1},"Position",0,15,0));juce::AudioProcessorValueTreeState state(processor,nullptr,"drag_parameters",std::move(layout));PedalRegistry::registerAll();BoardModel model;CHECK(model.apply(cmd::Add{"generic.boost"}));CHECK(model.apply(cmd::Add{"generic.boost"}));const auto before=model.getOrder();GestureCapture capture;auto* parameter=state.getParameter("ref_s01_pos");parameter->addListener(&capture);
+    FaceAttachmentProcessor processor;juce::AudioProcessorValueTreeState::ParameterLayout layout;layout.add(std::make_unique<juce::AudioParameterInt>(juce::ParameterID{"ref_s01_pos",1},"Position",0,15,0));juce::AudioProcessorValueTreeState state(processor,nullptr,"drag_parameters",std::move(layout));PedalRegistry::registerAll();BoardModel model;if(!luthier::tests::requireReferenceEdit(ctx,model,cmd::Add{"generic.boost"}))return;if(!luthier::tests::requireReferenceEdit(ctx,model,cmd::Add{"generic.boost"}))return;const auto before=model.getOrder();GestureCapture capture;auto* parameter=state.getParameter("ref_s01_pos");parameter->addListener(&capture);
     bool expectChanged=true;auto reversed=before;std::reverse(reversed.begin(),reversed.end());capture.onGesture=[&](bool begin){CHECK(model.getOrder()==(begin||!expectChanged?before:reversed));};
     auto resetCapture=[&]{capture.gestures.clear();capture.valueChanges=0;};
     {
