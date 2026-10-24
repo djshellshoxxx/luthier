@@ -217,7 +217,7 @@ void PedalView::placeCaptionIn(juce::Component& host)
 }
 void PedalView::InspectorDismissal::mouseDown(const juce::MouseEvent& event)
 {
-    if(!owner.inspectorCallout)return;auto* target=event.originalComponent;
+    if(!owner.inspectorCallout||juce::Component::getCurrentlyModalComponent())return;auto* target=event.originalComponent;
     if(target==&owner.details||owner.details.isParentOf(target)||target==owner.inspectorCallout.get()||owner.inspectorCallout->isParentOf(target))return;
     owner.closeInspector();
 }

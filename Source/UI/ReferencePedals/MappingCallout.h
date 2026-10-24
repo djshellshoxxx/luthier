@@ -9,6 +9,8 @@ class MappingCallout final : public juce::Component
 public:
     MappingCallout(BoardModel&,juce::var binding);
     void resized() override;
+    bool keyPressed(const juce::KeyPress& key) override {if(key.getKeyCode()==juce::KeyPress::escapeKey&&onClose){onClose();return true;}return false;}
+    std::function<void()> onClose;
 private:
     void apply();
     BoardModel& model;

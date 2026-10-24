@@ -30,8 +30,8 @@ BoardRoot::BoardRoot(BoardModel& m,LuthierAudioProcessor* p):model(m),processor(
     place(learn,100);place(cables,75);place(fit,40);place(minus,28);place(zoomLabel,40);place(plus,28);place(settings,65);place(dock,45);place(popout,65);place(keepOnTop,110);toolbar.setSize(x,60);
     add.onClick=[this]{showAddMenu();};undo.onClick=[this]{model.undo();};redo.onClick=[this]{model.redo();};
     style.onChange=[this]{if(!refreshing)model.apply(cmd::SetStyle{(BoardStyle)(style.getSelectedId()-1)});};
-    mode.onChange=[this]{if(!refreshing)model.apply(cmd::SetMode{(Mode)(mode.getSelectedId()-1)});};
-    mixLaw.onChange=[this]{if(!refreshing)model.apply(cmd::SetMixLaw{(MixLaw)(mixLaw.getSelectedId()-1)});};
+    mode.onChange=[this]{if(!refreshing&&!modeAttachment)model.apply(cmd::SetMode{(Mode)(mode.getSelectedId()-1)});};
+    mixLaw.onChange=[this]{if(!refreshing&&!mixLawAttachment)model.apply(cmd::SetMixLaw{(MixLaw)(mixLaw.getSelectedId()-1)});};
     mix.onDragStart=[this]
     {
         ++mixGesture;
@@ -42,12 +42,15 @@ BoardRoot::BoardRoot(BoardModel& m,LuthierAudioProcessor* p):model(m),processor(
             status.setText("Waiting for MIDI for board wet/dry mix; Escape cancels",juce::dontSendNotification);startTimerHz(10);
         }
     };mix.onValueChange=[this]{if(!refreshing&&!mixAttachment)model.apply(cmd::SetMix{(float)mix.getValue(),mixGesture});};
-    enabled.onClick=[this]{if(!enabledAttachment)model.apply(cmd::SetBoardEnabled{enabled.getToggleState()});};
+    enabled.onClick=[this]{if(!refreshing&&!enabledAttachment)model.apply(cmd::SetBoardEnabled{enabled.getToggleState()});};
     tempo.onValueChange=[this]{if(!refreshing&&!tempoAttachment)model.apply(cmd::SetBoardParam{"tempoBpm",tempo.getValue()});};
     if(processor)
     {
         canvas.setMeterSource([this](int slot){return processor->getEngine().getReferencePedals().readPedalMeters(slot);});
-        auto& state=processor->getState();
+        const juce::ScopedValueSetter<bool> initialising(refreshing,true);
+        auto& state=processor->getState();mix.setComponentID("ref_board_mix");tempo.setComponentID("ref_board_tempo_bpm");enabled.setComponentID("ref_board_enabled");mode.setComponentID("ref_board_mode");mixLaw.setComponentID("ref_board_mix_law");
+        if(state.getParameter("ref_board_mode"))modeAttachment=std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(state,"ref_board_mode",mode);
+        if(state.getParameter("ref_board_mix_law"))mixLawAttachment=std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(state,"ref_board_mix_law",mixLaw);
         if(state.getParameter("ref_board_mix"))mixAttachment=std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(state,"ref_board_mix",mix);
         if(state.getParameter("ref_board_enabled"))enabledAttachment=std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(state,"ref_board_enabled",enabled);
         if(state.getParameter("ref_board_tempo_bpm"))tempoAttachment=std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(state,"ref_board_tempo_bpm",tempo);
@@ -72,11 +75,11 @@ BoardRoot::BoardRoot(BoardModel& m,LuthierAudioProcessor* p):model(m),processor(
     viewport.onScroll=[this]{saveView();};
     model.addListener(this);refresh();
 }
-BoardRoot::~BoardRoot(){canvas.setMeterSource({});canvas.cancelDrag();canvas.onError=nullptr;canvas.closeInspectors();canvas.onFocus=nullptr;canvas.onLearn=nullptr;viewport.onScroll=nullptr;stopTimer();flushView();model.removeListener(this);toolbarViewport.setViewedComponent(nullptr,false);viewport.setViewedComponent(nullptr,false);}
+BoardRoot::~BoardRoot(){settingsPopup.close();canvas.setMeterSource({});canvas.cancelDrag();canvas.onError=nullptr;canvas.closeInspectors();canvas.onFocus=nullptr;canvas.onLearn=nullptr;viewport.onScroll=nullptr;stopTimer();flushView();model.removeListener(this);toolbarViewport.setViewedComponent(nullptr,false);viewport.setViewedComponent(nullptr,false);}
 void BoardRoot::refresh()
 {
     const juce::ScopedValueSetter<bool> guard(refreshing,true);const auto s=model.getBoardSettings();
-    style.setSelectedId((int)s.style+1,juce::dontSendNotification);mode.setSelectedId((int)s.mode+1,juce::dontSendNotification);mixLaw.setSelectedId((int)s.mixLaw+1,juce::dontSendNotification);
+    style.setSelectedId((int)s.style+1,juce::dontSendNotification);if(!modeAttachment)mode.setSelectedId((int)s.mode+1,juce::dontSendNotification);if(!mixLawAttachment)mixLaw.setSelectedId((int)s.mixLaw+1,juce::dontSendNotification);
     if(!mixAttachment)mix.setValue(s.mix,juce::dontSendNotification);if(!enabledAttachment)enabled.setToggleState(s.enabled,juce::dontSendNotification);if(!tempoAttachment)tempo.setValue(s.tempoBpm,juce::dontSendNotification);
     undo.setEnabled(model.canUndo());redo.setEnabled(model.canRedo());browser.refresh();const auto info=model.getTopologyInfo();
     status.setText(juce::String(model.getInstanceCount())+" pedals | latency "+juce::String(info.latencyTotal)+" samples | "+info.note,juce::dontSendNotification);
@@ -96,7 +99,7 @@ void BoardRoot::zoomTo(float z){zoom=juce::jlimit(.5f,2.f,z);canvas.setTransform
 void BoardRoot::setCompact(bool b){compact=b;resized();}
 void BoardRoot::resized()
 {
-    canvas.closeInspectors();
+    settingsPopup.close();canvas.closeInspectors();
     auto r=getLocalBounds();toolbarViewport.setBounds(r.removeFromTop(64));status.setVisible(getHeight()>=360&&!compact);status.setBounds(status.isVisible()?r.removeFromBottom(20):juce::Rectangle<int>());
     const bool showBrowser=!compact&&getWidth()>=760;browser.setVisible(showBrowser);if(showBrowser)browser.setBounds(r.removeFromLeft(200));viewport.setBounds(r);
 }
@@ -106,8 +109,9 @@ void BoardRoot::showAddMenu()
     juce::PopupMenu menu;std::vector<std::string> ids;for(const auto* d:PedalRegistry::all()){ids.emplace_back(d->modelId);menu.addItem((int)ids.size(),d->displayName,model.getInstanceCount()<kMaxSlots);}
     juce::Component::SafePointer<BoardRoot> self(this);menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&add),[self,ids](int n){if(self&&n>0&&n<=(int)ids.size())self->model.apply(cmd::Add{ids[(size_t)n-1]});});
 }
-void BoardRoot::showSettings(){juce::CallOutBox::launchAsynchronously(std::make_unique<BoardMidiPanel>(model),getLocalArea(&settings,settings.getLocalBounds()),this);}
-void BoardRoot::visibilityChanged(){if(!isShowing()){canvas.cancelDrag();canvas.closeInspectors();stopTimer();if(processor)processor->getEngine().getReferencePedals().midi().cancelLearn();learnId=InstanceId::null();learnBoard=false;learn.setToggleState(false,juce::dontSendNotification);canvas.setLearn(false);saveView();}}
+void BoardRoot::openSettings(){if(!settingsPopup.isOpen())showSettings();}
+void BoardRoot::showSettings(){if(settingsPopup.isOpen()){settingsPopup.close();return;}auto panel=std::make_unique<BoardMidiPanel>(model,processor?&processor->getState():nullptr);juce::Component::SafePointer<BoardRoot> safe(this);panel->onClose=[safe]{juce::MessageManager::callAsync([safe]{if(safe)safe->settingsPopup.close(true);});};settingsPopup.open(std::move(panel),*this,settings);}
+void BoardRoot::visibilityChanged(){if(!isShowing()){settingsPopup.close();canvas.cancelDrag();canvas.closeInspectors();stopTimer();if(processor)processor->getEngine().getReferencePedals().midi().cancelLearn();learnId=InstanceId::null();learnBoard=false;learn.setToggleState(false,juce::dontSendNotification);canvas.setLearn(false);saveView();}}
 void BoardRoot::timerCallback()
 {
     const auto now=juce::Time::getMillisecondCounterHiRes();
@@ -139,6 +143,7 @@ bool BoardRoot::keyPressed(const juce::KeyPress& key)
     if(c==juce::KeyPress::escapeKey)
     {
         if(canvas.cancelDrag())return true;
+        if(settingsPopup.isOpen()){settingsPopup.close(true);return true;}
         if(!learnId.isNull()||learnBoard)
         {if(processor)processor->getEngine().getReferencePedals().midi().cancelLearn();learnId=InstanceId::null();learnBoard=false;if(!pendingView)stopTimer();status.setText("Learn: select another control; Escape exits",juce::dontSendNotification);return true;}
         if(learn.getToggleState()){learn.setToggleState(false,juce::dontSendNotification);canvas.setLearn(false);return true;}

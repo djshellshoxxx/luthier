@@ -158,11 +158,11 @@ LUTHIER_TEST(RefPedalUi, cachedSixteenPedalPaintBudget)
     BoardCanvas canvas(model);PedalFaceCache::clear();
     const auto region=juce::Rectangle<int>(0,0,1100,300);CHECK(canvas.createComponentSnapshot(region).isValid());
     const auto warmBytes=PedalFaceCache::bytesUsed();CHECK(warmBytes>0);CHECK(warmBytes<=PedalFaceCache::maxBytes);
-    std::vector<double> frames;frames.reserve(300);
-    for(int frame=0;frame<300;++frame){const auto start=juce::Time::getMillisecondCounterHiRes();CHECK(canvas.createComponentSnapshot(region).isValid());frames.push_back(juce::Time::getMillisecondCounterHiRes()-start);}
-    CHECK(PedalFaceCache::bytesUsed()==warmBytes);std::sort(frames.begin(),frames.end());
-    std::cout<<"UI paint snapshot: 16 real pedals, 17 series cables, 300 viewport frames, p95="<<frames[284]<<"ms p99="<<frames[296]<<"ms cache="<<warmBytes<<" bytes\n";
-    CHECK(frames[284]<16);CHECK(frames[296]<32); // CI 2x tolerance, section15; O0 focused harness.
+    std::vector<double> frames,wall;frames.reserve(300);wall.reserve(300);
+    for(int frame=0;frame<300;++frame){const auto start=juce::Time::getMillisecondCounterHiRes();const auto cpu=luthier::tests::threadCpuTimeSeconds();CHECK(canvas.createComponentSnapshot(region).isValid());frames.push_back(1000*(luthier::tests::threadCpuTimeSeconds()-cpu));wall.push_back(juce::Time::getMillisecondCounterHiRes()-start);}
+    CHECK(PedalFaceCache::bytesUsed()==warmBytes);std::sort(frames.begin(),frames.end());std::sort(wall.begin(),wall.end());
+    std::cout<<"UI paint snapshot: 16 real pedals, 17 series cables, 300 viewport frames, p95="<<frames[284]<<"ms p99="<<frames[296]<<"ms threadCPU; wallp95="<<wall[284]<<"ms wallp99="<<wall[296]<<"ms cache="<<warmBytes<<" bytes\n";
+    CHECK(wall[284]<16);CHECK(wall[296]<32); // CI 2x tolerance, section15; O0 focused harness.
 }
 LUTHIER_TEST(RefPedalUi, canvasGhostCancellationAndPlacementDropUseOneTransaction)
 {
@@ -173,4 +173,11 @@ LUTHIER_TEST(RefPedalUi, canvasGhostCancellationAndPlacementDropUseOneTransactio
     view->onDrag(*view,{900,20},{20,20},false);view->onDrag(*view,{900,20},{20,20},true);
     CHECK(!canvas.dragActive());CHECK(model.getOrder()[2]==before[0]);CHECK(model.getInstance(before[0])->placement==Placement::postCab);
     CHECK(model.undo());CHECK(model.getOrder()==before);CHECK(model.getInstance(before[0])->placement==Placement::beforeExistingPre);
+}
+LUTHIER_TEST(RefPedalUi, settingsAreOwnedNonmodalAndCloseOnEscapeAndResize)
+{
+    BoardModel model;BoardRoot root(model);root.setSize(1280,800);
+    auto count=[&]{int n=0;for(auto* child:root.getChildren())if(dynamic_cast<juce::CallOutBox*>(child))++n;return n;};
+    for(int repeat=0;repeat<5;++repeat){root.openSettings();CHECK(count()==1);CHECK(juce::Component::getCurrentlyModalComponent()==nullptr);CHECK(root.keyPressed({juce::KeyPress::escapeKey,juce::ModifierKeys(),0}));CHECK(count()==0);}
+    root.openSettings();root.setSize(480,260);CHECK(count()==0);
 }
