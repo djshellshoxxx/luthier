@@ -81,7 +81,7 @@ env:
   BUILD_DIR: build-ci
   DIST_DIR: dist
   CONFIG: Release
-  LUTHIER_BUILD_STRING: ${{ inputs.version == '0.1.0-beta' && format('beta.{0}', github.sha) || github.sha }}
+  LUTHIER_BUILD_STRING: ${{ inputs.version == '0.1.0-beta' && format('beta.{0}', inputs.ref || github.sha) || inputs.ref || github.sha }}
 
 jobs:
   plan:

@@ -50,9 +50,12 @@ jobs:
         name: Tag matches CMakeLists.txt
         env:
           TAG: ${{ inputs.tag || github.ref_name }}
-          REF: ${{ inputs.ref }}
         run: |
+          set -euo pipefail
           tag="$TAG"
+          [[ "$tag" =~ ^v[0-9]+\.[0-9]+(\.[0-9]+)?(-[A-Za-z0-9][A-Za-z0-9.-]*)?$ ]] || {
+            echo "::error::Invalid version tag"; exit 1;
+          }
           version="${tag#v}"
           # The requested public beta tag abbreviates the numeric patch.
           [ "$tag" != "v0.1-beta" ] || version="0.1.0-beta"
@@ -65,8 +68,18 @@ jobs:
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          # What to build: the tag, or the branch/commit that the draft release will tag.
-          echo "ref=${REF:-$tag}" >> "$GITHUB_OUTPUT"
+          # An existing tag must already identify exactly this checked-out source.
+          source_sha="$(git rev-parse HEAD)"
+          refs="$(git ls-remote --tags origin "refs/tags/$tag" "refs/tags/$tag^{}")"
+          if [ -n "$refs" ]; then
+            tagged_sha="$(printf '%s\n' "$refs" | awk '{ if ($2 ~ /\^\{\}$/) peeled=$1; else plain=$1 } END { print peeled ? peeled : plain }')"
+            test "$tagged_sha" = "$source_sha" || {
+              echo "::error::Existing tag points to different source; choose a new version."
+              exit 1
+            }
+          fi
+          # Freeze checkout once; all platform jobs and the final tag use this commit.
+          echo "ref=$source_sha" >> "$GITHUB_OUTPUT"
 
   build:
     name: Build and package
@@ -99,6 +112,47 @@ jobs:
           path: release
           merge-multiple: true
 
+      - name: Refuse an existing release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          response="$RUNNER_TEMP/luthier-release-lookup"
+          if gh api --include "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" > "$response"; then
+            echo "::error::Release already exists; choose a new immutable version."
+            exit 1
+          fi
+          # Fail closed on access/network/server errors. Only a verified404 is new.
+          grep -Eq '^HTTP/[0-9.]+ 404([[:space:]]|$)' "$response" || {
+            echo "::error::Could not verify that this release destination is unused."
+            exit 1
+          }
+
+      - name: Record source and qualification provenance
+        env:
+          SOURCE_SHA: ${{ needs.version.outputs.ref }}
+          RELEASE_VERSION: ${{ needs.version.outputs.version }}
+          PLATFORMS: ${{ inputs.platforms || 'linux,windows,macos' }}
+          EDITIONS: ${{ inputs.editions || 'pro,free' }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          python3 - <<'PYPROVENANCE'
+          import json, os
+          from pathlib import Path
+          info = {
+              "source_commit": os.environ["SOURCE_SHA"],
+              "version": os.environ["RELEASE_VERSION"],
+              "platforms": os.environ["PLATFORMS"].split(","),
+              "editions": os.environ["EDITIONS"].split(","),
+              "ci_run": f'{os.environ["GITHUB_SERVER_URL"]}/{os.environ["GITHUB_REPOSITORY"]}/actions/runs/{os.environ["GITHUB_RUN_ID"]}',
+              "validation": "All selected build, unit-test, plugin-validator and packaging jobs succeeded; strictness10 and LTO enabled.",
+              "manual_acceptance": "Hardware, DAW, installation and listening acceptance are separate; see release notes.",
+              "signing": "Signing and notarization depend on configured identities; see per-platform logs. No signing claim is inferred from compilation.",
+          }
+          Path("release/BUILD-PROVENANCE.json").write_text(json.dumps(info, indent=2) + "\n")
+          PYPROVENANCE
+
       - name: Checksums (installer.md 10)
         working-directory: release
         run: |
@@ -130,4 +184,5 @@ jobs:
           prerelease: ${{ contains(needs.version.outputs.version, '-') }}
           generate_release_notes: true
           fail_on_unmatched_files: true
+          overwrite_files: false
           files: release/*
