@@ -373,3 +373,51 @@ O(1) FractionalDelay reset performance check (O3, precomputed input/delay arrays
 0.00118 percentage points of a core for this single-delay scenario. Sinc medians
 0.0850024 / 0.0846859 s were within run variation. All old/new checksums matched.
 The extra history-validity comparison is not claimed to be free.
+
+E58 actual-model candidate now uses alternating factored AP1 roots. Each seeded
+stage mismatch perturbs fc before the two-anchor prewarp, preserving the prior
+mismatch location and all four saturation sites. Equal stereo sweep centers
+share coefficient targets; each channel keeps its own interpolation and DSP
+state. The original literal digital-notch oracle remains executable in the
+suite, including its >3% high-end error at 44.1/48 kHz. The revised model is
+checked against a separately formed AP2 transfer, not against its own factor
+implementation. This is an explicit algorithm correction, not a claim that the
+old literal coefficient formula still describes the product candidate.
+
+Actual-model evidence is reproducible from `probes/phase90-e58-actual.cpp`,
+`phase90-e58-edges.cpp`, and `phase90-e58-soak.cpp`, with raw result text beside
+each source. All five rates and three frozen sweep centers have normalized notch
+residual <2.22e-11, max response error <7.2e-10 dB at twelve 20 Hz–14 kHz points,
+identical stereo for identical input, and zero reported latency with a nonzero
+first impulse sample. Static-center 1 kHz THD is 0.000889–0.001144% at -20 dBV
+and 0.02203–0.02834% at -6 dBV under the already stated RMS/peak calibration.
+The unchanged 0.5%/3% limits pass. Five local O3 process-only thread-CPU trials
+at 48 kHz stereo/128 samples range 0.3324–0.3561% at default phase and
+0.3776–0.3905% at 180 degrees, below the unchanged 0.4% budget on this machine.
+No 3 GHz normalization or cross-platform CPU equivalence is inferred.
+
+A pinned ASAN+UBSAN source snapshot passes 53,039 checks with no diagnostics:
+all-rate sweep anchors, zero explicit delay, blocks 1/4/16/64/512/2048 with
+maximum mismatch/stereo phase, old oracle, seeded reset, LFO rate, bypass null
+and 0.35/independent 0.6 stability evidence. A fresh actual E58 long soak runs
+1800 seconds at each of five rates: **842,940,000 stereo frames**, initial LCG
+seed 73, block pattern 1/4/16/64/512/2048, randomized controls every 31 blocks.
+All runs are finite, peak <=1.537 and have **zero callback allocations**. The
+raw log records each frame/block count, final RNG state and CPU time. Parameter
+value then index are drawn in the probe's explicit order; this matches the
+original measured GCC argument-evaluation order and avoids leaving reproducible
+control selection dependent on compiler ordering.
+
+Remaining Phase90 acceptance distinctions are visible. For a 5 kHz sine, the
+largest measured folded odd-harmonic probe (through order31) is below -116.9 dBc
+at calibrated -6 dBV, but reaches -81.46 dBc at digital peak1/48 kHz. The named
+spec supplies no numeric alias ceiling; this is not a claim of a broader
+unmeasured spectral guarantee. Below roughly -220 dBc these coherent projections
+are numerical-floor evidence, not physically meaningful rejection estimates.
+Bypass is exact when off; the implemented 5 ms transition follows its intended
+ramp within 2.1e-16 and its maximum step is <=1.003 times the natural dry/wet sine
+step, passing A-PED's unchanged <=1.5 criterion. However the named spec's literal
+"peak delta < 1 LSB 24b" is not met if it means the first intentional fade
+increment: measured 9.04e-6–4.23e-5 versus 1.1921e-7. That wording/interpretation
+remains unresolved; it has not been replaced with the A-PED criterion. Phase90
+registration remains gated pending root review and closure of remaining gates.
