@@ -18,6 +18,7 @@ namespace
         PedalDesc desc;          // copy; `params` and the strings stay static storage owned by the model
         PedalFactory factory = nullptr;
         LaneMap lanes;
+        PreparedMemoryEstimator memory = nullptr;
     };
 
     // Descriptors live in a deque so the pointers handed out by find() / all()
@@ -185,7 +186,7 @@ int PedalRegistry::findParam (const PedalDesc& d, const char* paramId)
 }
 
 //==============================================================================
-bool PedalRegistry::add (const PedalDesc& desc, PedalFactory factory)
+bool PedalRegistry::add (const PedalDesc& desc, PedalFactory factory, PreparedMemoryEstimator memory)
 {
     // Quiet on purpose: T-REG feeds it invalid descriptors. Register*.cpp files
     // check the result; RefPedalApi.registryContentValid fails loudly in CI.
@@ -198,12 +199,25 @@ bool PedalRegistry::add (const PedalDesc& desc, PedalFactory factory)
     if (s.byId.count (desc.modelId) != 0 || s.byPrefix.count (desc.paramPrefix) != 0)
         return false;   // duplicate modelId or paramPrefix
 
-    s.entries.push_back ({ desc, factory, buildLaneMap (desc) });
+    s.entries.push_back ({ desc, factory, buildLaneMap (desc), memory });
     const size_t index = s.entries.size() - 1;
     s.byId[desc.modelId] = index;
     s.byPrefix[desc.paramPrefix] = index;
     s.view.push_back (&s.entries.back().desc);
     return true;
+}
+
+PreparedMemoryRequirement PedalRegistry::memoryRequirement (const char* modelId, double rate, int block,
+    int policy, const float* params)
+{
+    PreparedMemoryEstimator estimate = nullptr;
+    {
+        const std::lock_guard<std::recursive_mutex> lock (stateMutex());
+        const auto& s = state();
+        const auto found = s.byId.find (modelId ? modelId : "");
+        if (found != s.byId.end()) estimate = s.entries[found->second].memory;
+    }
+    return estimate ? estimate (rate, block, policy, params) : PreparedMemoryRequirement {};
 }
 
 void PedalRegistry::registerAll()
