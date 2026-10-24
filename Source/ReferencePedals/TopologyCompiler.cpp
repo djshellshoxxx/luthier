@@ -31,7 +31,6 @@ std::unique_ptr<RenderPlan> TopologyCompiler::compile (const std::vector<PedalIn
     if (settings.fb.on) return reject ("Feedback routing is not implemented yet");
     if (settings.mode == Mode::Loop || settings.mode == Mode::AB)
         return reject ("This routing mode is not implemented yet");
-    if (settings.reampEnable) return reject ("Sidechain reamp requires host routing integration");
     for (const auto& loop : settings.loops)
         if (loop.used) return reject ("Send/return routing is not implemented yet");
     auto result = std::make_unique<RenderPlan>();
@@ -78,7 +77,7 @@ std::unique_ptr<RenderPlan> TopologyCompiler::compile (const std::vector<PedalIn
     {
         t.segBegin[segment] = t.numNodes;
         std::array<int, kMaxBranches> latency {};
-        bool present = false;
+        bool present = settings.reampEnable && segment == 0 && ! instances.empty();
         for (const auto& instance : instances)
             if (static_cast<int> (instance.placement) == segment)
             {

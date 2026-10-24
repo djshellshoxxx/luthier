@@ -88,3 +88,31 @@ LUTHIER_TEST (RefPedalRouting, segmentLatencyIsSummedAndDryIsSegmentLocal)
     board.processStereo (l, r, 128, Placement::postCab);
     for (int i = 0; i < 128; ++i) CHECK_NEAR (l[i], i == 34 ? 0.2 : 0.0, 1.e-12);
 }
+
+LUTHIER_TEST (RefPedalRouting, reampUsesActualSidechainOnceAtPreAndDisconnectIsTransparent)
+{
+    Board board; board.prepare (48000, 128);
+    PedalInstance pass; pass.modelId = "missing.model"; pass.missing = true; pass.slot = 0;
+    pass.placement = Placement::postCab;
+    BoardSettings settings; settings.enabled = true; settings.limiterOn = false;
+    settings.reampEnable = true; settings.reampReplace = true;
+    CHECK (board.model().replaceAll ({ pass }, settings));
+    double l[128] {}, r[128] {}; float sideL[128], sideR[128];
+    std::fill_n (sideL, 128, 0.25f); std::fill_n (sideR, 128, -0.5f);
+    juce::MidiBuffer midi;
+    const auto run = [&] (bool connected)
+    {
+        std::fill_n (l, 128, 0.1); std::fill_n (r, 128, 0.1);
+        board.setSidechain (connected ? sideL : nullptr, connected ? sideR : nullptr, connected ? 128 : 0);
+        board.beginBlock (midi, {}, 128);
+        board.processStereo (l, r, 128, Placement::beforeExistingPre);
+        board.processStereo (l, r, 128, Placement::postCab);
+        board.endBlock (midi);
+    };
+    for (int block = 0; block < 20; ++block) run (true);
+    CHECK_NEAR (l[127], 0.25, 1.e-12); CHECK_NEAR (r[127], -0.5, 1.e-12);
+    CHECK (board.readMeters().sidechainAvailable);
+    run (false);
+    CHECK (l[127] == 0.1 && r[127] == 0.1);
+    CHECK (! board.readMeters().sidechainAvailable);
+}

@@ -27,7 +27,7 @@ struct Board::Impl : BoardModel::Listener
     {
         std::vector<PedalInstance> instances; BoardSettings settings; model.snapshot (instances, settings);
         auto key = juce::JSON::toString (settings.midi) + juce::String (settings.midiChan)
-            + ":" + juce::String (settings.tempoBpm) + ":" + juce::String (static_cast<int> (settings.tempoSource));
+            + ":" + juce::String (settings.enabled ? 1 : 0) + ":" + juce::String (settings.tempoBpm) + ":" + juce::String (static_cast<int> (settings.tempoSource));
         for (const auto& instance : instances)
             key += instance.instanceId.toString() + juce::String (instance.modelId) + juce::String (instance.slot) + juce::JSON::toString (instance.extras["midi"]);
         if (key != mapKey) { router.publishMap (midi::MidiState::buildMap (instances, settings)); mapKey = key; }
@@ -53,7 +53,8 @@ void Board::reset() noexcept { impl->engine.requestReset(); }
 BoardModel& Board::model() noexcept { return impl->model; }
 midi::MidiRouter& Board::midi() noexcept { return impl->router; }
 int Board::reclaim() noexcept { impl->engine.drainControlEcho(); return impl->engine.reclaim() + impl->router.reclaim(); }
-BoardMeters Board::readMeters() const noexcept { auto result = impl->engine.meters(); result.midiDropped = impl->router.droppedCount(); return result; }
+BoardMeters Board::readMeters() const noexcept { auto result = impl->engine.meters(); result.midiDropped += impl->router.droppedCount(); return result; }
+void Board::setSidechain (const float* left, const float* right, int samples) noexcept { impl->engine.setSidechain (left, right, samples); }
 void Board::setHostAutomation (const HostAutomationSnapshot& snapshot) noexcept { impl->engine.setHostAutomation (snapshot); }
 void Board::beginBlock (const juce::MidiBuffer& input, const HostTransport& host, int samples) noexcept
 {
