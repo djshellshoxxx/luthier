@@ -21,10 +21,15 @@ class Biquad
                      alpha = std::sin(w) / (2 * std::clamp(safe(q), .05, 100.)), c = -2 * std::cos(w);
         coefficients(1 + alpha * A, c, 1 - alpha * A, 1 + alpha / A, c, 1 - alpha / A);
     }
-    void setShelf(double sr, double hz, double db, bool high) noexcept
+    void setShelf(double sr, double hz, double db, bool high, double slope = 1.0) noexcept
     {
+        // RBJ shelf slope S. Restrict to the monotone range; S=1 preserves
+        // the existing four-argument coefficient arithmetic exactly.
+        slope = std::clamp(safe(slope), .05, 1.0);
         const double A = std::sqrt(dbGain(db)), w = 2 * pi * frequency(sr, hz) / sampleRate(sr),
-                     c = std::cos(w), s = std::sin(w), t = std::sqrt(2 * A) * s;
+                     c = std::cos(w), s = std::sin(w),
+                     t = slope == 1.0 ? std::sqrt(2 * A) * s
+                                      : std::sqrt(A * ((A + 1 / A) * (1 / slope - 1) + 2)) * s;
         if (high)
             coefficients(A * ((A + 1) + (A - 1) * c + t), -2 * A * ((A - 1) + (A + 1) * c),
                          A * ((A + 1) + (A - 1) * c - t), (A + 1) - (A - 1) * c + t,

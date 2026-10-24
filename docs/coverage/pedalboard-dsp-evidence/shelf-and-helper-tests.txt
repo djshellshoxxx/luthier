@@ -1,0 +1,16 @@
+RefPedalShelfSlope::independentAnalogPrototypeTransfer 768 checks 0 failures
+RefPedalShelfSlope::legacyDefaultAndHostileSlope 49152 checks 0 failures
+RefPedalDspKit::bilinearCutoffAndDc 10 checks 0 failures
+RefPedalDspKit::fractionalDelayAndSmoothing 4 checks 0 failures
+RefPedalDspKit::newtonResidualAndBound 6402 checks 0 failures
+RefPedalDspKit::phaseEnvelopeNoiseAndFiniteRecovery 1021 checks 0 failures
+RefPedalDspKit::oversamplerPolicyDeterminism 30006 checks 0 failures
+RefPedalDspKit::linearPhaseLatencyAndPassband 36 checks 0 failures
+RefPedalDspKit::firstOrderShelfEndpointsAndMidpoint 18 checks 0 failures
+RefPedalPeakFilter::centreGainAllRatesAndQ 72 checks 0 failures
+RefPedalDualGainLeg::ratIndependentComplexTransfer 18 checks 0 failures
+RefPedalDualGainLeg::tinyLedSaturationCurrentIsPreserved 4 checks 0 failures
+RefPedalFeedbackDiode::dynamicKclAndSymmetry 590400 checks 0 failures
+RefPedalFeedbackDiode::lowLevelCircuitTransfer 8 checks 0 failures
+RefPedalAsymmetricFeedback::independentTrapezoidalKclOracle 56196 checks 0 failures
+TOTAL 734115 checks 0 failures
