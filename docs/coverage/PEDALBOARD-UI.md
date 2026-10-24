@@ -129,3 +129,7 @@ The inspector exposes real Latch/Momentary/Auto metadata through approved `SetSl
 | A10 provenance | No shipped bitmaps/logos/manual excerpts added. All visual PNGs are external test artifacts. Full sanitizer/pluginval/DAW release gates remain open. |
 
 QA fixed group-Space bypass to activate the actual attached native footswitch, and fixed context-menu looper Learn to target its real momentary parameter. `looperContextLearnUsesItsRealMomentaryParameter` passes5checks. High-contrast bypass now uses outline-only indication; the pixel regression first failed and then passed (`highContrastBypassRetainsBodyContrast`). Reorder/placement/bypass title changes notify the native accessibility handler. The exact red and green evidence is retained under `.../acceptance-qa/`.
+
+## Canonical BPM unit regression
+
+The actual reference tempo parameter uses labelBPM. A standalone native reproduction returned unknown unit0 before the fix. ParamMeta now appends beatsPerMinute (preserving previous enum values), recognizes BPM, and returns suffixBPM / accessible name“beats per minute”. The same exact parameter reproduction passes after the fix; `boardTempoHasItsRealBeatsPerMinuteUnit` retains the regression in the UI suite. Original whole-processor everyParameterHasAUnitAndACategory awaits the coordinator's coherent native batch; no test exclusion was added. Red/green driver evidence is retained under `.../bpm-unit/`.
