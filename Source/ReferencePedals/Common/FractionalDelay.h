@@ -8,7 +8,7 @@ class FractionalDelay {
 public:
  void prepare(int maxSamples) {capacity=std::max(1,maxSamples);data.assign((size_t)capacity+16,0);head=0;kernel=&preparedKernel();}
  void reset() noexcept {std::fill(data.begin(),data.end(),0);head=0;}
- void push(double x) noexcept {if(data.empty())return;data[head]=safe(x);head=(head+1)%data.size();}
+ void push(double x) noexcept {if(data.empty())return;data[head]=safe(x);if(++head==data.size())head=0;}
  // Four-point Lagrange about floor(delay). Call push before read; zero is newest.
  double read(double delay) const noexcept {if(data.empty())return 0;delay=std::clamp(safe(delay),1.0,(double)capacity);int n=(int)delay;double f=delay-n;return safe(at(n-1)*(-f*(f-1)*(f-2)/6)+at(n)*((f+1)*(f-1)*(f-2)/2)+at(n+1)*(-(f+1)*f*(f-2)/2)+at(n+2)*((f+1)*f*(f-1)/6));}
  // E40: 16-tap Blackman-windowed sinc interpolation. The shared immutable
@@ -48,7 +48,12 @@ private:
   return coefficients;
  }
  const Kernel* kernel=nullptr;
- double at(int age) const noexcept {return data[(head+data.size()-1-(size_t)age)%data.size()];}
+ double at(int age) const noexcept
+ {
+  // read/readBandlimited clamp ages below size(), so one wrap suffices.
+  const auto distance=(size_t)age+1;
+  return data[head>=distance ? head-distance : head+data.size()-distance];
+ }
  std::vector<double> data;size_t head=0;int capacity=1;
 };
 }
