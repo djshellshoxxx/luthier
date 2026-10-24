@@ -3,10 +3,12 @@
 #include "Smoothers.h"
 #include <vector>
 #include <array>
+#include <cstdint>
 namespace luthier::reference::common {
 class FractionalDelay {
 public:
  void prepare(int maxSamples) {capacity=std::max(1,maxSamples);data.assign((size_t)capacity+16,0);head=validSamples=0;kernel=&preparedKernel();}
+ uint64_t ownedMemoryBytes() const noexcept {return uint64_t(data.capacity())*sizeof(double);}
  void reset() noexcept {head=validSamples=0;}
  void push(double x) noexcept {if(data.empty())return;data[head]=safe(x);if(++head==data.size())head=0;if(validSamples<data.size())++validSamples;}
  // Four-point Lagrange about floor(delay). Call push before read; zero is newest.
