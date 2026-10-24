@@ -36,7 +36,7 @@ void GenericFace::layout (FaceLayout& out)
     if (desc) for (int i=0,n=0;i<desc->numParams;++i)
     {
         const auto& p=desc->params[i]; if(p.has(PF_Engage)) continue;
-        out.controls.push_back({i, p.isDiscreteKind()?FaceControlKind::Selector:FaceControlKind::Knob,
+        out.controls.push_back({i, (p.kind==ParamKind::Momentary||p.kind==ParamKind::Trigger)?FaceControlKind::Button:p.isDiscreteKind()?FaceControlKind::Selector:FaceControlKind::Knob,
             {6.f+(n%3)*(sz.x-12)/3,40.f+(n/3)*48,(sz.x-12)/3,46},p.label}); ++n;
     }
 }

@@ -27,7 +27,7 @@ const std::vector<std::pair<const char*, const char*>>& AnimationPolicy::getPoll
 {
     static const std::vector<std::pair<const char*, const char*>> list =
     {
-        { "BoardRoot", "10 Hz only while MIDI learn is armed; captures input and enforces its timeout" },
+        { "BoardRoot", "10 Hz while MIDI learn or a 500 ms view-state debounce is pending; no idle repaint" },
         { "LuthierAudioProcessorEditor", "4 Hz: notices, drawer requests, tooltip setting; the footer badge draws the live values" },
         { "AnimationPolicy",       "its own 4 Hz static poll, which exists so static components can stop their timers" },
         { "StringRow",             "8 Hz: note-name and tension text only when they change" },

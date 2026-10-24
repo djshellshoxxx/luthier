@@ -7,6 +7,8 @@ class BoardViewport final : public juce::Viewport
 {
 public:
     std::function<void(float,juce::Point<float>)> onZoom;
+    std::function<void()> onScroll;
+    void visibleAreaChanged(const juce::Rectangle<int>&) override {if(onScroll)onScroll();}
     void mouseWheelMove(const juce::MouseEvent& e,const juce::MouseWheelDetails& wheel) override
     {
         if(e.mods.isCommandDown()&&onZoom)onZoom(wheel.deltaY>0?1.1f:1.f/1.1f,e.position);

@@ -78,11 +78,12 @@ LuthierAudioProcessorEditor::LuthierAudioProcessorEditor (LuthierAudioProcessor&
     referencePedalsButton.setTooltip ("Show/hide pedalboard (Ctrl+Shift+B)");
     referencePedalsButton.setClickingTogglesState (true);
     referencePedalsButton.onClick = [this] { toggleReferenceBoard(); };
-    referencePedalDrawer.onHeightChanged = [this] { resized(); };
+    referencePedalDrawer.onHeightChanged = [this] { referencePedalsButton.setToggleState(referencePedalDrawer.isOpen() || (boardWindow && boardWindow->isShowing()),juce::dontSendNotification); resized(); };
     auto& boardRoot = referencePedalDrawer.boardRoot();
     boardRoot.onDock = [this] { dockReferenceBoard(); };
     boardRoot.onPopout = [this] { popoutReferenceBoard(); };
     boardRoot.onToggle = [this] { toggleReferenceBoard(); };
+    boardRoot.onReturnFocus = [this] { grabKeyboardFocus(); };
 
     addAndMakeVisible (chordButton);
 
@@ -1734,7 +1735,8 @@ void LuthierAudioProcessorEditor::toggleReferenceBoard()
 {
     if (boardWindow && boardWindow->isShowing()) { boardWindow->hideWindow(); return; }
     if (referencePedalDrawer.isOpen()) { referencePedalDrawer.setOpen(false); referencePedalsButton.setToggleState(false,juce::dontSendNotification); return; }
-    popoutReferenceBoard();
+    const auto ui=reference::BoardUiState::read(processor.getEngine().getReferencePedals().model().getBoardSettings().ui);
+    if(ui.windowMode=="drawer" && getHeight()>=840)dockReferenceBoard();else popoutReferenceBoard();
 }
 void LuthierAudioProcessorEditor::popoutReferenceBoard()
 {
@@ -1750,7 +1752,7 @@ void LuthierAudioProcessorEditor::popoutReferenceBoard()
     {
         boardWindow->hideWindow();boardWindow->clearContentComponent();
         referencePedalDrawer.attachBoard();referencePedalDrawer.setOpen(getHeight()>=840);
-        inlineNotice.show("Pedalboard docked: host does not allow floating windows",InlineNotice::Level::warning);
+        inlineNotice.show(getHeight()>=840 ? "Pedalboard docked: host does not allow floating windows" : "Floating windows unavailable. Enlarge the editor to use the docked pedalboard.",InlineNotice::Level::warning);
     }
     resized();
 }

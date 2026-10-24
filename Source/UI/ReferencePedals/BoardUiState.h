@@ -6,6 +6,7 @@ namespace luthier::reference
 struct BoardUiState
 {
     juce::Rectangle<int> window {120,80,1100,520};
+    juce::String windowMode {"popout"};
     bool popoutOpen = false, dockOpen = false, cables = true, browser = true;
     int dockHeight = 232;
     float zoom = 1.f;

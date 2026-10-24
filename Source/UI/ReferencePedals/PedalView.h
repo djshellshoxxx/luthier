@@ -10,6 +10,7 @@ class PedalView final : public juce::Component
 public:
     PedalView (BoardModel&, InstanceId);
     void refresh();
+    std::unique_ptr<juce::AccessibilityHandler> createAccessibilityHandler() override;
     void resized() override;
     void paint (juce::Graphics&) override;
     bool keyPressed (const juce::KeyPress&) override;
@@ -38,6 +39,7 @@ private:
     juce::ComboBox placement, mounting, channel;
     juce::OwnedArray<juce::Slider> controls;
     juce::OwnedArray<juce::ComboBox> selectors;
+    juce::OwnedArray<juce::TextButton> actions;
     juce::OwnedArray<juce::Label> labels;
     std::vector<int> controlParams, selectorParams;
     juce::Slider inputTrim, outputTrim, lane;

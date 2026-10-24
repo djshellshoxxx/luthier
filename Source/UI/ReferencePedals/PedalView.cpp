@@ -4,6 +4,7 @@
 #include "../Theme.h"
 #include "../AnimationPolicy.h"
 #include "PedalFaceCache.h"
+#include "KnobControl.h"
 namespace luthier::reference
 {
 PedalView::PedalView(BoardModel& m,InstanceId id):model(m),instanceId(id)
@@ -23,11 +24,13 @@ PedalView::PedalView(BoardModel& m,InstanceId id):model(m),instanceId(id)
     inputTrim.setRange(-12,12,.1);outputTrim.setRange(-12,12,.1);lane.setRange(0,3,1);
     inputTrim.setTitle("Input trim dB");outputTrim.setTitle("Output trim dB");lane.setTitle("Routing lane");
     inputTrim.setTextValueSuffix(" dB");outputTrim.setTextValueSuffix(" dB");
+    inputTrim.onDragStart=[this]{++gesture;};outputTrim.onDragStart=inputTrim.onDragStart;
     inputTrim.onValueChange=[this]{if(!refreshing)post(cmd::SetTrim{instanceId,(float)inputTrim.getValue(),(float)outputTrim.getValue(),gesture});};
     outputTrim.onValueChange=inputTrim.onValueChange;
     lane.onValueChange=[this]{if(!refreshing)post(cmd::SetLane{instanceId,(int)lane.getValue()});};
     refresh();
 }
+std::unique_ptr<juce::AccessibilityHandler> PedalView::createAccessibilityHandler(){return std::make_unique<juce::AccessibilityHandler>(*this,juce::AccessibilityRole::group);}
 void PedalView::post(BoardCommand c)
 {
     // Removing or changing a face can destroy the clicked component; dispatch after its callback returns.
@@ -41,12 +44,17 @@ void PedalView::refresh()
     if(modelId!=instance->modelId || !face)
     {
         modelId=instance->modelId;descriptor=PedalRegistry::find(modelId.c_str());face=PedalFaceFactory::make(modelId.c_str());
-        controls.clear();selectors.clear();labels.clear();controlParams.clear();selectorParams.clear();
+        controls.clear();selectors.clear();actions.clear();labels.clear();controlParams.clear();selectorParams.clear();
         if(descriptor)for(int i=0;i<descriptor->numParams;++i)
         {
             const auto& p=descriptor->params[i];if(p.has(PF_Engage))continue;
             auto* label=labels.add(new juce::Label());label->setText(p.label,juce::dontSendNotification);label->setFont(11.f);label->setJustificationType(juce::Justification::centred);addAndMakeVisible(label);
-            if(p.isDiscreteKind() && p.choices)
+            if(p.kind==ParamKind::Momentary || p.kind==ParamKind::Trigger)
+            {
+                auto* button=actions.add(new juce::TextButton(p.label));button->setTitle(juce::String(descriptor->displayName)+" "+p.label);addAndMakeVisible(button);
+                button->onStateChange=[this,button,i]{if(!refreshing){if(learnMode&&onLearn)onLearn(instanceId,i,false);else post(cmd::SetParam{instanceId,i,button->isDown()?1.f:0.f});}};
+            }
+            else if(p.isDiscreteKind() && p.choices)
             {
                 auto* cb=selectors.add(new juce::ComboBox());selectorParams.push_back(i);
                 for(int k=0;k<p.steps;++k)cb->addItem(p.choices[k],k+1);
@@ -55,11 +63,12 @@ void PedalView::refresh()
             }
             else
             {
-                auto* s=controls.add(new juce::Slider());controlParams.push_back(i);
+                auto* s=controls.add(new KnobControl());controlParams.push_back(i);
                 s->setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);s->setTextBoxStyle(juce::Slider::TextBoxBelow,false,60,18);
                 const bool toggle=p.kind==ParamKind::Toggle || p.kind==ParamKind::Trigger || p.kind==ParamKind::Momentary;
                 s->setRange(0,1,toggle?1:.001);s->setDoubleClickReturnValue(true,p.defaultNormalised());
                 s->setTitle(juce::String(descriptor->displayName)+" "+p.label);s->setTooltip(juce::String(p.label)+" (double click resets; Shift drag fine)");
+                s->valueFromTextFunction=[this,i](const juce::String& text){return descriptor->params[i].toNormalised(text.getDoubleValue());};
                 s->textFromValueFunction=[this,i](double n){const auto& d=descriptor->params[i];return juce::String(d.fromNormalised(n),d.max-d.min>100?0:2)+" "+d.unit;};
                 s->onDragStart=[this]{++gesture;};
                 s->onValueChange=[this,s,i]{if(refreshing)return;if(learnMode&&onLearn){onLearn(instanceId,i,true);refresh();}else post(cmd::SetParam{instanceId,i,(float)s->getValue(),gesture});};
@@ -82,13 +91,14 @@ void PedalView::refresh()
 void PedalView::resized()
 {
     auto r=getLocalBounds().reduced(5);r.removeFromTop(58);
-    int l=0,kn=0,se=0;
+    int l=0,kn=0,se=0,ac=0;
     if(descriptor)for(int i=0;i<descriptor->numParams;++i)
     {
         const auto& p=descriptor->params[i];if(p.has(PF_Engage))continue;
         auto cell=juce::Rectangle<int>(5+(l%3)*(getWidth()-10)/3,58+(l/3)*83,(getWidth()-10)/3,81);
         labels[l]->setBounds(cell.removeFromTop(18));
-        if(p.isDiscreteKind()&&p.choices)selectors[se++]->setBounds(cell.removeFromTop(28));else controls[kn++]->setBounds(cell);
+        if(p.kind==ParamKind::Momentary||p.kind==ParamKind::Trigger)actions[ac++]->setBounds(cell.removeFromTop(44));
+        else if(p.isDiscreteKind()&&p.choices)selectors[se++]->setBounds(cell.removeFromTop(28));else controls[kn++]->setBounds(cell);
         ++l;
     }
     auto bottom=getLocalBounds().reduced(6);bottom.removeFromTop(58+((l+2)/3)*83);

@@ -38,3 +38,21 @@ LUTHIER_TEST (RefPedalUi, rejectedEditIsVisible)
     CHECK (!model.apply (cmd::Move {InstanceId::null(),999}));
     CHECK (root.statusText().isNotEmpty());
 }
+
+LUTHIER_TEST (RefPedalUi, stateRoundTripRetainsUnknownFields)
+{
+    auto* root=new juce::DynamicObject();root->setProperty("vendor", "keep-me");
+    auto* pop=new juce::DynamicObject();pop->setProperty("vendorWindow",73);root->setProperty("popout",juce::var(pop));
+    const juce::var original(root);
+    auto s=BoardUiState::read(original);s.windowMode="drawer";s.zoom=1.4f;s.scrollX=99;
+    auto encoded=s.write(original);auto decoded=BoardUiState::read(encoded);
+    CHECK(encoded["vendor"].toString()=="keep-me");CHECK((int)encoded["popout"]["vendorWindow"]==73);
+    CHECK(decoded.windowMode=="drawer");CHECK_NEAR(decoded.zoom,1.4,1e-6);CHECK(decoded.scrollX==99);
+}
+LUTHIER_TEST (RefPedalUi, keyboardReorderUsesOneUndoStep)
+{
+    BoardModel model;CHECK(model.apply(cmd::Add{"prototype.ts808"}));CHECK(model.apply(cmd::Add{"prototype.ds1"}));
+    BoardCanvas canvas(model);const auto before=model.getOrder();
+    CHECK(canvas.viewFor(before[0])->keyPressed({juce::KeyPress::rightKey,juce::ModifierKeys(juce::ModifierKeys::altModifier),0}));
+    CHECK(model.getOrder()[1]==before[0]);CHECK(model.undo());CHECK(model.getOrder()==before);
+}

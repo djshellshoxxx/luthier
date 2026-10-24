@@ -12,7 +12,7 @@ Drawer::~Drawer()=default;
 void Drawer::attachBoard(){addAndMakeVisible(root);root.setCompact(true);resized();}
 void Drawer::setOpen(bool b) noexcept
 {
-    open=b;setVisible(b);auto& m=processor.getEngine().getReferencePedals().model();auto ui=BoardUiState::read(m.getBoardSettings().ui);ui.dockOpen=b;ui.dockHeight=height;m.setUiState(ui.write(m.getBoardSettings().ui));
+    open=b;setVisible(b);auto& m=processor.getEngine().getReferencePedals().model();auto ui=BoardUiState::read(m.getBoardSettings().ui);ui.dockOpen=b;ui.dockHeight=height;if(b)ui.windowMode="drawer";m.setUiState(ui.write(m.getBoardSettings().ui));
     if(onHeightChanged)onHeightChanged();
 }
 void Drawer::refresh(){root.boardCanvas().refresh();}

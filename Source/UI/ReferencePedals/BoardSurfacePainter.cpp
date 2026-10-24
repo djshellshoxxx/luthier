@@ -39,7 +39,7 @@ void BoardSurfacePainter::paint (juce::Graphics& g, juce::Rectangle<float> r, Bo
 void BoardSurfacePainter::paintMount (juce::Graphics& g, juce::Rectangle<float> r, Mounting m, int seed)
 {
     if(m==Mounting::none || m==Mounting::automatic) return;
-    if(!Palette::textured) {g.setColour(Palette::textPrimary);g.drawRect(r.expanded(4),2);return;}
+    if(!Palette::textured) {g.setColour(Palette::textPrimary);g.drawRect(r.expanded(4),2);g.setFont(10.f);g.drawText(toString(m),r.expanded(4).toNearestInt().removeFromBottom(12),juce::Justification::centred);return;}
     if(m==Mounting::routed) {g.setColour(juce::Colours::black.withAlpha(.6f));g.fillRoundedRectangle(r.expanded(4),5);return;}
     if(m==Mounting::velcro || m==Mounting::ceramic)
     {

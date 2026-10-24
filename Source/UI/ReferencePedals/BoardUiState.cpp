@@ -16,6 +16,7 @@ juce::Rectangle<int> BoardUiState::clampWindow (juce::Rectangle<int> r, juce::Re
 BoardUiState BoardUiState::read (const juce::var& v)
 {
     BoardUiState s;
+    const auto mode=v.getProperty("window", "popout");if(mode.isString())s.windowMode=mode.toString();
     auto p = v.getProperty ("popout", juce::var());
     s.window = {(int)p.getProperty("x",120), (int)p.getProperty("y",80),
                 juce::jlimit(480,4096,(int)p.getProperty("w",1100)),
@@ -36,6 +37,7 @@ juce::var BoardUiState::write (const juce::var& previous) const
     auto v = previous.clone();
     if (!v.isObject()) v = new juce::DynamicObject();
     auto* o = v.getDynamicObject();
+    o->setProperty("window",windowMode);
     auto p = v.getProperty("popout",juce::var()).clone();
     if (!p.isObject()) p = new juce::DynamicObject();
     auto* po = p.getDynamicObject();
