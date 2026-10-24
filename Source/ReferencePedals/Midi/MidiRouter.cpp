@@ -265,6 +265,13 @@ void MidiRouter::process (const juce::MidiBuffer& in, const HostTransport& host,
                 if (! stillHeld) impl->foot (slot, false, kind == 0x80 ? e.d2 / 127.f : 0.f, off, out);
             }
         }
+        if (type == MidiSrc::CC && impl->effectiveEnabled)
+        {
+            const int slot = map->footCc[(size_t) ch - 1][(size_t) num];
+            const auto& bucket = map->find (type, ch, num);
+            if (slot >= 0 && (bucket.count == 0 || map->layers[bucket.index[0]] >= map->footLayer[(size_t) ch - 1][(size_t) num]))
+            { impl->foot (slot, value >= .5f, value, off, out); continue; }
+        }
         impl->route (*map, type, ch, num, value, off, out);
         if (type == MidiSrc::CC && (num == 11 || num == 4) && impl->effectiveEnabled && map->find (type, ch, num).count == 0)
         {
@@ -277,7 +284,7 @@ void MidiRouter::process (const juce::MidiBuffer& in, const HostTransport& host,
         {
             const int base = num & 31; const size_t channel = (size_t) ch - 1;
             if (num < 32) { impl->msb[channel][(size_t) base] = e.d2; impl->hasMsb[channel][(size_t) base] = true; }
-            else impl->lsb[channel][(size_t) base] = e.d2;
+            else if (impl->hasMsb[channel][(size_t) base]) impl->lsb[channel][(size_t) base] = e.d2;
             if (impl->hasMsb[channel][(size_t) base]) impl->route (*map, MidiSrc::CC14, ch, base,
                 (impl->msb[channel][(size_t) base] * 128 + impl->lsb[channel][(size_t) base]) / 16383.f, off, out);
         }
