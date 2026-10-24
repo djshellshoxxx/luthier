@@ -96,9 +96,11 @@ remain pending. E67 natural Discrete mapping07d9c296 is integrated with UI choic
 fix7d4f187f; no earlier registered model used Discrete.
 
 UI BPM metadata, actual GuiReach board/settings/inspector flow, meaningful
-position selectors and keyboard gesture recording are integrated. Live-drag
-final-only recording and its host position-echo mask are a final bounded slice
-pending checkpoint, otherwise next batch. No hidden/fake unused-lane widgets.
+position selectors and keyboard gesture recording are integrated. Live-drag final-only recording and the host position-echo mask are integrated
+from a8268054 and8f30e9d9. Focused UI40tests673922checks plus the strengthened
+37-check drag lifecycle test pass; actual host18tests2533checks pass. Integrated
+whole-editor reachability and the full bridge are still pending. No hidden/fake
+unused-lane widgets.
 
 The actual old02 native decay gate was freshly reproduced:1of25 fails at34.7dB
 versus35. Root's separate experimental zero-coupling/player-gesture overlays each
@@ -149,3 +151,10 @@ Known full-feature memory gate:64MiB prepared-pool cap is not yet certified.
 Sixteen stereo2s double delays at192k need98,304,000 raw bytes before overhead;
 current Wide reservation is2.4s. Do not lower precision/range or silently raise
 the cap. A resource admission limit/accounting policy is still required.
+
+Freeze boundary update: source includes host8f30e9d9 and UIa8268054; query HEAD
+of this handoff for the exact combined build commit. All later C++ changes queue
+in worktrees until the coherent native run completes. Original02 overlay legacy
+diagnostics had two environmental inconsistencies: a contaminated shared header
+snapshot and missing Resources beside relocated executables. Engine is repairing
+both unchanged controls; no code/fixture changes were adopted from those runs.
