@@ -40,8 +40,8 @@ LUTHIER_TEST(RefPedalUiFaces, everyDescriptorHasARealFaceOrInspectorControl) {
 }
 namespace {
 struct GestureCapture final : juce::AudioProcessorParameter::Listener {
-    std::vector<bool> gestures;void parameterValueChanged(int,float) override{}
-    void parameterGestureChanged(int,bool begin) override{gestures.push_back(begin);}
+    std::vector<bool> gestures;std::function<void(bool)> onGesture;int valueChanges=0;void parameterValueChanged(int,float) override{++valueChanges;}
+    void parameterGestureChanged(int,bool begin) override{gestures.push_back(begin);if(onGesture)onGesture(begin);}
 };
 class FaceAttachmentProcessor final : public juce::AudioProcessor {
 public:
@@ -153,4 +153,19 @@ LUTHIER_TEST(RefPedalUiFaces, discreteChoiceUsesNormalizedIndexAcrossNaturalOffs
 {
     PedalRegistry::TestScope scope;const char* choices[]{"1","2","3","4","5","6","7","8"};const ParamDesc params[]{{"fixture_memory","MEMORY","",ParamKind::Discrete,Taper::Linear,1,8,1,1,8,choices,PF_Config,0,-1}};const PedalDesc desc{"fixture.discrete","fixture_",1,"Discrete UI fixture","Fixture",nullptr,ChannelMode::Stereo,BypassMode::True,1,params,0,false,false,false,0};CHECK(PedalRegistry::add(desc,[]()->std::unique_ptr<IPedal>{return {};}));BoardModel model;CHECK(model.apply(cmd::Add{"fixture.discrete"}));BoardCanvas canvas(model);const auto id=model.getOrder()[0];juce::ComboBox* selector=nullptr;
     std::function<void(juce::Component&)> find=[&](auto& parent){for(auto* c:parent.getChildren()){if(c->getProperties()["referenceParamId"].toString()=="fixture_memory")selector=dynamic_cast<juce::ComboBox*>(c);find(*c);}};find(*canvas.viewFor(id));CHECK(selector!=nullptr);if(!selector)return;CHECK(model.apply(cmd::SetParam{id,0,1}));CHECK(selector->getSelectedId()==8);CHECK(model.apply(cmd::SetParam{id,0,0}));CHECK(selector->getSelectedId()==1);
+}
+LUTHIER_TEST(RefPedalUiFaces, liveDragRecordsOnlyAcceptedFinalPositionAndBalancesEveryExit)
+{
+    FaceAttachmentProcessor processor;juce::AudioProcessorValueTreeState::ParameterLayout layout;layout.add(std::make_unique<juce::AudioParameterInt>(juce::ParameterID{"ref_s01_pos",1},"Position",0,15,0));juce::AudioProcessorValueTreeState state(processor,nullptr,"drag_parameters",std::move(layout));PedalRegistry::registerAll();BoardModel model;CHECK(model.apply(cmd::Add{"generic.boost"}));CHECK(model.apply(cmd::Add{"generic.boost"}));const auto before=model.getOrder();GestureCapture capture;auto* parameter=state.getParameter("ref_s01_pos");parameter->addListener(&capture);
+    bool expectChanged=true;auto reversed=before;std::reverse(reversed.begin(),reversed.end());capture.onGesture=[&](bool begin){CHECK(model.getOrder()==(begin||!expectChanged?before:reversed));};
+    auto resetCapture=[&]{capture.gestures.clear();capture.valueChanges=0;};
+    {
+        BoardCanvas canvas(model,&state);auto* view=canvas.viewFor(before[0]);view->onDrag(*view,{500,130},{20,20},false);juce::Thread::sleep(90);view->onDrag(*view,{500,130},{20,20},false);CHECK(model.getOrder()[1]==before[0]);CHECK(capture.valueChanges==0);CHECK(capture.gestures==std::vector<bool>({true}));
+        view->onDrag(*view,{500,130},{20,20},true);CHECK(!canvas.dragActive());CHECK(capture.valueChanges==1);CHECK(capture.gestures==std::vector<bool>({true,false}));CHECK_NEAR(state.getRawParameterValue("ref_s01_pos")->load(),1,1e-6);CHECK(model.undo());CHECK(model.getOrder()==before);parameter->setValueNotifyingHost(0);expectChanged=false;resetCapture();
+        view->onDrag(*view,{500,130},{20,20},false);juce::Thread::sleep(90);view->onDrag(*view,{500,130},{20,20},false);CHECK(model.getOrder()[1]==before[0]);CHECK(canvas.cancelDrag());CHECK(model.getOrder()==before);CHECK(capture.valueChanges==0);CHECK(capture.gestures==std::vector<bool>({true,false}));CHECK(model.canRedo());resetCapture();
+        view->onDrag(*view,{500,130},{20,20},false);view->onDrag(*view,{-20,130},{20,20},true);CHECK(model.getOrder()==before);CHECK(capture.valueChanges==0);CHECK(capture.gestures==std::vector<bool>({true,false}));resetCapture();
+        view->onDrag(*view,{100,130},{20,20},false);view->onDrag(*view,{100,130},{20,20},true);CHECK(model.getOrder()==before);CHECK(capture.valueChanges==0);CHECK(capture.gestures==std::vector<bool>({true,false}));CHECK(model.canRedo());resetCapture();
+        view->onDrag(*view,{500,130},{20,20},false);
+    }
+    CHECK(model.getOrder()==before);CHECK(capture.valueChanges==0);CHECK(capture.gestures==std::vector<bool>({true,false}));parameter->removeListener(&capture);
 }

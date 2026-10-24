@@ -8,7 +8,7 @@ bool DragController::begin(const InstanceId& id,double now,bool live)
     if(active()&&!cancel())return false;
     const auto instance=model.getInstance(id);if(!instance)return false;
     const auto order=model.getOrder();candidate={(int)std::distance(order.begin(),std::find(order.begin(),order.end(),id)),instance->lane,instance->placement};
-    identity=id;candidateSince=now;lastCommit=now-125;liveReorder=live;model.beginTransaction("Move pedal");return true;
+    baseline=candidate;identity=id;candidateSince=now;lastCommit=now-125;liveReorder=live;model.beginTransaction("Move pedal");return true;
 }
 bool DragController::update(Target target,double now)
 {
@@ -31,6 +31,7 @@ bool DragController::commit(Target target)
 bool DragController::finish(Target target,double)
 {
     if(!active()||!commit(target))return false;
+    if(target==baseline)return cancel();
     identity=InstanceId::null();model.endTransaction();return true;
 }
 bool DragController::cancel()

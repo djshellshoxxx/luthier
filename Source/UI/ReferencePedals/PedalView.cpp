@@ -85,6 +85,7 @@ PedalView::PedalView(BoardModel& m,InstanceId id,juce::AudioProcessorValueTreeSt
 }
 PedalView::~PedalView()
 {
+    endPositionGesture();
     onFocus=nullptr;onLearn=nullptr;onDrag=nullptr;onCancelDrag=nullptr;onNavigate=nullptr;
     closeInspector();
     clearAttachments();
@@ -347,5 +348,18 @@ bool PedalView::moveTo(int index)
     auto* parameter=parameters?parameters->getParameter("ref_s"+juce::String(instance->slot+1).paddedLeft('0',2)+"_pos"):nullptr;
     struct HostGesture {juce::RangedAudioParameter* parameter;explicit HostGesture(juce::RangedAudioParameter* p):parameter(p){if(parameter)parameter->beginChangeGesture();}~HostGesture(){if(parameter)parameter->endChangeGesture();}} gesture(parameter);
     const bool accepted=model.apply(cmd::Move{instanceId,index});if(accepted&&parameter)parameter->setValueNotifyingHost(parameter->convertTo0to1((float)index));return accepted;
+}
+}
+
+namespace luthier::reference {
+void PedalView::beginPositionGesture()
+{
+    if(activePositionGesture)return;const auto instance=model.getInstance(instanceId);if(!parameters||!instance)return;
+    activePositionGesture=parameters->getParameter("ref_s"+juce::String(instance->slot+1).paddedLeft('0',2)+"_pos");if(activePositionGesture)activePositionGesture->beginChangeGesture();
+}
+void PedalView::endPositionGesture(int acceptedIndex)
+{
+    auto* parameter=activePositionGesture;if(!parameter)return;activePositionGesture=nullptr;
+    if(acceptedIndex>=0)parameter->setValueNotifyingHost(parameter->convertTo0to1((float)acceptedIndex));parameter->endChangeGesture();
 }
 }

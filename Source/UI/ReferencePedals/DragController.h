@@ -25,7 +25,7 @@ private:
     bool commit(Target);
     BoardModel& model;
     InstanceId identity=InstanceId::null();
-    Target candidate;
+    Target candidate,baseline;
     double candidateSince=0,lastCommit=-1000;
     bool liveReorder=true;
 };
