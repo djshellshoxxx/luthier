@@ -53,13 +53,19 @@ void Board::reset() noexcept { impl->engine.requestReset(); }
 BoardModel& Board::model() noexcept { return impl->model; }
 midi::MidiRouter& Board::midi() noexcept { return impl->router; }
 int Board::reclaim() noexcept { impl->engine.drainControlEcho(); return impl->engine.reclaim() + impl->router.reclaim(); }
+PedalMeters Board::readPedalMeters (int slot) const noexcept { return impl->engine.readPedalMeters (slot); }
 BoardMeters Board::readMeters() const noexcept { auto result = impl->engine.meters(); result.midiDropped += impl->router.droppedCount(); return result; }
 void Board::setSidechain (const float* left, const float* right, int samples) noexcept { impl->engine.setSidechain (left, right, samples); }
-void Board::setHostAutomation (const HostAutomationSnapshot& snapshot) noexcept { impl->engine.setHostAutomation (snapshot); }
+void Board::setHostAutomation (const HostAutomationSnapshot& snapshot) noexcept
+{
+    impl->engine.setHostAutomation (snapshot);
+    impl->router.setHostEnabled (snapshot.values[0] >= 0.5f, snapshot.serials[0]);
+}
 void Board::beginBlock (const juce::MidiBuffer& input, const HostTransport& host, int samples) noexcept
 {
     impl->explicitBlock = true;
     impl->blockSamples = std::max (0, samples);
+    impl->engine.syncRouting (impl->router);
     impl->router.process (input, host, impl->sample, impl->blockSamples, impl->routed);
     impl->engine.setTime (impl->routed.time);
     impl->engine.beginEvents (impl->routed);

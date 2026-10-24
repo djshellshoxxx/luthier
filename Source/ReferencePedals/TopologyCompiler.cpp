@@ -23,7 +23,7 @@ bool sameStructure (const RenderPlan& a, const RenderPlan& b)
 }
 }
 std::unique_ptr<RenderPlan> TopologyCompiler::compile (const std::vector<PedalInstance>& instances,
-    const BoardSettings& settings, PedalPool& pool, uint32_t version, const RenderPlan* previous, juce::String& error)
+    const BoardSettings& settings, PedalPool& pool, uint32_t version, const RenderPlan* previous, juce::String& error, const BoardCommand* intent, bool hostEcho)
 {
     error.clear();
     const auto reject = [&] (const char* message) -> std::unique_ptr<RenderPlan> { error = message; return {}; };
@@ -35,6 +35,15 @@ std::unique_ptr<RenderPlan> TopologyCompiler::compile (const std::vector<PedalIn
         if (loop.used) return reject ("Send/return routing is not implemented yet");
     auto result = std::make_unique<RenderPlan>();
     result->settings = settings;
+    if (previous) result->boardSerials = previous->boardSerials;
+    if (! previous || ! intent) result->boardSerials.fill (version);
+    else if (! hostEcho)
+    {
+        if (settings.enabled != previous->settings.enabled || std::holds_alternative<cmd::SetBoardEnabled> (*intent)) result->boardSerials[0] = version;
+        if (settings.mix != previous->settings.mix || std::holds_alternative<cmd::SetMix> (*intent)) result->boardSerials[1] = version;
+        const auto* scalar = std::get_if<cmd::SetBoardParam> (intent);
+        if (settings.tempoBpm != previous->settings.tempoBpm || (scalar && scalar->key == "tempoBpm")) result->boardSerials[2] = version;
+    }
     auto& t = result->topology;
     t.version = version; t.mode = settings.mode;
     t.numLanes = static_cast<uint8_t> (settings.mode == Mode::Parallel ? settings.lanes.numLanes : 1);
@@ -64,6 +73,33 @@ std::unique_ptr<RenderPlan> TopologyCompiler::compile (const std::vector<PedalIn
             for (int lane = 0; lane < lanes.numLanes; ++lane) control.laneToParam[static_cast<size_t> (lane)] = lanes.laneToParam[lane];
         }
         control.inputGain = gain (instance.inDb); control.outputGain = gain (instance.outDb);
+        const bool sameInstance = previous && previous->slots[slot] && object
+            && previous->slots[slot]->identity == object->identity && previous->slots[slot]->model == object->model;
+        if (sameInstance && intent)
+        {
+            const auto& old = previous->controls[slot];
+            control.enabledSerial = old.enabledSerial; control.inputSerial = old.inputSerial; control.outputSerial = old.outputSerial;
+            control.paramSerials = old.paramSerials;
+            if (! hostEcho)
+            {
+            if (control.enabled != old.enabled) control.enabledSerial = version;
+            if (control.inputGain != old.inputGain) control.inputSerial = version;
+            if (control.outputGain != old.outputGain) control.outputSerial = version;
+            for (int i = 0; i < kMaxParams; ++i)
+                if (control.params[static_cast<size_t> (i)] != old.params[static_cast<size_t> (i)]) control.paramSerials[static_cast<size_t> (i)] = version;
+            if (const auto* write = std::get_if<cmd::SetParam> (intent); write && write->id == instance.instanceId)
+                control.paramSerials[static_cast<size_t> (write->paramIdx)] = version;
+            if (const auto* write = std::get_if<cmd::SetEnabled> (intent); write && write->id == instance.instanceId)
+                control.enabledSerial = version;
+            if (const auto* write = std::get_if<cmd::SetTrim> (intent); write && write->id == instance.instanceId)
+                control.inputSerial = control.outputSerial = version;
+            }
+        }
+        else
+        {
+            control.enabledSerial = control.inputSerial = control.outputSerial = version;
+            control.paramSerials.fill (version);
+        }
         const int lane = settings.mode == Mode::Parallel ? instance.lane : 0;
         auto& laneList = t.lanes[lane]; laneList.slots[laneList.count++] = static_cast<uint8_t> (slot);
     }

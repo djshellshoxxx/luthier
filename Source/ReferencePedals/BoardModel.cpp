@@ -189,6 +189,17 @@ BoardModel::BoardModel() : impl (std::make_unique<Impl>()) {}
 BoardModel::~BoardModel() = default;
 
 bool BoardModel::apply (const BoardCommand& command, juce::String* rejectReason)
+{ return applyImpl (command, rejectReason, false); }
+bool BoardModel::applyHostEcho (const BoardCommand& command, juce::String* rejectReason)
+{
+    const auto* scalar = std::get_if<cmd::SetBoardParam> (&command);
+    if (! std::holds_alternative<cmd::SetParam> (command) && ! std::holds_alternative<cmd::SetEnabled> (command)
+        && ! std::holds_alternative<cmd::SetTrim> (command) && ! std::holds_alternative<cmd::SetMix> (command)
+        && ! std::holds_alternative<cmd::SetBoardEnabled> (command) && ! (scalar && scalar->key == "tempoBpm"))
+    { if (rejectReason) *rejectReason = "Host echo requires a scalar control"; return false; }
+    return applyImpl (command, rejectReason, true);
+}
+bool BoardModel::applyImpl (const BoardCommand& command, juce::String* rejectReason, bool hostEcho)
 {
     juce::String reason;
     bool settingsChanged = false;
@@ -397,11 +408,11 @@ bool BoardModel::apply (const BoardCommand& command, juce::String* rejectReason)
             return true;
         }, command);
         auto info = impl->info;
-        const bool compiled = supported && (! impl->compiler || impl->compiler (nextInstances, next, info, reason));
+        const bool compiled = supported && (! impl->compiler || impl->compiler (nextInstances, next, info, reason, &command, hostEcho));
         if (compiled)
         {
             impl->info = info;
-            impl->recordUndo (command);
+            if (! hostEcho) impl->recordUndo (command);
             impl->settings = std::move (next);
             impl->instances = std::move (nextInstances);
             settingsChanged = true;
@@ -459,7 +470,7 @@ bool BoardModel::undo()
         if (impl->transactionDepth != 0 || impl->undoStack.empty()) return false;
         juce::String error; auto info = impl->info;
         const auto& candidate = impl->undoStack.back();
-        if (impl->compiler && ! impl->compiler (candidate.instances, candidate.settings, info, error)) return false;
+        if (impl->compiler && ! impl->compiler (candidate.instances, candidate.settings, info, error, nullptr, false)) return false;
         impl->info = info;
         impl->lastGesture = {};
         impl->redoStack.push_back ({ impl->settings, impl->instances });
@@ -478,7 +489,7 @@ bool BoardModel::redo()
         if (impl->transactionDepth != 0 || impl->redoStack.empty()) return false;
         juce::String error; auto info = impl->info;
         const auto& candidate = impl->redoStack.back();
-        if (impl->compiler && ! impl->compiler (candidate.instances, candidate.settings, info, error)) return false;
+        if (impl->compiler && ! impl->compiler (candidate.instances, candidate.settings, info, error, nullptr, false)) return false;
         impl->info = info;
         impl->lastGesture = {};
         impl->undoStack.push_back ({ impl->settings, impl->instances });
@@ -565,7 +576,7 @@ bool BoardModel::replaceAll (const std::vector<PedalInstance>& orderedInstances,
     {
         const std::lock_guard<std::mutex> lock (impl->mutex);
         auto info = impl->info;
-        if (impl->compiler && ! impl->compiler (restored, settings, info, reason))
+        if (impl->compiler && ! impl->compiler (restored, settings, info, reason, nullptr, false))
         { if (error) *error = reason; return false; }
         impl->info = info;
         impl->instances = std::move (restored);

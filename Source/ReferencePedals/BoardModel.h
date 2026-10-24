@@ -50,6 +50,8 @@ public:
     // over kMaxLatencySamp, CPU cap, bad feedback ordering, unknown id...).
     // Rejected commands change nothing and notify Listener::rejected.
     bool apply (const BoardCommand&, juce::String* rejectReason = nullptr);
+    // E50: scalar host persistence only; no undo or new audio write intent.
+    bool applyHostEcho (const BoardCommand&, juce::String* rejectReason = nullptr);
 
     // Instance ids in audio order (== visual order).
     std::vector<InstanceId> getOrder() const;
@@ -80,7 +82,8 @@ public:
 private:
     friend class BoardEngine;
     friend class TopologyCompiler;
-    using Compiler = std::function<bool (const std::vector<PedalInstance>&, const BoardSettings&, TopologyInfo&, juce::String&)>;
+    using Compiler = std::function<bool (const std::vector<PedalInstance>&, const BoardSettings&, TopologyInfo&, juce::String&, const BoardCommand*, bool)>;
+    bool applyImpl (const BoardCommand&, juce::String*, bool hostEcho);
     void setCompiler (Compiler);
     struct Impl;
     std::unique_ptr<Impl> impl;

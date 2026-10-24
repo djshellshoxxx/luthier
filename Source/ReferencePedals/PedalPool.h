@@ -24,6 +24,8 @@ struct PedalRuntime
     FootController foot;
     bool enabled = true, modelEnabled = true;
     std::array<float, kMaxParams> modelParams {};
+    std::array<uint32_t, kMaxParams> modelParamSerials {};
+    uint32_t modelEnabledSerial = 0, modelInputSerial = 0, modelOutputSerial = 0;
     std::array<uint32_t, 19> hostSerials {};
     bool hostInitialised = false;
     float inputGain = 1.f, outputGain = 1.f, modelInputGain = 1.f, modelOutputGain = 1.f;
