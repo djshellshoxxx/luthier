@@ -35,7 +35,7 @@ const ParamDesc parameters[]{
     {"mxr_phase90_script_noise","HISS","",ParamKind::Toggle,Taper::Linear,0.0f,1.0f,0.0f,1.f,0,nullptr,PF_Config,20.0f,-1},
     {"mxr_phase90_script_stereo_mode","STEREO MODE","",ParamKind::Enum,Taper::Linear,0,1,0,1,2,stereoModeNames,PF_Config,5,-1},
 };
-const PedalDesc description{"mxr-phase90-script","mxr_phase90_script_",1,"Phase 90 Script (prototype)","Phaser","MXR Phase 90 Script",ChannelMode::Mono,BypassMode::True,13,parameters,0,false,false,false,0};
+const PedalDesc description{"mxr-phase90-script","mxr_phase90_script_",1,"Four-Stage Phaser (prototype)","Phaser",nullptr,ChannelMode::Mono,BypassMode::True,13,parameters,0,false,false,false,0};
 }
 const PedalDesc& MxrPhase90Script::descriptor() noexcept {return description;}
 MxrPhase90Script::MxrPhase90Script() : PedalBase(description) {}
