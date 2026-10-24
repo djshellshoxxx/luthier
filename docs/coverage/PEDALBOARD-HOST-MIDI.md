@@ -16,7 +16,7 @@ WP23 host extension: `LuthierEngine::setReferencePedalTransport(HostTransport)` 
 
 ## Actual native checks
 
-Standalone native harness against JUCE 8 core/audio_basics (2026-10-23): 18 cases / 132 checks passing under AddressSanitizer + UndefinedBehaviorSanitizer; the earlier 13-case / 64-check snapshot independently passed ThreadSanitizer. Own routing sources instrumented; reused JUCE module objects are uninstrumented.
+Standalone native harness against JUCE 8 core/audio_basics (2026-10-23): 20 cases / 148 checks passing under AddressSanitizer + UndefinedBehaviorSanitizer; the earlier 13-case / 64-check snapshot independently passed ThreadSanitizer. Own routing sources instrumented; reused JUCE module objects are uninstrumented.
 
 - RefPedalMidiCore::mappedOffsetsAndReservedGuard — 6 checks, passing.
 - RefPedalMidiCore::clockStartStopLoss — 6 checks, passing.
@@ -35,7 +35,7 @@ Compiler syntax checks passed for Parameters.cpp, LuthierEngine.cpp, PluginProce
 - Host files and host tests compiler-checked; full native execution is pending the shared build. Persistent map resolution compiler-checked.
 - Host automation is a message-thread bidirectional model mirror, not sample-accurate. Fixed 320 slot lanes + enabled/mix/tempo are append-only; continuous audio-thread overrides and dynamic lane names remain pending.
 - Clock median estimate/basic source priority and transport/loss work; specified PLL phase lock, jitter budget, source hysteresis/glide, exact mid-block source arbitration, tap external-master rejection and clock output remain pending.
-- Source map routing supports CC/CC14, notes/velocity, PB, channel/poly pressure, PC, absolute/relative/toggle/momentary/trigger. Step mode uses descriptor-derived step count, soft takeover uses initial model value/pickup crossing, and source priority uses 300ms hold. Board-target writes carry E36 routing data; engine consumption pending coordinated integration. Additive combine, scene recall, local/focus profiles and custom PCHIP curves remain pending.
+- Source map routing supports CC/CC14, notes/velocity, PB, channel/poly pressure, PC, absolute/relative/toggle/momentary/trigger. Step mode uses descriptor-derived step count, soft takeover uses initial model value/pickup crossing, and source priority uses 300ms hold. Board-target writes carry E36 routing data; engine consumption pending coordinated integration. Additive combine, scene recall and custom PCHIP curves remain pending. Selected focus and channel-local descriptor profiles are now compiled below explicit bindings.
 - Curve LUT 256 linear interpolation exists; analytic-error budget for steep log curves not yet established. Expression smoother is pure-tested but pedal consumers must advance it; smoothMs is carried through RouteOut, integration pending.
 - Learn distinct-value capture + suppression exists; ambiguous-source competition, duplicate dialog, learn-all and device/UI feedback remain pending.
 - Gesture decoder thresholds and controller modes are pure-tested; individual looper action consumption, pressure-hold and sample-accurate engage crossfade remain pending.
@@ -69,3 +69,7 @@ E46: MidiRouter::setHostEnabled(bool,uint32_t) is an approved additive audio-thr
 Host sidechain now forwards the actual processor-copied input slice to Board::setSidechain before every engine sub-block, with inner offsets and explicit null clearing. It uses no allocation or GUI code; compiler check pending/recorded with the next checkpoint.
 
 E48: MidiRouter::setModelEnabled(bool,uint32_t) is an approved additive audio-thread hook for explicit model write intent, including equal-value writes. New model revision applies before a new host serial. A consumed host serial does not override later model intent; a fresh host serial can. prepare resets applied model/host revisions. sameValueModelDisableDefeatsConsumedHostWrite passes five ASan/UBSan checks including UINT32_MAX->1 host serial wrap and 96kHz reprepare.
+
+Default-map follow-up: additive `addDefaultMaps(MapSnap&,ordered,settings)` builds message-thread focus/local maps. MapSnap binding layers are explicit0 > focus1 > local2; earlier chain profiles claim overlapping CCs on the same explicit channel. Focus uses settings.midi.selectedInstance, first pedal fallback; CC70..77 first eight eligible controls, CC11 first expression target, CC64 selected physical footswitch. Profiles activate only with explicit slot extras.midi.chan or selected useProfile; no-MIDI hardware profiles remain gated by their midi_enable descriptor. Generic fallback uses CC20..31/85. Canonical keyboard destinations stay storage slots. highResolutionCcIgnoresOrphanLsb (6 checks) and stableUuidFocusAndLocalProfilePrecedence (10 checks) pass in coherent native Board/Registry/MIDI ASan/UBSan harness, 20 cases/148 checks total.
+
+Focused HostAutomationCapture ThreadSanitizer stress passed 100,000 real host writes concurrent with suppressed echoes and snapshot reads; final serial100000/value0.75, no reported races. Full processor echo-intent integration remains pending E50.
