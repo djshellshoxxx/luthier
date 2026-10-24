@@ -4967,7 +4967,10 @@ void LuthierAudioProcessor::stampBlockLoad (double busySeconds, int numSamples) 
     if (currentSampleRate <= 0.0 || numSamples <= 0)
         return;
 
-    cpuLoad.addBlock (busySeconds, (double) numSamples / currentSampleRate);
+    const double blockAudioSeconds = (double) numSamples / currentSampleRate;
+    cpuLoad.addBlock (busySeconds, blockAudioSeconds);
+    engine.getReferencePedals().setProcessorLoad (cpuLoad.getShortMeanOnAudioThread(),
+        cpuLoad.hasShortWindowOnAudioThread(), blockAudioSeconds);
 
     // 7, E3: Luthier is over its whole block budget for 200 ms. Decided here,
     // on the audio thread, so it works while the message thread is blocked.
