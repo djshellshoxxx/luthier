@@ -9,6 +9,7 @@ namespace luthier::reference
 struct SlotControl
 {
     bool enabled = true;
+    FootMode footMode = FootMode::Latch;
     uint32_t enabledSerial = 0, inputSerial = 0, outputSerial = 0;
     std::array<uint32_t, kMaxParams> paramSerials {};
     std::array<int, kMaxLaneParams> laneToParam;

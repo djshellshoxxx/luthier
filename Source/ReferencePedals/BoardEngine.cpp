@@ -521,6 +521,7 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
                 if (state.runtime)
                 {
                     auto& pedal = *state.runtime->pedal;
+                    state.runtime->foot.setMode (state.control->footMode);
                     pedal.setSidechain (hasSidechain ? sidechainScratch[0].data() : nullptr,
                                         hasSidechain ? sidechainScratch[1].data() : nullptr, hasSidechain ? count : 0);
                     for (int param = 0; param < pedal.desc().numParams; ++param)
