@@ -22,7 +22,7 @@ public:
 private:
     common::BbdCore wet[3];common::Biquad emphasis[3],deemphasis[3];common::OnePole inputHp,bypassHp[2];
     common::Lfo lfo;TimeInfo time;uint32_t seed=1;
-    double lastRate=-1,cachedRate=1;
+    double lastRate=-1,cachedRate=1,lastLfoRate=-1;
     double sr=48000,modeBlend=1,stereoBlend=1;
     int mode=0,oldMode=0;
 };

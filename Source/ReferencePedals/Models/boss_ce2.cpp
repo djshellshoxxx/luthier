@@ -37,7 +37,7 @@ void BossCe2::prepare(double sampleRate,int,int)
 void BossCe2::reset() noexcept
 {
     for(int c=0;c<2;++c){wet[c].reset(seed);inputHp[c].reset();bypassHp[c].reset();}
-    lfo.setPhase(0);triangle=0;lastRate=-1;force=0;samples=0;lastTap=-1;tapIndex=tapCount=0;
+    lfo.setPhase(0);triangle=0;lastRate=lastLfoRate=lastPhaseControl=-1;force=0;samples=0;lastTap=-1;tapIndex=tapCount=0;
 }
 void BossCe2::setTime(const TimeInfo& t) noexcept
 {
@@ -68,13 +68,20 @@ void BossCe2::onFoot(const FootEvent& event) noexcept
 }
 void BossCe2::process(double* left,double* right,int n) noexcept
 {
+    if(n<=0)return;
     constexpr double quarters[]{4,2,1,.5,2.0/3,1.0/3,.25};
+    const bool synced=value(6)>.5f && time.valid,monoMode=value(13)>.5f,keepDryChannels=value(12)<.5f,clocked=value(4)>.5f;
+    const double syncRate=synced?common::TempoSync::rate(time.bpm,quarters[int(value(7))]):0;
+    const double depthOffset=value(10)>.5f?force*.5:0;
+    if(variant!=int(value(3))) {variant=int(value(3));for(auto& b:wet)b.setFilters(variant?7500:6500,variant?6000:5500);}
     for(int i=0;i<n;++i,++samples)
     {
-        if(variant!=int(value(3))) {variant=int(value(3));for(auto& b:wet)b.setFilters(variant?7500:6500,variant?6000:5500);}
         const double knob=nextSmoothed(0);if(knob!=lastRate){lastRate=knob;cachedRate=.3*std::pow(3.56/.3,knob);}const double rate=cachedRate;
-        const double depth=std::clamp(double(nextSmoothed(1))+(value(10)>.5f ? force*.5:0),0.,1.);
-        double phase=lfo.phase()+nextSmoothed(11)/360;phase-=std::floor(phase);
+        const double depth=std::clamp(double(nextSmoothed(1))+depthOffset,0.,1.);
+        const double phaseControl=nextSmoothed(11);if(phaseControl!=lastPhaseControl){lastPhaseControl=phaseControl;cachedPhaseCycles=float(phaseControl)/360;}
+        double phase=lfo.phase()+cachedPhaseCycles;
+        // Both terms lie in [0,1]; preserve the rare rounded sum2 endpoint.
+        if(phase>=1)phase-=phase>=2?2:1;
         const double tri=4*std::abs(phase-.5)-1;
         triangle+=(tri-triangle)*triangleCoefficient;
         const double delayMs=3.4+depth*triangle*(triangle>=0?1.1:1.2),noise=nextSmoothed(5);
@@ -82,13 +89,13 @@ void BossCe2::process(double* left,double* right,int n) noexcept
         const double mono=(dry[0]+dry[1])*.5;
         for(int c=0;c<2;++c)
         {
-            const double input=value(13)>.5f?mono:dry[c];
+            const double input=monoMode?mono:dry[c];
             const double buffered=inputHp[c].highpass(input);
-            const double dryPath=value(13)>.5f && value(12)<.5f?dry[c]:buffered;
-            const double processed=dryPath+.9440608762859234*wet[c].process(buffered,delayMs,noise,value(4)>.5f);
+            const double dryPath=monoMode && keepDryChannels?dry[c]:buffered;
+            const double processed=dryPath+.9440608762859234*wet[c].process(buffered,delayMs,noise,clocked);
             outputs[c][i]=softGuard(processed); // E60: board owns buffered engagement.
         }
-        lfo.setRate(value(6)>.5f && time.valid ? common::TempoSync::rate(time.bpm,quarters[int(value(7))]):rate);lfo.advance();
+        const double wantedRate=synced?syncRate:rate;if(wantedRate!=lastLfoRate){lastLfoRate=wantedRate;lfo.setRate(wantedRate);}lfo.advance();
     }
 }
 void BossCe2::processBypass(double* left,double* right,int n) noexcept

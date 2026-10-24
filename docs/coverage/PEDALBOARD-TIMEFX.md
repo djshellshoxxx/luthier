@@ -634,3 +634,31 @@ settings, boundary/hostile phases and rates, randomized rate/phase events and
 reprepare. This is an arithmetic-equivalent helper optimization, not a change to
 rate, waveform or timing specifications. DSP ownership authorization was obtained;
 independent post-commit review is requested before shared adoption.
+
+Named-model event-work checkpoint: CE2/CE2W avoid resetting unchanged LFO rates,
+compute block-invariant sync/mode choices once, and CE2 caches phase-control
+conversion while retaining the ORIGINAL float division before widening. Its
+phase sum is known to lie in[0,2], including the rounded2 endpoint, so wrapping
+uses the equivalent bounded subtraction. CE2W computes its identical CE1 preamp
+sample and triangle only once per frame; all three wet histories still advance.
+DD3T hoists block-invariant controls/divisions and computes cutoff only on the
+existing32-sample filter-update clock. Its short-loop interpolation reuses the
+already computed nonnegative integer index rather than recomputing floor.
+
+The reproducible trace includes five rates, all mode variants, foot/expression,
+clock, parameter, saved tap-state, reset and cross-rate reprepare events. All
+15 output-and-public-state hashes match the unchanged baseline across
+**3,967,500 stereo frames**; state hashes include phase/tempo/loop meters,
+parameters, tail meter and saveExtra, plus normal/buffered/residual audio where
+applicable. A fresh immutable ASAN+UBSAN snapshot passes **1,343,378 checks**,
+zero failures and zero diagnostics, including original named-model behavioral
+and distortion tests plus the independent LFO wrap oracle.
+
+Five local O3 trials at the exact named block sizes still fail CPU acceptance:
+CE2 @48k/512 improves0.577–0.648% to0.483–0.528% versus original0.4%;
+CE2W @48k/128 is1.094–1.297% after versus original1.0%;
+DD3T @48k/512 is0.814–0.900% after versus original0.5%.
+No registration or numerical threshold changed. Further work must remove actual
+redundant execution without dropping inactive histories or altering the circuits.
+The approved prepared-memory admission contract is being implemented before
+optional paired-channel SIMD experiments resume.

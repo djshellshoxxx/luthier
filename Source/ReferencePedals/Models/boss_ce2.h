@@ -24,6 +24,7 @@ private:
     common::BbdCore wet[2];common::OnePole inputHp[2],bypassHp[2];common::Lfo lfo;
     TimeInfo time;uint32_t seed=1;
     double lastRate=-1,cachedRate=1,triangleCoefficient=0;
+    double lastLfoRate=-1,lastPhaseControl=-1,cachedPhaseCycles=0;
     double sr=48000,triangle=0,force=0;
     int variant=0;int64_t samples=0,lastTap=-1;
     std::array<double,3> taps{};int tapCount=0,tapIndex=0;

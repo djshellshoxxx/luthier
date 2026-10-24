@@ -151,56 +151,63 @@ bool BossDd3t::processWithWetResidual(double* left,double* right,double* residua
 { render(left,right,residualL,residualR,n);return true; }
 void BossDd3t::render(double* left,double* right,double* residualL,double* residualR,int n) noexcept
 {
+    if(n<=0)return;
+    const int mode=int(value(3)),bits=12+int(value(10));
+    const bool converter=value(11)>.5f,monoMode=value(18)>.5f,monoDry=monoMode && value(15)>.5f,split=value(16)>.5f;
+    const double feedbackOffset=value(14)>.5f?force*.4:0;
+    const double fadeStep=1/(sr*fadeSeconds),holdStep=1/(sr*.01),inputTarget=enabled?1.:0.;
+    const double wetTarget=enabled || value(8)>.5f?1:0;
+    const double latency[2]{double(saturation[0].latencySamples()),double(saturation[1].latencySamples())};
+    if(bits!=lastBits){lastBits=bits;quantScale=std::ldexp(1.,bits-1);inverseQuantScale=1/quantScale;}
     for(int i=0;i<n;++i,++samples)
     {
         if(downAt>=0 && !holdActionFired && samples-downAt>=int64_t(2*sr)){setParam(7,value(7)>.5f?0:1);holdActionFired=true;}
         currentMs+=(cachedTargetMs-currentMs)*timeCoefficient;
-        const double levelKnob=nextSmoothed(0),feedbackKnob=std::clamp(double(nextSmoothed(1))+(value(14)>.5f?force*.4:0),0.,1.);
+        const double levelKnob=nextSmoothed(0),feedbackKnob=std::clamp(double(nextSmoothed(1))+feedbackOffset,0.,1.);
         if(levelKnob!=lastLevel){lastLevel=levelKnob;cachedLevel=std::pow(levelKnob,1.6);}
         if(feedbackKnob!=lastFeedback){lastFeedback=feedbackKnob;cachedFeedback=.97*std::pow(feedbackKnob,1.2);}
         const double level=cachedLevel,fb=cachedFeedback;
         const double dry[2]{softGuard(left[i]),softGuard(right[i])},mono=(dry[0]+dry[1])*.5;
-        inputGain+=std::clamp((enabled?1.:0.)-inputGain,-1/(sr*fadeSeconds),1/(sr*fadeSeconds));
-        const double wetTarget=enabled || value(8)>.5f ? 1:0;wetGain+=std::clamp(wetTarget-wetGain,-1/(sr*fadeSeconds),1/(sr*fadeSeconds));
-        const int mode=int(value(3));const double cutoff=mode==0?7000:mode==1?5500:7000-3500*std::clamp((currentMs-200)/600,0.,1.);
+        inputGain+=std::clamp(inputTarget-inputGain,-fadeStep,fadeStep);
+        wetGain+=std::clamp(wetTarget-wetGain,-fadeStep,fadeStep);
         if(--filterCountdown<=0)
         {
             filterCountdown=32;
+            const double cutoff=mode==0?7000:mode==1?5500:7000-3500*std::clamp((currentMs-200)/600,0.,1.);
             if(lastCutoff==0 || std::abs(cutoff-lastCutoff)>.01*lastCutoff)
             {
                 for(int c=0;c<2;++c)for(auto* filters:{pre[c],post[c]}){filters[0].setLowpass(sr,cutoff,.541196100146197);filters[1].setLowpass(sr,cutoff,1.30656296487638);}lastCutoff=cutoff;
             }
         }
         bool converterTick=false;
-        if(value(11)>.5f){converterPhase+=(32768/(currentMs*.001))/sr;if(converterPhase>=1){converterPhase-=std::floor(converterPhase);converterTick=true;}}
-        holdMix+=std::clamp((holding?1.:0.)-holdMix,-1/(sr*.01),1/(sr*.01));
-        const int bits=12+int(value(10));if(bits!=lastBits){lastBits=bits;quantScale=std::ldexp(1.,bits-1);inverseQuantScale=1/quantScale;}
+        if(converter){converterPhase+=(32768/(currentMs*.001))/sr;if(converterPhase>=1){converterPhase-=std::floor(converterPhase);converterTick=true;}}
+        holdMix+=std::clamp((holding?1.:0.)-holdMix,-holdStep,holdStep);
         double wetEnergy=0;double* outputs[]{left,right};
         for(int c=0;c<2;++c)
         {
-            const double input=value(18)>.5f?mono:dry[c];
+            const double input=monoMode?mono:dry[c];
             double x=highpass[c].highpass(input)*inputGain+feedback[c]*fb*wetGain;
             x=saturation[c].process(x,[](double v){return common::mildTanh(v);});for(auto& filter:pre[c])x=filter.process(x);
             if(bits<24 && std::abs(x)>1e-12)
                 x=std::round(x*quantScale+.5*(noise[c].next()+noise[c].next()))*inverseQuantScale;
-            if(value(11)>.5f)
+            if(converter)
             {
                 if(converterTick){previousQuant[c]=heldQuant[c];heldQuant[c]=x;}
                 x=previousQuant[c]+(heldQuant[c]-previousQuant[c])*converterPhase;
             }
             line[c].push(x);
-            const double ratio=c==1 && value(16)>.5f?.75:1;
-            const double delaySamples=std::max(1.,currentMs*ratio*sr*.001-saturation[c].latencySamples());
+            const double ratio=c==1 && split?.75:1;
+            const double delaySamples=std::max(1.,currentMs*ratio*sr*.001-latency[c]);
             double wet=line[c].read(delaySamples);for(auto& filter:post[c])wet=filter.process(wet);feedback[c]=wet;
             if(!history[c].empty())history[c][historyHead]=wet;
             double held=wet;
             if(loopLength && (holding || holdMix>0))
             {
-                const size_t at=size_t(loopPosition),next=at+1==loopLength?0:at+1;const double frac=loopPosition-std::floor(loopPosition);
+                const size_t at=size_t(loopPosition),next=at+1==loopLength?0:at+1;const double frac=loopPosition-double(at);
                 held=loop[c][at]+(loop[c][next]-loop[c][at])*frac;
             }
             const double outWet=holdMix>=1?held:wet+(held-wet)*holdMix;
-            const double dryOut=value(18)>.5f && value(15)>.5f?mono:dry[c];
+            const double dryOut=monoDry?mono:dry[c];
             double* residual=c==0?residualL:residualR;
             if(residual)residual[i]=level*outWet*wetGain;
             outputs[c][i]=softGuard(dry[c]+inputGain*(dryOut-dry[c])+level*outWet*wetGain);
