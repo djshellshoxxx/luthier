@@ -1,0 +1,47 @@
+// OWNER: WP15/WP16
+#pragma once
+#include "../Services/IAssetStore.h"
+#include <memory>
+namespace luthier::reference::common
+{
+// Bounded PCM page streaming. append/read/request are audio-owner calls: they
+// neither allocate, lock, wait, nor touch files. The owned worker writes hashed
+// pages and the hashed manifest through IAssetStore. State contains one hash.
+class LooperStorage
+{
+public:
+    struct Config
+    {
+        double sampleRate=48000;
+        int channels=2,pageFrames=4096,writePages=8,readPages=8,readAhead=3;
+        uint64_t maxFrames=48000*300ull;
+        size_t ramBudget=32*1024*1024;
+        uint64_t storageBudget=4ull*1024*1024*1024;
+    };
+    enum Error : uint32_t { none=0,writeOverrun=1,readUnderrun=2,ioFailure=4,capacityReached=8,invalidAsset=16 };
+    LooperStorage();
+    ~LooperStorage();
+    // Stopped audio only. Refuses a budget that cannot represent maxFrames;
+    // never silently shortens the configured loop to fit RAM.
+    bool prepare(IAssetStore&,const Config&);
+    uint64_t capacity() const noexcept;
+    size_t reservedBytes() const noexcept;
+    uint64_t reservedStorageBytes() const noexcept;
+    void beginRecord() noexcept;
+    bool append(double left,double right) noexcept;
+    bool finishRecord() noexcept;
+    bool read(uint64_t frame,double& left,double& right) noexcept;
+    void prefetch(uint64_t frame) noexcept;
+    uint64_t length() const noexcept;
+    uint32_t errors() const noexcept;
+    // Message/worker thread; bounded wait for page writes already queued by
+    // finishRecord(). Atomic failure leaves the previous hash unchanged.
+    bool manifest(AssetHash&,int timeoutMs=1000) const;
+    // Stopped audio only. Validates the external manifest off audio, then starts
+    // read-ahead. Audio pages remain external. No absolute paths in the result.
+    bool restore(const AssetHash&);
+private:
+    struct Impl;
+    std::unique_ptr<Impl> impl;
+};
+}

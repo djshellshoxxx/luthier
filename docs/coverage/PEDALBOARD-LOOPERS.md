@@ -41,3 +41,55 @@ MIDI clock master, and full crossfade seam modeling remain subsequent increments
 The existing seam algorithm attenuates loop edges rather than overlapping two
 unmodified regions; it must not be represented as a completed full crossfade.
 The original PhraseLooper prototype remains intact until integration is verified.
+
+## External PCM pager increment
+
+`Common/LooperStorage` provides append/read paging through IAssetStore. The audio
+owner uses fixed pools of write/read pages and a bounded SPSC work queue; it does
+not allocate, lock, wait, signal a condition variable, or perform file I/O. The
+worker polls its queue, writes little-endian float32 mono/stereo pages, verifies
+asset hashes, and publishes an external binary manifest. Only its content hash
+needs to enter host state, so long recordings do not consume the 256 KiB JSON cap.
+Metadata/cache/worker scratch reservations must fit the configured RAM budget;
+PCM plus page/manifest headers must fit the storage budget. Preparation rejects
+insufficient budgets and retains the previous instance rather than truncate the
+requested duration. The RAM figure excludes OS thread stack reservation and
+independent IAssetStore internals; storage reservation describes the active loop,
+not global garbage collection of content-addressed historical project assets.
+
+At 48 kHz stereo / 90 minutes / 4096-frame pages:
+
+- Capacity: **259,200,000 frames**, with no duration truncation.
+- Reserved working data/scratch: **6,261,616 bytes**, within 32 MiB.
+- Maximum active PCM/page/manifest payload: **2,076,890,704 bytes**, within 4 GiB.
+
+Read-ahead supplies playback pages. A cache miss returns zero wet samples and
+sets readUnderrun; failed/missing/corrupt assets set ioFailure. Exhausted write
+pages reject further recording immediately with writeOverrun and retain the
+accepted frame count. A caller can retain dry audio while reacting to these
+flags. Wrapper-level automatic transition to PLAY remains integration work.
+Manifest output is unchanged on failure. Restore validates a bounded manifest
+before mutation and waits on an off-audio queue barrier; a blocked old write
+causes a one-second timeout that preserves the previous loop. Old jobs cannot
+later overwrite the restored caches. Both asset-path verification and bounded
+page/manifest reads stream from files to avoid loading arbitrary-size assets.
+
+Focused pager verification: **9 cases, 876 checks, 0 failures** in normal, ASan,
+and TSan runs. The tests use real on-disk AssetStore plus a controllable mock gate
+for deterministic slow/failing reads/writes. They cover 90-minute capacity,
+exact reservation limits, mono/stereo page/manifest restoration, float32 fidelity,
+missing pages, malformed manifests, write overrun, read recovery, atomic restore
+timeout, and zero audio-owner allocation. Reused JUCE modules are not sanitizer
+instrumented; the pager, tests, and AssetStore are instrumented.
+
+```sh
+bash /workspace/luthier-evidence/loopers/run-storage.sh
+bash /workspace/luthier-evidence/loopers/run-storage-asan.sh
+bash /workspace/luthier-evidence/loopers/run-storage-tsan.sh
+```
+
+This is a shared storage primitive, not full looper parity. Remaining integration
+includes sparse/random overdub pages, worker compaction of retired accepted
+layers, cache version handoff during compaction, actual pedal state machines and
+registrations, persistent 11/99-memory ownership, UI meters, and MIDI/rhythm.
+Existing RAM-core tests do not substitute for paged-processor duration tests.
