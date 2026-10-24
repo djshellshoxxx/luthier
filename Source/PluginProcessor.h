@@ -59,6 +59,7 @@
 #include "Support/InstallLayout.h"
 #include "Support/SoundingNotesPublisher.h"
 #include "Presets/Preview/PreviewPlayer.h"   // preset-browser-previews.md 4
+#include "ReferencePedals/Midi/HostAutomationCapture.h"
 #include "Support/HostClockGuard.h"   // RT-SAFETY P2
 
 namespace luthier
@@ -853,6 +854,11 @@ private:
 
     void serviceReferencePedalParameters(); // message thread; model remains order authority
     std::array<float, 323> referenceParameterMirror {};
+    std::array<std::atomic<float>*, 323> referenceRawParameters {};
+    reference::HostAutomationCapture referenceHostCapture;
+    std::array<uint32_t, 323> referenceModelSerials {};
+    int referenceParameterBase = -1;
+    void captureReferenceHostAutomation() noexcept;
     bool referenceMirrorInitialised = false;
     void timerCallback() override;
     void updateLatency();

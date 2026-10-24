@@ -16,7 +16,7 @@ WP23 host extension: `LuthierEngine::setReferencePedalTransport(HostTransport)` 
 
 ## Actual native checks
 
-Standalone native harness against JUCE 8 core/audio_basics (2026-10-23): 15 cases / 111 checks passing under AddressSanitizer + UndefinedBehaviorSanitizer; the earlier 13-case / 64-check snapshot independently passed ThreadSanitizer. Own routing sources instrumented; reused JUCE module objects are uninstrumented.
+Standalone native harness against JUCE 8 core/audio_basics (2026-10-23): 16 cases / 122 checks passing under AddressSanitizer + UndefinedBehaviorSanitizer; the earlier 13-case / 64-check snapshot independently passed ThreadSanitizer. Own routing sources instrumented; reused JUCE module objects are uninstrumented.
 
 - RefPedalMidiCore::mappedOffsetsAndReservedGuard — 6 checks, passing.
 - RefPedalMidiCore::clockStartStopLoss — 6 checks, passing.
@@ -53,3 +53,13 @@ Compiler syntax checks passed for Parameters.cpp, LuthierEngine.cpp, PluginProce
 - Host limitations still pending: sample-accurate host automation, dynamic host lane names, per-placement auxiliary latency accounting, actual AU automation failure reproduction, DAW validation and UI control coverage integration.
 
 Clock follow-up: hostTransportPriorityAndStopEdge (7 checks) now verifies AUTO STOP exactly once; clockTempoIndependentOfRateAndBlockPartition (40 checks) covers 44.1/48/96/192kHz and 1/37/64/333/2048 block partitions.
+
+## E44 host automation follow-up (2026-10-24)
+
+Processor host callbacks now publish normalized write payloads into HostAutomationCapture's fixed atomics, with release serials and physical-unit conversion. Each audio slice copies the snapshot into Board::setHostAutomation; no model/registry calls or timer are required for delivery. Thread-local EchoScope suppresses synchronous model echoes only on the echoing thread, preserving concurrent host payloads. A repeated write at the same value still advances its serial. The message service reconciles/persists and echoes afterward; position remains structural per BOARD_CORE9.4.
+
+HostAutomationCapture is an additive pure engine header exposing write(index,norm), snapshot(), serial(index), value(index), and nested EchoScope. E44 shared snapshot/facade types are owned by the engine workstream.
+
+hostCaptureUnitsAndThreadLocalEcho adds 11 passing ASan/UBSan checks, including a concurrent 10,000-write host source during 10,000 suppressed model echoes. Full processor tests automationWithoutMessagePump and automationThousandWritesPerSecond are compiler-checked, not executed yet. These supplement the five previous host execution cases.
+
+Remaining E44 integration gate: router E39 OFF gating must receive the live host-enabled override before routing, independent of model echo; proposed hook under coordinator review. Full processor/board automation execution and UI-echo race under TSAN remain pending.
