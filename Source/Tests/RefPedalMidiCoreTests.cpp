@@ -541,3 +541,17 @@ LUTHIER_TEST (RefPedalMidiCore, externalTargetIntentRearmsPickupWithoutMapRebuil
     send(16); CHECK(out.nWrites==1); // replacement map cannot overwrite current target's intent
     router.setTargetValue(0,.8f,2); send(17); CHECK(out.nWrites==0); // explicit new intent even after map replacement
 }
+LUTHIER_TEST (RefPedalMidiCore, tapCannotChangeTempoOrHistoryUnderExternalMaster)
+{
+    for(auto source:{TempoSource::Internal,TempoSource::Auto,TempoSource::Host,TempoSource::MidiClock})
+    {
+        ClockSync clock; clock.prepare(48000); RouteOut out; HostTransport host; host.valid=host.playing=true; host.bpm=133;
+        clock.begin(host,source,120,0,out); CHECK_NEAR(clock.tap(0),120,1e-9);
+        CHECK_NEAR(clock.tap(19200),source==TempoSource::Internal?150:120,1e-9);
+    }
+    ClockSync clock; clock.prepare(48000); RouteOut out;
+    clock.begin({},TempoSource::Auto,120,0,out); clock.event(0xf8,0,0,0,out); clock.event(0xf8,0,0,1000,out); clock.finish(2048,out);
+    CHECK_NEAR(clock.tap(2000),120,1e-9); CHECK_NEAR(clock.tap(21200),120,1e-9);
+    clock.finish(30000,out); clock.begin({},TempoSource::Auto,120,40000,out);
+    CHECK_NEAR(clock.tap(40000),120,1e-9); CHECK_NEAR(clock.tap(59200),150,1e-9);
+}

@@ -101,6 +101,9 @@ public:
     }
     double tap (int64_t t) noexcept
     {
+        const bool external = source == TempoSource::Host || source == TempoSource::MidiClock
+            || (source == TempoSource::Auto && (useHost || (! lost && intervalCount >= 1)));
+        if (external) { tapCount = 0; lastTap = -1; return internalBpm; }
         if (lastTap < 0 || t - lastTap > sr * 2) { tapCount = 0; lastTap = t; return internalBpm; }
         const double d = (double) (t - lastTap); lastTap = t;
         if (d < sr * .2 || d > sr * 3) return internalBpm;
