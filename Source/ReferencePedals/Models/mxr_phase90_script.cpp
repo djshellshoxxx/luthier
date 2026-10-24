@@ -5,6 +5,17 @@ namespace luthier::reference::models
 {
 namespace
 {
+// E58 candidate: preserve both specified analog notch anchors without adding
+// a resampling delay. Factoring AP2 keeps all four nonlinear AP1 sites.
+// Seeded mismatch still perturbs each stage's fc before its prewarp.
+double anchoredCoefficient(double sr,double frequency,int stage) noexcept
+{
+    constexpr double lower=.4142135623730950488,upper=2.4142135623730950488;
+    const double u=std::tan(common::pi*frequency*lower/sr),v=std::tan(common::pi*frequency*upper/sr);
+    const double s=v-u,p=u*v,r=(s+std::sqrt(std::max(0.,s*s-4*p)))*.5;
+    const double pole=(stage&1) ? p/r:r;
+    return (pole-1)/(pole+1);
+}
 const char* const variantNames[]{"Script","Block (estimated)"};
 const char* const syncNames[]{"Off","Clock"};
 const char* const divNames[]{"1/1","1/2","1/4","1/8","1/8T","1/16"};
@@ -40,8 +51,7 @@ void MxrPhase90Script::reset() noexcept
     coefficientClock=0;lastSpeed=lastVariant=-1;
     for(int c=0;c<2;++c)for(int k=0;k<4;++k)
     {
-        const double g=std::tan(common::pi*330*std::sqrt(10.)*(1+mismatch[k]*value(5))/sr);
-        allpass[c][k]=(g-1)/(g+1);allpassStep[c][k]=0;
+        allpass[c][k]=anchoredCoefficient(sr,330*std::sqrt(10.)*(1+mismatch[k]*value(5)),k);allpassStep[c][k]=0;
     }
 }
 void MxrPhase90Script::setEnabled(bool e) noexcept
@@ -63,7 +73,7 @@ void MxrPhase90Script::setExpression(int jack,float v) noexcept {if(jack==0)setP
 void MxrPhase90Script::onParamChanged(int index,float v) noexcept {if(index==9)setParam(0,v/127);}
 void MxrPhase90Script::process(double* left,double* right,int n) noexcept
 {
-    constexpr double pi=3.14159265358979323846,quarters[]{4,2,1,.5,1.0/3,.25};
+    constexpr double quarters[]{4,2,1,.5,1.0/3,.25};
     for(int i=0;i<n;++i)
     {
         const double speed=nextSmoothed(0),depth=nextSmoothed(3),mix=nextSmoothed(4),offset=nextSmoothed(8)/360;
@@ -72,6 +82,7 @@ void MxrPhase90Script::process(double* left,double* right,int n) noexcept
         engage+=std::clamp((enabled?1.:0.)-engage,-fadeStep,fadeStep);
         const double source[2]{softGuard(left[i]),softGuard(right[i])};
         double* output[]{left,right};
+        double target[4]{},targetFrequency=-1;
         for(int c=0;c<2;++c)
         {
             double phase=oscillator.phase()+c*offset;phase-=std::floor(phase);
@@ -80,11 +91,15 @@ void MxrPhase90Script::process(double* left,double* right,int n) noexcept
             if(coefficientClock==0)
             {
                 const double frequency=330*std::pow(10,depth*(triangle[c]-.5)+.5);
-                for(int k=0;k<4;++k)
+                // At zero stereo phase both channels share the target, while
+                // retaining independent coefficient interpolation and states.
+                if(frequency!=targetFrequency)
                 {
-                    const double g=std::tan(pi*frequency*(1+mismatch[k]*value(5))/sr);
-                    allpassStep[c][k]=((g-1)/(g+1)-allpass[c][k])*.125;
+                    targetFrequency=frequency;
+                    for(int k=0;k<4;++k)target[k]=anchoredCoefficient(sr,frequency*(1+mismatch[k]*value(5)),k);
                 }
+                for(int k=0;k<4;++k)
+                    allpassStep[c][k]=(target[k]-allpass[c][k])*.125;
             }
             const double dry=source[c],signal=value(12)>.5f ? (source[0]+source[1])*.5:dry,input=highpass[c].highpass(signal);
             double x=input+(value(2)>.5f ? .35*std::tanh(feedback[c]):0);

@@ -1,15 +1,16 @@
 #include "TestFramework.h"
 #include "../ReferencePedals/Models/mxr_phase90_script.h"
 #include <array>
+#include <complex>
 using luthier::reference::models::MxrPhase90Script;
-LUTHIER_TEST(RefPedalPhase90, analyticStaticNotchesAndBypass)
+LUTHIER_TEST(RefPedalPhase90, revisedTwoAnchorStaticNotchesAndBypass)
 {
     for(double sr:{44100.,48000.,88200.,96000.,192000.})
     {
         MxrPhase90Script p;p.setEnabled(true);p.setParam(3,0);p.setParam(5,0);p.prepare(sr,1,1);
         constexpr double pi=3.14159265358979323846;const double center=330*std::sqrt(10.);
         double real[2]{},imaginary[2]{};
-        double frequency[]{sr/pi*std::atan(std::tan(pi*center/sr)*std::tan(pi/8)),sr/pi*std::atan(std::tan(pi*center/sr)*std::tan(3*pi/8))};
+        double frequency[]{center*std::tan(pi/8),center*std::tan(3*pi/8)};
         for(int i=0;i<int(sr*1.5);++i)
         {
             double l=i==0?.001:0,r=l;p.process(&l,&r,1);
@@ -18,6 +19,67 @@ LUTHIER_TEST(RefPedalPhase90, analyticStaticNotchesAndBypass)
         for(int k=0;k<2;++k)CHECK_MSG(std::hypot(real[k],imaginary[k])<1e-7,juce::String(std::hypot(real[k],imaginary[k]),12));
         p.setEnabled(false);for(int i=0;i<int(sr*.01);++i){double l=.1,r=-.1;p.process(&l,&r,1);}
         double l=.125,r=-.25;p.process(&l,&r,1);CHECK_NEAR(l,.125,1e-15);CHECK_NEAR(r,-.25,1e-15);
+    }
+}
+LUTHIER_TEST(RefPedalPhase90, originalLiteralBilinearOracleRetained)
+{
+    // Historical literal formula remains an independent executable oracle.
+    // E58 deliberately changes this transfer to restore the specified analog
+    // notch anchors; it does not assert equality to the old digital response.
+    constexpr double pi=3.14159265358979323846;
+    for(double sr:{44100.,48000.,88200.,96000.,192000.})for(double fc:{330.,330*std::sqrt(10.),3300.})
+    {
+        const double g=std::tan(pi*fc/sr),a=(g-1)/(g+1);
+        for(double tangent:{std::tan(pi/8),std::tan(3*pi/8)})
+        {
+            const double oldNotch=sr/pi*std::atan(g*tangent);
+            const auto z=std::exp(std::complex<double>(0,-2*pi*oldNotch/sr));
+            const auto stage=(a+z)/(1.+a*z);
+            CHECK(std::abs(.5*(1.+stage*stage*stage*stage))<1e-12);
+        }
+        if(fc==3300 && sr<=48000)
+        {
+            const double oldHigh=sr/pi*std::atan(g*std::tan(3*pi/8));
+            CHECK(std::abs(oldHigh/(fc*std::tan(3*pi/8))-1)>.03);
+        }
+    }
+}
+LUTHIER_TEST(RefPedalPhase90, revisedSweepEndpointsAndZeroExplicitDelay)
+{
+    constexpr double pi=3.14159265358979323846;
+    for(double sr:{44100.,48000.,88200.,96000.,192000.})for(double position:{0.,.5,1.})
+    {
+        MxrPhase90Script p;p.setEnabled(true);p.setParam(5,0);p.setParam(6,1);p.prepare(sr,1,1);
+        luthier::reference::TimeInfo t;t.valid=t.playing=true;t.bpm=120;t.ppq=position*.65;
+        for(int i=0;i<int(sr);++i){double l=0,r=0;p.setTime(t);p.process(&l,&r,1);}
+        const double fc=330*std::pow(10.,position),frequencies[]{fc*std::tan(pi/8),fc*std::tan(3*pi/8)};
+        std::complex<double> bins[2]{},phase[]{1.,1.},step[]{std::exp(std::complex<double>(0,-2*pi*frequencies[0]/sr)),std::exp(std::complex<double>(0,-2*pi*frequencies[1]/sr))};
+        for(int i=0;i<int(sr*2);++i)
+        {
+            double l=i==0?1e-6:0,r=l;p.setTime(t);p.process(&l,&r,1);
+            if(i==0)CHECK(std::abs(l)>1e-8); // Direct IIR response; no hidden buffering.
+            for(int k=0;k<2;++k){bins[k]+=l*phase[k];phase[k]*=step[k];}
+        }
+        CHECK(p.getLatencySamples()==0);
+        for(auto bin:bins)CHECK(std::abs(bin)/1e-6<1e-7);
+    }
+}
+LUTHIER_TEST(RefPedalPhase90, allRateBlockExtremesAndStereoPhase)
+{
+    for(double sr:{44100.,48000.,88200.,96000.,192000.})
+    {
+        MxrPhase90Script a,b;
+        for(auto* p:{&a,&b}){p->setEnabled(true);p->setParam(2,1);p->setParam(5,1);p->setParam(8,1);p->prepare(sr,2048,58);}
+        int frame=0;std::array<double,2048> l{},r{},x{},y{};
+        for(int n:{1,4,16,64,512,2048})
+        {
+            for(int i=0;i<n;++i,++frame){l[i]=x[i]=.1*std::sin(frame*.1);r[i]=y[i]=.1*std::cos(frame*.13);}
+            a.process(l.data(),r.data(),n);for(int i=0;i<n;++i)b.process(x.data()+i,y.data()+i,1);
+            for(int i=0;i<n;++i){CHECK(l[i]==x[i]);CHECK(r[i]==y[i]);CHECK(std::isfinite(l[i]));CHECK(std::isfinite(r[i]));}
+        }
+        a.reset();double peak=0;
+        for(int i=0;i<int(sr*.1);++i){double l0=0,r0=0;a.process(&l0,&r0,1);peak=std::max(peak,std::max(std::abs(l0),std::abs(r0)));}
+        CHECK(peak==0);
     }
 }
 LUTHIER_TEST(RefPedalPhase90, blockPartitionAndSeededReset)
