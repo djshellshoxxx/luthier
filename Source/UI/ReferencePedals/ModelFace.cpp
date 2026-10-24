@@ -26,7 +26,7 @@ void ModelFace::layout(FaceLayout& out)
         const auto& desc=descriptor->params[index];
         const bool selector=desc.isDiscreteKind()||desc.kind==ParamKind::Toggle;
         const auto kind=placement.kind==FaceControlKind::Knob&&selector?FaceControlKind::Selector:placement.kind;
-        const float diameter=juce::jmax(28.f,placement.diameter*1.6f);
+        const float diameter=juce::jmax(kind==FaceControlKind::Selector?18.f:28.f,placement.diameter*1.6f);
         out.controls.push_back({index,kind,{placement.x*1.6f-diameter*.5f,placement.y*1.6f-diameter*.5f,diameter,kind==FaceControlKind::Knob?diameter+12:diameter},placement.legend?placement.legend:desc.label});
     }
     const int foot=parameterIndex(profile.momentaryFootswitch);
@@ -42,11 +42,14 @@ void ModelFace::paintFace(juce::Graphics& g,const FaceState& state)
     g.setColour(state.highContrast?Palette::textPrimary:profile.lettering);
     g.setFont(juce::FontOptions(juce::jlimit(9.f,16.f,size.x*.095f)).withStyle("Bold"));
     g.drawFittedText(profile.title,4,(int)(profile.titleY*1.6f),(int)size.x-8,22,juce::Justification::centred,2);
-    FaceLayout plan;layout(plan);g.setFont(juce::FontOptions(9.f));
+    FaceLayout plan;layout(plan);g.setFont(juce::FontOptions(10.f));
     for(const auto& control:plan.controls)
     {
         if(control.kind==FaceControlKind::Button)continue;
-        auto label=control.bounds.withY(control.bounds.getY()-12).withHeight(11).expanded(4,0);
+        float width=48;const float x=control.bounds.getCentreX();
+        for(const auto& other:plan.controls)if(&other!=&control&&std::abs(other.bounds.getY()-control.bounds.getY())<8)width=juce::jmin(width,std::abs(other.bounds.getCentreX()-x)-2);
+        width=juce::jmin(width,2*juce::jmin(x-3,size.x-3-x));
+        const auto label=juce::Rectangle<float>(x-width*.5f,control.bounds.getY()-13,width,12);
         g.drawFittedText(control.label,label.toNearestInt(),juce::Justification::centred,1);
         if(control.kind==FaceControlKind::Knob&&!state.highContrast)
         {
@@ -70,12 +73,12 @@ FaceProfile genericFaceProfile(const PedalDesc* desc)
     FaceProfile p {desc?desc->modelId:"missing","MISSING MODEL",{75,125},juce::Colour(0xff445264),juce::Colours::white,62,{26,86,14,14},{33,72},{}};
     if(!desc)return p;
     p.title=desc->displayName;p.millimetres={66,112};p.titleY=69;p.footswitchMm={26,88,14,14};p.ledMm={33,81};
-    if(id=="generic.boost") {p.millimetres={54,90};p.enamel=juce::Colour(0xff546c82);p.titleY=58;p.footswitchMm={20,69,14,14};p.ledMm={44,62};p.controls={{"gain",27,22,16},{"tone",13,46,14},{"level",41,46,14},{"mode",43,14,11}};}
+    if(id=="generic.boost") {p.millimetres={54,90};p.enamel=juce::Colour(0xff546c82);p.titleY=58;p.footswitchMm={20,69,14,14};p.ledMm={44,62};p.controls={{"gain",27,22,16},{"tone",13,46,14},{"level",41,46,14},{"mode",43,18,11}};}
     else if(id=="generic.overdrive") {p.enamel=juce::Colour(0xff397449);p.controls={{"drive",12,24,15},{"tone",33,18,15},{"level",54,24,15},{"clip",20,52,12},{"bass",46,52,12}};}
     else if(id=="generic.fuzz") {p.enamel=juce::Colour(0xff8f3438);p.controls={{"fuzz",12,22,15},{"tone",33,22,15},{"volume",54,22,15},{"bias",18,49,12},{"type",46,49,12}};}
     else if(id=="generic.compressor") {p.enamel=juce::Colour(0xff84a5ba);p.lettering=juce::Colour(0xff151d25);p.controls={{"sustain",17,20,16},{"attack",49,20,16},{"level",17,49,16},{"blend",49,49,16},{"release",33,70,10}};p.titleY=79;p.ledMm={58,83};}
     else if(id=="generic.chorus") {p.enamel=juce::Colour(0xff247b7b);p.controls={{"rate",12,22,15},{"depth",33,22,15},{"mix",54,22,15},{"tone",18,49,12},{"mode",46,49,12}};}
-    else if(id=="generic.delay") {p.millimetres={90,112};p.enamel=juce::Colour(0xff274c7c);p.titleY=73;p.footswitchMm={57,88,14,14};p.ledMm={64,81};p.controls={{"time",12,22,15},{"feedback",34,22,15},{"mix",56,22,15},{"tone",78,22,15},{"mode",16,51,12},{"mod",44,51,12},{"sub",72,51,12},{"tap",24,95,14,nullptr,FaceControlKind::Button}};}
+    else if(id=="generic.delay") {p.millimetres={90,112};p.enamel=juce::Colour(0xff274c7c);p.titleY=73;p.footswitchMm={57,88,14,14};p.ledMm={64,81};p.controls={{"time",12,22,15},{"feedback",34,22,15,"FDBK"},{"mix",56,22,15},{"tone",78,22,15},{"mode",16,51,12},{"mod",44,51,12},{"sub",72,51,12},{"tap",24,95,14,nullptr,FaceControlKind::Button}};}
     else if(id=="generic.reverb") {p.millimetres={90,112};p.enamel=juce::Colour(0xffc4b28a);p.lettering=juce::Colour(0xff292016);p.titleY=73;p.footswitchMm={57,88,14,14};p.ledMm={64,81};p.controls={{"decay",18,22,17},{"mix",45,22,17},{"tone",72,22,17},{"predelay|pre_delay",18,52,12},{"size",45,52,12},{"type",72,52,12},{"freeze",24,95,14,nullptr,FaceControlKind::Button}};}
     else if(id=="generic.tremolo") {p.enamel=juce::Colour(0xff272629);p.lettering=juce::Colour(0xffe3c274);p.controls={{"rate",12,22,15},{"depth",33,22,15},{"shape",54,22,15},{"wave",18,49,12},{"stereo",46,49,12},{"tap",13,94,11,nullptr,FaceControlKind::Button}};}
     else if(id=="generic.wah") {p.millimetres={54,150};p.enamel=juce::Colour(0xff5a5f63);p.detail=FaceProfile::Detail::Treadle;p.titleY=126;p.footswitchMm={20,7,14,14};p.ledMm={43,17};p.controls={{"pedal",27,73,28,"PEDAL",FaceControlKind::Treadle},{"q",12,131,12},{"range_hi",42,131,12}};}

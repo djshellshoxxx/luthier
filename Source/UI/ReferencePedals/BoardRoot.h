@@ -36,10 +36,15 @@ private:
     LuthierAudioProcessor* processor;
     BoardCanvas canvas;
     BoardViewport viewport;
-    juce::Viewport toolbarViewport;
+    class ToolbarViewport final : public juce::Viewport {
+        void focusOfChildComponentChanged(FocusChangeType) override {
+            auto* child=juce::Component::getCurrentlyFocusedComponent();auto* body=getViewedComponent();if(!child||!body||!body->isParentOf(child))return;
+            const auto bounds=body->getLocalArea(child,child->getLocalBounds());int x=getViewPositionX();if(bounds.getX()<x)x=bounds.getX();else if(bounds.getRight()>x+getViewWidth())x=bounds.getRight()-getViewWidth();setViewPosition(x,getViewPositionY());
+        }
+    } toolbarViewport;
     juce::Component toolbar;
     PedalBrowser browser;
-    juce::TextButton add{"+ Add"},undo{"Undo"},redo{"Redo"},fit{"Fit"},minus{"−"},plus{"+"},dock{"Dock"},popout{"Pop out"},settings{"Settings"};
+    juce::TextButton add{"+ Add"},undo{"Undo"},redo{"Redo"},fit{"Fit"},minus{"-"},plus{"+"},dock{"Dock"},popout{"Pop out"},settings{"Settings"};
     juce::ToggleButton enabled{"Board ON"},cables{"Cables"},learn{"MIDI Learn"},keepOnTop{"Keep on top"};
     juce::Slider mix,tempo;
     juce::ComboBox style,mode,mixLaw;
