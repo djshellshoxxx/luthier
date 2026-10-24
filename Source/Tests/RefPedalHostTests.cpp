@@ -89,6 +89,7 @@ class HostProbe final : public IPedal
 public:
     const PedalDesc& desc() const noexcept override { return probeDesc; }
     void prepare (double, int, int) override {}
+    uint64_t getPreparedMemoryBytes() const noexcept override { return sizeof (*this); }
     void reset() noexcept override {}
     void setTime (const TimeInfo& time) noexcept override { probeBpm.store (time.bpm, std::memory_order_relaxed); }
     void setParam (int, float value) noexcept override { gain = value; probeValue.store (value, std::memory_order_relaxed); }
@@ -101,7 +102,7 @@ std::unique_ptr<IPedal> makeHostProbe() { return std::make_unique<HostProbe>(); 
 LUTHIER_TEST (RefPedalHost, automationWithoutMessagePump)
 {
     PedalRegistry::TestScope scope;
-    CHECK (PedalRegistry::add (probeDesc, makeHostProbe));
+    CHECK (PedalRegistry::add (probeDesc, makeHostProbe, fixedPreparedMemory<HostProbe>));
     auto p = std::make_unique<LuthierAudioProcessor>();
     auto& model = p->getEngine().getReferencePedals().model();
     CHECK (model.apply (cmd::Add { "test.host-automation" })); CHECK (model.apply (cmd::SetBoardEnabled { true }));
@@ -117,7 +118,7 @@ LUTHIER_TEST (RefPedalHost, automationWithoutMessagePump)
 }
 LUTHIER_TEST (RefPedalHost, automationThousandWritesPerSecond)
 {
-    PedalRegistry::TestScope scope; CHECK (PedalRegistry::add (probeDesc, makeHostProbe));
+    PedalRegistry::TestScope scope; CHECK (PedalRegistry::add (probeDesc, makeHostProbe, fixedPreparedMemory<HostProbe>));
     auto p = std::make_unique<LuthierAudioProcessor>();
     auto& model = p->getEngine().getReferencePedals().model();
     CHECK (model.apply (cmd::Add { "test.host-automation" })); CHECK (model.apply (cmd::SetBoardEnabled { true }));
@@ -134,7 +135,7 @@ LUTHIER_TEST (RefPedalHost, automationThousandWritesPerSecond)
 }
 LUTHIER_TEST (RefPedalHost, hostPersistenceEchoDoesNotCreateUndo)
 {
-    PedalRegistry::TestScope scope; CHECK (PedalRegistry::add (probeDesc, makeHostProbe));
+    PedalRegistry::TestScope scope; CHECK (PedalRegistry::add (probeDesc, makeHostProbe, fixedPreparedMemory<HostProbe>));
     auto p = std::make_unique<LuthierAudioProcessor>(); auto& model = p->getEngine().getReferencePedals().model();
     CHECK (model.apply (cmd::Add { "test.host-automation" })); CHECK (model.apply (cmd::SetBoardEnabled { true }));
     p->prepareToPlay (96000, 64);
@@ -149,7 +150,7 @@ LUTHIER_TEST (RefPedalHost, hostPersistenceEchoDoesNotCreateUndo)
 
 LUTHIER_TEST (RefPedalHost, appendedAuxBusesPreserveLayoutAndRenderSlicedSends)
 {
-    PedalRegistry::TestScope scope; CHECK (PedalRegistry::add (probeDesc, makeHostProbe));
+    PedalRegistry::TestScope scope; CHECK (PedalRegistry::add (probeDesc, makeHostProbe, fixedPreparedMemory<HostProbe>));
     auto p = std::make_unique<LuthierAudioProcessor>();
     const int first = p->getBusCount (false) - 3;
     CHECK (p->getBus (false, first)->getName() == "Pedal B");
@@ -200,7 +201,7 @@ class FixedHostClock final : public juce::AudioPlayHead
 }
 LUTHIER_TEST (RefPedalHost, extendedTempoSourceAndBpmWithoutMessagePump)
 {
-    PedalRegistry::TestScope scope; CHECK (PedalRegistry::add (probeDesc, makeHostProbe));
+    PedalRegistry::TestScope scope; CHECK (PedalRegistry::add (probeDesc, makeHostProbe, fixedPreparedMemory<HostProbe>));
     auto p = std::make_unique<LuthierAudioProcessor>(); auto& model = p->getEngine().getReferencePedals().model();
     CHECK (model.apply (cmd::Add { "test.host-automation" })); CHECK (model.apply (cmd::SetBoardEnabled { true }));
     FixedHostClock clock; p->setPlayHead (&clock); p->prepareToPlay (48000,64);
@@ -216,7 +217,7 @@ LUTHIER_TEST (RefPedalHost, extendedTempoSourceAndBpmWithoutMessagePump)
 }
 LUTHIER_TEST (RefPedalHost, extendedParameterDefaultsNamesAndLowGainPreservation)
 {
-    PedalRegistry::TestScope scope; CHECK (PedalRegistry::add (probeDesc,makeHostProbe));
+    PedalRegistry::TestScope scope; CHECK (PedalRegistry::add (probeDesc,makeHostProbe, fixedPreparedMemory<HostProbe>));
     auto p = std::make_unique<LuthierAudioProcessor>(); auto& model = p->getEngine().getReferencePedals().model();
     for (const auto& d : extendedHostParameters)
     {
@@ -248,7 +249,7 @@ LUTHIER_TEST (RefPedalHost, vacantSlotHostValuesSurviveSaveRestoreAndService)
 }
 LUTHIER_TEST (RefPedalHost, unusedPopulatedSlotLanePreservesHostValueWithoutChangingPedal)
 {
-    PedalRegistry::TestScope scope; CHECK(PedalRegistry::add(probeDesc,makeHostProbe));
+    PedalRegistry::TestScope scope; CHECK(PedalRegistry::add(probeDesc,makeHostProbe, fixedPreparedMemory<HostProbe>));
     auto p=std::make_unique<LuthierAudioProcessor>(); auto& model=p->getEngine().getReferencePedals().model();
     CHECK(model.apply(cmd::Add{"test.host-automation"}));
     auto* unused=p->getState().getParameter("ref_s01_p16"); unused->setValueNotifyingHost(.63f);
@@ -287,6 +288,7 @@ class HostFeedbackProbe final : public IPedal
 {
 public:
     const PedalDesc& desc() const noexcept override { return feedbackProbeDesc; }
+    uint64_t getPreparedMemoryBytes() const noexcept override { return sizeof (*this); }
     void prepare(double,int,int) override {} void reset() noexcept override {}
     void setParam(int,float) noexcept override {} float getParam(int) const noexcept override { return 0; }
     void process(double*,double*,int) noexcept override {}
@@ -295,7 +297,7 @@ std::unique_ptr<IPedal> makeHostFeedbackProbe() { return std::make_unique<HostFe
 }
 LUTHIER_TEST (RefPedalHost, restoredKillIntentStaysReleasedUntilFreshHostEdge)
 {
-    PedalRegistry::TestScope scope; CHECK(PedalRegistry::add(feedbackProbeDesc,makeHostFeedbackProbe));
+    PedalRegistry::TestScope scope; CHECK(PedalRegistry::add(feedbackProbeDesc,makeHostFeedbackProbe, fixedPreparedMemory<HostFeedbackProbe>));
     auto source=std::make_unique<LuthierAudioProcessor>(); auto& model=source->getEngine().getReferencePedals().model();
     CHECK(model.apply(cmd::Add{"test.host-feedback"})); const auto id=model.getOrder()[0];
     reference::FeedbackSettings feedback; feedback.on=true; feedback.src=feedback.dst=id; feedback.gain=.5f;
@@ -345,7 +347,7 @@ LUTHIER_TEST (RefPedalHost, processorFeedsMeasuredLoadIntoBoardWithoutMessagePum
 }
 LUTHIER_TEST (RefPedalHost, positionGestureDoesNotPublishPreviewOrCancelledValues)
 {
-    PedalRegistry::TestScope scope; CHECK(PedalRegistry::add(probeDesc,makeHostProbe));
+    PedalRegistry::TestScope scope; CHECK(PedalRegistry::add(probeDesc,makeHostProbe, fixedPreparedMemory<HostProbe>));
     auto p=std::make_unique<LuthierAudioProcessor>(); auto& model=p->getEngine().getReferencePedals().model();
     CHECK(model.apply(cmd::Add{"test.host-automation"})); CHECK(model.apply(cmd::Add{"test.host-automation"}));
     const auto first=model.getOrder()[0],second=model.getOrder()[1]; juce::MemoryBlock state; p->getStateInformation(state);
@@ -362,7 +364,7 @@ LUTHIER_TEST (RefPedalHost, positionGestureDoesNotPublishPreviewOrCancelledValue
 }
 LUTHIER_TEST (RefPedalHost, acceptedPositionGestureRecordsFinalValueWithOneModelMove)
 {
-    PedalRegistry::TestScope scope; CHECK(PedalRegistry::add(probeDesc,makeHostProbe));
+    PedalRegistry::TestScope scope; CHECK(PedalRegistry::add(probeDesc,makeHostProbe, fixedPreparedMemory<HostProbe>));
     auto p=std::make_unique<LuthierAudioProcessor>(); auto& model=p->getEngine().getReferencePedals().model();
     CHECK(model.apply(cmd::Add{"test.host-automation"})); CHECK(model.apply(cmd::Add{"test.host-automation"}));
     const auto first=model.getOrder()[0],second=model.getOrder()[1]; juce::MemoryBlock state; p->getStateInformation(state);
