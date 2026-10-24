@@ -35,6 +35,11 @@ private:
     common::FractionalDelay line[2];common::OnePole highpass[2];common::Biquad pre[2][2],post[2][2];
     common::LowLatencyOversampler saturation[2];common::NoiseGen noise[2];
     std::vector<double> history[2],loop[2];size_t historyHead=0,loopLength=0;double loopPosition=0,referenceMs=0;
+    // E55: one coherent lock-free snapshot. Magnitude is interval (always >0),
+    // sign encodes hasTapped without quantizing any interval mantissa bits.
+    static_assert(std::atomic<double>::is_always_lock_free,"RT tap snapshots require lock-free double atomics");
+    std::atomic<double> publishedTap{500};
+    void publishTap() noexcept {publishedTap.store(hasTapped?-tapInterval:tapInterval,std::memory_order_release);}
     double hostBpm=120;
     double fadeSeconds=.005,quantScale=2048,inverseQuantScale=1./2048;int lastBits=-1;
     double timeCoefficient=0,energyCoefficient=0,lastLevel=-1,lastFeedback=-1,cachedLevel=0,cachedFeedback=0;

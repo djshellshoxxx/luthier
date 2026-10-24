@@ -245,3 +245,34 @@ footswitch event: a short release requests board-owned engagement, while a
 Tap mode and Short Loop never request an engagement toggle. Engine ownership
 review confirmed this fits the existing contract and its <=64-sample consume
 latency; a dedicated short-release/long-hold regression covers the distinction.
+
+
+Long-soak outcome: LUTHIER_PERF=1 completed 30 simulated minutes for each of the
+four reference models at each of 44.1/48/96/192 kHz: 2,736,720,000 stereo frames,
+32 aggregate finite/bounded-output checks, zero failures. This immutable snapshot
+includes E51, clock-event reconstruction and continuously running CE2W histories;
+it predates the mathematically equivalent polyphase FIR and later UI/gesture/
+serialization changes. The post-polyphase 60-second-per-rate/model sanitizer
+suite passes separately. No denormal-slowdown timing claim is inferred from the
+finite-output soak alone.
+
+Two additional Phase90 criteria remain explicitly unsatisfied. At fc=3300 Hz,
+the specified bilinear allpass coefficient gives the upper notch at 7359.34 Hz
+for 44.1 kHz and 7442.65 Hz for 48 kHz, rather than the analog target 7966 Hz:
+errors −7.63% and −6.58%, exceeding the original 3% limit. The passing static
+center tests check the exact digital allpass formula and do not waive this sweep
+endpoint criterion. Also, the specified fixed Block feedback is 0.35, but the
+acceptance text asks for a 0.6-feedback soak while exposing no such parameter.
+The actual 0.35 variant passes its stability test; the distinct 0.6 gate remains
+unmet. Both conflicts require an independently reviewed algorithm/spec decision.
+
+E55 runtime-save audit fixed generic Delay and DD3T tap-state data races.
+Generic Delay publishes a lock-free atomic double. DD3T publishes one atomic
+double whose magnitude is the always-positive interval and whose sign encodes
+hasTapped; serialization loads once and derives interval, flag and BPM from the
+same snapshot. No precision bits are discarded and no message-thread reader
+accesses changing DSP members. The platform must provide lock-free double atomics
+(static assertion). loadExtra remains an inactive-instance lifecycle operation.
+Concurrent audio taps/message-thread serialization passes ThreadSanitizer with
+four checks and no race diagnostics. ASAN+UBSAN concurrent/precision round trips
+pass 11 checks, including preservation of the adjacent-double mantissa value.
