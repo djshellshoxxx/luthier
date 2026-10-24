@@ -13,13 +13,13 @@ void addDefaultMaps (MapSnap& map, const std::vector<PedalInstance>& instances, 
         for (const auto& instance : instances) if (instance.instanceId == focus) selected = &instance;
     }
     uint16_t id = 60000;
-    auto bind = [&] (const PedalInstance& instance, const ParamDesc& param, int index, int cc, int chan, int layer)
+    auto bind = [&] (const PedalInstance& instance, const ParamDesc& param, int index, int cc, int chan, int layer, MidiSrc source = MidiSrc::CC)
     {
-        if (cc < 0 || cc > 127 || reservedCc (cc) || instance.slot < 0 || instance.slot >= kMaxSlots) return;
-        Binding b; b.id = id++; b.chan = (uint8_t) chan; b.srcNum = (uint8_t) cc;
+        if (cc < 0 || cc > 127 || (source == MidiSrc::CC && reservedCc (cc)) || instance.slot < 0 || instance.slot >= kMaxSlots) return;
+        Binding b; b.id = id++; b.chan = (uint8_t) chan; b.srcNum = (uint8_t) cc; b.srcType = (uint8_t) source;
         b.target = (uint16_t) (instance.slot * kMaxParams + index);
         b.smoothMs = param.has (PF_OwnSmoothing) ? 0 : (uint16_t) std::clamp (param.smoothMs, 0.f, 500.f);
-        if (param.kind == ParamKind::Continuous || param.kind == ParamKind::Tempo) b.flags |= BF_SoftTakeover;
+        if (source == MidiSrc::CC && (param.kind == ParamKind::Continuous || param.kind == ParamKind::Tempo)) b.flags |= BF_SoftTakeover;
         const auto mode = param.kind == ParamKind::Trigger ? BindMode::Trigger : param.kind == ParamKind::Momentary ? BindMode::Momentary
             : param.kind == ParamKind::Toggle ? BindMode::Toggle : param.isDiscreteKind() ? BindMode::Step : BindMode::Absolute;
         b.setModeCurve (mode, CurveId::Linear);
@@ -41,7 +41,7 @@ void addDefaultMaps (MapSnap& map, const std::vector<PedalInstance>& instances, 
             const auto& param = desc->params[p];
             if (param.has (PF_Hidden) || param.has (PF_Engage) || param.has (PF_Config) || param.has (PF_Ext)) continue;
             if (knob < 8 && param.kind != ParamKind::Trigger && param.kind != ParamKind::Momentary) bind (*selected, param, p, 70 + knob++, 0, 1);
-            if (! expression && param.has (PF_ExprTarget)) { bind (*selected, param, p, 11, 0, 1); expression = true; }
+            if (! expression && param.has (PF_ExprTarget)) { bind (*selected, param, p, 1, 0, 1, MidiSrc::VirtualExpression); expression = true; }
         }
         foot (selected->slot, 64, 0, 1);
     }

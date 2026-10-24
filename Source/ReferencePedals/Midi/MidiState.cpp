@@ -12,7 +12,7 @@ MidiSrc sourceType (const juce::var& v)
 {
     if (v.isInt()) return (int) v >= 0 && (int) v < kSourceTypes ? (MidiSrc) (int) v : (MidiSrc) 255;
     const auto text = v.toString();
-    const char* names[] { "cc", "cc14", "nrpn", "note", "noteVel", "polyAT", "chanAT", "pitchBend", "pc", "start", "stop", "continue", "uiSlider", "keyboardVelocity" };
+    const char* names[] { "cc", "cc14", "nrpn", "note", "noteVel", "polyAT", "chanAT", "pitchBend", "pc", "start", "stop", "continue", "uiSlider", "keyboardVelocity", "virtualExpression" };
     for (int i = 0; i < kSourceTypes; ++i) if (text == names[i]) return (MidiSrc) i;
     return (MidiSrc) 255;
 }
