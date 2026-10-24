@@ -14,6 +14,7 @@ class FaceSelector final : public juce::ComboBox
 {
 public:
     void setPhysical(bool enabled){physical=enabled;for(auto* child:getChildren())if(dynamic_cast<juce::Label*>(child))child->setVisible(!enabled);}
+    void lookAndFeelChanged() override {juce::ComboBox::lookAndFeelChanged();setPhysical(physical);}
     void paint(juce::Graphics& g) override {
         if(!physical){juce::ComboBox::paint(g);return;}
         auto body=getLocalBounds().toFloat().reduced(1);g.setColour(Palette::backgroundDeep);g.fillRoundedRectangle(body,2);g.setColour(Palette::textPrimary);g.drawRoundedRectangle(body,2,1);
