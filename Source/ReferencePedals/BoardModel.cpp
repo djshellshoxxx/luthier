@@ -112,6 +112,12 @@ namespace
     }
     bool validPedalControls (const PedalInstance& pedal)
     {
+        const auto midi = pedal.extras["midi"];
+        if (const auto* object = midi.getDynamicObject(); object && object->hasProperty ("fsMode"))
+        {
+            const auto mode = object->getProperty ("fsMode");
+            if ((! mode.isInt() && ! mode.isInt64()) || static_cast<juce::int64> (mode) < 0 || static_cast<juce::int64> (mode) > 2) return false;
+        }
         return ! pedal.modelId.empty() && pedal.modelRevision >= 1
             && inRange (pedal.inDb, -12.0, 12.0) && inRange (pedal.outDb, -12.0, 12.0)
             && std::isfinite (pedal.x) && pedal.mounting <= Mounting::none
@@ -372,12 +378,14 @@ bool BoardModel::applyImpl (const BoardCommand& command, juce::String* rejectRea
             else if constexpr (std::is_same_v<T, cmd::SetSlotChannel>)
             {
                 auto it = findPedal (cmd.id);
-                if (it == nextInstances.end() || cmd.chan < 0 || cmd.chan > 16) return false;
+                if (it == nextInstances.end() || cmd.chan < 0 || cmd.chan > 16 || cmd.fsMode < -1 || cmd.fsMode > 2) return false;
                 it->extras = it->extras.clone();
                 if (! it->extras.getDynamicObject()) it->extras = new juce::DynamicObject();
-                juce::var midi (new juce::DynamicObject());
+                auto midi = it->extras["midi"].clone();
+                if (! midi.getDynamicObject()) midi = new juce::DynamicObject();
                 midi.getDynamicObject()->setProperty ("chan", cmd.chan);
                 midi.getDynamicObject()->setProperty ("useProfile", cmd.useProfile);
+                if (cmd.fsMode >= 0) midi.getDynamicObject()->setProperty ("fsMode", cmd.fsMode);
                 it->extras.getDynamicObject()->setProperty ("midi", midi);
                 changedId = cmd.id;
             }

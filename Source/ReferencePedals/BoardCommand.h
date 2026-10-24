@@ -51,7 +51,7 @@ struct SetMidiBinding
     Op op = Op::Add;
     juce::var binding;                    // MIDI_EXPRESSION 11 binding object (WP6 owns the shape)
 };
-struct SetSlotChannel { InstanceId id; int chan = 0; bool useProfile = false; };   // 0 = no explicit channel
+struct SetSlotChannel { InstanceId id; int chan = 0; bool useProfile = false; int fsMode = -1; }; // E62: -1 preserves; 0 latch,1 momentary,2 auto   // 0 = no explicit channel
 struct SetScene { int scene = 0; juce::var data; };          // store scene `scene`
 struct ApplySnapshot { int index = 0; juce::var data; };     // data: snapshot to apply; null var = stored snapshot `index`
 // Scalar board settings that need no dedicated command, by key (reportLatency,
