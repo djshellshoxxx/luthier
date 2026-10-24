@@ -82,10 +82,14 @@ public:
 
 private:
     friend class BoardEngine;
+    friend class Board;
     friend class TopologyCompiler;
     using Compiler = std::function<bool (const std::vector<PedalInstance>&, const BoardSettings&, TopologyInfo&, juce::String&, const BoardCommand*, bool)>;
     bool applyImpl (const BoardCommand&, juce::String*, bool hostEcho);
     void setCompiler (Compiler);
+    using ExtraCapture = std::function<void (std::vector<PedalInstance>&)>;
+    void setExtraCapture (ExtraCapture);
+    void snapshotStored (std::vector<PedalInstance>&, BoardSettings&) const;
     struct Impl;
     std::unique_ptr<Impl> impl;
 };
