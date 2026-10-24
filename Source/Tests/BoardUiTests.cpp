@@ -187,3 +187,20 @@ LUTHIER_TEST(RefPedalUi, rejectedSetupIsReportedBeforeDependentOrderAccess)
 {
     BoardModel model;luthier::tests::TestContext rejected;CHECK(!luthier::tests::requireReferenceEdit(rejected,model,cmd::Add{""}));CHECK(rejected.checks==1);CHECK(rejected.failures==1);CHECK(rejected.failureMessages.size()==1);if(rejected.failureMessages.size()!=1)return;CHECK(rejected.failureMessages[0].contains("setup rejected"));CHECK(model.getOrder().empty());
 }
+
+LUTHIER_TEST(RefPedalUi, compactDockRetainsRejectionThroughPresentationUpdates)
+{
+    PedalRegistry::registerAll();BoardModel model;
+    if(!luthier::tests::requireReferenceEdit(ctx,model,cmd::Add{"generic.boost"}))return;
+    BoardRoot root(model);root.setCompact(true);root.setSize(1100,232);
+    juce::Label* status=nullptr;for(auto* child:root.getChildren())if(auto* label=dynamic_cast<juce::Label*>(child))status=label;
+    CHECK(status!=nullptr);if(!status)return;CHECK(!status->isVisible());
+    root.openSettings();CHECK(!model.apply(cmd::Move{InstanceId::null(),999}));CHECK(status->isVisible());CHECK(root.statusText().containsIgnoreCase("invalid"));
+    int callouts=0;for(auto* child:root.getChildren())if(dynamic_cast<juce::CallOutBox*>(child))++callouts;CHECK(callouts==1);
+    root.saveView();CHECK(status->isVisible());CHECK(root.statusText().containsIgnoreCase("invalid"));
+    auto ui=model.getBoardSettings().ui.clone();if(!ui.isObject())ui=juce::var(new juce::DynamicObject());ui.getDynamicObject()->setProperty("zoom",1.5);model.setUiState(ui);
+    auto* view=root.boardCanvas().viewFor(model.getOrder()[0]);CHECK(view!=nullptr);if(!view)return;view->focusGained(juce::Component::focusChangedDirectly);
+    CHECK(status->isVisible());CHECK(root.statusText().containsIgnoreCase("invalid"));
+    root.setSize(480,232);CHECK(status->isVisible());CHECK(root.statusText().containsIgnoreCase("invalid"));
+    CHECK(model.apply(cmd::SetEnabled{model.getOrder()[0],false}));CHECK(!status->isVisible());CHECK(!root.statusText().containsIgnoreCase("invalid"));
+}

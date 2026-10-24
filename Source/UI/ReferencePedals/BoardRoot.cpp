@@ -60,9 +60,10 @@ BoardRoot::BoardRoot(BoardModel& m,LuthierAudioProcessor* p):model(m),processor(
     fit.onClick=[this]{zoomTo(juce::jlimit(.5f,2.f,(float)viewport.getWidth()/canvas.getWidth()));};minus.onClick=[this]{zoomTo(zoom-.1f);};plus.onClick=[this]{zoomTo(zoom+.1f);};
     keepOnTop.onClick=[this]{if(auto* w=findParentComponentOfClass<juce::DocumentWindow>())w->setAlwaysOnTop(keepOnTop.getToggleState());};
     dock.onClick=[this]{if(onDock)onDock();};popout.onClick=[this]{if(onPopout)onPopout();};settings.onClick=[this]{showSettings();};
-    learn.onClick=[this]{canvas.setLearn(learn.getToggleState());if(!learn.getToggleState()){learnId=InstanceId::null();learnBoard=false;if(!pendingView)stopTimer();if(processor)processor->getEngine().getReferencePedals().midi().cancelLearn();}status.setText(learn.getToggleState()?"Learn: click a control, then send MIDI CC / velocity / aftertouch / pitch bend":"MIDI learn cancelled",juce::dontSendNotification);};
+    learn.onClick=[this]{statusError.clear();canvas.setLearn(learn.getToggleState());if(!learn.getToggleState()){learnId=InstanceId::null();learnBoard=false;if(!pendingView)stopTimer();if(processor)processor->getEngine().getReferencePedals().midi().cancelLearn();}status.setText(learn.getToggleState()?"Learn: click a control, then send MIDI CC / velocity / aftertouch / pitch bend":"MIDI learn cancelled",juce::dontSendNotification);};
     canvas.onLearn=[this](auto id,int param,bool continuous)
     {
+        statusError.clear();
         if(!processor){status.setText("MIDI input unavailable",juce::dontSendNotification);return;}
         const auto instance=model.getInstance(id);if(!instance)return;
         if(param<0){param=PedalRegistry::laneMap(instance->modelId.c_str()).engageParam;if(param<0){status.setText("This pedal has no learnable engage descriptor",juce::dontSendNotification);return;}}
@@ -70,8 +71,8 @@ BoardRoot::BoardRoot(BoardModel& m,LuthierAudioProcessor* p):model(m),processor(
         processor->getEngine().getReferencePedals().midi().armLearn({(uint8_t)instance->slot,(uint16_t)param,continuous});
         status.setText("Waiting for MIDI for "+juce::String(instance->modelId)+"; Escape cancels",juce::dontSendNotification);startTimerHz(10);
     };
-    canvas.onError=[this](const auto& text){status.setText(text,juce::dontSendNotification);};
-    canvas.onFocus=[this](PedalView& p){model.setMidiFocus(p.id());auto bounds=p.getBounds();auto* focused=juce::Component::getCurrentlyFocusedComponent();if(focused&&p.isParentOf(focused))bounds=canvas.getLocalArea(focused,focused->getLocalBounds());const auto r=bounds.toFloat()*zoom;auto pos=viewport.getViewPosition();if(r.getX()<pos.x+24)pos.x=(int)r.getX()-24;else if(r.getRight()>pos.x+viewport.getViewWidth()-24)pos.x=(int)r.getRight()-viewport.getViewWidth()+24;if(r.getY()<pos.y+24)pos.y=(int)r.getY()-24;else if(r.getBottom()>pos.y+viewport.getViewHeight()-24)pos.y=(int)r.getBottom()-viewport.getViewHeight()+24;viewport.setViewPosition(juce::jmax(0,pos.x),juce::jmax(0,pos.y));};
+    canvas.onError=[this](const auto& text){showError(text);};
+    canvas.onFocus=[this](PedalView& p){const juce::ScopedValueSetter<bool> focusUpdate(settingFocus,true);model.setMidiFocus(p.id());auto bounds=p.getBounds();auto* focused=juce::Component::getCurrentlyFocusedComponent();if(focused&&p.isParentOf(focused))bounds=canvas.getLocalArea(focused,focused->getLocalBounds());const auto r=bounds.toFloat()*zoom;auto pos=viewport.getViewPosition();if(r.getX()<pos.x+24)pos.x=(int)r.getX()-24;else if(r.getRight()>pos.x+viewport.getViewWidth()-24)pos.x=(int)r.getRight()-viewport.getViewWidth()+24;if(r.getY()<pos.y+24)pos.y=(int)r.getY()-24;else if(r.getBottom()>pos.y+viewport.getViewHeight()-24)pos.y=(int)r.getBottom()-viewport.getViewHeight()+24;viewport.setViewPosition(juce::jmax(0,pos.x),juce::jmax(0,pos.y));};
     const auto ui=BoardUiState::read(model.getBoardSettings().ui);cables.setToggleState(ui.cables,juce::dontSendNotification);canvas.setCables(ui.cables);zoomTo(ui.zoom);viewport.setViewPosition(ui.scrollX,ui.scrollY);
     viewport.onScroll=[this]{saveView();};
     model.addListener(this);refresh();
@@ -83,7 +84,9 @@ void BoardRoot::refresh()
     style.setSelectedId((int)s.style+1,juce::dontSendNotification);if(!modeAttachment)mode.setSelectedId((int)s.mode+1,juce::dontSendNotification);if(!mixLawAttachment)mixLaw.setSelectedId((int)s.mixLaw+1,juce::dontSendNotification);
     if(!mixAttachment)mix.setValue(s.mix,juce::dontSendNotification);if(!enabledAttachment)enabled.setToggleState(s.enabled,juce::dontSendNotification);if(!tempoAttachment)tempo.setValue(s.tempoBpm,juce::dontSendNotification);
     undo.setEnabled(model.canUndo());redo.setEnabled(model.canRedo());browser.refresh();const auto info=model.getTopologyInfo();
-    status.setText(juce::String(model.getInstanceCount())+" pedals | latency "+juce::String(info.latencyTotal)+" samples | "+info.note,juce::dontSendNotification);
+    if(!savingView&&!settingFocus)statusError.clear();
+    status.setText(statusError.isNotEmpty()?statusError:juce::String(model.getInstanceCount())+" pedals | latency "+juce::String(info.latencyTotal)+" samples | "+info.note,juce::dontSendNotification);
+    status.setColour(juce::Label::textColourId,statusError.isNotEmpty()?Palette::warning:Palette::textPrimary);layoutContent();
 }
 void BoardRoot::saveView()
 {
@@ -94,14 +97,21 @@ void BoardRoot::flushView()
 {
     pendingView=false;
     auto s=BoardUiState::read(model.getBoardSettings().ui);s.zoom=zoom;s.scrollX=viewport.getViewPositionX();s.scrollY=viewport.getViewPositionY();s.cables=cables.getToggleState();
-    model.setUiState(s.write(model.getBoardSettings().ui));
+    const juce::ScopedValueSetter<bool> saving(savingView,true);model.setUiState(s.write(model.getBoardSettings().ui));
 }
 void BoardRoot::zoomTo(float z){zoom=juce::jlimit(.5f,2.f,z);canvas.setTransform(juce::AffineTransform::scale(zoom));zoomLabel.setText(juce::String((int)(zoom*100))+"%",juce::dontSendNotification);saveView();}
 void BoardRoot::setCompact(bool b){compact=b;resized();}
 void BoardRoot::resized()
 {
-    settingsPopup.close();canvas.closeInspectors();
-    auto r=getLocalBounds();toolbarViewport.setBounds(r.removeFromTop(64));status.setVisible(getHeight()>=360&&!compact);status.setBounds(status.isVisible()?r.removeFromBottom(20):juce::Rectangle<int>());
+    settingsPopup.close();canvas.closeInspectors();layoutContent();
+}
+void BoardRoot::showError(const juce::String& text)
+{
+    statusError=text;status.setText(text,juce::dontSendNotification);status.setColour(juce::Label::textColourId,Palette::warning);layoutContent();
+}
+void BoardRoot::layoutContent()
+{
+    auto r=getLocalBounds();toolbarViewport.setBounds(r.removeFromTop(64));status.setVisible(statusError.isNotEmpty()||(getHeight()>=360&&!compact));status.setBounds(status.isVisible()?r.removeFromBottom(20):juce::Rectangle<int>());
     const bool showBrowser=!compact&&getWidth()>=760;browser.setVisible(showBrowser);if(showBrowser)browser.setBounds(r.removeFromLeft(200));viewport.setBounds(r);
 }
 void BoardRoot::paint(juce::Graphics& g){AnimationPolicy::notePaint(*this);g.fillAll(Palette::backgroundDeep);}
