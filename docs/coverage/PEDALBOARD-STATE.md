@@ -18,8 +18,9 @@ WP4 skeleton. No prior uncommitted codec was present in this environment.
   blocks succeed with an empty result; malformed hosts/nonobject blocks/oversized
   blocks fail without overwriting the previous result.
 - Strict parsing bounds nesting at 64, rejects trailing input/duplicate JSON keys,
-  invalid escapes/nonfinite numbers/integer overflow, and uses `from_chars` to avoid
-  rounding during parsing. Serialization uses `to_chars` with `max_digits10` so
+  invalid escapes/nonfinite numbers/integer overflow. Integer parsing uses
+  `from_chars`; floating parsing uses explicit C-locale `strtod_l`/`_strtod_l`.
+  Serialization uses classic-locale streams with `max_digits10` so
   unknown doubles survive repeated string round trips. Current-schema output is
   canonical JSON; unknown field values survive, while their whitespace/number
   spelling may change. Newer-schema string output retains original spelling.
@@ -105,3 +106,8 @@ WP2. Existing unknown-field values are retained semantically; exact lexical byte
 of current-schema unknown JSON subtrees are not promised.
 
 E56 momentary feedback kill: input `feedback.kill` requires a JSON boolean. Current-schema output always writes false so a held control cannot resume on load; unrelated and nested vendor feedback fields remain preserved. Focused normal suite: 17 cases / 5262 checks / 0 failures (2026-10-24).
+
+
+macOS 10.13 portability correction: floating `from_chars`/`to_chars` calls were removed because recent Apple libc++ marks them unavailable at the supported deployment target. The parser still checks the complete JSON number grammar first, then calls the correctly rounded C-locale conversion without changing process locale. Representable subnormals are accepted even when libc reports ERANGE; nonfinite overflow and nonzero values rounded to zero are rejected. The immutable C locale is process-lived for concurrent saves. Integer charconv remains unchanged. Emission uses a classic-locale stream at max_digits10 and canonical exponent spelling, preserving signed zero and complete double precision.
+
+Focused normal and ASAN/UBSAN suites: 20 cases / 9456 checks / 0 failures. Added 2060 binary values covering every finite exponent, explicit min/max/subnormal/signed-zero cases, bit-exact string round trips and deterministic repeated serialization, strict malformed/overflow/underflow atomic rejection, and both an actual German comma-decimal C locale and a custom C++ comma/grouping facet. Warning compilation is clean on Linux. macOS deployment10.13 compilation and Free/Pro CI remain pending the coordinator's next build; no deployment target was raised. Evidence: `/workspace/luthier-evidence/state/{test.log,portable-asan-full.log}`.

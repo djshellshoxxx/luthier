@@ -7,6 +7,9 @@
 #include <atomic>
 #include <random>
 #include <thread>
+#include <cstring>
+#include <clocale>
+#include <locale>
 
 using namespace luthier::reference;
 namespace
@@ -329,4 +332,67 @@ LUTHIER_TEST(RefPedalState, momentaryFeedbackKillNeverResumes)
     const auto before=saved;
     CHECK(!BoardState::restore(model,juce::String(R"({"schema":1,"feedback":{"kill":1}})"),&error));
     CHECK(BoardState::save(model,saved,&error));CHECK(saved==before);
+}
+
+namespace
+{
+uint64_t doubleBits(double value){uint64_t bits=0;std::memcpy(&bits,&value,sizeof(bits));return bits;}
+struct CommaNumbers : std::numpunct<char>
+{
+    char do_decimal_point() const override{return ',';}
+    char do_thousands_sep() const override{return '_';}
+    std::string do_grouping() const override{return "\3";}
+};
+struct NumericLocaleScope
+{
+    std::locale previousCpp=std::locale();
+    std::string previousC=std::setlocale(LC_NUMERIC,nullptr);
+    bool systemComma=false;
+    NumericLocaleScope()
+    {
+        std::locale::global(std::locale(std::locale::classic(),new CommaNumbers));
+        for(const auto* name:{"de_DE.UTF-8","de_DE.utf8","fr_FR.UTF-8","German_Germany.1252"})
+            if(std::setlocale(LC_NUMERIC,name)){systemComma=std::localeconv()->decimal_point[0]==',';if(systemComma)break;}
+    }
+    ~NumericLocaleScope(){std::locale::global(previousCpp);std::setlocale(LC_NUMERIC,previousC.c_str());}
+};
+}
+LUTHIER_TEST(RefPedalState, portableDoubleConversionRoundTripsEveryFiniteExponent)
+{
+    std::vector<double> values{0.,-0.,std::numeric_limits<double>::denorm_min(),-std::numeric_limits<double>::denorm_min(),
+        std::numeric_limits<double>::min(),std::nextafter(std::numeric_limits<double>::min(),0.),std::numeric_limits<double>::max(),
+        std::numeric_limits<double>::lowest(),std::nextafter(std::numeric_limits<double>::max(),0.),.1,.12345678901234567,1e-200,1e300};
+    std::mt19937_64 random(0x504f525441424c45ull);
+    for(int exponent=0;exponent<2047;++exponent)
+    {
+        const auto bits=(uint64_t(exponent)<<52)|(random()&0x800fffffffffffffull);double value=0;std::memcpy(&value,&bits,sizeof(value));values.push_back(value);
+    }
+    juce::var root(new juce::DynamicObject()),numbers=juce::Array<juce::var>{};for(double value:values)numbers.append(value);
+    root.getDynamicObject()->setProperty("schema",1);root.getDynamicObject()->setProperty("portableNumbers",numbers);
+    BoardModel model;CHECK(BoardState::restore(model,root));juce::String saved;CHECK(BoardState::save(model,saved));
+    BoardModel restored;CHECK(BoardState::restore(restored,saved));juce::var decoded;CHECK(BoardState::save(restored,decoded));
+    const auto& actual=decoded["portableNumbers"];CHECK(actual.size()==int(values.size()));
+    for(int i=0;i<actual.size();++i){CHECK(actual[i].isDouble());CHECK(doubleBits(double(actual[i]))==doubleBits(values[size_t(i)]));}
+    juce::String again;CHECK(BoardState::save(restored,again));CHECK(saved==again);
+}
+LUTHIER_TEST(RefPedalState, portableDoubleConversionRejectsOverflowUnderflowAndMalformedGrammarAtomically)
+{
+    BoardModel model;CHECK(BoardState::restore(model,minimal()));juce::String before;CHECK(BoardState::save(model,before));
+    for(const auto* number:{"1e309","-1e309","1e999999999","1e-999999999","2e-324","-2e-324","01.2","+1.2","1.",".1","1e","1e+","0x1.2p0","NaN","Infinity","1,25"})
+    {
+        CHECK(!BoardState::restore(model,juce::String("{\"schema\":1,\"vendor\":")+number+"}"));juce::String after;CHECK(BoardState::save(model,after));CHECK(before==after);
+    }
+    for(const auto* number:{"4.9406564584124654e-324","-4.9406564584124654e-324","2.2250738585072014e-308","1.7976931348623157e308","0e999999999","-0e-999999999"})
+        CHECK(BoardState::restore(model,juce::String("{\"schema\":1,\"vendor\":")+number+"}"));
+}
+LUTHIER_TEST(RefPedalState, portableDoubleConversionIgnoresCppAndSystemNumericLocales)
+{
+    NumericLocaleScope scope;
+    std::printf("portable codec locale: C decimal=%s, custom C++ decimal=comma\n",std::localeconv()->decimal_point);
+    BoardModel model;CHECK(BoardState::restore(model,juce::String(R"({"schema":1,"vendor":[1234.125,0.125,4.9406564584124654e-324,1.7976931348623157e308,-0.0]})")));
+    juce::String saved;CHECK(BoardState::save(model,saved));CHECK(!saved.contains("_"));
+    BoardModel restored;CHECK(BoardState::restore(restored,saved));juce::var decoded;CHECK(BoardState::save(restored,decoded));
+    CHECK(double(decoded["vendor"][0])==1234.125);CHECK(double(decoded["vendor"][1])==.125);CHECK(double(decoded["vendor"][2])==std::numeric_limits<double>::denorm_min());
+    CHECK(double(decoded["vendor"][3])==std::numeric_limits<double>::max());CHECK(std::signbit(double(decoded["vendor"][4])));
+    CHECK(!BoardState::restore(model,juce::String(R"({"schema":1,"mix":0,5})")));
 }
