@@ -109,6 +109,7 @@ void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
     scrape.prepare (sr, maxBlock);
     scrapeMidi.ensureSize (8192);
     techniqueMidi.ensureSize (8192);
+    referenceMidiOut.ensureSize (BoundedMidi::kReserveBytes);
     sliceMidi.ensureSize ((size_t) BoundedMidi::kReserveBytes);   // RT-SAFETY P1
     directSlice.ensureSize ((size_t) BoundedMidi::kReserveBytes);
     slap.prepare (sr);
@@ -2538,6 +2539,7 @@ void LuthierEngine::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
     const int numSamples = buffer.getNumSamples();
 
     audioThreadId.store (juce::Thread::getCurrentThreadId(), std::memory_order_relaxed);
+    referenceMidiOut.clear();
     hostBlockStart = samplePosition;   // MODEL-GAPS: the capture's offsets count from here
     lastProcessMs.store (juce::Time::getMillisecondCounter(), std::memory_order_relaxed);
 
@@ -2566,7 +2568,7 @@ void LuthierEngine::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
 
     if (! parkedMidi.isEmpty())
     {
-        midiMessages.addEvents (parkedMidi, 0, -1, 0);
+        midiOverflowDrops.fetch_add (BoundedMidi::addEvents (midiMessages, BoundedMidi::kReserveBytes, parkedMidi, 0, -1, 0), std::memory_order_relaxed);
         parkedMidi.clear();
     }
 
@@ -2849,6 +2851,14 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     }
     else
         referencePedals.setSidechain (nullptr, nullptr, 0);
+    auto aux = referenceAuxOutputs;
+    for (auto* bus : { &aux.pedalB, &aux.wet, &aux.dry })
+    {
+        if (bus->left && bus->right && subBlockOffset < bus->samples)
+        { bus->left += subBlockOffset; bus->right += subBlockOffset; bus->samples = std::min (numSamples, bus->samples - subBlockOffset); }
+        else *bus = {};
+    }
+    referencePedals.setAuxOutputs (aux);
     referencePedals.beginBlock (midiMessages, boardHost, numSamples);
 
     const auto startTicks = juce::Time::getHighResolutionTicks();
@@ -3691,6 +3701,16 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     qualityAfterBlock (buffer);   // cpu-quality-modes 2.5: silence for a hard switch
 
     referencePedals.endBlock (midiMessages);
+    reference::MidiEvent boardMidi[256];
+    const int boardMidiCount = referencePedals.drainMidiOut (boardMidi, 256);
+    for (int i = 0; i < boardMidiCount; ++i)
+    {
+        const auto& event = boardMidi[i];
+        const juce::uint8 bytes[] { event.status, event.d1, event.d2 };
+        const int size = juce::MidiMessage::getMessageLengthFromFirstByte (event.status);
+        if (size > 0 && size <= 3 && ! BoundedMidi::add (referenceMidiOut, bytes, size, event.offset + subBlockOffset))
+            midiOverflowDrops.fetch_add (1, std::memory_order_relaxed);
+    }
     samplePosition += numSamples;
 
     // ---- CPU estimate ----------------------------------------------------------

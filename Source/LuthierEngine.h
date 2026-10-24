@@ -454,6 +454,8 @@ public:
     double getTempoBpm() const noexcept { return tempoBpm; }   // SPEC-SWEEP: LP-25 (tests)
 
     // WP23: validated position already read once by the processor's HostClock.
+    const juce::MidiBuffer& getReferenceMidiOut() const noexcept { return referenceMidiOut; }
+    void setReferencePedalAuxOutputs (const reference::BoardAuxOutputs& outputs) noexcept { referenceAuxOutputs = outputs; }
     void setReferencePedalTransport (const reference::HostTransport& t) noexcept { referenceTransport = t; }
 
     /** Host transport position, for the rhythm engine's grid. */
@@ -898,6 +900,8 @@ private:
     GuitarCircuit circuit;
     CircuitComponents circuitControls;
     reference::HostTransport referenceTransport;
+    reference::BoardAuxOutputs referenceAuxOutputs;
+    juce::MidiBuffer referenceMidiOut;
     reference::Board referencePedals;  // separate experimental rack, default off
     EffectsChain preEffects;
     AmpEngine amp;

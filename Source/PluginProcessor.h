@@ -60,6 +60,10 @@
 #include "Support/SoundingNotesPublisher.h"
 #include "Presets/Preview/PreviewPlayer.h"   // preset-browser-previews.md 4
 #include "ReferencePedals/Midi/HostAutomationCapture.h"
+#include "Support/HostMidiCapacity.h"
+#if HAS_CLAP_JUCE_EXTENSIONS
+#include <clap-juce-extensions/clap-juce-extensions.h>
+#endif
 #include "Support/HostClockGuard.h"   // RT-SAFETY P2
 
 namespace luthier
@@ -69,6 +73,9 @@ namespace luthier
 class LuthierAudioProcessor : public juce::AudioProcessor,
                               private juce::AudioProcessorParameter::Listener,
                               private juce::Timer
+#if HAS_CLAP_JUCE_EXTENSIONS
+                              , protected clap_juce_extensions::clap_properties
+#endif
 {
 public:
     LuthierAudioProcessor();
@@ -77,6 +84,8 @@ public:
     //==========================================================================
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
     void releaseResources() override;
+    // Direct hosts/tests: call while stopped, before the first callback.
+    void reserveMidiOutputBuffer (juce::MidiBuffer& b, int bytes = kStandaloneMidiReserve) { hostMidiCapacity.reserveExternal (b, bytes); }
     bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
 
@@ -1169,7 +1178,8 @@ private:
         such a block is rendered in slices of at most currentBlockSize. These
         carry each slice's MIDI in and the whole block's MIDI out, sized in
         prepareToPlay. */
-    juce::MidiBuffer sliceMidi, sliceMidiOut;
+    juce::MidiBuffer sliceMidi, sliceMidiOut, processorMidi, sysExMidi;
+    HostMidiCapacity hostMidiCapacity;
     juce::MidiBuffer liveMidiKept;   ///< handleLiveMidi's output, sized in prepareToPlay
 
     /** The macro parameters' values, looked up once: a lookup by ID builds a
