@@ -6,9 +6,10 @@
 #include "../AnimationPolicy.h"
 namespace luthier::reference
 {
-BoardCanvas::BoardCanvas(BoardModel& m):model(m){model.addListener(this);setTitle("Pedalboard");refresh();}
+BoardCanvas::BoardCanvas(BoardModel& m,juce::AudioProcessorValueTreeState* p):model(m),parameters(p){model.addListener(this);setTitle("Pedalboard");refresh();}
 BoardCanvas::~BoardCanvas(){model.removeListener(this);}
 PedalView* BoardCanvas::viewFor(const InstanceId& id) const {const auto it=views.find(id.toString());return it==views.end()?nullptr:it->second.get();}
+void BoardCanvas::closeInspectors(){for(auto& entry:views)entry.second->closeInspector();}
 void BoardCanvas::setLearn(bool b){learning=b;for(auto& v:views){v.second->learnMode=b;v.second->repaint();}}
 void BoardCanvas::refresh()
 {
@@ -17,13 +18,13 @@ void BoardCanvas::refresh()
     int x=72,maxH=300;const auto settings=model.getBoardSettings();
     for(const auto& id:order)
     {
-        auto& ptr=views[id.toString()];if(!ptr){ptr=std::make_unique<PedalView>(model,id);addAndMakeVisible(*ptr);}
+        auto& ptr=views[id.toString()];if(!ptr){ptr=std::make_unique<PedalView>(model,id,parameters);addAndMakeVisible(*ptr);}
         auto* p=ptr.get();p->onLearn=[this](auto i,int n,bool c){if(onLearn)onLearn(i,n,c);};p->onFocus=[this](auto& v){if(onFocus)onFocus(v);};p->learnMode=learning;p->refresh();
+        p->onNavigate=[this](const InstanceId& current,int direction){const auto ids=model.getOrder();const auto at=std::find(ids.begin(),ids.end(),current);if(at==ids.end()||ids.empty())return;const auto position=juce::jlimit(0,(int)ids.size()-1,(int)std::distance(ids.begin(),at)+direction);if(auto* next=viewFor(ids[(size_t)position]))next->grabKeyboardFocus();};
         p->onDrag=[this](auto& v,juce::Point<int> pos,bool){const auto orderNow=model.getOrder();int n=0;for(const auto& other:orderNow)if(other!=v.id()&&viewFor(other)->getBounds().getCentreX()<pos.x)++n;model.apply(cmd::Move{v.id(),n});};
-        auto instance=model.getInstance(id);const auto* desc=PedalRegistry::find(instance->modelId.c_str());const int num=desc?desc->numParams-(PedalRegistry::laneMap(instance->modelId.c_str()).engageParam>=0?1:0):0;
-        const int h=58+((num+2)/3)*83+24*6+60;
-        const int y=48+(settings.mode==Mode::Series?0:instance->lane*420);
-        p->setBounds(x,y,222,juce::jmax(260,h));p->toFront(false);maxH=juce::jmax(maxH,y+p->getHeight()+48);x+=278;
+        auto instance=model.getInstance(id);const auto size=p->physicalSize();
+        const int y=48+(settings.mode==Mode::Series?0:instance->lane*300);
+        p->setBounds(x,y,size.x,size.y);p->placeCaptionIn(*this);p->toFront(false);maxH=juce::jmax(maxH,y+size.y+48);x+=size.x+56;
     }
     setSize(juce::jmax(1100,x+72),maxH);repaint();
 }
