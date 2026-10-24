@@ -44,6 +44,7 @@ public:
     BoardModel& model() noexcept;                            // single truth; edits via model().apply(BoardCommand)
     midi::MidiRouter& midi() noexcept;
     int reclaim() noexcept;                                  // 30 Hz UI timer / after prepare: frees retired topologies and DSP
+    PedalMeters readPedalMeters (int slot) const noexcept; // E47: atomics, bounded retries
     BoardMeters readMeters() const noexcept;                 // atomics
 
     //==========================================================================
