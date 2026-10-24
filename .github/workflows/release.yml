@@ -124,7 +124,7 @@ jobs:
           set -euo pipefail
           # The by-tag endpoint omits drafts. Inspect every visible release page.
           tags="$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq '.[].tag_name')"
-          if printf '%s\n' "$tags" | grep -Fxq -- "$TAG"; then
+          if grep -Fxq -- "$TAG" <<< "$tags"; then
             echo "::error::Release or draft already exists; choose a new version."
             exit 1
           fi

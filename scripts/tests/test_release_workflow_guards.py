@@ -88,9 +88,10 @@ class ReleaseGuards(unittest.TestCase):
         stub.write_text('#!/bin/bash\n[[ " $* " == *" --paginate "* ]] || exit 9\n[ "$STATUS" = 200 ] || exit 1\nprintf "%s\\n" "$TAGS"\n')
         stub.chmod(0o755)
         cases = [(200, "v0.1.0-old", True), (200, "v0.1.0-old\nv0.1.0-preview1", False),
+                 (200, "v0.1.0-preview1\n" + "v0.1.0-other\n" * 10000, False),
                  (403, "", False), (404, "", False), (500, "", False)]
         for status, tags, accepted in cases:
-            with self.subTest(status=status, tags=tags):
+            with self.subTest(status=status, tag_lines=len(tags.splitlines())):
                 env = dict(os.environ, PATH=str(bindir) + os.pathsep + os.environ["PATH"],
                            STATUS=str(status), TAGS=tags, RUNNER_TEMP=str(self.root),
                            GITHUB_REPOSITORY="fixture/repo", TAG="v0.1.0-preview1")

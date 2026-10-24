@@ -41,3 +41,8 @@ create failure without update/upload fallback. The initial old workflow run
 recorded four assertion failures and four missing-guard subtest errors. YAML and
 embedded Bash syntax checks pass. Real native package/provenance output remains
 pending release qualification.
+
+A second independent review reproduced an early-match SIGPIPE with a large
+paginated tag list under pipefail. The guard now uses a here-string instead of
+a printf-to-grep pipeline; a10,001-entry early-match regression retains this
+case. No reviewed failure was published as a passing production gate.
