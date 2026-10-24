@@ -3,6 +3,7 @@
 #include "Topology.h"
 #include "BoardCommand.h"
 #include "PedalPool.h"
+#include "ExtendedControls.h"
 namespace luthier::reference
 {
 struct SlotControl
@@ -19,6 +20,8 @@ struct RenderPlan
 {
     Topology topology;
     BoardSettings settings;
+    ExtendedControls extended;
+    bool feedbackAvailable = false;
     std::array<uint32_t, 3> boardSerials {};
     std::array<SlotControl, kMaxSlots> controls;
     std::array<std::shared_ptr<PedalRuntime>, kMaxSlots> slots;

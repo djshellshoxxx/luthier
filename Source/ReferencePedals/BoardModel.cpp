@@ -224,10 +224,24 @@ bool BoardModel::apply (const BoardCommand& command, juce::String* rejectReason)
 bool BoardModel::applyHostEcho (const BoardCommand& command, juce::String* rejectReason)
 {
     const auto* scalar = std::get_if<cmd::SetBoardParam> (&command);
-    if (! std::holds_alternative<cmd::SetParam> (command) && ! std::holds_alternative<cmd::SetEnabled> (command)
-        && ! std::holds_alternative<cmd::SetTrim> (command) && ! std::holds_alternative<cmd::SetMix> (command)
-        && ! std::holds_alternative<cmd::SetBoardEnabled> (command) && ! (scalar && scalar->key == "tempoBpm"))
-    { if (rejectReason) *rejectReason = "Host echo requires a scalar control"; return false; }
+    bool accepted = std::holds_alternative<cmd::SetParam> (command) || std::holds_alternative<cmd::SetEnabled> (command)
+        || std::holds_alternative<cmd::SetTrim> (command) || std::holds_alternative<cmd::SetMix> (command)
+        || std::holds_alternative<cmd::SetMixLaw> (command) || std::holds_alternative<cmd::SetBoardEnabled> (command);
+    if (scalar)
+        accepted = scalar->key != "cpuCapPct" && scalar->key != "midiChan" && scalar->key != "numLanes"
+            && scalar->key != "parallelNorm" && scalar->key != "abOut";
+    if (const auto* feedback = std::get_if<cmd::SetFeedback> (&command))
+    {
+        const auto existing = getBoardSettings().fb;
+        accepted = feedback->settings.src == existing.src && feedback->settings.dst == existing.dst;
+    }
+    if (const auto* loop = std::get_if<cmd::SetLoop> (&command); loop && loop->loop >= 0 && loop->loop < kMaxLoops)
+    {
+        const auto existing = getBoardSettings().loops[static_cast<size_t> (loop->loop)];
+        accepted = loop->settings.used == existing.used && loop->settings.kind == existing.kind
+            && loop->settings.first == existing.first && loop->settings.last == existing.last;
+    }
+    if (! accepted) { if (rejectReason) *rejectReason = "Host echo requires a scalar control"; return false; }
     return applyImpl (command, rejectReason, true);
 }
 bool BoardModel::applyImpl (const BoardCommand& command, juce::String* rejectReason, bool hostEcho)
