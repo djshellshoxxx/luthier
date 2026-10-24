@@ -27,8 +27,8 @@ Reverb::Reverb() : PedalBase(description) {}
 void Reverb::prepare(double sampleRate,int,int)
 {
     sr=sampleRate;energyCoefficient=1-std::exp(-1/(sr*.05));typeStep=1/(sr*.025);
-    prepareParams(sr);for(auto& tank:fdn)tank.prepare(sr);
-    plate.prepare(sr);spring.prepare(sr);predelay.prepare(int(sr*.251)+8);reset();
+    prepareParams(sr);for(int i=0;i<3;++i)fdn[i].prepare(sr,seed+uint32_t(i)*0x9e3779b9u);
+    plate.prepare(sr,seed^0xa511e9b3u);spring.prepare(sr);predelay.prepare(int(sr*.251)+8);reset();
 }
 void Reverb::reset() noexcept
 {
@@ -76,7 +76,11 @@ void Reverb::process(double* left,double* right,int n) noexcept
             fdn[family].set(decay,size,tone,mod,family,freeze); return fdn[family].process(x);
         };
         const auto current=render(type);
-        const double wetL=current[0]*typeBlend,wetR=current[1]*typeBlend;
+        // Fixed estimated calibration, without dynamic normalization. E66 Hall
+        // reverses BOTH wet tap signs: wet energy is unchanged, while the
+        // dry/wet cross term changes. Other types retain their original signs.
+        constexpr double calibration[]{1.25,-1.47,1.45,.9,1.9};
+        const double wetL=current[0]*typeBlend*calibration[type],wetR=current[1]*typeBlend*calibration[type];
         const double dryGain=1+inputGain*(std::cos(mix*pi*.5)-1),wetGain=std::sin(mix*pi*.5)*tailGain;
         left[i]=softGuard(dry[0]*dryGain+wetL*wetGain);right[i]=softGuard(dry[1]*dryGain+wetR*wetGain);
         energy+=(.5*(wetL*wetL+wetR*wetR)-energy)*energyCoefficient;

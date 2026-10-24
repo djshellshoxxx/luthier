@@ -2,7 +2,7 @@
 #pragma once
 #include "../Common/FractionalDelay.h"
 #include "../Common/OnePole.h"
-#include "../Common/Lfo.h"
+#include "../Common/RandomWalkLfo.h"
 #include <array>
 namespace luthier::reference::generic
 {
@@ -10,7 +10,7 @@ namespace luthier::reference::generic
 class ReverbPlate
 {
 public:
-    void prepare(double sampleRate);
+    void prepare(double sampleRate,uint32_t seed=1);
     void reset() noexcept;
     void set(double decay,double size,double tone,double mod,double freeze) noexcept;
     std::array<double,2> process(double input) noexcept;
@@ -19,7 +19,7 @@ private:
     bool settingsValid=false;
     std::array<common::FractionalDelay,4> inputDiffusion;
     std::array<common::FractionalDelay,2> modDiffusion,lateDiffusion,firstDelay,lastDelay;
-    common::OnePole damping[2]; common::Lfo lfo;
+    common::OnePole damping[2];common::RandomWalkLfo lfo;
     double sr=48000,scale=1,decayGain=.7,mod=.25,freeze=0,feedback[2]{};
 };
 }
