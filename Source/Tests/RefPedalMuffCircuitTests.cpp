@@ -2,6 +2,12 @@
 #include "../ReferencePedals/Models/ehx_muff_core.h"
 #include "TestFramework.h"
 #include <complex>
+#if defined(LUTHIER_ALLOCATION_COUNTER)
+namespace luthier::tests
+{
+long allocationsOnThisThread() noexcept;
+}
+#endif
 using namespace luthier::reference;
 LUTHIER_TEST(RefPedalMuffCircuit, toneGoldenTableAndIndependentTransfer)
 {
@@ -115,4 +121,41 @@ LUTHIER_TEST(RefPedalMuffCircuit, movingComponentValuesPreserveCapacitorHistory)
         CHECK(worstVoltageError < 1e-10);
         CHECK(worstResidual < 1e-12);
     }
+}
+LUTHIER_TEST(RefPedalMuffCircuit, sharedCoefficientsRetainIndependentHistories)
+{
+    auto table = models::MuffClipStage::makeRootTable(192000);
+    models::MuffClipStage sharedA, sharedB, separateA, separateB;
+    separateA.prepare(192000);
+    separateB.prepare(192000);
+#if defined(LUTHIER_ALLOCATION_COUNTER)
+    const auto beforePrepare = luthier::tests::allocationsOnThisThread();
+#endif
+    sharedA.prepare(192000, table);
+    sharedB.prepare(192000, table);
+#if defined(LUTHIER_ALLOCATION_COUNTER)
+    CHECK(luthier::tests::allocationsOnThisThread() == beforePrepare);
+#endif
+    // Coefficient ownership must survive the preparing caller's local handle.
+    table.reset();
+#if defined(LUTHIER_ALLOCATION_COUNTER)
+    const auto beforeAudio = luthier::tests::allocationsOnThisThread();
+#endif
+    bool equalA = true, equalB = true;
+    for (int i = 0; i < 8192; ++i)
+    {
+        if (i == 4096)
+        {
+            sharedA.reset();
+            separateA.reset();
+        }
+        const double a = .5 * std::sin(i * .173), b = .3 * std::cos(i * .137);
+        equalA &= sharedA.process(a) == separateA.process(a);
+        equalB &= sharedB.process(b) == separateB.process(b);
+    }
+#if defined(LUTHIER_ALLOCATION_COUNTER)
+    CHECK(luthier::tests::allocationsOnThisThread() == beforeAudio);
+#endif
+    CHECK(equalA);
+    CHECK(equalB);
 }

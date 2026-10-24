@@ -3,6 +3,7 @@
 #include "../Common/OnePole.h"
 #include "../Common/PreparedDiodeRoot.h"
 #include "../Common/Smoothers.h"
+#include <memory>
 namespace luthier::reference::models
 {
 // Component equations from the NYC specification, whose values are still
@@ -44,16 +45,26 @@ class MuffTone
 class MuffClipStage
 {
   public:
-    void prepare(double rate)
+    using RootTable = std::shared_ptr<const common::PreparedDiodeRoot>;
+    static RootTable makeRootTable(double rate)
     {
-        sr = common::sampleRate(rate);
+        const double sr = common::sampleRate(rate);
         // Prepared physical range covers NYC/Wicker's 10k..35k source and
         // 22pF..470pF feedback capacitor. Other values use the helper fallback.
         const double minimumG =
             (1. / 35000 + 1 / MuffConsts::rbe) / (1 + MuffConsts::a) + 1 / MuffConsts::rf + 2 * sr * 22e-12;
         const double maximumG =
             (1. / 10000 + 1 / MuffConsts::rbe) / (1 + MuffConsts::a) + 1 / MuffConsts::rf + 2 * sr * 470e-12;
-        root.prepare(2 * MuffConsts::is, MuffConsts::vt, minimumG, maximumG, .01);
+        auto table = std::make_shared<common::PreparedDiodeRoot>();
+        table->prepare(2 * MuffConsts::is, MuffConsts::vt, minimumG, maximumG, .01);
+        return table;
+    }
+    void prepare(double rate, const RootTable &table = {})
+    {
+        sr = common::sampleRate(rate);
+        // Ownership changes only during off-thread prepare/destruction. Audio
+        // processing reads immutable coefficients without reference-count ops.
+        root = table ? table : makeRootTable(sr);
         configure(10000, 470e-12);
         reset();
     }
@@ -66,9 +77,11 @@ class MuffClipStage
     void reset() noexcept { vd = capCurrent = residual = 0; }
     double process(double input) noexcept
     {
+        if (!root)
+            return 0;
         const double x = std::clamp(common::safe(input), -16., 16.), history = capG * vd + capCurrent,
                      rhs = x * inputG + history;
-        const auto solution = root.solve(rhs, linearG);
+        const auto solution = root->solve(rhs, linearG);
         const double next = solution.voltage;
         residual = solution.residual;
         capCurrent = common::safe(capG * (next - vd) - capCurrent);
@@ -78,7 +91,7 @@ class MuffClipStage
     double lastResidualAmps() const noexcept { return residual; }
 
   private:
-    common::PreparedDiodeRoot root;
+    RootTable root;
     double sr = 48000, inputG = 1e-4, capG = 0, linearG = 0, vd = 0, capCurrent = 0, residual = 0;
 };
 class MuffCore
@@ -88,14 +101,15 @@ class MuffCore
     {
         return std::expm1(4.394 * std::clamp(x, 0., 1.)) / std::expm1(4.394);
     }
-    void prepare(double rate)
+    void prepare(double rate, const MuffClipStage::RootTable &sharedTable = {})
     {
         sr = common::sampleRate(rate);
         inputHp.setLowpass(sr, 23);
         outputHp.setLowpass(sr, 10);
         outputLp.setLowpass(sr, 20000);
-        clip1.prepare(sr);
-        clip2.prepare(sr);
+        const auto table = sharedTable ? sharedTable : MuffClipStage::makeRootTable(sr);
+        clip1.prepare(sr, table);
+        clip2.prepare(sr, table);
         configure(.5, .5, .5, 9, 0, 1, 0, false);
         reset();
     }

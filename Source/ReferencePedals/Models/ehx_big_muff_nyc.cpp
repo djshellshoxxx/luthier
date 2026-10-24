@@ -42,8 +42,9 @@ EhxBigMuffNyc::EhxBigMuffNyc() : CircuitPedal(descriptor()) {}
 void EhxBigMuffNyc::prepare(double rate, int, int policy)
 {
     prepareCircuit(rate, 1 << (1 + std::clamp(std::min(policy, (int)value(5)), 0, 2)));
+    const auto table = MuffClipStage::makeRootTable(os[0].rate());
     for (int c = 0; c < 2; ++c)
-        core[c].prepare(os[c].rate());
+        core[c].prepare(os[c].rate(), table);
     reset();
 }
 void EhxBigMuffNyc::update() noexcept

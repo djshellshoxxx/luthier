@@ -500,3 +500,22 @@ about20microseconds to~.4seconds per pedal; four separate tables total558,144
 bytes of coefficient storage per stereo pedal, excluding object metadata.
 This startup/memory cost is material and remains a candidate limitation.
 All original THD/alias/calibration/CPU acceptance failures remain visible.
+
+The subsequent ownership-only revision shares one immutable root table across
+all four NYC/Wicker stages in each stereo pedal. `shared_ptr<const ...>` copies
+and releases occur only in prepare/destruction; process dereferences the same
+const coefficients and each stage retains its own capacitor history. There is
+no global table cache or audio-thread ownership mutation. Standalone component
+preparation can still create its own table. Unprepared processing returns zero.
+
+The sharing fixture checks no additional allocation when attaching prepared
+coefficients, survival after releasing the caller's local handle, independent
+histories, and resetting one stage without altering another. The complete named
+suite passes **29cases /11,314,806 checks** under ASan+UBSan+leak detection and
+the allocation counter. The262,144-value corpus is **bit-exact** against the
+four-table candidate at every tested rate. Coefficient storage falls to139,536
+bytes per stereo pedal and prepare measures~.095–.105seconds. New process-only
+CPU medians are19.3017% NYC and18.8928% Wicker; both original budgets still fail.
+Evidence:`named-shared-root-{tests,stderr}.txt`, `muff-root-shared-measurements.txt`
+and `muff-root-sharing-comparison.csv`. Earlier tables and raw results remain
+as before/after evidence.

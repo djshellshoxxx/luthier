@@ -1,0 +1,9 @@
+model,rate,stereo_values,max_abs_delta,rms_delta,delta_dbfs
+NYC,44100,32768,0,0,-inf
+NYC,48000,32768,0,0,-inf
+NYC,96000,32768,0,0,-inf
+NYC,192000,32768,0,0,-inf
+Wicker,44100,32768,0,0,-inf
+Wicker,48000,32768,0,0,-inf
+Wicker,96000,32768,0,0,-inf
+Wicker,192000,32768,0,0,-inf

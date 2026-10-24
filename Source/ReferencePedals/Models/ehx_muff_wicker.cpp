@@ -55,9 +55,10 @@ void EhxMuffWicker::prepare(double rate, int, int policy)
     prepareCircuit(rate, 1 << (1 + std::clamp(std::min(policy, (int)value(9)), 0, 2)));
     toneSwitch.prepare(sr, 10);
     wickerSwitch.prepare(sr, 10);
+    const auto table = MuffClipStage::makeRootTable(os[0].rate());
     for (int c = 0; c < 2; ++c)
     {
-        core[c].prepare(os[c].rate());
+        core[c].prepare(os[c].rate(), table);
         howlDelay[c].prepare((int)std::ceil(sr * .005) + 2);
         howlHp[c].setLowpass(sr, 80);
         howlLp[c].setLowpass(sr, 800);
