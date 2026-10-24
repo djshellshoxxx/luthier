@@ -41,7 +41,10 @@ public:
     // Validates and stores a copy of the descriptor. Returns false (and leaves
     // the registry unchanged) when validate() fails or the id/prefix is a
     // duplicate. Debug builds assert. Errata E25: returns bool, was void.
-    static bool add (const PedalDesc&, PedalFactory);
+    static bool add (const PedalDesc&, PedalFactory, PreparedMemoryEstimator = nullptr);
+    // Off audio; no factory invocation. Missing callback returns unsupported.
+    static PreparedMemoryRequirement memoryRequirement (const char* modelId, double sampleRate,
+        int maxBlock, int oversamplePolicy, const float* normalisedParams);
 
     // Message thread only. nullptr for an unknown model id or a null factory result.
     static std::unique_ptr<IPedal> make (const char* modelId);
