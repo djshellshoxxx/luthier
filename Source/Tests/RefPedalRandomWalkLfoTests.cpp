@@ -35,3 +35,21 @@ LUTHIER_TEST(RefPedalRandomWalkLfo, resetAndPartitionsAreBitExact)
     double phase=a.phase();a.setRateRange(.2,.4);CHECK(a.phase()==phase);CHECK(a.rate()>=.2&&a.rate()<=.4);
     double before=a.next();a.setRateRange(.1,.9);CHECK(std::abs(a.next()-before)<3./48000);
 }
+LUTHIER_TEST(RefPedalRandomWalkLfo, segmentRemainderPreservesPhysicalTime)
+{
+    // Independent elapsed-seconds scheduler with long-double accumulation.
+    // Wide rates expose carrying normalized old-rate phase into a new segment.
+    RandomWalkLfo walk;walk.setRateRange(20,100);walk.prepare(8000,73);
+    luthier::reference::common::NoiseGen random(73);
+    long double elapsed=0,previous=0,target=.8L*random.next(),rate=20+80*(.5L+.5L*random.next());
+    double worst=0;
+    for(int i=0;i<80000;++i)
+    {
+        const long double phase=elapsed*rate,curve=phase*phase*(3-2*phase);
+        const double expected=double(previous+(target-previous)*curve);
+        worst=std::max(worst,std::abs(walk.next()-expected));
+        elapsed+=1.L/8000;
+        if(elapsed>=1/rate){elapsed-=1/rate;previous=target;target=std::clamp(previous+.8L*random.next(),-1.L,1.L);rate=20+80*(.5L+.5L*random.next());}
+    }
+    CHECK(worst<1e-10);
+}

@@ -30,7 +30,11 @@ public:
         const double curve=position*position*(3-2*position);
         const double value=previous+(target-previous)*curve;
         position+=increment;
-        if(position>=1){position-=1;previous=target;chooseTarget();}
+        if(position>=1)
+        {
+            const double remainderSeconds=(position-1)/currentRate;
+            previous=target;chooseTarget();position=remainderSeconds*currentRate;
+        }
         return value;
     }
     double phase() const noexcept {return position;}
