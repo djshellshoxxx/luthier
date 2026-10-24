@@ -129,3 +129,17 @@ LUTHIER_TEST (RefPedalHost, automationThousandWritesPerSecond)
     }
     CHECK (writes == 1000); p->releaseResources();
 }
+LUTHIER_TEST (RefPedalHost, hostPersistenceEchoDoesNotCreateUndo)
+{
+    PedalRegistry::TestScope scope; CHECK (PedalRegistry::add (probeDesc, makeHostProbe));
+    auto p = std::make_unique<LuthierAudioProcessor>(); auto& model = p->getEngine().getReferencePedals().model();
+    CHECK (model.apply (cmd::Add { "test.host-automation" })); CHECK (model.apply (cmd::SetBoardEnabled { true }));
+    p->prepareToPlay (96000, 64);
+    std::vector<PedalInstance> instances; BoardSettings settings; model.snapshot (instances, settings);
+    CHECK (model.replaceAll (instances, settings)); CHECK (! model.canUndo());
+    p->getState().getParameter ("ref_s01_p01")->setValueNotifyingHost (.8f);
+    juce::AudioBuffer<float> audio (2, 64); juce::MidiBuffer midi; p->processBlock (audio, midi);
+    juce::MemoryBlock saved; p->getStateInformation (saved);
+    CHECK_NEAR (model.getInstance (model.getOrder()[0])->params[0], .8f, 1e-6); CHECK (! model.canUndo());
+    p->releaseResources();
+}
