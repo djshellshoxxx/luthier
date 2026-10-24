@@ -11,6 +11,8 @@ namespace luthier::reference::generic
 class Delay final : public PedalBase<14>
 {
 public:
+    static PreparedMemoryRequirement prepareMemory(double,int,int,const float*) noexcept;
+    uint64_t getPreparedMemoryBytes() const noexcept override;
     Delay();
     static const PedalDesc& descriptor() noexcept;
     void prepare(double,int,int) override;

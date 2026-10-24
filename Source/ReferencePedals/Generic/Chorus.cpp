@@ -1,5 +1,6 @@
 // OWNER: WP9
 #include "Chorus.h"
+#include "MemorySupport.h"
 
 namespace luthier::reference::generic
 {
@@ -20,6 +21,18 @@ const ParamDesc parameters[] {
     {"gen_chorus_on","ON","",ParamKind::Toggle,Taper::Linear,0.0f,1.0f,1.0f,1.f,0,nullptr,PF_Engage,20.0f,58},
 };
 const PedalDesc description {"generic.chorus","gen_chorus_",1,"Chorus","Modulation",nullptr,ChannelMode::MonoInStereoOut,BypassMode::True,int(std::size(parameters)),parameters,0,false,false,false,0};
+}
+PreparedMemoryRequirement Chorus::prepareMemory(double sr,int,int,const float*) noexcept
+{
+    generic::detail::TimeFxMemoryEstimate memory(sr,sizeof(Chorus));
+    memory.delay(.025,8);
+    return memory.result();
+}
+uint64_t Chorus::getPreparedMemoryBytes() const noexcept
+{
+    uint64_t bytes=sizeof(*this);
+    if(!addPreparedBytes(bytes,delay.ownedMemoryBytes(),bytes))return kUnknownPreparedMemoryBytes;
+    return bytes;
 }
 const PedalDesc& Chorus::descriptor() noexcept { return description; }
 Chorus::Chorus() : PedalBase(description) {}

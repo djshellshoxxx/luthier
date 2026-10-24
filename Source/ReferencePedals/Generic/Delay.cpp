@@ -1,5 +1,6 @@
 // OWNER: WP10
 #include "Delay.h"
+#include "MemorySupport.h"
 
 namespace luthier::reference::generic
 {
@@ -27,6 +28,19 @@ const ParamDesc parameters[] {
     {"gen_delay_tap","TAP","",ParamKind::Trigger,Taper::Linear,0.0f,1.0f,0.0f,1.f,0,nullptr,PF_Automatable,20.0f,85},
 };
 const PedalDesc description {"generic.delay","gen_delay_",1,"Delay","Time",nullptr,ChannelMode::TrueStereo,BypassMode::DSP,int(std::size(parameters)),parameters,0,true,false,false,0};
+}
+PreparedMemoryRequirement Delay::prepareMemory(double sr,int,int,const float*) noexcept
+{
+    generic::detail::TimeFxMemoryEstimate memory(sr,sizeof(Delay));
+    memory.delay(2.4,8,2);
+    return memory.result();
+}
+uint64_t Delay::getPreparedMemoryBytes() const noexcept
+{
+    uint64_t bytes=sizeof(*this);
+    if(!addPreparedBytes(bytes,lines[0].ownedMemoryBytes(),bytes))return kUnknownPreparedMemoryBytes;
+    if(!addPreparedBytes(bytes,lines[1].ownedMemoryBytes(),bytes))return kUnknownPreparedMemoryBytes;
+    return bytes;
 }
 const PedalDesc& Delay::descriptor() noexcept { return description; }
 Delay::Delay() : PedalBase(description) {}

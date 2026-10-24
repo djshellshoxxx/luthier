@@ -1,5 +1,6 @@
 // OWNER: WP10
 #pragma once
+#include "../PreparedMemory.h"
 #include "../Common/FractionalDelay.h"
 #include "../Common/OnePole.h"
 #include <array>
@@ -8,6 +9,12 @@ namespace luthier::reference::generic
 class ReverbSpring
 {
 public:
+    uint64_t ownedMemoryBytes() const noexcept
+    {
+        uint64_t bytes=0;
+        for(const auto& line:delays)if(!addPreparedBytes(bytes,line.ownedMemoryBytes(),bytes))return kUnknownPreparedMemoryBytes;
+        return bytes;
+    }
     void prepare(double sampleRate);
     void reset() noexcept;
     void set(double decay,double size,double tone,double freeze) noexcept;

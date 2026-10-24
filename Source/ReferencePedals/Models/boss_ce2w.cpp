@@ -1,5 +1,6 @@
 // OWNER: WP14
 #include "boss_ce2w.h"
+#include "../Generic/MemorySupport.h"
 #include "../Common/TempoSync.h"
 namespace luthier::reference::models
 {
@@ -20,6 +21,20 @@ const ParamDesc parameters[]{
     {"boss_ce2w_hq","BBD STAIRCASE","",ParamKind::Toggle,Taper::Linear,0.0f,1.0f,0.0f,1.f,0,nullptr,PF_Config,20.0f,-1},
 };
 const PedalDesc description{"boss-ce2w","boss_ce2w_",1,"Three-Voice Bucket Chorus (prototype)","Chorus",nullptr,ChannelMode::MonoInStereoOut,BypassMode::Buffered,9,parameters,0,false,false,false,0};
+}
+PreparedMemoryRequirement BossCe2w::prepareMemory(double sr,int,int,const float*) noexcept
+{
+    generic::detail::TimeFxMemoryEstimate memory(sr,sizeof(BossCe2w));
+    memory.delay(.04,8,3);
+    return memory.result();
+}
+uint64_t BossCe2w::getPreparedMemoryBytes() const noexcept
+{
+    uint64_t bytes=sizeof(*this);
+    if(!addPreparedBytes(bytes,wet[0].ownedMemoryBytes(),bytes))return kUnknownPreparedMemoryBytes;
+    if(!addPreparedBytes(bytes,wet[1].ownedMemoryBytes(),bytes))return kUnknownPreparedMemoryBytes;
+    if(!addPreparedBytes(bytes,wet[2].ownedMemoryBytes(),bytes))return kUnknownPreparedMemoryBytes;
+    return bytes;
 }
 const PedalDesc& BossCe2w::descriptor() noexcept {return description;}
 BossCe2w::BossCe2w() : PedalBase(description) {}

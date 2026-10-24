@@ -10,6 +10,8 @@ namespace luthier::reference::models
 class BossCe2 final : public PedalBase<14>
 {
 public:
+    static PreparedMemoryRequirement prepareMemory(double,int,int,const float*) noexcept;
+    uint64_t getPreparedMemoryBytes() const noexcept override;
     BossCe2();static const PedalDesc& descriptor() noexcept;
     void prepare(double,int,int) override;void reset() noexcept override;
     void process(double*,double*,int) noexcept override;

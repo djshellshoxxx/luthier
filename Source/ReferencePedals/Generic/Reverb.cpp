@@ -1,5 +1,6 @@
 // OWNER: WP10
 #include "Reverb.h"
+#include "MemorySupport.h"
 
 namespace luthier::reference::generic
 {
@@ -21,6 +22,25 @@ const ParamDesc parameters[] {
     {"gen_reverb_on","ON","",ParamKind::Toggle,Taper::Linear,0.0f,1.0f,1.0f,1.f,0,nullptr,PF_Engage,20.0f,103},
 };
 const PedalDesc description {"generic.reverb","gen_reverb_",1,"Reverb","Time",nullptr,ChannelMode::MonoInStereoOut,BypassMode::DSP,int(std::size(parameters)),parameters,0,true,false,false,0};
+}
+PreparedMemoryRequirement Reverb::prepareMemory(double sr,int,int,const float*) noexcept
+{
+    generic::detail::TimeFxMemoryEstimate memory(sr,sizeof(Reverb));
+    memory.fdn(3);
+    memory.delay(.04,8,4);memory.delay(.07,8,2);memory.delay(.16,8,2);memory.delay(.27,8,2);memory.delay(.23,8,2);
+    memory.delay(.08,8,2);memory.delay(.251,8);
+    return memory.result();
+}
+uint64_t Reverb::getPreparedMemoryBytes() const noexcept
+{
+    uint64_t bytes=sizeof(*this);
+    if(!addPreparedBytes(bytes,fdn[0].ownedMemoryBytes(),bytes))return kUnknownPreparedMemoryBytes;
+    if(!addPreparedBytes(bytes,fdn[1].ownedMemoryBytes(),bytes))return kUnknownPreparedMemoryBytes;
+    if(!addPreparedBytes(bytes,fdn[2].ownedMemoryBytes(),bytes))return kUnknownPreparedMemoryBytes;
+    if(!addPreparedBytes(bytes,plate.ownedMemoryBytes(),bytes))return kUnknownPreparedMemoryBytes;
+    if(!addPreparedBytes(bytes,spring.ownedMemoryBytes(),bytes))return kUnknownPreparedMemoryBytes;
+    if(!addPreparedBytes(bytes,predelay.ownedMemoryBytes(),bytes))return kUnknownPreparedMemoryBytes;
+    return bytes;
 }
 const PedalDesc& Reverb::descriptor() noexcept { return description; }
 Reverb::Reverb() : PedalBase(description) {}

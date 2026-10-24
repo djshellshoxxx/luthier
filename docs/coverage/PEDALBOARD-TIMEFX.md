@@ -662,3 +662,41 @@ No registration or numerical threshold changed. Further work must remove actual
 redundant execution without dropping inactive histories or altering the circuits.
 The approved prepared-memory admission contract is being implemented before
 optional paired-channel SIMD experiments resume.
+
+### E69 prepared-memory admission reporting (2026-10-24)
+
+All six accepted Generic B/C models now supply constructor-free memory estimates
+through the registry, and all ten owned models (including the four unregistered
+named candidates) report actual object plus owned dynamic capacity. Phaser,
+Tremolo, Wah and Phase90 are embedded-only. Chorus/Delay/BBD paths count delay
+storage; DD3T additionally counts both channel history and short-loop vectors.
+Reverb counts all three FDN families, Plate, Spring, predelay and prime tables.
+Subobject reports exclude embedded object bytes to avoid double counting.
+
+The independent allocation-payload probe `probes/timefx-memory-capacity.cpp`
+counts allocations and frees rather than reproducing the size formulas. Its raw
+`timefx-memory-capacity-results.txt` records ten models at 8k, 44.1k, 48k,
+48000.25, 88.2k, 96k, 192k and 384k: all 80 fresh prepares match actual capacity
+exactly, stay within conservative estimates, and satisfy peak temporary bounds.
+All 80 lower-rate reprepares report retained capacity exactly; destruction returns
+measured owned storage to zero. Preflight allocates zero times. The estimate uses
+ceil to conservatively cover positive truncation and decimal multiplication order;
+invalid/overflowing rates are rejected before integer casts. The safety upper
+bound protects existing int arithmetic, not an invented 192k audio limit.
+
+Reverb temporary scratch charges one byte per logical sieve bit (a conservative
+bound for packed `vector<bool>`); only one sieve is live during sequential FDN
+prepares. The separately inventoried shared immutable FractionalDelay sinc table
+is 32,896 bytes once process-wide, not per instance. Vector capacity retention on
+reprepare is deliberate and visible in the actual reporter. These figures count
+allocation payload, as specified, not allocator metadata. Engine-owned admission
+must also count runtime/dry buffers and retained old/new instances against the
+64,000,000-byte cap. The model metadata change neither reduces delay ranges nor
+precision and does not register any failed named candidate.
+
+The immutable `/tmp/timefx-memory-snapshot` registry/model suite passed **1,174
+checks, zero failures**, with AddressSanitizer, UndefinedBehaviorSanitizer and leak
+detection enabled (no diagnostics). It exercises actual registered Generic B/C
+callbacks, all ten models at both control extremes, invalid dynamic-rate refusal,
+reset capacity and reprepare. The unrelated registry groups are empty test-only
+link stubs in this focused runner. `Tools/trademark_scan.py` reports zero hits.

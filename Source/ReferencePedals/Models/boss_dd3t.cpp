@@ -1,5 +1,6 @@
 // OWNER: WP14
 #include "boss_dd3t.h"
+#include "../Generic/MemorySupport.h"
 namespace luthier::reference::models
 {
 namespace
@@ -32,6 +33,23 @@ const ParamDesc parameters[]{
     {"boss_dd3t_stereo_mode","STEREO MODE","",ParamKind::Enum,Taper::Linear,0,1,0,1,2,stereoModeNames,PF_Config,5,-1},
 };
 const PedalDesc description{"boss-dd3t","boss_dd3t_",1,"Quantized Digital Delay (prototype)","Delay",nullptr,ChannelMode::Mono,BypassMode::Buffered,19,parameters,0,true,false,false,0};
+}
+PreparedMemoryRequirement BossDd3t::prepareMemory(double sr,int,int,const float*) noexcept
+{
+    generic::detail::TimeFxMemoryEstimate memory(sr,sizeof(BossDd3t));
+    memory.delay(.81,16,2);memory.doubles(.81,16,2);memory.doubles(.8,8,2);
+    return memory.result();
+}
+uint64_t BossDd3t::getPreparedMemoryBytes() const noexcept
+{
+    uint64_t bytes=sizeof(*this);
+    if(!addPreparedBytes(bytes,line[0].ownedMemoryBytes(),bytes))return kUnknownPreparedMemoryBytes;
+    if(!addPreparedBytes(bytes,line[1].ownedMemoryBytes(),bytes))return kUnknownPreparedMemoryBytes;
+    if(!addPreparedBytes(bytes,uint64_t(history[0].capacity())*sizeof(double),bytes))return kUnknownPreparedMemoryBytes;
+    if(!addPreparedBytes(bytes,uint64_t(history[1].capacity())*sizeof(double),bytes))return kUnknownPreparedMemoryBytes;
+    if(!addPreparedBytes(bytes,uint64_t(loop[0].capacity())*sizeof(double),bytes))return kUnknownPreparedMemoryBytes;
+    if(!addPreparedBytes(bytes,uint64_t(loop[1].capacity())*sizeof(double),bytes))return kUnknownPreparedMemoryBytes;
+    return bytes;
 }
 const PedalDesc& BossDd3t::descriptor() noexcept {return description;}
 BossDd3t::BossDd3t() : PedalBase(description) {}

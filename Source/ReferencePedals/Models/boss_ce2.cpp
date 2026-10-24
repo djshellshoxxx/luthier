@@ -1,5 +1,6 @@
 // OWNER: WP14
 #include "boss_ce2.h"
+#include "../Generic/MemorySupport.h"
 #include "../Common/TempoSync.h"
 namespace luthier::reference::models
 {
@@ -25,6 +26,19 @@ const ParamDesc parameters[]{
     {"boss_ce2_stereo_mode","STEREO MODE","",ParamKind::Enum,Taper::Linear,0,1,0,1,2,stereoModeNames,PF_Config,5,-1},
 };
 const PedalDesc description{"boss-ce2","boss_ce2_",1,"Vintage Bucket Chorus (prototype)","Chorus",nullptr,ChannelMode::Mono,BypassMode::Buffered,14,parameters,0,false,false,false,0};
+}
+PreparedMemoryRequirement BossCe2::prepareMemory(double sr,int,int,const float*) noexcept
+{
+    generic::detail::TimeFxMemoryEstimate memory(sr,sizeof(BossCe2));
+    memory.delay(.012,8,2);
+    return memory.result();
+}
+uint64_t BossCe2::getPreparedMemoryBytes() const noexcept
+{
+    uint64_t bytes=sizeof(*this);
+    if(!addPreparedBytes(bytes,wet[0].ownedMemoryBytes(),bytes))return kUnknownPreparedMemoryBytes;
+    if(!addPreparedBytes(bytes,wet[1].ownedMemoryBytes(),bytes))return kUnknownPreparedMemoryBytes;
+    return bytes;
 }
 const PedalDesc& BossCe2::descriptor() noexcept {return description;}
 BossCe2::BossCe2() : PedalBase(description) {}

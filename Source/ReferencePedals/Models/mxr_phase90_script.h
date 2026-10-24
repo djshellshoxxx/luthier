@@ -12,6 +12,8 @@ namespace luthier::reference::models
 class MxrPhase90Script final : public PedalBase<13>
 {
 public:
+    static PreparedMemoryRequirement prepareMemory(double sr,int block,int policy,const float* params) noexcept {return fixedPreparedMemory<MxrPhase90Script>(sr,block,policy,params);}
+    uint64_t getPreparedMemoryBytes() const noexcept override {return sizeof(*this);}
     MxrPhase90Script();
     static const PedalDesc& descriptor() noexcept;
     void prepare(double,int,int) override;

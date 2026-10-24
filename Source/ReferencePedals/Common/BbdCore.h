@@ -12,6 +12,7 @@ namespace luthier::reference::common
 class BbdCore
 {
 public:
+    uint64_t ownedMemoryBytes() const noexcept {return delay.ownedMemoryBytes();}
     void prepare(double sampleRate,double maximumDelayMs=40,double preHz=6500,double postHz=5500);
     void reset(uint32_t seed=1) noexcept;
     void setClipLevel(double level) noexcept {clipLevel=std::clamp(common::safe(level),.1,16.);clipOnset=std::min(clipOnset,clipLevel*.99); }

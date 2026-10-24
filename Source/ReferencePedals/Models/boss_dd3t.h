@@ -13,6 +13,8 @@ namespace luthier::reference::models
 class BossDd3t final : public PedalBase<19>
 {
 public:
+    static PreparedMemoryRequirement prepareMemory(double,int,int,const float*) noexcept;
+    uint64_t getPreparedMemoryBytes() const noexcept override;
     BossDd3t();static const PedalDesc& descriptor() noexcept;
     void prepare(double,int,int) override;void reset() noexcept override;
     void process(double*,double*,int) noexcept override;
