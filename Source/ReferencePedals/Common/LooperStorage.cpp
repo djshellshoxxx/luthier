@@ -53,7 +53,7 @@ struct LooperStorage::Impl
     size_t maxPages=0,bytesReserved=0;
     uint64_t diskReserved=0;
     SpscRing<Job,64> jobs;
-    std::atomic<uint64_t> epoch{1},frames{0},manifestReady{0},barrierReady{0};
+    std::atomic<uint64_t> epoch{1},frames{0},manifestReady{0},barrierReady{0},phase{state(1,0)},hashSequence{0};
     AtomicHash manifestHash;
     std::atomic<uint32_t> flags{0};
     std::atomic<bool> stopping{false};
@@ -152,7 +152,7 @@ struct LooperStorage::Impl
                 bytes.insert(bytes.end(),hash.bytes.begin(),hash.bytes.end());
             }
             const auto hash=AssetStore::hashBlob(bytes.data(),bytes.size());
-            if(store.putBlob(hash,bytes.data(),bytes.size())){manifestReady.store(0,std::memory_order_release);manifestHash.store(hash);manifestReady.store(job.epoch,std::memory_order_release);}
+            if(store.putBlob(hash,bytes.data(),bytes.size())){hashSequence.fetch_add(1,std::memory_order_acq_rel);manifestReady.store(0,std::memory_order_release);manifestHash.store(hash);manifestReady.store(job.epoch,std::memory_order_release);hashSequence.fetch_add(1,std::memory_order_release);}
             else if(job.epoch==epoch.load())flags.fetch_or(ioFailure);
             notifyDone();
         }
@@ -220,7 +220,7 @@ uint64_t LooperStorage::reservedStorageBytes() const noexcept{return impl?impl->
 void LooperStorage::beginRecord() noexcept
 {
     if(!impl)return;
-    ++impl->epoch;impl->frames=0;impl->flags=0;impl->recording=true;impl->sparse=false;impl->finalized=false;impl->writeBuffer=-1;impl->writeIndex=0;
+    ++impl->epoch;impl->frames=0;impl->flags=0;impl->recording=true;impl->sparse=false;impl->finalized=false;impl->writeBuffer=-1;impl->writeIndex=0;impl->phase.store(state(impl->epoch.load(),1),std::memory_order_release);
 }
 bool LooperStorage::append(double left,double right) noexcept
 {
@@ -286,9 +286,9 @@ bool LooperStorage::finishRecord() noexcept
     if(!impl || impl->finalized)return false;
     auto& p=*impl;p.recording=false;
     if(!p.flush())return false;
-    if(!p.frames.load()){p.finalized=true;return true;}
+    if(!p.frames.load()){p.finalized=true;p.phase.store(state(p.epoch.load(),0),std::memory_order_release);return true;}
     if(!p.push({Impl::Kind::Manifest,p.epoch.load(),0,0,p.frames.load(),0,0})){p.flags.fetch_or(writeOverrun);return false;}
-    p.finalized=true;return true;
+    p.finalized=true;p.phase.store(state(p.epoch.load(),2),std::memory_order_release);return true;
 }
 void LooperStorage::prefetch(uint64_t frame) noexcept
 {
@@ -319,6 +319,29 @@ bool LooperStorage::read(uint64_t frame,double& left,double& right,uint64_t* act
 }
 uint64_t LooperStorage::length() const noexcept{return impl?impl->frames.load():0;}
 uint32_t LooperStorage::errors() const noexcept{return impl?impl->flags.load():invalidAsset;}
+bool LooperStorage::capture(Capture& out) const noexcept
+{
+    if(!impl)return false;
+    auto& p=*impl;
+    for(int attempt=0;attempt<8;++attempt)
+    {
+        const auto epoch=p.epoch.load(std::memory_order_acquire),phase=p.phase.load(std::memory_order_acquire);
+        if(stateEpoch(phase)!=epoch)continue;
+        const auto sequence=p.hashSequence.load(std::memory_order_acquire);if(sequence&1)continue;
+        Capture next;next.generation=epoch;next.frames=p.frames.load(std::memory_order_acquire);next.faults=p.flags.load(std::memory_order_acquire);
+        const auto ready=p.manifestReady.load(std::memory_order_acquire);
+        if(next.faults&ioFailure)next.status=CaptureStatus::Failed;
+        else if(stateVersion(phase)==1)next.status=CaptureStatus::Recording;
+        else if(!next.frames)next.status=CaptureStatus::Empty;
+        else if(ready==epoch){next.status=CaptureStatus::Ready;next.hash=p.manifestHash.load();}
+        else next.status=CaptureStatus::Pending;
+        std::atomic_thread_fence(std::memory_order_acquire);
+        if(p.hashSequence.load(std::memory_order_relaxed)!=sequence || p.epoch.load(std::memory_order_acquire)!=epoch
+           || p.phase.load(std::memory_order_acquire)!=phase || p.frames.load(std::memory_order_acquire)!=next.frames)continue;
+        out=next;return true;
+    }
+    return false;
+}
 bool LooperStorage::manifest(AssetHash& hash,int timeoutMs) const
 {
     if(!impl)return false;
@@ -345,7 +368,7 @@ bool LooperStorage::restore(const AssetHash& hash)
     const auto epoch=++p.epoch;
     for(int i=0;i<p.config.readPages*2;++i)p.reads[i].tag=0;
     for(size_t i=0;i<size_t(count);++i){AssetHash h;std::memcpy(h.bytes.data(),bytes.data()+at,32);at+=32;p.entries[i].ready=0;p.entries[i].hash.store(h);const auto wanted=h.isNull()?0:state(epoch,1);p.entries[i].desired=wanted;p.entries[i].ready.store(wanted,std::memory_order_release);p.entries[i].residentEpoch=0;}
-    p.frames=frames;p.recording=false;p.sparse=false;p.finalized=true;p.writeBuffer=-1;p.flags=0;p.manifestReady=0;p.manifestHash.store(hash);p.manifestReady.store(epoch,std::memory_order_release);
+    p.frames=frames;p.recording=false;p.sparse=false;p.finalized=true;p.writeBuffer=-1;p.flags=0;p.hashSequence.fetch_add(1,std::memory_order_acq_rel);p.manifestReady=0;p.manifestHash.store(hash);p.manifestReady.store(epoch,std::memory_order_release);p.hashSequence.fetch_add(1,std::memory_order_release);p.phase.store(state(epoch,2),std::memory_order_release);
     prefetch(0);return true;
 }
 }
