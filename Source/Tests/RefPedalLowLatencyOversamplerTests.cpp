@@ -61,3 +61,82 @@ LUTHIER_TEST(RefPedalLowLatencyOversampler, fourTimesHasIntegerLatency)
     }
     CHECK(peak == 23);
 }
+namespace
+{
+// Independent full-tap convolution oracle, intentionally not polyphase/symmetric.
+struct ShortFirOracle
+{
+    std::array<double, 33> taps{};
+    std::array<double, 64> upHistory{}, downHistory{};
+    unsigned upHead = 0, downHead = 0;
+    void prepare(int midpoint)
+    {
+        const int parity = midpoint % 2 ? 0 : 1;
+        double sum = 0;
+        for (int k = parity; k < midpoint; k += 2)
+        {
+            const double m = k - midpoint,
+                         w = .42 - .5 * std::cos(pi * k / midpoint) + .08 * std::cos(2 * pi * k / midpoint);
+            taps[k] = taps[2 * midpoint - k] = std::sin(.5 * pi * m) / (pi * m) * w;
+            sum += 2 * taps[k];
+        }
+        for (auto &t : taps)
+            t *= .5 / sum;
+        taps[midpoint] = .5;
+    }
+    double filter(std::array<double, 64> &history, unsigned &head, double x)
+    {
+        history[head] = x;
+        double y = 0;
+        for (unsigned k = 0; k < taps.size(); ++k)
+            y += taps[k] * history[(head - k) & 63];
+        head = (head + 1) & 63;
+        return y;
+    }
+    void up(double x, double &a, double &b)
+    {
+        a = 2 * filter(upHistory, upHead, x);
+        b = 2 * filter(upHistory, upHead, 0);
+    }
+    double down(double a, double b)
+    {
+        double y = filter(downHistory, downHead, a);
+        filter(downHistory, downHead, b);
+        return y;
+    }
+};
+} // namespace
+LUTHIER_TEST(RefPedalLowLatencyOversampler, agreesWithIndependentFullConvolution)
+{
+    for (int factor : {2, 4})
+    {
+        LowLatencyOversampler os;
+        os.prepareFactor(48000, factor);
+        ShortFirOracle first, second;
+        first.prepare(15);
+        second.prepare(16);
+        for (int i = 0; i < 8192; ++i)
+        {
+            const double x = .7 * std::sin(i * .931) + .2 * std::cos(i * .071);
+            const double actual = os.process(x, [](double v) { return std::tanh(v); });
+            double a, b;
+            first.up(x, a, b);
+            if (factor == 2)
+            {
+                a = std::tanh(a);
+                b = std::tanh(b);
+            }
+            else
+            {
+                double c[4];
+                second.up(a, c[0], c[1]);
+                second.up(b, c[2], c[3]);
+                for (auto &v : c)
+                    v = std::tanh(v);
+                a = second.down(c[0], c[1]);
+                b = second.down(c[2], c[3]);
+            }
+            CHECK_NEAR(actual, first.down(a, b), 1e-14);
+        }
+    }
+}
