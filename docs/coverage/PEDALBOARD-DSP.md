@@ -560,3 +560,15 @@ as before/after evidence.
 Timefx independently reviewed the sharing mechanism: no reference-count
 operations in process, immutable coefficients, and independent reset/state.
 That review did not rerun the recorded corpus or qualify acoustic/CPU gates.
+
+## Reviewed shared LFO wrap optimization
+
+Timefx helper8dc4ca07 replaces `p-=floor(p)` in advance with one conditional
+subtraction. Independent review confirms the public setters keep phase in[0,1]
+(including a tiny negative value rounding to1) and increment in[0,.49], so the
+floor can only be0 or1. The new operation preserves floating-point association.
+Only the helper and test were imported here; timefx's coverage file was not
+modified. A fresh local ASan+UBSan+leak-detection run passes **1,342,784 bitwise
+oracle checks** across rates, boundary/hostile phases, setters and reprepare;
+stderr is empty (`lfo-wrap-reviewed-{tests,stderr}.txt`). No latency, transfer,
+state layout or callback ownership changes were introduced.
