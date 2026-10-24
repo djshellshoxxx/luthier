@@ -76,8 +76,8 @@ void Fuzz::process(double *l, double *r, int n) noexcept
     for (int i = 0; i < n; ++i)
     {
         tick();
-        const double g = std::sqrt(common::dbGain(p[0])), t = common::dbGain(p[1]),
-                     volume = p[2] <= -60 ? 0 : common::dbGain(p[2]);
+        const double g = std::sqrt(driveGain.get(p[0])), t = toneGain.get(p[1]),
+                     volume = p[2] <= -60 ? 0 : levelGain.get(p[2]);
         double *channels[] = {l, r};
         const double inputs[] = {input(l[i]), input(r[i])};
         // Equal inputs from reset have identical channel state. Materialise the
@@ -125,7 +125,7 @@ void Fuzz::process(double *l, double *r, int n) noexcept
             y = dc[c].process(y);
             double low = tilt[c].process(y);
             y = low / t + (y - low) * t;
-            double detected = gate[c].process(x), threshold = common::dbGain(-90 + 50 * p[5]), target = 1;
+            double detected = gate[c].process(x), threshold = thresholdGain.get(-90 + 50 * p[5]), target = 1;
             if (p[5] > 0)
             {
                 if (detected >= threshold)

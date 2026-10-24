@@ -73,7 +73,7 @@ void Boost::process(double *l, double *r, int n) noexcept
                 tone[c].setShelf(os[c].rate(), 3000, p[1], true);
             previousTone = p[1];
         }
-        const double gain = common::dbGain(p[0]), level = common::dbGain(p[2]);
+        const double gain = driveGain.get(p[0]), level = levelGain.get(p[2]);
         double *channels[] = {l, r};
         const double inputs[] = {input(l[i]), input(r[i])};
         // Equal inputs from reset have identical channel state. Materialise the

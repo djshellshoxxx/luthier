@@ -16,6 +16,7 @@ class Boost final : public detail::Processor<6>
 
   private:
     bool identicalHistory = true;
+    common::CachedDbGain driveGain, levelGain;
     std::array<common::OnePole, 2> hp, eco;
     std::array<common::Biquad, 2> tone, warm, fat1;
     std::array<common::FirstOrderShelf, 2> fat2;

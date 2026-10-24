@@ -17,6 +17,7 @@ class Fuzz final : public detail::Processor<8>
 
   private:
     bool identicalHistory = true;
+    common::CachedDbGain driveGain, levelGain, toneGain, thresholdGain;
     std::array<common::OnePole, 2> hp, germanium, tilt, eco;
     std::array<common::DcBlock, 2> dc, octave;
     std::array<common::EnvelopeFollower, 2> sag, gate;

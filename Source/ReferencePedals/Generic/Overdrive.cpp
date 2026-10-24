@@ -108,7 +108,7 @@ void Overdrive::process(double *l, double *r, int n) noexcept
                 previousTone = p[1];
             }
         }
-        const double g = common::dbGain(p[0]), level = p[2] <= -60 ? 0 : common::dbGain(p[2]),
+        const double g = driveGain.get(p[0]), level = p[2] <= -60 ? 0 : levelGain.get(p[2]),
                      comp = calibrationGain(p[0]) / (1 + .1 * std::sqrt(g));
         double *channels[] = {l, r};
         const double inputs[] = {input(l[i]), input(r[i])};
