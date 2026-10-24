@@ -415,3 +415,16 @@ LUTHIER_TEST(RefPedalState, pedalMidiFootswitchModeRequiresStrictIntegerAndPrese
         CHECK(!BoardState::decode(invalid,output,settings));CHECK(output[0].modelId=="previous");CHECK(settings.enabled);
     }
 }
+
+LUTHIER_TEST(RefPedalState, exactRuntimeExtraKeysDistinguishOpaqueDoublesAndTypes)
+{
+    auto a=juce::JSON::parse(R"({"vendor":{"value":0}})");auto b=a.clone();a["vendor"].getDynamicObject()->setProperty("value",1e-200);b["vendor"].getDynamicObject()->setProperty("value",2e-200);
+    juce::String first,second,error;CHECK(BoardState::canonicalJson(a,first,&error));CHECK(BoardState::canonicalJson(b,second,&error));CHECK(first!=second);
+    auto clone=a.clone();juce::String again;CHECK(BoardState::canonicalJson(clone,again));CHECK(again==first);
+    CHECK(BoardState::canonicalJson(juce::var(1),first));CHECK(BoardState::canonicalJson(juce::var(1.0),second));CHECK(first!=second);
+    CHECK(BoardState::canonicalJson(juce::var(-0.0),first));CHECK(BoardState::canonicalJson(juce::var(0.0),second));CHECK(first!=second);
+    BoardModel model;CHECK(BoardState::restore(model,juce::String("{\"schema\":1,\"opaque\":")+again+"}"));juce::var state;CHECK(BoardState::save(model,state));CHECK(double(state["opaque"]["vendor"]["value"])==1e-200);
+    first="previous";CHECK(!BoardState::canonicalJson(juce::var(std::numeric_limits<double>::infinity()),first));CHECK(first=="previous");
+    CHECK(!BoardState::canonicalJson(juce::var(juce::String::repeatedString("x",int(BoardState::maxBytes))),first));CHECK(first=="previous");
+    juce::var deep=0;for(int i=0;i<66;++i)deep=juce::Array<juce::var>{deep};CHECK(!BoardState::canonicalJson(deep,first));CHECK(first=="previous");
+}

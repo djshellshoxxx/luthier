@@ -10,6 +10,10 @@ class BoardState
 {
 public:
     static constexpr size_t maxBytes = 256 * 1024;
+    // Exact finite JSON for runtime extra-state keys, without board schema
+    // interpretation. Compact, deterministic property order/number spelling;
+    // the shared depth/size bounds apply and failure leaves output unchanged.
+    static bool canonicalJson(const juce::var&,juce::String&,juce::String* error=nullptr);
     static bool encode (const std::vector<PedalInstance>&, const BoardSettings&,
                         juce::var& json, juce::String* error = nullptr);
     static bool decode (const juce::var& json, std::vector<PedalInstance>&,
