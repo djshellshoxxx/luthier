@@ -39,6 +39,9 @@ public:
     // A fresh model revision is applied before a fresh host serial.
     void setModelEnabled (bool enabled, uint32_t revision) noexcept;
 
+    // E57: audio thread, virtual jack1/2; serial0 is unwritten.
+    void setVirtualExpression (int source, float normalised, uint32_t serial) noexcept;
+
     // Device / UI thread -> uiInRing (wait-free; drops and counts when full).
     void pushUiEvent (const MidiEv&) noexcept;
 

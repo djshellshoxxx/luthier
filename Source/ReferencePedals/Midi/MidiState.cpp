@@ -1,4 +1,6 @@
+// OWNER: WP6
 #include "MidiState.h"
+#include "MidiDefaults.h"
 #include "../PedalRegistry.h"
 namespace luthier::reference::midi
 {
@@ -8,9 +10,9 @@ float number (const juce::DynamicObject& o, const char* key, float def)
 { return o.hasProperty (key) ? (float) o.getProperty (key) : def; }
 MidiSrc sourceType (const juce::var& v)
 {
-    if (v.isInt()) return (MidiSrc) (int) v;
+    if (v.isInt()) return (int) v >= 0 && (int) v < kSourceTypes ? (MidiSrc) (int) v : (MidiSrc) 255;
     const auto text = v.toString();
-    const char* names[] { "cc", "cc14", "nrpn", "note", "noteVel", "polyAT", "chanAT", "pitchBend", "pc", "start", "stop", "continue", "uiSlider", "keyboardVelocity" };
+    const char* names[] { "cc", "cc14", "nrpn", "note", "noteVel", "polyAT", "chanAT", "pitchBend", "pc", "start", "stop", "continue", "uiSlider", "keyboardVelocity", "virtualExpression" };
     for (int i = 0; i < kSourceTypes; ++i) if (text == names[i]) return (MidiSrc) i;
     return (MidiSrc) 255;
 }
@@ -48,8 +50,24 @@ bool MidiState::validate (const juce::var& state, juce::String* error)
                             return fail ("MIDI range value is outside 0..1");
                     if (juce::String (range) == "in" && (double) (*values)[0] >= (double) (*values)[1]) return fail ("MIDI input range must increase");
                 }
+            if (const auto* curve = o->getProperty ("curve").getDynamicObject())
+                if ((int) curve->getProperty ("id") == (int) CurveId::Custom5 && curve->hasProperty ("pts"))
+                {
+                    const auto* points = curve->getProperty ("pts").getArray();
+                    if (! points || points->size() != 5) return fail ("Custom MIDI curve requires five points");
+                    CustomPoints custom;
+                    for (int i = 0; i < 5; ++i)
+                    {
+                        const auto* point = (*points)[i].getArray();
+                        if (! point || point->size() != 2) return fail ("Custom MIDI curve point requires x,y");
+                        for (const auto& coordinate : *point)
+                            if (! (coordinate.isInt() || coordinate.isInt64() || coordinate.isDouble())) return fail ("Custom MIDI curve coordinate must be numeric");
+                        custom[(size_t) i] = { (float) (*point)[0], (float) (*point)[1] };
+                    }
+                    if (! validPoints (custom, (bool) curve->getProperty ("allowNonMonotone"))) return fail ("Custom MIDI curve points must increase and stay in range");
+                }
             if (const auto* src = o->getProperty ("src").getDynamicObject())
-                if (! scalar (*src, "num", 0, 127)) return fail ("MIDI source number is out of range");
+                if ((int) sourceType (src->getProperty ("type")) < kSourceTypes && ! scalar (*src, "num", 0, 127)) return fail ("MIDI source number is out of range");
         }
     }
     if (object->hasProperty ("scenes") && ! object->getProperty ("scenes").isArray()) return fail ("MIDI scenes must be an array");
@@ -69,7 +87,7 @@ std::unique_ptr<MapSnap> MidiState::buildMap (const std::vector<PedalInstance>& 
     for (size_t i = 0; i < instances.size() && i < kMaxSlots; ++i)
         if (map->keyboardBaseNote + (int) i < 128 && instances[i].slot >= 0 && instances[i].slot < kMaxSlots)
             map->noteToSlot[(size_t) (map->keyboardBaseNote + (int) i)] = (int8_t) instances[i].slot;
-    if (! midi) { map->compile(); return map; }
+    if (! midi) { addDefaultMaps (*map, instances, settings); map->compile(); return map; }
     if (auto* kbd = midi->getProperty ("kbd").getDynamicObject())
         map->keyboardBaseNote = std::clamp ((int) kbd->getProperty ("baseNote"), 0, 127);
     map->noteToSlot.fill (-1);
@@ -77,7 +95,7 @@ std::unique_ptr<MapSnap> MidiState::buildMap (const std::vector<PedalInstance>& 
         if (map->keyboardBaseNote + (int) i < 128 && instances[i].slot >= 0 && instances[i].slot < kMaxSlots)
             map->noteToSlot[(size_t) (map->keyboardBaseNote + (int) i)] = (int8_t) instances[i].slot;
     const auto* bindings = midi->getProperty ("bindings").getArray();
-    if (! bindings) { map->compile(); return map; }
+    if (! bindings) { addDefaultMaps (*map, instances, settings); map->compile(); return map; }
     for (const auto& value : *bindings)
     {
         const auto* o = value.getDynamicObject(); if (! o) continue;
@@ -110,19 +128,30 @@ std::unique_ptr<MapSnap> MidiState::buildMap (const std::vector<PedalInstance>& 
         if (auto* in = o->getProperty ("in").getArray(); in && in->size() == 2) { b.inMin = (float) (*in)[0]; b.inMax = (float) (*in)[1]; }
         if (auto* out = o->getProperty ("out").getArray(); out && out->size() == 2) { b.outMin = (float) (*out)[0]; b.outMax = (float) (*out)[1]; }
         CurveId curve = CurveId::Linear;
-        if (auto* c = o->getProperty ("curve").getDynamicObject()) { curve = (CurveId) (int) c->getProperty ("id"); b.curveParam = number (*c, "p", 2); }
+        if (auto* c = o->getProperty ("curve").getDynamicObject())
+        {
+            const auto idValue = c->getProperty ("id");
+            if (! idValue.isInt() || (int) idValue < 0 || (int) idValue > (int) CurveId::Custom5) continue;
+            curve = (CurveId) (int) idValue; b.curveParam = number (*c, "p", curve == CurveId::SCurve ? 1.f : 2.f);
+        }
         BindMode mode = BindMode::Absolute;
         const auto m = o->getProperty ("mode");
-        if (m.isInt()) mode = (BindMode) (int) m;
-        else
+        if (m.isInt()) { if ((int) m < 0 || (int) m > 5) continue; mode = (BindMode) (int) m; }
+        else if (! m.isVoid())
         {
-            const char* modes[] { "absolute", "relative", "toggle", "momentary", "trigger", "step" };
-            for (int i = 0; i < 6; ++i) if (m.toString() == modes[i]) mode = (BindMode) i;
+            bool known = false; const char* modes[] { "absolute", "relative", "toggle", "momentary", "trigger", "step" };
+            for (int i = 0; i < 6; ++i) if (m.toString() == modes[i]) { mode = (BindMode) i; known = true; }
+            if (! known) continue;
         }
         b.setModeCurve (mode, curve);
         const int index = map->numBindings;
         if (map->add (b))
         {
+            if (auto* c = o->getProperty ("curve").getDynamicObject())
+                if (auto* points = c->getProperty ("pts").getArray(); points && points->size() == 5)
+                    for (int i = 0; i < 5; ++i)
+                        if (auto* point = (*points)[i].getArray(); point && point->size() == 2)
+                            map->customPoints[(size_t) index][(size_t) i] = { (float) (*point)[0], (float) (*point)[1] };
             for (const auto& instance : instances)
                 if (instance.instanceId == uuid)
                     if (const auto* desc = PedalRegistry::find (instance.modelId.c_str()))
@@ -134,6 +163,6 @@ std::unique_ptr<MapSnap> MidiState::buildMap (const std::vector<PedalInstance>& 
                 map->initialValues[(size_t) index] = paramId == "ref_board_mix" ? settings.mix : paramId == "ref_board_enabled" ? (settings.enabled ? 1.f : 0.f) : (float) ((settings.tempoBpm - 20.) / 280.);
         }
     }
-    map->compile(); return map;
+    addDefaultMaps (*map, instances, settings); map->compile(); return map;
 }
 }
