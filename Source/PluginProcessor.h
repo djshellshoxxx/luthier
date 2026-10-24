@@ -1364,6 +1364,7 @@ private:
     std::array<bool, 323> referenceHostIntentRetained {};
     std::array<bool, reference::ExtendedHostAutomationSnapshot::count> referenceExtendedHostIntentRetained {};
     std::array<float, reference::ExtendedHostAutomationSnapshot::count> referenceExtendedModelMirror {};
+    std::atomic<uint32_t> referencePositionGestures { 0 };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LuthierAudioProcessor)
 };

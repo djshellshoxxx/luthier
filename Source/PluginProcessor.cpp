@@ -3464,6 +3464,14 @@ void LuthierAudioProcessor::parameterGestureChanged (int parameterIndex, bool ge
     if (parameter == nullptr)
         return;
 
+    const int referenceIndex = parameterIndex - referenceParameterBase - 3;
+    if (referenceParameterBase >= 0 && referenceIndex >= 0 && referenceIndex < reference::kMaxSlots * 20 && referenceIndex % 20 == 19)
+    {
+        const auto bit = uint32_t (1) << (referenceIndex / 20);
+        if (gestureIsStarting) referencePositionGestures.fetch_or (bit, std::memory_order_acq_rel);
+        else referencePositionGestures.fetch_and (~bit, std::memory_order_acq_rel);
+    }
+
     // jam-mode 12 (FEAT-JAM): START, STOP and FILL are transport, never undo entries.
     if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (parameter))
         if (ParamIDs::isJamTransient (withId->paramID))
@@ -4475,7 +4483,10 @@ void LuthierAudioProcessor::serviceReferencePedalParameters()
     const auto previousModelValues = referenceParameterMirror;
     auto fresh = [&] (size_t i) { return incomingSerials[i] != 0 && incomingSerials[i] != referenceModelSerials[i]; };
     for (size_t i = 0; i < ids.size(); ++i) if (fresh (i)) referenceHostIntentRetained[i] = true;
-    auto changed = [&] (size_t i) { return fresh (i) || (! referenceHostIntentRetained[i] && incoming[i] != previousModelValues[i]); };
+    auto isPosition = [] (size_t i) { return i >= 3 && (i - 3) % 20 == 19; };
+    auto changed = [&] (size_t i)
+    { return fresh (i) || (! isPosition (i) && ! referenceHostIntentRetained[i] && incoming[i] != previousModelValues[i]); };
+    const bool positionGestureActive = referencePositionGestures.load (std::memory_order_acquire) != 0;
     // Vacant slots and unused lanes have host state, but no model control to mirror.
     referenceParameterMirror = incoming;
     auto persist = [&] (const reference::BoardCommand& command)
@@ -4535,6 +4546,7 @@ void LuthierAudioProcessor::serviceReferencePedalParameters()
         if (! fresh (i) && referenceParameterMirror[i] != previousModelValues[i]) referenceHostIntentRetained[i] = false;
         referenceModelSerials[i] = incomingSerials[i];
         if (referenceHostIntentRetained[i]) continue;
+        if (positionGestureActive && isPosition (i)) continue;
         if (p->getValue() != value)
         {
             const reference::HostAutomationCapture::EchoScope echo (referenceHostCapture);
