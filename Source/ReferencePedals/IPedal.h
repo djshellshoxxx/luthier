@@ -1,5 +1,6 @@
 // OWNER: WP1 (frozen interface I-1; changes only via errata request to the WP1 owner)
 #pragma once
+#include "PreparedMemory.h"
 
 // The one pedal API (errata E6). Every generic and branded pedal implements
 // IPedal; the board never knows a concrete type. juce_core only: no GUI, so
@@ -85,6 +86,9 @@ public:
     // or block-size change. oversamplePolicy: 0 Eco, 1 Normal, 2 High.
     virtual void prepare (double sampleRate, int maxBlock, int oversamplePolicy) = 0;
     virtual void setServices (const PedalServices&) {}   // message thread, before prepare()
+    // Off audio, after prepare/loadExtra: actual sizeof(model)+owned allocation
+    // capacities. Unknown cannot be admitted to the prepared-memory pool.
+    virtual uint64_t getPreparedMemoryBytes() const noexcept { return kUnknownPreparedMemoryBytes; }
     virtual void reset() noexcept = 0;                    // clears state, RT-safe
 
     // Audio thread. In place, n <= maxBlock.
