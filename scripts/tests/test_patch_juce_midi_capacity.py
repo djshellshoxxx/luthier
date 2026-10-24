@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Isolated patch verification; requires an untouched JUCE 8.0.10 source tree."""
+"""Isolated patch verification against untouched or exactly patched JUCE 8.0.10."""
 import hashlib
 from pathlib import Path
 import shutil
@@ -10,6 +10,8 @@ import unittest
 
 SCRIPT = Path(__file__).resolve().parents[1] / "patch_juce_midi_capacity.py"
 SOURCE = Path(sys.argv.pop(1))
+sys.path.insert(0, str(SCRIPT.parent))
+import patch_juce_midi_capacity as patch
 RELATIVE = Path("modules/juce_audio_utils/players/juce_AudioProcessorPlayer.cpp")
 
 
@@ -20,7 +22,18 @@ class PatchTests(unittest.TestCase):
         self.target = self.root / RELATIVE
         self.target.parent.mkdir(parents=True)
         shutil.copyfile(SOURCE / RELATIVE, self.target)
-        self.original = self.target.read_bytes()
+        original = self.target.read_bytes()
+        canonical = original.replace(b"\r\n", b"\n")
+        digest = hashlib.sha256(canonical).hexdigest()
+        if digest == patch.AFTER_SHA256:
+            # Reconstruct only the verified original in this isolated fixture.
+            canonical = canonical.replace(patch.AFTER, patch.BEFORE, 1)
+            self.assertEqual(hashlib.sha256(canonical).hexdigest(), patch.BEFORE_SHA256)
+            original = canonical.replace(b"\n", b"\r\n") if b"\r\n" in original else canonical
+            self.target.write_bytes(original)
+        else:
+            self.assertEqual(digest, patch.BEFORE_SHA256)
+        self.original = original
 
     def tearDown(self):
         self.temporary.cleanup()
