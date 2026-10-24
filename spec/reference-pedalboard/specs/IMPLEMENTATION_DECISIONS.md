@@ -85,9 +85,36 @@ IDs E42 and other gaps are unassigned. A final spec reconciliation must link
 the independent reviews, original/revised conditions, exact accepted source
 commit and passing regressions in the release evidence.
 
-E58 remains a CANDIDATE Phase90 numerical correction: two individually
-prewarped notch anchors factored into four stable first-order allpasses.
-Independent DSP algebra review confirms anchor equations and Schur stability,
-but original/revised phase, CPU, saturation sites and all original regression
-limits must pass before adoption. The alternative2x FIR proposal adds15samples
-and fails the0.4%CPU gate; it was not adopted.
+E58's two-anchor Phase90 implementation is present in the integrated preview
+source. Independent DSP review and retained original/revised oracle tests cover
+its anchor equations, Schur stability, phase and explicit zero added latency.
+This is not full named-model acceptance: registration remains gated, and the
+literal raw24-bit bypass-step interpretation remains unresolved in the evidence.
+The alternative2x FIR adds15samples and fails0.4%CPU; it was not adopted.
+
+
+## Continuation contracts E60–E68
+
+These additive contracts were agreed between the coordinator and disjoint
+owners before their dependent implementations. Existing parameter identities
+and all original numeric thresholds remain unchanged. Coverage files record
+which parts are implemented and verified; a contract is not a release pass.
+
+| ID | Original issue and agreed contract |
+|---|---|
+| E60 | Buffered bypass needs the actual model buffer, and time-based bypass must retain tails. `processBypass(L,R,n)` receives latency-matched dry, uses independent prepared state and adds no constant algorithmic latency. Buffered+hasTails follows the residual-tail contract. The original analytic dry subtraction is superseded by E68 where clipping makes it incorrect. |
+| E61 | Host restore can publish maps off the message thread. Serialize only non-audio publishers/reclaimers with a mutex; the audio reader uses a bounded two-attempt seq_cst hazard protocol, with no locks, allocation or reclamation in process. Idle publication retention must remain bounded. |
+| E62 | Append optional integer fsMode=-1 to SetSlotChannel, preserving existing three-field calls. Stored0/1/2 means latch/momentary/auto; -1 preserves. Clone existing MIDI metadata, reject malformed values atomically, and let an actual model fs_mode control take precedence. |
+| E63 | Toggle/relative/pickup bindings share canonical audio-owned target values. Resolved host/model intent enters through a bounded setter with revision/generation; stale mirrors cannot defeat newer MIDI or a replacement slot UUID. |
+| E64 | Looper undo-depth changes allocate off audio as structural Config+Ext changes. Capture/restore must preserve audible layers, available redo, transport and phase within the selected capacity. Failed preparation/asset restoration rejects the unpublished candidate and preserves the working model, audio and history. |
+| E65 | Admission uses uint64 summed descriptor estimates and explicitly labels them estimated until calibrated. Runtime relief uses measured whole-Luthier callback load from CpuLoadMonitor, not host-wide or inferred board-only load: above85% continuously for2seconds latches an off-audio Eco transaction and notice, with no automatic reversion. Original measured performance budgets still apply. |
+| E66 | Hall's original geometry failed the raw200ms NED criterion. The estimated replacement keeps8 Householder lines and4 input diffusers, uses shorter prime lengths inside30–110ms, adds lossless wet-only output allpasses and seeded random-walk modulation, and uses fixed signed calibration. Original geometry, all four sign candidates and raw failures remain executable evidence. Original canonical5-rate default-white±3dB and mixed-sine±1.5dB, NED, RT60 and freeze criteria pass unchanged in focused runs. Expanded-seed mixed gain reaches+1.643dB, an explicit open limitation, not a full-feature acceptance pass. |
+| E67 | Discrete natural values were incorrectly treated as zero-based Enum indices. Discrete maps min..max snapped to its declared steps; Enum remains zero-based. No integrated descriptor used Discrete before the correction, so no shipped ordinal migration is implied. Upcoming undo-depth1..8 and memory1..99 defaults must map to natural1. |
+| E68 | E60's analytic dry subtraction can reverse hot, trimmed dry when a model clamps its input/output. One-pass `processWithWetResidual(L,R,wetL,wetR,n)` exposes the actual post-mix/trails wet contribution before final dry sum/guard. Default calls process exactly once and returns false; faithful tail acceptance requires a real override. The board blends full output toward buffered dry plus this wet residual, never reconstructs dry by assuming linearity, and reports unavailable residual support. |
+
+Host state retains all373 APVTS intents, including vacant/unused slot lanes and
+rejected structural combinations, while the validated model remains unchanged
+on rejection and reports an error. Stored momentary intent is distinct from a
+replayable action: feedback kill restores released in DSP even if host metadata
+retains1, and only a fresh actual host action can fire it. A thread-local restore
+notification guard must not suppress another thread's actual host writes.
