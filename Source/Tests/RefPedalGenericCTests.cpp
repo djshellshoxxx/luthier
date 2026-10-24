@@ -1,6 +1,7 @@
 #include "TestFramework.h"
 #include "../ReferencePedals/Generic/Delay.h"
 #include <array>
+#include <numeric>
 using namespace luthier::reference;
 LUTHIER_TEST(RefPedalGenericC, delayImpulseTimingAndReset)
 {
@@ -127,5 +128,22 @@ LUTHIER_TEST(RefPedalGenericC, reverbRapidTypeChangesRemainPartitionIndependent)
         for(int i=0;i<64;++i)l[i]=r[i]=x[i]=y[i]=.1*std::sin((block*64+i)*.1);
         a.process(l.data(),r.data(),64);for(int i=0;i<64;++i)b.process(x.data()+i,y.data()+i,1);
         CHECK(l==x);CHECK(r==y);
+    }
+}
+LUTHIER_TEST(RefPedalGenericC, fdnDelayLengthsStayMutuallyPrimeAcrossSizeAndRate)
+{
+    for(double sr:{44100.,48000.,88200.,96000.,192000.})
+    {
+        generic::ReverbFdn tank;tank.prepare(sr);
+        for(int family=0;family<3;++family)for(double size:{.3,.7,1.,1.7})
+        {
+            tank.set(2.2,size,0,.25,family,0);const auto lengths=tank.delayLengths();
+            for(int i=0;i<8;++i)
+            {
+                const int length=int(lengths[i]);CHECK(lengths[i]==length);CHECK(length>1);CHECK(length<sr*.25);
+                bool prime=true;for(int divisor=2;divisor*divisor<=length;++divisor)if(length%divisor==0)prime=false;
+                CHECK(prime);for(int j=0;j<i;++j)CHECK(std::gcd(length,int(lengths[j]))==1);
+            }
+        }
     }
 }
