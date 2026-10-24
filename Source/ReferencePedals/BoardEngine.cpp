@@ -52,6 +52,7 @@ void BoardEngine::prepare (double sampleRate, int maxBlock)
     pool.prepare (rate, block, captured);
     extendedModelSerials.fill (0); extendedHostSerials.fill (0);
     hostBoardSerials.fill (0); modelBoardSerials.fill (0);
+    routingModelSerials.fill (0); routingHostSerials.fill (0);
     feedback.reset(); feedbackRearmSeen = feedbackKillSeen = 0; feedbackFault.store (false); feedbackTripped.store (false);
     paramPulses.clear(); numPendingPulses = 0; numRawMidi = numMidiOutput = 0;
     for (auto& segment : segments)
@@ -188,13 +189,63 @@ PedalMeters BoardEngine::readPedalMeters (int slot) const noexcept
     }
     return {}; // contention is unavailable, never a fabricated stale identity
 }
-void BoardEngine::syncRouting (midi::MidiRouter& router) const noexcept
+void BoardEngine::syncRouting (midi::MidiRouter& router) noexcept
 {
-    if (const auto* plan = live.load (std::memory_order_acquire))
+    const auto* plan = live.load (std::memory_order_acquire);
+    if (! plan) return;
+    router.setModelEnabled (plan->settings.enabled, plan->boardSerials[0]);
+    router.setModelTempoBpm (plan->settings.tempoBpm, plan->boardSerials[2]);
+    router.setModelTempoSource (plan->settings.tempoSource, plan->extended.serials[static_cast<size_t> (ExtendedHostField::TempoSource)]);
+    const auto send = [&] (int target, float value)
     {
-        router.setModelEnabled (plan->settings.enabled, plan->boardSerials[0]);
-        router.setModelTempoBpm (plan->settings.tempoBpm, plan->boardSerials[2]);
-        router.setModelTempoSource (plan->settings.tempoSource, plan->extended.serials[static_cast<size_t> (ExtendedHostField::TempoSource)]);
+        if (++routingRevision == 0) ++routingRevision;
+        router.setTargetValue (static_cast<uint16_t> (target), value, routingRevision);
+    };
+    const auto modelWrite = [&] (int target, float value, uint32_t serial)
+    {
+        if (routingModelSerials[static_cast<size_t> (target)] == serial) return;
+        routingModelSerials[static_cast<size_t> (target)] = serial; send (target, value);
+    };
+    const int boardTargets[] { midi::kTargetBoardBase + static_cast<int> (midi::BoardTarget::Enabled),
+        midi::kTargetBoardBase + static_cast<int> (midi::BoardTarget::Mix), midi::kTargetBoardBase + static_cast<int> (midi::BoardTarget::Tempo) };
+    const float boardValues[] { plan->settings.enabled ? 1.f : 0.f, plan->settings.mix, static_cast<float> ((plan->settings.tempoBpm - 20.0) / 280.0) };
+    for (int i = 0; i < 3; ++i) modelWrite (boardTargets[i], boardValues[i], plan->boardSerials[static_cast<size_t> (i)]);
+    for (int slot = 0; slot < kMaxSlots; ++slot)
+    {
+        const auto& runtime = plan->slots[static_cast<size_t> (slot)]; if (! runtime) continue;
+        const auto& descriptor = runtime->pedal->desc(); const auto& control = plan->controls[static_cast<size_t> (slot)];
+        auto& source = routingSlotSources[static_cast<size_t> (slot)];
+        if (source.identity != runtime->identity || source.modelId != descriptor.modelId)
+        {
+            std::fill_n (routingModelSerials.begin() + slot * kMaxParams, kMaxParams, 0);
+            if (! source.identity.isNull())
+                for (int index = 0; index < 19; ++index)
+                    routingHostSerials[static_cast<size_t> (3 + slot * 20 + index)] = hostAutomation.serials[static_cast<size_t> (3 + slot * 20 + index)];
+            source = { runtime->identity, descriptor.modelId };
+        }
+        for (int param = 0; param < descriptor.numParams; ++param)
+            modelWrite (slot * kMaxParams + param, descriptor.params[param].has (PF_Engage) ? (control.enabled ? 1.f : 0.f) : control.params[static_cast<size_t> (param)],
+                        descriptor.params[param].has (PF_Engage) ? control.enabledSerial : control.paramSerials[static_cast<size_t> (param)]);
+    }
+    for (int index = 0; index < HostAutomationSnapshot::count; ++index)
+    {
+        if (index >= 3 && ! plan->slots[static_cast<size_t> ((index - 3) / 20)]) continue;
+        const auto serial = hostAutomation.serials[static_cast<size_t> (index)];
+        if (serial == 0 || serial == routingHostSerials[static_cast<size_t> (index)]) continue;
+        routingHostSerials[static_cast<size_t> (index)] = serial;
+        const float value = hostAutomation.values[static_cast<size_t> (index)]; if (! std::isfinite (value)) continue;
+        if (index < 3) { send (boardTargets[index], index == 2 ? (value - 20.f) / 280.f : value); continue; }
+        const int slot = (index - 3) / 20, field = (index - 3) % 20;
+        const auto& runtime = plan->slots[static_cast<size_t> (slot)]; if (! runtime) continue;
+        const auto& descriptor = runtime->pedal->desc(); const auto& control = plan->controls[static_cast<size_t> (slot)];
+        if (field == 0)
+            for (int param = 0; param < descriptor.numParams; ++param)
+                if (descriptor.params[param].has (PF_Engage)) send (slot * kMaxParams + param, value >= 0.5f ? 1.f : 0.f);
+        if (field >= 1 && field <= 16)
+        {
+            const int param = control.laneToParam[static_cast<size_t> (field - 1)];
+            if (param >= 0) send (slot * kMaxParams + param, value);
+        }
     }
 }
 BoardMeters BoardEngine::meters() const noexcept

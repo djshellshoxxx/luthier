@@ -63,7 +63,7 @@ public:
     }
     void setExtendedHostAutomation (const ExtendedHostAutomationSnapshot& snapshot) noexcept { extendedHost = snapshot; }
     void setHostAutomation (const HostAutomationSnapshot& snapshot) noexcept { hostAutomation = snapshot; }
-    void syncRouting (midi::MidiRouter&) const noexcept; // audio thread, retained model intent
+    void syncRouting (midi::MidiRouter&) noexcept; // audio thread, retained model intent
     void beginRawMidi (const juce::MidiBuffer&, int samples) noexcept;
     int drainMidiOut (MidiEvent*, int capacity) noexcept;
     void beginEvents (const midi::RouteOut&) noexcept;
@@ -135,7 +135,10 @@ private:
     HostAutomationSnapshot hostAutomation;
     std::array<uint32_t, 3> hostBoardSerials {}, modelBoardSerials {};
     struct HostSlotSource { InstanceId identity = InstanceId::null(); const char* modelId = nullptr; };
-    std::array<HostSlotSource, kMaxSlots> hostSlotSources;
+    std::array<HostSlotSource, kMaxSlots> hostSlotSources, routingSlotSources;
+    std::array<uint32_t, kMaxSlots * kMaxParams + 3> routingModelSerials {};
+    std::array<uint32_t, HostAutomationSnapshot::count> routingHostSerials {};
+    uint32_t routingRevision = 0;
     TimeInfo blockTime;
     midi::RouteOut blockEvents;
     bool eventOffsetsPrepared = false;
