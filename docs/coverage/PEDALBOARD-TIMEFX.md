@@ -591,3 +591,35 @@ foot and enable changes: zero callback new/new[] allocations and zero nonfinite
 residuals or false hook results. Raw results and the allocation probe are stored
 beside this ledger. Board-level trim/bypass integration verification remains the
 engine owner's responsibility; these results do not claim that separate test ran.
+
+Engine E68 integration was independently confirmed at its checkpoint a8d6fceb:
+actual registered Delay/Reverb paired boards retain identical genuine tails and
+exact dry differences after bypass with hot +/-5 input and 0/+12dB input/output
+trims, both Cut and Spillover, with zero callback allocations. The engine owner
+reports83 native and sanitizer tests passing, without ASAN/UBSAN/leak diagnostics.
+That verification used the pinned e4ffc636 model checkpoint.
+
+Generic Delay now prepares its invariant time/drift/energy exponential
+coefficients and refreshes LP/HP coefficients only when effective cutoff or mode
+changes. Smoothing still updates every sample; a changed cutoff is never delayed
+or quantized. Reset invalidates the filter cache. Fifteen before/after traces
+(five rates, three starting modes, **3,967,500 stereo frames**) are bit-identical
+for both ordinary outputs and explicit wet residuals, with randomized parameter,
+transport, restored tap-state, reset and enable events. Raw hashes/checksums and
+probe source are retained under `probes/delay-coefficient-cache*`.
+
+Three local O3 steady-control48kHz/128-sample trials per mode, including the E68
+residual path, measure Digital0.778–0.799% before /0.496–0.536% after;
+Analog1.059–1.208% /0.729–0.809%; Tape0.962–1.045% /0.789–0.874%.
+The unchanged1.0% Digital/Analog and1.4% Tape budgets pass these local steady
+fixtures; no all-automation or cross-machine CPU claim is made. A new immutable
+ASAN+UBSAN snapshot passes **6,134,208 checks**, zero failures/diagnostics,
+including E68 hot-dry/tail identity and the previous time-effect regressions.
+
+A separate full-board memory constraint remains unresolved: BOARD_CORE line311
+caps prepared pool buffers at64MB, but16 stereo2s delays at192kHz/double require
+98,304,000 sample bytes before overhead. Current Generic Delay reserves2.4s for
+Wide routing, approximately7.373MB per instance or118MB for16. The original
+all-slot/rate/range requirements cannot simultaneously fit that cap without an
+explicit resource/admission policy or budget correction. This work does not
+silently reduce delay range/precision or raise the cap; parent review is pending.

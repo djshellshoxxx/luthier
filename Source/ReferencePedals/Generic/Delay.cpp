@@ -33,6 +33,10 @@ Delay::Delay() : PedalBase(description) {}
 void Delay::prepare(double sampleRate,int,int)
 {
     sr=sampleRate; prepareParams(sr);
+    constexpr double pi=3.14159265358979323846;
+    timeCoefficient=1-std::exp(-1/(sr*.060));
+    driftCoefficient=1-std::exp(-2*pi*.3/sr);
+    energyCoefficient=1-std::exp(-1/(sr*.05));
     for(auto& line:lines) line.prepare(int(sr*2.4)+8);
     wow.prepare(sr); wow.setRate(.6); flutter.prepare(sr); flutter.setRate(7);
     reset();
@@ -41,7 +45,7 @@ void Delay::reset() noexcept
 {
     for(auto& line:lines) line.reset();
     for(int c=0;c<2;++c) { lowpass[c].reset(); highpass[c].reset(); }
-    noise.reset(seed); drift=driftTarget=driftPhase=0;
+    noise.reset(seed); drift=driftTarget=driftPhase=0;lastMode=-1;lastCutoff=-1;
     wow.setPhase(0); flutter.setPhase(.25); energy=0; samples=0; lastTap=-1;
     currentMs=targetMs=oldMs=desiredTime(); tapBlend=1;
     inputGain=enabled ? 1:0; tailGain=enabled || value(10)>.5f ? 1:0; holdBlend=0;
@@ -105,7 +109,7 @@ void Delay::render(double* left,double* right,double* residualL,double* residual
             tapBlend=std::min(1.0,tapBlend+1/(sr*.04));
             currentMs=targetMs;
         }
-        else { currentMs+=(desired-currentMs)*(1-std::exp(-1/(sr*.060))); targetMs=oldMs=currentMs; tapBlend=1; }
+        else { currentMs+=(desired-currentMs)*timeCoefficient; targetMs=oldMs=currentMs; tapBlend=1; }
         const double holdTarget=value(11)>.5f ? 1:0;
         holdBlend+=std::clamp(holdTarget-holdBlend,-1/(sr*.05),1/(sr*.005));
         const double inputTarget=enabled ? 1:0;
@@ -114,7 +118,7 @@ void Delay::render(double* left,double* right,double* residualL,double* residual
         tailGain+=std::clamp(tailTarget-tailGain,-1/(sr*.020),1/(sr*.020));
         driftPhase+=.3/sr;
         if(driftPhase>=1) { driftPhase-=1; driftTarget=noise.next(); }
-        drift+=(driftTarget-drift)*(1-std::exp(-2*pi*.3/sr));
+        drift+=(driftTarget-drift)*driftCoefficient;
         const double modulation=mode==0 ? 0: mode==1 ? mod*.8*wow.sine():mod*(1.2*wow.sine()+.15*flutter.sine()+.5*drift);
         double wet[2]{};
         for(int c=0;c<2;++c)
@@ -126,11 +130,19 @@ void Delay::render(double* left,double* right,double* residualL,double* residual
             const double oldDelay=sr*.001*(oldMs*ratio+haas+modulation)-1;
             wet[c]=lines[c].read(delay)*tapBlend+lines[c].read(oldDelay)*(1-tapBlend);
         }
+        const double effectiveCutoff=mode==2 ? std::min(6000.,cutoff):cutoff;
+        if(mode!=lastMode || effectiveCutoff!=lastCutoff)
+        {
+            for(int c=0;c<2;++c)
+            {
+                highpass[c].setLowpass(sr,mode==1 ? 150:mode==2 ? 80:20);
+                lowpass[c].setLowpass(sr,effectiveCutoff);
+            }
+            lastMode=mode;lastCutoff=effectiveCutoff;
+        }
         for(int c=0;c<2;++c)
         {
             const double source=wet[ping ? 1-c:c];
-            highpass[c].setLowpass(sr,mode==1 ? 150:mode==2 ? 80:20);
-            lowpass[c].setLowpass(sr,mode==2 ? std::min(6000.,cutoff):cutoff);
             const double saturated=mode==1 ? std::tanh(1.2*source)/1.2:mode==2 ? std::tanh(.9*source):source;
             const double filtered=highpass[c].highpass(lowpass[c].process(saturated));
             const double loop=filtered*feedback*(1-holdBlend)+source*holdBlend;
@@ -143,7 +155,7 @@ void Delay::render(double* left,double* right,double* residualL,double* residual
         if(residualR)residualR[i]=wet[1]*std::sin(mix*pi*.5)*tailGain;
         left[i]=softGuard(dry[0]*dryGain+wet[0]*std::sin(mix*pi*.5)*tailGain);
         right[i]=softGuard(dry[1]*dryGain+wet[1]*std::sin(mix*pi*.5)*tailGain);
-        energy+=(.5*(wet[0]*wet[0]+wet[1]*wet[1])-energy)*(1-std::exp(-1/(sr*.05)));
+        energy+=(.5*(wet[0]*wet[0]+wet[1]*wet[1])-energy)*energyCoefficient;
         wow.setRate(mode==1 ? .4:.6); wow.advance(); flutter.advance();
     }
 }
