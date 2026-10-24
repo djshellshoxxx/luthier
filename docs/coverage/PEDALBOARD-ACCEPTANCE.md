@@ -12,6 +12,38 @@ Normative scope: `spec/reference-pedalboard/specs/IMPLEMENTATION_PLAN.md` v1.1,
 its errata, BOARD_CORE, GENERIC_PEDALS, MIDI_EXPRESSION, UI_BOARD_STYLES and the
 individual pedal specifications. This ledger does not narrow those requirements.
 
+## Current implementation, 2026-10-24 continuation
+
+The Intake column below records historical conditions; it is not a current
+absence report. The integrated checkpoint has a real engine and routing,
+validated state/snapshots/assets, three host processing placements, 373 appended
+board/slot parameters, MIDI mapping, a board window and procedural UI, and ten
+registered generic processors plus explicitly provisional legacy models.
+Named drive/dynamics/Muff candidates exist on the DSP work branch but remain
+unregistered where original numeric/CPU gates fail. Four named modulation/delay
+processors exist with reviewed Phase90 correction and retained original oracle;
+their registration remains gated. Four named looper wrappers are still incomplete,
+although paged transport, undo/redo, asset storage and original rhythm helpers
+exist. These distinctions do not waive any original feature requirement.
+
+Freshly verified source at `02e4e1fcf48ff8be29b5a3dc841cc883a4698653`:
+
+- Linux Pro Standalone, renderer, VST3, CLAP and test executables built. The
+  selected native run passed 289 of 290 tests / 6,839,270 of 6,839,271 checks.
+  The failure is an independent router initialization fixture inheriting a
+  previous internal tempo; the live 50 ms source-change glide is intentional.
+- VST3 pluginval strictness 5 passed at all five rates through 192 kHz and
+  blocks 1/16/37/64/481/2048. CLAP failed three state-load checks, resetting
+  unused-slot and rejected structural APVTS values; this is being fixed without
+  validator exclusions. Built binaries alone do not qualify release gates.
+- PR77's normalization, looper reprepare, room geometry and packaging fixes are
+  merged locally into the candidate, retaining both the existing release-decay
+  and startup test thresholds. PR77 was not merged into master, so its
+  old-source automatic beta2 publication was not triggered.
+- The scoped portable JSON fix and qualified engine/MIDI/UI/state/helper commits
+  are integrated serially. Combined-candidate compilation/tests are next; lane
+  checks do not establish combined acceptance. See the continuation handoff.
+
 ## Finite implementation gates
 
 | Gate | Owner branch suffix | Required implementation and verification | Intake |

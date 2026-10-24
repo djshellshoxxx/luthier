@@ -757,7 +757,11 @@ LUTHIER_TEST (RefPedalApi, boardFacadeKeepsLegacyContract)
     CHECK (board.getIdAtPosition (15) == 0);
     CHECK (board.getIdAtPosition (16) == -1);
 
-    // the MIDI stub is inert and allocation free
+    // A fresh no-input MIDI router initializes the supplied host transport.
+    // The earlier audio exercise primed AUTO with internal tempo; its live
+    // source changes deliberately glide over 50 ms (tested by MidiCore).
+    // Keep this independent initialization check independent of that history.
+    board.midi().prepare (48000.0, 512);
     midi::RouteOut out;
     juce::MidiBuffer buffer;
     HostTransport host;
