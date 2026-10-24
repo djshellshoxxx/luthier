@@ -181,7 +181,8 @@ class LowLatencyOversampler
 
     // Each callback is scalar and invoked for all left high-rate samples before
     // all right samples, matching two sequential process() calls. Callbacks may
-    // maintain separate detector state, but must not reenter either oversampler.
+    // maintain separate detector state, but must not call process/prepare/reset
+    // or otherwise mutate either oversampler from inside a callback.
     template<class LeftShape,class RightShape>
     static std::array<double,2> processPair(LowLatencyOversampler& left,LowLatencyOversampler& right,
         double x,double y,LeftShape&& leftShape,RightShape&& rightShape) noexcept

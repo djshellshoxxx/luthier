@@ -53,8 +53,8 @@ LUTHIER_TEST(RefPedalLowLatencyPair, independentFullConvolutionAndScalarBitOracl
 LUTHIER_TEST(RefPedalLowLatencyPair, callbacksHostileInputResetReprepareAndIndependentRingPositions)
 {
     LowLatencyOversampler a,b,refA,refB;int counter=0,referenceCounter=0;
-    auto shape=[&](double v){return std::tanh(v)+.00001*((++counter)%7);};
-    auto referenceShape=[&](double v){return std::tanh(v)+.00001*((++referenceCounter)%7);};
+    auto shape=[&](double v){const int tick=++counter;return tick%101==0?std::numeric_limits<double>::quiet_NaN():tick%37==0?std::numeric_limits<double>::infinity():std::tanh(v)+.00001*(tick%7);};
+    auto referenceShape=[&](double v){const int tick=++referenceCounter;return tick%101==0?std::numeric_limits<double>::quiet_NaN():tick%37==0?std::numeric_limits<double>::infinity():std::tanh(v)+.00001*(tick%7);};
     const double hostile[]{0.,-0.,1e-31,-1e-31,1e-30,-1e-30,std::numeric_limits<double>::infinity(),std::numeric_limits<double>::quiet_NaN(),1e300,-1e300};
     for(int factor:{1,2,4})for(double sr:{44100.,48000.,88200.,96000.,192000.})
     {
