@@ -5,7 +5,7 @@ namespace {
 const char* const types[]={"Silicon","Germanium","Octave-ish"};
 // CC32 is reserved bank-select: omit the published conflicting local assignment.
 const ParamDesc params[]={detail::continuous("gen_fuzz_fuzz","FUZZ","dB",6,60,44,-1),detail::continuous("gen_fuzz_tone","TONE","dB",-12,12,0,33),detail::continuous("gen_fuzz_volume","VOLUME","dB",-60,12,-6,34,Taper::Skew,2),detail::continuous("gen_fuzz_bias","BIAS","",0,1,.5,35),detail::choice("gen_fuzz_type","TYPE",types,3,0,36),detail::continuous("gen_fuzz_gate","GATE","",0,1,0,37),detail::choice("gen_fuzz_quality","QUALITY",detail::qualityNames,3,1,-1,PF_Config),detail::engage("gen_fuzz_on",38)};
-const PedalDesc description={"generic.fuzz","gen_fuzz_",1,"Fuzz","Fuzz",nullptr,ChannelMode::Stereo,BypassMode::True,8,params,6,false,true,false,1200};
+const PedalDesc description={"generic.fuzz","gen_fuzz_",1,"Fuzz","Fuzz",nullptr,ChannelMode::Stereo,BypassMode::True,8,params,6,false,true,false,1200,1000};
 double silicon(double x) noexcept {return x>=0?std::tanh(1.3*x):1.1*std::tanh(.9*x);}
 double shape(double x,double type,double bias) noexcept {double si=silicon(x),b=.2*(1-bias),ge=std::tanh(1.8*(x+b))-std::tanh(1.8*b);return detail::modeBlend(type,si,ge,si);}
 }

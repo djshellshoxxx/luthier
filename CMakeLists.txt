@@ -49,6 +49,7 @@ endif()
 # simply has no CLAP target.
 set(LUTHIER_CLAP_EXTENSIONS "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/clap-juce-extensions")
 if (EXISTS "${LUTHIER_CLAP_EXTENSIONS}/CMakeLists.txt")
+    include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/ClapHostIntent.cmake")
     add_subdirectory("${LUTHIER_CLAP_EXTENSIONS}" EXCLUDE_FROM_ALL)
     set(LUTHIER_HAS_CLAP TRUE)
 else()

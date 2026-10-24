@@ -5,7 +5,7 @@ namespace luthier::reference::generic {
 namespace {
 const char* const clips[]={"Soft","Asym","Hard"};const char* const basses[]={"Off","300 Hz","700 Hz"};
 const ParamDesc params[]={detail::continuous("gen_overdrive_drive","DRIVE","dB",0,40,16,26),detail::continuous("gen_overdrive_tone","TONE","Hz",500,9000,3000,27,Taper::LogA),detail::continuous("gen_overdrive_level","LEVEL","dB",-60,12,0,28,Taper::Skew,2),detail::choice("gen_overdrive_clip","CLIP",clips,3,0,29),detail::choice("gen_overdrive_bass","BASS CUT",basses,3,1,30),detail::choice("gen_overdrive_quality","QUALITY",detail::qualityNames,3,1,-1,PF_Config),detail::engage("gen_overdrive_on",31)};
-const PedalDesc description={"generic.overdrive","gen_overdrive_",1,"Overdrive","Overdrive",nullptr,ChannelMode::Stereo,BypassMode::True,7,params,6,false,true,false,1000};
+const PedalDesc description={"generic.overdrive","gen_overdrive_",1,"Overdrive","Overdrive",nullptr,ChannelMode::Stereo,BypassMode::True,7,params,6,false,true,false,1000,1000};
 }
 const PedalDesc& Overdrive::descriptor() noexcept{return description;}
 Overdrive::Overdrive():Processor(description){}

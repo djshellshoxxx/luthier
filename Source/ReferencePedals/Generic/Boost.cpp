@@ -5,7 +5,7 @@ namespace luthier::reference::generic {
 namespace {
 const char* const modes[]={"Clean","Warm","Fat"};
 const ParamDesc params[]={detail::continuous("gen_boost_gain","GAIN","dB",0,30,12,20),detail::continuous("gen_boost_tone","TONE","dB",-6,6,0,21),detail::continuous("gen_boost_level","LEVEL","dB",-24,6,-6,22),detail::choice("gen_boost_mode","MODE",modes,3,0,23),detail::choice("gen_boost_quality","QUALITY",detail::qualityNames,3,1,24,PF_Config),detail::engage("gen_boost_on",25)};
-const PedalDesc description={"generic.boost","gen_boost_",1,"Clean Boost","Boost",nullptr,ChannelMode::Stereo,BypassMode::True,6,params,6,false,true,false,300};
+const PedalDesc description={"generic.boost","gen_boost_",1,"Clean Boost","Boost",nullptr,ChannelMode::Stereo,BypassMode::True,6,params,6,false,true,false,300,1000};
 }
 const PedalDesc& Boost::descriptor() noexcept {return description;}
 Boost::Boost():Processor(description){}

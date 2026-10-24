@@ -5,7 +5,7 @@ namespace luthier::reference::generic {
 namespace {
 const char* const modes[]={"Sustain","Manual"};const char* const sources[]={"Internal","Sidechain bus"};
 const ParamDesc params[]={detail::continuous("gen_comp_sustain","SUSTAIN","",0,1,.5,40),detail::continuous("gen_comp_attack","ATTACK","ms",.5,60,10,41,Taper::LogA),detail::continuous("gen_comp_release","RELEASE","ms",40,1200,350,42,Taper::LogA),detail::continuous("gen_comp_level","LEVEL","dB",-12,24,6,43),detail::continuous("gen_comp_blend","BLEND","",0,1,1,44),detail::choice("gen_comp_mode","MODE",modes,2,0,45),detail::continuous("gen_comp_thresh","THRESH","dB",-60,0,-24,46),detail::continuous("gen_comp_ratio","RATIO",":1",1.5,20,4,47,Taper::LogA),detail::continuous("gen_comp_knee","KNEE","dB",0,12,6,48),detail::engage("gen_comp_on",49),detail::choice("gen_comp_sc","SIDECHAIN",sources,2,0,-1,PF_Config)};
-const PedalDesc description={"generic.compressor","gen_comp_",1,"Compressor","Dynamics",nullptr,ChannelMode::Stereo,BypassMode::True,11,params,0,false,false,false,300};
+const PedalDesc description={"generic.compressor","gen_comp_",1,"Compressor","Dynamics",nullptr,ChannelMode::Stereo,BypassMode::True,11,params,0,false,false,false,300,1000};
 double safety(double x) noexcept {double a=std::abs(x);return a<=.95?x:std::copysign(.95+.05*std::tanh((a-.95)/.05),x);}
 }
 const PedalDesc& Compressor::descriptor() noexcept{return description;}
