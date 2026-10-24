@@ -95,3 +95,20 @@ LUTHIER_TEST(RefPedalPreparedDiodeRoot, finiteGuardsAndFixedConductance)
             CHECK_NEAR(root.solve(rhs, 1e-4).voltage, (double)oracle(rhs, 1e-4), 1e-10);
     }
 }
+LUTHIER_TEST(RefPedalPreparedDiodeRoot, wideConductanceRangeRemainsBracketed)
+{
+    PreparedDiodeRoot root;
+    root.prepare(5.04e-9, 1.752 * .02585, 1e-12, 1e6, .01);
+    double worstError = 0;
+    for (int i = 0; i < 10000; ++i)
+    {
+        const double rhs = .01 * std::sin(i * .173), g = std::pow(10., -12. + 18 * ((i * 313) % 997) / 996.);
+        const auto result = root.solve(rhs, g);
+        const double upper =
+            std::min(std::abs(rhs) / g, 1.752 * .02585 * std::asinh(std::abs(rhs) / 5.04e-9));
+        CHECK(std::abs(result.voltage) <= upper + 1e-12);
+        CHECK(result.voltage * rhs >= 0);
+        worstError = std::max(worstError, std::abs(result.voltage - (double)oracle(rhs, g)));
+    }
+    CHECK(worstError < 1e-10);
+}

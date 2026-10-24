@@ -42,7 +42,8 @@ int main()
     PreparedDiodeRoot root;
     const double start = cpu();
     root.prepare(5.04e-9, 1.752 * .02585, 1e-6, 1e-3, .01);
-    std::printf("prepare threadCPU %.9fs; table bytes %zu\n", cpu() - start, size_t(33 * 513 * 8));
+    std::printf("prepare threadCPU %.9fs; root table bytes %zu; upper-bound array bytes %zu\n",
+                cpu() - start, size_t(33 * 513 * 8), size_t(513 * 8));
     double error = 0, residual = 0, iterations = 0;
     int maximumIterations = 0;
     for (int i = 0; i < count; ++i)

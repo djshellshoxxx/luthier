@@ -415,3 +415,22 @@ The automatic makeup test confirms the literal linked formula plus the default
 No DSP code changed. This closes these isolated gain/timing requirements;
 default loudness, musical-program behavior, external host wiring, zipper and
 whole-board CPU acceptance remain separate requirements.
+
+Prepared-root peer review subsequently confirmed endpoint indexing, hyperbolic
+identities and RT bounds, but requested a physical bracket rather than relying
+solely on the table's initial-guess accuracy. The revision prepares513 diode-only
+upper bounds (another4,104 bytes) and brackets each Newton update; a step outside
+the bracket uses bisection. A grid query uses the next current node's upper
+bound, avoiding a new `asinh` call on the audio thread. Out-of-domain queries
+retain the analytical bound. The iteration cap remains8 and the measured
+residual still determines qualification; no universal convergence guarantee is
+claimed for every possible guarded parameter combination.
+
+The revised helper passes **4cases /60,223 checks** under ASan+UBSan+leaks and
+allocation instrumentation, including10,000 queries across18 conductance
+decades checked against the independent oracle and physical upper bound.
+The same moving-input benchmark retains voltage difference<8.3e-13V and
+residual<7e-18A. Both original and bracketed measurements are retained;
+`prepared-diode-bracket-{tests,stderr,measurements}.txt` records the revision.
+No pedal uses the helper yet. Original Muff component tests plus the new
+moving-capacitor baseline pass49,610 checks before any substitution.
