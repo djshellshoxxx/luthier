@@ -130,3 +130,9 @@ LUTHIER_TEST(RefPedalUiFaces, slotFootswitchModeUsesModelAndPreservesUnknownMeta
     PedalRegistry::registerAll();BoardModel model;CHECK(model.apply(cmd::Add{"generic.boost"}));auto pedal=*model.getInstance(model.getOrder()[0]);pedal.extras=juce::JSON::parse(R"({"vendor":17,"midi":{"vendorMidi":true,"chan":3,"useProfile":true}})");CHECK(model.replaceAll({pedal},model.getBoardSettings()));BoardCanvas canvas(model);auto* view=canvas.viewFor(pedal.instanceId);juce::ComboBox* mode=nullptr;
     std::function<void(juce::Component&)> find=[&](auto& parent){for(auto* child:parent.getChildren()){if(child->getTitle()=="Slot footswitch mode")mode=dynamic_cast<juce::ComboBox*>(child);find(*child);}};find(*view);CHECK(mode!=nullptr);if(!mode)return;CHECK(mode->isVisible());mode->setSelectedId(3,juce::sendNotificationSync);const auto changed=model.getInstance(pedal.instanceId);CHECK((int)changed->extras["midi"]["fsMode"]==2);CHECK((int)changed->extras["midi"]["chan"]==3);CHECK((bool)changed->extras["midi"]["vendorMidi"]);CHECK((int)changed->extras["vendor"]==17);
 }
+#include "../ParamMeta.h"
+LUTHIER_TEST(RefPedalUiFaces, boardTempoHasItsRealBeatsPerMinuteUnit)
+{
+    juce::AudioParameterFloat tempo(juce::ParameterID{"ref_board_tempo_bpm",1},"Reference Board Tempo",juce::NormalisableRange<float>(20,300),120,juce::AudioParameterFloatAttributes().withLabel("BPM"));
+    const auto unit=luthier::ParamMeta::getUnit(tempo);CHECK(unit!=luthier::ParamUnit::unknown);CHECK(luthier::ParamMeta::getUnitSuffix(unit)=="BPM");CHECK(luthier::ParamMeta::getUnitName(unit)=="beats per minute");CHECK(luthier::ParamMeta::getCategory(tempo.paramID)=="ref");
+}

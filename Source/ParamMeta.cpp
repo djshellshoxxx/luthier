@@ -13,6 +13,7 @@ ParamUnit getUnit (const juce::AudioProcessorParameter& parameter)
 
     if (label.isEmpty())                                  return ParamUnit::amount;
     if (label == "Hz" || label == "kHz")                  return ParamUnit::hz;
+    if (label.equalsIgnoreCase ("BPM"))                    return ParamUnit::beatsPerMinute;
     if (label == "dB")                                    return ParamUnit::db;
     if (label == "ms")                                    return ParamUnit::ms;
     if (label == "s")                                     return ParamUnit::seconds;
@@ -60,6 +61,7 @@ juce::String getUnitSuffix (ParamUnit unit)
         case ParamUnit::multiplier:       return "x";
         case ParamUnit::stringsPerSecond: return "sps";
         case ParamUnit::hours:            return "h";
+        case ParamUnit::beatsPerMinute:   return "BPM";
         case ParamUnit::amount: case ParamUnit::count: case ParamUnit::index:
         case ParamUnit::boolean: case ParamUnit::unknown:
         default:                          return {};
@@ -90,6 +92,7 @@ juce::String getUnitName (ParamUnit unit)
         case ParamUnit::multiplier:       return "times";
         case ParamUnit::stringsPerSecond: return "strings per second";
         case ParamUnit::hours:            return "hours";
+        case ParamUnit::beatsPerMinute:   return "beats per minute";
         case ParamUnit::count:            return "count";
         case ParamUnit::index:            return "choice";
         case ParamUnit::boolean:          return "switch";
