@@ -65,11 +65,13 @@ void Board::beginBlock (const juce::MidiBuffer& input, const HostTransport& host
 {
     impl->explicitBlock = true;
     impl->blockSamples = std::max (0, samples);
+    impl->engine.beginRawMidi (input, impl->blockSamples);
     impl->engine.syncRouting (impl->router);
     impl->router.process (input, host, impl->sample, impl->blockSamples, impl->routed);
     impl->engine.setTime (impl->routed.time);
     impl->engine.beginEvents (impl->routed);
 }
+int Board::drainMidiOut (MidiEvent* destination, int capacity) noexcept { return impl->engine.drainMidiOut (destination, capacity); }
 void Board::endBlock (juce::MidiBuffer&) noexcept { impl->sample += impl->blockSamples; impl->explicitBlock = false; impl->engine.endEvents(); }
 void Board::processStereo (double* left, double* right, int n, Placement placement) noexcept
 {
