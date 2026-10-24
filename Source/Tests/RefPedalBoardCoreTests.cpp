@@ -1197,3 +1197,26 @@ LUTHIER_TEST (RefPedalBoardCore, ownSmoothingReceivesExactTargetAtOffsetWithoutB
     engine.beginEvents (events); engine.process (left, right, 64, Placement::beforeExistingPre); engine.endEvents();
     for (int i = 0; i < 64; ++i) CHECK_NEAR (left[i], i < 13 ? 0.05 : 0.1, 1.e-8);
 }
+
+LUTHIER_TEST (RefPedalBoardCore, discreteBurstsCoalesceToThirtyTwoPointsAndRetainEveryTriggerEdge)
+{
+    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (pulseDesc, makePulseProbe));
+    BoardModel model; BoardEngine engine (model);
+    CHECK (model.apply (cmd::Add { "test.pulse", -1, Placement::beforeExistingPre, 0, InstanceId() }));
+    CHECK (model.apply (cmd::SetBoardEnabled { true }));
+    CHECK (model.apply (cmd::SetBoardParam { "limiterOn", 0.f }));
+    double left[4096] {}, right[4096] {}; engine.process (left, right, 4096, Placement::beforeExistingPre);
+    midi::RouteOut events;
+    for (int i = 0; i < 128; ++i) events.writes[events.nWrites++] = { 0, 0, i % 2 == 0 ? 1.f : 0.f, 0, 1 + i * 20 };
+    const auto allocations = luthier::tests::allocationsOnThisThread();
+    engine.beginEvents (events); engine.process (left, right, 4096, Placement::beforeExistingPre); engine.endEvents();
+    CHECK (luthier::tests::allocationsOnThisThread() == allocations);
+    for (int i = 0; i < 16; ++i) CHECK_NEAR (left[i], 0.0, 1.e-10);
+    CHECK_NEAR (left[16], 0.01, 1.e-10);
+    CHECK_NEAR (left[4094], 0.16, 1.e-10); // first31 points, then hold until terminal point
+    CHECK_NEAR (left[4095], 0.64, 1.e-10); // all64 rising edges retained, including terminal coalescing
+    int changes = 0, last = 0;
+    for (int i = 1; i < 4096; ++i)
+        if (left[i] != left[i - 1]) { ++changes; CHECK (i - last >= 16 || i == 4095); last = i; }
+    CHECK (changes <= 32);
+}

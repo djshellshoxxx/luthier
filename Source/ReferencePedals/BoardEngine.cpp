@@ -271,9 +271,52 @@ void BoardEngine::applyExtended (const RenderPlan& plan) noexcept
         feedback.killSamples = std::max (1, static_cast<int> (rate * 0.005));
     }
 }
+void BoardEngine::prepareEventOffsets (const RenderPlan& plan, int samples) noexcept
+{
+    eventOffsetsPrepared = true;
+    if (samples <= 0) return;
+    constexpr int capacity = midi::kMaxRouteWrites + midi::kMaxRouteFoot + midi::kMaxRouteTransport;
+    std::array<int, capacity> original {}, mapped {}; int count = 0;
+    const auto continuous = [&] (const midi::ParamWrite& write)
+    {
+        if (write.slot >= kMaxSlots || ! plan.slots[write.slot] || write.paramIdx >= plan.slots[write.slot]->pedal->desc().numParams) return false;
+        const auto& param = plan.slots[write.slot]->pedal->desc().params[write.paramIdx];
+        return ! param.has (PF_Engage) && (param.kind == ParamKind::Continuous || param.kind == ParamKind::Tempo);
+    };
+    const auto add = [&] (int offset) { if (offset >= 0 && offset < samples) original[static_cast<size_t> (count++)] = offset; };
+    for (int i = 0; i < blockEvents.nWrites; ++i) if (! continuous (blockEvents.writes[i])) add (blockEvents.writes[i].offset);
+    for (int i = 0; i < blockEvents.nFoot; ++i) add (blockEvents.foot[i].offset);
+    for (int i = 0; i < blockEvents.nTr; ++i) add (blockEvents.trOff[i]);
+    std::sort (original.begin(), original.begin() + count);
+    count = static_cast<int> (std::unique (original.begin(), original.begin() + count) - original.begin());
+    int boundary = 0, splits = 0;
+    for (int i = 0; i < count; ++i)
+    {
+        const int requested = original[static_cast<size_t> (i)];
+        if (requested > boundary)
+        {
+            // Reserve the 32nd point for ordered delivery at the final sample.
+            boundary = splits >= 31 ? samples - 1 : std::min (samples - 1, std::max (requested, boundary + 16));
+            ++splits;
+        }
+        mapped[static_cast<size_t> (i)] = boundary;
+    }
+    const auto map = [&] (int offset)
+    {
+        const auto found = std::lower_bound (original.begin(), original.begin() + count, offset);
+        return found == original.begin() + count || *found != offset ? offset : mapped[static_cast<size_t> (found - original.begin())];
+    };
+    for (int i = 0; i < blockEvents.nWrites; ++i) if (! continuous (blockEvents.writes[i])) blockEvents.writes[i].offset = map (blockEvents.writes[i].offset);
+    for (int i = 0; i < blockEvents.nFoot; ++i) blockEvents.foot[i].offset = map (blockEvents.foot[i].offset);
+    for (int i = 0; i < blockEvents.nTr; ++i) blockEvents.trOff[i] = map (blockEvents.trOff[i]);
+}
 void BoardEngine::beginEvents (const midi::RouteOut& routed) noexcept
 {
-    events = &routed;
+    blockEvents = routed;
+    blockEvents.nWrites = std::clamp (blockEvents.nWrites, 0, midi::kMaxRouteWrites);
+    blockEvents.nFoot = std::clamp (blockEvents.nFoot, 0, midi::kMaxRouteFoot);
+    blockEvents.nTr = std::clamp (blockEvents.nTr, 0, midi::kMaxRouteTransport);
+    events = &blockEvents; eventOffsetsPrepared = false;
     const auto* plan = live.load (std::memory_order_acquire);
     if (! plan) return;
     if (feedbackRearmSeen != plan->feedbackRearm) { feedback.reset(); feedbackRearmSeen = plan->feedbackRearm; }
@@ -312,9 +355,9 @@ void BoardEngine::beginEvents (const midi::RouteOut& routed) noexcept
         }
     if (effectiveEnabled && plan->topology.n > 0) running.store (true);
     blockEnabled = effectiveEnabled; blockMix = effectiveMix; blockTempo = effectiveTempo;
-    for (int i = 0; i < routed.nWrites; ++i)
+    for (int i = 0; i < blockEvents.nWrites; ++i)
     {
-        const auto& write = routed.writes[i];
+        const auto& write = blockEvents.writes[i];
         if (write.slot != midi::kBoardTargetSlot) continue;
         switch (static_cast<midi::BoardTarget> (write.paramIdx))
         {
@@ -334,6 +377,7 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
     const auto* newest = live.load (std::memory_order_acquire);
     if (! newest) return;
     if (! events) applyExtended (*newest);
+    else if (! eventOffsetsPrepared) prepareEventOffsets (*newest, n);
     // Empty segments do not need a transition and must not pin a retired plan.
     for (int p = 0; p < kNumPlacements; ++p)
     {
@@ -552,7 +596,10 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
                                     if (value != state.runtime->enabled)
                                     {
                                         state.runtime->enabled = value; pedal.setEnabled (value);
-                                        state.runtime->bypassSamples = std::max (1.0, rate * (foot.press ? 25.0 - 23.0 * std::clamp (static_cast<double> (foot.speed), 0.0, 1.0) : 12.0) * 0.001);
+                                        const bool knownRelease = foot.speed > 0.f && std::abs (foot.speed - 64.f / 127.f) > 0.5f / 127.f;
+                                        const double milliseconds = foot.press || knownRelease
+                                            ? 25.0 - 23.0 * std::clamp (static_cast<double> (foot.speed), 0.0, 1.0) : 12.0;
+                                        state.runtime->bypassSamples = std::max (1.0, rate * milliseconds * 0.001);
                                         engageEcho.push ({ state.runtime->identity, node.slot, value, state.runtime->modelEnabled });
                                     }
                                 }
