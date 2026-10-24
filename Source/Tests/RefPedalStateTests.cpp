@@ -396,3 +396,22 @@ LUTHIER_TEST(RefPedalState, portableDoubleConversionIgnoresCppAndSystemNumericLo
     CHECK(double(decoded["vendor"][3])==std::numeric_limits<double>::max());CHECK(std::signbit(double(decoded["vendor"][4])));
     CHECK(!BoardState::restore(model,juce::String(R"({"schema":1,"mix":0,5})")));
 }
+
+LUTHIER_TEST(RefPedalState, pedalMidiFootswitchModeRequiresStrictIntegerAndPreservesUnknowns)
+{
+    auto root=juce::JSON::parse(R"({"schema":1,"order":["12345678123412341234123456789abc"],"instances":[{"id":"12345678123412341234123456789abc","model":"future.test","extras":{"midi":{"vendor":{"nested":[0.125,true,"kept"]}}}}]})");
+    std::vector<PedalInstance> output;BoardSettings settings;
+    CHECK(BoardState::decode(root,output,settings));CHECK(!output[0].extras["midi"].hasProperty("fsMode"));
+    for(const auto value:{juce::var(0),juce::var(1),juce::var(2),juce::var(juce::int64(2))})
+    {
+        auto valid=root.clone();valid["instances"][0]["extras"]["midi"].getDynamicObject()->setProperty("fsMode",value);
+        CHECK(BoardState::decode(valid,output,settings));CHECK((juce::int64)output[0].extras["midi"]["fsMode"]==(juce::int64)value);
+        juce::var saved;CHECK(BoardState::encode(output,settings,saved));CHECK(saved["instances"][0]["extras"]["midi"]["vendor"]["nested"].size()==3);
+    }
+    for(const auto value:{juce::var(true),juce::var(1.0),juce::var(1.5),juce::var(-1),juce::var(3),juce::var("1"),juce::var()})
+    {
+        auto invalid=root.clone();invalid["instances"][0]["extras"]["midi"].getDynamicObject()->setProperty("fsMode",value);
+        output[0].modelId="previous";settings.enabled=true;
+        CHECK(!BoardState::decode(invalid,output,settings));CHECK(output[0].modelId=="previous");CHECK(settings.enabled);
+    }
+}

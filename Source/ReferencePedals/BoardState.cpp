@@ -419,6 +419,12 @@ bool BoardState::decode (const V& json, std::vector<PedalInstance>& output, Boar
         if (has(v,"mounting")) { if (! v["mounting"].isString()) return fail(error,"Invalid mounting"); mountingFromString(v["mounting"].toString(),p.mounting); }
         if (has(v,"extras") && ! v["extras"].getDynamicObject()) return fail(error,"Invalid pedal extras");
         p.extras = copy(v["extras"]);
+        if(const auto* midi=p.extras["midi"].getDynamicObject();midi && midi->hasProperty("fsMode"))
+        {
+            const auto mode=midi->getProperty("fsMode");
+            if((!mode.isInt() && !mode.isInt64()) || (juce::int64)mode<0 || (juce::int64)mode>2)
+                return fail(error,"Invalid pedal MIDI footswitch mode");
+        }
         const auto* desc = PedalRegistry::find(p.modelId.c_str());
         p.missing = desc == nullptr; if (p.missing) p.enabled = false;
         if (desc) for (int j=0;j<desc->numParams;++j) p.params[(size_t)j] = desc->params[j].defaultNormalised();
