@@ -31,6 +31,7 @@
 namespace luthier
 {
 
+
 //==============================================================================
 /*  Advertises layouts A to D of routing-io 1 as one superset of buses, and
         lets the host disable the ones it cannot use.
@@ -265,6 +266,13 @@ LuthierAudioProcessor::LuthierAudioProcessor()
     if (auto* type = apvts.getRawParameterValue (ParamIDs::guitarType))
         loadGuitarForType ((GuitarType) juce::jlimit (0, (int) GuitarType::NumTypes - 1,
                                                       edition::effectiveGuitarIndex ((int) type->load())));   // editions 5.1.3
+
+    referenceParameterBase = getParameters().size() - 323;
+    for (int i = 0; i < 323; ++i)
+    {
+        auto* p = dynamic_cast<juce::AudioProcessorParameterWithID*> (getParameters()[referenceParameterBase + i]);
+        referenceRawParameters[(size_t) i] = p ? apvts.getRawParameterValue (p->paramID) : nullptr;
+    }
 
     // action-and-undo.md 3.1: one undo entry per parameter gesture.
     for (auto* parameter : getParameters())
@@ -1585,6 +1593,7 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
     if (boardHost.valid && boardHost.playing)
         boardHost.ppq += (double) referenceHostSliceOffset * boardHost.bpm / (60.0 * currentSampleRate);
     engine.setReferencePedalTransport (boardHost);
+    captureReferenceHostAutomation();
 
     // preset-browser-previews 4.3: the live-activity half of the preview gate,
     // read before anything consumes the host's MIDI.
@@ -3388,15 +3397,14 @@ void LuthierAudioProcessor::setSlotBActive (bool b)
 
 //==============================================================================
 //==============================================================================
-void LuthierAudioProcessor::parameterValueChanged (int, float)
+void LuthierAudioProcessor::parameterValueChanged (int parameterIndex, float value)
 {
-    /*  Deliberately empty.
+    if (referenceParameterBase >= 0) referenceHostCapture.write (parameterIndex - referenceParameterBase, value);
+}
 
-        Every writer reaches a parameter through here - the user's mouse, host
-        automation, a learned CC, the modulation matrix - so there is nothing in a
-        value change that says who caused it. action-and-undo.md 3.1 only wants the
-        user's own edits, so the undo entry is driven by the gesture below
-        instead. */
+void LuthierAudioProcessor::captureReferenceHostAutomation() noexcept
+{
+    engine.getReferencePedals().setHostAutomation (referenceHostCapture.snapshot());
 }
 
 void LuthierAudioProcessor::parameterGestureChanged (int parameterIndex, bool gestureIsStarting)
@@ -4290,27 +4298,31 @@ void LuthierAudioProcessor::serviceReferencePedalParameters()
         ids[(size_t) i] = ParamIDs::refSlot (slot, "pos");
     }
     std::array<float, 323> incoming {};
+    std::array<uint32_t, 323> incomingSerials {};
     for (size_t i = 0; i < ids.size(); ++i)
     {
         auto* p = apvts.getParameter (ids[i]);
         if (! p) return;
-        incoming[i] = p->convertFrom0to1 (p->getValue());
+        incomingSerials[i] = referenceHostCapture.serial (i);
+        incoming[i] = incomingSerials[i] != referenceModelSerials[i] ? referenceHostCapture.value (i)
+            : p->convertFrom0to1 (p->getValue());
         if (! referenceMirrorInitialised) referenceParameterMirror[i] = p->convertFrom0to1 (p->getDefaultValue());
     }
     referenceMirrorInitialised = true;
-    if (incoming[0] != referenceParameterMirror[0]) model.apply (reference::cmd::SetBoardEnabled { incoming[0] >= .5f });
-    if (incoming[1] != referenceParameterMirror[1]) model.apply (reference::cmd::SetMix { incoming[1] });
-    if (incoming[2] != referenceParameterMirror[2]) model.apply (reference::cmd::SetBoardParam { "tempoBpm", incoming[2] });
+    auto changed = [&] (size_t i) { return incomingSerials[i] != referenceModelSerials[i] || incoming[i] != referenceParameterMirror[i]; };
+    if (changed (0)) model.apply (reference::cmd::SetBoardEnabled { incoming[0] >= .5f });
+    if (changed (1)) model.apply (reference::cmd::SetMix { incoming[1] });
+    if (changed (2)) model.apply (reference::cmd::SetBoardParam { "tempoBpm", incoming[2] });
     for (const auto& id : model.getOrder())
     {
         auto instance = model.getInstance (id); if (! instance || instance->slot < 0 || instance->slot >= reference::kMaxSlots) continue;
         const size_t base = (size_t) (3 + instance->slot * 20);
-        if (incoming[base] != referenceParameterMirror[base]) model.apply (reference::cmd::SetEnabled { id, incoming[base] >= .5f });
+        if (changed (base)) model.apply (reference::cmd::SetEnabled { id, incoming[base] >= .5f });
         const auto& lanes = reference::PedalRegistry::laneMap (instance->modelId.c_str());
         for (int lane = 0; lane < lanes.numLanes; ++lane)
-            if (incoming[base + 1 + (size_t) lane] != referenceParameterMirror[base + 1 + (size_t) lane])
+            if (changed (base + 1 + (size_t) lane))
                 model.apply (reference::cmd::SetParam { id, lanes.laneToParam[lane], incoming[base + 1 + (size_t) lane] });
-        if (incoming[base + 17] != referenceParameterMirror[base + 17] || incoming[base + 18] != referenceParameterMirror[base + 18])
+        if (changed (base + 17) || changed (base + 18))
             model.apply (reference::cmd::SetTrim { id, incoming[base + 17], incoming[base + 18] });
     }
     // Resolve all position requests together, stable in the existing model order.
@@ -4321,7 +4333,7 @@ void LuthierAudioProcessor::serviceReferencePedalParameters()
         {
             const auto p = model.getInstance (id); if (! p) return 0;
             const size_t i = (size_t) (3 + p->slot * 20 + 19);
-            if (incoming[i] != referenceParameterMirror[i]) return (int) incoming[i];
+            if (changed (i)) return (int) incoming[i];
             const auto current = model.getOrder(); return (int) std::distance (current.begin(), std::find (current.begin(), current.end(), id));
         };
         return rank (a) < rank (b);
@@ -4345,7 +4357,13 @@ void LuthierAudioProcessor::serviceReferencePedalParameters()
     for (size_t i = 0; i < ids.size(); ++i)
     {
         auto* p = apvts.getParameter (ids[i]); const float value = p->convertTo0to1 (referenceParameterMirror[i]);
-        if (p->getValue() != value) p->setValueNotifyingHost (value);
+        if (referenceHostCapture.serial (i) != incomingSerials[i]) continue;
+        referenceModelSerials[i] = incomingSerials[i];
+        if (p->getValue() != value)
+        {
+            const reference::HostAutomationCapture::EchoScope echo (referenceHostCapture);
+            p->setValueNotifyingHost (value);
+        }
     }
 }
 

@@ -174,3 +174,21 @@ LUTHIER_TEST (RefPedalMidiCore, clockTempoIndependentOfRateAndBlockPartition)
             CHECK (std::abs (out.time.bpm - 120.) < .1); CHECK (std::isfinite (out.time.ppq));
         }
 }
+
+#include "../ReferencePedals/Midi/HostAutomationCapture.h"
+LUTHIER_TEST (RefPedalMidiCore, hostCaptureUnitsAndThreadLocalEcho)
+{
+    HostAutomationCapture capture;
+    CHECK (capture.write (2, .5f)); CHECK (capture.value (2) == 160.f);
+    CHECK (capture.write (20, 0)); CHECK (capture.value (20) == -12.f);
+    CHECK (capture.write (22, .5f)); CHECK (capture.value (22) == 8.f);
+    std::atomic<bool> begin { false };
+    std::thread host ([&] { while (! begin.load (std::memory_order_acquire)) {} for (int i = 0; i < 10000; ++i) capture.write (4, .75f); });
+    {
+        HostAutomationCapture::EchoScope echo (capture); begin.store (true, std::memory_order_release);
+        for (int i = 0; i < 10000; ++i) capture.write (4, .1f);
+        host.join(); CHECK (! capture.write (4, .2f));
+    }
+    const auto snapshot = capture.snapshot(); CHECK (snapshot.serials[4] == 10000); CHECK (snapshot.values[4] == .75f);
+    CHECK (capture.write (4, .75f)); CHECK (capture.snapshot().serials[4] == 10001);
+}

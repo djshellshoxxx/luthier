@@ -70,3 +70,61 @@ LUTHIER_TEST (RefPedalHost, forwardBoardSectionPreservesRawBytes)
     const auto json = juce::String::fromUTF8 ((const char*) saved.getData(), (int) saved.getSize());
     juce::String raw; CHECK (BoardState::extractFromHostJson (json, raw)); CHECK (raw == future);
 }
+
+#include "../ReferencePedals/PedalRegistry.h"
+#include <atomic>
+namespace
+{
+std::atomic<float> probeValue { -1.f };
+const ParamDesc probeParams[] {
+    { "host_probe_gain", "Gain", "", ParamKind::Continuous, Taper::Linear, 0, 1, .2f, 1, 0, nullptr, PF_Automatable, 0, -1 }
+};
+const PedalDesc probeDesc { "test.host-automation", "host_probe_", 1, "Host automation probe", "Test", nullptr,
+    ChannelMode::Stereo, BypassMode::DSP, 1, probeParams, 0, false, false, false, 1 };
+class HostProbe final : public IPedal
+{
+public:
+    const PedalDesc& desc() const noexcept override { return probeDesc; }
+    void prepare (double, int, int) override {}
+    void reset() noexcept override {}
+    void setParam (int, float value) noexcept override { gain = value; probeValue.store (value, std::memory_order_relaxed); }
+    float getParam (int) const noexcept override { return gain; }
+    void process (double* l, double* r, int n) noexcept override { for (int i = 0; i < n; ++i) l[i] = r[i] = gain; }
+private: float gain = .2f;
+};
+std::unique_ptr<IPedal> makeHostProbe() { return std::make_unique<HostProbe>(); }
+}
+LUTHIER_TEST (RefPedalHost, automationWithoutMessagePump)
+{
+    PedalRegistry::TestScope scope;
+    CHECK (PedalRegistry::add (probeDesc, makeHostProbe));
+    auto p = std::make_unique<LuthierAudioProcessor>();
+    auto& model = p->getEngine().getReferencePedals().model();
+    CHECK (model.apply (cmd::Add { "test.host-automation" })); CHECK (model.apply (cmd::SetBoardEnabled { true }));
+    p->prepareToPlay (96000, 64);
+    auto* lane = p->getState().getParameter ("ref_s01_p01"); CHECK (lane != nullptr);
+    lane->setValueNotifyingHost (.8f);
+    juce::AudioBuffer<float> audio (2, 64); juce::MidiBuffer midi;
+    p->processBlock (audio, midi);
+    CHECK_NEAR (probeValue.load(), .8f, 1e-6);
+    // Persistence/echo has not needed a timer to deliver the audible update.
+    CHECK_NEAR (model.getInstance (model.getOrder()[0])->params[0], .2f, 1e-6);
+    p->releaseResources();
+}
+LUTHIER_TEST (RefPedalHost, automationThousandWritesPerSecond)
+{
+    PedalRegistry::TestScope scope; CHECK (PedalRegistry::add (probeDesc, makeHostProbe));
+    auto p = std::make_unique<LuthierAudioProcessor>();
+    auto& model = p->getEngine().getReferencePedals().model();
+    CHECK (model.apply (cmd::Add { "test.host-automation" })); CHECK (model.apply (cmd::SetBoardEnabled { true }));
+    p->prepareToPlay (96000, 64); auto* lane = p->getState().getParameter ("ref_s01_p01");
+    juce::AudioBuffer<float> audio (2, 64); juce::MidiBuffer midi;
+    int nextWrite = 0, writes = 0; float expected = .2f;
+    for (int start = 0; start < 96000; start += 64)
+    {
+        while (nextWrite < start + 64)
+        { expected = writes % 2 ? .75f : .25f; lane->setValueNotifyingHost (expected); ++writes; nextWrite += 96; }
+        p->processBlock (audio, midi); CHECK_NEAR (probeValue.load(), expected, 1e-6);
+    }
+    CHECK (writes == 1000); p->releaseResources();
+}
