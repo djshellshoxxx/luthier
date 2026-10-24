@@ -31,7 +31,7 @@ const ParamDesc parameters[]{
     {"boss_dd3t_variant","VARIANT","",ParamKind::Enum,Taper::Linear,0.0f,1.0f,0.0f,1.f,2,variantNames,PF_Config,20.0f,-1},
     {"boss_dd3t_stereo_mode","STEREO MODE","",ParamKind::Enum,Taper::Linear,0,1,0,1,2,stereoModeNames,PF_Config,5,-1},
 };
-const PedalDesc description{"boss-dd3t","boss_dd3t_",1,"DD-3T (prototype)","Delay","BOSS DD-3T",ChannelMode::Mono,BypassMode::Buffered,19,parameters,0,true,false,false,0};
+const PedalDesc description{"boss-dd3t","boss_dd3t_",1,"Quantized Digital Delay (prototype)","Delay",nullptr,ChannelMode::Mono,BypassMode::Buffered,19,parameters,0,true,false,false,0};
 }
 const PedalDesc& BossDd3t::descriptor() noexcept {return description;}
 BossDd3t::BossDd3t() : PedalBase(description) {}
