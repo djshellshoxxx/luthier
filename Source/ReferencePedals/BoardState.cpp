@@ -239,6 +239,8 @@ bool readSettings (const V& root, BoardSettings& s)
     if (has(s.ui,"window") && !s.ui["window"].isString()) return false;
     if (!midi::MidiState::validate(s.midi)) return false;
     const auto& f = root["feedback"];
+    bool heldKill=false; // Momentary runtime state never resumes from a preset.
+    if (!flag(f,"kill",heldKill)) return false;
     if (! flag(f,"on",s.fb.on) || ! flag(f,"runawayOk",s.fb.runawayOk) || ! idField(f,"src",s.fb.src)
         || ! idField(f,"dst",s.fb.dst) || ! real(f,"gain",s.fb.gain,0,1.05f)
         || ! real(f,"lpHz",s.fb.lpHz,std::numeric_limits<float>::min(),std::numeric_limits<float>::max())) return false;
@@ -312,7 +314,7 @@ V writeSettings (const BoardSettings& s)
     put(r,"loops",loops);
     auto f = r["feedback"].getDynamicObject() ? copy(r["feedback"]) : object();
     put(f,"on",s.fb.on); put(f,"src",s.fb.src.toString()); put(f,"dst",s.fb.dst.toString()); put(f,"gain",s.fb.gain);
-    put(f,"lpHz",s.fb.lpHz); put(f,"runawayOk",s.fb.runawayOk); put(r,"feedback",f);
+    put(f,"kill",false); put(f,"lpHz",s.fb.lpHz); put(f,"runawayOk",s.fb.runawayOk); put(r,"feedback",f);
 #undef WRITE
     return r;
 }
