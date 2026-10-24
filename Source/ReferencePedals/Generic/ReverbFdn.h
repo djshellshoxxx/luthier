@@ -1,5 +1,6 @@
 // OWNER: WP10
 #pragma once
+#include "../PreparedMemory.h"
 #include "../Common/FractionalDelay.h"
 #include "../Common/OnePole.h"
 #include "../Common/RandomWalkLfo.h"
@@ -10,6 +11,14 @@ namespace luthier::reference::generic
 class ReverbFdn
 {
 public:
+    uint64_t ownedMemoryBytes() const noexcept
+    {
+        uint64_t bytes=uint64_t(primeLookup.capacity())*sizeof(int);
+        for(const auto& line:lines)if(!addPreparedBytes(bytes,line.ownedMemoryBytes(),bytes))return kUnknownPreparedMemoryBytes;
+        for(const auto& line:diffusion)if(!addPreparedBytes(bytes,line.ownedMemoryBytes(),bytes))return kUnknownPreparedMemoryBytes;
+        for(const auto& channel:hallOutputDiffusion)for(const auto& line:channel)if(!addPreparedBytes(bytes,line.ownedMemoryBytes(),bytes))return kUnknownPreparedMemoryBytes;
+        return bytes;
+    }
     void prepare(double sampleRate,uint32_t seed=1);
     void reset() noexcept;
     void set(double decaySeconds,double size,double tone,double modulation,int family,double freeze) noexcept;

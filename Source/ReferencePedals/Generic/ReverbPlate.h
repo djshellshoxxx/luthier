@@ -1,5 +1,6 @@
 // OWNER: WP10
 #pragma once
+#include "../PreparedMemory.h"
 #include "../Common/FractionalDelay.h"
 #include "../Common/OnePole.h"
 #include "../Common/RandomWalkLfo.h"
@@ -10,6 +11,16 @@ namespace luthier::reference::generic
 class ReverbPlate
 {
 public:
+    uint64_t ownedMemoryBytes() const noexcept
+    {
+        uint64_t bytes=0;
+        for(const auto& line:inputDiffusion)if(!addPreparedBytes(bytes,line.ownedMemoryBytes(),bytes))return kUnknownPreparedMemoryBytes;
+        for(const auto& line:modDiffusion)if(!addPreparedBytes(bytes,line.ownedMemoryBytes(),bytes))return kUnknownPreparedMemoryBytes;
+        for(const auto& line:lateDiffusion)if(!addPreparedBytes(bytes,line.ownedMemoryBytes(),bytes))return kUnknownPreparedMemoryBytes;
+        for(const auto& line:firstDelay)if(!addPreparedBytes(bytes,line.ownedMemoryBytes(),bytes))return kUnknownPreparedMemoryBytes;
+        for(const auto& line:lastDelay)if(!addPreparedBytes(bytes,line.ownedMemoryBytes(),bytes))return kUnknownPreparedMemoryBytes;
+        return bytes;
+    }
     void prepare(double sampleRate,uint32_t seed=1);
     void reset() noexcept;
     void set(double decay,double size,double tone,double mod,double freeze) noexcept;
