@@ -197,6 +197,7 @@ void BoardEngine::publishPedalMeters (const RenderPlan& plan) noexcept
         meter.identity0.store (identity[0], std::memory_order_relaxed); meter.identity1.store (identity[1], std::memory_order_relaxed);
         meter.present.store (runtime != nullptr, std::memory_order_relaxed);
         meter.enabled.store (runtime && runtime->enabled, std::memory_order_relaxed);
+        meter.tailResidualAvailable.store (runtime && runtime->tailResidualAvailable, std::memory_order_relaxed);
         meter.tail.store (runtime ? runtime->pedal->getTailEnergyDb() : -120.f, std::memory_order_relaxed);
         meter.available.store (ui.available, std::memory_order_relaxed); meter.transport.store (ui.transport, std::memory_order_relaxed);
         meter.loopLength.store (ui.loopLength, std::memory_order_relaxed); meter.playhead.store (ui.playhead, std::memory_order_relaxed);
@@ -218,6 +219,7 @@ PedalMeters BoardEngine::readPedalMeters (int slot) const noexcept
         result.identity = reinterpret_cast<const uint8_t*> (identity);
         result.present = meter.present.load (std::memory_order_relaxed); result.enabled = meter.enabled.load (std::memory_order_relaxed);
         result.tailEnergyDb = meter.tail.load (std::memory_order_relaxed);
+        result.tailResidualAvailable = meter.tailResidualAvailable.load (std::memory_order_relaxed);
         result.model.available = meter.available.load (std::memory_order_relaxed); result.model.transport = meter.transport.load (std::memory_order_relaxed);
         result.model.loopLength = meter.loopLength.load (std::memory_order_relaxed); result.model.playhead = meter.playhead.load (std::memory_order_relaxed);
         result.model.bpm = meter.bpm.load (std::memory_order_relaxed); result.model.progress = meter.progress.load (std::memory_order_relaxed);

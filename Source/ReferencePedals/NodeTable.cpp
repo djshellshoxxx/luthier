@@ -10,7 +10,8 @@ void nodePedal (const Node& node, ExecCtx& ctx) noexcept
     if (! state || ! state->runtime) return; // persisted unknown model is a transparent placeholder
     auto& runtime = *state->runtime;
     auto* left = ctx.bus[node.lane][0]; auto* right = ctx.bus[node.lane][1];
-    double dry[2][kSubBlock] {}, originalDry[2][kSubBlock] {};
+    double dry[2][kSubBlock] {}, wetResidual[2][kSubBlock] {};
+    bool residualAvailable[kSubBlock] {};
     const auto& description = runtime.pedal->desc();
     const bool buffered = description.bypass == BypassMode::Buffered;
     const bool tailContract = description.bypass == BypassMode::DSP || (buffered && description.hasTails);
@@ -24,7 +25,6 @@ void nodePedal (const Node& node, ExecCtx& ctx) noexcept
         }
     if (state->processWet)
     {
-        for (int c = 0; c < 2; ++c) std::copy_n (dry[c], ctx.n, originalDry[c]);
         if (buffered) runtime.pedal->processBypass (dry[0], dry[1], ctx.n);
     }
     const midi::ParamWrite* writes[midi::kMaxRouteWrites]; int numWrites = 0;
@@ -46,6 +46,18 @@ void nodePedal (const Node& node, ExecCtx& ctx) noexcept
             if (state->raw[event].offset >= state->offset && state->raw[event].offset < state->offset + ctx.n)
                 raw[numRaw++] = &state->raw[event];
     const bool render = state->processWet && (runtime.enabled || runtime.enableMix > 0.0 || runtime.pedal->getTailEnergyDb() > -90.f);
+    const auto processOnce = [&] (int offset, int samples) noexcept
+    {
+        if (! render) return;
+        if (tailContract)
+        {
+            const bool available = runtime.pedal->processWithWetResidual (left + offset, right + offset,
+                wetResidual[0] + offset, wetResidual[1] + offset, samples);
+            std::fill_n (residualAvailable + offset, samples, available);
+            runtime.tailResidualAvailable = available;
+        }
+        else runtime.pedal->process (left + offset, right + offset, samples);
+    };
     if (runtime.rampMask != 0 || numWrites > 0 || numRaw > 0)
     {
         int writeIndex = 0, rawIndex = 0;
@@ -62,13 +74,13 @@ void nodePedal (const Node& node, ExecCtx& ctx) noexcept
             runtime.advanceParams();
             runtime.pedal->setSidechain (state->sidechain[0] ? state->sidechain[0] + i : nullptr,
                                         state->sidechain[1] ? state->sidechain[1] + i : nullptr, state->sidechain[0] ? 1 : 0);
-            if (render) runtime.pedal->process (left + i, right + i, 1);
+            processOnce (i, 1);
             runtime.collectMidi (i, 1);
         }
     }
     else
     {
-        if (render) runtime.pedal->process (left, right, ctx.n);
+        processOnce (0, ctx.n);
         runtime.collectMidi (0, ctx.n);
     }
     if (! state->processWet) return;
@@ -80,12 +92,13 @@ void nodePedal (const Node& node, ExecCtx& ctx) noexcept
         {
             auto& output = channel == 0 ? left[i] : right[i];
             const double processed = output * runtime.outputGain;
-            // DSP/Buffered-tail pedals own excitation and wet-tail slews. Only
-            // replace their dry calibration/buffer path; never scale away tails.
-            const double result = tailContract
-                ? (render ? processed + (1.0 - runtime.enableMix) * (dry[channel][i]
-                    - originalDry[channel][i] * runtime.inputGain * runtime.outputGain) : dry[channel][i])
-                : dry[channel][i] + runtime.enableMix * (processed - dry[channel][i]);
+            // E68: the explicit wet term survives bypass. Inferring dry from the
+            // slot input is invalid when a model guards/clips its dry path or sum.
+            const bool validResidual = residualAvailable[i] && std::isfinite (wetResidual[channel][i]);
+            if (residualAvailable[i] && ! validResidual) runtime.tailResidualAvailable = false;
+            const double bypass = dry[channel][i] + (validResidual ? wetResidual[channel][i] * runtime.outputGain : 0.0);
+            // An unavailable residual uses ordinary fading, without a second render.
+            const double result = render ? bypass + runtime.enableMix * (processed - bypass) : dry[channel][i];
             output = BoardLimiter::process (result, false, 1.0);
         }
     }

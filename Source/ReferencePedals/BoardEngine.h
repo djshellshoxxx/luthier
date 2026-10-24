@@ -84,7 +84,7 @@ private:
         std::atomic<uint32_t> sequence { 0 }, available { 0 }, faults { 0 };
         std::atomic<uint64_t> identity0 { 0 }, identity1 { 0 }, loopLength { 0 }, playhead { 0 };
         std::atomic<int> transport { 0 };
-        std::atomic<bool> present { false }, enabled { false };
+        std::atomic<bool> present { false }, enabled { false }, tailResidualAvailable { false };
         std::atomic<float> tail { -120.f }, progress { 0.f };
         std::atomic<double> bpm { 0.0 };
     };
