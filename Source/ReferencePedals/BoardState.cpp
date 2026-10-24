@@ -8,6 +8,15 @@
 #include <set>
 #include <string_view>
 #include <charconv>
+#include <cerrno>
+#include <cstdlib>
+#include <iomanip>
+#include <locale>
+#include <locale.h>
+#include <sstream>
+#if defined(__APPLE__)
+#include <xlocale.h>
+#endif
 
 namespace luthier::reference
 {
@@ -22,8 +31,52 @@ bool has (const V& v, const char* key) { return v.hasProperty (key); }
 V source (const V& envelope) { auto v = copy (envelope["source"]); return v.getDynamicObject() ? v : object(); }
 bool fail (juce::String* error, const juce::String& text)
 { if (error) *error = text; return false; }
-// Bound syntax/nesting and parse numbers without unchecked accumulation or
-// intermediate decimal rounding. JUCE remains the string escape decoder.
+// Older Apple libc++ deployments do not provide floating charconv. Parse
+// with an explicit, immutable C numeric locale, never the process locale.
+// strtod_l correctly rounds representable subnormals (some libcs set ERANGE
+// for these); only nonfinite overflow and nonzero values rounded to zero fail.
+// StrictJson supplies a grammar-checked range in the NUL-terminated input.
+bool parseDouble(const char* first,const char* last,double& out)
+{
+#if defined(_WIN32)
+    static const auto numericLocale=_create_locale(LC_NUMERIC,"C");
+#else
+    static const auto numericLocale=newlocale(LC_NUMERIC_MASK,"C",nullptr);
+#endif
+    if(!numericLocale)return false;
+    char* end=nullptr;const auto previousErrno=errno;errno=0;
+#if defined(_WIN32)
+    const auto value=_strtod_l(first,&end,numericLocale);
+#else
+    const auto value=strtod_l(first,&end,numericLocale);
+#endif
+    errno=previousErrno;
+    if(end!=last || !std::isfinite(value))return false;
+    if(value==0)
+        for(auto p=first;p!=last && *p!='e' && *p!='E';++p)if(*p>='1' && *p<='9')return false;
+    out=value;return true;
+}
+std::string doubleText(double value)
+{
+    std::ostringstream stream;
+    stream.imbue(std::locale::classic());
+    stream << std::setprecision(std::numeric_limits<double>::max_digits10) << value;
+    auto text=stream.str();
+    // Canonical exponent spelling across standard-library implementations.
+    const auto exponent=text.find_first_of("eE");
+    if(exponent!=std::string::npos)
+    {
+        auto digit=exponent+1;bool negative=false;
+        if(text[digit]=='+' || text[digit]=='-'){negative=text[digit]=='-';++digit;}
+        while(digit+1<text.size() && text[digit]=='0')++digit;
+        const auto tail=text.substr(digit);
+        text.resize(exponent);text+='e';if(negative && tail!="0")text+='-';text+=tail;
+    }
+    else if(text.find('.')==std::string::npos)text+=".0";
+    return text;
+}
+// Bound syntax/nesting before correctly rounded numeric conversion. JUCE
+// remains the string escape decoder.
 class StrictJson
 {
 public:
@@ -120,8 +173,7 @@ private:
         if (floating)
         {
             double n=0;
-            const auto parsed=std::from_chars(data.data()+start,data.data()+pos,n,std::chars_format::general);
-            if (parsed.ec!=std::errc() || parsed.ptr!=data.data()+pos || !std::isfinite(n)) return false;
+            if (!parseDouble(data.data()+start,data.data()+pos,n)) return false;
             out=n;
         }
         else
@@ -151,11 +203,7 @@ juce::String jsonText(const V& value)
     {
         if (v.isDouble())
         {
-            char number[64];
-            const auto result=std::to_chars(number,number+sizeof(number),(double)v,std::chars_format::general,std::numeric_limits<double>::max_digits10);
-            const std::string_view text(number,(size_t)(result.ptr-number));
-            out.append(text);
-            if (text.find_first_of(".eE")==std::string_view::npos) out+=".0";
+            out+=doubleText((double)v);
         }
         else if (const auto* a=v.getArray())
         {
