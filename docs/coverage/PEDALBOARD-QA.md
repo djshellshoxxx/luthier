@@ -79,3 +79,25 @@ all native Windows/macOS verification and packaging.
 Unavailable here: real audio-device latency/xruns, listening comparison,
 physical pedal measurement, and actual Reaper/Live/Logic/Bitwig/Cubase/FL
 operator acceptance. These must never be reported as unattended passes.
+
+## Completed 30-minute wall-clock concurrent soak
+
+The immutable core executable completed successfully (exit0,1810.19s driver wall
+time including startup/collection) with seed0x51a7 and1800s requested workload:
+180,000edits,18,318rejectededits,6,913,402blocks,3,049,960,869samples,
+callback_new0,invalid0. Combined sweep/soak:3tests/6111checks/0failures.
+Memory sampled every10s peaked at29,212KiB resident/high-water; the final
+resident sample was11,932KiB. C++new is intercepted; Cmalloc/hostwrapper
+allocation and locks are not certified by this hook. This source snapshot
+predates E47 and the later routing/host/UI/paged-looper integrations.
+
+The next integrated executable at05bbdb8e passed206tests/5,649,492checks in40.1s
+underXvfb, including realprocessor no-message-pump automation(6checks),
+1000writes/sec automation(1504checks), ownership and sparselegacy regressions.
+This pass covers the frozen source, not later queued commits or fulllegacy suite.
+
+A coordinator seeded1000-malformed-load test now runs the real Board/codec and
+audio after each rejected load:7004checks/0failures, no countedcallbacknew,
+finiteboundedoutput and unchanged serializedmodel. Grammar/type/range/order
+corruptions use seed0x54a7ef01. Its coherent focused compiler/run commands and
+logs are retained; fullapplication inclusion is the next native QA checkpoint.

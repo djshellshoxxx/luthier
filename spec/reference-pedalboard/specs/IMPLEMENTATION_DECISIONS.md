@@ -75,7 +75,19 @@ mean its full behavior is implemented or accepted.
 | E50 | Host-origin model persistence has no undo/audio-intent revision; explicit UI writes keep intent revisions. Prevent stale timer echoes from defeating newer audio host writes. |
 | E52 | Audio-only `Board::drainMidiOut(MidiEvent*, int capacity)` drains bounded short events without growing a caller's JUCE buffer. Deterministic overflow accounting and host output capacity remain explicit implementation gates. |
 | E53 | `BoardModel::cancelTransaction()` restores the outer transaction baseline and republishes it, clears nesting and preserves the undo/redo history preceding the transaction. No active transaction is a rejected no-op. |
+| E54 | Optional borrowed stereo Pedal B/Wet only/Dry only buffers; append buses after old indices, default disabled. Placement sends accumulate after host clearing; explicit availability and bounded writes. |
+| E55 | Off-audio runtime-extra capture for persistence, retained UUID lifetime and race-safe published extra snapshots. Compiler/model publication snapshots remain separate so ordinary edits do not reset recorded loops. |
+| E56 | Momentary feedback kill retains configured gain, ramps down in5ms, is serialized released; watchdog rearm requires explicit OFF then ON. |
+| E57 | Append50 routing/board host controls after the original323 lanes, separate serial snapshot, exact table in ExtendedHostAutomation.h. -120dB host endpoint represents silence; lower preexisting finite state values remain preserved until a host write. Structural topology requests remain message-thread validated. |
+| E59 | Stopped/off-audio shared asset-store injection and pinned runtime lifetime; persistent appdata default with explicit errors, tests use temporary injected stores. |
 
 IDs E42 and other gaps are unassigned. A final spec reconciliation must link
 the independent reviews, original/revised conditions, exact accepted source
 commit and passing regressions in the release evidence.
+
+E58 remains a CANDIDATE Phase90 numerical correction: two individually
+prewarped notch anchors factored into four stable first-order allpasses.
+Independent DSP algebra review confirms anchor equations and Schur stability,
+but original/revised phase, CPU, saturation sites and all original regression
+limits must pass before adoption. The alternative2x FIR proposal adds15samples
+and fails the0.4%CPU gate; it was not adopted.
