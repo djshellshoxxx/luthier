@@ -1,0 +1,67 @@
+sr 44100 fc 330.000000 old_a -0.954054610804 new_a -0.95228147082 -0.955731437114 wet_mag_error 1.31e-14 max_phase_delta_deg 0.148728
+ target 136.690475583 old 136.711339366 old_error_pct 0.015264 new_residual 8.47e-16
+ target 796.690475583 old 795.983047922 old_error_pct -0.088796 new_residual 6.76e-16
+sr 44100 fc 1043.551628 old_a -0.861369469263 new_a -0.844256977793 -0.875863318353 wet_mag_error 4.44e-15 max_phase_delta_deg 1.496486
+ target 432.253237294 old 432.913984232 old_error_pct 0.152861 new_residual 1.23e-15
+ target 2519.356493005 old 2497.323313435 old_error_pct -0.874556 new_residual 2.24e-16
+sr 44100 fc 3300.000000 old_a -0.613535950444 new_a -0.456913778144 -0.713704649217 wet_mag_error 1.89e-15 max_phase_delta_deg 15.960082
+ target 1366.904755831 old 1388.112499998 old_error_pct 1.551516 new_residual 5.39e-16
+ target 7966.904755831 old 7359.335672604 old_error_pct -7.626162 new_residual 5e-16
+ thd dbv -20 peak 0.069117914080 old 0.011391483 new_alternating 0.011473166 new_grouped 0.011110450 percent
+ thd dbv -6 peak 0.346410161520 old 0.282230870 new_alternating 0.284251931 new_grouped 0.275293424 percent
+sr 48000 fc 330.000000 old_a -0.957709924852 new_a -0.956211100013 -0.959133604974 wet_mag_error 1.42e-14 max_phase_delta_deg 0.125528
+ target 136.690475583 old 136.708086284 old_error_pct 0.012884 new_residual 2.93e-15
+ target 796.690475583 old 796.093175775 old_error_pct -0.074973 new_residual 5.8e-16
+sr 48000 fc 1043.551628 old_a -0.871946332124 new_a -0.857443462373 -0.884383454442 wet_mag_error 4.66e-15 max_phase_delta_deg 1.261832
+ target 432.253237294 old 432.810831932 old_error_pct 0.128997 new_residual 8.71e-16
+ target 2519.356493005 old 2500.709613926 old_error_pct -0.740145 new_residual 4.72e-16
+sr 48000 fc 3300.000000 old_a -0.640141641999 new_a -0.506777450004 -0.727971375023 wet_mag_error 1.78e-15 max_phase_delta_deg 13.317591
+ target 1366.904755831 old 1384.759979779 old_error_pct 1.306252 new_residual 7.78e-16
+ target 7966.904755831 old 7442.652757658 old_error_pct -6.580372 new_residual 1.67e-16
+ thd dbv -20 peak 0.069117914080 old 0.011453253 new_alternating 0.011511646 new_grouped 0.011190571 percent
+ thd dbv -6 peak 0.346410161520 old 0.283761058 new_alternating 0.285205478 new_grouped 0.277275375 percent
+sr 88200 fc 330.000000 old_a -0.976763540741 new_a -0.976316346757 -0.977198234949 wet_mag_error 2.64e-14 max_phase_delta_deg 0.037163
+ target 136.690475583 old 136.695690887 old_error_pct 0.003815 new_residual 4.33e-15
+ target 796.690475583 old 796.513391826 old_error_pct -0.022227 new_residual 1.94e-15
+sr 88200 fc 1043.551628 old_a -0.928291921606 new_a -0.923902883852 -0.932316030525 wet_mag_error 8.44e-15 max_phase_delta_deg 0.372202
+ target 432.253237294 old 432.418220613 old_error_pct 0.038168 new_residual 1.97e-15
+ target 2519.356493005 old 2513.778067784 old_error_pct -0.221423 new_residual 1.46e-15
+sr 88200 fc 3300.000000 old_a -0.788769690112 new_a -0.747138011561 -0.821181550063 wet_mag_error 2.89e-15 max_phase_delta_deg 3.780273
+ target 1366.904755831 old 1372.141325462 old_error_pct 0.383097 new_residual 1.39e-16
+ target 7966.904755831 old 7796.960791959 old_error_pct -2.133124 new_residual 2.78e-17
+ thd dbv -20 peak 0.069117914080 old 0.011694046 new_alternating 0.011668557 new_grouped 0.011524416 percent
+ thd dbv -6 peak 0.346410161520 old 0.289726062 new_alternating 0.289093731 new_grouped 0.285533818 percent
+sr 96000 fc 330.000000 old_a -0.978631483227 new_a -0.978253733079 -0.978999509502 wet_mag_error 2.65e-14 max_phase_delta_deg 0.031369
+ target 136.690475583 old 136.694877801 old_error_pct 0.003221 new_residual 4.61e-15
+ target 796.690475583 old 796.540988941 old_error_pct -0.018763 new_residual 3.57e-15
+sr 96000 fc 1043.551628 old_a -0.933930309134 new_a -0.93021746397 -0.937357516813 wet_mag_error 9.33e-15 max_phase_delta_deg 0.314092
+ target 432.253237294 old 432.392491059 old_error_pct 0.032216 new_residual 1.1e-15
+ target 2519.356493005 old 2514.644610322 old_error_pct -0.187027 new_residual 5.21e-16
+sr 96000 fc 3300.000000 old_a -0.804379905113 new_a -0.769034279536 -0.832396759199 wet_mag_error 3.11e-15 max_phase_delta_deg 3.182296
+ target 1366.904755831 old 1371.322117279 old_error_pct 0.323165 new_residual 8.89e-16
+ target 7966.904755831 old 7822.544013546 old_error_pct -1.812005 new_residual 3.05e-16
+ thd dbv -20 peak 0.069117914080 old 0.011710152 new_alternating 0.011680895 new_grouped 0.011550901 percent
+ thd dbv -6 peak 0.346410161520 old 0.290125034 new_alternating 0.289399450 new_grouped 0.286188981 percent
+sr 192000 fc 330.000000 old_a -0.989258669881 new_a -0.989163842917 -0.989352259724 wet_mag_error 5.34e-14 max_phase_delta_deg 0.007841
+ target 136.690475583 old 136.691576109 old_error_pct 0.000805 new_residual 2.09e-14
+ target 796.690475583 old 796.653093801 old_error_pct -0.004692 new_residual 5.31e-15
+sr 192000 fc 1043.551628 old_a -0.966419970733 new_a -0.965480046382 -0.967322227562 wet_mag_error 1.82e-14 max_phase_delta_deg 0.078438
+ target 432.253237294 old 432.288041690 old_error_pct 0.008052 new_residual 3.21e-15
+ target 2519.356493005 old 2518.175336879 old_error_pct -0.046883 new_residual 3.06e-15
+sr 192000 fc 3300.000000 old_a -0.897445604426 new_a -0.888292646872 -0.905534800885 wet_mag_error 6e-15 max_phase_delta_deg 0.786935
+ target 1366.904755831 old 1368.006225991 old_error_pct 0.080581 new_residual 1.71e-15
+ target 7966.904755831 old 7929.853597417 old_error_pct -0.465063 new_residual 5.93e-16
+ thd dbv -20 peak 0.069117914080 old 0.011775958 new_alternating 0.011743871 new_grouped 0.011685274 percent
+ thd dbv -6 peak 0.346410161520 old 0.291755193 new_alternating 0.290959977 new_grouped 0.289512897 percent
+stability sr44100 revised0 finite1 peak0.76480780724 tail0
+stability sr44100 revised1 finite1 peak0.763294213491 tail0
+stability sr48000 revised0 finite1 peak0.777502441455 tail0
+stability sr48000 revised1 finite1 peak0.776302960676 tail0
+stability sr88200 revised0 finite1 peak0.852090523054 tail0
+stability sr88200 revised1 finite1 peak0.851901788232 tail0
+stability sr96000 revised0 finite1 peak0.860208552696 tail0
+stability sr96000 revised1 finite1 peak0.860066967946 tail0
+stability sr192000 revised0 finite1 peak0.90932147934 tail0
+stability sr192000 revised1 finite1 peak0.90931517429 tail0
+core stereo revised0 CPU 0.337183% checksum 1.63165501465
+core stereo revised1 CPU 0.355560% checksum 1.62875017748
