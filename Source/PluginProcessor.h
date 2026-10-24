@@ -1359,6 +1359,12 @@ private:
     int previewHeldNotes = 0;                 // audio thread: live notes held (4.3)
     // ==== END FEAT-BROWSER ====
 
+    // Preserve requested host state independently of a rejected/inactive model target.
+    // Appended here to keep prior member offsets stable in native overlay checks.
+    std::array<bool, 323> referenceHostIntentRetained {};
+    std::array<bool, reference::ExtendedHostAutomationSnapshot::count> referenceExtendedHostIntentRetained {};
+    std::array<float, reference::ExtendedHostAutomationSnapshot::count> referenceExtendedModelMirror {};
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LuthierAudioProcessor)
 };
 
