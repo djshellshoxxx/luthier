@@ -72,7 +72,7 @@ done
 }
 HAVE_CLAP=0
 CLAP_STATUS="not included"
-if [ -e "$STAGE/$PRODUCT_NAME.clap" ]; then
+if [ -e "$STAGE/$PRODUCT_NAME.clap" ] || [ -L "$STAGE/$PRODUCT_NAME.clap" ]; then
     [ -s "$STAGE/$PRODUCT_NAME.clap" ] && [ -f "$STAGE/$PRODUCT_NAME.clap" ] || {
         echo "Empty or invalid staged CLAP" >&2; exit 1;
     }

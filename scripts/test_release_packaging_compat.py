@@ -114,6 +114,10 @@ class PackagingCompatibility(PackagingFixture):
         (stage / "luthier").chmod(0o755)
         (stage / "Resources/Presets/factory.json").unlink()
         self.package(success=False)
+        (stage / "Resources/Presets/factory.json").write_text("fixture")
+        (stage / "Luthier Pro.clap").unlink()
+        (stage / "Luthier Pro.clap").symlink_to(stage / "missing.clap")
+        self.package(success=False)
 
 
 class ChecksumCompatibility(PackagingFixture):
@@ -220,6 +224,8 @@ class ChecksumCompatibility(PackagingFixture):
         summary = self.dist / "manifest.txt"
         summary.write_text("Luthier 0.1.0 release manifest\n# sha256  bytes  file\n" + line[:64] + "  14  payload [x]+.zip\n")
         gpg("--armor", "--detach-sign", "--output", str(summary) + ".asc", str(summary))
+        self.verify(key=relative_key)
+        gpg("--armor", "--detach-sign", "--output", str(self.dist / "SHA256SUMS.asc"), str(self.dist / "SHA256SUMS"))
         self.verify(key=relative_key)
         summary.write_text(summary.read_text().replace("0.1.0", "0.1.1"))
         self.assertIn("does not verify", self.verify(success=False, key=relative_key).stdout)

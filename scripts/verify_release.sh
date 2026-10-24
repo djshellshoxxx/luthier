@@ -129,6 +129,9 @@ else
             bad "$manifest.asc is missing"
         fi
     done
+    if [ "$summary_valid" = 1 ] && [ -f manifest.txt.asc ] && ! contains manifest.txt.asc ${signatures[@]+"${signatures[@]}"}; then
+        signatures+=(manifest.txt.asc)
+    fi
     for signature in *.deb.asc *.rpm.asc *.tar.gz.asc; do signatures+=("$signature"); done
     for signature in ${signatures[@]+"${signatures[@]}"}; do
         gpg --homedir "$release_keyring" --batch --verify "$signature" "${signature%.asc}" >/dev/null 2>&1 && ok "$signature" || bad "$signature does not verify"
