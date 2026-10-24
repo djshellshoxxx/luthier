@@ -16,16 +16,40 @@ BoardEngine::BoardEngine (BoardModel& source) : model (source)
     prepare (48000, 4096);
     model.setCompiler ([this] (const auto& instances, const auto& settings, auto& info, auto& error, const BoardCommand* intent, bool hostEcho)
         { return publish (instances, settings, info, error, intent, hostEcho); });
+    model.setExtraCapture ([this] (std::vector<PedalInstance>& instances)
+    {
+        // Shared references are copied only on the message thread and pin each
+        // runtime even if a model's message-thread save callback reenters.
+        const auto pinned = latest ? latest->slots : decltype (latest->slots) {};
+        if (! latest)
+            for (auto& instance : instances)
+                for (size_t i = 0; i < releasedStored.size() && i < releasedCaptured.size(); ++i)
+                    if (instance.instanceId == releasedStored[i].instanceId && instance.modelId == releasedStored[i].modelId
+                        && juce::JSON::toString (instance.extras) == juce::JSON::toString (releasedStored[i].extras))
+                    { instance.extras = releasedCaptured[i].extras.clone(); break; }
+        for (auto& instance : instances)
+            for (const auto& runtime : pinned)
+                if (runtime && runtime->identity == instance.instanceId && runtime->model == instance.modelId)
+                {
+                    auto extra = instance.extras.clone(); runtime->pedal->saveExtra (extra);
+                    if (auto* target = instance.extras.getDynamicObject(); target && extra.getDynamicObject())
+                        for (const auto& property : extra.getDynamicObject()->getProperties()) target->setProperty (property.name, property.value.clone());
+                    else instance.extras = extra.clone();
+                    break;
+                }
+    });
 }
-BoardEngine::~BoardEngine() { model.setCompiler ({}); }
+BoardEngine::~BoardEngine() { model.setExtraCapture ({}); model.setCompiler ({}); }
 void BoardEngine::prepare (double sampleRate, int maxBlock)
 {
+    std::vector<PedalInstance> captured, instances; BoardSettings settings;
+    model.snapshot (captured, settings); model.snapshotStored (instances, settings);
     releaseResources();
     rate = std::isfinite (sampleRate) && sampleRate >= 8000 ? sampleRate : 48000;
     block = std::max (1, maxBlock);
     dipSamples = std::max (1, static_cast<int> (rate * 0.006));
     mixAlpha = 1.0 - std::exp (-1.0 / (0.020 * rate));
-    pool.prepare (rate, block);
+    pool.prepare (rate, block, captured);
     hostBoardSerials.fill (0); modelBoardSerials.fill (0);
     feedback.reset(); feedbackRearmSeen = feedbackKillSeen = 0; feedbackFault.store (false); feedbackTripped.store (false);
     paramPulses.clear(); numPendingPulses = 0; numRawMidi = numMidiOutput = 0;
@@ -36,13 +60,16 @@ void BoardEngine::prepare (double sampleRate, int maxBlock)
         for (auto& line : segment.lanes) line.prepare (kMaxLatencySamp);
         for (auto& loop : segment.loops) loop.prepare (kMaxLatencySamp);
     }
-    std::vector<PedalInstance> instances; BoardSettings settings;
-    model.snapshot (instances, settings);
     TopologyInfo info; juce::String error;
     publish (instances, settings, info, error);
 }
 void BoardEngine::releaseResources()
 {
+    if (latest)
+    {
+        BoardSettings ignored;
+        model.snapshotStored (releasedStored, ignored); model.snapshot (releasedCaptured, ignored);
+    }
     live.store (nullptr, std::memory_order_release);
     for (auto& segment : segments) { segment.current = segment.pending = nullptr; }
     retired.reclaimAll(); latest.reset();
