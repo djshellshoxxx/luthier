@@ -16,7 +16,7 @@ public:
     ~ControlledStore() override {unblock();directory.deleteRecursively();}
     bool putBlob(const AssetHash& h,const uint8_t* data,size_t n) override
     {
-        {std::unique_lock<std::mutex> lock(mutex);++puts;entered.notify_all();gate.wait(lock,[&]{return !blockWrites;});if(failWrites)return false;}
+        {std::unique_lock<std::mutex> lock(mutex);++puts;entered.notify_all();gate.wait(lock,[&]{return !blockWrites || permits>0;});if(blockWrites)--permits;if(failWrites)return false;}
         return real.putBlob(h,data,n);
     }
     bool hasBlob(const AssetHash& h) const override{return real.hasBlob(h);}
@@ -29,15 +29,17 @@ public:
     void getBlobAsync(const AssetHash& h,std::function<void(AssetBlob)> done) override{real.getBlobAsync(h,std::move(done));}
     std::vector<AssetHash> findMissing(const std::vector<AssetHash>& h) const override{return real.findMissing(h);}
     void unblock(){const std::lock_guard<std::mutex> lock(mutex);blockReads=blockWrites=false;gate.notify_all();}
+    void allowOneWrite(){const std::lock_guard<std::mutex> lock(mutex);++permits;gate.notify_all();}
+    bool waitForWrites(int count){std::unique_lock<std::mutex> lock(mutex);return entered.wait_for(lock,std::chrono::seconds(2),[&]{return puts>=count;});}
     bool waitForWrite(){std::unique_lock<std::mutex> lock(mutex);return entered.wait_for(lock,std::chrono::seconds(2),[&]{return puts>0;});}
     bool waitForBlockedRead(){std::unique_lock<std::mutex> lock(mutex);return entered.wait_for(lock,std::chrono::seconds(2),[&]{return blockedReads>0;});}
-    void setWriteGate(bool block,bool fail=false){const std::lock_guard<std::mutex> lock(mutex);blockWrites=block;failWrites=fail;puts=0;}
+    void setWriteGate(bool block,bool fail=false){const std::lock_guard<std::mutex> lock(mutex);blockWrites=block;failWrites=fail;puts=0;permits=0;}
     void setReadGate(const AssetHash& manifest){const std::lock_guard<std::mutex> lock(mutex);allowedRead=manifest;blockReads=true;}
     juce::File directory;AssetStore real;
 private:
     mutable std::mutex mutex;mutable std::condition_variable gate,entered;
     bool blockWrites=false,failWrites=false;mutable bool blockReads=false;
-    mutable int puts=0,blockedReads=0;AssetHash allowedRead;
+    int permits=0;mutable int puts=0,blockedReads=0;AssetHash allowedRead;
 };
 LooperStorage::Config smallConfig()
 {
@@ -189,4 +191,86 @@ LUTHIER_TEST(RefPedalLooperStorage, concurrentAtomicCaptureReportsCompleteGenera
         else valid=valid && capture.hash.isNull();
     }
     CHECK(valid);
+}
+LUTHIER_TEST(RefPedalLooperStorage, workerCompactsSparseLayerAndPersistsNewBase)
+{
+    ControlledStore store;LooperStorage base,layer;auto c=smallConfig();CHECK(base.prepare(store,c));CHECK(layer.prepare(store,c));
+    base.beginRecord();for(int i=0;i<128;++i)CHECK(base.append(.25,-.25));CHECK(base.finishRecord());AssetHash before;CHECK(base.manifest(before));
+    CHECK(layer.beginLayer(128));for(int i=24;i<40;++i)CHECK(layer.add(uint64_t(i),.125,-.125));CHECK(layer.finishRecord());AssetHash delta;CHECK(layer.manifest(delta));
+    store.setWriteGate(true);const auto token=base.mergeLayer(layer);CHECK(token!=0);CHECK(store.waitForWrite());
+    LooperStorage::Capture capture;CHECK(base.capture(capture));CHECK(capture.status==LooperStorage::CaptureStatus::Pending);CHECK(capture.hash.isNull());
+    CHECK(base.mergeLayer(layer)==0);CHECK(!layer.beginLayer(128));
+    store.unblock();CHECK(eventually([&]{return base.mergeComplete(token);}));CHECK(base.acknowledgeMerge(token));AssetHash after;CHECK(base.manifest(after));CHECK(after!=before);
+    LooperStorage restored;CHECK(restored.prepare(store,c));CHECK(restored.restore(after));
+    for(uint64_t i=0;i<128;++i)
+    {
+        double l=0,r=0;uint64_t version=0;CHECK(eventually([&]{return base.read(i,l,r,&version,true);}));CHECK(base.mergedAt(i,version,token));
+        CHECK_NEAR(l,i>=24&&i<40?.375:.25,0);CHECK_NEAR(r,-l,0);
+        CHECK(eventually([&]{return restored.read(i,l,r);}));CHECK_NEAR(l,i>=24&&i<40?.375:.25,0);CHECK_NEAR(r,-l,0);
+    }
+    CHECK(layer.beginLayer(128));
+}
+LUTHIER_TEST(RefPedalLooperStorage, compactionCancelCannotOverwriteNewRecording)
+{
+    ControlledStore store;LooperStorage base,layer;auto c=smallConfig();CHECK(base.prepare(store,c));CHECK(layer.prepare(store,c));
+    base.beginRecord();for(int i=0;i<32;++i)CHECK(base.append(.25,-.25));base.finishRecord();AssetHash hash;CHECK(base.manifest(hash));
+    CHECK(layer.beginLayer(32));CHECK(layer.add(0,.125,-.125));layer.finishRecord();CHECK(layer.manifest(hash));
+    store.setWriteGate(true);const auto token=base.mergeLayer(layer);CHECK(token!=0);CHECK(store.waitForWrite());
+    base.beginRecord();for(int i=0;i<16;++i)CHECK(base.append(.5,-.5));CHECK(base.finishRecord());
+    store.unblock();CHECK(base.manifest(hash));CHECK(!base.mergeComplete(token));CHECK(base.length()==16);
+    double l=0,r=0;uint64_t version=0;CHECK(eventually([&]{return base.read(0,l,r,&version);}));CHECK_NEAR(l,.5,0);CHECK_NEAR(r,-.5,0);CHECK(!base.mergedAt(0,version,token));
+}
+
+LUTHIER_TEST(RefPedalLooperStorage, compactionRevisionHandoffDoesNotDoubleCountRetiredAudio)
+{
+    ControlledStore store;LooperStorage recorded,base,layer;auto c=smallConfig();CHECK(recorded.prepare(store,c));CHECK(base.prepare(store,c));CHECK(layer.prepare(store,c));
+    recorded.beginRecord();for(int i=0;i<128;++i)recorded.append(.25,-.25);recorded.finishRecord();AssetHash hash;CHECK(recorded.manifest(hash));CHECK(base.restore(hash));
+    double l=0,r=0;uint64_t version=0;CHECK(eventually([&]{return base.read(0,l,r,&version);}));CHECK(version==1);
+    CHECK(layer.beginLayer(128));for(int i=0;i<128;++i)CHECK(layer.add(uint64_t(i),.125,-.125));layer.finishRecord();CHECK(layer.manifest(hash));
+    store.setWriteGate(true);
+#if LUTHIER_ALLOCATION_COUNTER
+    const auto before=luthier::tests::allocationsOnThisThread();
+#endif
+    const auto token=base.mergeLayer(layer);
+#if LUTHIER_ALLOCATION_COUNTER
+    const auto allocations=luthier::tests::allocationsOnThisThread()-before;CHECK(allocations==0);
+#endif
+    CHECK(token!=0);CHECK(store.waitForWrite());store.allowOneWrite();CHECK(store.waitForWrites(2));
+    CHECK(base.read(0,l,r,&version,true));CHECK(version==1);CHECK(!base.mergedAt(0,version,token));CHECK_NEAR(l+.125,.375,0);
+    store.unblock();CHECK(eventually([&]{return base.mergeComplete(token);}));
+    CHECK(eventually([&]{return base.read(0,l,r,&version,false);}));CHECK(version==2);CHECK(base.acknowledgeMerge(token));CHECK(base.mergedAt(0,version,token));CHECK_NEAR(l,.375,0);
+    CHECK(layer.beginLayer(128));CHECK(layer.add(0,.0625,-.0625));layer.finishRecord();CHECK(layer.manifest(hash));
+    const auto second=base.mergeLayer(layer);CHECK(second!=0);CHECK(eventually([&]{return base.mergeComplete(second);}));CHECK(base.acknowledgeMerge(second));
+    CHECK(eventually([&]{return base.read(0,l,r,&version,true);}));CHECK(version==3);CHECK(base.mergedAt(0,version,second));CHECK_NEAR(l,.4375,0);
+}
+LUTHIER_TEST(RefPedalLooperStorage, compactionSourceLifetimeIsHeldUntilWorkerFinishes)
+{
+    ControlledStore store;LooperStorage base;auto layer=std::make_unique<LooperStorage>();auto c=smallConfig();CHECK(base.prepare(store,c));CHECK(layer->prepare(store,c));
+    base.beginRecord();for(int i=0;i<32;++i)base.append(.25,-.25);base.finishRecord();AssetHash hash;CHECK(base.manifest(hash));
+    CHECK(layer->beginLayer(32));CHECK(layer->add(0,.125,-.125));layer->finishRecord();CHECK(layer->manifest(hash));
+    store.setWriteGate(true);const auto token=base.mergeLayer(*layer);CHECK(token!=0);CHECK(store.waitForWrite());
+    std::atomic<bool> entered{false},destroyed{false};std::thread destroy([&]{entered=true;layer.reset();destroyed=true;});
+    CHECK(eventually([&]{return entered.load();}));CHECK(!destroyed.load());store.unblock();destroy.join();CHECK(destroyed.load());
+    CHECK(eventually([&]{return base.mergeComplete(token);}));CHECK(base.acknowledgeMerge(token));double l=0,r=0;CHECK(eventually([&]{return base.read(0,l,r);}));CHECK_NEAR(l,.375,0);
+}
+LUTHIER_TEST(RefPedalLooperStorage, repeatedWorkerCompactionKeepsLongRunOverdubs)
+{
+    ControlledStore store;LooperStorage base,layer;auto c=smallConfig();CHECK(base.prepare(store,c));CHECK(layer.prepare(store,c));
+    CHECK(base.beginLayer(128));base.finishRecord();AssetHash hash;CHECK(base.manifest(hash));std::array<double,128> expected{};
+    for(int pass=0;pass<100;++pass)
+    {
+        CHECK(layer.beginLayer(128));const auto at=uint64_t((pass*31)%128);CHECK(layer.add(at,.00390625,-.00390625));expected[size_t(at)]+=.00390625;
+        CHECK(layer.finishRecord());CHECK(layer.manifest(hash));const auto token=base.mergeLayer(layer);CHECK(token!=0);CHECK(eventually([&]{return base.mergeComplete(token);}));CHECK(base.acknowledgeMerge(token));
+    }
+    CHECK(base.manifest(hash));LooperStorage restored;CHECK(restored.prepare(store,c));CHECK(restored.restore(hash));
+    for(uint64_t i=0;i<128;++i){double l=0,r=0;CHECK(eventually([&]{return restored.read(i,l,r);}));CHECK_NEAR(l,expected[size_t(i)],0);CHECK_NEAR(r,-l,0);}
+}
+LUTHIER_TEST(RefPedalLooperStorage, failedCompactionIsExplicitAndDoesNotClaimOldHashIsLatest)
+{
+    ControlledStore store;LooperStorage base,layer;auto c=smallConfig();CHECK(base.prepare(store,c));CHECK(layer.prepare(store,c));
+    base.beginRecord();for(int i=0;i<32;++i)base.append(.25,-.25);base.finishRecord();AssetHash before;CHECK(base.manifest(before));
+    CHECK(layer.beginLayer(32));CHECK(layer.add(0,.125,-.125));layer.finishRecord();AssetHash hash;CHECK(layer.manifest(hash));
+    store.setWriteGate(false,true);const auto token=base.mergeLayer(layer);CHECK(token!=0);LooperStorage::Capture capture;
+    CHECK(eventually([&]{return base.capture(capture)&&capture.status==LooperStorage::CaptureStatus::Failed;}));CHECK(capture.hash.isNull());CHECK(!base.mergeComplete(token));
+    hash=before;CHECK(!base.manifest(hash));CHECK(hash==before);
 }

@@ -43,11 +43,11 @@ struct LooperStorage::Impl
     struct Entry
     {
         AtomicHash hash;
-        std::atomic<uint64_t> ready{0},desired{0};
+        std::atomic<uint64_t> ready{0},desired{0},mergedToken{0},mergedVersion{0};
         uint64_t residentEpoch=0;int resident=-1; // audio owner only
     };
-    enum class Kind {Write,Read,Manifest,Barrier};
-    struct Job {Kind kind;uint64_t epoch,index,token,frames;int buffer;uint64_t version;};
+    enum class Kind {Write,Read,Manifest,Barrier,Merge};
+    struct Job {Kind kind;uint64_t epoch,index,token,frames;int buffer;uint64_t version;Impl* source;};
     std::unique_ptr<Page[]> writes,reads;
     std::unique_ptr<Entry[]> entries;
     size_t maxPages=0,bytesReserved=0;
@@ -57,6 +57,9 @@ struct LooperStorage::Impl
     AtomicHash manifestHash;
     std::atomic<uint32_t> flags{0};
     std::atomic<bool> stopping{false};
+    std::atomic<uint64_t> mergeBusy{0},mergeDone{0},mergeGeneration{0};
+    std::atomic<uint32_t> borrowers{0};
+    Impl* mergeSource=nullptr;uint64_t mergeSourceEpoch=0,mergeEpoch=0,mergeToken=0,mergeIndex=0;
     bool recording=false,sparse=false,finalized=false;int writeBuffer=-1;uint64_t writeIndex=0,nextToken=0;
     std::mutex mutex;std::condition_variable wake,done;
     std::thread worker;
@@ -67,11 +70,26 @@ struct LooperStorage::Impl
         writes=std::make_unique<Page[]>(size_t(config.writePages));reads=std::make_unique<Page[]>(size_t(config.readPages)*2);
         for(int i=0;i<config.writePages;++i)writes[i].pcm.resize(size_t(config.pageFrames)*size_t(config.channels));
         for(int i=0;i<config.readPages*2;++i)reads[i].pcm.resize(size_t(config.pageFrames)*size_t(config.channels));
-        bytesReserved=sizeof(Impl)+maxPages*sizeof(Entry)+size_t(config.writePages+config.readPages*2)*(sizeof(Page)+size_t(config.pageFrames)*size_t(config.channels)*sizeof(float))+maxPages*32+size_t(config.pageFrames)*size_t(config.channels)*12+65536;
+        bytesReserved=sizeof(Impl)+maxPages*sizeof(Entry)+size_t(config.writePages+config.readPages*2)*(sizeof(Page)+size_t(config.pageFrames)*size_t(config.channels)*sizeof(float))+maxPages*32+size_t(config.pageFrames)*size_t(config.channels)*20+65536;
         diskReserved=config.maxFrames*uint64_t(config.channels)*4+uint64_t(maxPages)*20+uint64_t(maxPages)*32+40;
         worker=std::thread([this]{run();});
     }
-    ~Impl(){stopping=true;wake.notify_one();worker.join();}
+    ~Impl()
+    {
+        stopping=true;wake.notify_one();worker.join();
+        std::unique_lock<std::mutex> lock(mutex);done.wait(lock,[this]{return borrowers.load(std::memory_order_acquire)==0;});
+    }
+    void releaseBorrower()
+    {
+        const std::lock_guard<std::mutex> lock(mutex);
+        borrowers.fetch_sub(1,std::memory_order_acq_rel);done.notify_all();
+    }
+    void releaseSource()
+    {
+        if(!mergeSource)return;
+        auto* source=mergeSource;mergeSource=nullptr;
+        source->releaseBorrower();
+    }
     bool push(Job job) noexcept
     {return jobs.push(job);}
     void run()
@@ -80,7 +98,8 @@ struct LooperStorage::Impl
         {
             Job job;
             if(jobs.pop(job)){try{work(job);}catch(...){if(job.epoch==epoch.load())flags.fetch_or(ioFailure);if(job.kind==Kind::Write)writes[job.buffer].tag.store(0,std::memory_order_release);notifyDone();}continue;}
-            if(stopping.load())return;
+            if(stopping.load()){releaseSource();return;}
+            if(mergeSource){try{mergeStep();}catch(...){if(mergeEpoch==epoch.load())flags.fetch_or(ioFailure);mergeBusy=0;releaseSource();notifyDone();}continue;}
             std::unique_lock<std::mutex> lock(mutex);wake.wait_for(lock,std::chrono::milliseconds(1));
         }
     }
@@ -103,6 +122,12 @@ struct LooperStorage::Impl
     }
     void work(const Job& job)
     {
+        if(job.kind==Kind::Merge)
+        {
+            if(job.epoch!=epoch.load(std::memory_order_acquire) || stopping.load())
+            {job.source->releaseBorrower();mergeBusy=0;return;}
+            mergeSource=job.source;mergeSourceEpoch=job.version;mergeEpoch=job.epoch;mergeToken=job.token;mergeIndex=0;return;
+        }
         if(job.kind==Kind::Barrier){barrierReady.store(job.token,std::memory_order_release);notifyDone();return;}
         if(job.epoch!=epoch.load(std::memory_order_acquire))
         {if(job.kind==Kind::Write)writes[job.buffer].tag.store(0,std::memory_order_release);return;}
@@ -157,6 +182,47 @@ struct LooperStorage::Impl
             notifyDone();
         }
     }
+    bool decodePage(Impl& owner,uint64_t index,uint64_t current,std::vector<float>& samples)
+    {
+        const auto count=std::min(uint64_t(config.pageFrames),frames.load()-index*uint64_t(config.pageFrames));
+        samples.assign(size_t(count)*size_t(config.channels),0.f);
+        const auto wanted=owner.entries[index].desired.load(std::memory_order_acquire);
+        if(stateEpoch(wanted)!=current)return true;
+        if(owner.entries[index].ready.load(std::memory_order_acquire)!=wanted)return false;
+        const auto bytes=owner.readAsset(owner.entries[index].hash.load(),20+samples.size()*4);
+        size_t at=0;uint64_t magic=0,ch=0,rate=0,n=0;
+        if(!number(bytes,at,magic,4) || magic!=0x3150434c || !number(bytes,at,ch,4) || ch!=uint64_t(config.channels)
+           || !number(bytes,at,rate,4) || rate!=uint64_t(config.sampleRate) || !number(bytes,at,n,8) || n!=count || at+samples.size()*4!=bytes.size())return false;
+        for(auto& sample:samples){uint64_t bits=0;number(bytes,at,bits,4);const auto word=uint32_t(bits);std::memcpy(&sample,&word,4);if(!std::isfinite(sample))return false;}
+        return true;
+    }
+    void mergeStep()
+    {
+        if(epoch.load(std::memory_order_acquire)!=mergeEpoch || mergeSource->epoch.load(std::memory_order_acquire)!=mergeSourceEpoch)
+        {mergeBusy=0;releaseSource();notifyDone();return;}
+        const auto count=(frames.load()+uint64_t(config.pageFrames)-1)/uint64_t(config.pageFrames);
+        if(mergeIndex==count)
+        {
+            work({Kind::Manifest,mergeEpoch,0,0,frames.load(),0,0,nullptr});
+            const bool ok=manifestReady.load(std::memory_order_acquire)==mergeEpoch && !(flags.load()&ioFailure);
+            const auto token=mergeToken;releaseSource();if(ok)mergeDone.store(token,std::memory_order_release);else mergeBusy=0;notifyDone();return;
+        }
+        std::vector<float> base,layer;
+        if(!decodePage(*this,mergeIndex,mergeEpoch,base) || !decodePage(*mergeSource,mergeIndex,mergeSourceEpoch,layer))
+        {if(mergeEpoch==epoch.load())flags.fetch_or(ioFailure);mergeBusy=0;releaseSource();notifyDone();return;}
+        std::vector<uint8_t> bytes;bytes.reserve(20+base.size()*4);
+        integer(bytes,0x3150434c,4);integer(bytes,uint64_t(config.channels),4);integer(bytes,uint64_t(config.sampleRate),4);integer(bytes,base.size()/size_t(config.channels),8);
+        for(size_t i=0;i<base.size();++i){const float sample=float(double(base[i])+double(layer[i]));if(!std::isfinite(sample)){if(mergeEpoch==epoch.load())flags.fetch_or(ioFailure);mergeBusy=0;releaseSource();notifyDone();return;}uint32_t word;std::memcpy(&word,&sample,4);integer(bytes,word,4);}
+        const auto hash=AssetStore::hashBlob(bytes.data(),bytes.size());
+        if(!store.putBlob(hash,bytes.data(),bytes.size())){if(mergeEpoch==epoch.load())flags.fetch_or(ioFailure);mergeBusy=0;releaseSource();notifyDone();return;}
+        auto& entry=entries[mergeIndex];auto before=entry.desired.load(std::memory_order_acquire);
+        if(epoch.load(std::memory_order_acquire)!=mergeEpoch){mergeBusy=0;releaseSource();notifyDone();return;}
+        const auto version=stateEpoch(before)==mergeEpoch?stateVersion(before)+1:1;
+        entry.ready=0;entry.hash.store(hash);entry.ready.store(state(mergeEpoch,version),std::memory_order_release);
+        entry.mergedVersion.store(version,std::memory_order_relaxed);entry.mergedToken.store(mergeToken,std::memory_order_release);
+        entry.desired.compare_exchange_strong(before,state(mergeEpoch,version),std::memory_order_release);
+        ++mergeIndex;
+    }
     int freeWrite() noexcept
     {for(int i=0;i<config.writePages;++i)if(writes[i].tag.load(std::memory_order_acquire)==0)return i;return -1;}
     bool flush() noexcept
@@ -164,22 +230,24 @@ struct LooperStorage::Impl
         if(writeBuffer<0)return true;
         auto& page=writes[writeBuffer];
         page.tag.store(1,std::memory_order_release);
-        if(!push({Kind::Write,page.epoch,page.index,0,uint64_t(page.frames),writeBuffer,page.version}))
+        if(!push({Kind::Write,page.epoch,page.index,0,uint64_t(page.frames),writeBuffer,page.version,nullptr}))
         {page.tag.store(0,std::memory_order_release);flags.fetch_or(writeOverrun);return false;}
         writeBuffer=-1;return true;
     }
     Page* cached(uint64_t pageIndex,uint64_t version,bool stale=false) noexcept
     {
         const auto current=epoch.load(std::memory_order_relaxed);auto& entry=entries[pageIndex];Page* found=nullptr;
+        const auto token=mergeBusy.load(std::memory_order_acquire);
+        stale=stale && token && entry.mergedToken.load(std::memory_order_acquire)==token && entry.mergedVersion.load(std::memory_order_acquire)==version;
         if(entry.residentEpoch==current && entry.resident>=0)
         {
             auto& page=writes[entry.resident];
-            if(page.epoch==current && page.index==pageIndex && (page.version==version || (stale && page.version<version)))found=&page;
+            if(page.epoch==current && page.index==pageIndex && (page.version==version || (stale && page.version+1==version)))found=&page;
         }
         for(int way=0;way<2;++way)
         {
             auto& page=reads[(pageIndex%uint64_t(config.readPages))*2+uint64_t(way)];
-            if(page.epoch==current && page.index==pageIndex && (page.version==version || (stale && page.version<version))
+            if(page.epoch==current && page.index==pageIndex && (page.version==version || (stale && page.version+1==version))
                 && page.tag.load(std::memory_order_acquire)==((page.token<<2)|2) && (!found || page.version>found->version))found=&page;
         }
         return found;
@@ -198,7 +266,7 @@ struct LooperStorage::Impl
         page.epoch=current;page.index=pageIndex;page.token=++nextToken;page.version=version;
         page.frames=int(std::min(uint64_t(config.pageFrames),frames.load()-pageIndex*uint64_t(config.pageFrames)));
         page.tag.store((page.token<<2)|1,std::memory_order_release);
-        if(!push({Kind::Read,current,pageIndex,page.token,frames.load(),int(slot),version}))page.tag.store(0,std::memory_order_release);
+        if(!push({Kind::Read,current,pageIndex,page.token,frames.load(),int(slot),version,nullptr}))page.tag.store(0,std::memory_order_release);
     }
 };
 LooperStorage::LooperStorage()=default;LooperStorage::~LooperStorage()=default;
@@ -209,7 +277,7 @@ bool LooperStorage::prepare(IAssetStore& store,const Config& config)
         || config.readPages<2 || config.readPages>24 || config.readAhead<0 || config.readAhead>=config.readPages || !config.maxFrames
         || config.maxFrames>uint64_t(192000)*5400)return false;
     const auto pages=(config.maxFrames+uint64_t(config.pageFrames)-1)/uint64_t(config.pageFrames);
-    const auto ram=sizeof(Impl)+pages*sizeof(Impl::Entry)+uint64_t(config.writePages+config.readPages*2)*(sizeof(Impl::Page)+uint64_t(config.pageFrames)*uint64_t(config.channels)*4)+pages*32+uint64_t(config.pageFrames)*uint64_t(config.channels)*12+65536;
+    const auto ram=sizeof(Impl)+pages*sizeof(Impl::Entry)+uint64_t(config.writePages+config.readPages*2)*(sizeof(Impl::Page)+uint64_t(config.pageFrames)*uint64_t(config.channels)*4)+pages*32+uint64_t(config.pageFrames)*uint64_t(config.channels)*20+65536;
     const auto disk=config.maxFrames*uint64_t(config.channels)*4+pages*52+40;
     if(ram>config.ramBudget || disk>config.storageBudget)return false;
     try{auto next=std::make_unique<Impl>(store,config);impl=std::move(next);return true;}catch(const std::exception&){return false;}
@@ -220,6 +288,9 @@ uint64_t LooperStorage::reservedStorageBytes() const noexcept{return impl?impl->
 void LooperStorage::beginRecord() noexcept
 {
     if(!impl)return;
+    if(impl->borrowers.load(std::memory_order_acquire)){impl->flags.fetch_or(writeOverrun);return;}
+    const auto completed=impl->mergeDone.load(std::memory_order_acquire);
+    auto busy=impl->mergeBusy.load(std::memory_order_acquire);if(busy && busy==completed)impl->mergeBusy.compare_exchange_strong(busy,0,std::memory_order_acq_rel);
     ++impl->epoch;impl->frames=0;impl->flags=0;impl->recording=true;impl->sparse=false;impl->finalized=false;impl->writeBuffer=-1;impl->writeIndex=0;impl->phase.store(state(impl->epoch.load(),1),std::memory_order_release);
 }
 bool LooperStorage::append(double left,double right) noexcept
@@ -245,6 +316,7 @@ bool LooperStorage::append(double left,double right) noexcept
 bool LooperStorage::beginLayer(uint64_t frames) noexcept
 {
     if(!impl || !frames || frames>impl->config.maxFrames)return false;
+    if(impl->borrowers.load(std::memory_order_acquire))return false;
     beginRecord();impl->sparse=true;impl->frames=frames;return true;
 }
 bool LooperStorage::canAdd(uint64_t frame) const noexcept
@@ -287,7 +359,7 @@ bool LooperStorage::finishRecord() noexcept
     auto& p=*impl;p.recording=false;
     if(!p.flush())return false;
     if(!p.frames.load()){p.finalized=true;p.phase.store(state(p.epoch.load(),0),std::memory_order_release);return true;}
-    if(!p.push({Impl::Kind::Manifest,p.epoch.load(),0,0,p.frames.load(),0,0})){p.flags.fetch_or(writeOverrun);return false;}
+    if(!p.push({Impl::Kind::Manifest,p.epoch.load(),0,0,p.frames.load(),0,0,nullptr})){p.flags.fetch_or(writeOverrun);return false;}
     p.finalized=true;p.phase.store(state(p.epoch.load(),2),std::memory_order_release);return true;
 }
 void LooperStorage::prefetch(uint64_t frame) noexcept
@@ -317,6 +389,31 @@ bool LooperStorage::read(uint64_t frame,double& left,double& right,uint64_t* act
     }
     p.flags.fetch_or(readUnderrun);prefetch(frame);return false;
 }
+uint64_t LooperStorage::mergeLayer(LooperStorage& layer) noexcept
+{
+    if(!impl || !layer.impl || impl.get()==layer.impl.get())return 0;
+    auto& p=*impl;auto& source=*layer.impl;Capture base,delta;
+    if(!capture(base) || !layer.capture(delta) || base.status!=CaptureStatus::Ready || delta.status!=CaptureStatus::Ready
+       || base.frames!=delta.frames || p.config.channels!=source.config.channels || p.config.sampleRate!=source.config.sampleRate || p.config.pageFrames!=source.config.pageFrames
+       || p.mergeBusy.load() || p.borrowers.load())return 0;
+    const auto token=++p.nextToken;source.borrowers.fetch_add(1,std::memory_order_acq_rel);p.mergeGeneration.store(base.generation,std::memory_order_relaxed);p.mergeBusy.store(token,std::memory_order_release);
+    if(!p.push({Impl::Kind::Merge,base.generation,0,token,base.frames,0,delta.generation,&source}))
+    {p.mergeBusy=0;source.borrowers.fetch_sub(1,std::memory_order_acq_rel);return 0;}
+    return token;
+}
+bool LooperStorage::mergeComplete(uint64_t token) const noexcept
+{return impl && token && impl->mergeGeneration.load(std::memory_order_acquire)==impl->epoch.load(std::memory_order_acquire) && impl->mergeDone.load(std::memory_order_acquire)==token;}
+bool LooperStorage::acknowledgeMerge(uint64_t token) noexcept
+{
+    if(!mergeComplete(token))return false;
+    auto expected=token;return impl->mergeBusy.compare_exchange_strong(expected,0,std::memory_order_acq_rel);
+}
+bool LooperStorage::mergedAt(uint64_t frame,uint64_t actualVersion,uint64_t token) const noexcept
+{
+    if(!impl || !token || frame>=impl->frames.load() || impl->mergeGeneration.load()!=impl->epoch.load())return false;
+    const auto& entry=impl->entries[frame/uint64_t(impl->config.pageFrames)];
+    return entry.mergedToken.load(std::memory_order_acquire)==token && actualVersion>=entry.mergedVersion.load(std::memory_order_relaxed);
+}
 uint64_t LooperStorage::length() const noexcept{return impl?impl->frames.load():0;}
 uint32_t LooperStorage::errors() const noexcept{return impl?impl->flags.load():invalidAsset;}
 bool LooperStorage::capture(Capture& out) const noexcept
@@ -333,7 +430,7 @@ bool LooperStorage::capture(Capture& out) const noexcept
         if(next.faults&ioFailure)next.status=CaptureStatus::Failed;
         else if(stateVersion(phase)==1)next.status=CaptureStatus::Recording;
         else if(!next.frames)next.status=CaptureStatus::Empty;
-        else if(ready==epoch){next.status=CaptureStatus::Ready;next.hash=p.manifestHash.load();}
+        else if(ready==epoch && !p.mergeBusy.load(std::memory_order_acquire)){next.status=CaptureStatus::Ready;next.hash=p.manifestHash.load();}
         else next.status=CaptureStatus::Pending;
         std::atomic_thread_fence(std::memory_order_acquire);
         if(p.hashSequence.load(std::memory_order_relaxed)!=sequence || p.epoch.load(std::memory_order_acquire)!=epoch
@@ -347,13 +444,12 @@ bool LooperStorage::manifest(AssetHash& hash,int timeoutMs) const
     if(!impl)return false;
     auto& p=*impl;const auto epoch=p.epoch.load();
     std::unique_lock<std::mutex> lock(p.mutex);
-    p.done.wait_for(lock,std::chrono::milliseconds(std::clamp(timeoutMs,0,5000)),[&]{return p.manifestReady.load()==epoch || (p.flags.load()&ioFailure)!=0;});
-    if(p.manifestReady.load(std::memory_order_acquire)!=epoch)return false;
-    const auto next=p.manifestHash.load();if(p.manifestReady.load()!=epoch || p.epoch.load()!=epoch)return false;hash=next;return true;
+    p.done.wait_for(lock,std::chrono::milliseconds(std::clamp(timeoutMs,0,5000)),[&]{return (p.manifestReady.load()==epoch && !p.mergeBusy.load()) || (p.flags.load()&ioFailure)!=0;});
+    Capture next;if(!capture(next) || next.generation!=epoch || next.status!=CaptureStatus::Ready)return false;hash=next.hash;return true;
 }
 bool LooperStorage::restore(const AssetHash& hash)
 {
-    if(!impl)return false;
+    if(!impl || impl->borrowers.load(std::memory_order_acquire) || impl->mergeBusy.load(std::memory_order_acquire))return false;
     auto& p=*impl;const auto bytes=p.readAsset(hash,32+p.maxPages*32);size_t at=0;
     uint64_t magic=0,version=0,channels=0,rate=0,pageFrames=0,frames=0,count=0;
     if(!number(bytes,at,magic,4) || magic!=0x314d434c || !number(bytes,at,version,4) || version!=1
@@ -363,7 +459,7 @@ bool LooperStorage::restore(const AssetHash& hash)
     // The producer transfers from stopped audio to this message-thread call.
     // Drain old jobs before reusing metadata/caches; a timeout changes no loop.
     const auto token=++p.nextToken;
-    if(!p.push({Impl::Kind::Barrier,p.epoch.load(),0,token,0,0,0}))return false;
+    if(!p.push({Impl::Kind::Barrier,p.epoch.load(),0,token,0,0,0,nullptr}))return false;
     {std::unique_lock<std::mutex> lock(p.mutex);if(!p.done.wait_for(lock,std::chrono::milliseconds(1000),[&]{return p.barrierReady.load(std::memory_order_acquire)==token;}))return false;}
     const auto epoch=++p.epoch;
     for(int i=0;i<p.config.readPages*2;++i)p.reads[i].tag=0;
