@@ -143,3 +143,45 @@ LUTHIER_TEST (RefPedalHost, hostPersistenceEchoDoesNotCreateUndo)
     CHECK_NEAR (model.getInstance (model.getOrder()[0])->params[0], .8f, 1e-6); CHECK (! model.canUndo());
     p->releaseResources();
 }
+
+LUTHIER_TEST (RefPedalHost, appendedAuxBusesPreserveLayoutAndRenderSlicedSends)
+{
+    PedalRegistry::TestScope scope; CHECK (PedalRegistry::add (probeDesc, makeHostProbe));
+    auto p = std::make_unique<LuthierAudioProcessor>();
+    const int first = p->getBusCount (false) - 3;
+    CHECK (p->getBus (false, first)->getName() == "Pedal B");
+    CHECK (p->getBus (false, first + 1)->getName() == "Wet only");
+    CHECK (p->getBus (false, first + 2)->getName() == "Dry only");
+    auto layout = p->getBusesLayout();
+    for (int i = 0; i < 3; ++i) { CHECK (layout.outputBuses[first + i].isDisabled()); layout.outputBuses.set (first + i, juce::AudioChannelSet::stereo()); }
+    CHECK (p->setBusesLayout (layout));
+    auto& model = p->getEngine().getReferencePedals().model();
+    CHECK (model.apply (cmd::Add { "test.host-automation" })); CHECK (model.apply (cmd::SetBoardEnabled { true }));
+    p->prepareToPlay (48000, 37);
+    juce::AudioBuffer<float> audio (p->getTotalNumOutputChannels(), 81); juce::MidiBuffer midi;
+    audio.clear(); p->processBlock (audio, midi);
+    auto wet = p->getBusBuffer (audio, false, first + 1);
+    bool signal = false, finite = true;
+    for (int i = 0; i < wet.getNumSamples(); ++i) { signal |= std::abs (wet.getSample (0, i)) > .01f; finite &= std::isfinite (wet.getSample (0, i)); }
+    CHECK (signal); CHECK (finite);
+    CHECK (model.apply (cmd::SetBoardEnabled { false }));
+    audio.clear(); p->processBlock (audio, midi);
+    for (int bus = first; bus < first + 3; ++bus)
+    { auto out = p->getBusBuffer (audio, false, bus); CHECK (out.getMagnitude (0, out.getNumSamples()) == 0.f); }
+    p->releaseResources();
+}
+
+#include "../Routing/MidiOutRouter.h"
+LUTHIER_TEST (RefPedalHost, outputRouterBoundsCombinedSources)
+{
+    luthier::MidiOutRouter router; router.prepare (48000, 64);
+    juce::MidiBuffer input, output; output.ensureSize (2048);
+    for (int i = 0; i < 400; ++i) input.addEvent (juce::MidiMessage::controllerEvent (1, 20, i % 128), i % 64);
+    router.captureInput (input);
+    luthier::MidiOutConfig config; config.enabled = true; config.passThrough = true;
+    luthier::StringActivityQueue activity;
+    const auto before = luthier::tests::allocationsOnThisThread();
+    router.emitBounded (output, config, activity, 64, 2048);
+    const auto after = luthier::tests::allocationsOnThisThread();
+    CHECK (before == after); CHECK (output.data.size() <= 2048); CHECK (! output.isEmpty()); CHECK (router.getOverflowCount() > 0);
+}

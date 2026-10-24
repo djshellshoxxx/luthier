@@ -317,3 +317,28 @@ LUTHIER_TEST (RefPedalMidiCore, customPchipPreservesMonotoneShape)
     CHECK (evalCurve (lut, 0) == 0); CHECK (evalCurve (lut, 1) == 1);
     points[2].y = .1f; CHECK (! validPoints (points)); CHECK (validPoints (points, true));
 }
+
+#include "../Support/HostMidiCapacity.h"
+#include "../Support/BoundedMidi.h"
+LUTHIER_TEST (RefPedalMidiCore, externalMidiCapacityIsExplicitAndBounded)
+{
+    luthier::HostMidiCapacity capacity; juce::MidiBuffer dest, source;
+    CHECK (capacity.lowerBound (dest, luthier::MidiCapacityContract::Unknown) == 0);
+    for (int i = 0; i < 100; ++i) source.addEvent (juce::MidiMessage::noteOn (1, 60, (juce::uint8) 100), i);
+    source.addEvent (juce::MidiMessage::noteOff (1, 60), 101);
+    capacity.reserveExternal (dest, 256);
+    const auto* storage = dest.data.getRawDataPointer();
+    const int bytes = capacity.lowerBound (dest, luthier::MidiCapacityContract::Unknown);
+    int dropped = 0;
+    const auto before = luthier::tests::allocationsOnThisThread();
+    dropped = luthier::BoundedMidi::addEvents (dest, bytes, source, 0, -1, 0);
+    const auto after = luthier::tests::allocationsOnThisThread(); CHECK (before == after);
+    CHECK (dropped > 0); CHECK (dest.data.size() <= 256); CHECK (storage == dest.data.getRawDataPointer());
+    bool release = false; for (const auto event : dest) release |= event.getMessage().isNoteOff(); CHECK (release);
+    luthier::HostMidiCapacity unknown; CHECK (unknown.lowerBound (dest, luthier::MidiCapacityContract::Unknown) == dest.data.size()); dest.clear();
+    CHECK (capacity.lowerBound (dest, luthier::MidiCapacityContract::Unknown) == 256);
+    juce::MidiBuffer replacement; dest.swapWith (replacement);
+    CHECK (capacity.lowerBound (dest, luthier::MidiCapacityContract::Unknown) == 0);
+    CHECK (capacity.lowerBound (replacement, luthier::MidiCapacityContract::Unknown) == 0);
+    CHECK (capacity.lowerBound (dest, luthier::MidiCapacityContract::JuceWrapper) == 2048);
+}

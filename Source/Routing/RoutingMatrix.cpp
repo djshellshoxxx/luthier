@@ -338,6 +338,9 @@ void RoutingMatrix::distribute (juce::AudioProcessor& processor,
         {
             const auto& name = declared->getName();
 
+            // Reference board owns these appended, already cleared output buses.
+            if (name == "Pedal B" || name == "Wet only" || name == "Dry only") continue;
+
             if (name.startsWith ("String "))
                 stringIndex = name.getTrailingIntValue() - 1;
             else

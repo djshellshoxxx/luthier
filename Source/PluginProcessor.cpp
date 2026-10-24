@@ -66,6 +66,9 @@ juce::AudioProcessor::BusesProperties LuthierAudioProcessor::buildBusesPropertie
     props = props.withOutput (getAuxBusName (kJamDrumsAux), juce::AudioChannelSet::stereo(), false);
     props = props.withOutput (getAuxBusName (kJamBassAux), juce::AudioChannelSet::stereo(), false);
 
+    for (const auto* name : { "Pedal B", "Wet only", "Dry only" })
+        props = props.withOutput (name, juce::AudioChannelSet::stereo(), false);
+
     return props;
 }
 
@@ -384,17 +387,19 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
 
     // jam-mode 13 (FEAT-JAM): a re-prepare rebuilds the band and sends it back to Armed.
     jam.prepare (sampleRate, samplesPerBlock);
-    jamNotes.ensureSize (8192);
-    jamTuneBass.ensureSize (4096);
-    jamScratch.ensureSize (TunePlayer::kRecommendedMidiBytes);
+    jamNotes.ensureSize (BoundedMidi::kReserveBytes);
+    jamTuneBass.ensureSize (BoundedMidi::kReserveBytes);
+    jamScratch.ensureSize (BoundedMidi::kReserveBytes);
     jamMain.setSize (2, juce::jmax (1, samplesPerBlock), false, true, false);
     jamMain.clear();
 
     for (auto* tuneBuffer : { &tuneToEngine, &tuneToMidiOut, &tuneDirect })
-        tuneBuffer->ensureSize (TunePlayer::kRecommendedMidiBytes);
+        tuneBuffer->ensureSize (BoundedMidi::kReserveBytes);
 
     // RT-SAFETY P1 (CODEX_RTSAFETY): generous, so dense host MIDI fits; the
     // slice copies are bounded by what is reserved here.
+    processorMidi.ensureSize (BoundedMidi::kReserveBytes);
+    sysExMidi.ensureSize (BoundedMidi::kReserveBytes);
     sliceMidi.ensureSize ((size_t) BoundedMidi::kReserveBytes);
     sliceMidiOut.ensureSize ((size_t) BoundedMidi::kReserveBytes);
     liveMidiKept.ensureSize ((size_t) BoundedMidi::kReserveBytes);
@@ -1430,6 +1435,16 @@ void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
 {
     juce::ScopedNoDenormals noDenormals;
     referenceHostSliceOffset = 0;
+    auto contract = MidiCapacityContract::Unknown;
+    if (wrapperType == wrapperType_Standalone) contract = MidiCapacityContract::Standalone;
+    else if (wrapperType == wrapperType_VST3 || wrapperType == wrapperType_AudioUnit || wrapperType == wrapperType_AudioUnitv3)
+        contract = MidiCapacityContract::JuceWrapper;
+#if HAS_CLAP_JUCE_EXTENSIONS
+    if (is_clap) contract = MidiCapacityContract::JuceWrapper;
+#endif
+    // Capture the guaranteed capacity before clear; input-used bytes are a safe
+    // lower bound even for an unknown direct host with no reservation contract.
+    const int hostMidiBytes = hostMidiCapacity.lowerBound (midiMessages, contract);
 
     // cpu-quality-modes 2.5 and 4: one level per block, and Luthier's own share
     // of the block's time stamped around all of it.
@@ -1457,7 +1472,11 @@ void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
 
     if (numSamples <= maxSlice)
     {
-        processSlice (buffer, midiMessages);
+        processorMidi.clear();
+        midiOverflowDrops += BoundedMidi::addEvents (processorMidi, BoundedMidi::kReserveBytes, midiMessages, 0, -1, 0);
+        processSlice (buffer, processorMidi);
+        midiMessages.clear();
+        midiOverflowDrops += BoundedMidi::addEvents (midiMessages, hostMidiBytes, processorMidi, 0, -1, 0);
         applyDeclick (buffer);
         return;
     }
@@ -1491,8 +1510,7 @@ void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
     // storage stays ours and is never replaced by the host's smaller one.
     midiMessages.clear();
 
-    for (const auto metadata : sliceMidiOut)
-        midiMessages.addEvent (metadata.data, metadata.numBytes, metadata.samplePosition);
+    midiOverflowDrops += BoundedMidi::addEvents (midiMessages, hostMidiBytes, sliceMidiOut, 0, -1, 0);
 
     sliceMidiOut.clear();
     applyDeclick (buffer);
@@ -1821,7 +1839,7 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
         if (sl.isLocked() && ! previewMidi.isEmpty())
         {
             for (const auto metadata : previewMidi)
-                midiMessages.addEvent (metadata.getMessage(),
+                BoundedMidi::add (midiMessages, metadata.data, metadata.numBytes,
                                        juce::jlimit (0, juce::jmax (0, numSamples - 1), metadata.samplePosition));
 
             previewMidi.clear();
@@ -1840,9 +1858,9 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
         const auto message = metadata.getMessage();
 
         if (message.getChannel() == TuneMidiOptions {}.chordChannel)
-            midiMessages.addEvent (message, metadata.samplePosition);
+            BoundedMidi::add (midiMessages, metadata.data, metadata.numBytes, metadata.samplePosition);
         else
-            tuneDirect.addEvent (message, metadata.samplePosition);
+            BoundedMidi::add (tuneDirect, metadata.data, metadata.numBytes, metadata.samplePosition);
     }
 
     // jam-mode 11 (FEAT-JAM): no double drums or bass. While the Jam drums are
@@ -1866,7 +1884,7 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
             const auto message = metadata.getMessage();
 
             if (! (message.isNoteOn() && message.getChannel() == percussionChannel))
-                jamScratch.addEvent (message, metadata.samplePosition);
+                BoundedMidi::add (jamScratch, metadata.data, metadata.numBytes, metadata.samplePosition);
         }
 
         tuneDirect.swapWith (jamScratch);
@@ -1883,7 +1901,7 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
             const auto message = metadata.getMessage();
 
             if (message.isNoteOnOrOff() && message.getChannel() == TuneMidiOptions {}.bassChannel)
-                jamTuneBass.addEvent (message, metadata.samplePosition);
+                BoundedMidi::add (jamTuneBass, metadata.data, metadata.numBytes, metadata.samplePosition);
         }
 
     // What the band listens to (3.1): the block's notes after MIDI Learn, the
@@ -1894,7 +1912,7 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
     {
         for (const auto metadata : midiMessages)
             if (metadata.getMessage().isNoteOnOrOff() || metadata.getMessage().isAllNotesOff())
-                jamNotes.addEvent (metadata.getMessage(), metadata.samplePosition);
+                BoundedMidi::add (jamNotes, metadata.data, metadata.numBytes, metadata.samplePosition);
 
         if (practicePanelOpen)
             looper.renderPlaybackMidi (jamNotes, numSamples);
@@ -1975,6 +1993,18 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
         for (int slot = 0; slot < 2; ++slot)
             engine.getCabinetEngine().setPlacementBypassed (slot, cabIr[(size_t) slot].isEngaged());
 
+        reference::BoardAuxOutputs boardAux;
+        for (int bus = 1; bus < getBusCount (false); ++bus)
+        {
+            const auto& name = getBus (false, bus)->getName();
+            auto* target = name == "Pedal B" ? &boardAux.pedalB : name == "Wet only" ? &boardAux.wet : name == "Dry only" ? &boardAux.dry : nullptr;
+            if (! target) continue;
+            auto out = getBusBuffer (buffer, false, bus);
+            out.clear();
+            if (out.getNumChannels() == 2)
+                *target = { out.getWritePointer (0), out.getWritePointer (1), numSamples };
+        }
+        engine.setReferencePedalAuxOutputs (boardAux);
         if (engineLock.isLocked())
             engine.processBlock (mainOut, midiMessages);
         else
@@ -2360,16 +2390,20 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
         }
     }
 
-    midiOutRouter.emit (midiMessages, midiOutConfig, engine.getStringActivity(), numSamples);
+    midiOutRouter.emitBounded (midiMessages, midiOutConfig, engine.getStringActivity(), numSamples, BoundedMidi::kReserveBytes);
+    if (engineLock.isLocked())
+        midiOverflowDrops += BoundedMidi::addEvents (midiMessages, BoundedMidi::kReserveBytes, engine.getReferenceMidiOut(), 0, numSamples, 0);
 
     // midi-export 10 / tune-builder 8: the tune's parts, when MIDI out carries them.
     if (midiOutConfig.enabled && midiOutConfig.tunePlayback)
-        midiMessages.addEvents (tuneToMidiOut, 0, numSamples, 0);
+        midiOverflowDrops += BoundedMidi::addEvents (midiMessages, BoundedMidi::kReserveBytes, tuneToMidiOut, 0, numSamples, 0);
 
     // jam-mode 9 (FEAT-JAM): the band, drums on GM channel 10, bass on 11.
     if (jamOn && midiOutConfig.enabled && midiOutConfig.jamParts)
-        midiMessages.addEvents (jam.getMidiOut(), 0, numSamples, 0);
-    sendLuthierSysEx (midiOutConfig, midiMessages, numSamples);
+        midiOverflowDrops += BoundedMidi::addEvents (midiMessages, BoundedMidi::kReserveBytes, jam.getMidiOut(), 0, numSamples, 0);
+    sysExMidi.clear();
+    sendLuthierSysEx (midiOutConfig, sysExMidi, numSamples);
+    midiOverflowDrops += BoundedMidi::addEvents (midiMessages, BoundedMidi::kReserveBytes, sysExMidi, 0, numSamples, 0);
 
     samplePosition += numSamples;
 
@@ -2591,7 +2625,7 @@ void LuthierAudioProcessor::processAuditionMidi (juce::MidiBuffer& midi, int num
 
         const int offset = juce::jlimit (0, numSamples - 1,
                                          (int) ((timestamp - blockStart) * currentSampleRate));
-        midi.addEvent (event->message, offset);
+        BoundedMidi::add (midi, event->message.getRawData(), event->message.getRawDataSize(), offset);
         ++auditionEventIndex;
     }
 
@@ -2753,8 +2787,7 @@ void LuthierAudioProcessor::handleLiveMidi (juce::MidiBuffer& midi) noexcept
     // the pre-sized buffer stays ours and the host's storage stays the host's.
     midi.clear();
 
-    for (const auto metadata : kept)
-        midi.addEvent (metadata.data, metadata.numBytes, metadata.samplePosition);
+    midiOverflowDrops += BoundedMidi::addEvents (midi, BoundedMidi::kReserveBytes, kept, 0, -1, 0);
 
     kept.clear();
 }
