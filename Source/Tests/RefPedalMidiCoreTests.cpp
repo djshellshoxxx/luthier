@@ -285,3 +285,35 @@ LUTHIER_TEST (RefPedalMidiCore, staleHostEchoMapCannotReenableBoard)
     router.process (in, {}, 256, 128, out); CHECK (out.nWrites == 0);
     router.setModelEnabled (true, 2); router.process (in, {}, 384, 128, out); CHECK (out.nWrites == 1);
 }
+LUTHIER_TEST (RefPedalMidiCore, adaptiveCurvesMeetAnalyticErrorBudget)
+{
+    for (auto id : { CurveId::Log, CurveId::Exp, CurveId::SCurve, CurveId::Linear })
+        for (float p : { .5f, 2.f, 4.f })
+        {
+            CurveLut lut; buildCurve (lut, id, p); float error = 0, previous = -1; bool monotone = true;
+            for (int i = 0; i <= 100000; ++i)
+            {
+                const float x = i / 100000.f, y = evalCurve (lut, x);
+                error = std::max (error, std::abs (y - curveValue (id, x, p)));
+                monotone &= y >= previous; previous = y;
+            }
+            CHECK_MSG (error <= 1e-4f, "curve error " + juce::String (error, 8)); CHECK (monotone);
+            CHECK (evalCurve (lut, 0) == 0.f); CHECK (evalCurve (lut, 1) == 1.f);
+        }
+    CurveLut step; buildCurve (step, CurveId::Step, 16);
+    CHECK_NEAR (evalCurve (step, .5f), 8.f / 15.f, 1e-7); CHECK_NEAR (evalCurve (step, .5f - 1e-5f), 7.f / 15.f, 1e-7);
+}
+LUTHIER_TEST (RefPedalMidiCore, customPchipPreservesMonotoneShape)
+{
+    CustomPoints points { CurvePoint {0,0}, {.01f,.3f}, {.2f,.4f}, {.8f,.9f}, {1,1} };
+    CHECK (validPoints (points)); CurveLut lut; buildCurve (lut, CurveId::Custom5, 0, &points);
+    const auto slopes = pchipSlopes (points); float previous = -1, error = 0; bool monotone = true;
+    for (int i = 0; i <= 100000; ++i)
+    {
+        const float x = i / 100000.f, y = evalCurve (lut, x); monotone &= y >= previous; previous = y;
+        error = std::max (error, std::abs (y - pchipValue (points, slopes, x)));
+    }
+    CHECK (monotone); CHECK_MSG (error <= 1e-4f, "PCHIP error " + juce::String (error, 8));
+    CHECK (evalCurve (lut, 0) == 0); CHECK (evalCurve (lut, 1) == 1);
+    points[2].y = .1f; CHECK (! validPoints (points)); CHECK (validPoints (points, true));
+}

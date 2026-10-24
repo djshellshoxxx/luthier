@@ -16,7 +16,7 @@ WP23 host extension: `LuthierEngine::setReferencePedalTransport(HostTransport)` 
 
 ## Actual native checks
 
-Standalone native harness against JUCE 8 core/audio_basics (2026-10-23): 21 cases / 152 checks passing under AddressSanitizer + UndefinedBehaviorSanitizer; the earlier 13-case / 64-check snapshot independently passed ThreadSanitizer. Own routing sources instrumented; reused JUCE module objects are uninstrumented.
+Standalone native harness against JUCE 8 core/audio_basics (2026-10-23): 23 cases / 209 checks passing under AddressSanitizer + UndefinedBehaviorSanitizer; the earlier 13-case / 64-check snapshot independently passed ThreadSanitizer. Own routing sources instrumented; reused JUCE module objects are uninstrumented.
 
 - RefPedalMidiCore::mappedOffsetsAndReservedGuard — 6 checks, passing.
 - RefPedalMidiCore::clockStartStopLoss — 6 checks, passing.
@@ -35,8 +35,8 @@ Compiler syntax checks passed for Parameters.cpp, LuthierEngine.cpp, PluginProce
 - Host files and host tests compiler-checked; full native execution is pending the shared build. Persistent map resolution compiler-checked.
 - Host automation is a message-thread bidirectional model mirror, not sample-accurate. Fixed 320 slot lanes + enabled/mix/tempo are append-only; continuous audio-thread overrides and dynamic lane names remain pending.
 - Clock median estimate/basic source priority and transport/loss work; specified PLL phase lock, jitter budget, source hysteresis/glide, exact mid-block source arbitration, tap external-master rejection and clock output remain pending.
-- Source map routing supports CC/CC14, notes/velocity, PB, channel/poly pressure, PC, absolute/relative/toggle/momentary/trigger. Step mode uses descriptor-derived step count, soft takeover uses initial model value/pickup crossing, and source priority uses 300ms hold. Board-target writes carry E36 routing data; engine consumption pending coordinated integration. Additive combine, scene recall and custom PCHIP curves remain pending. Selected focus and channel-local descriptor profiles are now compiled below explicit bindings.
-- Curve LUT 256 linear interpolation exists; analytic-error budget for steep log curves not yet established. Expression smoother is pure-tested but pedal consumers must advance it; smoothMs is carried through RouteOut, integration pending.
+- Source map routing supports CC/CC14, notes/velocity, PB, channel/poly pressure, PC, absolute/relative/toggle/momentary/trigger. Step mode uses descriptor-derived step count, soft takeover uses initial model value/pickup crossing, and source priority uses 300ms hold. Board-target writes carry E36 routing data; engine consumption pending coordinated integration. Additive combine, scene recall and custom PCHIP UI remains pending; custom curve state and evaluation are implemented. Selected focus and channel-local descriptor profiles are now compiled below explicit bindings.
+- Adaptive256-entry LUT interpolation meets <=1e-4 analytic error in the implemented sweep, including log/exp p4; custom PCHIP monotonicity is tested. Expression smoother is pure-tested but pedal consumers must advance it; smoothMs is carried through RouteOut, integration pending.
 - Learn distinct-value capture + suppression exists; ambiguous-source competition, duplicate dialog, learn-all and device/UI feedback remain pending.
 - Gesture decoder thresholds and controller modes are pure-tested; individual looper action consumption, pressure-hold and sample-accurate engage crossfade remain pending.
 - Hard event/ring capacities drop newest events and count overload; clock has reserved capacity but an unbounded clock-only flood can overflow the priority ring. Spec absolute 'never dropped' cannot hold with bounded storage under unbounded realtime input.
@@ -75,3 +75,7 @@ Default-map follow-up: additive `addDefaultMaps(MapSnap&,ordered,settings)` buil
 Focused HostAutomationCapture ThreadSanitizer stress passed 100,000 real host writes concurrent with suppressed echoes and snapshot reads; final serial100000/value0.75, no reported races. Full processor echo-intent integration remains pending E50.
 
 E50 routing regression: once E48 model intent is supplied, map booleans no longer independently reset the gate. staleHostEchoMapCannotReenableBoard passes four ASan/UBSan checks for hostON, newerhostOFF, stale ON-map publication with unchanged model revision, and a later explicit ON revision.
+
+Curve API follow-up: CurvePoint/CustomPoints, validPoints, pchipSlopes/pchipValue and buildCurve are additive pure MIDI helpers. CurveLut stores up to256 adaptive x/y nodes with bounded binary-search interpolation; linear/inverse need only endpoints and step curves retain exact discontinuities. This keeps fixed storage while avoiding uniform-grid log(p4) error. MapSnap carries custom points outside the frozen32-byte Binding. MIDI JSON curve.pts accepts exactlyfive numeric[ x,y ]pairs, x endpoints0/1, min dx.01; monotone y required unless allowNonMonotone isexplicit. Unknown curve/mode/source enums are retained in state and do not alias known bindings.
+
+adaptiveCurvesMeetAnalyticErrorBudget (50 checks) scans100,001 input values per curve/parameter combination and passes <=1e-4 plus exactendpoints/monotonicity; customPchipPreservesMonotoneShape (7 checks) tests a .01-wide firstsegment and opt-in nonmonotonicity. Coherent native Board/Registry/MIDI ASan/UBSan:23cases209checks pass.
