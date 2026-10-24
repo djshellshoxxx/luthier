@@ -26,7 +26,7 @@ BoardRoot::BoardRoot(BoardModel& m,LuthierAudioProcessor* p):model(m),processor(
     for(int i=0;i<4;++i)mode.addItem(toString((Mode)i),i+1);mode.setTitle("Routing mode");place(mode,90);place(enabled,95);
     mix.setSliderStyle(juce::Slider::LinearHorizontal);mix.setTextBoxStyle(juce::Slider::TextBoxRight,false,52,20);mix.setRange(0,1,.001);mix.setDoubleClickReturnValue(true,1);mix.setTitle("Board wet/dry mix");mix.setTooltip("Universal wet/dry mix. Double click: 100% wet.");mix.textFromValueFunction=[](double n){return juce::String((int)std::round(n*100))+"% wet";};place(mix,160);
     mixLaw.addItem("Equal power",1);mixLaw.addItem("Linear mix",2);mixLaw.addItem("Third law",3);mixLaw.setTitle("Mix law");place(mixLaw,105);
-    tempo.setRange(20,300,.1);tempo.setSliderStyle(juce::Slider::LinearHorizontal);tempo.setTextBoxStyle(juce::Slider::TextBoxRight,false,55,20);tempo.setTextValueSuffix(" BPM");tempo.setTitle("Board tempo BPM");place(tempo,120);
+    tempo.setRange(20,300,.1);tempo.setSliderStyle(juce::Slider::LinearHorizontal);tempo.setTextBoxStyle(juce::Slider::TextBoxRight,false,88,20);tempo.setTextValueSuffix(" BPM");tempo.setTitle("Board tempo BPM");place(tempo,155);
     place(learn,100);place(cables,75);place(fit,40);place(minus,28);place(zoomLabel,40);place(plus,28);place(settings,65);place(dock,45);place(popout,65);place(keepOnTop,110);toolbar.setSize(x,60);
     add.onClick=[this]{showAddMenu();};undo.onClick=[this]{model.undo();};redo.onClick=[this]{model.redo();};
     style.onChange=[this]{if(!refreshing)model.apply(cmd::SetStyle{(BoardStyle)(style.getSelectedId()-1)});};
@@ -66,7 +66,7 @@ BoardRoot::BoardRoot(BoardModel& m,LuthierAudioProcessor* p):model(m),processor(
         status.setText("Waiting for MIDI for "+juce::String(instance->modelId)+"; Escape cancels",juce::dontSendNotification);startTimerHz(10);
     };
     canvas.onError=[this](const auto& text){status.setText(text,juce::dontSendNotification);};
-    canvas.onFocus=[this](PedalView& p){model.setMidiFocus(p.id());const auto r=p.getBounds();viewport.setViewPosition(juce::jmax(0,(int)(r.getX()*zoom)-24),juce::jmax(0,(int)(r.getY()*zoom)-24));};
+    canvas.onFocus=[this](PedalView& p){model.setMidiFocus(p.id());auto bounds=p.getBounds();auto* focused=juce::Component::getCurrentlyFocusedComponent();if(focused&&p.isParentOf(focused))bounds=canvas.getLocalArea(focused,focused->getLocalBounds());const auto r=bounds.toFloat()*zoom;auto pos=viewport.getViewPosition();if(r.getX()<pos.x+24)pos.x=(int)r.getX()-24;else if(r.getRight()>pos.x+viewport.getViewWidth()-24)pos.x=(int)r.getRight()-viewport.getViewWidth()+24;if(r.getY()<pos.y+24)pos.y=(int)r.getY()-24;else if(r.getBottom()>pos.y+viewport.getViewHeight()-24)pos.y=(int)r.getBottom()-viewport.getViewHeight()+24;viewport.setViewPosition(juce::jmax(0,pos.x),juce::jmax(0,pos.y));};
     const auto ui=BoardUiState::read(model.getBoardSettings().ui);cables.setToggleState(ui.cables,juce::dontSendNotification);canvas.setCables(ui.cables);zoomTo(ui.zoom);viewport.setViewPosition(ui.scrollX,ui.scrollY);
     viewport.onScroll=[this]{saveView();};
     model.addListener(this);refresh();
@@ -78,7 +78,7 @@ void BoardRoot::refresh()
     style.setSelectedId((int)s.style+1,juce::dontSendNotification);mode.setSelectedId((int)s.mode+1,juce::dontSendNotification);mixLaw.setSelectedId((int)s.mixLaw+1,juce::dontSendNotification);
     if(!mixAttachment)mix.setValue(s.mix,juce::dontSendNotification);if(!enabledAttachment)enabled.setToggleState(s.enabled,juce::dontSendNotification);if(!tempoAttachment)tempo.setValue(s.tempoBpm,juce::dontSendNotification);
     undo.setEnabled(model.canUndo());redo.setEnabled(model.canRedo());browser.refresh();const auto info=model.getTopologyInfo();
-    status.setText(juce::String(model.getInstanceCount())+" pedals · latency "+juce::String(info.latencyTotal)+" samples · "+info.note,juce::dontSendNotification);
+    status.setText(juce::String(model.getInstanceCount())+" pedals | latency "+juce::String(info.latencyTotal)+" samples | "+info.note,juce::dontSendNotification);
 }
 void BoardRoot::saveView()
 {
@@ -95,6 +95,7 @@ void BoardRoot::zoomTo(float z){zoom=juce::jlimit(.5f,2.f,z);canvas.setTransform
 void BoardRoot::setCompact(bool b){compact=b;resized();}
 void BoardRoot::resized()
 {
+    canvas.closeInspectors();
     auto r=getLocalBounds();toolbarViewport.setBounds(r.removeFromTop(64));status.setVisible(getHeight()>=360&&!compact);status.setBounds(status.isVisible()?r.removeFromBottom(20):juce::Rectangle<int>());
     const bool showBrowser=!compact&&getWidth()>=760;browser.setVisible(showBrowser);if(showBrowser)browser.setBounds(r.removeFromLeft(200));viewport.setBounds(r);
 }

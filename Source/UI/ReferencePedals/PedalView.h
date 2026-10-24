@@ -49,11 +49,11 @@ private:
     FaceLayout faceLayout;
     const PedalDesc* descriptor=nullptr;
     FootswitchButton footswitch {"Engage"};
-    juce::TextButton details {"EST …"};
+    juce::TextButton details {"EST ..."};
     juce::ToggleButton profile {"Use pedal CC profile"};
     juce::ComboBox placement,mounting,channel;
     juce::Component inspector;
-    juce::Label provenance;
+    juce::Label provenance,inputLabel,outputLabel,laneLabel;
     juce::OwnedArray<juce::Slider> controls;
     juce::OwnedArray<juce::ComboBox> selectors;
     juce::OwnedArray<FootswitchButton> actions;

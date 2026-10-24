@@ -53,7 +53,7 @@ void BoardCanvas::paint(juce::Graphics& g)
     AnimationPolicy::notePaint(*this);const auto settings=model.getBoardSettings();
     BoardSurfacePainter::paint(g,getLocalBounds().toFloat().reduced(20),settings.style);
     g.setColour(Palette::textPrimary);g.setFont(juce::FontOptions(11.f));
-    for(int i=0;i<3;++i)g.drawText(i==0?"PRE · before AMP":i==1?"LOOP · AMP → CAB": "POST · after CAB",32+i*350,8,330,26,juce::Justification::centred);
+    for(int i=0;i<3;++i)g.drawText(i==0?"PRE | before AMP":i==1?"LOOP | AMP > CAB": "POST | after CAB",32+i*350,8,330,26,juce::Justification::centred);
     if(drag.active()){g.setColour(Palette::accentBright.withAlpha(.35f));for(int i=0;i<3;++i)g.drawRoundedRectangle({32.f+i*350.f,8.f,330.f,26.f},3,1);}
     for(const auto& id:model.getOrder()){auto* p=viewFor(id);const auto instance=model.getInstance(id);BoardSurfacePainter::paintMount(g,p->getBounds().toFloat(),instance->mounting==Mounting::automatic?BoardSurfacePainter::defaultMount(settings.style):instance->mounting,id.toString().hashCode());}
     if(views.empty()){g.setColour(Palette::textPrimary);g.setFont(18.f);g.drawFittedText("Add a pedal from the browser to build your signal chain",getLocalBounds().reduced(64),juce::Justification::centred,2);}
@@ -69,7 +69,7 @@ void BoardCanvas::paintCables(juce::Graphics& g)
         const auto mid=path.getPointAlongPath(path.getLength()*.5f);g.drawLine(mid.x-4,mid.y-3,mid.x+2,mid.y,1.5f);g.drawLine(mid.x+2,mid.y,mid.x-4,mid.y+3,1.5f);
         g.setColour(Palette::textPrimary);g.setFont(10.f);g.drawText(label,(int)mid.x-30,(int)mid.y-18,60,14,juce::Justification::centred);
     };
-    for(size_t i=1;i<order.size();++i){auto* a=viewFor(order[i-1]);auto* b=viewFor(order[i]);draw(a->getPosition().toFloat()+a->outputJack(),b->getPosition().toFloat()+b->inputJack(),"→",false);}
+    for(size_t i=1;i<order.size();++i){auto* a=viewFor(order[i-1]);auto* b=viewFor(order[i]);draw(a->getPosition().toFloat()+a->outputJack(),b->getPosition().toFloat()+b->inputJack(),">",false);}
     if(settings.fb.on){auto* a=viewFor(settings.fb.src);auto* b=viewFor(settings.fb.dst);if(a&&b)draw(a->getPosition().toFloat()+a->outputJack(),b->getPosition().toFloat()+b->inputJack(),"FEEDBACK",true);}
     auto* first=viewFor(order.front());auto* last=viewFor(order.back());const auto in=first->getPosition().toFloat()+first->inputJack(),out=last->getPosition().toFloat()+last->outputJack();draw({30,in.y},in,"IN",false);draw(out,{out.x+48,out.y},"OUT",false);
 }

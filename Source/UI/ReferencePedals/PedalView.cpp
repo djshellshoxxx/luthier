@@ -9,19 +9,31 @@ namespace luthier::reference
 {
 namespace
 {
+class FaceSelector final : public juce::ComboBox
+{
+public:
+    void setPhysical(bool enabled){physical=enabled;for(auto* child:getChildren())if(dynamic_cast<juce::Label*>(child))child->setVisible(!enabled);}
+    void paint(juce::Graphics& g) override {
+        if(!physical){juce::ComboBox::paint(g);return;}
+        auto body=getLocalBounds().toFloat().reduced(1);g.setColour(Palette::backgroundDeep);g.fillRoundedRectangle(body,2);g.setColour(Palette::textPrimary);g.drawRoundedRectangle(body,2,1);
+        const float fraction=getNumItems()>1?(float)getSelectedItemIndex()/(getNumItems()-1):0.f;const float x=body.getX()+4+fraction*juce::jmax(0.f,body.getWidth()-8);g.drawLine(body.getX()+3,body.getCentreY(),body.getRight()-3,body.getCentreY(),1);g.fillEllipse(x-2,body.getCentreY()-3,4,6);
+    }
+private:bool physical=false;
+};
 class InspectorHost final : public juce::Component
 {
 public:
     InspectorHost(juce::Component& body,PedalView& original):content(&body),owner(&original)
     {
-        setWantsKeyboardFocus(true);setFocusContainerType(FocusContainerType::focusContainer);
-        addAndMakeVisible(viewport);viewport.setViewedComponent(&body,false);viewport.setScrollBarsShown(true,false);setSize(350,420);
+        setWantsKeyboardFocus(true);setOpaque(true);setFocusContainerType(FocusContainerType::focusContainer);
+        addAndMakeVisible(viewport);viewport.setOpaque(false);viewport.setViewedComponent(&body,false);viewport.setScrollBarsShown(true,false);setSize(350,420);
     }
     ~InspectorHost() override
     {
         viewport.setViewedComponent(nullptr,false);
         if(content&&owner){owner->addChildComponent(content);content->setVisible(false);}
     }
+    void paint(juce::Graphics& g) override {g.fillAll(Palette::panel.withAlpha(1.f));}
     void resized() override {viewport.setBounds(getLocalBounds());}
     void focusOfChildComponentChanged(FocusChangeType) override
     {
@@ -46,10 +58,12 @@ PedalView::PedalView(BoardModel& m,InstanceId id,juce::AudioProcessorValueTreeSt
     setWantsKeyboardFocus(true);setFocusContainerType(FocusContainerType::focusContainer);
     addAndMakeVisible(details);addAndMakeVisible(footswitch);addChildComponent(inspector);
     for(auto* c:std::array<juce::Component*,8>{&placement,&mounting,&channel,&inputTrim,&outputTrim,&lane,&profile,&provenance})inspector.addAndMakeVisible(c);
+    inputLabel.setText("Input trim (dB)",juce::dontSendNotification);outputLabel.setText("Output trim (dB)",juce::dontSendNotification);laneLabel.setText("Routing lane (0 = first)",juce::dontSendNotification);
+    for(auto* label:{&inputLabel,&outputLabel,&laneLabel})inspector.addAndMakeVisible(label);
     details.setTitle("Pedal information and extended controls");details.setTooltip("Estimated circuit model. Open all controls, placement, mounting and MIDI settings.");details.onClick=[this]{showInspector();};
     footswitch.setClickingTogglesState(true);
     footswitch.onClick=[this]{if(refreshing)return;if(learnMode&&onLearn){onLearn(instanceId,-1,false);refresh();}else if(!enabledAttachment)post(cmd::SetEnabled{instanceId,footswitch.getToggleState()});};
-    placement.addItem("PRE — before effects",1);placement.addItem("LOOP — before cabinet",2);placement.addItem("POST — after cabinet",3);placement.setTitle("Pedal placement");
+    placement.addItem("PRE - before effects",1);placement.addItem("LOOP - before cabinet",2);placement.addItem("POST - after cabinet",3);placement.setTitle("Pedal placement");
     placement.onChange=[this]{if(!refreshing)post(cmd::SetPlacement{instanceId,(Placement)(placement.getSelectedId()-1)});};
     for(int i=0;i<=7;++i)mounting.addItem(toString((Mounting)i),i+1);
     mounting.setTitle("Pedal mounting");mounting.onChange=[this]{if(!refreshing)post(cmd::SetMounting{instanceId,(Mounting)(mounting.getSelectedId()-1)});};
@@ -92,7 +106,7 @@ void PedalView::rebuildControls(const PedalInstance& instance)
         if(param.kind==ParamKind::Toggle)
         {
             auto* button=switches.add(new juce::ToggleButton(param.label));switchParams.push_back(i);parameterControls[(size_t)i]=button;button->setTitle(title);
-            button->onClick=[this,button,i]{if(refreshing||attached[(size_t)i])return;if(learnMode&&onLearn){onLearn(instanceId,i,false);refresh();}else post(cmd::SetParam{instanceId,i,button->getToggleState()?1.f:0.f});};
+            button->onClick=[this,button,i]{if(refreshing)return;if(learnMode&&onLearn){onLearn(instanceId,i,false);refresh();}else if(!attached[(size_t)i])post(cmd::SetParam{instanceId,i,button->getToggleState()?1.f:0.f});};
         }
         else if(param.kind==ParamKind::Momentary||param.kind==ParamKind::Trigger)
         {
@@ -105,9 +119,9 @@ void PedalView::rebuildControls(const PedalInstance& instance)
         }
         else if(param.isDiscreteKind()&&param.choices)
         {
-            auto* selector=selectors.add(new juce::ComboBox());selectorParams.push_back(i);parameterControls[(size_t)i]=selector;
+            auto* selector=selectors.add(new FaceSelector());selectorParams.push_back(i);parameterControls[(size_t)i]=selector;
             for(int n=0;n<param.steps;++n)selector->addItem(param.choices[n],n+1);selector->setTitle(title);
-            selector->onChange=[this,selector,i]{if(refreshing||attached[(size_t)i])return;if(learnMode&&onLearn)onLearn(instanceId,i,false);else post(cmd::SetParam{instanceId,i,(float)(selector->getSelectedId()-1)/(descriptor->params[i].steps-1)});};
+            selector->onChange=[this,selector,i]{if(refreshing)return;if(learnMode&&onLearn)onLearn(instanceId,i,false);else if(!attached[(size_t)i])post(cmd::SetParam{instanceId,i,(float)(selector->getSelectedId()-1)/(descriptor->params[i].steps-1)});};
         }
         else
         {
@@ -115,8 +129,8 @@ void PedalView::rebuildControls(const PedalInstance& instance)
             slider->setRange(0,1,param.kind==ParamKind::Toggle?1:.001);slider->setDoubleClickReturnValue(true,param.defaultNormalised());slider->setTitle(title);
             slider->valueFromTextFunction=[this,i](const juce::String& text){return descriptor->params[i].toNormalised(text.getDoubleValue());};
             slider->textFromValueFunction=[this,i](double norm){const auto& d=descriptor->params[i];return juce::String(d.fromNormalised(norm),d.max-d.min>100?0:2)+" "+d.unit;};
-            slider->onDragStart=[this]{++gesture;};
-            slider->onValueChange=[this,slider,i]{if(refreshing||attached[(size_t)i])return;if(learnMode&&onLearn){onLearn(instanceId,i,true);refresh();}else post(cmd::SetParam{instanceId,i,(float)slider->getValue(),gesture});};
+            slider->onDragStart=[this,i]{++gesture;if(learnMode&&onLearn)onLearn(instanceId,i,true);};
+            slider->onValueChange=[this,slider,i]{slider->setTooltip(slider->getTitle()+": "+slider->getTextFromValue(slider->getValue())+". Enter or right click edits the value.");if(refreshing)return;if(learnMode&&onLearn){onLearn(instanceId,i,true);refresh();}else if(!attached[(size_t)i])post(cmd::SetParam{instanceId,i,(float)slider->getValue(),gesture});};
         }
         auto* component=parameterControls[(size_t)i];component->getProperties().set("referenceParamId",param.id);component->getProperties().set("referenceParamIndex",i);component->setComponentID(param.id);inspector.addAndMakeVisible(component);
     }
@@ -177,18 +191,18 @@ void PedalView::placeControls()
         if(descriptor->params[index].has(PF_Engage))continue;auto* component=parameterControls[(size_t)index];auto* label=labels[labelIndex++];if(!component)continue;
         if(const auto* position=physical[(size_t)index])
         {
-            addAndMakeVisible(component);label->setVisible(false);if(auto* toggle=dynamic_cast<juce::ToggleButton*>(component))toggle->setButtonText("");
+            addAndMakeVisible(component);label->setVisible(false);if(auto* selector=dynamic_cast<FaceSelector*>(component)){selector->setPhysical(true);selector->setTooltip(selector->getTitle()+": "+selector->getText());}if(auto* toggle=dynamic_cast<juce::ToggleButton*>(component))toggle->setButtonText("");
             if(auto* button=dynamic_cast<FootswitchButton*>(component)){button->setFaceGeometry(position->bounds);if(position->bounds==faceLayout.footswitch)momentaryMain=true;}
-            else{component->setBounds(position->bounds.toNearestInt());if(auto* slider=dynamic_cast<juce::Slider*>(component)){slider->setSliderStyle(position->kind==FaceControlKind::Treadle?juce::Slider::LinearVertical:juce::Slider::RotaryHorizontalVerticalDrag);slider->setTextBoxStyle(juce::Slider::TextBoxBelow,false,60,12);}}
+            else{component->setBounds(position->bounds.toNearestInt());if(auto* slider=dynamic_cast<juce::Slider*>(component)){slider->setSliderStyle(position->kind==FaceControlKind::Treadle?juce::Slider::LinearVertical:juce::Slider::RotaryHorizontalVerticalDrag);slider->setTextBoxStyle(juce::Slider::NoTextBox,false,0,0);slider->setPopupDisplayEnabled(true,true,nullptr);slider->setTooltip(slider->getTitle()+": "+slider->getTextFromValue(slider->getValue())+". Enter or right click edits the value.");if(position->kind==FaceControlKind::Treadle){slider->getProperties().set("physicalTreadle",true);slider->setBounds(10,34,getWidth()-20,juce::jmax(40,getHeight()-110));}}}
         }
         else
         {
-            inspector.addAndMakeVisible(component);label->setVisible(true);if(auto* toggle=dynamic_cast<juce::ToggleButton*>(component))toggle->setButtonText(descriptor->params[index].label);label->setBounds(8,y,320,18);y+=18;component->setBounds(8,y,320,30);y+=36;
+            inspector.addAndMakeVisible(component);label->setVisible(true);if(auto* selector=dynamic_cast<FaceSelector*>(component))selector->setPhysical(false);if(auto* toggle=dynamic_cast<juce::ToggleButton*>(component))toggle->setButtonText(descriptor->params[index].label);label->setBounds(8,y,320,18);y+=18;component->setBounds(8,y,320,30);y+=36;
             if(auto* slider=dynamic_cast<juce::Slider*>(component)){slider->setSliderStyle(juce::Slider::LinearHorizontal);slider->setTextBoxStyle(juce::Slider::TextBoxRight,false,80,22);}
         }
     }
     provenance.setBounds(8,6,320,88);
-    for(auto* component:std::array<juce::Component*,7>{&placement,&mounting,&inputTrim,&outputTrim,&lane,&channel,&profile}){component->setBounds(8,y,320,28);y+=32;}
+    for(auto* component:std::array<juce::Component*,7>{&placement,&mounting,&inputTrim,&outputTrim,&lane,&channel,&profile}){juce::Label* label=component==&inputTrim?&inputLabel:component==&outputTrim?&outputLabel:component==&lane?&laneLabel:nullptr;if(label){label->setBounds(8,y,320,18);y+=18;}component->setBounds(8,y,320,28);y+=32;}
     if(momentaryMain){inspector.addAndMakeVisible(footswitch);footswitch.setFaceGeometry({8.f,(float)y,320.f,36.f});y+=40;}
     else{addAndMakeVisible(footswitch);footswitch.setFaceGeometry(faceLayout.footswitch);}
     inspector.setSize(340,y+8);if(details.getParentComponent()==this)details.setBounds(juce::jmax(0,getWidth()-39),juce::jmax(0,getHeight()-16),37,14);details.toFront(false);
@@ -196,7 +210,7 @@ void PedalView::placeControls()
 void PedalView::resized(){placeControls();}
 void PedalView::placeCaptionIn(juce::Component& host)
 {
-    host.addAndMakeVisible(details);details.setButtonText("EST · Info");details.setTitle(getTitle()+", estimated circuit, information and all controls");
+    host.addAndMakeVisible(details);details.setButtonText("EST | Info");details.setTitle(getTitle()+", estimated circuit, information and all controls");
     details.setBounds(getX(),getBottom()+6,getWidth(),18);
 }
 void PedalView::InspectorDismissal::mouseDown(const juce::MouseEvent& event)

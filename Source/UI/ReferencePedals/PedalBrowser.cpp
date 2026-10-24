@@ -28,7 +28,7 @@ void PedalBrowser::paintListBoxItem(int n,juce::Graphics& g,int w,int h,bool sel
     if(n<0||n>=(int)items.size())return;const auto* d=PedalRegistry::find(items[(size_t)n].c_str());if(!d)return;
     g.fillAll(selected?Palette::accentDim:Palette::panel);g.setColour(Palette::textPrimary);g.setFont(13.f);g.drawFittedText(d->displayName,6,3,w-12,24,juce::Justification::centredLeft,2);
     g.setFont(10.f);g.setColour(Palette::textMuted);g.drawFittedText(d->inspiredBy?"Inspired by "+juce::String(d->inspiredBy):juce::String(d->family),6,29,w-12,15,juce::Justification::centredLeft,1);
-    g.drawText("EST · "+juce::String(d->numParams)+" controls",6,h-17,w-12,14,juce::Justification::centredLeft);
+    g.drawText("EST | "+juce::String(d->numParams)+" controls",6,h-17,w-12,14,juce::Justification::centredLeft);
 }
 juce::var PedalBrowser::getDragSourceDescription(const juce::SparseSet<int>& rows)
 {
