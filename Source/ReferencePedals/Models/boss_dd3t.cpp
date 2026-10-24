@@ -91,7 +91,7 @@ void BossDd3t::tap() noexcept
         if(interval>=133 && interval<=800)
         {
             tapIntervals[tapIndex]=interval;tapIndex=(tapIndex+1)%3;tapCount=std::min(3,tapCount+1);
-            double sum=0;for(int k=0;k<tapCount;++k)sum+=tapIntervals[k];tapInterval=sum/tapCount;hasTapped=true;
+            double sum=0;for(int k=0;k<tapCount;++k)sum+=tapIntervals[k];tapInterval=sum/tapCount;hasTapped=true;publishTap();
         }
         else if(interval>2000)tapCount=tapIndex=0;
     }
@@ -136,11 +136,12 @@ PedalUiMeters BossDd3t::readUiMeters() const noexcept
 float BossDd3t::getTailEnergyDb() const noexcept {return float(10*std::log10(std::max(1e-20,energy)));}
 void BossDd3t::saveExtra(juce::var& v) const
 {
-    if(!v.isObject())v=new juce::DynamicObject();v.getDynamicObject()->setProperty("tapIntervalMs",tapInterval);v.getDynamicObject()->setProperty("tempoBpm",60000/tapInterval);v.getDynamicObject()->setProperty("hasTapped",hasTapped);
+    const double snapshot=publishedTap.load(std::memory_order_acquire),interval=std::abs(snapshot);
+    if(!v.isObject())v=new juce::DynamicObject();v.getDynamicObject()->setProperty("tapIntervalMs",interval);v.getDynamicObject()->setProperty("tempoBpm",60000/interval);v.getDynamicObject()->setProperty("hasTapped",std::signbit(snapshot));
 }
 void BossDd3t::loadExtra(const juce::var& v)
 {
-    const double interval=double(v.getProperty("tapIntervalMs",500.));if(std::isfinite(interval))tapInterval=std::clamp(interval,133.,800.);hasTapped=bool(v.getProperty("hasTapped",false));
+    const double interval=double(v.getProperty("tapIntervalMs",500.));if(std::isfinite(interval))tapInterval=std::clamp(interval,133.,800.);hasTapped=bool(v.getProperty("hasTapped",false));publishTap();
 }
 void BossDd3t::process(double* left,double* right,int n) noexcept
 {
