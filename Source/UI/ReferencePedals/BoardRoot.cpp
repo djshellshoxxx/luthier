@@ -65,12 +65,13 @@ BoardRoot::BoardRoot(BoardModel& m,LuthierAudioProcessor* p):model(m),processor(
         processor->getEngine().getReferencePedals().midi().armLearn({(uint8_t)instance->slot,(uint16_t)param,continuous});
         status.setText("Waiting for MIDI for "+juce::String(instance->modelId)+"; Escape cancels",juce::dontSendNotification);startTimerHz(10);
     };
+    canvas.onError=[this](const auto& text){status.setText(text,juce::dontSendNotification);};
     canvas.onFocus=[this](PedalView& p){model.setMidiFocus(p.id());const auto r=p.getBounds();viewport.setViewPosition(juce::jmax(0,(int)(r.getX()*zoom)-24),juce::jmax(0,(int)(r.getY()*zoom)-24));};
     const auto ui=BoardUiState::read(model.getBoardSettings().ui);cables.setToggleState(ui.cables,juce::dontSendNotification);canvas.setCables(ui.cables);zoomTo(ui.zoom);viewport.setViewPosition(ui.scrollX,ui.scrollY);
     viewport.onScroll=[this]{saveView();};
     model.addListener(this);refresh();
 }
-BoardRoot::~BoardRoot(){canvas.closeInspectors();canvas.onFocus=nullptr;canvas.onLearn=nullptr;viewport.onScroll=nullptr;stopTimer();flushView();model.removeListener(this);toolbarViewport.setViewedComponent(nullptr,false);viewport.setViewedComponent(nullptr,false);}
+BoardRoot::~BoardRoot(){canvas.cancelDrag();canvas.onError=nullptr;canvas.closeInspectors();canvas.onFocus=nullptr;canvas.onLearn=nullptr;viewport.onScroll=nullptr;stopTimer();flushView();model.removeListener(this);toolbarViewport.setViewedComponent(nullptr,false);viewport.setViewedComponent(nullptr,false);}
 void BoardRoot::refresh()
 {
     const juce::ScopedValueSetter<bool> guard(refreshing,true);const auto s=model.getBoardSettings();
@@ -104,7 +105,7 @@ void BoardRoot::showAddMenu()
     juce::Component::SafePointer<BoardRoot> self(this);menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&add),[self,ids](int n){if(self&&n>0&&n<=(int)ids.size())self->model.apply(cmd::Add{ids[(size_t)n-1]});});
 }
 void BoardRoot::showSettings(){juce::CallOutBox::launchAsynchronously(std::make_unique<BoardMidiPanel>(model),getLocalArea(&settings,settings.getLocalBounds()),this);}
-void BoardRoot::visibilityChanged(){if(!isShowing()){canvas.closeInspectors();stopTimer();if(processor)processor->getEngine().getReferencePedals().midi().cancelLearn();learnId=InstanceId::null();learnBoard=false;learn.setToggleState(false,juce::dontSendNotification);canvas.setLearn(false);saveView();}}
+void BoardRoot::visibilityChanged(){if(!isShowing()){canvas.cancelDrag();canvas.closeInspectors();stopTimer();if(processor)processor->getEngine().getReferencePedals().midi().cancelLearn();learnId=InstanceId::null();learnBoard=false;learn.setToggleState(false,juce::dontSendNotification);canvas.setLearn(false);saveView();}}
 void BoardRoot::timerCallback()
 {
     const auto now=juce::Time::getMillisecondCounterHiRes();
@@ -135,6 +136,7 @@ bool BoardRoot::keyPressed(const juce::KeyPress& key)
     }
     if(c==juce::KeyPress::escapeKey)
     {
+        if(canvas.cancelDrag())return true;
         if(!learnId.isNull()||learnBoard)
         {if(processor)processor->getEngine().getReferencePedals().midi().cancelLearn();learnId=InstanceId::null();learnBoard=false;if(!pendingView)stopTimer();status.setText("Learn: select another control; Escape exits",juce::dontSendNotification);return true;}
         if(learn.getToggleState()){learn.setToggleState(false,juce::dontSendNotification);canvas.setLearn(false);return true;}
