@@ -1,12 +1,9 @@
 // OWNER: WP12
-#include "../PedalRegistry.h"
 #include "../Registration.h"
-#include "mxr_dynacomp.h"
 namespace luthier::reference
 {
-void registerDriveB()
-{
-    PedalRegistry::add(models::MxrDynaComp::descriptor(),
-                       []() -> std::unique_ptr<IPedal> { return std::make_unique<models::MxrDynaComp>(); });
-}
+// Dyna Comp, Distortion+ and RAT remain unregistered until their original
+// acoustic, CPU and integration acceptance gates pass. They are instantiated
+// directly by candidate tests and evidence probes.
+void registerDriveB() {}
 } // namespace luthier::reference
