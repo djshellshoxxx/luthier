@@ -16,7 +16,7 @@ WP23 host extension: `LuthierEngine::setReferencePedalTransport(HostTransport)` 
 
 ## Actual native checks
 
-Standalone native harness against JUCE 8 core/audio_basics (2026-10-23): 16 cases / 122 checks passing under AddressSanitizer + UndefinedBehaviorSanitizer; the earlier 13-case / 64-check snapshot independently passed ThreadSanitizer. Own routing sources instrumented; reused JUCE module objects are uninstrumented.
+Standalone native harness against JUCE 8 core/audio_basics (2026-10-23): 17 cases / 127 checks passing under AddressSanitizer + UndefinedBehaviorSanitizer; the earlier 13-case / 64-check snapshot independently passed ThreadSanitizer. Own routing sources instrumented; reused JUCE module objects are uninstrumented.
 
 - RefPedalMidiCore::mappedOffsetsAndReservedGuard — 6 checks, passing.
 - RefPedalMidiCore::clockStartStopLoss — 6 checks, passing.
@@ -63,3 +63,7 @@ HostAutomationCapture is an additive pure engine header exposing write(index,nor
 hostCaptureUnitsAndThreadLocalEcho adds 11 passing ASan/UBSan checks, including a concurrent 10,000-write host source during 10,000 suppressed model echoes. Full processor tests automationWithoutMessagePump and automationThousandWritesPerSecond are compiler-checked, not executed yet. These supplement the five previous host execution cases.
 
 Remaining E44 integration gate: router E39 OFF gating must receive the live host-enabled override before routing, independent of model echo; proposed hook under coordinator review. Full processor/board automation execution and UI-echo race under TSAN remain pending.
+
+E46: MidiRouter::setHostEnabled(bool,uint32_t) is an approved additive audio-thread hook called before process. Zero serial is unwritten; changed nonzero serial wins once, later actual model enabled changes restore model truth. prepare resets applied host serial. hostEnableGatesMidiWithoutModelEcho passes five ASan/UBSan checks for offset37 delivery while model map is OFF, later host disable, model change and a new host disable serial. Same-value model write intent remains an engine metadata integration gate.
+
+Host sidechain now forwards the actual processor-copied input slice to Board::setSidechain before every engine sub-block, with inner offsets and explicit null clearing. It uses no allocation or GUI code; compiler check pending/recorded with the next checkpoint.

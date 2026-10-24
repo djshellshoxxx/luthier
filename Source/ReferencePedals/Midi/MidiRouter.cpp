@@ -36,7 +36,8 @@ struct MidiRouter::Impl
     { std::array<std::array<int8_t, 128>, 16> a {}; for (auto& channel : a) channel.fill (-1); return a; }();
     uint32_t mapVersion = 0, activeVersion = 0;
     int64_t routeSample = 0;
-    bool effectiveEnabled = true;
+    bool effectiveEnabled = true, modelEnabled = true, modelEnabledKnown = false, hostEnabled = false;
+    uint32_t hostEnabledSerial = 0, appliedHostEnabledSerial = 0;
     std::array<int64_t, kTargetBoardBase + 16> lastWrite {};
     std::array<uint8_t, kTargetBoardBase + 16> ownerPriority {};
     void drop() noexcept { dropped.fetch_add (1, std::memory_order_relaxed); }
@@ -123,7 +124,7 @@ void MidiRouter::prepare (double sr, int)
     impl->clock.prepare (impl->sr); impl->input.clear(); impl->priority.clear();
     for (auto& channel : impl->heldNoteSlots) channel.fill (-1);
     impl->footHeld.fill (false); impl->held.fill (false); impl->values.fill (0);
-    impl->retired.clear(); impl->activeVersion = 0;
+    impl->retired.clear(); impl->activeVersion = 0; impl->modelEnabledKnown = false; impl->appliedHostEnabledSerial = 0;
 }
 void MidiRouter::publishMap (std::unique_ptr<MapSnap> map)
 {
@@ -141,6 +142,8 @@ int MidiRouter::reclaim() noexcept
         if (epoch >= list[i].epoch) { list.erase (list.begin() + (std::ptrdiff_t) i); ++freed; } else ++i;
     return freed;
 }
+void MidiRouter::setHostEnabled (bool enabled, uint32_t serial) noexcept
+{ if (serial != 0) { impl->hostEnabled = enabled; impl->hostEnabledSerial = serial; } }
 void MidiRouter::pushUiEvent (const MidiEv& e) noexcept
 { if (e.status >= 0xf8 && e.status <= 0xfc) impl->priority.push (e); else impl->input.push (e); }
 void MidiRouter::process (const juce::MidiBuffer& in, const HostTransport& host, int64_t start, int n, RouteOut& out) noexcept
@@ -149,12 +152,17 @@ void MidiRouter::process (const juce::MidiBuffer& in, const HostTransport& host,
     const auto* map = impl->published.load (std::memory_order_seq_cst);
     if (map && map->version != impl->activeVersion)
     {
-        impl->effectiveEnabled = map->boardEnabled;
+        if (! impl->modelEnabledKnown || impl->modelEnabled != map->boardEnabled)
+        { impl->effectiveEnabled = impl->modelEnabled = map->boardEnabled; impl->modelEnabledKnown = true; }
         if (! impl->effectiveEnabled) { impl->footHeld.fill (false); for (auto& channel : impl->heldNoteSlots) channel.fill (-1); }
         impl->activeVersion = map->version; impl->held.fill (false); impl->picked.fill (false);
         impl->values = map->initialValues; impl->lastSource = map->initialValues;
         impl->lastWrite.fill (0); impl->ownerPriority.fill (0);
     }
+    if (impl->hostEnabledSerial != 0 && impl->hostEnabledSerial != impl->appliedHostEnabledSerial)
+    { impl->effectiveEnabled = impl->hostEnabled; impl->appliedHostEnabledSerial = impl->hostEnabledSerial; }
+    if (! impl->effectiveEnabled)
+    { impl->footHeld.fill (false); for (auto& channel : impl->heldNoteSlots) channel.fill (-1); }
     impl->clock.begin (host, map ? map->tempoSource : TempoSource::Auto, map ? map->internalBpm : 120, start, out);
     int count = 0, ordinary = 0;
     auto append = [&] (MidiEv e, bool realtime)
