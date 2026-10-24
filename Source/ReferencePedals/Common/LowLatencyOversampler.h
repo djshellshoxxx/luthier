@@ -33,38 +33,56 @@ class LowLatencyOversampler
         void reset() noexcept
         {
             upHistory.fill(0);
-            downHistory.fill(0);
+            evenHistory.fill(0);
+            oddHistory.fill(0);
             upHead = downHead = 0;
         }
         void up(double x, double &a, double &b) noexcept
         {
-            a = 2 * filter(upHistory, upHead, x);
-            b = 2 * filter(upHistory, upHead, 0);
+            upHistory[upHead] = safe(x);
+            double sum = 0;
+            for (unsigned j = 0; j < 8; ++j)
+                sum += coefficients[j] * (upHistory[(upHead - j) & 31] + upHistory[(upHead - (15 - j)) & 31]);
+            const double interpolated = safe(2 * sum);
+            const double delayed = upHistory[(upHead - (unsigned)(centre / 2)) & 31];
+            if (parity == 0)
+            {
+                a = interpolated;
+                b = delayed;
+            }
+            else
+            {
+                a = delayed;
+                b = interpolated;
+            }
+            upHead = (upHead + 1) & 31;
         }
         double down(double a, double b) noexcept
         {
-            double y = filter(downHistory, downHead, a);
-            downHistory[downHead] = safe(b);
-            downHead = (downHead + 1) & 63;
-            return y;
+            evenHistory[downHead] = safe(a);
+            oddHistory[downHead] = safe(b);
+            double result;
+            if (parity == 0)
+            {
+                result = .5 * oddHistory[(downHead - 8) & 31];
+                for (unsigned j = 0; j < 8; ++j)
+                    result += coefficients[j] *
+                              (evenHistory[(downHead - j) & 31] + evenHistory[(downHead - (15 - j)) & 31]);
+            }
+            else
+            {
+                result = .5 * evenHistory[(downHead - 8) & 31];
+                for (unsigned j = 0; j < 8; ++j)
+                    result += coefficients[j] * (oddHistory[(downHead - (j + 1)) & 31] +
+                                                 oddHistory[(downHead - (16 - j)) & 31]);
+            }
+            downHead = (downHead + 1) & 31;
+            return safe(result);
         }
 
       private:
-        double filter(std::array<double, 64> &data, unsigned &head, double x) noexcept
-        {
-            data[head] = safe(x);
-            double result = .5 * data[(head - (unsigned)centre) & 63];
-            for (unsigned j = 0; j < 8; ++j)
-            {
-                const unsigned k = 2 * j + (unsigned)parity;
-                result += coefficients[j] *
-                          (data[(head - k) & 63] + data[(head - ((unsigned)(2 * centre) - k)) & 63]);
-            }
-            head = (head + 1) & 63;
-            return safe(result);
-        }
         std::array<double, 8> coefficients{};
-        std::array<double, 64> upHistory{}, downHistory{};
+        std::array<double, 32> upHistory{}, evenHistory{}, oddHistory{};
         unsigned upHead = 0, downHead = 0;
         int centre = 15, parity = 0;
     };
