@@ -1,3 +1,4 @@
+// OWNER: WP5
 #pragma once
 #include "Curves.h"
 #include <array>

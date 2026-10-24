@@ -1,3 +1,4 @@
+// OWNER: WP6
 #include "GestureDecoder.h"
 #include <algorithm>
 #include <cmath>
