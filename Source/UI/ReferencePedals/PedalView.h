@@ -15,6 +15,7 @@ public:
     bool updateMeters(const PedalMeters&);
     juce::String meterSummary() const;
     void showInspector();
+    void requestFootswitchLearn();
     void closeInspector(bool restoreFocus=false);
     void placeCaptionIn(juce::Component&);
     juce::Point<int> physicalSize() const;

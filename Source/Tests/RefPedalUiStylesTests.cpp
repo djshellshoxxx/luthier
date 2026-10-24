@@ -24,3 +24,9 @@ LUTHIER_TEST(RefPedalUiStyles, highContrastAndMixedMountingsPaint) {
     const juce::ScopedValueSetter<bool> textured(Palette::textured,false);
     for(int i=0;i<7;++i){auto im=surface((BoardStyle)i);juce::Graphics g(im);for(int j=1;j<=7;++j)BoardSurfacePainter::paintMount(g,{30.f+j*26.f,50,20,70},(Mounting)j,431);CHECK(im.getPixelAt(15,15).getAlpha()>0);}
 }
+#include "../UI/ReferencePedals/BoardCanvas.h"
+#include "../ReferencePedals/PedalRegistry.h"
+LUTHIER_TEST(RefPedalUiStyles, highContrastBypassRetainsBodyContrast)
+{
+    PedalRegistry::registerAll();const juce::ScopedValueSetter<bool> contrast(Palette::textured,false);BoardModel model;CHECK(model.apply(cmd::Add{"generic.boost"}));BoardCanvas canvas(model);const auto id=model.getOrder()[0];auto* view=canvas.viewFor(id);const auto enabled=view->createComponentSnapshot(view->getLocalBounds());CHECK(model.apply(cmd::SetEnabled{id,false}));const auto bypassed=view->createComponentSnapshot(view->getLocalBounds());CHECK(enabled.getPixelAt(8,52)==bypassed.getPixelAt(8,52));
+}

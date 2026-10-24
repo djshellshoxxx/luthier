@@ -112,3 +112,20 @@ The owned mapping editor now supports actual `virtualExpression` sources1/2, pre
 ## Slot footswitch modes (E62)
 
 The inspector exposes real Latch/Momentary/Auto metadata through approved `SetSlotChannel` fourth argument. Channel/profile edits retain the existing mode. When a model provides its own `*_fs_mode` configuration descriptor, that real native control replaces the generic slot mode. Tests `slotFootswitchModeUsesModelAndPreservesUnknownMetadata` (8checks) and `descriptorFootswitchModeReplacesGenericSlotMode` (5checks) pass. Focused command/model imports use the exact engine4a0ce58d changes; complete audio mode behavior is covered by the engine owner's separate70-case evidence, not claimed by these UI tests. Latest32tests /673,855checks:31functionaltests pass; one original wall-p95 assertion remains failed during shared compilation. Exact results/build/main are under `.../footmode/`.
+
+## A1–A10 source audit continuation
+
+| Acceptance | Current evidence and finite remaining work |
+|---|---|
+| A1 windows | One owned root; geometry clamp/state and close synchronization implemented. Real multi-monitor/DPI/maximised metadata and repeated host peer lifecycle remain open. |
+| A2 nonblocking | Native nonmodal window; settings/inspector/mapping ownership no modal callout loop. Native host interaction matrix remains open. |
+| A3 dock/fallback | Reserved dock region and short-height popout fallback implemented; denied-peer host matrix remains open. |
+| A4 live order | Model-authoritative moves, tags, one-gesture undo, E53 cancel and10k stress pass. Rendered-audio order proof belongs to integrated engine tests; positional host gesture recording remains under coordination. |
+| A5 styles | Seven distinct deterministic surfaces, mounts and original physical profiles. Procedural recipes remain simplified; seven-style2-scale golden pixel/DPI seam sweep and loose pose/LOD refinements remain open. |
+| A6 mix | Actual APVTS/learn control present. Full router capture/reload integration remains open. |
+| A7 cables | Real jacks, adjacent/feedback paths and real settings exist. Series/Parallel/AB/Loop/placement-filtered topology illustration, loop endpoints, feedback badge/handle creation and watchdog presentation remain incomplete. |
+| A8 performance | Native idle observation and bounded shared cache retained. Original shared-build wall failures remain recorded. Latest QA run34tests/673,863checks had0failures, wall p956.851/p9923.437ms, but this was not a coordinated isolated perf rerun; full40-cable/1.5x/dirty-area gate remains open. |
+| A9 input/a11y | Native controls, focus order, keyboard reorder and real main-looper learn target. Screen-reader/manual parity, jack interaction, touch dwell, animated gaps, trash drop and pan remain open. |
+| A10 provenance | No shipped bitmaps/logos/manual excerpts added. All visual PNGs are external test artifacts. Full sanitizer/pluginval/DAW release gates remain open. |
+
+QA fixed group-Space bypass to activate the actual attached native footswitch, and fixed context-menu looper Learn to target its real momentary parameter. `looperContextLearnUsesItsRealMomentaryParameter` passes5checks. High-contrast bypass now uses outline-only indication; the pixel regression first failed and then passed (`highContrastBypassRetainsBodyContrast`). Reorder/placement/bypass title changes notify the native accessibility handler. The exact red and green evidence is retained under `.../acceptance-qa/`.
