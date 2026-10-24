@@ -27,3 +27,21 @@ LUTHIER_TEST(RefPedalBbdCore, seedDeterminismAndBandwidth)
     }
     CHECK(10*std::log10(rms[1]/rms[0])<-30);
 }
+
+LUTHIER_TEST(RefPedalBbdCore, clockEventsRemainDistinctAboveHostRate)
+{
+    using luthier::reference::common::BbdCore;
+    for(double sr:{44100.,48000.,96000.,192000.})
+    {
+        BbdCore analog,clocked;analog.prepare(sr,12);clocked.prepare(sr,12);double difference=0,energy=0;
+        for(int i=0;i<int(sr*.1);++i)
+        {
+            const double x=.1*std::sin(6.283185307179586*1000*i/sr);
+            const double a=analog.process(x,3.4),b=clocked.process(x,3.4,0,true);
+            difference+=(a-b)*(a-b);energy+=b*b;
+        }
+        CHECK(difference>1e-7);CHECK(energy>1);clocked.reset();double silence=0;
+        for(int i=0;i<4096;++i)silence+=std::abs(clocked.process(0,3.4,0,true));
+        CHECK_NEAR(silence,0,1e-20);
+    }
+}

@@ -23,6 +23,7 @@ public:
 private:
     common::BbdCore wet[2];common::OnePole inputHp[2];common::Lfo lfo;
     TimeInfo time;uint32_t seed=1;bool enabled=true;
+    double lastRate=-1,cachedRate=1,triangleCoefficient=0;
     double sr=48000,triangle=0,engage=1,force=0,fadeSeconds=.005;
     int variant=0;int64_t samples=0,lastTap=-1;
     std::array<double,3> taps{};int tapCount=0,tapIndex=0;

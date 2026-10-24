@@ -1,0 +1,6 @@
+#include "Source/ReferencePedals/Common/BbdCore.h"
+#include "Source/ReferencePedals/Common/OnePole.h"
+#include <complex>
+#include <cstdio>
+using namespace luthier::reference::common;
+int main(){for(double sr:{44100.,48000.,96000.,192000.})for(double db:{-12.,-3.})for(int method=0;method<2;++method){Biquad pre[2],post[2];OnePole hp;hp.setLowpass(sr,15);pre[0].setLowpass(sr,6500,.541196100146197);pre[1].setLowpass(sr,6500,1.30656296487638);post[0].setLowpass(sr,5500,.541196100146197);post[1].setLowpass(sr,5500,1.30656296487638);FractionalDelay delay;delay.prepare(int(sr*.012)+8);LowLatencyOversampler os;os.prepareFactor(sr,sr<=48000?2:1);std::complex<double> h[10]{};for(int i=0;i<2*int(sr);++i){double dry=hp.highpass(pow(10,db/20)*sin(2*pi*1000*i/sr)),x=dry;for(auto& f:pre)x=f.process(x);x=os.process(x,[method](double v){if(!method)return tanh(v);return std::abs(v)<=.5?v:copysign(.5+.5*tanh((std::abs(v)-.5)/.5),v);});delay.push(x);x=delay.read(sr*.0034-os.latencySamples());for(auto& f:post)x=f.process(x);double y=dry+.9440608762859234*x;if(i>=int(sr))for(int k=1;k<10;++k)h[k]+=y*exp(std::complex<double>(0,-2*pi*1000*k*i/sr));}double e=0;for(int k=2;k<10;++k)e+=norm(h[k]);printf("sr%.0f dB%.0f curve%d THD%.6f%%\n",sr,db,method,100*sqrt(e)/abs(h[1]));}}

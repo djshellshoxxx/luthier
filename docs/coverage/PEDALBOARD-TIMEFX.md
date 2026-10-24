@@ -80,8 +80,8 @@ WP15/16 ownership transferred to the state worker after commits a3ceccaa and
 30eeb3f7. That worker owns subsequent LooperCore/storage/named-loopers changes.
 Existing `PhraseLooper.h` and its regression tests remain unchanged here.
 
-Full repository/plugin build, sanitizer runner, and host integration are managed
-by the coordinator and have not yet been run on this slice.
+Full repository/plugin build and host integration are managed by the coordinator.
+Isolated sanitizer evidence is recorded below.
 
 
 ## WP14 implemented behavioral candidates, registration gated
@@ -90,7 +90,7 @@ BbdCore, Phase90 Script/Block, CE2, CE2W and DD3T now contain functioning DSP.
 They remain unregistered while the original acoustic/performance gates below are
 unmet. No hardware captures or hardware-equivalence claims are available.
 
-The latest complete isolated GCC C++17/O1 runner passes2,944,741 assertions,
+The complete isolated GCC C++17/O1 ASAN+UBSAN runner passes 2,980,129 assertions,
 including the generic/core tests above, bandlimited and short FIR tests, all four
 reference models, independent stereo states, and11 allocation-counter checks.
 Named checks cover44.1/48/96/192 kHz, exact2048-vs1-sample partitions, seeded
@@ -125,7 +125,7 @@ full-scale peak, measured folded5th/7th/9th/11th components are below−146dBc
 at44.1/48k (coherent one-second complex projections after one-second settling).
 This is evidence for those probes, not a full alias-frequency sweep.
 
-Unmet measured gates (unchanged original criteria):
+Initial measured failures (unchanged original criteria; E51 correction below):
 - CE2 specified Vc=1 tanh, depth0,1k sine at−12dBFS peak gives2.2609% total-output
   THD versus <0.3%; at−3dBFS gives12.6325% versus2..6%. BBD mode character and
   clock tracking remain approximate. No clip-level correction is silently made.
@@ -146,3 +146,102 @@ live under Source/Tests. THD uses depth0/noise0, coherent1k/48k with one second
 settling then one-second projections of harmonics1..9. All stated input levels
 are dBFS peak, not RMS. CE2 measures total output; CE2W extracts wet=(A−B)/2;
 DD3T subtracts dry and disables feedback/12-bit quantization.
+
+
+## Reviewed corrections and follow-up evidence
+
+E51 was approved by the coordinator after independent DSP mathematical review.
+The CE2 text requires clipping above the −6 dBFS reference, but its literal global
+`tanh(x)` distorts low-level signals too strongly. The estimated replacement is:
+
+```
+y = x                                      when abs(x) <= 0.5
+    sign(x) * (0.5 + 0.5*tanh((abs(x)-0.5)/0.5)) otherwise
+```
+
+This is C2 continuous, monotonic, unity slope below −6.0206 dBFS peak, and retains
+the original ±1 ceiling. It removes low-level cubic coloration. It is an estimated
+headroom model, not a measurement of hardware. CE2W's separate 4.5 V law is not
+changed by E51. The original numeric acceptance limits remain unchanged.
+
+Coherent total-output CE2 THD, depth zero, noise off, 1 kHz, peak convention:
+
+| Sample rate | Literal tanh at −12 dBFS | E51 at −12 dBFS | Literal tanh at −3 dBFS | E51 at −3 dBFS |
+| --- | ---: | ---: | ---: | ---: |
+| 44.1 kHz | 2.344898% | <0.000001% | 12.941872% | 2.683061% |
+| 48 kHz | 2.260864% | <0.000001% | 12.632477% | 2.583329% |
+| 96 kHz | 1.975764% | <0.000001% | 11.498957% | 2.249638% |
+| 192 kHz | 1.915484% | <0.000001% | 11.241090% | 2.179377% |
+
+The low-level <0.3% and high-level 2–6% gates now pass all four rates. Comparison
+source is preserved in `probes/ce2-headroom-comparison.cpp`; the actual model has
+12 persistent all-rate THD assertions. The BBD-mode-specific 0.5–3% gate remains
+open and is not replaced by these default-mode checks.
+
+Actual E51 BBD chain probes preserve 1 kHz small-signal gain within 0.000103 dB,
+10 kHz attenuation from −36.3 to −44.9 dB, and original impulse timing. At full
+scale 5 kHz, the measured folded 5th/7th/9th/11th components are at most
+−114.903 dBc (48 kHz, folded 9th); 44.1 kHz worst is −140.19 dBc. The baseline
+and revised frequency responses differ by less than 0.000003 dB at the stated
+small-signal probes. These probes do not substitute for a full-frequency sweep.
+
+BBD mode now reconstructs the last clock event between host samples. If the
+clock advances multiple ticks, the latest event age is residualClockPhase divided
+by clocksPerHostSample; its value is linearly reconstructed from the preceding
+and current pre-hold wet values. With no tick, the previous hold remains. This
+avoids an inert option whenever the BBD clock exceeds host rate. DSP independently
+reviewed the approximation; distinct-output, reset and all-rate tests pass.
+
+Performance work caches fixed time constants and settled-control powers, caches
+DD3T quantization scale, and interpolates Phase90 allpass coefficients on a
+sample-counted eight-sample clock. Existing partition, timing, phase and notch
+regressions pass. Shared `MildTanh` uses degree-13 Horner evaluation only for
+|x| <= 0.25, otherwise libm tanh. The dense million-point maximum absolute error
+is 1.32236e-12; the alternating remainder bound is 1.36e-12. It changes numerical
+cost, not the modeled shaper law, and has independent DSP approval.
+
+The initial wall-time CPU figures above were contaminated by parallel-build
+contention and are superseded. The probe now times only process calls using
+CLOCK_THREAD_CPUTIME_ID; input generation is outside the timed region. Before
+the CE2W continuous-history follow-up, measured O3 results at 48 kHz were CE2
+0.471% (still above 0.4%), DD3T 0.593% (above 0.5%), CE2W 0.340% (below 1%), and
+Phase90 0.329% (below 0.4%). No CPU threshold has been raised.
+
+The ASAN+UBSAN immutable snapshot passes 2,980,129 assertions with no diagnostics,
+including E51, fast tanh, bounded delay wrapping, all ten pedal allocation checks,
+and 60 seconds of random controls/block sizes for each named model at all four
+rates. An earlier sanitizer build was invalid: model headers were edited during
+sequential compilation, mixing an old stack object size with a newer constructor.
+Its stack overflow report is discarded as mixed-revision evidence, not suppressed.
+All subsequent sanitizer builds use immutable copied source trees.
+
+Verified follow-up: CE2W now advances all three mode histories,
+preventing stale audio when returning to a previously inactive mode. A dedicated
+regression feeds audio, changes mode, waits one second of silence, then returns
+and requires energy below 1e-20. A 30-minute-per-rate/model randomized soak is
+available under LUTHIER_PERF=1; default test duration remains 60 seconds.
+
+Registrations remain gated. CE2W CE1 THD, full FRF/IMD/sideband grids, transition
+criteria, state/audio restoration and remaining CPU checks are still explicit
+acceptance work. The CE1 preamp's estimated +2–3 dB high-frequency color is not
+yet calibrated; no separate CE1 clipping-law alteration is authorized or applied.
+
+
+The final polyphase short FIR was independently reviewed for even/odd phase and
+mirrored history indexing. A separate scalar full-convolution oracle contributes
+16,384 comparisons; all pass with the original 1e-14 tolerance. Actual BBD-chain
+spectral probes are unchanged at the reported precision. A representative CPU
+run with all three CE2W voices active gives CE2 0.433%, DD3T 0.531%, Phase90
+0.330%, and CE2W 0.844%; CE2/DD3T remain above their original targets. Small
+subsequent scalar-loop changes have not established a stable CPU pass and do not
+change that status. In particular no machine-noise cherry-picking is used to
+claim the narrow remaining margins are acceptable.
+
+DD3T E47 reports actual stored tap tempo (or current valid host BPM during sync)
+and the active Short Loop length, playhead and progress. It does not invent
+transport states or storage progress. E41 now gives DD3T ownership of every raw
+footswitch event: a short release requests board-owned engagement, while a
+2-second hold changes tap function without an unintended bypass transition.
+Tap mode and Short Loop never request an engagement toggle. Engine ownership
+review confirmed this fits the existing contract and its <=64-sample consume
+latency; a dedicated short-release/long-hold regression covers the distinction.

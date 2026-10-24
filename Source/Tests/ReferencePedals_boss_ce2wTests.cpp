@@ -45,3 +45,14 @@ LUTHIER_TEST(RefPedalCe2w, lfoRatesAndModeTransition)
     }
     CHECK(maxDelta<std::pow(10,-30./20));
 }
+
+LUTHIER_TEST(RefPedalCe2w, inactiveModesDoNotReplayStaleAudio)
+{
+    BossCe2w pedal;pedal.setParam(7,0);pedal.setParam(1,0);pedal.prepare(48000,1,1);
+    for(int i=0;i<256;++i){double l=.2,r=.2;pedal.process(&l,&r,1);}
+    pedal.setParam(2,.5f);
+    for(int i=0;i<48000;++i){double l=0,r=0;pedal.process(&l,&r,1);}
+    pedal.setParam(2,0);double energy=0;
+    for(int i=0;i<4800;++i){double l=0,r=0;pedal.process(&l,&r,1);energy+=l*l+r*r;}
+    CHECK(energy<1e-20);
+}
