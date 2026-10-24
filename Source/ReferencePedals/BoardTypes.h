@@ -140,6 +140,7 @@ struct PedalMeters
 {
     InstanceId identity = InstanceId::null();
     bool present = false, enabled = false;
+    bool tailResidualAvailable = false; // E68: false does not certify bypass tail fidelity
     float tailEnergyDb = -120.f;
     PedalUiMeters model;
 };

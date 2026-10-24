@@ -25,6 +25,7 @@ struct PedalRuntime
     double enableMix = 0.0, bypassSamples = 240.0;
     FootController foot;
     bool enabled = true, modelEnabled = true;
+    bool tailResidualAvailable = false; // E68: last rendered explicit wet-output capability
     std::array<float, kMaxParams> modelParams {};
     std::array<uint32_t, kMaxParams> modelParamSerials {};
     uint32_t modelEnabledSerial = 0, modelInputSerial = 0, modelOutputSerial = 0;

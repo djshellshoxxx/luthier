@@ -374,16 +374,21 @@ public:
     int getLatencySamples() const noexcept override { return 17; }
     float getTailEnergyDb() const noexcept override { return static_cast<float> (20 * std::log10 (std::max (1.e-6, std::max (std::abs (tail[0]), std::abs (tail[1]))))); }
     void processBypass (double* l, double* r, int n) noexcept override { for (int i = 0; i < n; ++i) { l[i] *= 0.8; r[i] *= 0.8; } }
-    void process (double* l, double* r, int n) noexcept override
+    void process (double* l, double* r, int n) noexcept override { render (l, r, nullptr, nullptr, n); }
+    bool processWithWetResidual (double* l, double* r, double* wl, double* wr, int n) noexcept override
+    { render (l, r, wl, wr, n); return true; }
+    void render (double* l, double* r, double* wl, double* wr, int n) noexcept
     {
         for (int i = 0; i < n; ++i)
         {
             tailGain = std::clamp (tailGain + (enabled || trails ? tailStep : -tailStep), 0.0, 1.0);
             for (int c = 0; c < 2; ++c)
             {
-                auto& sample = c == 0 ? l[i] : r[i]; const double dry = wetDelay[c].process (sample, 17);
+                auto& sample = c == 0 ? l[i] : r[i]; const double dry = std::clamp (wetDelay[c].process (sample, 17), -16.0, 16.0);
                 if (desc().hasTails) { tail[c] = 0.999 * tail[c] + (enabled ? 0.25 * dry : 0.0); sample = dry + tailGain * tail[c]; }
                 else sample = 2 * dry;
+                if (auto* residual = c == 0 ? wl : wr) residual[i] = desc().hasTails ? tailGain * tail[c] : 0.0;
+                sample = std::clamp (sample, -16.0, 16.0);
             }
         }
     }
@@ -471,4 +476,67 @@ LUTHIER_TEST (RefPedalRouting, structuralDryLatencyChangeUsesSharedHistoryDuring
         const double amount = std::min (1.0, (i + 1) / 480.0);
         CHECK_NEAR (left[i], (1024 + i - 17 * (1 - amount)) * 0.0001, 1.e-10);
     }
+}
+
+LUTHIER_TEST (RefPedalRouting, clippedTailDryMustNotBeInferredFromUnclippedSlotInput)
+{
+    for (const int type : { 2, 3 })
+    {
+        PedalRegistry::TestScope scope;
+        CHECK (PedalRegistry::add (bypassDescriptions[type], type == 2 ? dspBypassProbe : bufferedTailProbe));
+        Board board; board.prepare (48000, 64);
+        PedalInstance p; p.slot = 0; p.modelId = bypassDescriptions[type].modelId;
+        p.inDb = p.outDb = 12; p.params[0] = 1;
+        BoardSettings settings; settings.enabled = true; settings.limiterOn = false;
+        CHECK (board.model().replaceAll ({ p }, settings));
+        double l[2048] {}, r[2048] {};
+        board.processStereo (l, r, 2048, Placement::beforeExistingPre);
+        l[0] = 0.01; r[0] = -0.01; board.processStereo (l, r, 64, Placement::beforeExistingPre);
+        CHECK (board.model().apply (cmd::SetEnabled { p.instanceId, false }));
+        std::fill_n (l, 512, 5.0); std::fill_n (r, 512, -5.0);
+        const auto allocations = luthier::tests::allocationsOnThisThread();
+        board.processStereo (l, r, 512, Placement::beforeExistingPre);
+        CHECK (luthier::tests::allocationsOnThisThread() == allocations);
+        CHECK (board.readPedalMeters (0).tailResidualAvailable);
+        const double tail = 0.0025 * std::pow (10.0, 24.0 / 20.0) * std::pow (0.999, 46 + 512);
+        const double bypassDry = type == 3 ? 4.0 : 5.0;
+        CHECK_NEAR (l[511], bypassDry + tail, 1.e-7);
+        CHECK_NEAR (r[511], -bypassDry - tail, 1.e-7);
+        for (int i = 0; i < 512; ++i) CHECK (std::isfinite (l[i]) && std::abs (l[i]) <= 16.0);
+    }
+}
+
+namespace
+{
+const PedalDesc unavailableTailDesc { "test.unavailable_tail", "test_unavailable_tail_", 1, "No residual", "Test", nullptr,
+    ChannelMode::Stereo, BypassMode::DSP, 0, nullptr, 0, true, false, false, 0 };
+int unavailableTailFrames = 0;
+class UnavailableTail final : public IPedal
+{
+public:
+    const PedalDesc& desc() const noexcept override { return unavailableTailDesc; }
+    void prepare (double, int, int) override {}
+    void reset() noexcept override {}
+    void process (double* l, double* r, int n) noexcept override
+    { unavailableTailFrames += n; for (int i = 0; i < n; ++i) { l[i] = std::clamp (l[i], -16.0, 16.0); r[i] = std::clamp (r[i], -16.0, 16.0); } }
+    void setParam (int, float) noexcept override {}
+    float getParam (int) const noexcept override { return 0; }
+};
+}
+LUTHIER_TEST (RefPedalRouting, missingWetResidualUsesOneRenderAndReportsUnavailable)
+{
+    PedalRegistry::TestScope scope;
+    CHECK (PedalRegistry::add (unavailableTailDesc, []() -> std::unique_ptr<IPedal> { return std::make_unique<UnavailableTail>(); }));
+    Board board; board.prepare (48000, 64);
+    PedalInstance p; p.slot = 0; p.modelId = unavailableTailDesc.modelId; p.enabled = false; p.inDb = p.outDb = 12;
+    BoardSettings settings; settings.enabled = true; settings.limiterOn = false;
+    CHECK (board.model().replaceAll ({ p }, settings));
+    double l[2048] {}, r[2048] {}; board.processStereo (l, r, 2048, Placement::beforeExistingPre);
+    std::fill_n (l, 64, 5.0); std::fill_n (r, 64, -5.0); unavailableTailFrames = 0;
+    const auto allocations = luthier::tests::allocationsOnThisThread();
+    board.processStereo (l, r, 64, Placement::beforeExistingPre);
+    CHECK (luthier::tests::allocationsOnThisThread() == allocations);
+    CHECK (unavailableTailFrames == 64);
+    CHECK (! board.readPedalMeters (0).tailResidualAvailable);
+    for (int i = 0; i < 64; ++i) { CHECK_NEAR (l[i], 5.0, 1.e-12); CHECK_NEAR (r[i], -5.0, 1.e-12); }
 }
