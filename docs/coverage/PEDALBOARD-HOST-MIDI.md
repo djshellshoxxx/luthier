@@ -75,3 +75,11 @@ Actual regression first failed3/10 checks against the prior service. Native posi
 Overlay-control correction: the shared native-snapshot-02e4e1fc folder was temporarily used as a mutable candidate overlay. Other workers recompiling tests against it while linking an old processor constructor could therefore observe incompatible sizeof/layout and false failures. The host overlay rebuilt its candidate constructor and host test together, but it is not evidence that the shared folder remained a pristine02 control throughout. Engine/coordinator now own that control; host work will not modify it again. Future overlay files use a separate git02 archive under host-midi-02-control. Only the coordinator's fresh coherent combined binary is authoritative for whole-product acceptance; no production fixture change is justified by the contaminated control.
 
 ClockSync tap-policy helper now rejects taps under explicitly selected HOST/MIDI_CLOCK, or AUTO with a valid external host/MIDI stream, and discards the ignored chain history. INTERNAL and AUTO fallback keep weighted tapping. Standalone production-header regression reproduced4 failures;12 scoped checks now pass, with the equivalent registered RefPedalMidiCore case added. This does not claim the missing board-level tap request/UX plumbing is complete. Evidence:midi-tap-policy-red.log and midi-tap-policy-green.log.
+
+
+General MIDI parameter persistence remains open. The isolated latest-per-target
+mailbox and six focused tests are described in
+[MIDI-PARAMETER-READBACK.md](MIDI-PARAMETER-READBACK.md); no engine, model,
+processor or UI integration is enabled. Exact source/restore/control/host tokens
+and an actual guarded conditional commit are prerequisites, not inferred from
+UiEv Activity or the existing applyHostEcho API.
