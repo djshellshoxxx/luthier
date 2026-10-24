@@ -102,3 +102,30 @@ LUTHIER_TEST(RefPedalGenericC, hallDecayAndFreeze)
     for(int i=0;i<11*int(sr);++i) {auto y=tank.process(0);double e=y[0]*y[0]+y[1]*y[1];if(i<int(sr))start+=e;if(i>=10*int(sr))end+=e;}
     CHECK(std::abs(10*std::log10(end/start))<1);
 }
+LUTHIER_TEST(RefPedalGenericC, reverbTypeReturnNeverRevivesInactiveHistory)
+{
+    for(double sr:{44100.,48000.,96000.,192000.})for(int type=0;type<5;++type)
+    {
+        generic::Reverb p;p.setParam(5,type*.25f);p.setParam(1,1);p.setParam(2,0);p.prepare(sr,1,1);
+        for(int i=0;i<int(sr*.2);++i){double l=.1*std::sin(i*.11),r=l;p.process(&l,&r,1);}
+        p.setParam(5,((type+1)%5)*.25f);
+        // Old input lowcut/filter ringing has decayed before the return; each
+        // tank must begin with fresh history even if it was used previously.
+        for(int i=0;i<int(sr*2);++i){double l=0,r=0;p.process(&l,&r,1);}
+        p.setParam(5,type*.25f);double energy=0;
+        for(int i=0;i<int(sr*.4);++i){double l=0,r=0;p.process(&l,&r,1);if(i>int(sr*.06))energy+=l*l+r*r;}
+        CHECK(energy<1e-18);
+    }
+}
+LUTHIER_TEST(RefPedalGenericC, reverbRapidTypeChangesRemainPartitionIndependent)
+{
+    generic::Reverb a,b;a.prepare(48000,64,1);b.prepare(48000,64,1);
+    std::array<double,64> l{},r{},x{},y{};
+    for(int block=0;block<600;++block)
+    {
+        if(block%7==0){float type=float((block/7)%5)*.25f;a.setParam(5,type);b.setParam(5,type);}
+        for(int i=0;i<64;++i)l[i]=r[i]=x[i]=y[i]=.1*std::sin((block*64+i)*.1);
+        a.process(l.data(),r.data(),64);for(int i=0;i<64;++i)b.process(x.data()+i,y.data()+i,1);
+        CHECK(l==x);CHECK(r==y);
+    }
+}

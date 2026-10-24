@@ -293,3 +293,63 @@ Its measured core-only stereo CPU is 0.5395%, already above 0.4% before host,
 parameter and buffer overhead. Independent DSP review confirms that common-path
 filtering preserves cancellation phase; wet-only filtering would alter it. The
 proposal is not adopted and does not amend either original latency or CPU gate.
+
+
+E58 remains a bounded **proposal**, with the literal four-equal-AP1 implementation
+unchanged. `probes/phase90-e58-proposal.cpp` separately prewarps the two original
+analog notch anchors, then factors the second-order denominator into two stable
+real AP1 coefficients, each used twice. The smaller root is evaluated as P/r to
+avoid subtraction cancellation. Alternating roots preserve all four existing
+nonlinear sites; grouped ordering is measured separately because the shapers
+make stage ordering audible in principle. This changes the literal coefficient
+formula, not the original notch, latency, distortion or CPU thresholds.
+
+The committed `probes/phase90-e58-results.txt` records old/new coefficients,
+notches, allpass gain, maximum phase change, coherent THD, 60-second 0.6-feedback
+stability and core CPU at five rates. Both revised notch residuals are below
+2.1e-14; wet magnitude deviation is below 5.4e-14. At the 3300 Hz endpoint the
+maximum phase correction across 20 Hz–14 kHz is 15.9601 degrees at 44.1 kHz and
+13.3176 degrees at 48 kHz. This is a real frequency-response/tonal correction,
+not a claim that the old and proposed transfer functions are identical. The
+probe optionally writes all 30,015 old/new phase and mixed-magnitude points to
+CSV: compile C++17 -O3, then run with the desired output CSV path.
+
+THD uses 1 kHz, one second settling plus one second coherent projection through
+ten harmonics, static fc=3300, noise off. The stated +4 dBu = +6.218487496 dBV
+full-scale RMS calibration maps -20/-6 dBV to digital peaks
+0.069117914080/0.346410161520 (peak and RMS are not interchanged). Original and
+both revised orderings give <0.012% and <0.30% THD, below the unchanged 0.5%/3%
+limits for this condition. All old/new moving 16 Hz, feedback 0.6 impulse trials
+are finite and decay to zero over 60 seconds. The candidate adds no buffering
+or explicit sample latency; as an IIR it retains frequency-dependent group delay.
+Core-only stereo thread-CPU is 0.3372% original / 0.3556% revised. These exclude
+parameter, mismatch and host overhead, so the actual-model 0.4% gate is **not**
+claimed. The prototype tests zero mismatch; adapting seeded per-stage mismatch
+still needs an explicitly reviewed mapping and actual-model measurements.
+
+The earlier 30-minute reference soak used deterministic LCG seed 73,
+multiplier 1664525 and increment 1013904223, blocks 1/4/16/64/512/2048 and
+parameter/expression/foot/enabled changes every 31 blocks. Its aggregate frame
+count and exact snapshot limitations remain as stated above.
+
+Reverb type changes now use the explicitly permitted 50 ms dip: 25 ms down,
+reset the new tank at zero wet gain, then 25 ms up. This prevents stale audio
+from an inactive tank returning when a user revisits a type. Rapid changes can
+reverse the dip or select another pending type without dropping a partly
+weighted voice. Constant-time FractionalDelay resets avoid clearing megabytes
+on the callback. The change also caches unchanged wet-input highpass coefficients
+and the fixed tail-envelope coefficient. Focused Delay/Reverb tests pass
+2,887,281 checks, including all-rate/type stale-history return, repeated type
+changes with exact partition independence, existing RT60/freeze and reset tests.
+
+New acceptance probes exposed outstanding original Reverb gates rather than
+certifying the earlier structural implementation: at 48 kHz, full-wet defaults,
+10 seconds seeded white input with the last 3 seconds measured, wet/dry RMS is
+Room -3.6217, Hall -5.8324, Plate -5.3551, Spring -3.4638, Ambient -6.7989 dB.
+These do not meet the original +/-3 dB normalization gate. Conservative mono
+average (L+R)/2 stays about -3 dB versus L, passing the original >-6 dB criterion.
+Hall raw-impulse normalized echo density in a 20 ms window around 200 ms is
+0.8207 (predelay 0) / 0.8371 (default predelay 15 ms), below the original >0.9.
+Definition: fraction of samples whose mean-removed magnitude exceeds the window
+standard deviation, divided by the Gaussian probability 0.317310507862914.
+These acoustic gates remain open; no threshold or test label was weakened.
