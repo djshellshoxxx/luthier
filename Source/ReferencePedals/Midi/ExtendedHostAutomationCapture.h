@@ -30,6 +30,14 @@ public:
         if (old == std::numeric_limits<uint32_t>::max()) serials[(size_t) index].fetch_add (1, std::memory_order_release);
         return true;
     }
+    // Host state carries parameter intent, not a replayable action edge.
+    void releaseRestoredActions() noexcept
+    {
+        constexpr size_t i = (size_t) ExtendedHostField::FeedbackKill;
+        values[i].store (0.f, std::memory_order_relaxed);
+        const auto old = serials[i].fetch_add (1, std::memory_order_release);
+        if (old == std::numeric_limits<uint32_t>::max()) serials[i].fetch_add (1, std::memory_order_release);
+    }
     ExtendedHostAutomationSnapshot snapshot() const noexcept
     {
         ExtendedHostAutomationSnapshot out;

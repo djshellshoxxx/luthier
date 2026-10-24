@@ -31,6 +31,8 @@
 namespace luthier
 {
 
+namespace { thread_local const LuthierAudioProcessor* referenceRestoreWriter = nullptr; }
+
 
 //==============================================================================
 /*  Advertises layouts A to D of routing-io 1 as one superset of buses, and
@@ -3438,7 +3440,9 @@ void LuthierAudioProcessor::parameterValueChanged (int parameterIndex, float val
     if (referenceParameterBase >= 0)
     {
         referenceHostCapture.write (parameterIndex - referenceParameterBase, value);
-        referenceExtendedCapture.write (parameterIndex - referenceParameterBase - reference::HostAutomationSnapshot::count, value);
+        const int extendedIndex = parameterIndex - referenceParameterBase - reference::HostAutomationSnapshot::count;
+        if (referenceRestoreWriter != this || extendedIndex != (int) reference::ExtendedHostField::FeedbackKill)
+            referenceExtendedCapture.write (extendedIndex, value);
     }
 }
 
@@ -4000,6 +4004,11 @@ void LuthierAudioProcessor::restoreState (const void* data, int sizeInBytes, Res
     if (scope == RestoreScope::full)
         readStateFormat (*root, data, sizeInBytes);
 
+    // Suppress only synchronous restore notifications on this control thread.
+    // Concurrent actual host writes on another thread retain their action edge.
+    const juce::ScopedValueSetter<const LuthierAudioProcessor*> restoreActions (referenceRestoreWriter, this);
+    referenceExtendedCapture.releaseRestoredActions();
+
     if (root->hasProperty ("preset"))
     {
         const bool loaded = presets.fromVar (root->getProperty ("preset"));
@@ -4317,8 +4326,15 @@ void LuthierAudioProcessor::serviceReferenceExtendedParameters()
     auto changed = [&] (int i) { return input.serials[(size_t) i] != 0 && input.serials[(size_t) i] != referenceExtendedModelSerials[(size_t) i]; };
     auto v = [&] (F f) { return input.values[(size_t) f]; };
     auto fresh = [&] (F f) { return changed ((int) f); };
+    auto reject = [] (const juce::String& reason)
+    { ErrorLog::write (ErrorLog::Severity::warn, "ReferencePedals", "HOST_CONTROL_REJECTED", reason); };
     auto apply = [&] (const reference::BoardCommand& command, bool structural)
-    { if (structural) model.apply (command); else model.applyHostEcho (command); };
+    {
+        juce::String reason;
+        const bool accepted = structural ? model.apply (command, &reason) : model.applyHostEcho (command, &reason);
+        if (! accepted) reject (reference::commandName (command) + juce::String (": ") + reason);
+    };
+    for (int i = 0; i < 50; ++i) if (changed (i)) referenceExtendedHostIntentRetained[(size_t) i] = true;
     const auto old = model.getBoardSettings();
     if (fresh (F::MixLaw)) apply (reference::cmd::SetMixLaw { (reference::MixLaw) (int) v (F::MixLaw) }, false);
     if (fresh (F::Mode)) apply (reference::cmd::SetMode { (reference::Mode) (int) v (F::Mode) }, true);
@@ -4343,7 +4359,11 @@ void LuthierAudioProcessor::serviceReferenceExtendedParameters()
     if (fresh (F::FeedbackDst)) { feedback.dst = resolveSlot (v (F::FeedbackDst)); feedbackChanged = feedbackStructural = true; }
     const bool validFeedbackTargets = (! fresh (F::FeedbackSrc) || v (F::FeedbackSrc) == 0 || ! feedback.src.isNull())
         && (! fresh (F::FeedbackDst) || v (F::FeedbackDst) == 0 || ! feedback.dst.isNull());
-    if (feedbackChanged && validFeedbackTargets) apply (reference::cmd::SetFeedback { feedback }, feedbackStructural);
+    if (feedbackChanged)
+    {
+        if (validFeedbackTargets) apply (reference::cmd::SetFeedback { feedback }, feedbackStructural);
+        else reject ("Feedback endpoint does not name an occupied slot");
+    }
     for (int lane = 0; lane < reference::kMaxBranches; ++lane)
     {
         const int i = (int) F::Lane1GainDb + 2 * lane;
@@ -4369,7 +4389,11 @@ void LuthierAudioProcessor::serviceReferenceExtendedParameters()
                 case 7: settings.last = resolveSlot (value); validEndpoints &= value == 0 || ! settings.last.isNull(); break;
             }
         }
-        if (any && validEndpoints) apply (reference::cmd::SetLoop { loop, settings }, structural);
+        if (any)
+        {
+            if (validEndpoints) apply (reference::cmd::SetLoop { loop, settings }, structural);
+            else reject ("Loop endpoint does not name an occupied slot");
+        }
     }
     const auto settings = model.getBoardSettings(); std::array<float, 50> values {};
     auto put = [&] (F field, float value) { values[(size_t) field] = value; };
@@ -4394,7 +4418,11 @@ void LuthierAudioProcessor::serviceReferenceExtendedParameters()
         auto* parameter = apvts.getParameter (reference::extendedHostParameters[(size_t) i].id); if (! parameter) continue;
         if (i == (int) F::Exp1 || i == (int) F::Exp2) values[(size_t) i] = parameter->convertFrom0to1 (parameter->getValue());
         if (referenceExtendedCapture.serial ((size_t) i) != input.serials[(size_t) i]) continue;
+        if (! changed (i) && values[(size_t) i] != referenceExtendedModelMirror[(size_t) i])
+            referenceExtendedHostIntentRetained[(size_t) i] = false;
+        referenceExtendedModelMirror[(size_t) i] = values[(size_t) i];
         referenceExtendedModelSerials[(size_t) i] = input.serials[(size_t) i];
+        if (referenceExtendedHostIntentRetained[(size_t) i]) continue;
         const float normalised = parameter->convertTo0to1 (values[(size_t) i]);
         if (parameter->getValue() != normalised)
         { const reference::ExtendedHostAutomationCapture::EchoScope echo (referenceExtendedCapture); parameter->setValueNotifyingHost (normalised); }
@@ -4444,21 +4472,32 @@ void LuthierAudioProcessor::serviceReferencePedalParameters()
         if (! referenceMirrorInitialised) referenceParameterMirror[i] = p->convertFrom0to1 (p->getDefaultValue());
     }
     referenceMirrorInitialised = true;
-    auto changed = [&] (size_t i) { return incomingSerials[i] != referenceModelSerials[i] || incoming[i] != referenceParameterMirror[i]; };
-    if (changed (0)) model.applyHostEcho (reference::cmd::SetBoardEnabled { incoming[0] >= .5f });
-    if (changed (1)) model.applyHostEcho (reference::cmd::SetMix { incoming[1] });
-    if (changed (2)) model.applyHostEcho (reference::cmd::SetBoardParam { "tempoBpm", incoming[2] });
+    const auto previousModelValues = referenceParameterMirror;
+    auto fresh = [&] (size_t i) { return incomingSerials[i] != 0 && incomingSerials[i] != referenceModelSerials[i]; };
+    for (size_t i = 0; i < ids.size(); ++i) if (fresh (i)) referenceHostIntentRetained[i] = true;
+    auto changed = [&] (size_t i) { return fresh (i) || (! referenceHostIntentRetained[i] && incoming[i] != previousModelValues[i]); };
+    // Vacant slots and unused lanes have host state, but no model control to mirror.
+    referenceParameterMirror = incoming;
+    auto persist = [&] (const reference::BoardCommand& command)
+    {
+        juce::String reason;
+        if (! model.applyHostEcho (command, &reason))
+            ErrorLog::write (ErrorLog::Severity::warn, "ReferencePedals", "HOST_CONTROL_REJECTED", reason);
+    };
+    if (changed (0)) persist (reference::cmd::SetBoardEnabled { incoming[0] >= .5f });
+    if (changed (1)) persist (reference::cmd::SetMix { incoming[1] });
+    if (changed (2)) persist (reference::cmd::SetBoardParam { "tempoBpm", incoming[2] });
     for (const auto& id : model.getOrder())
     {
         auto instance = model.getInstance (id); if (! instance || instance->slot < 0 || instance->slot >= reference::kMaxSlots) continue;
         const size_t base = (size_t) (3 + instance->slot * 20);
-        if (changed (base)) model.applyHostEcho (reference::cmd::SetEnabled { id, incoming[base] >= .5f });
+        if (changed (base)) persist (reference::cmd::SetEnabled { id, incoming[base] >= .5f });
         const auto& lanes = reference::PedalRegistry::laneMap (instance->modelId.c_str());
         for (int lane = 0; lane < lanes.numLanes; ++lane)
             if (changed (base + 1 + (size_t) lane))
-                model.applyHostEcho (reference::cmd::SetParam { id, lanes.laneToParam[lane], incoming[base + 1 + (size_t) lane] });
+                persist (reference::cmd::SetParam { id, lanes.laneToParam[lane], incoming[base + 1 + (size_t) lane] });
         if (changed (base + 17) || changed (base + 18))
-            model.applyHostEcho (reference::cmd::SetTrim { id, incoming[base + 17], incoming[base + 18] });
+            persist (reference::cmd::SetTrim { id, incoming[base + 17], incoming[base + 18] });
     }
     // Resolve all position requests together, stable in the existing model order.
     auto order = model.getOrder();
@@ -4493,7 +4532,9 @@ void LuthierAudioProcessor::serviceReferencePedalParameters()
     {
         auto* p = apvts.getParameter (ids[i]); const float value = p->convertTo0to1 (referenceParameterMirror[i]);
         if (referenceHostCapture.serial (i) != incomingSerials[i]) continue;
+        if (! fresh (i) && referenceParameterMirror[i] != previousModelValues[i]) referenceHostIntentRetained[i] = false;
         referenceModelSerials[i] = incomingSerials[i];
+        if (referenceHostIntentRetained[i]) continue;
         if (p->getValue() != value)
         {
             const reference::HostAutomationCapture::EchoScope echo (referenceHostCapture);

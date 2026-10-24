@@ -231,3 +231,102 @@ LUTHIER_TEST (RefPedalHost, extendedParameterDefaultsNamesAndLowGainPreservation
     auto* reamp = p->getState().getParameter("ref_board_reamp_gain"); reamp->setValueNotifyingHost(0); p->getStateInformation(saved);
     CHECK_NEAR(model.getBoardSettings().reampGainDb,-120,1e-6);
 }
+LUTHIER_TEST (RefPedalHost, vacantSlotHostValuesSurviveSaveRestoreAndService)
+{
+    auto p=std::make_unique<LuthierAudioProcessor>();
+    const char* ids[]{"ref_s16_in_db","ref_s16_out_db","ref_s16_p16","ref_s16_enabled","ref_s16_pos"};
+    const float physical[]{-3.375f,7.125f,.37f,0.f,4.f};
+    for (int i=0;i<5;++i)
+    { auto* parameter=p->getState().getParameter(ids[i]); CHECK(parameter); parameter->setValueNotifyingHost(parameter->convertTo0to1(physical[i])); }
+    juce::MemoryBlock saved; p->getStateInformation(saved);
+    for (int i=0;i<5;++i) CHECK_NEAR(p->getState().getRawParameterValue(ids[i])->load(),physical[i],1e-5);
+    auto restored=std::make_unique<LuthierAudioProcessor>(); restored->setStateInformation(saved.getData(),(int)saved.getSize());
+    restored->prepareToPlay(48000,64); juce::MemoryBlock resaved; restored->getStateInformation(resaved);
+    for (int i=0;i<5;++i) CHECK_NEAR(restored->getState().getRawParameterValue(ids[i])->load(),physical[i],1e-5);
+    CHECK(restored->getEngine().getReferencePedals().model().getInstanceCount()==0);
+    restored->releaseResources();
+}
+LUTHIER_TEST (RefPedalHost, unusedPopulatedSlotLanePreservesHostValueWithoutChangingPedal)
+{
+    PedalRegistry::TestScope scope; CHECK(PedalRegistry::add(probeDesc,makeHostProbe));
+    auto p=std::make_unique<LuthierAudioProcessor>(); auto& model=p->getEngine().getReferencePedals().model();
+    CHECK(model.apply(cmd::Add{"test.host-automation"}));
+    auto* unused=p->getState().getParameter("ref_s01_p16"); unused->setValueNotifyingHost(.63f);
+    juce::MemoryBlock saved; p->getStateInformation(saved);
+    CHECK_NEAR(unused->getValue(),.63f,1e-6); CHECK_NEAR(model.getInstance(model.getOrder()[0])->params[0],.2f,1e-6);
+    auto restored=std::make_unique<LuthierAudioProcessor>(); restored->setStateInformation(saved.getData(),(int)saved.getSize());
+    juce::MemoryBlock resaved; restored->getStateInformation(resaved);
+    CHECK_NEAR(restored->getState().getParameter("ref_s01_p16")->getValue(),.63f,1e-6);
+    auto& restoredModel=restored->getEngine().getReferencePedals().model(); CHECK_NEAR(restoredModel.getInstance(restoredModel.getOrder()[0])->params[0],.2f,1e-6);
+}
+LUTHIER_TEST (RefPedalHost, allReferenceHostIntentSurvivesRejectedStructuralRequests)
+{
+    auto p=std::make_unique<LuthierAudioProcessor>(); const auto& parameters=p->getParameters(); int base=-1;
+    for(int i=0;i<parameters.size();++i) if(auto* withId=dynamic_cast<juce::AudioProcessorParameterWithID*>(parameters[i]))
+        if(withId->paramID=="ref_board_enabled") { base=i; break; }
+    CHECK(base>=0); juce::StringArray ids; std::array<float,373> expected{};
+    for(int i=0;i<373;++i)
+    {
+        auto* parameter=dynamic_cast<juce::AudioProcessorParameterWithID*>(parameters[base+i]); ids.add(parameter->paramID);
+        parameter->setValueNotifyingHost(.63f); expected[(size_t)i]=parameter->getValue();
+    }
+    juce::MemoryBlock saved; p->getStateInformation(saved);
+    for(int i=0;i<373;++i) CHECK_MSG(std::abs(p->getState().getParameter(ids[i])->getValue()-expected[(size_t)i])<1e-5,ids[i]+" changed during save/service");
+    auto restored=std::make_unique<LuthierAudioProcessor>(); restored->setStateInformation(saved.getData(),(int)saved.getSize());
+    juce::MemoryBlock resaved; restored->getStateInformation(resaved);
+    for(int i=0;i<373;++i) CHECK_MSG(std::abs(restored->getState().getParameter(ids[i])->getValue()-expected[(size_t)i])<1e-5,ids[i]+" changed after restore/service");
+    CHECK(restored->getEngine().getReferencePedals().model().getInstanceCount()==0);
+    const auto settings=restored->getEngine().getReferencePedals().model().getBoardSettings();
+    CHECK(!settings.fb.on); CHECK(!settings.loops[0].used); CHECK(!settings.loops[1].used);
+}
+namespace
+{
+const PedalDesc feedbackProbeDesc { "test.host-feedback", "host_fb_", 1, "Host feedback probe", "Test", nullptr,
+    ChannelMode::Stereo, BypassMode::DSP, 0, nullptr, 0, false, false, false, 1 };
+class HostFeedbackProbe final : public IPedal
+{
+public:
+    const PedalDesc& desc() const noexcept override { return feedbackProbeDesc; }
+    void prepare(double,int,int) override {} void reset() noexcept override {}
+    void setParam(int,float) noexcept override {} float getParam(int) const noexcept override { return 0; }
+    void process(double*,double*,int) noexcept override {}
+};
+std::unique_ptr<IPedal> makeHostFeedbackProbe() { return std::make_unique<HostFeedbackProbe>(); }
+}
+LUTHIER_TEST (RefPedalHost, restoredKillIntentStaysReleasedUntilFreshHostEdge)
+{
+    PedalRegistry::TestScope scope; CHECK(PedalRegistry::add(feedbackProbeDesc,makeHostFeedbackProbe));
+    auto source=std::make_unique<LuthierAudioProcessor>(); auto& model=source->getEngine().getReferencePedals().model();
+    CHECK(model.apply(cmd::Add{"test.host-feedback"})); const auto id=model.getOrder()[0];
+    reference::FeedbackSettings feedback; feedback.on=true; feedback.src=feedback.dst=id; feedback.gain=.5f;
+    CHECK(model.apply(cmd::SetFeedback{feedback})); CHECK(model.apply(cmd::SetBoardEnabled{true}));
+    CHECK(model.apply(cmd::SetBoardParam{"reampEnable",1})); CHECK(model.apply(cmd::SetBoardParam{"reampReplace",1}));
+    juce::MemoryBlock releasedState,heldIntentState; source->getStateInformation(releasedState);
+    source->getState().getParameter("ref_board_fb_kill")->setValueNotifyingHost(1); source->getStateInformation(heldIntentState);
+    auto a=std::make_unique<LuthierAudioProcessor>(),b=std::make_unique<LuthierAudioProcessor>();
+    a->setStateInformation(heldIntentState.getData(),(int)heldIntentState.getSize()); b->setStateInformation(releasedState.getData(),(int)releasedState.getSize());
+    CHECK(a->getState().getParameter("ref_board_fb_kill")->getValue()==1.f);
+    CHECK(!a->getEngine().getReferencePedals().model().getBoardSettings().fb.kill);
+    auto prepare=[&](LuthierAudioProcessor& processor)
+    {
+        auto layout=processor.getBusesLayout(); layout.inputBuses.set(0,juce::AudioChannelSet::stereo());
+        layout.outputBuses.set(processor.getBusCount(false)-2,juce::AudioChannelSet::stereo()); CHECK(processor.setBusesLayout(layout)); processor.prepareToPlay(48000,64);
+    };
+    prepare(*a); prepare(*b); juce::AudioBuffer<float> audioA(a->getTotalNumOutputChannels(),64),audioB(b->getTotalNumOutputChannels(),64); juce::MidiBuffer midiA,midiB;
+    auto difference=[&]
+    {
+        float difference=0;
+        for(int block=0;block<8;++block)
+        {
+            audioA.clear(); audioB.clear(); audioA.setSample(0,0,.1f); audioA.setSample(1,0,.1f); audioB.setSample(0,0,.1f); audioB.setSample(1,0,.1f);
+            a->processBlock(audioA,midiA); b->processBlock(audioB,midiB);
+            auto wetA=a->getBusBuffer(audioA,false,a->getBusCount(false)-2),wetB=b->getBusBuffer(audioB,false,b->getBusCount(false)-2);
+            for(int i=0;i<64;++i) difference=std::max(difference,std::abs(wetA.getSample(0,i)-wetB.getSample(0,i)));
+        }
+        return difference;
+    };
+    CHECK_NEAR(difference(),0,1e-7); // restored APVTS1 must not recreate the kill pulse
+    auto* kill=a->getState().getParameter("ref_board_fb_kill"); kill->setValueNotifyingHost(0); kill->setValueNotifyingHost(1);
+    CHECK(difference()>1e-5f); // a fresh actual edge still reaches feedback DSP
+    a->releaseResources(); b->releaseResources();
+}
