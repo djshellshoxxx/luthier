@@ -2841,6 +2841,14 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     auto boardHost = referenceTransport;
     if (boardHost.valid && boardHost.playing)
         boardHost.ppq += (double) subBlockOffset * boardHost.bpm / (60.0 * sr);
+    if (sidechainChannels != nullptr && sidechainNumChannels > 0 && sidechainReadOffset < sidechainNumSamples)
+    {
+        const auto* left = sidechainChannels[0] + sidechainReadOffset;
+        const auto* right = sidechainChannels[sidechainNumChannels > 1 ? 1 : 0] + sidechainReadOffset;
+        referencePedals.setSidechain (left, right, std::min (numSamples, sidechainNumSamples - sidechainReadOffset));
+    }
+    else
+        referencePedals.setSidechain (nullptr, nullptr, 0);
     referencePedals.beginBlock (midiMessages, boardHost, numSamples);
 
     const auto startTicks = juce::Time::getHighResolutionTicks();
