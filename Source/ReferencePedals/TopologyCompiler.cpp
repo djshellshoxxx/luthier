@@ -31,7 +31,9 @@ std::unique_ptr<RenderPlan> TopologyCompiler::compile (const std::vector<PedalIn
     error.clear();
     const auto reject = [&] (const char* message) -> std::unique_ptr<RenderPlan> { error = message; return {}; };
     if (instances.size() > kMaxSlots) return reject ("Board exceeds 16 pedal slots");
-    if (estimatedCpuUnits (instances) > static_cast<uint64_t> (settings.cpuCapPct))
+    if (settings.cpuCapPct < 1 || settings.cpuCapPct > 100) return reject ("Invalid board CPU cap");
+    const auto cpuUnits = estimatedCpuUnits (instances);
+    if (cpuUnits > static_cast<uint64_t> (settings.cpuCapPct) * kCpuBudgetUnitsPerPercent)
         return reject ("Board CPU budget reached (estimated descriptor units)");
     auto result = std::make_unique<RenderPlan>();
     result->settings = settings;
@@ -54,6 +56,7 @@ std::unique_ptr<RenderPlan> TopologyCompiler::compile (const std::vector<PedalIn
     }
     result->extended = compileExtendedControls (settings, instances, previous ? &previous->extended : nullptr, intent, hostEcho, version, result->abResolved);
     auto& t = result->topology;
+    t.cpuUnits = static_cast<uint32_t> (cpuUnits); // admitted<=100000 common milli-percent units
     t.version = version; t.mode = settings.mode;
     t.numLanes = static_cast<uint8_t> (settings.mode == Mode::AB ? 2 : branched ? settings.lanes.numLanes : 1);
     if (t.numLanes < 1 || t.numLanes > kMaxBranches) return reject ("Invalid lane count");
@@ -115,7 +118,6 @@ std::unique_ptr<RenderPlan> TopologyCompiler::compile (const std::vector<PedalIn
         result->slots[slot] = object;
         t.pedals[slot] = object ? object->pedal.get() : nullptr;
         t.slotLatency[slot] = object ? object->pedal->getLatencySamples() : 0;
-        if (object) t.cpuUnits += object->pedal->desc().cpuUnits;
         t.order[t.n] = static_cast<uint8_t> (slot);
         t.placement[t.n++] = static_cast<uint8_t> (instance.placement);
         auto& control = result->controls[slot];
