@@ -32,9 +32,14 @@ public:
     void requestReset() noexcept { resetRequested.store (true, std::memory_order_release); }
     void process (double*, double*, int, Placement) noexcept;
     void setTime (const TimeInfo& time) noexcept { blockTime = time; }
+    void setSidechain (const float* left, const float* right, int samples) noexcept
+    {
+        sidechain[0] = left; sidechain[1] = right; sidechainSamples = std::max (0, samples);
+        sidechainConnected.store (left && right && samples > 0, std::memory_order_relaxed);
+    }
     void setHostAutomation (const HostAutomationSnapshot& snapshot) noexcept { hostAutomation = snapshot; }
     void beginEvents (const midi::RouteOut&) noexcept;
-    void endEvents() noexcept { events = nullptr; }
+    void endEvents() noexcept { events = nullptr; sidechain[0] = sidechain[1] = nullptr; sidechainSamples = 0; }
     int reclaim() noexcept;
     void drainControlEcho(); // message thread, outside any BoardModel lock
     bool isActive() const noexcept { return targetActive.load() || running.load(); }
@@ -65,6 +70,10 @@ private:
     std::atomic<float> inputPeak { -120.f }, outputPeak { -120.f };
     std::array<Segment, kNumPlacements> segments;
     std::array<std::array<std::array<double, kSubBlock>, 2>, kMaxBuses> buses {};
+    const float* sidechain[2] {};
+    int sidechainSamples = 0;
+    std::atomic<bool> sidechainConnected { false };
+    std::array<std::array<double, kSubBlock>, 2> sidechainScratch {};
     WetDryMixer mixer;
     HostAutomationSnapshot hostAutomation;
     std::array<uint32_t, 3> hostBoardSerials {};

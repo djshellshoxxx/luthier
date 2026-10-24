@@ -93,7 +93,8 @@ void BoardEngine::acknowledge() noexcept
 BoardMeters BoardEngine::meters() const noexcept
 {
     BoardMeters result; result.inPeakDb = inputPeak.load(); result.outPeakDb = outputPeak.load();
-    result.latencySamples = latency(); return result;
+    result.latencySamples = latency(); result.sidechainAvailable = sidechainConnected.load();
+    result.midiDropped = engageEcho.dropped(); return result;
 }
 void BoardEngine::beginEvents (const midi::RouteOut& routed) noexcept
 {
@@ -203,11 +204,20 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
         if (s.phase != Segment::Idle) count = std::min (count, dipSamples - s.ramp);
         const bool hasNodes = topology.segBegin[p] != topology.segEnd[p];
         if (! hasNodes && ! s.pending) { s.phase = Segment::Idle; s.gain = 1.0; offset += count; continue; }
+        const bool hasSidechain = sidechain[0] && sidechain[1] && offset + count <= sidechainSamples;
+        if (hasSidechain)
+            for (int c = 0; c < 2; ++c)
+                for (int i = 0; i < count; ++i)
+                    sidechainScratch[static_cast<size_t> (c)][static_cast<size_t> (i)] = BoardLimiter::process (sidechain[c][offset + i], false, 1.0);
+        const bool reamp = p == 0 && plan.settings.reampEnable && hasSidechain;
+        const double reampGain = reamp ? std::pow (10.0, plan.settings.reampGainDb / 20.0) : 0.0;
         double dry[2][kSubBlock] {};
         for (int c = 0; c < 2; ++c)
             for (int i = 0; i < count; ++i)
             {
-                const double in = (c == 0 ? left : right)[offset + i];
+                double in = (c == 0 ? left : right)[offset + i];
+                if (reamp) in = (plan.settings.reampReplace ? 0.0 : in)
+                    + reampGain * sidechainScratch[static_cast<size_t> (c)][static_cast<size_t> (i)];
                 peakIn = std::max (peakIn, std::abs (std::isfinite (in) ? in : 0.0));
                 dry[c][i] = s.dry[static_cast<size_t> (c)].process (in, plan.latency[static_cast<size_t> (p)]);
                 buses[0][static_cast<size_t> (c)][static_cast<size_t> (i)] = ! localEnabled && s.enable == 0.0 ? 0.0 : BoardLimiter::process (in, false, 1.0);
@@ -227,6 +237,8 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
                 if (state.runtime)
                 {
                     auto& pedal = *state.runtime->pedal;
+                    pedal.setSidechain (hasSidechain ? sidechainScratch[0].data() : nullptr,
+                                        hasSidechain ? sidechainScratch[1].data() : nullptr, hasSidechain ? count : 0);
                     for (int param = 0; param < pedal.desc().numParams; ++param)
                         if (! pedal.desc().params[param].has (PF_Engage)
                             && state.runtime->modelParams[static_cast<size_t> (param)] != state.control->params[static_cast<size_t> (param)])
