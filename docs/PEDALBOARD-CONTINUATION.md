@@ -9,6 +9,42 @@ are /workspace/luthier-workers/{engine,dsp,timefx,state,host-midi,ui-next}; the
 coordinator's isolated rhythm worktree is /workspace/luthier-workers/rhythm.
 No additional environment or duplicate continuation timer was created.
 
+## 2026-10-24 16:00 UTC critical correction checkpoint
+
+Latest prior frozen source3cb71450c09f3e14be7f4d84d72d0ceeb612feb3 built all native
+Linux Pro targets (Standalone/VST3/CLAP/tests/renderer). Its selected UI suite
+segfaulted after a valid generic Add was wrongly rejected: Generic A estimates
+were milli-percent while E65 interpreted every raw unit as one percent. New
+661a6ed7/0f720246 plus scoped Generic A metadata05b4f758 normalize the explicit
+scales, preserve the30% default cap and retain original DSP behavior. Named DSP
+candidates remain isolated/unregistered. Additive0cab2698 regression covers every
+actually registered model, mixed scales and overflow. UI guard7c99c111 preserves
+failed prerequisites and their error instead of dereferencing an empty order.
+
+Actual coherent3cb CLAP:21run/15passed/3failed/3skipped. All three remaining
+state failures concern legacy Active Electronics, not pedal slot values. Exact
+upstream wrapper discarded same-value incoming host events before the processor
+could observe intent. Pinned reproducible patchf4777cb1 and configure hook05b4f758
+retain notifications with changed-only setValue and outgoing feedback suppression.
+Five isolated patch tests pass; an isolated actual wrapper rebuild gives18passed,
+0failed,3skipped. This is not yet a coherent new production product qualification.
+Independent arithmetic review found no CPU fix blocker. Scanner findings were
+only the two public pinned wrapper SHA256 values, not credentials.
+
+CI40106049619 at3cb compiled all six Windows/Linux/macOS universal edition cells.
+Both focused Linux preflights40106049578 passed. Broad unit jobs fail with the
+admission/UI crash; Linux Pro and Windows Pro validators report the legacy state
+failure. Free validators pass. Products/logs were retained as CI diagnostic
+artifacts; no release qualification or publication is claimed. macOS Pro validator
+was still running at this checkpoint. No tag/release created; no master merge.
+
+Next: freeze corrected exact HEAD, rebuild all native targets coherently, run
+focused+full tests, actual CLAP and VST3 validation and standalone UI; repeat30s
+and longer soak on the corrected source. Push this tested-status checkpoint now,
+then use native CI on the corrected commit. Continue E69 memory and other original
+acceptance gates independently. Seven slots have ongoing assignments (coordinator
+plus engine,dsp,timefx,state,host_midi,ui); no other project's workers were taken.
+
 ## Source and preservation
 
 Main work branch: codex/luthier-pedalboard-completion. Query git rev-parse HEAD
