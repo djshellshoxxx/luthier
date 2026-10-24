@@ -38,6 +38,8 @@ struct MidiRouter::Impl
     int64_t routeSample = 0;
     bool effectiveEnabled = true, modelEnabled = true, modelEnabledKnown = false, hostEnabled = false;
     uint32_t hostEnabledSerial = 0, appliedHostEnabledSerial = 0;
+    bool modelIntentEnabled = false;
+    uint32_t modelEnabledRevision = 0, appliedModelEnabledRevision = 0;
     std::array<int64_t, kTargetBoardBase + 16> lastWrite {};
     std::array<uint8_t, kTargetBoardBase + 16> ownerPriority {};
     void drop() noexcept { dropped.fetch_add (1, std::memory_order_relaxed); }
@@ -124,7 +126,7 @@ void MidiRouter::prepare (double sr, int)
     impl->clock.prepare (impl->sr); impl->input.clear(); impl->priority.clear();
     for (auto& channel : impl->heldNoteSlots) channel.fill (-1);
     impl->footHeld.fill (false); impl->held.fill (false); impl->values.fill (0);
-    impl->retired.clear(); impl->activeVersion = 0; impl->modelEnabledKnown = false; impl->appliedHostEnabledSerial = 0;
+    impl->retired.clear(); impl->activeVersion = 0; impl->modelEnabledKnown = false; impl->appliedHostEnabledSerial = 0; impl->appliedModelEnabledRevision = 0;
 }
 void MidiRouter::publishMap (std::unique_ptr<MapSnap> map)
 {
@@ -142,6 +144,8 @@ int MidiRouter::reclaim() noexcept
         if (epoch >= list[i].epoch) { list.erase (list.begin() + (std::ptrdiff_t) i); ++freed; } else ++i;
     return freed;
 }
+void MidiRouter::setModelEnabled (bool enabled, uint32_t revision) noexcept
+{ if (revision != 0) { impl->modelIntentEnabled = enabled; impl->modelEnabledRevision = revision; } }
 void MidiRouter::setHostEnabled (bool enabled, uint32_t serial) noexcept
 { if (serial != 0) { impl->hostEnabled = enabled; impl->hostEnabledSerial = serial; } }
 void MidiRouter::pushUiEvent (const MidiEv& e) noexcept
@@ -158,6 +162,11 @@ void MidiRouter::process (const juce::MidiBuffer& in, const HostTransport& host,
         impl->activeVersion = map->version; impl->held.fill (false); impl->picked.fill (false);
         impl->values = map->initialValues; impl->lastSource = map->initialValues;
         impl->lastWrite.fill (0); impl->ownerPriority.fill (0);
+    }
+    if (impl->modelEnabledRevision != 0 && impl->modelEnabledRevision != impl->appliedModelEnabledRevision)
+    {
+        impl->effectiveEnabled = impl->modelEnabled = impl->modelIntentEnabled;
+        impl->modelEnabledKnown = true; impl->appliedModelEnabledRevision = impl->modelEnabledRevision;
     }
     if (impl->hostEnabledSerial != 0 && impl->hostEnabledSerial != impl->appliedHostEnabledSerial)
     { impl->effectiveEnabled = impl->hostEnabled; impl->appliedHostEnabledSerial = impl->hostEnabledSerial; }

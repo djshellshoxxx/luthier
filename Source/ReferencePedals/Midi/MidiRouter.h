@@ -35,6 +35,9 @@ public:
 
     // E46: audio thread, before process; serial zero is unwritten.
     void setHostEnabled (bool enabled, uint32_t serial) noexcept;
+    // E48: explicit model intent, including writes equal to stored state.
+    // A fresh model revision is applied before a fresh host serial.
+    void setModelEnabled (bool enabled, uint32_t revision) noexcept;
 
     // Device / UI thread -> uiInRing (wait-free; drops and counts when full).
     void pushUiEvent (const MidiEv&) noexcept;

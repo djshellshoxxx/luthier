@@ -16,7 +16,7 @@ WP23 host extension: `LuthierEngine::setReferencePedalTransport(HostTransport)` 
 
 ## Actual native checks
 
-Standalone native harness against JUCE 8 core/audio_basics (2026-10-23): 17 cases / 127 checks passing under AddressSanitizer + UndefinedBehaviorSanitizer; the earlier 13-case / 64-check snapshot independently passed ThreadSanitizer. Own routing sources instrumented; reused JUCE module objects are uninstrumented.
+Standalone native harness against JUCE 8 core/audio_basics (2026-10-23): 18 cases / 132 checks passing under AddressSanitizer + UndefinedBehaviorSanitizer; the earlier 13-case / 64-check snapshot independently passed ThreadSanitizer. Own routing sources instrumented; reused JUCE module objects are uninstrumented.
 
 - RefPedalMidiCore::mappedOffsetsAndReservedGuard — 6 checks, passing.
 - RefPedalMidiCore::clockStartStopLoss — 6 checks, passing.
@@ -67,3 +67,5 @@ Remaining E44 integration gate: router E39 OFF gating must receive the live host
 E46: MidiRouter::setHostEnabled(bool,uint32_t) is an approved additive audio-thread hook called before process. Zero serial is unwritten; changed nonzero serial wins once, later actual model enabled changes restore model truth. prepare resets applied host serial. hostEnableGatesMidiWithoutModelEcho passes five ASan/UBSan checks for offset37 delivery while model map is OFF, later host disable, model change and a new host disable serial. Same-value model write intent remains an engine metadata integration gate.
 
 Host sidechain now forwards the actual processor-copied input slice to Board::setSidechain before every engine sub-block, with inner offsets and explicit null clearing. It uses no allocation or GUI code; compiler check pending/recorded with the next checkpoint.
+
+E48: MidiRouter::setModelEnabled(bool,uint32_t) is an approved additive audio-thread hook for explicit model write intent, including equal-value writes. New model revision applies before a new host serial. A consumed host serial does not override later model intent; a fresh host serial can. prepare resets applied model/host revisions. sameValueModelDisableDefeatsConsumedHostWrite passes five ASan/UBSan checks including UINT32_MAX->1 host serial wrap and 96kHz reprepare.

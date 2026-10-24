@@ -207,3 +207,18 @@ LUTHIER_TEST (RefPedalMidiCore, hostEnableGatesMidiWithoutModelEcho)
     router.process (in, {}, 256, 128, out); CHECK (out.nWrites == 1);
     router.setHostEnabled (false, 3); router.process (in, {}, 384, 128, out); CHECK (out.nWrites == 0);
 }
+LUTHIER_TEST (RefPedalMidiCore, sameValueModelDisableDefeatsConsumedHostWrite)
+{
+    MidiRouter router; router.prepare (48000, 128);
+    auto map = std::make_unique<MapSnap>(); map->boardEnabled = false;
+    Binding b; b.srcNum = 20; b.target = 1; map->add (b); router.publishMap (std::move (map));
+    juce::MidiBuffer in; in.addEvent (juce::MidiMessage::controllerEvent (1, 20, 127), 37);
+    RouteOut out;
+    router.setHostEnabled (true, UINT32_MAX); router.process (in, {}, 0, 128, out); CHECK (out.nWrites == 1);
+    router.setModelEnabled (false, 1); router.setHostEnabled (true, UINT32_MAX);
+    router.process (in, {}, 128, 128, out); CHECK (out.nWrites == 0);
+    router.setHostEnabled (true, 1); router.process (in, {}, 256, 128, out); CHECK (out.nWrites == 1);
+    router.setModelEnabled (false, 2); router.process (in, {}, 384, 128, out); CHECK (out.nWrites == 0);
+    router.prepare (96000, 128); router.setModelEnabled (false, 2); router.setHostEnabled (false, 2);
+    router.process (in, {}, 0, 128, out); CHECK (out.nWrites == 0);
+}
