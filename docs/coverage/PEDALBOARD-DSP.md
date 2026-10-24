@@ -655,7 +655,9 @@ ASan+UBSan+leak detection and callback allocation counter, empty stderr.
 
 Process-only threadCPU,48k/stereo128/O2/no-fast-math,100seconds of audio per trial,
 three trials: median1.439583% before versus1.189473% after (~17.4% reduction).
-Checksums match exactly. Both results **FAIL** the unchanged0.5% budget. These
+Checksums match exactly. Both results exceed the unchanged0.5% numerical target. The coordinator has
+identified concurrent native-build contention under a4-core quota, so these
+fresh timings are exploratory and cannot qualify the absolute CPU gate. These
 fresh measurements use independent stereo sine frequencies and do not replace
 older probes with different signals. All existing timing/THD/alias qualification
 limits and failures remain in force; Dyna Comp remains unregistered.
@@ -703,3 +705,41 @@ Windows/ARM compiler behavior still requires those platform builds.
 
 This is helper acceptance only. Timefx measured no actual DD3T CPU improvement
 and reverted its product use; no pedal CPU gate is closed by this helper.
+
+
+## Single-exponential shunt-diode candidate (performance unqualified)
+
+`NewtonClipper` retains the original monotone equation, initial upper bound,
+eight-iteration limit and1e-12 residual stopping condition. The candidate uses
+`em=expm1(v/Vt)` to calculate `sinh=.5*(em+em/(1+em))` and
+`cosh=1+.5*em*em/(1+em)` from one transcendental call. Under the public guarded
+range, `v/Vt<=asinh(16/1e-24)<60`, so the intermediate square is finite; expm1
+preserves the small-voltage limit. The independent public residual still uses
+std::sinh. No table, allocation, circuit component or state layout changes.
+
+A new guarded-domain oracle passed before and after the revision: **143,763
+checks** each, ASan+UBSan+leaks, empty stderr. It retains the previous algorithm
+as one reference and a90-step long-double monotone KCL solve as an independent
+reference. Maximum permitted voltage error is2e-12 and KCL residual2e-11,
+including germanium/silicon/LED parameters and hostile-input recovery. The
+complete named suite then passed **29cases /11,314,806checks** with sanitizer,
+leak detection and callback allocation counter; stderr is empty.
+
+The actual DS1/Distortion+/RAT/Deluxe corpus covers524,288 output values across
+four rates, variant selection, all continuous-control automation, reset and
+hostile inputs. Maximum differences are4.44e-16,2.22e-16,4.44e-16 and3.322e-13
+respectively; detailed RMS/count evidence is in `newton-model-comparison.json`.
+These differences do not establish hardware accuracy or an alias pass.
+
+Fresh CPU timings were collected during coordinator native-build contention
+under a4-core quota. They are **exploratory, not acceptance evidence**. Median
+before→after percent figures: DS114.772→14.289, Distortion+22.785→21.409,
+RAT37.286→38.507, Deluxe23.944→22.345. There is no consistent demonstrated
+whole-model speed benefit, and no CPU gate is closed. Further timing is paused
+until the coordinator releases the build reservation. The candidate is preserved
+for evaluation, not requested for integration into the audited product baseline.
+
+Timefx independently reviewed the expm1 algebra, bounded exponent, Newton upper
+sequence and RT ownership; no mathematical/RT finding. That review did not rerun
+the oracle or waive actual-model acceptance. All original acoustic/timing/CPU
+failures remain visible and the ten named processors remain unregistered.

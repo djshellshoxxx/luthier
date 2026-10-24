@@ -1,0 +1,16 @@
+model=boss-ds1 corpus_values=131072
+trial=0 cpu_percent=14.4284124 checksum=-1322.3359204826399
+trial=1 cpu_percent=14.2894533 checksum=-1322.3359204826399
+trial=2 cpu_percent=14.1476903 checksum=-1322.3359204826399
+model=mxr-distortion-plus corpus_values=131072
+trial=0 cpu_percent=21.7106354 checksum=-41.69613885931394
+trial=1 cpu_percent=21.4086579 checksum=-41.69613885931394
+trial=2 cpu_percent=20.9677279 checksum=-41.69613885931394
+model=proco-rat corpus_values=131072
+trial=0 cpu_percent=38.5072497 checksum=-381.01680390893796
+trial=1 cpu_percent=38.2560515 checksum=-381.01680390893796
+trial=2 cpu_percent=39.1598764 checksum=-381.01680390893796
+model=ehx-deluxe-muff corpus_values=131072
+trial=0 cpu_percent=22.3448536 checksum=25956.390188259644
+trial=1 cpu_percent=22.2469774 checksum=25956.390188259644
+trial=2 cpu_percent=22.6481759 checksum=25956.390188259644

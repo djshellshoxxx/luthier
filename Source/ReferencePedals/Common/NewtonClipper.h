@@ -22,10 +22,15 @@ class NewtonClipper
         for (int i = 0; i < 8; ++i)
         {
             ++iterations;
-            double f = residual(v, mag);
+            // One exponential supplies both hyperbolic terms. expm1 preserves
+            // the small-voltage limit; the guarded upper start keeps v/vt < 60.
+            const double em = std::expm1(v / vt), inverse = 1 / (1 + em);
+            const double sinhValue = .5 * (em + em * inverse);
+            const double coshValue = 1 + .5 * em * em * inverse;
+            const double f = v + a * sinhValue - mag;
             if (std::abs(f) < 1e-12)
                 break;
-            v -= f / (1 + a / vt * std::cosh(v / vt));
+            v -= f / (1 + a / vt * coshValue);
         }
         return std::copysign(v, x);
     }

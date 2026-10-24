@@ -1,0 +1,30 @@
+[
+  {
+    "model": "boss-ds1",
+    "values": 131072,
+    "max_abs_difference": 4.440892098500626e-16,
+    "rms_difference": 5.495294914891488e-18,
+    "different_values": 418
+  },
+  {
+    "model": "mxr-distortion-plus",
+    "values": 131072,
+    "max_abs_difference": 2.220446049250313e-16,
+    "rms_difference": 2.0288613275653984e-18,
+    "different_values": 1006
+  },
+  {
+    "model": "proco-rat",
+    "values": 131072,
+    "max_abs_difference": 4.440892098500626e-16,
+    "rms_difference": 7.047329824876688e-18,
+    "different_values": 638
+  },
+  {
+    "model": "ehx-deluxe-muff",
+    "values": 131072,
+    "max_abs_difference": 3.3217872896784684e-13,
+    "rms_difference": 1.4436786118114443e-14,
+    "different_values": 18720
+  }
+]

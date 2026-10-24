@@ -1,0 +1,3 @@
+RefPedalNewtonClipperOracle::guardedDomainIndependentKclAndOriginalAlgorithm 143363 checks 0 failures
+RefPedalNewtonClipperOracle::hostileParametersAndInputRecovery 400 checks 0 failures
+TOTAL 143763 checks 0 failures
