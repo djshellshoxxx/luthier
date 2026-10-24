@@ -61,7 +61,8 @@ public:
     //   every param: id starts with paramPrefix, id snake_case ([a-z0-9_]) and
     //     unique within the pedal, label non-null, min < max for continuous
     //     kinds, def within [min,max], Enum/Discrete have steps >= 2 and choices
-    //     for Enum, Toggle/Momentary/Trigger are 0..1
+    //     for Enum; Discrete has finite min < max and a default on its step grid.
+    //     Toggle/Momentary/Trigger are 0..1
     //   at most one PF_Engage param, and it is a Toggle
     //   maxLatencySamples within 0..kMaxLatencySamp
     static bool validate (const PedalDesc&, juce::String* reason = nullptr);
