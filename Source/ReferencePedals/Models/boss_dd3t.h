@@ -40,7 +40,7 @@ private:
     static_assert(std::atomic<double>::is_always_lock_free,"RT tap snapshots require lock-free double atomics");
     std::atomic<double> publishedTap{500};
     void publishTap() noexcept {publishedTap.store(hasTapped?-tapInterval:tapInterval,std::memory_order_release);}
-    double hostBpm=120;
+    double hostBpm=120,cachedTargetMs=320;
     double fadeSeconds=.005,quantScale=2048,inverseQuantScale=1./2048;int lastBits=-1;
     double timeCoefficient=0,energyCoefficient=0,lastLevel=-1,lastFeedback=-1,cachedLevel=0,cachedFeedback=0;
     double sr=48000,currentMs=320,tapInterval=500,syncMs=500,inputGain=1,wetGain=1,holdMix=0,energy=0;

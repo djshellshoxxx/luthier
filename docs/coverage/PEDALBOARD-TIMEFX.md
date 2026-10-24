@@ -451,3 +451,15 @@ CE2 0.3799–0.4715%, CE2W 0.7951–0.8441%, DD3T 0.5235–0.6217% (O3, independ
 precomputed L/R, process-only thread CPU). A single fast CE2 trial is not treated
 as a stable pass of its 0.4% budget. DD3T still exceeds 0.5%; registrations remain
 gated. No buffer-hook/board overhead is included in these pedal-process numbers.
+
+DD3T target-time memoization computes the unchanged target formula only when
+parameters, tap tempo, host time, restored tap state or reset can change it.
+The per-sample 80 ms slew is unchanged. Before/after standalone renders match
+bit-for-bit across 3,221,250 stereo frames at five rates, with deterministic
+parameter, transport, restored-state and reset events; raw hashes and final RNG
+states are in `probes/dd3t-target-{before,after}-results.txt`. A fresh immutable
+ASAN+UBSAN snapshot passes 203 named-delay/state checks, with zero diagnostics.
+Five local O3 CPU trials have overlapping ranges: before 0.8042–0.8753%, after
+0.7813–0.8863% (medians 0.8397/0.8196%). This is not a stable CPU-gate closure;
+the unchanged 0.5% requirement remains open. These runs occurred on the fresh
+execution host and are not directly comparable to older machine timings.

@@ -54,7 +54,7 @@ void BossDd3t::reset() noexcept
     }
     historyHead=loopLength=0;loopPosition=0;holding=false;holdMix=0;
     engageRequest=downWasTap=false;samples=0;lastTap=downAt=-1;tapCount=tapIndex=0;energy=0;converterPhase=0;filterCountdown=0;lastCutoff=0;
-    inputGain=wetGain=enabled?1:0;currentMs=targetTime();lastLevel=lastFeedback=-1;lastBits=-1;
+    inputGain=wetGain=enabled?1:0;currentMs=cachedTargetMs=targetTime();lastLevel=lastFeedback=-1;lastBits=-1;
 }
 void BossDd3t::setParam(int idx,float norm) noexcept {PedalBase::setParam(idx,idx==17?0:norm);}
 void BossDd3t::setExpression(int jack,float v) noexcept {if(jack==0)setParam(1,v);else if(jack==1)setParam(2,v);}
@@ -67,6 +67,7 @@ void BossDd3t::setTime(const TimeInfo& time) noexcept
         constexpr double quarters[]{1,.5,.75,2.0/3,.25};syncMs=60000/time.bpm*quarters[int(value(13))];
         while(syncMs>800)syncMs*=.5;syncMs=std::max(12.5,syncMs);hasSync=true;lastBeat=beat;
     }
+    cachedTargetMs=targetTime();
 }
 double BossDd3t::targetTime() const noexcept
 {
@@ -95,7 +96,7 @@ void BossDd3t::tap() noexcept
         }
         else if(interval>2000)tapCount=tapIndex=0;
     }
-    lastTap=samples;
+    lastTap=samples;cachedTargetMs=targetTime();
 }
 void BossDd3t::onTrigger(int index) noexcept {if(index==6)tap();}
 void BossDd3t::beginHold() noexcept
@@ -110,6 +111,7 @@ void BossDd3t::onParamChanged(int index,float v) noexcept
 {
     if(index==5){if(v>.5f)beginHold();else holding=false;}
     if(index==3){downAt=-1;holdActionFired=false;if(int(v)!=3)holding=false;}
+    cachedTargetMs=targetTime();
 }
 void BossDd3t::onFoot(const FootEvent& event) noexcept
 {
@@ -141,14 +143,14 @@ void BossDd3t::saveExtra(juce::var& v) const
 }
 void BossDd3t::loadExtra(const juce::var& v)
 {
-    const double interval=double(v.getProperty("tapIntervalMs",500.));if(std::isfinite(interval))tapInterval=std::clamp(interval,133.,800.);hasTapped=bool(v.getProperty("hasTapped",false));publishTap();
+    const double interval=double(v.getProperty("tapIntervalMs",500.));if(std::isfinite(interval))tapInterval=std::clamp(interval,133.,800.);hasTapped=bool(v.getProperty("hasTapped",false));publishTap();cachedTargetMs=targetTime();
 }
 void BossDd3t::process(double* left,double* right,int n) noexcept
 {
     for(int i=0;i<n;++i,++samples)
     {
         if(downAt>=0 && !holdActionFired && samples-downAt>=int64_t(2*sr)){setParam(7,value(7)>.5f?0:1);holdActionFired=true;}
-        currentMs+=(targetTime()-currentMs)*timeCoefficient;
+        currentMs+=(cachedTargetMs-currentMs)*timeCoefficient;
         const double levelKnob=nextSmoothed(0),feedbackKnob=std::clamp(double(nextSmoothed(1))+(value(14)>.5f?force*.4:0),0.,1.);
         if(levelKnob!=lastLevel){lastLevel=levelKnob;cachedLevel=std::pow(levelKnob,1.6);}
         if(feedbackKnob!=lastFeedback){lastFeedback=feedbackKnob;cachedFeedback=.97*std::pow(feedbackKnob,1.2);}
