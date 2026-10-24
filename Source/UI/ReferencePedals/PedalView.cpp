@@ -67,7 +67,7 @@ PedalView::PedalView(BoardModel& m,InstanceId id,juce::AudioProcessorValueTreeSt
 }
 PedalView::~PedalView()
 {
-    onFocus=nullptr;onLearn=nullptr;onDrag=nullptr;onNavigate=nullptr;
+    onFocus=nullptr;onLearn=nullptr;onDrag=nullptr;onCancelDrag=nullptr;onNavigate=nullptr;
     closeInspector();
     clearAttachments();
 }
@@ -236,6 +236,7 @@ void PedalView::focusGained(FocusChangeType){repaint();if(onFocus)onFocus(*this)
 bool PedalView::keyPressed(const juce::KeyPress& key)
 {
     const auto code=key.getKeyCode();const auto mods=key.getModifiers();auto order=model.getOrder();const auto it=std::find(order.begin(),order.end(),instanceId);const int pos=(int)std::distance(order.begin(),it);
+    if(code==juce::KeyPress::escapeKey&&onCancelDrag&&onCancelDrag()){dragging=false;return true;}
     if(mods.isAltDown())
     {
         if(mods.isShiftDown()&&(code==juce::KeyPress::leftKey||code==juce::KeyPress::rightKey))
@@ -265,14 +266,13 @@ bool PedalView::keyPressed(const juce::KeyPress& key)
     if(code==juce::KeyPress::leftKey||code==juce::KeyPress::rightKey){if(onNavigate)onNavigate(instanceId,code==juce::KeyPress::leftKey?-1:1);return true;}
     return false;
 }
-void PedalView::mouseDown(const juce::MouseEvent& e){if(e.mods.isPopupMenu()){contextMenu();return;}grabKeyboardFocus();}
+void PedalView::mouseDown(const juce::MouseEvent& e){if(e.mods.isPopupMenu()){contextMenu();return;}grabOffset=e.position.toInt();grabKeyboardFocus();}
 void PedalView::mouseDrag(const juce::MouseEvent& e)
 {
-    if(e.getDistanceFromDragStart()<4)return;
-    if(!dragging){dragging=true;model.beginTransaction("Move pedal");lastDragCommit=0;}
-    const auto now=juce::Time::getMillisecondCounterHiRes();if(onDrag&&now-lastDragCommit>=125){lastDragCommit=now;onDrag(*this,e.getEventRelativeTo(getParentComponent()).position.toInt(),false);}
+    if(e.getDistanceFromDragStart()<4)return;dragging=true;
+    if(onDrag)onDrag(*this,e.getEventRelativeTo(getParentComponent()).position.toInt(),grabOffset,false);
 }
-void PedalView::mouseUp(const juce::MouseEvent& e){if(dragging){if(onDrag)onDrag(*this,e.getEventRelativeTo(getParentComponent()).position.toInt(),true);dragging=false;model.endTransaction();}}
+void PedalView::mouseUp(const juce::MouseEvent& e){if(dragging){dragging=false;if(onDrag)onDrag(*this,e.getEventRelativeTo(getParentComponent()).position.toInt(),grabOffset,true);}}
 void PedalView::contextMenu()
 {
     juce::PopupMenu menu;menu.addItem(1,"Move earlier");menu.addItem(2,"Move later");menu.addItem(3,"Duplicate");menu.addItem(4,"Remove");menu.addItem(5,"Learn footswitch");
