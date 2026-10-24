@@ -67,7 +67,12 @@ bool MidiState::validate (const juce::var& state, juce::String* error)
                     if (! validPoints (custom, (bool) curve->getProperty ("allowNonMonotone"))) return fail ("Custom MIDI curve points must increase and stay in range");
                 }
             if (const auto* src = o->getProperty ("src").getDynamicObject())
-                if ((int) sourceType (src->getProperty ("type")) < kSourceTypes && ! scalar (*src, "num", 0, 127)) return fail ("MIDI source number is out of range");
+            {
+                const auto type = sourceType (src->getProperty ("type"));
+                if ((int) type < kSourceTypes && ! scalar (*src, "num", 0, 127)) return fail ("MIDI source number is out of range");
+                if (type == MidiSrc::VirtualExpression && (! src->hasProperty ("num") || ! scalar (*src,"num",1,2) || (int) o->getProperty("chan") != 0))
+                    return fail ("Virtual expression requires source1/2 and channel0");
+            }
         }
     }
     if (object->hasProperty ("scenes") && ! object->getProperty ("scenes").isArray()) return fail ("MIDI scenes must be an array");

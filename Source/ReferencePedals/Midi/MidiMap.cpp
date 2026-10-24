@@ -15,6 +15,7 @@ bool MapSnap::add (const Binding& b, uint8_t layer) noexcept
         || ! std::isfinite (b.outMin) || ! std::isfinite (b.outMax)
         || (b.target >= kTargetBoardBase && b.target >= kTargetBoardBase + 16)) return false;
     if (b.srcType == (int) MidiSrc::CC14 && b.srcNum >= 32) return false;
+    if (b.srcType == (int) MidiSrc::VirtualExpression && (b.srcNum < 1 || b.srcNum > 2 || b.chan != 0)) return false;
     if (b.has (BF_HiRes) && b.srcType == (int) MidiSrc::CC && b.srcNum >= 32) return false;
     bindings[(size_t) numBindings] = b;
     if (b.has (BF_HiRes) && b.srcType == (int) MidiSrc::CC) bindings[(size_t) numBindings].srcType = (uint8_t) MidiSrc::CC14;
