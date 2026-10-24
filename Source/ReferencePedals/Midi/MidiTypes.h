@@ -48,7 +48,7 @@ struct ParamWrite
 enum class MidiSrc : uint8_t
 {
     CC = 0, CC14, NRPN, Note, NoteVel, PolyAT, ChanAT, PitchBend, ProgramChange,
-    ClockStart, ClockStop, ClockContinue, UiSlider, KeyboardVelocity
+    ClockStart, ClockStop, ClockContinue, UiSlider, KeyboardVelocity, VirtualExpression
 };
 
 enum class BindMode : uint8_t { Absolute = 0, Relative, Toggle, Momentary, Trigger, Step };

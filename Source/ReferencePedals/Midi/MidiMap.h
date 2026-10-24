@@ -5,7 +5,7 @@
 namespace luthier::reference::midi
 {
 constexpr int kMaxBindings = 1024;
-constexpr int kSourceTypes = 14;
+constexpr int kSourceTypes = 15;
 bool reservedCc (int cc) noexcept;
 struct MapSnap
 {
