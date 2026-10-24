@@ -30,6 +30,10 @@ public:
     // Any thread. Bounded atomic-only capture; unchanged output on contention.
     // Recording/Pending/Failed never expose an older generation's hash.
     bool capture(Capture&) const noexcept;
+    static constexpr size_t workerStackBytes=256*1024;
+    // Exact reservation formula including the requested worker stack, page
+    // caches, metadata and bounded I/O scratch; no worker/allocation needed.
+    static bool reservation(const Config&,size_t& ram,uint64_t& storage) noexcept;
     LooperStorage();
     ~LooperStorage();
     // Stopped audio only. Refuses a budget that cannot represent maxFrames;
@@ -49,6 +53,7 @@ public:
     bool finishRecord() noexcept;
     bool read(uint64_t frame,double& left,double& right,uint64_t* version=nullptr,bool allowStale=false) noexcept;
     void prefetch(uint64_t frame) noexcept;
+    bool available(uint64_t frame,bool allowStale=false) const noexcept; // audio owner, no fault side effects
     // Audio-owner call. Both loops must be finalized and have ready manifests.
     // Source remains immutable until completion; its lifetime is held internally.
     // Worker merges one page between queued realtime I/O jobs. Zero refuses.
