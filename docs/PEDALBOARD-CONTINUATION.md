@@ -1,112 +1,106 @@
 # Pedalboard continuation handoff
 
-Updated 2026-10-24 UTC. Implementation and QA are ongoing; no release/tag has been created.
-Coordinator source checkpoint: `5eab2aae80dfe0b931a780e9bd2d86db0c1a78bb`. Query `git rev-parse HEAD` for this handoff and later commits.
-Repository `/workspace/luthier`, branch `codex/luthier-pedalboard-completion`.
-Draft PR80: https://github.com/djshellshoxxx/luthier/pull/80 (base master; retains PR79 ancestry).
-PR79: `0b319c0b9b480d17605674374818711de94f7cb7`; master: `0f62c3d67bdba055b41e66c7ab8ac9ab4b728662`.
+Updated 2026-10-24 00:55 UTC. Implementation is ongoing; no release/tag created.
 
-All seven slots were verified actually running: coordinator plus six isolated workers.
-No other repository, cloud environment or duplicate continuation timer was used.
-Workers own scoped commits; coordinator integrates serially. Current worker checkpoints:
+- Repository: `/workspace/luthier`, branch `codex/luthier-pedalboard-completion`.
+- Local checkpoint before this handoff: `3e5b6ca6` (query HEAD for later commits).
+- Last verified pushed PR80 checkpoint: `e5d350e5994c96e02277f9c8a00606073df47213`.
+- Draft PR80: https://github.com/djshellshoxxx/luthier/pull/80, base master.
+- PR79 ancestry preserved: `0b319c0b9b480d17605674374818711de94f7cb7`.
+- Master at intake: `0f62c3d67bdba055b41e66c7ab8ac9ab4b728662`.
+- No uncommitted JSON codec was found at intake; persistence was reconstructed.
 
-```json
-{
-  "engine": "950dbf93bfa2fc37ac3d2188eaefae3328097a1e",
-  "dsp": "dcef63b33f4ee639aeccbf891c0b9f19c3407152",
-  "timefx": "30f154e7696f60005a020329baa179d6b6499856",
-  "state": "fb5abc01adcdca2d9071aa4e0b6ded622e19e771",
-  "host-midi": "99dd72b48d3b8294b40233184f68d2c248908863",
-  "ui-next": "f379e78b4fd0a15cd8bd569593f39630b1bec24e"
-}
-```
+All seven slots are active: coordinator plus engine, dsp, timefx, state,
+host_midi and ui. Worktrees are `/workspace/luthier-workers/{engine,dsp,timefx,
+state,host-midi,ui-next}`. Workers own scoped commits; coordinator integrates
+serially. Do not use other repos, environments or a duplicate continuation timer.
 
-Read `docs/coverage/PEDALBOARD-ACCEPTANCE.md`, lane coverage files and
-`spec/reference-pedalboard/specs/IMPLEMENTATION_DECISIONS.md` before continuing.
-The clean intake had no uncommitted codec; persistence was reconstructed explicitly.
-Full original requirements remain; failing numerical/CPU gates are never relaxed to claim acceptance.
-DSP candidate commits `daaa5fb8` / `40d3503d` are preserved WIP, NOT accepted integrations.
+Read `docs/coverage/PEDALBOARD-ACCEPTANCE.md`, lane coverage documents and
+`spec/reference-pedalboard/specs/IMPLEMENTATION_DECISIONS.md`. All original
+requirements remain. Do not relax numerical or quality limits to claim success.
+Candidate DSP commits `daaa5fb8`, `40d3503d`, `99234e0d`, `4696bd91` are WIP,
+not accepted product implementations. Shared TanhADAA2 `b1aa654b` is independently
+reviewed and integrated as an experimental helper, without pedal acceptance.
 
-Current integrated implementation includes series/parallel and sidechain/reamp, E44 host audio snapshots,
-E47 telemetry/E48 intent/E50 model API, channel-local/focus MIDI maps, generic effects,
-real modulation/delay candidates (registration gated), state/snapshots, bounded looper compaction,
-bounded disk pager (not yet model-integrated), and physical UI face profiles (not full UI acceptance).
-Engine950dbf93 (send/return, E52 MIDI, E53 cancel), host3cf84e36 (curves), DSPdcef63b3
-(short FIR optimization) are queued beyond this frozen source snapshot; verify dependencies and reviews.
+## Actual checks
 
-Actual complete Linux Pro executable at bfc01448 ran151tests/5,033,311checks:3failedtests/39checks,
-39.6s. Failures: sparse legacy slot move, ownership first lines, leaked test.event registration in sweep.
-Fixes e375401e/da61b859 are now integrated without changing thresholds. Second coherent native build
-is running from `05bbdb8e233964a37a874455c28291c5b0f15ba2`: session36684, `/workspace/luthier-evidence/native-integrated-build2.log`.
-Do NOT edit C++/shared JUCE sources until this build ends; documentation edits are safe.
-Then run `LuthierTests RefPedal ReferencePedals ReferencePhraseLoop` under Xvfb, preserve failures.
-Separate releasedStringIsDampedQuickly baseline stillFAILS P-StyleBass note42:34.7dB vs35dB unchanged
-(1/25checks), despite prior legitimate NoBody fixture isolation. Coordinator must diagnose; no slack added.
+- Complete coherent Linux Pro executable at source `05bbdb8e`: **206 selected
+  tests, 5,649,492 checks, all passed, 40.1s**. Includes real processor automation
+  without a message pump and 1,000 writes/second. Log: `native-pedalboard-checkpoint2.log`.
+- Previous native checkpoint: three failures (legacy sparse move, ownership
+  headers, leaked test factory). Fixed without weakening checks; passed above.
+- Separate legacy `releasedStringIsDampedQuickly` still fails: P-Style Bass
+  note42, 34.7dB against unchanged 35dB, 1/25 checks. NoBody fixture isolation
+  helped the prior resonator failure but did not close this gate.
+- Requested 30-second grind passed. A separate immutable core snapshot
+  `347f0ce558b72fb5f3a37f3e5b15c552f7c8cd95` completed the full 1,800-second
+  concurrent soak: **180,000 edits, 6,913,402 blocks, 3,049,960,869 samples,
+  callback_new=0, invalid=0; 3 tests/6,111 checks/0 failures**. Driver exit0,
+  1810.19s including collection. Peak sampled RSS26,628KiB; kernel HWM29,212KiB.
+  `grind-30m{.log,-memory.jsonl,-result.json}` preserve evidence. This predates
+  newer integrations and counts C++new, not Cmalloc or wrapper locks.
+- Seeded 1,000 malformed live-state loads: 7,004 checks passed in a coherent
+  focused harness at `72232279` plus the test, now committed as `075d943b`.
+- Worker ASan/UBSan/TSan/UI/stress results are scoped precisely in lane ledgers.
+  No final full suite, all-platform validator or hardware/DAW acceptance claim.
 
-30-minute concurrent core soak is running (session79995, PID23607):
-`grind-30m.log`, `grind-30m-memory.jsonl`, eventually `grind-30m-result.json` in evidence directory.
-It uses a separate immutable core snapshot before current integration; do not claim final-feature coverage.
-Earlier requested30s grind passed3tests/4619checks:3000edits,125904blocks,55,544,648samples,
-callback_new0/invalid0. New hook counts C++new only, not C malloc.
-Worker scoped ASan/UBSan/TSan results and exact instrumentation limits are in lane ledgers.
-No full final-suite/sanitizer/native-validator/hardware/DAW/manual acceptance is yet established.
+## Integrated since the last executable; rerun coherently
 
-CI40042179060 and CodeQL40042179099 are running for pushed6f025613e97eab0d9556f0d22236e288fa8401f2.
-Six platform cells were still compiling at last check. Results do not cover later local commits.
-GitHub CLI token invalid; supported GitHub connector reads/PR edits and managed gitfetch/push work.
-Last verified remote branch is6f025613; source after that remains local until a tested checkpoint push.
-Use CI for genuine Windows/macOS. Existing releasesv0.1.0-alpha1,v0.1.0-macos-beta1,draftv1.0.0-beta1
-are immutable. New incomplete acceptance can only be accurately labeled draft/prerelease.
+AB/send-return/feedback with guards, three optional aux sends, bounded raw/output
+MIDI, E55 runtime-extra capture, E57 routing snapshot/input definitions, physical
+UI controls/APVTS attachments/drag rollback/stress, and bounded paged looper
+storage/compaction are integrated. Named processors remain registration-gated.
+The next full application executable has not yet validated these integrations.
 
-`source /workspace/luthier-toolchain/env.sh` enables local CMake/Ninja/dev dependencies/Xvfb.
-System installation lacksroot; public Debian packages are staged locally. JUCE8.0.10 pinned
-3af3ce009f6a02f6fa651008fffb5b41743a9fab; CLAP extension55525c9858d4b25687be7759a5e0f70eccef218e.
-Build identity is pinned `LUTHIER_BUILD_STRING=pedalboard-local-qa` to avoid whole rebuilds on docs commits;
-final release provenance must use exact source SHA. One full native builder only; no source mixing.
+Major work still active: 12 named drive/dynamics/Muff processors; paged transport
+and four named loopers, memories/rhythm; persistent asset service E59; extended
+50-field host/MIDI mapping and canonical tempo delivery; numerical/CPU closure;
+UI visual/idle/accessibility completion. UI screenshots revealed clipping and
+mojibake; fix in progress. Native Xvfb peer idle probe failed BadAtom, not passed.
+E58 Phase90 correction is a reviewed mathematical proposal awaiting measured
+adoption; the alternative 2x FIR added15samples and failed CPU, so was rejected.
 
-Verified complete-history early bundle saved in Library: `/luthier-intake-and-dsp.bundle`,
-SHA25639b8d85e0a5552e03df65abfd81ee027ac21d28c4b8862650f7822db0e3cb93a, contains e733841e.
-Incremental0299fe14 package also saved in Library, SHA256904e4d04369889365ad5e695662be2aa404562289018d0c82324b76657f6a9f8.
-Newer checkpoint bundles require that complete-history base; verify checksums and `git bundle verify`.
-Release archive secret scanning remains mandatory; prior tracked scan flags chiefly existing calibration hashes,
-known parameter IDs/test UUIDs. Never copy credentials, private keys, dependency caches or build caches to archives.
+## Build and CI
 
-## Latest coordinator update, 2026-10-24 00:53 UTC
+`source /workspace/luthier-toolchain/env.sh` enables workspace-local CMake/Ninja,
+dev dependencies and Xvfb. No system/root/security changes were made. JUCE8.0.10
+SHA `3af3ce009f6a02f6fa651008fffb5b41743a9fab`, CLAP extension
+`55525c9858d4b25687be7759a5e0f70eccef218e` are pinned.
 
-Source through5eab2aae is now integrated locally; CI/PR80 remains at pushed
-e5d350e5994c96e02277f9c8a00606073df47213 to allow the running six native jobs
-to finish. Do not keep cancelling long CI runs for small checkpoint pushes;
-a separate backup branch may preserve later source without updating PR80.
-Native checkpoint2 PASSED206tests/5,649,492checks40.1s at05bbdb8e. The prior
-legacy release-decay failure remains unresolved. Subsequent feedback/AB/aux,
-boundedMIDI, physical/dragUI, E55publishedstate and paging changes need the next
-coherent build. Extended50field host surface is still being wired by workers.
+No full builder is currently running. Freeze C++/shared dependencies before:
+`cmake --build build --target LuthierTests LuthierRender Luthier_VST3 Luthier_CLAP Luthier_Standalone -j3`.
+Use only one full builder. Local identity is pinned `pedalboard-local-qa` to
+avoid recompiling on documentation commits; final release provenance needs SHA.
+The JUCE standalone MIDI reserve patch is now applied and verified by CMake:
+constructor65536 bytes, exact pre/post hashes, unknown sources refused. Four
+isolated tests pass for both original and patched trees. No broad compiledefine.
+Linux pluginval1.0.4 and clap-validator0.3.2 are installed/runnable; product
+validation is pending.
 
-The30-minute wall-clock core soak completedPASS: seed0x51a7,180000edits,
-6913402blocks,3049960869samples,callback_new0,invalid0. Immutable source
-347f0ce558b72fb5f3a37f3e5b15c552f7c8cd95;3tests6111checks0failures.
-Peak sampledRSS26628KiB, kernelHWM29212KiB. A new focused1000 malformed
-state-load/liveaudio test PASSED7004checks at72232279+testWIP, nowcommitted075d943b.
-SeeQA ledger for exact scopes; this is not finalwholepluginQA.
+Current CI for pushed e5d350e5: PR verification40045916131, CodeQL40045916125.
+The previous40042179060 was cancelled by the checkpoint push. Let long native
+CI jobs finish; use a separate backup branch for later milestones instead of
+continually cancelling PR80 runs. Results never cover later local commits.
+GitHub CLI token is invalid; supported connector and managed git transport work.
 
-JUCE standaloneconstructor reserve65536 patch is nowverified/applied through
-cmake/JuceMidiCapacity.cmake, pre/postfullfilehash pinned8.0.10. Bothoriginal
-andpatchedsource pass4isolatedpatchtests; --check andCMakeconfigurepassed.
-No target-widecompiledefine was needed. Linux pluginvalv1.0.4 andclap-validator
-0.3.2 downloaded/extracted/runhelp/version successfully, but pluginsnotyetvalidated.
+## Persistence and release
 
-Checkpoint e5d350e5 all-worker incrementalbundle savedLibrary:
-/luthier-checkpoint-e5d350e5.tar.gz, SHA256
-4fe422a16d141ce1a303e4470f2e3c711d0f53e72306c85c84fd9a8dccaa90e6
-(libfile_676f4ed72bd48191bf9fee2162ef8ee2). Containsacceptedcoordinator AND
-explicitworkerWIP branches, requires the earlier e733841e full-historybundle.
-Theenvironmentbrieflyreportedunavailable thenimmediatelyreturned; read-only
-verificationfoundprocesses/work intact. Noactionwasdenied, no newenvironmentstarted.
+Verified Library archives (incremental bundles require the first full bundle):
 
-Remainingmajorwork:12nameddrive/dynamics/Muff processors, namedloopers/paged
-transport+memories/rhythm, actualassetserviceE59, E57extendedhost/MIDIclock/learn
-completion, acoustic/CPUgateclosure andfinalUIvisual/idle/nativepeeracceptance.
-E58Phase90 two-anchorprewarp proposal preservesnotch/zero-lookaheadgoals and
-needsreviewedmeasuredadoption; the2xFIRalternative15sample/.54%proposalwasrejected.
-SharedTanhADAA2 b1aa654b reviewedindependently bytimefx+coordinator; integrated
-asEXPERIMENTALhelperonly, noall-pedalalias/CPUclaim. Originalrequirementsremain.
+- `/luthier-intake-and-dsp.bundle`, full history through e733841e,
+  SHA256 `39b8d85e0a5552e03df65abfd81ee027ac21d28c4b8862650f7822db0e3cb93a`.
+- `/luthier-checkpoint-0299fe14.tar.gz`, SHA256
+  `904e4d04369889365ad5e695662be2aa404562289018d0c82324b76657f6a9f8`.
+- `/luthier-checkpoint-e5d350e5.tar.gz`, accepted and WIP worker refs plus evidence,
+  SHA256 `4fe422a16d141ce1a303e4470f2e3c711d0f53e72306c85c84fd9a8dccaa90e6`,
+  Library ID `libfile_676f4ed72bd48191bf9fee2162ef8ee2`.
+
+Verify checksums and `git bundle verify` before restoration. Exclude credentials,
+keys, build/dependency caches and user assets from source/release archives.
+Existing releases v0.1.0-alpha1, v0.1.0-macos-beta1 and draftv1.0.0-beta1 are
+immutable. Choose a new version under project policy. Incomplete acceptance
+requires an accurately labeled draft/prerelease; never claim feature complete.
+Signing secrets and manual hardware/DAWs are not available here.
+
+The environment briefly reported unavailable and immediately returned; checks
+found work/processes intact. No action was denied and no new environment started.
