@@ -83,6 +83,9 @@ public:
     virtual void setParam (int idx, float norm) noexcept = 0;   // norm 0..1; applies taper, smooths; Trigger: rising edge fires
     virtual float getParam (int idx) const noexcept = 0;
 
+    // E60: board-aligned dry in/out; apply only buffer coloration, with no added
+    // algorithmic latency. Separate prepared state; no allocation or locking.
+    virtual void processBypass (double*, double*, int) noexcept {}
     virtual void setEnabled (bool) noexcept {}            // mirror of BoardModel.enabled (trails state machine); the model is truth
     virtual int getLatencySamples() const noexcept { return 0; }
     virtual float getTailEnergyDb() const noexcept { return 0.f; }   // <= -90 lets the board skip process()
