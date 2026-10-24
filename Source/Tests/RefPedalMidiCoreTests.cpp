@@ -270,3 +270,17 @@ LUTHIER_TEST (RefPedalMidiCore, stableUuidFocusAndLocalProfilePrecedence)
     CHECK (map->find (MidiSrc::CC, 1, 14).count == 0); CHECK (map->footCc[0][64] == 2);
     CHECK (map->footCc[1][85] == 5); CHECK (map->noteToSlot[36] == 5); CHECK (map->noteToSlot[37] == 2);
 }
+LUTHIER_TEST (RefPedalMidiCore, staleHostEchoMapCannotReenableBoard)
+{
+    MidiRouter router; router.prepare (48000, 128);
+    auto map = std::make_unique<MapSnap>(); map->boardEnabled = false;
+    Binding b; b.srcNum = 20; b.target = 1; map->add (b); router.publishMap (std::move (map));
+    juce::MidiBuffer in; in.addEvent (juce::MidiMessage::controllerEvent (1, 20, 127), 37);
+    RouteOut out; router.setModelEnabled (false, 1); router.setHostEnabled (true, 1);
+    router.process (in, {}, 0, 128, out); CHECK (out.nWrites == 1);
+    router.setHostEnabled (false, 2); router.process (in, {}, 128, 128, out); CHECK (out.nWrites == 0);
+    auto stale = std::make_unique<MapSnap>(); stale->boardEnabled = true; stale->add (b); router.publishMap (std::move (stale));
+    router.setModelEnabled (true, 1); router.setHostEnabled (false, 2);
+    router.process (in, {}, 256, 128, out); CHECK (out.nWrites == 0);
+    router.setModelEnabled (true, 2); router.process (in, {}, 384, 128, out); CHECK (out.nWrites == 1);
+}

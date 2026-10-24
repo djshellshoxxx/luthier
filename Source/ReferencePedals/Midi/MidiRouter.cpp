@@ -156,7 +156,7 @@ void MidiRouter::process (const juce::MidiBuffer& in, const HostTransport& host,
     const auto* map = impl->published.load (std::memory_order_seq_cst);
     if (map && map->version != impl->activeVersion)
     {
-        if (! impl->modelEnabledKnown || impl->modelEnabled != map->boardEnabled)
+        if (impl->modelEnabledRevision == 0 && (! impl->modelEnabledKnown || impl->modelEnabled != map->boardEnabled))
         { impl->effectiveEnabled = impl->modelEnabled = map->boardEnabled; impl->modelEnabledKnown = true; }
         if (! impl->effectiveEnabled) { impl->footHeld.fill (false); for (auto& channel : impl->heldNoteSlots) channel.fill (-1); }
         impl->activeVersion = map->version; impl->held.fill (false); impl->picked.fill (false);

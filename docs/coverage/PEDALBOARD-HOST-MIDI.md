@@ -16,7 +16,7 @@ WP23 host extension: `LuthierEngine::setReferencePedalTransport(HostTransport)` 
 
 ## Actual native checks
 
-Standalone native harness against JUCE 8 core/audio_basics (2026-10-23): 20 cases / 148 checks passing under AddressSanitizer + UndefinedBehaviorSanitizer; the earlier 13-case / 64-check snapshot independently passed ThreadSanitizer. Own routing sources instrumented; reused JUCE module objects are uninstrumented.
+Standalone native harness against JUCE 8 core/audio_basics (2026-10-23): 21 cases / 152 checks passing under AddressSanitizer + UndefinedBehaviorSanitizer; the earlier 13-case / 64-check snapshot independently passed ThreadSanitizer. Own routing sources instrumented; reused JUCE module objects are uninstrumented.
 
 - RefPedalMidiCore::mappedOffsetsAndReservedGuard — 6 checks, passing.
 - RefPedalMidiCore::clockStartStopLoss — 6 checks, passing.
@@ -73,3 +73,5 @@ E48: MidiRouter::setModelEnabled(bool,uint32_t) is an approved additive audio-th
 Default-map follow-up: additive `addDefaultMaps(MapSnap&,ordered,settings)` builds message-thread focus/local maps. MapSnap binding layers are explicit0 > focus1 > local2; earlier chain profiles claim overlapping CCs on the same explicit channel. Focus uses settings.midi.selectedInstance, first pedal fallback; CC70..77 first eight eligible controls, CC11 first expression target, CC64 selected physical footswitch. Profiles activate only with explicit slot extras.midi.chan or selected useProfile; no-MIDI hardware profiles remain gated by their midi_enable descriptor. Generic fallback uses CC20..31/85. Canonical keyboard destinations stay storage slots. highResolutionCcIgnoresOrphanLsb (6 checks) and stableUuidFocusAndLocalProfilePrecedence (10 checks) pass in coherent native Board/Registry/MIDI ASan/UBSan harness, 20 cases/148 checks total.
 
 Focused HostAutomationCapture ThreadSanitizer stress passed 100,000 real host writes concurrent with suppressed echoes and snapshot reads; final serial100000/value0.75, no reported races. Full processor echo-intent integration remains pending E50.
+
+E50 routing regression: once E48 model intent is supplied, map booleans no longer independently reset the gate. staleHostEchoMapCannotReenableBoard passes four ASan/UBSan checks for hostON, newerhostOFF, stale ON-map publication with unchanged model revision, and a later explicit ON revision.
