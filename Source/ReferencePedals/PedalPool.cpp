@@ -10,11 +10,11 @@ void PedalRuntime::reset() noexcept
     for (auto& line : dry) line.reset();
     enableMix = 0.0;
 }
-void PedalPool::prepare (double sampleRate, int maxBlock)
+void PedalPool::prepare (double sampleRate, int maxBlock, const std::vector<PedalInstance>& captured)
 {
-    rate = sampleRate; block = maxBlock; objects.clear();
+    rate = sampleRate; block = maxBlock; objects.clear(); preparedExtras = captured;
 }
-std::shared_ptr<PedalRuntime> PedalPool::acquire (const PedalInstance& instance, juce::String& error)
+std::shared_ptr<PedalRuntime> PedalPool::acquire (const PedalInstance& instance, juce::String& error, const PedalRuntime* active)
 {
     if (instance.missing) return {};
     const auto* desc = PedalRegistry::find (instance.modelId.c_str());
@@ -25,13 +25,21 @@ std::shared_ptr<PedalRuntime> PedalPool::acquire (const PedalInstance& instance,
     for (auto& weak : objects)
         if (auto existing = weak.lock())
         {
-            bool matches = existing->identity == instance.instanceId && existing->model == instance.modelId
+            bool matches = (! active || existing.get() == active) && existing->identity == instance.instanceId && existing->model == instance.modelId
                 && existing->revision == instance.modelRevision && existing->extrasKey == extrasKey;
             for (int i = 0; matches && i < desc->numParams; ++i)
                 if (desc->params[i].has (PF_Config) && existing->config[static_cast<size_t> (i)] != instance.params[static_cast<size_t> (i)])
                     matches = false;
             if (matches) return existing;
         }
+    auto loadExtras = extras.clone();
+    for (auto saved = preparedExtras.begin(); saved != preparedExtras.end(); ++saved)
+        if (saved->instanceId == instance.instanceId && saved->modelId == instance.modelId && saved->modelRevision == instance.modelRevision)
+        { loadExtras = saved->extras.clone(); preparedExtras.erase (saved); break; }
+    if (active && active->identity == instance.instanceId && active->model == instance.modelId
+        && active->revision == instance.modelRevision && active->extrasKey == extrasKey)
+        active->pedal->saveExtra (loadExtras);
+    if (auto* object = loadExtras.getDynamicObject()) object->removeProperty ("midi");
     auto result = std::make_shared<PedalRuntime>();
     result->pedal = PedalRegistry::make (instance.modelId.c_str());
     if (! result->pedal) { error = "Pedal factory failed"; return {}; }
@@ -43,7 +51,7 @@ std::shared_ptr<PedalRuntime> PedalPool::acquire (const PedalInstance& instance,
     for (int i = 0; i < desc->numParams; ++i)
         result->pedal->setParam (i, instance.params[static_cast<size_t> (i)]);
     result->pedal->prepare (rate, block, 2);
-    result->pedal->loadExtra (extras);
+    result->pedal->loadExtra (loadExtras);
     result->pedal->setEnabled (instance.enabled);
     const int latency = result->pedal->getLatencySamples();
     if (latency < 0 || latency > kMaxLatencySamp) { error = "Invalid pedal latency"; return {}; }

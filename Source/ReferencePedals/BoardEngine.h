@@ -99,6 +99,7 @@ private:
     BoardModel& model;
     PedalPool pool;
     std::unique_ptr<RenderPlan> latest;
+    std::vector<PedalInstance> releasedStored, releasedCaptured;
     RetireList<RenderPlan> retired;
     std::atomic<const RenderPlan*> live { nullptr };
     std::atomic<uint32_t> audioEpoch { 0 };

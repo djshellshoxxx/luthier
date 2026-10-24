@@ -921,3 +921,68 @@ LUTHIER_TEST (RefPedalBoardCore, rawMidiAndBoundedOutputPreserveOffsetsWithoutAl
     CHECK (outgoing[255].offset == 127); // newest output is dropped deterministically
     CHECK (board.readMeters().midiDropped >= 300); // 44 raw overflow + 256 output overflow, plus router counters
 }
+
+namespace
+{
+const ParamDesc captureParam[] {
+    { "test_capture_mode", "Mode", "", ParamKind::Toggle, Taper::Linear, 0, 1, 0, 1, 0, nullptr, PF_Config, -1, -1 }
+};
+const PedalDesc captureDesc { "test.capture", "test_capture_", 1, "Capture probe", "Test", nullptr, ChannelMode::Stereo,
+    BypassMode::True, 1, captureParam, 0, false, false, false, 0 };
+class CaptureProbe final : public IPedal
+{
+public:
+    const PedalDesc& desc() const noexcept override { return captureDesc; }
+    void prepare (double, int, int) override { frames = 0; published.store (0); }
+    void reset() noexcept override {}
+    void process (double*, double*, int n) noexcept override { frames += n; published.store (frames, std::memory_order_release); }
+    void setParam (int, float v) noexcept override { value = v; }
+    float getParam (int) const noexcept override { return value; }
+    void saveExtra (juce::var& extra) const override
+    {
+        if (! extra.getDynamicObject()) extra = new juce::DynamicObject();
+        extra.getDynamicObject()->setProperty ("frames", static_cast<juce::int64> (published.load (std::memory_order_acquire)));
+    }
+    void loadExtra (const juce::var& extra) override
+    { frames = static_cast<uint64_t> (static_cast<juce::int64> (extra.getProperty ("frames", 0))); published.store (frames); }
+private:
+    uint64_t frames = 0;
+    std::atomic<uint64_t> published { 0 };
+    float value = 0;
+};
+std::unique_ptr<IPedal> makeCaptureProbe() { return std::make_unique<CaptureProbe>(); }
+}
+LUTHIER_TEST (RefPedalBoardCore, runtimeExtraCaptureIsIsolatedAndSurvivesPrepareReorderAndUndo)
+{
+    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (captureDesc, makeCaptureProbe));
+    Board board; const InstanceId id;
+    CHECK (board.model().apply (cmd::Add { "test.capture", -1, Placement::beforeExistingPre, 0, id }));
+    CHECK (board.model().apply (cmd::SetBoardEnabled { true }));
+    double left[1024] {}, right[1024] {}; board.processStereo (left, right, 1024, Placement::beforeExistingPre);
+    const auto read = [&]
+    {
+        std::vector<PedalInstance> instances; BoardSettings settings; board.model().snapshot (instances, settings);
+        for (const auto& instance : instances) if (instance.instanceId == id) return static_cast<juce::int64> (instance.extras["frames"]);
+        return juce::int64 (-1);
+    };
+    CHECK (read() == 1024);
+    CHECK (board.model().getInstance (id)->extras.isVoid()); // save did not mutate model or create a topology
+    const auto version = board.model().getTopologyInfo().version;
+    for (int i = 0; i < 10; ++i) CHECK (read() == 1024);
+    CHECK (board.model().getTopologyInfo().version == version);
+    board.prepare (48000, 128); CHECK (read() == 1024); // prepare resets DSP, then captured extra is loaded
+    board.releaseResources(); CHECK (read() == 1024);
+    board.prepare (48000, 128); CHECK (read() == 1024); // host release/prepare cycle retains captured handles
+    CHECK (board.model().apply (cmd::SetParam { id, 0, 1.f })); CHECK (read() == 1024);
+    CHECK (board.model().undo()); CHECK (read() == 1024); // config replacement snapshots the active runtime
+    std::atomic<bool> done { false };
+    std::thread audio ([&] { for (int i = 0; i < 1000; ++i) board.processStereo (left, right, 64, Placement::beforeExistingPre); done.store (true); });
+    juce::int64 previous = 1024;
+    while (! done.load()) { const auto current = read(); CHECK (current >= previous); previous = current; }
+    audio.join(); CHECK (read() >= 1024 + 64000);
+    const auto beforeReorder = read();
+    const InstanceId second;
+    CHECK (board.model().apply (cmd::Add { "test.capture", -1, Placement::beforeExistingPre, 0, second }));
+    CHECK (board.model().apply (cmd::Move { id, 1 })); CHECK (read() == beforeReorder);
+    CHECK (board.model().undo()); CHECK (read() == beforeReorder);
+}

@@ -99,7 +99,7 @@ std::unique_ptr<RenderPlan> TopologyCompiler::compile (const std::vector<PedalIn
         occupied[static_cast<size_t> (instance.slot)] = true;
         if (branched && (instance.lane < 0 || instance.lane >= t.numLanes))
             return reject ("Pedal lane exceeds active lane count");
-        auto object = pool.acquire (instance, error);
+        auto object = pool.acquire (instance, error, previous ? previous->slots[static_cast<size_t> (instance.slot)].get() : nullptr);
         if (! object && ! instance.missing) return {};
         const auto slot = static_cast<size_t> (instance.slot);
         result->slots[slot] = object;

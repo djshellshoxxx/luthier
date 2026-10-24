@@ -25,7 +25,7 @@ struct Board::Impl : BoardModel::Listener
     ~Impl() override { model.removeListener (this); }
     void settingsChanged() override
     {
-        std::vector<PedalInstance> instances; BoardSettings settings; model.snapshot (instances, settings);
+        std::vector<PedalInstance> instances; BoardSettings settings; model.snapshotStored (instances, settings);
         auto key = juce::JSON::toString (settings.midi) + juce::String (settings.midiChan)
             + ":" + juce::String (settings.enabled ? 1 : 0) + ":" + juce::String (settings.tempoBpm) + ":" + juce::String (static_cast<int> (settings.tempoSource));
         for (const auto& instance : instances)
@@ -97,7 +97,7 @@ void Board::setModel (int slot, Model model) noexcept
     {
         // The compatibility API explicitly addresses an empty storage slot.
         // Restore assigns that exact slot; all actual instances still use model order.
-        std::vector<PedalInstance> instances; BoardSettings settings; impl->model.snapshot (instances, settings);
+        std::vector<PedalInstance> instances; BoardSettings settings; impl->model.snapshotStored (instances, settings);
         PedalInstance instance; instance.slot = slot; instance.modelId = legacyModelId (model);
         instance.placement = impl->emptyPlacement[static_cast<size_t> (slot)]; instance.params.fill (0.5f);
         instances.push_back (instance);
