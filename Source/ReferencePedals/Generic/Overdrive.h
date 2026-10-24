@@ -16,6 +16,7 @@ class Overdrive final : public detail::Processor<7>
 
   private:
     bool identicalHistory = true;
+    common::CachedDbGain driveGain, levelGain;
     double previousTone = -1, previousBass = -1;
     std::array<double, 101> calibration{};
     void prepareCalibration() noexcept;

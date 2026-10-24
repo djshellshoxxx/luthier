@@ -4,6 +4,7 @@
 #include "OversamplerAdapter.h"
 #include "Smoothers.h"
 #include <array>
+#include <limits>
 namespace luthier::reference::common
 {
 inline ParamDesc continuous(const char *id, const char *label, const char *unit, float lo, float hi,
@@ -23,6 +24,23 @@ inline ParamDesc engage(const char *id, int cc) noexcept
     return {id, "ON", "", ParamKind::Toggle, Taper::Linear, 0, 1,
             1,  1,    0,  nullptr,           PF_Engage,     5, (int16_t)cc};
 }
+// Exact memoization only: moving controls still evaluate every sample.
+class CachedDbGain
+{
+  public:
+    double get(double db) noexcept
+    {
+        if (db != previous)
+        {
+            previous = db;
+            gain = common::dbGain(db);
+        }
+        return gain;
+    }
+
+  private:
+    double previous = std::numeric_limits<double>::quiet_NaN(), gain = 0;
+};
 inline constexpr const char *qualityNames[] = {"Eco", "Normal", "High"};
 // Shared sample clock prevents block boundaries from changing coefficient updates.
 // All signal/control interpolation state is double; PedalBase owns host norm floats.

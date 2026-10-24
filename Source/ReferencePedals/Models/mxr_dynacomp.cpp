@@ -1,6 +1,7 @@
 // OWNER: WP12
 #include "mxr_dynacomp.h"
 #include "../Common/EnvelopeFollower.h"
+#include "../Common/MildTanh.h"
 namespace luthier::reference::models
 {
 namespace
@@ -118,7 +119,7 @@ void MxrDynaComp::process(double *l, double *r, int n) noexcept
                 {
                     const double control = std::max(common::dbGain(-36), 1 / (1 + kc * env[c]));
                     // 2% asymmetry ESTIMATED. Subtraction keeps silence exactly zero.
-                    const double linear = std::tanh(1.5 * v * control), bias = std::tanh(.02);
+                    const double linear = common::mildTanh(1.5 * v * control), bias = std::tanh(.02);
                     const double ota = linear * (1 - bias * bias) / (1 + linear * bias) / 1.5;
                     const double rect = std::max(0.0, std::abs(ota * sens) - .6);
                     // Secondary-source 1s recovery; program-dependent shortening ESTIMATED.

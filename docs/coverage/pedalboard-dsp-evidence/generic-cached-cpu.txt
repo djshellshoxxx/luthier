@@ -1,0 +1,2 @@
+8 generic pedals normal48k128 stereo0: 0.094762s CPU/2s audio = 4.738% core
+8 generic pedals normal48k128 stereo1: 0.183744s CPU/2s audio = 9.187% core
