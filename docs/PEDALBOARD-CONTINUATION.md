@@ -1,6 +1,6 @@
 # Pedalboard continuation handoff
 
-Updated 2026-10-24 14:30 UTC. Work continues in the same environment; no new
+Updated 2026-10-24 15:10 UTC. Work continues in the same environment; no new
 release or tag has been created. Only djshellshoxxx/luthier is in scope.
 
 Seven actual slots are active: coordinator plus the existing engine, dsp,
@@ -13,8 +13,9 @@ No additional environment or duplicate continuation timer was created.
 
 Main work branch: codex/luthier-pedalboard-completion. Query git rev-parse HEAD
 for the exact handoff commit. The integrated source just before this handoff is
-4611f47f (including PR77 merge a63c6100 and portable codec91678b4c).
-PR80 remains draft, remotely e5d350e5 until the next qualified CI checkpoint.
+e7ca9cc9 (including PR77 merge a63c6100 and portable codec91678b4c).
+This is followed by a documentation-only freeze checkpoint. PR80 remains draft;
+its remote head must be rechecked after the next qualified CI push.
 Read-only current GitHub intake confirms no newer Claude pedalboard branch than
 PR79 at0b319c0b; that ancestry is already preserved, not a newer merge target.
 The old-master release run40096845972 was cancelled and is not a pedalboard build.
@@ -63,10 +64,59 @@ python3 scripts/tests/test_patch_juce_midi_capacity.py ThirdParty/JUCE.
 An initial unittest-discover invocation was unsuitable for that positional-path
 harness and failed before fixture setup; do not treat that as patch behavior.
 
+## Latest qualified slices and current build boundary
+
+Actual processor regression164aaefa is integrated as1bb22354:16host tests,
+2511checks pass against the coherent02 object/header overlay, including all373
+host intents, invalid structural requests, unused lanes and real feedback DSP
+kill-replay safety. E65 feed816e1320 forwards actual callback CPU measurements;
+its integrated runtime test is pending the new executable.
+
+E68 interface, engine and actual Delay/Reverb/DD3T overrides are integrated.
+The original hot-trim polarity failure was reproduced (+5 becoming-10.5475).
+Explicit one-pass wet residuals remove analytic dry subtraction. Engine native
+83tests174808checks and frozen ASan/UBSan/leak83tests172155checks pass, including
+actual registered hot-dry0/+12dB trims, Cut/Spillover and zero allocations. Shared
+JUCE objects are not instrumented in that sanitizer run. Model-owner sanitizer
+checks6134208 and separate1966080-frame no-allocation probe also pass.
+
+E66 Hall correction is integrated with unchanged canonical5-rate white±3dB,
+mixed-sine±1.5dB, raw NED200ms, RT60 and freeze reference gates. Independent
+lossless-output/phase review is retained. Expanded-seed mixed output reaches
++1.643dB: full normalization acceptance remains OPEN. Original geometry/sign-grid
+failures remain tracked in docs/coverage/probes. Named model registration is
+still gated. Delay coefficient-cache e7ca9cc9 is bit-identical over3967500 frames
+and passes its mode CPU fixtures; source behavior was not approximated.
+
+Snapshot helper89c5a7ed now uses validated undoable commands, preserving cloned
+bank metadata, captured live extras and prior undo history. This is separate
+from MIDI's128 control-only scenes; PC must never accidentally recall full
+snapshots, reorder pedals or restore loop audio. That bridge and40ms scene ramp
+remain pending. E67 natural Discrete mapping07d9c296 is integrated with UI choice
+fix7d4f187f; no earlier registered model used Discrete.
+
+UI BPM metadata, actual GuiReach board/settings/inspector flow, meaningful
+position selectors and keyboard gesture recording are integrated. Live-drag
+final-only recording and its host position-echo mask are a final bounded slice
+pending checkpoint, otherwise next batch. No hidden/fake unused-lane widgets.
+
+The actual old02 native decay gate was freshly reproduced:1of25 fails at34.7dB
+versus35. Root's separate experimental zero-coupling/player-gesture overlays each
+showed17failures and do not yet agree with an unchanged relink control; they are
+UNQUALIFIED diagnostics and no production fixture change was adopted. Engine
+owns frozen-object/header consistency diagnosis, then current-candidate retest.
+
+Source is being frozen for one coherent native build plus the next six-cell CI.
+No later C++ changes may enter main until the build/test checkpoint completes;
+workers continue isolated and queue commits. Current local build identity stays
+pedalboard-local-qa; final CI/release provenance must use the exact source SHA.
+README now truthfully labels Luthier as a software artwork while retaining
+functional descriptions and pedalboard development/acceptance status.
+
 ## Critical next steps
 
-1. Integrate host's actual CLAP restore correction and UI's real exhaustive
-   reachability/BPM metadata fixes; inspect dependency closure and tests.
+1. Freeze the final bounded drag/echo slice if ready, record exact source SHA,
+   and run the coherent combined native build; do not reuse the old02 executable.
 2. Compile once from a frozen combined source, run reference/host/normalization/
    practice/mic/unit/UI regressions, real standalone smoke and VST3/CLAP validators.
    Keep original full suite and legacy decay requirement unchanged.
@@ -94,3 +144,8 @@ SHA256e009392fbe893bd04a40c4ad0506f106d4ad4f42c74702777ff896b4d638987a
 is saved in Library as libfile_14c7879cd4508191b8b60be124df8c56.
 Verify checksums and git bundle verify before importing. Exclude keys,
 credentials, dependency/build caches and user assets from all archives.
+
+Known full-feature memory gate:64MiB prepared-pool cap is not yet certified.
+Sixteen stereo2s double delays at192k need98,304,000 raw bytes before overhead;
+current Wide reservation is2.4s. Do not lower precision/range or silently raise
+the cap. A resource admission limit/accounting policy is still required.
