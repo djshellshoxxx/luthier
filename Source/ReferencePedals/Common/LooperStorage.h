@@ -19,6 +19,17 @@ public:
         uint64_t storageBudget=4ull*1024*1024*1024;
     };
     enum Error : uint32_t { none=0,writeOverrun=1,readUnderrun=2,ioFailure=4,capacityReached=8,invalidAsset=16 };
+    enum class CaptureStatus : uint32_t { Empty, Recording, Pending, Ready, Failed };
+    struct Capture
+    {
+        uint64_t generation=0,frames=0;
+        AssetHash hash;
+        CaptureStatus status=CaptureStatus::Empty;
+        uint32_t faults=0;
+    };
+    // Any thread. Bounded atomic-only capture; unchanged output on contention.
+    // Recording/Pending/Failed never expose an older generation's hash.
+    bool capture(Capture&) const noexcept;
     LooperStorage();
     ~LooperStorage();
     // Stopped audio only. Refuses a budget that cannot represent maxFrames;
