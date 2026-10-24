@@ -5,6 +5,7 @@
 #include "../AnimationPolicy.h"
 #include "PedalFaceCache.h"
 #include "KnobControl.h"
+#include "ModelFace.h"
 namespace luthier::reference
 {
 namespace
@@ -56,7 +57,7 @@ private:
 PedalView::PedalView(BoardModel& m,InstanceId id,juce::AudioProcessorValueTreeState* p):model(m),instanceId(id),parameters(p)
 {
     setWantsKeyboardFocus(true);setFocusContainerType(FocusContainerType::focusContainer);
-    addAndMakeVisible(details);addAndMakeVisible(footswitch);addChildComponent(inspector);
+    addAndMakeVisible(details);addAndMakeVisible(footswitch);addChildComponent(display);addChildComponent(inspector);inspector.addAndMakeVisible(meterLabel);meterLabel.setTitle("Pedal DSP readback");display.setTitle("Looper DSP display");display.setJustificationType(juce::Justification::centred);display.setFont(juce::FontOptions(10.f));display.setColour(juce::Label::backgroundColourId,juce::Colours::black);display.setColour(juce::Label::textColourId,juce::Colours::white);
     for(auto* c:std::array<juce::Component*,8>{&placement,&mounting,&channel,&inputTrim,&outputTrim,&lane,&profile,&provenance})inspector.addAndMakeVisible(c);
     inputLabel.setText("Input trim (dB)",juce::dontSendNotification);outputLabel.setText("Output trim (dB)",juce::dontSendNotification);laneLabel.setText("Routing lane (0 = first)",juce::dontSendNotification);
     for(auto* label:{&inputLabel,&outputLabel,&laneLabel})inspector.addAndMakeVisible(label);
@@ -176,7 +177,7 @@ void PedalView::refresh()
     if(!trimAttached[0])inputTrim.setValue(instance->inDb,juce::dontSendNotification);if(!trimAttached[1])outputTrim.setValue(instance->outDb,juce::dontSendNotification);lane.setValue(instance->lane,juce::dontSendNotification);
     const auto order=model.getOrder();const int position=(int)std::distance(order.begin(),std::find(order.begin(),order.end(),instanceId));setExplicitFocusOrder(position+10);
     setTitle(juce::String(descriptor?descriptor->displayName:modelId.c_str())+", position "+juce::String(position+1)+" of "+juce::String((int)order.size())+", "+(instance->enabled?"on":"off")+", "+placement.getText());
-    setDescription("Alt arrows reorder. Space bypasses. Delete removes. I opens every control and pedal information.");resized();repaint();
+    setDescription("Alt arrows reorder. Space bypasses. Delete removes. I opens pedal information. "+meterSummary());resized();repaint();
 }
 juce::Point<int> PedalView::physicalSize() const {const auto size=face?face->designSizeMm()*1.6f:juce::Point<float>(120,200);return {juce::roundToInt(size.x),juce::roundToInt(size.y)};}
 juce::Point<float> PedalView::inputJack() const {for(const auto& jack:faceLayout.jacks)if(jack.kind==FaceJack::Kind::In)return jack.position;return {0,getHeight()*.42f};}
@@ -185,7 +186,7 @@ void PedalView::placeControls()
 {
     if(!face)return;face->layout(faceLayout);std::array<const FaceControl*,kMaxParams> physical {};
     for(const auto& control:faceLayout.controls)if(control.paramIdx>=0&&control.paramIdx<kMaxParams)physical[(size_t)control.paramIdx]=&control;
-    int y=100,labelIndex=0;bool momentaryMain=false;
+    int y=130,labelIndex=0;bool momentaryMain=false;
     if(descriptor)for(int index=0;index<descriptor->numParams;++index)
     {
         if(descriptor->params[index].has(PF_Engage))continue;auto* component=parameterControls[(size_t)index];auto* label=labels[labelIndex++];if(!component)continue;
@@ -201,7 +202,8 @@ void PedalView::placeControls()
             if(auto* slider=dynamic_cast<juce::Slider*>(component)){slider->setSliderStyle(juce::Slider::LinearHorizontal);slider->setTextBoxStyle(juce::Slider::TextBoxRight,false,80,22);}
         }
     }
-    provenance.setBounds(8,6,320,88);
+    provenance.setBounds(8,6,320,88);meterLabel.setBounds(8,94,320,28);meterLabel.setText(meterSummary(),juce::dontSendNotification);
+    const auto* faceModel=dynamic_cast<ModelFace*>(face.get());const bool lcd=faceModel&&faceModel->faceProfile().detail==FaceProfile::Detail::LooperDisplay;display.setVisible(lcd);if(lcd){display.setBounds(21,16,75,24);display.setText(meterSummary().isEmpty()?"NO READBACK":meterSummary(),juce::dontSendNotification);display.toFront(false);}
     for(auto* component:std::array<juce::Component*,7>{&placement,&mounting,&inputTrim,&outputTrim,&lane,&channel,&profile}){juce::Label* label=component==&inputTrim?&inputLabel:component==&outputTrim?&outputLabel:component==&lane?&laneLabel:nullptr;if(label){label->setBounds(8,y,320,18);y+=18;}component->setBounds(8,y,320,28);y+=32;}
     if(momentaryMain){inspector.addAndMakeVisible(footswitch);footswitch.setFaceGeometry({8.f,(float)y,320.f,36.f});y+=40;}
     else{addAndMakeVisible(footswitch);footswitch.setFaceGeometry(faceLayout.footswitch);}
@@ -239,10 +241,18 @@ void PedalView::closeInspector(bool restoreFocus)
 void PedalView::paint(juce::Graphics& g)
 {
     AnimationPolicy::notePaint(*this);const auto instance=model.getInstance(instanceId);if(!instance)return;
-    FaceState state;state.enabled=instance->enabled;state.missing=instance->missing||!descriptor;state.highContrast=!Palette::textured;
+    FaceState state;state.enabled=meterSeen?(meters.present&&meters.enabled):instance->enabled;state.tailActive=meterSeen&&meters.present&&meters.tailEnergyDb>-90;state.missing=instance->missing||!descriptor;state.highContrast=!Palette::textured;
     if(face){const auto image=PedalFaceCache::get(*face,modelId.c_str(),descriptor?descriptor->revision:1,{getWidth(),getHeight()},g.getInternalContext().getPhysicalPixelScaleFactor(),state);g.drawImage(image,getLocalBounds().toFloat());}
-    if(!instance->enabled){g.setColour(juce::Colours::black.withAlpha(.18f));g.fillRoundedRectangle(getLocalBounds().toFloat(),5);}
-    if(!faceLayout.led.isEmpty()){g.setColour(instance->enabled&&!state.missing?Palette::clip:Palette::clip.darker(.75f));g.fillEllipse(faceLayout.led);}
+    if(!state.enabled){g.setColour(juce::Colours::black.withAlpha(.18f));g.fillRoundedRectangle(getLocalBounds().toFloat(),5);}
+    if(!faceLayout.led.isEmpty()){g.setColour(state.enabled&&!state.missing?Palette::clip:Palette::clip.darker(.75f));g.fillEllipse(faceLayout.led);}
+    const auto* faceModel=dynamic_cast<ModelFace*>(face.get());
+    if(faceModel&&faceModel->faceProfile().detail==FaceProfile::Detail::LooperRing)
+    {
+        const auto centre=faceModel->faceProfile().ledMm*1.6f;const float radius=24;const double progress=meters.present&&(meters.model.available&UiLoop)&&meters.model.loopLength>0?(double)meters.model.playhead/meters.model.loopLength:0;
+        for(int segment=0;segment<24;++segment){const float angle=(segment/24.f)*juce::MathConstants<float>::twoPi;const auto point=centre+juce::Point<float>(std::sin(angle),-std::cos(angle))*radius;const bool lit=meters.present&&(meters.model.available&UiLoop)&&segment<(int)(juce::jlimit(0.,1.,progress)*24);g.setColour(lit?Palette::accentBright:Palette::edge);g.fillEllipse(point.x-2,point.y-2,4,4);}
+    }
+    if(meterSeen&&meters.present&&(meters.model.available&UiTransport)&&!faceLayout.led.isEmpty()){g.setColour(meters.model.transport==1?juce::Colours::red:meters.model.transport==3?juce::Colours::orange:meters.model.transport==2?juce::Colours::limegreen:Palette::edge);g.fillEllipse(faceLayout.led);}
+    if(state.tailActive&&(modelId=="generic.delay"||modelId=="generic.reverb")){g.setColour(Palette::warning);g.fillEllipse(faceLayout.led.translated(9,0));}
     if(state.missing){g.setColour(Palette::warning);g.setFont(juce::FontOptions(11.f));g.drawFittedText("Missing model\n"+juce::String(modelId),getLocalBounds().reduced(6),juce::Justification::centred,4);}
     if(hasKeyboardFocus(true)||learnMode){g.setColour(Palette::accentBright);g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(1),5,Palette::textured?2.f:3.f);}
 }
@@ -294,5 +304,28 @@ void PedalView::contextMenu()
     menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(this),[self](int n){if(!self)return;const auto order=self->model.getOrder();const int pos=(int)std::distance(order.begin(),std::find(order.begin(),order.end(),self->instanceId));
         if(n==1||n==2)self->model.apply(cmd::Move{self->instanceId,juce::jlimit(0,(int)order.size()-1,pos+(n==1?-1:1))});
         if(n==3)self->post(cmd::Duplicate{self->instanceId});if(n==4)self->post(cmd::Remove{self->instanceId});if(n==5&&self->onLearn)self->onLearn(self->instanceId,-1,false);});
+}
+}
+
+namespace luthier::reference
+{
+juce::String PedalView::meterSummary() const
+{
+    if(!meterSeen)return {};
+    if(!meters.present)return "DSP data pending";
+    juce::StringArray parts;const auto& data=meters.model;
+    if(data.available&UiTransport){const char* names[]{"EMPTY","REC","PLAY","OVERDUB","STOP"};parts.add(data.transport>=0&&data.transport<5?names[data.transport]:"TRANSPORT "+juce::String(data.transport));}
+    if(data.available&UiLoop)parts.add(juce::String((juce::int64)data.playhead)+"/"+juce::String((juce::int64)data.loopLength)+" samples");
+    if((data.available&UiTempo)&&std::isfinite(data.bpm)&&data.bpm>0)parts.add(juce::String(data.bpm,1)+" BPM");
+    if((data.available&UiFaults)&&data.faults!=0)parts.add("FAULT "+juce::String::toHexString((int)data.faults));
+    return parts.isEmpty()?"DSP active":parts.joinIntoString(" | ");
+}
+bool PedalView::updateMeters(const PedalMeters& next)
+{
+    if(next.present&&next.identity!=instanceId)return false;
+    const auto& a=meters.model;const auto& b=next.model;
+    if(meterSeen&&meters.present==next.present&&meters.enabled==next.enabled&&meters.tailEnergyDb==next.tailEnergyDb&&a.available==b.available&&a.transport==b.transport&&a.loopLength==b.loopLength&&a.playhead==b.playhead&&a.bpm==b.bpm&&a.progress==b.progress&&a.faults==b.faults)return false;
+    const bool announce=!meterSeen||meters.enabled!=next.enabled||meters.model.transport!=next.model.transport||meters.model.faults!=next.model.faults;
+    meters=next;meterSeen=true;const auto text=meterSummary();setDescription("Alt arrows reorder. Space bypasses. Delete removes. I opens pedal information. "+text);meterLabel.setText(text,juce::dontSendNotification);juce::String compact=text;if(next.present){juce::StringArray lines;const auto& data=next.model;if(data.available&UiTransport){const char* names[]{"EMPTY","REC","PLAY","OVERDUB","STOP"};lines.add(data.transport>=0&&data.transport<5?names[data.transport]:"STATE");}if((data.available&UiTempo)&&std::isfinite(data.bpm)&&data.bpm>0)lines.add(juce::String(data.bpm,1)+" BPM");else if((data.available&UiLoop)&&data.loopLength>0)lines.add(juce::String((int)juce::jlimit(0.,100.,100.*data.playhead/data.loopLength))+"%");compact=lines.isEmpty()?"NO DATA":lines.joinIntoString(" ");}display.setText(compact,juce::dontSendNotification);display.setTooltip(text);if(announce)if(auto* handler=getAccessibilityHandler())handler->notifyAccessibilityEvent(juce::AccessibilityEvent::valueChanged);repaint();return true;
 }
 }

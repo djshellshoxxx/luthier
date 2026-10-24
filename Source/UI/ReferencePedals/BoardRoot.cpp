@@ -46,6 +46,7 @@ BoardRoot::BoardRoot(BoardModel& m,LuthierAudioProcessor* p):model(m),processor(
     tempo.onValueChange=[this]{if(!refreshing&&!tempoAttachment)model.apply(cmd::SetBoardParam{"tempoBpm",tempo.getValue()});};
     if(processor)
     {
+        canvas.setMeterSource([this](int slot){return processor->getEngine().getReferencePedals().readPedalMeters(slot);});
         auto& state=processor->getState();
         if(state.getParameter("ref_board_mix"))mixAttachment=std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(state,"ref_board_mix",mix);
         if(state.getParameter("ref_board_enabled"))enabledAttachment=std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(state,"ref_board_enabled",enabled);
@@ -71,7 +72,7 @@ BoardRoot::BoardRoot(BoardModel& m,LuthierAudioProcessor* p):model(m),processor(
     viewport.onScroll=[this]{saveView();};
     model.addListener(this);refresh();
 }
-BoardRoot::~BoardRoot(){canvas.cancelDrag();canvas.onError=nullptr;canvas.closeInspectors();canvas.onFocus=nullptr;canvas.onLearn=nullptr;viewport.onScroll=nullptr;stopTimer();flushView();model.removeListener(this);toolbarViewport.setViewedComponent(nullptr,false);viewport.setViewedComponent(nullptr,false);}
+BoardRoot::~BoardRoot(){canvas.setMeterSource({});canvas.cancelDrag();canvas.onError=nullptr;canvas.closeInspectors();canvas.onFocus=nullptr;canvas.onLearn=nullptr;viewport.onScroll=nullptr;stopTimer();flushView();model.removeListener(this);toolbarViewport.setViewedComponent(nullptr,false);viewport.setViewedComponent(nullptr,false);}
 void BoardRoot::refresh()
 {
     const juce::ScopedValueSetter<bool> guard(refreshing,true);const auto s=model.getBoardSettings();

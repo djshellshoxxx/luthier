@@ -24,6 +24,8 @@ public:
     void itemDropped(const SourceDetails&) override;
     void setCables (bool b) { cables=b;repaint(); }
     void setLearn (bool b);
+    void setMeterSource(std::function<PedalMeters(int)>);
+    void pollMeters();
     std::function<void(InstanceId,int,bool)> onLearn;
     std::function<void(PedalView&)> onFocus;
     std::function<void(const juce::String&)> onError;
@@ -46,6 +48,13 @@ private:
     std::unique_ptr<Ghost> ghost;
     juce::Point<int> dragPointer,dragOffset;
     AnimationPolicy::Registration paintMetrics {*this,AnimationPolicy::Decorative,"ReferenceBoardCanvas"};
+    struct MeterPoll final : juce::Timer {
+        explicit MeterPoll(BoardCanvas& p):owner(p),motion(p,AnimationPolicy::LiveReadout,"ReferencePedalMeters"){}
+        ~MeterPoll() override {motion.stopTimer();}
+        void timerCallback() override {owner.pollMeters();}
+        BoardCanvas& owner;AnimationPolicy::Registration motion;
+    } meterPoll {*this};
+    std::function<PedalMeters(int)> meterSource;
     juce::String layoutSignature;
     bool cables=true, learning=false;
 };
