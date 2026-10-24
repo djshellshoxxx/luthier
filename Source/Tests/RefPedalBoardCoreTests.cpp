@@ -1058,3 +1058,62 @@ LUTHIER_TEST (RefPedalBoardCore, extendedTempoSourceUsesCanonicalPriorityAndExpl
     for (int block = 0; block < 80; ++block) run();
     CHECK_NEAR (board.readPedalMeters (0).model.bpm, 210, 1.e-6);
 }
+
+#include "../ReferencePedals/Services/AssetStore.h"
+namespace
+{
+const PedalDesc assetProbeDesc { "test.asset_probe", "test_asset_probe_", 1, "Asset probe", "Test", nullptr,
+    ChannelMode::Stereo, BypassMode::True, 0, nullptr, 0, false, false, false, 0 };
+std::atomic<int> assetProbeDestroyed { 0 };
+class AssetProbe final : public IPedal
+{
+public:
+    ~AssetProbe() override { if (assets) (void) assets->findMissing ({}); assetProbeDestroyed.fetch_add (1); }
+    const PedalDesc& desc() const noexcept override { return assetProbeDesc; }
+    void setServices (const PedalServices& services) override { assets = services.assets; }
+    void prepare (double, int, int) override { hadServiceAtPrepare = assets != nullptr; }
+    void reset() noexcept override {}
+    void process (double*, double*, int) noexcept override {}
+    void setParam (int, float) noexcept override {}
+    float getParam (int) const noexcept override { return 0; }
+    void saveExtra (juce::var& extra) const override
+    {
+        if (! extra.getDynamicObject()) extra = juce::var (new juce::DynamicObject());
+        extra.getDynamicObject()->setProperty ("preparedWithAssetService", hadServiceAtPrepare);
+    }
+private:
+    IAssetStore* assets = nullptr;
+    bool hadServiceAtPrepare = false;
+};
+std::unique_ptr<IPedal> makeAssetProbe() { return std::make_unique<AssetProbe>(); }
+}
+LUTHIER_TEST (RefPedalBoardCore, injectedAssetStoreIsPinnedThroughPedalTeardownAndStoppedReplacement)
+{
+    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (assetProbeDesc, makeAssetProbe));
+    const auto directory = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("luthier-engine-assets-" + juce::Uuid().toString());
+    CHECK (! directory.exists());
+    Board board;
+    auto store = std::make_shared<AssetStore> (directory); std::weak_ptr<IAssetStore> lifetime = store;
+    CHECK (board.setAssetStore (store)); CHECK (board.readMeters().assetStoreAvailable);
+    CHECK (! directory.exists()); // injection and worker construction perform no disk write
+    const uint8_t bytes[] { 7, 2, 9, 1 }; const auto hash = AssetStore::hashBlob (bytes, sizeof (bytes));
+    CHECK (store->putBlob (hash, bytes, sizeof (bytes))); CHECK (store->hasBlob (hash));
+    board.prepare (48000, 64);
+    CHECK (! board.setAssetStore (nullptr)); // explicitly prepared, including an empty board
+    CHECK (board.model().apply (cmd::Add { "test.asset_probe", -1, Placement::beforeExistingPre, 0, InstanceId() }));
+    CHECK (board.model().apply (cmd::SetBoardEnabled { true }));
+    std::vector<PedalInstance> instances; BoardSettings settings; board.model().snapshot (instances, settings);
+    CHECK (static_cast<bool> (instances[0].extras["preparedWithAssetService"]));
+    store.reset(); CHECK (! lifetime.expired());
+    double left[1024] {}, right[1024] {}; const auto allocations = luthier::tests::allocationsOnThisThread();
+    board.processStereo (left, right, 1024, Placement::beforeExistingPre);
+    CHECK (luthier::tests::allocationsOnThisThread() == allocations);
+    const auto destroyed = assetProbeDestroyed.load(); board.releaseResources();
+    CHECK (assetProbeDestroyed.load() > destroyed); // destructor can still call the raw asset service
+    CHECK (! lifetime.expired()); // pool keeps the configured service for the next prepare
+    CHECK (board.setAssetStore (nullptr)); CHECK (lifetime.expired());
+    CHECK (! board.readMeters().assetStoreAvailable);
+    board.prepare (48000, 64); board.model().snapshot (instances, settings);
+    CHECK (! static_cast<bool> (instances[0].extras["preparedWithAssetService"]));
+    board.releaseResources(); CHECK (directory.deleteRecursively());
+}

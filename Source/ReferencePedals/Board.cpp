@@ -16,7 +16,7 @@ struct Board::Impl : BoardModel::Listener
     midi::RouteOut routed;
     int64_t sample = 0;
     int blockSamples = 0;
-    bool explicitBlock = false;
+    bool explicitBlock = false, explicitlyPrepared = false;
     juce::MidiBuffer emptyMidi;
     std::array<int, kMaxSlots> legacyOrder;
     std::array<Placement, kMaxSlots> emptyPlacement {};
@@ -46,9 +46,11 @@ void Board::prepare (double rate, int maxBlock)
 {
     rate = std::isfinite (rate) && rate >= 8000.0 ? rate : 48000.0;
     impl->engine.prepare (rate, maxBlock); impl->router.prepare (rate, std::max (1, maxBlock));
-    impl->sample = 0;
+    impl->sample = 0; impl->explicitlyPrepared = true;
 }
-void Board::releaseResources() { impl->engine.releaseResources(); }
+void Board::releaseResources() { impl->engine.releaseResources(); impl->explicitlyPrepared = false; }
+bool Board::setAssetStore (std::shared_ptr<IAssetStore> store)
+{ return ! impl->explicitlyPrepared && impl->engine.setAssetStore (std::move (store)); }
 void Board::reset() noexcept { impl->engine.requestReset(); }
 BoardModel& Board::model() noexcept { return impl->model; }
 midi::MidiRouter& Board::midi() noexcept { return impl->router; }

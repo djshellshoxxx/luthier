@@ -40,6 +40,7 @@ public:
     ~BoardEngine();
     void prepare (double sampleRate, int maxBlock);
     void releaseResources(); // stopped-audio barrier
+    bool setAssetStore (std::shared_ptr<IAssetStore> store);
     void requestReset() noexcept { resetRequested.store (true, std::memory_order_release); }
     void process (double*, double*, int, Placement) noexcept;
     void setTime (const TimeInfo& time) noexcept { blockTime = time; }
@@ -116,7 +117,7 @@ private:
     std::atomic<bool> feedbackFault { false }, feedbackTripped { false };
     const float* sidechain[2] {};
     int sidechainSamples = 0;
-    std::atomic<bool> sidechainConnected { false };
+    std::atomic<bool> sidechainConnected { false }, assetStoreAvailable { false };
     std::array<std::array<double, kSubBlock>, 2> sidechainScratch {};
     WetDryMixer mixer;
     ExtendedHostAutomationSnapshot extendedHost;
