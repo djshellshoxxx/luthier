@@ -83,6 +83,10 @@ void Delay::loadExtra(const juce::var& v)
     if(std::isfinite(saved)){tapMs=std::clamp(saved,60.0,2000.0);publishedTapMs.store(tapMs,std::memory_order_release); }
 }
 void Delay::process(double* left,double* right,int n) noexcept
+{ render(left,right,nullptr,nullptr,n); }
+bool Delay::processWithWetResidual(double* left,double* right,double* residualL,double* residualR,int n) noexcept
+{ render(left,right,residualL,residualR,n);return true; }
+void Delay::render(double* left,double* right,double* residualL,double* residualR,int n) noexcept
 {
     constexpr double pi=3.14159265358979323846;
     for(int i=0;i<n;++i,++samples)
@@ -134,6 +138,9 @@ void Delay::process(double* left,double* right,int n) noexcept
             lines[c].push(softGuard(in*inputGain*(1-holdBlend)+loop*tailGain));
         }
         const double dryGain=1+inputGain*(std::cos(mix*pi*.5)-1);
+        // E68: expose the real post-mix/trails wet term before guarded dry sum.
+        if(residualL)residualL[i]=wet[0]*std::sin(mix*pi*.5)*tailGain;
+        if(residualR)residualR[i]=wet[1]*std::sin(mix*pi*.5)*tailGain;
         left[i]=softGuard(dry[0]*dryGain+wet[0]*std::sin(mix*pi*.5)*tailGain);
         right[i]=softGuard(dry[1]*dryGain+wet[1]*std::sin(mix*pi*.5)*tailGain);
         energy+=(.5*(wet[0]*wet[0]+wet[1]*wet[1])-energy)*(1-std::exp(-1/(sr*.05)));

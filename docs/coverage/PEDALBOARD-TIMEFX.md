@@ -562,3 +562,32 @@ by the constant-1.05 factor. It therefore preserves those decay/finite/allocatio
 properties, with Hall peak scaled1.05; it is not labelled a fresh final-gain soak.
 The original architecture, failed density and level rows, sign grid and all
 calibration uncertainties are preserved alongside the revised results.
+
+E68 one-pass wet residual: Delay, Reverb and DD3T override the additive
+`processWithWetResidual` hook. Ordinary `process` and the hook use the same
+single render, with optional residual buffers. The emitted term is the actual
+post-mix/trails wet contribution before dry summation and final output guarding:
+Delay `wet*sin(mix*pi/2)*tailGain`, Reverb calibrated/type-dipped wet times its
+mix/trails gain, and DD3T `level*outWet*wetGain`. Original dry/mix arithmetic and
+state evolution are unchanged. The board supplies separate preallocated residual
+buffers; no duplicate render, added latency, allocation or lock is introduced.
+
+This fixes the model side of the hot-trim failure: subtracting unguarded dry from
+a clipped dry+wet output can invent a large residual of opposite polarity. The
+explicit contribution remains equal to the independently rendered zero-input
+tail after excitation fades, even when live input is alternately +32/-32. Native
+finite model contributions are retained, without an extra +/-16 residual clamp;
+that clamp could itself destroy valid dry/wet cancellation. The engine owns
+final summed-output guarding and the bypass transition.
+
+A fresh immutable ASAN+UBSAN snapshot passes **6,134,208 checks**, zero failures
+and zero diagnostics. It includes normal-output/hook bit identity across all five
+rates, randomized controls and blocks1/4/16/64/512/2048, hot-input versus separate
+same-history zero-input tail equality, Cut/Spillover behavior, and the existing
+Delay/Reverb/DD3T tests. Spillover is explicitly selected for this fixture because
+DD3T's documented default is Cut. A separate five-rate/all-three-model probe
+processes **1,966,080 stereo frames** through the hook with hot inputs and control,
+foot and enable changes: zero callback new/new[] allocations and zero nonfinite
+residuals or false hook results. Raw results and the allocation probe are stored
+beside this ledger. Board-level trim/bypass integration verification remains the
+engine owner's responsibility; these results do not claim that separate test ran.

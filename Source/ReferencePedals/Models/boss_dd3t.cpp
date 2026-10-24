@@ -146,6 +146,10 @@ void BossDd3t::loadExtra(const juce::var& v)
     const double interval=double(v.getProperty("tapIntervalMs",500.));if(std::isfinite(interval))tapInterval=std::clamp(interval,133.,800.);hasTapped=bool(v.getProperty("hasTapped",false));publishTap();cachedTargetMs=targetTime();
 }
 void BossDd3t::process(double* left,double* right,int n) noexcept
+{ render(left,right,nullptr,nullptr,n); }
+bool BossDd3t::processWithWetResidual(double* left,double* right,double* residualL,double* residualR,int n) noexcept
+{ render(left,right,residualL,residualR,n);return true; }
+void BossDd3t::render(double* left,double* right,double* residualL,double* residualR,int n) noexcept
 {
     for(int i=0;i<n;++i,++samples)
     {
@@ -197,6 +201,8 @@ void BossDd3t::process(double* left,double* right,int n) noexcept
             }
             const double outWet=holdMix>=1?held:wet+(held-wet)*holdMix;
             const double dryOut=value(18)>.5f && value(15)>.5f?mono:dry[c];
+            double* residual=c==0?residualL:residualR;
+            if(residual)residual[i]=level*outWet*wetGain;
             outputs[c][i]=softGuard(dry[c]+inputGain*(dryOut-dry[c])+level*outWet*wetGain);
             wetEnergy+=wet*wet;
         }

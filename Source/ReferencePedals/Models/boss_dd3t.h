@@ -16,6 +16,7 @@ public:
     BossDd3t();static const PedalDesc& descriptor() noexcept;
     void prepare(double,int,int) override;void reset() noexcept override;
     void process(double*,double*,int) noexcept override;
+    bool processWithWetResidual(double*,double*,double*,double*,int) noexcept override;
     void setParam(int,float) noexcept override;
     void setEnabled(bool e) noexcept override {enabled=e;}
     void setServices(const PedalServices& s) override {seed=s.instanceSeed;}
@@ -30,6 +31,7 @@ public:
     bool footControlsEngagement() const noexcept override {return false;}
     bool consumeEngageToggle() noexcept override {const bool request=engageRequest;engageRequest=false;return request;}
 private:
+    void render(double*,double*,double*,double*,int) noexcept;
     void onParamChanged(int,float) noexcept override;void onTrigger(int) noexcept override;
     void tap() noexcept;void beginHold() noexcept;double targetTime() const noexcept;
     common::FractionalDelay line[2];common::OnePole highpass[2];common::Biquad pre[2][2],post[2][2];

@@ -16,6 +16,7 @@ public:
     void prepare(double,int,int) override;
     void reset() noexcept override;
     void process(double*,double*,int) noexcept override;
+    bool processWithWetResidual(double*,double*,double*,double*,int) noexcept override;
     void setEnabled(bool) noexcept override;
     void setServices(const PedalServices& s) override { seed=s.instanceSeed; }
     void setTime(const TimeInfo&) noexcept override;
@@ -23,6 +24,7 @@ public:
     void saveExtra(juce::var&) const override;
     void loadExtra(const juce::var&) override;
 private:
+    void render(double*,double*,double*,double*,int) noexcept;
     void onTrigger(int) noexcept override;
     double desiredTime() const noexcept;
     common::FractionalDelay lines[2];
