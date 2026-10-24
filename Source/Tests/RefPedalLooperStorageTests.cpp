@@ -5,6 +5,9 @@
 #include <mutex>
 #include <thread>
 #include <cstdio>
+#if JUCE_LINUX
+#include <pthread.h>
+#endif
 using namespace luthier::reference;
 using luthier::reference::common::LooperStorage;
 namespace
@@ -16,6 +19,15 @@ public:
     ~ControlledStore() override {unblock();directory.deleteRecursively();}
     bool putBlob(const AssetHash& h,const uint8_t* data,size_t n) override
     {
+#if JUCE_LINUX
+        pthread_attr_t attributes;
+        if(pthread_getattr_np(pthread_self(),&attributes)==0)
+        {
+            size_t bytes=0;void* address=nullptr;
+            if(pthread_attr_getstack(&attributes,&address,&bytes)==0)observedStack.store(bytes);
+            pthread_attr_destroy(&attributes);
+        }
+#endif
         {std::unique_lock<std::mutex> lock(mutex);++puts;entered.notify_all();gate.wait(lock,[&]{return !blockWrites || permits>0;});if(blockWrites)--permits;if(failWrites)return false;}
         return real.putBlob(h,data,n);
     }
@@ -35,7 +47,7 @@ public:
     bool waitForBlockedRead(){std::unique_lock<std::mutex> lock(mutex);return entered.wait_for(lock,std::chrono::seconds(2),[&]{return blockedReads>0;});}
     void setWriteGate(bool block,bool fail=false){const std::lock_guard<std::mutex> lock(mutex);blockWrites=block;failWrites=fail;puts=0;permits=0;}
     void setReadGate(const AssetHash& manifest){const std::lock_guard<std::mutex> lock(mutex);allowedRead=manifest;blockReads=true;}
-    juce::File directory;AssetStore real;
+    juce::File directory;AssetStore real;std::atomic<size_t> observedStack{0};
 private:
     mutable std::mutex mutex;mutable std::condition_variable gate,entered;
     bool blockWrites=false,failWrites=false;mutable bool blockReads=false;
@@ -273,4 +285,16 @@ LUTHIER_TEST(RefPedalLooperStorage, failedCompactionIsExplicitAndDoesNotClaimOld
     store.setWriteGate(false,true);const auto token=base.mergeLayer(layer);CHECK(token!=0);LooperStorage::Capture capture;
     CHECK(eventually([&]{return base.capture(capture)&&capture.status==LooperStorage::CaptureStatus::Failed;}));CHECK(capture.hash.isNull());CHECK(!base.mergeComplete(token));
     hash=before;CHECK(!base.manifest(hash));CHECK(hash==before);
+}
+
+LUTHIER_TEST(RefPedalLooperStorage, reservationIncludesFixedWorkerStackAndRejectsInvalidConfig)
+{
+    ControlledStore store;LooperStorage storage;auto c=smallConfig();size_t ram=0;uint64_t disk=0;
+    CHECK(LooperStorage::reservation(c,ram,disk));CHECK(storage.prepare(store,c));CHECK(storage.reservedBytes()==ram);CHECK(storage.reservedStorageBytes()==disk);
+    CHECK(ram>=LooperStorage::workerStackBytes);storage.beginRecord();for(int i=0;i<16;++i)storage.append(.25,-.25);storage.finishRecord();AssetHash hash;CHECK(storage.manifest(hash));
+#if JUCE_LINUX
+    CHECK(store.observedStack.load()==LooperStorage::workerStackBytes);
+#endif
+    const auto before=ram;const auto diskBefore=disk;c.sampleRate=0;
+    CHECK(!LooperStorage::reservation(c,ram,disk));CHECK(ram==before);CHECK(disk==diskBefore);
 }

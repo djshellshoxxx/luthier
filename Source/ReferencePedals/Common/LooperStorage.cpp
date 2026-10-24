@@ -9,7 +9,8 @@
 #include <condition_variable>
 #include <cstring>
 #include <mutex>
-#include <thread>
+#include <stdexcept>
+#include <limits>
 namespace luthier::reference::common
 {
 namespace
@@ -56,27 +57,39 @@ struct LooperStorage::Impl
     std::atomic<uint64_t> epoch{1},frames{0},manifestReady{0},barrierReady{0},phase{state(1,0)},hashSequence{0};
     AtomicHash manifestHash;
     std::atomic<uint32_t> flags{0};
-    std::atomic<bool> stopping{false};
+    std::atomic<bool> stopping{false},workerExited{false};
     std::atomic<uint64_t> mergeBusy{0},mergeDone{0},mergeGeneration{0};
     std::atomic<uint32_t> borrowers{0};
     Impl* mergeSource=nullptr;uint64_t mergeSourceEpoch=0,mergeEpoch=0,mergeToken=0,mergeIndex=0;
     bool recording=false,sparse=false,finalized=false;int writeBuffer=-1;uint64_t writeIndex=0,nextToken=0;
     std::mutex mutex;std::condition_variable wake,done;
-    std::thread worker;
-    Impl(IAssetStore& assetStore,Config cfg):config(cfg),store(assetStore)
+    struct Worker final : juce::Thread
+    {
+        Impl& owner;
+        explicit Worker(Impl& p):juce::Thread("Looper asset pages",workerStackBytes),owner(p){}
+        void run() override
+        {
+            owner.run();
+            const std::lock_guard<std::mutex> lock(owner.mutex);
+            owner.workerExited.store(true,std::memory_order_release);owner.done.notify_all();
+        }
+    } worker;
+    Impl(IAssetStore& assetStore,Config cfg):config(cfg),store(assetStore),worker(*this)
     {
         maxPages=size_t((config.maxFrames+uint64_t(config.pageFrames)-1)/uint64_t(config.pageFrames));
         entries=std::make_unique<Entry[]>(maxPages);
         writes=std::make_unique<Page[]>(size_t(config.writePages));reads=std::make_unique<Page[]>(size_t(config.readPages)*2);
         for(int i=0;i<config.writePages;++i)writes[i].pcm.resize(size_t(config.pageFrames)*size_t(config.channels));
         for(int i=0;i<config.readPages*2;++i)reads[i].pcm.resize(size_t(config.pageFrames)*size_t(config.channels));
-        bytesReserved=sizeof(Impl)+maxPages*sizeof(Entry)+size_t(config.writePages+config.readPages*2)*(sizeof(Page)+size_t(config.pageFrames)*size_t(config.channels)*sizeof(float))+maxPages*32+size_t(config.pageFrames)*size_t(config.channels)*20+65536;
+        bytesReserved=sizeof(Impl)+maxPages*sizeof(Entry)+size_t(config.writePages+config.readPages*2)*(sizeof(Page)+size_t(config.pageFrames)*size_t(config.channels)*sizeof(float))+maxPages*32+size_t(config.pageFrames)*size_t(config.channels)*20+65536+workerStackBytes;
         diskReserved=config.maxFrames*uint64_t(config.channels)*4+uint64_t(maxPages)*20+uint64_t(maxPages)*32+40;
-        worker=std::thread([this]{run();});
+        if(!worker.startThread())throw std::runtime_error("Cannot start looper page worker");
     }
     ~Impl()
     {
-        stopping=true;wake.notify_one();worker.join();
+        stopping=true;wake.notify_one();
+        {std::unique_lock<std::mutex> lock(mutex);done.wait(lock,[this]{return workerExited.load(std::memory_order_acquire);});}
+        worker.waitForThreadToExit(-1);
         std::unique_lock<std::mutex> lock(mutex);done.wait(lock,[this]{return borrowers.load(std::memory_order_acquire)==0;});
     }
     void releaseBorrower()
@@ -270,16 +283,22 @@ struct LooperStorage::Impl
     }
 };
 LooperStorage::LooperStorage()=default;LooperStorage::~LooperStorage()=default;
-bool LooperStorage::prepare(IAssetStore& store,const Config& config)
+bool LooperStorage::reservation(const Config& config,size_t& ramOut,uint64_t& diskOut) noexcept
 {
     if(!std::isfinite(config.sampleRate) || config.sampleRate<1 || config.sampleRate>192000 || std::floor(config.sampleRate)!=config.sampleRate
         || config.channels<1 || config.channels>2 || config.pageFrames<16 || config.pageFrames>65536 || config.writePages<2 || config.writePages>24
         || config.readPages<2 || config.readPages>24 || config.readAhead<0 || config.readAhead>=config.readPages || !config.maxFrames
         || config.maxFrames>uint64_t(192000)*5400)return false;
     const auto pages=(config.maxFrames+uint64_t(config.pageFrames)-1)/uint64_t(config.pageFrames);
-    const auto ram=sizeof(Impl)+pages*sizeof(Impl::Entry)+uint64_t(config.writePages+config.readPages*2)*(sizeof(Impl::Page)+uint64_t(config.pageFrames)*uint64_t(config.channels)*4)+pages*32+uint64_t(config.pageFrames)*uint64_t(config.channels)*20+65536;
+    const auto ram=sizeof(Impl)+pages*sizeof(Impl::Entry)+uint64_t(config.writePages+config.readPages*2)*(sizeof(Impl::Page)+uint64_t(config.pageFrames)*uint64_t(config.channels)*4)+pages*32+uint64_t(config.pageFrames)*uint64_t(config.channels)*20+65536+workerStackBytes;
     const auto disk=config.maxFrames*uint64_t(config.channels)*4+pages*52+40;
-    if(ram>config.ramBudget || disk>config.storageBudget)return false;
+    if(ram>std::numeric_limits<size_t>::max())return false;
+    ramOut=size_t(ram);diskOut=disk;return true;
+}
+bool LooperStorage::prepare(IAssetStore& store,const Config& config)
+{
+    size_t ram=0;uint64_t disk=0;
+    if(!reservation(config,ram,disk) || ram>config.ramBudget || disk>config.storageBudget)return false;
     try{auto next=std::make_unique<Impl>(store,config);impl=std::move(next);return true;}catch(const std::exception&){return false;}
 }
 uint64_t LooperStorage::capacity() const noexcept{return impl?impl->config.maxFrames:0;}
@@ -368,6 +387,12 @@ void LooperStorage::prefetch(uint64_t frame) noexcept
     auto& p=*impl;const auto count=(p.frames.load()+uint64_t(p.config.pageFrames)-1)/uint64_t(p.config.pageFrames);
     auto index=(frame%p.frames.load())/uint64_t(p.config.pageFrames);
     for(int i=0;i<=p.config.readAhead;++i)p.request((index+uint64_t(i))%count);
+}
+bool LooperStorage::available(uint64_t frame,bool allowStale) const noexcept
+{
+    if(!impl || frame>=impl->frames.load())return false;
+    auto& p=*impl;const auto index=frame/uint64_t(p.config.pageFrames);const auto wanted=p.entries[index].desired.load(std::memory_order_acquire);
+    return stateEpoch(wanted)!=p.epoch.load() || p.cached(index,stateVersion(wanted),allowStale)!=nullptr;
 }
 bool LooperStorage::read(uint64_t frame,double& left,double& right,uint64_t* actualVersion,bool allowStale) noexcept
 {
