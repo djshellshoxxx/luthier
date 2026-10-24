@@ -432,3 +432,43 @@ LUTHIER_TEST (RefPedalRouting, bypassModesPreserveColourLatencyAndDecayingTailsW
         }
     }
 }
+
+LUTHIER_TEST (RefPedalRouting, dryLatencyReadTapCrossfadeHasExactTenMillisecondDuration)
+{
+    for (const int rate : { 44100, 48000, 96000 })
+    {
+        DelayLine delay; delay.prepare (64); const int fade = rate / 100;
+        for (int i = 0; i < 100; ++i) CHECK_NEAR (delay.processCrossfade (i, 0, fade), i, 1.e-12);
+        const auto allocations = luthier::tests::allocationsOnThisThread();
+        for (int i = 0; i < fade + 10; ++i)
+        {
+            const double input = 100 + i; const double amount = std::min (1.0, static_cast<double> (i + 1) / fade);
+            CHECK_NEAR (delay.processCrossfade (input, 17, fade), input - 17 * amount, 1.e-10);
+        }
+        CHECK (luthier::tests::allocationsOnThisThread() == allocations);
+        delay.reset(); CHECK_NEAR (delay.processCrossfade (1.0, 0, fade), 1.0, 1.e-12);
+    }
+}
+LUTHIER_TEST (RefPedalRouting, structuralDryLatencyChangeUsesSharedHistoryDuringTheDip)
+{
+    PedalRegistry::TestScope registryScope; registerDelayed();
+    Board board; board.prepare (48000, 64); PedalInstance delayed, pass;
+    delayed.modelId = "test.delayed"; delayed.slot = 0; pass.modelId = "missing"; pass.missing = true; pass.slot = 1;
+    BoardSettings settings; settings.enabled = true; settings.mix = 0.f; settings.limiterOn = false;
+    CHECK (board.model().replaceAll ({ delayed, pass }, settings));
+    double left[4096] {}, right[4096] {};
+    for (int warm = 0; warm < 8; ++warm) board.processStereo (left, right, 4096, Placement::beforeExistingPre);
+    // A slow ramp makes each read tap analytically observable without a discontinuity in the source.
+    for (int i = 0; i < 1024; ++i) left[i] = right[i] = i * 0.0001;
+    board.processStereo (left, right, 1024, Placement::beforeExistingPre);
+    CHECK (board.model().apply (cmd::Remove { delayed.instanceId }));
+    for (int i = 0; i < 1024; ++i) left[i] = right[i] = (1024 + i) * 0.0001;
+    const auto allocations = luthier::tests::allocationsOnThisThread();
+    board.processStereo (left, right, 1024, Placement::beforeExistingPre);
+    CHECK (luthier::tests::allocationsOnThisThread() == allocations);
+    for (int i = 0; i < 1024; ++i)
+    {
+        const double amount = std::min (1.0, (i + 1) / 480.0);
+        CHECK_NEAR (left[i], (1024 + i - 17 * (1 - amount)) * 0.0001, 1.e-10);
+    }
+}
