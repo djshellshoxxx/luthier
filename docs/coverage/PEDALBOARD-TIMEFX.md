@@ -331,3 +331,25 @@ The earlier 30-minute reference soak used deterministic LCG seed 73,
 multiplier 1664525 and increment 1013904223, blocks 1/4/16/64/512/2048 and
 parameter/expression/foot/enabled changes every 31 blocks. Its aggregate frame
 count and exact snapshot limitations remain as stated above.
+
+Reverb type changes now use the explicitly permitted 50 ms dip: 25 ms down,
+reset the new tank at zero wet gain, then 25 ms up. This prevents stale audio
+from an inactive tank returning when a user revisits a type. Rapid changes can
+reverse the dip or select another pending type without dropping a partly
+weighted voice. Constant-time FractionalDelay resets avoid clearing megabytes
+on the callback. The change also caches unchanged wet-input highpass coefficients
+and the fixed tail-envelope coefficient. Focused Delay/Reverb tests pass
+2,887,281 checks, including all-rate/type stale-history return, repeated type
+changes with exact partition independence, existing RT60/freeze and reset tests.
+
+New acceptance probes exposed outstanding original Reverb gates rather than
+certifying the earlier structural implementation: at 48 kHz, full-wet defaults,
+10 seconds seeded white input with the last 3 seconds measured, wet/dry RMS is
+Room -3.6217, Hall -5.8324, Plate -5.3551, Spring -3.4638, Ambient -6.7989 dB.
+These do not meet the original +/-3 dB normalization gate. Conservative mono
+average (L+R)/2 stays about -3 dB versus L, passing the original >-6 dB criterion.
+Hall raw-impulse normalized echo density in a 20 ms window around 200 ms is
+0.8207 (predelay 0) / 0.8371 (default predelay 15 ms), below the original >0.9.
+Definition: fraction of samples whose mean-removed magnitude exceeds the window
+standard deviation, divided by the Gaussian probability 0.317310507862914.
+These acoustic gates remain open; no threshold or test label was weakened.

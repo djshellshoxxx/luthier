@@ -23,7 +23,8 @@ private:
     common::FractionalDelay predelay;
     common::Biquad lowcut;
     double sr=48000,inputGain=1,tailGain=1,freeze=0,typeBlend=1,energy=0;
-    int type=1,oldType=1;
+    double lastCut=-1,energyCoefficient=0,typeStep=0;
+    int type=1;
     bool enabled=true;
 };
 }
