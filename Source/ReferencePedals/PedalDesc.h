@@ -160,7 +160,8 @@ struct PedalDesc
     bool hasTails;
     bool oversampled;
     bool wantsRawMidi;        // true only if IPedal::onMidi() is needed (BOARD_CORE 9.5)
-    uint32_t cpuUnits;        // [MEAS] vs performance-budget.md units
+    uint32_t cpuUnits;        // declared model budget, not a measured result by itself
+    uint32_t cpuUnitsPerPercent = 1; // explicit scale; e.g.1000 means300 units =0.3%
 };
 
 } // namespace luthier::reference
