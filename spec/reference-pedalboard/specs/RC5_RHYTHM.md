@@ -28,7 +28,8 @@ unresolved and is not changed by this rhythm module.
   The final beat of each2/4-bar phrase uses its paired variation as an original fill.
   Existing voices retain their triggered kit through a kit change. When phrase
   length changes, the current bar is reduced modulo the new phrase length,
-  including selection committed by an explicit transport seek.
+  during ordinary running selection. An explicit seek at a bar boundary
+  commits selection first, then calculates absolute phase in the new phrase.
 - A double sample-clock accumulator preserves phase through tempo changes.
   The wrapper supplies canonical TimeInfo tempo and transport; full precision is
   retained internally, while the UI tempo parameter uses0.1BPM steps. Explicit

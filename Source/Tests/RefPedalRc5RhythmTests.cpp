@@ -117,3 +117,18 @@ LUTHIER_TEST(RefPedalRc5Rhythm, shorterPhraseSelectionPreservesFillAtBarBoundary
         CHECK(equal);
     }
 }
+
+LUTHIER_TEST(RefPedalRc5Rhythm, longerPhraseSeekUsesAbsoluteNewPhrasePhase)
+{
+    Rc5Rhythm actual,reference;actual.prepare(48000,42);reference.prepare(48000,42);
+    actual.select(1,0,1);actual.setRunning(true);actual.select(2,0,1);actual.locate(12);
+    reference.select(2,0,1);reference.setRunning(true);reference.locate(12);
+    std::array<double,480> a{},ar{},b{},br{};bool equal=true;
+    for(int block=0;block<200;++block)
+    {
+        a.fill(0);ar.fill(0);b.fill(0);br.fill(0);
+        actual.process(a.data(),ar.data(),480);reference.process(b.data(),br.data(),480);
+        for(size_t i=0;i<a.size();++i)equal&=a[i]==b[i]&&ar[i]==br[i];
+    }
+    CHECK(equal);
+}

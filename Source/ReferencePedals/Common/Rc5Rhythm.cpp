@@ -53,8 +53,8 @@ void Rc5Rhythm::locate(double quarterNotes) noexcept
     quarterNotes=std::clamp(finite(quarterNotes),-1e12,1e12);
     const double sixteenths=quarterNotes*4,whole=std::floor(sixteenths);
     phase=sixteenths-whole;step=(int)std::fmod(whole,16.);if(step<0)step+=16;
-    bar=(int)std::fmod(std::floor(whole/16),bars(pattern));if(bar<0)bar+=bars(pattern);
     needsTrigger=phase<1e-12;if(step==0&&needsTrigger)applySelection();
+    bar=(int)std::fmod(std::floor(whole/16),bars(pattern));if(bar<0)bar+=bars(pattern);
 }
 void Rc5Rhythm::setRunning(bool on) noexcept
 {if(on&&!running){phase=0;step=bar=0;needsTrigger=true;applySelection();}running=on;}
