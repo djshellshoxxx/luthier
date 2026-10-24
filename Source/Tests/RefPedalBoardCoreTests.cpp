@@ -609,6 +609,7 @@ std::unique_ptr<IPedal> makeTransportProbe() { return std::make_unique<EventProb
 
 LUTHIER_TEST (RefPedalBoardCore, midiWritesStartAtOffsetAndPersistUntilModelChanges)
 {
+    PedalRegistry::TestScope registryScope;
     PedalRegistry::add (eventDesc, makeEventProbe);
     BoardModel model; BoardEngine engine (model);
     const InstanceId id;
@@ -631,6 +632,7 @@ LUTHIER_TEST (RefPedalBoardCore, midiWritesStartAtOffsetAndPersistUntilModelChan
 
 LUTHIER_TEST (RefPedalBoardCore, footPressEngagesPedalsWithoutBypassingTransportLoopers)
 {
+    PedalRegistry::TestScope registryScope;
     PedalRegistry::add (eventDesc, makeEventProbe); PedalRegistry::add (transportDesc, makeTransportProbe);
     for (const bool transport : { false, true })
     {
@@ -649,6 +651,7 @@ LUTHIER_TEST (RefPedalBoardCore, footPressEngagesPedalsWithoutBypassingTransport
 
 LUTHIER_TEST (RefPedalBoardCore, boardMidiEnableCanWakeAnInitiallyDisabledBoard)
 {
+    PedalRegistry::TestScope registryScope;
     PedalRegistry::add (eventDesc, makeEventProbe);
     BoardModel model; BoardEngine engine (model); const InstanceId id;
     CHECK (model.apply (cmd::Add { "test.event", -1, Placement::beforeExistingPre, 0, id }));
@@ -663,6 +666,7 @@ LUTHIER_TEST (RefPedalBoardCore, boardMidiEnableCanWakeAnInitiallyDisabledBoard)
 
 LUTHIER_TEST (RefPedalBoardCore, hostAutomationIsImmediatePersistentAndDoesNotOverwriteModelEdits)
 {
+    PedalRegistry::TestScope registryScope;
     PedalRegistry::add (eventDesc, makeEventProbe);
     Board board; board.prepare (48000, 128); const InstanceId id;
     CHECK (board.model().apply (cmd::Add { "test.event", -1, Placement::beforeExistingPre, 0, id }));
@@ -713,6 +717,7 @@ LUTHIER_TEST (RefPedalBoardCore, midiFocusIsMetadataWithoutUndoOrTopologyPublica
 
 LUTHIER_TEST (RefPedalBoardCore, hostEchoDoesNotCreateHistoryOrOverrideFreshHostSerial)
 {
+    PedalRegistry::TestScope registryScope;
     BoardModel model;
     CHECK (model.applyHostEcho (cmd::SetMix { 0.2f }));
     CHECK (! model.canUndo());
@@ -731,6 +736,7 @@ LUTHIER_TEST (RefPedalBoardCore, hostEchoDoesNotCreateHistoryOrOverrideFreshHost
 
 LUTHIER_TEST (RefPedalBoardCore, pedalMetersPublishActualDataAndFullInstanceIdentity)
 {
+    PedalRegistry::TestScope registryScope;
     PedalRegistry::add (eventDesc, makeEventProbe); PedalRegistry::add (transportDesc, makeTransportProbe);
     Board board; const InstanceId id;
     CHECK (! board.readPedalMeters (-1).present);
@@ -762,4 +768,24 @@ LUTHIER_TEST (RefPedalBoardCore, pedalMetersPublishActualDataAndFullInstanceIden
     CHECK (board.model().apply (cmd::Remove { replacement }));
     board.processStereo (left, right, 1024, Placement::beforeExistingPre); board.processStereo (left, right, 1024, Placement::beforeExistingPre);
     CHECK (! board.readPedalMeters (0).present);
+}
+
+LUTHIER_TEST (RefPedalBoardCore, legacyMoveRetainsAllSixteenSlotsWithSparsePedals)
+{
+    Board board; board.setModel (0, Model::ds1Prototype);
+    board.move (0, 15);
+    CHECK (board.getIdAtPosition (15) == 0);
+    std::array<bool, kMaxSlots> seen {};
+    for (int i = 0; i < kMaxSlots; ++i)
+    {
+        const int slot = board.getIdAtPosition (i);
+        CHECK (slot >= 0 && slot < kMaxSlots && ! seen[static_cast<size_t> (slot)]);
+        seen[static_cast<size_t> (slot)] = true;
+    }
+    board.setModel (1, Model::ts808Prototype);
+    board.move (15, 0);
+    CHECK (board.getIdAtPosition (0) == 0);
+    const auto order = board.model().getOrder();
+    CHECK (board.model().getInstance (order[0])->slot == 0);
+    CHECK (board.model().getInstance (order[1])->slot == 1);
 }

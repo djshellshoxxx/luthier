@@ -137,23 +137,30 @@ double Board::getKnob (int slot, int knob) const noexcept
 void Board::move (int from, int to) noexcept
 {
     if (from < 0 || from >= kMaxSlots || to < 0 || to >= kMaxSlots || from == to) return;
-    auto order = impl->model.getOrder();
-    if (from < static_cast<int> (order.size()) && to < static_cast<int> (order.size()))
-        impl->model.apply (cmd::Move { order[static_cast<size_t> (from)], to });
+    std::array<int, kMaxSlots> display;
+    for (int position = 0; position < kMaxSlots; ++position) display[static_cast<size_t> (position)] = getIdAtPosition (position);
+    impl->legacyOrder = display;
     const int slot = impl->legacyOrder[static_cast<size_t> (from)];
     if (from < to) std::move (impl->legacyOrder.begin() + from + 1, impl->legacyOrder.begin() + to + 1, impl->legacyOrder.begin() + from);
     else std::move_backward (impl->legacyOrder.begin() + to, impl->legacyOrder.begin() + from, impl->legacyOrder.begin() + from + 1);
     impl->legacyOrder[static_cast<size_t> (to)] = slot;
+    if (const auto moved = impl->slot (slot))
+    {
+        int audioPosition = 0;
+        for (int position = 0; position < to; ++position)
+            if (impl->slot (impl->legacyOrder[static_cast<size_t> (position)])) ++audioPosition;
+        impl->model.apply (cmd::Move { moved->instanceId, audioPosition });
+    }
 }
 int Board::getIdAtPosition (int position) const noexcept
 {
     if (position < 0 || position >= kMaxSlots) return -1;
     const auto order = impl->model.getOrder();
-    if (position < static_cast<int> (order.size())) return impl->model.getInstance (order[static_cast<size_t> (position)])->slot;
-    // Empty cards are a legacy-only display concern; avoid duplicating live IDs.
-    int emptyPosition = static_cast<int> (order.size());
-    for (const auto slot : impl->legacyOrder)
-        if (! impl->slot (slot) && emptyPosition++ == position) return slot;
-    return -1;
+    const int storedSlot = impl->legacyOrder[static_cast<size_t> (position)];
+    if (! impl->slot (storedSlot)) return storedSlot;
+    int audioPosition = 0;
+    for (int index = 0; index < position; ++index)
+        if (impl->slot (impl->legacyOrder[static_cast<size_t> (index)])) ++audioPosition;
+    return impl->model.getInstance (order[static_cast<size_t> (audioPosition)])->slot;
 }
 }
