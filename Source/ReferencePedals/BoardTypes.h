@@ -126,6 +126,7 @@ struct BoardMeters
     bool fbTripped = false, fbFault = false, clockLocked = false, clockLost = false;
     uint32_t midiDropped = 0;
     bool sidechainAvailable = false;
+    bool assetStoreAvailable = false; // service installed; actual IO success is reported by each model
     bool auxBAvailable = false, auxWetAvailable = false, auxDryAvailable = false;
 };
 
