@@ -394,3 +394,24 @@ Memory/preparation costs are material. This is neither an8-pedal CPU-budget
 pass nor an alias-rejection result. Pedal adoption requires independent review,
 dynamic-capacitor oracle regressions, actual waveform and CPU measurements.
 Reproduce with `pedalboard-dsp-evidence/run-prepared-diode-tests.sh`.
+
+## Generic compressor: actual audio-path gain and timing evidence
+
+`RefPedalCompressorTimingTests.cpp` exercises the processor, not just its static
+curve helper. The external sidechain uses alternating-polarity samples: the
+80Hz HP has unity gain at Nyquist, so its settled peak magnitude is controlled.
+The main L/R audio is.001/.0001, below the output limiter. This isolates the
+specified dB-domain gain computer and smoothing while retaining the actual
+sidechain filter, buffer lifetime and audio processing. It is a detector test
+signal, not a claim about musical Nyquist input.
+
+ManualT=-24dB,R=4,knee0 gain reduction matches the original±.2dB gate at six
+input levels(-40..-6dB) and four rates(44.1/48/96/192k). A left-only sidechain
+gives equal L/R gain within1e-12. All36 combinations of attack.5/10/60ms,
+release40/350/1200ms and four rates meet the original63%-step±10% gate.
+The automatic makeup test confirms the literal linked formula plus the default
++6dB level setting. **3cases /145 checks pass** with ASan+UBSan+leak detection;
+`compressor-timing-tests.txt` records every measured time and stderr is empty.
+No DSP code changed. This closes these isolated gain/timing requirements;
+default loudness, musical-program behavior, external host wiring, zipper and
+whole-board CPU acceptance remain separate requirements.

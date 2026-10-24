@@ -1,0 +1,40 @@
+RefPedalCompressorTiming::actualStaticCurveAndStereoLink 72 checks 0 failures
+compressor sr44100 attack requested0.500 measured0.499990ms release requested40.000 measured40.000000ms
+compressor sr44100 attack requested0.500 measured0.499990ms release requested350.000 measured349.999990ms
+compressor sr44100 attack requested0.500 measured0.499990ms release requested1200.000 measured1200.000016ms
+compressor sr44100 attack requested10.000 measured10.000059ms release requested40.000 measured40.000000ms
+compressor sr44100 attack requested10.000 measured10.000059ms release requested350.000 measured350.000002ms
+compressor sr44100 attack requested10.000 measured10.000059ms release requested1200.000 measured1200.000006ms
+compressor sr44100 attack requested60.000 measured60.000070ms release requested40.000 measured40.000000ms
+compressor sr44100 attack requested60.000 measured60.000070ms release requested350.000 measured350.000002ms
+compressor sr44100 attack requested60.000 measured60.000070ms release requested1200.000 measured1200.000006ms
+compressor sr48000 attack requested0.500 measured0.499965ms release requested40.000 measured40.000001ms
+compressor sr48000 attack requested0.500 measured0.499965ms release requested350.000 measured350.000006ms
+compressor sr48000 attack requested0.500 measured0.499965ms release requested1200.000 measured1199.999985ms
+compressor sr48000 attack requested10.000 measured10.000049ms release requested40.000 measured40.000000ms
+compressor sr48000 attack requested10.000 measured10.000049ms release requested350.000 measured350.000002ms
+compressor sr48000 attack requested10.000 measured10.000049ms release requested1200.000 measured1200.000006ms
+compressor sr48000 attack requested60.000 measured60.000061ms release requested40.000 measured40.000000ms
+compressor sr48000 attack requested60.000 measured60.000061ms release requested350.000 measured350.000002ms
+compressor sr48000 attack requested60.000 measured60.000061ms release requested1200.000 measured1200.000006ms
+compressor sr96000 attack requested0.500 measured0.499991ms release requested40.000 measured40.000000ms
+compressor sr96000 attack requested0.500 measured0.499991ms release requested350.000 measured349.999978ms
+compressor sr96000 attack requested0.500 measured0.499991ms release requested1200.000 measured1199.999971ms
+compressor sr96000 attack requested10.000 measured10.000013ms release requested40.000 measured40.000000ms
+compressor sr96000 attack requested10.000 measured10.000013ms release requested350.000 measured350.000002ms
+compressor sr96000 attack requested10.000 measured10.000013ms release requested1200.000 measured1200.000006ms
+compressor sr96000 attack requested60.000 measured60.000026ms release requested40.000 measured40.000000ms
+compressor sr96000 attack requested60.000 measured60.000026ms release requested350.000 measured350.000002ms
+compressor sr96000 attack requested60.000 measured60.000026ms release requested1200.000 measured1200.000006ms
+compressor sr192000 attack requested0.500 measured0.499998ms release requested40.000 measured39.999998ms
+compressor sr192000 attack requested0.500 measured0.499998ms release requested350.000 measured350.000007ms
+compressor sr192000 attack requested0.500 measured0.499998ms release requested1200.000 measured1200.000023ms
+compressor sr192000 attack requested10.000 measured10.000004ms release requested40.000 measured40.000000ms
+compressor sr192000 attack requested10.000 measured10.000004ms release requested350.000 measured350.000002ms
+compressor sr192000 attack requested10.000 measured10.000004ms release requested1200.000 measured1200.000006ms
+compressor sr192000 attack requested60.000 measured60.000018ms release requested40.000 measured40.000000ms
+compressor sr192000 attack requested60.000 measured60.000018ms release requested350.000 measured350.000002ms
+compressor sr192000 attack requested60.000 measured60.000018ms release requested1200.000 measured1200.000006ms
+RefPedalCompressorTiming::originalTimeConstantTolerance 72 checks 0 failures
+RefPedalCompressorTiming::automaticMakeupMatchesSpecifiedLaw 1 checks 0 failures
+TOTAL 145 checks 0 failures
