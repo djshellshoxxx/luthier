@@ -15,10 +15,13 @@ public:
     void reset() noexcept override;
     void process(double*,double*,int) noexcept override;
     void setExpression(int,float) noexcept override;
+    // E41: virtual on current IPedal, compatible with the earlier frozen header.
+    bool consumeEngageToggle() noexcept {const bool result=toeRequest;toeRequest=false;return result;}
 private:
     common::TptSvf filter[2];
     common::EnvelopeFollower envelope;
     detail::ModulationClock clock;
     double sr=48000,position=.5;
+    bool toeArmed=true,toeRequest=false;
 };
 }

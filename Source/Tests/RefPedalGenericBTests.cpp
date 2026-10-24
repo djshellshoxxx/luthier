@@ -77,3 +77,48 @@ LUTHIER_TEST(RefPedalGenericB, syncClockConverges)
     }
     CHECK_NEAR(clock.phase(),0,1e-9);
 }
+LUTHIER_TEST(RefPedalGenericB, phaserAnalyticNotches)
+{
+    constexpr double sr=48000,pi=3.14159265358979323846;
+    constexpr int counts[]{2,4,6,8,12};
+    for(int selection=0;selection<5;++selection)
+    {
+        generic::Phaser pedal;pedal.setParam(1,0);pedal.setParam(2,.5f);pedal.setParam(3,selection*.25f);pedal.prepare(sr,2048,1);
+        std::array<double,8192> left{},right{};left[0]=right[0]=1;
+        for(int block=0;block<4;++block)pedal.process(left.data()+2048*block,right.data()+2048*block,2048);
+        const double center=pedal.desc().params[5].fromNormalised(pedal.getParam(5));
+        for(int k=0;k<counts[selection]/2;++k)
+        {
+            const double f=sr/pi*std::atan(std::tan(pi*center/sr)*std::tan((2*k+1)*pi/(2*counts[selection])));
+            double real=0,imaginary=0;
+            for(int i=0;i<8192;++i) {real+=left[i]*std::cos(2*pi*f*i/sr);imaginary-=left[i]*std::sin(2*pi*f*i/sr);}
+            CHECK(std::hypot(real,imaginary)<1e-5);
+        }
+    }
+}
+LUTHIER_TEST(RefPedalGenericB, chorusStaticDelayAndReset)
+{
+    for(double sr:{44100.,48000.,96000.,192000.})
+    {
+        generic::Chorus p;p.setParam(1,0);p.setParam(2,1);p.prepare(sr,1,1);
+        double peak=0;int at=0;
+        for(int i=0;i<int(sr*.012);++i){double l=i==0?1:0,r=l;p.process(&l,&r,1);if(std::abs(l)>peak)peak=std::abs(l),at=i;}
+        CHECK_NEAR(at,sr*.007,sr*.00015);
+        p.reset();double energy=0;
+        for(int i=0;i<int(sr*.025);++i){double l=0,r=0;p.process(&l,&r,1);energy+=l*l+r*r;}
+        CHECK_NEAR(energy,0,1e-20);
+    }
+}
+
+LUTHIER_TEST(RefPedalGenericB, toeSwitchHysteresisAndSingleConsumption)
+{
+    generic::Wah p;p.setParam(8,1);p.prepare(48000,1,1);
+    auto settle=[&](float position){p.setExpression(0,position);for(int i=0;i<12000;++i){double l=0,r=0;p.process(&l,&r,1);}};
+    settle(1);CHECK(p.consumeEngageToggle());CHECK(!p.consumeEngageToggle());
+    settle(.95f);settle(1);CHECK(!p.consumeEngageToggle());
+    settle(.8f);settle(1);CHECK(p.consumeEngageToggle());
+    p.setParam(8,0);settle(.5f);settle(1);CHECK(!p.consumeEngageToggle());
+    p.setParam(8,1);settle(.5f);p.setParam(4,1);
+    for(int i=0;i<48000;++i){double l=1,r=1;p.process(&l,&r,1);}
+    CHECK(!p.consumeEngageToggle());
+}

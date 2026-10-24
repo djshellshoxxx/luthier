@@ -28,7 +28,7 @@ void Wah::prepare(double sampleRate,int,int)
     sr=sampleRate; prepareParams(sr); for(auto& f:filter) f.prepare(sr);
     envelope.prepare(sr,2,80); clock.prepare(sr); reset();
 }
-void Wah::reset() noexcept { for(auto& f:filter) f.reset(); envelope.reset(); clock.reset(); position=value(0); }
+void Wah::reset() noexcept { for(auto& f:filter) f.reset(); envelope.reset(); clock.reset(); position=value(0);toeArmed=position<.97;toeRequest=false; }
 void Wah::setExpression(int jack,float v) noexcept { if(jack==0) setParam(0,v); }
 void Wah::process(double* left,double* right,int n) noexcept
 {
@@ -41,6 +41,12 @@ void Wah::process(double* left,double* right,int n) noexcept
         const int mode=int(value(4));
         const double target=mode==1 ? std::clamp(env*sensitivity*8,0.0,1.0):mode==2 ? (detail::wave(clock.phase(),false)+1)*.5:treadle;
         position+=(target-position)*(1-std::exp(-1/(.008*sr)));
+        if(value(8)>.5f)
+        {
+            if(treadle<=.9)toeArmed=true;
+            if(toeArmed && treadle>=.97){toeRequest=!toeRequest;toeArmed=false;}
+        }
+        else {toeArmed=treadle<.97;toeRequest=false;}
         const double frequency=lo*std::pow(hi/lo,position);
         double* outputs[]{left,right};
         for(int c=0;c<2;++c)

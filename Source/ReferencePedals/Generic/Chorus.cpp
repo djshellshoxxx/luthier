@@ -53,7 +53,7 @@ void Chorus::process(double* left,double* right,int n) noexcept
             const double base=selected==2 ? 4 : selected==1 ? 5 : 7;
             const double modulation=d*4.5*(selected==1 ? .6 : 1);
             const double phase=clock.phase()+channel*spread*.5;
-            const double wet=delay.read(sr*.001*(base+modulation*detail::wave(phase,value(5)>.5f)));
+            const double wet=delay.readBandlimited(sr*.001*(base+modulation*detail::wave(phase,value(5)>.5f)));
             return (selected==2 && channel==1 ? -1.0 : 1.0)*std::tanh(.7*wet)/.7*.9;
         };
         double* outputs[] {left,right};
