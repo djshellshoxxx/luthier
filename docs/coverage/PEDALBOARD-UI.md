@@ -30,7 +30,7 @@ Owner WP17–22. Implementation checkpoint, 2026-10-24. This is a partial implem
 | RefPedalUiStyles.highContrastAndMixedMountingsPaint | Flat theme and mixed mounts render without exception | PASS focused native/Xvfb |
 | RefPedalUiFaces.descriptorsHaveRealFacesAndControlMappings | Every registered descriptor has non-null face, jacks, footswitch and parameter index mapping | PASS focused native/Xvfb |
 
-Focused runtime command: `LD_LIBRARY_PATH=/workspace/luthier-toolchain/sysroot/usr/lib/x86_64-linux-gnu xvfb-run -a /tmp/luthier-ui-tests/tests`. Result: **9 tests, 70 checks, 0 failures**, including additional `stateRoundTripRetainsUnknownFields`, `keyboardReorderUsesOneUndoStep`, and `keyboardKnobUsesFineAndCoarseSteps`. The focused target compiles all application translation units from the UI branch; only matching pure JUCE module objects are reused. Registry coverage in this isolated branch is three registered prototypes; full 28-model integration remains a separate gate. Fontconfig emitted a cache-directory warning in this restricted container. Initial fixture failure (a temporary var released its raw DynamicObject) was fixed by retaining the owning var; rerun passed.
+Focused runtime command: `LD_LIBRARY_PATH=/workspace/luthier-toolchain/sysroot/usr/lib/x86_64-linux-gnu xvfb-run -a /tmp/luthier-ui-tests/tests`. Result: **11 tests, 80 checks, 0 failures**, including additional `stateRoundTripRetainsUnknownFields`, `keyboardReorderUsesOneUndoStep`, `keyboardKnobUsesFineAndCoarseSteps`, `focusedPedalSelectsMidiTargetWithoutUndoStep`, and `rejectedEditRestoresNativeControlState`. The focused target compiles all application translation units from the UI branch; only matching pure JUCE module objects are reused. Registry coverage in this isolated branch is three registered prototypes; full 28-model integration remains a separate gate. Fontconfig emitted a cache-directory warning in this restricted container. Initial fixture failure (a temporary var released its raw DynamicObject) was fixed by retaining the owning var; rerun passed.
 
 Exact harness, driver main and build/result logs are retained at `/workspace/luthier-evidence/pedalboard-ui/`.
 
@@ -52,3 +52,9 @@ Initial red evidence: the geometry test's requested clampWindow API was absent (
 ## Additional known event-delivery limit
 
 A Trigger/Momentary button sends actual down/up values. A press and release completed before audio adopts the intermediate topology can be coalesced by the current backend. The engine owner has been notified; reliable rapid pulse delivery requires an event queue. This is not certified by the UI tests.
+
+## Selected MIDI focus integration
+
+The coordinator-approved E43 `bool BoardModel::setMidiFocus(const InstanceId&)` is called when the pedal group or its child controls receive focus. It uses the stable instance UUID, not visual position. `RefPedalUi.focusedPedalSelectsMidiTargetWithoutUndoStep` checks selected MIDI truth and verifies focus adds no undo step. This integration depends on engine checkpoint d1752db1 and its approved dependencies.
+
+Latest focused rebuild: 11 tests / 80 checks / 0 failures. Native controls now refresh from model truth when a command is rejected; the regression test first reproduced the stale toggle state and then passed after rebuilding the Canvas rejection handler. The failing regression log and final green log are retained with the harness evidence. Root destruction disconnects Canvas focus/learn callbacks before its viewport members are destroyed.

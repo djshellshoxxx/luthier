@@ -56,3 +56,23 @@ LUTHIER_TEST (RefPedalUi, keyboardReorderUsesOneUndoStep)
     CHECK(canvas.viewFor(before[0])->keyPressed({juce::KeyPress::rightKey,juce::ModifierKeys(juce::ModifierKeys::altModifier),0}));
     CHECK(model.getOrder()[1]==before[0]);CHECK(model.undo());CHECK(model.getOrder()==before);
 }
+
+LUTHIER_TEST (RefPedalUi, focusedPedalSelectsMidiTargetWithoutUndoStep)
+{
+    PedalRegistry::registerAll();BoardModel model;
+    CHECK(model.apply(cmd::Add{"prototype.ts808"}));CHECK(model.apply(cmd::Add{"prototype.ds1"}));
+    BoardRoot root(model);const auto order=model.getOrder();
+    root.boardCanvas().viewFor(order[1])->focusGained(juce::Component::focusChangedDirectly);
+    CHECK(model.getBoardSettings().midi["selectedInstance"].toString()==order[1].toString());
+    CHECK(model.undo());CHECK(model.getInstanceCount()==1);
+}
+
+LUTHIER_TEST (RefPedalUi, rejectedEditRestoresNativeControlState)
+{
+    PedalRegistry::registerAll();BoardModel model;CHECK(model.apply(cmd::Add{"prototype.ts808"}));
+    BoardCanvas canvas(model);auto* view=canvas.viewFor(model.getOrder()[0]);juce::TextButton* bypass=nullptr;
+    for(auto* child:view->getChildren())if(auto* button=dynamic_cast<juce::TextButton*>(child))if(button->getTitle().startsWith("Bypass "))bypass=button;
+    CHECK(bypass!=nullptr);if(!bypass)return;
+    bypass->setToggleState(false,juce::dontSendNotification);CHECK(!bypass->getToggleState());
+    CHECK(!model.apply(cmd::Move{InstanceId::null(),999}));CHECK(bypass->getToggleState()==model.getInstance(model.getOrder()[0])->enabled);
+}

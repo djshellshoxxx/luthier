@@ -24,6 +24,7 @@ private:
     void instanceChanged (const InstanceId&) override { refresh(); }
     void settingsChanged() override { refresh(); }
     void styleChanged() override { refresh(); }
+    void rejected(const juce::String&) override { refresh(); }
     BoardModel& model;
     std::map<juce::String,std::unique_ptr<PedalView>> views;
     bool cables=true, learning=false;
