@@ -60,6 +60,7 @@
 #include "Support/SoundingNotesPublisher.h"
 #include "Presets/Preview/PreviewPlayer.h"   // preset-browser-previews.md 4
 #include "ReferencePedals/Midi/HostAutomationCapture.h"
+#include "ReferencePedals/Midi/ExtendedHostAutomationCapture.h"
 #include "Support/HostMidiCapacity.h"
 #if HAS_CLAP_JUCE_EXTENSIONS
 #include <clap-juce-extensions/clap-juce-extensions.h>
@@ -865,6 +866,9 @@ private:
     std::array<float, 323> referenceParameterMirror {};
     std::array<std::atomic<float>*, 323> referenceRawParameters {};
     reference::HostAutomationCapture referenceHostCapture;
+    reference::ExtendedHostAutomationCapture referenceExtendedCapture;
+    std::array<uint32_t, reference::ExtendedHostAutomationSnapshot::count> referenceExtendedModelSerials {};
+    void serviceReferenceExtendedParameters();
     std::array<uint32_t, 323> referenceModelSerials {};
     int referenceParameterBase = -1;
     void captureReferenceHostAutomation() noexcept;

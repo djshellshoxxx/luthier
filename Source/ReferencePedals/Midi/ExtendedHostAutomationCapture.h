@@ -21,6 +21,7 @@ public:
     bool write (int index, float normalised) noexcept
     {
         if (index < 0 || index >= ExtendedHostAutomationSnapshot::count || echoWriter == this || ! std::isfinite (normalised)) return false;
+        if (index == (int) ExtendedHostField::FeedbackKill && normalised < .5f) return false; // retain sub-block pulse
         const auto& p = extendedHostParameters[(size_t) index];
         float physical = p.minimum + std::clamp (normalised, 0.f, 1.f) * (p.maximum - p.minimum);
         if (p.interval > 0) physical = p.minimum + std::round ((physical - p.minimum) / p.interval) * p.interval;

@@ -16,10 +16,14 @@
 #include "LuthierEngine.h"
 #include "Modulation/ModMatrix.h"
 #include "Jam/JamSettings.h"   // FEAT-JAM
+#include "ReferencePedals/Midi/ExtendedHostAutomation.h"
 #include "Support/Edition.h"   // FEAT-ASSIST
 
 namespace luthier
 {
+
+// Message thread metadata publication; audio callbacks never consult model/registry.
+bool updateReferenceLaneNames (juce::AudioProcessorValueTreeState&, const std::vector<reference::PedalInstance>&);
 
 //==============================================================================
 namespace ParamIDs
