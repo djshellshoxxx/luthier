@@ -9,6 +9,7 @@
 #include "Rt/SpscRing.h"
 #include "WetDryMixer.h"
 #include "Midi/MidiTypes.h"
+#include "Midi/MidiRouter.h"
 namespace luthier::reference
 {
 struct PedalNodeState
@@ -38,6 +39,7 @@ public:
         sidechainConnected.store (left && right && samples > 0, std::memory_order_relaxed);
     }
     void setHostAutomation (const HostAutomationSnapshot& snapshot) noexcept { hostAutomation = snapshot; }
+    void syncRouting (midi::MidiRouter&) const noexcept; // audio thread, retained model intent
     void beginEvents (const midi::RouteOut&) noexcept;
     void endEvents() noexcept { events = nullptr; sidechain[0] = sidechain[1] = nullptr; sidechainSamples = 0; }
     int reclaim() noexcept;
@@ -45,9 +47,21 @@ public:
     bool isActive() const noexcept { return targetActive.load() || running.load(); }
     int latency() const noexcept { return latencySamples.load(); }
     BoardMeters meters() const noexcept;
+    PedalMeters readPedalMeters (int slot) const noexcept;
 private:
-    bool publish (const std::vector<PedalInstance>&, const BoardSettings&, TopologyInfo&, juce::String&);
+    bool publish (const std::vector<PedalInstance>&, const BoardSettings&, TopologyInfo&, juce::String&, const BoardCommand* intent = nullptr, bool hostEcho = false);
     void acknowledge() noexcept;
+    void publishPedalMeters (const RenderPlan&) noexcept;
+    struct AtomicPedalMeters
+    {
+        std::atomic<uint32_t> sequence { 0 }, available { 0 }, faults { 0 };
+        std::atomic<uint64_t> identity0 { 0 }, identity1 { 0 }, loopLength { 0 }, playhead { 0 };
+        std::atomic<int> transport { 0 };
+        std::atomic<bool> present { false }, enabled { false };
+        std::atomic<float> tail { -120.f }, progress { 0.f };
+        std::atomic<double> bpm { 0.0 };
+    };
+    std::array<AtomicPedalMeters, kMaxSlots> pedalMeters;
     struct Segment
     {
         const RenderPlan* current = nullptr;
@@ -76,7 +90,7 @@ private:
     std::array<std::array<double, kSubBlock>, 2> sidechainScratch {};
     WetDryMixer mixer;
     HostAutomationSnapshot hostAutomation;
-    std::array<uint32_t, 3> hostBoardSerials {};
+    std::array<uint32_t, 3> hostBoardSerials {}, modelBoardSerials {};
     struct HostSlotSource { InstanceId identity = InstanceId::null(); const char* modelId = nullptr; };
     std::array<HostSlotSource, kMaxSlots> hostSlotSources;
     TimeInfo blockTime;

@@ -585,11 +585,21 @@ public:
     const PedalDesc& desc() const noexcept override { return transportFoot ? transportDesc : eventDesc; }
     void prepare (double, int, int) override {}
     void reset() noexcept override {}
-    void process (double* l, double* r, int n) noexcept override { for (int i = 0; i < n; ++i) { l[i] *= value; r[i] *= value; } }
+    void process (double* l, double* r, int n) noexcept override { samples += n; for (int i = 0; i < n; ++i) { l[i] *= value; r[i] *= value; } }
+    PedalUiMeters readUiMeters() const noexcept override
+    {
+        if (! transportFoot) return {};
+        PedalUiMeters result;
+        result.available = UiTransport | UiLoop | UiTempo | UiProgress;
+        result.transport = 2; result.loopLength = 4096; result.playhead = samples % 4096;
+        result.progress = static_cast<float> (result.playhead) / 4096.f; result.bpm = 123.0;
+        return result;
+    }
     void setParam (int, float v) noexcept override { value = v; }
     float getParam (int) const noexcept override { return value; }
     bool footControlsEngagement() const noexcept override { return ! transportFoot; }
 private:
+    uint64_t samples = 0;
     bool transportFoot = false;
     float value = 0.5f;
 };
@@ -674,6 +684,11 @@ LUTHIER_TEST (RefPedalBoardCore, hostAutomationIsImmediatePersistentAndDoesNotOv
     const auto before = luthier::tests::allocationsOnThisThread(); run();
     CHECK (luthier::tests::allocationsOnThisThread() == before);
     CHECK_NEAR (l[1023], 0.09, 1.e-8);
+    CHECK (board.model().applyHostEcho (cmd::SetParam { id, 0, 0.2f })); // stale timer captured an earlier host value
+    run(); CHECK_NEAR (l[1023], 0.09, 1.e-8);
+    CHECK_NEAR (board.model().getInstance (id)->params[0], 0.2, 1.e-7);
+    CHECK (board.model().apply (cmd::SetParam { id, 0, 0.2f })); // same persisted echo value, explicit new intent
+    run(); CHECK_NEAR (l[1023], 0.02, 1.e-8);
     host.values[4] = 0.7f; host.serials[4] = std::numeric_limits<uint32_t>::max(); run();
     host.values[4] = 0.6f; host.serials[4] = 1; run(); // producer skips reserved zero at wrap
     CHECK_NEAR (l[1023], 0.06, 1.e-8);
@@ -694,4 +709,57 @@ LUTHIER_TEST (RefPedalBoardCore, midiFocusIsMetadataWithoutUndoOrTopologyPublica
     CHECK (model.getBoardSettings().midi["selectedInstance"].toString() == existing.toString());
     CHECK (model.getTopologyInfo().version == version);
     CHECK (model.undo()); CHECK (model.getInstanceCount() == 0);
+}
+
+LUTHIER_TEST (RefPedalBoardCore, hostEchoDoesNotCreateHistoryOrOverrideFreshHostSerial)
+{
+    BoardModel model;
+    CHECK (model.applyHostEcho (cmd::SetMix { 0.2f }));
+    CHECK (! model.canUndo());
+    CHECK (! model.applyHostEcho (cmd::SetStyle { BoardStyle::rail }));
+    PedalRegistry::add (eventDesc, makeEventProbe);
+    Board board; const InstanceId id;
+    CHECK (board.model().apply (cmd::Add { "test.event", -1, Placement::beforeExistingPre, 0, id }));
+    CHECK (board.model().apply (cmd::SetBoardEnabled { true }));
+    HostAutomationSnapshot host; host.values[4] = 0.9f; host.serials[4] = 1;
+    CHECK (board.model().apply (cmd::SetParam { id, 0, 0.2f }));
+    board.setHostAutomation (host);
+    double left[1024], right[1024]; std::fill_n (left, 1024, 0.1); std::fill_n (right, 1024, 0.1);
+    board.processStereo (left, right, 1024, Placement::beforeExistingPre);
+    CHECK_NEAR (left[1023], 0.09, 1.e-8); // new host serial wins when both arrive together
+}
+
+LUTHIER_TEST (RefPedalBoardCore, pedalMetersPublishActualDataAndFullInstanceIdentity)
+{
+    PedalRegistry::add (eventDesc, makeEventProbe); PedalRegistry::add (transportDesc, makeTransportProbe);
+    Board board; const InstanceId id;
+    CHECK (! board.readPedalMeters (-1).present);
+    CHECK (board.model().apply (cmd::Add { "test.transport", -1, Placement::beforeExistingPre, 0, id }));
+    CHECK (board.model().apply (cmd::SetBoardEnabled { true }));
+    double left[1024] {}, right[1024] {}; board.processStereo (left, right, 1024, Placement::beforeExistingPre);
+    auto meter = board.readPedalMeters (0);
+    CHECK (meter.present && meter.identity == id && meter.enabled);
+    CHECK ((meter.model.available & UiLoop) != 0);
+    CHECK (meter.model.loopLength == 4096 && meter.model.playhead == 1024);
+    CHECK_NEAR (meter.model.progress, 0.25, 1.e-8);
+    CHECK_NEAR (meter.model.bpm, 123.0, 1.e-8);
+    std::atomic<bool> done { false }; std::atomic<int> incoherent { 0 };
+    std::thread audio ([&] { for (int i = 0; i < 2000; ++i) board.processStereo (left, right, 64, Placement::beforeExistingPre); done.store (true); });
+    while (! done.load())
+    {
+        meter = board.readPedalMeters (0);
+        if (meter.present && (meter.identity != id || meter.model.loopLength != 4096
+            || meter.model.progress != static_cast<float> (meter.model.playhead) / 4096.f)) ++incoherent;
+    }
+    audio.join(); CHECK (incoherent.load() == 0);
+    CHECK (board.model().apply (cmd::Remove { id }));
+    const InstanceId replacement;
+    CHECK (board.model().apply (cmd::Add { "test.event", -1, Placement::beforeExistingPre, 0, replacement }));
+    board.processStereo (left, right, 1024, Placement::beforeExistingPre); board.processStereo (left, right, 1024, Placement::beforeExistingPre);
+    meter = board.readPedalMeters (0);
+    CHECK (meter.present && meter.identity == replacement);
+    CHECK (meter.model.available == 0); // unsupported telemetry remains explicitly unavailable
+    CHECK (board.model().apply (cmd::Remove { replacement }));
+    board.processStereo (left, right, 1024, Placement::beforeExistingPre); board.processStereo (left, right, 1024, Placement::beforeExistingPre);
+    CHECK (! board.readPedalMeters (0).present);
 }
