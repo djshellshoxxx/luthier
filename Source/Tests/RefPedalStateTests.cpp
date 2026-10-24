@@ -317,3 +317,16 @@ LUTHIER_TEST (RefPedalState, windowPreferenceMirrorsLegacyRoot)
     CHECK(!BoardState::restore(model,juce::String(R"({"schema":1,"window":3})")));
     CHECK(!BoardState::restore(model,juce::String(R"({"schema":1,"ui":{"window":3}})")));
 }
+
+LUTHIER_TEST(RefPedalState, momentaryFeedbackKillNeverResumes)
+{
+    BoardModel model;juce::String saved,error;
+    CHECK(BoardState::restore(model,juce::String(R"({"schema":1,"feedback":{"kill":true,"vendor":{"curve":[1,2,3]}}})"),&error));
+    CHECK(BoardState::save(model,saved,&error));
+    const auto state=juce::JSON::parse(saved);
+    CHECK(state["feedback"]["kill"].isBool());CHECK(!(bool)state["feedback"]["kill"]);
+    CHECK(state["feedback"]["vendor"]["curve"].size()==3);
+    const auto before=saved;
+    CHECK(!BoardState::restore(model,juce::String(R"({"schema":1,"feedback":{"kill":1}})"),&error));
+    CHECK(BoardState::save(model,saved,&error));CHECK(saved==before);
+}

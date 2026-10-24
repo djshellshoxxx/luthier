@@ -103,3 +103,5 @@ WP2/WP6/host/UI integration gates. Capture/recall use atomic `replaceAll`, whose
 current contract clears undo; undoable snapshot command integration belongs to
 WP2. Existing unknown-field values are retained semantically; exact lexical bytes
 of current-schema unknown JSON subtrees are not promised.
+
+E56 momentary feedback kill: input `feedback.kill` requires a JSON boolean. Current-schema output always writes false so a held control cannot resume on load; unrelated and nested vendor feedback fields remain preserved. Focused normal suite: 17 cases / 5262 checks / 0 failures (2026-10-24).
