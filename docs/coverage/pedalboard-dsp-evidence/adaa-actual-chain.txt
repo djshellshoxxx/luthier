@@ -1,0 +1,5 @@
+factor2 impulsePeak129 reportedCombined129
+factor4 impulsePeak137 reportedCombined137
+factor8 impulsePeak141 reportedCombined141
+factor4 stereo gain0.1 threadCPU 0.034656s/2s =1.732801% sum0.917453640
+factor4 stereo gain100.0 threadCPU 0.022286s/2s =1.114293% sum12.825869958
