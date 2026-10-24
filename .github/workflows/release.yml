@@ -34,6 +34,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
   version:
     name: Check version
@@ -118,14 +122,31 @@ jobs:
           TAG: ${{ needs.version.outputs.tag }}
         run: |
           set -euo pipefail
-          response="$RUNNER_TEMP/luthier-release-lookup"
-          if gh api --include "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" > "$response"; then
-            echo "::error::Release already exists; choose a new immutable version."
+          # The by-tag endpoint omits drafts. Inspect every visible release page.
+          tags="$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq '.[].tag_name')"
+          if printf '%s\n' "$tags" | grep -Fxq -- "$TAG"; then
+            echo "::error::Release or draft already exists; choose a new version."
             exit 1
           fi
-          # Fail closed on access/network/server errors. Only a verified404 is new.
-          grep -Eq '^HTTP/[0-9.]+ 404([[:space:]]|$)' "$response" || {
-            echo "::error::Could not verify that this release destination is unused."
+
+      - name: Verify or create the frozen source tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.version.outputs.tag }}
+          SOURCE_SHA: ${{ needs.version.outputs.ref }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          refs="$(git ls-remote --tags origin "refs/tags/$TAG" "refs/tags/$TAG^{}")"
+          if [ -z "$refs" ]; then
+            # Create-only API: a concurrent tag creation fails; never update a ref.
+            gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+              -f "ref=refs/tags/$TAG" -f "sha=$SOURCE_SHA" > /dev/null
+            refs="$(git ls-remote --tags origin "refs/tags/$TAG" "refs/tags/$TAG^{}")"
+          fi
+          tagged_sha="$(printf '%s\n' "$refs" | awk '{ if ($2 ~ /\^\{\}$/) peeled=$1; else plain=$1 } END { print peeled ? peeled : plain }')"
+          test "$tagged_sha" = "$SOURCE_SHA" || {
+            echo "::error::Tag does not identify the tested source; refusing release."
             exit 1
           }
 
@@ -175,14 +196,15 @@ jobs:
               --armor --detach-sign --output SHA256SUMS.txt.asc SHA256SUMS.txt
 
       - name: Create draft release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ needs.version.outputs.tag }}
-          target_commitish: ${{ needs.version.outputs.ref }}
-          name: Luthier ${{ needs.version.outputs.version }}
-          draft: true
-          prerelease: ${{ contains(needs.version.outputs.version, '-') }}
-          generate_release_notes: true
-          fail_on_unmatched_files: true
-          overwrite_files: false
-          files: release/*
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.version.outputs.tag }}
+          SOURCE_SHA: ${{ needs.version.outputs.ref }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          # Unlike update-or-create actions, this command never edits a release.
+          args=(release create "$TAG" --verify-tag --target "$SOURCE_SHA" --draft
+                --title "Luthier $VERSION" --generate-notes)
+          [[ "$VERSION" != *-* ]] || args+=(--prerelease)
+          gh "${args[@]}" release/*
