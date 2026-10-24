@@ -1,0 +1,4 @@
+RefPedalPreparedDiodeRoot::diodeParametersAndRealtimeAllocationContract 27 checks 0 failures
+RefPedalPreparedDiodeRoot::independentMonotoneKclOracle 40005 checks 0 failures
+RefPedalPreparedDiodeRoot::finiteGuardsAndFixedConductance 190 checks 0 failures
+TOTAL 40222 checks 0 failures

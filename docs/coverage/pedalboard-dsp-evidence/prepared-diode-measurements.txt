@@ -1,0 +1,8 @@
+prepare threadCPU 0.097036944s; table bytes 135432
+max difference vs direct 8.2243239996060424e-13V; max residual 7.3725747729014302e-18A; mean iterations 3.495109 max 8
+trial0 direct 0.297026403s checksum 5.3092688544728812
+trial0 prepared 0.198205317s checksum 5.3092688544729834
+trial1 direct 0.294811913s checksum 5.3092688544728812
+trial1 prepared 0.212854903s checksum 5.3092688544729834
+trial2 direct 0.332322635s checksum 5.3092688544728812
+trial2 prepared 0.225093487s checksum 5.3092688544729834

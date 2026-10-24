@@ -363,3 +363,34 @@ The Deluxe descriptor/functional smoke rerun passes12,007 checks under the same
 sanitizers (`deluxe-shelf-tests.txt`). Timefx independently reviewed3bcca046:
 the new term is exactly RBJ's2sqrt(A)alpha and theS=1 branch retains the old
 arithmetic; that review did not rerun the sanitizer suite.
+
+## Isolated experiment: prepared symmetric diode initial guesses
+
+`Common/PreparedDiodeRoot.h` is an experimental helper, **not used by any pedal**.
+It prepares33×513 inverse-KCL guesses over conductance and log-current coordinate,
+then applies up to8 Newton iterations to the unchanged equation
+`g*v + diodeScale*sinh(v/Vt) = rhs`. Out-of-domain queries use the original
+analytical upper bound. The prepared guesses never replace the diode law.
+One `expm1` evaluates both hyperbolic terms stably; floating-point stagnation
+ends an otherwise identical repeated iteration. The1e-18A stopping criterion
+is unchanged from the candidate Muff solver. Input current has an explicit±1e6A
+finite guard; normal circuit tests are many orders of magnitude smaller.
+
+The helper allocates135,432 bytes per table in `prepare` and does no allocation
+in `solve`. A long-double90-bisection independent oracle covers20,000 signed,
+log-distributed current/conductance pairs, including fallbacks. Another18,432
+queries cover nine diode parameter combinations. Original candidate voltage
+error<1e-10V and residual<1e-11A checks pass. Hostile inputs, fixed conductance,
+unprepared fallback, and callback allocation instrumentation are also exercised:
+**3cases /40,222 checks, zero failures** with ASan+UBSan+leak detection, empty
+stderr (`prepared-diode-tests.txt`, `prepared-diode-stderr.txt`).
+
+The1,000,000-query moving-current/conductance benchmark uses C++17/O2/NDEBUG,
+no fast-math, process-thread CPU time on the same shared EPYC host. Preparation
+took.097037s. Direct solve trials:.297026/.294812/.332323s; prepared trials:
+.198205/.212855/.225093s (median28.3% reduction). Maximum voltage difference
+vs direct8.2244e-13V; maximum residual7.3726e-18A; mean3.4951 iterations, max8.
+Memory/preparation costs are material. This is neither an8-pedal CPU-budget
+pass nor an alias-rejection result. Pedal adoption requires independent review,
+dynamic-capacitor oracle regressions, actual waveform and CPU measurements.
+Reproduce with `pedalboard-dsp-evidence/run-prepared-diode-tests.sh`.
