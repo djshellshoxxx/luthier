@@ -27,11 +27,12 @@ public:
     // Message thread. Allocates rings and tables; idempotent.
     void prepare (double sampleRate, int maxBlock);
 
-    // Message thread. RCU publish of a new immutable map; the old one is
+    // E61: non-audio control thread; serialized against other writers/reclaim.
+    // RCU publish of a new immutable map; the old one is
     // retired and freed on the message thread (reclaim in Board::reclaim()).
     void publishMap (std::unique_ptr<MapSnap> snapshot);
 
-    int reclaim() noexcept; // message thread; epoch-delayed destruction (E33)
+    int reclaim() noexcept; // message thread; single-reader hazard protection (E33)
 
     // E46: audio thread, before process; serial zero is unwritten.
     void setHostEnabled (bool enabled, uint32_t serial) noexcept;

@@ -6,20 +6,36 @@
 #include <atomic>
 #include <array>
 #include <vector>
+#include <mutex>
 namespace luthier::reference::midi
 {
 namespace {
 struct CaptureRecord { LearnCapture capture; uint32_t generation = 0; };
 bool clockMessage (uint8_t status) noexcept
 { return status == 0xf8 || status == 0xfa || status == 0xfb || status == 0xfc || status == 0xf2; }
+bool releaseMessage (const MidiEv& event) noexcept
+{
+    const auto kind = event.status & 0xf0;
+    return kind == 0x80 || (kind == 0x90 && event.d2 == 0)
+        || (kind == 0xb0 && (event.d1 >= 120 || ((event.d1 == 64 || event.d1 == 66 || event.d1 == 67) && event.d2 < 64)));
+}
 }
 struct MidiRouter::Impl
 {
-    struct Retired { std::unique_ptr<MapSnap> map; uint64_t epoch; };
+    struct Retired { std::unique_ptr<MapSnap> map; };
     std::atomic<const MapSnap*> published { nullptr };
     std::unique_ptr<MapSnap> current;
     std::vector<Retired> retired;
-    std::atomic<uint64_t> completed { 0 };
+    std::mutex nonRealtimeWriterMutex;
+    int collectRetired() noexcept
+    {
+        int freed = 0;
+        const auto* reader = borrowed.load (std::memory_order_seq_cst);
+        for (size_t i = 0; i < retired.size();)
+            if (reader != retired[i].map.get()) { retired.erase (retired.begin() + (std::ptrdiff_t) i); ++freed; } else ++i;
+        return freed;
+    }
+    std::atomic<const MapSnap*> borrowed { nullptr };
     std::atomic<uint32_t> dropped { 0 };
     SpscRing<MidiEv, 1024> input;
     SpscRing<MidiEv, 256> priority;
@@ -153,6 +169,7 @@ MidiRouter::MidiRouter() : impl (std::make_unique<Impl>()) {}
 MidiRouter::~MidiRouter() = default;
 void MidiRouter::prepare (double sr, int)
 {
+    const std::lock_guard<std::mutex> writer (impl->nonRealtimeWriterMutex);
     impl->sr = std::isfinite (sr) && sr > 0 ? sr : 48000;
     impl->clock.prepare (impl->sr); impl->input.clear(); impl->priority.clear(); impl->feedback.clear();
     impl->uiClockLocked = impl->uiClockLost = false; impl->uiTempo = 0; impl->uiDropped = droppedCount();
@@ -161,23 +178,24 @@ void MidiRouter::prepare (double sr, int)
     impl->msb = {}; impl->lsb = {}; impl->hasMsb = {};
     impl->tempoSource.reset(); impl->tempoBpm.reset();
     impl->appliedExpressionSerial = {}; impl->expressionKnown = {}; impl->replayExpression = false;
+    impl->borrowed.store (nullptr, std::memory_order_seq_cst);
     impl->retired.clear(); impl->activeVersion = 0; impl->modelEnabledKnown = false; impl->appliedHostEnabledSerial = 0; impl->appliedModelEnabledRevision = 0;
 }
 void MidiRouter::publishMap (std::unique_ptr<MapSnap> map)
 {
-    if (map) { map->version = ++impl->mapVersion; map->compile(); }
+    const std::lock_guard<std::mutex> writer (impl->nonRealtimeWriterMutex);
+    // Reclaim before publication: at most the reader's snapshot plus one newly
+    // retired map remain, even while audio is stopped and no epochs advance.
+    impl->collectRetired();
+    if (map) { if (++impl->mapVersion == 0) ++impl->mapVersion; map->version = impl->mapVersion; map->compile(); }
     auto old = std::move (impl->current); impl->current = std::move (map);
     impl->published.store (impl->current.get(), std::memory_order_seq_cst);
-    if (old) impl->retired.push_back ({ std::move (old), impl->completed.load (std::memory_order_seq_cst) + 2 });
-    reclaim();
+    if (old) impl->retired.push_back ({ std::move (old) });
 }
 int MidiRouter::reclaim() noexcept
 {
-    int freed = 0; auto& list = impl->retired;
-    const auto epoch = impl->completed.load (std::memory_order_seq_cst);
-    for (size_t i = 0; i < list.size();)
-        if (epoch >= list[i].epoch) { list.erase (list.begin() + (std::ptrdiff_t) i); ++freed; } else ++i;
-    return freed;
+    const std::lock_guard<std::mutex> writer (impl->nonRealtimeWriterMutex);
+    return impl->collectRetired();
 }
 void MidiRouter::setModelEnabled (bool enabled, uint32_t revision) noexcept
 { if (revision != 0) { impl->modelIntentEnabled = enabled; impl->modelEnabledRevision = revision; } }
@@ -202,7 +220,30 @@ void MidiRouter::pushUiEvent (const MidiEv& e) noexcept
 void MidiRouter::process (const juce::MidiBuffer& in, const HostTransport& host, int64_t start, int n, RouteOut& out) noexcept
 {
     out.clear(); if (n <= 0) return;
-    const auto* map = impl->published.load (std::memory_order_seq_cst);
+    const MapSnap* map = nullptr; bool protectedMap = false;
+    // Protect then validate before dereferencing. Publisher can never delete a
+    // protected map; a raced candidate is never dereferenced. Two attempts bound
+    // callback work under a continuously publishing message thread.
+    for (int attempt = 0; attempt < 2; ++attempt)
+    {
+        const auto* candidate = impl->published.load (std::memory_order_seq_cst);
+        impl->borrowed.store (candidate, std::memory_order_seq_cst);
+        if (candidate == impl->published.load (std::memory_order_seq_cst))
+        { map = candidate; protectedMap = true; break; }
+        impl->borrowed.store (nullptr, std::memory_order_seq_cst);
+    }
+    if (! protectedMap)
+    {
+        impl->drop();
+        // Losing a raced map must not strand a held momentary control.
+        for (int slot = 0; slot < kMaxSlots; ++slot) impl->foot (slot,false,0.f,0,out);
+        for (auto& channel : impl->heldNoteSlots) channel.fill (-1);
+    }
+    struct BorrowScope
+    {
+        std::atomic<const MapSnap*>& pointer;
+        ~BorrowScope() { pointer.store (nullptr, std::memory_order_seq_cst); }
+    } borrowScope { impl->borrowed };
     if (map && map->version != impl->activeVersion)
     {
         if (impl->modelEnabledRevision == 0 && (! impl->modelEnabledKnown || impl->modelEnabled != map->boardEnabled))
@@ -243,7 +284,20 @@ void MidiRouter::process (const juce::MidiBuffer& in, const HostTransport& host,
     int count = 0, ordinary = 0;
     auto append = [&] (MidiEv e, bool realtime)
     {
-        if ((! realtime && ordinary >= 512) || count >= (int) impl->events.size()) { impl->drop(); return; }
+        if (e.status < 0x80 || e.d1 > 127 || e.d2 > 127) { impl->drop(); return; }
+        if ((! realtime && ordinary >= 512) || count >= (int) impl->events.size())
+        {
+            // A late release replaces the newest ordinary non-release. Clock
+            // priority and earlier releases retain their reserved positions.
+            int replace = -1;
+            if (! realtime && releaseMessage (e))
+                for (int i = count - 1; i >= 0; --i)
+                    if (! clockMessage (impl->events[(size_t) i].status) && ! releaseMessage (impl->events[(size_t) i])) { replace = i; break; }
+            impl->drop();
+            if (replace < 0) return;
+            for (int i = replace + 1; i < count; ++i) impl->events[(size_t) i - 1] = impl->events[(size_t) i];
+            --count; --ordinary;
+        }
         if (! realtime) ++ordinary;
         e.sampleOffset = (uint32_t) std::clamp ((int) e.sampleOffset, 0, n - 1);
         int j = count++; // stable insertion by sample offset, storage is fixed
@@ -344,7 +398,7 @@ void MidiRouter::process (const juce::MidiBuffer& in, const HostTransport& host,
     if (out.nTr > 0)
         for (int i = 0; i < out.nTr; ++i) if (out.tr[i] == TransportEvent::Stop)
             for (int slot = 0; slot < kMaxSlots; ++slot) impl->foot (slot, false, .5f, out.trOff[i], out);
-    impl->completed.fetch_add (1, std::memory_order_seq_cst);
+    // RouteOut owns copied POD only; BorrowScope releases the last map read.
 }
 void MidiRouter::armLearn (const LearnTarget& t)
 { CaptureRecord c; while (impl->captures.pop (c)) {} const auto old = impl->learn.load(); impl->learn.store (((old + 4) & ~3u) | 1u | (t.continuous ? 2u : 0u), std::memory_order_release); }

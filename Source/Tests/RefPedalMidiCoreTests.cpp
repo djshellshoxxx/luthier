@@ -81,7 +81,7 @@ LUTHIER_TEST (RefPedalMidiCore, concurrentPublicationAndReclamation)
             if (out.nWrites > 1 || (out.nWrites == 1 && (out.writes[0].norm < 0 || out.writes[0].norm > 1))) valid.store (false);
         }
     });
-    for (int i = 0; i < 200; ++i)
+    for (int i = 0; i < 5000; ++i)
     {
         auto map = std::make_unique<MapSnap>(); Binding b; b.srcNum = 20; b.target = (uint16_t) (i % 32); map->add (b);
         router.publishMap (std::move (map)); router.reclaim();
@@ -467,4 +467,47 @@ LUTHIER_TEST (RefPedalMidiCore, sliderAndLatchedKeyboardVelocityHaveRealSourceRo
     router.process(input,{},0,128,out); CHECK(out.nWrites == 2); CHECK(out.writes[0].paramIdx == 4); CHECK(out.writes[0].offset == 0);
     CHECK(out.writes[1].paramIdx == 5); CHECK(out.writes[1].offset == 40); CHECK_NEAR(out.writes[1].norm,100./127,1e-6);
     input.clear(); input.addEvent(juce::MidiMessage::noteOff(1,60),0); router.process(input,{},128,128,out); CHECK(out.nWrites == 0);
+}
+
+LUTHIER_TEST (RefPedalMidiCore, idleMapPublicationIsBoundedWithoutAudioEpochs)
+{
+    MidiRouter router; router.prepare (48000,64); int reclaimed = 0;
+    for (int i = 0; i < 100000; ++i)
+    { router.publishMap (std::make_unique<MapSnap>()); reclaimed += router.reclaim(); }
+    CHECK (reclaimed == 99999); // every prior map destroyed off audio, no epoch progress
+    CHECK (router.reclaim() == 0);
+    juce::MidiBuffer in; RouteOut out; router.process(in,{},0,64,out);
+    router.prepare(96000,32); router.publishMap(nullptr); CHECK (router.reclaim() == 1);
+    router.process(in,{},0,32,out); CHECK (out.nWrites == 0); CHECK (std::isfinite(out.time.bpm));
+}
+LUTHIER_TEST (RefPedalMidiCore, floodRetainsLateHostAndUiFootReleases)
+{
+    MidiRouter router; router.prepare(48000,128); auto map = std::make_unique<MapSnap>(); map->keyboardSlots = 16; router.publishMap(std::move(map));
+    juce::MidiBuffer input; input.addEvent(juce::MidiMessage::noteOn(1,36,(juce::uint8)100),0); RouteOut out;
+    router.process(input,{},0,128,out); CHECK(out.nFoot == 1 && out.foot[0].press);
+    input.clear(); for (int i = 0; i < 1024; ++i) input.addEvent(juce::MidiMessage::controllerEvent(1,20,100),0);
+    input.addEvent(juce::MidiMessage::noteOff(1,36,(juce::uint8)127),127);
+    router.process(input,{},128,128,out); CHECK(out.nFoot == 1 && !out.foot[0].press); CHECK(out.foot[0].offset == 127); CHECK(out.foot[0].speed == 1.f);
+    input.clear(); input.addEvent(juce::MidiMessage::noteOn(1,36,(juce::uint8)100),0); router.process(input,{},256,128,out);
+    input.clear(); for (int i = 0; i < 1024; ++i) input.addEvent(juce::MidiMessage::controllerEvent(1,20,100),0);
+    router.pushUiEvent({0,0x80,36,64,(uint8_t)MidiOrigin::OnScreen}); router.process(input,{},384,128,out);
+    CHECK(out.nFoot == 1 && !out.foot[0].press); CHECK_NEAR(out.foot[0].speed,64./127,1e-6);
+}
+LUTHIER_TEST (RefPedalMidiCore, restoreAndUiPublishersCanReclaimDuringAudio)
+{
+    MidiRouter router; router.prepare(48000,64); std::atomic<bool> done{false}, valid{true};
+    std::thread audio([&]
+    {
+        juce::MidiBuffer in; in.addEvent(juce::MidiMessage::controllerEvent(1,20,100),37); RouteOut out; int64_t sample=0;
+        while(!done.load(std::memory_order_acquire))
+        { router.process(in,{},sample,64,out); sample+=64; if(out.nWrites>1) valid.store(false); }
+    });
+    std::thread reclaim([&] { while(!done.load(std::memory_order_acquire)) router.reclaim(); });
+    auto publish = [&]
+    {
+        for (int i=0;i<2500;++i)
+        { auto map=std::make_unique<MapSnap>(); Binding b; b.srcNum=20; b.target=(uint16_t)(i%32); map->add(b); router.publishMap(std::move(map)); }
+    };
+    std::thread restore(publish); publish(); restore.join(); done.store(true,std::memory_order_release); audio.join(); reclaim.join();
+    CHECK(valid.load()); router.reclaim();
 }
