@@ -5,6 +5,7 @@
 
 #include "PedalFaceFactory.h"
 #include "GenericFace.h"
+#include "ModelFaceMakers.h"
 #include "../../ReferencePedals/PedalRegistry.h"
 #include <map>
 #include <string>
@@ -16,7 +17,26 @@ namespace
 {
     std::map<std::string, FaceMaker>& makers()
     {
-        static std::map<std::string, FaceMaker> table;
+        static std::map<std::string, FaceMaker> table {
+            {"boss-ds1", &makeBossDs1Face},
+            {"ibanez-ts808", &makeIbanezTs808Face},
+            {"boss-sd1", &makeBossSd1Face},
+            {"mxr-distortion-plus", &makeMxrDistortionPlusFace},
+            {"proco-rat", &makeProcoRatFace},
+            {"mxr-dynacomp", &makeMxrDynacompFace},
+            {"ehx-big-muff-nyc", &makeEhxBigMuffNycFace},
+            {"ehx-muff-wicker", &makeEhxMuffWickerFace},
+            {"ehx-green-russian", &makeEhxGreenRussianFace},
+            {"ehx-deluxe-muff", &makeEhxDeluxeMuffFace},
+            {"boss-ce2", &makeBossCe2Face},
+            {"boss-ce2w", &makeBossCe2wFace},
+            {"mxr-phase90-script", &makeMxrPhase90ScriptFace},
+            {"boss-dd3t", &makeBossDd3tFace},
+            {"tc-ditto", &makeTcDittoFace},
+            {"ehx-nano-360", &makeEhxNano360Face},
+            {"boss-rc1", &makeBossRc1Face},
+            {"boss-rc5", &makeBossRc5Face},
+        };
         return table;
     }
 }
