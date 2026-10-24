@@ -82,19 +82,47 @@ class ReleaseGuards(unittest.TestCase):
     def test_version_cannot_include_endpoint_path(self):
         self.assertNotEqual(self.version("v0.1.0-preview/other")[0].returncode, 0)
 
-    def test_release_lookup_only_accepts_verified_not_found(self):
+    def test_release_lookup_checks_drafts_and_fails_closed(self):
         bindir = self.root / "bin"; bindir.mkdir()
         stub = bindir / "gh"
-        stub.write_text('#!/bin/bash\nprintf "HTTP/2.0 %s\\r\\n\\r\\n" "$STATUS"\n[ "$STATUS" = 200 ]\n')
+        stub.write_text('#!/bin/bash\n[[ " $* " == *" --paginate "* ]] || exit 9\n[ "$STATUS" = 200 ] || exit 1\nprintf "%s\\n" "$TAGS"\n')
         stub.chmod(0o755)
-        for status, accepted in [(404, True), (200, False), (403, False), (500, False)]:
-            with self.subTest(status=status):
+        cases = [(200, "v0.1.0-old", True), (200, "v0.1.0-old\nv0.1.0-preview1", False),
+                 (403, "", False), (404, "", False), (500, "", False)]
+        for status, tags, accepted in cases:
+            with self.subTest(status=status, tags=tags):
                 env = dict(os.environ, PATH=str(bindir) + os.pathsep + os.environ["PATH"],
-                           STATUS=str(status), RUNNER_TEMP=str(self.root),
+                           STATUS=str(status), TAGS=tags, RUNNER_TEMP=str(self.root),
                            GITHUB_REPOSITORY="fixture/repo", TAG="v0.1.0-preview1")
                 result = subprocess.run(["bash", "-c", step_script("Refuse an existing release")],
                                         cwd=self.repo, env=env, capture_output=True, text=True)
                 self.assertEqual(result.returncode == 0, accepted, result.stderr)
+
+    def test_publication_rechecks_tag_after_build(self):
+        self.git("tag", "v0.1.0-preview1"); self.git("push", "origin", "refs/tags/v0.1.0-preview1")
+        (self.repo / "later.txt").write_text("Later source\n")
+        self.git("add", "."); self.git("commit", "-m", "Source B")
+        env = dict(os.environ, SOURCE_SHA=self.git("rev-parse", "HEAD").strip(), TAG="v0.1.0-preview1")
+        result = subprocess.run(["bash", "-c", step_script("Verify or create the frozen source tag")],
+                                cwd=self.repo, env=env, capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.git("ls-remote", "--tags", "origin", "refs/tags/v0.1.0-preview1").split()[0], self.source)
+
+    def test_create_failure_never_falls_back_to_update_or_upload(self):
+        bindir = self.root / "bin"; bindir.mkdir()
+        stub = bindir / "gh"; log = self.root / "gh-calls"
+        stub.write_text('#!/bin/bash\nprintf "%s\\n" "$*" >> "$CALL_LOG"\nexit 1\n')
+        stub.chmod(0o755)
+        (self.repo / "release").mkdir(); (self.repo / "release/file.zip").write_text("fixture")
+        env = dict(os.environ, PATH=str(bindir) + os.pathsep + os.environ["PATH"], CALL_LOG=str(log),
+                   TAG="v0.1.0-preview1", VERSION="0.1.0-preview1", SOURCE_SHA=self.source)
+        result = subprocess.run(["bash", "-c", step_script("Create draft release")],
+                                cwd=self.repo, env=env, capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        calls = log.read_text().splitlines()
+        self.assertEqual(len(calls), 1)
+        self.assertTrue(calls[0].startswith("release create "))
+        self.assertIn("--draft", calls[0]); self.assertIn("--verify-tag", calls[0])
 
 
 if __name__ == "__main__":
