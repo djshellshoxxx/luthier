@@ -133,3 +133,9 @@ QA fixed group-Space bypass to activate the actual attached native footswitch, a
 ## Canonical BPM unit regression
 
 The actual reference tempo parameter uses labelBPM. A standalone native reproduction returned unknown unit0 before the fix. ParamMeta now appends beatsPerMinute (preserving previous enum values), recognizes BPM, and returns suffixBPM / accessible name“beats per minute”. The same exact parameter reproduction passes after the fix; `boardTempoHasItsRealBeatsPerMinuteUnit` retains the regression in the UI suite. Original whole-processor everyParameterHasAUnitAndACategory awaits the coordinator's coherent native batch; no test exclusion was added. Red/green driver evidence is retained under `.../bpm-unit/`.
+
+## Real GuiReach board flow (runtime batch pending)
+
+The original harness never opened the reference board. Its new reference context populates16 real instances of the registered model with the richest actual lane map, then uses the real dock action, Settings and each pedal inspector. It records every populated lane/enable/trim/position ID as required coverage independently of a fresh empty processor's dynamic nonautomatable lanes. Existing thresholds, touched-ID discovery and exclusions remain unchanged. Real momentary controls are pressed/released rather than toggled. The inspector Position selector uses the existing0..15 host parameter; choices beyond the actual chain length are disabled, with normal keyboard access to valid positions. Its regression checks actual host indexing and deferred model persistence.
+
+GuiReachabilityTests, PedalView, BoardMidiPanel and the new Position test pass GCC C++17 syntax checks. The environment refresh removed temporary focused object caches; full native runtime of this updated reach tree is pending the coordinator's coherent build. Previous runtime evidence remains retained and is not relabelled as testing these new changes. Exact syntax logs are under `.../reach-flow/`.
