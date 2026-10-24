@@ -1,5 +1,6 @@
 // OWNER: WP3
 #include "RoutingNodes.h"
+#include "AbSwitch.h"
 #include <algorithm>
 namespace luthier::reference::routing
 {
@@ -10,6 +11,7 @@ void nodeSplit (const Node& node, ExecCtx& ctx) noexcept
 }
 void nodeSum (const Node& node, ExecCtx& ctx) noexcept
 {
+    if (node.i0 != 0) { mixAb (node, ctx); return; }
     for (int c = 0; c < 2; ++c)
         for (int i = 0; i < ctx.n; ++i)
         {

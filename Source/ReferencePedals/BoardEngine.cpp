@@ -161,6 +161,8 @@ void BoardEngine::syncRouting (midi::MidiRouter& router) const noexcept
 BoardMeters BoardEngine::meters() const noexcept
 {
     BoardMeters result; result.inPeakDb = inputPeak.load(); result.outPeakDb = outputPeak.load();
+    const auto availability = auxAvailable.load();
+    result.auxBAvailable = (availability & 1) != 0; result.auxWetAvailable = (availability & 2) != 0; result.auxDryAvailable = (availability & 4) != 0;
     result.latencySamples = latency(); result.sidechainAvailable = sidechainConnected.load();
     result.midiDropped = engageEcho.dropped() + paramPulses.dropped() + rawDropped.load() + outputDropped.load(); return result;
 }
@@ -259,7 +261,7 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
         for (int slot = 0; slot < kMaxSlots; ++slot)
             if (newest->slots[static_cast<size_t> (slot)]) newest->slots[static_cast<size_t> (slot)]->reset();
         for (auto& seg : segments)
-        { for (auto& d : seg.dry) d.reset(); for (auto& d : seg.lanes) d.reset(); for (auto& loop : seg.loops) loop.reset(); }
+        { for (auto& d : seg.dry) d.reset(); for (auto& d : seg.lanes) d.reset(); for (auto& loop : seg.loops) loop.reset(); seg.ab.reset(); }
     }
     if (s.current != newest)
     {
@@ -443,6 +445,7 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
                     }
                 }
             }
+            else if (node.kind == NodeKind::Sum && node.i0 != 0) context.state[index] = &s.ab;
             else if (node.kind == NodeKind::Delay) context.state[index] = &s.lanes[node.aux];
             else if (node.kind == NodeKind::SendTap || node.kind == NodeKind::ReturnInject) context.state[index] = &s.loops[node.aux];
             routing::nodeTable()[static_cast<int> (node.kind)] (node, context);
@@ -472,6 +475,22 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
                     engageEcho.push ({ runtime->identity, node.slot, runtime->enabled, runtime->modelEnabled });
                 }
             }
+        }
+        const auto sendAux = [&] (const BoardAuxOutputs::Stereo& destination, const double* l, const double* r)
+        {
+            if (! destination.left || ! destination.right || offset + count > destination.samples) return;
+            for (int i = 0; i < count; ++i)
+            {
+                destination.left[offset + i] = static_cast<float> (BoardLimiter::process (destination.left[offset + i] + l[i], false, 1.0));
+                destination.right[offset + i] = static_cast<float> (BoardLimiter::process (destination.right[offset + i] + r[i], false, 1.0));
+            }
+        };
+        if (localEnabled)
+        {
+            sendAux (auxOutputs.wet, buses[0][0].data(), buses[0][1].data());
+            sendAux (auxOutputs.dry, dry[0], dry[1]);
+            if (plan.settings.mode == Mode::AB && plan.settings.abOut == AbOutMode::Dual)
+                sendAux (auxOutputs.pedalB, buses[1][0].data(), buses[1][1].data());
         }
         const double targetMix = localMix;
         const double enableStep = 1.0 / std::max (1.0, 0.020 * rate);
