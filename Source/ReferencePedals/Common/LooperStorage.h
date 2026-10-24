@@ -49,6 +49,19 @@ public:
     bool finishRecord() noexcept;
     bool read(uint64_t frame,double& left,double& right,uint64_t* version=nullptr,bool allowStale=false) noexcept;
     void prefetch(uint64_t frame) noexcept;
+    // Audio-owner call. Both loops must be finalized and have ready manifests.
+    // Source remains immutable until completion; its lifetime is held internally.
+    // Worker merges one page between queued realtime I/O jobs. Zero refuses.
+    uint64_t mergeLayer(LooperStorage& immutableLayer) noexcept;
+    bool mergeComplete(uint64_t token) const noexcept;
+    // Audio owner after removing the retired layer from its playback/state
+    // graph. Until acknowledged, capture stays Pending and old cached page
+    // revisions may be combined with that layer using mergedAt().
+    bool acknowledgeMerge(uint64_t token) noexcept;
+    // During playback, omit the retired layer only if the actual returned base
+    // page revision already includes this token. Old cached revisions remain
+    // usable while their replacement is being read ahead.
+    bool mergedAt(uint64_t frame,uint64_t actualVersion,uint64_t token) const noexcept;
     uint64_t length() const noexcept;
     uint32_t errors() const noexcept;
     // Message/worker thread; bounded wait for page writes already queued by
