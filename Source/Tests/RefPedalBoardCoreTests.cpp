@@ -1521,3 +1521,30 @@ LUTHIER_TEST (RefPedalBoardCore, snapshotHelpersKeepUndoRedoAndCaptureRuntimeExt
     CHECK (! BoardSnapshots::recall (board.model(), 7, &error)); CHECK (error.isNotEmpty());
     CHECK (board.model().redo()); CHECK_NEAR (board.model().getBoardSettings().mix, 0.25, 1.e-9);
 }
+
+#include "../ReferencePedals/PreparedMemoryBudget.h"
+LUTHIER_TEST (RefPedalBoardCore, preparedMemoryReservationsBoundPeakAndFollowOwnership)
+{
+    CHECK (kPreparedPedalMemoryLimit == 64000000);
+    PreparedMemoryBudget budget;
+    PreparedMemoryBudget::Reservation first, second, scratch;
+    CHECK (budget.reserve (kPreparedPedalMemoryLimit - 1, first));
+    CHECK (! budget.reserve (2, second)); CHECK (budget.used() == kPreparedPedalMemoryLimit - 1);
+    CHECK (budget.reserve (1, second)); CHECK (budget.used() == kPreparedPedalMemoryLimit);
+    CHECK (! budget.reserve (1, scratch));
+    CHECK (! first.shrink (kPreparedPedalMemoryLimit));
+    CHECK (first.shrink (100)); CHECK (budget.used() == 101);
+    CHECK (budget.reserve (200, scratch)); CHECK (budget.used() == 301);
+    CHECK (scratch.shrink (20)); CHECK (budget.used() == 121);
+    auto moved = std::move (scratch); CHECK (scratch.bytes() == 0 && moved.bytes() == 20);
+    first.release(); second.release(); CHECK (budget.used() == 20);
+    moved.release(); CHECK (budget.used() == 0);
+    CHECK (! budget.reserve (kUnknownPreparedMemoryBytes, first));
+    uint64_t result = 123;
+    CHECK (! addPreparedBytes (UINT64_MAX - 1, 2, result)); CHECK (result == 123);
+    CHECK (! addPreparedBytes (1, UINT64_MAX - 1, result)); CHECK (result == 123);
+    CHECK (addPreparedBytes (64000000, 1, result)); CHECK (result == 64000001);
+    PreparedMemoryBudget::Reservation survivor;
+    { PreparedMemoryBudget shortLived (128); CHECK (shortLived.reserve (128, survivor)); }
+    CHECK (survivor.bytes() == 128); survivor.release(); // retained counter outlives its pool
+}
