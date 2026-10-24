@@ -353,3 +353,23 @@ Hall raw-impulse normalized echo density in a 20 ms window around 200 ms is
 Definition: fraction of samples whose mean-removed magnitude exceeds the window
 standard deviation, divided by the Gaussian probability 0.317310507862914.
 These acoustic gates remain open; no threshold or test label was weakened.
+
+The FDN now fulfills the originally specified mutually-prime late-delay lengths:
+prepare builds a nearest-prime lookup off the audio thread, and SIZE automation
+uses bounded table reads. All four input diffuser lengths now scale with SIZE as
+specified. Tests verify actual integer lengths, primality, pairwise coprimality
+and capacity bounds across five rates, four sizes and all three FDN families.
+Focused Delay/Reverb results: 2,890,881 checks, zero failures, including the
+unchanged Hall RT60 +/-10% and freeze +/-1 dB gates. These structural fixes alone
+do not close echo density: an independent prime-delay Hall probe at 48 kHz,
+MOD .25, 200 ms gives raw NED L0.8174/R0.8765; at 192 kHz L0.6812/R0.7353.
+The original >0.9 threshold remains unchanged and unsatisfied. High-rate raw
+impulses also expose sparse above-audible-band samples, so any future bandlimited
+measurement will be reported alongside, rather than replacing, this raw result.
+
+O(1) FractionalDelay reset performance check (O3, precomputed input/delay arrays,
+4.8 million pushes plus reads, 100 seconds equivalent audio): cubic median CPU
+0.0242162 s before / 0.0253978 s after, a 4.88% helper cost increase but only
+0.00118 percentage points of a core for this single-delay scenario. Sinc medians
+0.0850024 / 0.0846859 s were within run variation. All old/new checksums matched.
+The extra history-validity comparison is not claimed to be free.

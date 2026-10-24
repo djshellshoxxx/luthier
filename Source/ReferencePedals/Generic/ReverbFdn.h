@@ -14,6 +14,7 @@ public:
     void reset() noexcept;
     void set(double decaySeconds,double size,double tone,double modulation,int family,double freeze) noexcept;
     std::array<double,2> process(double input) noexcept;
+    std::array<double,8> delayLengths() const noexcept {return delays;}
 private:
     std::array<double,7> lastSettings{};
     bool settingsValid=false;
@@ -21,6 +22,8 @@ private:
     std::array<common::FractionalDelay,4> diffusion;
     std::array<common::OnePole,8> damping;
     std::array<double,8> delays{},gains{},dampingAmount{};
+    std::array<double,4> diffuserDelays{};
+    std::vector<int> primeLookup;
     common::Lfo lfo;
     double sr=48000,mod=0,freeze=0;
 };
