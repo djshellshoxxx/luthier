@@ -12,10 +12,9 @@
     on. That also makes pass-through exact - the echoed events are the original
     messages at their original timestamps, not a reconstruction.
 
-    Real-time safety: every buffer here is sized once in prepare(). MidiBuffer
-    keeps its capacity across clear(), so the steady state never allocates. The
-    one case that could - a block carrying more MIDI than we reserved for - is
-    handled by dropping the overflow and counting it, rather than by growing.
+    Real-time safety: owned buffers are reserved in prepare(). Production callers
+    use emitBounded with a guaranteed destination reservation. The compatibility
+    emit overload requires its caller to provide sufficient destination capacity.
 */
 
 #include <juce_audio_basics/juce_audio_basics.h>
@@ -106,10 +105,17 @@ public:
                const StringActivityQueue& stringActivity,
                int numSamples) noexcept;
 
+    // Known-capacity output path: never grows midiMessages. The caller reserves
+    // bytes off audio. The legacy emit overload requires caller-owned capacity.
+    void emitBounded (juce::MidiBuffer& midiMessages, const MidiOutConfig&,
+                      const StringActivityQueue&, int numSamples, int reservedBytes) noexcept;
+
     /** Events that did not fit this block's reservation. Diagnostics only. */
     int getOverflowCount() const noexcept { return overflow.load (std::memory_order_relaxed); }
 
 private:
+    void emitImpl (juce::MidiBuffer&, const MidiOutConfig&, const StringActivityQueue&,
+                   int numSamples, int reservedBytes) noexcept;
     juce::MidiBuffer captured;
     juce::MidiBuffer rhythm;
 
