@@ -53,7 +53,7 @@ private:
     std::array<uint32_t,9> generation{};
     SpscRing<Command,64> commands;
     Command pending{};
-    bool hasPending=false,layerLimit=false;
+    bool hasPending=false,layerLimit=false,displacedRedo=false;
     State current=State::Empty;
     size_t maxFrames=0,loopLength=0,head=0,storageBytes=0;
     int maxLayers=1,activeLayers=0,redoLayers=0;

@@ -116,3 +116,16 @@ LUTHIER_TEST(RefPedalLooperCore, unlimitedCompactionNeverAllocatesInAudio)
     const auto count=luthier::tests::allocationsOnThisThread()-before;CHECK(count==0);
 }
 #endif
+LUTHIER_TEST(RefPedalLooperCore, provisionalHoldOverdubCancelPreservesRedoHistory)
+{
+    LooperCore core;CHECK(core.prepare(48000,.01,2,2000000));core.setSeamMilliseconds(0);
+    core.apply(LooperCore::Action::Record);for(int i=0;i<32;++i){double l=.25,r=-.25;core.process(&l,&r,1);}core.apply(LooperCore::Action::Play);
+    for(int i=0;i<256;++i){double l=0,r=0;core.process(&l,&r,1);}
+    for(int layer=0;layer<2;++layer){core.apply(LooperCore::Action::Overdub);for(int i=0;i<32;++i){double l=.125,r=-.125;core.process(&l,&r,1);}core.apply(LooperCore::Action::Play);}
+    core.apply(LooperCore::Action::Undo);core.apply(LooperCore::Action::Undo);
+    for(int hold=0;hold<20;++hold){core.apply(LooperCore::Action::Overdub);for(int i=0;i<7;++i){double l=.5,r=-.5;core.process(&l,&r,1);}core.apply(LooperCore::Action::CancelOverdub);}
+    core.apply(LooperCore::Action::Redo);core.apply(LooperCore::Action::Redo);
+    for(int i=0;i<32;++i){double l=0,r=0;core.process(&l,&r,1);CHECK_NEAR(l,.5,0);CHECK_NEAR(r,-.5,0);}
+    core.apply(LooperCore::Action::Undo);core.apply(LooperCore::Action::Overdub);for(int i=0;i<32;++i){double l=.0625,r=-.0625;core.process(&l,&r,1);}core.apply(LooperCore::Action::Play);core.apply(LooperCore::Action::Redo);
+    for(int i=0;i<32;++i){double l=0,r=0;core.process(&l,&r,1);CHECK_NEAR(l,.4375,0);CHECK_NEAR(r,-.4375,0);}
+}
