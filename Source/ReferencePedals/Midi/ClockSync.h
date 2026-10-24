@@ -43,6 +43,8 @@ public:
                     auto sorted = intervals; const int count = std::min (intervalCount, 5);
                     std::sort (sorted.begin(), sorted.begin() + count);
                     const double median = sorted[(size_t) (count / 2)];
+                    const double jitter = period > 0 ? std::abs (d - period) / period : 0;
+                    stableTicks = jitter < .01 ? stableTicks + 1 : 0;
                     period = period <= 0 ? median : period + (intervalCount < 24 ? .3 : .05) * (median - period);
                     midiBpm = std::clamp (60 * sr / (24 * period), 20., 300.);
                 }
@@ -54,16 +56,41 @@ public:
     }
     void finish (int64_t end, RouteOut& out) noexcept
     {
-        if (lastTick >= 0 && end - lastTick >= (int64_t) (sr * .5)) { lost = true; running = false; }
+        if (lastTick >= 0 && end - lastTick >= (int64_t) (sr * .5)) { lost = true; running = false; stableTicks = 0; }
         const bool midiValid = ! lost && intervalCount >= 1;
-        const bool useMidi = ! useHost && midiValid && (source == TempoSource::Auto || source == TempoSource::MidiClock);
-        out.time.bpm = useHost ? host.bpm : useMidi ? midiBpm : source == TempoSource::MidiClock && lost ? midiBpm : internalBpm;
-        out.time.ppq = useHost ? host.ppq : (double) ticks / 24.;
+        bool useMidi = ! useHost && midiValid && source == TempoSource::MidiClock;
+        if (source == TempoSource::Auto && ! useHost && midiValid)
+        {
+            if (autoCandidateAt < 0) autoCandidateAt = end;
+            const auto hysteresis = (int64_t) std::ceil (std::max (sr, 2 * 60 * sr / midiBpm));
+            useMidi = activeSource == 1 || end - autoCandidateAt >= hysteresis;
+        }
+        else autoCandidateAt = -1;
+        activeSource = useHost ? 2 : useMidi ? 1 : 0;
+        const double target = useHost ? host.bpm : useMidi ? midiBpm : internalBpm;
+        // The canonical block time always refers to its first sample. Advancing
+        // the timeline is analytic, so a tempo glide is independent of partitions.
+        if (end == blockStart)
+        {
+            advance (end);
+            if (useHost) phase = host.ppq;
+            changeTempo (target, end);
+            blockBpm = currentBpm; blockPpq = phase;
+        }
+        else { changeTempo (target, end); advance (end); }
+        out.time.bpm = blockBpm;
+        out.time.ppq = blockPpq;
         out.time.playing = useHost ? host.playing : useMidi && running;
-        out.time.valid = useHost || useMidi;
-        out.time.clockLocked = useMidi && intervalCount >= 24;
+        out.time.valid = true; // the internal oscillator is a valid fallback
+        out.time.clockLocked = useMidi && stableTicks >= 48;
         out.time.sample = blockStart;
         if (useHost) expectedHostPpq = host.ppq + (double) (end - blockStart) * host.bpm / (60 * sr);
+    }
+    void setInternalTempo (double bpm, int64_t sample) noexcept
+    {
+        if (! std::isfinite (bpm)) return;
+        internalBpm = std::clamp (bpm,20.,300.);
+        if (activeSource == 0) changeTempo (internalBpm, sample);
     }
     bool isRunning() const noexcept { return running; }
     bool isLost() const noexcept { return lost; }
@@ -84,11 +111,35 @@ public:
         internalBpm = std::clamp (60 * sr * weights / sum, 20., 300.); return internalBpm;
     }
 private:
+    void advance (int64_t sample) noexcept
+    {
+        if (! phaseInitialised) { phaseSample = sample; phaseInitialised = true; return; }
+        if (sample <= phaseSample) return;
+        const auto rampEnd = std::min (sample, glideEnd);
+        if (phaseSample < rampEnd)
+        {
+            const double next = glideFrom + (targetBpm - glideFrom) * (double) (rampEnd - glideStart) / (double) (glideEnd - glideStart);
+            phase += (double) (rampEnd - phaseSample) * (currentBpm + next) / (120 * sr);
+            currentBpm = next; phaseSample = rampEnd;
+        }
+        if (sample > phaseSample)
+        { phase += (double) (sample - phaseSample) * currentBpm / (60 * sr); phaseSample = sample; }
+    }
+    void changeTempo (double value, int64_t sample) noexcept
+    {
+        if (! tempoInitialised) { currentBpm = targetBpm = value; tempoInitialised = true; return; }
+        if (std::abs (value - targetBpm) < 1e-9) return;
+        advance (sample); glideFrom = currentBpm; targetBpm = value;
+        glideStart = sample; glideEnd = sample + std::max (int64_t (1), (int64_t) std::llround (sr * .05));
+    }
     void emit (TransportEvent e, int64_t t, RouteOut& out) noexcept
     { if (out.nTr < kMaxRouteTransport) { out.tr[out.nTr] = e; out.trOff[out.nTr++] = (int) std::max (int64_t (0), t - blockStart); } }
     double sr = 48000, internalBpm = 120, midiBpm = 120, period = 0, expectedHostPpq = 0;
     int64_t blockStart = 0, lastTick = -1, ticks = 0, lastTap = -1;
-    int intervalCount = 0, tapCount = 0;
+    double currentBpm = 120, targetBpm = 120, glideFrom = 120, phase = 0, blockPpq = 0, blockBpm = 120;
+    int64_t phaseSample = 0, glideStart = 0, glideEnd = 0, autoCandidateAt = -1;
+    int intervalCount = 0, tapCount = 0, stableTicks = 0, activeSource = 0;
+    bool phaseInitialised = false, tempoInitialised = false;
     std::array<double, 5> intervals {};
     std::array<double, 3> taps {};
     bool armed = false, running = false, lost = false, useHost = false, previousHostPlaying = false, previousHostValid = false;

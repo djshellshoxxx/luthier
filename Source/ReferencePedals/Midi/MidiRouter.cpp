@@ -40,6 +40,21 @@ struct MidiRouter::Impl
     std::array<uint32_t, 2> hostExpressionSerial {}, appliedExpressionSerial {};
     std::array<bool, 2> expressionKnown {};
     bool replayExpression = false;
+    template <typename T> struct Control
+    {
+        T effective {}, model {}, host {};
+        uint32_t modelRevision = 0, appliedModel = 0, hostSerial = 0, appliedHost = 0;
+        bool known = false;
+        void consume (T fallback) noexcept
+        {
+            if (modelRevision == 0 && ! known) { effective = model = fallback; known = true; }
+            if (modelRevision != 0 && modelRevision != appliedModel) { effective = model; appliedModel = modelRevision; known = true; }
+            if (hostSerial != 0 && hostSerial != appliedHost) { effective = host; appliedHost = hostSerial; }
+        }
+        void reset() noexcept { appliedModel = appliedHost = 0; known = false; }
+    };
+    Control<TempoSource> tempoSource;
+    Control<double> tempoBpm;
     std::array<bool, kMaxSlots> footHeld {};
     std::array<std::array<int8_t, 128>, 16> heldNoteSlots = []
     { std::array<std::array<int8_t, 128>, 16> a {}; for (auto& channel : a) channel.fill (-1); return a; }();
@@ -97,6 +112,8 @@ struct MidiRouter::Impl
             if (b.priority < ownerPriority[b.target] && routeSample - lastWrite[b.target] < (int64_t) (sr * .3)) continue;
             ownerPriority[b.target] = b.priority; lastWrite[b.target] = routeSample;
             values[index] = std::clamp (v, 0.f, 1.f);
+            if (b.target == kTargetBoardBase + (uint16_t) BoardTarget::Tempo)
+            { tempoBpm.effective = 20.0 + 280.0 * values[index]; clock.setInternalTempo (tempoBpm.effective, routeSample); }
             if (b.target == kTargetBoardBase + (uint16_t) BoardTarget::Enabled)
             {
                 effectiveEnabled = values[index] >= .5f;
@@ -136,6 +153,7 @@ void MidiRouter::prepare (double sr, int)
     for (auto& channel : impl->heldNoteSlots) channel.fill (-1);
     impl->footHeld.fill (false); impl->held.fill (false); impl->values.fill (0);
     impl->msb = {}; impl->lsb = {}; impl->hasMsb = {};
+    impl->tempoSource.reset(); impl->tempoBpm.reset();
     impl->appliedExpressionSerial = {}; impl->expressionKnown = {}; impl->replayExpression = false;
     impl->retired.clear(); impl->activeVersion = 0; impl->modelEnabledKnown = false; impl->appliedHostEnabledSerial = 0; impl->appliedModelEnabledRevision = 0;
 }
@@ -159,6 +177,14 @@ void MidiRouter::setModelEnabled (bool enabled, uint32_t revision) noexcept
 { if (revision != 0) { impl->modelIntentEnabled = enabled; impl->modelEnabledRevision = revision; } }
 void MidiRouter::setHostEnabled (bool enabled, uint32_t serial) noexcept
 { if (serial != 0) { impl->hostEnabled = enabled; impl->hostEnabledSerial = serial; } }
+void MidiRouter::setHostTempoSource (TempoSource source, uint32_t serial) noexcept
+{ if (serial != 0 && source <= TempoSource::Auto) { impl->tempoSource.host = source; impl->tempoSource.hostSerial = serial; } }
+void MidiRouter::setModelTempoSource (TempoSource source, uint32_t revision) noexcept
+{ if (revision != 0 && source <= TempoSource::Auto) { impl->tempoSource.model = source; impl->tempoSource.modelRevision = revision; } }
+void MidiRouter::setHostTempoBpm (double bpm, uint32_t serial) noexcept
+{ if (serial != 0 && std::isfinite (bpm)) { impl->tempoBpm.host = std::clamp (bpm,20.,300.); impl->tempoBpm.hostSerial = serial; } }
+void MidiRouter::setModelTempoBpm (double bpm, uint32_t revision) noexcept
+{ if (revision != 0 && std::isfinite (bpm)) { impl->tempoBpm.model = std::clamp (bpm,20.,300.); impl->tempoBpm.modelRevision = revision; } }
 void MidiRouter::setVirtualExpression (int source, float normalised, uint32_t serial) noexcept
 {
     if (source < 1 || source > 2 || serial == 0 || ! std::isfinite (normalised)) return;
@@ -176,6 +202,8 @@ void MidiRouter::process (const juce::MidiBuffer& in, const HostTransport& host,
         if (impl->modelEnabledRevision == 0 && (! impl->modelEnabledKnown || impl->modelEnabled != map->boardEnabled))
         { impl->effectiveEnabled = impl->modelEnabled = map->boardEnabled; impl->modelEnabledKnown = true; }
         if (! impl->effectiveEnabled) { impl->footHeld.fill (false); for (auto& channel : impl->heldNoteSlots) channel.fill (-1); }
+        if (impl->tempoSource.modelRevision == 0 && impl->tempoSource.hostSerial == 0) impl->tempoSource.known = false;
+        if (impl->tempoBpm.modelRevision == 0 && impl->tempoBpm.hostSerial == 0) impl->tempoBpm.known = false;
         impl->replayExpression = true;
         impl->activeVersion = map->version; impl->held.fill (false); impl->picked.fill (false);
         impl->values = map->initialValues; impl->lastSource = map->initialValues;
@@ -203,7 +231,9 @@ void MidiRouter::process (const juce::MidiBuffer& in, const HostTransport& host,
         }
         impl->replayExpression = false;
     }
-    impl->clock.begin (host, map ? map->tempoSource : TempoSource::Auto, map ? map->internalBpm : 120, start, out);
+    impl->tempoSource.consume (map ? map->tempoSource : TempoSource::Auto);
+    impl->tempoBpm.consume (map ? map->internalBpm : 120.);
+    impl->clock.begin (host, impl->tempoSource.effective, impl->tempoBpm.effective, start, out);
     int count = 0, ordinary = 0;
     auto append = [&] (MidiEv e, bool realtime)
     {

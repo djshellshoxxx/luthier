@@ -402,3 +402,41 @@ LUTHIER_TEST (RefPedalMidiCore, virtualExpressionDeliversRealMappedWrites)
     router.setHostEnabled (false, 1); router.setVirtualExpression (1, .6f, 2); router.process (in, {},768,128,out); CHECK (out.nWrites == 0);
     router.setHostEnabled (true, 2); router.process (in, {},896,128,out); CHECK (out.nWrites == 2); CHECK_NEAR (out.writes[0].norm,.6,1e-6);
 }
+LUTHIER_TEST (RefPedalMidiCore, tempoControlIntentAndCanonicalGlide)
+{
+    MidiRouter router; router.prepare (48000, 2400); auto map = std::make_unique<MapSnap>(); router.publishMap (std::move (map));
+    router.setModelTempoSource (TempoSource::Internal, 1); router.setModelTempoBpm (120,1);
+    router.setHostTempoBpm (240,UINT32_MAX); juce::MidiBuffer in; RouteOut out;
+    HostTransport host; host.valid = host.playing = true; host.bpm = 180; host.ppq = 20;
+    router.process (in,host,0,2400,out); CHECK_NEAR (out.time.bpm,240,1e-6); CHECK_NEAR (out.time.ppq,0,1e-9);
+    router.setHostTempoBpm (120,1); router.process (in,host,2400,1200,out);
+    CHECK_NEAR (out.time.bpm,240,1e-6); CHECK_NEAR (out.time.ppq,.2,1e-9);
+    router.process (in,host,3600,1200,out); CHECK_NEAR (out.time.bpm,180,1e-6); CHECK_NEAR (out.time.ppq,.2875,1e-9);
+    router.process (in,host,4800,1200,out); CHECK_NEAR (out.time.bpm,120,1e-6); CHECK_NEAR (out.time.ppq,.35,1e-9);
+    auto stale = std::make_unique<MapSnap>(); stale->internalBpm = 90; stale->tempoSource = TempoSource::Host; router.publishMap (std::move (stale));
+    router.process (in,host,6000,1200,out); CHECK_NEAR (out.time.bpm,120,1e-6);
+    router.setModelTempoBpm (120,2); router.setHostTempoBpm (240,2); router.process (in,host,7200,2400,out);
+    router.process (in,host,9600,64,out); CHECK_NEAR (out.time.bpm,240,1e-6);
+    router.setHostTempoSource (TempoSource::Host,UINT32_MAX); router.process (in,host,9664,2400,out);
+    router.process (in,host,12064,64,out); CHECK_NEAR (out.time.bpm,180,1e-6); CHECK_NEAR (out.time.ppq,20,1e-9);
+    router.setModelTempoSource (TempoSource::Internal,2); router.process (in,host,12128,2400,out);
+    router.process (in,host,14528,64,out); CHECK_NEAR (out.time.bpm,240,1e-6);
+}
+LUTHIER_TEST (RefPedalMidiCore, autoClockHysteresisPriorityLockAndLoss)
+{
+    ClockSync clock; clock.prepare (48000); RouteOut out; int64_t tick = 0;
+    for (int64_t start = 0; start < 96000; start += 1000)
+    {
+        out.clear(); clock.begin ({},TempoSource::Auto,100,start,out);
+        clock.event (0xf8,0,0,tick,out); tick += 1000; clock.finish(start+1000,out);
+        if (start < 48000) CHECK (! out.time.clockLocked);
+    }
+    CHECK (out.time.clockLocked); CHECK_NEAR(out.time.bpm,120,.1);
+    HostTransport host; host.valid = host.playing = true; host.bpm = 160; host.ppq = 40;
+    out.clear(); clock.begin(host,TempoSource::Auto,100,96000,out); clock.finish(98400,out);
+    CHECK (!out.time.clockLocked); CHECK (out.time.playing);
+    host.ppq += 2400 * 160. / (60*48000); out.clear(); clock.begin(host,TempoSource::Auto,100,98400,out); clock.finish(98464,out);
+    CHECK_NEAR(out.time.bpm,160,1e-6); CHECK_NEAR(out.time.ppq,host.ppq,1e-9);
+    host.playing = false; out.clear(); clock.begin(host,TempoSource::Auto,100,121000,out); clock.finish(123400,out);
+    CHECK (clock.isLost()); CHECK (!out.time.clockLocked); CHECK (!out.time.playing);
+}
