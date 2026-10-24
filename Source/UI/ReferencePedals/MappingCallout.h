@@ -8,11 +8,14 @@ class MappingCallout final : public juce::Component
 {
 public:
     MappingCallout(BoardModel&,juce::var binding);
+    ~MappingCallout() override {viewport.setViewedComponent(nullptr,false);}
     void resized() override;
+    void focusOfChildComponentChanged(FocusChangeType) override;
     bool keyPressed(const juce::KeyPress& key) override {if(key.getKeyCode()==juce::KeyPress::escapeKey&&onClose){onClose();return true;}return false;}
     std::function<void()> onClose;
 private:
     void apply();
+    juce::Component body;juce::Viewport viewport;
     BoardModel& model;
     juce::var binding;
     juce::ComboBox source,mode,curve,takeover;

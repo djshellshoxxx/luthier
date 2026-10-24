@@ -117,3 +117,11 @@ LUTHIER_TEST(RefPedalUiFaces, everyExtendedHostParameterHasARealAttachedControl)
     CHECK_NEAR(killParameter->getValue(),0,1e-6);CHECK(capture.gestures==std::vector<bool>({true,false}));killParameter->removeListener(&capture);
 
 }
+#include "../UI/ReferencePedals/MappingCallout.h"
+LUTHIER_TEST(RefPedalUiFaces, expressionMappingPreservesNestedMetadataAndScrolls)
+{
+    PedalRegistry::registerAll();BoardModel model;CHECK(model.apply(cmd::Add{"generic.boost"}));auto binding=juce::JSON::parse(R"({"id":7,"paramId":"gen_boost_gain","flags":32,"src":{"type":0,"num":11,"vendor":"keep"},"curve":{"id":0,"p":1.5,"vendor":19}})");binding.getDynamicObject()->setProperty("instanceId",model.getOrder()[0].toString());CHECK(model.apply(cmd::SetMidiBinding{cmd::SetMidiBinding::Op::Add,binding}));
+    MappingCallout editor(model,binding);editor.setSize(340,180);juce::ComboBox* source=nullptr;juce::Slider* number=nullptr;juce::TextButton* apply=nullptr;juce::Viewport* scrolling=nullptr;
+    std::function<void(juce::Component&)> collect=[&](auto& parent){for(auto* child:parent.getChildren()){if(child->getTitle()=="MIDI source")source=dynamic_cast<juce::ComboBox*>(child);if(child->getTitle()=="CC / note number")number=dynamic_cast<juce::Slider*>(child);if(auto* button=dynamic_cast<juce::TextButton*>(child))if(button->getButtonText()=="Apply mapping")apply=button;if(auto* viewport=dynamic_cast<juce::Viewport*>(child))scrolling=viewport;collect(*child);}};collect(editor);
+    CHECK(source&&number&&apply&&scrolling);if(!source||!number||!apply||!scrolling)return;CHECK(scrolling->getViewedComponent()->getHeight()>scrolling->getHeight());source->setSelectedId(15,juce::sendNotificationSync);number->setValue(2,juce::sendNotificationSync);apply->onClick();const auto result=model.getBoardSettings().midi["bindings"][0];CHECK(result["src"]["type"].toString()=="virtualExpression");CHECK((int)result["src"]["num"]==2);CHECK(result["src"]["vendor"].toString()=="keep");CHECK((int)result["curve"]["vendor"]==19);CHECK_NEAR((double)result["curve"]["p"],1.5,1e-6);
+}
