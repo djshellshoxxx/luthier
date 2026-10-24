@@ -330,3 +330,16 @@ LUTHIER_TEST (RefPedalHost, restoredKillIntentStaysReleasedUntilFreshHostEdge)
     CHECK(difference()>1e-5f); // a fresh actual edge still reaches feedback DSP
     a->releaseResources(); b->releaseResources();
 }
+
+LUTHIER_TEST (RefPedalHost, processorFeedsMeasuredLoadIntoBoardWithoutMessagePump)
+{
+    auto p=std::make_unique<LuthierAudioProcessor>(); p->prepareToPlay(48000,64);
+    auto& monitor=p->getCpuLoadMonitorForTesting();
+    for(int bucket=0;bucket<20;++bucket) monitor.addBlock(.009,.010);
+    CHECK(monitor.hasShortWindowOnAudioThread());
+    juce::AudioBuffer<float> audio(2,64); audio.clear(); juce::MidiBuffer midi; p->processBlock(audio,midi);
+    const auto meters=p->getEngine().getReferencePedals().readMeters();
+    CHECK(meters.cpuAvailable); CHECK(meters.cpuPct>80.f);
+    CHECK_NEAR(meters.cpuPct,100*monitor.getShortMeanOnAudioThread(),1e-3);
+    p->releaseResources();
+}
