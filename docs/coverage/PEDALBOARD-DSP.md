@@ -71,3 +71,98 @@ The structural suite does not establish every tonal acceptance criterion. Not ye
 Rejected first129-tap Kaiser experiment: standalone double-pass bandwidth was within±0.0053dB through20kHz and image endpoint rejection−70.4dB, but actual boost high-quality full-scale5kHz stress worsened to−45.493dBFS at23kHz. Stereo CPU only improved9.920→9.145%. This experiment was reverted; current first stage remains257 taps. Actual-chain evidence takes precedence over isolated filter endpoints.
 
 Experimental static-tanh ADAA2 helper `b1aa654b` is documented separately in `TANH-ADAA2.md`; it is not integrated into any pedal and closes no product acceptance gate. Its exact integer padding, three-tap linear droop, divided-difference error, sanitizer results and static-chain measurements are explicit there.
+
+## WP11 unregistered circuit candidates, 2026-10-24
+
+`IbanezTs808`, `BossDs1`, and `BossSd1` now have actual circuit processing and
+complete reconciled descriptor inventories (9, 8, and 15 parameters respectively).
+They remain **unregistered, unaccepted candidates**. These supersede the earlier
+inventory entries saying those three files are skeletons. No hardware capture,
+SPICE netlist comparison, authenticity, or release-acceptance claim is made.
+
+Tests were written before each class/helper existed and first failed to compile
+on the missing implementation. The final allocation-instrumented focused run has
+**8 cases, 2,382,641 checks, zero failures**. Evidence:
+`pedalboard-dsp-evidence/named-drives-tests.txt`. Tests cover 44.1/48/96/192 kHz,
+block sizes 1/37/2048, exact partition independence, independent stereo histories,
+reset/silence, hostile inputs, parameter events, fixed-storage callbacks and
+SD-1 velocity, pressure, expression (including inverted endpoints), and low-cut.
+This is finite structural evidence, not the required 30-minute soak or all
+original acoustic tests. No callback allocations occurred during 192 automated
+2048-frame blocks with parameter/MIDI/foot/expression dispatch.
+
+Independent component evidence (`c93190b2`, 72,216 checks):
+- The linear non-inverting stage matches the complex analog impedance transfer
+  after the bilinear mapping at 100/1000/5000 Hz for three physical pot positions.
+  Representable feedback poles are prewarped; poles above 0.45 times sample rate
+  use the ordinary bilinear mapping. The reference includes this explicit policy.
+- The DS-1 shunt diode node matches an independent 80-step bisection solution
+  across -4..4 V and satisfies physical KCL below 1e-12 A. A guessed 0.6 V hard
+  bound was rejected by the initial test: a Shockley pair has no fixed voltage
+  ceiling. The independent KCL/bisection criterion replaced that invented bound;
+  the original pedal's approximately 0.55 V clipping acceptance is still open.
+- The SD-1 one-forward/two-reverse feedback circuit matches a separate long-double
+  capacitor-voltage/current trapezoidal oracle with independent bisection to
+  2e-10 V over 18,432 samples, three rates and three saturation currents. It uses
+  at most 12 safeguarded Newton steps plus 32 bisection steps, rather than the
+  specified four-Newton fast path. Iteration/CPU targets remain unsatisfied.
+
+Implementation choices and unresolved differences remain visible:
+- TS808 uses the verification-log 15.6 Hz input coupling (the stale 8 Hz duplicate
+  remains in the spec), followed by 16 Hz. Rf=51k+500k D^2.5, actual parallel Cf
+  and symmetric diodes, estimated rail/GBW, prescribed estimated tone fit, level
+  4L², and output soft limit are implemented. No default-unity normalization was
+  added to conceal the literal chain's excess gain. Chip modifications are
+  explicitly unavailable, as is the board-owned variable `xfade_ms` hook.
+- DS-1 uses the verification-log 3.3 Hz booster output coupling rather than the
+  stale 15 Hz. Its prescribed asymmetric transistor rail law, actual linear
+  gain impedance and loaded shunt diode node, and literal two tone branches are
+  implemented. The nonlinearity and nearby coupling filters all run oversampled
+  (the spec places some filters at base rate); this arrangement is a candidate
+  engineering choice, not an adopted erratum. Level uses the explicitly offered
+  simpler 5L² law. Tone-pot loading has no verified nodal implementation yet.
+  The obsolete TA7136 option is hidden/unavailable as specified.
+- SD-1 uses the last explicit ±2 V/FS calibration, linear Rf smoothing, gain-domain
+  level smoothing, three continuously running diode circuits with a 50 ms weight
+  crossfade, estimated tone shelf/12 kHz pole and output coupling. Stock and
+  1N4148 intentionally share the same estimated device parameters. The level law
+  is normalized at L=.55, yielding 13.126 dB maximum, rather than silently changing
+  the law to force the incompatible +14 dB claim. This calibration needs review.
+  Lowcpu/eco requests are rejected by `setParam`; `qualityAvailable()` exposes
+  their absence. The quality descriptor labels both unavailable. Coloured bypass
+  is explicitly unavailable because BoardEngine owns the bypass path. Expression
+  heel/toe fields are PF_Ext to preserve the six normative host lanes; secondary
+  stereo-mode text has no reconciled parameter, so only dual mono is implemented.
+- The long FIR adapter remains the unaccepted E37 candidate. Actual latency is
+  reported (2x128, 4x136, 8x140); it is never advertised as zero. This exceeds the
+  SD-1 <=64 FIR allowance. SD-1 high-rate factor1 at192k reports zero correctly.
+  Drive-dependent quality switching/transition, offline-render distinction,
+  buffered bypass coloration, literal per-pedal denormal/reset wording, and
+  alternative op-amp variants are not completed. Board bypass still owns its
+  single fade. No internal second fade was introduced.
+
+Original thresholds remain unchanged. Complete-chain diagnostic evidence uses
+noise off, a coherent 1 kHz **-20 dBFS peak** sine (not RMS), one-second settle plus
+one-second measurement, and harmonics 2..10 below Nyquist. At48k:
+
+| Candidate | Measured | Original gate / status |
+|---|---|---|
+| TS808 default | +17.724 dB RMS gain | unity ±1.5 dB: **FAIL** |
+| TS808 drive .2 | see raw table | .5–5% THD: **FAIL** |
+| DS-1 drive .5 | 160.854% output THD | .2/max THD bands also fail; tone mix heavily suppresses the fundamental |
+| SD-1 drive .5 | 26.351% THD, H2/H3 -17.675 dB | original THD test is -24dBFS, so this amplitude is diagnostic; asymmetry target >=-6dB is not established |
+| TS808 full-scale5k4x | -43.802 dBc largest false harmonic | -60dBc: **FAIL** |
+| DS-1 full-scale5k4x | -21.002 dBc | -60dBc: **FAIL** |
+| SD-1 full-scale5k4x | -47.685 dBc | original test also requires44.1k/7k; no alias acceptance claim |
+| TS808 process-only stereo CPU | 11.9067% | .40%: **FAIL** on measured machine |
+| DS-1 process-only stereo CPU | 11.0662% | .35%: **FAIL** on measured machine |
+| SD-1 process-only stereo CPU | 20.0383% |1.2% target /2.4% fail threshold: **FAIL** on measured machine |
+
+Raw tables, exact render code and spectrum analysis live in
+`pedalboard-dsp-evidence/{named-drives-measurements.txt,named-drives-alias.txt,measure-named-drives.cpp,analyse-named-alias.py}`.
+CPU uses `CLOCK_THREAD_CPUTIME_ID`, excludes input generation/copies/checksums,
+48k stereo block128, 2 seconds of callback audio, g++17 `-O2 -DNDEBUG`, no fast-math,
+AMD EPYC 9V45 shared execution environment. No conversion to a hypothetical 3GHz
+machine or optimistic wall-clock ratio is made. All other original acceptance
+criteria, hardware/null comparison, all-buffer matrix, UI exposure of unavailable
+controls and full integration remain open. Registration is deliberately unchanged.
