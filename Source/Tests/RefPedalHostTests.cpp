@@ -343,3 +343,34 @@ LUTHIER_TEST (RefPedalHost, processorFeedsMeasuredLoadIntoBoardWithoutMessagePum
     CHECK_NEAR(meters.cpuPct,100*monitor.getShortMeanOnAudioThread(),1e-3);
     p->releaseResources();
 }
+LUTHIER_TEST (RefPedalHost, positionGestureDoesNotPublishPreviewOrCancelledValues)
+{
+    PedalRegistry::TestScope scope; CHECK(PedalRegistry::add(probeDesc,makeHostProbe));
+    auto p=std::make_unique<LuthierAudioProcessor>(); auto& model=p->getEngine().getReferencePedals().model();
+    CHECK(model.apply(cmd::Add{"test.host-automation"})); CHECK(model.apply(cmd::Add{"test.host-automation"}));
+    const auto first=model.getOrder()[0],second=model.getOrder()[1]; juce::MemoryBlock state; p->getStateInformation(state);
+    auto* positionA=p->getState().getParameter("ref_s01_pos"),*positionB=p->getState().getParameter("ref_s02_pos");
+    struct ValueObserver final : juce::AudioProcessorParameter::Listener
+    { int changes=0; void parameterValueChanged(int,float) override { ++changes; } void parameterGestureChanged(int,bool) override {} } observer;
+    positionA->addListener(&observer); positionB->addListener(&observer); const float original=positionB->getValue();
+    positionB->beginChangeGesture(); CHECK(model.apply(cmd::Move{second,0}));
+    p->getStateInformation(state); p->getStateInformation(state);
+    CHECK(model.getOrder()[0]==second); CHECK_NEAR(positionB->getValue(),original,1e-7); CHECK(observer.changes==0);
+    model.apply(cmd::Move{second,1}); p->getStateInformation(state); positionB->endChangeGesture(); p->getStateInformation(state);
+    CHECK(model.getOrder()[0]==first); CHECK_NEAR(positionB->getValue(),original,1e-7); CHECK(observer.changes==0);
+    positionA->removeListener(&observer); positionB->removeListener(&observer);
+}
+LUTHIER_TEST (RefPedalHost, acceptedPositionGestureRecordsFinalValueWithOneModelMove)
+{
+    PedalRegistry::TestScope scope; CHECK(PedalRegistry::add(probeDesc,makeHostProbe));
+    auto p=std::make_unique<LuthierAudioProcessor>(); auto& model=p->getEngine().getReferencePedals().model();
+    CHECK(model.apply(cmd::Add{"test.host-automation"})); CHECK(model.apply(cmd::Add{"test.host-automation"}));
+    const auto first=model.getOrder()[0],second=model.getOrder()[1]; juce::MemoryBlock state; p->getStateInformation(state);
+    auto* position=p->getState().getParameter("ref_s02_pos"); position->beginChangeGesture(); CHECK(model.apply(cmd::Move{second,0}));
+    p->getStateInformation(state); CHECK_NEAR(position->getValue(),1./15,1e-7);
+    position->setValueNotifyingHost(position->convertTo0to1(0)); position->endChangeGesture(); p->getStateInformation(state);
+    CHECK(model.getOrder()[0]==second); CHECK_NEAR(p->getState().getRawParameterValue("ref_s01_pos")->load(),1,1e-7);
+    CHECK_NEAR(p->getState().getRawParameterValue("ref_s02_pos")->load(),0,1e-7);
+    CHECK(model.undo()); CHECK(model.getOrder()[0]==first); CHECK(model.getInstanceCount()==2);
+    p->getStateInformation(state); CHECK_NEAR(position->convertFrom0to1(position->getValue()),1,1e-7);
+}
