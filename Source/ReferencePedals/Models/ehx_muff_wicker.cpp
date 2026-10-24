@@ -61,7 +61,8 @@ const PedalDesc &EhxMuffWicker::descriptor() noexcept
                                 false,
                                 true,
                                 false,
-                                2500};
+                                2500,
+                                1000};
     return d;
 }
 EhxMuffWicker::EhxMuffWicker() : CircuitPedal(descriptor()) {}

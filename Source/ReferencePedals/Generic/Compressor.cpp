@@ -33,7 +33,8 @@ const PedalDesc description = {"generic.compressor",
                                false,
                                false,
                                false,
-                               300};
+                               300,
+                               1000};
 double safety(double x) noexcept
 {
     double a = std::abs(x);

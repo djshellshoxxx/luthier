@@ -30,7 +30,8 @@ const PedalDesc &BossDs1::descriptor() noexcept
                                 false,
                                 true,
                                 false,
-                                350};
+                                350,
+                                1000};
     return d;
 }
 BossDs1::BossDs1() : CircuitPedal(descriptor()) {}

@@ -665,3 +665,21 @@ both lanes share the prepared internal rate, reset retains valid coefficients,
 and reprepare updates them after rate/quality changes. No RT/ownership issue was
 found. This was a read-only review, not an independent rerun of the corpus or a
 CPU-budget approval.
+
+
+## Explicit descriptor CPU budget scale
+
+All 14 DSP-owned descriptors now append `cpuUnitsPerPercent=1000` under the
+engine owner's additive metadata contract. Existing values are unchanged:
+Boost300, Overdrive1000, Fuzz1200, Compressor300, TS808400, DS1350, SD11200,
+Distortion+800, RAT1200, Dyna500, NYC2000, Wicker2500, Green Russian1500,
+Deluxe2500. Thus DS1 denotes0.35% and NYC2%, not350% or2000%. These are the
+specified budget allocations, **not measured achieved CPU**; earlier measured
+failures remain unchanged. Named models remain unregistered. The engine owns
+normalization and whole-board admission, including other families' different
+explicit unit scales.
+
+The linked descriptor fixture verifies all original amounts and all 14 scales:
+**28 checks, zero failures**. Reproduce with
+`pedalboard-dsp-evidence/run-dsp-cpu-units-tests.sh`; raw output is adjacent.
+No audio processing, allocation, state serialization or threshold changed.

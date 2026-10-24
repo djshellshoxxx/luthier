@@ -48,7 +48,8 @@ const PedalDesc &EhxBigMuffNyc::descriptor() noexcept
                                 false,
                                 true,
                                 false,
-                                2000};
+                                2000,
+                                1000};
     return d;
 }
 EhxBigMuffNyc::EhxBigMuffNyc() : CircuitPedal(descriptor()) {}

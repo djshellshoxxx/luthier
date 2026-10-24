@@ -30,7 +30,8 @@ const PedalDesc &IbanezTs808::descriptor() noexcept
                                 false,
                                 true,
                                 false,
-                                400};
+                                400,
+                                1000};
     return d;
 }
 IbanezTs808::IbanezTs808() : CircuitPedal(descriptor()) {}

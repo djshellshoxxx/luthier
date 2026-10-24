@@ -29,7 +29,8 @@ const PedalDesc &MxrDistortionPlus::descriptor() noexcept
                                 false,
                                 true,
                                 false,
-                                800};
+                                800,
+                                1000};
     return d;
 }
 MxrDistortionPlus::MxrDistortionPlus() : CircuitPedal(descriptor()) {}

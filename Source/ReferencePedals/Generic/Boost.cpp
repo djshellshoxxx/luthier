@@ -27,7 +27,8 @@ const PedalDesc description = {"generic.boost",
                                false,
                                true,
                                false,
-                               300};
+                               300,
+                               1000};
 } // namespace
 const PedalDesc &Boost::descriptor() noexcept { return description; }
 Boost::Boost() : Processor(description) {}

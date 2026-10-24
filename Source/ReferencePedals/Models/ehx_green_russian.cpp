@@ -38,7 +38,8 @@ const PedalDesc &EhxGreenRussian::descriptor() noexcept
                                 false,
                                 true,
                                 true,
-                                1500};
+                                1500,
+                                1000};
     return d;
 }
 EhxGreenRussian::EhxGreenRussian() : CircuitPedal(descriptor()) {}

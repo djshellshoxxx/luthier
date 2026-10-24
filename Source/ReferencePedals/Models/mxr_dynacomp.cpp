@@ -48,7 +48,8 @@ const PedalDesc description = {"mxr-dynacomp",
                                false,
                                true,
                                false,
-                               500};
+                               500,
+                               1000};
 } // namespace
 const PedalDesc &MxrDynaComp::descriptor() noexcept { return description; }
 MxrDynaComp::MxrDynaComp() : Processor(description) {}

@@ -29,6 +29,7 @@ const PedalDesc description = {"generic.overdrive",
                                false,
                                true,
                                false,
+                               1000,
                                1000};
 } // namespace
 const PedalDesc &Overdrive::descriptor() noexcept { return description; }

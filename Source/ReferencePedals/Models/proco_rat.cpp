@@ -43,7 +43,8 @@ const PedalDesc &ProcoRat::descriptor() noexcept
                                 false,
                                 true,
                                 true,
-                                1200};
+                                1200,
+                                1000};
     return d;
 }
 ProcoRat::ProcoRat() : CircuitPedal(descriptor()) {}

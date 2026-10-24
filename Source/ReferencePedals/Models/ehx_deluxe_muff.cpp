@@ -72,7 +72,8 @@ const PedalDesc &EhxDeluxeMuff::descriptor() noexcept
                                 false,
                                 true,
                                 false,
-                                2500};
+                                2500,
+                                1000};
     return d;
 }
 EhxDeluxeMuff::EhxDeluxeMuff() : CircuitPedal(descriptor()) {}

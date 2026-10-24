@@ -15,9 +15,22 @@ const ParamDesc params[] = {
     detail::continuous("gen_fuzz_gate", "GATE", "", 0, 1, 0, 37),
     detail::choice("gen_fuzz_quality", "QUALITY", detail::qualityNames, 3, 1, -1, PF_Config),
     detail::engage("gen_fuzz_on", 38)};
-const PedalDesc description = {
-    "generic.fuzz", "gen_fuzz_", 1,     "Fuzz", "Fuzz", nullptr, ChannelMode::Stereo, BypassMode::True, 8,
-    params,         176,         false, true,   false,  1200};
+const PedalDesc description = {"generic.fuzz",
+                               "gen_fuzz_",
+                               1,
+                               "Fuzz",
+                               "Fuzz",
+                               nullptr,
+                               ChannelMode::Stereo,
+                               BypassMode::True,
+                               8,
+                               params,
+                               176,
+                               false,
+                               true,
+                               false,
+                               1200,
+                               1000};
 double silicon(double x) noexcept { return x >= 0 ? std::tanh(1.3 * x) : 1.1 * std::tanh(.9 * x); }
 double shape(double x, double type, double bias) noexcept
 {
