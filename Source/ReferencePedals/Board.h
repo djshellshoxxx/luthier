@@ -53,6 +53,7 @@ public:
     void setHostAutomation (const HostAutomationSnapshot&) noexcept; // E44: audio thread, before beginBlock
     void beginBlock (const juce::MidiBuffer& midi, const HostTransport& host, int numSamples) noexcept;
     void processStereo (double* left, double* right, int n, Placement p) noexcept;   // up to 3x per block; early-out BEFORE touching buffers when !isActive()
+    int drainMidiOut (MidiEvent*, int capacity) noexcept; // E52: caller-owned fixed buffer; audio thread
     void endBlock (juce::MidiBuffer& midiOut) noexcept;      // meters, SPSC drain, RC-5 clock out
     int getLatencySamples() const noexcept;                  // L_board (0 when inactive)
     bool isActive() const noexcept;                          // enabled && >= 1 non-empty pedal

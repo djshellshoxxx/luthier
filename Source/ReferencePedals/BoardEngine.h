@@ -5,6 +5,7 @@
 #include "BoardModel.h"
 #include "TopologyCompiler.h"
 #include "Routing/LatencyEqualiser.h"
+#include "Routing/SendReturn.h"
 #include "Rt/RetireList.h"
 #include "Rt/SpscRing.h"
 #include "WetDryMixer.h"
@@ -23,6 +24,13 @@ struct PedalNodeState
         uint8_t slot = 0;
         bool enabled = true, baseline = true;
     };
+    struct ParamPulse
+    {
+        InstanceId identity = InstanceId::null();
+        const char* modelId = nullptr;
+        int param = 0;
+        float value = 0;
+    };
 class BoardEngine
 {
 public:
@@ -40,6 +48,8 @@ public:
     }
     void setHostAutomation (const HostAutomationSnapshot& snapshot) noexcept { hostAutomation = snapshot; }
     void syncRouting (midi::MidiRouter&) const noexcept; // audio thread, retained model intent
+    void beginRawMidi (const juce::MidiBuffer&, int samples) noexcept;
+    int drainMidiOut (MidiEvent*, int capacity) noexcept;
     void beginEvents (const midi::RouteOut&) noexcept;
     void endEvents() noexcept { events = nullptr; sidechain[0] = sidechain[1] = nullptr; sidechainSamples = 0; }
     int reclaim() noexcept;
@@ -71,7 +81,11 @@ private:
         double gain = 1.0, rampStart = 1.0, mix = 1.0, enable = 1.0;
         std::array<DelayLine, 2> dry;
         std::array<routing::LatencyEqualiser, kMaxBranches> lanes;
+        std::array<routing::SendReturnState, kMaxLoops> loops;
     };
+    SpscRing<ParamPulse, 256> paramPulses;
+    std::array<ParamPulse, 256> pendingPulses;
+    int numPendingPulses = 0;
     SpscRing<EngageEcho, 256> engageEcho;
     BoardModel& model;
     PedalPool pool;
@@ -95,6 +109,9 @@ private:
     std::array<HostSlotSource, kMaxSlots> hostSlotSources;
     TimeInfo blockTime;
     const midi::RouteOut* events = nullptr;
+    std::array<MidiEvent, 256> rawMidi {}, midiOutput {};
+    int numRawMidi = 0, numMidiOutput = 0;
+    std::atomic<uint32_t> rawDropped { 0 }, outputDropped { 0 };
     bool effectiveEnabled = false, modelEnabled = false, blockEnabled = false;
     float effectiveMix = 1.f, modelMix = 1.f, blockMix = 1.f;
     double effectiveTempo = 120, modelTempo = 120, blockTempo = 120;
