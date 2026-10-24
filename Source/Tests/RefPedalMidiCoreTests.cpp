@@ -364,3 +364,41 @@ LUTHIER_TEST (RefPedalMidiCore, prepareClearsHighResolutionControllerHistory)
     router.prepare (96000,64); in.clear(); in.addEvent (juce::MidiMessage::controllerEvent (1,33,127),0);
     router.process (in, {},0,64,out); CHECK (out.nWrites == 0);
 }
+
+#include "../ReferencePedals/Midi/ExtendedHostAutomationCapture.h"
+LUTHIER_TEST (RefPedalMidiCore, extendedAutomationPhysicalUnitsAndEchoIsolation)
+{
+    ExtendedHostAutomationCapture capture;
+    CHECK (capture.write ((int) ExtendedHostField::FeedbackLpHz, .5f));
+    CHECK (capture.write ((int) ExtendedHostField::Mode, .55f));
+    auto snapshot = capture.snapshot();
+    CHECK_NEAR (snapshot.values[(size_t) ExtendedHostField::FeedbackLpHz], 10010, 1e-3);
+    CHECK (snapshot.values[(size_t) ExtendedHostField::Mode] == 2);
+    { ExtendedHostAutomationCapture::EchoScope echo (capture); CHECK (! capture.write (0, 1)); }
+    CHECK (capture.serial (0) == 0); CHECK (capture.write (0, 1)); CHECK (capture.value (0) == 2);
+    CHECK (! capture.write (50, 1)); CHECK (! capture.write (0, std::numeric_limits<float>::infinity()));
+}
+LUTHIER_TEST (RefPedalMidiCore, virtualExpressionDeliversRealMappedWrites)
+{
+    MidiRouter router; router.prepare (48000, 128);
+    auto makeMap = []
+    {
+        auto map = std::make_unique<MapSnap>();
+        Binding b; b.srcType = (uint8_t) MidiSrc::VirtualExpression; b.srcNum = 1; b.target = 3; map->add (b);
+        b.id = 1; b.target = kMaxParams + 2; map->add (b); return map;
+    };
+    router.publishMap (makeMap()); router.setVirtualExpression (1, .73f, 1);
+    juce::MidiBuffer in; RouteOut out;
+    const auto before = luthier::tests::allocationsOnThisThread(); router.process (in, {}, 0, 128, out);
+    const auto after = luthier::tests::allocationsOnThisThread(); CHECK (before == after);
+    CHECK (out.nWrites == 2); CHECK_NEAR (out.writes[0].norm, .73, 1e-6); CHECK (out.writes[0].offset == 0);
+    router.process (in, {}, 128, 128, out); CHECK (out.nWrites == 0);
+    in.addEvent (juce::MidiMessage::controllerEvent (1, 11, 127), 31); router.process (in, {}, 256, 128, out);
+    CHECK (out.nWrites == 2); CHECK (out.writes[0].norm == 1.f); CHECK (out.writes[0].offset == 31);
+    in.clear(); router.publishMap (makeMap()); router.process (in, {}, 384, 128, out);
+    CHECK (out.nWrites == 2); CHECK (out.writes[0].norm == 1.f); // map reload preserves latest MIDI intent
+    router.setVirtualExpression (1, .2f, UINT32_MAX); router.process (in, {}, 512,128,out); CHECK_NEAR (out.writes[0].norm,.2,1e-6);
+    router.setVirtualExpression (1, .4f, 1); router.process (in, {},640,128,out); CHECK_NEAR (out.writes[0].norm,.4,1e-6);
+    router.setHostEnabled (false, 1); router.setVirtualExpression (1, .6f, 2); router.process (in, {},768,128,out); CHECK (out.nWrites == 0);
+    router.setHostEnabled (true, 2); router.process (in, {},896,128,out); CHECK (out.nWrites == 2); CHECK_NEAR (out.writes[0].norm,.6,1e-6);
+}

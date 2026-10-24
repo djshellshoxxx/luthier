@@ -36,6 +36,10 @@ struct MidiRouter::Impl
     std::array<bool, kMaxBindings> held {}, picked {};
     std::array<std::array<uint8_t, 32>, 16> msb {}, lsb {};
     std::array<std::array<bool, 32>, 16> hasMsb {};
+    std::array<float, 2> hostExpression {}, expressionValue {};
+    std::array<uint32_t, 2> hostExpressionSerial {}, appliedExpressionSerial {};
+    std::array<bool, 2> expressionKnown {};
+    bool replayExpression = false;
     std::array<bool, kMaxSlots> footHeld {};
     std::array<std::array<int8_t, 128>, 16> heldNoteSlots = []
     { std::array<std::array<int8_t, 128>, 16> a {}; for (auto& channel : a) channel.fill (-1); return a; }();
@@ -132,6 +136,7 @@ void MidiRouter::prepare (double sr, int)
     for (auto& channel : impl->heldNoteSlots) channel.fill (-1);
     impl->footHeld.fill (false); impl->held.fill (false); impl->values.fill (0);
     impl->msb = {}; impl->lsb = {}; impl->hasMsb = {};
+    impl->appliedExpressionSerial = {}; impl->expressionKnown = {}; impl->replayExpression = false;
     impl->retired.clear(); impl->activeVersion = 0; impl->modelEnabledKnown = false; impl->appliedHostEnabledSerial = 0; impl->appliedModelEnabledRevision = 0;
 }
 void MidiRouter::publishMap (std::unique_ptr<MapSnap> map)
@@ -154,6 +159,12 @@ void MidiRouter::setModelEnabled (bool enabled, uint32_t revision) noexcept
 { if (revision != 0) { impl->modelIntentEnabled = enabled; impl->modelEnabledRevision = revision; } }
 void MidiRouter::setHostEnabled (bool enabled, uint32_t serial) noexcept
 { if (serial != 0) { impl->hostEnabled = enabled; impl->hostEnabledSerial = serial; } }
+void MidiRouter::setVirtualExpression (int source, float normalised, uint32_t serial) noexcept
+{
+    if (source < 1 || source > 2 || serial == 0 || ! std::isfinite (normalised)) return;
+    impl->hostExpression[(size_t) source - 1] = std::clamp (normalised, 0.f, 1.f);
+    impl->hostExpressionSerial[(size_t) source - 1] = serial;
+}
 void MidiRouter::pushUiEvent (const MidiEv& e) noexcept
 { if (clockMessage (e.status)) impl->priority.push (e); else impl->input.push (e); }
 void MidiRouter::process (const juce::MidiBuffer& in, const HostTransport& host, int64_t start, int n, RouteOut& out) noexcept
@@ -165,6 +176,7 @@ void MidiRouter::process (const juce::MidiBuffer& in, const HostTransport& host,
         if (impl->modelEnabledRevision == 0 && (! impl->modelEnabledKnown || impl->modelEnabled != map->boardEnabled))
         { impl->effectiveEnabled = impl->modelEnabled = map->boardEnabled; impl->modelEnabledKnown = true; }
         if (! impl->effectiveEnabled) { impl->footHeld.fill (false); for (auto& channel : impl->heldNoteSlots) channel.fill (-1); }
+        impl->replayExpression = true;
         impl->activeVersion = map->version; impl->held.fill (false); impl->picked.fill (false);
         impl->values = map->initialValues; impl->lastSource = map->initialValues;
         impl->lastWrite.fill (0); impl->ownerPriority.fill (0);
@@ -178,6 +190,19 @@ void MidiRouter::process (const juce::MidiBuffer& in, const HostTransport& host,
     { impl->effectiveEnabled = impl->hostEnabled; impl->appliedHostEnabledSerial = impl->hostEnabledSerial; }
     if (! impl->effectiveEnabled)
     { impl->footHeld.fill (false); for (auto& channel : impl->heldNoteSlots) channel.fill (-1); }
+    if (map && impl->effectiveEnabled)
+    {
+        impl->routeSample = start;
+        for (size_t source = 0; source < 2; ++source)
+        {
+            const bool fresh = impl->hostExpressionSerial[source] != 0 && impl->hostExpressionSerial[source] != impl->appliedExpressionSerial[source];
+            if (fresh)
+            { impl->expressionValue[source] = impl->hostExpression[source]; impl->appliedExpressionSerial[source] = impl->hostExpressionSerial[source]; impl->expressionKnown[source] = true; }
+            if (impl->expressionKnown[source] && (fresh || impl->replayExpression))
+                impl->route (*map, MidiSrc::VirtualExpression, 1, (int) source + 1, impl->expressionValue[source], 0, out);
+        }
+        impl->replayExpression = false;
+    }
     impl->clock.begin (host, map ? map->tempoSource : TempoSource::Auto, map ? map->internalBpm : 120, start, out);
     int count = 0, ordinary = 0;
     auto append = [&] (MidiEv e, bool realtime)
@@ -241,6 +266,12 @@ void MidiRouter::process (const juce::MidiBuffer& in, const HostTransport& host,
             }
         }
         impl->route (*map, type, ch, num, value, off, out);
+        if (type == MidiSrc::CC && (num == 11 || num == 4) && impl->effectiveEnabled && map->find (type, ch, num).count == 0)
+        {
+            const size_t source = num == 11 ? 0 : 1;
+            impl->expressionValue[source] = value; impl->expressionKnown[source] = true;
+            impl->route (*map, MidiSrc::VirtualExpression, ch, (int) source + 1, value, off, out);
+        }
         if (type == MidiSrc::Note && kind == 0x90 && e.d2 > 0) impl->route (*map, MidiSrc::NoteVel, ch, num, value, off, out);
         if (type == MidiSrc::CC && num < 64)
         {
