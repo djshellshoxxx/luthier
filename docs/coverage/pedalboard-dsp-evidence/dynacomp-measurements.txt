@@ -1,0 +1,30 @@
+capture sens0.50 hz1000 GR1.429764
+capture sens1.00 hz1000 GR21.921418
+capture sens0.50 hz5000 GR18.390665
+static sens0.25 input-50dBpk output-70.006899dBpk GR-0.000000
+static sens0.25 input-40dBpk output-60.007338dBpk GR-0.000000
+static sens0.25 input-30dBpk output-50.011727dBpk GR-0.000000
+static sens0.25 input-20dBpk output-40.055397dBpk GR-0.000000
+static sens0.25 input-10dBpk output-30.471846dBpk GR-0.000000
+static sens0.25 input0dBpk output-26.409790dBpk GR5.088242
+static sens0.50 input-50dBpk output-70.006899dBpk GR-0.000000
+static sens0.50 input-40dBpk output-60.007338dBpk GR-0.000000
+static sens0.50 input-30dBpk output-50.011727dBpk GR-0.000000
+static sens0.50 input-20dBpk output-41.471036dBpk GR1.429764
+static sens0.50 input-10dBpk output-40.441288dBpk GR10.391768
+static sens0.50 input0dBpk output-38.467061dBpk GR18.391865
+static sens0.75 input-50dBpk output-70.006899dBpk GR-0.000000
+static sens0.75 input-40dBpk output-60.007338dBpk GR-0.000000
+static sens0.75 input-30dBpk output-54.382200dBpk GR4.374456
+static sens0.75 input-20dBpk output-53.386556dBpk GR13.378869
+static sens0.75 input-10dBpk output-51.439948dBpk GR21.431087
+static sens0.75 input0dBpk output-48.442800dBpk GR28.430613
+static sens1.00 input-50dBpk output-70.006899dBpk GR-0.000000
+static sens1.00 input-40dBpk output-64.265632dBpk GR4.259324
+static sens1.00 input-30dBpk output-63.517570dBpk GR13.511830
+static sens1.00 input-20dBpk output-61.927133dBpk GR21.921418
+static sens1.00 input-10dBpk output-59.270105dBpk GR29.264199
+static sens1.00 input0dBpk output-55.701552dBpk GR35.695207
+burst slow0 baselineGR2.506437 finalGR19.816318 attack63 0.479167ms release63 1000.000000ms
+burst slow1 baselineGR2.488381 finalGR19.722404 attack63 1.395833ms release63 1000.000000ms
+Dyna stereo2x48k128 CPU 0.025755s/2s =1.287770%
