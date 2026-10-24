@@ -341,6 +341,46 @@ LUTHIER_TEST (PracticeMetronome, settingsRoundTrip)
 //==============================================================================
 /*  practice-tools 2: the looper records, closes a loop, plays it back and
     overdubs onto a second layer. */
+LUTHIER_TEST (PracticeLooper, sameFormatRepreparePreservesTake)
+{
+    Looper looper;
+    looper.prepare (kSr, 10.0);
+    juce::AudioBuffer<float> buffer (2, 512);
+
+    auto fillAndProcess = [&] (int blocks, float value)
+    {
+        for (int i = 0; i < blocks; ++i)
+        {
+            for (int channel = 0; channel < 2; ++channel)
+                for (int sample = 0; sample < 512; ++sample)
+                    buffer.setSample (channel, sample, value);
+
+            looper.processBlock (buffer, 512);
+        }
+    };
+
+    looper.press();
+    fillAndProcess (20, 0.25f);
+    looper.press();
+    fillAndProcess (1, 0.25f);
+
+    const int originalLength = looper.getLoopLengthSamples();
+    const int originalSamples = looper.getLayer (0).getRecordedSamples();
+    CHECK (originalLength > 0);
+    CHECK (originalSamples > 0);
+
+    looper.prepare (kSr, 10.0);
+    CHECK (looper.getState() == Looper::State::stopped);
+    CHECK (looper.getLoopLengthSamples() == originalLength);
+    CHECK (looper.getLayer (0).getRecordedSamples() == originalSamples);
+
+    looper.press();
+    buffer.clear();
+    looper.processBlock (buffer, 512);
+    CHECK_MSG (buffer.getMagnitude (0, 0, 512) > 0.1,
+               "same-format reprepare preserved loop metadata but lost the audio");
+}
+
 LUTHIER_TEST (PracticeLooper, recordsClosesAndOverdubs)
 {
     Looper looper;
