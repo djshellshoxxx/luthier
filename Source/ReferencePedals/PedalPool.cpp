@@ -62,19 +62,31 @@ void PedalPool::prepare (double sampleRate, int maxBlock, const std::vector<Peda
 {
     rate = sampleRate; block = maxBlock; objects.clear(); preparedExtras = captured;
 }
-std::shared_ptr<PedalRuntime> PedalPool::acquire (const PedalInstance& instance, juce::String& error, const PedalRuntime* active)
+std::shared_ptr<PedalRuntime> PedalPool::acquire (const PedalInstance& instance, juce::String& error, const PedalRuntime* active, bool restoreExtras)
 try
 {
     if (instance.missing) return {};
     const auto* desc = PedalRegistry::find (instance.modelId.c_str());
     if (desc == nullptr) { error = "Unknown pedal model: " + juce::String (instance.modelId); return {}; }
     auto extras = instance.extras.clone();
+    if (extras.isVoid()) extras = new juce::DynamicObject(); // absent and empty extras have identical DSP meaning
     if (auto* object = extras.getDynamicObject()) object->removeProperty ("midi");
     const auto extrasKey = juce::JSON::toString (extras);
+    bool restoreRuntimeState = false;
+    if (restoreExtras && active && active->identity == instance.instanceId && active->model == instance.modelId)
+    {
+        auto captured = extras.clone(); active->pedal->saveExtra (captured);
+        auto liveExtras = extras.clone();
+        if (auto* object = liveExtras.getDynamicObject(); object && captured.getDynamicObject())
+            for (const auto& property : captured.getDynamicObject()->getProperties()) object->setProperty (property.name, property.value.clone());
+        else liveExtras = captured.clone();
+        if (auto* object = liveExtras.getDynamicObject()) object->removeProperty ("midi");
+        restoreRuntimeState = juce::JSON::toString (liveExtras) != extrasKey;
+    }
     for (auto& weak : objects)
         if (auto existing = weak.lock())
         {
-            bool matches = (! active || existing.get() == active) && existing->identity == instance.instanceId && existing->model == instance.modelId
+            bool matches = ! restoreRuntimeState && (! active || existing.get() == active) && existing->identity == instance.instanceId && existing->model == instance.modelId
                 && existing->revision == instance.modelRevision && existing->extrasKey == extrasKey;
             for (int i = 0; matches && i < desc->numParams; ++i)
                 if (desc->params[i].has (PF_Config) && existing->config[static_cast<size_t> (i)] != instance.params[static_cast<size_t> (i)])
@@ -85,7 +97,7 @@ try
     for (auto saved = preparedExtras.begin(); saved != preparedExtras.end(); ++saved)
         if (saved->instanceId == instance.instanceId && saved->modelId == instance.modelId && saved->modelRevision == instance.modelRevision)
         { loadExtras = saved->extras.clone(); preparedExtras.erase (saved); break; }
-    if (active && active->identity == instance.instanceId && active->model == instance.modelId
+    if (! restoreExtras && active && active->identity == instance.instanceId && active->model == instance.modelId
         && active->revision == instance.modelRevision && active->extrasKey == extrasKey)
         active->pedal->saveExtra (loadExtras);
     if (auto* object = loadExtras.getDynamicObject()) object->removeProperty ("midi");

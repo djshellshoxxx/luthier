@@ -3,6 +3,7 @@
 // compilation/publication remains a separate integration work package.
 
 #include "BoardModel.h"
+#include "BoardState.h"
 #include "PedalRegistry.h"
 #include "CpuBudget.h"
 #include "Midi/MidiState.h"
@@ -176,7 +177,7 @@ struct BoardModel::Impl
     Compiler compiler;
     ExtraCapture extraCapture;
     std::vector<PedalInstance> instances;
-    struct History { BoardSettings settings; std::vector<PedalInstance> instances; };
+    struct History { BoardSettings settings; std::vector<PedalInstance> instances; bool capturesRuntime = false; };
     std::vector<History> undoStack, redoStack;
     History transactionBaseline;
     std::vector<History> transactionUndo, transactionRedo;
@@ -229,7 +230,45 @@ BoardModel::BoardModel() : impl (std::make_unique<Impl>()) {}
 BoardModel::~BoardModel() = default;
 
 bool BoardModel::apply (const BoardCommand& command, juce::String* rejectReason)
-{ return applyImpl (command, rejectReason, false); }
+{
+    const auto reject = [&] (const juce::String& reason)
+    {
+        if (rejectReason) *rejectReason = reason;
+        for (auto* listener : impl->listeners) listener->rejected (reason);
+        return false;
+    };
+    if (const auto* scene = std::get_if<cmd::SetScene> (&command))
+    {
+        if (scene->scene < 0 || scene->scene >= 8) return reject ("Invalid snapshot index");
+        auto preset = scene->data.clone(); juce::String reason;
+        if (preset.isVoid() && ! BoardState::save (*this, preset, &reason)) return reject (reason);
+        if (! preset.getDynamicObject()) return reject ("Invalid snapshot object");
+        if ((int) preset["schema"] > kSchemaVersion) return reject ("Edit the newer-format board before capturing a snapshot");
+        if (preset.hasProperty ("name") && ! preset["name"].isString()) return reject ("Invalid snapshot name");
+        preset.getDynamicObject()->removeProperty ("snapshots");
+        std::vector<PedalInstance> checked; BoardSettings settings;
+        if (! BoardState::decode (preset, checked, settings, &reason)) return reject (reason);
+        return applyImpl (cmd::SetScene { scene->scene, preset }, rejectReason, false);
+    }
+    if (const auto* recall = std::get_if<cmd::ApplySnapshot> (&command))
+    {
+        if (recall->index < 0 || recall->index >= 8) return reject ("Invalid snapshot index");
+        std::vector<PedalInstance> captured; BoardSettings settings; snapshot (captured, settings);
+        const auto bank = settings.unknown["source"]["snapshots"].clone();
+        auto preset = recall->data.clone();
+        if (preset.isVoid())
+        {
+            if (! bank.isArray() || recall->index >= bank.size()) return reject ("Snapshot is empty");
+            preset = bank[recall->index].clone();
+        }
+        if (! preset.getDynamicObject()) return reject ("Snapshot is empty or invalid");
+        if (bank.isArray()) preset.getDynamicObject()->setProperty ("snapshots", bank);
+        else preset.getDynamicObject()->removeProperty ("snapshots");
+        preset.getDynamicObject()->removeProperty ("name");
+        return applyImpl (cmd::ApplySnapshot { recall->index, preset }, rejectReason, false, &captured);
+    }
+    return applyImpl (command, rejectReason, false);
+}
 bool BoardModel::applyHostEcho (const BoardCommand& command, juce::String* rejectReason)
 {
     const auto* scalar = std::get_if<cmd::SetBoardParam> (&command);
@@ -253,7 +292,7 @@ bool BoardModel::applyHostEcho (const BoardCommand& command, juce::String* rejec
     if (! accepted) { if (rejectReason) *rejectReason = "Host echo requires a scalar control"; return false; }
     return applyImpl (command, rejectReason, true);
 }
-bool BoardModel::applyImpl (const BoardCommand& command, juce::String* rejectReason, bool hostEcho)
+bool BoardModel::applyImpl (const BoardCommand& command, juce::String* rejectReason, bool hostEcho, const std::vector<PedalInstance>* runtimeHistory)
 {
     juce::String reason;
     bool settingsChanged = false;
@@ -421,6 +460,24 @@ bool BoardModel::applyImpl (const BoardCommand& command, juce::String* rejectRea
                 if (cmd.law > MixLaw::ThirdLaw) return false;
                 next.mixLaw = cmd.law;
             }
+            else if constexpr (std::is_same_v<T, cmd::SetScene>)
+            {
+                juce::var root;
+                if (! BoardState::encode (nextInstances, next, root, &reason)) return false;
+                if ((int) root["schema"] > kSchemaVersion) { reason = "Edit the newer-format board before capturing a snapshot"; return false; }
+                auto bank = root["snapshots"].clone(); if (! bank.isArray()) bank = juce::Array<juce::var>();
+                while (bank.size() < 8) bank.append (juce::var());
+                bank.getArray()->set (cmd.scene, cmd.data.clone()); root.getDynamicObject()->setProperty ("snapshots", bank);
+                next.unknown = next.unknown.clone(); if (! next.unknown.getDynamicObject()) next.unknown = new juce::DynamicObject();
+                next.unknown.getDynamicObject()->setProperty ("source", root);
+                next.unknown.getDynamicObject()->removeProperty ("baseline"); next.unknown.getDynamicObject()->removeProperty ("verbatim");
+                juce::var checked; if (! BoardState::encode (nextInstances, next, checked, &reason)) return false;
+            }
+            else if constexpr (std::is_same_v<T, cmd::ApplySnapshot>)
+            {
+                if (! BoardState::decode (cmd.data, nextInstances, next, &reason)) return false;
+                orderChanged = styleChanged = true;
+            }
             else if constexpr (std::is_same_v<T, cmd::SetSlotChannel>)
             {
                 auto it = findPedal (cmd.id);
@@ -468,7 +525,26 @@ bool BoardModel::applyImpl (const BoardCommand& command, juce::String* rejectRea
         if (compiled)
         {
             impl->info = info;
-            if (! hostEcho) impl->recordUndo (command);
+            if (! hostEcho)
+            {
+                const bool firstEntry = impl->transactionDepth == 0 || ! impl->transactionHasEdits;
+                impl->recordUndo (command);
+                if (runtimeHistory)
+                {
+                    const auto overlay = [&] (Impl::History& history, bool replace)
+                    {
+                        if (replace) history.instances = cloneInstances (*runtimeHistory);
+                        else for (auto& baseline : history.instances)
+                            for (size_t i = 0; i < impl->instances.size() && i < runtimeHistory->size(); ++i)
+                                if (baseline.instanceId == impl->instances[i].instanceId && baseline.modelId == impl->instances[i].modelId
+                                    && juce::JSON::toString (baseline.extras) == juce::JSON::toString (impl->instances[i].extras))
+                                { baseline.extras = (*runtimeHistory)[i].extras.clone(); break; }
+                        history.capturesRuntime = true;
+                    };
+                    overlay (impl->undoStack.back(), firstEntry);
+                    if (impl->transactionDepth != 0) overlay (impl->transactionBaseline, firstEntry);
+                }
+            }
             impl->settings = std::move (next);
             impl->instances = std::move (nextInstances);
             settingsChanged = true;
@@ -521,15 +597,23 @@ BoardSettings BoardModel::getBoardSettings() const
 
 bool BoardModel::undo()
 {
+    std::vector<PedalInstance> captured; BoardSettings ignored; bool preserveRuntime = false;
+    {
+        const std::lock_guard<std::mutex> lock (impl->mutex);
+        if (impl->transactionDepth != 0 || impl->undoStack.empty()) return false;
+        preserveRuntime = impl->undoStack.back().capturesRuntime;
+    }
+    if (preserveRuntime) snapshot (captured, ignored);
     {
         const std::lock_guard<std::mutex> lock (impl->mutex);
         if (impl->transactionDepth != 0 || impl->undoStack.empty()) return false;
         juce::String error; auto info = impl->info;
         const auto& candidate = impl->undoStack.back();
-        if (impl->compiler && ! impl->compiler (candidate.instances, candidate.settings, info, error, nullptr, false)) return false;
+        const BoardCommand restoreIntent = cmd::ApplySnapshot {};
+        if (impl->compiler && ! impl->compiler (candidate.instances, candidate.settings, info, error, candidate.capturesRuntime ? &restoreIntent : nullptr, false)) return false;
         impl->info = info;
         impl->lastGesture = {};
-        impl->redoStack.push_back ({ impl->settings, impl->instances });
+        impl->redoStack.push_back ({ impl->settings, preserveRuntime ? cloneInstances (captured) : impl->instances, preserveRuntime });
         auto previous = std::move (impl->undoStack.back());
         impl->undoStack.pop_back();
         impl->settings = std::move (previous.settings);
@@ -540,15 +624,23 @@ bool BoardModel::undo()
 }
 bool BoardModel::redo()
 {
+    std::vector<PedalInstance> captured; BoardSettings ignored; bool preserveRuntime = false;
+    {
+        const std::lock_guard<std::mutex> lock (impl->mutex);
+        if (impl->transactionDepth != 0 || impl->redoStack.empty()) return false;
+        preserveRuntime = impl->redoStack.back().capturesRuntime;
+    }
+    if (preserveRuntime) snapshot (captured, ignored);
     {
         const std::lock_guard<std::mutex> lock (impl->mutex);
         if (impl->transactionDepth != 0 || impl->redoStack.empty()) return false;
         juce::String error; auto info = impl->info;
         const auto& candidate = impl->redoStack.back();
-        if (impl->compiler && ! impl->compiler (candidate.instances, candidate.settings, info, error, nullptr, false)) return false;
+        const BoardCommand restoreIntent = cmd::ApplySnapshot {};
+        if (impl->compiler && ! impl->compiler (candidate.instances, candidate.settings, info, error, candidate.capturesRuntime ? &restoreIntent : nullptr, false)) return false;
         impl->info = info;
         impl->lastGesture = {};
-        impl->undoStack.push_back ({ impl->settings, impl->instances });
+        impl->undoStack.push_back ({ impl->settings, preserveRuntime ? cloneInstances (captured) : impl->instances, preserveRuntime });
         auto next = std::move (impl->redoStack.back());
         impl->redoStack.pop_back();
         impl->settings = std::move (next.settings);
@@ -588,7 +680,8 @@ bool BoardModel::cancelTransaction()
         if (impl->transactionDepth == 0) return false;
         juce::String error; auto info = impl->info;
         const auto& candidate = impl->transactionBaseline;
-        if (impl->compiler && ! impl->compiler (candidate.instances, candidate.settings, info, error, nullptr, false)) return false;
+        const BoardCommand restoreIntent = cmd::ApplySnapshot {};
+        if (impl->compiler && ! impl->compiler (candidate.instances, candidate.settings, info, error, candidate.capturesRuntime ? &restoreIntent : nullptr, false)) return false;
         impl->info = info;
         impl->settings = std::move (impl->transactionBaseline.settings);
         impl->instances = std::move (impl->transactionBaseline.instances);

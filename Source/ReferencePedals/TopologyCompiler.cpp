@@ -26,6 +26,8 @@ bool sameStructure (const RenderPlan& a, const RenderPlan& b)
 std::unique_ptr<RenderPlan> TopologyCompiler::compile (const std::vector<PedalInstance>& instances,
     const BoardSettings& settings, PedalPool& pool, uint32_t version, const RenderPlan* previous, juce::String& error, const BoardCommand* intent, bool hostEcho)
 {
+    const bool restoreExtras = intent && std::holds_alternative<cmd::ApplySnapshot> (*intent);
+    if (restoreExtras) intent = nullptr; // full control intent, including equal-value overrides
     error.clear();
     const auto reject = [&] (const char* message) -> std::unique_ptr<RenderPlan> { error = message; return {}; };
     if (instances.size() > kMaxSlots) return reject ("Board exceeds 16 pedal slots");
@@ -107,7 +109,7 @@ std::unique_ptr<RenderPlan> TopologyCompiler::compile (const std::vector<PedalIn
         occupied[static_cast<size_t> (instance.slot)] = true;
         if (branched && (instance.lane < 0 || instance.lane >= t.numLanes))
             return reject ("Pedal lane exceeds active lane count");
-        auto object = pool.acquire (instance, error, previous ? previous->slots[static_cast<size_t> (instance.slot)].get() : nullptr);
+        auto object = pool.acquire (instance, error, previous ? previous->slots[static_cast<size_t> (instance.slot)].get() : nullptr, restoreExtras);
         if (! object && ! instance.missing) return {};
         const auto slot = static_cast<size_t> (instance.slot);
         result->slots[slot] = object;

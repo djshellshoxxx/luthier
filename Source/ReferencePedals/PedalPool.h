@@ -49,7 +49,7 @@ public:
     bool setAssetStore (std::shared_ptr<IAssetStore>); // stopped; rejects while any runtime is retained
     bool hasAssetStore() const noexcept { return static_cast<bool> (assets); }
     void prepare (double sampleRate, int maxBlock, const std::vector<PedalInstance>& captured = {});
-    std::shared_ptr<PedalRuntime> acquire (const PedalInstance&, juce::String& error, const PedalRuntime* active = nullptr);
+    std::shared_ptr<PedalRuntime> acquire (const PedalInstance&, juce::String& error, const PedalRuntime* active = nullptr, bool restoreExtras = false);
     void reclaim();
 private:
     std::shared_ptr<IAssetStore> assets;
