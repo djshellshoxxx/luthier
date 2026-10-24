@@ -101,7 +101,6 @@ struct PagedLooperCore::Impl
     bool startOverdub() noexcept
     {
         if(!frames)return false;
-        discardRedo();
         for(int i=1;i<count;++i)if(!used[size_t(i)] && streams[size_t(i)]->beginLayer(frames))
         {scratch=i;used[size_t(i)]=true;current=State::Overdubbing;++generation;return true;}
         flags|=LooperStorage::writeOverrun;return false;
@@ -110,6 +109,7 @@ struct PagedLooperCore::Impl
     {
         if(scratch<0)return;
         streams[size_t(scratch)]->finishRecord();
+        discardRedo(); // A provisional press/hold may still cancel and redo.
         if(activeCount==config.undoDepth)
         {
             retired[size_t(retiredCount++)]=active[0];

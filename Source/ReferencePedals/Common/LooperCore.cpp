@@ -90,7 +90,14 @@ void LooperCore::closeRecording() noexcept
 }
 void LooperCore::closeOverdub() noexcept
 {
-    ++activeLayers;redoLayers=0;current=State::Playing;
+    // A provisional tap can be cancelled by a hold/double. Preserve redo
+    // until this take is accepted; its displaced first buffer lives in scratch.
+    for(int i=0;i<redoLayers;++i)
+    {
+        const auto index=i==0 && displacedRedo?maxLayers:activeLayers+i;
+        markEpoch(generation[size_t(index)],EpochState::Discarded);generation[size_t(index)]=0;
+    }
+    displacedRedo=false;++activeLayers;redoLayers=0;current=State::Playing;
     if(activeLayers>maxLayers)
     {
         markEpoch(generation[0],EpochState::Retired);
@@ -106,7 +113,7 @@ void LooperCore::apply(Action action) noexcept
         case Action::Clear:
             for(auto id:generation)if(id)markEpoch(id,EpochState::Discarded);
             generation.fill(0);clearedThrough=sequence;
-            current=State::Empty;loopLength=head=0;activeLayers=redoLayers=0;gain=0;layerLimit=false;break;
+            current=State::Empty;loopLength=head=0;activeLayers=redoLayers=0;gain=0;layerLimit=false;displacedRedo=false;break;
         case Action::Record:
             if(current==State::Empty && maxFrames) { current=State::Recording;head=0; }
             else if(current==State::Recording)closeRecording();
@@ -119,11 +126,13 @@ void LooperCore::apply(Action action) noexcept
         case Action::Overdub:
             if(current==State::Playing)
             {
-                for(int i=activeLayers;i<activeLayers+redoLayers;++i)
-                {markEpoch(generation[i],EpochState::Discarded);generation[i]=0;}
-                redoLayers=0;
                 const auto id=newEpoch();
-                if(id){generation[activeLayers]=id;current=State::Overdubbing;layerLimit=false;}
+                if(id)
+                {
+                    displacedRedo=redoLayers>0;
+                    if(displacedRedo){std::swap(layer[size_t(activeLayers)],layer[size_t(maxLayers)]);std::swap(generation[size_t(activeLayers)],generation[size_t(maxLayers)]);}
+                    generation[size_t(activeLayers)]=id;current=State::Overdubbing;layerLimit=false;
+                }
                 else layerLimit=true; // pool exhaustion is an invariant failure, never a count limit
             }
             break;
@@ -140,7 +149,11 @@ void LooperCore::apply(Action action) noexcept
             break;
         case Action::CancelOverdub:
             if(current==State::Overdubbing)
-            {markEpoch(generation[activeLayers],EpochState::Discarded);generation[activeLayers]=0;current=State::Playing;}
+            {
+                markEpoch(generation[size_t(activeLayers)],EpochState::Discarded);generation[size_t(activeLayers)]=0;
+                if(displacedRedo){std::swap(layer[size_t(activeLayers)],layer[size_t(maxLayers)]);std::swap(generation[size_t(activeLayers)],generation[size_t(maxLayers)]);}
+                displacedRedo=false;current=State::Playing;
+            }
             break;
     }
 }

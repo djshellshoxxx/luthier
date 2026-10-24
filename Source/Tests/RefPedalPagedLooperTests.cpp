@@ -196,3 +196,14 @@ LUTHIER_TEST(RefPedalPagedLooper, saveDuringCompactionRestoresCompleteGraphWitho
     process(restored,64,0,0,&l);for(size_t i=32;i<64;++i)CHECK_NEAR(l[i],.4375,0);
     restored.apply(LooperAction::Undo);process(restored,32,0,0,&l);for(double x:l)CHECK_NEAR(x,.375,0);
 }
+LUTHIER_TEST(RefPedalPagedLooper, provisionalHoldCancelPreservesRedoUntilTakeIsCommitted)
+{
+    PagedFixture f;PagedLooperCore core;auto c=tiny();CHECK(core.prepare(f.store,c));core.apply(LooperAction::Record);process(core,32,.25,-.25);core.apply(LooperAction::Play);CHECK(ready(core));process(core,32,0,0);
+    core.apply(LooperAction::Overdub);process(core,32,.125,-.125);core.apply(LooperAction::Play);CHECK(ready(core));core.apply(LooperAction::Undo);
+    for(int hold=0;hold<10;++hold){core.apply(LooperAction::Overdub);process(core,7,.5,-.5);core.apply(LooperAction::CancelOverdub);}
+    core.apply(LooperAction::Redo);std::vector<double> l;process(core,32,0,0,&l);for(double x:l)CHECK_NEAR(x,.375,0);
+    core.apply(LooperAction::Undo);core.apply(LooperAction::Overdub);process(core,32,.0625,-.0625);core.apply(LooperAction::Play);CHECK(ready(core));core.apply(LooperAction::Redo);
+    process(core,32,0,0,&l);for(double x:l)CHECK_NEAR(x,.3125,0);
+    PagedLooperCore::Graph graph;CHECK(core.capture(graph));auto malformed=graph;malformed.retiredCount=1;CHECK(!core.restore(malformed));
+    malformed={};malformed.frames=1;CHECK(!core.restore(malformed));
+}
