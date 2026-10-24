@@ -351,3 +351,84 @@ LUTHIER_TEST (RefPedalRouting, extendedFeedbackCanEnablePreparedEndpointsWithout
     std::fill_n (left, 2048, 0.0); std::fill_n (right, 2048, 0.0); left[0] = right[0] = 0.2;
     board.processStereo (left, right, 2048, Placement::beforeExistingPre); CHECK (left[64] > 0.1); // consumed pulse is not held
 }
+
+namespace
+{
+const ParamDesc bypassTrail[] { { "test_bypass_trails", "Trails", "", ParamKind::Toggle, Taper::Linear, 0, 1, 1, 1, 2, nullptr, PF_Automatable, 0, -1 } };
+const PedalDesc bypassDescriptions[] {
+    { "test.true_bypass", "test_bypass_", 1, "True probe", "Test", nullptr, ChannelMode::Stereo, BypassMode::True, 1, bypassTrail, 17, false, false, false, 0 },
+    { "test.buffer_bypass", "test_bypass_", 1, "Buffer probe", "Test", nullptr, ChannelMode::Stereo, BypassMode::Buffered, 1, bypassTrail, 17, false, false, false, 0 },
+    { "test.dsp_bypass", "test_bypass_", 1, "DSP tail probe", "Test", nullptr, ChannelMode::Stereo, BypassMode::DSP, 1, bypassTrail, 17, true, false, false, 0 },
+    { "test.buffer_tail", "test_bypass_", 1, "Buffer tail probe", "Test", nullptr, ChannelMode::Stereo, BypassMode::Buffered, 1, bypassTrail, 17, true, false, false, 0 }
+};
+class BypassProbe final : public IPedal
+{
+public:
+    explicit BypassProbe (int index) : type (index) {}
+    const PedalDesc& desc() const noexcept override { return bypassDescriptions[type]; }
+    void prepare (double rate, int, int) override { tailStep = 1.0 / (0.020 * rate); for (auto& line : wetDelay) line.prepare (17); }
+    void reset() noexcept override { for (auto& line : wetDelay) line.reset(); tail[0] = tail[1] = 0; tailGain = 1; }
+    void setEnabled (bool value) noexcept override { enabled = value; }
+    void setParam (int, float value) noexcept override { trails = value >= 0.5f; }
+    float getParam (int) const noexcept override { return trails ? 1.f : 0.f; }
+    int getLatencySamples() const noexcept override { return 17; }
+    float getTailEnergyDb() const noexcept override { return static_cast<float> (20 * std::log10 (std::max (1.e-6, std::max (std::abs (tail[0]), std::abs (tail[1]))))); }
+    void processBypass (double* l, double* r, int n) noexcept override { for (int i = 0; i < n; ++i) { l[i] *= 0.8; r[i] *= 0.8; } }
+    void process (double* l, double* r, int n) noexcept override
+    {
+        for (int i = 0; i < n; ++i)
+        {
+            tailGain = std::clamp (tailGain + (enabled || trails ? tailStep : -tailStep), 0.0, 1.0);
+            for (int c = 0; c < 2; ++c)
+            {
+                auto& sample = c == 0 ? l[i] : r[i]; const double dry = wetDelay[c].process (sample, 17);
+                if (desc().hasTails) { tail[c] = 0.999 * tail[c] + (enabled ? 0.25 * dry : 0.0); sample = dry + tailGain * tail[c]; }
+                else sample = 2 * dry;
+            }
+        }
+    }
+private:
+    int type; bool enabled = true, trails = true; DelayLine wetDelay[2];
+    double tail[2] {}, tailGain = 1, tailStep = 1.0 / 960.0;
+};
+std::unique_ptr<IPedal> trueBypassProbe() { return std::make_unique<BypassProbe> (0); }
+std::unique_ptr<IPedal> bufferedBypassProbe() { return std::make_unique<BypassProbe> (1); }
+std::unique_ptr<IPedal> dspBypassProbe() { return std::make_unique<BypassProbe> (2); }
+std::unique_ptr<IPedal> bufferedTailProbe() { return std::make_unique<BypassProbe> (3); }
+}
+LUTHIER_TEST (RefPedalRouting, bypassModesPreserveColourLatencyAndDecayingTailsWithTrimCorrection)
+{
+    for (int type = 0; type < 4; ++type)
+    {
+        PedalRegistry::TestScope registryScope;
+        std::unique_ptr<IPedal> (*factories[])() { trueBypassProbe, bufferedBypassProbe, dspBypassProbe, bufferedTailProbe };
+        CHECK (PedalRegistry::add (bypassDescriptions[type], factories[type]));
+        for (const float trim : { 0.f, 6.0206f })
+        {
+            Board board; board.prepare (48000, 64); PedalInstance instance; instance.modelId = bypassDescriptions[type].modelId; instance.slot = 0;
+            instance.inDb = trim; instance.params[0] = 1;
+            BoardSettings settings; settings.enabled = true; settings.limiterOn = false;
+            CHECK (board.model().replaceAll ({ instance }, settings));
+            double l[2048] {}, r[2048] {}; board.processStereo (l, r, 2048, Placement::beforeExistingPre);
+            l[0] = r[0] = 0.01; board.processStereo (l, r, 64, Placement::beforeExistingPre);
+            const double initialTail = 0.25 * 0.01 * std::pow (10.0, trim / 20.0);
+            CHECK (board.model().apply (cmd::SetEnabled { instance.instanceId, false }));
+            std::fill_n (l, 512, 0.1); std::fill_n (r, 512, 0.1);
+            const auto allocations = luthier::tests::allocationsOnThisThread();
+            board.processStereo (l, r, 512, Placement::beforeExistingPre);
+            CHECK (luthier::tests::allocationsOnThisThread() == allocations);
+            const double dry = type == 1 || type == 3 ? 0.08 : 0.1;
+            const double tail = type >= 2 ? initialTail * std::pow (0.999, 46 + 512) : 0.0;
+            CHECK_NEAR (l[511], dry + tail, 1.e-8); // no doubled dry and no board attenuation of the remaining tail
+            if (type >= 2)
+            {
+                CHECK (l[511] > dry); CHECK (board.model().apply (cmd::SetParam { instance.instanceId, 0, 0.f }));
+                std::fill_n (l, 1024, 0.1); std::fill_n (r, 1024, 0.1); board.processStereo (l, r, 1024, Placement::beforeExistingPre);
+                CHECK_NEAR (l[1023], dry, 1.e-10); // model-owned20ms trail cut
+            }
+            board.reset(); std::fill_n (l, 2048, 0.0); std::fill_n (r, 2048, 0.0); board.processStereo (l, r, 2048, Placement::beforeExistingPre);
+            l[0] = r[0] = 0.1; board.processStereo (l, r, 64, Placement::beforeExistingPre);
+            for (int i = 0; i < 64; ++i) CHECK_NEAR (l[i], i == 17 ? dry : 0.0, 1.e-9);
+        }
+    }
+}
