@@ -1,0 +1,2 @@
+789504 double values: bit-exact binary comparison (cmp exit0).
+Before/after SHA256: 200ee21ddaea9ba437726dad110a1c2068972398a72d07cb68fccd6e59dfb00f

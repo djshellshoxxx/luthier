@@ -1,0 +1,5 @@
+RefPedalDynaComp::finiteBlockDeterminismAndSilence 32768 checks 0 failures
+RefPedalDynaComp::feedbackDetectorAndQualityLatency 4 checks 0 failures
+RefPedalDynaComp::realtimeLifecycleDoesNotAllocate 1 checks 0 failures
+RefPedalDynaComp::releaseCoefficientsFollowReprepareRateAndQuality 49164 checks 0 failures
+TOTAL 81937 checks 0 failures

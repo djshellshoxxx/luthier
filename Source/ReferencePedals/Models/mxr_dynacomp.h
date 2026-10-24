@@ -35,6 +35,7 @@ class MxrDynaComp final : public common::Processor<10>
     std::array<double, 2> env{};
     std::atomic<double> reduction{0};
     uint32_t seed = 1;
+    double releaseAtZero = 0, releaseAtFloor = 0;
     double attack = 0, previousAttack = -1, previousOutput = -1, outputGain = 0;
 };
 } // namespace luthier::reference::models

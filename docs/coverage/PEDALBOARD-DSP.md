@@ -631,3 +631,37 @@ root count, fresh-instance scratch convention and actual retained-capacity
 reports; no counting mismatch was found. This review did not independently
 rerun the sanitizer suite. Cross-platform admission checks and pool integration
 remain the coordinator/engine build responsibility.
+
+
+## Dyna Comp exact release-endpoint cache
+
+The processor now prepares the existing exponential retention coefficients for
+1000ms and 300ms once at its actual OTA internal sample rate. The original
+program-dependent release formula still computes its duration every sample;
+exact endpoint matches reuse the cached coefficient and the middle range keeps
+the original exponential. Reset preserves these rate-dependent constants;
+reprepare recomputes them. No polynomial approximation, gain law, threshold,
+time constant or acoustic criterion changed.
+
+Against baseline378c8913, an actual-processor corpus of **789,504 double values**
+is bit-identical across44.1/48/96/192kHz, all three quality settings, independent
+stereo inputs, sensitivity/output/attack/mix/noise automation, reset, and
+nonfinite input recovery. Binary SHA256 and before/after measurements are saved
+in `dynacomp-release-cache-*.txt`; the reproducible probe/script are adjacent.
+A dedicated descending/ascending-rate and quality reprepare regression compares
+reused versus fresh processors and verifies the E69 memory reporter includes the
+two new embedded doubles. The focused suite passes **4cases /81,937checks** with
+ASan+UBSan+leak detection and callback allocation counter, empty stderr.
+
+Process-only threadCPU,48k/stereo128/O2/no-fast-math,100seconds of audio per trial,
+three trials: median1.439583% before versus1.189473% after (~17.4% reduction).
+Checksums match exactly. Both results **FAIL** the unchanged0.5% budget. These
+fresh measurements use independent stereo sine frequencies and do not replace
+older probes with different signals. All existing timing/THD/alias qualification
+limits and failures remain in force; Dyna Comp remains unregistered.
+
+Timefx independently reviewed the cache lifecycle and exact endpoint arithmetic:
+both lanes share the prepared internal rate, reset retains valid coefficients,
+and reprepare updates them after rate/quality changes. No RT/ownership issue was
+found. This was a read-only review, not an independent rerun of the corpus or a
+CPU-budget approval.

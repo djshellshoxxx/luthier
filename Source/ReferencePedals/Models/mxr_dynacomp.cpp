@@ -58,6 +58,8 @@ void MxrDynaComp::prepare(double rate, int, int policy)
     const int quality = (int)value(6);
     for (auto &o : otaOs)
         o.prepareFactor(sr, quality == 2 ? 1 : quality == 1 && policy > 0 ? 4 : 2);
+    releaseAtZero = common::EnvelopeFollower::coefficient(otaOs[0].rate(), 1000.0);
+    releaseAtFloor = common::EnvelopeFollower::coefficient(otaOs[0].rate(), 300.0);
     for (int c = 0; c < 2; ++c)
     {
         hp[c].setLowpass(sr, 5);
@@ -134,8 +136,14 @@ void MxrDynaComp::process(double *l, double *r, int n) noexcept
                     const double ota = linear * (1 - bias * bias) / (1 + linear * bias) / 1.5;
                     const double rect = std::max(0.0, std::abs(ota * sens) - .6);
                     // Secondary-source 1s recovery; program-dependent shortening ESTIMATED.
-                    const double release = common::EnvelopeFollower::coefficient(
-                        otaOs[c].rate(), std::max(300.0, 1000 / (1 + 4 * rect)));
+                    const double releaseMs = std::max(300.0, 1000 / (1 + 4 * rect));
+                    // Exactly the same coefficient at the two frequent endpoints.
+                    // The continuously varying middle range keeps the original exp.
+                    const double release =
+                        releaseMs == 1000.0 ? releaseAtZero
+                        : releaseMs == 300.0
+                            ? releaseAtFloor
+                            : common::EnvelopeFollower::coefficient(otaOs[c].rate(), releaseMs);
                     const double coeff = rect > env[c] ? attack : release;
                     env[c] = std::clamp(common::safe(rect + coeff * (env[c] - rect)), 0.0, 1000.0);
                     minimumControl = std::min(minimumControl, control);

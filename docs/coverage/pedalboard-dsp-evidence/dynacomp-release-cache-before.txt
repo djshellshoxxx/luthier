@@ -1,0 +1,4 @@
+values=789504 peak=0.799999922599681
+trial=0 stereo_cpu_percent=1.43958263 checksum=-0.0058555864163846241
+trial=1 stereo_cpu_percent=1.40880642 checksum=-0.0058555864163846241
+trial=2 stereo_cpu_percent=1.46185381 checksum=-0.0058555864163846241
