@@ -285,8 +285,8 @@ gain30dB, feedback-pole100k/470p and recovery22dB come from the source estimates
 Volume uses10L² to represent the stated+20dB maximum gain. **That uncalibrated
 chain is far too loud** (+41.596dB reference gain) and reaches the mandated±16
 safety guard under strong input; no useful product-level calibration or fidelity
-claim is made. The original limits remain unchanged. Bass uses the existing RBJ
-shelf with default slope rather than the prescribedS=.7. Coefficient interpolation,
+claim is made. The original limits remain unchanged. Bass now uses the prescribed
+RBJ shelf slopeS=.7 (continuation correction below). Coefficient interpolation,
 minimum-phase oversampling, dynamic sustain-dependent factor changes, exact
 attack/gate quantitative gates and product-noise calibration remain incomplete.
 
@@ -340,3 +340,26 @@ original±.1dB40Hz–15k gate **fails**:40Hz is-.57143dB at all rates, and15k is
 -.43977dB at192k. These follow from the literal poles; no cutoff was silently
 changed to force a pass. Raw measurements and source are retained as
 `named-buffer-measurements.txt` and `measure-named-buffers.cpp`.
+
+## Continuation: literal Deluxe shelf slope and helper regression
+
+The original Deluxe section3.4 calls for a150Hz,+8dB RBJ low shelf withS=.7.
+The candidate used the shared helper's fixedS=1. The helper now accepts an
+optional monotone slope(.05..1); all existing four-argument calls retain the
+original arithmetic exactly. Deluxe explicitly supplies.7. No specification
+threshold changed and no new calibration was introduced.
+
+An independent analog-prototype complex-transfer oracle failed512/768 assertions
+before the correction and passes768/768 afterward: four rates, both shelf
+directions,±8dB, slopes.1/.7/1, eight frequency probes. A further49,152 checks
+cover default-call equality and invalid slopes. The focused combined helper
+suite passes **15cases /734,115 checks**, ASan+UBSan+leak detection, empty stderr.
+It also reruns the original NewtonClipper residual test, tiny-current LED test,
+peak filter, symmetric/asymmetric dynamic KCL, delay and oversampler latency/
+passband tests. Evidence: `shelf-and-helper-tests.txt` and
+`shelf-and-helper-stderr.txt`. This closes the literal shelf-slope mismatch;
+Deluxe whole-chain gain/THD/alias/CPU and remaining acceptance gates stay open.
+The Deluxe descriptor/functional smoke rerun passes12,007 checks under the same
+sanitizers (`deluxe-shelf-tests.txt`). Timefx independently reviewed3bcca046:
+the new term is exactly RBJ's2sqrt(A)alpha and theS=1 branch retains the old
+arithmetic; that review did not rerun the sanitizer suite.

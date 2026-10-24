@@ -76,7 +76,7 @@ void EhxDeluxeMuff::prepare(double rate, int, int policy)
         v.coupling2.setLowpass(os[c].rate(), 20);
         v.clipLp1.setLowpass(os[c].rate(), 1 / (2 * common::pi * 100000 * 470e-12));
         v.clipLp2.setLowpass(os[c].rate(), 1 / (2 * common::pi * 100000 * 470e-12));
-        v.bass.setShelf(sr, 150, 8, false);
+        v.bass.setShelf(sr, 150, 8, false, .7);
         v.detector.prepare(sr, 1, 15);
         v.fast.prepare(sr, 1, 30);
         v.slow.prepare(sr, 20, 20);
