@@ -4310,20 +4310,20 @@ void LuthierAudioProcessor::serviceReferencePedalParameters()
     }
     referenceMirrorInitialised = true;
     auto changed = [&] (size_t i) { return incomingSerials[i] != referenceModelSerials[i] || incoming[i] != referenceParameterMirror[i]; };
-    if (changed (0)) model.apply (reference::cmd::SetBoardEnabled { incoming[0] >= .5f });
-    if (changed (1)) model.apply (reference::cmd::SetMix { incoming[1] });
-    if (changed (2)) model.apply (reference::cmd::SetBoardParam { "tempoBpm", incoming[2] });
+    if (changed (0)) model.applyHostEcho (reference::cmd::SetBoardEnabled { incoming[0] >= .5f });
+    if (changed (1)) model.applyHostEcho (reference::cmd::SetMix { incoming[1] });
+    if (changed (2)) model.applyHostEcho (reference::cmd::SetBoardParam { "tempoBpm", incoming[2] });
     for (const auto& id : model.getOrder())
     {
         auto instance = model.getInstance (id); if (! instance || instance->slot < 0 || instance->slot >= reference::kMaxSlots) continue;
         const size_t base = (size_t) (3 + instance->slot * 20);
-        if (changed (base)) model.apply (reference::cmd::SetEnabled { id, incoming[base] >= .5f });
+        if (changed (base)) model.applyHostEcho (reference::cmd::SetEnabled { id, incoming[base] >= .5f });
         const auto& lanes = reference::PedalRegistry::laneMap (instance->modelId.c_str());
         for (int lane = 0; lane < lanes.numLanes; ++lane)
             if (changed (base + 1 + (size_t) lane))
-                model.apply (reference::cmd::SetParam { id, lanes.laneToParam[lane], incoming[base + 1 + (size_t) lane] });
+                model.applyHostEcho (reference::cmd::SetParam { id, lanes.laneToParam[lane], incoming[base + 1 + (size_t) lane] });
         if (changed (base + 17) || changed (base + 18))
-            model.apply (reference::cmd::SetTrim { id, incoming[base + 17], incoming[base + 18] });
+            model.applyHostEcho (reference::cmd::SetTrim { id, incoming[base + 17], incoming[base + 18] });
     }
     // Resolve all position requests together, stable in the existing model order.
     auto order = model.getOrder();
