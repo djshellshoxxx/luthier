@@ -597,6 +597,19 @@ void BoardModel::setCompiler (Compiler compiler)
     const std::lock_guard<std::mutex> lock (impl->mutex);
     impl->compiler = std::move (compiler);
 }
+bool BoardModel::setMidiFocus (const InstanceId& id)
+{
+    {
+        const std::lock_guard<std::mutex> lock (impl->mutex);
+        if (! id.isNull() && std::none_of (impl->instances.begin(), impl->instances.end(),
+            [&] (const auto& instance) { return instance.instanceId == id; })) return false;
+        impl->settings.midi = impl->settings.midi.clone();
+        if (! impl->settings.midi.getDynamicObject()) impl->settings.midi = new juce::DynamicObject();
+        impl->settings.midi.getDynamicObject()->setProperty ("selectedInstance", id.isNull() ? juce::String() : id.toString());
+    }
+    for (auto* listener : impl->listeners) listener->settingsChanged();
+    return true;
+}
 void BoardModel::setUiState (juce::var state)
 {
     const std::lock_guard<std::mutex> lock (impl->mutex);

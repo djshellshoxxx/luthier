@@ -567,3 +567,131 @@ LUTHIER_TEST (RefPedalBoardCore, boardDisableFinishesInTwentyMilliseconds)
     board.processStereo (left, right, 1, Placement::beforeExistingPre);
     CHECK (left[0] == 0.12345 && right[0] == -0.98765);
 }
+
+#include "../ReferencePedals/BoardEngine.h"
+namespace
+{
+const ParamDesc eventGainParam[] {
+    { "test_event_gain", "Gain", "", ParamKind::Continuous, Taper::Linear, 0, 1, 0.5f, 1, 0, nullptr, PF_Automatable, 0, -1 }
+};
+const PedalDesc eventDesc { "test.event", "test_event_", 1, "Event probe", "Test", nullptr, ChannelMode::Stereo,
+    BypassMode::True, 1, eventGainParam, 0, false, false, false, 0 };
+const PedalDesc transportDesc { "test.transport", "test_transport_", 1, "Transport foot probe", "Test", nullptr, ChannelMode::Stereo,
+    BypassMode::True, 0, nullptr, 0, false, false, false, 0 };
+class EventProbe final : public IPedal
+{
+public:
+    explicit EventProbe (bool transport = false) : transportFoot (transport) {}
+    const PedalDesc& desc() const noexcept override { return transportFoot ? transportDesc : eventDesc; }
+    void prepare (double, int, int) override {}
+    void reset() noexcept override {}
+    void process (double* l, double* r, int n) noexcept override { for (int i = 0; i < n; ++i) { l[i] *= value; r[i] *= value; } }
+    void setParam (int, float v) noexcept override { value = v; }
+    float getParam (int) const noexcept override { return value; }
+    bool footControlsEngagement() const noexcept override { return ! transportFoot; }
+private:
+    bool transportFoot = false;
+    float value = 0.5f;
+};
+std::unique_ptr<IPedal> makeEventProbe() { return std::make_unique<EventProbe>(); }
+std::unique_ptr<IPedal> makeTransportProbe() { return std::make_unique<EventProbe> (true); }
+}
+
+LUTHIER_TEST (RefPedalBoardCore, midiWritesStartAtOffsetAndPersistUntilModelChanges)
+{
+    PedalRegistry::add (eventDesc, makeEventProbe);
+    BoardModel model; BoardEngine engine (model);
+    const InstanceId id;
+    CHECK (model.apply (cmd::Add { "test.event", -1, Placement::beforeExistingPre, 0, id }));
+    CHECK (model.apply (cmd::SetBoardEnabled { true }));
+    double l[1024] {}, r[1024] {}; engine.process (l, r, 1024, Placement::beforeExistingPre);
+    midi::RouteOut events; events.nWrites = 1; events.writes[0] = { 0, 0, 0.8f, 0, 17 };
+    std::fill_n (l, 128, 0.1); std::fill_n (r, 128, 0.1);
+    engine.beginEvents (events); engine.process (l, r, 128, Placement::beforeExistingPre); engine.endEvents();
+    for (int i = 0; i < 128; ++i) CHECK_NEAR (l[i], i < 17 ? 0.05 : 0.08, 1.e-8);
+    events.clear(); engine.beginEvents (events);
+    std::fill_n (l, 128, 0.1); std::fill_n (r, 128, 0.1);
+    engine.process (l, r, 128, Placement::beforeExistingPre); engine.endEvents();
+    CHECK_NEAR (l[127], 0.08, 1.e-8);
+    CHECK (model.apply (cmd::SetParam { id, 0, 0.3f }));
+    engine.beginEvents (events); std::fill_n (l, 128, 0.1); std::fill_n (r, 128, 0.1);
+    engine.process (l, r, 128, Placement::beforeExistingPre); engine.endEvents();
+    CHECK_NEAR (l[127], 0.03, 1.e-8);
+}
+
+LUTHIER_TEST (RefPedalBoardCore, footPressEngagesPedalsWithoutBypassingTransportLoopers)
+{
+    PedalRegistry::add (eventDesc, makeEventProbe); PedalRegistry::add (transportDesc, makeTransportProbe);
+    for (const bool transport : { false, true })
+    {
+        BoardModel model; BoardEngine engine (model); const InstanceId id;
+        CHECK (model.apply (cmd::Add { transport ? "test.transport" : "test.event", -1, Placement::beforeExistingPre, 0, id }));
+        CHECK (model.apply (cmd::SetBoardEnabled { true }));
+        double l[1024] {}, r[1024] {}; engine.process (l, r, 1024, Placement::beforeExistingPre);
+        midi::RouteOut events; events.nFoot = 1; events.footSlot[0] = 0; events.foot[0] = { true, 1.0f, 0, 16 };
+        std::fill_n (l, 1024, 0.1); std::fill_n (r, 1024, 0.1);
+        engine.beginEvents (events); engine.process (l, r, 1024, Placement::beforeExistingPre); engine.endEvents();
+        CHECK_NEAR (l[1023], transport ? 0.05 : 0.1, 1.e-8);
+        engine.drainControlEcho();
+        CHECK (model.getInstance (id)->enabled == transport);
+    }
+}
+
+LUTHIER_TEST (RefPedalBoardCore, boardMidiEnableCanWakeAnInitiallyDisabledBoard)
+{
+    PedalRegistry::add (eventDesc, makeEventProbe);
+    BoardModel model; BoardEngine engine (model); const InstanceId id;
+    CHECK (model.apply (cmd::Add { "test.event", -1, Placement::beforeExistingPre, 0, id }));
+    double l[1024] {}, r[1024] {}; engine.process (l, r, 1024, Placement::beforeExistingPre);
+    midi::RouteOut events; events.nWrites = 1; events.writes[0] = { midi::kBoardTargetSlot, static_cast<uint16_t> (midi::BoardTarget::Enabled), 1.f, 0, 32 };
+    std::fill_n (l, 1024, 0.1); std::fill_n (r, 1024, 0.1);
+    engine.beginEvents (events); engine.process (l, r, 1024, Placement::beforeExistingPre); engine.endEvents();
+    for (int i = 0; i < 32; ++i) CHECK_NEAR (l[i], 0.1, 1.e-12);
+    CHECK_NEAR (l[1023], 0.05, 1.e-8);
+    CHECK (engine.isActive());
+}
+
+LUTHIER_TEST (RefPedalBoardCore, hostAutomationIsImmediatePersistentAndDoesNotOverwriteModelEdits)
+{
+    PedalRegistry::add (eventDesc, makeEventProbe);
+    Board board; board.prepare (48000, 128); const InstanceId id;
+    CHECK (board.model().apply (cmd::Add { "test.event", -1, Placement::beforeExistingPre, 0, id }));
+    HostAutomationSnapshot host;
+    host.values[0] = 1.f; host.serials[0] = 1;
+    host.values[4] = 0.8f; host.serials[4] = 1; // slot 0, host lane 0
+    juce::MidiBuffer input, output; double l[1024], r[1024];
+    const auto run = [&]
+    {
+        std::fill_n (l, 1024, 0.1); std::fill_n (r, 1024, 0.1);
+        board.setHostAutomation (host); board.beginBlock (input, {}, 1024);
+        board.processStereo (l, r, 1024, Placement::beforeExistingPre); board.endBlock (output);
+    };
+    run(); run(); CHECK_NEAR (l[1023], 0.08, 1.e-8);
+    host.values[4] = 0.2f; run(); CHECK_NEAR (l[1023], 0.08, 1.e-8); // serial unchanged
+    CHECK (board.model().apply (cmd::SetParam { id, 0, 0.3f }));
+    run(); CHECK_NEAR (l[1023], 0.03, 1.e-8);
+    host.values[4] = 0.9f; host.serials[4] = 2;
+    const auto before = luthier::tests::allocationsOnThisThread(); run();
+    CHECK (luthier::tests::allocationsOnThisThread() == before);
+    CHECK_NEAR (l[1023], 0.09, 1.e-8);
+    host.values[4] = 0.7f; host.serials[4] = std::numeric_limits<uint32_t>::max(); run();
+    host.values[4] = 0.6f; host.serials[4] = 1; run(); // producer skips reserved zero at wrap
+    CHECK_NEAR (l[1023], 0.06, 1.e-8);
+    CHECK (board.model().apply (cmd::Remove { id }));
+    const InstanceId replacement;
+    CHECK (board.model().apply (cmd::Add { "test.event", -1, Placement::beforeExistingPre, 0, replacement }));
+    run(); run(); CHECK_NEAR (l[1023], 0.05, 1.e-8); // no old occupant's value
+    host.values[4] = 0.4f; host.serials[4] = 2; run(); CHECK_NEAR (l[1023], 0.04, 1.e-8);
+}
+
+LUTHIER_TEST (RefPedalBoardCore, midiFocusIsMetadataWithoutUndoOrTopologyPublication)
+{
+    BoardModel model; const InstanceId existing, absent;
+    CHECK (model.apply (cmd::Add { "generic.overdrive", -1, Placement::beforeExistingPre, 0, existing }));
+    const auto version = model.getTopologyInfo().version;
+    CHECK (! model.setMidiFocus (absent));
+    CHECK (model.setMidiFocus (existing));
+    CHECK (model.getBoardSettings().midi["selectedInstance"].toString() == existing.toString());
+    CHECK (model.getTopologyInfo().version == version);
+    CHECK (model.undo()); CHECK (model.getInstanceCount() == 0);
+}

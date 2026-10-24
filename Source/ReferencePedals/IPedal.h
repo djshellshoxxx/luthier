@@ -91,6 +91,11 @@ public:
     virtual void onMidi (const MidiEvent&) noexcept {}    // only if desc().wantsRawMidi
     virtual int drainMidiOut (MidiEvent*, int /*cap*/) noexcept { return 0; }   // RC-5 clock master; audio thread
     virtual void onFoot (const FootEvent&) noexcept {}
+    // E41: loopers use onFoot for transport while the board remains engaged.
+    virtual bool footControlsEngagement() const noexcept { return true; }
+    // E41: audio-thread one-shot request (e.g. a wah toe switch). The board
+    // consumes this after processing; only the board owns the bypass envelope.
+    virtual bool consumeEngageToggle() noexcept { return false; }
     virtual void setExpression (int /*jack*/, float /*v*/) noexcept {}
     virtual bool isStateless() const noexcept { return false; }
     virtual bool outputsDualMono() const noexcept { return false; }
