@@ -439,6 +439,7 @@ bool LooperStorage::mergedAt(uint64_t frame,uint64_t actualVersion,uint64_t toke
     const auto& entry=impl->entries[frame/uint64_t(impl->config.pageFrames)];
     return entry.mergedToken.load(std::memory_order_acquire)==token && actualVersion>=entry.mergedVersion.load(std::memory_order_relaxed);
 }
+uint64_t LooperStorage::generation() const noexcept{return impl?impl->epoch.load(std::memory_order_acquire):0;}
 uint64_t LooperStorage::length() const noexcept{return impl?impl->frames.load():0;}
 uint32_t LooperStorage::errors() const noexcept{return impl?impl->flags.load():invalidAsset;}
 bool LooperStorage::capture(Capture& out) const noexcept
