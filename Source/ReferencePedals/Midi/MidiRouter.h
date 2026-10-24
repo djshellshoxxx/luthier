@@ -33,6 +33,9 @@ public:
 
     int reclaim() noexcept; // message thread; epoch-delayed destruction (E33)
 
+    // E46: audio thread, before process; serial zero is unwritten.
+    void setHostEnabled (bool enabled, uint32_t serial) noexcept;
+
     // Device / UI thread -> uiInRing (wait-free; drops and counts when full).
     void pushUiEvent (const MidiEv&) noexcept;
 
