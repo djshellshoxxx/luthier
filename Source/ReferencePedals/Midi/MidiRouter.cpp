@@ -8,7 +8,11 @@
 #include <vector>
 namespace luthier::reference::midi
 {
-namespace { struct CaptureRecord { LearnCapture capture; uint32_t generation = 0; }; }
+namespace {
+struct CaptureRecord { LearnCapture capture; uint32_t generation = 0; };
+bool clockMessage (uint8_t status) noexcept
+{ return status == 0xf8 || status == 0xfa || status == 0xfb || status == 0xfc || status == 0xf2; }
+}
 struct MidiRouter::Impl
 {
     struct Retired { std::unique_ptr<MapSnap> map; uint64_t epoch; };
@@ -127,6 +131,7 @@ void MidiRouter::prepare (double sr, int)
     impl->clock.prepare (impl->sr); impl->input.clear(); impl->priority.clear();
     for (auto& channel : impl->heldNoteSlots) channel.fill (-1);
     impl->footHeld.fill (false); impl->held.fill (false); impl->values.fill (0);
+    impl->msb = {}; impl->lsb = {}; impl->hasMsb = {};
     impl->retired.clear(); impl->activeVersion = 0; impl->modelEnabledKnown = false; impl->appliedHostEnabledSerial = 0; impl->appliedModelEnabledRevision = 0;
 }
 void MidiRouter::publishMap (std::unique_ptr<MapSnap> map)
@@ -150,7 +155,7 @@ void MidiRouter::setModelEnabled (bool enabled, uint32_t revision) noexcept
 void MidiRouter::setHostEnabled (bool enabled, uint32_t serial) noexcept
 { if (serial != 0) { impl->hostEnabled = enabled; impl->hostEnabledSerial = serial; } }
 void MidiRouter::pushUiEvent (const MidiEv& e) noexcept
-{ if (e.status >= 0xf8 && e.status <= 0xfc) impl->priority.push (e); else impl->input.push (e); }
+{ if (clockMessage (e.status)) impl->priority.push (e); else impl->input.push (e); }
 void MidiRouter::process (const juce::MidiBuffer& in, const HostTransport& host, int64_t start, int n, RouteOut& out) noexcept
 {
     out.clear(); if (n <= 0) return;
@@ -187,7 +192,7 @@ void MidiRouter::process (const juce::MidiBuffer& in, const HostTransport& host,
     };
     // First pass reserves capacity for host transport/clock even after a controller flood.
     for (const auto md : in)
-        if (md.numBytes > 0 && (md.data[0] >= 0xf8 || md.data[0] == 0xf2))
+        if (md.numBytes > 0 && clockMessage (md.data[0]))
             append ({ (uint32_t) std::max (0, md.samplePosition), md.data[0], md.numBytes > 1 ? md.data[1] : uint8_t (0), md.numBytes > 2 ? md.data[2] : uint8_t (0), 0, 0, 0 }, true);
     MidiEv e;
     for (int i = 0; i < 256 && impl->priority.pop (e); ++i) { e.sampleOffset = 0; append (e, true); }
@@ -198,6 +203,7 @@ void MidiRouter::process (const juce::MidiBuffer& in, const HostTransport& host,
     for (int i = 0; i < count; ++i)
     {
         e = impl->events[(size_t) i]; const int off = (int) e.sampleOffset, kind = e.status & 0xf0, ch = (e.status & 15) + 1;
+        if (e.status < 0x80 || e.d1 > 127 || e.d2 > 127) { impl->drop(); continue; }
         if (e.status >= 0xf0) { impl->clock.event (e.status, e.d1, e.d2, start + off, out); continue; }
         if (map && map->midiChan != 0 && map->midiChan != ch) continue;
         if (kind == 0xb0 && (e.d1 == 120 || e.d1 == 123))
@@ -231,7 +237,7 @@ void MidiRouter::process (const juce::MidiBuffer& in, const HostTransport& host,
                 const int slot = heldSlot; heldSlot = -1; bool stillHeld = false;
                 for (const auto& channel : impl->heldNoteSlots)
                     for (auto s : channel) if (s == slot) stillHeld = true;
-                if (! stillHeld) impl->foot (slot, false, value, off, out);
+                if (! stillHeld) impl->foot (slot, false, kind == 0x80 ? e.d2 / 127.f : 0.f, off, out);
             }
         }
         if (type == MidiSrc::CC && impl->effectiveEnabled)

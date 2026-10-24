@@ -342,3 +342,25 @@ LUTHIER_TEST (RefPedalMidiCore, externalMidiCapacityIsExplicitAndBounded)
     CHECK (capacity.lowerBound (replacement, luthier::MidiCapacityContract::Unknown) == 0);
     CHECK (capacity.lowerBound (dest, luthier::MidiCapacityContract::JuceWrapper) == 2048);
 }
+
+LUTHIER_TEST (RefPedalMidiCore, malformedDataAndSensingCannotStarveClock)
+{
+    MidiRouter router; router.prepare (48000, 512);
+    auto map = std::make_unique<MapSnap>(); map->tempoSource = TempoSource::MidiClock;
+    map->keyboardSlots = 16; Binding b; b.srcNum = 20; b.target = 0; map->add (b); router.publishMap (std::move (map));
+    for (int i = 0; i < 256; ++i) router.pushUiEvent ({0,0x90,255,255});
+    juce::MidiBuffer input; for (int i = 0; i < 600; ++i) input.addEvent (juce::MidiMessage (0xfe), 0);
+    input.addEvent (juce::MidiMessage::midiStart(), 1); input.addEvent (juce::MidiMessage::midiClock(), 10);
+    RouteOut out; router.process (input, {}, 0, 512, out);
+    CHECK (out.nFoot == 0); CHECK (out.nWrites == 0); CHECK (out.nTr > 0); CHECK (out.tr[0] == TransportEvent::Start);
+    CHECK (router.droppedCount() >= 256);
+}
+LUTHIER_TEST (RefPedalMidiCore, prepareClearsHighResolutionControllerHistory)
+{
+    MidiRouter router; router.prepare (48000, 64); auto map = std::make_unique<MapSnap>();
+    Binding b; b.srcType = (uint8_t) MidiSrc::CC14; b.srcNum = 1; b.target = 0; map->add (b); router.publishMap (std::move (map));
+    juce::MidiBuffer in; in.addEvent (juce::MidiMessage::controllerEvent (1,1,127), 0); RouteOut out;
+    router.process (in, {}, 0,64,out); CHECK (out.nWrites == 1);
+    router.prepare (96000,64); in.clear(); in.addEvent (juce::MidiMessage::controllerEvent (1,33,127),0);
+    router.process (in, {},0,64,out); CHECK (out.nWrites == 0);
+}
