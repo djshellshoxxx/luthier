@@ -1,16 +1,11 @@
 // OWNER: WP19
 #pragma once
-#include "PedalFace.h"
+#include "ModelFace.h"
 namespace luthier::reference
 {
-class GenericFace final : public PedalFace
+class GenericFace final : public ModelFace
 {
 public:
-    explicit GenericFace (const PedalDesc*);
-    juce::Point<float> designSizeMm() const override;
-    void paintFace (juce::Graphics&, const FaceState&) override;
-    void layout (FaceLayout&) override;
-private:
-    const PedalDesc* desc;
+    explicit GenericFace(const PedalDesc* descriptor):ModelFace(genericFaceProfile(descriptor),descriptor){}
 };
 }
