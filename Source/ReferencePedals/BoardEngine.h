@@ -7,6 +7,7 @@
 #include "Routing/LatencyEqualiser.h"
 #include "Routing/SendReturn.h"
 #include "Routing/AbSwitch.h"
+#include "Routing/Feedback.h"
 #include "Rt/RetireList.h"
 #include "Rt/SpscRing.h"
 #include "WetDryMixer.h"
@@ -106,8 +107,11 @@ private:
     std::atomic<float> inputPeak { -120.f }, outputPeak { -120.f };
     std::array<Segment, kNumPlacements> segments;
     std::array<std::array<std::array<double, kSubBlock>, 2>, kMaxBuses> buses {};
+    routing::FeedbackState feedback;
+    uint32_t feedbackRearmSeen = 0, feedbackKillSeen = 0;
     BoardAuxOutputs auxOutputs;
     std::atomic<uint8_t> auxAvailable { 0 };
+    std::atomic<bool> feedbackFault { false }, feedbackTripped { false };
     const float* sidechain[2] {};
     int sidechainSamples = 0;
     std::atomic<bool> sidechainConnected { false };

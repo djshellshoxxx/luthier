@@ -176,6 +176,7 @@ struct FeedbackSettings
     float gain = 0.5f;                   // 0..1.05; > 0.98 needs runawayOk
     float lpHz = 12000.f;
     bool runawayOk = false;
+    bool kill = false; // E56 momentary; persistence writes false
 };
 
 struct LaneSettings

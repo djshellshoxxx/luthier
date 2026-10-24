@@ -26,6 +26,7 @@ struct RenderPlan
     // Only processing structure affects this number; controls adopt without a dip.
     uint32_t structure = 0;
     AbSelect abResolved = AbSelect::AplusB;
+    uint32_t feedbackRearm = 0, feedbackKill = 0;
 };
 class TopologyCompiler
 {

@@ -17,6 +17,33 @@ namespace luthier::reference
 
 namespace
 {
+    bool validRoutingReferences (const std::vector<PedalInstance>& instances, const BoardSettings& settings, juce::String& error)
+    {
+        const auto find = [&] (const InstanceId& id) { for (size_t i = 0; i < instances.size(); ++i) if (instances[i].instanceId == id) return static_cast<int> (i); return -1; };
+        std::array<int, kMaxSlots> loops; loops.fill (-1);
+        for (int index = 0; index < kMaxLoops; ++index)
+        {
+            const auto& loop = settings.loops[static_cast<size_t> (index)]; if (! loop.used) continue;
+            const int first = find (loop.first), last = find (loop.last);
+            if (first < 0 || last < first) { error = "Invalid send/return endpoints"; return false; }
+            if (settings.mode != Mode::Series && settings.mode != Mode::Loop) { error = "Send/return requires series or loop mode"; return false; }
+            for (int pos = first; pos <= last; ++pos)
+                if (loops[static_cast<size_t> (pos)] >= 0 || instances[static_cast<size_t> (pos)].placement != instances[static_cast<size_t> (first)].placement)
+                { error = "Overlapping or cross-placement send/return loop"; return false; }
+                else loops[static_cast<size_t> (pos)] = index;
+        }
+        if (settings.fb.on)
+        {
+            const int source = find (settings.fb.src), destination = find (settings.fb.dst);
+            if (source < 0 || destination < 0 || destination > source) { error = "Invalid feedback endpoint order"; return false; }
+            const auto& src = instances[static_cast<size_t> (source)]; const auto& dst = instances[static_cast<size_t> (destination)];
+            if (src.placement != dst.placement || ((settings.mode == Mode::AB || settings.mode == Mode::Parallel) && src.lane != dst.lane)
+                || loops[static_cast<size_t> (source)] != loops[static_cast<size_t> (destination)])
+            { error = "Feedback endpoints must share a placement and lane"; return false; }
+        }
+        return true;
+    }
+
     // All scalar commands validate before assigning, so a malformed value
     // cannot contaminate a snapshot or consume an undo step.
     bool setBoardScalar (BoardSettings& settings, const std::string& key, double value)
@@ -45,6 +72,7 @@ namespace
         if (key == "tempoBpm") return real (settings.tempoBpm, 20.0, 300.0);
         if (key == "cpuCapPct") return integer (settings.cpuCapPct, 1, 100);
         if (key == "midiChan") return integer (settings.midiChan, 0, 16);
+        if (key == "fbKill") { if (! std::isfinite (value) || (value != 0.0 && value != 1.0)) return false; settings.fb.kill = value >= 0.5; return true; }
         if (key == "abSelect") return integer (settings.abSelect, 0, static_cast<int> (AbSelect::Toggle));
         if (key == "abOut") return integer (settings.abOut, 0, static_cast<int> (AbOutMode::Dual));
         if (key == "parallelNorm") return integer (settings.lanes.norm, 0, static_cast<int> (ParallelNorm::None));
@@ -410,7 +438,7 @@ bool BoardModel::applyImpl (const BoardCommand& command, juce::String* rejectRea
             return true;
         }, command);
         auto info = impl->info;
-        const bool compiled = supported && (! impl->compiler || impl->compiler (nextInstances, next, info, reason, &command, hostEcho));
+        const bool compiled = supported && validRoutingReferences (nextInstances, next, reason) && (! impl->compiler || impl->compiler (nextInstances, next, info, reason, &command, hostEcho));
         if (compiled)
         {
             impl->info = info;
@@ -589,6 +617,7 @@ bool BoardModel::replaceAll (const std::vector<PedalInstance>& orderedInstances,
             if (reason.isNotEmpty()) break;
         }
     }
+    if (reason.isEmpty()) validRoutingReferences (orderedInstances, settings, reason);
     if (error != nullptr) *error = reason;
     if (reason.isNotEmpty()) return false;
     auto restored = cloneInstances (orderedInstances);
