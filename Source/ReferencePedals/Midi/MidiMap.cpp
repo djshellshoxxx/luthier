@@ -8,6 +8,7 @@ bool reservedCc (int cc) noexcept
 }
 bool MapSnap::add (const Binding& b, uint8_t layer) noexcept
 {
+    if ((int) b.mode() > (int) BindMode::Step || (int) b.curve() > (int) CurveId::Custom5) return false;
     if (numBindings >= kMaxBindings || b.chan > 16 || b.srcNum > 127 || b.srcType >= kSourceTypes
         || ((b.srcType == (int) MidiSrc::CC || b.srcType == (int) MidiSrc::CC14) && reservedCc (b.srcNum))
         || ! std::isfinite (b.inMin) || ! std::isfinite (b.inMax) || b.inMax <= b.inMin
@@ -30,12 +31,13 @@ void MapSnap::compile() noexcept
             std::swap (initialValues[(size_t) j], initialValues[(size_t) j - 1]);
             std::swap (steps[(size_t) j], steps[(size_t) j - 1]);
             std::swap (layers[(size_t) j], layers[(size_t) j - 1]);
+            std::swap (customPoints[(size_t) j], customPoints[(size_t) j - 1]);
         }
     for (auto& bucket : lookup) bucket.count = 0;
     for (int i = 0; i < numBindings; ++i)
     {
         auto& b = bindings[(size_t) i];
-        for (int j = 0; j < 256; ++j) curves[(size_t) i][(size_t) j] = curveValue (b.curve(), (float) j / 255.f, b.curveParam);
+        buildCurve (curves[(size_t) i], b.curve(), b.curveParam, &customPoints[(size_t) i]);
     }
     // Exact channel bindings claim a source before omni, regardless of id.
     for (int layer = 0; layer <= 2; ++layer)

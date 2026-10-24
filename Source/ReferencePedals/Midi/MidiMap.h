@@ -25,6 +25,7 @@ struct MapSnap
     std::array<std::array<uint8_t, 128>, 16> footLayer = [] { std::array<std::array<uint8_t, 128>, 16> a {}; for (auto& c : a) c.fill (255); return a; }();
     std::array<int8_t, 128> noteToSlot = [] { std::array<int8_t, 128> a {}; a.fill (-1); return a; }();
     std::array<CurveLut, kMaxBindings> curves {};
+    std::array<CustomPoints, kMaxBindings> customPoints = [] { std::array<CustomPoints, kMaxBindings> a {}; for (auto& p : a) p = linearPoints(); return a; }();
     std::array<Bucket, kSourceTypes * 16 * 128> lookup {};
     bool add (const Binding&, uint8_t layer = 0) noexcept;
     void compile() noexcept; // message thread only, before publication
