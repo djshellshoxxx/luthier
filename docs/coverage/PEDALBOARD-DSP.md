@@ -40,9 +40,46 @@ Tests retain±3dB reference unity and≤6dB drive span at44.1/48/96/192kHz, driv
 
 The candidate follows the specified **estimated** feedback OTA gain law, sensitivity, diode detector, program-dependent release, optional deterministic noise, mix and Mini attack switch. Display name explicitly says estimated. The algebraic biased-tanh identity makes noise-off silence exactly zero. Short FIR reports15 samples(default2x),23 samples(HQ4x),0(off), with matching dry delay. Scope is an estimated algorithm from the spec, not hardware emulation validated by captures.
 
-Basic finite/block/silence/feedback-bound tests exist. Actual48kHz measurements: default1kHz/−20dBFS peak THD(2..10)=0.183991%(passes0.1–1%); max sensitivityTHD=0.016624%(does not reach the stated3–5% range). Default-sensitivity5kHz/0dBFS peak alias=−102.7797dBc(passes−60). The sampled static curve was monotonic over−50..0dBFS in10dB increments at sensitivity0.25/0.5/0.75/1; maximum measuredGR35.695dB. This does not provide the missing simulation comparison. At−30→−10dBFS, the gain-law feedback makes measured63%GR attack0.479ms Fast/1.396ms Slow despite internal5/15ms envelope coefficients; the original5ms±50% Fast gate fails. Recovery did not reach the63%GR target within the1second observation window; it is censored, not reported as an exact1second recovery. An extended recovery measurement remains necessary. Thread CPU:0.025755s/2s=1.287770% with independent stereo signals, default2x/noiseoff48k128/O2; the original0.5% gate fails. Parameter-coefficient caching and reducing meter logarithms to once per block preserved captured audio bit-for-bit against the preoptimization run. After the independently reviewed short-polyphase helper and bounded-error mild-tanh fast path, stereo CPU measured1.083035%, still above0.5%; captured default THD and alias-waveform differences were below3.4e−16 versus the previous algorithm. Raw results and measurement source are in the adjacent evidence directory.
+Basic finite/block/silence/feedback-bound tests exist. **Measurement correction:**
+the historical `measure-dynacomp.cpp` passed normalized sensitivity values to
+`setParam`. Because the descriptor has skew.5, normalized.5 means natural.25,
+not the default natural.5. Its48k THD0.183991% and5k alias-102.7797dBc belong to
+natural.25; the earlier default-THD pass claim is withdrawn. The old waveform
+and measurements are retained, and the source now warns about this convention.
+Its static curves likewise used normalized.25/.5/.75/1, with maximum measured
+GR35.695dB; those are not a reference-circuit comparison.
 
-Still open: original static-curve comparison to simulation, attack/release numerical acceptance, FRF/THD/IMD, alias−60dBc,0.5%CPU,30minute soak, zipper-energy gate, hardware captures and variant impedance loading. The literal output mapping−60..+20dB produces−20dB at the default0.5 knob; no undocumented unity correction was applied. Only Mini attack differs by variant; M102 versus Script76 component variation is not represented. Board owns bypass transition; this model must not be presented as fully accepted while these items remain open.
+Corrected `measure-dynacomp-natural-thd.cpp` explicitly converts natural values
+through `ParamDesc::toNormalised`. At48k,1kHz/-20dBFS peak, natural sensitivity.5
+(the actual default) produces **0.042433% THD**, below the original0.1–1% band:
+**FAIL**. Natural1 produces0.016624%, below the original3–5% band: **FAIL**.
+Both failures persist at44.1/48/96/192k. Original burst tests did not override
+sensitivity, so their default FAST attack failure remains valid.
+
+The corrected extended recovery probe settles low input for5seconds, high input
+for3seconds, then observes recovery for5seconds. It uses the original-30→-10dBFS
+peak step and reports actual63% GR crossings, with NO_GR_STEP/CENSORED distinct
+from observed times. Default natural.5 recovery is~1.598seconds FAST/~1.595seconds
+SLOW at48k, just outside the original1second±50% interval. Natural.25 recovery
+is~1.429/1.426seconds. Natural.15 gives about4dB of GR and recovery1.154/1.152seconds,
+inside that numeric interval at this lighter level; the source does not quantify
+the term "light GR". This does not qualify the failing attack response or all
+program material. The light-GR case and all four rates are retained
+in `dynacomp-recovery.txt`; no-GR natural.1 cases are not reported as successful
+timing measurements. The source's light-GR qualification remains explicit.
+
+Thread CPU at actual defaults remains1.083035% after the earlier reviewed
+polyphase/mild-tanh changes, above0.5%. The earlier1.287770% measurement is
+retained as historical evidence; no
+frequency normalization to a3GHz reference was applied. Those optimizations
+preserved the captured test waveform to<3.4e-16. The literal output mapping
+-60..+20dB yields-20dB at natural.5; no undocumented unity correction was made.
+Only Mini attack differs by variant; M102/Script76 component variation is absent.
+
+Still open: reference-simulation static curve, default/maximum THD, full FRF/IMD,
+attack/release qualification, original alias stimulus,0.5%CPU,30minute soak,
+zipper energy, hardware captures and impedance loading. Board owns bypass.
+This model remains an unregistered, unaccepted candidate.
 
 ## Coverage and exact omissions
 
@@ -56,7 +93,7 @@ BbdCore, LooperCore and GestureDecoder belong to timefx/engine; hub/host/UI/glob
 
 ## Test evidence
 
-Focused native runner links the repository test framework and JUCE core only, with `LUTHIER_ALLOCATION_COUNTER=1` and thread-local global allocation interceptors. Rates44.1/48/88.2/96/192kHz, partitions1/16/37/64/481/2048 versus single-sample processing; input includes NaN,Inf,±1e6 and subnormals. Latest complete run:34 test cases,2,889,786 checks,zero failures, including shelf/RMS/circuit/ADAA2 tests and Dyna RT lifecycle allocation interception. Detailed latest result is saved alongside this ledger. Structural success does not turn the failing spectral/CPU measurements into passes.
+Focused native runner links the repository test framework and JUCE core only, with `LUTHIER_ALLOCATION_COUNTER=1` and thread-local global allocation interceptors. Rates44.1/48/88.2/96/192kHz, partitions1/16/37/64/481/2048 versus single-sample processing; input includes NaN,Inf,±1e6 and subnormals. Earlier broad generic/helper run:34 test cases,2,889,786 checks,zero failures, including shelf/RMS/circuit/ADAA2 tests and Dyna RT lifecycle allocation interception. Detailed latest result is saved alongside this ledger. Structural success does not turn the failing spectral/CPU measurements into passes.
 
 ## Additional independent oracle evidence
 
@@ -66,7 +103,7 @@ Long candidate upper-stage33-tap transfer measured passband minimum−0.0000799d
 
 ## Remaining generic numeric coverage
 
-The structural suite does not establish every tonal acceptance criterion. Not yet exhaustively measured: clean-boost THD limit; OD THD monotonicity/asymmetric harmonic levels/tone-corner tolerance; Fuzz bias RMS monotonicity, gate attack, Germanium10–25% sag and max-fuzz THD; compressor attack/release and dynamic linked/manual behavior. The Fuzz literal sag formula has an additional apparent conflict: its raw envelope cannot exceed a sustained−10dBFS peak sine's0.31623 amplitude, so `1−0.2*env` reduces the combined pre-gain by at most6.325%(or8.945% if−10dBFS is RMS referenced to1.0), below the stated10–25% sag range. No undocumented envelope normalization has been added; actual output-sag measurement/intent reconciliation remains open.
+The structural suite does not establish every tonal acceptance criterion. Not yet exhaustively measured: clean-boost THD limit; OD THD monotonicity/asymmetric harmonic levels/tone-corner tolerance; Fuzz bias RMS monotonicity, gate attack, Germanium10–25% sag and max-fuzz THD. The later compressor audio-path section closes isolated static gain, stereo link, and attack/release measurements; musical-program behavior remains open. The Fuzz literal sag formula has an additional apparent conflict: its raw envelope cannot exceed a sustained−10dBFS peak sine's0.31623 amplitude, so `1−0.2*env` reduces the combined pre-gain by at most6.325%(or8.945% if−10dBFS is RMS referenced to1.0), below the stated10–25% sag range. No undocumented envelope normalization has been added; actual output-sag measurement/intent reconciliation remains open.
 
 Rejected first129-tap Kaiser experiment: standalone double-pass bandwidth was within±0.0053dB through20kHz and image endpoint rejection−70.4dB, but actual boost high-quality full-scale5kHz stress worsened to−45.493dBFS at23kHz. Stereo CPU only improved9.920→9.145%. This experiment was reverted; current first stage remains257 taps. Actual-chain evidence takes precedence over isolated filter endpoints.
 
@@ -519,3 +556,7 @@ CPU medians are19.3017% NYC and18.8928% Wicker; both original budgets still fail
 Evidence:`named-shared-root-{tests,stderr}.txt`, `muff-root-shared-measurements.txt`
 and `muff-root-sharing-comparison.csv`. Earlier tables and raw results remain
 as before/after evidence.
+
+Timefx independently reviewed the sharing mechanism: no reference-count
+operations in process, immutable coefficients, and independent reset/state.
+That review did not rerun the recorded corpus or qualify acoustic/CPU gates.

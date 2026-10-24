@@ -1,0 +1,12 @@
+sr44100 naturalSensitivity0.25 normalized0.500000000 input-20dBFSpeak THD2to10 0.184126908% GR1.430280735dB
+sr44100 naturalSensitivity0.50 normalized0.707106769 input-20dBFSpeak THD2to10 0.042490406% GR11.616989146dB
+sr44100 naturalSensitivity1.00 normalized1.000000000 input-20dBFSpeak THD2to10 0.016658846% GR21.920454528dB
+sr48000 naturalSensitivity0.25 normalized0.500000000 input-20dBFSpeak THD2to10 0.183991356% GR1.429763942dB
+sr48000 naturalSensitivity0.50 normalized0.707106769 input-20dBFSpeak THD2to10 0.042433434% GR11.615992217dB
+sr48000 naturalSensitivity1.00 normalized1.000000000 input-20dBFSpeak THD2to10 0.016623687% GR21.921418198dB
+sr96000 naturalSensitivity0.25 normalized0.500000000 input-20dBFSpeak THD2to10 0.183132636% GR1.430081713dB
+sr96000 naturalSensitivity0.50 normalized0.707106769 input-20dBFSpeak THD2to10 0.042381960% GR11.616259329dB
+sr96000 naturalSensitivity1.00 normalized1.000000000 input-20dBFSpeak THD2to10 0.016530592% GR21.919581623dB
+sr192000 naturalSensitivity0.25 normalized0.500000000 input-20dBFSpeak THD2to10 0.182889246% GR1.429838241dB
+sr192000 naturalSensitivity0.50 normalized0.707106769 input-20dBFSpeak THD2to10 0.042383524% GR11.615899299dB
+sr192000 naturalSensitivity1.00 normalized1.000000000 input-20dBFSpeak THD2to10 0.016510057% GR21.919267303dB

@@ -1,3 +1,7 @@
+// Historical probe: sensitivity arguments passed to setParam are NORMALIZED.
+// With skew .5, capture(.5) is natural sensitivity .25, not the default .5.
+// Keep this original stimulus reproducible; corrected natural-value results
+// are measured by measure-dynacomp-natural-thd.cpp / measure-dynacomp-recovery.cpp.
 #include "../../../Source/ReferencePedals/Models/mxr_dynacomp.h"
 #include <fstream>
 #include <time.h>
