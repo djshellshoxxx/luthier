@@ -201,11 +201,14 @@ void BossDd3t::render(double* left,double* right,double* residualL,double* resid
         if(converter){converterPhase+=(32768/(currentMs*.001))/sr;if(converterPhase>=1){converterPhase-=std::floor(converterPhase);converterTick=true;}}
         holdMix+=std::clamp((holding?1.:0.)-holdMix,-holdStep,holdStep);
         double wetEnergy=0;double* outputs[]{left,right};
+        const double inputL=monoMode?mono:dry[0],inputR=monoMode?mono:dry[1];
+        const double driveL=highpass[0].highpass(inputL)*inputGain+feedback[0]*fb*wetGain;
+        const double driveR=highpass[1].highpass(inputR)*inputGain+feedback[1]*fb*wetGain;
+        const auto saturated=common::LowLatencyOversampler::processPair(saturation[0],saturation[1],driveL,driveR,
+            [](double v){return common::mildTanh(v);},[](double v){return common::mildTanh(v);});
         for(int c=0;c<2;++c)
         {
-            const double input=monoMode?mono:dry[c];
-            double x=highpass[c].highpass(input)*inputGain+feedback[c]*fb*wetGain;
-            x=saturation[c].process(x,[](double v){return common::mildTanh(v);});for(auto& filter:pre[c])x=filter.process(x);
+            double x=saturated[c];for(auto& filter:pre[c])x=filter.process(x);
             if(bits<24 && std::abs(x)>1e-12)
                 x=std::round(x*quantScale+.5*(noise[c].next()+noise[c].next()))*inverseQuantScale;
             if(converter)

@@ -724,3 +724,31 @@ reset and reprepare. New raw traces/CPU are in
 Five local 48k/128 CE2W CPU trials now measure **0.955–1.039%**. Four meet the
 original 1% target, but the worst trial still fails; no acceptance or registration
 claim is made. CE2 and DD3T CPU and CE2W CE1 THD/bypass gates remain open.
+
+### Paired short FIR and DD3T adoption (2026-10-24)
+
+The shared short oversampler now offers independent SSE2 FIR lanes while keeping
+all original coefficients, tap accumulation order, guards and 15/23-sample
+latencies. Scalar callbacks execute all left high-rate samples before all right
+samples, as in two scalar calls; callbacks must not mutate the oversamplers.
+Same-object, unequal-factor, FMA/AVX2 and non-SSE2 calls use the original scalar
+path. A full-tap convolution oracle, exact scalar-state oracle, hostile samples,
+nonfinite callback returns, stateful callback ordering, independent ring heads,
+resets and reprepare qualify the helper. DSP independently reviewed its indexing,
+association and callback ordering and reran the new helper tests successfully.
+
+Only DD3T adopts paired oversampling in this checkpoint. Its channel prefilters,
+quantizers, noise generators, delays, postfilters, feedback and tails are
+unchanged. All 15 prior model audio/public-state hashes remain bit-identical
+(3,967,500 stereo frames); raw output is
+`probes/named-timefx-dd-os-pair-results.txt`. An immutable actual-model plus helper
+ASan/UBSan/leak run passes **1,254,750 checks, zero failures**, no diagnostics.
+
+**CPU figures in the recent event-cache, prefix-sharing and pair experiments are
+exploratory under concurrent native-build contention**, not isolated acceptance
+measurements. The DD3T pair experiment measured 0.591–0.632% versus the prior
+0.831–0.926% trial range, but its original 0.5% gate remains open and these ranges
+must be rechecked with the coordinator's native build idle. Paired Biquad and
+paired BBD-prefix experiments gave no convincing model CPU benefit and were not
+adopted. Their shared APIs are independently correctness-tested; they establish
+no product performance claim. No named model registration or threshold changed.
