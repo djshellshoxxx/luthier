@@ -7,7 +7,7 @@
 namespace luthier::reference
 {
 BoardCanvas::BoardCanvas(BoardModel& m,juce::AudioProcessorValueTreeState* p):model(m),parameters(p),drag(m){addAndMakeVisible(cableLayer);drag.onError=[this](const auto& error){if(onError)onError(error);};model.addListener(this);setTitle("Pedalboard");refresh();}
-BoardCanvas::~BoardCanvas(){cancelDrag();stopTimer();model.removeListener(this);}
+BoardCanvas::~BoardCanvas(){setMeterSource({});cancelDrag();stopTimer();model.removeListener(this);}
 PedalView* BoardCanvas::viewFor(const InstanceId& id) const {const auto it=views.find(id.toString());return it==views.end()?nullptr:it->second.get();}
 void BoardCanvas::closeInspectors(){for(auto& entry:views)entry.second->closeInspector();}
 void BoardCanvas::setLearn(bool b){learning=b;for(auto& v:views){v.second->learnMode=b;v.second->repaint();}}
@@ -119,5 +119,18 @@ void BoardCanvas::timerCallback()
         if(ghost)ghost->setTopLeftPosition(dragPointer-dragOffset-juce::Point<int>(14,14));
     }
     if(!drag.update(dragTarget(dragPointer),juce::Time::getMillisecondCounterHiRes()))finishVisualDrag();
+}
+}
+
+namespace luthier::reference
+{
+void BoardCanvas::setMeterSource(std::function<PedalMeters(int)> source)
+{
+    meterSource=std::move(source);meterPoll.motion.startTimerHz(meterPoll,meterSource?30:0);if(meterSource)pollMeters();
+}
+void BoardCanvas::pollMeters()
+{
+    if(!meterSource)return;
+    for(auto& entry:views)if(const auto instance=model.getInstance(entry.second->id()))entry.second->updateMeters(meterSource(instance->slot));
 }
 }

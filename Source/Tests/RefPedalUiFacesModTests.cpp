@@ -23,3 +23,14 @@ LUTHIER_TEST(RefPedalUiFacesMod, physicalLooperFootswitchIsRealMomentaryControl)
     CHECK(layout.controls[1].paramIdx==1);CHECK(layout.controls[1].kind==FaceControlKind::Button);
     CHECK(layout.controls[1].bounds==layout.footswitch);
 }
+#include "../UI/ReferencePedals/BoardCanvas.h"
+LUTHIER_TEST(RefPedalUiFacesMod, looperMainFootswitchSendsRealEdgesWithoutBypassAlias)
+{
+    PedalRegistry::TestScope scope;
+    const ParamDesc params[]{{"tc_ditto_loop_level","LEVEL","",ParamKind::Continuous,Taper::Linear,0,1,.5f,1,0,nullptr,PF_Automatable,20,-1},{"tc_ditto_fs","PEDAL","",ParamKind::Momentary,Taper::Linear,0,1,0,1,0,nullptr,0,0,-1}};
+    const PedalDesc desc{"tc-ditto","tc_ditto_",1,"Looper UI fixture","Fixture",nullptr,ChannelMode::Stereo,BypassMode::True,2,params,0,false,false,false,0};CHECK(PedalRegistry::add(desc,[]()->std::unique_ptr<IPedal>{return {};}));
+    BoardModel model;CHECK(model.apply(cmd::Add{"tc-ditto"}));BoardCanvas canvas(model);const auto id=model.getOrder()[0];auto* view=canvas.viewFor(id);juce::Button* main=nullptr;
+    for(auto* child:view->getChildren())if(child->getComponentID()=="tc_ditto_fs")main=dynamic_cast<juce::Button*>(child);
+    CHECK(main!=nullptr);if(!main)return;CHECK(!main->getClickingTogglesState());
+    main->setState(juce::Button::buttonDown);CHECK_NEAR(model.getInstance(id)->params[1],1,1e-6);main->setState(juce::Button::buttonNormal);CHECK_NEAR(model.getInstance(id)->params[1],0,1e-6);CHECK(model.getInstance(id)->enabled);
+}

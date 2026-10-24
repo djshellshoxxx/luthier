@@ -51,7 +51,7 @@ Initial red evidence: the geometry test's requested clampWindow API was absent (
 
 ## Additional known event-delivery limit
 
-A Trigger/Momentary button sends actual down/up values. A press and release completed before audio adopts the intermediate topology can be coalesced by the current backend. The engine owner has been notified; reliable rapid pulse delivery requires an event queue. This is not certified by the UI tests.
+Trigger/Momentary buttons send actual down/up values. Engine checkpoint950dbf93 supplies the bounded edge queue, with separate engine tests for rapid pulses. UI `looperMainFootswitchSendsRealEdgesWithoutBypassAlias` verifies the main physical button writes1 then0 and does not change slot enable. Audio edge ordering remains certified by engine evidence, rather than inferred from a slider or UI-only test.
 
 ## Selected MIDI focus integration
 
@@ -92,3 +92,9 @@ The before/after actual1280x800 BoardRoot PNGs exposed clipped permanent value f
 Before PNGs remain at `.../visual/`; corrected7-style native-render PNGs, inspector,2x2560x1600 images,480x260 minimum image and contact sheet are at `.../visual/after/`. These are unattended renderer artifacts. ExistingFileOutputStream appends by default, so regeneration now deletes only the generated destination file before writing; after images are single PNG streams.
 
 The native peer idle failure was resolved using the repository's existing QualityModeUiTests `PreInternWindowManagerAtoms` semantics before JUCE initialization; no product error suppression or window settings changes were needed. Actual native Xvfb DocumentWindow with BoardRoot and16 real generic pedals:750ms settle then1000ms observation, **Canvas0 paints; processCPU0.7419%**. Exact native driver/results/build are retained at `/workspace/luthier-evidence/pedalboard-ui/idle/`; original BadAtom error retained separately. This is one unattended Linux/Xvfb observation, not a DAW/hardware benchmark.
+
+## Actual pedal telemetry slice (E47)
+
+BoardRoot now supplies `Board::readPedalMeters(storageSlot)` to a policy-controlled30Hz LiveReadout poll. Hidden views stop via AnimationPolicy, reduced quality caps polling, no source creates no timer, and identical snapshots do not repaint. PedalView rejects any present snapshot whose fullUUID differs from the instance. Only available transport/loop/tempo/fault fields are shown. Actual audio enabled/tail data drive LEDs; the RC1 ring derives segment count from actual playhead/length; RC5 has a compact real transport/BPM/position display and full inspector summary. No clock or transport phase is inferred from wall time. Fault/transport changes notify accessibility value changes. Missing or unavailable payloads remain explicit pending/no-readback states.
+
+`actualMetersRequireFullIdentityAndAvailability` tests wrong UUID, available-field gating, unchanged readings, transport/BPM/fault text and disappearance. `looperMainFootswitchSendsRealEdgesWithoutBypassAlias` validates actual momentary1/0 writes and unchanged enabled state.27 focused tests /673,648 checks /0 failures. This depends on approved engineE47 and E53; the named loopers are still unregistered in this isolated snapshot and their owners have not yet published all payloads. `visual/after/looper_artwork_fixtures{,_2x}.png` explicitly banner their unregistered fixture status with no fabricated live progress. Descriptor arrays in the fixture driver now have whole-driver lifetime, as required by the registry's non-owning descriptor pointers.
