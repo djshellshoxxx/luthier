@@ -55,6 +55,7 @@ BoardRoot::BoardRoot(BoardModel& m,LuthierAudioProcessor* p):model(m),processor(
         if(state.getParameter("ref_board_enabled"))enabledAttachment=std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(state,"ref_board_enabled",enabled);
         if(state.getParameter("ref_board_tempo_bpm"))tempoAttachment=std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(state,"ref_board_tempo_bpm",tempo);
     }
+    mix.textFromValueFunction=[](double n){return juce::String((int)std::round(n*100))+"% wet";};mix.setDoubleClickReturnValue(true,1.);
     cables.onClick=[this]{canvas.setCables(cables.getToggleState());saveView();};
     fit.onClick=[this]{zoomTo(juce::jlimit(.5f,2.f,(float)viewport.getWidth()/canvas.getWidth()));};minus.onClick=[this]{zoomTo(zoom-.1f);};plus.onClick=[this]{zoomTo(zoom+.1f);};
     keepOnTop.onClick=[this]{if(auto* w=findParentComponentOfClass<juce::DocumentWindow>())w->setAlwaysOnTop(keepOnTop.getToggleState());};
