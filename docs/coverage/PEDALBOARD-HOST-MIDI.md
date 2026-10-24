@@ -16,7 +16,7 @@ WP23 host extension: `LuthierEngine::setReferencePedalTransport(HostTransport)` 
 
 ## Actual native checks
 
-Standalone native harness against JUCE 8 core/audio_basics (2026-10-23): 13 cases / 64 checks passing under AddressSanitizer + UndefinedBehaviorSanitizer and independently under ThreadSanitizer. Own routing sources instrumented; reused JUCE module objects are uninstrumented.
+Standalone native harness against JUCE 8 core/audio_basics (2026-10-23): 15 cases / 111 checks passing under AddressSanitizer + UndefinedBehaviorSanitizer; the earlier 13-case / 64-check snapshot independently passed ThreadSanitizer. Own routing sources instrumented; reused JUCE module objects are uninstrumented.
 
 - RefPedalMidiCore::mappedOffsetsAndReservedGuard — 6 checks, passing.
 - RefPedalMidiCore::clockStartStopLoss — 6 checks, passing.
@@ -51,3 +51,5 @@ Compiler syntax checks passed for Parameters.cpp, LuthierEngine.cpp, PluginProce
 - Host root referencePedals is a recognized section. Lossless BoardState String codec writes raw JSON and exact opaque doubles; extraction restores original newer-schema bytes. Missing block resets empty/OFF.
 - RefPedalHost execution cases added: appendOnlyLaneIdsAndDefaults; boardStateSurvivesHostReloadAndRateChange; missingBoardBlockRestoresLegacyDefault; repeatedRateAndSmallBlockLifecycle; forwardBoardSectionPreservesRawBytes. These are compiled, not yet run.
 - Host limitations still pending: sample-accurate host automation, dynamic host lane names, per-placement auxiliary latency accounting, actual AU automation failure reproduction, DAW validation and UI control coverage integration.
+
+Clock follow-up: hostTransportPriorityAndStopEdge (7 checks) now verifies AUTO STOP exactly once; clockTempoIndependentOfRateAndBlockPartition (40 checks) covers 44.1/48/96/192kHz and 1/37/64/333/2048 block partitions.

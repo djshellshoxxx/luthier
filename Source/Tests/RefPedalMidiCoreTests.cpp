@@ -143,3 +143,34 @@ LUTHIER_TEST (RefPedalMidiCore, disabledBoardOnlyAllowsEnableTarget)
     CHECK (out.writes[0].slot == kBoardTargetSlot); CHECK (out.writes[0].offset == 37);
     CHECK (out.writes[1].slot == 0); CHECK (out.writes[1].offset == 38);
 }
+LUTHIER_TEST (RefPedalMidiCore, hostTransportPriorityAndStopEdge)
+{
+    ClockSync clock; clock.prepare (48000); RouteOut out;
+    HostTransport host; host.valid = true; host.playing = true; host.bpm = 143; host.ppq = 0;
+    clock.begin (host, TempoSource::Auto, 120, 0, out); clock.finish (64, out);
+    CHECK (out.nTr == 1); CHECK (out.tr[0] == TransportEvent::Start); CHECK (out.time.bpm == 143);
+    out.clear(); host.ppq = 64 * 143. / (60 * 48000);
+    clock.begin (host, TempoSource::Auto, 120, 64, out); clock.finish (128, out); CHECK (out.nTr == 0);
+    out.clear(); host.playing = false; clock.begin (host, TempoSource::Auto, 120, 128, out); clock.finish (192, out);
+    CHECK (out.nTr == 1); CHECK (out.tr[0] == TransportEvent::Stop);
+    out.clear(); clock.begin (host, TempoSource::Auto, 120, 192, out); CHECK (out.nTr == 0);
+}
+LUTHIER_TEST (RefPedalMidiCore, clockTempoIndependentOfRateAndBlockPartition)
+{
+    const double rates[] { 44100, 48000, 96000, 192000 };
+    const int sizes[] { 1, 37, 64, 333, 2048 };
+    for (double rate : rates)
+        for (int block : sizes)
+        {
+            ClockSync clock; clock.prepare (rate); RouteOut out; int tick = 0;
+            const int64_t end = (int64_t) rate;
+            for (int64_t start = 0; start < end; start += block)
+            {
+                out.clear(); clock.begin ({}, TempoSource::MidiClock, 120, start, out);
+                while ((int64_t) std::llround (tick * rate / 48) < std::min (end, start + block))
+                { clock.event (0xf8, 0, 0, (int64_t) std::llround (tick * rate / 48), out); ++tick; }
+                clock.finish (std::min (end, start + block), out);
+            }
+            CHECK (std::abs (out.time.bpm - 120.) < .1); CHECK (std::isfinite (out.time.ppq));
+        }
+}
