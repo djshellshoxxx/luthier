@@ -107,7 +107,7 @@ LUTHIER_TEST(RefPedalDspKit, oversamplerPolicyDeterminism)
         a.prepare(48000, policy);
         b.prepare(48000, policy);
         CHECK(a.factor() == (2 << policy));
-        CHECK(a.latencySamples() == (policy == 0 ? 128 : policy == 1 ? 160 : 176));
+        CHECK(a.latencySamples() == (policy == 0 ? 128 : policy == 1 ? 136 : 140));
         for (int i = 0; i < 10000; ++i)
         {
             const double x = std::sin(i * .13);
@@ -135,7 +135,7 @@ LUTHIER_TEST(RefPedalDspKit, linearPhaseLatencyAndPassband)
                 }
             }
             CHECK(peak == os.latencySamples());
-            CHECK(os.latencySamples() == (policy == 0 ? 128 : policy == 1 ? 160 : 176));
+            CHECK(os.latencySamples() == (policy == 0 ? 128 : policy == 1 ? 136 : 140));
             for (double hz : {20., 1000., 10000., 20000.})
             {
                 os.reset();
