@@ -50,6 +50,16 @@ struct MidiRouter::Impl
     std::array<MidiEv, 768> events {};
     std::array<float, kMaxBindings> values {}, lastSource {};
     std::array<bool, kMaxBindings> held {}, picked {};
+    std::array<float, kTargetBoardBase + 16> targetValues {};
+    std::array<uint32_t, kTargetBoardBase + 16> targetIntentRevisions {}, targetGenerations {};
+    std::array<uint32_t, kMaxBindings> pickedGenerations {};
+    std::array<bool, kTargetBoardBase + 16> targetKnown {};
+    void updateTarget (uint16_t target, float value, int binding = -1) noexcept
+    {
+        targetValues[target] = value; targetKnown[target] = true;
+        if (++targetGenerations[target] == 0) ++targetGenerations[target];
+        if (binding >= 0) pickedGenerations[(size_t) binding] = targetGenerations[target];
+    }
     std::array<std::array<uint8_t, 32>, 16> msb {}, lsb {};
     std::array<std::array<bool, 32>, 16> hasMsb {};
     std::array<float, 2> hostExpression {}, expressionValue {};
@@ -108,20 +118,22 @@ struct MidiRouter::Impl
             bool emit = true;
             switch (b.mode())
             {
-                case BindMode::Toggle: emit = rising; v = values[index] < .5f ? 1.f : 0.f; break;
+                case BindMode::Toggle: emit = rising; v = targetValues[b.target] < .5f ? 1.f : 0.f; break;
                 case BindMode::Momentary: v = down ? 1.f : 0.f; break;
                 case BindMode::Trigger: emit = rising; v = 1; break;
                 case BindMode::Relative:
-                { const int raw = (int) std::round (value * 127); v = values[index] + (raw >= 64 ? raw - 128 : raw) / 128.f; break; }
+                { const int raw = (int) std::round (value * 127); v = targetValues[b.target] + (raw >= 64 ? raw - 128 : raw) / 128.f; break; }
                 case BindMode::Step:
                     if (map.steps[index] >= 2) v = std::round (v * (map.steps[index] - 1)) / (map.steps[index] - 1);
                     else emit = false;
                     break;
                 default: break;
             }
+            if (pickedGenerations[index] != targetGenerations[b.target])
+            { picked[index] = false; pickedGenerations[index] = targetGenerations[b.target]; }
             if (b.has (BF_SoftTakeover) && b.mode() == BindMode::Absolute && ! picked[index])
             {
-                const float current = values[index];
+                const float current = targetValues[b.target];
                 const float old = lastSource[index];
                 if (std::abs (v - current) <= .03f || (old < current && v >= current) || (old > current && v <= current)) picked[index] = true;
                 else emit = false;
@@ -129,8 +141,10 @@ struct MidiRouter::Impl
             held[index] = down; lastSource[index] = v;
             if (! emit) continue;
             if (b.priority < ownerPriority[b.target] && routeSample - lastWrite[b.target] < (int64_t) (sr * .3)) continue;
+            if (out.nWrites == kMaxRouteWrites) { drop(); continue; }
             ownerPriority[b.target] = b.priority; lastWrite[b.target] = routeSample;
             values[index] = std::clamp (v, 0.f, 1.f);
+            updateTarget (b.target, values[index], index);
             if (b.target == kTargetBoardBase + (uint16_t) BoardTarget::Tempo)
             { tempoBpm.effective = 20.0 + 280.0 * values[index]; clock.setInternalTempo (tempoBpm.effective, routeSample); }
             if (b.target == kTargetBoardBase + (uint16_t) BoardTarget::Enabled)
@@ -138,7 +152,6 @@ struct MidiRouter::Impl
                 effectiveEnabled = values[index] >= .5f;
                 if (! effectiveEnabled) { footHeld.fill (false); for (auto& channel : heldNoteSlots) channel.fill (-1); }
             }
-            if (out.nWrites == kMaxRouteWrites) { drop(); continue; }
             out.writes[out.nWrites++] = { b.target >= kTargetBoardBase ? kBoardTargetSlot : (uint8_t) (b.target / kMaxParams),
                 b.target >= kTargetBoardBase ? (uint16_t) (b.target - kTargetBoardBase) : (uint16_t) (b.target % kMaxParams), values[index], b.smoothMs, offset };
             const auto& write = out.writes[out.nWrites - 1];
@@ -175,6 +188,7 @@ void MidiRouter::prepare (double sr, int)
     impl->uiClockLocked = impl->uiClockLost = false; impl->uiTempo = 0; impl->uiDropped = droppedCount();
     for (auto& channel : impl->heldNoteSlots) channel.fill (-1);
     impl->footHeld.fill (false); impl->held.fill (false); impl->values.fill (0);
+    impl->targetValues = {}; impl->targetIntentRevisions = {}; impl->targetGenerations = {}; impl->pickedGenerations = {}; impl->targetKnown = {};
     impl->msb = {}; impl->lsb = {}; impl->hasMsb = {};
     impl->tempoSource.reset(); impl->tempoBpm.reset();
     impl->appliedExpressionSerial = {}; impl->expressionKnown = {}; impl->replayExpression = false;
@@ -201,6 +215,12 @@ void MidiRouter::setModelEnabled (bool enabled, uint32_t revision) noexcept
 { if (revision != 0) { impl->modelIntentEnabled = enabled; impl->modelEnabledRevision = revision; } }
 void MidiRouter::setHostEnabled (bool enabled, uint32_t serial) noexcept
 { if (serial != 0) { impl->hostEnabled = enabled; impl->hostEnabledSerial = serial; } }
+void MidiRouter::setTargetValue (uint16_t target, float normalised, uint32_t revision) noexcept
+{
+    if (target >= impl->targetValues.size() || revision == 0 || ! std::isfinite (normalised) || revision == impl->targetIntentRevisions[target]) return;
+    impl->targetIntentRevisions[target] = revision;
+    impl->updateTarget (target,std::clamp (normalised,0.f,1.f)); impl->ownerPriority[target] = 0;
+}
 void MidiRouter::setHostTempoSource (TempoSource source, uint32_t serial) noexcept
 { if (serial != 0 && source <= TempoSource::Auto) { impl->tempoSource.host = source; impl->tempoSource.hostSerial = serial; } }
 void MidiRouter::setModelTempoSource (TempoSource source, uint32_t revision) noexcept
@@ -254,6 +274,9 @@ void MidiRouter::process (const juce::MidiBuffer& in, const HostTransport& host,
         impl->replayExpression = true;
         impl->activeVersion = map->version; impl->held.fill (false); impl->picked.fill (false);
         impl->values = map->initialValues; impl->lastSource = map->initialValues;
+        for (int i = 0; i < map->numBindings; ++i)
+            if (! impl->targetKnown[map->bindings[(size_t) i].target])
+                impl->updateTarget (map->bindings[(size_t) i].target,map->initialValues[(size_t) i]);
         impl->lastWrite.fill (0); impl->ownerPriority.fill (0);
     }
     if (impl->modelEnabledRevision != 0 && impl->modelEnabledRevision != impl->appliedModelEnabledRevision)

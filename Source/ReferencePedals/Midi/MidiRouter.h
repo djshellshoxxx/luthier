@@ -40,6 +40,8 @@ public:
     // A fresh model revision is applied before a fresh host serial.
     void setModelEnabled (bool enabled, uint32_t revision) noexcept;
 
+    // E63: audio-only resolved model/host intent. Zero revision is unwritten.
+    void setTargetValue (uint16_t globalTarget, float normalised, uint32_t resolvedIntentRevision) noexcept;
     void setHostTempoSource (TempoSource, uint32_t serial) noexcept;
     void setModelTempoSource (TempoSource, uint32_t revision) noexcept;
     void setHostTempoBpm (double bpm, uint32_t serial) noexcept;

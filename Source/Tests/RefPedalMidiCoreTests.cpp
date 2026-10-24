@@ -511,3 +511,33 @@ LUTHIER_TEST (RefPedalMidiCore, restoreAndUiPublishersCanReclaimDuringAudio)
     std::thread restore(publish); publish(); restore.join(); done.store(true,std::memory_order_release); audio.join(); reclaim.join();
     CHECK(valid.load()); router.reclaim();
 }
+
+LUTHIER_TEST (RefPedalMidiCore, bindingsShareCurrentTargetValueForToggleRelativeAndPickup)
+{
+    MidiRouter router; router.prepare(48000,128); auto map = std::make_unique<MapSnap>();
+    Binding b; b.srcNum=20; b.target=0; map->add(b);
+    b.id=1; b.srcNum=21; b.setModeCurve(BindMode::Toggle,CurveId::Linear); map->add(b);
+    b.id=2; b.srcNum=22; b.setModeCurve(BindMode::Relative,CurveId::Linear); map->add(b);
+    b.id=3; b.srcNum=23; b.setModeCurve(BindMode::Absolute,CurveId::Linear); b.flags|=BF_SoftTakeover; map->add(b); map->initialValues[3]=.2f;
+    router.publishMap(std::move(map)); juce::MidiBuffer input; RouteOut out; int64_t sample=0;
+    auto send=[&](int cc,int value) { input.clear(); input.addEvent(juce::MidiMessage::controllerEvent(1,cc,value),0); router.process(input,{},sample,128,out); sample+=128; };
+    send(20,127); CHECK(out.nWrites==1 && out.writes[0].norm==1.f);
+    send(21,127); CHECK(out.nWrites==1 && out.writes[0].norm==0.f); // toggles the actual target, not private initial state
+    send(20,102); send(22,1); CHECK(out.nWrites==1); CHECK_NEAR(out.writes[0].norm,102./127+1./128,1e-6);
+    send(23,13); CHECK(out.nWrites==0); send(23,38); CHECK(out.nWrites==0); // crossing stale .2 cannot pick up current .81
+    send(23,110); CHECK(out.nWrites==1); // crossing actual target acquires
+}
+LUTHIER_TEST (RefPedalMidiCore, externalTargetIntentRearmsPickupWithoutMapRebuild)
+{
+    MidiRouter router; router.prepare(48000,128); auto map=std::make_unique<MapSnap>();
+    Binding b; b.srcNum=20; b.target=0; b.flags|=BF_SoftTakeover; map->add(b); map->initialValues[0]=.2f;
+    router.publishMap(std::move(map)); router.setTargetValue(0,.8f,UINT32_MAX);
+    juce::MidiBuffer input; RouteOut out; int64_t sample=0;
+    auto send=[&](int value) { input.clear(); input.addEvent(juce::MidiMessage::controllerEvent(1,20,value),17); router.process(input,{},sample,128,out); sample+=128; };
+    send(13); send(38); CHECK(out.nWrites==0); send(110); CHECK(out.nWrites==1); // actual .8 pickup
+    router.setTargetValue(0,.2f,1); send(100); CHECK(out.nWrites==0); send(10); CHECK(out.nWrites==1); // wrapped fresh intent rearms
+    router.setTargetValue(0,.2f,1); send(15); CHECK(out.nWrites==1); // stale echo cannot rearm/overwrite the current MIDI value
+    auto next=std::make_unique<MapSnap>(); next->add(b); next->initialValues[0]=.9f; router.publishMap(std::move(next));
+    send(16); CHECK(out.nWrites==1); // replacement map cannot overwrite current target's intent
+    router.setTargetValue(0,.8f,2); send(17); CHECK(out.nWrites==0); // explicit new intent even after map replacement
+}
