@@ -9,6 +9,8 @@ namespace luthier::reference::generic
 class Tremolo final : public PedalBase<10>
 {
 public:
+    static PreparedMemoryRequirement prepareMemory(double sr,int block,int policy,const float* params) noexcept {return fixedPreparedMemory<Tremolo>(sr,block,policy,params);}
+    uint64_t getPreparedMemoryBytes() const noexcept override {return sizeof(*this);}
     Tremolo();
     static const PedalDesc& descriptor() noexcept;
     void prepare(double,int,int) override;

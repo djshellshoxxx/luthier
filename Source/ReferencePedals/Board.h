@@ -42,6 +42,7 @@ public:
     // Message thread
     void prepare (double sampleRate, int maxBlock = 4096);   // allocates pool, delay lines, scratch; idempotent
     void releaseResources();
+    juce::String getPreparationError() const; // E69: off-audio concrete failure, empty after recovery
     // E59: before prepare or after stopped release; false if prepared/runtimes retained.
     // Null explicitly disables persistent storage; the default is lazy app-data storage.
     bool setAssetStore (std::shared_ptr<IAssetStore>);

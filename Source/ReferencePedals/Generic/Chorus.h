@@ -10,6 +10,8 @@ namespace luthier::reference::generic
 class Chorus final : public PedalBase<9>
 {
 public:
+    static PreparedMemoryRequirement prepareMemory(double,int,int,const float*) noexcept;
+    uint64_t getPreparedMemoryBytes() const noexcept override;
     Chorus();
     static const PedalDesc& descriptor() noexcept;
     void prepare(double,int,int) override;

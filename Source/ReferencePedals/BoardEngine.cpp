@@ -1,5 +1,6 @@
 // OWNER: WP2
 #include "BoardEngine.h"
+#include "ExtraState.h"
 #include "BoardLimiter.h"
 #include "PedalRegistry.h"
 #include "Routing/RoutingNodes.h"
@@ -25,7 +26,7 @@ BoardEngine::BoardEngine (BoardModel& source) : model (source)
             for (auto& instance : instances)
                 for (size_t i = 0; i < releasedStored.size() && i < releasedCaptured.size(); ++i)
                     if (instance.instanceId == releasedStored[i].instanceId && instance.modelId == releasedStored[i].modelId
-                        && juce::JSON::toString (instance.extras) == juce::JSON::toString (releasedStored[i].extras))
+                        && sameExtraState (instance.extras, releasedStored[i].extras))
                     { instance.extras = releasedCaptured[i].extras.clone(); break; }
         for (auto& instance : instances)
             for (const auto& runtime : pinned)
@@ -33,30 +34,36 @@ BoardEngine::BoardEngine (BoardModel& source) : model (source)
                 {
                     auto extra = instance.extras.clone(); runtime->pedal->saveExtra (extra);
                     if (auto* target = instance.extras.getDynamicObject(); target && extra.getDynamicObject())
-                        for (const auto& property : extra.getDynamicObject()->getProperties()) target->setProperty (property.name, property.value.clone());
+                        for (const auto& property : extra.getDynamicObject()->getProperties()) setExactExtraProperty (*target, property.name, property.value);
                     else instance.extras = extra.clone();
                     break;
                 }
     });
 }
 BoardEngine::~BoardEngine() { model.setExtraCapture ({}); model.setCompiler ({}); }
-void BoardEngine::prepare (double sampleRate, int maxBlock)
+void BoardEngine::prepare (double sampleRate, int maxBlock) noexcept
+try
 {
+    rate = std::isfinite (sampleRate) && sampleRate >= 8000 ? sampleRate : 48000;
+    block = std::max (1, maxBlock);
+    // Set the new format before any fallible snapshot/allocation. Even an
+    // exception must not let a later corrective edit reuse old-rate processors.
+    pool.setPreparationFormat (rate, block);
     std::vector<PedalInstance> captured, instances; BoardSettings settings;
     model.snapshot (captured, settings); model.snapshotStored (instances, settings);
     releaseResources();
-    rate = std::isfinite (sampleRate) && sampleRate >= 8000 ? sampleRate : 48000;
-    block = std::max (1, maxBlock);
-    dipSamples = std::max (1, static_cast<int> (rate * 0.006));
+    dipSamples = std::max (1, static_cast<int> (std::min (rate, 1000000.0) * 0.006));
     mixAlpha = 1.0 - std::exp (-1.0 / (0.020 * rate));
-    pool.prepare (rate, block, captured);
+    pool.prepare (rate, block, captured, instances);
     extendedModelSerials.fill (0); extendedHostSerials.fill (0);
     hostBoardSerials.fill (0); modelBoardSerials.fill (0);
     routingModelSerials.fill (0); routingHostSerials.fill (0);
     cpuHotSeconds = 0; processorCpuAvailable.store (false); cpuReliefRequested.store (false);
     cpuGovernorTripped.store (false); cpuEcoApplied.store (false); cpuGovernorFailed.store (false);
     feedback.reset(); feedbackRearmSeen = feedbackKillSeen = 0; feedbackFault.store (false); feedbackTripped.store (false);
-    paramPulses.clear(); numPendingPulses = 0; numRawMidi = numMidiOutput = 0;
+    paramPulses.clear(); engageEcho.clear(); numPendingPulses = 0; numRawMidi = numMidiOutput = 0;
+    events = nullptr; sidechain[0] = sidechain[1] = nullptr; sidechainSamples = 0; auxOutputs = {};
+    resetRequested.store (false);
     for (auto& segment : segments)
     {
         segment = {};
@@ -64,9 +71,32 @@ void BoardEngine::prepare (double sampleRate, int maxBlock)
         for (auto& line : segment.lanes) line.prepare (kMaxLatencySamp);
         for (auto& loop : segment.loops) loop.prepare (kMaxLatencySamp);
     }
+    uint64_t scratch = 0;
+    for (const auto& segment : segments)
+    {
+        for (const auto& line : segment.dry) scratch += line.preparedMemoryBytes();
+        for (const auto& lane : segment.lanes) for (const auto& line : lane.channels) scratch += line.preparedMemoryBytes();
+        for (const auto& loop : segment.loops) for (const auto& line : loop.dry.channels) scratch += line.preparedMemoryBytes();
+    }
+    routingBytes.store (scratch);
     TopologyInfo info; juce::String error;
-    publish (instances, settings, info, error);
+    if (! publish (instances, settings, info, error)) setPreparationError (error.isEmpty() ? "Pedal preparation failed" : error.toRawUTF8());
 }
+catch (const std::exception& error) { discardRuntime(); setPreparationError (error.what()); }
+catch (...) { discardRuntime(); setPreparationError ("Unknown pedal preparation failure"); }
+juce::String BoardEngine::preparationError() const
+{
+    const std::lock_guard<std::mutex> guard (preparationMutex);
+    return juce::String::fromUTF8 (preparationMessage.data());
+}
+void BoardEngine::setPreparationError (const char* message) noexcept
+{
+    const std::lock_guard<std::mutex> guard (preparationMutex);
+    size_t length = std::min (std::strlen (message), preparationMessage.size() - 1);
+    std::memcpy (preparationMessage.data(), message, length); preparationMessage[length] = 0;
+    preparationFailure.store (length != 0, std::memory_order_release);
+}
+
 bool BoardEngine::setAssetStore (std::shared_ptr<IAssetStore> store)
 {
     if (! pool.setAssetStore (std::move (store))) return false;
@@ -79,7 +109,14 @@ void BoardEngine::releaseResources()
         BoardSettings ignored;
         model.snapshotStored (releasedStored, ignored); model.snapshot (releasedCaptured, ignored);
     }
+    discardRuntime();
+}
+void BoardEngine::discardRuntime() noexcept
+{
+    paramPulses.clear(); engageEcho.clear(); numPendingPulses = 0; numRawMidi = numMidiOutput = 0;
+    events = nullptr; sidechain[0] = sidechain[1] = nullptr; sidechainSamples = 0; auxOutputs = {};
     live.store (nullptr, std::memory_order_seq_cst);
+    for (auto& meter : pedalMeters) { meter.present.store (false); meter.available.store (0); }
     for (auto& segment : segments) { segment.current = segment.pending = nullptr; }
     retired.reclaimAll(); latest.reset();
     for (auto& pointer : retainedPlans) pointer.store (nullptr, std::memory_order_relaxed);
@@ -97,12 +134,15 @@ bool BoardEngine::publish (const std::vector<PedalInstance>& instances, const Bo
         if (retired.size() >= RetireList<RenderPlan>::capacityLimit)
         { error = "Audio-plan retirement saturated; retry after audio advances"; return false; }
     }
+    if (! latest && ! pool.preflightFresh (instances, error)) return false;
     auto plan = TopologyCompiler::compile (instances, settings, pool, version + 1, latest.get(), error, intent, hostEcho);
     assetStoreAvailable.store (pool.hasAssetStore());
     if (! plan) return false;
     // Reserve before publishing: an old plan can still be borrowed by audio.
     try { if (latest) retired.reserveOne(); }
     catch (...) { error = "Unable to reserve audio-plan retirement storage"; return false; }
+    pool.published();
+    setPreparationError ("");
     ++version;
     info.version = version; info.mode = settings.mode; info.pedalCount = plan->topology.n;
     info.latencyTotal = plan->topology.latencyTotal; info.dryDelay = plan->topology.dryDelay;
@@ -321,6 +361,7 @@ BoardMeters BoardEngine::meters() const noexcept
     result.auxBAvailable = (availability & 1) != 0; result.auxWetAvailable = (availability & 2) != 0; result.auxDryAvailable = (availability & 4) != 0;
     result.latencySamples = latency(); result.sidechainAvailable = sidechainConnected.load();
     result.assetStoreAvailable = assetStoreAvailable.load();
+    result.preparationFailed = preparationFailure.load(); result.preparedMemoryBytes = pool.preparedBytes(); result.routingScratchBytes = routingBytes.load();
     result.cpuPct = processorCpuPct.load(); result.cpuAvailable = processorCpuAvailable.load();
     result.cpuGovernorTripped = cpuGovernorTripped.load(); result.cpuEcoApplied = cpuEcoApplied.load(); result.cpuGovernorFailed = cpuGovernorFailed.load();
     result.midiDropped = engageEcho.dropped() + paramPulses.dropped() + rawDropped.load() + outputDropped.load(); return result;

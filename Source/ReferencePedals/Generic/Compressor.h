@@ -5,7 +5,11 @@
 #include <atomic>
 namespace luthier::reference::generic {
 class Compressor final : public detail::Processor<11> {
-public: Compressor();static const PedalDesc& descriptor() noexcept;void prepare(double,int,int) override;void reset() noexcept override;void process(double*,double*,int) noexcept override;
+public: Compressor();static const PedalDesc& descriptor() noexcept;
+ // E69 audit: legacy allpass DSP, filters, controls and sidechain pointers are embedded.
+ static PreparedMemoryRequirement prepareMemory(double sr,int block,int policy,const float* params) noexcept {return fixedPreparedMemory<Compressor>(sr,block,policy,params);}
+ uint64_t getPreparedMemoryBytes() const noexcept override {return sizeof(*this);}
+ void prepare(double,int,int) override;void reset() noexcept override;void process(double*,double*,int) noexcept override;
  static double gainReductionDb(double inputDb,double threshold,double ratio,double knee) noexcept;
  void setSidechain(const double* l,const double* r,int n) noexcept override {externalL=l;externalR=r;externalCount=std::max(0,n);}
  bool sidechainAvailable() const noexcept {return available.load(std::memory_order_relaxed);}

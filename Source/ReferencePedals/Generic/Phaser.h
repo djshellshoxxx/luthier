@@ -8,6 +8,8 @@ namespace luthier::reference::generic
 class Phaser final : public PedalBase<8>
 {
 public:
+    static PreparedMemoryRequirement prepareMemory(double sr,int block,int policy,const float* params) noexcept {return fixedPreparedMemory<Phaser>(sr,block,policy,params);}
+    uint64_t getPreparedMemoryBytes() const noexcept override {return sizeof(*this);}
     Phaser();
     static const PedalDesc& descriptor() noexcept;
     void prepare(double,int,int) override;

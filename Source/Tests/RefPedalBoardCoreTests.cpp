@@ -583,6 +583,7 @@ const PedalDesc transportDesc { "test.transport", "test_transport_", 1, "Transpo
 class EventProbe final : public IPedal
 {
 public:
+    uint64_t getPreparedMemoryBytes() const noexcept override { return sizeof (*this); }
     explicit EventProbe (bool transport = false) : transportFoot (transport) {}
     explicit EventProbe (const PedalDesc& descriptor) : description (&descriptor) {}
     const PedalDesc& desc() const noexcept override { return description ? *description : transportFoot ? transportDesc : eventDesc; }
@@ -614,7 +615,7 @@ std::unique_ptr<IPedal> makeTransportProbe() { return std::make_unique<EventProb
 LUTHIER_TEST (RefPedalBoardCore, midiWritesStartAtOffsetAndPersistUntilModelChanges)
 {
     PedalRegistry::TestScope registryScope;
-    PedalRegistry::add (eventDesc, makeEventProbe);
+    PedalRegistry::add (eventDesc, makeEventProbe, &fixedPreparedMemory<EventProbe>);
     BoardModel model; BoardEngine engine (model);
     const InstanceId id;
     CHECK (model.apply (cmd::Add { "test.event", -1, Placement::beforeExistingPre, 0, id }));
@@ -637,7 +638,7 @@ LUTHIER_TEST (RefPedalBoardCore, midiWritesStartAtOffsetAndPersistUntilModelChan
 LUTHIER_TEST (RefPedalBoardCore, footPressEngagesPedalsWithoutBypassingTransportLoopers)
 {
     PedalRegistry::TestScope registryScope;
-    PedalRegistry::add (eventDesc, makeEventProbe); PedalRegistry::add (transportDesc, makeTransportProbe);
+    PedalRegistry::add (eventDesc, makeEventProbe, &fixedPreparedMemory<EventProbe>); PedalRegistry::add (transportDesc, makeTransportProbe, &fixedPreparedMemory<EventProbe>);
     for (const bool transport : { false, true })
     {
         BoardModel model; BoardEngine engine (model); const InstanceId id;
@@ -656,7 +657,7 @@ LUTHIER_TEST (RefPedalBoardCore, footPressEngagesPedalsWithoutBypassingTransport
 LUTHIER_TEST (RefPedalBoardCore, boardMidiEnableCanWakeAnInitiallyDisabledBoard)
 {
     PedalRegistry::TestScope registryScope;
-    PedalRegistry::add (eventDesc, makeEventProbe);
+    PedalRegistry::add (eventDesc, makeEventProbe, &fixedPreparedMemory<EventProbe>);
     BoardModel model; BoardEngine engine (model); const InstanceId id;
     CHECK (model.apply (cmd::Add { "test.event", -1, Placement::beforeExistingPre, 0, id }));
     double l[1024] {}, r[1024] {}; engine.process (l, r, 1024, Placement::beforeExistingPre);
@@ -671,7 +672,7 @@ LUTHIER_TEST (RefPedalBoardCore, boardMidiEnableCanWakeAnInitiallyDisabledBoard)
 LUTHIER_TEST (RefPedalBoardCore, hostAutomationIsImmediatePersistentAndDoesNotOverwriteModelEdits)
 {
     PedalRegistry::TestScope registryScope;
-    PedalRegistry::add (eventDesc, makeEventProbe);
+    PedalRegistry::add (eventDesc, makeEventProbe, &fixedPreparedMemory<EventProbe>);
     Board board; board.prepare (48000, 128); const InstanceId id;
     CHECK (board.model().apply (cmd::Add { "test.event", -1, Placement::beforeExistingPre, 0, id }));
     HostAutomationSnapshot host;
@@ -726,7 +727,7 @@ LUTHIER_TEST (RefPedalBoardCore, hostEchoDoesNotCreateHistoryOrOverrideFreshHost
     CHECK (model.applyHostEcho (cmd::SetMix { 0.2f }));
     CHECK (! model.canUndo());
     CHECK (! model.applyHostEcho (cmd::SetStyle { BoardStyle::rail }));
-    PedalRegistry::add (eventDesc, makeEventProbe);
+    PedalRegistry::add (eventDesc, makeEventProbe, &fixedPreparedMemory<EventProbe>);
     Board board; const InstanceId id;
     CHECK (board.model().apply (cmd::Add { "test.event", -1, Placement::beforeExistingPre, 0, id }));
     CHECK (board.model().apply (cmd::SetBoardEnabled { true }));
@@ -741,7 +742,7 @@ LUTHIER_TEST (RefPedalBoardCore, hostEchoDoesNotCreateHistoryOrOverrideFreshHost
 LUTHIER_TEST (RefPedalBoardCore, pedalMetersPublishActualDataAndFullInstanceIdentity)
 {
     PedalRegistry::TestScope registryScope;
-    PedalRegistry::add (eventDesc, makeEventProbe); PedalRegistry::add (transportDesc, makeTransportProbe);
+    PedalRegistry::add (eventDesc, makeEventProbe, &fixedPreparedMemory<EventProbe>); PedalRegistry::add (transportDesc, makeTransportProbe, &fixedPreparedMemory<EventProbe>);
     Board board; const InstanceId id;
     CHECK (! board.readPedalMeters (-1).present);
     CHECK (board.model().apply (cmd::Add { "test.transport", -1, Placement::beforeExistingPre, 0, id }));
@@ -784,6 +785,7 @@ const PedalDesc pulseDesc { "test.pulse", "test_pulse_", 1, "Pulse probe", "Test
 class PulseProbe final : public IPedal
 {
 public:
+    uint64_t getPreparedMemoryBytes() const noexcept override { return sizeof (*this); }
     const PedalDesc& desc() const noexcept override { return pulseDesc; }
     void prepare (double, int, int) override {}
     void reset() noexcept override { count = 0; value = 0; }
@@ -799,7 +801,7 @@ std::unique_ptr<IPedal> makePulseProbe() { return std::make_unique<PulseProbe>()
 LUTHIER_TEST (RefPedalBoardCore, rapidUiTriggerEdgesSurviveSnapshotCoalescing)
 {
     PedalRegistry::TestScope registryScope;
-    PedalRegistry::add (pulseDesc, makePulseProbe);
+    PedalRegistry::add (pulseDesc, makePulseProbe, &fixedPreparedMemory<PulseProbe>);
     Board board; const InstanceId id;
     CHECK (board.model().apply (cmd::Add { "test.pulse", -1, Placement::beforeExistingPre, 0, id }));
     CHECK (board.model().apply (cmd::SetBoardEnabled { true }));
@@ -867,6 +869,7 @@ const PedalDesc rawDesc { "test.raw", "test_raw_", 1, "Raw MIDI probe", "Test", 
 class RawProbe final : public IPedal
 {
 public:
+    uint64_t getPreparedMemoryBytes() const noexcept override { return sizeof (*this); }
     const PedalDesc& desc() const noexcept override { return rawDesc; }
     void prepare (double, int, int) override {}
     void reset() noexcept override { pending = 0; value = 0.5; }
@@ -893,7 +896,7 @@ std::unique_ptr<IPedal> makeRawProbe() { return std::make_unique<RawProbe>(); }
 }
 LUTHIER_TEST (RefPedalBoardCore, rawMidiAndBoundedOutputPreserveOffsetsWithoutAllocation)
 {
-    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (rawDesc, makeRawProbe));
+    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (rawDesc, makeRawProbe, &fixedPreparedMemory<RawProbe>));
     Board board; const InstanceId id;
     CHECK (board.model().apply (cmd::Add { "test.raw", -1, Placement::beforeExistingPre, 0, id }));
     CHECK (board.model().apply (cmd::SetBoardEnabled { true }));
@@ -935,6 +938,7 @@ const PedalDesc captureDesc { "test.capture", "test_capture_", 1, "Capture probe
 class CaptureProbe final : public IPedal
 {
 public:
+    uint64_t getPreparedMemoryBytes() const noexcept override { return sizeof (*this); }
     const PedalDesc& desc() const noexcept override { return captureDesc; }
     void prepare (double, int, int) override { frames = 0; published.store (0); }
     void reset() noexcept override {}
@@ -957,7 +961,7 @@ std::unique_ptr<IPedal> makeCaptureProbe() { return std::make_unique<CaptureProb
 }
 LUTHIER_TEST (RefPedalBoardCore, runtimeExtraCaptureIsIsolatedAndSurvivesPrepareReorderAndUndo)
 {
-    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (captureDesc, makeCaptureProbe));
+    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (captureDesc, makeCaptureProbe, &fixedPreparedMemory<CaptureProbe>));
     Board board; const InstanceId id;
     CHECK (board.model().apply (cmd::Add { "test.capture", -1, Placement::beforeExistingPre, 0, id }));
     CHECK (board.model().apply (cmd::SetBoardEnabled { true }));
@@ -992,7 +996,7 @@ LUTHIER_TEST (RefPedalBoardCore, runtimeExtraCaptureIsIsolatedAndSurvivesPrepare
 
 LUTHIER_TEST (RefPedalBoardCore, mixTailHostControlPausesWetDspAndResumesWithoutReset)
 {
-    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (transportDesc, makeTransportProbe));
+    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (transportDesc, makeTransportProbe, &fixedPreparedMemory<EventProbe>));
     Board board; board.prepare (48000, 64);
     CHECK (board.model().apply (cmd::Add { "test.transport", -1, Placement::beforeExistingPre, 0, InstanceId() }));
     CHECK (board.model().apply (cmd::SetBoardEnabled { true }));
@@ -1024,6 +1028,7 @@ const PedalDesc clockProbeDesc { "test.clock_probe", "test_clock_probe_", 1, "Cl
 class ClockProbe final : public IPedal
 {
 public:
+    uint64_t getPreparedMemoryBytes() const noexcept override { return sizeof (*this); }
     const PedalDesc& desc() const noexcept override { return clockProbeDesc; }
     void prepare (double, int, int) override {}
     void reset() noexcept override {}
@@ -1039,7 +1044,7 @@ std::unique_ptr<IPedal> makeClockProbe() { return std::make_unique<ClockProbe>()
 }
 LUTHIER_TEST (RefPedalBoardCore, extendedTempoSourceUsesCanonicalPriorityAndExplicitModelIntent)
 {
-    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (clockProbeDesc, makeClockProbe));
+    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (clockProbeDesc, makeClockProbe, &fixedPreparedMemory<ClockProbe>));
     Board board; board.prepare (48000, 64);
     CHECK (board.model().apply (cmd::Add { "test.clock_probe", -1, Placement::beforeExistingPre, 0, InstanceId() }));
     CHECK (board.model().apply (cmd::SetBoardEnabled { true }));
@@ -1071,6 +1076,7 @@ std::atomic<int> assetProbeDestroyed { 0 };
 class AssetProbe final : public IPedal
 {
 public:
+    uint64_t getPreparedMemoryBytes() const noexcept override { return sizeof (*this); }
     ~AssetProbe() override { if (assets) (void) assets->findMissing ({}); assetProbeDestroyed.fetch_add (1); }
     const PedalDesc& desc() const noexcept override { return assetProbeDesc; }
     void setServices (const PedalServices& services) override { assets = services.assets; }
@@ -1092,7 +1098,7 @@ std::unique_ptr<IPedal> makeAssetProbe() { return std::make_unique<AssetProbe>()
 }
 LUTHIER_TEST (RefPedalBoardCore, injectedAssetStoreIsPinnedThroughPedalTeardownAndStoppedReplacement)
 {
-    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (assetProbeDesc, makeAssetProbe));
+    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (assetProbeDesc, makeAssetProbe, &fixedPreparedMemory<AssetProbe>));
     const auto directory = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("luthier-engine-assets-" + juce::Uuid().toString());
     CHECK (! directory.exists());
     Board board;
@@ -1123,7 +1129,7 @@ LUTHIER_TEST (RefPedalBoardCore, injectedAssetStoreIsPinnedThroughPedalTeardownA
 
 LUTHIER_TEST (RefPedalBoardCore, continuousMidiSmoothingIsPerSampleAndPartitionIndependent)
 {
-    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (eventDesc, makeEventProbe));
+    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (eventDesc, makeEventProbe, &fixedPreparedMemory<EventProbe>));
     const auto render = [&] (int blockSize)
     {
         BoardModel model; BoardEngine engine (model); const InstanceId id;
@@ -1163,7 +1169,7 @@ LUTHIER_TEST (RefPedalBoardCore, continuousMidiSmoothingIsPerSampleAndPartitionI
 }
 LUTHIER_TEST (RefPedalBoardCore, malformedRawMidiNeverReachesOptedInPedals)
 {
-    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (rawDesc, makeRawProbe));
+    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (rawDesc, makeRawProbe, &fixedPreparedMemory<RawProbe>));
     Board board; CHECK (board.model().apply (cmd::Add { "test.raw", -1, Placement::beforeExistingPre, 0, InstanceId() }));
     CHECK (board.model().apply (cmd::SetBoardEnabled { true }));
     double left[1024] {}, right[1024] {}; board.processStereo (left, right, 1024, Placement::beforeExistingPre);
@@ -1188,7 +1194,7 @@ std::unique_ptr<IPedal> makeOwnEventProbe() { return std::make_unique<EventProbe
 }
 LUTHIER_TEST (RefPedalBoardCore, ownSmoothingReceivesExactTargetAtOffsetWithoutBindingRamp)
 {
-    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (ownEventDesc, makeOwnEventProbe));
+    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (ownEventDesc, makeOwnEventProbe, &fixedPreparedMemory<EventProbe>));
     BoardModel model; BoardEngine engine (model);
     CHECK (model.apply (cmd::Add { "test.own_gain", -1, Placement::beforeExistingPre, 0, InstanceId() }));
     CHECK (model.apply (cmd::SetBoardEnabled { true }));
@@ -1201,7 +1207,7 @@ LUTHIER_TEST (RefPedalBoardCore, ownSmoothingReceivesExactTargetAtOffsetWithoutB
 
 LUTHIER_TEST (RefPedalBoardCore, discreteBurstsCoalesceToThirtyTwoPointsAndRetainEveryTriggerEdge)
 {
-    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (pulseDesc, makePulseProbe));
+    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (pulseDesc, makePulseProbe, &fixedPreparedMemory<PulseProbe>));
     BoardModel model; BoardEngine engine (model);
     CHECK (model.apply (cmd::Add { "test.pulse", -1, Placement::beforeExistingPre, 0, InstanceId() }));
     CHECK (model.apply (cmd::SetBoardEnabled { true }));
@@ -1246,7 +1252,7 @@ LUTHIER_TEST (RefPedalBoardCore, slotFootMetadataPreservesUnknownFieldsAndReject
 }
 LUTHIER_TEST (RefPedalBoardCore, configuredMomentaryReleaseUsesVelocityAndAutoRestoresAfterHold)
 {
-    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (eventDesc, makeEventProbe));
+    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (eventDesc, makeEventProbe, &fixedPreparedMemory<EventProbe>));
     for (const float releaseVelocity : { 0.f, 64.f / 127.f, 1.f })
     {
         BoardModel model; BoardEngine engine (model); const InstanceId id;
@@ -1284,7 +1290,7 @@ std::unique_ptr<IPedal> makeFsConfigProbe() { return std::make_unique<EventProbe
 }
 LUTHIER_TEST (RefPedalBoardCore, modelFootModeConfigOverridesPerSlotFallback)
 {
-    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (fsConfigDesc, makeFsConfigProbe));
+    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (fsConfigDesc, makeFsConfigProbe, &fixedPreparedMemory<EventProbe>));
     PedalInstance instance; instance.modelId = "test.fs_config"; instance.slot = 0; instance.params[0] = 0.f;
     instance.extras = new juce::DynamicObject(); juce::var midi (new juce::DynamicObject()); midi.getDynamicObject()->setProperty ("fsMode", 1);
     instance.extras.getDynamicObject()->setProperty ("midi", midi);
@@ -1298,7 +1304,7 @@ LUTHIER_TEST (RefPedalBoardCore, modelFootModeConfigOverridesPerSlotFallback)
 #include "../ReferencePedals/Midi/MidiMap.h"
 LUTHIER_TEST (RefPedalBoardCore, relativeMidiUsesResolvedHostModelAndSourceGenerationTargets)
 {
-    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (eventDesc, makeEventProbe));
+    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (eventDesc, makeEventProbe, &fixedPreparedMemory<EventProbe>));
     Board board; board.prepare (48000, 64); InstanceId id;
     CHECK (board.model().apply (cmd::Add { "test.event", -1, Placement::beforeExistingPre, 0, id }));
     CHECK (board.model().apply (cmd::SetBoardEnabled { true }));
@@ -1344,6 +1350,7 @@ const PedalDesc failureDesc { "test.failure", "test_failure_", 1, "Preparation f
 class FailureProbe final : public IPedal
 {
 public:
+    uint64_t getPreparedMemoryBytes() const noexcept override { return sizeof (*this); }
     const PedalDesc& desc() const noexcept override { return failureDesc; }
     void setParam (int, float v) noexcept override { value = v; }
     float getParam (int) const noexcept override { return value; }
@@ -1358,7 +1365,7 @@ std::unique_ptr<IPedal> makeFailureProbe() { return std::make_unique<FailureProb
 }
 LUTHIER_TEST (RefPedalBoardCore, failedRuntimePreparationAndRestoreLeaveWorkingModelUntouched)
 {
-    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (failureDesc, makeFailureProbe));
+    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (failureDesc, makeFailureProbe, &fixedPreparedMemory<FailureProbe>));
     Board board; CHECK (board.model().apply (cmd::Add { "test.failure", -1, Placement::beforeExistingPre, 0, InstanceId() }));
     CHECK (board.model().apply (cmd::SetBoardEnabled { true }));
     double left[2048] {}, right[2048] {}; board.processStereo (left, right, 2048, Placement::beforeExistingPre);
@@ -1391,7 +1398,7 @@ std::unique_ptr<IPedal> makeQualityProbe() { return std::make_unique<EventProbe>
 }
 LUTHIER_TEST (RefPedalBoardCore, estimatedCpuCapRejectsAtomicallyAndUsesWideAccumulation)
 {
-    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (costDesc, makeCostProbe)); CHECK (PedalRegistry::add (hugeCostDesc, makeHugeCostProbe));
+    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (costDesc, makeCostProbe, &fixedPreparedMemory<EventProbe>)); CHECK (PedalRegistry::add (hugeCostDesc, makeHugeCostProbe, &fixedPreparedMemory<EventProbe>));
     BoardModel model; const InstanceId first;
     CHECK (model.apply (cmd::Add { "test.cost", -1, Placement::beforeExistingPre, 0, first }));
     juce::String reason; CHECK (! model.apply (cmd::Add { "test.cost", -1, Placement::beforeExistingPre, 0, InstanceId() }, &reason));
@@ -1408,7 +1415,7 @@ LUTHIER_TEST (RefPedalBoardCore, estimatedCpuCapRejectsAtomicallyAndUsesWideAccu
 }
 LUTHIER_TEST (RefPedalBoardCore, measuredProcessorOverloadRequestsEcoOnlyAfterContinuousTwoSeconds)
 {
-    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (qualityDesc, makeQualityProbe));
+    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (qualityDesc, makeQualityProbe, &fixedPreparedMemory<EventProbe>));
     Board board; board.prepare (48000, 64); const InstanceId id;
     CHECK (board.model().apply (cmd::Add { "test.quality", -1, Placement::beforeExistingPre, 0, id })); CHECK (board.model().apply (cmd::SetBoardEnabled { true }));
     double left[2048] {}, right[2048] {}; board.processStereo (left, right, 2048, Placement::beforeExistingPre);
@@ -1436,7 +1443,7 @@ LUTHIER_TEST (RefPedalBoardCore, measuredProcessorOverloadRequestsEcoOnlyAfterCo
 #include "../ReferencePedals/BoardState.h"
 LUTHIER_TEST (RefPedalBoardCore, sceneCommandsPreserveBankAndMakeRecallOneUndoableIntent)
 {
-    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (eventDesc, makeEventProbe));
+    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (eventDesc, makeEventProbe, &fixedPreparedMemory<EventProbe>));
     Board board; const InstanceId id; CHECK (board.model().apply (cmd::Add { "test.event", -1, Placement::beforeExistingPre, 0, id }));
     CHECK (board.model().apply (cmd::SetBoardEnabled { true }));
     CHECK (board.model().apply (cmd::SetScene { 0, {} }));
@@ -1464,7 +1471,7 @@ LUTHIER_TEST (RefPedalBoardCore, sceneCommandsPreserveBankAndMakeRecallOneUndoab
 }
 LUTHIER_TEST (RefPedalBoardCore, snapshotRecallAndHistoryCaptureRuntimeExtrasOutsideTheModelLock)
 {
-    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (captureDesc, makeCaptureProbe));
+    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (captureDesc, makeCaptureProbe, &fixedPreparedMemory<CaptureProbe>));
     Board board; const InstanceId id; CHECK (board.model().apply (cmd::Add { "test.capture", -1, Placement::beforeExistingPre, 0, id }));
     CHECK (board.model().apply (cmd::SetBoardEnabled { true }));
     double left[2048] {}, right[2048] {}; board.processStereo (left, right, 1024, Placement::beforeExistingPre);
@@ -1482,7 +1489,7 @@ LUTHIER_TEST (RefPedalBoardCore, snapshotRecallAndHistoryCaptureRuntimeExtrasOut
 }
 LUTHIER_TEST (RefPedalBoardCore, explicitSnapshotRecallOverridesConsumedHostSerialEvenAtSameStoredValue)
 {
-    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (eventDesc, makeEventProbe));
+    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (eventDesc, makeEventProbe, &fixedPreparedMemory<EventProbe>));
     Board board; const InstanceId id; CHECK (board.model().apply (cmd::Add { "test.event", -1, Placement::beforeExistingPre, 0, id }));
     CHECK (board.model().apply (cmd::SetBoardEnabled { true })); CHECK (board.model().apply (cmd::SetScene { 0, {} }));
     double left[2048] {}, right[2048] {}; board.processStereo (left, right, 2048, Placement::beforeExistingPre);
@@ -1495,7 +1502,7 @@ LUTHIER_TEST (RefPedalBoardCore, explicitSnapshotRecallOverridesConsumedHostSeri
 
 LUTHIER_TEST (RefPedalBoardCore, snapshotHelpersKeepUndoRedoAndCaptureRuntimeExtras)
 {
-    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (captureDesc, makeCaptureProbe));
+    PedalRegistry::TestScope registryScope; CHECK (PedalRegistry::add (captureDesc, makeCaptureProbe, &fixedPreparedMemory<CaptureProbe>));
     Board board; board.prepare (48000, 64);
     PedalInstance p; p.modelId = captureDesc.modelId; p.slot = 0;
     BoardSettings settings; settings.enabled = true;
@@ -1520,4 +1527,31 @@ LUTHIER_TEST (RefPedalBoardCore, snapshotHelpersKeepUndoRedoAndCaptureRuntimeExt
     CHECK (! BoardSnapshots::capture (board.model(), -1, {}, &error)); CHECK (error.isNotEmpty());
     CHECK (! BoardSnapshots::recall (board.model(), 7, &error)); CHECK (error.isNotEmpty());
     CHECK (board.model().redo()); CHECK_NEAR (board.model().getBoardSettings().mix, 0.25, 1.e-9);
+}
+
+#include "../ReferencePedals/PreparedMemoryBudget.h"
+LUTHIER_TEST (RefPedalBoardCore, preparedMemoryReservationsBoundPeakAndFollowOwnership)
+{
+    CHECK (kPreparedPedalMemoryLimit == 64000000);
+    PreparedMemoryBudget budget;
+    PreparedMemoryBudget::Reservation first, second, scratch;
+    CHECK (budget.reserve (kPreparedPedalMemoryLimit - 1, first));
+    CHECK (! budget.reserve (2, second)); CHECK (budget.used() == kPreparedPedalMemoryLimit - 1);
+    CHECK (budget.reserve (1, second)); CHECK (budget.used() == kPreparedPedalMemoryLimit);
+    CHECK (! budget.reserve (1, scratch));
+    CHECK (! first.shrink (kPreparedPedalMemoryLimit));
+    CHECK (first.shrink (100)); CHECK (budget.used() == 101);
+    CHECK (budget.reserve (200, scratch)); CHECK (budget.used() == 301);
+    CHECK (scratch.shrink (20)); CHECK (budget.used() == 121);
+    auto moved = std::move (scratch); CHECK (scratch.bytes() == 0 && moved.bytes() == 20);
+    first.release(); second.release(); CHECK (budget.used() == 20);
+    moved.release(); CHECK (budget.used() == 0);
+    CHECK (! budget.reserve (kUnknownPreparedMemoryBytes, first));
+    uint64_t result = 123;
+    CHECK (! addPreparedBytes (UINT64_MAX - 1, 2, result)); CHECK (result == 123);
+    CHECK (! addPreparedBytes (1, UINT64_MAX - 1, result)); CHECK (result == 123);
+    CHECK (addPreparedBytes (64000000, 1, result)); CHECK (result == 64000001);
+    PreparedMemoryBudget::Reservation survivor;
+    { PreparedMemoryBudget shortLived (128); CHECK (shortLived.reserve (128, survivor)); }
+    CHECK (survivor.bytes() == 128); survivor.release(); // retained counter outlives its pool
 }

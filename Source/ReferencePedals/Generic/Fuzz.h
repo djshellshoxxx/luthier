@@ -6,7 +6,11 @@
 #include "../Common/EnvelopeFollower.h"
 namespace luthier::reference::generic {
 class Fuzz final : public detail::Processor<8> {
-public: Fuzz();static const PedalDesc& descriptor() noexcept;void prepare(double,int,int) override;void reset() noexcept override;void process(double*,double*,int) noexcept override;
+public: Fuzz();static const PedalDesc& descriptor() noexcept;
+ // E69 audit: legacy allpass DSP, filters, controls and sidechain pointers are embedded.
+ static PreparedMemoryRequirement prepareMemory(double sr,int block,int policy,const float* params) noexcept {return fixedPreparedMemory<Fuzz>(sr,block,policy,params);}
+ uint64_t getPreparedMemoryBytes() const noexcept override {return sizeof(*this);}
+ void prepare(double,int,int) override;void reset() noexcept override;void process(double*,double*,int) noexcept override;
 private:std::array<common::OnePole,2> hp,germanium,tilt,eco;std::array<common::DcBlock,2> dc,octave;std::array<common::EnvelopeFollower,2> sag,gate;std::array<int,2> hold{};std::array<common::LinearSmoother,2> gateGain;int policy=1;
 };
 }

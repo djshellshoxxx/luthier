@@ -4,6 +4,7 @@
 
 #include "BoardModel.h"
 #include "BoardState.h"
+#include "ExtraState.h"
 #include "PedalRegistry.h"
 #include "CpuBudget.h"
 #include "Midi/MidiState.h"
@@ -537,7 +538,7 @@ bool BoardModel::applyImpl (const BoardCommand& command, juce::String* rejectRea
                         else for (auto& baseline : history.instances)
                             for (size_t i = 0; i < impl->instances.size() && i < runtimeHistory->size(); ++i)
                                 if (baseline.instanceId == impl->instances[i].instanceId && baseline.modelId == impl->instances[i].modelId
-                                    && juce::JSON::toString (baseline.extras) == juce::JSON::toString (impl->instances[i].extras))
+                                    && sameExtraState (baseline.extras, impl->instances[i].extras))
                                 { baseline.extras = (*runtimeHistory)[i].extras.clone(); break; }
                         history.capturesRuntime = true;
                     };
