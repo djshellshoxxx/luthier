@@ -1,5 +1,9 @@
 # Handoff: Pedalboard v0.1.0 release build
 
+> **Superseded for integration purposes by `docs/handoff/INTEGRATION-HANDOFF-2026-10-25.md`.**
+> Key warnings from it: the branch is built on a stale snapshot of the sibling branches;
+> no working release artifact exists; and the Windows/macOS fixes below were never built.
+
 Written 2026-10-25. Branch `claude/peaceful-carson-vzl4e4`, head `1c9ae70b`.
 
 ## Goal
@@ -44,7 +48,7 @@ sources are compiled into the shared library. See "Windows" below.
 | Area | Change |
 |---|---|
 | `PluginBusTests` | expects the 3 appended pedalboard buses (Pedal B, Wet only, Dry only) |
-| `ParameterVisibility.h` | `ref_*` lanes are exempt from the main-editor reachability walk and from search; their controls are in the Pedalboard window |
+| `ParameterVisibility.h` | `ref_*` lanes are exempt from the main-editor reachability walk and from search. **Broader than justified**: only 51 of the 117 affected lanes have a Pedalboard-window attachment in code; the 16 `pos` lanes and 50 extended lanes have none I could find (see the integration handoff, section 4) |
 | Jam / MidiOutPanel / ModelGaps / RoutingSweep / TuneProcessor test harnesses | process through one `MidiBuffer` reserved with `reserveMidiOutputBuffer()`; the bounded MIDI-out path writes nothing when the capacity is unknown |
 | `RefPedalApiTests` facade test | expects the 50 ms tempo glide instead of an instant jump |
 | `ParamMeta` | new `ParamUnit::bpm` |

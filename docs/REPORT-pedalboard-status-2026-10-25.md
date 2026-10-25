@@ -1,5 +1,14 @@
 # Pedalboard v0.1.0: status report
 
+> **ERRATA (added 2026-10-25, see `docs/handoff/INTEGRATION-HANDOFF-2026-10-25.md`):**
+> 1. Section 4.5 says model code exists for the four Muffs, RC-1, RC-5, Nano 360 and
+>    Ditto. **That is wrong**: those eight are empty 7-line skeletons. Ten of the 18
+>    specified branded models have runtime code (one of them, MXR Dyna Comp, is registered).
+> 2. The base this branch was built on is stale: every `codex/luthier-pedalboard-*` branch
+>    has moved on GitHub since (the handoff lists the new tips).
+> 3. The percentages below are estimates; the handoff deliberately has none.
+
+
 Date: 2026-10-25. Branch `claude/peaceful-carson-vzl4e4`, head `fca497b2`.
 Work was stopped at the user's request; nothing is running.
 

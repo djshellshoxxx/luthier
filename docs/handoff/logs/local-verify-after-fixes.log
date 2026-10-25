@@ -1,0 +1,9 @@
+CQ03_theLevelIsNeverInAPreset exit=0 pass=1 fail=0
+everyParameterHasAUnitAndACategory exit=0 pass=1 fail=0
+rhythmSourceCarriesTheStrum exit=0 pass=2 fail=0
+sourceTreeHasNoUnmarkedBrandNames exit=0 pass=1 fail=0
+midiOutCarriesTheTuneWhenAskedTo exit=0 pass=1 fail=0
+Parameters exit=0 pass=23 fail=0
+Trademarks exit=0 pass=4 fail=0
+RefPedalApi exit=0 pass=26 fail=0
+VERIFY_DONE
