@@ -44,6 +44,22 @@ Freshly verified source at `02e4e1fcf48ff8be29b5a3dc841cc883a4698653`:
   are integrated serially. Combined-candidate compilation/tests are next; lane
   checks do not establish combined acceptance. See the continuation handoff.
 
+## 2026-10-25 focused continuation evidence
+
+Source64292744 contains only three scoped direct-host MIDI fixture corrections
+reused from Claude b3ec7a41 after original RED and registered-buffer A/B execution.
+Combined32tests/1392checks pass; assertions, licensing branches and production
+processing are unchanged. The original JM39 return-seam loss is measured,not
+inferred from the passing same-name Rhythm route. See
+[the focused ledger](PEDALBOARD-DIRECT-HOST-MIDI-20261025.md).
+
+The saved b5 Linux production build finished2026-10-24(exit0). Fresh2026-10-25
+actual CLAP18pass/0fail/3unsupported skips and VST3 strictness5(all30requested
+rate/buffer combinations) pass. Test-only rebuilding is distinct from that saved
+production compilation. Full cross-platform CI/unit acceptance remains failed;
+no release/tag/publication has occurred. Historical intake descriptions below
+remain historical,not statements that these implemented modules are absent.
+
 ## Finite implementation gates
 
 | Gate | Owner branch suffix | Required implementation and verification | Intake |

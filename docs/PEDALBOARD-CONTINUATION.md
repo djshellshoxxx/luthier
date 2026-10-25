@@ -1,6 +1,6 @@
 # Pedalboard continuation handoff
 
-Updated 2026-10-24 15:10 UTC. Work continues in the same environment; no new
+Updated 2026-10-25 10:40 UTC. Work continues in the same environment; no new
 release or tag has been created. Only djshellshoxxx/luthier is in scope.
 
 Seven actual slots are active: coordinator plus the existing engine, dsp,
@@ -44,6 +44,65 @@ and longer soak on the corrected source. Push this tested-status checkpoint now,
 then use native CI on the corrected commit. Continue E69 memory and other original
 acceptance gates independently. Seven slots have ongoing assignments (coordinator
 plus engine,dsp,timefx,state,host_midi,ui); no other project's workers were taken.
+
+## 2026-10-25 first focused execution checkpoint
+
+Latest tested source before this documentation commit is
+64292744f770fd6789afc4edca3a63cc0ed1363f (fixture commits b69759f3 and64292744).
+Only three direct-host MIDI test fixtures changed; production remains identical
+to b5bec374. Query git rev-parse HEAD for the documentation checkpoint SHA.
+PR80 was freshly verified open/draft at b5bec374; master remains0f62c3d6.
+A new Claude branch peaceful-carson-vzl4e4 at6d9048b5 was found and inspected.
+Its b3ec7a41 capacity-only file slices were reused with authorship and provenance;
+no whole divergent history or blanket ref_* visibility exclusion was merged.
+
+The original JM39 failed unchanged with63 unmatched captured note-ons. Diagnostic
+A/B: unregistered125generated/0returned/125drops; stable registered125/125/0,
+with the same42checks passing. Independent JM43 original Jam4/tune0/drops28
+became exact vectors[33,29,36,31]/[33,29,36,31],zero drops,unchanged5checks pass.
+After scoped fixture reuse, this exact command passed32tests/1392checks/exit0:
+
+    xvfb-run -a build/LuthierTests_artefacts/Release/LuthierTests JamPlugin MidiOutPanel ModelGapsUi
+
+This turn rebuilt only the changed test TUs and linked LuthierTests. The saved
+production build command was launched2026-10-24 15:59:32UTC and completed
+16:25:23UTC,exit0:
+
+    cmake --build build --target LuthierTests LuthierRender Luthier_VST3 Luthier_CLAP Luthier_Standalone -j3
+
+Fresh2026-10-25 validation of those unchanged b5 products: CLAP21run/18pass/
+0fail/3unsupported-preset-discovery skips,exit0; VST3 pluginval strictness5,
+seed0x51a7,all30 rate/buffer combinations through192kHz and2048samples,GUI and
+automation included,SUCCESS/exit0. These are Linux results,not release acceptance.
+Native link inputs were independently copied before test replacement:
+/workspace/luthier-evidence/native-b5-link-snapshot-20261025/manifest.json,
+813inputs/107271888bytes plus matching resources/executable. No product rebuild
+was repeated merely to resume. Details: coverage/PEDALBOARD-DIRECT-HOST-MIDI-20261025.md.
+
+The private Library request resolved version30 but the unchanged supported
+materialization helper failed with 'download failed'; no archive bytes/hash or
+private packets were recovered/read. No URL guessing or repeat transfer was
+attempted. Primary-source repository/executable diagnostics continue. Exact Mac
+post-prepare JSON mismatch is not reproduced on Linux; original Mac saved pair
+and a crash backtrace remain missing. Failure-only diagnostics are being added
+without equality filters. Original full CI40109481251 remains failed; quick-check
+passed,CodeQL cancelled. Nothing has been tagged or published.
+
+All seven slots were verified running at this checkpoint: coordinator integration;
+DSP cabinet/normalization; engine retirement safety; host format/RT QA; state
+exact-JSON diagnostics; timefx GUI attribution/CQ03 reconciliation; UI native
+stress/reentrant gestures. Existing workers/worktrees only; no other repositories,
+new environments,usage bypasses or implementation timers were used.
+
+Next batch is review-gated: exact GUI p08 event attribution; original-vs-required
+CQ03 CPU-cap semantics; unchanged legacy bus indices with three appended buses;
+real UI drag gesture reentrancy; retirement allocation-failure safety; cabinet
+stable asset keys; exact codec/state slices and full prepared-memory closure.
+Preserve all red logs. Original PStyle output35dB gate still fails (~34.7dB),
+whole-processor no-lock acceptance is open,Mac diagnostics/platform full suites
+and hardware/DAW/manual acceptance are incomplete. Windows standalone,macOS both
+architectures,VST3,CLAP thenLinux remain the requested publication order once
+applicable gates qualify; signing/notarization must be reported truthfully.
 
 ## Source and preservation
 
