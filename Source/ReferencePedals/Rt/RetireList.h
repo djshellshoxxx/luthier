@@ -11,9 +11,11 @@
 // a structural transition). reclaim(oldestInUse) frees every item whose
 // lastUsableVersion is older. Versions compare with wrap-around arithmetic.
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <stdexcept>
 #include <vector>
 
 namespace luthier::reference
@@ -23,10 +25,24 @@ template <typename T>
 class RetireList
 {
 public:
-    void retire (std::unique_ptr<T> item, std::uint32_t lastUsableVersion)
+    // Message thread: secure the vector slot before publishing a replacement.
+    // Failure leaves every existing owner and borrowed audio pointer intact.
+    void reserveOne()
+    {
+        if (entries.size() < entries.capacity()) return;
+        const auto maximum = entries.max_size();
+        if (entries.size() == maximum) throw std::length_error ("Retirement storage exhausted");
+        const auto grown = entries.capacity() <= maximum / 2 ? entries.capacity() * 2 : maximum;
+        entries.reserve (std::max (entries.size() + 1, grown));
+    }
+
+    // Rvalue reference keeps the caller's unique_ptr intact if reserve fails.
+    // With reserveOne completed, the following ownership transfer cannot allocate.
+    void retire (std::unique_ptr<T>&& item, std::uint32_t lastUsableVersion)
     {
         if (item == nullptr)
             return;
+        reserveOne();
         entries.push_back ({ std::move (item), lastUsableVersion });
         peak = entries.size() > peak ? entries.size() : peak;
     }

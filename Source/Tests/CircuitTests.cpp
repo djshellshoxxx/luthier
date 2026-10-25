@@ -7,6 +7,7 @@
 */
 
 #include "TestFramework.h"
+#include "AllocationFailureTestHook.h"
 
 #include "../DSP/Circuit/GuitarCircuit.h"
 #include "../LuthierEngine.h"
@@ -22,6 +23,13 @@ using namespace luthier::tests;
 namespace
 {
     thread_local long threadAllocationCount = 0;
+    thread_local std::size_t failedAllocationSize = 0;
+    thread_local bool allocationFailureTriggered = false;
+    bool failAllocation (std::size_t size) noexcept
+    {
+        if (failedAllocationSize == 0 || size != failedAllocationSize) return false;
+        failedAllocationSize = 0; allocationFailureTriggered = true; return true;
+    }
 }
 
 /*  notation-export 7.1 (MODEL-GAPS, TODO 2k): the counter the other suites'
@@ -30,6 +38,10 @@ namespace
 namespace luthier::tests
 {
     long allocationsOnThisThread() noexcept { return threadAllocationCount; }
+    void failNextAllocationOfSizeOnThisThread (std::size_t size) noexcept
+    { failedAllocationSize = size; allocationFailureTriggered = false; }
+    void clearAllocationFailureOnThisThread() noexcept { failedAllocationSize = 0; }
+    bool allocationFailureTriggeredOnThisThread() noexcept { return allocationFailureTriggered; }
 }
 
 struct AllocationCounter
@@ -47,6 +59,7 @@ long luthierTestAllocationCount() noexcept { return threadAllocationCount; }
 void* operator new (std::size_t size)
 {
     ++threadAllocationCount;
+    if (failAllocation (size)) throw std::bad_alloc();
 
     if (auto* p = std::malloc (size == 0 ? 1 : size))
         return p;
@@ -57,6 +70,7 @@ void* operator new (std::size_t size)
 void* operator new[] (std::size_t size)
 {
     ++threadAllocationCount;
+    if (failAllocation (size)) throw std::bad_alloc();
 
     if (auto* p = std::malloc (size == 0 ? 1 : size))
         return p;

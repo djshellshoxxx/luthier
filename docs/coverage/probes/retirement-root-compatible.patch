@@ -1,0 +1,13 @@
+--- a/Source/ReferencePedals/BoardEngine.cpp
++++ b/Source/ReferencePedals/BoardEngine.cpp
+@@ -91,6 +91,10 @@
+     auto plan = TopologyCompiler::compile (instances, settings, pool, version + 1, latest.get(), error, intent, hostEcho);
+     assetStoreAvailable.store (pool.hasAssetStore());
+     if (! plan) return false;
++    // No publication/version/model-visible state may change until retirement
++    // storage is guaranteed. The audio thread may still borrow the old plan.
++    try { if (latest) retired.reserveOne(); }
++    catch (...) { error = "Unable to reserve audio-plan retirement storage"; return false; }
+     ++version;
+     info.version = version; info.mode = settings.mode; info.pedalCount = plan->topology.n;
+     info.latencyTotal = plan->topology.latencyTotal; info.dryDelay = plan->topology.dryDelay;

@@ -91,6 +91,9 @@ bool BoardEngine::publish (const std::vector<PedalInstance>& instances, const Bo
     auto plan = TopologyCompiler::compile (instances, settings, pool, version + 1, latest.get(), error, intent, hostEcho);
     assetStoreAvailable.store (pool.hasAssetStore());
     if (! plan) return false;
+    // Reserve before publishing: an old plan can still be borrowed by audio.
+    try { if (latest) retired.reserveOne(); }
+    catch (...) { error = "Unable to reserve audio-plan retirement storage"; return false; }
     ++version;
     info.version = version; info.mode = settings.mode; info.pedalCount = plan->topology.n;
     info.latencyTotal = plan->topology.latencyTotal; info.dryDelay = plan->topology.dryDelay;
