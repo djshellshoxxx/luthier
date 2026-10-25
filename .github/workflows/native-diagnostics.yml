@@ -1,0 +1,170 @@
+name: Unqualified native diagnostics
+
+on:
+  push:
+    branches: [codex/luthier-native-diagnostics]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-diagnostics-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BUILD_DIR: build-ci
+  DIST_DIR: dist
+  CONFIG: Release
+  LUTHIER_EDITION: PAID
+  LUTHIER_LTO: 'OFF'
+  LUTHIER_BUILD_STRING: ${{ github.sha }}
+  PLUGINVAL_STRICTNESS: '5'
+  MACOS_ARCHS: 'arm64;x86_64'
+  JOBS: '4'
+
+jobs:
+  windows:
+    name: Windows x64 Pro — UNQUALIFIED DIAGNOSTIC
+    if: github.ref == 'refs/heads/codex/luthier-native-diagnostics'
+    runs-on: windows-latest
+    timeout-minutes: 105
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: seanmiddleditch/gha-setup-ninja@v5
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          variant: sccache
+          key: windows-PAID-ltoOFF
+          max-size: 2G
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ThirdParty/JUCE
+            ThirdParty/clap-juce-extensions
+          key: thirdparty-${{ runner.os }}-${{ hashFiles('scripts/ci_build.sh', 'scripts/ci_build.ps1') }}
+      - name: Fetch pinned dependencies
+        shell: pwsh
+        run: scripts/ci_build.ps1 -Step deps
+      - name: Build existing supported targets
+        id: build
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force build-ci/logs | Out-Null
+          & scripts/ci_build.ps1 -Step configure,build -Lto OFF -Edition PAID -Jobs 4 *>&1 | Tee-Object -FilePath build-ci/logs/build.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Run unchanged focused tests (GUI included)
+        id: focus
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 25
+        run: python scripts/native_diagnostics.py focus
+      - name: Required VST3 and CLAP validators, strictness 5
+        id: validate
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 25
+        shell: pwsh
+        run: |
+          if (!(Test-Path 'build-ci/Luthier_artefacts/Release/CLAP/Luthier Pro.clap')) { throw 'Required CLAP missing' }
+          scripts/ci_build.ps1 -Step validate -Strictness 5 -Edition PAID
+      - name: Stage successful build despite diagnostic failures
+        id: stage
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        shell: pwsh
+        run: scripts/ci_build.ps1 -Step stage -Edition PAID
+      - name: Bundle unqualified binaries, evidence, source and licensing
+        if: ${{ !cancelled() && steps.stage.outcome == 'success' }}
+        env:
+          DIAGNOSTIC_BUILD: ${{ steps.build.outcome }}
+          DIAGNOSTIC_FOCUS: ${{ steps.focus.outcome }}
+          DIAGNOSTIC_VALIDATE: ${{ steps.validate.outcome }}
+          DIAGNOSTIC_ARCHITECTURE: x64 toolchain; native execution only
+          DIAGNOSTIC_STAGE: ${{ steps.stage.outcome }}
+        run: python scripts/native_diagnostics.py bundle
+      - name: Upload diagnostics (never a release)
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: UNQUALIFIED-DIAGNOSTIC-windows-pro-${{ github.sha }}
+          path: |
+            diagnostic-artifacts/
+            build-ci/logs/
+          if-no-files-found: warn
+          retention-days: 7
+
+  macos:
+    name: macOS universal Pro — UNQUALIFIED DIAGNOSTIC
+    if: github.ref == 'refs/heads/codex/luthier-native-diagnostics'
+    runs-on: macos-latest
+    timeout-minutes: 105
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: seanmiddleditch/gha-setup-ninja@v5
+      - uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          variant: ccache
+          key: macos-PAID-ltoOFF
+          max-size: 2G
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ThirdParty/JUCE
+            ThirdParty/clap-juce-extensions
+          key: thirdparty-${{ runner.os }}-${{ hashFiles('scripts/ci_build.sh', 'scripts/ci_build.ps1') }}
+      - name: Fetch pinned dependencies
+        shell: bash
+        run: scripts/ci_build.sh deps
+      - name: Build existing supported targets
+        id: build
+        shell: bash
+        run: scripts/ci_build.sh configure build-diagnostic
+      - name: Verify universal binaries and record actual runtime architecture
+        id: architecture
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: python scripts/native_diagnostics.py architecture
+      - name: Run unchanged focused tests (GUI included)
+        id: focus
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 25
+        run: python scripts/native_diagnostics.py focus
+      - name: Required VST3 and CLAP validators, strictness 5
+        id: validate
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 25
+        run: scripts/ci_build.sh validate-diagnostic
+      - name: Stage successful build despite diagnostic failures
+        id: stage
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        shell: bash
+        run: scripts/ci_build.sh stage
+      - name: Bundle unqualified binaries, evidence, source and licensing
+        if: ${{ !cancelled() && steps.stage.outcome == 'success' }}
+        env:
+          DIAGNOSTIC_BUILD: ${{ steps.build.outcome }}
+          DIAGNOSTIC_FOCUS: ${{ steps.focus.outcome }}
+          DIAGNOSTIC_VALIDATE: ${{ steps.validate.outcome }}
+          DIAGNOSTIC_ARCHITECTURE: ${{ steps.architecture.outcome }}
+          DIAGNOSTIC_STAGE: ${{ steps.stage.outcome }}
+        run: python scripts/native_diagnostics.py bundle
+      - name: Upload diagnostics (never a release)
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: UNQUALIFIED-DIAGNOSTIC-macos-pro-${{ github.sha }}
+          path: |
+            diagnostic-artifacts/
+            build-ci/logs/
+          if-no-files-found: warn
+          retention-days: 7

@@ -9,8 +9,10 @@
 #   deps       fetch JUCE and clap-juce-extensions into ThirdParty/ (pinned)
 #   configure  CMake configure into $BUILD_DIR (Ninja, compiler cache if present)
 #   build      build every plugin format, LuthierTests and LuthierRender
+#   build-diagnostic  Standalone/VST3/CLAP/Tests/Render only; normal build retains AU
 #   test       run the unit tests (under xvfb on a headless Linux box)
 #   validate   pluginval on the VST3 (and AU on macOS), clap-validator on the CLAP
+#   validate-diagnostic  explicit VST3+CLAP-only diagnostic scope; both required
 #   stage      copy the built products into $DIST_DIR/<platform>/ for packaging
 #   all        every step above, in order (the default)
 #
@@ -111,14 +113,14 @@ do_configure() {
 
 build_targets() {
     local targets=(Luthier_VST3 Luthier_Standalone LuthierTests LuthierRender)
-    [ "$PLATFORM" = macos ] && targets+=(Luthier_AU)
+    [ "$PLATFORM" = macos ] && [ "${1:-0}" != 1 ] && targets+=(Luthier_AU)
     [ -d ThirdParty/clap-juce-extensions ] && targets+=(Luthier_CLAP)
     echo "${targets[@]}"
 }
 
 do_build() {
     local targets
-    read -r -a targets <<< "$(build_targets)"
+    read -r -a targets <<< "$(build_targets "${1:-0}")"
     step "Building ${targets[*]} with $JOBS jobs"
     # -k 0: keep going after a failed compile so one CI run surfaces every
     # compiler error, not just the first. A successful build is unaffected.
@@ -234,6 +236,14 @@ fetch_clap_validator() {
 }
 
 do_validate() {
+    # Explicit diagnostic scope only; the normal validate/all paths retain AU.
+    local diagnostic="${1:-0}"
+    if [ "$diagnostic" = 1 ]; then
+        [ "${SKIP_VALIDATORS:-0}" != 1 ] || { echo "Diagnostic validators cannot be skipped" >&2; return 1; }
+        [ -e "$ARTEFACTS/VST3/${PRODUCT_NAME}.vst3" ] && [ -e "$ARTEFACTS/CLAP/${PRODUCT_NAME}.clap" ] || {
+            echo "Diagnostic validation requires both VST3 and CLAP" >&2; return 1;
+        }
+    fi
     if [ "${SKIP_VALIDATORS:-0}" = 1 ]; then
         step "Skipping validators (SKIP_VALIDATORS=1)"
         return 0
@@ -248,7 +258,7 @@ do_validate() {
     fi
 
     local plugins=("$ARTEFACTS/VST3/${PRODUCT_NAME}.vst3")
-    [ "$PLATFORM" = macos ] && plugins+=("$ARTEFACTS/AU/${PRODUCT_NAME}.component")
+    [ "$PLATFORM" = macos ] && [ "$diagnostic" != 1 ] && plugins+=("$ARTEFACTS/AU/${PRODUCT_NAME}.component")
 
     for p in "${plugins[@]}"; do
         local name; name="$(basename "$p")"
@@ -352,8 +362,10 @@ for s in "${steps[@]}"; do
         deps)      do_deps ;;
         configure) do_configure ;;
         build)     do_build ;;
+        build-diagnostic) do_build 1 ;;
         test)      do_test ;;
         validate)  do_validate ;;
+        validate-diagnostic) do_validate 1 ;;
         stage)     do_stage ;;
         all)       do_deps; do_configure; do_build; do_test; do_validate; do_stage ;;
         *) echo "ci_build.sh: unknown step '$s'" >&2; exit 2 ;;
