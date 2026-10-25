@@ -129,6 +129,10 @@ bool BoardEngine::publish (const std::vector<PedalInstance>& instances, const Bo
     auto plan = TopologyCompiler::compile (instances, settings, pool, version + 1, latest.get(), error, intent, hostEcho);
     assetStoreAvailable.store (pool.hasAssetStore());
     if (! plan) return false;
+    // No publication/version/model-visible state may change until retirement
+    // storage is guaranteed. The audio thread may still borrow the old plan.
+    try { if (latest) retired.reserveOne(); }
+    catch (...) { error = "Unable to reserve audio-plan retirement storage"; return false; }
     pool.published();
     setPreparationError ("");
     ++version;
