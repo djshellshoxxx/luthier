@@ -115,3 +115,20 @@ LUTHIER_TEST(RefPedalDitto, unavailableReturnTapNeverSubstitutesOrdinaryInputFor
     CHECK(p->readUiMeters().transport==0);CHECK(p->readUiMeters().loopLength==0);CHECK((p->readUiMeters().faults&(1u<<20))!=0);
     p->setParam(11,0);render(*p,400);record(*p);juce::var state;CHECK(saved(*p,state));render(*p,400);p->setParam(11,1);press(*p);release(*p);CHECK(p->readUiMeters().transport==2);CHECK(p->readUiMeters().loopLength==1000);
 }
+
+LUTHIER_TEST(RefPedalDitto, thousandAcceptedOverdubsKeepAnalyticalSumAndUndoRedoBytes)
+{
+    DittoFixture f;auto pedal=f.create();record(*pedal,.125,.125);juce::var state;CHECK(saved(*pedal,state,true));
+    constexpr double layer=1./4096.;
+    for(int cycle=0;cycle<1000;++cycle)
+    {
+        overdub(*pedal,layer,layer);CHECK(saved(*pedal,state,true));
+        CHECK(pedal->readUiMeters().faults==0);CHECK(pedal->readUiMeters().loopLength==1000);
+    }
+    std::vector<double> audio;render(*pedal,1000,0,0,&audio);const double expected=(.125+1000*layer)*gain();
+    for(double sample:audio)CHECK_NEAR(sample,expected,1e-12);
+    render(*pedal,400);press(*pedal);render(*pedal,1500);release(*pedal);render(*pedal,1000,0,0,&audio);
+    const double beforeLast=(.125+999*layer)*gain();for(double sample:audio)CHECK_NEAR(sample,beforeLast,1e-12);
+    press(*pedal);render(*pedal,1500);release(*pedal);render(*pedal,1000,0,0,&audio);for(double sample:audio)CHECK_NEAR(sample,expected,1e-12);
+    CHECK(pedal->readUiMeters().faults==0);
+}

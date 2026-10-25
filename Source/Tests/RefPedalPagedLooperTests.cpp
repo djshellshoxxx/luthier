@@ -241,3 +241,19 @@ LUTHIER_TEST(RefPedalPagedLooper, restoredPlayingTransportKeepsPublishedSamplePh
     PagedLooperCore restored;CHECK(restored.prepare(f.store,c));CHECK(restored.restore(graph));CHECK(ready(restored));CHECK(restored.playhead()==7);
     std::array<double,32> a{},ar{},b{},br{};original.process(a.data(),ar.data(),32);restored.process(b.data(),br.data(),32);CHECK(a==b);CHECK(ar==br);
 }
+
+LUTHIER_TEST(RefPedalPagedLooper, seededRandomUndoRedoPreservesExactAcceptedLayerAudio)
+{
+    PagedFixture f;auto config=tiny();config.undoDepth=8;PagedLooperCore core;CHECK(core.prepare(f.store,config));
+    core.apply(LooperAction::Record);process(core,32,.125,-.125);core.apply(LooperAction::Play);CHECK(ready(core));
+    for(int i=0;i<6;++i){core.apply(LooperAction::Overdub);process(core,32,double(i+1)/128.,-double(i+1)/128.);core.apply(LooperAction::Play);CHECK(ready(core));}
+    int active=6;juce::Random random(0x5eeda11);std::vector<double> audio;
+    for(int action=0;action<100;++action)
+    {
+        const bool undo=random.nextBool();core.apply(undo?LooperAction::Undo:LooperAction::Redo);
+        if(undo && active>0)--active;else if(!undo && active<6)++active;
+        const double expected=.125+double(active*(active+1))/256.;
+        process(core,32,0,0,&audio);for(double sample:audio)CHECK_NEAR(sample,expected,0);
+        PagedLooperCore::Graph graph;CHECK(core.capture(graph));CHECK(graph.layerCount==active);CHECK(graph.redoCount==6-active);CHECK(core.faults()==0);
+    }
+}
