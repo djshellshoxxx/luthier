@@ -12,6 +12,7 @@
 // lastUsableVersion is older. Versions compare with wrap-around arithmetic.
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -25,12 +26,15 @@ template <typename T>
 class RetireList
 {
 public:
+    static constexpr std::size_t capacityLimit = 8;
+
     // Message thread: secure the vector slot before publishing a replacement.
     // Failure leaves every existing owner and borrowed audio pointer intact.
     void reserveOne()
     {
+        if (entries.size() >= capacityLimit) throw std::length_error ("Retirement storage saturated");
         if (entries.size() < entries.capacity()) return;
-        const auto maximum = entries.max_size();
+        const auto maximum = std::min (entries.max_size(), capacityLimit);
         if (entries.size() == maximum) throw std::length_error ("Retirement storage exhausted");
         const auto grown = entries.capacity() <= maximum / 2 ? entries.capacity() * 2 : maximum;
         entries.reserve (std::max (entries.size() + 1, grown));
@@ -64,6 +68,20 @@ public:
                 ++i;
             }
         }
+        return freed;
+    }
+
+    // The caller supplies a stable snapshot of every retained reader pointer.
+    // Useful for reclaiming never-adopted intermediate publications, which an
+    // oldest-version epoch alone must conservatively retain.
+    template <std::size_t N>
+    int reclaimExcept (const std::array<const T*, N>& protectedPointers) noexcept
+    {
+        int freed = 0;
+        for (std::size_t i = 0; i < entries.size();)
+            if (std::find (protectedPointers.begin(), protectedPointers.end(), entries[i].object.get()) == protectedPointers.end())
+            { entries.erase (entries.begin() + static_cast<std::ptrdiff_t> (i)); ++freed; }
+            else ++i;
         return freed;
     }
 
