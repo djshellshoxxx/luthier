@@ -23,8 +23,11 @@ namespace
     }
 
     /** Picks any .wav in a folder, preferring one whose name shares the most
-        underscore-separated tokens with what was asked for. */
-    juce::File bestMatchIn (const juce::File& folder, const juce::String& wanted)
+        underscore-separated tokens with what was asked for. Cabinet ties use
+        lexical filename order so filesystem enumeration cannot change the tone.
+        Body fallback keeps its existing selection policy. */
+    juce::File bestMatchIn (const juce::File& folder, const juce::String& wanted,
+                            bool stableTieBreak = false)
     {
         if (! folder.isDirectory())
             return {};
@@ -48,7 +51,9 @@ namespace
                 if (tokens.contains (token))
                     ++score;
 
-            if (score > bestScore)
+            if (score > bestScore
+                || (stableTieBreak && score == bestScore
+                    && file.getFileName().compare (best.getFileName()) < 0))
             {
                 bestScore = score;
                 best = file;
@@ -222,7 +227,7 @@ juce::File IrLibrary::findCabIr (const CabinetConfig& config)
 
     if (cabFolder.isDirectory())
     {
-        const auto match = bestMatchIn (cabFolder, exact.getFileName());
+        const auto match = bestMatchIn (cabFolder, exact.getFileName(), true);
 
         if (match.existsAsFile())
             return match;
@@ -233,7 +238,7 @@ juce::File IrLibrary::findCabIr (const CabinetConfig& config)
     auto fallback = root.getChildFile ("4x12");
 
     if (fallback.isDirectory())
-        return bestMatchIn (fallback, exact.getFileName());
+        return bestMatchIn (fallback, exact.getFileName(), true);
 
     return {};
 }

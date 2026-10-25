@@ -1,0 +1,12 @@
+{
+  "frozen_source": "02e4e1fc",
+  "native_build5_source": "b5bec374f01ede236350300770f5721709a39831",
+  "resources_equal": true,
+  "file_count": 1253,
+  "manifest_sha256": [
+    "5d8d2c080b5f172fb7f76fc156b6a4ceebeb06f577a968e04f507de2edcf71e8",
+    "5d8d2c080b5f172fb7f76fc156b6a4ceebeb06f577a968e04f507de2edcf71e8",
+    "5d8d2c080b5f172fb7f76fc156b6a4ceebeb06f577a968e04f507de2edcf71e8"
+  ],
+  "immutable_link_manifest_sha256": "74260e0616f7af6f7cc45b43c47d73b40e6a557a7b7ae0ed203166161646ba86"
+}

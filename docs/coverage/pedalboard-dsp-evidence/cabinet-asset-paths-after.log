@@ -1,0 +1,16 @@
+
+================================================================
+ LUTHIER TEST SUITE
+================================================================
+
+
+CabinetPathProbe
+----------------------------------------------------------------
+requested=4x12/celestion_vintage_30_shure_sm57_cap_edge_close.wav selected=/workspace/luthier-evidence/cabinet-asset-fix/Resources/CabIRs/4x12/celestion_vintage_30_shure_sm57_cap_edge_close.wav
+requested=4x12/celestion_vintage_30_shure_sm57_cap_edge_close.wav selected=/workspace/luthier-evidence/cabinet-asset-fix/Resources/CabIRs/4x12/celestion_vintage_30_shure_sm57_cap_edge_close.wav
+  [pass]  defaultAndAnchor                            1 checks      0.086 ms
+
+================================================================
+ ALL PASSED
+ 1 tests, 1 checks, 0.0 s
+================================================================

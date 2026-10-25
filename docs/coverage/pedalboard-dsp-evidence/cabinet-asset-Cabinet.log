@@ -1,0 +1,31 @@
+
+================================================================
+ LUTHIER TEST SUITE
+================================================================
+
+
+CabinetAssetKeys
+----------------------------------------------------------------
+  [pass]  resourceKeysDoNotDependOnDisplayLabels      577 checks    0.472 ms
+  [pass]  shippedCatalogResolvesExactSpeakerAndMic    1009 checks   7.716 ms
+  [pass]  unsupportedCatalogChoicesHaveStableFallback 5 checks      1.447 ms
+
+Cabinet
+----------------------------------------------------------------
+  [pass]  resetClearsTheConvolutionTail               5 checks      52.015 ms
+  [pass]  convolutionMatchesOfflineConvolution        27 checks     72.124 ms
+  [pass]  procedualFallbackRemovesTheFizz             2 checks      62.409 ms
+
+MicPlacementUi
+----------------------------------------------------------------
+Fontconfig error: No writable cache directories
+  [pass]  familyAndCabinetSwitchesLeaveNoStaleHandles 8 checks      1067.59 ms
+
+ToneMatch
+----------------------------------------------------------------
+  [pass]  cabinetSlotsReplaceTheirOwnMic              5 checks      676.357 ms
+
+================================================================
+ ALL PASSED
+ 8 tests, 1638 checks, 1.9 s
+================================================================
