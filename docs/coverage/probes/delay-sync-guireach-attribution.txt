@@ -1,0 +1,18 @@
+Exact b5 diagnostic: all 16 controls observed visible=1, already=0 before operation.
+Own parameter is emitted in every write list below.
+P08_WRITES ref_s01_p08 ref_s02_pos ref_s01_p08
+P08_WRITES ref_s02_p08 ref_s02_p08
+P08_WRITES ref_s03_p08 ref_s02_pos ref_s04_pos ref_s03_p08
+P08_WRITES ref_s04_p08 ref_s04_p08
+P08_WRITES ref_s05_p08 ref_s04_pos ref_s06_pos ref_s05_p08
+P08_WRITES ref_s06_p08 ref_s06_p08
+P08_WRITES ref_s07_p08 ref_s06_pos ref_s08_pos ref_s07_p08
+P08_WRITES ref_s08_p08 ref_s08_p08
+P08_WRITES ref_s09_p08 ref_s08_pos ref_s10_pos ref_s09_p08
+P08_WRITES ref_s10_p08 ref_s10_p08
+P08_WRITES ref_s11_p08 ref_s10_pos ref_s12_pos ref_s11_p08
+P08_WRITES ref_s12_p08 ref_s12_p08
+P08_WRITES ref_s13_p08 ref_s12_pos ref_s14_pos ref_s13_p08
+P08_WRITES ref_s14_p08 ref_s14_p08
+P08_WRITES ref_s15_p08 ref_s14_pos ref_s15_p08
+P08_WRITES ref_s16_p08 ref_s15_pos ref_s16_p08

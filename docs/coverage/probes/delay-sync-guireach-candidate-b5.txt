@@ -1,0 +1,33 @@
+
+================================================================
+ LUTHIER TEST SUITE
+================================================================
+
+
+GuiReach
+----------------------------------------------------------------
+Fontconfig error: No writable cache directories
+    views walked: 553, controls operated: 6092
+    automatable parameters: 774, visible control: 691, hidden-only: 0, no control: 6, pedal slot params without a knob: 67
+    NO CONTROL: ref_board_limiter_ceil_db ref_board_exp1 ref_board_exp2 ref_board_fb_gain ref_board_fb_lp ref_board_reamp_gain
+  [FAIL]  everyAutomatableParameterHasAVisibleControl 486 checks    15345.1 ms
+    line 783: ref_board_limiter_ceil_db has no control anywhere in the editor
+    line 783: ref_board_exp1 has no control anywhere in the editor
+    line 783: ref_board_exp2 has no control anywhere in the editor
+    line 783: ref_board_fb_gain has no control anywhere in the editor
+    line 783: ref_board_fb_lp has no control anywhere in the editor
+    line 783: ref_board_reamp_gain has no control anywhere in the editor
+    parameters whose control was operated and wrote them: 863
+    visible but never operated: bend_armed scrape_armed slap_armed tap_armed
+  [pass]  operatingEachControlWritesItsParameter      1 checks      0.082 ms
+
+CpuQuality
+----------------------------------------------------------------
+  [pass]  CQ03_theLevelIsNeverInAPreset               1037 checks   458.982 ms
+  [pass]  CQ03_boardAdmissionCapIsDistinctFromGlobalQuality28 checks     375.488 ms
+
+================================================================
+ FAILED
+ 1 of 4 tests failed (6 of 1552 checks), 16.2 s
+================================================================
+

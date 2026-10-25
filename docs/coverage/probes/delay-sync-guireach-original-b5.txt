@@ -1,0 +1,43 @@
+
+================================================================
+ LUTHIER TEST SUITE
+================================================================
+
+
+GuiReach
+----------------------------------------------------------------
+Fontconfig error: No writable cache directories
+    views walked: 553, controls operated: 6092
+    automatable parameters: 774, visible control: 691, hidden-only: 0, no control: 6, pedal slot params without a knob: 67
+    NO CONTROL: ref_board_limiter_ceil_db ref_board_exp1 ref_board_exp2 ref_board_fb_gain ref_board_fb_lp ref_board_reamp_gain
+  [FAIL]  everyAutomatableParameterHasAVisibleControl 486 checks    14746.9 ms
+    line 771: ref_board_limiter_ceil_db has no control anywhere in the editor
+    line 771: ref_board_exp1 has no control anywhere in the editor
+    line 771: ref_board_exp2 has no control anywhere in the editor
+    line 771: ref_board_fb_gain has no control anywhere in the editor
+    line 771: ref_board_fb_lp has no control anywhere in the editor
+    line 771: ref_board_reamp_gain has no control anywhere in the editor
+    line 780: ref_s01_p08 has no visible control in populated reference board
+    line 781: ref_s01_p08 was not operated through its actual reference control
+    line 780: ref_s03_p08 has no visible control in populated reference board
+    line 781: ref_s03_p08 was not operated through its actual reference control
+    line 780: ref_s05_p08 has no visible control in populated reference board
+    line 781: ref_s05_p08 was not operated through its actual reference control
+    line 780: ref_s07_p08 has no visible control in populated reference board
+    line 781: ref_s07_p08 was not operated through its actual reference control
+    line 780: ref_s09_p08 has no visible control in populated reference board
+    line 781: ref_s09_p08 was not operated through its actual reference control
+    line 780: ref_s11_p08 has no visible control in populated reference board
+    line 781: ref_s11_p08 was not operated through its actual reference control
+    line 780: ref_s13_p08 has no visible control in populated reference board
+    line 781: ref_s13_p08 was not operated through its actual reference control
+    line 780: ref_s15_p08 has no visible control in populated reference board
+    line 781: ref_s15_p08 was not operated through its actual reference control
+    line 780: ref_s16_p08 has no visible control in populated reference board
+    line 781: ref_s16_p08 was not operated through its actual reference control
+
+================================================================
+ FAILED
+ 1 of 1 tests failed (24 of 486 checks), 14.7 s
+================================================================
+

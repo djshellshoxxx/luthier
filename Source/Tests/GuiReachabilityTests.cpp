@@ -365,6 +365,7 @@ namespace
             operatedControls.insert (c);
 
             juce::String problem;
+            const auto boundId = c->getComponentID(); // operation may rebuild/delete c
             const auto ids = operate (c, p, rec, problem, subView (c));
             ++walk.operated;
 
@@ -381,7 +382,18 @@ namespace
                 if (auto* choice = dynamic_cast<juce::AudioParameterChoice*> (p.getParameters()[p.getState().getParameter (ids.front())->getParameterIndex()]))
                     credit = std::abs (choice->choices.size() - dynamic_cast<juce::ComboBox*> (c)->getNumItems()) <= 1;
 
-            if (credit)
+            // A known binding is stronger evidence than notification order.
+            // Pending callbacks from a previously operated position control may
+            // run during this operation, before this control's own write.
+            const bool wroteBoundId = p.getState().getParameter (boundId) != nullptr
+                && std::find (ids.begin(), ids.end(), boundId) != ids.end();
+            if (wroteBoundId)
+            {
+                auto& r = walk.reach[boundId];
+                r.visibleIn.insert (view + " (bound raw control)");
+                r.operatedOk = true;
+            }
+            else if (credit)
             {
                 // A custom control may own two parameters (the pad: distance
                 // and angle); each one it wrote is credited.
