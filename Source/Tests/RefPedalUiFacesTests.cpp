@@ -170,3 +170,22 @@ LUTHIER_TEST(RefPedalUiFaces, liveDragRecordsOnlyAcceptedFinalPositionAndBalance
     }
     CHECK(model.getOrder()==before);CHECK(capture.valueChanges==0);CHECK(capture.gestures==std::vector<bool>({true,false}));parameter->removeListener(&capture);
 }
+LUTHIER_TEST(RefPedalUiFaces, dragBaselineFollowsSynchronousHostGestureSettlement)
+{
+    FaceAttachmentProcessor processor;juce::AudioProcessorValueTreeState::ParameterLayout layout;
+    layout.add(std::make_unique<juce::AudioParameterInt>(juce::ParameterID{"ref_s01_pos",1},"Position",0,15,0));
+    juce::AudioProcessorValueTreeState state(processor,nullptr,"reentrant_drag",std::move(layout));PedalRegistry::registerAll();BoardModel model;
+    for(int i=0;i<2;++i)if(!luthier::tests::requireReferenceEdit(ctx,model,cmd::Add{"generic.boost"}))return;
+    const auto original=model.getOrder();auto settled=original;std::reverse(settled.begin(),settled.end());
+    BoardCanvas canvas(model,&state);auto* view=canvas.viewFor(original[0]);CHECK(view!=nullptr);if(!view)return;
+    auto* parameter=state.getParameter("ref_s01_pos");GestureCapture capture;parameter->addListener(&capture);
+    // A real host listener may flush an earlier position write synchronously
+    // while beginning this gesture, before the Canvas starts its transaction.
+    capture.onGesture=[&](bool begin){if(begin){CHECK(model.apply(cmd::Move{original[0],1}));parameter->setValueNotifyingHost(parameter->convertTo0to1(1));}};
+    view->onDrag(*view,{100,130},{20,20},false);CHECK(model.getOrder()==settled);
+    view->onDrag(*view,{100,130},{20,20},true);CHECK(model.getOrder()==original);
+    CHECK_NEAR(state.getRawParameterValue("ref_s01_pos")->load(),0,1e-6);CHECK(capture.valueChanges==2);CHECK(capture.gestures==std::vector<bool>({true,false}));
+    CHECK(model.undo());CHECK(model.getOrder()==settled);parameter->setValueNotifyingHost(0);capture.valueChanges=0;capture.gestures.clear();
+    view->onDrag(*view,{100,130},{20,20},false);CHECK(model.getOrder()==settled);CHECK(canvas.cancelDrag());CHECK(model.getOrder()==settled);
+    CHECK(capture.valueChanges==1);CHECK(capture.gestures==std::vector<bool>({true,false}));parameter->removeListener(&capture);
+}
