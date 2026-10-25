@@ -71,3 +71,19 @@ E65 processor feed: stampBlockLoad now forwards the existing CpuLoadMonitor's fr
 Position-gesture followup: existing parameterGestureChanged callbacks maintain a bounded16-bit atomic mask for real ref_sNN_pos gestures, including off-message notifications. While any position gesture is active, service withholds all model-to-host POSITION echoes; unrelated affected rows therefore cannot publish preview values. Position requests use fresh capture serials only, so an intentionally withheld mirror cannot be mistaken for a host reorder request. Accepted final writes still dispatch; end/cancel clears the relevant bit and normal mirror convergence resumes. No unsupported JUCE gesture-state introspection or new public API is used.
 
 Actual regression first failed3/10 checks against the prior service. Native position overlay passes **18 host cases /2533 checks**,6.9s, including every373-state/restore-action test, repeated preview+cancel with zero value notifications, accepted final position and one model undo. The independent E65 feed/test were omitted only from this02-object overlay because02 lacks that API; production E65 code remains intact and needs coordinator's fresh combined run.
+
+Preview RT ownership dependency (2026-10-25): actual private build6 stack capture
+at280e attributes the existing20pthread trylocks to preview1, bridge1,
+EffectsChain scalar application16 and effects render2. This diagnostic captures
+backtraces and is expressly NON-RT; it does not replace the preserved3840callback
+RED gate. Source/lifetime analysis and evidence are recorded in
+[HOST-RT-PUBLICATION-REVIEW.md](HOST-RT-PUBLICATION-REVIEW.md).
+
+The isolated preview command transport is now qualified as a component only:
+7cases/60checks pass normally, under ASan/UBSan and under TSan. An actual atomic
+ordering regression (order723 followed by722) failed normal/ASan before the
+cross-lane/epoch fix;25 further normal runs pass after it. The module is unwired,
+so **no production lock was removed**. Real processor conversion ownership,
+held-note/output-release accounting, all producers, stopped-audio lifecycle,
+forced races and changed-scenario callback probes remain the finite integration
+gates in [PREVIEW-COMMAND-TRANSPORT.md](PREVIEW-COMMAND-TRANSPORT.md).
