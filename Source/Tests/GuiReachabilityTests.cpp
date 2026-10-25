@@ -144,6 +144,26 @@ namespace
         return {};
     }
 
+    // A dynamically rebuilt view can reuse an old control's address. Keep the
+    // component lifetime, not a permanent raw-address mark, as operation identity.
+    class OperatedControls
+    {
+    public:
+        std::size_t count (const juce::Component* c) const
+        {
+            return std::any_of (controls.begin(), controls.end(),
+                [c] (const auto& control) { return control.getComponent() == c; }) ? 1u : 0u;
+        }
+        void insert (juce::Component* c)
+        {
+            controls.erase (std::remove_if (controls.begin(), controls.end(),
+                [] (const auto& control) { return control.getComponent() == nullptr; }), controls.end());
+            if (count (c) == 0) controls.emplace_back (c);
+        }
+    private:
+        std::vector<juce::Component::SafePointer<juce::Component>> controls;
+    };
+
     /** Everything the walk learned. */
     struct Walk
     {
@@ -278,7 +298,7 @@ namespace
     /*  Scans one view: every LearnTarget and every raw control. Operates each
         control once per walk (the first time it is seen on screen). */
     void scanView (const juce::String& view, juce::Component& root, LuthierAudioProcessor& p,
-                   ParamRecorder& rec, Walk& walk, std::set<juce::Component*>& operatedControls, int depth = 0)
+                   ParamRecorder& rec, Walk& walk, OperatedControls& operatedControls, int depth = 0)
     {
         auto subView = [&] (juce::Component* toggle)
         {
@@ -374,6 +394,8 @@ namespace
             operatedControls.insert (c);
 
             juce::String problem;
+            const auto boundId = c->getComponentID(); // operation may rebuild/delete c
+            const int comboItems = isCombo ? static_cast<juce::ComboBox*> (c)->getNumItems() : 0;
             const auto ids = operate (c, p, rec, problem, subView (c));
             ++walk.operated;
 
@@ -388,9 +410,20 @@ namespace
 
             if (! credit && isCombo && ! ids.empty())
                 if (auto* choice = dynamic_cast<juce::AudioParameterChoice*> (p.getParameters()[p.getState().getParameter (ids.front())->getParameterIndex()]))
-                    credit = std::abs (choice->choices.size() - dynamic_cast<juce::ComboBox*> (c)->getNumItems()) <= 1;
+                    credit = std::abs (choice->choices.size() - comboItems) <= 1;
 
-            if (credit)
+            // A known binding is stronger evidence than notification order.
+            // Pending callbacks from a previously operated position control may
+            // run during this operation, before this control's own write.
+            const bool wroteBoundId = p.getState().getParameter (boundId) != nullptr
+                && std::find (ids.begin(), ids.end(), boundId) != ids.end();
+            if (wroteBoundId)
+            {
+                auto& r = walk.reach[boundId];
+                r.visibleIn.insert (view + " (bound raw control)");
+                r.operatedOk = true;
+            }
+            else if (credit)
             {
                 // A custom control may own two parameters (the pad: distance
                 // and angle); each one it wrote is credited.
@@ -436,7 +469,7 @@ namespace
                          juce::jmax (1000, LuthierAudioProcessorEditor::defaultHeight));
 
         ParamRecorder rec (p);
-        std::set<juce::Component*> operated;
+        OperatedControls operated;
         auto& root = *editor;
 
         auto key = [&] (const char* action)
@@ -715,6 +748,21 @@ namespace
 
 //==============================================================================
 /*  Every automatable parameter has a visible control somewhere a user can go. */
+LUTHIER_TEST (GuiReach, rebuiltControlAtSameAddressIsOperatedAgain)
+{
+    OperatedControls operated;
+    alignas(juce::Component) unsigned char storage[sizeof(juce::Component)];
+    auto* first = new (storage) juce::Component();
+    operated.insert (first);
+    CHECK (operated.count (first) == 1);
+    first->~Component();
+    auto* replacement = new (storage) juce::Component();
+    CHECK (operated.count (replacement) == 0);
+    operated.insert (replacement);
+    CHECK (operated.count (replacement) == 1);
+    replacement->~Component();
+}
+
 LUTHIER_TEST (GuiReach, everyAutomatableParameterHasAVisibleControl)
 {
     auto& walk = theWalk();
