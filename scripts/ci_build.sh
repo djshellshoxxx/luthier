@@ -123,8 +123,18 @@ do_build() {
     # -k 0: keep going after a failed compile so one CI run surfaces every
     # compiler error, not just the first. A successful build is unaffected.
     mkdir -p "$LOG_DIR"
+    local rc=0
     cmake --build "$BUILD_DIR" --config "$CONFIG" --parallel "$JOBS" --target "${targets[@]}" -- -k 0 \
-        2>&1 | tee "$LOG_DIR/build.log"
+        2>&1 | tee "$LOG_DIR/build.log" || rc=$?
+    if [ "$rc" -ne 0 ]; then
+        # Surface the compiler errors as one annotation, so they are readable
+        # from the run's check annotations without downloading the log.
+        local errors
+        errors="$(grep -E 'error:|error C[0-9]+|fatal error|Undefined symbols|ld: |LNK[0-9]+' "$LOG_DIR/build.log" \
+                      | sort -u | head -30 | cut -c1-400 | sed ':a;N;$!ba;s/\n/%0A/g')" || true
+        echo "::error title=Build errors::${errors:-no compiler error lines found in build.log}"
+        return "$rc"
+    fi
 
     if [ "$PLATFORM" = macos ]; then
         # Resources are copied into each bundle after JUCE has signed it, which

@@ -113,7 +113,19 @@ function Step-Build {
     Write-Step "Building $($targets -join ' ') with $Jobs jobs"
     # -k 0: keep going after a failed compile so one CI run surfaces every
     # compiler error, not just the first. A successful build is unaffected.
-    Invoke-Checked 'Build' { cmake --build $BuildDir --config $Config --parallel $Jobs --target @targets -- -k 0 }
+    New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
+    $buildLog = Join-Path $LogDir 'build.log'
+    cmake --build $BuildDir --config $Config --parallel $Jobs --target @targets -- -k 0 2>&1 | Tee-Object -FilePath $buildLog
+    if ($LASTEXITCODE -ne 0) {
+        # Surface the compiler errors as one annotation, so they are readable
+        # from the run's check annotations without downloading the log.
+        $errors = (Select-String -Path $buildLog -Pattern 'error C[0-9]+|fatal error|error:|LNK[0-9]+' |
+                   ForEach-Object { $_.Line.Trim() } | Select-Object -Unique -First 30 |
+                   ForEach-Object { if ($_.Length -gt 400) { $_.Substring(0, 400) } else { $_ } }) -join '%0A'
+        if (-not $errors) { $errors = 'no compiler error lines found in build.log' }
+        Write-Host "::error title=Build errors::$errors"
+        throw "Build failed ($LASTEXITCODE)."
+    }
 }
 
 function Step-Test {
