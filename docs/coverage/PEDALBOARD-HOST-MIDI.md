@@ -94,3 +94,19 @@ hidden-UI clock-loss recovery, tempo convergence during continuing512-event CC
 flood, overload accounting, no duplicate acknowledged tempo, and zero callback
 allocations. Evidence: midi-feedback-{red,green,address-undefined,thread}.log.
 This changes no public API and does not establish general parameter persistence.
+
+Preview RT ownership dependency (2026-10-25): actual private build6 stack capture
+at280e attributes the existing20pthread trylocks to preview1, bridge1,
+EffectsChain scalar application16 and effects render2. This diagnostic captures
+backtraces and is expressly NON-RT; it does not replace the preserved3840callback
+RED gate. Source/lifetime analysis and evidence are recorded in
+[HOST-RT-PUBLICATION-REVIEW.md](HOST-RT-PUBLICATION-REVIEW.md).
+
+The isolated preview command transport is now qualified as a component only:
+7cases/60checks pass normally, under ASan/UBSan and under TSan. An actual atomic
+ordering regression (order723 followed by722) failed normal/ASan before the
+cross-lane/epoch fix;25 further normal runs pass after it. The module is unwired,
+so **no production lock was removed**. Real processor conversion ownership,
+held-note/output-release accounting, all producers, stopped-audio lifecycle,
+forced races and changed-scenario callback probes remain the finite integration
+gates in [PREVIEW-COMMAND-TRANSPORT.md](PREVIEW-COMMAND-TRANSPORT.md).

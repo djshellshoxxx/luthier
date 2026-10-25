@@ -114,3 +114,36 @@ when no UI/message loop is running.
 
 No full-processor RT acceptance claim follows from zero allocations in the new
 board router, from these source observations or from the existing try-locks.
+
+## Actual280e caller attribution (2026-10-25)
+
+A separate diagnostic executable linked819 hashed copies of the genuine build6
+objects from280e182a8f033457f3d84384b9917a024b1d1ed9. One warmed48000Hz/64-frame
+actual processor callback captured20pthread trylock stacks after a positive
+control. All samples were finite. Captured return-address groups are:
+
+| Count | Actual stack and source site | Shared writer/lifetime protection |
+| --- | --- | --- |
+|1|processSlice previewLock, PluginProcessor.cpp1842|Control preview producers append/clear shared previewMidi.|
+|1|processSlice bridge.getEngineLock, PluginProcessor.cpp1948|ParameterBridge applyAllNow/handleAsyncUpdate rebuild legacy structure.|
+|8+8|ParameterBridge::applyToEngine -> EffectsChain::applySlotState, Parameters.cpp2006 / EffectsChain.cpp145|Pre/post slot controls dereference pedals retired by setSlotType, clear or move.|
+|1+1|LuthierEngine::processSubBlock -> EffectsChain::processStereo, EffectsChain.cpp285|Pre/post render and pending panic reset use the same swappable pedals.|
+
+Exact PCs, mutex addresses, link/input identities and complete stacks are in
+`/workspace/luthier-evidence/20261025-rt-callsite-diagnostic-280e/`. Release objects
+lack line DWARF: function stacks are actual, while source lines are corroborated
+by the unique trylock sites and distinct processSlice return addresses. This
+experiment is explicitly NON-RT because backtrace can allocate/lock; symbols and
+printing occur after callback. It does not replace the unmodified3840callback
+probe, which remains RED, and it does not hook SpinLock instructions.
+
+The sixteen scalar slot locks are tempting to batch away. Simply storing POD
+controls until effects render changes existing bypass/latency ordering:
+LuthierEngine.cpp3130 reads preEffects.getLatencySamples for feedback compensation
+before either effects render. It also cannot authorize raw pedal access while a
+message-side replacement retires the old object. A future change needs tests for
+pre-render latency, explicit same-value controls, concurrent replacement/clear/
+move, delayed panic reset and retirement before removing these lifetime guards.
+No such removal is included here. The bounded preview transport and its finite
+processor integration dependencies are documented in
+`PREVIEW-COMMAND-TRANSPORT.md`; that component is presently unwired.
