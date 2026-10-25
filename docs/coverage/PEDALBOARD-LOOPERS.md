@@ -244,3 +244,93 @@ near-Nyquist transition-band measurements, 30-minute soak, actual return-tap,
 full overlap seam/overdub punch fades and unfinished-take snapshots remain open.
 The default native playback path is unchanged by the offline converter. No Mac,
 whole-board, hardware comparison or feature-complete claim is made.
+
+## T1 full capacity and corrected T8 migration filter
+
+Independent DSP review found a blocking bandwidth defect in the e6430df5
+prototype: the old 64-tap cutoff was 19,845 Hz whenever either rate was 44.1k.
+Actual asset RED at the original thresholds:42 checks/8 failures;20k gain was
+−7.822655dB for 44.1→192k and−6.405690dB for 192→44.1k, with additional upsampling
+image/noise failures. `rate-fullband-original-red.log` and the exact original
+source/test/binary under `fullband-original-e643` are preserved. The original
+±0.01 dB 20 Hz–20kHz and THD+N<−140dBFS limits were not weakened. The old far 30k
+alias fixture alone did not qualify near-Nyquist behavior.
+
+The converter now uses beta 19 Kaiser-windowed periodic sinc, pass edge 20k for
+supported audio rates and stop edge at the smaller Nyquist. Odd source support
+scales with transition width and source rate, with 25% margin on a 180 dB design
+estimate. That estimate is not a measured universal rejection claim. Rational
+P/Q phases are precomputed and charged to the reservation; quotient/remainder
+sample indexing avoids accumulated long-recording phase error. Decoded PCM
+caches scale with kernel/page support and clip every contiguous fragment at the
+actual partial page/loop end. No whole recording or extra worker is allocated.
+Unsupported large phase tables reject before asset writes instead of exceeding
+the budget. The finite contract has been updated to supersede the old filter.
+
+Actual asset T8 sweep: 500 coherent cases (20 frequencies from 20 Hz through20k,
+all 25 pairs among44.1/48/88.2/96/192k) at 0.125 peak input. Worst absolute gain
+error 2.31e−7dB; highest fitted harmonic/image/noise residual −171.159753dBFS.
+Both use the unchanged original limits. Just-over-destination-Nyquist inputs
+22,060/22,150/22,500Hz from 192→44.1k produce approximately−180..−182dBFS RMS;
+these are reported diagnostics, not an invented new acceptance threshold.
+DSP's independently pinned review checks rational phase, cache lifetime,
+partial-page bounds, table/cache accounting and Bessel-series accuracy, finding
+no blocking implementation defect at cpp SHA4e195d9194afe1dc5fa9962282ef8184d96c1b7d26be73e99d169b4768be7de4.
+It also distinguishes the ideal-tone acoustic oracle from the separate scalar
+implementation consistency check.
+
+The explicit long fixture (outside the default test registry) exercises real
+AssetStore files with unique tone+dither pages. T1 passes at every supported
+rate: 13,230,000/14,400,000/26,460,000/28,800,000/57,600,000 frames, respectively.
+It verifies Recording and exact length at capacity−1, automatic PLAYING at
+300*rate, no extension by the next sample, and actual playback from a restored
+full-capacity asset. Callback generation is paced outside the callback on
+completed file writes; no audio-path waiting or timing oracle was introduced.
+
+Full 300 s mono44.1→192k base plus undo conversion also passes: 57,600,000 output
+frames, retained layer and PLAYING state, 2,365,288 reserved converter scratch
+bytes, 462,262,616 converted active payload bytes. The scratch is released before
+old/new default pools coexist (19,084,608 RAM bytes plus the existing wrapper/
+state allowance;1,849,050,528 active pool storage bytes). Actual final/peak
+committed store: 34,590 files, 568,438,600 content bytes and 709,410,816 Linux
+allocated bytes; at most 450,048 additional bytes for one atomic temporary blob.
+Filesystem contents are checked against the store observer. An injected store
+failure after two output pages leaves the previous full graph unchanged. Eight
+long-range positions in each base/undo stream match a separate scalar Python
+reference bit-exactly as float32 (16 checks), including page crossings and the
+last two samples. This is long-phase/indexing consistency, not a substitute for
+T8 acoustics. All owned large asset directories were removed after success;
+only source, hashes, numeric summaries and logs are retained.
+
+Initial explicit long run completed in 162.096 seconds. The final run strengthens
+rollback assertions to include playhead, transport and all history counts and
+completed in 144.274 seconds; its full conversion/rollback/validation
+phase took 65.8964 seconds. Both full runs produce identical recorded/converted
+asset hashes and bit-exact scalar sample checks. They ran on the contended shared
+Linux machine, bounded by a 1200-second outer process limit and 180-second per-T1
+deadline. These are observed offline elapsed times, not realtime callback CPU
+qualification or promised cross-platform conversion times. Final product source
+and explicit fixture/binary hashes are pinned in status.json; the earlier run is
+preserved under initial-162s-run. All large owned asset directories were removed.
+
+Final focused results: converter 7 cases/203,402 checks normal and ASAN/UBSAN;
+native Ditto 11 cases/16,315 checks normal, ASAN/UBSAN and TSAN, all zero failures.
+No sanitizer diagnostics; shared JUCE objects remain uninstrumented. The existing
+callback allocation probe remains green. Final warning-enabled syntax checks and
+Python compilation are clean. These instrumented short fixtures do not claim
+that the full 300 s run or a 30-minute soak ran under every sanitizer.
+
+Evidence under `/workspace/luthier-evidence/loopers/`: `kaiser-fullband-summary.json`,
+`rate-fullband-kaiser-matrix.log`, `full 300 s-kaiser/{status.json,run.log,
+independent-reference.log,repeated-hash-consistency.json}`; independent review at
+`/workspace/luthier-evidence/dsp-looper-kaiser-review-4e195/REVIEW.md`.
+The committed explicit fixture is `Source/Tests/Fixtures/ReferencePedals/
+DittoLongAcceptance.h`, with `verify_ditto_long_samples.py`; it deliberately
+requires a fresh caller-owned directory and removes only that directory.
+
+This closes the tested full-capacity and bounded completed-asset migration
+spectral/duration gates. Catalog registration remains blocked: real return-tap,
+full overlap seam and overdub punch fades, unfinished-take snapshots, complete
+native model parameter/spectral/zipper/block matrix and 30-minute randomized
+callback/CPU acceptance still require their original gates. No Mac, whole-board,
+hardware comparison or feature-complete claim is made.

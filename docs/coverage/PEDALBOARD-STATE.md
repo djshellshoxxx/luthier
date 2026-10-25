@@ -145,3 +145,23 @@ open named-model gates are recorded in PEDALBOARD-LOOPERS.md under Completed-ass
 sample-rate conversion checkpoint. No codec schema or catalog registration was
 changed; unfinished Recording/Pending state still rejects rather than claiming
 an older hash is the current take.
+
+Fresh coherent build7 source2fb21cabf26d40a441bb67a8e4be2dd2cb480930,
+Linux Pro/PAID executable SHA256dbe74e19d3acb9e81e40233f542df790b2b1e9abbdb534d4e983bc917b09193c:
+112 selected tests/26,911 checks/0 failures across exact codec23/9533,
+board snapshots14/8317, HostState31/8623, StateModel18/130, migration/forward6/68,
+preset errors/blocks11/63, morph snapshots5/38 and legacy looper state4/139.
+Exact selections, commands, immutable source/binary before-after hashes and logs:
+`/workspace/luthier-evidence/state/build7-2fb/`. Ordinary ON03 installed70 active
+factory presets; all hashes remained identical to the qualified bank after the
+runs. No HOME override or source/root mutation. The unreadable-permission case
+still has0 checks under its existing environment guard; it is not coverage.
+Normal1000-operation state stress ran with LUTHIER_PERF unset, not10000 mode.
+Linux post-prepare exact state passes10 checks; the historical Mac mismatch is
+not resolved by this result, and its original saved pair remains unavailable.
+
+The subsequent private looper checkpoint supersedes the first asset-converter
+filter after a preserved blocking original-T8 RED. Full300s capacity, completed
+asset migration and the unchanged full-band/noise measurements are recorded in
+PEDALBOARD-LOOPERS.md; this does not change the main build7 feature inventory or
+close unfinished Recording/Pending asset-state capture.

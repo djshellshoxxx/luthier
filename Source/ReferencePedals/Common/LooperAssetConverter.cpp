@@ -5,13 +5,44 @@
 #include <cmath>
 #include <cstring>
 #include <limits>
+#include <numeric>
 namespace luthier::reference::common
 {
 namespace
 {
 using Core=PagedLooperCore;
 constexpr double pi=3.1415926535897932384626433832795;
-constexpr int taps=64,cachePages=5;
+struct Kernel
+{
+    uint64_t numerator=1,phases=1;
+    int half=0,taps=1,cachePages=1;
+    double cutoff=.5;
+};
+Kernel kernel(const Core::Config& from,const Core::Config& to,uint64_t frames)
+{
+    Kernel result;
+    const auto divisor=std::gcd(uint64_t(from.sampleRate),uint64_t(to.sampleRate));
+    result.numerator=uint64_t(from.sampleRate)/divisor;result.phases=uint64_t(to.sampleRate)/divisor;
+    if(from.sampleRate!=to.sampleRate)
+    {
+        const double minimum=std::min(from.sampleRate,to.sampleRate);
+        const double pass=minimum>=44100?20000.:.45*minimum,stop=.5*minimum;
+        // Kaiser design estimate for180dB, with25% length margin. These are
+        // engineering design inputs; the original T8 limits are measured.
+        const double length=1.25*(180.-8.)/(2.285*2*pi*(stop-pass)/from.sampleRate);
+        result.half=int(std::ceil(length*.5));result.taps=2*result.half+1;
+        result.cutoff=.5*(pass+stop)/from.sampleRate;
+    }
+    const auto pages=(frames+uint64_t(from.pageFrames)-1)/uint64_t(from.pageFrames);
+    result.cachePages=int(std::min(pages,uint64_t((result.taps+from.pageFrames-1)/from.pageFrames+2)));
+    return result;
+}
+double besselZero(double x)
+{
+    const double square=x*x*.25;double sum=1,term=1;
+    for(int k=1;k<=64;++k){term*=square/double(k*k);sum+=term;if(term<sum*1e-17)break;}
+    return sum;
+}
 void put(std::vector<uint8_t>& bytes,uint64_t value,int count)
 {for(int i=0;i<count;++i)bytes.push_back(uint8_t(value>>(8*i)));}
 uint64_t get(const std::vector<uint8_t>& bytes,size_t at,int count)
@@ -51,44 +82,67 @@ bool readVerified(IAssetStore& store,const AssetHash& hash,size_t maximum,std::v
 }
 struct StreamConverter
 {
-    struct Cache {std::vector<uint8_t> bytes;uint64_t index=UINT64_MAX,used=0;bool silent=false;};
+    struct Cache {std::vector<float> pcm;uint64_t index=UINT64_MAX,used=0;};
     IAssetStore& store;const Core::Config& from;const Core::Config& to;uint64_t frames,outputFrames,serial=0;
-    std::vector<uint8_t> manifest,output,encoded;std::array<Cache,cachePages> caches;
+    Kernel design;
+    std::vector<uint8_t> manifest,output,encoded,input;
+    std::vector<Cache> caches;std::vector<double> coefficients;
     StreamConverter(IAssetStore& s,const Core::Config& a,const Core::Config& b,uint64_t n,uint64_t m)
-        :store(s),from(a),to(b),frames(n),outputFrames(m)
+        :store(s),from(a),to(b),frames(n),outputFrames(m),design(kernel(a,b,n))
     {
         manifest.reserve(32+size_t((frames+uint64_t(from.pageFrames)-1)/uint64_t(from.pageFrames))*32);
         output.reserve(32+size_t((outputFrames+uint64_t(to.pageFrames)-1)/uint64_t(to.pageFrames))*32);
         encoded.reserve(20+size_t(to.pageFrames)*size_t(to.channels)*4);
-        for(auto& cache:caches)cache.bytes.reserve(20+size_t(from.pageFrames)*size_t(from.channels)*4);
+        input.reserve(20+size_t(from.pageFrames)*size_t(from.channels)*4);
+        caches.resize(size_t(design.cachePages));
+        for(auto& cache:caches)cache.pcm.resize(size_t(from.pageFrames)*size_t(from.channels));
+        coefficients.resize(size_t(design.phases)*size_t(design.taps));
+        const double divisor=besselZero(19.);
+        for(uint64_t phase=0;phase<design.phases;++phase)
+        {
+            double* row=coefficients.data()+size_t(phase)*size_t(design.taps);double total=0;
+            for(int k=0;k<design.taps;++k)
+            {
+                if(!design.half){row[k]=1;total=1;continue;}
+                const double distance=double(k-design.half)-double(phase)/double(design.phases);
+                if(std::abs(distance)>double(design.half)){row[k]=0;continue;}
+                const double radius=distance/double(design.half),argument=2*design.cutoff*distance;
+                const double window=besselZero(19.*std::sqrt(std::max(0.,1.-radius*radius)))/divisor;
+                row[k]=2*design.cutoff*(std::abs(argument)<1e-15?1.:std::sin(pi*argument)/(pi*argument))*window;total+=row[k];
+            }
+            if(!std::isfinite(total) || std::abs(total)<1e-12)throw std::runtime_error("Invalid looper conversion kernel");
+            for(int k=0;k<design.taps;++k)row[k]/=total;
+        }
     }
-    bool sample(int64_t position,int channel,double& value)
+    const float* samples(int64_t position,uint64_t& available)
     {
         position%=int64_t(frames);if(position<0)position+=int64_t(frames);
-        const uint64_t page=uint64_t(position)/uint64_t(from.pageFrames);Cache* selected=nullptr;
+        const uint64_t page=uint64_t(position)/uint64_t(from.pageFrames),offset=uint64_t(position)%uint64_t(from.pageFrames);
+        Cache* selected=nullptr;
         for(auto& cache:caches)if(cache.index==page){selected=&cache;break;}
         if(!selected)
         {
             selected=&*std::min_element(caches.begin(),caches.end(),[](const Cache& a,const Cache& b){return a.used<b.used;});
             AssetHash hash;std::memcpy(hash.bytes.data(),manifest.data()+32+size_t(page)*32,32);
-            selected->index=UINT64_MAX;selected->silent=hash.isNull();
-            if(!selected->silent)
+            selected->index=UINT64_MAX;
+            const auto count=std::min(uint64_t(from.pageFrames),frames-page*uint64_t(from.pageFrames));
+            if(hash.isNull())std::fill(selected->pcm.begin(),selected->pcm.end(),0.f);
+            else
             {
-                auto& bytes=selected->bytes;const auto count=std::min(uint64_t(from.pageFrames),frames-page*uint64_t(from.pageFrames));
-                if(!readVerified(store,hash,20+size_t(from.pageFrames)*size_t(from.channels)*4,bytes)
-                   || bytes.size()!=20+size_t(count)*size_t(from.channels)*4 || get(bytes,0,4)!=0x3150434c
-                   || get(bytes,4,4)!=uint64_t(from.channels) || get(bytes,8,4)!=uint64_t(from.sampleRate) || get(bytes,12,8)!=count)return false;
-                for(size_t i=20;i<bytes.size();i+=4){const uint32_t word=uint32_t(get(bytes,i,4));float x;std::memcpy(&x,&word,4);if(!std::isfinite(x))return false;}
+                if(!readVerified(store,hash,20+size_t(from.pageFrames)*size_t(from.channels)*4,input)
+                   || input.size()!=20+size_t(count)*size_t(from.channels)*4 || get(input,0,4)!=0x3150434c
+                   || get(input,4,4)!=uint64_t(from.channels) || get(input,8,4)!=uint64_t(from.sampleRate) || get(input,12,8)!=count)return nullptr;
+                for(size_t i=0;i<size_t(count)*size_t(from.channels);++i)
+                {
+                    const uint32_t word=uint32_t(get(input,20+i*4,4));float x;std::memcpy(&x,&word,4);
+                    if(!std::isfinite(x))return nullptr;
+                    selected->pcm[i]=x;
+                }
             }
             selected->index=page;
         }
-        selected->used=++serial;value=0;
-        if(!selected->silent)
-        {
-            const size_t at=20+(size_t(uint64_t(position)%uint64_t(from.pageFrames))*size_t(from.channels)+size_t(channel))*4;
-            const uint32_t word=uint32_t(get(selected->bytes,at,4));float x;std::memcpy(&x,&word,4);value=x;
-        }
-        return true;
+        selected->used=++serial;available=std::min(uint64_t(from.pageFrames)-offset,frames-uint64_t(position));
+        return selected->pcm.data()+size_t(offset)*size_t(from.channels);
     }
     bool run(const AssetHash& source,AssetHash& result)
     {
@@ -100,31 +154,38 @@ struct StreamConverter
         for(auto& cache:caches){cache.index=UINT64_MAX;cache.used=0;}serial=0;
         if(from.sampleRate==to.sampleRate && from.pageFrames==to.pageFrames)
         {
-            double value=0;for(uint64_t page=0;page<count;++page)if(!sample(int64_t(page*uint64_t(from.pageFrames)),0,value))return false;
+            uint64_t available=0;for(uint64_t page=0;page<count;++page)if(!samples(int64_t(page*uint64_t(from.pageFrames)),available))return false;
             result=source;return true;
         }
         output.clear();put(output,0x314d434c,4);put(output,1,4);put(output,uint64_t(to.channels),4);put(output,uint64_t(to.sampleRate),4);
         put(output,uint64_t(to.pageFrames),4);put(output,outputFrames,8);put(output,(outputFrames+uint64_t(to.pageFrames)-1)/uint64_t(to.pageFrames),4);
-        const double cutoff=.45*std::min(1.,to.sampleRate/from.sampleRate);
         for(uint64_t start=0;start<outputFrames;start+=uint64_t(to.pageFrames))
         {
             const auto n=std::min(uint64_t(to.pageFrames),outputFrames-start);encoded.clear();
             put(encoded,0x3150434c,4);put(encoded,uint64_t(to.channels),4);put(encoded,uint64_t(to.sampleRate),4);put(encoded,n,8);
             for(uint64_t j=0;j<n;++j)
             {
-                const double position=double(start+j)*from.sampleRate/to.sampleRate;const auto first=int64_t(std::floor(position))-31;
-                std::array<double,taps> weights{};double total=0;
-                for(int k=0;k<taps;++k)
+                // Integral rate ratios avoid accumulating fractional phase error
+                // during long recordings; the product is bounded by validation.
+                const uint64_t numerator=(start+j)*design.numerator,phase=numerator%design.phases;
+                const auto first=int64_t(numerator/design.phases)-design.half;
+                const double* weights=coefficients.data()+size_t(phase)*size_t(design.taps);
+                double sums[2][4]{};
+                for(int k=0;k<design.taps;)
                 {
-                    const double distance=double(first+k)-position,argument=2*cutoff*distance;
-                    const double window=.42+.5*std::cos(pi*distance/32.)+.08*std::cos(2*pi*distance/32.);
-                    weights[size_t(k)]=2*cutoff*(std::abs(argument)<1e-15?1.:std::sin(pi*argument)/(pi*argument))*window;total+=weights[size_t(k)];
+                    uint64_t available=0;const auto* pcm=samples(first+k,available);if(!pcm)return false;
+                    const auto chunk=std::min(uint64_t(design.taps-k),available);size_t i=0;
+                    for(;i+4<=chunk;i+=4)
+                        for(int channel=0;channel<to.channels;++channel)
+                            for(size_t lane=0;lane<4;++lane)
+                                sums[channel][lane]+=weights[size_t(k)+i+lane]*pcm[(i+lane)*size_t(to.channels)+size_t(channel)];
+                    for(;i<chunk;++i)for(int channel=0;channel<to.channels;++channel)sums[channel][0]+=weights[size_t(k)+i]*pcm[i*size_t(to.channels)+size_t(channel)];
+                    k+=int(chunk);
                 }
-                if(!std::isfinite(total) || std::abs(total)<1e-12)return false;
                 for(int channel=0;channel<to.channels;++channel)
                 {
-                    double sum=0,x=0;for(int k=0;k<taps;++k){if(!sample(first+k,channel,x))return false;sum+=weights[size_t(k)]*x;}
-                    const float value=float(sum/total);if(!std::isfinite(value))return false;
+                    const float value=float((sums[channel][0]+sums[channel][1])+(sums[channel][2]+sums[channel][3]));
+                    if(!std::isfinite(value))return false;
                     uint32_t word;std::memcpy(&word,&value,4);put(encoded,word,4);
                 }
             }
@@ -141,9 +202,12 @@ bool LooperAssetConverter::reservation(const Core::Config& source,const Core::Co
     uint64_t frames=0;if(!dimensions(source,target,graph,frames))return false;
     const auto sourcePages=(graph.frames+uint64_t(source.pageFrames)-1)/uint64_t(source.pageFrames);
     const auto targetPages=(frames+uint64_t(target.pageFrames)-1)/uint64_t(target.pageFrames);
+    const auto design=kernel(source,target,graph.frames);
     const uint64_t bytes=sizeof(StreamConverter)+65536+64+(sourcePages+targetPages)*32
-        +uint64_t(cachePages+1)*(20+uint64_t(source.pageFrames)*uint64_t(source.channels)*4)
-        +20+uint64_t(target.pageFrames)*uint64_t(target.channels)*4;
+        +uint64_t(design.cachePages)*(sizeof(StreamConverter::Cache)+uint64_t(source.pageFrames)*uint64_t(source.channels)*4)
+        +20+uint64_t(source.pageFrames)*uint64_t(source.channels)*4
+        +20+uint64_t(target.pageFrames)*uint64_t(target.channels)*4
+        +design.phases*uint64_t(design.taps)*sizeof(double);
     const uint64_t disk=(frames*uint64_t(target.channels)*4+targetPages*52+32)*uint64_t(1+graph.layerCount+graph.redoCount+graph.retiredCount);
     if(bytes>std::numeric_limits<size_t>::max() || bytes>target.ramBudget || disk>target.storageBudget)return false;
     ram=size_t(bytes);storage=disk;return true;

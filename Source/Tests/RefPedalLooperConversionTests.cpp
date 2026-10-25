@@ -79,6 +79,8 @@ LUTHIER_TEST(RefPedalLooperConversion, exactBudgetsMissingCorruptAndNonfiniteAss
     auto pcm=std::vector<float>(441,.125f);pcm[30]=std::numeric_limits<float>::infinity();bad=graph(f.audio(source,pcm),441);CHECK(!LooperAssetConverter::convert(f,source,target,bad,out));checkPrevious();
     bad=g;bad.layerCount=std::numeric_limits<int>::max();bad.redoCount=std::numeric_limits<int>::max();CHECK(!LooperAssetConverter::convert(f,source,target,bad,out));checkPrevious();
     target.sampleRate=std::numeric_limits<double>::quiet_NaN();CHECK(!LooperAssetConverter::convert(f,source,target,g,out));checkPrevious();
+    target.sampleRate=48001;target.ramBudget=32*1024*1024;const auto beforeLargeTable=f.writes;
+    CHECK(!LooperAssetConverter::convert(f,source,target,g,out));checkPrevious();CHECK(f.writes==beforeLargeTable);
 }
 
 LUTHIER_TEST(RefPedalLooperConversion, sameRateAssetsRemainExactAndUnsupportedRatioDoesNotWrite)
@@ -103,5 +105,36 @@ LUTHIER_TEST(RefPedalLooperConversion, allSupportedHostRatePairsPreserveStereoTo
             const auto audio=f.read(out.base);CHECK(audio.size()==size_t(out.frames)*2);
             for(size_t i=0;i<size_t(out.frames);++i){CHECK_NEAR(audio[i*2],.125*std::sin(2*3.14159265358979323846*1000*double(i)/targetRate),2e-4);CHECK(audio[i*2+1]==-.25f);}
         }
+    }
+}
+
+LUTHIER_TEST(RefPedalLooperConversion, originalFullBandFlatnessAndNoiseLimitsApplyToMigratedAssets)
+{
+    ConversionFixture f;
+    for(double from:{44100.,48000.,88200.,96000.,192000.})for(double to:{44100.,48000.,88200.,96000.,192000.})
+    {
+        const std::pair<double,double> rates{from,to};auto source=config(from),target=config(to);source.pageFrames=target.pageFrames=4096;const auto count=size_t(rates.first/20);
+        for(double hz:{20.,40.,60.,80.,100.,200.,400.,800.,1000.,2000.,4000.,8000.,12000.,16000.,18000.,19000.,19500.,19800.,19900.,20000.})
+        {
+            std::vector<float> pcm(count);for(size_t i=0;i<count;++i)pcm[i]=float(.125*std::sin(2*3.14159265358979323846*hz*double(i)/rates.first));
+            const auto g=graph(f.audio(source,pcm),count);PagedLooperCore::Graph out;CHECK(LooperAssetConverter::convert(f,source,target,g,out));const auto audio=f.read(out.base);
+            double sine=0,cosine=0;for(size_t i=0;i<audio.size();++i){const double phase=2*3.14159265358979323846*hz*double(i)/rates.second;sine+=audio[i]*std::sin(phase);cosine+=audio[i]*std::cos(phase);}
+            sine*=2./double(audio.size());cosine*=2./double(audio.size());const double amplitude=std::hypot(sine,cosine),gainDb=20*std::log10(amplitude/.125);
+            double error=0;for(size_t i=0;i<audio.size();++i){const double phase=2*3.14159265358979323846*hz*double(i)/rates.second,difference=audio[i]-sine*std::sin(phase)-cosine*std::cos(phase);error+=difference*difference;}
+            const double residual=std::sqrt(error/double(audio.size()));
+            std::printf("migration %.0f->%.0f Hz=%.0f gainDb=%.9f residualDbFS=%.6f\n",rates.first,rates.second,hz,gainDb,20*std::log10(std::max(residual,1e-300)));
+            CHECK(std::abs(gainDb)<=.01);CHECK(residual<1e-7); // original Ditto T8, unchanged
+        }
+    }
+}
+
+LUTHIER_TEST(RefPedalLooperConversion, nearDestinationNyquistAliasIsReportedWithoutANewThreshold)
+{
+    ConversionFixture f;auto source=config(192000),target=config(44100);source.pageFrames=target.pageFrames=4096;
+    for(double hz:{22060.,22150.,22500.})
+    {
+        std::vector<float> pcm(19200);for(size_t i=0;i<pcm.size();++i)pcm[i]=float(.125*std::sin(2*3.14159265358979323846*hz*double(i)/192000.));
+        auto g=graph(f.audio(source,pcm),pcm.size());PagedLooperCore::Graph out;CHECK(LooperAssetConverter::convert(f,source,target,g,out));
+        const auto noise=rms(f.read(out.base));std::printf("nearNyquist diagnostic inputHz=%.0f outputRmsDbFS=%.6f attenuationDb=%.6f\n",hz,20*std::log10(std::max(noise,1e-300)),20*std::log10(std::max(noise,1e-300)/(.125/std::sqrt(2.))));
     }
 }
