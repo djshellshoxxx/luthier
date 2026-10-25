@@ -1,0 +1,21 @@
+2026-10-24T17:23:16.7660793Z   [FAIL]  everyAutomatableParameterHasAVisibleControl 483 checks    22069.7 ms
+2026-10-24T17:23:16.7663540Z     line 780: ref_s01_p08 has no visible control in populated reference board
+2026-10-24T17:23:16.7664472Z     line 781: ref_s01_p08 was not operated through its actual reference control
+2026-10-24T17:23:16.7665192Z     line 780: ref_s03_p08 has no visible control in populated reference board
+2026-10-24T17:23:16.7665876Z     line 781: ref_s03_p08 was not operated through its actual reference control
+2026-10-24T17:23:16.7666502Z     line 780: ref_s05_p08 has no visible control in populated reference board
+2026-10-24T17:23:16.7667128Z     line 781: ref_s05_p08 was not operated through its actual reference control
+2026-10-24T17:23:16.7667747Z     line 780: ref_s07_p08 has no visible control in populated reference board
+2026-10-24T17:23:16.7668362Z     line 781: ref_s07_p08 was not operated through its actual reference control
+2026-10-24T17:23:16.7668982Z     line 780: ref_s09_p08 has no visible control in populated reference board
+2026-10-24T17:23:16.7669598Z     line 781: ref_s09_p08 was not operated through its actual reference control
+2026-10-24T17:23:16.7670219Z     line 780: ref_s11_p08 has no visible control in populated reference board
+2026-10-24T17:23:16.7670830Z     line 781: ref_s11_p08 was not operated through its actual reference control
+2026-10-24T17:23:16.7671451Z     line 780: ref_s13_p08 has no visible control in populated reference board
+2026-10-24T17:23:16.7672357Z     line 781: ref_s13_p08 was not operated through its actual reference control
+2026-10-24T17:23:16.7672984Z     line 780: ref_s15_p08 has no visible control in populated reference board
+2026-10-24T17:23:16.7673623Z     line 781: ref_s15_p08 was not operated through its actual reference control
+2026-10-24T17:23:16.7674561Z     line 780: ref_s16_p08 has no visible control in populated reference board
+2026-10-24T17:23:16.7675480Z     line 781: ref_s16_p08 was not operated through its actual reference control
+2026-10-24T17:55:30.0477597Z   [FAIL]  CQ03_theLevelIsNeverInAPreset               1177 checks   598.284 ms
+2026-10-24T17:55:30.0478631Z     line 234: unexpected parameter ref_board_cpu_cap

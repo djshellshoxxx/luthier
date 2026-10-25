@@ -1,0 +1,6 @@
+Candidate test-only relink against frozen b5 objects; no product source changes.
+CpuQuality
+----------------------------------------------------------------
+  [pass]  CQ03_theLevelIsNeverInAPreset               1037 checks   497.865 ms
+  [pass]  CQ03_boardAdmissionCapIsDistinctFromGlobalQuality28 checks     375.324 ms
+
