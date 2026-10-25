@@ -26,6 +26,7 @@
 #include "../UI/UiPreferences.h"
 #include "../UI/Widgets.h"
 #include "../UI/Search/CommandPalette.h"
+#include "../UI/ReferencePedals/BoardWindow.h"
 #include "../UI/Search/LiveControls.h"
 #include "../UI/Search/ParameterVisibility.h"
 #include "../UI/Search/SearchCatalog.h"
@@ -310,6 +311,15 @@ LUTHIER_TEST (SearchEditor, GS02_everyParameterNavigates)
             if (verbose())
                 std::cout << "      " << where << " -> " << (int) outcome.status << " " << outcome.message << std::endl;
 
+            if (availability == Availability::unavailable)
+            {
+                if (outcome.status == SearchNavigator::Outcome::Status::refused && outcome.message.isNotEmpty() && !last.ok)
+                    ++gated;
+                else
+                    failures.add(where + ": unavailable lane did not refuse with a reason");
+                continue;
+            }
+
             if (isContextGate (availability))
             {
                 if (outcome.status == SearchNavigator::Outcome::Status::needsConfirm)
@@ -327,7 +337,10 @@ LUTHIER_TEST (SearchEditor, GS02_everyParameterNavigates)
                 // A parameter with no control anywhere is GuiReachabilityTests'
                 // failure (a missing panel), not the navigator's.
                 if (w.nav->chooseControl (item->target, dummy) == nullptr && LiveControls::find (item->target).empty())
-                    noControl.addIfNotAlreadyThere (item->target);
+                {
+                    if(item->target.startsWith("ref_"))failures.add(where + ": reference control route is missing");
+                    else noControl.addIfNotAlreadyThere(item->target);
+                }
                 else
                 {
                     juce::String why;
@@ -373,11 +386,15 @@ LUTHIER_TEST (SearchEditor, GS02_everyParameterNavigates)
             auto* control = last.control.getComponent();
             auto* learn = dynamic_cast<LearnTarget*> (control);
 
-            if (learn == nullptr || learn->getLearnParameterId() != item->target)
+            const bool nativeReference = item->target.startsWith("ref_") && control != nullptr
+                && control->getComponentID() == item->target
+                && (dynamic_cast<juce::Slider*>(control) || dynamic_cast<juce::ComboBox*>(control) || dynamic_cast<juce::Button*>(control));
+            if (!nativeReference && (learn == nullptr || learn->getLearnParameterId() != item->target))
                 failures.add (where + ": landed on the wrong control");
-            else if (! w.onScreen (control))
+            else if (!w.onScreen(control)
+                && !(nativeReference && control->findParentComponentOfClass<reference::BoardWindow>() != nullptr && control->isShowing()))
                 failures.add (where + ": control not on screen");
-            else if (w.nav->getLastFocusRequest() != LiveControls::innerControl (*control))
+            else if (w.nav->getLastFocusRequest() != (nativeReference ? control : LiveControls::innerControl (*control)))
                 failures.add (where + ": focus not requested on the control");
             else if (w.nav->getHighlighter().getTarget() != control || w.nav->getHighlighter().getRingBounds().isEmpty())
                 failures.add (where + ": not highlighted");

@@ -20,6 +20,8 @@ public:
     void endPositionGesture(int acceptedIndex=-1);
     void closeInspector(bool restoreFocus=false);
     void placeCaptionIn(juce::Component&);
+    juce::Component* findHostControl(const juce::String&);
+    juce::Component* revealHostControl(const juce::String&);
     juce::Point<int> physicalSize() const;
     std::unique_ptr<juce::AccessibilityHandler> createAccessibilityHandler() override;
     void resized() override;

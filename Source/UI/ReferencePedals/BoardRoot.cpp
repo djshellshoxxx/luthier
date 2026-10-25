@@ -5,6 +5,7 @@
 #include "../../PluginProcessor.h"
 #include "../../ReferencePedals/Midi/MidiRouter.h"
 #include "BoardMidiPanel.h"
+#include "ReferenceSearch.h"
 namespace luthier::reference
 {
 BoardRoot::BoardRoot(BoardModel& m,LuthierAudioProcessor* p):model(m),processor(p),canvas(m,p?&p->getState():nullptr),browser(m)
@@ -161,5 +162,30 @@ bool BoardRoot::keyPressed(const juce::KeyPress& key)
         if(onReturnFocus)onReturnFocus();return true;
     }
     return false;
+}
+}
+
+namespace luthier::reference {
+namespace {
+juce::Component* hostControlIn(juce::Component& parent,const juce::String& id)
+{
+    if(parent.getComponentID()==id)return &parent;
+    for(auto* child:parent.getChildren())if(auto* result=hostControlIn(*child,id))return result;
+    return nullptr;
+}
+}
+juce::Component* BoardRoot::findHostControl(const juce::String& id)
+{
+    const auto target=resolveSearchTarget(model,id);if(!target.recognized||!target.available)return nullptr;
+    if(target.slot>=0){if(auto* view=canvas.viewFor(target.instance))return view->findHostControl(id);return nullptr;}
+    return hostControlIn(*this,id);
+}
+juce::Component* BoardRoot::revealHostControl(const juce::String& id)
+{
+    const auto target=resolveSearchTarget(model,id);if(!target.recognized||!target.available)return nullptr;
+    canvas.closeInspectors();
+    if(target.slot>=0){settingsPopup.close();if(auto* view=canvas.viewFor(target.instance))return view->revealHostControl(id);return nullptr;}
+    if(target.surface==ReferenceSearchTarget::Surface::settings)openSettings();else settingsPopup.close();
+    return hostControlIn(*this,id);
 }
 }

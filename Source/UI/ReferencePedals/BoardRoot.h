@@ -22,6 +22,8 @@ public:
     void setCompact(bool);
     void saveView();
     void openSettings();
+    juce::Component* findHostControl(const juce::String&);
+    juce::Component* revealHostControl(const juce::String&);
     std::function<void()> onDock, onPopout, onToggle, onReturnFocus;
     BoardCanvas& boardCanvas(){return canvas;}
 private:
