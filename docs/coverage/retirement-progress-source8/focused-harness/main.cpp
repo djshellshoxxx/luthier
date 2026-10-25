@@ -1,0 +1,3 @@
+#include "Source/Tests/TestFramework.h"
+#include <iostream>
+int main(int argc,char**argv) { int tests=0,checks=0,failures=0; for(const auto& test:luthier::tests::TestRegistry::get().getEntries()) { if(argc>1 && !(test.suite+"."+test.name).contains(argv[1]))continue; luthier::tests::TestContext ctx; ctx.currentTest=test.suite+"."+test.name; try{test.fn(ctx);}catch(const std::exception& e){ctx.fail(e.what());} ++tests;checks+=ctx.checks;failures+=ctx.failures;if(ctx.failures)std::cout<<ctx.currentTest<<"\n"<<ctx.failureMessages.joinIntoString("\n")<<"\n";} std::cout<<tests<<" tests, "<<checks<<" checks, "<<failures<<" failures\n"; return failures?1:0; }

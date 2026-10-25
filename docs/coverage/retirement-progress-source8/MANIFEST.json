@@ -1,0 +1,96 @@
+{
+  "base_commit": "6d9b5943217d6e0872f65aea6514ebf40fc789e1",
+  "base_source_tree": "9f790ebe860c680cc989f461ad7355ea2a772892",
+  "own_branch_parent": "a65418994ae0c761e3583cbd07eaeac5949d47a2",
+  "adapter_sha256": "7cc140070429516462b6f8883e345f1905e338ba9252cadd1d321fb814151047",
+  "changed_files": [
+    "Source/ReferencePedals/BoardEngine.h",
+    "Source/ReferencePedals/BoardEngine.cpp",
+    "Source/ReferencePedals/TopologyCompiler.h",
+    "Source/ReferencePedals/Rt/RetireList.h",
+    "Source/ReferencePedals/Rt/CompletedReaderEpoch.h",
+    "Source/Tests/RefPedalRetirementTests.cpp",
+    "Source/Tests/RefPedalControlRaceTests.cpp",
+    "docs/coverage/PEDALBOARD-RETIREMENT-PROGRESS.md"
+  ],
+  "candidate_source_sha256": {
+    "Source/ReferencePedals/BoardEngine.h": "f131dd37d602750f22b2916bdce10e0089506e655018cb10ddfe9481a3f1f578",
+    "Source/ReferencePedals/BoardEngine.cpp": "c605bbfc1af8426d6bd4ecdfabd466abdf4420c95a585ae2e77fc1ac3a540428",
+    "Source/ReferencePedals/TopologyCompiler.h": "da051e8e6b20b35229d2f664429a366f4b56bca5682b83bbcdba94988cf0b542",
+    "Source/ReferencePedals/Rt/RetireList.h": "c2a9472861cda76112d6c13d065ea6ee5baefd4fdb46f456b85793e56c65abdc",
+    "Source/ReferencePedals/Rt/CompletedReaderEpoch.h": "05bac5f3fd1dcbffd181db7273cd7b2c0543552cb6d1600a5785198f267e550a",
+    "Source/Tests/RefPedalRetirementTests.cpp": "bae929aefbb121d7d906d846785133912aae572c4cacc425465b226b1db8368e",
+    "Source/Tests/RefPedalControlRaceTests.cpp": "615b253571c27cfc9c90a1e51ca12cc2f01550784f816a3b6065263028b94908",
+    "docs/coverage/PEDALBOARD-RETIREMENT-PROGRESS.md": "52a825ebaea3e6c642d24041ed8197fe7b3a16d698e9700932dce5b4572ad225"
+  },
+  "qualification": [
+    {
+      "selection": "native-final",
+      "exit_code": 0,
+      "seconds": 35.863360677001765,
+      "sha256": "47a316625c56b07ddef36f649dddcaed52a89861d57ce22d5951da0fe99e635e",
+      "tests": 149,
+      "checks": 211752,
+      "failures": 0
+    },
+    {
+      "selection": "asan-final",
+      "exit_code": 0,
+      "seconds": 64.8556659959977,
+      "sha256": "813bb39f99c0f03ee519dfda92014d552c745323c2f7d82986a4d28eb09f6f5a",
+      "ASAN_OPTIONS": "detect_leaks=1:halt_on_error=1",
+      "UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=1",
+      "tests": 149,
+      "checks": 208852,
+      "failures": 0
+    },
+    {
+      "selection": "tsan-final-retirement",
+      "filter": "RefPedalRetirement",
+      "exit_code": 0,
+      "seconds": 1.6711784710023494,
+      "sha256": "707b712784cea9d0dac0dccd4c5194ce6633c0ca59dcc5f2b09400eb2d9e7a58",
+      "TSAN_OPTIONS": "halt_on_error=1",
+      "tests": 12,
+      "checks": 11626,
+      "failures": 0
+    },
+    {
+      "selection": "tsan-final-control",
+      "filter": "RefPedalControlRace",
+      "exit_code": 0,
+      "seconds": 0.3431614000000991,
+      "sha256": "707b712784cea9d0dac0dccd4c5194ce6633c0ca59dcc5f2b09400eb2d9e7a58",
+      "TSAN_OPTIONS": "halt_on_error=1",
+      "tests": 2,
+      "checks": 1016,
+      "failures": 0
+    },
+    {
+      "selection": "tsan-final-publication",
+      "filter": "RefPedalMidiPublication",
+      "exit_code": 0,
+      "seconds": 22.585187629003485,
+      "sha256": "707b712784cea9d0dac0dccd4c5194ce6633c0ca59dcc5f2b09400eb2d9e7a58",
+      "TSAN_OPTIONS": "halt_on_error=1",
+      "tests": 2,
+      "checks": 3012,
+      "failures": 0
+    },
+    {
+      "selection": "tsan-final-soak",
+      "filter": "RefPedalSoak",
+      "exit_code": 0,
+      "seconds": 30.064914573998976,
+      "sha256": "707b712784cea9d0dac0dccd4c5194ce6633c0ca59dcc5f2b09400eb2d9e7a58",
+      "TSAN_OPTIONS": "halt_on_error=1",
+      "tests": 1,
+      "checks": 8,
+      "failures": 0
+    }
+  ],
+  "source_drift": [],
+  "source_file_count": 1380,
+  "original_retirement_test_prefix_unchanged": true,
+  "status": "Focused qualified source adapter; not applied to this worktree Source, not root-integrated, not release-approved"
+}

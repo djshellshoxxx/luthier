@@ -1,0 +1,647 @@
+diff --git a/Source/ReferencePedals/BoardEngine.h b/Source/ReferencePedals/BoardEngine.h
+--- a/Source/ReferencePedals/BoardEngine.h
++++ b/Source/ReferencePedals/BoardEngine.h
+@@ -1,4 +1,5 @@
+ // OWNER: WP2
+ #pragma once
++#include "Rt/CompletedReaderEpoch.h"
+ #include <array>
+ #include <atomic>
+@@ -75,6 +76,6 @@
+     int reclaim() noexcept;
+     // Message-thread diagnostics for the original T-RETIRE acceptance gate.
+-    std::size_t retiredPlanCount() const noexcept { return retired.size(); }
+-    std::size_t retiredPlanHighWater() const noexcept { return retired.highWater(); }
++    std::size_t retiredPlanCount() const noexcept { const std::lock_guard<std::mutex> guard (controlMutex); return retired.size(); }
++    std::size_t retiredPlanHighWater() const noexcept { const std::lock_guard<std::mutex> guard (controlMutex); return retired.highWater(); }
+     void drainControlEcho(); // message thread, outside any BoardModel lock
+     bool isActive() const noexcept { return targetActive.load() || running.load(); }
+@@ -84,14 +85,17 @@
+ private:
+     bool publish (const std::vector<PedalInstance>&, const BoardSettings&, TopologyInfo&, juce::String&, const BoardCommand* intent = nullptr, bool hostEcho = false);
+-    // Single audio reader; all plan-reading entry points participate. A writer
+-    // may reclaim only from a stable even sequence and the six retained pointers.
++    // Single non-nested audio reader; all plan-reading entry points participate.
++    // Completed snapshots remain usable while a subsequent reader is active.
+     struct PlanReadScope
+     {
+         BoardEngine& engine;
+-        explicit PlanReadScope (BoardEngine& e) noexcept : engine (e) { engine.readerSequence.fetch_add (1, std::memory_order_seq_cst); }
++        explicit PlanReadScope (BoardEngine& e) noexcept : engine (e) { engine.planReader.begin(); }
+         ~PlanReadScope() { engine.finishPlanRead(); }
+     };
+     void finishPlanRead() noexcept;
+     void discardRuntime() noexcept;
++    void discardRuntimeLocked() noexcept;
++    int reclaimLocked() noexcept;
++    bool publishLocked (const std::vector<PedalInstance>&, const BoardSettings&, TopologyInfo&, juce::String&, const BoardCommand*, bool);
+     void setPreparationError (const char*) noexcept;
+     void publishPedalMeters (const RenderPlan&) noexcept;
+@@ -124,4 +128,9 @@
+     std::atomic<bool> preparationFailure { false };
+     std::atomic<uint64_t> routingBytes { 0 };
++    // Control threads only; serializes publication, reclamation, and owner pins.
++    // Lock order: model mutex -> controlMutex. Never call model/saveExtra while held.
++    // Prepare/release/destruction additionally require stopped audio and quiescent
++    // model mutations; this guard does not replace that lifecycle barrier.
++    mutable std::mutex controlMutex;
+     mutable std::mutex preparationMutex; // lifecycle/error reads only, never audio
+     std::array<char, 256> preparationMessage {};
+@@ -132,6 +141,5 @@
+     RetireList<RenderPlan> retired;
+     std::atomic<const RenderPlan*> live { nullptr };
+-    std::atomic<uint64_t> readerSequence { 0 };
+-    std::array<std::atomic<const RenderPlan*>, 2 * kNumPlacements> retainedPlans {};
++    CompletedReaderEpoch<RenderPlan, 2 * kNumPlacements> planReader;
+     std::atomic<bool> targetActive { false }, running { false }, resetRequested { false };
+     std::atomic<int> latencySamples { 0 };
+diff --git a/Source/ReferencePedals/BoardEngine.cpp b/Source/ReferencePedals/BoardEngine.cpp
+--- a/Source/ReferencePedals/BoardEngine.cpp
++++ b/Source/ReferencePedals/BoardEngine.cpp
+@@ -22,11 +22,18 @@
+         // Shared references are copied only on the message thread and pin each
+         // runtime even if a model's message-thread save callback reenters.
+-        const auto pinned = latest ? latest->slots : decltype (latest->slots) {};
+-        if (! latest)
+-            for (auto& instance : instances)
+-                for (size_t i = 0; i < releasedStored.size() && i < releasedCaptured.size(); ++i)
+-                    if (instance.instanceId == releasedStored[i].instanceId && instance.modelId == releasedStored[i].modelId
+-                        && sameExtraState (instance.extras, releasedStored[i].extras))
+-                    { instance.extras = releasedCaptured[i].extras.clone(); break; }
++        decltype (latest->slots) pinned {};
++        std::vector<PedalInstance> stored, captured;
++        {
++            const std::lock_guard<std::mutex> guard (controlMutex);
++            if (latest) pinned = latest->slots;
++            else { stored = releasedStored; captured = releasedCaptured; }
++        }
++        // Pedal save callbacks can reenter the model: invoke them only after the
++        // owner pin is secured and the control guard has been released.
++        for (auto& instance : instances)
++            for (size_t i = 0; i < stored.size() && i < captured.size(); ++i)
++                if (instance.instanceId == stored[i].instanceId && instance.modelId == stored[i].modelId
++                    && sameExtraState (instance.extras, stored[i].extras))
++                { instance.extras = captured[i].extras.clone(); break; }
+         for (auto& instance : instances)
+             for (const auto& runtime : pinned)
+@@ -45,12 +52,15 @@
+ try
+ {
+-    rate = std::isfinite (sampleRate) && sampleRate >= 8000 ? sampleRate : 48000;
+-    block = std::max (1, maxBlock);
+-    // Set the new format before any fallible snapshot/allocation. Even an
+-    // exception must not let a later corrective edit reuse old-rate processors.
+-    pool.setPreparationFormat (rate, block);
++    {
++        const std::lock_guard<std::mutex> guard (controlMutex);
++        rate = std::isfinite (sampleRate) && sampleRate >= 8000 ? sampleRate : 48000;
++        block = std::max (1, maxBlock);
++        // Format changes precede fallible snapshots so failure cannot reuse old-rate DSP.
++        pool.setPreparationFormat (rate, block);
++    }
+     std::vector<PedalInstance> captured, instances; BoardSettings settings;
+     model.snapshot (captured, settings); model.snapshotStored (instances, settings);
+     releaseResources();
++    const std::lock_guard<std::mutex> guard (controlMutex);
+     dipSamples = std::max (1, static_cast<int> (std::min (rate, 1000000.0) * 0.006));
+     mixAlpha = 1.0 - std::exp (-1.0 / (0.020 * rate));
+@@ -81,5 +91,5 @@
+     routingBytes.store (scratch);
+     TopologyInfo info; juce::String error;
+-    if (! publish (instances, settings, info, error)) setPreparationError (error.isEmpty() ? "Pedal preparation failed" : error.toRawUTF8());
++    if (! publishLocked (instances, settings, info, error, nullptr, false)) setPreparationError (error.isEmpty() ? "Pedal preparation failed" : error.toRawUTF8());
+ }
+ catch (const std::exception& error) { discardRuntime(); setPreparationError (error.what()); }
+@@ -100,4 +110,5 @@
+ bool BoardEngine::setAssetStore (std::shared_ptr<IAssetStore> store)
+ {
++    const std::lock_guard<std::mutex> guard (controlMutex);
+     if (! pool.setAssetStore (std::move (store))) return false;
+     assetStoreAvailable.store (pool.hasAssetStore()); return true;
+@@ -105,12 +116,22 @@
+ void BoardEngine::releaseResources()
+ {
+-    if (latest)
++    bool hadRuntime;
++    { const std::lock_guard<std::mutex> guard (controlMutex); hadRuntime = latest != nullptr; }
++    std::vector<PedalInstance> stored, captured;
++    if (hadRuntime)
+     {
+         BoardSettings ignored;
+-        model.snapshotStored (releasedStored, ignored); model.snapshot (releasedCaptured, ignored);
+-    }
+-    discardRuntime();
++        model.snapshotStored (stored, ignored); model.snapshot (captured, ignored);
++    }
++    const std::lock_guard<std::mutex> guard (controlMutex);
++    if (hadRuntime) { releasedStored.swap (stored); releasedCaptured.swap (captured); }
++    discardRuntimeLocked();
+ }
+ void BoardEngine::discardRuntime() noexcept
++{
++    const std::lock_guard<std::mutex> guard (controlMutex);
++    discardRuntimeLocked();
++}
++void BoardEngine::discardRuntimeLocked() noexcept
+ {
+     paramPulses.clear(); engageEcho.clear(); numPendingPulses = 0; numRawMidi = numMidiOutput = 0;
+@@ -120,6 +141,5 @@
+     for (auto& segment : segments) { segment.current = segment.pending = nullptr; }
+     retired.reclaimAll(); latest.reset();
+-    for (auto& pointer : retainedPlans) pointer.store (nullptr, std::memory_order_relaxed);
+-    readerSequence.store (0, std::memory_order_seq_cst);
++    planReader.reset();
+     running.store (false); targetActive.store (false); latencySamples.store (0);
+ }
+@@ -127,9 +147,17 @@
+     TopologyInfo& info, juce::String& error, const BoardCommand* intent, bool hostEcho)
+ {
++    const std::lock_guard<std::mutex> guard (controlMutex);
++    return publishLocked (instances, settings, info, error, intent, hostEcho);
++}
++bool BoardEngine::publishLocked (const std::vector<PedalInstance>& instances, const BoardSettings& settings,
++    TopologyInfo& info, juce::String& error, const BoardCommand* intent, bool hostEcho)
++{
++    if (planReader.exhausted())
++    { error = "Audio reader generation exhausted; stopped reprepare required"; return false; }
+     // Saturation fails before compiling or changing the model/history. A held
+     // reader never causes eviction, callback waiting, or an unbounded queue.
+     if (latest && retired.size() >= RetireList<RenderPlan>::capacityLimit)
+     {
+-        reclaim();
++        reclaimLocked();
+         if (retired.size() >= RetireList<RenderPlan>::capacityLimit)
+         { error = "Audio-plan retirement saturated; retry after audio advances"; return false; }
+@@ -163,22 +191,26 @@
+                         paramPulses.push ({ write->id, descriptor.modelId, write->paramIdx, write->norm });
+                 }
+-    if (old) { const auto oldVersion = old->topology.version; retired.retire (std::move (old), oldVersion); }
+-    reclaim();
++    if (old)
++    {
++        // Sample only after live replacement: a reader that could still acquire
++        // old requires its own completion, not an earlier retained snapshot.
++        old->retirementEpoch = planReader.retirementEpoch();
++        const auto oldVersion = old->topology.version; retired.retire (std::move (old), oldVersion);
++    }
++    reclaimLocked();
+     return true;
+ }
+ int BoardEngine::reclaim() noexcept
+ {
++    const std::lock_guard<std::mutex> guard (controlMutex);
++    return reclaimLocked();
++}
++int BoardEngine::reclaimLocked() noexcept
++{
+     int freed = 0;
+-    for (int attempt = 0; attempt < 2; ++attempt)
+-    {
+-        const auto before = readerSequence.load (std::memory_order_seq_cst);
+-        if (before & 1u) break;
+-        std::array<const RenderPlan*, 2 * kNumPlacements> protectedPointers {};
+-        for (size_t i = 0; i < protectedPointers.size(); ++i)
+-            protectedPointers[i] = retainedPlans[i].load (std::memory_order_relaxed);
+-        std::atomic_thread_fence (std::memory_order_acquire);
+-        if (before != readerSequence.load (std::memory_order_seq_cst)) continue;
+-        freed = retired.reclaimExcept (protectedPointers); break;
+-    }
++    CompletedReaderEpoch<RenderPlan, 2 * kNumPlacements>::Snapshot completed;
++    if (planReader.snapshot (completed))
++        freed = retired.reclaimExcept (completed.pointers, [&] (const RenderPlan* plan) noexcept
++            { return plan->retirementEpoch <= completed.epoch; });
+     pool.reclaim(); return freed;
+ }
+@@ -237,10 +269,11 @@
+ void BoardEngine::finishPlanRead() noexcept
+ {
++    CompletedReaderEpoch<RenderPlan, 2 * kNumPlacements>::Pointers retained {};
+     for (size_t i = 0; i < segments.size(); ++i)
+     {
+-        retainedPlans[2 * i].store (segments[i].current, std::memory_order_relaxed);
+-        retainedPlans[2 * i + 1].store (segments[i].pending, std::memory_order_relaxed);
+-    }
+-    readerSequence.fetch_add (1, std::memory_order_seq_cst);
++        retained[2 * i] = segments[i].current;
++        retained[2 * i + 1] = segments[i].pending;
++    }
++    planReader.finish (retained);
+ }
+ void BoardEngine::publishPedalMeters (const RenderPlan& plan) noexcept
+diff --git a/Source/ReferencePedals/TopologyCompiler.h b/Source/ReferencePedals/TopologyCompiler.h
+--- a/Source/ReferencePedals/TopologyCompiler.h
++++ b/Source/ReferencePedals/TopologyCompiler.h
+@@ -20,4 +20,6 @@
+ struct RenderPlan
+ {
++    // Control-thread-only retirement metadata. Audio never reads or writes it.
++    uint64_t retirementEpoch = 0;
+     Topology topology;
+     BoardSettings settings;
+diff --git a/Source/ReferencePedals/Rt/RetireList.h b/Source/ReferencePedals/Rt/RetireList.h
+--- a/Source/ReferencePedals/Rt/RetireList.h
++++ b/Source/ReferencePedals/Rt/RetireList.h
+@@ -78,7 +78,13 @@
+     int reclaimExcept (const std::array<const T*, N>& protectedPointers) noexcept
+     {
++        return reclaimExcept (protectedPointers, [] (const T*) noexcept { return true; });
++    }
++    // Additional completion predicate is control-thread-only and cannot allocate.
++    template <std::size_t N, typename Eligible>
++    int reclaimExcept (const std::array<const T*, N>& protectedPointers, Eligible eligible) noexcept
++    {
+         int freed = 0;
+         for (std::size_t i = 0; i < entries.size();)
+-            if (std::find (protectedPointers.begin(), protectedPointers.end(), entries[i].object.get()) == protectedPointers.end())
++            if (eligible (entries[i].object.get()) && std::find (protectedPointers.begin(), protectedPointers.end(), entries[i].object.get()) == protectedPointers.end())
+             { entries.erase (entries.begin() + static_cast<std::ptrdiff_t> (i)); ++freed; }
+             else ++i;
+diff --git a/Source/ReferencePedals/Rt/CompletedReaderEpoch.h b/Source/ReferencePedals/Rt/CompletedReaderEpoch.h
+new file mode 100644
+--- /dev/null
++++ b/Source/ReferencePedals/Rt/CompletedReaderEpoch.h
+@@ -0,0 +1,81 @@
++// OWNER: WP2
++#pragma once
++#include <array>
++#include <atomic>
++#include <cassert>
++#include <cstdint>
++#include <limits>
++
++namespace luthier::reference
++{
++// One non-nested reader; one control-side snapshot consumer. Reset requires
++// both to be stopped. Every protected live acquisition must be SC after begin.
++template <typename T, std::size_t N>
++class CompletedReaderEpoch
++{
++public:
++    using Pointers = std::array<const T*, N>;
++    struct Snapshot { uint64_t epoch = 0; Pointers pointers {}; };
++    static constexpr uint64_t exhaustedEpoch = std::numeric_limits<uint64_t>::max();
++    explicit CompletedReaderEpoch (uint64_t initialEvenEpoch = 0) noexcept { reset (initialEvenEpoch); }
++    void reset (uint64_t initialEvenEpoch = 0) noexcept
++    {
++        assert ((initialEvenEpoch & 1u) == 0);
++        for (auto& pointer : retained) pointer.store (nullptr, std::memory_order_relaxed);
++        reader.store (initialEvenEpoch, std::memory_order_seq_cst);
++        completed.store (initialEvenEpoch, std::memory_order_seq_cst);
++    }
++    void begin() noexcept
++    {
++        const auto current = reader.load (std::memory_order_relaxed);
++        if (current != exhaustedEpoch) reader.store (current + 1, std::memory_order_seq_cst);
++    }
++    void finish (const Pointers& pointers) noexcept
++    {
++        const auto current = reader.load (std::memory_order_relaxed);
++        if (current == exhaustedEpoch) return; // never wrap/ABA; reprepare is required
++        assert ((current & 1u) != 0);
++        stageSnapshot (pointers, current);
++        commitSnapshot (current);
++    }
++    // Control thread, strictly AFTER the SC store removing an owner from live.
++    uint64_t retirementEpoch() const noexcept
++    {
++        const auto current = reader.load (std::memory_order_seq_cst);
++        return current == exhaustedEpoch ? current : current + (current & 1u);
++    }
++    bool exhausted() const noexcept { return reader.load (std::memory_order_seq_cst) == exhaustedEpoch; }
++    bool snapshot (Snapshot& result) const noexcept
++    {
++        for (int attempt = 0; attempt < 2; ++attempt)
++        {
++            const auto before = completed.load (std::memory_order_seq_cst);
++            if (before & 1u) continue;
++            Snapshot candidate; candidate.epoch = before;
++            for (std::size_t i = 0; i < N; ++i) candidate.pointers[i] = retained[i].load (std::memory_order_relaxed);
++            std::atomic_thread_fence (std::memory_order_acquire);
++            if (before == completed.load (std::memory_order_seq_cst)) { result = candidate; return true; }
++        }
++        return false;
++    }
++private:
++    // Stateless friend seam exercises the actual two publication phases in tests;
++    // production finish calls both directly without any callback or test branch.
++    friend struct CompletedReaderEpochTestAccess;
++    void stageSnapshot (const Pointers& pointers, uint64_t current) noexcept
++    {
++        completed.store (current, std::memory_order_seq_cst);
++        // A reader observing any later payload store must also observe its odd
++        // marker at validation (paired with snapshot's acquire fence).
++        std::atomic_thread_fence (std::memory_order_release);
++        for (std::size_t i = 0; i < N; ++i) retained[i].store (pointers[i], std::memory_order_relaxed);
++        reader.store (current + 1, std::memory_order_seq_cst);
++    }
++    void commitSnapshot (uint64_t current) noexcept
++    {
++        completed.store (current + 1, std::memory_order_seq_cst);
++    }
++    std::atomic<uint64_t> reader { 0 }, completed { 0 };
++    std::array<std::atomic<const T*>, N> retained {};
++};
++}
+diff --git a/Source/Tests/RefPedalRetirementTests.cpp b/Source/Tests/RefPedalRetirementTests.cpp
+--- a/Source/Tests/RefPedalRetirementTests.cpp
++++ b/Source/Tests/RefPedalRetirementTests.cpp
+@@ -208,2 +208,176 @@
+     engine.reclaim(); CHECK (engine.retiredPlanCount() <= 6);
+ }
++
++LUTHIER_TEST (RefPedalRetirement, completedReaderPermitsAdmissionWhileNextReaderRemainsHeld)
++{
++    PedalRegistry::TestScope scope;
++    CHECK (PedalRegistry::add (retirementDesc, makeRetirementPedal, &fixedPreparedMemory<RetirementPedal>));
++    BoardModel model; BoardEngine engine (model); CHECK (engine.setAssetStore (nullptr));
++    PedalInstance instance; instance.modelId = retirementDesc.modelId; instance.slot = 0;
++    BoardSettings settings; settings.enabled = true; settings.limiterOn = false;
++    const bool ready=model.replaceAll ({instance},settings);CHECK(ready);if(!ready)return;
++    double l[64]{},r[64]{};unsigned edits=0;
++    for(int cycle=0;cycle<32;++cycle)
++    {
++        HeldAudio first([&]{engine.process(l,r,64,Placement::beforeExistingPre);});
++        // No callback completion while filling: original eight-owner bound must hold.
++        for(int fill=0;engine.retiredPlanCount()<8 && fill<8;++fill)
++            CHECK(model.apply(cmd::SetMix{float(++edits%100)/100.f,0}));
++        CHECK(engine.retiredPlanCount()==8);
++        first.release();
++        // The next reader starts BEFORE the writer tries reclaim, so no stable
++        // even/quiescent opportunity can explain successful admission here.
++        HeldAudio second([&]{engine.process(l,r,64,Placement::beforeExistingPre);});
++        engine.reclaim();
++        CHECK(engine.retiredPlanCount()<=1);
++        juce::String error;const auto version=model.getTopologyInfo().version;
++        const bool admitted=model.apply(cmd::SetMix{float(++edits%100)/100.f,0},&error);
++        CHECK_MSG(admitted,error);
++        CHECK(model.getTopologyInfo().version==version+1);
++        CHECK(engine.retiredPlanCount()<=2);CHECK(engine.retiredPlanHighWater()<=8);
++        second.release();
++        for(int i=0;i<64;++i)CHECK(std::isfinite(l[i])&&std::isfinite(r[i]));
++        if(!admitted)return; // retain RED without repeating its dependent history.
++    }
++}
++
++LUTHIER_TEST (RefPedalRetirement, completedEpochProtectsAllAliasesAndOnlyAcknowledgedOwners)
++{
++    using Reader=CompletedReaderEpoch<int,6>;Reader reader;Reader::Snapshot snapshot;
++    std::array<int,7> owners{};Reader::Pointers pointers{};
++    CHECK(reader.snapshot(snapshot));CHECK(snapshot.epoch==0);CHECK(reader.retirementEpoch()==0);
++    for(const auto* pointer:snapshot.pointers)CHECK(pointer==nullptr);
++    reader.begin();CHECK(reader.retirementEpoch()==2);CHECK(reader.snapshot(snapshot));CHECK(snapshot.epoch==0);
++    for(size_t i=0;i<6;++i)pointers[i]=&owners[i];reader.finish(pointers);
++    reader.begin();CHECK(reader.snapshot(snapshot));CHECK(snapshot.epoch==2);CHECK(reader.retirementEpoch()==4);
++    for(size_t i=0;i<6;++i)CHECK(snapshot.pointers[i]==&owners[i]);
++    // An owner retired during this active read needs4; the stable completed2
++    // snapshot cannot authorize its destruction even if absent from its aliases.
++    CHECK(!(reader.retirementEpoch()<=snapshot.epoch));
++    reader.finish({});CHECK(reader.snapshot(snapshot));CHECK(snapshot.epoch==4);
++    for(const auto* pointer:snapshot.pointers)CHECK(pointer==nullptr);
++}
++LUTHIER_TEST (RefPedalRetirement, completedEpochNeverWrapsAndStoppedResetStartsEmpty)
++{
++    using Reader=CompletedReaderEpoch<int,6>;Reader::Snapshot snapshot;int value=1;
++    Reader reader((uint64_t(1)<<63)-2);reader.begin();CHECK(reader.retirementEpoch()==(uint64_t(1)<<63));
++    reader.finish({&value});CHECK(reader.snapshot(snapshot));CHECK(snapshot.epoch==(uint64_t(1)<<63));
++    reader.reset(Reader::exhaustedEpoch-3);reader.begin();reader.finish({&value});
++    CHECK(reader.snapshot(snapshot));CHECK(snapshot.epoch==Reader::exhaustedEpoch-1);CHECK(!reader.exhausted());
++    const auto before=allocationsOnThisThread();
++    for(int i=0;i<10;++i){reader.begin();reader.finish({});}
++    CHECK(allocationsOnThisThread()==before);CHECK(reader.exhausted());CHECK(reader.retirementEpoch()==Reader::exhaustedEpoch);
++    CHECK(reader.snapshot(snapshot));CHECK(snapshot.epoch==Reader::exhaustedEpoch-1);CHECK(snapshot.pointers[0]==&value);
++    CHECK(!(reader.retirementEpoch()<=snapshot.epoch));
++    // The caller has stopped both participants before resetting generations.
++    reader.reset();CHECK(!reader.exhausted());CHECK(reader.snapshot(snapshot));CHECK(snapshot.epoch==0);
++    for(const auto* pointer:snapshot.pointers)CHECK(pointer==nullptr);
++}
++LUTHIER_TEST (RefPedalRetirement, completedSnapshotStaysCoherentAcrossOverlappingReaderFinishes)
++{
++    using Reader=CompletedReaderEpoch<int,6>;Reader reader;std::array<int,2> owners{};
++    std::atomic<bool> stop{false},started{false};std::atomic<int> callbackAllocations{0};
++    std::thread audio([&]
++    {
++        started.store(true);
++        for(unsigned i=1;i<=100000;++i)
++        {
++            const auto before=allocationsOnThisThread();reader.begin();Reader::Pointers pointers{};
++            pointers.fill(&owners[i&1]);reader.finish(pointers);
++            if(allocationsOnThisThread()!=before)++callbackAllocations;
++        }
++        stop.store(true);
++    });
++    while(!started.load())std::this_thread::yield();
++    unsigned reads=0,bad=0;Reader::Snapshot snapshot;
++    do
++    {
++        if(reader.snapshot(snapshot))
++        {
++            ++reads;const auto* expected=snapshot.epoch==0?nullptr:&owners[(snapshot.epoch/2)&1];
++            for(const auto* pointer:snapshot.pointers)if(pointer!=expected)++bad;
++        }
++    }while(!stop.load());
++    audio.join();CHECK(callbackAllocations.load()==0);CHECK(reads>0);CHECK(bad==0);
++    CHECK(reader.snapshot(snapshot));CHECK(snapshot.epoch==200000);
++}
++
++LUTHIER_TEST (RefPedalRetirement, retirementOrderingBeforeAndAfterLiveAcquisition)
++{
++    using Reader=CompletedReaderEpoch<int,6>;
++    for(const bool acquireBeforePublication:{false,true})
++    {
++        Reader reader;int oldOwner=1,newOwner=2;std::atomic<const int*> live{&oldOwner};
++        std::atomic<bool> ready{false},resume{false};const int* borrowed=nullptr;
++        std::thread audio([&]
++        {
++            reader.begin();
++            if(acquireBeforePublication)borrowed=live.load(std::memory_order_seq_cst);
++            ready.store(true);
++            while(!resume.load())std::this_thread::yield();
++            if(!acquireBeforePublication)borrowed=live.load(std::memory_order_seq_cst);
++            reader.finish({borrowed});
++        });
++        while(!ready.load())std::this_thread::yield();
++        live.store(&newOwner,std::memory_order_seq_cst);
++        const auto required=reader.retirementEpoch();Reader::Snapshot snapshot;
++        CHECK(required==2);CHECK(reader.snapshot(snapshot));CHECK(required>snapshot.epoch);
++        resume.store(true);audio.join();
++        CHECK(borrowed==(acquireBeforePublication?&oldOwner:&newOwner));
++        // A later active scope does not prevent reading the completion, but the
++        // old owner remains protected precisely when the first reader retained it.
++        reader.begin();CHECK(reader.snapshot(snapshot));CHECK(required<=snapshot.epoch);
++        CHECK((snapshot.pointers[0]==&oldOwner)==acquireBeforePublication);
++        reader.finish({borrowed});
++    }
++    // A publication may pass its initial exhaustion check then race the final
++    // reader announcement. Its AFTER-removal stamp must pin rather than wrap.
++    Reader reader(Reader::exhaustedEpoch-1);int oldOwner=1,newOwner=2;
++    std::atomic<const int*> live{&oldOwner};CHECK(!reader.exhausted());
++    reader.begin();const auto* borrowed=live.load(std::memory_order_seq_cst);
++    live.store(&newOwner,std::memory_order_seq_cst);const auto required=reader.retirementEpoch();
++    reader.finish({borrowed});Reader::Snapshot snapshot;CHECK(reader.snapshot(snapshot));
++    CHECK(required==Reader::exhaustedEpoch);CHECK(required>snapshot.epoch);CHECK(reader.exhausted());
++}
++
++namespace luthier::reference
++{
++struct CompletedReaderEpochTestAccess
++{
++    template<typename T,std::size_t N>
++    static uint64_t stage(CompletedReaderEpoch<T,N>& reader,const typename CompletedReaderEpoch<T,N>::Pointers& pointers)
++    {
++        const auto current=reader.reader.load(std::memory_order_relaxed);
++        reader.stageSnapshot(pointers,current);return current;
++    }
++    template<typename T,std::size_t N>
++    static void commit(CompletedReaderEpoch<T,N>& reader,uint64_t current){reader.commitSnapshot(current);}
++};
++}
++LUTHIER_TEST (RefPedalRetirement, readerEndCannotExposeUncommittedSnapshotAndSuccessorRetainsCorrectEpoch)
++{
++    using Reader=CompletedReaderEpoch<int,6>;Reader reader;int a=1,b=2,c=3;
++    std::atomic<const int*> live{&a};std::atomic<int> phase{0},resume{0};
++    std::thread audio([&]
++    {
++        reader.begin();const auto* first=live.load(std::memory_order_seq_cst);
++        const auto staged=CompletedReaderEpochTestAccess::stage(reader,Reader::Pointers{first});
++        phase.store(1);while(resume.load()<1)std::this_thread::yield();
++        CompletedReaderEpochTestAccess::commit(reader,staged);
++        reader.begin();const auto* second=live.load(std::memory_order_seq_cst);
++        phase.store(2);while(resume.load()<2)std::this_thread::yield();
++        reader.finish({second});
++    });
++    while(phase.load()<1)std::this_thread::yield();
++    live.store(&b,std::memory_order_seq_cst);const auto firstRetirement=reader.retirementEpoch();
++    CHECK(firstRetirement==2);
++    Reader::Snapshot snapshot;snapshot.epoch=777;snapshot.pointers.fill(&c);
++    CHECK(!reader.snapshot(snapshot));CHECK(snapshot.epoch==777);
++    for(const auto* pointer:snapshot.pointers)CHECK(pointer==&c);
++    resume.store(1);while(phase.load()<2)std::this_thread::yield();
++    CHECK(reader.snapshot(snapshot));CHECK(snapshot.epoch==2);CHECK(snapshot.pointers[0]==&a);
++    CHECK(firstRetirement<=snapshot.epoch);
++    live.store(&c,std::memory_order_seq_cst);const auto secondRetirement=reader.retirementEpoch();
++    CHECK(secondRetirement==4);CHECK(secondRetirement>snapshot.epoch);
++    resume.store(2);audio.join();CHECK(reader.snapshot(snapshot));CHECK(snapshot.epoch==4);CHECK(snapshot.pointers[0]==&b);
++}
+diff --git a/Source/Tests/RefPedalControlRaceTests.cpp b/Source/Tests/RefPedalControlRaceTests.cpp
+new file mode 100644
+--- /dev/null
++++ b/Source/Tests/RefPedalControlRaceTests.cpp
+@@ -0,0 +1,59 @@
++// OWNER: WP2
++#include "TestFramework.h"
++#include "../ReferencePedals/BoardModel.h"
++#include "../ReferencePedals/BoardEngine.h"
++#include <atomic>
++#include <thread>
++using namespace luthier::reference;
++LUTHIER_TEST(RefPedalControlRace, publisherReclaimerAndAudioHaveDistinctThreads)
++{
++    BoardModel model;BoardEngine engine(model);CHECK(engine.setAssetStore(nullptr));
++    CHECK(model.apply(cmd::Add{"generic.boost"}));CHECK(model.apply(cmd::SetBoardEnabled{true}));
++    std::atomic<bool> start{false},done{false};std::atomic<int> invalid{0};
++    std::thread audio([&]{double l[64]{},r[64]{};while(!start.load())std::this_thread::yield();while(!done.load()){engine.process(l,r,64,Placement::beforeExistingPre);for(int i=0;i<64;++i)if(!std::isfinite(l[i])||!std::isfinite(r[i]))++invalid;}});
++    std::thread reclaimer([&]{while(!start.load())std::this_thread::yield();while(!done.load())engine.reclaim();});
++    std::thread capture([&]{while(!start.load())std::this_thread::yield();while(!done.load()){std::vector<PedalInstance> instances;BoardSettings settings;model.snapshot(instances,settings);}});
++    start.store(true);
++    for(int i=0;i<1000;++i){juce::String error;const bool accepted=model.apply(cmd::SetMix{float(i%100)/100,0},&error);CHECK_MSG(accepted||error.containsIgnoreCase("saturated"),error);}
++    done.store(true);audio.join();reclaimer.join();capture.join();CHECK(invalid.load()==0);engine.reclaim();CHECK(engine.retiredPlanHighWater()<=8);
++}
++
++#include "../ReferencePedals/PreparedMemory.h"
++#include "../ReferencePedals/PedalRegistry.h"
++#include <functional>
++namespace
++{
++std::function<void()> duringExtraSave;
++int extraPinDestroyed=0,extraPinSaved=0;
++const PedalDesc extraPinDesc{"test.controlpin","controlpin_",1,"Control pin","Test",nullptr,
++    ChannelMode::Stereo,BypassMode::True,0,nullptr,0,false,false,false,0};
++class ExtraPinPedal final:public IPedal
++{
++public:
++    ~ExtraPinPedal()override{++extraPinDestroyed;}
++    const PedalDesc& desc()const noexcept override{return extraPinDesc;}
++    void prepare(double,int,int)override{}void reset()noexcept override{}
++    void setParam(int,float)noexcept override{}float getParam(int)const noexcept override{return 0;}
++    void process(double*,double*,int)noexcept override{}
++    int getLatencySamples()const noexcept override{return 0;}
++    uint64_t getPreparedMemoryBytes()const noexcept override{return sizeof(*this);}
++    void saveExtra(juce::var& output)const override
++    {
++        auto callback=std::move(duringExtraSave);if(callback)callback();
++        ++extraPinSaved;auto* object=new juce::DynamicObject;object->setProperty("marker",marker);output=juce::var(object);
++    }
++private:int marker=73;
++};
++std::unique_ptr<IPedal> makeExtraPin(){return std::make_unique<ExtraPinPedal>();}
++}
++LUTHIER_TEST(RefPedalControlRace, runtimePinSurvivesReentrantRemovalAndReclaimOutsideControlGuard)
++{
++    PedalRegistry::TestScope scope;extraPinDestroyed=extraPinSaved=0;duringExtraSave={};
++    CHECK(PedalRegistry::add(extraPinDesc,makeExtraPin,&fixedPreparedMemory<ExtraPinPedal>));
++    BoardModel model;BoardEngine engine(model);CHECK(engine.setAssetStore(nullptr));
++    CHECK(model.apply(cmd::Add{extraPinDesc.modelId}));const auto order=model.getOrder();CHECK(order.size()==1);if(order.empty())return;
++    duringExtraSave=[&]{CHECK(model.apply(cmd::Remove{order.front()}));engine.reclaim();CHECK(extraPinDestroyed==0);};
++    std::vector<PedalInstance> captured;BoardSettings settings;model.snapshot(captured,settings);
++    CHECK(captured.size()==1);if(!captured.empty())CHECK(static_cast<int>(captured.front().extras["marker"])==73);
++    CHECK(extraPinSaved==1);CHECK(extraPinDestroyed==1);CHECK(model.getOrder().empty());duringExtraSave={};
++}
+diff --git a/docs/coverage/PEDALBOARD-RETIREMENT-PROGRESS.md b/docs/coverage/PEDALBOARD-RETIREMENT-PROGRESS.md
+new file mode 100644
+--- /dev/null
++++ b/docs/coverage/PEDALBOARD-RETIREMENT-PROGRESS.md
+@@ -0,0 +1,54 @@
++# Finite completed-reader retirement contract (pre-implementation)
++
++Source6d9b5943, unchanged SourceTree9f790ebe. One non-nested audio reader; one serialized control writer/reclaimer; stopped-reader+writer lifecycle barrier for prepare/release/reset. All three live-acquiring entry points (syncRouting, beginEvents, process) announce before SC live.load; every persistent borrowed RenderPlan alias is one of the three segment current/pending pairs. Local borrowed references die before scope finish.
++
++## Publication and acknowledgement
++
++Keep an SC audio reader epoch (even between reads, odd during read). At finish publish a separate completed snapshot: store snapshot sequence=odd current epoch (SC), release fence, store six atomic pointers relaxed, store reader epoch=next even (SC), store snapshot sequence=that same even (SC). Thus the snapshot sequence itself is the completed epoch and cannot be mismatched with an independently sampled epoch. Snapshot remains stable throughout the next active reader except its finish.
++
++The control writer first replaces live with an SC store, then loads the reader epoch SC. A retired plan requires the sampled even epoch, or the next even epoch if sampled odd. Retire metadata is control-thread-only and fixed-size; no vector-entry growth/layout change. Existing prepublication reserve/failure atomicity stays unchanged.
++
++Reclaim makes at most two snapshot attempts. It loads an even snapshot sequence SC, six pointer payloads relaxed, an acquire fence, then validates the same sequence SC. The paired writer release fence and reader acquire fence ensure any payload observed from a later write puts that later odd marker before the validation load; mixed payload cannot validate against an older marker. Failed snapshot leaves all ownership intact. It frees only plans whose required completion epoch is <= the snapshot epoch AND whose pointer is absent from all six aliases.
++
++## Safety cases
++
++1. Reader announced before retirement: writer samples that odd epoch or a later completion. Odd requires completion after all that scope's dereferences. If completion already published, retained aliases cover all future use.
++2. Reader announces after sampled even retirement epoch: SC live replacement precedes announcement/live acquisition in the SC order, so it cannot acquire the removed plan from live. It can only retain it through an alias already in the completed snapshot.
++3. Snapshot copied while a later reader is active: any old eligible plan is either in its inherited retained aliases or already removed before that later reader could acquire live. Any live plan newly acquired then retired during this reader requires a strictly later completed epoch.
++4. Never-adopted plans become eligible after the overlapping reader completes; they are absent from the snapshot and can be collected during the next active reader.
++5. Six current/pending aliases permit structural transitions across all placements; neither minimum topology version nor just currently rendered pointer is sufficient.
++6. Snapshot changes while copied: guard mismatch or odd rejects. Concurrent destruction only occurs control-side after validated eligibility. No raw audio cache outside this inventory may be added without extending it.
++
++## Finite epoch and lifecycle
++
++No modular comparison/half-range assumption. Epochs increase without wrapping. At UINT64_MAX the reader announcement freezes odd permanently; finish publishes no newer snapshot. Required retirement epoch MAX is never eligible (completed epoch<=MAX-1). New publication reports exhaustion/reprepare; a publication already in flight may retire with MAX and stays pinned. Audio keeps using protected owners without allocation/wait/retry. Stopped lifecycle clears live/segment aliases, retires all owners, then resets epoch+snapshot0/null. No outstanding writer snapshot may cross reset. Constructor snapshot0/null is valid because all segment aliases start null.
++
++## Explicit progress condition
++
++After a reader holding a saturated eight-entry queue completes, a later held reader must not prevent reclamation of eligible never-adopted entries. Deterministic actual-engine regression holds first reader, fills exactly8, advances to second held reader, and requires new publication while that second reader remains held. This repeats over multiple completed readers; original first-held-reader saturation/refusal and unchanged model/history remain required. No arbitrary success percentage, queue-limit increase, or requirement to accept unbounded publication while the SAME reader is held.
++
++## Qualification before integration
++
++Original held-reader/fault/allocation/API/routing tests unchanged. Add deterministic progress RED on original implementation; helper epochs near high bit/MAX, exhaustion/reset; copied completed snapshot while next reader active; publication before/after live load, finish/end-before-final-marker, and overwrite concurrency. Native+ASan/UBSan+TSan focused engine closure; original unpaced stress comparison. RetireList limit8 remains. Private BoardEngine layout changes require coherent Board.cpp/header users recompile. Full host/CMake integration remains root-owned later. No universal model-history/JSON OOM claim.
++
++Independent review: host/MIDI and timefx owners found no further protocol blocker under the stated reader/lifecycle assumptions. Host review also identified the control-side race below; its subsequent guard review found no new lock inversion. Reviews are source reviews, not independent reruns.
++
++## Control-side serialization closure
++
++A separate publisher/reclaimer/audio regression reproduced a pre-guard data race (TSan exit66) in retired vector push versus reclaim. Source8 already had the same unguarded publication/reclaim paths; this RED used the private protocol candidate, not an actual host binary. A control-only mutex now serializes publish/reclaim, owner pinning, retirement diagnostics, asset-store mutation and lifecycle internals. Locked internal helpers avoid recursive locking. Lock order is BoardModel -> engine; model snapshots and pedal saveExtra callbacks execute outside the engine guard. Shared runtime pins survive callbacks that reenter model removal and reclaim. No audio path acquires this mutex.
++
++Prepare/release/destruction still require stopped audio and quiescent model mutations. The mutex does not newly promise arbitrary concurrent prepare/edit semantics. The echo ring still has its original single message-thread consumer contract. SaveExtra implementations remain responsible for their own audio-safe published-state readback. These boundaries are explicit, not inferred from TSan success.
++
++The exact finish gap is covered by a synthetic helper-phase test. A stateless friend accesses the actual private stage/commit methods composed by production finish, with test-only waiting between them. There is no production test callback, flag, waiting, or extra object state. This is not a forced actual BoardEngine scheduler window.
++
++## Focused qualification (final source)
++
++- Deterministic original retirement RED:1test/81checks,4failures. Candidate32 held-reader succession cycles pass without changing the original eight-owner/fault test bodies.
++- Pre-guard control race RED:TSan exit66, full diagnostic retained.
++- Native:149tests/211752checks,0failures,35.86s. Original30s unpaced soak:3000attempts/296rejected,100314blocks/44255193samples,0callback allocations,0invalid samples.
++- ASan+UBSan+leak:149tests/208852checks,0failures,64.86s,stderr0. Original30s unpaced:3000/296rejected,18444blocks/8136878samples,0allocations/invalid.
++- TSan:retirement12tests/11626checks; independent publisher/reclaimer/capture/audio plus reentrant-pin2tests/1016checks; MIDI publication2tests/3012checks; original30s soak1test/8checks. All exit0,stderr0. TSan soak2998attempts/492rejected,8310blocks/3666095samples,0allocations/invalid. Rejections under instrumentation are retained, not threshold-relaxed.
++- All private ReferencePedals/test TUs are instrumented in sanitizer binaries. Shared prebuilt JUCE core/audio_basics/cryptography objects are uninstrumented; no full-system sanitizer claim.
++- 1380 Source files are hash-frozen across final runs; original retirement test prefix is byte-identical. No Model source changes, registry additions, queue limit changes or acceptance-threshold relaxations.
++
++This is qualified focused source, NOT integrated root behavior or full-host/cross-platform/release acceptance. New final-source300s/10min stress, coherent CMake all-target/full-host tests and platform validation remain coordinator-owned. Existing root8b300s evidence belongs to the prior safe-but-rejecting implementation. Existing JUCE noexcept var-clone OOM limitation remains separate.

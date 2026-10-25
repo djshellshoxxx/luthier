@@ -1,0 +1,10 @@
+portable codec locale: C decimal=,, custom C++ decimal=comma
+history fault op=0 sites=33 triggered=33 exceptions=30
+history fault op=1 sites=31 triggered=31 exceptions=28
+history fault op=2 sites=30 triggered=30 exceptions=27
+history fault op=3 sites=1188 triggered=7 exceptions=7
+history fault op=4 sites=33 triggered=2 exceptions=2
+history auxiliary fault sites=9
+history auxiliary fault sites=5
+    seed=0x51a7 seconds=30 edits=3000 rejected=296 blocks=18444 samples=8136878 callback_new=0 invalid=0
+149 tests, 208852 checks, 0 failures

@@ -1,0 +1,7 @@
+{
+  "filter": "RefPedalControlRace",
+  "exit_code": 0,
+  "seconds": 0.3431614000000991,
+  "sha256": "707b712784cea9d0dac0dccd4c5194ce6633c0ca59dcc5f2b09400eb2d9e7a58",
+  "TSAN_OPTIONS": "halt_on_error=1"
+}

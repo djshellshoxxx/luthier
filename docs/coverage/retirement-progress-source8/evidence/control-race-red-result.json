@@ -1,0 +1,5 @@
+{
+  "exit_code": 66,
+  "sha256": "f6636b5934e179d0c018f3eae32f242670ce6ffabf700d759d7d75cb33fbefc6",
+  "TSAN_OPTIONS": "halt_on_error=1"
+}

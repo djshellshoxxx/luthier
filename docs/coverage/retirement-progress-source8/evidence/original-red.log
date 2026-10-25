@@ -1,0 +1,6 @@
+RefPedalRetirement.completedReaderPermitsAdmissionWhileNextReaderRemainsHeld
+    line 232: expected engine.retiredPlanCount()<=1
+    line 235: Audio-plan retirement saturated; retry after audio advances
+    line 236: expected model.getTopologyInfo().version==version+1
+    line 237: expected engine.retiredPlanCount()<=2
+1 tests, 81 checks, 4 failures

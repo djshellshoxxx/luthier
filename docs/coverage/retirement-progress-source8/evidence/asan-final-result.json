@@ -1,0 +1,7 @@
+{
+  "exit_code": 0,
+  "seconds": 64.8556659959977,
+  "sha256": "813bb39f99c0f03ee519dfda92014d552c745323c2f7d82986a4d28eb09f6f5a",
+  "ASAN_OPTIONS": "detect_leaks=1:halt_on_error=1",
+  "UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=1"
+}

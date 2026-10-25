@@ -1,0 +1,23 @@
+{
+  "files_scanned": 29,
+  "findings": [],
+  "source_scope_exact": true,
+  "source_files_changed": [
+    "Source/ReferencePedals/BoardEngine.cpp",
+    "Source/ReferencePedals/BoardEngine.h",
+    "Source/ReferencePedals/Rt/CompletedReaderEpoch.h",
+    "Source/ReferencePedals/Rt/RetireList.h",
+    "Source/ReferencePedals/TopologyCompiler.h",
+    "Source/Tests/RefPedalControlRaceTests.cpp",
+    "Source/Tests/RefPedalRetirementTests.cpp"
+  ],
+  "manual_private_data_review": "Only Luthier implementation/tests, synthetic fixture identifiers, local toolchain paths, compile diagnostics, hashes and test counts. No user presets, audio, asset payloads, credentials, environment dumps or external project files included.",
+  "limits": "Pattern scan plus scoped manual review; not a universal secret detector.",
+  "remote_branch_before": "327fe2f03ba94c563cb7e336ffd5921d1bbbf017",
+  "previous_unpushed_commits": [
+    "0106640e",
+    "a6541899"
+  ],
+  "previous_unpushed_diff_pattern_findings": 0,
+  "claude_reference_checked": "1f646a65e7d4db5f4f06592a119abf7234463b3f"
+}
