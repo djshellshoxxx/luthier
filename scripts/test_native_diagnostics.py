@@ -58,7 +58,11 @@ class DiagnosticTests(unittest.TestCase):
             uname.write_text('#!/bin/sh\necho Darwin\n')
             uname.chmod(0o755)
             lipo = tools / 'lipo'
-            lipo.write_text('#!/bin/sh\n[ "${DIAG_MISSING_ARCH:-0}" != 1 ]\n')
+            # Real lipo reads every argument after -verify_arch as an arch name,
+            # so the input file must come first.
+            lipo.write_text('#!/bin/sh\ncase "$1" in -*) exit 2 ;; esac\n'
+                            '[ "$2" = -verify_arch ] || exit 2\n'
+                            '[ "${DIAG_MISSING_ARCH:-0}" != 1 ]\n')
             lipo.chmod(0o755)
             arch = tools / 'arch'
             arch.write_text('#!/bin/sh\nprintf "%s\\n" "$0" "$@" >> "$DIAG_CALLS"\nshift\nexec "$@"\n')
@@ -158,6 +162,26 @@ class DiagnosticTests(unittest.TestCase):
             with patch.dict(os.environ, {'MACOS_DIAGNOSTIC_ARCH': ''}):
                 with self.assertRaisesRegex(RuntimeError, 'architecture'):
                     diag.focus()
+
+    def test_universal_check_passes_input_file_before_verify_arch(self):
+        with tempfile.TemporaryDirectory() as directory, \
+                patch.object(diag, 'BUILD', Path(directory)), \
+                patch.object(diag, 'LOGS', Path(directory) / 'logs'), \
+                patch.object(diag.platform, 'system', return_value='Darwin'), \
+                patch.object(diag.subprocess, 'check_output', return_value='arm64\n'), \
+                patch.object(diag.Path, 'is_file', return_value=True), \
+                patch.dict(os.environ, {'GITHUB_ENV': str(Path(directory) / 'env')}), \
+                patch.object(diag, 'run_logged', return_value=0) as run:
+            (Path(directory) / 'logs').mkdir()
+            with patch.object(diag.subprocess, 'run',
+                              return_value=subprocess.CompletedProcess([], 0, '1\n', '')):
+                self.assertEqual(diag.architecture(), 0)
+            for call in run.call_args_list:
+                args = call.args[0]
+                self.assertEqual(args[0], 'lipo')
+                self.assertFalse(str(args[1]).startswith('-'), args)
+                self.assertEqual(args[2:], ['-verify_arch', 'arm64', 'x86_64'])
+            self.assertIn('MACOS_DIAGNOSTIC_ARCH=arm64', (Path(directory) / 'env').read_text())
 
     def test_bundle_preserves_failure_and_complete_checksums(self):
         with tempfile.TemporaryDirectory() as directory:

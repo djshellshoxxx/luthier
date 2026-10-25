@@ -283,7 +283,7 @@ do_validate() {
     fi
     pluginval="$(fetch_pluginval)"
     if [ "${#native_args[@]}" != 0 ]; then
-        lipo -verify_arch "$MACOS_DIAGNOSTIC_ARCH" "$pluginval" || return 1
+        lipo "$pluginval" -verify_arch "$MACOS_DIAGNOSTIC_ARCH" || return 1
     fi
 
     local wrap=()
@@ -330,7 +330,7 @@ do_validate() {
     if [ -e "$clap" ]; then
         local validator; validator="$(fetch_clap_validator)"
         if [ "${#native_args[@]}" != 0 ]; then
-            lipo -verify_arch "$MACOS_DIAGNOSTIC_ARCH" "$validator" || return 1
+            lipo "$validator" -verify_arch "$MACOS_DIAGNOSTIC_ARCH" || return 1
             { printf '%q ' "${native_args[@]}" "$validator" validate "$clap"; printf '\n'; } >> "$LOG_DIR/native-validator-commands.log"
         fi
         step "clap-validator: $clap"
