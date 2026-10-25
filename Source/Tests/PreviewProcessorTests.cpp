@@ -98,3 +98,45 @@ LUTHIER_TEST(PreviewProcessor, retainedKeyboardReleaseSurvivesRendererExclusion)
     finish.store(true,std::memory_order_release); writer.join(); rig.settle();
     CHECK(rig.note()<0);
 }
+LUTHIER_TEST(PreviewProcessor, emptyCallbackDoesNotConsumeAKeyboardAttack)
+{
+    PreviewProcessorRig rig;
+    rig.processor->playKeyboardNote(72,.8f);
+    juce::AudioBuffer<float> empty(2,0); juce::MidiBuffer midi;
+    rig.processor->processBlock(empty,midi);
+    rig.settle(); CHECK(rig.note()==72);
+    rig.processor->releaseKeyboardNote(72); rig.settle(); CHECK(rig.note()<0);
+}
+LUTHIER_TEST(PreviewProcessor, concurrentActualKeyboardAndChordProducersReleaseAllAcceptedNotes)
+{
+    PreviewProcessorRig rig;
+    rig.processor->playKeyboardNote(72,.8f); rig.settle();
+    rig.processor->releaseKeyboardNote(72); rig.settle();
+    std::atomic<bool> begin{false},done{false};
+    std::atomic<int> callbacks{0};
+    std::thread audio([&]
+    {
+        begin.store(true,std::memory_order_release);
+        while(!done.load(std::memory_order_acquire)) { rig.block(); ++callbacks; }
+        rig.settle(32);
+    });
+    while(!begin.load(std::memory_order_acquire)) std::this_thread::yield();
+    std::array<std::thread,4> producers;
+    for(int t=0;t<4;++t) producers[(size_t)t]=std::thread([&,t]
+    {
+        const juce::Array<int> chord{67+t,72+t};
+        for(int i=0;i<1000;++i)
+        {
+            rig.processor->playKeyboardNote(72+t,.7f);
+            rig.processor->releaseKeyboardNote(72+t);
+            rig.processor->playKeyboardChord(chord,.7f);
+            rig.processor->releaseKeyboardChord(chord);
+        }
+    });
+    for(auto& producer:producers) producer.join();
+    juce::Array<int> all; for(int note=0;note<128;++note) all.add(note);
+    rig.processor->releaseKeyboardChord(all);
+    done.store(true,std::memory_order_release); audio.join();
+    CHECK(callbacks.load()>0); CHECK(rig.note()<0);
+    CHECK(rig.processor->getMidiOverflowDropCount()>=0);
+}
