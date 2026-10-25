@@ -1,5 +1,13 @@
 # Pedalboard continuation handoff
 
+Latest checkpoint: [fresh2026-10-25 build6 and ownership reconciliation](handoff/PEDALBOARD-2026-10-25-BUILD6.md).
+Tested production source280e182a freshly builds all five Linux Pro targets;
+actual CLAP18/0/3unsupported skips and VST3 strictness5 pass. Combined unit/stress
+qualification and cross-platform/full acceptance remain open. Older entries
+below preserve their original source-specific evidence and are not current
+absence reports. The final Claude preservation ref1f646a65 is verified; sole
+integration ownership is reconciled, and disjoint testing continues.
+
 Updated 2026-10-25 10:40 UTC. Work continues in the same environment; no new
 release or tag has been created. Only djshellshoxxx/luthier is in scope.
 

@@ -1,5 +1,13 @@
 # Pedalboard completion acceptance ledger
 
+Latest execution evidence: [fresh build6 checkpoint](../handoff/PEDALBOARD-2026-10-25-BUILD6.md)
+at production source280e182a: all five Linux Pro targets freshly compile;
+actual CLAP18pass/0fail/3unsupported skips and VST3 strictness5(all30rate/buffer
+combinations,GUI/automation) pass. Combined unit/stress work is ongoing. Original
+decay/RT/specification/platform/manual gates remain open; no release acceptance
+is claimed. Historical intake columns and earlier failures below retain their
+original provenance.
+
 Intake: 2026-10-23 UTC. Coordinator branch `codex/luthier-pedalboard-completion`.
 Source PR79 HEAD: `0b319c0b9b480d17605674374818711de94f7cb7`.
 Master: `0f62c3d67bdba055b41e66c7ab8ac9ab4b728662`.
