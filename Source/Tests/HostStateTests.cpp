@@ -7,12 +7,29 @@
 #include "../PluginProcessor.h"
 #include "../Parameters.h"
 #include "../Presets/ExactRestore.h"
+#include "../Support/ErrorLog.h"
 
 using namespace luthier;
 using namespace luthier::tests;
 
 namespace
 {
+    struct ScopedHostDiagnostics
+    {
+        ScopedHostDiagnostics()
+        {
+            folder.createDirectory();
+            ErrorLog::setFolderForTesting (folder);
+        }
+        ~ScopedHostDiagnostics()
+        {
+            ErrorLog::setFolderForTesting ({});
+            folder.deleteRecursively();
+        }
+        juce::File folder { juce::File::getSpecialLocation (juce::File::tempDirectory)
+                              .getChildFile ("luthier-host-state-" + juce::Uuid().toString()) };
+    };
+
     juce::MemoryBlock saveState (LuthierAudioProcessor& p)
     {
         juce::MemoryBlock block;
@@ -572,6 +589,8 @@ LUTHIER_TEST (HostState, unknownSectionsSurviveWriteBack)
 // place with nothing kept of the original.
 LUTHIER_TEST (HostState, anOldBlobIsBackedUpBeforeMigration)
 {
+    ScopedHostDiagnostics diagnostics;
+    CHECK (diagnostics.folder.isDirectory());
     LuthierAudioProcessor p;
     p.prepareToPlay (48000.0, 256);
 
@@ -586,14 +605,14 @@ LUTHIER_TEST (HostState, anOldBlobIsBackedUpBeforeMigration)
 
     const auto old = juce::JSON::toString (saved, false);
 
-    auto before = Diagnostics::getDiagnosticsFolder().findChildFiles (
+    auto before = LuthierAudioProcessor::getStateBackupFolder().findChildFiles (
         juce::File::findFiles, false, "state-backup-*.json");
 
     LuthierAudioProcessor restored;
     restored.prepareToPlay (48000.0, 256);
     restored.setStateInformation (old.toRawUTF8(), (int) old.getNumBytesAsUTF8());
 
-    auto after = Diagnostics::getDiagnosticsFolder().findChildFiles (
+    auto after = LuthierAudioProcessor::getStateBackupFolder().findChildFiles (
         juce::File::findFiles, false, "state-backup-*.json");
 
     // A new file, not a larger count: the folder keeps only the newest 20
@@ -610,6 +629,32 @@ LUTHIER_TEST (HostState, anOldBlobIsBackedUpBeforeMigration)
         }
 
     CHECK_MSG (created == 1, "expected one new state backup, saw " + juce::String (created));
+}
+
+LUTHIER_TEST (HostState, backupTestOverridePreservesDefaultPathExactBytesAndTwentyFileLimit)
+{
+    const auto realFolder = juce::File::getSpecialLocation (juce::File::userDocumentsDirectory)
+                                .getChildFile ("Luthier").getChildFile ("Diagnostics");
+    CHECK (LuthierAudioProcessor::getStateBackupFolder() == realFolder);
+    {
+        ScopedHostDiagnostics diagnostics;
+        CHECK (diagnostics.folder.isDirectory());
+        CHECK (LuthierAudioProcessor::getStateBackupFolder() == diagnostics.folder);
+        LuthierAudioProcessor p;
+        auto state = juce::JSON::parse (asText (saveState (p)));
+        state.getDynamicObject()->removeProperty ("formatVersion");
+        const auto original = juce::JSON::toString (state, false);
+        for (int i = 0; i < 23; ++i)
+        {
+            p.setStateInformation (original.toRawUTF8(), (int) original.getNumBytesAsUTF8());
+            const auto backups = diagnostics.folder.findChildFiles (juce::File::findFiles, false, "state-backup-*.json");
+            CHECK (backups.size() == juce::jmin (i + 1, 20));
+        }
+        const auto retained = diagnostics.folder.findChildFiles (juce::File::findFiles, false, "state-backup-*.json");
+        for (const auto& file : retained)
+            CHECK (file.loadFileAsString() == original);
+    }
+    CHECK (LuthierAudioProcessor::getStateBackupFolder() == realFolder);
 }
 
 //==============================================================================
