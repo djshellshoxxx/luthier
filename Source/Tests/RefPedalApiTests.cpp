@@ -765,7 +765,17 @@ LUTHIER_TEST (RefPedalApi, boardFacadeKeepsLegacyContract)
     const long allocs = allocationsOnThisThread();
     board.midi().process (buffer, host, 1234, 64, out);
     CHECK (allocationsOnThisThread() == allocs);
-    CHECK (out.nWrites == 0 && out.time.bpm == 133.0 && out.time.sample == 1234);
+    CHECK_MSG (out.nWrites == 0, "stub wrote " + juce::String (out.nWrites));
+    // The canonical block time is the tempo at the block's first sample, and a
+    // tempo change glides over 50 ms (phase-continuous clock), so the first block
+    // after a change still starts at the old tempo and a block 50 ms on has arrived.
+    CHECK_MSG (out.time.bpm >= 120.0 && out.time.bpm <= 133.0, "bpm " + juce::String (out.time.bpm, 6));
+    CHECK_MSG (out.time.sample == 1234, "sample " + juce::String ((juce::int64) out.time.sample));
+    midi::RouteOut later;
+    board.midi().process (buffer, host, 1234 + 4800, 64, later);
+    CHECK_MSG (later.nWrites == 0, "stub wrote " + juce::String (later.nWrites));
+    CHECK_MSG (later.time.bpm == 133.0, "bpm after the glide " + juce::String (later.time.bpm, 6));
+    CHECK_MSG (later.time.sample == 1234 + 4800, "sample " + juce::String ((juce::int64) later.time.sample));
 }
 
 LUTHIER_TEST (RefPedalApi, boardModelStubRejectsUntilImplemented)
