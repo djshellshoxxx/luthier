@@ -136,3 +136,12 @@ Backup failure is environmental/test isolation: actual JUCE user-documents resol
 Private candidate recompiles only HostStateFormat.cpp and HostStateTests.cpp with the exact LuthierTests target flags against819 independently preserved280e object/library inputs. Candidate SHA25659dd19ca2f800b5488bc4a82133deb4b2d59224a3f55e088bca7fa3412bf7806: targeted4/58, full HostState selection31/8623, StateModel18/130 and migration-forward6/68 all pass. Root binary/source were not changed. The earlier invalid overlay used plugin-target flags for HostStateFormat and crashed; its binary/commands/logs are preserved separately and do not qualify the product. Correct-target rebuild resolves that construction error. This candidate is not a new full root build or a Mac result.
 
 DSP-qualified runtime resources contain70 active presets plus4 migration backups generated through unchanged lazy refresh; all1253 preexisting files are unchanged. Full resource manifest SHA2563889c619451ec496668a56b41a9b06409b59fc020c3ba990a769cebe0690d39d matches prior b5. Active70 hashes remain unchanged after these tests. This is controlled test setup, not a recovered/shipped bank. User Documents remains absent after candidate tests. Exact commands, hashes, source provenance, preserved failures, filesystem probe and candidate outcomes: /workspace/luthier-evidence/state/build6-280e/qualification.json and adjacent per-run manifests/logs. Integration and a full rebuild remain the coordinator's next gate.
+
+Native Ditto completed external asset state now migrates across host sample rates
+through the bounded off-audio LooperAssetConverter. It preserves history/phase
+and opaque looper fields, with atomic failed replacement and separately charged
+PCM/media reservations. The exact contract, normal/sanitizer evidence and still
+open named-model gates are recorded in PEDALBOARD-LOOPERS.md under Completed-asset
+sample-rate conversion checkpoint. No codec schema or catalog registration was
+changed; unfinished Recording/Pending state still rejects rather than claiming
+an older hash is the current take.

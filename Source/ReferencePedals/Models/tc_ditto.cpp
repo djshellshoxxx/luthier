@@ -3,6 +3,7 @@
 #include "../Common/PagedLooperCore.h"
 #include "../Common/LooperFootGesture.h"
 #include "../Common/LooperStateCodec.h"
+#include "../Common/LooperAssetConverter.h"
 #include <array>
 #include <atomic>
 #include <cmath>
@@ -38,7 +39,7 @@ public:
     static PreparedMemoryRequirement prepareMemory(double sampleRate,int maxBlock,int,const float*) noexcept
     {
         if(!std::isfinite(sampleRate) || sampleRate<1 || sampleRate>192000 || maxBlock<1)return {};
-        return {sizeof(TcDitto)+sizeof(Core),0};
+        return {sizeof(TcDitto)+sizeof(Core),sizeof(Core)};
     }
     uint64_t getPreparedMemoryBytes() const noexcept override
     {
@@ -140,6 +141,10 @@ public:
     void loadExtra(const juce::var& extra) override
     {
         Codec::Stored next;juce::String error;if(!Codec::decode(extra["looper"],next,&error))throw std::runtime_error(error.toStdString());
+        if(prepared && !next.forward && next.graph.status==Core::CaptureStatus::Ready && next.config.sampleRate!=rate)
+        {
+            restoreConverted(std::move(next));return;
+        }
         stored=std::move(next);if(prepared)restoreSaved();
     }
 private:
@@ -152,12 +157,37 @@ private:
     bool prepared=false,enabled=true,undone=false,pendingStart=false,pendingEnd=false,pendingStop=false;
     static double levelGain(double value) noexcept{return value<.01?0:std::pow(10.,(-60.+66.*value)/20.);}
     Gesture::Timing timing() const noexcept{Gesture::Timing value;value.undoHoldMs=std::round(parameters[3].fromNormalised(values[3]));return value;}
+    void restoreConverted(Codec::Stored next)
+    {
+        juce::String error;
+        if(next.config.channels!=1)throw std::runtime_error("Ditto requires mono loop assets");
+        auto target=preparedConfig;
+        const auto previousBytes=core->reservedBytes();
+        if(previousBytes>=target.ramBudget)throw std::runtime_error("Ditto conversion has no remaining aggregate RAM budget");
+        target.ramBudget-=previousBytes;
+        const auto previousStorage=core->reservedStorageBytes();
+        if(previousStorage>=target.storageBudget)throw std::runtime_error("Ditto conversion has no remaining aggregate storage budget");
+        target.storageBudget-=previousStorage;
+        target.historyCapacity=std::max(target.historyCapacity,std::min(8,next.graph.layerCount+next.graph.redoCount+next.graph.retiredCount));
+        Core::Graph converted;
+        if(!common::LooperAssetConverter::convert(*services.assets,next.config,target,next.graph,converted,&error))
+            throw std::runtime_error(error.toStdString());
+        // Conversion scratch has been released. Charge the simultaneous
+        // old/new media pools before allocating the unpublished candidate.
+        auto replacement=std::make_unique<Core>();
+        if(!replacement->prepare(*services.assets,target) || !replacement->restore(converted))
+            throw std::runtime_error("Ditto converted restore exceeds its budget or assets are unavailable");
+        replacement->setSeamMilliseconds(parameters[7].fromNormalised(values[7]));
+        next.graph=converted;next.config=target;stored=std::move(next);core.swap(replacement);
+        preparedConfig.historyCapacity=target.historyCapacity;undone=stored.graph.redoCount>0;++delayEpoch;
+    }
     void restoreSaved()
     {
         if(!prepared || stored.forward)return;
         if(stored.graph.status==Core::CaptureStatus::Empty)return;
         if(stored.graph.status!=Core::CaptureStatus::Ready)throw std::runtime_error("Ditto state contains unfinished recording or asset I/O");
-        if(stored.config.sampleRate!=rate || stored.config.channels!=1 || stored.config.pageFrames!=preparedConfig.pageFrames)
+        if(stored.config.sampleRate!=rate){restoreConverted(stored);return;}
+        if(stored.config.channels!=1 || stored.config.pageFrames!=preparedConfig.pageFrames)
             throw std::runtime_error("Ditto asset format needs offline rate conversion");
         const auto needed=std::min(8,stored.graph.layerCount+stored.graph.redoCount+stored.graph.retiredCount);
         if(needed>std::max(preparedConfig.undoDepth,preparedConfig.historyCapacity))

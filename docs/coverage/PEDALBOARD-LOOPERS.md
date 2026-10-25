@@ -177,3 +177,70 @@ Remaining required Ditto gates before catalog registration: actual board return-
 
 
 Extended acceptance checkpoint (test-only): the native Ditto factory completes1000 accepted1000-frame overdubs with dyadic input and verifies every playback sample against the analytical sum, zero faults, exact retained loop length, then exact audio before/after undo and redo of the final layer. Adds6002 checks. Native suite now9 cases /11168 checks /0 failures normal and ASAN/UBSAN. Core additionally executes100 seeded random undo/redo commands including legal no-ops at history boundaries; each action checks every output sample bit-exactly and published active/redo counts. Adds3608 checks. Core suite now13 cases /4845 checks /0 failures normal and TSAN, no diagnostics. Evidence: /workspace/luthier-evidence/loopers/{ditto-thousand-normal,ditto-thousand-asan,paged-random-normal,paged-random-tsan}.log. This closes the bounded1000-cycle analytical and100-command random-history coverage at the tested1000Hz/1000-frame and1000Hz/32-frame fixtures; full44.1..192k sample-rate/block matrix, real-duration300s render, spectral/zipper gates and30-minute randomized soak remain unproven. Named catalog registration remains blocked by the listed functional requirements.
+
+## Completed-asset sample-rate conversion checkpoint
+
+`Common/LooperAssetConverter` converts immutable completed base/active/redo/retired
+asset graphs during stopped off-audio restore. It streams verified little-endian
+float32 pages through the supplied store, with at most five cached source pages;
+PCM never enters host JSON and no extra worker is created. Sparse absent pages
+are silence. The periodic 64-tap Blackman-windowed sinc is normalized per sample,
+uses cutoff 0.45×min(1,target/source), and supports rate ratios 1/8..8 (all 25 pairs
+among 44.1/48/88.2/96/192k). This is an explicit offline engineering filter, not
+hardware converter coloration. Compatible same-rate/page-format assets remain
+hash-exact after verification. Converted length/playhead use nearest-sample time
+scaling; history order, transport, generation and opaque codec fields survive.
+
+Native Ditto now accepts such cross-rate completed state, including load before
+prepare. It converts into unpublished content-addressed assets, restores a new
+core, and swaps only after success. Failed conversion or candidate admission
+retains the previous running core and stored template. Missing, corrupt,
+nonfinite, malformed or unwritable assets reject off audio without path leakage.
+The previous fallback rejection for unfinished takes and same-rate incompatible
+page/channel formats remains explicit; none is relabeled as completed audio.
+
+Reservation covers both manifest vectors, five source cache pages, an extra
+source-page allowance, encoded output page, fixed control state and 64KiB I/O
+allowance. Both conversion scratch and simultaneous old/new pools are charged
+against the instance 32MiB media cap; old/new external reservations are also
+charged against 4GiB. Converter scratch is released before replacement allocation.
+For full 300s mono44.1→192k base+undo conversion: 734,164 scratch bytes and 462,262,616
+new active asset bytes. Existing default-depth 192k core reservation is 9,542,304 RAM
+and 924,525,264 active storage bytes; simultaneous old/new default cores require
+19,084,608 RAM and 1,849,050,528 active storage bytes, plus the existing wrapper/state
+allowance. High-depth replacements may reject if simultaneous pools cannot fit;
+capacity/history are never shortened to force admission. Shared IAssetStore
+internals, allocator bookkeeping and historical/orphan content-addressed blobs
+remain separately owned; this is logical reservation, not RSS or global GC.
+E69 nonmedia owned report remains sizeof(wrapper)+sizeof(heap core facade), with
+an additional sizeof(Core) temporary facade allowance for transactional restore.
+
+Original RED: the added completed-loop cross-rate wrapper test failed at accepted
+restore (3 checks/1 failure), while the nine original cases remained green.
+After implementation, focused converter 5 cases/201,895 checks pass normal and
+ASAN/UBSAN. Covers 25 stereo host-rate pairs, duration/phase, independent channel
+content, constant history graphs, low-tone fidelity, 30kHz alias rejection for
+96→44.1k, exact budget boundaries/no writes on rejected budgets, store failure,
+missing/hash-corrupt/structurally corrupt/nonfinite assets, hostile counts and
+same-rate hash identity. Native Ditto 11 cases/16,315 checks pass normal,
+ASAN/UBSAN and TSAN; includes redo/unknown preservation, before-prepare restore,
+atomic failed restore and the existing callback allocation trap. Shared JUCE
+objects remain uninstrumented. Warning-enabled syntax checking is clean.
+
+All owned normal regressions were rerun: RAM core 7 / 23,179; storage 19 / 4,761; paged
+core 13 / 4,845; state codec 4 / 154; gesture 6 / 55, all with zero failures. Evidence:
+`/workspace/luthier-evidence/loopers/rate-final-results.json`, original
+`rate-original-red.log`, `rate-conversion-final-{normal,asan}.log`,
+`rate-ditto-final-{asan,tsan}.log`, and `rate-reservation.log`. A test-only corrupt
+asset cleanup initially re-queried its deliberately invalid content hash and got
+an empty path (correct AssetStore behavior); that RED is preserved, and cleanup
+now retains the already verified temporary file path. Product checks were not
+weakened.
+
+This closes bounded completed-asset rate conversion for the tested formats and
+budgets, not named-model registration or full original T1–T14 acceptance. Full
+300s conversion/render performance, complete 20Hz–20kHz migration FRF/THD and
+near-Nyquist transition-band measurements, 30-minute soak, actual return-tap,
+full overlap seam/overdub punch fades and unfinished-take snapshots remain open.
+The default native playback path is unchanged by the offline converter. No Mac,
+whole-board, hardware comparison or feature-complete claim is made.

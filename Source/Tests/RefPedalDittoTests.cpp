@@ -54,7 +54,7 @@ LUTHIER_TEST(RefPedalDitto, descriptorFactoryDefaultDepthAndLaneMappingAreReal)
     const auto& lanes=PedalRegistry::laneMap("tc-ditto");const int expected[]{0,1,3,5,7};CHECK(lanes.numLanes==5);for(int i=0;i<5;++i)CHECK(lanes.laneToParam[i]==expected[i]);
     CHECK(desc->params[4].has(PF_Config));CHECK(desc->params[4].has(PF_Ext));CHECK(desc->params[4].defaultNormalised()==0);CHECK(desc->params[2].kind==ParamKind::Momentary);CHECK(!desc->params[2].has(PF_Engage));
     auto pedal=PedalRegistry::make("tc-ditto");CHECK(pedal!=nullptr);CHECK(!pedal->footControlsEngagement());CHECK(pedal->getParam(4)==0);
-    const auto estimate=PedalRegistry::memoryRequirement("tc-ditto",48000,512,0,nullptr);CHECK(estimate.ownedBytes!=kUnknownPreparedMemoryBytes);CHECK(estimate.temporaryBytes==0);CHECK(models::tcDittoPreparedMemory(0,512,0,nullptr).ownedBytes==kUnknownPreparedMemoryBytes);
+    const auto estimate=PedalRegistry::memoryRequirement("tc-ditto",48000,512,0,nullptr);CHECK(estimate.ownedBytes!=kUnknownPreparedMemoryBytes);CHECK(estimate.temporaryBytes==sizeof(common::PagedLooperCore));CHECK(models::tcDittoPreparedMemory(0,512,0,nullptr).ownedBytes==kUnknownPreparedMemoryBytes);
 }
 LUTHIER_TEST(RefPedalDitto, nativeRecordIsImmediateMonoWetAndDryStaysBitExactStereo)
 {
@@ -131,4 +131,30 @@ LUTHIER_TEST(RefPedalDitto, thousandAcceptedOverdubsKeepAnalyticalSumAndUndoRedo
     const double beforeLast=(.125+999*layer)*gain();for(double sample:audio)CHECK_NEAR(sample,beforeLast,1e-12);
     press(*pedal);render(*pedal,1500);release(*pedal);render(*pedal,1000,0,0,&audio);for(double sample:audio)CHECK_NEAR(sample,expected,1e-12);
     CHECK(pedal->readUiMeters().faults==0);
+}
+
+LUTHIER_TEST(RefPedalDitto, completedLoopRestoresAtNewHostRateWithoutLosingAudioOrPhase)
+{
+    DittoFixture f;auto source=f.create(1000);record(*source,.125,.125);juce::var state;CHECK(saved(*source,state,true));
+    render(*source,137);CHECK(saved(*source,state,true));const auto oldHead=juce::int64(state["looper"]["playhead"]);
+    auto target=f.create(2000);bool accepted=true;try{target->loadExtra(state);}catch(const std::runtime_error&){accepted=false;}
+    CHECK(accepted);
+    if(!accepted)return;
+    CHECK(target->readUiMeters().loopLength==2000);CHECK(target->readUiMeters().playhead==uint64_t(oldHead*2));
+    std::vector<double> audio;render(*target,1000,0,0,&audio);for(double x:audio)CHECK_NEAR(x,.125*gain(),1e-9);
+    CHECK(saved(*target,state));CHECK(double(state["looper"]["sampleRate"])==2000);CHECK(juce::int64(state["looper"]["frames"])==2000);
+}
+
+LUTHIER_TEST(RefPedalDitto, crossRateRestoreBeforePrepareAndRejectedAssetsRetainPreviousLoop)
+{
+    DittoFixture f;auto source=f.create();record(*source,.125,.125);overdub(*source,.03125,.03125);juce::var state;CHECK(saved(*source,state,true));
+    render(*source,400);press(*source);render(*source,1500);release(*source);CHECK(saved(*source,state,true));CHECK(state["looper"]["redo"].size()==1);
+    auto vendor=new juce::DynamicObject();vendor->setProperty("tiny",1e-200);state["looper"].getDynamicObject()->setProperty("vendor",juce::var(vendor));
+    auto target=models::makeTcDitto();PedalServices services;services.assets=&f.assets;target->setServices(services);target->loadExtra(state);bool accepted=true;try{target->prepare(2000,64,0);}catch(const std::runtime_error&){accepted=false;}CHECK(accepted);if(!accepted)return;
+    juce::var converted;CHECK(saved(*target,converted,true));CHECK(converted["looper"]["redo"].size()==1);CHECK(double(converted["looper"]["vendor"]["tiny"])==1e-200);
+    std::vector<double> audio;render(*target,2000,0,0,&audio);for(auto x:audio)CHECK_NEAR(x,.125*gain(),1e-9);
+    press(*target);render(*target,3000);release(*target);render(*target,2000,0,0,&audio);for(auto x:audio)CHECK_NEAR(x,.15625*gain(),1e-9);
+    CHECK(saved(*target,converted,true));const auto oldLength=target->readUiMeters().loopLength;const auto oldHead=target->readUiMeters().playhead;
+    auto bad=state.clone();bad["looper"].getDynamicObject()->setProperty("base","sha256:"+juce::String::repeatedString("1",64));bool rejected=false;try{target->loadExtra(bad);}catch(const std::runtime_error&){rejected=true;}CHECK(rejected);CHECK(target->readUiMeters().loopLength==oldLength);CHECK(target->readUiMeters().playhead==oldHead);
+    render(*target,128,0,0,&audio);for(auto x:audio)CHECK_NEAR(x,.15625*gain(),1e-9);
 }
