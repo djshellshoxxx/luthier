@@ -83,6 +83,15 @@ void operator delete[] (void* p) noexcept                 { std::free (p); }
 void operator delete (void* p, std::size_t) noexcept      { std::free (p); }
 void operator delete[] (void* p, std::size_t) noexcept    { std::free (p); }
 
+// Match the test executable's malloc/free family for standard-library nothrow
+// temporary buffers too. Delegate so allocation counters/fault injection agree.
+void* operator new (std::size_t size, const std::nothrow_t&) noexcept
+{ try { return ::operator new (size); } catch (...) { return nullptr; } }
+void* operator new[] (std::size_t size, const std::nothrow_t&) noexcept
+{ try { return ::operator new[] (size); } catch (...) { return nullptr; } }
+void operator delete (void* p, const std::nothrow_t&) noexcept { ::operator delete (p); }
+void operator delete[] (void* p, const std::nothrow_t&) noexcept { ::operator delete[] (p); }
+
 namespace
 {
     /** The spec's reference guitar: a single coil, 500 k pots, 22 nF, 3 m of
