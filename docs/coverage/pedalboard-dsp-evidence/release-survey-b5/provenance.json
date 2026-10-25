@@ -1,0 +1,46 @@
+{
+  "baselineSource": "b5bec374f01ede236350300770f5721709a39831",
+  "cabinetCorrection": "71b8dffa",
+  "objectManifestSha256": "8f77f26393b8cb413bc488a8290feddba3a00585d543670269dfbd6ce1ee0c66",
+  "originalResourcesFiles": 1253,
+  "originalResourcesAllUnchanged": true,
+  "workingBankManifestSha256": "3889c619451ec496668a56b41a9b06409b59fc020c3ba990a769cebe0690d39d",
+  "buildIdentity": "pedalboard-local-qa",
+  "edition": "LUTHIER_PRO=1",
+  "compiler": "GCC14 C++17 O3, frozen native b5 link objects",
+  "sampleRates": [
+    44100,
+    48000,
+    88200,
+    96000,
+    192000
+  ],
+  "blockSize": 256,
+  "rawAndPreCabBitwiseIdenticalBetweenVariants": true,
+  "stageTapVariantPriorMetricsExact": true,
+  "audioFramesPerVariant": 10536750,
+  "cpuBenchmark": false,
+  "windows": {
+    "before": "[scheduledNoteOff\u221230ms,scheduledNoteOff)",
+    "after": "[scheduledNoteOff+250ms,scheduledNoteOff+280ms)"
+  },
+  "limitsDb": {
+    "raw": 40,
+    "output": 35
+  },
+  "sourceSha256": {
+    "Survey.cpp": "cfca004c0a2672096eb5cd1a06d514078825fd0def6afccb785b2329dd2af0e6",
+    "SurveyHarness.h": "821dba01ad09c36c6dff3ded4e8e8497adaca322d47ab3c466d46da439b40388",
+    "Stages.cpp": "cf61e68b242c8ae29d2f82609c98b3a5d07ec749c924cc61c557c88265220649",
+    "StageHarness.h": "4bd9b64fc464d05ad394a01c817352302e0795f9973742d4cdd6db5ffcd334cf",
+    "Kernel.cpp": "666fd6ed6d4c1c690e0f5491e7cfcc3fc2f2a397e5189c39018804e8135335bf"
+  },
+  "binarySha256": {
+    "original-kernel-tests": "d072fee71d4478b10ab57d1102176a659266288396ba7a7f63d604d713cf9e84",
+    "original-stages": "a75658efba5f6f2a5046c9e0ee7bb8ac3558a01beb1df04b67ca0e18f5c9f23c",
+    "cabinet-tests": "3f65a88ce448f9e145eed3c429d04bb8dde97d0b2342ff6d06a378348c241766",
+    "original-tests": "06524e4e29fc9d531d61631faf3c75850b8c758c9366fe1d43d05b892862ef8c",
+    "cabinet-stages": "61edda17b20e984adf1ff5a663740be96bf443054e1fb0f9d5d0efb5cdf2472f",
+    "cabinet-kernel-tests": "54c6b0590965952cdfe89bf805d7baf225c6864512c651eaf71dae1d5a1668a2"
+  }
+}

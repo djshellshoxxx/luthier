@@ -1,0 +1,50 @@
+{
+  "original": {
+    "cases": 125,
+    "rawMinimumDb": 52.79422005259987,
+    "failures35dB": [
+      {
+        "rate": 44100,
+        "type": 19,
+        "name": "P-Style Bass",
+        "outputDrop": 34.474359723912144
+      },
+      {
+        "rate": 48000,
+        "type": 19,
+        "name": "P-Style Bass",
+        "outputDrop": 34.70261114724386
+      }
+    ],
+    "eventOffsetMismatches": 0,
+    "nonfiniteSamples": 0,
+    "nonfiniteOutputCases": 0,
+    "missingBlocks": 0,
+    "queueDrops": 0,
+    "hostEngineLatencyMismatches": 0
+  },
+  "cabinet": {
+    "cases": 125,
+    "rawMinimumDb": 52.79422005259987,
+    "failures35dB": [
+      {
+        "rate": 44100,
+        "type": 19,
+        "name": "P-Style Bass",
+        "outputDrop": 34.45237774995627
+      },
+      {
+        "rate": 48000,
+        "type": 19,
+        "name": "P-Style Bass",
+        "outputDrop": 34.73899515060119
+      }
+    ],
+    "eventOffsetMismatches": 0,
+    "nonfiniteSamples": 0,
+    "nonfiniteOutputCases": 0,
+    "missingBlocks": 0,
+    "queueDrops": 0,
+    "hostEngineLatencyMismatches": 0
+  }
+}

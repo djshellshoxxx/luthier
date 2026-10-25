@@ -1,0 +1,21 @@
+
+================================================================
+ LUTHIER TEST SUITE
+================================================================
+
+
+ReleaseStages
+----------------------------------------------------------------
+completed rate=44100
+completed rate=48000
+completed rate=88200
+completed rate=96000
+completed rate=192000
+  [FAIL]  unchangedReleaseCriterion                   120 checks    7214.41 ms
+    original35dB: rate=44100 type=P-Style Bass drop=34.47435972
+    original35dB: rate=48000 type=P-Style Bass drop=34.70261115
+
+================================================================
+ FAILED
+ 1 of 1 tests failed (2 of 120 checks), 7.2 s
+================================================================

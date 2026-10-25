@@ -1,0 +1,65 @@
+rate=44100 latency=256 key=4x12/celestion_vintage_30_shure_sm57_cap_edge_close.wav file=/workspace/luthier-evidence/release-survey-b5/Resources/CabIRs/4x12/celestion_vintage_30_shure_sm57_cap_edge_close.wav
+amp_model=0
+amp_gain=0.34999999403953552
+amp_master=0.69999998807907104
+cab_type=4
+cab_speaker=1
+mic_type=0
+mic_position=1
+mic_distance=0
+dual_mic=0
+limiter_on=1
+input_gain=0
+master_gain=0
+rate=48000 latency=256 key=4x12/celestion_vintage_30_shure_sm57_cap_edge_close.wav file=/workspace/luthier-evidence/release-survey-b5/Resources/CabIRs/4x12/celestion_vintage_30_shure_sm57_cap_edge_close.wav
+amp_model=0
+amp_gain=0.34999999403953552
+amp_master=0.69999998807907104
+cab_type=4
+cab_speaker=1
+mic_type=0
+mic_position=1
+mic_distance=0
+dual_mic=0
+limiter_on=1
+input_gain=0
+master_gain=0
+rate=88200 latency=256 key=4x12/celestion_vintage_30_shure_sm57_cap_edge_close.wav file=/workspace/luthier-evidence/release-survey-b5/Resources/CabIRs/4x12/celestion_vintage_30_shure_sm57_cap_edge_close.wav
+amp_model=0
+amp_gain=0.34999999403953552
+amp_master=0.69999998807907104
+cab_type=4
+cab_speaker=1
+mic_type=0
+mic_position=1
+mic_distance=0
+dual_mic=0
+limiter_on=1
+input_gain=0
+master_gain=0
+rate=96000 latency=256 key=4x12/celestion_vintage_30_shure_sm57_cap_edge_close.wav file=/workspace/luthier-evidence/release-survey-b5/Resources/CabIRs/4x12/celestion_vintage_30_shure_sm57_cap_edge_close.wav
+amp_model=0
+amp_gain=0.34999999403953552
+amp_master=0.69999998807907104
+cab_type=4
+cab_speaker=1
+mic_type=0
+mic_position=1
+mic_distance=0
+dual_mic=0
+limiter_on=1
+input_gain=0
+master_gain=0
+rate=192000 latency=256 key=4x12/celestion_vintage_30_shure_sm57_cap_edge_close.wav file=/workspace/luthier-evidence/release-survey-b5/Resources/CabIRs/4x12/celestion_vintage_30_shure_sm57_cap_edge_close.wav
+amp_model=0
+amp_gain=0.34999999403953552
+amp_master=0.69999998807907104
+cab_type=4
+cab_speaker=1
+mic_type=0
+mic_position=1
+mic_distance=0
+dual_mic=0
+limiter_on=1
+input_gain=0
+master_gain=0
