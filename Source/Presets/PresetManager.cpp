@@ -11,6 +11,29 @@
 namespace luthier
 {
 
+#if defined(LUTHIER_ALLOCATION_COUNTER)
+namespace
+{
+    struct TestPresetFolder { juce::CriticalSection lock; juce::File root; };
+    TestPresetFolder& testPresetFolder() { static TestPresetFolder state; return state; }
+    void assertPresetFixtureThread()
+    {
+        const auto* manager=juce::MessageManager::getInstanceWithoutCreating();
+        jassert(manager==nullptr||manager->isThisTheMessageThread());
+        juce::ignoreUnused(manager);
+    }
+}
+ScopedUserPresetFolderForTesting::ScopedUserPresetFolderForTesting(const juce::File& folder)
+{
+    assertPresetFixtureThread();jassert(folder!=juce::File());
+    auto& state=testPresetFolder();const juce::ScopedLock guard(state.lock);previous=state.root;state.root=folder;
+}
+ScopedUserPresetFolderForTesting::~ScopedUserPresetFolderForTesting()
+{
+    assertPresetFixtureThread();auto& state=testPresetFolder();const juce::ScopedLock guard(state.lock);state.root=previous;
+}
+#endif
+
 const char* const PresetManager::kFileExtension = ".luthierpreset";
 const char* const PresetManager::kMagic = "luthier.preset";
 const char* const PresetManager::kLegacyMagic = "luthierpreset";
@@ -67,6 +90,15 @@ PresetManager::~PresetManager() = default;
 //==============================================================================
 juce::File PresetManager::getUserPresetFolder()
 {
+   #if defined(LUTHIER_ALLOCATION_COUNTER)
+    juce::File fixture;
+    { auto& state=testPresetFolder();const juce::ScopedLock guard(state.lock);fixture=state.root; }
+    if(fixture!=juce::File())
+    {
+        if(!fixture.exists())fixture.createDirectory();
+        return fixture;
+    }
+   #endif
     auto documents = juce::File::getSpecialLocation (juce::File::userDocumentsDirectory);
     auto folder = documents.getChildFile ("Luthier").getChildFile ("Presets").getChildFile ("User");
 

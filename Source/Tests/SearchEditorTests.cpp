@@ -69,6 +69,13 @@ namespace
         bool wasOn = true, wasAuto = true;
     };
 
+    std::optional<SearchItem> requireSearchItem(TestContext& context, SearchIndex& index, const juce::String& id)
+    {
+        ++context.checks;
+        if(const auto* item=index.find(id))return *item;
+        context.fail("Required search result is not indexed: "+id);return std::nullopt;
+    }
+
     /** A processor in a context, and its editor. */
     struct Win
     {
@@ -664,6 +671,11 @@ LUTHIER_TEST (SearchEditor, GS05_helpTopicsAndAliases)
 LUTHIER_TEST (SearchEditor, GS06_contentIndexedAndFresh)
 {
     CleanRecent clean;
+    juce::TemporaryFile directory;
+    CHECK(directory.getFile().createDirectory().wasOk());
+    // Declaration order keeps this root active until Win's editor, workers and
+    // processor are destroyed; TemporaryFile removes only this fixture afterward.
+    ScopedUserPresetFolderForTesting userPresets(directory.getFile());
     Win w;
     auto& presets = w.p().getPresetManager();
 
@@ -713,7 +725,9 @@ LUTHIER_TEST (SearchEditor, GS06_contentIndexedAndFresh)
 
     // A new user preset appears on the next query.
     const juce::String name ("Search Test Preset " + juce::String (juce::Random::getSystemRandom().nextInt (100000)));
-    CHECK (presets.saveAs (name, "Test"));
+    const bool saved=presets.saveAs(name,"Test");
+    CHECK_MSG(saved,"Could not save search fixture preset under "+PresetManager::getUserPresetFolder().getFullPathName());
+    if(!saved)return;
     presets.refresh();
 
     const auto found = w.nav->getIndex().query (name);
@@ -724,7 +738,9 @@ LUTHIER_TEST (SearchEditor, GS06_contentIndexedAndFresh)
     w.nav->getIndex().recordActivation (id, name);
     CHECK (RecentStore::get().find (id) != nullptr);
 
-    SearchItem stale = *w.item (id);
+    const auto indexed=requireSearchItem(ctx,w.nav->getIndex(),id);
+    if(!indexed)return;
+    SearchItem stale=*indexed;
     const int index = presets.indexOfPreset (name);
     CHECK (index >= 0 && presets.deletePreset (index));
     presets.refresh();
@@ -1533,4 +1549,38 @@ LUTHIER_TEST (SearchEditor, keyboardAndLiveRows)
     // Queries are capped at 200 characters (6.3).
     w.nav->openPalette (juce::String::repeatedString ("x", 500));
     CHECK (palette.getQuery().length() <= 200);
+}
+
+
+LUTHIER_TEST(SearchEditor, missingResultReportsFailureBeforeCopyAndRetainedResultSurvivesRefresh)
+{
+    CleanRecent clean;Win w;TestContext rejected;
+    const auto missing=requireSearchItem(rejected,w.nav->getIndex(),"preset:user/Definitely absent "+juce::Uuid().toString());
+    CHECK(!missing);CHECK(rejected.checks==1);CHECK(rejected.failures==1);CHECK(rejected.failureMessages.size()==1);
+    if(!rejected.failureMessages.isEmpty())CHECK(rejected.failureMessages[0].contains("Required search result is not indexed"));
+    const auto result=requireSearchItem(ctx,w.nav->getIndex(),juce::String("param:")+ParamIDs::ampGain);if(!result)return;
+    const auto title=result->title;w.nav->getIndex().invalidate("param");w.nav->getIndex().getItems();
+    CHECK(result->title==title);CHECK(w.nav->activate(*result,ActivationKind::goOnly,false).status==SearchNavigator::Outcome::Status::done);
+}
+
+LUTHIER_TEST(SearchEditor, scopedPresetRootRestoresAfterProcessorTeardownAndFailedSaveStaysUnindexed)
+{
+    const auto original=PresetManager::getUserPresetFolder();juce::TemporaryFile outerDirectory,innerDirectory;
+    CHECK(outerDirectory.getFile().createDirectory().wasOk());CHECK(innerDirectory.getFile().createDirectory().wasOk());
+    {
+        ScopedUserPresetFolderForTesting outer(outerDirectory.getFile());CHECK(PresetManager::getUserPresetFolder()==outerDirectory.getFile());
+        {
+            ScopedUserPresetFolderForTesting inner(innerDirectory.getFile());
+            { combo::Rig rig;CHECK(PresetManager::getUserPresetFolder()==innerDirectory.getFile());const auto roots=rig.p().getPresetManager().getSearchFolders();CHECK(roots.contains(innerDirectory.getFile()));CHECK(!roots.contains(outerDirectory.getFile())); }
+            CHECK(innerDirectory.getFile().isDirectory());
+        }
+        CHECK(PresetManager::getUserPresetFolder()==outerDirectory.getFile());
+        const auto blocked=outerDirectory.getFile().getChildFile("ordinary-file");CHECK(blocked.replaceWithText("not a directory"));
+        {
+            ScopedUserPresetFolderForTesting failure(blocked);Win w;auto& manager=w.p().getPresetManager();const auto name="Search rejected "+juce::Uuid().toString();
+            CHECK(!manager.saveAs(name,"Test"));CHECK(manager.indexOfPreset(name)<0);CHECK(w.item(PresetProvider::idFor(name,false))==nullptr);
+        }
+        CHECK(PresetManager::getUserPresetFolder()==outerDirectory.getFile());
+    }
+    CHECK(PresetManager::getUserPresetFolder()==original);
 }
