@@ -292,6 +292,10 @@ jobs:
         shell: pwsh
         run: scripts/ci_build.ps1 -Step test -Edition ${{ matrix.edition }}
 
+      - name: Collect macOS native failure evidence
+        if: ${{ failure() && runner.os == 'macOS' }}
+        run: scripts/ci_build.sh collect-failure-evidence
+
       # Validators run even when a unit test failed: they answer a different
       # question (does the plugin load and behave in a host) and the log is
       # worth having either way.
