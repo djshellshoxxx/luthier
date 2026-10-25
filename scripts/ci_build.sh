@@ -250,7 +250,15 @@ do_validate() {
     fi
     mkdir -p "$LOG_DIR"
     local failed=0 pluginval
+    local native_args=()
+    if [ "$diagnostic" = 1 ] && [ "$PLATFORM" = macos ]; then
+        case "${MACOS_DIAGNOSTIC_ARCH:-}" in arm64|x86_64) ;; *) echo "Verified native architecture required" >&2; return 1 ;; esac
+        native_args=(arch "-$MACOS_DIAGNOSTIC_ARCH")
+    fi
     pluginval="$(fetch_pluginval)"
+    if [ "${#native_args[@]}" != 0 ]; then
+        lipo -verify_arch "$MACOS_DIAGNOSTIC_ARCH" "$pluginval" || return 1
+    fi
 
     local wrap=()
     if [ "$PLATFORM" = linux ] && [ -z "${DISPLAY:-}" ]; then
@@ -282,7 +290,10 @@ do_validate() {
         # returns failure if its child crashes or a validation check fails.
         local isolation_args=()
         [ "$PLATFORM" = linux ] || isolation_args+=(--validate-in-process)
-        ${wrap[@]+"${wrap[@]}"} "$pluginval" --strictness-level "$PLUGINVAL_STRICTNESS" \
+        if [ "${#native_args[@]}" != 0 ]; then
+            { printf '%q ' "${native_args[@]}" "$pluginval" --strictness-level "$PLUGINVAL_STRICTNESS" "${isolation_args[@]}" --timeout-ms 600000 --output-dir "$LOG_DIR" --validate "$p"; printf '\n'; } >> "$LOG_DIR/native-validator-commands.log"
+        fi
+        ${wrap[@]+"${wrap[@]}"} ${native_args[@]+"${native_args[@]}"} "$pluginval" --strictness-level "$PLUGINVAL_STRICTNESS" \
             "${isolation_args[@]}" --timeout-ms 600000 \
             --output-dir "$LOG_DIR" --validate "$p" 2>&1 | tee "$LOG_DIR/pluginval-$name.log"
         [ "${PIPESTATUS[0]}" -eq 0 ] || failed=1
@@ -292,13 +303,17 @@ do_validate() {
     local clap="$ARTEFACTS/CLAP/${PRODUCT_NAME}.clap"
     if [ -e "$clap" ]; then
         local validator; validator="$(fetch_clap_validator)"
+        if [ "${#native_args[@]}" != 0 ]; then
+            lipo -verify_arch "$MACOS_DIAGNOSTIC_ARCH" "$validator" || return 1
+            { printf '%q ' "${native_args[@]}" "$validator" validate "$clap"; printf '\n'; } >> "$LOG_DIR/native-validator-commands.log"
+        fi
         step "clap-validator: $clap"
         set +e
         # Quieten clap-validator's per-call DEBUG trace (thousands of
         # "TODO: Handle request_flush()" lines) so it does not bury the rest of
         # the job log; override with RUST_LOG=debug when a validator hang needs
         # tracing.
-        RUST_LOG="${RUST_LOG:-error}" ${wrap[@]+"${wrap[@]}"} "$validator" validate "$clap" 2>&1 | tee "$LOG_DIR/clap-validator.log"
+        RUST_LOG="${RUST_LOG:-error}" ${wrap[@]+"${wrap[@]}"} ${native_args[@]+"${native_args[@]}"} "$validator" validate "$clap" 2>&1 | tee "$LOG_DIR/clap-validator.log"
         [ "${PIPESTATUS[0]}" -eq 0 ] || failed=1
         set -e
     fi

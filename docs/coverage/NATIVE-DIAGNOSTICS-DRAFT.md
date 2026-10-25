@@ -14,4 +14,8 @@ Not run: full unit suite, strictness10 release validation, macOS AU/auval, execu
 
 This draft must be reviewed by coordinator and host owner before the coordinator pushes the qualified source batch to the dedicated branch. No remote action is authorized by creating this file.
 
-Local validation: seven synthetic-tool/contract tests passed, plus YAML parse and bash syntax checks. No Windows/macOS build, native validator run or remote workflow dispatch has occurred.
+Local validation: ten synthetic-tool/contract tests passed, plus YAML parse and bash syntax checks. No Windows/macOS build, native validator run or remote workflow dispatch has occurred.
+
+The root280 collector is an explicit dependency: scripts/collect_native_failure_evidence.py. ci_build.sh already establishes the per-job marker during deps/build; the workflow also invokes its same `mark` CLI immediately before focused execution (same job key retains the first timestamp). Focus failure alone triggers its `collect` CLI with focused-tests.log. No historical rescue or raw OS report upload; only its sanitized current-job evidence is staged. Focus and collection are separate failing steps: a focus exit139 remains failed if collection also exits17. Neither status is overwritten or converted to success.
+
+Native slice evidence is explicit: the architecture step establishes native hardware architecture, verifies both universal slices, exports the selected native architecture, and records it. Focused listing/execution use `arch -<selected>` and save exact JSON command arrays. Both downloaded macOS validators must contain that slice, then launch with the same arch prefix and record shell-escaped command lines. Both architectures present does not mean both were executed. Missing architecture or either required format fails. POSIX signal11 maps to shell exit139 with the signal recorded, rather than wrapping Python's negative subprocess status.

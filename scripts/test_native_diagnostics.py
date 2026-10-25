@@ -33,6 +33,14 @@ class DiagnosticTests(unittest.TestCase):
             with patch.object(diag.subprocess, 'run', return_value=subprocess.CompletedProcess([], 9)):
                 self.assertEqual(diag.run_logged(['fixture'], 'failed.log'), 9)
 
+    def test_posix_signal_is_reported_as_139(self):
+        if os.name != 'posix':
+            self.skipTest('POSIX signal convention only')
+        with tempfile.TemporaryDirectory() as directory, patch.object(diag, 'LOGS', Path(directory)):
+            with patch.object(diag.subprocess, 'run', return_value=subprocess.CompletedProcess([], -11)):
+                self.assertEqual(diag.run_logged(['fixture'], 'signal.log'), 139)
+            self.assertIn('signal 11', (Path(directory) / 'signal.log').read_text())
+
     def test_wrong_source_sha_refuses_artifact(self):
         with patch.dict(os.environ, {'GITHUB_SHA': 'a' * 40}), patch.object(
                 diag.subprocess, 'check_output', return_value='b' * 40 + '\n'):
@@ -49,6 +57,12 @@ class DiagnosticTests(unittest.TestCase):
             uname = tools / 'uname'
             uname.write_text('#!/bin/sh\necho Darwin\n')
             uname.chmod(0o755)
+            lipo = tools / 'lipo'
+            lipo.write_text('#!/bin/sh\n[ "${DIAG_MISSING_ARCH:-0}" != 1 ]\n')
+            lipo.chmod(0o755)
+            arch = tools / 'arch'
+            arch.write_text('#!/bin/sh\nprintf "%s\\n" "$0" "$@" >> "$DIAG_CALLS"\nshift\nexec "$@"\n')
+            arch.chmod(0o755)
             pluginval = tools / 'pluginval.app/Contents/MacOS/pluginval'
             pluginval.parent.mkdir(parents=True)
             clapval = tools / 'clap-validator'
@@ -63,7 +77,7 @@ class DiagnosticTests(unittest.TestCase):
             calls = root / 'calls'
             env = dict(os.environ, PATH=str(tools) + os.pathsep + os.environ['PATH'],
                        BUILD_DIR=str(root / 'build'), TOOLS_DIR=str(tools), JOBS='4',
-                       DIAG_CALLS=str(calls), LUTHIER_EDITION='PAID', PLUGINVAL_STRICTNESS='5')
+                       DIAG_CALLS=str(calls), LUTHIER_EDITION='PAID', PLUGINVAL_STRICTNESS='5', MACOS_DIAGNOSTIC_ARCH='arm64')
             cmd = ['bash', str(ROOT / 'scripts/ci_build.sh'), 'validate-diagnostic']
             result = subprocess.run(cmd, env=env, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -72,6 +86,12 @@ class DiagnosticTests(unittest.TestCase):
             self.assertIn('Luthier Pro.vst3', recorded)
             self.assertIn('clap-validator', recorded)
             self.assertNotIn('.component', recorded)
+            self.assertIn('-arm64', recorded)
+            self.assertIn('-arm64', (root / 'build/logs/native-validator-commands.log').read_text())
+            env['DIAG_MISSING_ARCH'] = '1'
+            self.assertNotEqual(subprocess.run(cmd, env=env, capture_output=True).returncode, 0)
+            self.assertEqual(calls.read_text(), recorded)
+            env.pop('DIAG_MISSING_ARCH')
             before = recorded
             clap.rmdir()
             self.assertNotEqual(subprocess.run(cmd, env=env, capture_output=True).returncode, 0)
@@ -92,6 +112,52 @@ class DiagnosticTests(unittest.TestCase):
             self.assertIn('Luthier Pro.component', calls.read_text())
             self.assertIn('auval', calls.read_text())
             self.assertIn('clap-validator', calls.read_text())
+
+    def test_focus_crash_and_collector_error_remain_separate_failures(self):
+        if os.name == 'nt':
+            self.skipTest('Executable synthetic crash fixture uses a Unix shebang')
+        with tempfile.TemporaryDirectory() as directory:
+            old = Path.cwd()
+            try:
+                os.chdir(directory)
+                Path('scripts').mkdir()
+                Path('scripts/collect_native_failure_evidence.py').write_text(
+                    "import sys\nfrom pathlib import Path\n"
+                    "if sys.argv[1]=='mark': Path('marked').write_text('before-focus')\n"
+                    "else:\n assert Path('focused').exists()\n sys.exit(17)\n")
+                runner = Path('runner').resolve()
+                runner.write_text('#!/usr/bin/env python3\nimport sys\nfrom pathlib import Path\n'
+                                  'if "--list" in sys.argv:\n'
+                                  f' print({repr(chr(10).join(x + " :: fixture" for x in diag.FILTERS))})\n'
+                                  'else:\n assert Path("marked").exists()\n'
+                                  ' Path("focused").write_text("crashed")\n sys.exit(139)\n')
+                runner.chmod(0o755)
+                with patch.object(diag, 'runner_path', return_value=runner), \
+                     patch.object(diag.platform, 'system', return_value='Linux'):
+                    self.assertEqual(diag.mark_focus(), 0)
+                    focused = diag.focus()
+                    collected = diag.collect_failure()
+                self.assertEqual((focused, collected), (139, 17))
+                workflow = (ROOT / '.github/workflows/native-diagnostics.yml').read_text()
+                self.assertIn("steps.focus.outcome == 'failure'", workflow)
+                self.assertNotIn('continue-on-error', workflow)
+            finally:
+                os.chdir(old)
+
+    def test_mac_focus_explicit_arch_is_recorded_and_missing_selection_refused(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(diag, 'LOGS', Path(directory)), \
+             patch.object(diag.platform, 'system', return_value='Darwin'):
+            def command(args, name, timeout=1200):
+                self.assertEqual(args[:2], ['arch', '-arm64'])
+                if '--list' in args:
+                    (Path(directory) / name).write_text('\n'.join(x+' :: fixture' for x in diag.FILTERS))
+                return 0
+            with patch.dict(os.environ, {'MACOS_DIAGNOSTIC_ARCH': 'arm64'}), \
+                 patch.object(diag, 'run_logged', side_effect=command):
+                self.assertEqual(diag.focus(), 0)
+            with patch.dict(os.environ, {'MACOS_DIAGNOSTIC_ARCH': ''}):
+                with self.assertRaisesRegex(RuntimeError, 'architecture'):
+                    diag.focus()
 
     def test_bundle_preserves_failure_and_complete_checksums(self):
         with tempfile.TemporaryDirectory() as directory:

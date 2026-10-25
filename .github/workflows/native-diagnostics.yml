@@ -72,7 +72,9 @@ jobs:
         timeout-minutes: 25
         shell: pwsh
         run: |
-          if (!(Test-Path 'build-ci/Luthier_artefacts/Release/CLAP/Luthier Pro.clap')) { throw 'Required CLAP missing' }
+          foreach ($format in @('VST3/Luthier Pro.vst3', 'CLAP/Luthier Pro.clap')) {
+            if (!(Test-Path (Join-Path 'build-ci/Luthier_artefacts/Release' $format))) { throw "Required format missing: $format" }
+          }
           scripts/ci_build.ps1 -Step validate -Strictness 5 -Edition PAID
       - name: Stage successful build despite diagnostic failures
         id: stage
@@ -134,11 +136,19 @@ jobs:
         id: architecture
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: python scripts/native_diagnostics.py architecture
+      - name: Mark current macOS job before focused execution
+        id: marker
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: python scripts/native_diagnostics.py mark_focus
       - name: Run unchanged focused tests (GUI included)
         id: focus
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         timeout-minutes: 25
         run: python scripts/native_diagnostics.py focus
+      - name: Collect sanitized current-job macOS focus failure evidence
+        id: collection
+        if: ${{ !cancelled() && steps.focus.outcome == 'failure' }}
+        run: python scripts/native_diagnostics.py collect_failure
       - name: Required VST3 and CLAP validators, strictness 5
         id: validate
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
@@ -152,6 +162,8 @@ jobs:
       - name: Bundle unqualified binaries, evidence, source and licensing
         if: ${{ !cancelled() && steps.stage.outcome == 'success' }}
         env:
+          DIAGNOSTIC_MARKER: ${{ steps.marker.outcome }}
+          DIAGNOSTIC_COLLECTION: ${{ steps.collection.outcome }}
           DIAGNOSTIC_BUILD: ${{ steps.build.outcome }}
           DIAGNOSTIC_FOCUS: ${{ steps.focus.outcome }}
           DIAGNOSTIC_VALIDATE: ${{ steps.validate.outcome }}
