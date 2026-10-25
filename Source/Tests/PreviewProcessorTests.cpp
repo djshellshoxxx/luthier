@@ -153,6 +153,20 @@ LUTHIER_TEST(PreviewProcessor, releaseSurvivesTheBackendEventCapacityOnAnotherSt
         rig.midi.addEvent(juce::MidiMessage::noteOff(2,61),0);
     }
     CHECK(BoundedMidi::bytesUsed(rig.midi)<8192); // byte capacity is not the bottleneck
-    rig.block(); CHECK(rig.processor->getEngine().getMidiOverflowDropCount()>before);
+    rig.block(); CHECK(rig.processor->getEngine().getMidiOverflowDropCount()==before); // documented byte copies did not overflow
+    rig.settle(); CHECK(rig.note()<0);
+}
+LUTHIER_TEST(PreviewProcessor, deferredReleaseRemainsPendingWhenTheBackendQueueIsFull)
+{
+    PreviewProcessorRig rig;
+    rig.processor->prepareToPlay(48000,2048); rig.audio.setSize(2,2048); rig.block();
+    rig.processor->getEngine().getMidiInterpreter().setMinimumNoteDurationMs(.1);
+    rig.processor->playKeyboardNote(72,.8f); rig.processor->releaseKeyboardNote(72);
+    for(int i=0;i<PlayEventQueue::kCapacity+32;++i)
+    {
+        rig.midi.addEvent(juce::MidiMessage::noteOn(2,61,.7f),i*6);
+        rig.midi.addEvent(juce::MidiMessage::noteOff(2,61),i*6+5);
+    }
+    rig.block(); CHECK_NEAR(rig.processor->getEngine().getMidiInterpreter().getMinimumNoteDurationMs(),.1,1.e-9);
     rig.settle(); CHECK(rig.note()<0);
 }
