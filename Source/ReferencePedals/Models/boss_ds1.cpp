@@ -21,7 +21,7 @@ const PedalDesc &BossDs1::descriptor() noexcept
                                 1,
                                 "Distortion (DS-1 style)",
                                 "Distortion",
-                                "Boss DS-1",
+                                "DS-1 circuit",
                                 ChannelMode::Stereo,
                                 BypassMode::Buffered,
                                 8,

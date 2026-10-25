@@ -39,7 +39,7 @@ const PedalDesc &BossSd1::descriptor() noexcept
                                 1,
                                 "Asymmetric Overdrive (SD-1 style)",
                                 "Overdrive",
-                                "Boss SD-1",
+                                "SD-1 circuit",
                                 ChannelMode::Stereo,
                                 BypassMode::Buffered,
                                 15,

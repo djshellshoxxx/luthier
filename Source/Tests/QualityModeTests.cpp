@@ -230,7 +230,8 @@ LUTHIER_TEST (CpuQuality, CQ03_theLevelIsNeverInAPreset)
     // keeps its id, choices and default.
     for (auto* param : p.getParameters())
         if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (param))
-            CHECK_MSG (! withId->paramID.startsWithIgnoreCase ("quality") && ! withId->paramID.containsIgnoreCase ("cpu"),
+            CHECK_MSG (! withId->paramID.startsWithIgnoreCase ("quality")
+                         && (! withId->paramID.containsIgnoreCase ("cpu") || withId->paramID.startsWith ("ref_")),   // ref_board_cpu_cap is the Pedalboard's own cap
                        "unexpected parameter " + withId->paramID);   // (cable_quality is the cable's, not this)
 
     auto* os = dynamic_cast<juce::AudioParameterChoice*> (p.getState().getParameter (ParamIDs::oversample));

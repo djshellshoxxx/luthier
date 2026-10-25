@@ -20,7 +20,8 @@ enum class ParamUnit
     unknown = 0,
     amount,      ///< 0..1, no unit
     hz, db, ms, seconds, percent, semitones, cents, henry, farad, ohm, mm, metres,
-    degrees, celsius, multiplier, stringsPerSecond, hours, count, index, boolean, centimetres, centsPerSecond
+    degrees, celsius, multiplier, stringsPerSecond, hours, count, index, boolean, centimetres, centsPerSecond,
+    bpm
 };
 
 namespace ParamMeta

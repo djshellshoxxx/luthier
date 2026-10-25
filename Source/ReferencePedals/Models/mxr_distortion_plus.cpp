@@ -20,7 +20,7 @@ const PedalDesc &MxrDistortionPlus::descriptor() noexcept
                                 1,
                                 "Distortion Plus style",
                                 "Distortion",
-                                "MXR Distortion+",
+                                "Distortion+ circuit",
                                 ChannelMode::Stereo,
                                 BypassMode::True,
                                 7,

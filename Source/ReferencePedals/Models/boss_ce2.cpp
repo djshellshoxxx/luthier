@@ -24,7 +24,7 @@ const ParamDesc parameters[]{
     {"boss_ce2_mono_out_dup","MONO DUP","",ParamKind::Toggle,Taper::Linear,0.0f,1.0f,1.0f,1.f,0,nullptr,PF_Config,20.0f,-1},
     {"boss_ce2_stereo_mode","STEREO MODE","",ParamKind::Enum,Taper::Linear,0,1,0,1,2,stereoModeNames,PF_Config,5,-1},
 };
-const PedalDesc description{"boss-ce2","boss_ce2_",1,"BossCe2 (prototype)","Chorus","BossCe2",ChannelMode::Mono,BypassMode::Buffered,14,parameters,0,false,false,false,0};
+const PedalDesc description{"boss-ce2","boss_ce2_",1,"CE-2 style Chorus (prototype)","Chorus","CE-2 circuit",ChannelMode::Mono,BypassMode::Buffered,14,parameters,0,false,false,false,0};
 }
 const PedalDesc& BossCe2::descriptor() noexcept {return description;}
 BossCe2::BossCe2() : PedalBase(description) {}

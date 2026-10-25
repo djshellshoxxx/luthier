@@ -21,7 +21,7 @@ const PedalDesc &IbanezTs808::descriptor() noexcept
                                 1,
                                 "Overdrive (TS808 style)",
                                 "Overdrive",
-                                "Ibanez TS808",
+                                "TS808 circuit",
                                 ChannelMode::Stereo,
                                 BypassMode::Buffered,
                                 9,

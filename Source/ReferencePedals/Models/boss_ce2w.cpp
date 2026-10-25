@@ -19,7 +19,7 @@ const ParamDesc parameters[]{
     {"boss_ce2w_noise","NOISE","",ParamKind::Toggle,Taper::Linear,0.0f,1.0f,1.0f,1.f,0,nullptr,PF_Config,20.0f,-1},
     {"boss_ce2w_hq","BBD STAIRCASE","",ParamKind::Toggle,Taper::Linear,0.0f,1.0f,0.0f,1.f,0,nullptr,PF_Config,20.0f,-1},
 };
-const PedalDesc description{"boss-ce2w","boss_ce2w_",1,"BossCe2w (prototype)","Chorus","BossCe2w",ChannelMode::MonoInStereoOut,BypassMode::Buffered,9,parameters,0,false,false,false,0};
+const PedalDesc description{"boss-ce2w","boss_ce2w_",1,"CE-2W style Chorus (prototype)","Chorus","CE-2W circuit",ChannelMode::MonoInStereoOut,BypassMode::Buffered,9,parameters,0,false,false,false,0};
 }
 const PedalDesc& BossCe2w::descriptor() noexcept {return description;}
 BossCe2w::BossCe2w() : PedalBase(description) {}
