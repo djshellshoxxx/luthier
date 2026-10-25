@@ -96,7 +96,12 @@ void BoardCanvas::dragTo(PedalView& view,juce::Point<int> point,juce::Point<int>
 {
     if(!drag.active()||!ghost)
     {
-        const auto settings=model.getBoardSettings();const auto order=model.getOrder();dragOriginalIndex=(int)std::distance(order.begin(),std::find(order.begin(),order.end(),view.id()));view.beginPositionGesture();if(!drag.begin(view.id(),juce::Time::getMillisecondCounterHiRes(),settings.ui.getProperty("liveReorder",true))){view.endPositionGesture();return;}draggedView=&view;
+        const auto movingId=view.id();juce::Component::SafePointer<PedalView> liveView(&view);view.beginPositionGesture();if(!liveView)return;
+        // Host begin listeners may synchronously settle an earlier position write.
+        // Match the controller baseline and final-value comparison to that state.
+        const auto settings=model.getBoardSettings();const auto order=model.getOrder();const auto at=std::find(order.begin(),order.end(),movingId);
+        if(at==order.end()){view.endPositionGesture();return;}dragOriginalIndex=(int)std::distance(order.begin(),at);
+        if(!drag.begin(movingId,juce::Time::getMillisecondCounterHiRes(),settings.ui.getProperty("liveReorder",true))){view.endPositionGesture();return;}draggedView=&view;
         closeInspectors();ghost=std::make_unique<Ghost>();ghost->image=view.createComponentSnapshot(view.getLocalBounds(),true,1.04f);const float lift=AnimationPolicy::get().mayAnimate(AnimationPolicy::Transition)?1.04f:1.f;ghost->setSize(juce::roundToInt(view.getWidth()*lift)+28,juce::roundToInt(view.getHeight()*lift)+28);ghost->setInterceptsMouseClicks(false,false);addAndMakeVisible(*ghost);view.setAlpha(.35f);dragOffset=offset;startTimer(16);
     }
     dragPointer=point;ghost->setTopLeftPosition(point-dragOffset-juce::Point<int>(14,14));ghost->toFront(false);
