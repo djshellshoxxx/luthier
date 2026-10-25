@@ -420,6 +420,11 @@ LUTHIER_TEST(RefPedalState, exactRuntimeExtraKeysDistinguishOpaqueDoublesAndType
 {
     auto a=juce::JSON::parse(R"({"vendor":{"value":0}})");auto b=a.clone();a["vendor"].getDynamicObject()->setProperty("value",1e-200);b["vendor"].getDynamicObject()->setProperty("value",2e-200);
     juce::String first,second,error;CHECK(BoardState::canonicalJson(a,first,&error));CHECK(BoardState::canonicalJson(b,second,&error));CHECK(first!=second);
+    juce::var neighborA(new juce::DynamicObject()),neighborB(new juce::DynamicObject());const auto adjacent=std::nextafter(1e-200,1.0);
+    neighborA.getDynamicObject()->setProperty("value",1e-200);neighborB.getDynamicObject()->setProperty("value",adjacent);
+    CHECK(doubleBits(double(neighborA["value"]))==doubleBits(1e-200));CHECK(doubleBits(double(neighborB["value"]))==doubleBits(adjacent));
+    CHECK(BoardState::canonicalJson(neighborA,first));CHECK(BoardState::canonicalJson(neighborB,second));CHECK(first!=second);
+    CHECK(BoardState::canonicalJson(a,first));
     auto clone=a.clone();juce::String again;CHECK(BoardState::canonicalJson(clone,again));CHECK(again==first);
     CHECK(BoardState::canonicalJson(juce::var(1),first));CHECK(BoardState::canonicalJson(juce::var(1.0),second));CHECK(first!=second);
     CHECK(BoardState::canonicalJson(juce::var(-0.0),first));CHECK(BoardState::canonicalJson(juce::var(0.0),second));CHECK(first!=second);
@@ -427,4 +432,15 @@ LUTHIER_TEST(RefPedalState, exactRuntimeExtraKeysDistinguishOpaqueDoublesAndType
     first="previous";CHECK(!BoardState::canonicalJson(juce::var(std::numeric_limits<double>::infinity()),first));CHECK(first=="previous");
     CHECK(!BoardState::canonicalJson(juce::var(juce::String::repeatedString("x",int(BoardState::maxBytes))),first));CHECK(first=="previous");
     juce::var deep=0;for(int i=0;i<66;++i)deep=juce::Array<juce::var>{deep};CHECK(!BoardState::canonicalJson(deep,first));CHECK(first=="previous");
+}
+
+LUTHIER_TEST(RefPedalState, knownOverlayUsesExactAssignmentForTinyEditsAndSignedZero)
+{
+    PedalRegistry::TestScope scope;CHECK(PedalRegistry::add(stateDesc,makeStatePedal));
+    BoardModel model;CHECK(BoardState::restore(model,juce::String(R"({"schema":1,"mix":1e-20,"feedback":{"gain":1e-30},"vendor":1e-200,"order":["12345678123412341234123456789abc"],"instances":[{"id":"12345678123412341234123456789abc","model":"test.state","params":{"state_drive":1e-20,"future_control":1e-200}}]})")));
+    std::vector<PedalInstance> instances;BoardSettings settings;model.snapshot(instances,settings);settings.mix=0;settings.fb.gain=1e-20f;instances[0].params[0]=0;
+    juce::var output;CHECK(BoardState::encode(instances,settings,output));CHECK(double(output["mix"])==0);CHECK(double(output["feedback"]["gain"])==double(settings.fb.gain));
+    CHECK(double(output["instances"][0]["params"]["state_drive"])==0);CHECK(double(output["instances"][0]["params"]["future_control"])==1e-200);CHECK(double(output["vendor"])==1e-200);
+    CHECK(double(settings.unknown["source"]["mix"])==1e-20);CHECK(double(settings.unknown["source"]["feedback"]["gain"])==1e-30);
+    settings.mix=-0.0f;CHECK(BoardState::encode(instances,settings,output));CHECK(std::signbit(double(output["mix"])));
 }

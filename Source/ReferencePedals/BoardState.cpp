@@ -26,7 +26,14 @@ using V = juce::var;
 V object() { return V (new juce::DynamicObject()); }
 V copy (const V& v) { return v.clone(); }
 V element (const V& v, int i) { if (const auto* a = v.getArray()) if (i >= 0 && i < a->size()) return a->getReference(i); return {}; }
-void put (V& v, const char* key, const V& value) { v.getDynamicObject()->setProperty (key, value); }
+void put (V& v, const char* key, const V& value)
+{
+    auto* object=v.getDynamicObject();
+    // NamedValueSet::set suppresses approximately equal doubles. A codec must
+    // assign the exact new bits, including tiny edits and signed zero.
+    if(auto* previous=object->getProperties().getVarPointer(key))*previous=value;
+    else object->setProperty(key,value);
+}
 bool has (const V& v, const char* key) { return v.hasProperty (key); }
 V source (const V& envelope) { auto v = copy (envelope["source"]); return v.getDynamicObject() ? v : object(); }
 bool fail (juce::String* error, const juce::String& text)
