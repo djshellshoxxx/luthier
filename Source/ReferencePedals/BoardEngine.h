@@ -70,6 +70,9 @@ public:
     void beginEvents (const midi::RouteOut&) noexcept;
     void endEvents() noexcept { events = nullptr; sidechain[0] = sidechain[1] = nullptr; sidechainSamples = 0; auxOutputs = {}; }
     int reclaim() noexcept;
+    // Message-thread diagnostics for the original T-RETIRE acceptance gate.
+    std::size_t retiredPlanCount() const noexcept { return retired.size(); }
+    std::size_t retiredPlanHighWater() const noexcept { return retired.highWater(); }
     void drainControlEcho(); // message thread, outside any BoardModel lock
     bool isActive() const noexcept { return targetActive.load() || running.load(); }
     int latency() const noexcept { return latencySamples.load(); }
@@ -77,7 +80,15 @@ public:
     PedalMeters readPedalMeters (int slot) const noexcept;
 private:
     bool publish (const std::vector<PedalInstance>&, const BoardSettings&, TopologyInfo&, juce::String&, const BoardCommand* intent = nullptr, bool hostEcho = false);
-    void acknowledge() noexcept;
+    // Single audio reader; all plan-reading entry points participate. A writer
+    // may reclaim only from a stable even sequence and the six retained pointers.
+    struct PlanReadScope
+    {
+        BoardEngine& engine;
+        explicit PlanReadScope (BoardEngine& e) noexcept : engine (e) { engine.readerSequence.fetch_add (1, std::memory_order_seq_cst); }
+        ~PlanReadScope() { engine.finishPlanRead(); }
+    };
+    void finishPlanRead() noexcept;
     void publishPedalMeters (const RenderPlan&) noexcept;
     struct AtomicPedalMeters
     {
@@ -111,7 +122,8 @@ private:
     std::vector<PedalInstance> releasedStored, releasedCaptured;
     RetireList<RenderPlan> retired;
     std::atomic<const RenderPlan*> live { nullptr };
-    std::atomic<uint32_t> audioEpoch { 0 };
+    std::atomic<uint64_t> readerSequence { 0 };
+    std::array<std::atomic<const RenderPlan*>, 2 * kNumPlacements> retainedPlans {};
     std::atomic<bool> targetActive { false }, running { false }, resetRequested { false };
     std::atomic<int> latencySamples { 0 };
     std::atomic<float> inputPeak { -120.f }, outputPeak { -120.f };

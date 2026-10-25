@@ -9,7 +9,7 @@ namespace luthier::reference
 {
 static_assert (std::atomic<const RenderPlan*>::is_always_lock_free, "Audio plan pointer must be lock-free");
 static_assert (std::atomic<uint64_t>::is_always_lock_free && std::atomic<double>::is_always_lock_free && std::atomic<float>::is_always_lock_free, "Pedal meters require lock-free atomics");
-static_assert (std::atomic<uint32_t>::is_always_lock_free, "Audio epoch must be lock-free");
+static_assert (std::atomic<uint64_t>::is_always_lock_free, "Audio reader sequence must be lock-free");
 BoardEngine::BoardEngine (BoardModel& source) : model (source)
 {
     PedalRegistry::registerAll();
@@ -79,15 +79,24 @@ void BoardEngine::releaseResources()
         BoardSettings ignored;
         model.snapshotStored (releasedStored, ignored); model.snapshot (releasedCaptured, ignored);
     }
-    live.store (nullptr, std::memory_order_release);
+    live.store (nullptr, std::memory_order_seq_cst);
     for (auto& segment : segments) { segment.current = segment.pending = nullptr; }
     retired.reclaimAll(); latest.reset();
-    audioEpoch.store (0, std::memory_order_release);
+    for (auto& pointer : retainedPlans) pointer.store (nullptr, std::memory_order_relaxed);
+    readerSequence.store (0, std::memory_order_seq_cst);
     running.store (false); targetActive.store (false); latencySamples.store (0);
 }
 bool BoardEngine::publish (const std::vector<PedalInstance>& instances, const BoardSettings& settings,
     TopologyInfo& info, juce::String& error, const BoardCommand* intent, bool hostEcho)
 {
+    // Saturation fails before compiling or changing the model/history. A held
+    // reader never causes eviction, callback waiting, or an unbounded queue.
+    if (latest && retired.size() >= RetireList<RenderPlan>::capacityLimit)
+    {
+        reclaim();
+        if (retired.size() >= RetireList<RenderPlan>::capacityLimit)
+        { error = "Audio-plan retirement saturated; retry after audio advances"; return false; }
+    }
     auto plan = TopologyCompiler::compile (instances, settings, pool, version + 1, latest.get(), error, intent, hostEcho);
     assetStoreAvailable.store (pool.hasAssetStore());
     if (! plan) return false;
@@ -102,7 +111,7 @@ bool BoardEngine::publish (const std::vector<PedalInstance>& instances, const Bo
     targetActive.store (active, std::memory_order_release);
     latencySamples.store (active && settings.reportLatency ? plan->topology.latencyTotal : 0, std::memory_order_release);
     auto old = std::move (latest); latest = std::move (plan);
-    live.store (latest.get(), std::memory_order_release);
+    live.store (latest.get(), std::memory_order_seq_cst);
     if (! hostEcho && intent)
         if (const auto* write = std::get_if<cmd::SetParam> (intent))
             for (const auto& runtime : latest->slots)
@@ -119,7 +128,18 @@ bool BoardEngine::publish (const std::vector<PedalInstance>& instances, const Bo
 }
 int BoardEngine::reclaim() noexcept
 {
-    const int freed = retired.reclaim (audioEpoch.load (std::memory_order_acquire));
+    int freed = 0;
+    for (int attempt = 0; attempt < 2; ++attempt)
+    {
+        const auto before = readerSequence.load (std::memory_order_seq_cst);
+        if (before & 1u) break;
+        std::array<const RenderPlan*, 2 * kNumPlacements> protectedPointers {};
+        for (size_t i = 0; i < protectedPointers.size(); ++i)
+            protectedPointers[i] = retainedPlans[i].load (std::memory_order_relaxed);
+        std::atomic_thread_fence (std::memory_order_acquire);
+        if (before != readerSequence.load (std::memory_order_seq_cst)) continue;
+        freed = retired.reclaimExcept (protectedPointers); break;
+    }
     pool.reclaim(); return freed;
 }
 void BoardEngine::setProcessorLoad (double fraction, bool measuredWindow, double seconds) noexcept
@@ -174,13 +194,14 @@ void BoardEngine::drainControlEcho()
                 model.apply (cmd::SetEnabled { echo.identity, echo.enabled });
         }
 }
-void BoardEngine::acknowledge() noexcept
+void BoardEngine::finishPlanRead() noexcept
 {
-    uint32_t oldest = 0;
-    for (const auto& segment : segments)
-        if (segment.current && (oldest == 0 || static_cast<int32_t> (segment.current->topology.version - oldest) < 0))
-            oldest = segment.current->topology.version;
-    if (oldest) audioEpoch.store (oldest, std::memory_order_release);
+    for (size_t i = 0; i < segments.size(); ++i)
+    {
+        retainedPlans[2 * i].store (segments[i].current, std::memory_order_relaxed);
+        retainedPlans[2 * i + 1].store (segments[i].pending, std::memory_order_relaxed);
+    }
+    readerSequence.fetch_add (1, std::memory_order_seq_cst);
 }
 void BoardEngine::publishPedalMeters (const RenderPlan& plan) noexcept
 {
@@ -234,7 +255,8 @@ PedalMeters BoardEngine::readPedalMeters (int slot) const noexcept
 }
 void BoardEngine::syncRouting (midi::MidiRouter& router) noexcept
 {
-    const auto* plan = live.load (std::memory_order_acquire);
+    const PlanReadScope reading (*this);
+    const auto* plan = live.load (std::memory_order_seq_cst);
     if (! plan) return;
     router.setModelEnabled (plan->settings.enabled, plan->boardSerials[0]);
     router.setModelTempoBpm (plan->settings.tempoBpm, plan->boardSerials[2]);
@@ -413,7 +435,8 @@ void BoardEngine::beginEvents (const midi::RouteOut& routed) noexcept
     blockEvents.nFoot = std::clamp (blockEvents.nFoot, 0, midi::kMaxRouteFoot);
     blockEvents.nTr = std::clamp (blockEvents.nTr, 0, midi::kMaxRouteTransport);
     events = &blockEvents; eventOffsetsPrepared = false;
-    const auto* plan = live.load (std::memory_order_acquire);
+    const PlanReadScope reading (*this);
+    const auto* plan = live.load (std::memory_order_seq_cst);
     if (! plan) return;
     if (feedbackRearmSeen != plan->feedbackRearm) { feedback.reset(); feedbackRearmSeen = plan->feedbackRearm; }
     if (feedbackKillSeen != plan->feedbackKill)
@@ -470,7 +493,8 @@ void BoardEngine::beginEvents (const midi::RouteOut& routed) noexcept
 void BoardEngine::process (double* left, double* right, int n, Placement placement) noexcept
 {
     if (! left || ! right || n <= 0 || ! isValidPlacement (static_cast<int> (placement))) return;
-    const auto* newest = live.load (std::memory_order_acquire);
+    const PlanReadScope reading (*this);
+    const auto* newest = live.load (std::memory_order_seq_cst);
     if (! newest) return;
     if (! events) applyExtended (*newest);
     else if (! eventOffsetsPrepared) prepareEventOffsets (*newest, n);
@@ -505,7 +529,7 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
         }
     }
     if (! localEnabled && ! running.load())
-    { s.current = newest; s.pending = nullptr; s.phase = Segment::Idle; s.gain = 1.0; s.enable = 0.0; publishPedalMeters (*s.current); acknowledge(); return; }
+    { s.current = newest; s.pending = nullptr; s.phase = Segment::Idle; s.gain = 1.0; s.enable = 0.0; publishPedalMeters (*s.current); return; }
     if (localEnabled && newest->topology.n > 0) running.store (true);
     double peakIn = 0, peakOut = 0;
     for (int offset = 0; offset < n;)
@@ -811,6 +835,6 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
     outputPeak.store (static_cast<float> (20.0 * std::log10 (std::max (1.e-6, peakOut))));
     feedbackFault.store (feedback.fault); feedbackTripped.store (feedback.tripped);
     publishPedalMeters (*s.current);
-    acknowledge();
+
 }
 }
