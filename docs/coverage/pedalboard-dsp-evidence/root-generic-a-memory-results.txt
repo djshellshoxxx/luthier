@@ -1,0 +1,5 @@
+generic.boost sizeof=2792
+generic.overdrive sizeof=2472
+generic.fuzz sizeof=2904
+generic.compressor sizeof=2672
+432 checks 0 failures

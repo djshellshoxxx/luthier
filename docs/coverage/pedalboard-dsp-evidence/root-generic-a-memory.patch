@@ -1,0 +1,76 @@
+--- a/Source/ReferencePedals/Generic/Boost.h
++++ b/Source/ReferencePedals/Generic/Boost.h
+@@ -5,7 +5,11 @@
+ #include "../Common/OnePole.h"
+ namespace luthier::reference::generic {
+ class Boost final : public detail::Processor<6> {
+-public: Boost();static const PedalDesc& descriptor() noexcept;void prepare(double,int,int) override;void reset() noexcept override;void process(double*,double*,int) noexcept override;
++public: Boost();static const PedalDesc& descriptor() noexcept;
++ // E69 audit: legacy allpass DSP, filters, controls and sidechain pointers are embedded.
++ static PreparedMemoryRequirement prepareMemory(double sr,int block,int policy,const float* params) noexcept {return fixedPreparedMemory<Boost>(sr,block,policy,params);}
++ uint64_t getPreparedMemoryBytes() const noexcept override {return sizeof(*this);}
++ void prepare(double,int,int) override;void reset() noexcept override;void process(double*,double*,int) noexcept override;
+ private:std::array<common::OnePole,2> hp,eco;std::array<common::Biquad,2> tone,warm,fat1,fat2;int policy=1;
+ };
+ }
+--- a/Source/ReferencePedals/Generic/Overdrive.h
++++ b/Source/ReferencePedals/Generic/Overdrive.h
+@@ -5,7 +5,11 @@
+ #include "../Common/DcBlock.h"
+ namespace luthier::reference::generic {
+ class Overdrive final : public detail::Processor<7> {
+-public: Overdrive();static const PedalDesc& descriptor() noexcept;void prepare(double,int,int) override;void reset() noexcept override;void process(double*,double*,int) noexcept override;
++public: Overdrive();static const PedalDesc& descriptor() noexcept;
++ // E69 audit: legacy allpass DSP, filters, controls and sidechain pointers are embedded.
++ static PreparedMemoryRequirement prepareMemory(double sr,int block,int policy,const float* params) noexcept {return fixedPreparedMemory<Overdrive>(sr,block,policy,params);}
++ uint64_t getPreparedMemoryBytes() const noexcept override {return sizeof(*this);}
++ void prepare(double,int,int) override;void reset() noexcept override;void process(double*,double*,int) noexcept override;
+ private:std::array<common::OnePole,2> bass,tone;std::array<common::DcBlock,2> dc;
+ };
+ }
+--- a/Source/ReferencePedals/Generic/Fuzz.h
++++ b/Source/ReferencePedals/Generic/Fuzz.h
+@@ -6,7 +6,11 @@
+ #include "../Common/EnvelopeFollower.h"
+ namespace luthier::reference::generic {
+ class Fuzz final : public detail::Processor<8> {
+-public: Fuzz();static const PedalDesc& descriptor() noexcept;void prepare(double,int,int) override;void reset() noexcept override;void process(double*,double*,int) noexcept override;
++public: Fuzz();static const PedalDesc& descriptor() noexcept;
++ // E69 audit: legacy allpass DSP, filters, controls and sidechain pointers are embedded.
++ static PreparedMemoryRequirement prepareMemory(double sr,int block,int policy,const float* params) noexcept {return fixedPreparedMemory<Fuzz>(sr,block,policy,params);}
++ uint64_t getPreparedMemoryBytes() const noexcept override {return sizeof(*this);}
++ void prepare(double,int,int) override;void reset() noexcept override;void process(double*,double*,int) noexcept override;
+ private:std::array<common::OnePole,2> hp,germanium,tilt,eco;std::array<common::DcBlock,2> dc,octave;std::array<common::EnvelopeFollower,2> sag,gate;std::array<int,2> hold{};std::array<common::LinearSmoother,2> gateGain;int policy=1;
+ };
+ }
+--- a/Source/ReferencePedals/Generic/Compressor.h
++++ b/Source/ReferencePedals/Generic/Compressor.h
+@@ -5,7 +5,11 @@
+ #include <atomic>
+ namespace luthier::reference::generic {
+ class Compressor final : public detail::Processor<11> {
+-public: Compressor();static const PedalDesc& descriptor() noexcept;void prepare(double,int,int) override;void reset() noexcept override;void process(double*,double*,int) noexcept override;
++public: Compressor();static const PedalDesc& descriptor() noexcept;
++ // E69 audit: legacy allpass DSP, filters, controls and sidechain pointers are embedded.
++ static PreparedMemoryRequirement prepareMemory(double sr,int block,int policy,const float* params) noexcept {return fixedPreparedMemory<Compressor>(sr,block,policy,params);}
++ uint64_t getPreparedMemoryBytes() const noexcept override {return sizeof(*this);}
++ void prepare(double,int,int) override;void reset() noexcept override;void process(double*,double*,int) noexcept override;
+  static double gainReductionDb(double inputDb,double threshold,double ratio,double knee) noexcept;
+  void setSidechain(const double* l,const double* r,int n) noexcept override {externalL=l;externalR=r;externalCount=std::max(0,n);}
+  bool sidechainAvailable() const noexcept {return available.load(std::memory_order_relaxed);}
+--- a/Source/ReferencePedals/Generic/RegisterGenericA.cpp
++++ b/Source/ReferencePedals/Generic/RegisterGenericA.cpp
+@@ -7,9 +7,9 @@
+ #include "Compressor.h"
+ namespace luthier::reference {
+ void registerGenericA(){
+- PedalRegistry::add(generic::Boost::descriptor(),[]()->std::unique_ptr<IPedal>{return std::make_unique<generic::Boost>();});
+- PedalRegistry::add(generic::Overdrive::descriptor(),[]()->std::unique_ptr<IPedal>{return std::make_unique<generic::Overdrive>();});
+- PedalRegistry::add(generic::Fuzz::descriptor(),[]()->std::unique_ptr<IPedal>{return std::make_unique<generic::Fuzz>();});
+- PedalRegistry::add(generic::Compressor::descriptor(),[]()->std::unique_ptr<IPedal>{return std::make_unique<generic::Compressor>();});
++ PedalRegistry::add(generic::Boost::descriptor(),[]()->std::unique_ptr<IPedal>{return std::make_unique<generic::Boost>();},&generic::Boost::prepareMemory);
++ PedalRegistry::add(generic::Overdrive::descriptor(),[]()->std::unique_ptr<IPedal>{return std::make_unique<generic::Overdrive>();},&generic::Overdrive::prepareMemory);
++ PedalRegistry::add(generic::Fuzz::descriptor(),[]()->std::unique_ptr<IPedal>{return std::make_unique<generic::Fuzz>();},&generic::Fuzz::prepareMemory);
++ PedalRegistry::add(generic::Compressor::descriptor(),[]()->std::unique_ptr<IPedal>{return std::make_unique<generic::Compressor>();},&generic::Compressor::prepareMemory);
+ }
+ }
