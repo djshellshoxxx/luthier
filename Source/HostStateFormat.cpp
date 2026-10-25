@@ -80,7 +80,9 @@ namespace
 //==============================================================================
 juce::File LuthierAudioProcessor::getStateBackupFolder()
 {
-    return Diagnostics::getDiagnosticsFolder();
+    // The production default is still Diagnostics::getDiagnosticsFolder().
+    // Share the existing test-only override so backups stay in the fixture.
+    return ErrorLog::getFolder();
 }
 
 juce::String LuthierAudioProcessor::stateBlobToText (const void* data, int sizeInBytes)

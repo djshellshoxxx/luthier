@@ -53,7 +53,7 @@ public:
     /** error-recovery 13: old months go with the 30-day backup sweep. */
     static void pruneOldLogs (int retentionDays = 30);
 
-    /*  Points the log at another folder, for tests.
+    /*  Points diagnostic logs and host-state backups at another folder, for tests.
 
         Passing an empty file restores the real diagnostics folder. Without this a
         test would either write into the user's own log or not exercise the file
