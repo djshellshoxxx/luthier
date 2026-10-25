@@ -99,3 +99,9 @@ not `Combo.releasedStringIsDampedQuickly`, which selects zero tests. An explorat
 accidentally included the original Combo object twice; that duplicated run was discarded
 and the single-registration run is the committed evidence. Neither setup mistake is
 counted as additional acceptance evidence.
+
+Follow-up: [exact b5 preset-setup diagnosis](LEGACY-NORMALIZATION-PRESET-SETUP.md)
+resolves the normalization load blocker with an explicitly staged writable generated
+factory-bank directory. Original b5 and the cabinet correction both pass the unchanged
+12-check factory drift gate there. The original failed-load logs above remain evidence
+of the restricted Documents setup, not a measured normalization regression.

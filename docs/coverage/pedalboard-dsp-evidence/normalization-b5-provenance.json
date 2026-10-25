@@ -1,0 +1,15 @@
+{
+  "source": "b5bec374f01ede236350300770f5721709a39831",
+  "object_count": 813,
+  "object_hash_mismatches": [],
+  "snapshot_binary_sha256": "deb183844d5ca9c0bf37049760c7502103749cb5ee9a5a4efe0a33e7532aa1c2",
+  "baseline_copy_sha256": "deb183844d5ca9c0bf37049760c7502103749cb5ee9a5a4efe0a33e7532aa1c2",
+  "cabinet_overlay_sha256": "adb44a75e792479d6980218661504299994ab9e6c57ddce184b32a253739f902",
+  "snapshot_manifest_sha256": "8f77f26393b8cb413bc488a8290feddba3a00585d543670269dfbd6ce1ee0c66",
+  "edition": "Pro, unchanged LUTHIER_PRO=1",
+  "original_resource_files": 1253,
+  "factory_destination_original": "/home/agent/Documents/Luthier/Presets/Factory",
+  "factory_destination_diagnostic": "workspace copy Resources/Presets/Factory",
+  "original_threshold_lu": 4,
+  "baseline_and_overlay_checks": 12
+}

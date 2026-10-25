@@ -1,0 +1,19 @@
+
+================================================================
+ LUTHIER TEST SUITE
+================================================================
+
+
+PresetLoadProbe
+----------------------------------------------------------------
+editionPro=1 resources=/workspace/luthier-evidence/normalization-b5/Resources factory=/home/agent/Documents/Luthier/Presets/Factory defs=70
+request=41 wanted=Assist Country Twang found=-1 listed=0
+request=68 wanted=Lap Steel Full Control found=-1 listed=0
+request=21 wanted=Nylon Classical found=-1 listed=0
+request=30 wanted=5-String Low B found=-1 listed=0
+  [pass]  factoryLookup                               1 checks      475.788 ms
+
+================================================================
+ ALL PASSED
+ 1 tests, 1 checks, 0.5 s
+================================================================

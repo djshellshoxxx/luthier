@@ -1,0 +1,29 @@
+
+================================================================
+ LUTHIER TEST SUITE
+================================================================
+
+
+PresetLoadProbe
+----------------------------------------------------------------
+editionPro=1 resources=/workspace/luthier-evidence/normalization-b5/writable-bank/Resources factory=/workspace/luthier-evidence/normalization-b5/writable-bank/Resources/Presets/Factory defs=70
+request=41 wanted=Assist Country Twang found=10 listed=70
+file=/workspace/luthier-evidence/normalization-b5/writable-bank/Resources/Presets/Factory/Assist/Assist Country Twang.luthierpreset loaded=1 error=
+request=68 wanted=Lap Steel Full Control found=46 listed=70
+file=/workspace/luthier-evidence/normalization-b5/writable-bank/Resources/Presets/Factory/Techniques/Lap Steel Full Control.luthierpreset loaded=1 error=
+request=21 wanted=Nylon Classical found=21 listed=70
+file=/workspace/luthier-evidence/normalization-b5/writable-bank/Resources/Presets/Factory/Classical/Nylon Classical.luthierpreset loaded=1 error=
+request=30 wanted=5-String Low B found=15 listed=70
+file=/workspace/luthier-evidence/normalization-b5/writable-bank/Resources/Presets/Factory/Bass/5-String Low B.luthierpreset loaded=1 error=
+listedFactory=12-String Jangle file=12-String Jangle.luthierpreset
+listedFactory=DADGAD Drone file=DADGAD Drone.luthierpreset
+listedFactory=Fingerstyle Folk file=Fingerstyle Folk.luthierpreset
+listedFactory=Jumbo Bluegrass file=Jumbo Bluegrass.luthierpreset
+listedFactory=Nashville High-Strung file=Nashville High-Strung.luthierpreset
+listedFactory=Parlor Blues file=Parlor Blues.luthierpreset
+  [pass]  factoryLookup                               1 checks      538.425 ms
+
+================================================================
+ ALL PASSED
+ 1 tests, 1 checks, 0.5 s
+================================================================
