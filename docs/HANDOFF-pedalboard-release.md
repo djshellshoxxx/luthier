@@ -8,11 +8,13 @@ A finished pedalboard version with every build in one **draft** GitHub Release:
 CLAP, VST3 and Standalone on Linux, Windows and macOS (AU on macOS), Pro and
 Free editions, built by `.github/workflows/release.yml`.
 
-Standing instructions from the user: work silently, no notifications, never
-publish the draft, be quick and efficient. A routine
-(`trig_01CVERr6qMDvBr2AJw3ibuwg`, "Pedalboard release check-in") resumes the
-session every 5 hours with that brief. It can be paused or deleted with
-`update_trigger` / `delete_trigger`.
+Standing instructions from the user were: work silently, no notifications,
+never publish the draft, be quick and efficient.
+
+**Work was stopped by the user on 2026-10-25.** The 5-hour routine
+(`trig_01CVERr6qMDvBr2AJw3ibuwg`) is now **disabled** (re-enable with
+`update_trigger enabled=true`), and release run #19 (`40186045042`) was
+cancelled. Nothing is running in the background.
 
 ## What the branch is
 
@@ -55,12 +57,12 @@ sources are compiled into the shared library. See "Windows" below.
 Linux jobs were still running at handoff. Windows and macOS had already failed
 in "Configure and build":
 
-- **macOS (Pro and Free):**
+- **macOS (Pro and Free)** *(fix written, not yet built on macOS)*:
   `Source/Tests/RefPedalOversamplingOracleTests.cpp:20:37: error: no member named 'cyl_bessel_i' in namespace 'std'`.
-  libc++ has no `std::cyl_bessel_i`. Fix: replace it in that test with a local
-  modified Bessel I-n series (or a tiny helper). Check for other uses with
-  `grep -rn "cyl_bessel\|std::riemann_zeta\|std::expint" Source`.
-- **Windows (Pro and Free):**
+  libc++ has no `std::cyl_bessel_i`. Done: the test now uses a local
+  power-series `besselI0` (checked: I0(6.5) = 106.29). That was the only use of
+  a missing special function in `Source`.
+- **Windows (Pro and Free)** *(fix written, not yet built on Windows)*:
   `LNK1248: image size (0x10018DF91) exceeds maximum allowable size (0xFFFFFFFF)`
   on `Luthier Pro_SharedCode.lib` (Free: `0x1_004734D4`). The static library
   is about 1.6 MB over 4 GiB, with LTO on (`/GL` objects are large). Options,
@@ -75,6 +77,13 @@ in "Configure and build":
   3. Split the library (larger change).
   The margin is small, so option 1 may need to be repeated for a couple of
   more files, or combined with 2.
+  What was actually done (a different, simpler variant): `CMakeLists.txt` now
+  compiles `Source/ReferencePedals/**` and `Source/UI/ReferencePedals/**` with
+  `/GL-` on MSVC when LTO is on, so the Pedalboard (the only code added since
+  `master`, which linked) is ordinary machine code instead of bulky `/GL`
+  intermediate code. CMake puts per-source options after target options
+  (verified), so `/GL-` overrides `/GL`. **Unverified on MSVC**: if LNK1248
+  persists, fall back to option 1 or 2 above.
 - **Linux:** the earlier run #18 showed 5 failures on both editions (now fixed
   and verified locally) plus one on Pro only:
   `Combo.releasedStringIsDampedQuickly` reads 34.7 dB against a 35 dB bar for

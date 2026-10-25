@@ -3,6 +3,19 @@
 using namespace luthier::reference::common;
 namespace
 {
+// Modified Bessel function of the first kind, order 0, by its power series.
+// std::cyl_bessel_i is missing from libc++ (macOS), so the oracle carries its own.
+double besselI0(double x)
+{
+    const double q = .25 * x * x;
+    double term = 1, sum = 1;
+    for (int k = 1; k < 200 && term > 1e-17 * sum; ++k)
+    {
+        term *= q / ((double) k * (double) k);
+        sum += term;
+    }
+    return sum;
+}
 struct FullHalfbandOracle
 {
     std::array<double, 257> taps{};
@@ -17,8 +30,8 @@ struct FullHalfbandOracle
         for (int k = 1; k < m; k += 2)
         {
             double distance = k - m;
-            double w = first ? std::cyl_bessel_i(0, 6.5 * std::sqrt(1 - distance * distance / (m * m))) /
-                                   std::cyl_bessel_i(0, 6.5)
+            double w = first ? besselI0(6.5 * std::sqrt(1 - distance * distance / (m * m))) /
+                                   besselI0(6.5)
                              : .35875 - .48829 * std::cos(pi * k / m) + .14128 * std::cos(2 * pi * k / m) -
                                    .01168 * std::cos(3 * pi * k / m);
             taps[k] = taps[2 * m - k] = std::sin(.5 * pi * distance) / (pi * distance) * w;

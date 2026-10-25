@@ -187,6 +187,19 @@ if (LUTHIER_LTO)
     endif()
 endif()
 
+# MSVC keeps /GL (whole-program) objects as bulky intermediate code, and the
+# static library JUCE builds from them (Luthier_SharedCode.lib) reached MSVC's 4 GiB
+# library limit (LNK1248) once the Pedalboard was added. The Pedalboard sources are
+# compiled to ordinary machine code instead; the rest of the plugin keeps LTO. The
+# pedal DSP's hot loops sit inside single translation units, so cross-unit inlining
+# is not what they depend on. A later /GL- overrides the target's /GL.
+if (MSVC AND LUTHIER_LTO)
+    file(GLOB_RECURSE LUTHIER_NO_GL_SOURCES CONFIGURE_DEPENDS
+         "${CMAKE_CURRENT_SOURCE_DIR}/Source/ReferencePedals/*.cpp"
+         "${CMAKE_CURRENT_SOURCE_DIR}/Source/UI/ReferencePedals/*.cpp")
+    set_source_files_properties(${LUTHIER_NO_GL_SOURCES} PROPERTIES COMPILE_OPTIONS "/GL-")
+endif()
+
 # Binary size. None of this touches optimisation level or the DSP: -O3 / LTO stay
 # as JUCE's recommended flags set them. PUBLIC so the VST3 / CLAP / Standalone
 # wrapper targets inherit it. Release only; Debug and RelWithDebInfo keep symbols.
