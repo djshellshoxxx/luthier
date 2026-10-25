@@ -1,5 +1,11 @@
 # Pedalboard continuation handoff
 
+Newest source milestone: [retirement and scoped test integration](handoff/PEDALBOARD-2026-10-25-RETIREMENT.md).
+Production source before that documentation checkpoint is f3f46893. The latest
+coherent product binaries remain280e182a; new source needs its coherent rebuild.
+Both30s/300s engine grinds and the scoped10000-operation UI sanitizer run passed.
+Original release/RT/specification/platform/manual gates remain explicitly open.
+
 Latest checkpoint: [fresh2026-10-25 build6 and ownership reconciliation](handoff/PEDALBOARD-2026-10-25-BUILD6.md).
 Tested production source280e182a freshly builds all five Linux Pro targets;
 actual CLAP18/0/3unsupported skips and VST3 strictness5 pass. Combined unit/stress
