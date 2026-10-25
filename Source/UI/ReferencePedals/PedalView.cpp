@@ -363,3 +363,19 @@ void PedalView::endPositionGesture(int acceptedIndex)
     if(acceptedIndex>=0)parameter->setValueNotifyingHost(parameter->convertTo0to1((float)acceptedIndex));parameter->endChangeGesture();
 }
 }
+
+namespace luthier::reference {
+juce::Component* PedalView::findHostControl(const juce::String& id)
+{
+    for(auto* component:parameterControls)if(component&&component->getComponentID()==id)return component;
+    for(auto* component:std::array<juce::Component*,4>{&footswitch,&inputTrim,&outputTrim,&position})if(component->getComponentID()==id)return component;
+    return nullptr;
+}
+juce::Component* PedalView::revealHostControl(const juce::String& id)
+{
+    auto* target=findHostControl(id);if(!target)return nullptr;
+    juce::Component::SafePointer<juce::Component> safe(target);if(onFocus)onFocus(*this);if(!safe)return nullptr;
+    if(inspector.isParentOf(safe.getComponent())){if(!inspectorCallout)showInspector();}else closeInspector();
+    return safe.getComponent();
+}
+}

@@ -55,7 +55,8 @@ enum class Availability
     needsEmptySlot,
     modeUnavailable,
     proLocked,
-    notBuilt
+    notBuilt,
+    unavailable       ///< Reserved host lane without a current meaningful control.
 };
 
 inline bool isLocked (Availability a) noexcept
