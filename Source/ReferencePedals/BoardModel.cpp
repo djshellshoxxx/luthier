@@ -208,21 +208,64 @@ struct BoardModel::Impl
         return {};
     }
 
-    // Capture the state before the first accepted edit, never for an empty or
-    // rejected transaction. This also preserves redo until an edit succeeds.
-    void recordUndo (const BoardCommand& command)
+    static_assert (std::is_nothrow_move_constructible_v<History> && std::is_nothrow_move_assignable_v<History>);
+    static_assert (std::is_nothrow_move_assignable_v<BoardSettings> && std::is_nothrow_move_assignable_v<TopologyInfo>);
+    struct PreparedUndo
     {
-        const auto gesture = gestureFor (command);
-        const bool capture = transactionDepth != 0 ? ! transactionHasEdits
-                                                   : ! gesture.continues (lastGesture);
-        if (capture)
+        History entry, baseline;
+        Gesture gesture;
+        bool append = false, replaceEntry = false, replaceBaseline = false;
+    };
+
+    // Only capacity may change before publication; observable history and
+    // gesture/transaction state stay untouched if preparation or compile fails.
+    PreparedUndo prepareUndo (const BoardCommand& command, const std::vector<PedalInstance>* runtimeHistory)
+    {
+        PreparedUndo result;
+        result.gesture = gestureFor (command);
+        result.append = transactionDepth != 0 ? ! transactionHasEdits : ! result.gesture.continues (lastGesture);
+        if (result.append)
+        {
+            result.entry = { settings, instances };
+            undoStack.reserve (std::min<size_t> (100, undoStack.size() + 1));
+        }
+        else if (runtimeHistory) { result.entry = undoStack.back(); result.replaceEntry = true; }
+        if (runtimeHistory)
+        {
+            const bool firstEntry = transactionDepth == 0 || ! transactionHasEdits;
+            const auto overlay = [&] (History& history)
+            {
+                if (firstEntry) history.instances = cloneInstances (*runtimeHistory);
+                else for (auto& baseline : history.instances)
+                    for (size_t i = 0; i < instances.size() && i < runtimeHistory->size(); ++i)
+                        if (baseline.instanceId == instances[i].instanceId && baseline.modelId == instances[i].modelId
+                            && sameExtraState (baseline.extras, instances[i].extras))
+                        { baseline.extras = (*runtimeHistory)[i].extras.clone(); break; }
+                history.capturesRuntime = true;
+            };
+            overlay (result.entry);
+            if (transactionDepth != 0)
+            {
+                result.baseline = transactionBaseline; overlay (result.baseline);
+                result.replaceBaseline = true;
+            }
+        }
+        return result;
+    }
+    void commitUndo (PreparedUndo&& prepared) noexcept
+    {
+        if (prepared.append)
         {
             if (undoStack.size() == 100) undoStack.erase (undoStack.begin());
-            undoStack.push_back ({ settings, instances });
+            // Capacity was secured before compiler publication; History moves
+            // and destruction cannot throw or allocate model payloads.
+            undoStack.push_back (std::move (prepared.entry));
         }
+        else if (prepared.replaceEntry) undoStack.back() = std::move (prepared.entry);
+        if (prepared.replaceBaseline) transactionBaseline = std::move (prepared.baseline);
         redoStack.clear();
         if (transactionDepth != 0) transactionHasEdits = true;
-        lastGesture = gesture;
+        lastGesture = prepared.gesture;
     }
     std::vector<Listener*> listeners;
 };
@@ -522,30 +565,14 @@ bool BoardModel::applyImpl (const BoardCommand& command, juce::String* rejectRea
             return true;
         }, command);
         auto info = impl->info;
-        const bool compiled = supported && validRoutingReferences (nextInstances, next, reason) && (! impl->compiler || impl->compiler (nextInstances, next, info, reason, &command, hostEcho));
+        const bool valid = supported && validRoutingReferences (nextInstances, next, reason);
+        Impl::PreparedUndo prepared;
+        if (valid && ! hostEcho) prepared = impl->prepareUndo (command, runtimeHistory);
+        const bool compiled = valid && (! impl->compiler || impl->compiler (nextInstances, next, info, reason, &command, hostEcho));
         if (compiled)
         {
-            impl->info = info;
-            if (! hostEcho)
-            {
-                const bool firstEntry = impl->transactionDepth == 0 || ! impl->transactionHasEdits;
-                impl->recordUndo (command);
-                if (runtimeHistory)
-                {
-                    const auto overlay = [&] (Impl::History& history, bool replace)
-                    {
-                        if (replace) history.instances = cloneInstances (*runtimeHistory);
-                        else for (auto& baseline : history.instances)
-                            for (size_t i = 0; i < impl->instances.size() && i < runtimeHistory->size(); ++i)
-                                if (baseline.instanceId == impl->instances[i].instanceId && baseline.modelId == impl->instances[i].modelId
-                                    && sameExtraState (baseline.extras, impl->instances[i].extras))
-                                { baseline.extras = (*runtimeHistory)[i].extras.clone(); break; }
-                        history.capturesRuntime = true;
-                    };
-                    overlay (impl->undoStack.back(), firstEntry);
-                    if (impl->transactionDepth != 0) overlay (impl->transactionBaseline, firstEntry);
-                }
-            }
+            if (! hostEcho) impl->commitUndo (std::move (prepared));
+            impl->info = std::move (info);
             impl->settings = std::move (next);
             impl->instances = std::move (nextInstances);
             settingsChanged = true;
@@ -610,11 +637,13 @@ bool BoardModel::undo()
         if (impl->transactionDepth != 0 || impl->undoStack.empty()) return false;
         juce::String error; auto info = impl->info;
         const auto& candidate = impl->undoStack.back();
+        Impl::History current { impl->settings, preserveRuntime ? cloneInstances (captured) : impl->instances, preserveRuntime };
+        impl->redoStack.reserve (impl->redoStack.size() + 1);
         const BoardCommand restoreIntent = cmd::ApplySnapshot {};
         if (impl->compiler && ! impl->compiler (candidate.instances, candidate.settings, info, error, candidate.capturesRuntime ? &restoreIntent : nullptr, false)) return false;
-        impl->info = info;
+        impl->info = std::move (info);
         impl->lastGesture = {};
-        impl->redoStack.push_back ({ impl->settings, preserveRuntime ? cloneInstances (captured) : impl->instances, preserveRuntime });
+        impl->redoStack.push_back (std::move (current));
         auto previous = std::move (impl->undoStack.back());
         impl->undoStack.pop_back();
         impl->settings = std::move (previous.settings);
@@ -637,11 +666,13 @@ bool BoardModel::redo()
         if (impl->transactionDepth != 0 || impl->redoStack.empty()) return false;
         juce::String error; auto info = impl->info;
         const auto& candidate = impl->redoStack.back();
+        Impl::History current { impl->settings, preserveRuntime ? cloneInstances (captured) : impl->instances, preserveRuntime };
+        impl->undoStack.reserve (impl->undoStack.size() + 1);
         const BoardCommand restoreIntent = cmd::ApplySnapshot {};
         if (impl->compiler && ! impl->compiler (candidate.instances, candidate.settings, info, error, candidate.capturesRuntime ? &restoreIntent : nullptr, false)) return false;
-        impl->info = info;
+        impl->info = std::move (info);
         impl->lastGesture = {};
-        impl->undoStack.push_back ({ impl->settings, preserveRuntime ? cloneInstances (captured) : impl->instances, preserveRuntime });
+        impl->undoStack.push_back (std::move (current));
         auto next = std::move (impl->redoStack.back());
         impl->redoStack.pop_back();
         impl->settings = std::move (next.settings);
@@ -655,13 +686,16 @@ bool BoardModel::canRedo() const { const std::lock_guard<std::mutex> lock (impl-
 void BoardModel::beginTransaction (const juce::String&)
 {
     const std::lock_guard<std::mutex> lock (impl->mutex);
-    if (impl->transactionDepth++ == 0)
+    if (impl->transactionDepth == 0)
     {
-        impl->transactionBaseline = { impl->settings, impl->instances };
-        impl->transactionUndo = impl->undoStack; impl->transactionRedo = impl->redoStack;
+        Impl::History baseline { impl->settings, impl->instances };
+        auto undo = impl->undoStack, redo = impl->redoStack;
+        impl->transactionBaseline = std::move (baseline);
+        impl->transactionUndo.swap (undo); impl->transactionRedo.swap (redo);
         impl->transactionHasEdits = false;
         impl->lastGesture = {};
     }
+    ++impl->transactionDepth;
 }
 void BoardModel::endTransaction()
 {
@@ -683,7 +717,7 @@ bool BoardModel::cancelTransaction()
         const auto& candidate = impl->transactionBaseline;
         const BoardCommand restoreIntent = cmd::ApplySnapshot {};
         if (impl->compiler && ! impl->compiler (candidate.instances, candidate.settings, info, error, candidate.capturesRuntime ? &restoreIntent : nullptr, false)) return false;
-        impl->info = info;
+        impl->info = std::move (info);
         impl->settings = std::move (impl->transactionBaseline.settings);
         impl->instances = std::move (impl->transactionBaseline.instances);
         impl->undoStack = std::move (impl->transactionUndo); impl->redoStack = std::move (impl->transactionRedo);
@@ -741,6 +775,7 @@ bool BoardModel::replaceAll (const std::vector<PedalInstance>& orderedInstances,
     if (error != nullptr) *error = reason;
     if (reason.isNotEmpty()) return false;
     auto restored = cloneInstances (orderedInstances);
+    auto restoredSettings = cloneSettings (settings);
     // Reserve all explicit slots before filling omissions: an earlier missing
     // slot must not steal a later instance's saved automation assignment.
     for (auto& pedal : restored)
@@ -748,11 +783,11 @@ bool BoardModel::replaceAll (const std::vector<PedalInstance>& orderedInstances,
     {
         const std::lock_guard<std::mutex> lock (impl->mutex);
         auto info = impl->info;
-        if (impl->compiler && ! impl->compiler (restored, settings, info, reason, nullptr, false))
+        if (impl->compiler && ! impl->compiler (restored, restoredSettings, info, reason, nullptr, false))
         { if (error) *error = reason; return false; }
-        impl->info = info;
+        impl->info = std::move (info);
         impl->instances = std::move (restored);
-        impl->settings = cloneSettings (settings);
+        impl->settings = std::move (restoredSettings);
         impl->undoStack.clear();
         impl->redoStack.clear();
         impl->transactionDepth = 0;

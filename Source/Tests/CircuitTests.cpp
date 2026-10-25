@@ -25,8 +25,16 @@ namespace
     thread_local long threadAllocationCount = 0;
     thread_local std::size_t failedAllocationSize = 0;
     thread_local bool allocationFailureTriggered = false;
+    thread_local std::size_t allocationsBeforeFailure = static_cast<std::size_t> (-1);
     bool failAllocation (std::size_t size) noexcept
     {
+        if (allocationsBeforeFailure != static_cast<std::size_t> (-1))
+        {
+            if (failedAllocationSize != 0 && size != failedAllocationSize) return false;
+            if (allocationsBeforeFailure-- != 0) return false;
+            allocationsBeforeFailure = static_cast<std::size_t> (-1); failedAllocationSize = 0;
+            allocationFailureTriggered = true; return true;
+        }
         if (failedAllocationSize == 0 || size != failedAllocationSize) return false;
         failedAllocationSize = 0; allocationFailureTriggered = true; return true;
     }
@@ -39,8 +47,12 @@ namespace luthier::tests
 {
     long allocationsOnThisThread() noexcept { return threadAllocationCount; }
     void failNextAllocationOfSizeOnThisThread (std::size_t size) noexcept
-    { failedAllocationSize = size; allocationFailureTriggered = false; }
-    void clearAllocationFailureOnThisThread() noexcept { failedAllocationSize = 0; }
+    { failedAllocationSize = size; allocationsBeforeFailure = static_cast<std::size_t> (-1); allocationFailureTriggered = false; }
+    void failAllocationAfterOnThisThread (std::size_t successfulAllocations) noexcept
+    { failedAllocationSize = 0; allocationsBeforeFailure = successfulAllocations; allocationFailureTriggered = false; }
+    void failMatchingAllocationAfterOnThisThread (std::size_t size, std::size_t successfulMatches) noexcept
+    { failedAllocationSize = size; allocationsBeforeFailure = successfulMatches; allocationFailureTriggered = false; }
+    void clearAllocationFailureOnThisThread() noexcept { failedAllocationSize = 0; allocationsBeforeFailure = static_cast<std::size_t> (-1); }
     bool allocationFailureTriggeredOnThisThread() noexcept { return allocationFailureTriggered; }
 }
 
