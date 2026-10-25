@@ -10,6 +10,7 @@
 #   configure  CMake configure into $BUILD_DIR (Ninja, compiler cache if present)
 #   build      build every plugin format, LuthierTests and LuthierRender
 #   test       run the unit tests (under xvfb on a headless Linux box)
+#   collect-failure-evidence  macOS failure diagnostics only (no tests rerun)
 #   validate   pluginval on the VST3 (and AU on macOS), clap-validator on the CLAP
 #   stage      copy the built products into $DIST_DIR/<platform>/ for packaging
 #   all        every step above, in order (the default)
@@ -66,6 +67,28 @@ if [ -z "${JOBS:-}" ]; then
 fi
 
 ARTEFACTS="$BUILD_DIR/Luthier_artefacts/$CONFIG"
+
+# The first invocation in this CI job establishes the oldest eligible report.
+# Reuse it across deps/build/test; local invocations use a fresh process key.
+# The marker contains only a timestamp and a hash of public CI job identifiers.
+native_start_marker="$LOG_DIR/native-job-start.json"
+if [ "$PLATFORM" = macos ]; then
+    python3 scripts/collect_native_failure_evidence.py mark --marker "$native_start_marker" --output "$LOG_DIR/native-failure-evidence" \
+        --job-key "${GITHUB_RUN_ID:-local-$$}:${GITHUB_RUN_ATTEMPT:-0}:${GITHUB_JOB:-manual}" \
+        || echo "warning: native failure evidence start marker unavailable" >&2
+fi
+
+# Best effort only: diagnostics must never replace the failing native exit.
+# The workflow may call this step under failure() after an early regression
+# crash as well; it already uploads LOG_DIR, including this sanitized subset.
+do_collect_failure_evidence() {
+    [ "$PLATFORM" = macos ] || return 0
+    python3 scripts/collect_native_failure_evidence.py collect --marker "$native_start_marker" \
+        --output "$LOG_DIR/native-failure-evidence" \
+        --log "$LOG_DIR/unit-tests.log" --log "$LOG_DIR/release-regressions.log" --log "$LOG_DIR/render-cli.log" \
+        || echo "warning: native failure evidence collection unavailable" >&2
+    return 0
+}
 
 step() { printf '\n==> %s\n' "$*"; }
 
@@ -195,6 +218,9 @@ do_test() {
               -DOUT_DIR="$BUILD_DIR/render-cli-smoke" -P scripts/render_cli_smoke.cmake \
               2>&1 | tee "$LOG_DIR/render-cli.log"
         [ "${PIPESTATUS[0]}" -eq 0 ] || rc=1
+    fi
+    if [ "$rc" -ne 0 ]; then
+        do_collect_failure_evidence
     fi
     set -e
     return "$rc"
@@ -353,6 +379,7 @@ for s in "${steps[@]}"; do
         configure) do_configure ;;
         build)     do_build ;;
         test)      do_test ;;
+        collect-failure-evidence) do_collect_failure_evidence ;;
         validate)  do_validate ;;
         stage)     do_stage ;;
         all)       do_deps; do_configure; do_build; do_test; do_validate; do_stage ;;
