@@ -9,9 +9,11 @@
 #   deps       fetch JUCE and clap-juce-extensions into ThirdParty/ (pinned)
 #   configure  CMake configure into $BUILD_DIR (Ninja, compiler cache if present)
 #   build      build every plugin format, LuthierTests and LuthierRender
+#   build-diagnostic  Standalone/VST3/CLAP/Tests/Render only; normal build retains AU
 #   test       run the unit tests (under xvfb on a headless Linux box)
 #   collect-failure-evidence  macOS failure diagnostics only (no tests rerun)
 #   validate   pluginval on the VST3 (and AU on macOS), clap-validator on the CLAP
+#   validate-diagnostic  explicit VST3+CLAP-only diagnostic scope; both required
 #   stage      copy the built products into $DIST_DIR/<platform>/ for packaging
 #   all        every step above, in order (the default)
 #
@@ -134,14 +136,14 @@ do_configure() {
 
 build_targets() {
     local targets=(Luthier_VST3 Luthier_Standalone LuthierTests LuthierRender)
-    [ "$PLATFORM" = macos ] && targets+=(Luthier_AU)
+    [ "$PLATFORM" = macos ] && [ "${1:-0}" != 1 ] && targets+=(Luthier_AU)
     [ -d ThirdParty/clap-juce-extensions ] && targets+=(Luthier_CLAP)
     echo "${targets[@]}"
 }
 
 do_build() {
     local targets
-    read -r -a targets <<< "$(build_targets)"
+    read -r -a targets <<< "$(build_targets "${1:-0}")"
     step "Building ${targets[*]} with $JOBS jobs"
     # -k 0: keep going after a failed compile so one CI run surfaces every
     # compiler error, not just the first. A successful build is unaffected.
@@ -260,13 +262,29 @@ fetch_clap_validator() {
 }
 
 do_validate() {
+    # Explicit diagnostic scope only; the normal validate/all paths retain AU.
+    local diagnostic="${1:-0}"
+    if [ "$diagnostic" = 1 ]; then
+        [ "${SKIP_VALIDATORS:-0}" != 1 ] || { echo "Diagnostic validators cannot be skipped" >&2; return 1; }
+        [ -e "$ARTEFACTS/VST3/${PRODUCT_NAME}.vst3" ] && [ -e "$ARTEFACTS/CLAP/${PRODUCT_NAME}.clap" ] || {
+            echo "Diagnostic validation requires both VST3 and CLAP" >&2; return 1;
+        }
+    fi
     if [ "${SKIP_VALIDATORS:-0}" = 1 ]; then
         step "Skipping validators (SKIP_VALIDATORS=1)"
         return 0
     fi
     mkdir -p "$LOG_DIR"
     local failed=0 pluginval
+    local native_args=()
+    if [ "$diagnostic" = 1 ] && [ "$PLATFORM" = macos ]; then
+        case "${MACOS_DIAGNOSTIC_ARCH:-}" in arm64|x86_64) ;; *) echo "Verified native architecture required" >&2; return 1 ;; esac
+        native_args=(arch "-$MACOS_DIAGNOSTIC_ARCH")
+    fi
     pluginval="$(fetch_pluginval)"
+    if [ "${#native_args[@]}" != 0 ]; then
+        lipo -verify_arch "$MACOS_DIAGNOSTIC_ARCH" "$pluginval" || return 1
+    fi
 
     local wrap=()
     if [ "$PLATFORM" = linux ] && [ -z "${DISPLAY:-}" ]; then
@@ -274,7 +292,7 @@ do_validate() {
     fi
 
     local plugins=("$ARTEFACTS/VST3/${PRODUCT_NAME}.vst3")
-    [ "$PLATFORM" = macos ] && plugins+=("$ARTEFACTS/AU/${PRODUCT_NAME}.component")
+    [ "$PLATFORM" = macos ] && [ "$diagnostic" != 1 ] && plugins+=("$ARTEFACTS/AU/${PRODUCT_NAME}.component")
 
     for p in "${plugins[@]}"; do
         local name; name="$(basename "$p")"
@@ -298,7 +316,10 @@ do_validate() {
         # returns failure if its child crashes or a validation check fails.
         local isolation_args=()
         [ "$PLATFORM" = linux ] || isolation_args+=(--validate-in-process)
-        ${wrap[@]+"${wrap[@]}"} "$pluginval" --strictness-level "$PLUGINVAL_STRICTNESS" \
+        if [ "${#native_args[@]}" != 0 ]; then
+            { printf '%q ' "${native_args[@]}" "$pluginval" --strictness-level "$PLUGINVAL_STRICTNESS" "${isolation_args[@]}" --timeout-ms 600000 --output-dir "$LOG_DIR" --validate "$p"; printf '\n'; } >> "$LOG_DIR/native-validator-commands.log"
+        fi
+        ${wrap[@]+"${wrap[@]}"} ${native_args[@]+"${native_args[@]}"} "$pluginval" --strictness-level "$PLUGINVAL_STRICTNESS" \
             "${isolation_args[@]}" --timeout-ms 600000 \
             --output-dir "$LOG_DIR" --validate "$p" 2>&1 | tee "$LOG_DIR/pluginval-$name.log"
         [ "${PIPESTATUS[0]}" -eq 0 ] || failed=1
@@ -308,13 +329,17 @@ do_validate() {
     local clap="$ARTEFACTS/CLAP/${PRODUCT_NAME}.clap"
     if [ -e "$clap" ]; then
         local validator; validator="$(fetch_clap_validator)"
+        if [ "${#native_args[@]}" != 0 ]; then
+            lipo -verify_arch "$MACOS_DIAGNOSTIC_ARCH" "$validator" || return 1
+            { printf '%q ' "${native_args[@]}" "$validator" validate "$clap"; printf '\n'; } >> "$LOG_DIR/native-validator-commands.log"
+        fi
         step "clap-validator: $clap"
         set +e
         # Quieten clap-validator's per-call DEBUG trace (thousands of
         # "TODO: Handle request_flush()" lines) so it does not bury the rest of
         # the job log; override with RUST_LOG=debug when a validator hang needs
         # tracing.
-        RUST_LOG="${RUST_LOG:-error}" ${wrap[@]+"${wrap[@]}"} "$validator" validate "$clap" 2>&1 | tee "$LOG_DIR/clap-validator.log"
+        RUST_LOG="${RUST_LOG:-error}" ${wrap[@]+"${wrap[@]}"} ${native_args[@]+"${native_args[@]}"} "$validator" validate "$clap" 2>&1 | tee "$LOG_DIR/clap-validator.log"
         [ "${PIPESTATUS[0]}" -eq 0 ] || failed=1
         set -e
     fi
@@ -378,9 +403,11 @@ for s in "${steps[@]}"; do
         deps)      do_deps ;;
         configure) do_configure ;;
         build)     do_build ;;
+        build-diagnostic) do_build 1 ;;
         test)      do_test ;;
         collect-failure-evidence) do_collect_failure_evidence ;;
         validate)  do_validate ;;
+        validate-diagnostic) do_validate 1 ;;
         stage)     do_stage ;;
         all)       do_deps; do_configure; do_build; do_test; do_validate; do_stage ;;
         *) echo "ci_build.sh: unknown step '$s'" >&2; exit 2 ;;
