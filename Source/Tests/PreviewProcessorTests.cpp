@@ -140,3 +140,19 @@ LUTHIER_TEST(PreviewProcessor, concurrentActualKeyboardAndChordProducersReleaseA
     CHECK(callbacks.load()>0); CHECK(rig.note()<0);
     CHECK(rig.processor->getMidiOverflowDropCount()>=0);
 }
+LUTHIER_TEST(PreviewProcessor, releaseSurvivesTheBackendEventCapacityOnAnotherString)
+{
+    PreviewProcessorRig rig;
+    rig.processor->playKeyboardNote(72,.8f); rig.settle(); CHECK(rig.note()==72);
+    rig.processor->getEngine().getMidiInterpreter().setMinimumNoteDurationMs(0);
+    const int before=rig.processor->getEngine().getMidiOverflowDropCount();
+    rig.processor->releaseKeyboardNote(72);
+    for(int i=0;i<PlayEventQueue::kCapacity+32;++i)
+    {
+        rig.midi.addEvent(juce::MidiMessage::noteOn(2,61,.7f),0);
+        rig.midi.addEvent(juce::MidiMessage::noteOff(2,61),0);
+    }
+    CHECK(BoundedMidi::bytesUsed(rig.midi)<8192); // byte capacity is not the bottleneck
+    rig.block(); CHECK(rig.processor->getEngine().getMidiOverflowDropCount()>before);
+    rig.settle(); CHECK(rig.note()<0);
+}
