@@ -178,7 +178,13 @@ struct MidiRouter::Impl
         return true;
     }
 };
-MidiRouter::MidiRouter() : impl (std::make_unique<Impl>()) {}
+MidiRouter::MidiRouter() : impl (std::make_unique<Impl>())
+{
+    // One audio reader can protect only one old map. Collection before each
+    // publication therefore leaves at most one entry; retiring current adds one.
+    // Allocate both slots before any publication, never after exchanging owners.
+    impl->retired.reserve (2);
+}
 MidiRouter::~MidiRouter() = default;
 void MidiRouter::prepare (double sr, int)
 {
