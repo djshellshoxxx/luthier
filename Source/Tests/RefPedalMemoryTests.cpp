@@ -201,3 +201,15 @@ LUTHIER_TEST (RefPedalMemory, realTimeEffectBanksRefuseHighRatePeakAndRecoverAtL
     CHECK (board.readMeters().preparedMemoryBytes < kPreparedPedalMemoryLimit);
     }
 }
+LUTHIER_TEST (RefPedalMemory, retainedRuntimeKeepsServiceChangeClosedAcrossFormatReset)
+{
+    PedalRegistry::TestScope registry;
+    CHECK (PedalRegistry::add (memoryDesc, makeMemoryPedal, &MemoryPedal::estimate));
+    PedalPool pool; CHECK (pool.setAssetStore (nullptr)); pool.prepare (48000, 64);
+    juce::String error; auto retained = pool.acquire (instance(), error); CHECK (retained != nullptr); if (! retained) return;
+    pool.setPreparationFormat (96000, 64); // clears reusable weak entries, not external ownership
+    CHECK (pool.preparedBytes() > 0);
+    CHECK (! pool.setAssetStore (nullptr));
+    retained.reset(); CHECK (pool.preparedBytes() == 0);
+    CHECK (pool.setAssetStore (nullptr));
+}

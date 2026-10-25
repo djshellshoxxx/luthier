@@ -261,3 +261,10 @@ Reamp settings now compile. PRE input adds or replaces with the connected sidech
 
 - Actual frozen b5 executable reproduces JM43: Jam capture4 notes, returned tune line0,2 of5 checks fail. An isolated exact-source probe with copied813 link inputs reports28 dropped MIDI events and Jam=[33,29,36,31], tune=[]. Root's unknown direct-host buffer contract correctly provides zero writable capacity for the fixture's fresh empty unregistered buffer.
 - Using one persistent host MIDI buffer registered through reserveMidiOutputBuffer before processing produces drops0 and matching tune/Jam vectors[33,29,36,31]; all original5 checks pass. Production routing, instruments, ranges and assertions are unchanged. Coordinator owns the shared JamProcessorTests fixture fix. Evidence and source hashes are under `/workspace/luthier-evidence/jm43-engine/`.
+
+- Frozen c6f4cbd6 retirement sanitizer follow-up: **2 cases/54 checks and98 full focused cases/174,624 checks passed**, ASan+UBSan with leak detection; both stderr files empty. Evidence: harness `retirement-asan.log`, `retirement-full-asan.log` and matching `.stderr` files. Shared prebuilt JUCE modules remain uninstrumented.
+
+### E69 retained asset-service replacement guard
+
+- Timefx review identified a contract hole after setPreparationFormat cleared reusable weak entries: an externally retained runtime still pinned its asset service, but setAssetStore no longer saw it. Lifetime was already safe through shared ownership; replacement now also checks the retained prepared reservation count, preserving the documented reject-while-retained rule across format resets.
+- Regression first failed1 of7 checks. Fixed memory suite: **7 cases/250 checks passed natively and under ASan+UBSan/leak detection**, sanitizer stderr empty. Complete focused native suite: **99 cases/175,306 checks passed**. The new test retains an actual prepared runtime across a format reset, verifies replacement rejects, then releases it and verifies replacement succeeds. Evidence: harness `memory-service-{red,green,full,asan}.log` and `memory-service-asan.stderr`.

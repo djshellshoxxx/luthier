@@ -56,6 +56,7 @@ void PedalRuntime::reset() noexcept
 }
 bool PedalPool::setAssetStore (std::shared_ptr<IAssetStore> store)
 {
+    if (memoryBudget.used() != 0) return false; // includes external pins after reuse entries are cleared
     for (const auto& runtime : objects) if (! runtime.expired()) return false;
     assets = std::move (store); assetStoreConfigured = true; return true;
 }
