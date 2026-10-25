@@ -1,5 +1,11 @@
 # Pedalboard continuation handoff
 
+Current restart point: [native diagnostics and actual build8b evidence](handoff/PEDALBOARD-2026-10-25-NATIVE-DIAGNOSTICS.md).
+Native run40198638051 actually started on frozen6d9b5943; do not push handoff-only
+updates to its native branch and cancel it. Linux compiled5d2f4e58 has the same
+Source tree; actual CLAP/VST3 and engine/history/search checks pass. Release gates
+remain open and no release is published. Earlier entries retain historical provenance.
+
 Newest source milestone: [retirement and scoped test integration](handoff/PEDALBOARD-2026-10-25-RETIREMENT.md).
 Production source before that documentation checkpoint is f3f46893. The latest
 coherent product binaries remain280e182a; new source needs its coherent rebuild.
