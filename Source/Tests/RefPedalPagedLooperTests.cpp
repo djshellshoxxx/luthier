@@ -207,3 +207,37 @@ LUTHIER_TEST(RefPedalPagedLooper, provisionalHoldCancelPreservesRedoUntilTakeIsC
     PagedLooperCore::Graph graph;CHECK(core.capture(graph));auto malformed=graph;malformed.retiredCount=1;CHECK(!core.restore(malformed));
     malformed={};malformed.frames=1;CHECK(!core.restore(malformed));
 }
+LUTHIER_TEST(RefPedalPagedLooper, changingUndoDepthOneEightOnePreservesUndoneAudioAndNearestRedo)
+{
+    PagedFixture f;auto one=tiny();PagedLooperCore first;CHECK(first.prepare(f.store,one));
+    first.apply(LooperAction::Record);process(first,32,.25,-.25);first.apply(LooperAction::Play);CHECK(ready(first));
+    first.apply(LooperAction::Overdub);process(first,32,.125,-.125);first.apply(LooperAction::Play);CHECK(ready(first));first.apply(LooperAction::Undo);
+    PagedLooperCore::Graph graph;CHECK(first.capture(graph));CHECK(graph.layerCount==0);CHECK(graph.redoCount==1);CHECK(graph.transport==PagedLooperCore::State::Playing);
+    auto eight=one;eight.undoDepth=8;PagedLooperCore expanded;CHECK(expanded.prepare(f.store,eight));CHECK(expanded.restore(graph));CHECK(ready(expanded));CHECK(expanded.state()==PagedLooperCore::State::Playing);
+    CHECK(expanded.reservedBytes()>first.reservedBytes());expanded.apply(LooperAction::Redo);
+    for(int pass=0;pass<7;++pass){expanded.apply(LooperAction::Overdub);process(expanded,32,double(pass+1)*.00390625,-double(pass+1)*.00390625);expanded.apply(LooperAction::Play);CHECK(ready(expanded));}
+    CHECK(expanded.undoDepth()==8);for(int i=0;i<3;++i)expanded.apply(LooperAction::Undo);process(expanded,7,0,0);CHECK(expanded.capture(graph));
+    CHECK(graph.layerCount==5);CHECK(graph.redoCount==3);CHECK(graph.playhead==7);
+    auto narrow=one;narrow.historyCapacity=8;PagedLooperCore reduced;CHECK(reduced.prepare(f.store,narrow));CHECK(reduced.restore(graph));CHECK(reduced.state()==graph.transport);CHECK(reduced.playhead()==graph.playhead);
+    PagedLooperCore::Graph pending;CHECK(reduced.capture(pending));CHECK(pending.layerCount==0);CHECK(pending.redoCount==1);CHECK(pending.retiredCount==5);
+#if LUTHIER_ALLOCATION_COUNTER
+    std::array<double,1> probeL{},probeR{};const auto allocatedBefore=luthier::tests::allocationsOnThisThread();
+    reduced.process(probeL.data(),probeR.data(),1);reduced.capture(pending);CHECK(luthier::tests::allocationsOnThisThread()-allocatedBefore==0);
+#endif
+    CHECK(ready(reduced));
+    std::vector<double> l;process(reduced,32,0,0,&l);for(double x:l)CHECK_NEAR(x,.4140625,0);
+    reduced.apply(LooperAction::Redo);process(reduced,32,0,0,&l);for(double x:l)CHECK_NEAR(x,.43359375,0);CHECK(reduced.undoDepth()==1);
+    reduced.apply(LooperAction::Undo);CHECK(reduced.capture(graph));CHECK(graph.redoCount==1);CHECK(graph.retiredCount==0);
+    PagedLooperCore final;CHECK(final.prepare(f.store,one));CHECK(final.restore(graph));CHECK(ready(final));CHECK(final.reservedBytes()==first.reservedBytes());
+    auto fail=eight;fail.ramBudget=final.reservedBytes()-1;CHECK(!final.prepare(f.store,fail));CHECK(final.capture(pending));CHECK(pending.base==graph.base);CHECK(pending.redo==graph.redo);CHECK(pending.transport==graph.transport);CHECK(pending.playhead==graph.playhead);
+    process(final,32,0,0,&l);for(double x:l)CHECK_NEAR(x,.4140625,0);final.apply(LooperAction::Redo);process(final,32,0,0,&l);for(double x:l)CHECK_NEAR(x,.43359375,0);
+}
+
+LUTHIER_TEST(RefPedalPagedLooper, restoredPlayingTransportKeepsPublishedSamplePhase)
+{
+    PagedFixture f;PagedLooperCore original;auto c=tiny();CHECK(original.prepare(f.store,c));original.apply(LooperAction::Record);
+    std::array<double,32> l{},r{};for(size_t i=0;i<32;++i){l[i]=double(i)/64.;r[i]=-l[i];}original.process(l.data(),r.data(),32);original.apply(LooperAction::Play);CHECK(ready(original));process(original,39,0,0);
+    PagedLooperCore::Graph graph;CHECK(original.capture(graph));CHECK(graph.transport==PagedLooperCore::State::Playing);CHECK(graph.playhead==7);
+    PagedLooperCore restored;CHECK(restored.prepare(f.store,c));CHECK(restored.restore(graph));CHECK(ready(restored));CHECK(restored.playhead()==7);
+    std::array<double,32> a{},ar{},b{},br{};original.process(a.data(),ar.data(),32);restored.process(b.data(),br.data(),32);CHECK(a==b);CHECK(ar==br);
+}

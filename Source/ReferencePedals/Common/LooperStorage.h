@@ -53,6 +53,9 @@ public:
     bool finishRecord() noexcept;
     bool read(uint64_t frame,double& left,double& right,uint64_t* version=nullptr,bool allowStale=false) noexcept;
     void prefetch(uint64_t frame) noexcept;
+    // Stopped owner off audio only: wait for requested read-ahead, never on
+    // the callback. Used before publishing a restored processor.
+    bool waitAvailable(uint64_t frame,int timeoutMs=1000) const;
     bool available(uint64_t frame,bool allowStale=false) const noexcept; // audio owner, no fault side effects
     // Audio-owner call. Both loops must be finalized and have ready manifests.
     // Source remains immutable until completion; its lifetime is held internally.

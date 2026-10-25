@@ -18,6 +18,9 @@ public:
     {
         double sampleRate=48000,seconds=300;
         int channels=2,undoDepth=1;
+        // Off-audio restore may need older audible/redo assets while reducing
+        // the selected depth. Reserve this capacity only for such a rebuild.
+        int historyCapacity=0;
         // Aggregate across base, retained layers, scratch/retired streams,
         // caches, page metadata, queues and worker I/O scratch.
         size_t ramBudget=32*1024*1024;
@@ -27,13 +30,16 @@ public:
     using CaptureStatus=LooperStorage::CaptureStatus;
     struct Graph
     {
-        uint64_t generation=0,frames=0;
+        uint64_t generation=0,frames=0,playhead=0;
+        State transport=State::Empty;
         CaptureStatus status=CaptureStatus::Empty;
         uint32_t faults=0;
         AssetHash base;
         std::array<AssetHash,8> layers{};
         int layerCount=0;
-        std::array<AssetHash,2> retired{}; // audible, already outside undo depth
+        std::array<AssetHash,8> redo{};
+        int redoCount=0;
+        std::array<AssetHash,10> retired{}; // audible, already outside undo depth
         int retiredCount=0;
     };
     PagedLooperCore();
@@ -43,6 +49,13 @@ public:
     bool enqueue(Command) noexcept; // one chronological producer
     void apply(Action) noexcept; // audio owner at exact boundary
     void process(double* left,double* right,int n,double loopGain=1,double dryGain=1) noexcept;
+    // Wrappers with sample-clock foot holds or wet-only converter delays can
+    // bracket frame calls once per callback, retaining bounded per-block I/O
+    // service/publication rather than republishing on every individual frame.
+    void beginBlock() noexcept;
+    void processFrame(double& left,double& right,double loopGain=1,double dryGain=1) noexcept;
+    void endBlock() noexcept;
+    void rewind() noexcept; // audio owner, does not change assets or transport
     void setSeamMilliseconds(double) noexcept;
     State state() const noexcept; // remaining getters are audio owner only
     uint64_t length() const noexcept;

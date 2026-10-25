@@ -11,16 +11,16 @@ void put(juce::var& value,const char* name,const juce::var& child){value.getDyna
 AssetHash asset(uint8_t marker){AssetHash h;h.bytes[0]=marker;return h;}
 PagedLooperCore::Graph complete()
 {
-    PagedLooperCore::Graph g;g.status=PagedLooperCore::CaptureStatus::Ready;g.frames=12345;g.generation=9007199254740993ull;g.base=asset(1);g.layerCount=2;g.layers[0]=g.layers[1]=asset(2);g.retiredCount=1;g.retired[0]=asset(3);return g;
+    PagedLooperCore::Graph g;g.status=PagedLooperCore::CaptureStatus::Ready;g.transport=PagedLooperCore::State::Playing;g.playhead=17;g.frames=12345;g.generation=9007199254740993ull;g.base=asset(1);g.layerCount=2;g.layers[0]=g.layers[1]=asset(2);g.redoCount=1;g.redo[0]=asset(4);g.retiredCount=1;g.retired[0]=asset(3);return g;
 }
-PagedLooperCore::Config config(){PagedLooperCore::Config c;c.undoDepth=2;return c;}
+PagedLooperCore::Config config(){PagedLooperCore::Config c;c.undoDepth=3;return c;}
 juce::var valid(){juce::var value;LooperStateCodec::Stored stored;LooperStateCodec::encode(stored,complete(),config(),value);return value;}
 }
 LUTHIER_TEST(RefPedalLooperState, exactAssetGraphAndOpaqueNestedFieldsSurvive)
 {
     LooperStateCodec::Stored stored;stored.source=object();auto vendor=object();put(vendor,"tiny",1e-200);put(vendor,"precision",.12345678901234567);put(vendor,"nested",juce::Array<juce::var>{"kept",false,42});put(stored.source,"vendor",vendor);put(stored.source,"base","/private/tmp/audio.wav");
     juce::var encoded;CHECK(LooperStateCodec::encode(stored,complete(),config(),encoded));CHECK(encoded["base"].toString().startsWith("sha256:"));CHECK(!encoded["base"].toString().contains("/"));
-    LooperStateCodec::Stored restored;CHECK(LooperStateCodec::decode(encoded,restored));CHECK(restored.graph.frames==12345);CHECK(restored.graph.generation==9007199254740993ull);CHECK(restored.graph.layers[0]==restored.graph.layers[1]);CHECK(restored.graph.retired[0]==asset(3));
+    LooperStateCodec::Stored restored;CHECK(LooperStateCodec::decode(encoded,restored));CHECK(restored.graph.frames==12345);CHECK(restored.graph.generation==9007199254740993ull);CHECK(restored.graph.layers[0]==restored.graph.layers[1]);CHECK(restored.graph.retired[0]==asset(3));CHECK(restored.graph.redo[0]==asset(4));CHECK(restored.graph.transport==PagedLooperCore::State::Playing);CHECK(restored.graph.playhead==17);
     CHECK(double(restored.source["vendor"]["tiny"])==1e-200);CHECK(double(restored.source["vendor"]["precision"])==.12345678901234567);CHECK(restored.source["vendor"]["nested"].size()==3);
     auto clone=encoded["vendor"];put(clone,"tiny",.5);CHECK(double(stored.source["vendor"]["tiny"])==1e-200);
     juce::var again;CHECK(LooperStateCodec::encode(restored,restored.graph,restored.config,again));CHECK(again["layers"].size()==2);CHECK(again["retired"].size()==1);
@@ -36,7 +36,7 @@ LUTHIER_TEST(RefPedalLooperState, invalidKnownFieldsFailAtomically)
     reject("channels",3);reject("channels",false);reject("pageFrames",15);reject("pageFrames",65537);reject("frames",-1);reject("frames",double(192000)*5400+1);
     reject("generation",9223372036854775808.);reject("generation",true);reject("faults",4294967296.);reject("faults",-.5);reject("undoDepth",1);reject("status","invented");
     reject("base","/tmp/audio.wav");reject("base","sha256:"+juce::String::repeatedString("0",64));reject("base","sha256:"+juce::String::repeatedString("g",64));
-    reject("layers",object());reject("layers",juce::Array<juce::var>{"file:///tmp/a.wav"});reject("retired",juce::Array<juce::var>{"x","x","x"});
+    reject("layers",object());reject("layers",juce::Array<juce::var>{"file:///tmp/a.wav"});reject("retired",juce::Array<juce::var>{"x","x","x"});reject("redo",juce::Array<juce::var>{"x"});reject("transport",9);reject("playhead",12345);reject("sampleRate",1);
     reject("status","pending");reject("vendor",std::numeric_limits<double>::quiet_NaN());
     CHECK(!LooperStateCodec::decode(juce::Array<juce::var>{},previous));CHECK(previous.graph.base==asset(1));
 }

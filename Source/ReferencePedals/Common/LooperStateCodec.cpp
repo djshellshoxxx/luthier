@@ -36,8 +36,9 @@ bool hash(const V& value,AssetHash& out)
     for(auto c:hex)if(!((c>='0'&&c<='9') || (c>='a'&&c<='f') || (c>='A'&&c<='F')))return false;
     const auto next=AssetHash::fromHex(hex);if(next.isNull())return false;out=next;return true;
 }
-bool hashes(const V& root,const char* key,AssetHash* out,int& count,int max)
+bool hashes(const V& root,const char* key,AssetHash* out,int& count,int max,bool required=true)
 {
+    if(!root.hasProperty(key) && !required){count=0;return true;}
     const auto& value=root[key];if(!value.isArray() || value.size()>max)return false;
     count=value.size();for(int i=0;i<count;++i)if(!hash(value[i],out[size_t(i)]))return false;return true;
 }
@@ -65,22 +66,27 @@ bool LooperStateCodec::decode(const V& value,Stored& out,juce::String* error)
     if(!integer(value,"schema",schema,1,uint64_t(std::numeric_limits<int>::max())))return fail(error,"Invalid looper schema");
     next.source=value.clone();
     if(schema>1){next.forward=true;out=std::move(next);return true;}
-    uint64_t rate=0,channels=0,pageFrames=0,frames=0,generation=0,faults=0,depth=1;
+    uint64_t rate=0,channels=0,pageFrames=0,frames=0,generation=0,faults=0,depth=1,head=0,transport=0;
     if(!integer(value,"sampleRate",rate,1,192000) || !integer(value,"channels",channels,1,2)
        || !integer(value,"pageFrames",pageFrames,16,65536) || !integer(value,"frames",frames,0,uint64_t(192000)*5400)
        || !integer(value,"generation",generation,0,uint64_t(std::numeric_limits<juce::int64>::max()))
        || !integer(value,"faults",faults,0,std::numeric_limits<uint32_t>::max()) || !integer(value,"undoDepth",depth,1,8,false)
        || !status(value["status"],next.graph.status))return fail(error,"Invalid looper fields");
+    transport=uint64_t(next.graph.status==Status::Empty?PagedLooperCore::State::Empty:next.graph.status==Status::Recording?PagedLooperCore::State::Recording:PagedLooperCore::State::Stopped);
+    if(!integer(value,"playhead",head,0,uint64_t(192000)*5400,false) || !integer(value,"transport",transport,0,uint64_t(PagedLooperCore::State::Stopped),false)
+       || frames>rate*5400 || (!frames?head!=0:head>=frames))return fail(error,"Invalid looper transport");
+    next.graph.playhead=head;next.graph.transport=PagedLooperCore::State(transport);
     next.config.sampleRate=double(rate);next.config.channels=int(channels);next.config.pageFrames=int(pageFrames);next.config.undoDepth=int(depth);
     next.graph.frames=frames;next.graph.generation=generation;next.graph.faults=uint32_t(faults);
     if(!hashes(value,"layers",next.graph.layers.data(),next.graph.layerCount,int(next.graph.layers.size()))
+       || !hashes(value,"redo",next.graph.redo.data(),next.graph.redoCount,int(next.graph.redo.size()),false)
        || !hashes(value,"retired",next.graph.retired.data(),next.graph.retiredCount,int(next.graph.retired.size()))
-       || next.graph.layerCount>int(depth))return fail(error,"Invalid looper layer assets");
+       || next.graph.layerCount+next.graph.redoCount>int(depth) || next.graph.layerCount+next.graph.redoCount+next.graph.retiredCount>10)return fail(error,"Invalid looper layer assets");
     if(next.graph.status==Status::Ready)
     {
-        if(!frames || !hash(value["base"],next.graph.base))return fail(error,"Ready looper requires complete assets");
+        if(!frames || (next.graph.transport!=PagedLooperCore::State::Playing && next.graph.transport!=PagedLooperCore::State::Stopped) || !hash(value["base"],next.graph.base))return fail(error,"Ready looper requires complete assets");
     }
-    else if(!value["base"].isVoid() || next.graph.layerCount || next.graph.retiredCount || (next.graph.status==Status::Empty && frames))
+    else if(!value["base"].isVoid() || next.graph.layerCount || next.graph.redoCount || next.graph.retiredCount || (next.graph.status==Status::Empty && (frames || next.graph.transport!=PagedLooperCore::State::Empty)))
         return fail(error,"Unfinished looper cannot claim completed assets");
     out=std::move(next);return true;
 }
@@ -94,21 +100,32 @@ bool LooperStateCodec::encode(const Stored& stored,const PagedLooperCore::Graph&
     if(!statusText(graph.status) || graph.frames>uint64_t(192000)*5400 || graph.generation>uint64_t(std::numeric_limits<juce::int64>::max())
        || !std::isfinite(config.sampleRate) || std::floor(config.sampleRate)!=config.sampleRate || config.sampleRate<1 || config.sampleRate>192000
        || config.channels<1 || config.channels>2 || config.pageFrames<16 || config.pageFrames>65536 || config.undoDepth<1 || config.undoDepth>8
-       || graph.layerCount<0 || graph.layerCount>config.undoDepth || graph.retiredCount<0 || graph.retiredCount>2)return fail(error,"Invalid looper capture");
+       || graph.layerCount<0 || graph.layerCount>8 || graph.redoCount<0 || graph.redoCount>8 || graph.layerCount+graph.redoCount>config.undoDepth
+       || graph.retiredCount<0 || graph.retiredCount>10 || graph.layerCount+graph.redoCount+graph.retiredCount>10
+       || graph.transport>PagedLooperCore::State::Stopped || (!graph.frames?graph.playhead!=0:graph.playhead>=graph.frames))return fail(error,"Invalid looper capture");
+    if(graph.frames>uint64_t(config.sampleRate*5400))return fail(error,"Looper exceeds supported duration");
     if(graph.status==Status::Ready)
     {
-        if(!graph.frames || graph.base.isNull())return fail(error,"Ready looper requires complete assets");
+        if(!graph.frames || graph.base.isNull() || (graph.transport!=PagedLooperCore::State::Playing && graph.transport!=PagedLooperCore::State::Stopped))return fail(error,"Ready looper requires complete assets");
         for(int i=0;i<graph.layerCount;++i)if(graph.layers[size_t(i)].isNull())return fail(error,"Missing looper layer hash");
+        for(int i=0;i<graph.redoCount;++i)if(graph.redo[size_t(i)].isNull())return fail(error,"Missing redo looper hash");
         for(int i=0;i<graph.retiredCount;++i)if(graph.retired[size_t(i)].isNull())return fail(error,"Missing retired looper hash");
     }
-    else if(!graph.base.isNull() || graph.layerCount || graph.retiredCount || (graph.status==Status::Empty && graph.frames))return fail(error,"Unfinished looper cannot claim completed assets");
+    else if(!graph.base.isNull() || graph.layerCount || graph.redoCount || graph.retiredCount || (graph.status==Status::Empty && (graph.frames || graph.transport!=PagedLooperCore::State::Empty)))return fail(error,"Unfinished looper cannot claim completed assets");
     V next=stored.source.getDynamicObject()?stored.source.clone():V(new juce::DynamicObject());
     auto* object=next.getDynamicObject();
-    object->setProperty("schema",1);object->setProperty("status",statusText(graph.status));object->setProperty("sampleRate",config.sampleRate);
-    object->setProperty("channels",config.channels);object->setProperty("pageFrames",config.pageFrames);object->setProperty("undoDepth",config.undoDepth);
-    object->setProperty("frames",juce::int64(graph.frames));object->setProperty("generation",juce::int64(graph.generation));object->setProperty("faults",juce::int64(graph.faults));
-    object->setProperty("base",graph.status==Status::Ready?V("sha256:"+graph.base.toHex()):V());
-    object->setProperty("layers",encodedHashes(graph.layers.data(),graph.layerCount));object->setProperty("retired",encodedHashes(graph.retired.data(),graph.retiredCount));
+    const auto set=[&](const char* key,const V& value)
+    {
+        if(auto* previous=object->getProperties().getVarPointer(key))*previous=value;
+        else object->setProperty(key,value);
+    };
+    set("schema",1);set("status",statusText(graph.status));set("sampleRate",config.sampleRate);
+    set("channels",config.channels);set("pageFrames",config.pageFrames);set("undoDepth",config.undoDepth);
+    set("playhead",juce::int64(graph.playhead));set("transport",int(graph.transport));
+    set("frames",juce::int64(graph.frames));set("generation",juce::int64(graph.generation));set("faults",juce::int64(graph.faults));
+    set("base",graph.status==Status::Ready?V("sha256:"+graph.base.toHex()):V());
+    set("redo",encodedHashes(graph.redo.data(),graph.redoCount));
+    set("layers",encodedHashes(graph.layers.data(),graph.layerCount));set("retired",encodedHashes(graph.retired.data(),graph.retiredCount));
     if(!finiteTree(next))return fail(error,"Invalid opaque looper fields");
     out=std::move(next);return true;
 }

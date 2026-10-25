@@ -366,11 +366,14 @@ bool LooperStorage::add(uint64_t frame,double left,double right) noexcept
         else if(!source)std::fill_n(page.pcm.data(),size_t(count)*size_t(p.config.channels),0.f);
         page.epoch=current;page.index=index;page.frames=count;page.version=version+1;p.writeBuffer=buffer;
         entry.desired.store(state(current,page.version),std::memory_order_release);entry.residentEpoch=current;entry.resident=buffer;
+        // The requested page window changes at page acquisition, not at every
+        // sample within this already-resident writable page.
+        prefetch(frame);
     }
     auto& page=p.writes[p.writeBuffer];const auto at=size_t(offset)*size_t(p.config.channels);
     const auto safe=[](double n){return std::isfinite(n)?float(std::clamp(n,-16.,16.)):0.f;};
     page.pcm[at]+=safe(left);if(p.config.channels==2)page.pcm[at+1]+=safe(right);
-    prefetch(frame);return true;
+    return true;
 }
 bool LooperStorage::finishRecord() noexcept
 {
@@ -387,6 +390,13 @@ void LooperStorage::prefetch(uint64_t frame) noexcept
     auto& p=*impl;const auto count=(p.frames.load()+uint64_t(p.config.pageFrames)-1)/uint64_t(p.config.pageFrames);
     auto index=(frame%p.frames.load())/uint64_t(p.config.pageFrames);
     for(int i=0;i<=p.config.readAhead;++i)p.request((index+uint64_t(i))%count);
+}
+bool LooperStorage::waitAvailable(uint64_t frame,int timeoutMs) const
+{
+    if(!impl)return false;
+    auto& p=*impl;std::unique_lock<std::mutex> lock(p.mutex);
+    p.done.wait_for(lock,std::chrono::milliseconds(std::clamp(timeoutMs,0,5000)),[&]{return available(frame) || (p.flags.load()&ioFailure)!=0;});
+    return available(frame);
 }
 bool LooperStorage::available(uint64_t frame,bool allowStale) const noexcept
 {

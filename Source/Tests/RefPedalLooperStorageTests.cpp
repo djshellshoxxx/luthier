@@ -108,8 +108,9 @@ LUTHIER_TEST(RefPedalLooperStorage, slowReaderReturnsSilenceAndRecovers)
     ControlledStore store;LooperStorage storage;auto c=smallConfig();CHECK(storage.prepare(store,c));storage.beginRecord();
     for(int i=0;i<128;++i)CHECK(storage.append(.25,-.5));CHECK(storage.finishRecord());AssetHash hash;CHECK(storage.manifest(hash));
     store.setReadGate(hash);LooperStorage restored;CHECK(restored.prepare(store,c));CHECK(restored.restore(hash));CHECK(store.waitForBlockedRead());
+    CHECK(!restored.waitAvailable(0,0));
     double l=99,r=99;CHECK(!restored.read(0,l,r));CHECK(l==0);CHECK(r==0);CHECK((restored.errors()&LooperStorage::readUnderrun)!=0);
-    store.unblock();CHECK(eventually([&]{return restored.read(0,l,r);}));CHECK_NEAR(l,.25,0);CHECK_NEAR(r,-.5,0);
+    store.unblock();CHECK(restored.waitAvailable(0));CHECK(eventually([&]{return restored.read(0,l,r);}));CHECK_NEAR(l,.25,0);CHECK_NEAR(r,-.5,0);
 }
 LUTHIER_TEST(RefPedalLooperStorage, corruptManifestIsAtomicAndMissingPageIsReported)
 {

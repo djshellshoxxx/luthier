@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstring>
 #include <limits>
+#include <chrono>
 namespace luthier::reference::common
 {
 struct PagedLooperCore::Impl
@@ -27,27 +28,35 @@ struct PagedLooperCore::Impl
     {
         bool resolve=false,frozen=false;
         AssetHash frozenBase;
-        int layerCount=0,retiredCount=0;
-        std::array<int,11> ids{};
-        std::array<uint64_t,11> epochs{};
+        int layerCount=0,redoCount=0,retiredCount=0;
+        std::array<int,27> ids{};
+        std::array<uint64_t,27> epochs{};
     };
     struct Publication
     {
-        std::atomic<uint64_t> sequence{0},generation{0},frames{0};
-        std::atomic<uint32_t> status{uint32_t(CaptureStatus::Empty)},faults{0},count{0},retiredCount{0};
-        std::atomic<bool> resolve{false},frozen{false};
-        std::atomic<int> sourceCount{0},sourceRetiredCount{0};
-        std::array<std::atomic<int>,11> ids{};
-        std::array<std::atomic<uint64_t>,11> epochs{};
-        std::array<std::atomic<uint64_t>,48> hashes{};
+        static_assert(std::atomic<uint64_t>::is_always_lock_free,"Loop state needs lock-free atomic words");
+        static constexpr size_t slots=27,wordCount=14+slots*2+(slots+1)*4;
+        std::atomic<uint64_t> sequence{0};
+        std::array<std::atomic<uint64_t>,wordCount> words{};
+        static const AssetHash& hashAt(const Graph& graph,size_t slot) noexcept
+        {return slot==0?graph.base:slot<=8?graph.layers[slot-1]:slot<=16?graph.redo[slot-9]:graph.retired[slot-17];}
+        static AssetHash& hashAt(Graph& graph,size_t slot) noexcept
+        {return slot==0?graph.base:slot<=8?graph.layers[slot-1]:slot<=16?graph.redo[slot-9]:graph.retired[slot-17];}
         void store(const Graph& graph,const References& refs) noexcept
         {
+            std::array<uint64_t,wordCount> packed{};size_t at=0;
+            for(auto value:{graph.generation,graph.frames,graph.playhead,uint64_t(graph.transport),uint64_t(graph.status),uint64_t(graph.faults),
+                uint64_t(graph.layerCount),uint64_t(graph.redoCount),uint64_t(graph.retiredCount),uint64_t(refs.resolve),uint64_t(refs.frozen),
+                uint64_t(refs.layerCount),uint64_t(refs.redoCount),uint64_t(refs.retiredCount)})packed[at++]=value;
+            for(auto id:refs.ids)packed[at++]=uint64_t(id);
+            for(auto epoch:refs.epochs)packed[at++]=epoch;
+            for(size_t h=0;h<=slots;++h)
+            {
+                const auto& hash=h==slots?refs.frozenBase:hashAt(graph,h);
+                for(size_t i=0;i<4;++i){uint64_t word;std::memcpy(&word,hash.bytes.data()+i*8,8);packed[at++]=word;}
+            }
             sequence.fetch_add(1,std::memory_order_acq_rel);
-            generation.store(graph.generation,std::memory_order_relaxed);frames.store(graph.frames,std::memory_order_relaxed);
-            status.store(uint32_t(graph.status),std::memory_order_relaxed);faults.store(graph.faults,std::memory_order_relaxed);count.store(uint32_t(graph.layerCount),std::memory_order_relaxed);retiredCount.store(uint32_t(graph.retiredCount),std::memory_order_relaxed);
-            resolve.store(refs.resolve,std::memory_order_relaxed);frozen.store(refs.frozen,std::memory_order_relaxed);sourceCount.store(refs.layerCount,std::memory_order_relaxed);sourceRetiredCount.store(refs.retiredCount,std::memory_order_relaxed);
-            for(size_t i=0;i<11;++i){ids[i].store(refs.ids[i],std::memory_order_relaxed);epochs[i].store(refs.epochs[i],std::memory_order_relaxed);}
-            for(size_t h=0;h<12;++h){const auto& hash=h==0?graph.base:h<=8?graph.layers[h-1]:h<=10?graph.retired[h-9]:refs.frozenBase;for(size_t i=0;i<4;++i){uint64_t word;std::memcpy(&word,hash.bytes.data()+i*8,8);hashes[h*4+i].store(word,std::memory_order_relaxed);}}
+            for(size_t i=0;i<wordCount;++i)words[i].store(packed[i],std::memory_order_relaxed);
             sequence.fetch_add(1,std::memory_order_release);
         }
         bool load(Graph& out,References& refs,uint64_t& sequenceOut) const noexcept
@@ -55,12 +64,19 @@ struct PagedLooperCore::Impl
             for(int attempt=0;attempt<8;++attempt)
             {
                 const auto before=sequence.load(std::memory_order_acquire);if(before&1)continue;
-                Graph next;References nextRefs;next.generation=generation.load(std::memory_order_relaxed);next.frames=frames.load(std::memory_order_relaxed);
-                next.status=CaptureStatus(status.load(std::memory_order_relaxed));next.faults=faults.load(std::memory_order_relaxed);next.layerCount=int(count.load(std::memory_order_relaxed));next.retiredCount=int(retiredCount.load(std::memory_order_relaxed));
-                nextRefs.resolve=resolve.load(std::memory_order_relaxed);nextRefs.frozen=frozen.load(std::memory_order_relaxed);nextRefs.layerCount=sourceCount.load(std::memory_order_relaxed);nextRefs.retiredCount=sourceRetiredCount.load(std::memory_order_relaxed);
-                for(size_t i=0;i<11;++i){nextRefs.ids[i]=ids[i].load(std::memory_order_relaxed);nextRefs.epochs[i]=epochs[i].load(std::memory_order_relaxed);}
-                for(size_t h=0;h<12;++h){auto& hash=h==0?next.base:h<=8?next.layers[h-1]:h<=10?next.retired[h-9]:nextRefs.frozenBase;for(size_t i=0;i<4;++i){const auto word=hashes[h*4+i].load(std::memory_order_relaxed);std::memcpy(hash.bytes.data()+i*8,&word,8);}}
+                std::array<uint64_t,wordCount> packed{};for(size_t i=0;i<wordCount;++i)packed[i]=words[i].load(std::memory_order_relaxed);
                 std::atomic_thread_fence(std::memory_order_acquire);if(sequence.load(std::memory_order_relaxed)!=before)continue;
+                Graph next;References nextRefs;size_t at=0;
+                next.generation=packed[at++];next.frames=packed[at++];next.playhead=packed[at++];next.transport=State(packed[at++]);next.status=CaptureStatus(packed[at++]);next.faults=uint32_t(packed[at++]);
+                next.layerCount=int(packed[at++]);next.redoCount=int(packed[at++]);next.retiredCount=int(packed[at++]);
+                nextRefs.resolve=packed[at++]!=0;nextRefs.frozen=packed[at++]!=0;nextRefs.layerCount=int(packed[at++]);nextRefs.redoCount=int(packed[at++]);nextRefs.retiredCount=int(packed[at++]);
+                for(auto& id:nextRefs.ids)id=int(packed[at++]);
+                for(auto& epoch:nextRefs.epochs)epoch=packed[at++];
+                for(size_t h=0;h<=slots;++h)
+                {
+                    auto& hash=h==slots?nextRefs.frozenBase:hashAt(next,h);
+                    for(size_t i=0;i<4;++i){const auto word=packed[at++];std::memcpy(hash.bytes.data()+i*8,&word,8);}
+                }
                 out=next;refs=nextRefs;sequenceOut=before;return true;
             }
             return false;
@@ -69,7 +85,7 @@ struct PagedLooperCore::Impl
     explicit Impl(Config c):config(c){}
     void publish() noexcept
     {
-        Graph graph;References refs;graph.generation=generation;graph.frames=frames;graph.faults=flags|(commands.dropped()?uint32_t(256):0);
+        Graph graph;References refs;graph.generation=generation;graph.frames=frames;graph.transport=current;graph.playhead=head;graph.faults=flags|(commands.dropped()?uint32_t(256):0);
         if(flags&LooperStorage::ioFailure)graph.status=CaptureStatus::Failed;
         else if(current==State::Recording)graph.status=CaptureStatus::Recording;
         else if(!frames)graph.status=CaptureStatus::Empty;
@@ -78,10 +94,11 @@ struct PagedLooperCore::Impl
             graph.status=CaptureStatus::Pending;
             if(current!=State::Overdubbing)
             {
-                refs.resolve=true;refs.layerCount=activeCount;refs.retiredCount=retiredCount;refs.frozen=merging>=0;refs.frozenBase=mergeBaseHash;
+                refs.resolve=true;refs.layerCount=activeCount;refs.redoCount=redoCount;refs.retiredCount=retiredCount;refs.frozen=merging>=0;refs.frozenBase=mergeBaseHash;
                 refs.ids[0]=0;refs.epochs[0]=streams[0]->generation();
                 for(int i=0;i<activeCount;++i){const auto slot=size_t(i+1);refs.ids[slot]=active[size_t(i)];refs.epochs[slot]=streams[size_t(active[size_t(i)])]->generation();}
-                for(int i=0;i<retiredCount;++i){const auto slot=size_t(i+9);refs.ids[slot]=retired[size_t(i)];refs.epochs[slot]=streams[size_t(retired[size_t(i)])]->generation();}
+                for(int i=0;i<redoCount;++i){const auto slot=size_t(i+9);refs.ids[slot]=redo[size_t(i)];refs.epochs[slot]=streams[size_t(redo[size_t(i)])]->generation();}
+                for(int i=0;i<retiredCount;++i){const auto slot=size_t(i+17);refs.ids[slot]=retired[size_t(i)];refs.epochs[slot]=streams[size_t(retired[size_t(i)])]->generation();}
             }
         }
         published.store(graph,refs);
@@ -137,6 +154,7 @@ struct PagedLooperCore::Impl
         {
             streams[0]->prefetch(head);
             for(int i=0;i<activeCount;++i)streams[size_t(active[size_t(i)])]->prefetch(head);
+            for(int i=0;i<redoCount;++i)streams[size_t(redo[size_t(i)])]->prefetch(head);
             for(int i=0;i<retiredCount;++i)streams[size_t(retired[size_t(i)])]->prefetch(head);
             if(scratch>=0)streams[size_t(scratch)]->prefetch(head);
         }
@@ -181,12 +199,12 @@ PagedLooperCore::PagedLooperCore()=default;PagedLooperCore::~PagedLooperCore()=d
 bool PagedLooperCore::prepare(IAssetStore& store,const Config& config)
 {
     if(!std::isfinite(config.sampleRate) || !std::isfinite(config.seconds) || config.sampleRate<1 || config.sampleRate>192000
-       || config.seconds<=0 || config.seconds>5400 || config.channels<1 || config.channels>2 || config.undoDepth<1 || config.undoDepth>8)return false;
+       || config.seconds<=0 || config.seconds>5400 || config.channels<1 || config.channels>2 || config.undoDepth<1 || config.undoDepth>8 || config.historyCapacity<0 || config.historyCapacity>8)return false;
     LooperStorage::Config stream;stream.sampleRate=config.sampleRate;stream.channels=config.channels;stream.pageFrames=config.pageFrames;
     stream.writePages=config.writePages;stream.readPages=config.readPages;stream.readAhead=config.readAhead;
     stream.maxFrames=uint64_t(config.sampleRate*config.seconds);stream.ramBudget=config.ramBudget;stream.storageBudget=config.storageBudget;
     size_t ram=0;uint64_t disk=0;if(!LooperStorage::reservation(stream,ram,disk))return false;
-    const auto count=uint64_t(config.undoDepth+3);
+    const auto count=uint64_t(std::max(config.undoDepth,config.historyCapacity)+3);
     if(ram>std::numeric_limits<size_t>::max()/count || disk>std::numeric_limits<uint64_t>::max()/count)return false;
     const auto aggregateRam=sizeof(Impl)+count*(ram+sizeof(LooperStorage));const auto aggregateDisk=count*disk;
     if(aggregateRam>config.ramBudget || aggregateDisk>config.storageBudget)return false;
@@ -223,46 +241,52 @@ void PagedLooperCore::apply(Action action) noexcept
     }
     p.service();p.publish();
 }
+void PagedLooperCore::beginBlock() noexcept {if(impl)impl->service();}
+void PagedLooperCore::endBlock() noexcept {if(impl){impl->service();impl->publish();}}
+void PagedLooperCore::processFrame(double& left,double& right,double loopGain,double dryGain) noexcept
+{
+    if(!impl)return;
+    auto& p=*impl;
+    loopGain=std::isfinite(loopGain)?loopGain:0;dryGain=std::isfinite(dryGain)?dryGain:0;
+    if(!p.hasPending)p.hasPending=p.commands.pop(p.pending);
+    for(int dispatched=0;p.hasPending && p.pending.sample<=p.timeline && dispatched<64;++dispatched)
+    {apply(p.pending.action);p.hasPending=p.commands.pop(p.pending);}
+    const auto inputL=left,inputR=right;double wetL=0,wetR=0;
+    if(p.current==State::Recording)
+    {
+        const auto recordL=p.config.channels==1?.5*(inputL+inputR):inputL;
+        if(!p.streams[0]->append(recordL,inputR) || p.streams[0]->length()==p.maxFrames)p.closeRecord();
+        else p.frames=p.streams[0]->length();
+    }
+    else if(p.frames)
+    {
+        const bool playing=p.current==State::Playing || p.current==State::Overdubbing;
+        const double step=1./std::max(1.,p.config.sampleRate*.005);p.gain=std::clamp(p.gain+(playing?step:-step),0.,1.);
+        if(!(p.flags&LooperStorage::ioFailure) && (playing || p.gain>0))
+        {
+            p.playback(p.head,wetL,wetR);
+            if(p.current==State::Overdubbing && p.scratch>=0)
+            {
+                const auto recordL=p.config.channels==1?.5*(inputL+inputR):inputL;
+                if(!p.streams[size_t(p.scratch)]->add(p.head,recordL,inputR))p.closeOverdub();
+            }
+            double edge=1;
+            const auto seam=std::min(p.seam,p.frames/2);
+            if(seam){if(p.head<seam)edge=double(p.head)/double(seam);else if(p.head>=p.frames-seam)edge=double(p.frames-1-p.head)/double(seam);}
+            const auto envelope=p.gain<=0?0:p.gain>=1?1:.5-.5*std::cos(3.14159265358979323846*p.gain);
+            wetL*=envelope*loopGain*edge;wetR*=envelope*loopGain*edge;if(++p.head==p.frames)p.head=0;
+        }
+    }
+    if(p.current==State::Stopped && p.gain==0)p.head=0;
+    left=inputL*dryGain+wetL;right=inputR*dryGain+wetR;
+    ++p.timeline;
+}
 void PagedLooperCore::process(double* left,double* right,int n,double loopGain,double dryGain) noexcept
 {
     if(!impl || n<0 || (n && (!left || !right)))return;
-    auto& p=*impl;p.service();
-    loopGain=std::isfinite(loopGain)?loopGain:0;dryGain=std::isfinite(dryGain)?dryGain:0;
-    for(int i=0;i<n;++i,++p.timeline)
-    {
-        if(!p.hasPending)p.hasPending=p.commands.pop(p.pending);
-        for(int dispatched=0;p.hasPending && p.pending.sample<=p.timeline && dispatched<64;++dispatched)
-        {apply(p.pending.action);p.hasPending=p.commands.pop(p.pending);}
-        const auto inputL=left[i],inputR=right[i];double wetL=0,wetR=0;
-        if(p.current==State::Recording)
-        {
-            const auto recordL=p.config.channels==1?.5*(inputL+inputR):inputL;
-            if(!p.streams[0]->append(recordL,inputR) || p.streams[0]->length()==p.maxFrames)p.closeRecord();
-            else p.frames=p.streams[0]->length();
-        }
-        else if(p.frames)
-        {
-            const bool playing=p.current==State::Playing || p.current==State::Overdubbing;
-            const double step=1./std::max(1.,p.config.sampleRate*.005);p.gain=std::clamp(p.gain+(playing?step:-step),0.,1.);
-            if(!(p.flags&LooperStorage::ioFailure) && (playing || p.gain>0))
-            {
-                p.playback(p.head,wetL,wetR);
-                if(p.current==State::Overdubbing && p.scratch>=0)
-                {
-                    const auto recordL=p.config.channels==1?.5*(inputL+inputR):inputL;
-                    if(!p.streams[size_t(p.scratch)]->add(p.head,recordL,inputR))p.closeOverdub();
-                }
-                double edge=1;
-                const auto seam=std::min(p.seam,p.frames/2);
-                if(seam){if(p.head<seam)edge=double(p.head)/double(seam);else if(p.head>=p.frames-seam)edge=double(p.frames-1-p.head)/double(seam);}
-                wetL*=p.gain*loopGain*edge;wetR*=p.gain*loopGain*edge;p.head=(p.head+1)%p.frames;
-            }
-        }
-        if(p.current==State::Stopped && p.gain==0)p.head=0;
-        left[i]=inputL*dryGain+wetL;right[i]=inputR*dryGain+wetR;
-    }
-    p.service();p.publish();
+    beginBlock();for(int i=0;i<n;++i)processFrame(left[i],right[i],loopGain,dryGain);endBlock();
 }
+void PagedLooperCore::rewind() noexcept {if(impl){impl->head=0;impl->publish();}}
 void PagedLooperCore::setSeamMilliseconds(double ms) noexcept{if(impl)impl->seam=uint64_t(impl->config.sampleRate*.001*(std::isfinite(ms)?std::clamp(ms,0.,10.):0.));}
 PagedLooperCore::State PagedLooperCore::state() const noexcept{return impl?impl->current:State::Empty;}
 uint64_t PagedLooperCore::length() const noexcept{return impl?impl->frames:0;}
@@ -278,6 +302,7 @@ bool PagedLooperCore::playbackReady() const noexcept
     if(!p.frames)return true;
     if(!p.windowReady(0,p.merging>=0))return false;
     for(int i=0;i<p.activeCount;++i)if(!p.windowReady(p.active[size_t(i)]))return false;
+    for(int i=0;i<p.redoCount;++i)if(!p.windowReady(p.redo[size_t(i)]))return false;
     for(int i=0;i<p.retiredCount;++i)if(!p.windowReady(p.retired[size_t(i)]))return false;
     return p.scratch<0 || p.windowReady(p.scratch);
 }
@@ -293,10 +318,10 @@ bool PagedLooperCore::capture(Graph& out) const noexcept
         bool stable=true;
         if(refs.resolve)
         {
-            bool ready=true,failed=false;std::array<LooperStorage::Capture,11> sources;
-            for(size_t slot=0;slot<11;++slot)
+            bool ready=true,failed=false;std::array<LooperStorage::Capture,27> sources;
+            for(size_t slot=0;slot<27;++slot)
             {
-                if(slot>0 && !(slot<=size_t(refs.layerCount) || (slot>=9 && slot<size_t(9+refs.retiredCount))))continue;
+                if(slot>0 && !(slot<=size_t(refs.layerCount) || (slot>=9 && slot<size_t(9+refs.redoCount)) || (slot>=17 && slot<size_t(17+refs.retiredCount))))continue;
                 if(!p.streams[size_t(refs.ids[slot])]->capture(sources[slot]) || sources[slot].generation!=refs.epochs[slot] || sources[slot].frames!=next.frames){stable=false;break;}
                 next.faults|=sources[slot].faults;
                 failed=failed || sources[slot].status==CaptureStatus::Failed;
@@ -305,9 +330,10 @@ bool PagedLooperCore::capture(Graph& out) const noexcept
             if(failed)next.status=CaptureStatus::Failed;
             else if(stable && ready)
             {
-                next.status=CaptureStatus::Ready;next.base=refs.frozen?refs.frozenBase:sources[0].hash;next.layerCount=refs.layerCount;next.retiredCount=refs.retiredCount;
+                next.status=CaptureStatus::Ready;next.base=refs.frozen?refs.frozenBase:sources[0].hash;next.layerCount=refs.layerCount;next.redoCount=refs.redoCount;next.retiredCount=refs.retiredCount;
                 for(int i=0;i<next.layerCount;++i)next.layers[size_t(i)]=sources[size_t(i+1)].hash;
-                for(int i=0;i<next.retiredCount;++i)next.retired[size_t(i)]=sources[size_t(i+9)].hash;
+                for(int i=0;i<next.redoCount;++i)next.redo[size_t(i)]=sources[size_t(i+9)].hash;
+                for(int i=0;i<next.retiredCount;++i)next.retired[size_t(i)]=sources[size_t(i+17)].hash;
             }
         }
         std::atomic_thread_fence(std::memory_order_acquire);
@@ -318,35 +344,67 @@ bool PagedLooperCore::capture(Graph& out) const noexcept
 }
 bool PagedLooperCore::restore(const Graph& graph)
 {
-    if(!impl || (graph.status!=CaptureStatus::Ready && graph.status!=CaptureStatus::Empty) || graph.layerCount<0 || graph.layerCount>impl->config.undoDepth || graph.retiredCount<0 || graph.retiredCount>2
-       || graph.frames>impl->maxFrames || (graph.status==CaptureStatus::Ready && (!graph.frames || graph.base.isNull())))return false;
+    if(!impl || (graph.status!=CaptureStatus::Ready && graph.status!=CaptureStatus::Empty)
+       || graph.layerCount<0 || graph.layerCount>8 || graph.redoCount<0 || graph.redoCount>8 || graph.layerCount+graph.redoCount>8
+       || graph.retiredCount<0 || graph.retiredCount>10 || graph.layerCount+graph.redoCount+graph.retiredCount>10
+       || graph.frames>impl->maxFrames || graph.transport>State::Stopped
+       || (graph.status==CaptureStatus::Ready && (!graph.frames || graph.base.isNull() || graph.playhead>=graph.frames
+           || (graph.transport!=State::Playing && graph.transport!=State::Stopped))))return false;
     auto& p=*impl;
     if(graph.status==CaptureStatus::Empty)
     {
-        if(graph.frames || graph.layerCount || graph.retiredCount || !graph.base.isNull())return false;
+        if(graph.frames || graph.layerCount || graph.redoCount || graph.retiredCount || !graph.base.isNull() || graph.playhead || graph.transport!=State::Empty)return false;
         p.clear();p.publish();return true;
     }
     for(int i=0;i<graph.layerCount;++i)if(graph.layers[size_t(i)].isNull())return false;
+    for(int i=0;i<graph.redoCount;++i)if(graph.redo[size_t(i)].isNull())return false;
     for(int i=0;i<graph.retiredCount;++i)if(graph.retired[size_t(i)].isNull())return false;
-    // Called on an unpublished processor during its stopped lifecycle. Store
-    // failures are explicit; a partially restored processor is never Ready.
+    // Keep the nearest redo entries first, then the newest audible undo
+    // entries within the selected depth. Older audible layers remain in the
+    // playback sum until the worker folds them, never discarded or truncated.
+    const int keepRedo=std::min(graph.redoCount,p.config.undoDepth);
+    const int keepActive=std::min(graph.layerCount,p.config.undoDepth-keepRedo);
+    if(graph.retiredCount+graph.layerCount+keepRedo>p.count-1)return false;
     p.clear();
     if(!p.streams[0]->restore(graph.base)){p.flags|=LooperStorage::ioFailure;p.publish();return false;}
-    for(int i=0;i<graph.layerCount;++i)
+    int nextId=1;
+    const auto load=[&](const AssetHash& hash,int& id)
     {
-        const auto id=i+1;
-        if(!p.streams[size_t(id)]->restore(graph.layers[size_t(i)]) || p.streams[size_t(id)]->length()!=graph.frames)
-        {p.flags|=LooperStorage::ioFailure;p.publish();return false;}
-        p.active[size_t(p.activeCount++)]=id;p.used[size_t(id)]=true;
-    }
-    if(p.streams[0]->length()!=graph.frames){p.flags|=LooperStorage::ioFailure;p.publish();return false;}
+        id=nextId++;
+        if(!p.streams[size_t(id)]->restore(hash) || p.streams[size_t(id)]->length()!=graph.frames)return false;
+        p.used[size_t(id)]=true;return true;
+    };
     for(int i=0;i<graph.retiredCount;++i)
     {
-        const auto id=graph.layerCount+i+1;
-        if(graph.retired[size_t(i)].isNull() || !p.streams[size_t(id)]->restore(graph.retired[size_t(i)]) || p.streams[size_t(id)]->length()!=graph.frames)
-        {p.flags|=LooperStorage::ioFailure;p.publish();return false;}
-        p.retired[size_t(p.retiredCount++)]=id;p.used[size_t(id)]=true;
+        int id=0;if(!load(graph.retired[size_t(i)],id)){p.flags|=LooperStorage::ioFailure;p.publish();return false;}
+        p.retired[size_t(p.retiredCount++)]=id;
     }
-    p.frames=graph.frames;p.current=State::Stopped;p.head=0;p.gain=0;p.publish();return true;
+    for(int i=0;i<graph.layerCount;++i)
+    {
+        int id=0;if(!load(graph.layers[size_t(i)],id)){p.flags|=LooperStorage::ioFailure;p.publish();return false;}
+        if(i<graph.layerCount-keepActive)p.retired[size_t(p.retiredCount++)]=id;
+        else p.active[size_t(p.activeCount++)]=id;
+    }
+    for(int i=graph.redoCount-keepRedo;i<graph.redoCount;++i)
+    {
+        int id=0;if(!load(graph.redo[size_t(i)],id)){p.flags|=LooperStorage::ioFailure;p.publish();return false;}
+        p.redo[size_t(p.redoCount++)]=id;
+    }
+    if(p.streams[0]->length()!=graph.frames){p.flags|=LooperStorage::ioFailure;p.publish();return false;}
+    p.frames=graph.frames;p.current=graph.transport;p.head=graph.playhead;p.gain=p.current==State::Playing?1:0;
+    // Prime the actual configured window before publishing the replacement.
+    // This stopped off-audio wait is bounded across the whole stream pool.
+    const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(1);
+    const auto pages=(p.frames+uint64_t(p.config.pageFrames)-1)/uint64_t(p.config.pageFrames);
+    for(int id=0;id<p.count;++id)if(p.used[size_t(id)])p.streams[size_t(id)]->prefetch(p.head);
+    for(int id=0;id<p.count;++id)if(p.used[size_t(id)])
+        for(uint64_t ahead=0;ahead<std::min(pages,uint64_t(p.config.readAhead+1));++ahead)
+        {
+            const auto frame=((p.head/uint64_t(p.config.pageFrames)+ahead)%pages)*uint64_t(p.config.pageFrames);
+            const auto remaining=std::chrono::duration_cast<std::chrono::milliseconds>(deadline-std::chrono::steady_clock::now()).count();
+            if(!p.streams[size_t(id)]->waitAvailable(frame,int(std::clamp(int64_t(remaining),int64_t(0),int64_t(1000)))))
+            {p.flags|=LooperStorage::ioFailure;p.current=State::Stopped;p.gain=0;p.publish();return false;}
+        }
+    p.publish();return true;
 }
 }
