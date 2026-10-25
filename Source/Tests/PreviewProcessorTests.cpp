@@ -2,6 +2,8 @@
 #include "../PluginProcessor.h"
 #include "../Support/BoundedMidi.h"
 #include <memory>
+#include <atomic>
+#include <thread>
 using namespace luthier;
 namespace
 {
@@ -78,4 +80,21 @@ LUTHIER_TEST(PreviewProcessor, keyboardReleaseDoesNotStopADifferentHostNoteOnThe
     rig.processor->playKeyboardNote(72,.8f); rig.settle(); CHECK(rig.note()==72);
     rig.midi.addEvent(juce::MidiMessage::noteOn(1,74,.8f),0); rig.block(); rig.settle(); CHECK(rig.note()==74);
     rig.processor->releaseKeyboardNote(72); rig.settle(); CHECK(rig.note()==74);
+}
+LUTHIER_TEST(PreviewProcessor, retainedKeyboardReleaseSurvivesRendererExclusion)
+{
+    PreviewProcessorRig rig;
+    rig.processor->playKeyboardNote(72,.8f); rig.settle(); CHECK(rig.note()==72);
+    rig.processor->releaseKeyboardNote(72);
+    std::atomic<bool> held{false},finish{false};
+    std::thread writer([&]
+    {
+        const juce::ScopedLock guard(rig.processor->getParameterBridge().getEngineLock());
+        held.store(true,std::memory_order_release);
+        while(!finish.load(std::memory_order_acquire)) std::this_thread::yield();
+    });
+    while(!held.load(std::memory_order_acquire)) std::this_thread::yield();
+    rig.block(); // actual render bridge cannot enter; preview release must stay pending
+    finish.store(true,std::memory_order_release); writer.join(); rig.settle();
+    CHECK(rig.note()<0);
 }
