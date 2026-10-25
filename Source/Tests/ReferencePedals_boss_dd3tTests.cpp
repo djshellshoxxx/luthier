@@ -81,3 +81,50 @@ LUTHIER_TEST(RefPedalDd3t, shortReleaseOwnsEngagementAndLongHoldDoesNot)
     p.onFoot({false,1,1,0});CHECK(!p.consumeEngageToggle());
     p.setParam(3,1);p.onFoot({true,1,1,0});silence(p,100);p.onFoot({false,1,1,0});CHECK(!p.consumeEngageToggle());
 }
+
+#include <cfenv>
+#if defined(__SSE2__) || defined(_M_X64) || defined(_M_IX86_FP)
+ #include <xmmintrin.h>
+#endif
+LUTHIER_TEST(RefPedalDd3t, silentTailAccumulatorDoesNotUnderflowWithFlushDisabled)
+{
+    // Exercise the actual long-silence path without relying on a host FTZ guard.
+    // Restore this thread's floating-point environment for subsequent tests.
+    struct FloatingEnvironment
+    {
+        std::fenv_t saved{};
+#if defined(__SSE2__) || defined(_M_X64) || defined(_M_IX86_FP)
+        unsigned csr=0;
+#endif
+        FloatingEnvironment()
+        {
+            std::fegetenv(&saved);
+#if defined(__SSE2__) || defined(_M_X64) || defined(_M_IX86_FP)
+            csr=_mm_getcsr();_mm_setcsr(csr&~0x8040u); // FTZ and DAZ off
+#endif
+        }
+        ~FloatingEnvironment()
+        {
+            std::fesetenv(&saved);
+#if defined(__SSE2__) || defined(_M_X64) || defined(_M_IX86_FP)
+            _mm_setcsr(csr);
+#endif
+        }
+    } environment;
+    for(double sr:{44100.,48000.,88200.,96000.,192000.})
+    {
+        BossDd3t p;p.setParam(0,1);p.setParam(1,0);p.setParam(2,0);p.setParam(3,0);p.setParam(10,1);p.prepare(sr,512,1);
+        std::array<double,512> l{},r{};l[0]=r[0]=.1;
+        for(int64_t at=0;at<int64_t(sr*40);at+=512)
+        {
+            const int n=int(std::min<int64_t>(512,int64_t(sr*40)-at));
+            p.process(l.data(),r.data(),n);l.fill(0);r.fill(0);
+        }
+        std::feclearexcept(FE_ALL_EXCEPT);p.process(l.data(),r.data(),512);
+        const bool underflow=std::fetestexcept(FE_UNDERFLOW)!=0;
+        CHECK_MSG(!underflow,juce::String(sr)+" Hz silent-tail arithmetic underflow");
+        CHECK(std::all_of(l.begin(),l.end(),[](double x){return std::abs(x)<1e-6;}));
+        CHECK(std::all_of(r.begin(),r.end(),[](double x){return std::abs(x)<1e-6;}));
+        CHECK(p.getTailEnergyDb()==-200.f);
+    }
+}

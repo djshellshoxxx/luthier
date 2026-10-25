@@ -1,0 +1,10 @@
+RefPedalDd3t.silentTailAccumulatorDoesNotUnderflowWithFlushDisabled
+    line 125: 44100 Hz silent-tail arithmetic underflow
+    line 125: 48000 Hz silent-tail arithmetic underflow
+    line 126: expected std::all_of(l.begin(),l.end(),[](double x){return x==0;})
+    line 127: expected std::all_of(r.begin(),r.end(),[](double x){return x==0;})
+    line 126: expected std::all_of(l.begin(),l.end(),[](double x){return x==0;})
+    line 127: expected std::all_of(r.begin(),r.end(),[](double x){return x==0;})
+    line 126: expected std::all_of(l.begin(),l.end(),[](double x){return x==0;})
+    line 127: expected std::all_of(r.begin(),r.end(),[](double x){return x==0;})
+1 tests, 20 checks, 8 failures

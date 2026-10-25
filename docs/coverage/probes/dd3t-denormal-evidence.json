@@ -1,0 +1,27 @@
+{
+  "before_commit": "a21cb3d3",
+  "model_before_sha256": "65bb1dc215f36f3812685629c18cca654d3146ccf332d2d85b04ea2d96b2928d",
+  "model_after_sha256": "29b30c0a1e109dcfcdaccf4be405e09b045f0ca75603de1b6c34a7b146902ab4",
+  "rates": [
+    44100,
+    48000,
+    88200,
+    96000,
+    192000
+  ],
+  "silence_seconds_per_rate": 40,
+  "frames_silence_regression": 18734560,
+  "audio_and_public_state_trace_frames": 1322500,
+  "native_tests": 8,
+  "native_checks": 212,
+  "native_failures": 0,
+  "cpu_benchmark_run": false,
+  "all_gate_acceptance": false,
+  "artifact_root": "/workspace/luthier-evidence/timefx-dd3t-denormal",
+  "sanitizer_tests": 8,
+  "sanitizer_checks": 212,
+  "sanitizer_failures": 0,
+  "sanitizer_diagnostics_bytes": 0,
+  "sanitizer_scope": "Model/test translation units ASAN+UBSAN, reused existing JUCE dependency objects; no whole-host qualification",
+  "independent_review": "DSP source review supports arithmetic-order preservation and meter-only floor flush; did not rerun tests"
+}

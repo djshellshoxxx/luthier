@@ -767,3 +767,28 @@ The actual six registry descriptors pass25 focused sanitizer checks with zero
 failures/diagnostics. No DSP arithmetic, parameter mapping or model registration
 changed in this metadata checkpoint. Engine owns normalization and mixed-registry
 budget/prepare enforcement.
+
+### DD3T silent meter-state denormal correction (2026-10-25)
+
+Original best queued optimizations remain preserved; this change is only the
+DD3T energy-meter update. An actual impulse followed by40seconds of silence with
+host FTZ/DAZ disabled leaves the old accumulator subnormal (5.4446e-321 at44.1k)
+and raises FE_UNDERFLOW while audio is already zero and its public meter is at
+−200dB. The permanent five-rate regression exposes two arithmetic-underflow
+failures at44.1/48k on the unmodified model. Higher-rate tiny filter residuals
+meet the original |out|<1e-6 silence criterion; no exact-zero criterion is added.
+
+Apply existing common::safe after the unchanged energy recurrence, flushing only
+below1e-30, ten decades below the public meter floor1e-20. Neither signal path
+nor feedback reads this energy. DSP independent source review supports the
+mechanism. Native and frozen model/test ASAN+UBSAN each pass8tests/212checks,
+zero failures/diagnostics, including18,734,560 frames of the new silence check.
+All five audio/public-state trace hashes match the preserved paired-FIR baseline
+over1,322,500 stereo frames with modes/events/reset/reprepare. Raw evidence and
+fixture-development explanation are in probes/dd3t-denormal-*; the full current
+pass/open inventory is NAMED-TIMEFX-CLOSURE-STATUS.md.
+
+No CPU benchmark ran under contention. This closes reproduced underflow, not
+DD3T's original<0.5% CPU gate or all A-PED/model-specific acceptance. Phase90's
+original analytic/bypass criteria and original-vs-E58 evidence remain intact.
+No model registration, GenericB/C implementation or admission metadata changed.

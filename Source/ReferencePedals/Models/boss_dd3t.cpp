@@ -236,7 +236,9 @@ void BossDd3t::render(double* left,double* right,double* residualL,double* resid
         }
         if(!history[0].empty() && ++historyHead==history[0].size())historyHead=0;
         if(loopLength && (holding || holdMix>0)){loopPosition+=referenceMs/currentMs;while(loopPosition>=loopLength)loopPosition-=loopLength;}
-        energy+=(.5*wetEnergy-energy)*energyCoefficient;
+        // Meter-only state: flush far below its 1e-20 (-200 dB) public floor.
+        // Otherwise an exhausted tail can stall subnormal with host FTZ off.
+        energy=common::safe(energy+(.5*wetEnergy-energy)*energyCoefficient);
     }
 }
 }
