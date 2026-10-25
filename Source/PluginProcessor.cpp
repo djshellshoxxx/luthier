@@ -8,6 +8,7 @@
 #include "ReferencePedals/BoardModel.h"
 #include "ReferencePedals/PedalRegistry.h"
 #include "Support/BoundedMidi.h"   // RT-SAFETY P1
+#include "Support/PreviewMidiState.h"
 #include "Updates/CrashWriter.h"   // SPEC-SWEEP: UT-16
 #include "Workshop/FamilyDefaults.h"   // guitar-illustration.md 12.3 (VISUAL-WORKSHOP-QA)
 #include "Presets/FactoryPresets.h"
@@ -82,6 +83,8 @@ LuthierAudioProcessor::LuthierAudioProcessor()
       midiLearn (apvts),
       snapshots (*this)
 {
+    previewState = std::make_unique<preview::MidiState>();
+
     // preset-browser-previews 3.2 (FEAT-BROWSER): a render instance built on the
     // preview worker leaves user-global state and the range source alone.
     const bool offlineConstruction = ScopedOfflineRenderConstruction::flag();
@@ -349,6 +352,10 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     sampleRate = HostClockGuard::validSampleRate (sampleRate, currentSampleRate);
     samplesPerBlock = samplesPerBlock > 0 ? samplesPerBlock : juce::jmax (1, currentBlockSize);
 
+    // A real host prepare starts a new preview incarnation. Queue storage is
+    // never reset by a producer; the audio consumer discards old epochs.
+    { const juce::ScopedLock guard (previewLock); previewState->invalidate(); }
+
     // SPEC-SWEEP (UW-5): commands the message thread queued for the audio
     // thread (a panic from Reset, a string mute or detune) are applied now,
     // before the engine is prepared, rather than on the first block after it -
@@ -377,6 +384,7 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
         presets.captureExtraState();
 
     engine.prepare (sampleRate, samplesPerBlock);
+    previewState->resetAudioState();
     sidechainCopy.setSize (2, juce::jmax (1, samplesPerBlock), false, true, false);
     sidechainCopy.clear();
     routing.prepare (sampleRate, samplesPerBlock);
@@ -409,7 +417,8 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     sliceMidiOut.ensureSize ((size_t) BoundedMidi::kReserveBytes);
     liveMidiKept.ensureSize ((size_t) BoundedMidi::kReserveBytes);
     controllerScratch.ensureSize ((size_t) BoundedMidi::kReserveBytes);   // SPEC-SWEEP CT-4
-    previewMidi.ensureSize (8192);
+    // previewMidi storage is retained only to preserve prior member offsets;
+    // the serialized preview transport has fixed storage allocated off audio.
     clockTransport.prepare (sampleRate);   // SPEC-SWEEP IR-16
     captureStringCount = -1;   // re-sent at the next drain
     diagnostics.prepare (sampleRate);
@@ -500,7 +509,9 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
 
 void LuthierAudioProcessor::releaseResources()
 {
+    { const juce::ScopedLock guard (previewLock); previewState->invalidate(); }
     engine.releaseResources();
+    previewState->resetAudioState();
     routing.reset();
     midiOutRouter.reset();
     modMatrix.reset();
@@ -1835,20 +1846,17 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
     if (practicePanelOpen)
         practiceNoteFeed.pushNoteOns (midiMessages);
 
-    // The audition player and the fretboard preview inject their own MIDI.
+    // One audio-owned release ledger covers accepted preview MIDI. It retries
+    // releases before fresh commands without allocating or clearing live rings.
+    previewState->beginSlice (midiMessages, numSamples > 0);
     processAuditionMidi (midiMessages, numSamples);
 
     {
+        // Retained legacy fret guard: conversion ownership is not solved by
+        // replacing storage. All producers still share its insertion ordering.
         const juce::ScopedTryLock sl (previewLock);
-
-        if (sl.isLocked() && ! previewMidi.isEmpty())
-        {
-            for (const auto metadata : previewMidi)
-                BoundedMidi::add (midiMessages, metadata.data, metadata.numBytes,
-                                       juce::jlimit (0, juce::jmax (0, numSamples - 1), metadata.samplePosition));
-
-            previewMidi.clear();
-        }
+        if (sl.isLocked() && numSamples > 0)
+            midiOverflowDrops += previewState->mergeQueued (midiMessages);
     }
 
     /*  tune-builder 8: the chord channel joins the host MIDI, where the rhythm
@@ -2013,7 +2021,10 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
         if (engineLock.isLocked())
             engine.processBlock (mainOut, midiMessages);
         else
+        {
             mainOut.clear();
+            previewState->rendererExcluded();
+        }
     }
 
     // ---- jam mode (jam-mode.md, FEAT-JAM) ---------------------------------------------
@@ -2580,7 +2591,7 @@ void LuthierAudioProcessor::stopAudition()
     const juce::ScopedLock sl (previewLock);
 
     for (int note = 0; note < 128; ++note)
-        previewMidi.addEvent (juce::MidiMessage::noteOff (1, note), 0);
+        previewState->postOff (1, note);
 }
 
 void LuthierAudioProcessor::processAuditionMidi (juce::MidiBuffer& midi, int numSamples)
@@ -2630,7 +2641,7 @@ void LuthierAudioProcessor::processAuditionMidi (juce::MidiBuffer& midi, int num
 
         const int offset = juce::jlimit (0, numSamples - 1,
                                          (int) ((timestamp - blockStart) * currentSampleRate));
-        BoundedMidi::add (midi, event->message.getRawData(), event->message.getRawDataSize(), offset);
+        midiOverflowDrops += previewState->appendAudition (midi, event->message, offset);
         ++auditionEventIndex;
     }
 
@@ -2651,8 +2662,8 @@ void LuthierAudioProcessor::triggerPreviewNote (int stringIndex, double fretPosi
 
     // Guitar-controller convention: channel = string + 1, so the note lands on the
     // string the user actually clicked rather than wherever the voicer would put it.
-    previewMidi.addEvent (juce::MidiMessage::noteOn (juce::jlimit (1, 16, stringIndex + 1), note,
-                                                     (float) juce::jlimit (0.05, 1.0, velocity)), 0);
+    previewState->postOn (juce::jlimit (1, 16, stringIndex + 1), note,
+                          (float) juce::jlimit (0.05, 1.0, velocity));
 }
 
 void LuthierAudioProcessor::releasePreviewNote (int stringIndex)
@@ -2663,7 +2674,7 @@ void LuthierAudioProcessor::releasePreviewNote (int stringIndex)
         return;
 
     const juce::ScopedLock sl (previewLock);
-    previewMidi.addEvent (juce::MidiMessage::noteOff (juce::jlimit (1, 16, stringIndex + 1), note), 0);
+    previewState->postOff (juce::jlimit (1, 16, stringIndex + 1), note);
 }
 
 //==============================================================================
@@ -2675,7 +2686,7 @@ void LuthierAudioProcessor::playKeyboardNote (int midiNote, float velocity)
         return;
 
     const juce::ScopedLock sl (previewLock);
-    previewMidi.addEvent (juce::MidiMessage::noteOn (1, midiNote, juce::jlimit (0.05f, 1.0f, velocity)), 0);
+    previewState->postOn (1, midiNote, juce::jlimit (0.05f, 1.0f, velocity));
 }
 
 void LuthierAudioProcessor::releaseKeyboardNote (int midiNote)
@@ -2684,7 +2695,7 @@ void LuthierAudioProcessor::releaseKeyboardNote (int midiNote)
         return;
 
     const juce::ScopedLock sl (previewLock);
-    previewMidi.addEvent (juce::MidiMessage::noteOff (1, midiNote), 0);
+    previewState->postOff (1, midiNote);
 }
 
 void LuthierAudioProcessor::playKeyboardChord (const juce::Array<int>& midiNotes, float velocity)
@@ -2693,7 +2704,7 @@ void LuthierAudioProcessor::playKeyboardChord (const juce::Array<int>& midiNotes
 
     for (int note : midiNotes)
         if (juce::isPositiveAndBelow (note, 128))
-            previewMidi.addEvent (juce::MidiMessage::noteOn (1, note, juce::jlimit (0.05f, 1.0f, velocity)), 0);
+            previewState->postOn (1, note, juce::jlimit (0.05f, 1.0f, velocity));
 }
 
 void LuthierAudioProcessor::releaseKeyboardChord (const juce::Array<int>& midiNotes)
@@ -2702,7 +2713,7 @@ void LuthierAudioProcessor::releaseKeyboardChord (const juce::Array<int>& midiNo
 
     for (int note : midiNotes)
         if (juce::isPositiveAndBelow (note, 128))
-            previewMidi.addEvent (juce::MidiMessage::noteOff (1, note), 0);
+            previewState->postOff (1, note);
 }
 
 //==============================================================================
@@ -3094,7 +3105,7 @@ void LuthierAudioProcessor::stopEverythingButTheEngine()
             play->setValueNotifyingHost (0.0f);
 
     const juce::ScopedLock sl (previewLock);
-    previewMidi.clear();
+    previewState->invalidate();
 
     diagnostics.log (LogCategory::Engine, "panic", samplePosition);
 }
@@ -3110,6 +3121,7 @@ void LuthierAudioProcessor::applyEngineCommand (const EngineCommand& command) no
         case EngineCommand::Type::panic:
             engine.getRiffPlayer().stop();   // riff-library 5.3: stop the riff on panic (RT-safe: two atomic stores)
             engine.panic();
+            previewState->enginePanicked();
             break;
 
         case EngineCommand::Type::stringMute:
@@ -5011,3 +5023,11 @@ juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
     return new luthier::LuthierAudioProcessor();
 }
 #endif
+
+namespace luthier
+{
+int LuthierAudioProcessor::getPreviewOverflowDropCount() const noexcept
+{
+    return previewState ? (int) std::min<uint32_t> (previewState->dropped(), (uint32_t) std::numeric_limits<int>::max()) : 0;
+}
+}

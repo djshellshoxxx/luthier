@@ -69,6 +69,7 @@
 
 namespace luthier
 {
+namespace preview { class MidiState; }
 
 //==============================================================================
 class LuthierAudioProcessor : public juce::AudioProcessor,
@@ -103,7 +104,9 @@ public:
     int getRejectedHostClockCount() const noexcept { return hostClock.getRejectedCount(); }
     int getMidiOverflowDropCount() const noexcept
     {
-        return midiOverflowDrops.load (std::memory_order_relaxed) + engine.getMidiOverflowDropCount();
+        const auto total = (int64_t) midiOverflowDrops.load (std::memory_order_relaxed)
+                         + engine.getMidiOverflowDropCount() + getPreviewOverflowDropCount();
+        return (int) std::clamp<int64_t> (total, 0, std::numeric_limits<int>::max());
     }
 
     /** cpu-quality-modes 2.6: an offline bounce renders at High. Any thread. */
@@ -1365,6 +1368,10 @@ private:
     std::array<bool, reference::ExtendedHostAutomationSnapshot::count> referenceExtendedHostIntentRetained {};
     std::array<float, reference::ExtendedHostAutomationSnapshot::count> referenceExtendedModelMirror {};
     std::atomic<uint32_t> referencePositionGestures { 0 };
+
+    // Appended state: isolated overlays must rebuild processor-owning callers.
+    std::unique_ptr<preview::MidiState> previewState;
+    int getPreviewOverflowDropCount() const noexcept;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LuthierAudioProcessor)
 };

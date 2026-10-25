@@ -1,19 +1,14 @@
-# Actual processor preview integration — private RED checkpoint
+# Preview processor transport — ABI-UNQUALIFIED private checkpoint
 
-This is a test-first checkpoint, not a production fix. Private worktree
-`host-preview` starts at exact280e182a8f033457f3d84384b9917a024b1d1ed9 with the
-dd36 transport replayed asba6a618a. PluginProcessor.h/.cpp remain unchanged.
-The new registered PreviewProcessor cases link819 verified immutable build6
-objects plus their test object, using matching280e headers and constructor.
+This branch preserves partial production wiring for review, not an integration-ready fix. The separate ABI-neutral backend release retry is qualified independently at `9167c62011ddc2be4305744097adc2618efc3e32` on `codex/luthier-backend-release-retry`; use that isolated commit for coordinator integration.
 
-Actual baseline: **5 cases /18 checks, 2 failures, exit1**. Queued keyboard/chord
-attacks replay after releaseResources/reprepare; a keyboard release is lost with
-65529 of65536 host MIDI bytes occupied by unrelated note-offs. Ordinary
-keyboard/chord/panic voicing, mixed keyboard-then-fret ordering and release
-isolation from a different host note pass. Exact commands and complete output:
-`/workspace/luthier-evidence/20261025-preview-processor-integration/`.
-The resource link targets the coordinator's preserved280e products, not mutable
-build7 outputs. No production mutation or sanitizer/RT acceptance is implied.
+Base is exact `280e182a8f033457f3d84384b9917a024b1d1ed9`; isolated transport dd36 was replayed as ba6a618a. Private PluginProcessor.h/.cpp wiring and PreviewMidiState are now committed here. The original preview lock and legacy fret conversion remain. This does not remove any of the measured 20 trylocks per callback.
+
+The expanded actual-processor baseline has 10 cases / 31 checks, with 7 failing checks. A private matched new constructor + new test object passes 8 cases after transport wiring; the two backend admission cases then pass with the separate retry fix (10 / 31 total). These results are LIMITED: the 819 other dependencies retain old processor headers. Appending previewState changes sizeof(LuthierAudioProcessor), so other translation units may embed old allocations, stack object sizes or inline offsets. Matching only constructor and new tests does not close that ABI. No whole-host, sanitizer, safe lifetime, release qualification or root merge is claimed for this branch.
+
+Evidence and full original RED logs: `/workspace/luthier-evidence/20261025-preview-processor-integration/`. The pre-build8b WIP archive retains exact initial working files and patch. Frozen 280e resource files were not altered. Backend-only qualification uses original headers/constructor and is documented separately in BACKEND-RELEASE-ADMISSION.md on the isolated backend branch.
+
+Before integration, coherently rebuild every affected dependency from its matched header (including sizeof/new/inline users), or establish an ABI-preserving design with proven callsite compatibility. Then run actual held-note/release/flood/epoch/reprepare/concurrent-producer cases under correctly instrumented dependencies. The incomplete tuning ownership boundary below still blocks moving fret conversion and removing previewLock. A changed-scenario callback probe is also pending; the original whole-processor RT gate stays RED.
 
 ## Contract before production code
 
