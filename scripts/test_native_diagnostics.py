@@ -184,7 +184,18 @@ class DiagnosticTests(unittest.TestCase):
                 manifest = json.loads((out / 'UNQUALIFIED-DIAGNOSTIC.json').read_text())
                 self.assertEqual(manifest['outcomes']['focus'], 'failure')
                 self.assertEqual(manifest['qualification'], 'UNQUALIFIED-DIAGNOSTIC')
+                readme = (out / 'README-UNQUALIFIED.txt').read_text(encoding='utf-8')
+                for field in ['UNQUALIFIED DIAGNOSTIC', 'Immutable source SHA: ' + 'a' * 40,
+                              'Selected native runtime architecture: x64', 'focus: failure',
+                              'build: not-recorded', 'Resources', 'docs/TROUBLESHOOTING.md',
+                              'docs/beta/PRO-V01-RELEASE-NOTES.md', 'docs/KNOWN_ISSUES.md',
+                              'No distribution signing claim', 'No notarization claim',
+                              'both runtime architectures are not tested', 'SHA256SUMS']:
+                    self.assertIn(field, readme)
+                for gate in manifest['not_run']:
+                    self.assertIn(gate, readme)
                 checksums = (out / 'SHA256SUMS').read_text().splitlines()
+                self.assertTrue(any(line.endswith('  README-UNQUALIFIED.txt') for line in checksums))
                 for line in checksums:
                     digest, name = line.split('  ', 1)
                     self.assertEqual(hashlib.sha256((out / name).read_bytes()).hexdigest(), digest)

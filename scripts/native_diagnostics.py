@@ -156,6 +156,32 @@ def bundle():
                 'signing': 'No distribution signing claim; existing macOS recipe uses ad-hoc loadability signing only'}
     (out / 'UNQUALIFIED-DIAGNOSTIC.json').write_text(json.dumps(manifest, indent=2))
     (out / 'SOURCE_SHA').write_text(source + '\n')
+    (out / 'README-UNQUALIFIED.txt').write_text(
+        'Luthier Pro — UNQUALIFIED DIAGNOSTIC BUILD\n\n'
+        f'Immutable source SHA: {source}\n'
+        f'Platform: {system}\n'
+        f'Selected native runtime architecture: {manifest["selected_native_runtime"]}\n'
+        'Architecture selection is not proof of a successful test run; see outcomes and logs.\n'
+        'macOS universal slices are checked separately; both runtime architectures are not tested.\n\n'
+        'Extract UNQUALIFIED-DIAGNOSTIC-binaries.tar.gz as a complete directory tree.\n'
+        'Preserve the staged Resources directory beside the standalone payload, and keep\n'
+        'complete .app/.vst3/.clap bundles and their embedded Resources intact.\n'
+        'Installation and troubleshooting references are inside source.tar.gz:\n'
+        '  docs/TROUBLESHOOTING.md\n'
+        '  docs/beta/PRO-V01-RELEASE-NOTES.md (platform paths only; release qualification\n'
+        '    statements and AU availability do not apply to this diagnostic bundle).\n'
+        'This bundle supplies no release installer.\n\n'
+        f'Signing: {manifest["signing"]}. No notarization claim.\n\n'
+        'Recorded outcomes (failure/not-recorded is not a passing gate):\n'
+        + ''.join(f'  {name}: {value}\n' for name, value in status.items())
+        + '\nRemaining qualification gates / not run by this diagnostic workflow:\n'
+        + ''.join(f'  {gate}\n' for gate in manifest['not_run'])
+        + '\nKnown limitations: source.tar.gz contains docs/KNOWN_ISSUES.md and\n'
+        'docs/coverage/NATIVE-DIAGNOSTICS-DRAFT.md. Focused tests and strictness-5\n'
+        'validators do not establish full release or model acceptance, even when green.\n'
+        'Inspect UNQUALIFIED-DIAGNOSTIC.json and logs for exact results and commands.\n'
+        'Licences are in licensing/. Verify all bundle files, including this README,\n'
+        'against SHA256SUMS before use.\n', encoding='utf-8')
     hashes = {p.relative_to(out).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
               for p in sorted(out.rglob('*')) if p.is_file() and p.name != 'SHA256SUMS'}
     (out / 'SHA256SUMS').write_text(''.join(f'{digest}  {path}\n' for path, digest in hashes.items()))
