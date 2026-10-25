@@ -33,8 +33,16 @@ namespace luthier::ParameterVisibility
         return m;
     }
 
+    /*  The Pedalboard's host-automation lanes (ref_board_*, ref_sNN_*, the
+        extended lanes) are bound to controls in the Pedalboard window, one set
+        per fitted pedal, not in the main editor the reachability walk opens. */
+    inline bool isPedalboardWindowParameter (const juce::String& parameterId)
+    {
+        return parameterId.startsWith ("ref_");
+    }
+
     inline bool isIntentionallyHidden (const juce::String& parameterId)
     {
-        return intentionallyHidden().count (parameterId) > 0;
+        return intentionallyHidden().count (parameterId) > 0 || isPedalboardWindowParameter (parameterId);
     }
 }

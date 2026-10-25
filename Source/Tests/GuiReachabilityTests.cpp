@@ -690,7 +690,7 @@ LUTHIER_TEST (GuiReach, everyAutomatableParameterHasAVisibleControl)
                       << "\n";
 
         if (visible) { ++reachable; continue; }
-        if (intentionallyHidden().count (id) > 0) continue;
+        if (ParameterVisibility::isIntentionallyHidden (id)) continue;
 
         // Pedal slot parameters p0-p9 are summarised separately: a pedal with
         // four knobs leaves p4-p9 unused, which is not a missing control.
