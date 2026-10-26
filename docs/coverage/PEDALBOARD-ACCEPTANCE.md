@@ -8,6 +8,14 @@ changes initial delivery quantity, not any selected model's original numerical,
 CPU, safety or shared-board gate. No selected named model is registered yet.
 See [the retained scope comparison](../handoff/PEDALBOARD-SIX-MODEL-SCENARIO-2026-10-26.md).
 
+Current Phase90 bypass audit on unchanged productionf1efeded is **RED60/60**:
+the actual model/node compound two linear fades. Model §3 requires equal-power,
+BOARD_CORE §5.2 requires linear, and the literal1LSB24 sine delta is not met even
+by an independent ideal equal-power ramp. Existing Pro and Free Phase90 tests
+each pass7/53,039checks, which does not close this gate. Preserve both original
+requirements pending reviewed resolution; no production change or registration.
+See [the exact contract measurements](../handoff/PEDALBOARD-2026-10-26-PHASE90-BYPASS.md).
+
 Latest bounded local QA: the corrected-HOME Linux Pro full suite passed
 2,806 tests / 14,935,613 checks at exact source `f1efeded706b9dc57da7e941ca856b17eaad5183`.
 The subsequent test-only tiny-buffer extension passed strict ASan/LSan/UBSan
