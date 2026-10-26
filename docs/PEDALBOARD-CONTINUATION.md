@@ -1,5 +1,7 @@
 # Pedalboard continuation handoff
 
+Current2026-10-26 restart: [resumed source, native matrix, exact tests and next task](handoff/PEDALBOARD-2026-10-26-RESUME.md). Source8d6600f8 is pushed for a Mac-only diagnostic run; approved CQ03 now passes3/1217. Windows source6d9 passed focused native diagnostics. Earlier entries below are historical, including old worker counts and superseded pending decisions.
+
 Current restart point: [native diagnostics and actual build8b evidence](handoff/PEDALBOARD-2026-10-25-NATIVE-DIAGNOSTICS.md).
 Native run40198638051 actually started on frozen6d9b5943; do not push handoff-only
 updates to its native branch and cancel it. Linux compiled5d2f4e58 has the same

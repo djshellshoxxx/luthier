@@ -1,5 +1,7 @@
 # Pedalboard completion acceptance ledger
 
+Current2026-10-26 evidence: [resume checkpoint](../handoff/PEDALBOARD-2026-10-26-RESUME.md). Approved exact CPU-cap reconciliation passes3/1217; Windows6d9 native focused diagnostics/validators pass. Mac6d9 compiled but architecture command failed before runtime checks; corrected Mac-only8d6600f8 is building. Full feature/RT/model/native/manual gates remain open. Historical intake rows and earlier counts below are not current implementation absence reports.
+
 Latest execution evidence: [fresh build6 checkpoint](../handoff/PEDALBOARD-2026-10-25-BUILD6.md)
 at production source280e182a: all five Linux Pro targets freshly compile;
 actual CLAP18pass/0fail/3unsupported skips and VST3 strictness5(all30rate/buffer
