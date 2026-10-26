@@ -77,7 +77,16 @@ All five requested targets built across 1,650 steps. Build log SHA-256:
 All product executables/modules were identified as genuine Linux x86-64 ELF.
 The renderer is included so CLI tests can execute their real subprocess route
 rather than skip due to a missing tool. Full Free unit acceptance is still
-pending; the listing confirms 2,790 registered tests.
+pending; the listing confirms 2,790 registered tests. The single unfiltered
+clean-HOME Free suite is now running: original PID `165131`, session `92865`,
+log `linux-free-full-suite.log`, code/test commit `d5b64ab6`, documentation
+HEAD at launch `f5658a4d7837dc10eb45cfc2a98acb7d3d4eeaa3`. Performance flags
+are unset and the process has a three-hour timeout. Inspect the existing
+process/log/adjacent `.exit` before suggesting any rerun.
+The wrapper preserves `linux-free-generated-QA_ROBUSTNESS.md` and restores
+`QA_ROBUSTNESS.before-free-full.md` to the tracked report afterward. Its
+acceptance JSON checks unit exit, all 2,790 tests, zero report findings and
+successful restoration; process exit alone is not the whole qualification.
 
 | Product | SHA-256 |
 | --- | --- |
@@ -113,10 +122,10 @@ has established an actual overflowing path. Do not silently drop that warning.
 1. The strict sanitizer selection is complete and green as recorded above.
 2. The secret-checked local test/documentation checkpoint and incremental
    bundle are saved. No push is authorized in this bounded continuation.
-3. Build and native Free validators are green as recorded above. Run the one
-   clean-home Free full suite; preserve its generated robustness report and
-   inspect its finding count independently of process exit. Do not rerun the
-   already completed Pro full suite or start a duplicate Free suite.
+3. Build and native Free validators are green as recorded above. Monitor the
+   one existing clean-home Free full suite; preserve its generated robustness
+   report and inspect its finding count independently of process exit. Do not
+   rerun the completed Pro full suite or start a duplicate Free suite.
 4. Update this handoff with exact source/binary/log identities and terminal
    results before any next long tranche. Preserve any generated report before
    restoring the preceding tracked report; do not erase failure evidence.
