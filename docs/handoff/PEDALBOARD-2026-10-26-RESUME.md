@@ -3,9 +3,11 @@
 Sole integration owner: this existing Codex task; only djshellshoxxx/luthier.
 Current local branch starts at **e18694042367087ac1f4a8397afdbd05c45464d8**
 (`codex/luthier-pedalboard-completion`). The integrated retirement adapter and
-callback-lock correction below are the working-tree source built and tested in
-this checkpoint; the next committed source SHA is recorded in the following
-checkpoint entry.
+callback-lock correction below are committed as
+**77a0e8767718b3511ec7e445b08c59add5ff0cb7**. Linux products and tests below
+were built/run from the identical source tree before commit; only coverage and
+handoff prose followed those executions. The commit is the checkpoint candidate;
+verify its remote checkpoint ref before treating it as published.
 Prior published checkpoint22d6b18d is preserved. No reset, force push, master
 merge, release/tag, deployment, additional environment or timer was used.
 
@@ -132,7 +134,8 @@ source/evidence, excluding objects/caches/credentials/private intake packs.
 
 ## 2026-10-26 integrated Linux build and QA
 
-Exact command `cmake --build build --target LuthierTests LuthierRender
+Source commit **77a0e8767718b3511ec7e445b08c59add5ff0cb7**. Exact command
+`cmake --build build --target LuthierTests LuthierRender
 Luthier_Standalone Luthier_VST3 Luthier_CLAP -j3` exited **0** on the integrated
 retirement adapter and callback-lock correction. The 16-step Ninja build freshly
 compiled the shared sources and linked test, renderer, standalone, VST3 and CLAP

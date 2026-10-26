@@ -1,6 +1,7 @@
 # Pedalboard completion acceptance ledger
 
-Current2026-10-26 evidence: [resume checkpoint](../handoff/PEDALBOARD-2026-10-26-RESUME.md).
+Current2026-10-26 evidence at source77a0e8767718b3511ec7e445b08c59add5ff0cb7:
+[resume checkpoint](../handoff/PEDALBOARD-2026-10-26-RESUME.md).
 The integrated reader-retirement/callback-lock correction builds all five Linux
 Pro targets; the RefPedal suite passes411/12,246,497 checks and the explicit
 30-second concurrent edit/process grind passes with zero callback allocations
