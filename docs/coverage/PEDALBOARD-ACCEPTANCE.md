@@ -19,6 +19,12 @@ unit suite completed **failed:2/2790 tests,21/14,943,980 checks,5375.2s,exit1**.
 Both failures are tiny-convolution body-IR reload assertions. The separate
 generated robustness report has0findings and the original report was restored;
 that does not clear failed assertions. Standalone smoke does not qualify hardware.
+Follow-up test-only fix77ade0bc confirms both original recipes share one Free
+body IR; the corrected distinct-IR fixture passes2/11,260checks in each edition.
+Strict final Pro ASan/LSan/UBSan also passes2/11,260checks/320.0s, leak and
+allocator-mismatch checks enabled. The old full-suite RED is retained;
+there is no full-suite pass on the changed test source and no acceptance gate
+was weakened. Production code remainsf1efeded.
 See the [QA checkpoint](../handoff/PEDALBOARD-2026-10-26-QA-CHECKPOINT.md)
 and [boundary/Free handoff](../handoff/PEDALBOARD-2026-10-26-TINY-BOUNDARY-FREE.md)
 for exact source/binary/log identities. Native Windows/macOS, remaining model

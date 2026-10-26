@@ -1,5 +1,13 @@
 # Tiny-buffer boundaries and Linux Free continuation — 2026-10-26
 
+Latest focused fixture correction: code commit
+`77ade0bcd4d04f8dd3eb0bf083ec85ae120ce959`, test-source SHA256
+`cfb54de1ad2fb7dd540f9e21cf1f3d4545f20596575aa5a9a236f90fe3af1b96`.
+Free Release and Pro Release each pass2tests/11,260checks (28.5s/33.0s).
+Strict final Pro ASan/LSan/UBSan passes2/11,260checks/320.0s/exit0, including
+shutdown; no sanitizer diagnostic. The historical unfiltered Free RED below remains preserved;
+there is no completed full-suite rerun on this changed test source.
+
 ## Source and scope
 
 Same repository/executor; branch `codex/luthier-pedalboard-completion`.
@@ -231,10 +239,10 @@ bugs. Highest observed cumulative VmHWM was1,535,348KiB in45s process samples;
 it is not claimed as the exact final peak. This ordinary Free run is not ASan/
 TSan qualification. No crash/nonfinite failure was reported.
 
-The next local diagnosis is ready, not access-blocked: confirm the source-backed
-same-effective-guitar fixture hypothesis and select genuinely distinct supported
-IRs if demonstrated. It has not been runtime-proven or fixed. No rerun, model
-implementation, API agent, CI, push or release was started. The owner assigns
+At that terminal checkpoint the next local diagnosis was the source-backed
+same-effective-guitar fixture hypothesis. The subsequent77ade follow-up below
+confirms and corrects it. No full rerun, model implementation, API agent, CI,
+push or release was started. The owner assigns
 external Claude work elsewhere; there is no Luthier ownership reservation.
 
 Phase90 preparation now identifies exact executor code: NodeTable.cpp:87–101
@@ -243,3 +251,59 @@ also applies its own linear `engage` blend. The first bounded integration probe
 must measure their actual composition and the named spec:62 equal-power law,
 with spec:130's literal delta criterion separately preserved. Correct single
 fade ownership through review before registration; no such probe was executed.
+
+## Confirmed fixture cause and bounded correction
+
+Evidence directory: `/workspace/luthier-evidence/free-tiny-ir-fixture-20261026/`.
+The original runner at its build path repeats2failures/21of11,029checks/27.8s.
+Diagnostic traces verify every one of21cells: in Free both recipes playTele1,
+request`solid/medium_ash_played.wav` and resolve to shipped
+`solid/medium_alder_played.wav`; body loads stay2→2. Cabinet2x12→1x12 genuinely
+changes, loads10→12. Pro's original pair instead changes offset/alder→solid/alder,
+loads4→5, and passes2/11,029. Thus cache reuse is correct, not a demonstrated
+product reload defect. The new physical-IR invariant first failed8/2110checks
+in the original long four-cell reproducer, preserving test-first RED.
+
+Both original preset loads and every20,000/2,000-block render count remain.
+The alternate fixture now selects shipped mahogany through
+`setValueNotifyingHost`, after the full preset apply, followed by the documented
+`applyToEngine`/`flushPendingStructuralChange` path. A trial writing before
+`applyAllNow` was reset by its factory refresh; that42-assertion RED is retained.
+A discarded SG candidate had no matching shipped body IR and entered modal
+fallback; it is not used. The final test adds real-file, active-convolution and
+distinct-IR assertions; existing reload/nonzero/finite/destruction/churn checks
+and names0/1 remain. Temporary DEBUG/candidate code is removed. A deliberate
+single swap trace per cell records future fixture failures without audio-callback
+instrumentation. File snapshots die before engine destruction/churn.
+
+Final normal results verify all21cells: Free solid/alder→solid/mahogany,body2→3;
+Pro offset/alder→solid/mahogany,body4→6; cabinet counters increase in both.
+All1253 Free resource hashes equal their pre-diagnosis values. Normal logs:
+Free SHA256`8f83ae5539e2376379509dff4978c85b9c19094ac67a6c639d0bd02873f24eae`,
+Pro`5e4b612d801a041cfc02067a372da826fc0b6368eaba22b2b22acac272ac49aa`.
+Full commands, separate fresh HOME receipts, binary hashes and actual traces are
+in FINAL-SOURCE-PROVENANCE.json and FOCUSED-NORMAL-RESULTS.json. No production
+DSP/loader/host code changed, no cache was forced and no predicate was disabled.
+
+One copied-executable run could not resolve adjacent resources (126failures);
+it is explicitly invalid reproduction evidence, preserved separately from the
+correct original-build-path RED. A nonessential optional cancellation guard
+read of`/proc/216038/exe` was denied(errno13) before any signal. It was not
+retried or rerouted. That superseded sanitizer candidate finished naturally:
+2/11,260/310.4s/exit0 at source7dcecc78; it does not qualify the finalcfb54de1
+source. The final strict run has its own log/session. No owner approval is
+pending for the failed guard read, and workspace builds remain available.
+
+Next ready feature slice remains Phase90's actual node/model bypass composition
+versus original5ms equal-power and literal24-bit delta gates, with independent
+expected output and review of single fade ownership before registration. RC-5
+remains selected and unimplemented as a named pedal; all12 deferred models stay
+preserved. No Phase90/model implementation, new software, CI, push or release
+was started during this fixture correction.
+
+Final strict result: session87565 completed naturally,2tests/11,260checks,
+320.0seconds,exit0. `detect_leaks=1`, `alloc_dealloc_mismatch=1`, abort/halt on
+ASan error, UBSan halt/stack traces, LSAN_OPTIONS unset; no diagnostic through
+shutdown. This is selected **Pro** sanitizer qualification, not a Free ASan or
+whole-suite pass. FOCUSED-FINAL-RESULTS.json records21 verified swaps and exact
+log/binary/source hashes. No unfiltered rerun was started after the bounded fix.
