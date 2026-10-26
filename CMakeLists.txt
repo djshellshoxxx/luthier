@@ -81,6 +81,11 @@ if(NOT DEFINED LUTHIER_BUILD_STRING OR LUTHIER_BUILD_STRING STREQUAL "")
     endif()
 endif()
 
+# Only Diagnostics consumes the build stamp. Scope it to that source so a new
+# Git SHA / CI identity does not recompile every DSP, UI and JUCE translation unit.
+set_property(SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/Source/Support/Diagnostics.cpp"
+    APPEND PROPERTY COMPILE_DEFINITIONS "LUTHIER_BUILD_STRING=\"${LUTHIER_BUILD_STRING}\"")
+
 set(LUTHIER_FORMATS VST3 Standalone)
 if (APPLE)
     list(APPEND LUTHIER_FORMATS AU)
@@ -150,7 +155,6 @@ source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/Source" FILES ${LUTHIER_SOURCES})
 
 target_compile_definitions(Luthier PUBLIC
     LUTHIER_PRO=${LUTHIER_IS_PRO}
-    LUTHIER_BUILD_STRING="${LUTHIER_BUILD_STRING}"
     LUTHIER_HEADLESS=0
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
@@ -315,7 +319,6 @@ list(FILTER LUTHIER_UI_SOURCES EXCLUDE REGEX "Source/UI/UiPreferences\.cpp$")
 
 set(LUTHIER_CONSOLE_DEFS
     LUTHIER_PRO=${LUTHIER_IS_PRO}
-    LUTHIER_BUILD_STRING="${LUTHIER_BUILD_STRING}"
     LUTHIER_HEADLESS=1
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
