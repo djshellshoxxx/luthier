@@ -51,16 +51,19 @@ Artifacts are retained in Actions, expire2026-11-01; they are not Releases.
 Source/checksums/licenses/install references and unsigned/ad-hoc signing truth
 are included by the diagnostic bundler. Full release signing/notarization is open.
 
-Corrected **Mac-only run40292011494** was last positively observed building at
-08:32 UTC at source8d6600f8:
+Corrected **Mac-only run40292011494** was last independently observed building
+at **08:45 UTC** at source8d6600f8:
 https://github.com/djshellshoxxx/luthier/actions/runs/40292011494
 Mac job121469040555; Windows job121469042266 is deliberately skipped. No old
-Windows result was reattributed to this newer source. A later read-only `gh run
-view 40292011494` request returned GitHub API **403 Forbidden**; current run
-state is therefore unknown, not still-building or passed. Do not retry that
-denied status read or push to codex/luthier-macos-diagnostics while it may be
-active. Original native branch remains frozen6d9. The Mac source also predates
-the integrated retirement adapter, so it cannot qualify that newer code.
+Windows result was reattributed to this newer source. The exact read command was
+`gh run view 40292011494 --json status,conclusion,headSha,headBranch,jobs --jq '{status,conclusion,headSha,headBranch,jobs:[.jobs[]|{name,status,conclusion,steps:[.steps[]|{name,status,conclusion}]}]}'`.
+It returned `failed to get run: Get "https://api.github.com/repos/djshellshoxxx/luthier/actions/runs/40292011494?exclude_pull_requests=true": Forbidden`.
+No rate-limit header or authentication reason was provided. Current
+run state is therefore unknown, not still-building or passed. Do not retry or
+reroute that denied status read, or push to codex/luthier-macos-diagnostics while
+it may be active. Original native branch remains frozen6d9. The Mac source also
+predates the integrated retirement adapter, so it cannot qualify that newer
+code.
 
 ## Current bounded work and integration decisions
 
@@ -175,3 +178,43 @@ Linux local diagnostic products from the integrated source only. A successful
 Linux build/validator does not qualify Windows/macOS or a release. Windows and
 Mac artifacts from source6d are stale for this changed engine; do not reuse or
 publish them as current-source products.
+
+This checkpoint's portable incremental Git bundle contains commit
+`c4af8fbd81ee45379f0089a02310a0b14689dd1f` and requires base
+`e18694042367087ac1f4a8397afdbd05c45464d8`. File:
+`/workspace/luthier-evidence/luthier-pedalboard-77a0e876.bundle`, 18,806 bytes,
+SHA256 `8c40bd647cfdf830c511b0002bf0c633003bf5a40a564dab3492e38b6589f185`.
+Library file `libfile_cd3a6c8a4bc48191a7d5c2af59fdba7e`, version0, was created
+and the local version xattr was set and verified. It contains only source and
+checkpoint commits, not build caches or the private plan archive. The remote
+checkpoint ref `codex/luthier-checkpoint-20261026-resume` read back at
+`c4af8fbd81ee45379f0089a02310a0b14689dd1f` after a fast-forward push; the older
+remote `codex/luthier-pedalboard-completion` at `b5bec374` was left untouched.
+
+## Full-suite probe and environment correction
+
+The unfiltered test invocation
+`source /workspace/luthier-toolchain/env.sh && env -u LUTHIER_SOAK -u LUTHIER_SOAK_SECONDS xvfb-run -a build/LuthierTests_artefacts/Release/LuthierTests`
+was stopped after 15m18s (wrapper exit143) once its default user-documents paths were found outside the
+allowed writable roots (`/workspace` and `/tmp`). Its original log remains
+`/workspace/luthier-evidence/engine-retirement-source8/full-suite-after-integrated-build.log`.
+It recorded the expected nonwritable preference/preset symptoms: AS26
+`persistenceAndScope` (6 checks), AutoArticulation `offAmountZeroAndNoRulesAreTheSameAsNothing`
+(preset loads), `everyFactoryPresetPlaysEveryPhrase` (no presets), and
+`snapshotsAndPresetMorph` (need two presets). An accidental probe
+`build/LuthierTests_artefacts/Release/LuthierTests --list-tests | head -40`
+showed that `--list-tests` is unsupported and started another unfiltered
+runner; PID6719 was stopped after6m02s, while the primary run was kept long
+enough to preserve its initial red evidence before it too was stopped. This
+overlap is an additional contamination. Do not treat the partial run as a
+source-suite result.
+
+To verify the environmental diagnosis, the three localized regressions were
+rerun serially with a dedicated writable home:
+`HOME=/tmp/luthier-test-home`, `XDG_CONFIG_HOME=$HOME/.config`,
+`XDG_CACHE_HOME=$HOME/.cache`, `XDG_DATA_HOME=$HOME/.local/share`, and
+`XDG_DOCUMENTS_DIR="$HOME/Documents"`. AS26 passed6/6; AutoArticulation
+passed21/21; `snapshotsAndPresetMorph` passed48/48. The run wrote93 factory
+preset files into that isolated home. Full unfiltered suite acceptance remains open; if
+resuming it, use the isolated home above and do not run another test process
+concurrently against the same per-user state.
