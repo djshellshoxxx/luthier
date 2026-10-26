@@ -3,6 +3,7 @@
 #include "../ReferencePedals/Board.h"
 #include "../ReferencePedals/BoardModel.h"
 #include "../ReferencePedals/PedalRegistry.h"
+#include "../Support/ThreadProbe.h"
 #include <array>
 #include <atomic>
 #include <chrono>
@@ -33,7 +34,7 @@ LUTHIER_TEST (RefPedalSoak, concurrentEditsAndProcessingRemainFiniteAndAllocatio
     if (const char* overrideSeconds = std::getenv ("LUTHIER_SOAK_SECONDS"))
         seconds = std::clamp (std::atoi (overrideSeconds), 30, 7200);
     std::atomic<bool> stop { false };
-    std::atomic<uint64_t> blocks { 0 }, samples { 0 }, allocations { 0 }, invalid { 0 };
+    std::atomic<uint64_t> blocks { 0 }, samples { 0 }, allocations { 0 }, locks { 0 }, invalid { 0 };
     std::thread audio ([&]
     {
         std::array<double, 2048> left {}, right {};
@@ -42,6 +43,8 @@ LUTHIER_TEST (RefPedalSoak, concurrentEditsAndProcessingRemainFiniteAndAllocatio
         constexpr int sizes[] { 1, 16, 37, 64, 481, 2048 };
         uint64_t cursor = 0, count = 0, bad = 0, allocated = 0;
         HostTransport host { true, true, 123., 0., 4, 4 };
+        luthier::ThreadProbe::markAsAudioThread();
+        const auto locksBefore = luthier::ThreadProbe::audioThreadLocks.load();
         while (! stop.load (std::memory_order_relaxed))
         {
             const int n = sizes[count % std::size (sizes)];
@@ -64,7 +67,10 @@ LUTHIER_TEST (RefPedalSoak, concurrentEditsAndProcessingRemainFiniteAndAllocatio
             cursor += (uint64_t) n;
             ++count;
         }
+        const auto blockingLocks = (uint64_t) (luthier::ThreadProbe::audioThreadLocks.load() - locksBefore);
         blocks.store (count); samples.store (cursor); allocations.store (allocated); invalid.store (bad);
+        locks.store (blockingLocks);
+        luthier::ThreadProbe::markAsAudioThread (false);
     });
 
     std::mt19937 random (0x51a7u);
@@ -97,9 +103,11 @@ LUTHIER_TEST (RefPedalSoak, concurrentEditsAndProcessingRemainFiniteAndAllocatio
     board.reclaim();
     std::cout << "    seed=0x51a7 seconds=" << seconds << " edits=" << edits << " rejected=" << rejected
               << " blocks=" << blocks.load() << " samples=" << samples.load()
-              << " callback_new=" << allocations.load() << " invalid=" << invalid.load() << std::endl;
+              << " callback_new=" << allocations.load() << " callback_locks=" << locks.load()
+              << " invalid=" << invalid.load() << std::endl;
     CHECK (blocks.load() > 1000);
     CHECK (edits >= (uint64_t) seconds * 80);
     CHECK (allocations.load() == 0);
+    CHECK (locks.load() == 0);
     CHECK (invalid.load() == 0);
 }

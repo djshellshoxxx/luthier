@@ -118,9 +118,10 @@ public:
     /** 64-point peak envelope of a clip. */
     static std::array<float, PreviewResult::kNumPeaks> computePeaks (const juce::AudioBuffer<float>&);
 
-    /** Ogg Vorbis at q0.5 and below until it fits 64 KB, with a fixed stream
-        serial so identical audio encodes to identical bytes. */
-    static juce::MemoryBlock encodeOgg (const juce::AudioBuffer<float>&, double sampleRate, juce::uint32 serial);
+    /** Ogg Vorbis at the preferred quality and below until it fits 64 KB, with
+        a fixed stream serial so identical audio encodes to identical bytes. */
+    static juce::MemoryBlock encodeOgg (const juce::AudioBuffer<float>&, double sampleRate, juce::uint32 serial,
+                                        int preferredQuality = 5);
     static bool decodeOgg (const void* data, size_t size, juce::AudioBuffer<float>& out, double& sampleRate);
 
     /** The 250 ms end fade, ending in true silence (3.1). */

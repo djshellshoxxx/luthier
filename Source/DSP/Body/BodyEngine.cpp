@@ -38,7 +38,7 @@ void BodyEngine::prepare (double sampleRate, int maxBlockSize)
 
     juce::dsp::ProcessSpec spec;
     spec.sampleRate = sr;
-    spec.maximumBlockSize = (juce::uint32) maxBlock;
+    spec.maximumBlockSize = (juce::uint32) ConvolutionInstaller::preparedBlockSize (maxBlock);
     spec.numChannels = 2;
 
     convolution->prepare (spec);

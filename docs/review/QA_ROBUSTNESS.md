@@ -8,6 +8,27 @@ coordinator to schedule a fix for, not something this suite fixed itself.
 
 16 finding(s) across the runs below.
 
+## Fuzz.everyFactoryPresetAcrossExtremeBuffersAndSampleRates
+
+70 (preset, sample rate, block size) cases run across 70 factory presets, block sizes >= 16 only; 0 findings.
+
+None. Every case ran clean (finite output, bounded level, clean state
+round-trip) for the seeds and presets this run covered.
+
+## Fuzz.presetLoadAtTrulyExtremeBufferSizes
+
+70 (preset, sample rate, block size >= 16) switch-while-running cases run across 70 factory presets; block sizes 1-4 are covered by the active tiny-block regression.
+
+None. Every case ran clean (finite output, bounded level, clean state
+round-trip) for the seeds and presets this run covered.
+
+## Fuzz.randomParameterAndMidiCombosWithReproSeeds
+
+64 random parameter/MIDI seeds run across extreme buffer sizes and sample rates (parameters randomised before the extreme-config prepare); 0 findings.
+
+None. Every case ran clean (finite output, bounded level, clean state
+round-trip) for the seeds and presets this run covered.
+
 ## Fuzz.everyFactoryPresetHostStateRoundTrips
 
 70 factory presets round-tripped through getStateInformation/setStateInformation; 0 findings.
@@ -39,17 +60,15 @@ round-trip) for the seeds and presets this run covered.
 ## What this run covers
 
 - Every factory preset (`FactoryPresets`), rendered at a spread of extreme
-  sample rates (8 kHz - 192 kHz) and buffer sizes (16 - 8192 samples; see the
-  critical finding below for why buffer sizes under 16 are excluded here).
+  sample rates (8 kHz - 192 kHz) and buffer sizes (16 - 8192 samples); a
+  dedicated regression also processes a non-default cabinet/body at sizes 1-4.
 - A dedicated sweep of switching preset/guitar/cabinet *while already prepared*
   at an extreme buffer size - the realistic "host changes patch mid-session"
-  case - restricted to buffer sizes >= 16 for the same reason, plus a permanent,
-  always-present finding recording the confirmed-bad zone (buffer size <= 4) with
-  its empirical bisection, a manual repro, and what was ruled out.
+  case - restricted to buffer sizes >= 16, with sizes 1-4 covered separately.
 - Randomised parameter combinations (every automatable parameter set to a
   random normalised value, which can land on a non-default cabinet/body/guitar
   config) crossed with random MIDI (notes, CCs, pitch bend, channel pressure,
-  all-notes-off), at extreme buffer sizes (>= 16, same reason) and sample rates.
+  all-notes-off), at extreme buffer sizes (>= 16) and sample rates.
 - Host-level state round trips (`getStateInformation` / `setStateInformation`,
   not the preset manager's own save/load, which `PresetQaTests.cpp` already covers
   to the ulp) for every factory preset and for a batch of randomised parameter

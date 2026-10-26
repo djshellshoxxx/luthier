@@ -172,6 +172,11 @@ LUTHIER_TEST (PresetPreview, PB02_shippedClipsMatchFreshRenders)
     PreviewRenderer fresh;
     auto& ranges = fresh.getRangeSource();
     PresetFeatureReader reader (ranges);
+    double worstSpectrumRms = 0.0, worstLoudnessDelta = 0.0;
+    juce::String worstSpectrumName, worstLoudnessName;
+    size_t encodedBytes = 0;
+    int higherQualityRetained = 0, higherQualityCapFallbacks = 0;
+    juce::StringArray higherQualityNames;
 
     for (const auto& e : *entries)
     {
@@ -204,6 +209,39 @@ LUTHIER_TEST (PresetPreview, PB02_shippedClipsMatchFreshRenders)
         const auto now = fresh.render (json);
         CHECK_MSG (now.ok, name + ": " + now.error);
 
+        juce::uint32 serial = 0;
+
+        for (int i = 0; i < 8; ++i)
+            serial = (serial << 4) | (juce::uint32) juce::CharacterFunctions::getHexDigitValue (now.soundHash[i]);
+
+        const auto defaultQuality = PreviewRenderer::encodeOgg (now.clip, PreviewRenderer::kSampleRate, serial, 5);
+        const auto higherQuality = PreviewRenderer::encodeOgg (now.clip, PreviewRenderer::kSampleRate, serial, 6);
+        CHECK (defaultQuality.getSize() <= (size_t) PreviewRenderer::kMaxOggBytes);
+        CHECK (higherQuality.getSize() <= (size_t) PreviewRenderer::kMaxOggBytes);
+
+        if (higherQuality == defaultQuality)
+        {
+            // q0.6 exceeded the cap, so encodeOgg must keep the q0.5 result.
+            ++higherQualityCapFallbacks;
+            CHECK (now.ogg == defaultQuality);
+        }
+        else if (now.ogg != defaultQuality)
+        {
+            ++higherQualityRetained;
+            higherQualityNames.add (name);
+            CHECK (now.ogg == higherQuality);
+        }
+
+        CHECK_MSG (now.ogg == rendered->result.ogg, name + ": independent Ogg renders differ");
+
+        bool rawRenderIsIdentical = now.clip.getNumSamples() == rendered->result.clip.getNumSamples();
+
+        for (int ch = 0; rawRenderIsIdentical && ch < 2; ++ch)
+            rawRenderIsIdentical = std::memcmp (now.clip.getReadPointer (ch), rendered->result.clip.getReadPointer (ch),
+                                                sizeof (float) * (size_t) now.clip.getNumSamples()) == 0;
+
+        CHECK_MSG (rawRenderIsIdentical, name + ": independent raw renders differ");
+
         const auto a = bandSpectrum (shipped, rate);
         const auto b = bandSpectrum (now.clip, PreviewRenderer::kSampleRate);
         double sum = 0.0;
@@ -212,13 +250,34 @@ LUTHIER_TEST (PresetPreview, PB02_shippedClipsMatchFreshRenders)
             sum += (a[i] - b[i]) * (a[i] - b[i]);
 
         const double rms = std::sqrt (sum / (double) a.size());
+        if (rms > worstSpectrumRms)
+        {
+            worstSpectrumRms = rms;
+            worstSpectrumName = name;
+        }
+
         CHECK_MSG (rms <= 1.0, name + ": spectrum differs by " + juce::String (rms, 2) + " dB RMS");
 
         const double loudnessShipped = ToneFeatures::integratedLoudness (shipped, rate);
         const double loudnessFresh = ToneFeatures::integratedLoudness (now.clip, PreviewRenderer::kSampleRate);
-        CHECK_MSG (std::abs (loudnessShipped - loudnessFresh) <= 0.5,
+        const double loudnessDelta = std::abs (loudnessShipped - loudnessFresh);
+
+        if (loudnessDelta > worstLoudnessDelta)
+        {
+            worstLoudnessDelta = loudnessDelta;
+            worstLoudnessName = name;
+        }
+
+        encodedBytes += ogg.getSize();
+        CHECK_MSG (loudnessDelta <= 0.5,
                    name + ": " + juce::String (loudnessShipped, 2) + " vs " + juce::String (loudnessFresh, 2) + " LUFS");
     }
+
+    std::cout << "    PB-02 max spectrum " << worstSpectrumRms << " dB RMS (" << worstSpectrumName
+              << "), max loudness delta " << worstLoudnessDelta << " LU (" << worstLoudnessName
+              << "), encoded bytes " << encodedBytes << ", q0.6 retained " << higherQualityRetained
+              << " (" << higherQualityNames.joinIntoString (", ") << "), q0.6 cap fallbacks "
+              << higherQualityCapFallbacks << std::endl;
 
     // The calibration file is written beside the previews.
     CHECK (DescriptorCalibration::fromVar (juce::JSON::parse (scratch.folder.getChildFile ("descriptor-calibration.json"))).isValid());

@@ -8,24 +8,13 @@
     (this suite must not regress the Linux gate); see docs/review/QA_ROBUSTNESS.md
     for the findings this run produced.
 
-    One configuration below is deliberately NOT exercised at its crashing
-    values: preparing at a very small buffer size (empirically bisected to
-    <= 4 samples; 5 and up is clean) with any preset/config whose cabinet or
-    body differs from the engine's compiled-in default reliably aborts the
-    process with heap corruption (glibc "corrupted size vs. prev_size" /
-    "munmap_chunk(): invalid pointer" / "free(): invalid pointer" - the abort
-    site and message vary between runs, itself a heap-corruption signature,
-    and at least once the corruption was only detected several thousand
-    render blocks and one destructor later, i.e. it is not always immediate).
-    This was bisected empirically (see presetLoadAtTrulyExtremeBufferSizes
-    below and docs/review/QA_ROBUSTNESS.md for the full writeup and repro); a
-    byte-precise root cause would need ASan or valgrind, which this session
-    attempted but could not complete in the time available (a from-scratch
-    ASan rebuild of the whole engine + test suite is slow on this box). A hard
-    process abort cannot be caught by CHECK/CHECK_MSG, so running the known-bad
-    configuration here would take down the entire Linux test gate rather than
-    just this suite; it is recorded as a permanent, unconditional finding in
-    the report instead.
+    A prior QA run found heap corruption while switching a non-default cabinet
+    or body with a declared host block size <= 4. The convolution instances now
+    prepare with an internal capacity of at least 8 while processing the host's
+    actual callback size unchanged. `convolutionPreparesSafelyForTinyHostBlocks`
+    is the active 1-4-sample regression; pre-fix evidence and the unconfirmed
+    ASan hypothesis remain in
+    `docs/handoff/BUFFER-SIZE-1-4-HEAP-CORRUPTION-2026-10-26.md`.
 */
 
 #include "TestFramework.h"
@@ -108,10 +97,8 @@ namespace
         call (PluginProcessor.cpp, after engine.prepare()) re-applies it - so
         calling this before vs. after the processor's first prepareToPlay
         makes no difference to safety, only to which call ends up doing the
-        real work. See the file header and presetLoadAtTrulyExtremeBufferSizes:
-        the only thing that actually avoids the crash is keeping the buffer
-        size out of the confirmed-bad range whenever the config might differ
-        from default. */
+        real work. The broad randomized matrix uses sizes >= 16; a separate
+        regression covers the prior 1-4 sample cabinet/body swap failure. */
     void randomiseAllParameters (LuthierAudioProcessor& p, juce::Random& rng)
     {
         for (auto* param : p.getParameters())
@@ -187,17 +174,15 @@ namespace
 
         body << "## What this run covers\n\n";
         body << "- Every factory preset (`FactoryPresets`), rendered at a spread of extreme\n";
-        body << "  sample rates (8 kHz - 192 kHz) and buffer sizes (16 - 8192 samples; see the\n";
-        body << "  critical finding below for why buffer sizes under 16 are excluded here).\n";
+        body << "  sample rates (8 kHz - 192 kHz) and buffer sizes (16 - 8192 samples); a\n";
+        body << "  dedicated regression also processes a non-default cabinet/body at sizes 1-4.\n";
         body << "- A dedicated sweep of switching preset/guitar/cabinet *while already prepared*\n";
         body << "  at an extreme buffer size - the realistic \"host changes patch mid-session\"\n";
-        body << "  case - restricted to buffer sizes >= 16 for the same reason, plus a permanent,\n";
-        body << "  always-present finding recording the confirmed-bad zone (buffer size <= 4) with\n";
-        body << "  its empirical bisection, a manual repro, and what was ruled out.\n";
+        body << "  case - restricted to buffer sizes >= 16, with sizes 1-4 covered separately.\n";
         body << "- Randomised parameter combinations (every automatable parameter set to a\n";
         body << "  random normalised value, which can land on a non-default cabinet/body/guitar\n";
         body << "  config) crossed with random MIDI (notes, CCs, pitch bend, channel pressure,\n";
-        body << "  all-notes-off), at extreme buffer sizes (>= 16, same reason) and sample rates.\n";
+        body << "  all-notes-off), at extreme buffer sizes (>= 16) and sample rates.\n";
         body << "- Host-level state round trips (`getStateInformation` / `setStateInformation`,\n";
         body << "  not the preset manager's own save/load, which `PresetQaTests.cpp` already covers\n";
         body << "  to the ulp) for every factory preset and for a batch of randomised parameter\n";
@@ -224,9 +209,9 @@ namespace
 
 //==============================================================================
 /*  Every factory preset, rendered at a spread of extreme sample rates and
-    buffer sizes with random MIDI. Buffer sizes are kept to the confirmed-safe
-    zone (>= 16; see the file header and presetLoadAtTrulyExtremeBufferSizes
-    below for the buffer sizes deliberately left out and why). Reports
+    buffer sizes with random MIDI. This broad matrix uses sizes >= 16; the
+    1-4 sample non-default convolution swap has its own active regression.
+    Reports
     (rather than hard-fails) anything that goes non-finite or blows past the
     master limiter's headroom, since a genuine finding here is for the
     coordinator to schedule a fix for, not for this suite to break the Linux
@@ -296,77 +281,93 @@ LUTHIER_TEST (Fuzz, everyFactoryPresetAcrossExtremeBuffersAndSampleRates)
 }
 
 //==============================================================================
-/*  CRITICAL FINDING (found by this harness; not fixed - see the file header
-    and this task's HARD LIMIT): preparing at a very small buffer size with
-    any preset/config whose cabinet or body differs from the engine's
-    compiled-in default (Cab4x12/Vintage30/SM57/OnAxisCapEdge/Close, per
-    CabinetConfig's defaults in Source/DSP/Amp/CabinetEngine.h) reliably
-    corrupts the heap. Confirmed reproducible; NOT a one-off flake.
+/*  A prior run found heap corruption when non-default cabinet/body responses
+    were installed with a 1-4 sample host block. Keep these tiny host callbacks
+    unchanged while the convolution prepares its internal buffers at a minimum
+    of 8. Load the original reproducer and a distinct body/cabinet configuration,
+    run long enough to catch delayed aborts, then churn small allocator bins
+    after processor destruction. This is a runtime regression, not an ASan proof. */
+LUTHIER_TEST (Fuzz, convolutionPreparesSafelyForTinyHostBlocks)
+{
+    constexpr double sampleRate = 8000.0;
+    const auto originalReproducerName = juce::String (FactoryPresets::getPreset (0).name);
+    const auto alternateBodyCabinetName = juce::String (FactoryPresets::getPreset (1).name);
+    CHECK (originalReproducerName == "Clean Double-Cut Funk");
+    CHECK (alternateBodyCabinetName == "T-Style Country Twang");
 
-    Bisected empirically (repeated runs, not a single observation):
-      - buffer size 1, 2, 3 or 4: crashes. Manual repro: construct
-        LuthierAudioProcessor, prepareToPlay(8000.0, 3 or 4), then load
-        factory preset "Clean Double-Cut Funk" (FactoryPresets::getPreset(0)
-        at the time of this run) via PresetManager::fromVar +
-        ParameterBridge::applyAllNow. Sometimes aborts inside that
-        prepareToPlay/applyAllNow call itself (bs=3, 4); sometimes only after
-        thousands of clean-looking render blocks, when a later, unrelated
-        allocation trips glibc's corruption check (bs=1) - itself a classic
-        heap-corruption signature (silent overwrite, delayed detection). The
-        abort message varies between runs: "corrupted size vs. prev_size",
-        "munmap_chunk(): invalid pointer", "free(): invalid pointer".
-      - buffer size 5 and up: clean in every trial run (including a 20 000-
-        block soak at buffer size 5, not just the first few blocks).
-      - The order of operations does NOT matter (loading the preset before
-        vs. after the first prepareToPlay makes no difference): PluginProcessor::
-        prepareToPlay (Source/PluginProcessor.cpp:224 engine.prepare(), then
-        :293 bridge.applyAllNow()) unconditionally re-applies the full
-        structural state - including any already-set, non-default cabinet/
-        body config - AFTER engine.prepare() has already switched the engine
-        to the new (small) buffer size. There is no call sequence a caller can
-        use to dodge it other than avoiding that buffer-size range outright.
-      - The bisected boundary (bad at <= 4, clean at >= 5) lines up with
-        `juce::nextPowerOfTwo(maxBlockSize)`, which is 4 for maxBlockSize
-        3 or 4 and 8 for maxBlockSize 5-8 - suggesting the fault is in how
-        JUCE's juce::dsp::Convolution (or this codebase's use of it via
-        Source/DSP/Amp/CabinetEngine.cpp / Source/DSP/Body/BodyEngine.cpp /
-        Source/DSP/Common/ConvolutionInstaller.h, all of which reload a
-        cabinet or body impulse response through it) handles an internal
-        FFT/partition size that collapses to its practical minimum. That is
-        a lead, not a confirmed byte-level cause: pinning the exact
-        overflowing buffer needs ASan or valgrind. This session built an
-        ASan tree (Debug, -fsanitize=address) to get one, but could not
-        finish a from-scratch rebuild of the whole engine + test suite in
-        the time available on this box (4 cores; still under 40% built
-        after the time this investigation could spend on it) and does not
-        want to leave an incomplete, uncommitted rebuild blocking the report.
+    for (int blockSize : { 1, 2, 3, 4 })
+    {
+        auto p = std::make_unique<LuthierAudioProcessor>();
+        FactoryPresets::setProcessorForRanges (p.get());
+        p->setPlayConfigDetails (0, 2, sampleRate, blockSize);
+        p->prepareToPlay (sampleRate, blockSize);
 
-    A hard process abort cannot be caught by CHECK/CHECK_MSG, so running the
-    known-bad configuration here would take down the entire Linux test gate
-    rather than just this suite. This test itself only sweeps the confirmed-
-    safe zone (buffer size >= 16, well clear of the bisected boundary at 5) so
-    the Linux gate stays green; the excluded zone is recorded as a permanent
-    finding below every run, independent of what the safe sweep finds. */
+        auto& cabinet = p->getEngine().getCabinetEngine();
+        auto& body = p->getEngine().getBodyEngine();
+
+        const auto loadAndRender = [&] (int presetIndex, int blocks)
+        {
+            // getPreset() returns a thread-local view whose storage is reused on
+            // the next call; consume the whole definition before requesting another.
+            const auto& preset = FactoryPresets::getPreset (presetIndex);
+            const auto presetName = juce::String (preset.name);
+            CHECK_MSG (p->getPresetManager().fromVar (FactoryPresets::toVar (preset, *p)),
+                       presetName + " failed to load at block size " + juce::String (blockSize));
+            p->getParameterBridge().applyAllNow();
+            CHECK_MSG (cabinet.hasImpulseResponse (0), presetName + ": cabinet IR was not installed");
+            CHECK_MSG (body.hasImpulseResponse(), presetName + ": body IR was not installed");
+
+            juce::MidiBuffer note;
+            note.addEvent (juce::MidiMessage::noteOn (1, 60, (juce::uint8) 100), 0);
+            const auto stats = renderBlocks (*p, blockSize, blocks, &note);
+            CHECK_MSG (stats.finite, "non-finite output at block size " + juce::String (blockSize));
+            CHECK_MSG (stats.peak > 0.0f, "no output at block size " + juce::String (blockSize));
+        };
+
+        loadAndRender (0, 20000);
+
+        const auto cabinetLoadsBeforeSwap = cabinet.getIrLoadCount();
+        const auto bodyLoadsBeforeSwap = body.getIrLoadCount();
+        loadAndRender (1, 20000);
+        CHECK_MSG (cabinet.getIrLoadCount() > cabinetLoadsBeforeSwap,
+                   "alternate preset did not reload the cabinet convolution");
+        CHECK_MSG (body.getIrLoadCount() > bodyLoadsBeforeSwap,
+                   "alternate preset did not reload the body convolution");
+
+        p->releaseResources();
+        p.reset();
+
+        std::vector<std::vector<uint8_t>> smallAllocationChurn;
+        smallAllocationChurn.reserve (256);
+
+        for (size_t i = 0; i < 256; ++i)
+            smallAllocationChurn.emplace_back (32 + (i % 97), (uint8_t) blockSize);
+
+        size_t verifiedBytes = 0;
+
+        for (const auto& allocation : smallAllocationChurn)
+        {
+            CHECK (allocation.front() == (uint8_t) blockSize);
+            CHECK (allocation.back() == (uint8_t) blockSize);
+            verifiedBytes += allocation.size();
+        }
+
+        CHECK (verifiedBytes > 0);
+    }
+}
+
+//==============================================================================
+/*  Every factory preset, rendered at a spread of extreme sample rates and
+    buffer sizes with random MIDI. The tiny 1-4 sample callbacks have their own
+    active regression above. */
 LUTHIER_TEST (Fuzz, presetLoadAtTrulyExtremeBufferSizes)
 {
     static const double sampleRates[] = { 8000.0, 48000.0, 192000.0 };
-    static const int safeBlockSizes[] = { 16, 32, 64, 513, 1024, 4096, 8192 };   // <= 4 is the finding above; 5-15 also tested clean but kept out of the automated sweep for margin
+    static const int safeBlockSizes[] = { 16, 32, 64, 513, 1024, 4096, 8192 };
 
     const bool perf = perfRunRequested();
     const int numPresets = FactoryPresets::getNumPresets();
     juce::Array<Finding> findings;
-
-    // The permanent, unconditional finding: not discovered by the loop below,
-    // since the loop deliberately never runs the crashing configuration.
-    findings.add ({ "CRITICAL: heap corruption",
-                     "prepareToPlay(sr, bs) with bs <= 4, with any preset/config whose cabinet or body "
-                     "differs from the compiled-in default (e.g. \"Clean Double-Cut Funk\" @ 8000 Hz, block 3 or 4) "
-                     "- order of preset-load vs. prepare does not matter",
-                     "process aborts (glibc \"corrupted size vs. prev_size\" / \"munmap_chunk(): invalid pointer\" / "
-                     "\"free(): invalid pointer\", varies between runs) from heap corruption; sometimes only detected "
-                     "thousands of render blocks later. Bisected clean at buffer size 5 and up (soak-tested to 20000 "
-                     "blocks at size 5) - see the comment above this test for the full empirical writeup, what was "
-                     "ruled out, and why a byte-precise root cause needs ASan/valgrind this session could not finish" });
 
     int cases = 0;
 
@@ -386,7 +387,7 @@ LUTHIER_TEST (Fuzz, presetLoadAtTrulyExtremeBufferSizes)
 
                 auto p = std::make_unique<LuthierAudioProcessor>();
                 FactoryPresets::setProcessorForRanges (p.get());
-                p->prepareToPlay (sr, bs);   // the risky order (prepare, then switch), kept at a safe size here
+                p->prepareToPlay (sr, bs);   // the broad factory cross-product; tiny sizes have their own regression
 
                 juce::Random rng (0xB00B + presetIndex * 131 + (int) sr + bs);
                 renderBlocks (*p, bs, 2);   // a moment of normal running before the switch
@@ -411,22 +412,20 @@ LUTHIER_TEST (Fuzz, presetLoadAtTrulyExtremeBufferSizes)
         }
     }
 
-    const juce::String summary = juce::String (cases) + " (preset, sample rate, safe block size >= 16) switch-while-running cases run across "
-                                  + juce::String (numPresets) + " factory presets, plus the permanent critical finding below for block sizes <= 4.";
+    const juce::String summary = juce::String (cases) + " (preset, sample rate, block size >= 16) switch-while-running cases run across "
+                                  + juce::String (numPresets) + " factory presets; block sizes 1-4 are covered by the active tiny-block regression.";
     appendReport ("Fuzz.presetLoadAtTrulyExtremeBufferSizes", findings, summary);
 
-    // Only the one, permanent, always-present finding is expected; more than
-    // that means the safe (>= 16) zone found something new.
-    CHECK_MSG (findings.size() <= 1, "the safe (>= 16) buffer-size zone found more than the known critical bug - see docs/review/QA_ROBUSTNESS.md");
+    CHECK_MSG (findings.isEmpty(), "the >= 16 buffer-size zone found a new issue - see docs/review/QA_ROBUSTNESS.md");
 }
 
 //==============================================================================
 /*  Random parameter combinations crossed with random MIDI, at extreme buffer
     sizes and sample rates. Parameters (including structural ones - guitar
     type, cabinet, body) are randomised, which can land on a non-default
-    cabinet/body config; buffer sizes are kept >= 16 (see the file header and
-    presetLoadAtTrulyExtremeBufferSizes for the confirmed-bad zone this stays
-    clear of). 64 seeds by default (fast), 2000 under LUTHIER_PERF=1. Any
+    cabinet/body config; this broad sweep keeps sizes >= 16, while the specific
+    tiny-block convolution case has a separate regression. 64 seeds by default
+    (fast), 2000 under LUTHIER_PERF=1. Any
     misbehaving seed is recorded (not failed) so the coordinator can
     reproduce it exactly with the seed printed. */
 LUTHIER_TEST (Fuzz, randomParameterAndMidiCombosWithReproSeeds)
@@ -541,8 +540,8 @@ LUTHIER_TEST (Fuzz, everyFactoryPresetHostStateRoundTrips)
 
 //==============================================================================
 /*  Randomised parameter states round-tripped through the real host state
-    contract at extreme sample rates/buffer sizes (kept >= 16 - see the file
-    header and presetLoadAtTrulyExtremeBufferSizes for why). Parameters are
+    contract at extreme sample rates/buffer sizes (kept >= 16 in this broad
+    sweep). Parameters are
     randomised on the SOURCE processor before its first prepareToPlay; the
     RESTORED processor's setStateInformation likewise runs before its own
     prepareToPlay, matching HostState::anUnpreparedInstanceSavesTheSameStateAsAPreparedOne's
