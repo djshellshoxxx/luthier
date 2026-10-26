@@ -21,6 +21,7 @@
 
 #include "../PluginProcessor.h"
 #include "../Presets/FactoryPresets.h"
+#include "../Support/IrLibrary.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -312,8 +313,27 @@ namespace
             CHECK_MSG (p->getPresetManager().fromVar (FactoryPresets::toVar (preset, *p)),
                        presetName + " failed to load at " + configuration);
             p->getParameterBridge().applyAllNow();
+            if (presetIndex == 1)
+            {
+                // Free plays both original recipes as Tele. Give the alternate
+                // fixture a shipped, distinct body IR through the real host path;
+                // do not turn a valid same-file cache hit into a forced reload.
+                auto* topWood = p->getState().getParameter (ParamIDs::bodyTopWood);
+                CHECK_MSG (topWood != nullptr, "body IR fixture requires the top-wood parameter");
+                if (topWood != nullptr)
+                    topWood->setValueNotifyingHost (topWood->convertTo0to1 ((float) Wood::Mahogany));
+                p->getParameterBridge().applyToEngine();
+                p->getParameterBridge().flushPendingStructuralChange();
+            }
             CHECK_MSG (cabinet.hasImpulseResponse (0), presetName + ": cabinet IR was not installed");
             CHECK_MSG (body.hasImpulseResponse(), presetName + ": body IR was not installed");
+            CHECK_MSG (IrLibrary::findCabIr (CabinetEngine::anchorConfig (cabinet.getConfigA())).existsAsFile(),
+                       presetName + ": configured cabinet IR fixture is unavailable");
+            CHECK_MSG (IrLibrary::findBodyIr (body.getBodyConfig()).existsAsFile(),
+                       presetName + ": configured body IR fixture is unavailable");
+            CHECK_MSG (cabinet.isEnabled(), presetName + ": cabinet convolution must process the tiny blocks");
+            CHECK_MSG (body.getMode() == BodyEngine::Mode::Convolution || body.getMode() == BodyEngine::Mode::Hybrid,
+                       presetName + ": body convolution must process the tiny blocks");
 
             juce::MidiBuffer note;
             note.addEvent (juce::MidiMessage::noteOn (1, 60, (juce::uint8) 100), 0);
@@ -324,13 +344,32 @@ namespace
 
         loadAndRender (0, renderBlockCount);
 
-        const auto cabinetLoadsBeforeSwap = cabinet.getIrLoadCount();
-        const auto bodyLoadsBeforeSwap = body.getIrLoadCount();
-        loadAndRender (1, renderBlockCount);
-        CHECK_MSG (cabinet.getIrLoadCount() > cabinetLoadsBeforeSwap,
-                   "alternate preset did not reload the cabinet convolution");
-        CHECK_MSG (body.getIrLoadCount() > bodyLoadsBeforeSwap,
-                   "alternate preset did not reload the body convolution");
+        {
+            const auto cabinetFileBeforeSwap = IrLibrary::findCabIr (CabinetEngine::anchorConfig (cabinet.getConfigA()));
+            const auto bodyFileBeforeSwap = IrLibrary::findBodyIr (body.getBodyConfig());
+            const auto guitarBeforeSwap = p->getEngine().getGuitarType();
+            const auto cabinetLoadsBeforeSwap = cabinet.getIrLoadCount();
+            const auto bodyLoadsBeforeSwap = body.getIrLoadCount();
+            loadAndRender (1, renderBlockCount);
+            CHECK_MSG (IrLibrary::findCabIr (CabinetEngine::anchorConfig (cabinet.getConfigA())) != cabinetFileBeforeSwap,
+                       "alternate preset must select a distinct supported cabinet IR");
+            CHECK_MSG (IrLibrary::findBodyIr (body.getBodyConfig()) != bodyFileBeforeSwap,
+                       "alternate preset must select a distinct supported body IR");
+            CHECK_MSG (cabinet.getIrLoadCount() > cabinetLoadsBeforeSwap,
+                       "alternate preset did not reload the cabinet convolution");
+            CHECK_MSG (body.getIrLoadCount() > bodyLoadsBeforeSwap,
+                       "alternate preset did not reload the body convolution");
+            // Retain one fixture trace per cell so CI can attribute an IR swap
+            // failure without changing the callback or discarding the assertion.
+            std::cout << "[tiny-convolution-swap] " << configuration
+                      << " guitar=" << (int) guitarBeforeSwap << "->" << (int) p->getEngine().getGuitarType()
+                      << " body=" << bodyFileBeforeSwap.getRelativePathFrom (IrLibrary::getBodyIrFolder()).toStdString()
+                      << "->" << IrLibrary::findBodyIr (body.getBodyConfig()).getRelativePathFrom (IrLibrary::getBodyIrFolder()).toStdString()
+                      << " loads=" << bodyLoadsBeforeSwap << "->" << body.getIrLoadCount()
+                      << " cabinet=" << cabinetFileBeforeSwap.getRelativePathFrom (IrLibrary::getCabIrFolder()).toStdString()
+                      << "->" << IrLibrary::findCabIr (CabinetEngine::anchorConfig (cabinet.getConfigA())).getRelativePathFrom (IrLibrary::getCabIrFolder()).toStdString()
+                      << " loads=" << cabinetLoadsBeforeSwap << "->" << cabinet.getIrLoadCount() << std::endl;
+        }
 
         p->releaseResources();
         p.reset();
