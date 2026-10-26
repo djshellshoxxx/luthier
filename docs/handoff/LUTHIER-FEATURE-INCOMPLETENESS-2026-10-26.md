@@ -138,21 +138,29 @@ historical measurements, not asserted current failures.
 | **WP15: Ditto, Nano360, RC-1 (3) + LooperCore** | Named wrappers skeletons and `registerLoopers()` empty. `LooperCore`, `PagedLooperCore`, storage/compaction and state-codec implementations/tests exist. | **Large; hard.** Product wrappers, distinct gestures, seamless boundaries, model readback and actual board asset/error lifecycle. Shared storage is substantial completed work, not a completed named looper. | Implement one specified wrapper against the existing paged core; prove record/play/overdub/undo/cancel/state/failure behavior through the board. |
 | **WP16: RC-5 (1)** | Named wrapper and `registerRc5()` skeletons. Separate original rhythm helper has **57 patterns × 2 variations, 7 synthesized kits**, deterministic/bar-change tests. | **Large; hard.** Wire looper + rhythm + **99 memories**, PC/CC profile, slave/master clock output, storage failures and LCD/ring readback. Helpers alone do not provide the pedal. | Complete WP15 integration first, then one RC-5 memory record/save/reload path; preserve original synthesized-pattern attribution. |
 
-WP14's original endpoint conflict remains visible: Phase90 upper-notch target
-7,966 Hz versus measured digital endpoints 7,359.34/7,442.65 Hz at 44.1/48 kHz
-(−7.63/−6.58%, original limit 3%). The static digital-formula tests do not close
-that criterion. Fixed Block feedback 0.35 versus a requested 0.6-feedback soak is
-another unresolved contract mismatch. CE-2W CE1 THD and CE-2/DD-3T CPU gates also
-remain unclosed in the current evidence ledger. Those are source-pinned historical
-measurements, not freshly reproduced values here. Reviewed CE-2 headroom changes
-already retain passing original low/high-level THD limits; do not label that old
-literal-tanh failure still unfixed. An older four-model 30-simulated-minute/rate
-soak passed, but predates later changes and is not current end-to-end acceptance.
+Correction after the later E58 checkpoint was inspected: the **current Phase90
+uses the factored two-anchor prewarp**, not the earlier literal equal-AP1 model.
+The older endpoint error (−7.63/−6.58% against 3%) remains preserved as historical
+RED/oracle evidence, not a current unresolved notch failure. Actual-model probes
+at five rates pass the original notch/THD limits; local CPU trials are
+0.3324–0.3905%, below the unchanged 0.4% budget on that machine. The E58 snapshot
+also has 53,039 sanitizer checks and a five-rate 30-simulated-minute/model soak;
+no new execution of those probes occurred for this report. Fixed Block feedback
+is 0.35, with separate 0.6 stability-probe evidence; neither is silently exposed
+as a new product control. The named spec's literal bypass transition delta
+<1 LSB24-bit remains unresolved: the intentional fade increment exceeds it,
+although the unchanged general A-PED transition criterion passes.
+
+CE-2W CE1 THD and CE-2/DD-3T CPU gates remain unclosed in the evidence ledger;
+those measurements were not freshly rerun here. Reviewed CE-2 headroom changes
+retain passing original low/high-level THD limits; the old literal-tanh failure
+is not still unfixed. The older four-model 30-simulated-minute/rate soak predates
+later changes and does not establish current end-to-end acceptance.
 
 Evidence: `Models/Register{DriveA,DriveB,Muffs,ModDelay,Loopers,Rc5}.cpp` (all
 entry bodies empty), the eighteen model header/source pairs, `Common/Looper*`,
 `Common/PagedLooperCore*`, `Common/Rc5Rhythm*`, `Models/rc5_patterns.inc`,
-`docs/coverage/PEDALBOARD-TIMEFX.md:251`, and the accompanying machine-readable
+`docs/coverage/PEDALBOARD-TIMEFX.md:376`, and the accompanying machine-readable
 `integrated-model-inventory.json`. No failed candidates were enabled to improve counts.
 
 ### 4. Serialization, presets, snapshots and assets — small-to-moderate integration qualification; hard edge cases
