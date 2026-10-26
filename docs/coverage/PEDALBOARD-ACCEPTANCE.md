@@ -3,9 +3,12 @@
 Latest bounded local QA: the corrected-HOME Linux Pro full suite passed
 2,806 tests / 14,935,613 checks at exact source `f1efeded706b9dc57da7e941ca856b17eaad5183`.
 The subsequent test-only tiny-buffer extension passed strict ASan/LSan/UBSan
-over 21 rate/size cells: 2 tests / 11,029 checks. Linux Free is freshly
-configuring/building all supported local targets; no Free test or product
-acceptance is claimed yet. See the [QA checkpoint](../handoff/PEDALBOARD-2026-10-26-QA-CHECKPOINT.md)
+over 21 rate/size cells: 2 tests / 11,029 checks. At the same production code,
+Linux Free freshly built all five local targets and passed VST3 strictness 5
+(all 30 requested rate/buffer pairs for audio/automation) and CLAP validation
+(18 passed, 3 unsupported preset-factory skips, 0 failures). The full Free
+unit suite is still pending; standalone smoke does not qualify audio hardware.
+See the [QA checkpoint](../handoff/PEDALBOARD-2026-10-26-QA-CHECKPOINT.md)
 and [boundary/Free handoff](../handoff/PEDALBOARD-2026-10-26-TINY-BOUNDARY-FREE.md)
 for exact source/binary/log identities. Native Windows/macOS, remaining model
 quality, TSan and manual acceptance gates are not cleared by these passes.

@@ -5,6 +5,14 @@
 Same repository/executor; branch `codex/luthier-pedalboard-completion`.
 Starting HEAD `f1efeded706b9dc57da7e941ca856b17eaad5183`. Only tests and
 handoffs have changed; product source and original acceptance limits are intact.
+The tested extension and handoffs are committed locally as
+`d5b64ab650665d94825eaaf460f0024558825f38`; no push was attempted. The
+incremental bundle `d5b64ab6-over-f1efeded.bundle` verified successfully
+(SHA-256 `0766645982df50b4fa61b648c3b169ee916f7ff06951cc0dd0a0ab62d752d800`),
+and requires the original f1efeded source. The private Library checkpoint
+`libfile_6170df4828e88191be1b452634243d3c` preserves this completed sanitizer
+milestone plus an explicitly partial Free build log; it is not a completed
+Free qualification report.
 Normal workspace, patch and build actions succeeded in this directly
 user-authorized continuation. No alternate route around a rejection was used.
 
@@ -56,7 +64,7 @@ Release, FREE, LTO off, tests and renderer enabled, build string
 build string plus source/test hashes above identify this test-only tree even
 if a subsequent documentation/test commit advances HEAD.
 
-The one fresh build is running (session `72841`):
+The one fresh build completed with exit 0 (original session `72841`):
 
 ```sh
 source /workspace/luthier-toolchain/env.sh
@@ -64,10 +72,37 @@ ninja -C /workspace/luthier/build-free-qualification-20261026 -j4 \
   LuthierTests LuthierRender Luthier_Standalone Luthier_VST3 Luthier_CLAP
 ```
 
-There are 1,650 build steps. Logs: `linux-free-configure.log/.exit` and
-`linux-free-build.log/.exit`. No finished Free product, unit-test, validator or
-audio-device acceptance is claimed yet. The renderer is included so CLI tests
-can execute their real subprocess route rather than skip due to a missing tool.
+All five requested targets built across 1,650 steps. Build log SHA-256:
+`eeb2ab745fe0bb90e96b17c78e967863a6c1ffc17d4c734dfb7ae945b066503e`.
+All product executables/modules were identified as genuine Linux x86-64 ELF.
+The renderer is included so CLI tests can execute their real subprocess route
+rather than skip due to a missing tool. Full Free unit acceptance is still
+pending; the listing confirms 2,790 registered tests.
+
+| Product | SHA-256 |
+| --- | --- |
+| Standalone | `ad37d8c61da6f2dec2fabac84511e035c0b00b2d4e399e2b8aa0268f7f0d9121` |
+| VST3 module | `34b0c885bab04d67ffde5721bd6555ccb924844111579b7ae7104a0917fca45b` |
+| CLAP module | `af8bc40f1ead729ab56136827f63f0fd34bead8e3e8e6f16f7bed96ea3283e36` |
+| Renderer | `9ff21228c5c6810717d17d6b4eecc92caf08c8f6b79504d44460bf556b9f5576` |
+| Test runner | `1ec4c2717071c65fe475ab09d02f0a1d3cf23b9349770ebc18801e98a8afc675` |
+
+The installed repository validation route passed (exit 0): VST3 pluginval
+strictness 5 and CLAP 21 tests / 18 passed / 0 failed / 3 optional preset-factory
+skips / 0 warnings. Log SHA-256
+`224602c36efea6dea84a9c8d930108ee762dd479f4a7b7f08c5ba6c251d22d5e`.
+Because pluginval's defaults covered only 15 pairs, a supplemental strictness-5
+run explicitly tested 44.1/48/88.2/96/192 kHz x buffers 1/16/37/64/481/2048.
+Both audio and automation logs contain all 30 pairs; the run exited 0 with
+SUCCESS. Log SHA-256:
+`371d760328ca27a4ec9bdfecb0408023839cf116c43365c75d35dab28584a91e`.
+No GUI test was excluded. The external Steinberg validator was not installed
+or run; pluginval explicitly reports that optional check unavailable.
+
+The Standalone remained open for 10 seconds under Xorg :99; timeout exit 124
+was expected. Its ALSA log says `/dev/snd/seq` is unavailable. This is launch
+survival only, not audio-device/DAW/listening acceptance. Smoke log SHA-256:
+`7f4899a2173c4c01d1325de76cd0bcfaa9311ef64dbfd90e0dd8ca45fe48ac12`.
 The build directory is untracked and must be excluded from every Git add.
 The GCC 14 optimized build emitted a retained `-Wstringop-overflow` diagnostic
 at `CymbalPiece::render`'s `std::fill` length calculation; no runtime failure
@@ -76,12 +111,12 @@ has established an actual overflowing path. Do not silently drop that warning.
 ## Next actions and exclusions
 
 1. The strict sanitizer selection is complete and green as recorded above.
-2. Preserve a secret-checked local test/documentation checkpoint once stable,
-   using the actual nested repository Git directory. No push is authorized in
-   this bounded continuation.
-3. Finish the one Free build, then qualify its Free-edition unit tests and real
-   VST3/CLAP products using installed tools. Keep failures, unsupported cases,
-   standalone launch smoke and actual device/DAW acceptance distinct.
+2. The secret-checked local test/documentation checkpoint and incremental
+   bundle are saved. No push is authorized in this bounded continuation.
+3. Build and native Free validators are green as recorded above. Run the one
+   clean-home Free full suite; preserve its generated robustness report and
+   inspect its finding count independently of process exit. Do not rerun the
+   already completed Pro full suite or start a duplicate Free suite.
 4. Update this handoff with exact source/binary/log identities and terminal
    results before any next long tranche. Preserve any generated report before
    restoring the preceding tracked report; do not erase failure evidence.
