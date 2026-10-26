@@ -35,6 +35,28 @@ const PedalDesc description{"boss-dd3t","boss_dd3t_",1,"Quantized Digital Delay 
 }
 const PedalDesc& BossDd3t::descriptor() noexcept {return description;}
 BossDd3t::BossDd3t() : PedalBase(description) {}
+PreparedMemoryRequirement BossDd3t::prepareMemory(double rate,int maxBlock,int policy,const float*) noexcept
+{
+    // Match the pool's supported input range before converting buffer lengths.
+    // These bounds also make every size conversion/addition below overflow-safe.
+    if(!std::isfinite(rate) || rate<8000 || rate>1000000 || maxBlock<1 || policy<0 || policy>2)return {};
+    // Fresh stereo delay/history/hold arrays. Ceil conservatively covers the
+    // existing prepare() truncations; FractionalDelay adds16 beyond its argument.
+    const auto longSamples=uint64_t(std::ceil(rate*.81)),holdSamples=uint64_t(std::ceil(rate*.8));
+    const uint64_t payload=2*sizeof(double)*(longSamples+32+longSamples+16+holdSamples+8);
+    // Filters and oversamplers are embedded. The immutable interpolation table
+    // is shared, not a per-model allocation; no heap prepare scratch is owned.
+    return {sizeof(BossDd3t)+payload,0};
+}
+uint64_t BossDd3t::getPreparedMemoryBytes() const noexcept
+{
+    uint64_t bytes=sizeof(*this);
+    for(int c=0;c<2;++c)
+        if(!addPreparedBytes(bytes,line[c].ownedMemoryBytes(),bytes)
+            || !addPreparedBytes(bytes,uint64_t(history[c].capacity())*sizeof(double),bytes)
+            || !addPreparedBytes(bytes,uint64_t(loop[c].capacity())*sizeof(double),bytes))return kUnknownPreparedMemoryBytes;
+    return bytes;
+}
 void BossDd3t::prepare(double sampleRate,int,int)
 {
     sr=sampleRate;timeCoefficient=1-std::exp(-1/(sr*.08));energyCoefficient=1-std::exp(-1/(sr*.05));prepareParams(sr);

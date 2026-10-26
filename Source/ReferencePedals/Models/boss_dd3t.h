@@ -14,6 +14,8 @@ class BossDd3t final : public PedalBase<19>
 {
 public:
     BossDd3t();static const PedalDesc& descriptor() noexcept;
+    static PreparedMemoryRequirement prepareMemory(double,int,int,const float*) noexcept;
+    uint64_t getPreparedMemoryBytes() const noexcept override;
     void prepare(double,int,int) override;void reset() noexcept override;
     void process(double*,double*,int) noexcept override;
     bool processWithWetResidual(double*,double*,double*,double*,int) noexcept override;
