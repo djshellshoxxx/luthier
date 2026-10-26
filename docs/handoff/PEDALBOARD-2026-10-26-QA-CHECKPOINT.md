@@ -5,9 +5,13 @@
 - Repository: `djshellshoxxx/luthier`.
 - Integration branch: `codex/luthier-pedalboard-completion`.
 - Source baseline before the current tested changes: `51df65e9258c96dfdd3ec5047cd15e475b82f5b1`.
-- Tested implementation and initial handoff commit: `63178fcbebcbb4bfd5ca97012ef168baa2d5324e`.
-- This handoff is being updated in a documentation-only checkpoint after that
-  implementation commit; the product code and tests were unchanged afterward.
+- Tested PB-02/tiny-block implementation commit: `63178fcbebcbb4bfd5ca97012ef168baa2d5324e`.
+- Corrected host-state QA fixture and refreshed fuzz report commit:
+  `34ac45e9ee8a2298042aa44a8cfd83fad794ac50`. Its test source was built and
+  the focused state test plus full selected fuzz filter passed. No product DSP
+  source changed in this follow-up.
+- This handoff is updated in a later documentation commit; tested code and test
+  source above remain unchanged.
 - One active coordinator; no implementation workers are currently active. A
   narrow read-only review completed. Other Luthier worker branches/worktrees
   remain intact and were not merged or modified in this checkpoint.
