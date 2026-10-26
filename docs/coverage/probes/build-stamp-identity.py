@@ -18,7 +18,9 @@ root = Path(__file__).resolve().parents[3]
 build, out = map(lambda p: Path(p).resolve(), sys.argv[1:3])
 expected = sys.argv[3]
 out.mkdir(parents=True, exist_ok=True)
-database = json.loads((build / "compile_commands.json").read_text())
+database_path = build / "compile_commands.json"
+database = (json.loads(database_path.read_text()) if database_path.is_file()
+            else json.loads(subprocess.check_output(["ninja", "-C", str(build), "-t", "compdb"], text=True)))
 
 
 def entry(suffix):
