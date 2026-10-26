@@ -15,7 +15,10 @@ over 21 rate/size cells: 2 tests / 11,029 checks. At the same production code,
 Linux Free freshly built all five local targets and passed VST3 strictness 5
 (all 30 requested rate/buffer pairs for audio/automation) and CLAP validation
 (18 passed, 3 unsupported preset-factory skips, 0 failures). The full Free
-unit suite is still pending; standalone smoke does not qualify audio hardware.
+unit suite completed **failed:2/2790 tests,21/14,943,980 checks,5375.2s,exit1**.
+Both failures are tiny-convolution body-IR reload assertions. The separate
+generated robustness report has0findings and the original report was restored;
+that does not clear failed assertions. Standalone smoke does not qualify hardware.
 See the [QA checkpoint](../handoff/PEDALBOARD-2026-10-26-QA-CHECKPOINT.md)
 and [boundary/Free handoff](../handoff/PEDALBOARD-2026-10-26-TINY-BOUNDARY-FREE.md)
 for exact source/binary/log identities. Native Windows/macOS, remaining model
@@ -160,7 +163,7 @@ focused BoardModel passes as a full green suite.
 | Gate | Required evidence | Status |
 |---|---|---|
 | R1 functionality | Shared WP1-WP23 contracts plus the six selected named models at original gates; twelve other named models explicitly deferred, no registered placeholders | pending; full eighteen-model roadmap retained |
-| R2 legacy/full tests | Prior suites plus reference suites green, both editions, 3 OS | Linux Pro full suite passes at f1efeded; Free/native-OS qualification remains open |
+| R2 legacy/full tests | Prior suites plus reference suites green, both editions, 3 OS | Linux Pro full suite passes at f1efeded; Free full suite fails2/2790 tests(21 checks); current native-OS qualification remains open |
 | R3 numerics | 44.1/48/88.2/96/192kHz; buffers1/16/37/64/481/2048 plus extremes; deterministic/nonfinite/denormal checks | pending |
 | R4 RT/concurrency | Callback allocation/lock hooks, publication/retirement stress, ASan/UBSan/TSan | pending |
 | R5 state/topology | Seeded1000 malformed states, migrations/unknown preservation, repeated loads, cycles | pending |

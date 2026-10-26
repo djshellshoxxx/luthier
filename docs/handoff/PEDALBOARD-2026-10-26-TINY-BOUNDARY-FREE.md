@@ -76,9 +76,9 @@ All five requested targets built across 1,650 steps. Build log SHA-256:
 `eeb2ab745fe0bb90e96b17c78e967863a6c1ffc17d4c734dfb7ae945b066503e`.
 All product executables/modules were identified as genuine Linux x86-64 ELF.
 The renderer is included so CLI tests can execute their real subprocess route
-rather than skip due to a missing tool. Full Free unit acceptance is still
-pending; the listing confirms 2,790 registered tests. The single unfiltered
-clean-HOME Free suite is now running: original PID `165131`, session `92865`,
+rather than skip due to a missing tool. Full Free unit acceptance failed as
+recorded below; all2,790 registered tests ran. The single unfiltered clean-HOME
+Free suite has completed: original PID `165131`, session `92865`,
 log `linux-free-full-suite.log`, code/test commit `d5b64ab6`, documentation
 HEAD at launch `f5658a4d7837dc10eb45cfc2a98acb7d3d4eeaa3`. Performance flags
 are unset and the process has a three-hour timeout. Inspect the existing
@@ -122,13 +122,15 @@ has established an actual overflowing path. Do not silently drop that warning.
 1. The strict sanitizer selection is complete and green as recorded above.
 2. The secret-checked local test/documentation checkpoint and incremental
    bundle are saved. No push is authorized in this bounded continuation.
-3. Build and native Free validators are green as recorded above. Monitor the
-   one existing clean-home Free full suite; preserve its generated robustness
-   report and inspect its finding count independently of process exit. Do not
-   rerun the completed Pro full suite or start a duplicate Free suite.
-4. Update this handoff with exact source/binary/log identities and terminal
-   results before any next long tranche. Preserve any generated report before
-   restoring the preceding tracked report; do not erase failure evidence.
+3. Build and native Free validators are green; the one full Free suite is
+   terminal RED. Diagnose the two recorded fixture failures with a focused
+   effective-config/IR/counter A/B before any correction or fresh full suite.
+   Preserve all assertions, tiny capacities and original long-run counts.
+4. First ready Phase90 slice: independent5ms equal-power and literal24-bit
+   delta measurement through the actual node executor, with single-fade ownership
+   checked. Do not accept the existing linear-ramp probe as an equal-power pass,
+   silently reinterpret the1LSB gate, or register models with zero CPU/memory cost.
+   No new Phase90 test or implementation was started.
 
 One coordinator, zero workers. No pushes, CI, new downloads/software,
 environment replacement, paid infrastructure, credentials/security/network
@@ -156,6 +158,8 @@ retry the denied Actions run endpoint. The existing Free suite remains the only
 running test and must be inspected through its original PID/session/log.
 
 ## In-progress Free RED evidence — not a terminal verdict
+
+Historical observations in this section are superseded by the terminal result below.
 
 The original PID165131 run has recorded failures in both
 `Fuzz.convolutionPreparesSafelyForTinyHostBlocks` (2,102 checks) and
@@ -187,3 +191,55 @@ peak-delta wording. First bounded slice: independently compare the required
 curve and audit board/model fade ownership, retain the original delta evidence,
 then resolve the exact discrepancy before registration. No new probe/test,
 implementation or acceptance change was executed for this preparation.
+
+## Terminal Free result — 20:47:11 UTC
+
+**FAILED:2 of2,790 tests,21 of14,943,980 checks,5,375.2seconds,exit1.**
+2,788 tests passed. Only the two tiny-convolution test rows failed; all21
+messages are the body-reload assertion described above. Source was immutable:
+production f1efeded, test extension d5b64ab6, QA_Robustness.cpp SHA256
+6221828e6b695d5a07e5485c7e7e97b22a02795fda5465afdf31fb74e333c2f4.
+The runner remains SHA256
+1ec4c2717071c65fe475ab09d02f0a1d3cf23b9349770ebc18801e98a8afc675.
+Documentation HEAD at completion wasae67e429; no production source changed.
+
+Full log SHA256:
+35adaa26f97cd15e375d6904cd9a7c7a3559ba4d702a9b5f87a339881f38e0cd.
+The preserved generated robustness report has**0findings**, SHA256
+e8993815226dd95e871671ac0effdb7d2e482d2abe1cc80efb2a02d4441d78d6.
+Its bytes equal both the pre-run backup and restored tracked report. This
+report-only success does not override the21 failed assertions.
+
+`linux-free-full-suite-acceptance.json` is preserved unchanged with exit1,
+acceptancefalse, robustness0 and restorationtrue. Its `terminal:null` is a parser
+limitation for the failed-summary spelling, not missing terminal output. The
+independent `linux-free-full-suite-result.json` validates actual totals/pass rows,
+hashes and failure counts without changing the original result.
+
+The existing authorized `RefPedalUiLifecycle.tenThousandNativeOperationsAndEditorDestruction`
+passes393,576 checks/174.284s:10,000operations,21/20 editor create/destroy count
+at the progress marker and546 native closes. The separately denied extra callback
+stress remains unexecuted. The standard30s board grind passes9checks with3000edits,
+296rejections,122,790blocks/54,170,855samples, callback_new0,callback_locks0,invalid0.
+These hooks do not prove all legacy try-locks absent.
+
+Nineteen cases have zero checks under existing guards, including opt-in CPU/
+growth/fuzz cases and an unreadable-file access guard; do not equate their pass
+rows with measured budgets. The Clang18-specific normalization golden explicitly
+skipped on GCC14. These are recorded coverage limits, not nineteen newly found
+bugs. Highest observed cumulative VmHWM was1,535,348KiB in45s process samples;
+it is not claimed as the exact final peak. This ordinary Free run is not ASan/
+TSan qualification. No crash/nonfinite failure was reported.
+
+The next local diagnosis is ready, not access-blocked: confirm the source-backed
+same-effective-guitar fixture hypothesis and select genuinely distinct supported
+IRs if demonstrated. It has not been runtime-proven or fixed. No rerun, model
+implementation, API agent, CI, push or release was started. The owner assigns
+external Claude work elsewhere; there is no Luthier ownership reservation.
+
+Phase90 preparation now identifies exact executor code: NodeTable.cpp:87–101
+applies a linear5ms `runtime.enableMix`, while mxr_phase90_script.cpp:82/116
+also applies its own linear `engage` blend. The first bounded integration probe
+must measure their actual composition and the named spec:62 equal-power law,
+with spec:130's literal delta criterion separately preserved. Correct single
+fade ownership through review before registration; no such probe was executed.

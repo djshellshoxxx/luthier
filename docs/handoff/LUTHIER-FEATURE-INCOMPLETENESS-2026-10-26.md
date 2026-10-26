@@ -4,7 +4,7 @@ Assessment source: local HEAD `f5658a4d7837dc10eb45cfc2a98acb7d3d4eeaa3`, branch
 `codex/luthier-pedalboard-completion`. Test extension: `d5b64ab650665d94825eaaf460f0024558825f38`.
 Production source is unchanged from `f1efeded706b9dc57da7e941ca856b17eaad5183`.
 This report adds no feature or runtime authorization. One coordinator, zero active
-workers; one existing Linux Free full-suite process is running. No push, CI run,
+workers; the one Linux Free full suite has completed with two failed tests. No push, CI run,
 merge, release, installation or paid infrastructure was started for this report.
 
 Subsequent owner-approved initial scope: **Phase90, CE-2, DD-3T, CE-2W, Dyna Comp
@@ -55,7 +55,7 @@ identified groups, not a claim to have re-audited every Luthier feature specific
 | Linux Free VST3 | pluginval strictness 5 passes; explicit **30 rate/buffer pairs**, 44.1/48/88.2/96/192 kHz × 1/16/37/64/481/2048, including automation. External Steinberg validator unavailable, not passed. |
 | Linux Free CLAP | **21 tests: 18 pass / 0 fail / 3 unsupported preset-factory skips / 0 warnings**. No validator exclusions added. |
 | Linux Free standalone | Remained open for the intended 10-second smoke interval (timeout exit 124). No ALSA sequencer device; this is survival evidence, not working audio-device/listening acceptance. |
-| Linux Free full suite | **PENDING terminal result, with two recorded failing tiny-convolution tests /21 body-IR reload assertions.** One unfiltered clean-HOME run, expected2,790 tests, PID165131/session92865. PB02 passed776 checks. No final pass is claimed; `.exit`, totals and the separately generated robustness findings must all be inspected. |
+| Linux Free full suite | **FAILED:2/2790 tests,21/14,943,980 checks,5375.2s,exit1**. Both tiny-convolution tests fail body-IR reload counters. PB02 passed776 checks. The separate robustness report has0findings; tracked report restoration is byte-identical. No rerun or fix is claimed. |
 | Native Windows/macOS | Results below are source-specific older diagnostics. Neither is current f1ef product qualification. |
 
 Evidence roots: `/workspace/luthier-evidence/engine-retirement-source8/` and
@@ -255,16 +255,19 @@ sample-rate/capacity cells without suppressing leak/allocation mismatch checks.
 Historical PB02 failure and original tiny-buffer corruption evidence remain saved;
 the 0.5 LU gate and long tiny-buffer assertion counts were not weakened.
 
-**Remaining:** finish current Free full suite; inspect generated report as well as
-exit status; full instrumented/TSan scope; current dedicated long board/MIDI soak;
+**Remaining:** investigate the completed Free suite's two body-reload assertion
+failures; full instrumented/TSan scope; current dedicated long board/MIDI soak;
 isolated CPU/denormal budgets; investigate GCC14 optimized-build
 `-Wstringop-overflow` warning at `Source/DSP/Jam/DrumPieces.cpp:663` (`CymbalPiece::render`).
 No runtime corruption was established for that warning, and it is not dismissed
 by the focused convolution sanitizer result. No complete proof of the original
 tiny-buffer corrupting instruction is claimed.
 
-**Next slice:** observe the already-running Free suite to terminal result; no
-duplicate suite. Subsequent checks must remain within current authorization.
+**Next slice:** a focused runtime A/B of the failing Free fixture before any fix:
+preset0(Strat) and1(Tele) both play Tele in Free, and the body loader intentionally
+reuses the same installed IR. Confirm actual effective configs/files/counters;
+preserve assertions and test duration, use distinct supported IR fixtures if the
+hypothesis is confirmed. No duplicate full suite or source fix has started.
 Confidence high for logged passes; medium/unknown for unexecuted qualification.
 
 ## Native formats and release readiness
@@ -279,7 +282,7 @@ and ARM, VST3/CLAP, then Linux. Linux serves as the available local test harness
 | **Windows x64 standalone, VST3, CLAP** | Older source `6d9b5943217d6e0872f65aea6514ebf40fc789e1`, run 40198638051: build, focused GUI/host tests, VST3 strictness5 and CLAP 17 pass/0 fail/4 skips. Preserved diagnostic artifact 12602394197. | **Moderate qualification; moderate difficulty** unless native defects reproduce. Current f1ef retirement/DSP tree and both editions need exact-source build/full relevant gates; standalone device/DAW acceptance absent. Older binary is not a current release candidate. No new CI authorized now. |
 | **macOS Intel + Apple Silicon standalone, VST3, CLAP** | Older 6d9 universal compilation/link passed, but malformed `lipo -verify_arch` command failed architecture check before focused tests/validators. Artifact 12602221877 retained as failed diagnostic. Textual command fix and strict fixtures passed later. | **Moderate-to-large qualification; hard uncertainty.** Corrected run 40292011494 at 8d6600f8 has unknown outcome after a denied status read; neither architecture's current runtime pass is established. Need exact-source architecture verification plus both runtime/validator slices and original state/crash diagnostics. Do not retry the denied read or assume the command fix proves binary acceptance. |
 | **Linux Pro standalone/VST3/CLAP** | Current production source f1ef products rebuilt in earlier continuation, validators and full Pro suite pass; source-pinned handoff has exact hashes. | **Moderate final qualification.** Required named models/RT/CPU gates still open; device/DAW acceptance absent. No release upload/installer qualification. |
-| **Linux Free standalone/VST3/CLAP** | Fresh f1ef production/d5 test build; pluginval all30 pairs and CLAP18/0/3 pass; ten-second standalone smoke. | **Small-to-moderate qualification pending terminal suite outcome**, then common feature/performance/manual gates. Build warning preserved. No successful audio-device session. |
+| **Linux Free standalone/VST3/CLAP** | Fresh f1ef production/d5 test build; pluginval all30 pairs and CLAP18/0/3 pass; ten-second standalone smoke. Full suite failed2/2790 tests on body-reload assertions. | **Focused failure investigation required**, then common feature/performance/manual gates. Build warning preserved. No successful audio-device session. |
 | **Packaged Releases assets** | Existing packaging/provenance/checksum scripts and older retained diagnostic bundles; private QA archives available. | **Moderate release work after source qualifies.** New immutable version/tag, genuine per-OS/per-edition format checks, checksums, source commit, install/known-issue/license notices and secret scan. No current release was created. Failed Linux bundles and old native diagnostics cannot be promoted as qualified. |
 | **Signing/notarization and real hosts** | No current signed/notarized/manual acceptance claimed. | **Owner/external gates** where certificates, legal agreements, hardware or native hosts are required. Unsigned/unnotarized prerelease delivery may be disclosed if project policy permits; signing is not silently assumed mandatory or available. Do not create identities/credentials or pay for infrastructure. |
 
@@ -308,11 +311,18 @@ the exact plan bytes are accessible; no optional feature work was started.
 
 ## Constraints, attribution and immediate continuation
 
-The next ready operation is to observe the **existing** Free run; inspect
-`linux-free-full-suite.log`, `.exit`, `linux-free-generated-QA_ROBUSTNESS.md` and
-`linux-free-full-suite-acceptance.json`. It must retain the original 0.5 LU gate,
-all assertion counts and failure evidence. No second full suite is needed now.
-Afterward, locally feasible qualification is distinct from owner-only access:
+The single Free run finished at20:47:11UTC, PID165131/session92865, with the
+failed outcome above. Log SHA256:
+`35adaa26f97cd15e375d6904cd9a7c7a3559ba4d702a9b5f87a339881f38e0cd`.
+Generated report and restored original SHA256 both:
+`e8993815226dd95e871671ac0effdb7d2e482d2abe1cc80efb2a02d4441d78d6`.
+The original acceptance JSON retains `terminal:null` because its parser missed
+the failed-summary format; the independent result JSON records exact totals,
+with original output preserved and acceptance still false. Nineteen zero-check
+cases and a compiler-guarded Clang18 golden skip are not new passed gates.
+The0.5LU predicate, assertions and original failure evidence are intact.
+No second full suite is needed before focused diagnosis. Locally feasible
+qualification is distinct from owner-only access:
 missing named implementations, a not-yet-run bounded check and a denied endpoint
 are three different conditions. No blanket pause waiting for credits is inferred.
 

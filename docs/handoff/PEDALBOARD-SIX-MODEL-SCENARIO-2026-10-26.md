@@ -7,7 +7,9 @@ This supersedes the initial six-model scenario, not the original model quality
 requirements. Keep the full eighteen-model roadmap, all candidate source,
 tests, failure evidence, parameter/state compatibility and original acceptance
 limits. No registration, deletion, build, test, CI or release was started for this
-comparison. The existing Linux Free full suite continues independently.
+comparison. The one existing Linux Free full suite completed independently:
+2/2790 tests and21/14,943,980 checks fail on the two tiny-convolution body-reload
+assertions; generated robustness findings0. See the terminal Free handoff.
 
 Source: integrated production `f1efeded706b9dc57da7e941ca856b17eaad5183`, local
 documentation HEAD at comparison `d4137a638a30d4d6965fb955c4caf1774ab1214a`;
