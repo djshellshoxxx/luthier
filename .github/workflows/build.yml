@@ -386,7 +386,7 @@ jobs:
           set -euo pipefail
           for kind in app vst3 component clap; do
             bundle="$DIST_DIR/macos/Luthier Pro.$kind"
-            lipo -verify_arch arm64 x86_64 "$bundle/Contents/MacOS/Luthier Pro"
+            lipo "$bundle/Contents/MacOS/Luthier Pro" -verify_arch arm64 x86_64
             codesign --verify --deep --strict "$bundle"
           done
           if [ "${{ inputs.version }}" = "0.1.0-beta2" ]; then

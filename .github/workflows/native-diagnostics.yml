@@ -2,7 +2,7 @@ name: Unqualified native diagnostics
 
 on:
   push:
-    branches: [codex/luthier-native-diagnostics]
+    branches: [codex/luthier-native-diagnostics, codex/luthier-macos-diagnostics]
   workflow_dispatch:
 
 permissions:
@@ -103,7 +103,7 @@ jobs:
 
   macos:
     name: macOS universal Pro — UNQUALIFIED DIAGNOSTIC
-    if: github.ref == 'refs/heads/codex/luthier-native-diagnostics'
+    if: github.ref == 'refs/heads/codex/luthier-native-diagnostics' || github.ref == 'refs/heads/codex/luthier-macos-diagnostics'
     runs-on: macos-latest
     timeout-minutes: 105
     steps:

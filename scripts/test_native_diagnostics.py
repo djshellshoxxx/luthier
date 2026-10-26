@@ -58,7 +58,14 @@ class DiagnosticTests(unittest.TestCase):
             uname.write_text('#!/bin/sh\necho Darwin\n')
             uname.chmod(0o755)
             lipo = tools / 'lipo'
-            lipo.write_text('#!/bin/sh\n[ "${DIAG_MISSING_ARCH:-0}" != 1 ]\n')
+            lipo.write_text(
+                '#!/bin/sh\n'
+                'if [ "$#" -ne 3 ] || [ ! -f "$1" ] || [ "$2" != "-verify_arch" ]; then\n'
+                '  echo "fixture lipo rejected argv: expected executable -verify_arch arm64|x86_64; got: $*" >&2\n'
+                '  exit 2\n'
+                'fi\n'
+                'case "$3" in arm64|x86_64) ;; *) echo "fixture lipo rejected architecture: $3" >&2; exit 2 ;; esac\n'
+                '[ "${DIAG_MISSING_ARCH:-0}" != 1 ]\n')
             lipo.chmod(0o755)
             arch = tools / 'arch'
             arch.write_text('#!/bin/sh\nprintf "%s\\n" "$0" "$@" >> "$DIAG_CALLS"\nshift\nexec "$@"\n')
@@ -159,6 +166,51 @@ class DiagnosticTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, 'architecture'):
                     diag.focus()
 
+    def test_universal_check_uses_lipo_file_first_grammar(self):
+        if os.name == 'nt':
+            self.skipTest('Executable synthetic lipo fixture uses a Unix shebang')
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            tools = root / 'tools'
+            tools.mkdir()
+            lipo = tools / 'lipo'
+            lipo.write_text(
+                '#!/usr/bin/env python3\n'
+                'import os, sys\n'
+                'args = sys.argv[1:]\n'
+                'if len(args) != 4 or args[0].startswith("-") or args[1:] != ["-verify_arch", "arm64", "x86_64"]:\n'
+                '    print("usage: lipo input_file -verify_arch arch_type ...", file=sys.stderr)\n'
+                '    raise SystemExit(2)\n'
+                'if not os.path.isfile(args[0]):\n'
+                '    raise SystemExit(2)\n')
+            lipo.chmod(0o755)
+            for name, output in [('sysctl', '1\n'), ('uname', 'arm64\n')]:
+                tool = tools / name
+                tool.write_text(f'#!/bin/sh\necho {output.strip()}\n')
+                tool.chmod(0o755)
+
+            build = root / 'build'
+            artefacts = build / 'Luthier_artefacts/Release'
+            paths = [artefacts / f'{folder}/Luthier Pro.{ext}/Contents/MacOS/Luthier Pro'
+                     for folder, ext in [('VST3', 'vst3'), ('CLAP', 'clap'), ('Standalone', 'app')]]
+            runner = build / 'LuthierTests_artefacts/Release/LuthierTests.app/Contents/MacOS/LuthierTests'
+            render = build / 'LuthierRender_artefacts/Release/LuthierRender'
+            paths.extend([runner, render])
+            for path in paths:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text('fixture')
+
+            env_file = root / 'github-env'
+            with patch.object(diag, 'BUILD', build), \
+                 patch.object(diag, 'LOGS', build / 'logs'), \
+                 patch.object(diag, 'runner_path', return_value=runner), \
+                 patch.object(diag.platform, 'system', return_value='Darwin'), \
+                 patch.dict(os.environ, {'PATH': str(tools) + os.pathsep + os.environ['PATH'],
+                                         'GITHUB_ENV': str(env_file)}):
+                self.assertEqual(diag.architecture(), 0)
+            self.assertIn('MACOS_DIAGNOSTIC_ARCH=arm64', env_file.read_text())
+            self.assertEqual(len(list((build / 'logs').glob('universal-*.log'))), 5)
+
     def test_bundle_preserves_failure_and_complete_checksums(self):
         with tempfile.TemporaryDirectory() as directory:
             old = Path.cwd()
@@ -205,7 +257,11 @@ class DiagnosticTests(unittest.TestCase):
 
     def test_workflow_is_scoped_and_failure_artifacts_are_not_success_claim(self):
         text = (ROOT / '.github/workflows/native-diagnostics.yml').read_text()
-        self.assertIn('branches: [codex/luthier-native-diagnostics]', text)
+        self.assertIn('branches: [codex/luthier-native-diagnostics, codex/luthier-macos-diagnostics]', text)
+        windows, macos = text.split('  windows:', 1)[1].split('  macos:', 1)
+        self.assertIn("if: github.ref == 'refs/heads/codex/luthier-native-diagnostics'", windows)
+        self.assertNotIn('luthier-macos-diagnostics', windows)
+        self.assertIn("|| github.ref == 'refs/heads/codex/luthier-macos-diagnostics'", macos)
         self.assertNotIn('needs: windows', text)
         self.assertEqual(text.count('ref: ${{ github.sha }}'), 2)
         self.assertNotIn('continue-on-error', text)

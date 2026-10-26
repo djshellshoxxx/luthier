@@ -99,7 +99,7 @@ def architecture():
     for i, path in enumerate(paths):
         if not path.is_file():
             raise RuntimeError(f'Required native executable missing: {path}')
-        failed |= bool(run_logged(['lipo', '-verify_arch', 'arm64', 'x86_64', path],
+        failed |= bool(run_logged(['lipo', path, '-verify_arch', 'arm64', 'x86_64'],
                                   f'universal-{i}.log', 60))
     record = {'python_machine': platform.machine(), 'selected_native_runtime': native,
               'uname': platform.uname()._asdict(), 'verified_paths': [str(p) for p in paths],
