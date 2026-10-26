@@ -284,22 +284,17 @@ LUTHIER_TEST (Fuzz, everyFactoryPresetAcrossExtremeBuffersAndSampleRates)
 }
 
 //==============================================================================
-/*  A prior run found heap corruption when non-default cabinet/body responses
-    were installed with a 1-4 sample host block. Keep these tiny host callbacks
-    unchanged while the convolution prepares its internal buffers at a minimum
-    of 8. Load the original reproducer and a distinct body/cabinet configuration,
-    run long enough to catch delayed aborts, then churn small allocator bins
-    after processor destruction. This is a runtime regression, not an ASan proof. */
-LUTHIER_TEST (Fuzz, convolutionPreparesSafelyForTinyHostBlocks)
+namespace
 {
-    constexpr double sampleRate = 8000.0;
-    const auto originalReproducerName = juce::String (FactoryPresets::getPreset (0).name);
-    const auto alternateBodyCabinetName = juce::String (FactoryPresets::getPreset (1).name);
-    CHECK (originalReproducerName == "Clean Double-Cut Funk");
-    CHECK (alternateBodyCabinetName == "T-Style Country Twang");
-
-    for (int blockSize : { 1, 2, 3, 4 })
+    // Share the exact install/reload/output/destruction checks between the
+    // original long reproducer and the additional rate/capacity boundaries.
+    void checkTinyConvolutionConfiguration (TestContext& ctx, double sampleRate,
+                                           int blockSize, int renderBlockCount)
     {
+        const auto configuration = juce::String ((int) sampleRate) + " Hz / "
+                                 + juce::String (blockSize) + " samples";
+        std::cout << "[tiny-convolution] " << configuration << ", "
+                  << renderBlockCount << " blocks per preset" << std::endl;
         auto p = std::make_unique<LuthierAudioProcessor>();
         FactoryPresets::setProcessorForRanges (p.get());
         p->setPlayConfigDetails (0, 2, sampleRate, blockSize);
@@ -315,7 +310,7 @@ LUTHIER_TEST (Fuzz, convolutionPreparesSafelyForTinyHostBlocks)
             const auto& preset = FactoryPresets::getPreset (presetIndex);
             const auto presetName = juce::String (preset.name);
             CHECK_MSG (p->getPresetManager().fromVar (FactoryPresets::toVar (preset, *p)),
-                       presetName + " failed to load at block size " + juce::String (blockSize));
+                       presetName + " failed to load at " + configuration);
             p->getParameterBridge().applyAllNow();
             CHECK_MSG (cabinet.hasImpulseResponse (0), presetName + ": cabinet IR was not installed");
             CHECK_MSG (body.hasImpulseResponse(), presetName + ": body IR was not installed");
@@ -323,15 +318,15 @@ LUTHIER_TEST (Fuzz, convolutionPreparesSafelyForTinyHostBlocks)
             juce::MidiBuffer note;
             note.addEvent (juce::MidiMessage::noteOn (1, 60, (juce::uint8) 100), 0);
             const auto stats = renderBlocks (*p, blockSize, blocks, &note);
-            CHECK_MSG (stats.finite, "non-finite output at block size " + juce::String (blockSize));
-            CHECK_MSG (stats.peak > 0.0f, "no output at block size " + juce::String (blockSize));
+            CHECK_MSG (stats.finite, "non-finite output at " + configuration);
+            CHECK_MSG (stats.peak > 0.0f, "no output at " + configuration);
         };
 
-        loadAndRender (0, 20000);
+        loadAndRender (0, renderBlockCount);
 
         const auto cabinetLoadsBeforeSwap = cabinet.getIrLoadCount();
         const auto bodyLoadsBeforeSwap = body.getIrLoadCount();
-        loadAndRender (1, 20000);
+        loadAndRender (1, renderBlockCount);
         CHECK_MSG (cabinet.getIrLoadCount() > cabinetLoadsBeforeSwap,
                    "alternate preset did not reload the cabinet convolution");
         CHECK_MSG (body.getIrLoadCount() > bodyLoadsBeforeSwap,
@@ -357,6 +352,33 @@ LUTHIER_TEST (Fuzz, convolutionPreparesSafelyForTinyHostBlocks)
 
         CHECK (verifiedBytes > 0);
     }
+}
+
+/*  Preserve the original 20,000-block reproducer at every crash size, including
+    both presets and allocator churn. The host callbacks remain 1-4 samples
+    while convolution's internal capacity is at least 8. */
+LUTHIER_TEST (Fuzz, convolutionPreparesSafelyForTinyHostBlocks)
+{
+    CHECK (juce::String (FactoryPresets::getPreset (0).name) == "Clean Double-Cut Funk");
+    CHECK (juce::String (FactoryPresets::getPreset (1).name) == "T-Style Country Twang");
+    for (int blockSize : { 1, 2, 3, 4 })
+        checkTinyConvolutionConfiguration (ctx, 8000.0, blockSize, 20000);
+}
+
+/*  Complete the S13 rate/size boundaries without duplicating or shortening the
+    original long reproducer: 2,000 blocks for each preset in each added cell.
+    Sizes 5, 7 and 8 cover either side of the original power-of-two boundary. */
+LUTHIER_TEST (Fuzz, convolutionTinyHostRateAndCapacityBoundaries)
+{
+    CHECK (juce::String (FactoryPresets::getPreset (0).name) == "Clean Double-Cut Funk");
+    CHECK (juce::String (FactoryPresets::getPreset (1).name) == "T-Style Country Twang");
+    for (double sampleRate : { 8000.0, 44100.0, 192000.0 })
+        for (int blockSize : { 1, 2, 3, 4, 5, 7, 8 })
+        {
+            if (sampleRate == 8000.0 && blockSize <= 4)
+                continue; // Covered above with ten times as many render blocks.
+            checkTinyConvolutionConfiguration (ctx, sampleRate, blockSize, 2000);
+        }
 }
 
 //==============================================================================

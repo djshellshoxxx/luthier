@@ -1,5 +1,15 @@
 # Pedalboard completion acceptance ledger
 
+Latest bounded local QA: the corrected-HOME Linux Pro full suite passed
+2,806 tests / 14,935,613 checks at exact source `f1efeded706b9dc57da7e941ca856b17eaad5183`.
+The subsequent test-only tiny-buffer extension passed strict ASan/LSan/UBSan
+over 21 rate/size cells: 2 tests / 11,029 checks. Linux Free is freshly
+configuring/building all supported local targets; no Free test or product
+acceptance is claimed yet. See the [QA checkpoint](../handoff/PEDALBOARD-2026-10-26-QA-CHECKPOINT.md)
+and [boundary/Free handoff](../handoff/PEDALBOARD-2026-10-26-TINY-BOUNDARY-FREE.md)
+for exact source/binary/log identities. Native Windows/macOS, remaining model
+quality, TSan and manual acceptance gates are not cleared by these passes.
+
 Current2026-10-26 evidence at source77a0e8767718b3511ec7e445b08c59add5ff0cb7:
 [resume checkpoint](../handoff/PEDALBOARD-2026-10-26-RESUME.md).
 The integrated reader-retirement/callback-lock correction builds all five Linux
@@ -139,7 +149,7 @@ focused BoardModel passes as a full green suite.
 | Gate | Required evidence | Status |
 |---|---|---|
 | R1 functionality | All WP1-WP23 scope implemented, no registered placeholders | pending |
-| R2 legacy/full tests | Prior suites plus reference suites green, both editions, 3 OS | baseline failed |
+| R2 legacy/full tests | Prior suites plus reference suites green, both editions, 3 OS | Linux Pro full suite passes at f1efeded; Free/native-OS qualification remains open |
 | R3 numerics | 44.1/48/88.2/96/192kHz; buffers1/16/37/64/481/2048 plus extremes; deterministic/nonfinite/denormal checks | pending |
 | R4 RT/concurrency | Callback allocation/lock hooks, publication/retirement stress, ASan/UBSan/TSan | pending |
 | R5 state/topology | Seeded1000 malformed states, migrations/unknown preservation, repeated loads, cycles | pending |
