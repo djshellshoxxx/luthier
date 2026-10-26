@@ -8,6 +8,14 @@ changes initial delivery quantity, not any selected model's original numerical,
 CPU, safety or shared-board gate. No selected named model is registered yet.
 See [the retained scope comparison](../handoff/PEDALBOARD-SIX-MODEL-SCENARIO-2026-10-26.md).
 
+Build-identity dependency correction: the changing stamp is now source-scoped to
+Diagnostics. Actual stamp-only generated command changes fell from1,667 to3;
+all three real metadata objects compile, and exact A/B runtime identities pass.
+The unchanged resolver and final Git-derived restoration are recorded in the
+[build-identity handoff](../handoff/PEDALBOARD-2026-10-26-BUILD-IDENTITY.md).
+One-time command migration/full product qualification remains distinct; no gate,
+DSP or selected-model scope is changed by this build correction.
+
 Latest bounded source change: DD-3T now has constructor-free fresh-memory
 estimation and actual six-buffer capacity reporting, with the unchanged
 64,000,000-byte pool cap and no shipping registration. Reviewed Pro/Free focused
