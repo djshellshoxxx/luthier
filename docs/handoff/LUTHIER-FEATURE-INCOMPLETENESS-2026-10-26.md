@@ -7,6 +7,15 @@ This report adds no feature or runtime authorization. One coordinator, zero acti
 workers; one existing Linux Free full-suite process is running. No push, CI run,
 merge, release, installation or paid infrastructure was started for this report.
 
+Subsequent owner-approved initial scope: **Phase90, CE-2, DD-3T, CE-2W, Dyna Comp
+and RC-5**, with at least one advanced dedicated looper. The18-model inventory
+below remains the retained roadmap; the other12 are future updates. Distortion+
+was provisional and is now deferred. See the existing
+[scope/retention note](PEDALBOARD-SIX-MODEL-SCENARIO-2026-10-26.md). Original quality,
+CPU/numerical/safety limits and common-board/native/manual gates are unchanged.
+RC-5's named wrapper/99-memory/clock/advanced-playback integration remains a
+large requirement; existing core/storage/rhythm helpers are not its completion.
+
 Luthier is software artwork and a functioning virtual instrument/effects application.
 That description does not change its functional promises, licensing or acceptance
 requirements. It is not yet qualified as a feature-complete pedalboard release.
@@ -46,7 +55,7 @@ identified groups, not a claim to have re-audited every Luthier feature specific
 | Linux Free VST3 | pluginval strictness 5 passes; explicit **30 rate/buffer pairs**, 44.1/48/88.2/96/192 kHz × 1/16/37/64/481/2048, including automation. External Steinberg validator unavailable, not passed. |
 | Linux Free CLAP | **21 tests: 18 pass / 0 fail / 3 unsupported preset-factory skips / 0 warnings**. No validator exclusions added. |
 | Linux Free standalone | Remained open for the intended 10-second smoke interval (timeout exit 124). No ALSA sequencer device; this is survival evidence, not working audio-device/listening acceptance. |
-| Linux Free full suite | **PENDING**, one unfiltered clean-HOME run, expected 2,790 tests. PID 165131 / session 92865. No final pass is claimed until `.exit`, terminal totals and generated robustness report agree. |
+| Linux Free full suite | **PENDING terminal result, with two recorded failing tiny-convolution tests /21 body-IR reload assertions.** One unfiltered clean-HOME run, expected2,790 tests, PID165131/session92865. PB02 passed776 checks. No final pass is claimed; `.exit`, totals and the separately generated robustness findings must all be inspected. |
 | Native Windows/macOS | Results below are source-specific older diagnostics. Neither is current f1ef product qualification. |
 
 Evidence roots: `/workspace/luthier-evidence/engine-retirement-source8/` and

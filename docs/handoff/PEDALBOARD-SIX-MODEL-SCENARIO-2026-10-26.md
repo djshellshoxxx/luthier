@@ -1,7 +1,10 @@
-# Six named pedals first — unapproved release-scope scenario
+# Six named pedals first — confirmed initial scope, RC-5 retained
 
-This is an evidence-based proposal in response to the owner's “what if”, not a
-ratified scope change. Keep the full eighteen-model roadmap, all candidate source,
+The owner subsequently requested at least one advanced dedicated looper and
+confirmed the RC-5 swap through the parent. The initial six are now **Phase90,
+CE-2, DD-3T, CE-2W, Dyna Comp and RC-5**; provisional Distortion+ moves to updates.
+This supersedes the initial six-model scenario, not the original model quality
+requirements. Keep the full eighteen-model roadmap, all candidate source,
 tests, failure evidence, parameter/state compatibility and original acceptance
 limits. No registration, deletion, build, test, CI or release was started for this
 comparison. The existing Linux Free full suite continues independently.
@@ -14,11 +17,12 @@ in the combined production tree. These are local retained refs, not a new remote
 author/branch survey. Raw results are preserved historical probe executions; this
 scenario analysis runs no new measurements.
 
-## Recommendation
+## Confirmed initial selection and remaining work
 
-Provisional first six, in evidence/readiness order: **Phase90 Script/Block,
-CE-2, DD-3T, CE-2W, Dyna Comp, Distortion+**. The last two, especially sixth place,
-have lower-confidence remaining-effort estimates. **None of these six is currently
+First six: **Phase90 Script/Block, CE-2, DD-3T, CE-2W, Dyna Comp, RC-5**.
+RC-5 is selected for the explicit advanced-looping requirement; it is not claimed
+to be the sixth-closest model to acceptance. Remaining-effort estimates for Dyna
+Comp and RC-5 have lower confidence. **None of these six is currently
 release-qualified or registered.** There is no evidence-backed set of six ready
 pedals that can simply be switched on.
 
@@ -34,7 +38,7 @@ legacy state even if a later approved product decision changes their presentatio
 | **3. DD-3T** | Integrated actual delay, quantization, tap, sync and Short Loop, foot-gesture ownership, coherent extras save and wet-tail hook. Detailed timing/reset/partition/feedback/state tests exist. Its Short Loop uses its own buffer; it does **not** require the missing RC-1/RC-5 wrappers or 99-memory storage subsystem. | 0.5% CPU budget remains open: historical post-bypass range 0.5235–0.6217%; later memoization trials did not establish a stable pass. Complete exact requested acoustic/mode-transition/state/bypass gates and registered host/MIDI/UI flow. Keep 333.3 ms subdivision behavior with the documented normative timing rationale; no timing tolerance is relaxed. | **Moderate; moderate-to-hard**, medium confidence. Unclosed performance is substantial, but not an absent product wrapper. |
 | **4. CE-2W** | Integrated three continuously advancing mode histories, stereo/wet-polarity/vibrato behavior and tests. Preserved local CPU 0.7951–0.8441% is below its 1% target on that machine. | CE1 wet THD probe 0.8065% versus original 1–3% band remains unclosed; estimated high-frequency CE1 color needs calibration. Rate-law text and physical-buffer versus wire-null wording need reviewed resolution without silently changing behavior or limits. Registered state/automation and native evidence still needed. | **Moderate-to-large; hard tonal/spec uncertainty**, medium confidence. Included after considering these blockers, not merely because its code is integrated. |
 | **5. Dyna Comp** | Preserved branch has an actual estimated OTA/detector/program-dependent-release implementation, mix/Mini attack controls and short 15/23-sample oversampling. Finite/block/reset/RT tests and an exact 789,504-value release-cache comparison exist. Less large-oversampler/circuit dependency than high-gain drive candidates. | Corrected natural-sensitivity probes fail original THD: 0.042433% at default versus 0.1–1%, 0.016624% at maximum versus 3–5%. FAST attack/default recovery and 0.5% CPU gate remain open. Historical actual-default CPU 1.083%; later independent-stereo cache trials ~1.189% were contention-affected, not qualification. M102/Script component variation incomplete. Needs scoped branch reconciliation, original acoustic/timing gates, full model integration. | **Large; hard**, medium-low confidence. Smaller apparent architecture/performance gap than several drives, but not a nearly accepted compressor. |
-| **6. Distortion+** | Preserved branch has a complete public descriptor and actual specified estimated shunt circuit, variant/filter/state/smoothing/partition/hostile-input tests. Correct original harmonic fixtures pass drive .5/max (25.459% in 10–35%, 39.301% in 25–60% at 48 kHz); only low drive of those three fails (17.981% versus 5–15%). Simpler single-drive choice than importing the whole Muff family. | **Serious remaining risk:** Eco ADAA option explicitly unavailable; original low-drive THD fails, original-stimulus alias grid remains open, long CircuitPedal oversampler/CPU unresolved. Historical O2 stereo CPU 17.6537% versus 0.8%; later contention-affected solver trials do not close it. Solver iteration, latency/bypass and complete registered integration need checks. | **Large; hard; lowest-confidence selection.** It is a provisional investigation slot, not a promised quick sixth finish. Replace it if a matched immutable comparison establishes a better candidate. |
+| **6. RC-5 — advanced-looping requirement** | Shared `LooperCore`, `PagedLooperCore`, worker storage/compaction and loop-state codec exist with tests; separate original rhythm module implements 57 patterns ×2 variations and7 synthesized kits. | Named `boss_rc5` wrapper/registration remain skeletons. Integrate record/play/overdub/undo/cancel,99 memories with settings/assets, quantized transport, reverse and explicitly labelled half-speed extension, clock master/slave and local PC/CC profile, error/underrun behavior, LCD/ring/tempo readback and full state/host coverage. Shared core exposes forward sample transport, not completed reverse/half-speed/memory-bank behavior. | **Large; hard integration; high confidence in the gap, uncertain duration.** This is the largest new implementation requirement within the selected six. It is not satisfied by DD-3T Short Loop or an isolated rhythm helper. |
 
 CPU trials above differ in compiler flags, stimulus, quality, snapshot and build
 contention; they are **not** a controlled leaderboard and are not frequency-normalized
@@ -44,7 +48,13 @@ checks does not override a failing required tonal/timing/CPU measurement.
 
 ## Why not automatically select other candidates?
 
-**Next alternates: TS808, then Green Russian**, with order tentative because no
+**Deferred Distortion+**, formerly the provisional sixth: complete branch circuit
+and structural tests exist, but low-drive THD, unavailable Eco ADAA, original
+alias/solver/CPU/latency gates remain. Historical CPU17.6537% versus0.8% was not
+closed by subsequent contention-affected trials. Its source and original failures
+remain preserved; it was not removed or weakened to include RC-5.
+
+**Next drive alternates: TS808, then Green Russian**, with order tentative because no
 matched current all-candidate qualification run exists. TS808 has the benefit of
 a real circuit and control inventory on the DSP branch, but recorded default
 gain +17.724 dB fails unity ±1.5 dB, original low-drive THD fails while maximum
@@ -74,9 +84,11 @@ gate/attack/OS work. None is shown to be closer by the available evidence.
 **Ditto/Nano360/RC-1/RC-5** have no implemented named wrappers in this integrated
 tree. The paged core, state codec, worker compaction/storage and original 57×2
 rhythms are useful completed prerequisites, but do not supply their gestures,
-readback, scene/memory behavior or end-to-end failure handling. Avoiding these
-four for the first release removes a major dependency chain. DD-3T Short Loop
-must not be advertised as a replacement for those missing products.
+readback, scene/memory behavior or end-to-end failure handling. Including RC-5
+retains the advanced looper integration dependency; the simpler three remain
+future updates. Nano360's11 persistent memories and plugin quantized start/length
+were the faster compromise considered; RC-1 and original Ditto are simpler
+single-phrase loopers. DD-3T Short Loop must not be advertised as RC-5.
 
 ## Shared work the six-model scenario does not remove
 
@@ -84,8 +96,9 @@ must not be advertised as a replacement for those missing products.
   model. No disappearing failure, unavailable control or unmeasured field becomes
   accepted because twelve other models are deferred.
 - Integrate branch code serially after semantic/patch review, not by replacing
-  the combined tree. The Dyna/Distortion+ dependencies include current helper and
-  oversampling/state-layout contracts; preserve authorship, notices and original
+  the combined tree. Dyna's dependencies include current helper and
+  oversampling/state-layout contracts; RC-5 consumes the existing paged transport,
+  storage, original rhythm and MIDI/state interfaces. Preserve authorship, notices and original
   failed measurements. Never import unrelated branch history blindly.
 - Add validated registrations only after model acceptance. Named timefx
   descriptors currently carry zero CPU cost while unregistered; do not enable
@@ -100,26 +113,28 @@ must not be advertised as a replacement for those missing products.
   provenance/checksums/notices and signing status remain separate. There is no
   new progress on these gates merely from proposing a smaller catalogue.
 
-If the owner later approves six, retain these twelve explicitly for updates:
-**DS-1, TS808, SD-1, RAT, NYC Muff, Deluxe Muff, Green Russian, Wicker Muff,
-Ditto, Nano360, RC-1 and RC-5**. Keep their specifications, source branches,
+Retain these twelve explicitly for updates:
+**DS-1, TS808, SD-1, Distortion+, RAT, NYC Muff, Deluxe Muff, Green Russian,
+Wicker Muff, Ditto, Nano360 and RC-1**. Keep their specifications, source branches,
 tests/oracles, asset/state identifiers and failure logs. This proposal edits no
 normative roadmap, reserves no release tag and promises no deletion or date.
 
 ## Effect on remaining work
 
-The benefit is real: it removes twelve model acceptances from the initial release,
-including the four missing looper wrappers, full RC-5 memories/clock integration
-and most difficult multi-stage families. It does **not** remove two-thirds of all
-remaining project work: board/UI/host/generic/platform requirements are shared,
-and the proposed sixth model still has severe gaps.
+The benefit is real: twelve model acceptances, including the other three looper
+wrappers and most difficult multi-stage drive families, move to future updates.
+**RC-5 memories/clock/advanced playback integration remains required.** This does
+not remove two-thirds of all remaining project work: board/UI/host/generic/platform
+requirements are shared, and RC-5 still requires a complete product wrapper.
 
 The earlier 50–60% full-eighteen estimate was a rough, low-confidence engineering
-judgment, not measured acceptance. For this **conditional** six-model functional
-scope, “around two-thirds”, broadly **60–75%**, is a plausible planning range,
-assuming reusable branch candidates and tractable fidelity/performance fixes.
-The upper end is optimistic; it is not justified if the last two models need DSP
-redesign. No measured overall percentage or platform-release percentage exists.
+judgment, not measured acceptance. The earlier conditional six-model **60–75%**
+range assumed Distortion+ and deferred all dedicated loopers. It must not be
+transferred unchanged as a verified estimate for this RC-5 scope. The selected
+scope has substantial shared infrastructure and four integrated DSP candidates,
+but advanced RC-5 integration is a large remaining feature. No measured overall
+percentage or platform-release percentage exists, and the earlier upper estimate
+is especially optimistic under this requirement.
 The narrower 80–90% estimate applies only to basic board/routing/state/UI plumbing,
 not full UI, strict RT, every required model or native/manual release acceptance.
 

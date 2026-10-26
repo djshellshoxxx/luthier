@@ -1,5 +1,13 @@
 # Pedalboard completion acceptance ledger
 
+2026-10-26 owner-approved initial release scope: **six named models — Phase90,
+CE-2, DD-3T, CE-2W, Dyna Comp and RC-5**. RC-5 replaces provisional Distortion+
+to retain advanced dedicated looping. The other twelve stay on the original
+eighteen-model roadmap with all source/specs/tests/failures preserved. This
+changes initial delivery quantity, not any selected model's original numerical,
+CPU, safety or shared-board gate. No selected named model is registered yet.
+See [the retained scope comparison](../handoff/PEDALBOARD-SIX-MODEL-SCENARIO-2026-10-26.md).
+
 Latest bounded local QA: the corrected-HOME Linux Pro full suite passed
 2,806 tests / 14,935,613 checks at exact source `f1efeded706b9dc57da7e941ca856b17eaad5183`.
 The subsequent test-only tiny-buffer extension passed strict ASan/LSan/UBSan
@@ -151,7 +159,7 @@ focused BoardModel passes as a full green suite.
 
 | Gate | Required evidence | Status |
 |---|---|---|
-| R1 functionality | All WP1-WP23 scope implemented, no registered placeholders | pending |
+| R1 functionality | Shared WP1-WP23 contracts plus the six selected named models at original gates; twelve other named models explicitly deferred, no registered placeholders | pending; full eighteen-model roadmap retained |
 | R2 legacy/full tests | Prior suites plus reference suites green, both editions, 3 OS | Linux Pro full suite passes at f1efeded; Free/native-OS qualification remains open |
 | R3 numerics | 44.1/48/88.2/96/192kHz; buffers1/16/37/64/481/2048 plus extremes; deterministic/nonfinite/denormal checks | pending |
 | R4 RT/concurrency | Callback allocation/lock hooks, publication/retirement stress, ASan/UBSan/TSan | pending |

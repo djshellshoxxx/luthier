@@ -134,3 +134,56 @@ One coordinator, zero workers. No pushes, CI, new downloads/software,
 environment replacement, paid infrastructure, credentials/security/network
 changes, merges/deployments/releases, Library input retry, or separately
 denied additional UI callback stress is part of this continuation.
+
+## Owner scope update while the existing Free suite runs
+
+The parent confirms initial release selection **Phase90, CE-2, DD-3T, CE-2W,
+Dyna Comp and RC-5**. The explicit advanced-looper requirement replaces the
+provisional Distortion+ slot with RC-5. Preserve all18 original model specs and
+source; defer the other12, with no threshold relaxation or implementation claim.
+`PEDALBOARD-SIX-MODEL-SCENARIO-2026-10-26.md` now records that decision and the
+large remaining RC-5 wrapper/memory/clock/playback/readback gap. Shared paged
+transport/storage and original rhythms do not constitute a finished RC-5.
+
+No external Claude agent is running. The owner is considering cloud-only setup;
+no key configuration, installation, paid call, new infrastructure or overlapping
+model implementation was performed. Fresh permitted `git ls-remote` confirms
+remote `codex/luthier-checkpoint-20261026-qa2` at production f1efeded and retained
+DSP branch40ed1621. Remote completion remains oldb5bec374. Source/test checkpoint
+d5b64ab6 and subsequent documentation are local; a fresh clone needs the verified
+incremental bundle over f1efeded for that test extension. This lookup did not
+retry the denied Actions run endpoint. The existing Free suite remains the only
+running test and must be inspected through its original PID/session/log.
+
+## In-progress Free RED evidence — not a terminal verdict
+
+The original PID165131 run has recorded failures in both
+`Fuzz.convolutionPreparesSafelyForTinyHostBlocks` (2,102 checks) and
+`Fuzz.convolutionTinyHostRateAndCapacityBoundaries` (8,927 checks). The reported
+condition is QA_Robustness.cpp:332, “alternate preset did not reload the body
+convolution”. The process continues; do not restart it, alter source under it,
+or label Free full-suite acceptance green. PB02 passed776 checks with the
+original0.5LU threshold intact. Generated robustness findings still need their
+separate terminal inspection; report-only findings and failed assertions are
+independent gates.
+
+Read-only source evidence supports a fixture hypothesis, not a demonstrated
+production fix: FactoryPresets.cpp:164/179 select Strat then Tele;
+Edition.h:128 maps Free Strat to Tele while Tele stays Tele. Parameters.cpp:2486
+uses that effective guitar. BodyEngine.cpp:367 intentionally returns without
+reloading when the installed file is unchanged. A focused runtime comparison of
+actual effective guitar/body IR identity and counters is still required after
+this existing full run ends. Preserve the original RED. Do not disable the
+reload assertion or force unnecessary production reloads merely to pass; if
+confirmed, choose genuinely distinct supported body/cabinet fixtures and retain
+every original install/reload/output/destruction predicate and long-run count.
+
+Read-only Phase90 preparation found another precise acceptance distinction:
+the named spec:62 asks5ms equal-power, while the integrated model's
+`dry+(wet-dry)*engage` at mxr_phase90_script.cpp:116 is linear. The existing
+edge probe:22 checks that linear expected law. Its tiny residual is not proof of
+the specified equal-power curve or closure of the separate literal24-bit
+peak-delta wording. First bounded slice: independently compare the required
+curve and audit board/model fade ownership, retain the original delta evidence,
+then resolve the exact discrepancy before registration. No new probe/test,
+implementation or acceptance change was executed for this preparation.
