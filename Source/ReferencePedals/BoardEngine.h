@@ -1,5 +1,6 @@
 // OWNER: WP2
 #pragma once
+#include "Rt/CompletedReaderEpoch.h"
 #include <array>
 #include <atomic>
 #include <mutex>
@@ -74,8 +75,8 @@ public:
     void endEvents() noexcept { events = nullptr; sidechain[0] = sidechain[1] = nullptr; sidechainSamples = 0; auxOutputs = {}; }
     int reclaim() noexcept;
     // Message-thread diagnostics for the original T-RETIRE acceptance gate.
-    std::size_t retiredPlanCount() const noexcept { return retired.size(); }
-    std::size_t retiredPlanHighWater() const noexcept { return retired.highWater(); }
+    std::size_t retiredPlanCount() const noexcept { const std::lock_guard<std::mutex> guard (controlMutex); return retired.size(); }
+    std::size_t retiredPlanHighWater() const noexcept { const std::lock_guard<std::mutex> guard (controlMutex); return retired.highWater(); }
     void drainControlEcho(); // message thread, outside any BoardModel lock
     bool isActive() const noexcept { return targetActive.load() || running.load(); }
     int latency() const noexcept { return latencySamples.load(); }
@@ -83,16 +84,21 @@ public:
     PedalMeters readPedalMeters (int slot) const noexcept;
 private:
     bool publish (const std::vector<PedalInstance>&, const BoardSettings&, TopologyInfo&, juce::String&, const BoardCommand* intent = nullptr, bool hostEcho = false);
-    // Single audio reader; all plan-reading entry points participate. A writer
-    // may reclaim only from a stable even sequence and the six retained pointers.
+    // Single non-nested audio reader; all plan-reading entry points participate.
+    // Completed snapshots remain usable while a subsequent reader is active.
     struct PlanReadScope
     {
         BoardEngine& engine;
-        explicit PlanReadScope (BoardEngine& e) noexcept : engine (e) { engine.readerSequence.fetch_add (1, std::memory_order_seq_cst); }
+        explicit PlanReadScope (BoardEngine& e) noexcept : engine (e) { engine.planReader.begin(); }
         ~PlanReadScope() { engine.finishPlanRead(); }
     };
     void finishPlanRead() noexcept;
+    static void saveExtraOutsideControlGuard (void*, const IPedal&, juce::var&);
     void discardRuntime() noexcept;
+    void discardRuntimeLocked() noexcept;
+    int reclaimLocked() noexcept;
+    bool publishLocked (const std::vector<PedalInstance>&, const BoardSettings&, TopologyInfo&, juce::String&, const BoardCommand*, bool,
+                        std::unique_lock<std::mutex>& controlGuard);
     void setPreparationError (const char*) noexcept;
     void publishPedalMeters (const RenderPlan&) noexcept;
     struct AtomicPedalMeters
@@ -123,6 +129,11 @@ private:
     SpscRing<EngageEcho, 256> engageEcho;
     std::atomic<bool> preparationFailure { false };
     std::atomic<uint64_t> routingBytes { 0 };
+    // Control threads only; serializes publication, reclamation, and owner pins.
+    // Lock order: model mutex -> controlMutex. Never call model/saveExtra while held.
+    // Prepare/release/destruction additionally require stopped audio and quiescent
+    // model mutations; this guard does not replace that lifecycle barrier.
+    mutable std::mutex controlMutex;
     mutable std::mutex preparationMutex; // lifecycle/error reads only, never audio
     std::array<char, 256> preparationMessage {};
     BoardModel& model;
@@ -131,8 +142,7 @@ private:
     std::vector<PedalInstance> releasedStored, releasedCaptured;
     RetireList<RenderPlan> retired;
     std::atomic<const RenderPlan*> live { nullptr };
-    std::atomic<uint64_t> readerSequence { 0 };
-    std::array<std::atomic<const RenderPlan*>, 2 * kNumPlacements> retainedPlans {};
+    CompletedReaderEpoch<RenderPlan, 2 * kNumPlacements> planReader;
     std::atomic<bool> targetActive { false }, running { false }, resetRequested { false };
     std::atomic<int> latencySamples { 0 };
     std::atomic<float> inputPeak { -120.f }, outputPeak { -120.f };

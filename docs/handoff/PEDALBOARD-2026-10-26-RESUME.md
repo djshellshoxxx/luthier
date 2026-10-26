@@ -1,7 +1,11 @@
 # Luthier resumed implementation checkpoint — 2026-10-26
 
 Sole integration owner: this existing Codex task; only djshellshoxxx/luthier.
-Current source before this documentation checkpoint: **8d6600f8d55abf153821fbd1a78ce83b4cf68118**.
+Current local branch starts at **e18694042367087ac1f4a8397afdbd05c45464d8**
+(`codex/luthier-pedalboard-completion`). The integrated retirement adapter and
+callback-lock correction below are the working-tree source built and tested in
+this checkpoint; the next committed source SHA is recorded in the following
+checkpoint entry.
 Prior published checkpoint22d6b18d is preserved. No reset, force push, master
 merge, release/tag, deployment, additional environment or timer was used.
 
@@ -45,30 +49,43 @@ Artifacts are retained in Actions, expire2026-11-01; they are not Releases.
 Source/checksums/licenses/install references and unsigned/ad-hoc signing truth
 are included by the diagnostic bundler. Full release signing/notarization is open.
 
-Corrected **Mac-only run40292011494** is actually building at source8d6600f8:
+Corrected **Mac-only run40292011494** was last positively observed building at
+08:32 UTC at source8d6600f8:
 https://github.com/djshellshoxxx/luthier/actions/runs/40292011494
 Mac job121469040555; Windows job121469042266 is deliberately skipped. No old
-Windows result was reattributed to this newer source. Do not push handoff-only
-changes to codex/luthier-macos-diagnostics and cancel its run. Original native
-branch remains frozen6d9. Re-query the run for actual current results.
+Windows result was reattributed to this newer source. A later read-only `gh run
+view 40292011494` request returned GitHub API **403 Forbidden**; current run
+state is therefore unknown, not still-building or passed. Do not retry that
+denied status read or push to codex/luthier-macos-diagnostics while it may be
+active. Original native branch remains frozen6d9. The Mac source also predates
+the integrated retirement adapter, so it cannot qualify that newer code.
 
 ## Current bounded work and integration decisions
 
-One coordinator plus one focused review worker were actually active at this
-checkpoint. The inexpensive native-command worker completed its bounded slice.
-No old seven-worker count is asserted as current, and no other project's owner
-was used. Existing worker branches/patches remain preserved.
+The actual roster at this checkpoint is one coordinator and zero active workers;
+the focused retirement reviewer and native-command worker have completed their
+bounded slices. No other project's owner was used. Existing worker
+branches/patches remain preserved.
 
 The saved eight-file engine retirement-progress adapter7cc140070429516462b6f8883e345f1905e338ba9252cadd1d321fb814151047
-applies cleanly to current Source. Independent review supports the completed-
-reader protocol, six aliases, MAX exhaustion and original eight-owner bound.
-It identified one callback-lock closure issue: compiler PedalPool::acquire
-can call saveExtra while holding the new nonrecursive control guard, contrary
-to the unconditional unlocked-callback claim. Engine reentry could deadlock.
-Existing production saveExtra implementations do not demonstrate that reentry;
-no observed product deadlock is claimed. Adapter remains **unmerged** pending
-a test-first narrow correction and coherent affected-target rebuild/host tests.
-Keep original RED, TSan race, sanitizer/progress evidence and lifecycle limits.
+was applied locally at the existing latest Source and independently reviewed.
+The review approved the completed-reader protocol, six aliases, MAX exhaustion
+and original eight-owner bound. Its callback-lock issue is now corrected with
+a synchronous exact-call seam: active runtime is pinned, control lock is paused
+only around the existing config/snapshot saveExtra calls, and is reacquired on
+normal return or exception before the pool continues. No callback runs on audio.
+
+Test-first evidence: the focused snapshot-restore reentry regression timed out
+(exit124) with the seam omitted, then the restored seam passed. Final local tests:
+ControlRace5/1042 and RefPedalRetirement12/11725 pass. The broader native RefPedal
+selection passed411/12,246,497 checks in219.1s, including the10,000-operation
+real processor/editor UI lifecycle stress. Test `saveExtraExceptionReacquires...`
+verifies a throwing callback leaves the guard usable for a successful retry. The
+exact full five-target Linux build and actual plugin validators are recorded
+below. Existing lifecycle limits remain: one
+non-nested audio reader, one serialized message-thread publisher, and prepare/
+release/destruction with stopped audio plus quiescent model mutations. Full native
+TSan requalification of the integrated callback seam remains open.
 
 Other source is deliberately unmerged: host backend release-retry9167c620 has
 focused original-object evidence but incomplete full-native closure; preview
@@ -95,11 +112,11 @@ an ordinary user click. Do not retry/rephrase/reroute it. Completed search/UI
 coverage and independent audio/native work remain valid. No security-setting
 change or bypass is authorized. CQ03's separate approval is resolved/applied.
 
-Next: inspect the Mac-only run without cancelling it; retain exact failed step/
-logs/artifacts if red. Finish the scoped retirement callback-lock review/fix,
-then coherently rebuild affected dependencies and run actual engine/history/
-memory/host/state/automation tests, requested30s and longer final-source stress
-and actual plugin validators. Do not reuse old-object evidence across layouts.
+Next: preserve and verify the newly committed source checkpoint, then continue
+the bounded remaining full-suite/runtime/CPU/native qualification. The latest
+Mac-run status read returned403 Forbidden; do not retry it. Do not reuse
+old-object evidence across layouts or reattribute an artifact built from source6d
+or8d to the integrated source below.
 Full unit/all models/CPU/whole-processor no-lock still have open gates:20 existing
 processor try-locks remain. Manual audio-device/DAW, second Mac runtime, both
 editions, strictness10/LTO release and installer/signing/notarization acceptance
@@ -111,3 +128,47 @@ Helper command: `python3 -m unittest scripts.test_native_diagnostics scripts.tes
 Read the next checkpoint commit and verify remote full SHA before integrating.
 Keep concise and detailed handoffs at each milestone; bundle/checksum only
 source/evidence, excluding objects/caches/credentials/private intake packs.
+
+
+## 2026-10-26 integrated Linux build and QA
+
+Exact command `cmake --build build --target LuthierTests LuthierRender
+Luthier_Standalone Luthier_VST3 Luthier_CLAP -j3` exited **0** on the integrated
+retirement adapter and callback-lock correction. The 16-step Ninja build freshly
+compiled the shared sources and linked test, renderer, standalone, VST3 and CLAP
+products. Evidence and logs are local at
+`/workspace/luthier-evidence/engine-retirement-source8/`.
+
+- `xvfb-run -a build/LuthierTests_artefacts/Release/LuthierTests RefPedal`
+  passed **411 tests / 12,246,497 checks / 219.1s**. It includes
+  `RefPedalUiLifecycle.tenThousandNativeOperationsAndEditorDestruction`:
+  10,000 seeded real processor/editor operations, 21 editor destructions, 546
+  native closes, and accepted drag/drop, gestures, resize, docking and popouts.
+  The same selection includes the 30-second finite/allocation-free soak below.
+  This is the existing authorized regression suite, not the separately blocked
+  additional UI callback stress request.
+- A separately recorded exact 30-second run,
+  `LUTHIER_SOAK_SECONDS=30 xvfb-run -a
+  build/LuthierTests_artefacts/Release/LuthierTests RefPedalSoak`, exited **0**:
+  seed `0x51a7`, 3,000 edits/296 rejections, 103,116 audio blocks, 45,491,342
+  samples, zero callback allocations and zero invalid samples. Evidence:
+  `30s-soak-final.log` / `.exit`.
+- Final focused regressions: `RefPedalControlRace` **5/1,042** and
+  `RefPedalRetirement` **12/11,725**, both exit0. Approved CQ03 remains
+  **3/1,217**, 70 factory presets, unchanged global-quality exclusions.
+- Linux VST3 pluginval strictness5 exited0 over rates 44.1/48/88.2/96/192kHz
+  and blocks 1/16/37/64/481/2048. Linux CLAP validation exited0:
+  **21 run / 18 pass / 0 fail / 3 unsupported skips / 0 warnings**.
+- Linux standalone was launched under Xvfb and stayed alive until the deliberate
+  10-second timeout (exit124). The environment logged absent ALSA sequencer and
+  unwritable font-cache warnings. This establishes a process/display smoke only,
+  not audio-device, listening or DAW acceptance.
+
+Fresh product SHA256: standalone
+`7f23bcd937b1ab9ef7d4e2ebd82ff818d855a11a5826cbae4da556651ba28619`, VST3
+module `0751d4b763e77bf29d1b610290ec597335a066dc5490e6ddadc63bbd72348161`, CLAP
+`9ce33ddd24dabaa41214f8b049a676b4c8f58502478d721fbb7834a89959168a`. These are
+Linux local diagnostic products from the integrated source only. A successful
+Linux build/validator does not qualify Windows/macOS or a release. Windows and
+Mac artifacts from source6d are stale for this changed engine; do not reuse or
+publish them as current-source products.

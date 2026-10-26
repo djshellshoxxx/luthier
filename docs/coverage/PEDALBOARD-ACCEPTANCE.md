@@ -1,14 +1,23 @@
 # Pedalboard completion acceptance ledger
 
-Current2026-10-26 evidence: [resume checkpoint](../handoff/PEDALBOARD-2026-10-26-RESUME.md). Approved exact CPU-cap reconciliation passes3/1217; Windows6d9 native focused diagnostics/validators pass. Mac6d9 compiled but architecture command failed before runtime checks; corrected Mac-only8d6600f8 is building. Full feature/RT/model/native/manual gates remain open. Historical intake rows and earlier counts below are not current implementation absence reports.
+Current2026-10-26 evidence: [resume checkpoint](../handoff/PEDALBOARD-2026-10-26-RESUME.md).
+The integrated reader-retirement/callback-lock correction builds all five Linux
+Pro targets; the RefPedal suite passes411/12,246,497 checks and the explicit
+30-second concurrent edit/process grind passes with zero callback allocations
+or non-finite output. Linux VST3 strictness5 and CLAP validators pass. The fresh
+standalone launches under Xvfb, but no audio device/DAW acceptance was performed.
+The corrected native Mac run was last observed building at08:32 UTC; a later
+status read was denied with403 Forbidden, so its current result is unknown.
+Existing Windows/Mac artifacts are from older source and do not qualify this
+integration. Full models/CPU/RT/platform/manual gates remain open; no release
+acceptance is claimed. Historical intake rows and earlier counts below are not
+current implementation absence reports.
 
-Latest execution evidence: [fresh build6 checkpoint](../handoff/PEDALBOARD-2026-10-25-BUILD6.md)
-at production source280e182a: all five Linux Pro targets freshly compile;
-actual CLAP18pass/0fail/3unsupported skips and VST3 strictness5(all30rate/buffer
-combinations,GUI/automation) pass. Combined unit/stress work is ongoing. Original
-decay/RT/specification/platform/manual gates remain open; no release acceptance
-is claimed. Historical intake columns and earlier failures below retain their
-original provenance.
+Latest local execution evidence and exact binary checksums are in the current
+[resume checkpoint](../handoff/PEDALBOARD-2026-10-26-RESUME.md); legacy Linux
+build6 evidence below remains source-pinned to its earlier commit and is not
+substituted for the fresh integrated build. Historical intake columns and prior
+failures retain their original provenance.
 
 Intake: 2026-10-23 UTC. Coordinator branch `codex/luthier-pedalboard-completion`.
 Source PR79 HEAD: `0b319c0b9b480d17605674374818711de94f7cb7`.

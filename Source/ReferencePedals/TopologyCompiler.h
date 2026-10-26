@@ -19,6 +19,8 @@ struct SlotControl
 };
 struct RenderPlan
 {
+    // Control-thread-only retirement metadata. Audio never reads or writes it.
+    uint64_t retirementEpoch = 0;
     Topology topology;
     BoardSettings settings;
     ExtendedControls extended;
@@ -36,6 +38,7 @@ class TopologyCompiler
 {
 public:
     static std::unique_ptr<RenderPlan> compile (const std::vector<PedalInstance>&,
-        const BoardSettings&, PedalPool&, uint32_t version, const RenderPlan* previous, juce::String& error, const BoardCommand* intent = nullptr, bool hostEcho = false);
+        const BoardSettings&, PedalPool&, uint32_t version, const RenderPlan* previous, juce::String& error, const BoardCommand* intent = nullptr, bool hostEcho = false,
+        PedalPool::ExtraSaveCallback saveExtraCallback = nullptr, void* callbackContext = nullptr);
 };
 }

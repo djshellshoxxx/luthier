@@ -77,9 +77,15 @@ public:
     template <std::size_t N>
     int reclaimExcept (const std::array<const T*, N>& protectedPointers) noexcept
     {
+        return reclaimExcept (protectedPointers, [] (const T*) noexcept { return true; });
+    }
+    // Additional completion predicate is control-thread-only and cannot allocate.
+    template <std::size_t N, typename Eligible>
+    int reclaimExcept (const std::array<const T*, N>& protectedPointers, Eligible eligible) noexcept
+    {
         int freed = 0;
         for (std::size_t i = 0; i < entries.size();)
-            if (std::find (protectedPointers.begin(), protectedPointers.end(), entries[i].object.get()) == protectedPointers.end())
+            if (eligible (entries[i].object.get()) && std::find (protectedPointers.begin(), protectedPointers.end(), entries[i].object.get()) == protectedPointers.end())
             { entries.erase (entries.begin() + static_cast<std::ptrdiff_t> (i)); ++freed; }
             else ++i;
         return freed;

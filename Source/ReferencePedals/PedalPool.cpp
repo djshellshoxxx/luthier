@@ -91,7 +91,8 @@ bool PedalPool::preflightFresh (const std::vector<PedalInstance>& instances, juc
     { error = "Prepared pedal memory budget reached (64000000 bytes, including retained runtimes and prepare scratch)"; return false; }
     return true;
 }
-std::shared_ptr<PedalRuntime> PedalPool::acquire (const PedalInstance& instance, juce::String& error, const PedalRuntime* active, bool restoreExtras)
+std::shared_ptr<PedalRuntime> PedalPool::acquire (const PedalInstance& instance, juce::String& error, const PedalRuntime* active, bool restoreExtras,
+                                                  ExtraSaveCallback saveExtraCallback, void* callbackContext)
 try
 {
     if (instance.missing) return {};
@@ -107,7 +108,9 @@ try
     bool restoreRuntimeState = false;
     if (restoreExtras && active && active->identity == instance.instanceId && active->model == instance.modelId)
     {
-        auto captured = extras.clone(); active->pedal->saveExtra (captured);
+        auto captured = extras.clone();
+        if (saveExtraCallback != nullptr) saveExtraCallback (callbackContext, *active->pedal, captured);
+        else active->pedal->saveExtra (captured);
         auto liveExtras = extras.clone();
         if (auto* object = liveExtras.getDynamicObject(); object && captured.getDynamicObject())
             for (const auto& property : captured.getDynamicObject()->getProperties()) setExactExtraProperty (*object, property.name, property.value);
@@ -162,7 +165,10 @@ try
         }
     if (! restoreExtras && active && active->identity == instance.instanceId && active->model == instance.modelId
         && active->revision == instance.modelRevision && active->extrasKey == extrasKey)
-        active->pedal->saveExtra (loadExtras);
+    {
+        if (saveExtraCallback != nullptr) saveExtraCallback (callbackContext, *active->pedal, loadExtras);
+        else active->pedal->saveExtra (loadExtras);
+    }
     if (auto* object = loadExtras.getDynamicObject()) object->removeProperty ("midi");
     if (! assetStoreConfigured)
     {

@@ -49,11 +49,13 @@ struct PedalRuntime
 class PedalPool
 {
 public:
+    using ExtraSaveCallback = void (*) (void*, const IPedal&, juce::var&);
     bool setAssetStore (std::shared_ptr<IAssetStore>); // stopped; rejects while any runtime is retained
     bool hasAssetStore() const noexcept { return static_cast<bool> (assets); }
     void setPreparationFormat (double sampleRate, int maxBlock) noexcept;
     void prepare (double sampleRate, int maxBlock, const std::vector<PedalInstance>& captured = {}, const std::vector<PedalInstance>& stored = {});
-    std::shared_ptr<PedalRuntime> acquire (const PedalInstance&, juce::String& error, const PedalRuntime* active = nullptr, bool restoreExtras = false);
+    std::shared_ptr<PedalRuntime> acquire (const PedalInstance&, juce::String& error, const PedalRuntime* active = nullptr, bool restoreExtras = false,
+                                         ExtraSaveCallback saveExtraCallback = nullptr, void* callbackContext = nullptr);
     bool preflightFresh (const std::vector<PedalInstance>&, juce::String& error) const;
     void published() { preparedExtras.clear(); preparedSources.clear(); } // captured extras consumed only by a complete published plan
     void reclaim();

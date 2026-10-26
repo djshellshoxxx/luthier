@@ -24,7 +24,8 @@ bool sameStructure (const RenderPlan& a, const RenderPlan& b)
 }
 }
 std::unique_ptr<RenderPlan> TopologyCompiler::compile (const std::vector<PedalInstance>& instances,
-    const BoardSettings& settings, PedalPool& pool, uint32_t version, const RenderPlan* previous, juce::String& error, const BoardCommand* intent, bool hostEcho)
+    const BoardSettings& settings, PedalPool& pool, uint32_t version, const RenderPlan* previous, juce::String& error, const BoardCommand* intent, bool hostEcho,
+    PedalPool::ExtraSaveCallback saveExtraCallback, void* callbackContext)
 {
     const bool restoreExtras = intent && std::holds_alternative<cmd::ApplySnapshot> (*intent);
     if (restoreExtras) intent = nullptr; // full control intent, including equal-value overrides
@@ -112,7 +113,8 @@ std::unique_ptr<RenderPlan> TopologyCompiler::compile (const std::vector<PedalIn
         occupied[static_cast<size_t> (instance.slot)] = true;
         if (branched && (instance.lane < 0 || instance.lane >= t.numLanes))
             return reject ("Pedal lane exceeds active lane count");
-        auto object = pool.acquire (instance, error, previous ? previous->slots[static_cast<size_t> (instance.slot)].get() : nullptr, restoreExtras);
+        const auto active = previous ? previous->slots[static_cast<size_t> (instance.slot)] : std::shared_ptr<PedalRuntime> {};
+        auto object = pool.acquire (instance, error, active.get(), restoreExtras, saveExtraCallback, callbackContext);
         if (! object && ! instance.missing) return {};
         const auto slot = static_cast<size_t> (instance.slot);
         result->slots[slot] = object;

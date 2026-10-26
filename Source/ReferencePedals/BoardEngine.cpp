@@ -21,13 +21,20 @@ BoardEngine::BoardEngine (BoardModel& source) : model (source)
     {
         // Shared references are copied only on the message thread and pin each
         // runtime even if a model's message-thread save callback reenters.
-        const auto pinned = latest ? latest->slots : decltype (latest->slots) {};
-        if (! latest)
-            for (auto& instance : instances)
-                for (size_t i = 0; i < releasedStored.size() && i < releasedCaptured.size(); ++i)
-                    if (instance.instanceId == releasedStored[i].instanceId && instance.modelId == releasedStored[i].modelId
-                        && sameExtraState (instance.extras, releasedStored[i].extras))
-                    { instance.extras = releasedCaptured[i].extras.clone(); break; }
+        decltype (latest->slots) pinned {};
+        std::vector<PedalInstance> stored, captured;
+        {
+            const std::lock_guard<std::mutex> guard (controlMutex);
+            if (latest) pinned = latest->slots;
+            else { stored = releasedStored; captured = releasedCaptured; }
+        }
+        // Pedal save callbacks can reenter the model: invoke them only after the
+        // owner pin is secured and the control guard has been released.
+        for (auto& instance : instances)
+            for (size_t i = 0; i < stored.size() && i < captured.size(); ++i)
+                if (instance.instanceId == stored[i].instanceId && instance.modelId == stored[i].modelId
+                    && sameExtraState (instance.extras, stored[i].extras))
+                { instance.extras = captured[i].extras.clone(); break; }
         for (auto& instance : instances)
             for (const auto& runtime : pinned)
                 if (runtime && runtime->identity == instance.instanceId && runtime->model == instance.modelId)
@@ -44,14 +51,17 @@ BoardEngine::~BoardEngine() { model.setExtraCapture ({}); model.setCompiler ({})
 void BoardEngine::prepare (double sampleRate, int maxBlock) noexcept
 try
 {
-    rate = std::isfinite (sampleRate) && sampleRate >= 8000 ? sampleRate : 48000;
-    block = std::max (1, maxBlock);
-    // Set the new format before any fallible snapshot/allocation. Even an
-    // exception must not let a later corrective edit reuse old-rate processors.
-    pool.setPreparationFormat (rate, block);
+    {
+        const std::lock_guard<std::mutex> guard (controlMutex);
+        rate = std::isfinite (sampleRate) && sampleRate >= 8000 ? sampleRate : 48000;
+        block = std::max (1, maxBlock);
+        // Format changes precede fallible snapshots so failure cannot reuse old-rate DSP.
+        pool.setPreparationFormat (rate, block);
+    }
     std::vector<PedalInstance> captured, instances; BoardSettings settings;
     model.snapshot (captured, settings); model.snapshotStored (instances, settings);
     releaseResources();
+    std::unique_lock<std::mutex> guard (controlMutex);
     dipSamples = std::max (1, static_cast<int> (std::min (rate, 1000000.0) * 0.006));
     mixAlpha = 1.0 - std::exp (-1.0 / (0.020 * rate));
     pool.prepare (rate, block, captured, instances);
@@ -80,7 +90,7 @@ try
     }
     routingBytes.store (scratch);
     TopologyInfo info; juce::String error;
-    if (! publish (instances, settings, info, error)) setPreparationError (error.isEmpty() ? "Pedal preparation failed" : error.toRawUTF8());
+    if (! publishLocked (instances, settings, info, error, nullptr, false, guard)) setPreparationError (error.isEmpty() ? "Pedal preparation failed" : error.toRawUTF8());
 }
 catch (const std::exception& error) { discardRuntime(); setPreparationError (error.what()); }
 catch (...) { discardRuntime(); setPreparationError ("Unknown pedal preparation failure"); }
@@ -99,19 +109,38 @@ void BoardEngine::setPreparationError (const char* message) noexcept
 
 bool BoardEngine::setAssetStore (std::shared_ptr<IAssetStore> store)
 {
+    const std::lock_guard<std::mutex> guard (controlMutex);
     if (! pool.setAssetStore (std::move (store))) return false;
     assetStoreAvailable.store (pool.hasAssetStore()); return true;
 }
+void BoardEngine::saveExtraOutsideControlGuard (void* context, const IPedal& pedal, juce::var& state)
+{
+    auto& guard = *static_cast<std::unique_lock<std::mutex>*> (context);
+    guard.unlock();
+    try { pedal.saveExtra (state); }
+    catch (...) { guard.lock(); throw; }
+    guard.lock();
+}
 void BoardEngine::releaseResources()
 {
-    if (latest)
+    bool hadRuntime;
+    { const std::lock_guard<std::mutex> guard (controlMutex); hadRuntime = latest != nullptr; }
+    std::vector<PedalInstance> stored, captured;
+    if (hadRuntime)
     {
         BoardSettings ignored;
-        model.snapshotStored (releasedStored, ignored); model.snapshot (releasedCaptured, ignored);
+        model.snapshotStored (stored, ignored); model.snapshot (captured, ignored);
     }
-    discardRuntime();
+    const std::lock_guard<std::mutex> guard (controlMutex);
+    if (hadRuntime) { releasedStored.swap (stored); releasedCaptured.swap (captured); }
+    discardRuntimeLocked();
 }
 void BoardEngine::discardRuntime() noexcept
+{
+    const std::lock_guard<std::mutex> guard (controlMutex);
+    discardRuntimeLocked();
+}
+void BoardEngine::discardRuntimeLocked() noexcept
 {
     paramPulses.clear(); engageEcho.clear(); numPendingPulses = 0; numRawMidi = numMidiOutput = 0;
     events = nullptr; sidechain[0] = sidechain[1] = nullptr; sidechainSamples = 0; auxOutputs = {};
@@ -119,23 +148,31 @@ void BoardEngine::discardRuntime() noexcept
     for (auto& meter : pedalMeters) { meter.present.store (false); meter.available.store (0); }
     for (auto& segment : segments) { segment.current = segment.pending = nullptr; }
     retired.reclaimAll(); latest.reset();
-    for (auto& pointer : retainedPlans) pointer.store (nullptr, std::memory_order_relaxed);
-    readerSequence.store (0, std::memory_order_seq_cst);
+    planReader.reset();
     running.store (false); targetActive.store (false); latencySamples.store (0);
 }
 bool BoardEngine::publish (const std::vector<PedalInstance>& instances, const BoardSettings& settings,
     TopologyInfo& info, juce::String& error, const BoardCommand* intent, bool hostEcho)
 {
+    std::unique_lock<std::mutex> guard (controlMutex);
+    return publishLocked (instances, settings, info, error, intent, hostEcho, guard);
+}
+bool BoardEngine::publishLocked (const std::vector<PedalInstance>& instances, const BoardSettings& settings,
+    TopologyInfo& info, juce::String& error, const BoardCommand* intent, bool hostEcho, std::unique_lock<std::mutex>& controlGuard)
+{
+    if (planReader.exhausted())
+    { error = "Audio reader generation exhausted; stopped reprepare required"; return false; }
     // Saturation fails before compiling or changing the model/history. A held
     // reader never causes eviction, callback waiting, or an unbounded queue.
     if (latest && retired.size() >= RetireList<RenderPlan>::capacityLimit)
     {
-        reclaim();
+        reclaimLocked();
         if (retired.size() >= RetireList<RenderPlan>::capacityLimit)
         { error = "Audio-plan retirement saturated; retry after audio advances"; return false; }
     }
     if (! latest && ! pool.preflightFresh (instances, error)) return false;
-    auto plan = TopologyCompiler::compile (instances, settings, pool, version + 1, latest.get(), error, intent, hostEcho);
+    auto plan = TopologyCompiler::compile (instances, settings, pool, version + 1, latest.get(), error, intent, hostEcho,
+                                          &BoardEngine::saveExtraOutsideControlGuard, &controlGuard);
     assetStoreAvailable.store (pool.hasAssetStore());
     if (! plan) return false;
     // Reserve before publishing: an old plan can still be borrowed by audio.
@@ -162,24 +199,28 @@ bool BoardEngine::publish (const std::vector<PedalInstance>& instances, const Bo
                     if (kind == ParamKind::Trigger || kind == ParamKind::Momentary)
                         paramPulses.push ({ write->id, descriptor.modelId, write->paramIdx, write->norm });
                 }
-    if (old) { const auto oldVersion = old->topology.version; retired.retire (std::move (old), oldVersion); }
-    reclaim();
+    if (old)
+    {
+        // Sample only after live replacement: a reader that could still acquire
+        // old requires its own completion, not an earlier retained snapshot.
+        old->retirementEpoch = planReader.retirementEpoch();
+        const auto oldVersion = old->topology.version; retired.retire (std::move (old), oldVersion);
+    }
+    reclaimLocked();
     return true;
 }
 int BoardEngine::reclaim() noexcept
 {
+    const std::lock_guard<std::mutex> guard (controlMutex);
+    return reclaimLocked();
+}
+int BoardEngine::reclaimLocked() noexcept
+{
     int freed = 0;
-    for (int attempt = 0; attempt < 2; ++attempt)
-    {
-        const auto before = readerSequence.load (std::memory_order_seq_cst);
-        if (before & 1u) break;
-        std::array<const RenderPlan*, 2 * kNumPlacements> protectedPointers {};
-        for (size_t i = 0; i < protectedPointers.size(); ++i)
-            protectedPointers[i] = retainedPlans[i].load (std::memory_order_relaxed);
-        std::atomic_thread_fence (std::memory_order_acquire);
-        if (before != readerSequence.load (std::memory_order_seq_cst)) continue;
-        freed = retired.reclaimExcept (protectedPointers); break;
-    }
+    CompletedReaderEpoch<RenderPlan, 2 * kNumPlacements>::Snapshot completed;
+    if (planReader.snapshot (completed))
+        freed = retired.reclaimExcept (completed.pointers, [&] (const RenderPlan* plan) noexcept
+            { return plan->retirementEpoch <= completed.epoch; });
     pool.reclaim(); return freed;
 }
 void BoardEngine::setProcessorLoad (double fraction, bool measuredWindow, double seconds) noexcept
@@ -236,12 +277,13 @@ void BoardEngine::drainControlEcho()
 }
 void BoardEngine::finishPlanRead() noexcept
 {
+    CompletedReaderEpoch<RenderPlan, 2 * kNumPlacements>::Pointers retained {};
     for (size_t i = 0; i < segments.size(); ++i)
     {
-        retainedPlans[2 * i].store (segments[i].current, std::memory_order_relaxed);
-        retainedPlans[2 * i + 1].store (segments[i].pending, std::memory_order_relaxed);
+        retained[2 * i] = segments[i].current;
+        retained[2 * i + 1] = segments[i].pending;
     }
-    readerSequence.fetch_add (1, std::memory_order_seq_cst);
+    planReader.finish (retained);
 }
 void BoardEngine::publishPedalMeters (const RenderPlan& plan) noexcept
 {

@@ -207,3 +207,177 @@ LUTHIER_TEST (RefPedalRetirement, concurrentThreePlacementStormKeepsAudioAndBoun
     CHECK (acceptedCount > 0); CHECK (acceptedCount + rejectedCount == 2000);
     engine.reclaim(); CHECK (engine.retiredPlanCount() <= 6);
 }
+
+LUTHIER_TEST (RefPedalRetirement, completedReaderPermitsAdmissionWhileNextReaderRemainsHeld)
+{
+    PedalRegistry::TestScope scope;
+    CHECK (PedalRegistry::add (retirementDesc, makeRetirementPedal, &fixedPreparedMemory<RetirementPedal>));
+    BoardModel model; BoardEngine engine (model); CHECK (engine.setAssetStore (nullptr));
+    PedalInstance instance; instance.modelId = retirementDesc.modelId; instance.slot = 0;
+    BoardSettings settings; settings.enabled = true; settings.limiterOn = false;
+    const bool ready=model.replaceAll ({instance},settings);CHECK(ready);if(!ready)return;
+    double l[64]{},r[64]{};unsigned edits=0;
+    for(int cycle=0;cycle<32;++cycle)
+    {
+        HeldAudio first([&]{engine.process(l,r,64,Placement::beforeExistingPre);});
+        // No callback completion while filling: original eight-owner bound must hold.
+        for(int fill=0;engine.retiredPlanCount()<8 && fill<8;++fill)
+            CHECK(model.apply(cmd::SetMix{float(++edits%100)/100.f,0}));
+        CHECK(engine.retiredPlanCount()==8);
+        first.release();
+        // The next reader starts BEFORE the writer tries reclaim, so no stable
+        // even/quiescent opportunity can explain successful admission here.
+        HeldAudio second([&]{engine.process(l,r,64,Placement::beforeExistingPre);});
+        engine.reclaim();
+        CHECK(engine.retiredPlanCount()<=1);
+        juce::String error;const auto version=model.getTopologyInfo().version;
+        const bool admitted=model.apply(cmd::SetMix{float(++edits%100)/100.f,0},&error);
+        CHECK_MSG(admitted,error);
+        CHECK(model.getTopologyInfo().version==version+1);
+        CHECK(engine.retiredPlanCount()<=2);CHECK(engine.retiredPlanHighWater()<=8);
+        second.release();
+        for(int i=0;i<64;++i)CHECK(std::isfinite(l[i])&&std::isfinite(r[i]));
+        if(!admitted)return; // retain RED without repeating its dependent history.
+    }
+}
+
+LUTHIER_TEST (RefPedalRetirement, completedEpochProtectsAllAliasesAndOnlyAcknowledgedOwners)
+{
+    using Reader=CompletedReaderEpoch<int,6>;Reader reader;Reader::Snapshot snapshot;
+    std::array<int,7> owners{};Reader::Pointers pointers{};
+    CHECK(reader.snapshot(snapshot));CHECK(snapshot.epoch==0);CHECK(reader.retirementEpoch()==0);
+    for(const auto* pointer:snapshot.pointers)CHECK(pointer==nullptr);
+    reader.begin();CHECK(reader.retirementEpoch()==2);CHECK(reader.snapshot(snapshot));CHECK(snapshot.epoch==0);
+    for(size_t i=0;i<6;++i)pointers[i]=&owners[i];reader.finish(pointers);
+    reader.begin();CHECK(reader.snapshot(snapshot));CHECK(snapshot.epoch==2);CHECK(reader.retirementEpoch()==4);
+    for(size_t i=0;i<6;++i)CHECK(snapshot.pointers[i]==&owners[i]);
+    // An owner retired during this active read needs4; the stable completed2
+    // snapshot cannot authorize its destruction even if absent from its aliases.
+    CHECK(!(reader.retirementEpoch()<=snapshot.epoch));
+    reader.finish({});CHECK(reader.snapshot(snapshot));CHECK(snapshot.epoch==4);
+    for(const auto* pointer:snapshot.pointers)CHECK(pointer==nullptr);
+}
+LUTHIER_TEST (RefPedalRetirement, completedEpochNeverWrapsAndStoppedResetStartsEmpty)
+{
+    using Reader=CompletedReaderEpoch<int,6>;Reader::Snapshot snapshot;int value=1;
+    Reader reader((uint64_t(1)<<63)-2);reader.begin();CHECK(reader.retirementEpoch()==(uint64_t(1)<<63));
+    reader.finish({&value});CHECK(reader.snapshot(snapshot));CHECK(snapshot.epoch==(uint64_t(1)<<63));
+    reader.reset(Reader::exhaustedEpoch-3);reader.begin();reader.finish({&value});
+    CHECK(reader.snapshot(snapshot));CHECK(snapshot.epoch==Reader::exhaustedEpoch-1);CHECK(!reader.exhausted());
+    const auto before=allocationsOnThisThread();
+    for(int i=0;i<10;++i){reader.begin();reader.finish({});}
+    CHECK(allocationsOnThisThread()==before);CHECK(reader.exhausted());CHECK(reader.retirementEpoch()==Reader::exhaustedEpoch);
+    CHECK(reader.snapshot(snapshot));CHECK(snapshot.epoch==Reader::exhaustedEpoch-1);CHECK(snapshot.pointers[0]==&value);
+    CHECK(!(reader.retirementEpoch()<=snapshot.epoch));
+    // The caller has stopped both participants before resetting generations.
+    reader.reset();CHECK(!reader.exhausted());CHECK(reader.snapshot(snapshot));CHECK(snapshot.epoch==0);
+    for(const auto* pointer:snapshot.pointers)CHECK(pointer==nullptr);
+}
+LUTHIER_TEST (RefPedalRetirement, completedSnapshotStaysCoherentAcrossOverlappingReaderFinishes)
+{
+    using Reader=CompletedReaderEpoch<int,6>;Reader reader;std::array<int,2> owners{};
+    std::atomic<bool> stop{false},started{false};std::atomic<int> callbackAllocations{0};
+    std::thread audio([&]
+    {
+        started.store(true);
+        for(unsigned i=1;i<=100000;++i)
+        {
+            const auto before=allocationsOnThisThread();reader.begin();Reader::Pointers pointers{};
+            pointers.fill(&owners[i&1]);reader.finish(pointers);
+            if(allocationsOnThisThread()!=before)++callbackAllocations;
+        }
+        stop.store(true);
+    });
+    while(!started.load())std::this_thread::yield();
+    unsigned reads=0,bad=0;Reader::Snapshot snapshot;
+    do
+    {
+        if(reader.snapshot(snapshot))
+        {
+            ++reads;const auto* expected=snapshot.epoch==0?nullptr:&owners[(snapshot.epoch/2)&1];
+            for(const auto* pointer:snapshot.pointers)if(pointer!=expected)++bad;
+        }
+    }while(!stop.load());
+    audio.join();CHECK(callbackAllocations.load()==0);CHECK(reads>0);CHECK(bad==0);
+    CHECK(reader.snapshot(snapshot));CHECK(snapshot.epoch==200000);
+}
+
+LUTHIER_TEST (RefPedalRetirement, retirementOrderingBeforeAndAfterLiveAcquisition)
+{
+    using Reader=CompletedReaderEpoch<int,6>;
+    for(const bool acquireBeforePublication:{false,true})
+    {
+        Reader reader;int oldOwner=1,newOwner=2;std::atomic<const int*> live{&oldOwner};
+        std::atomic<bool> ready{false},resume{false};const int* borrowed=nullptr;
+        std::thread audio([&]
+        {
+            reader.begin();
+            if(acquireBeforePublication)borrowed=live.load(std::memory_order_seq_cst);
+            ready.store(true);
+            while(!resume.load())std::this_thread::yield();
+            if(!acquireBeforePublication)borrowed=live.load(std::memory_order_seq_cst);
+            reader.finish({borrowed});
+        });
+        while(!ready.load())std::this_thread::yield();
+        live.store(&newOwner,std::memory_order_seq_cst);
+        const auto required=reader.retirementEpoch();Reader::Snapshot snapshot;
+        CHECK(required==2);CHECK(reader.snapshot(snapshot));CHECK(required>snapshot.epoch);
+        resume.store(true);audio.join();
+        CHECK(borrowed==(acquireBeforePublication?&oldOwner:&newOwner));
+        // A later active scope does not prevent reading the completion, but the
+        // old owner remains protected precisely when the first reader retained it.
+        reader.begin();CHECK(reader.snapshot(snapshot));CHECK(required<=snapshot.epoch);
+        CHECK((snapshot.pointers[0]==&oldOwner)==acquireBeforePublication);
+        reader.finish({borrowed});
+    }
+    // A publication may pass its initial exhaustion check then race the final
+    // reader announcement. Its AFTER-removal stamp must pin rather than wrap.
+    Reader reader(Reader::exhaustedEpoch-1);int oldOwner=1,newOwner=2;
+    std::atomic<const int*> live{&oldOwner};CHECK(!reader.exhausted());
+    reader.begin();const auto* borrowed=live.load(std::memory_order_seq_cst);
+    live.store(&newOwner,std::memory_order_seq_cst);const auto required=reader.retirementEpoch();
+    reader.finish({borrowed});Reader::Snapshot snapshot;CHECK(reader.snapshot(snapshot));
+    CHECK(required==Reader::exhaustedEpoch);CHECK(required>snapshot.epoch);CHECK(reader.exhausted());
+}
+
+namespace luthier::reference
+{
+struct CompletedReaderEpochTestAccess
+{
+    template<typename T,std::size_t N>
+    static uint64_t stage(CompletedReaderEpoch<T,N>& reader,const typename CompletedReaderEpoch<T,N>::Pointers& pointers)
+    {
+        const auto current=reader.reader.load(std::memory_order_relaxed);
+        reader.stageSnapshot(pointers,current);return current;
+    }
+    template<typename T,std::size_t N>
+    static void commit(CompletedReaderEpoch<T,N>& reader,uint64_t current){reader.commitSnapshot(current);}
+};
+}
+LUTHIER_TEST (RefPedalRetirement, readerEndCannotExposeUncommittedSnapshotAndSuccessorRetainsCorrectEpoch)
+{
+    using Reader=CompletedReaderEpoch<int,6>;Reader reader;int a=1,b=2,c=3;
+    std::atomic<const int*> live{&a};std::atomic<int> phase{0},resume{0};
+    std::thread audio([&]
+    {
+        reader.begin();const auto* first=live.load(std::memory_order_seq_cst);
+        const auto staged=CompletedReaderEpochTestAccess::stage(reader,Reader::Pointers{first});
+        phase.store(1);while(resume.load()<1)std::this_thread::yield();
+        CompletedReaderEpochTestAccess::commit(reader,staged);
+        reader.begin();const auto* second=live.load(std::memory_order_seq_cst);
+        phase.store(2);while(resume.load()<2)std::this_thread::yield();
+        reader.finish({second});
+    });
+    while(phase.load()<1)std::this_thread::yield();
+    live.store(&b,std::memory_order_seq_cst);const auto firstRetirement=reader.retirementEpoch();
+    CHECK(firstRetirement==2);
+    Reader::Snapshot snapshot;snapshot.epoch=777;snapshot.pointers.fill(&c);
+    CHECK(!reader.snapshot(snapshot));CHECK(snapshot.epoch==777);
+    for(const auto* pointer:snapshot.pointers)CHECK(pointer==&c);
+    resume.store(1);while(phase.load()<2)std::this_thread::yield();
+    CHECK(reader.snapshot(snapshot));CHECK(snapshot.epoch==2);CHECK(snapshot.pointers[0]==&a);
+    CHECK(firstRetirement<=snapshot.epoch);
+    live.store(&c,std::memory_order_seq_cst);const auto secondRetirement=reader.retirementEpoch();
+    CHECK(secondRetirement==4);CHECK(secondRetirement>snapshot.epoch);
+    resume.store(2);audio.join();CHECK(reader.snapshot(snapshot));CHECK(snapshot.epoch==4);CHECK(snapshot.pointers[0]==&b);
+}
