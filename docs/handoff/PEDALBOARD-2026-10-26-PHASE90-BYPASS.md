@@ -8,7 +8,13 @@ is preserved. One coordinator, zero active workers; no new team or environment.
 No AGENTS.md was found at the repository/workspace root or in the affected
 source/spec directories. No runtime or original test source is edited here.
 
-## Result and decision boundary
+## Result and engineering review correction
+
+Fresh-context independent review at `0bef72a64b365eab375fde27f3044b8e819c5b1a`
+confirmed the double fade but corrected the initial categorical law-conflict
+claim. The original private evidence checkpoint version3 retains that earlier
+analysis and every measurement. This correction changes no runtime, gate,
+threshold or raw result. No extra probe or test was run for the review.
 
 **Named Phase90 bypass acceptance remains RED. Do not register the model.**
 There are two distinct issues, neither cleared by existing passing model tests:
@@ -17,26 +23,38 @@ There are two distinct issues, neither cleared by existing passing model tests:
    linear ramp. With zero trims and latency, their composition is
    `dry + a*a*(wet-dry)`, rather than one fade. This is reproduced on the current
    source, not inferred solely from the older failed probe.
-2. The original written requirements conflict. The Phase90 model spec §3
-   requires a **5 ms equal-power** transition. `BOARD_CORE.md` §5.2 explicitly
-   requires a **linear 5 ms** transition. Phase90 §9 separately says
+2. The original fade clauses have a compatible interpretation. Phase90 §3
+   requires **5 ms equal-power audio mixing**; `BOARD_CORE.md` §5.2 says the
+   **`mix_enable` control ramps linearly over5ms**, without explicitly requiring
+   a linear audio equation. A linear position driving cosine/sine gains can
+   satisfy both. Phase90 §9 separately says
    “peak delta < 1 LSB 24b for sine.” Both raw adjacent-sample delta and the
    isolated gain-change contribution of an ideal equal-power fade exceed that
    bound on the test sine. The text does not define a discontinuity estimator,
    permitted input amplitude/frequency, or slope subtraction.
 
-No normative erratum found in `IMPLEMENTATION_PLAN.md` §1 chooses between these
-laws or defines that literal delta. A-PED §5's separate 1.5× natural-step limit
-is retained and cannot replace the named 24-bit criterion. No requirement or
-threshold has been lowered, and no production “fix” was guessed.
+`IMPLEMENTATION_PLAN.md` §1 takes precedence for actual conflicts; no entry
+establishes a contrary Phase90 audio law or defines that literal delta. A-PED
+§5's separate1.5× natural-step limit is retained and cannot replace the named
+24-bit criterion. No requirement or threshold has been lowered.
 
-The smallest necessary product decision is a reviewed specification resolution:
-choose the one intended bypass law and define precisely what the 24-bit delta
-measures, retaining original-versus-revised criteria and measured evidence.
-Then test one fade owner while preserving true dry bypass and frozen LFO.
+Engineering can proceed toward the already specified equal-power law with one
+fade owner, while preserving true dry bypass and frozen LFO. This is not
+categorically an owner-only sound choice. A proposed clarification of exactly
+what the24-bit delta measures still needs recorded review; it is not silently
+approved here. Preserve original wording and measured diagnostics alongside it.
 Simply leaving the model permanently enabled would remove the frozen-clock
 behavior; changing the node's global law would affect other pedals. Neither is
-an approved correction of the present ambiguous contract.
+a justified correction. Changing the specified equal-power audio law, fade
+duration or required bypass/clock behavior would be a separate product change.
+
+Review recommendation, still unimplemented: the board owns the audible
+envelope; Phase90 supplies its active processed path, while `setEnabled` still
+controls clock freezing/reset. Use a narrow model-specific audio-curve policy,
+preserving other models and Buffered/DSP tail contracts. Scope direct-model
+versus composed-slot assertions before changing any existing unit test. The
+current probe proves free-running freeze only: `setTime` and transport handlers
+can write phase while disabled, so sync/transport freeze needs its own test.
 
 ## Independent current-source experiment
 
@@ -93,21 +111,34 @@ Ranked cause checks:
 | Check | Outcome |
 | --- | --- |
 | New original equal-power oracle | **RED60/60**, direct-model maximum error0.05143641535296209; node maximum0.04710071136835112 |
-| Board single-linear law | **RED60/60**; confirms compounded fades |
-| Literal raw output peak delta <1LSB24 | **RED60/60**, measured0.0035774793528568225–0.01560920884586392 |
+| Single-linear prediction (diagnostic, not a separate required audio law) | **RED60/60**; squared-linear agreement confirms compounded fades |
+| Raw output peak delta compared with1LSB24 (diagnostic interpretation) | **RED60/60**, measured0.0035774793528568225–0.01560920884586392 |
 | Dry-sine control peak delta | 0.00358820153218546–0.015614971588625667, also greater than1LSB without a fade |
-| Independent ideal equal-power gain-step contribution | **RED60/60**,0.00021786300661905122–0.0009994847057285122 (about1,828–8,384LSB) |
+| Independent ideal equal-power gain-step contribution (diagnostic) | **RED60/60**,0.00021786300661905122–0.0009994847057285122 (about1,828–8,384LSB) |
 | Finite output, exact settled dry, settled active equality, frozen disabled LFO, pre-event oracle | All60 cases pass; settled null exactly0, stronger than −140dB |
 | Existing Pro model tests | **7tests/53,039checks/3.5s/exit0** |
 | Existing Free model tests | **7tests/53,039checks/3.6s/exit0** |
 | Strict ASan/LSan/UBSan actual-node audit | Completes all60 cases in6.49s; identical measurements and intentional RED exit1, no sanitizer diagnostic through shutdown |
 
-Current normal probe exits **1**; this is expected preserved acceptance failure,
-not an infrastructure failure or passing check. Reading “no click” as raw sample
-slope is impossible for the chosen unprocessed sine. Even subtracting that slope
-and testing only the ideal gain increment does not pass the literal threshold.
-These measurements identify an ambiguity; they do not prove what a future
-reviewed perceptual/discontinuity criterion should be.
+Current normal probe exits **1**. Its equal-power waveform mismatch is genuine
+evidence of the implementation defect. The diagnostic bundle also requires both
+equal-power and single-linear predictions to pass; therefore its overall exit
+cannot be reused as the eventual clarified regression gate. Preserve it intact.
+Raw adjacent-sample delta contains ordinary sine slope, and the ideal gain-step
+metric contains the intended fade movement. Neither isolates an unintended
+switching discontinuity. At48kHz a0.1-peak1kHz sine naturally moves by up to
+0.01308062585 per sample. Even identical constant dry/wet paths of0.1 in an
+ideal240-sample equal-power fade have first gain increment0.00065235196.
+Failing these diagnostic interpretations does not prove the intended no-click
+requirement impossible. The earlier categorical conclusion was overstated.
+
+The independent reviewer proposed, **without approval or gate substitution**,
+retaining the1LSB24 bound but explicitly defining unwanted switching error
+against an independently aligned prescribed transition: `r[n]=y[n]-y_ref[n]`,
+`max|r[n]-r[n-1]| < 2^-23`. Keep the separate full-waveform law, duration, A-PED
+and exact-endpoint checks: residual delta alone can miss slow error drift and
+depends on correct reference histories. The source spec remains unchanged;
+this estimator is not newly authorized as acceptance by this documentation fix.
 
 Existing runner hashes: Pro
 `20c931a359e6c2c4cec10873037a7f76fd2421e52deccea5c4395771044fa231`, Free

@@ -7,6 +7,20 @@
 using namespace luthier::reference;
 using models::BossDd3t;
 namespace luthier::tests { long allocationsOnThisThread() noexcept; }
+namespace luthier::reference::models
+{
+// Read actual storage independently of the reporting implementation, especially
+// when a standard library retains capacity across lower-rate reprepare.
+struct BossDd3tMemoryTestAccess
+{
+    static uint64_t ownedBytes(const BossDd3t& p) noexcept
+    {
+        return sizeof(p) + p.line[0].ownedMemoryBytes() + p.line[1].ownedMemoryBytes()
+            + sizeof(double)*(p.history[0].capacity()+p.history[1].capacity()
+                              +p.loop[0].capacity()+p.loop[1].capacity());
+    }
+};
+}
 
 LUTHIER_TEST (RefPedalDd3tMemory, actualReportIncludesAllSixPreparedBuffers)
 {
@@ -23,6 +37,7 @@ LUTHIER_TEST (RefPedalDd3tMemory, actualReportIncludesAllSixPreparedBuffers)
         const uint64_t payload = 2 * sizeof (double) *
             (uint64_t (rate * .81) + 32 + uint64_t (rate * .81) + 16 + uint64_t (rate * .8) + 8);
         if (bytes != kUnknownPreparedMemoryBytes) CHECK (bytes >= sizeof (BossDd3t) + payload);
+        CHECK (bytes == models::BossDd3tMemoryTestAccess::ownedBytes (pedal));
         pedal.reset();
         CHECK (pedal.getPreparedMemoryBytes() == bytes);
     }
@@ -37,14 +52,16 @@ LUTHIER_TEST (RefPedalDd3tMemory, lowerRateReprepareReportsRetainedCapacity)
     pedal.prepare (48000, 1, 0);
     const auto retained = pedal.getPreparedMemoryBytes();
     CHECK (retained != kUnknownPreparedMemoryBytes);
-    // Existing prepare uses vector::assign, preserving allocated capacity when
-    // the smaller request fits. Report owned capacities, not the new rate's size.
-    CHECK (retained == high);
+    // assign() may retain or release capacity depending on the standard library.
+    // Observe the owned storage; never force the DSP allocation policy for a test.
+    CHECK (retained == models::BossDd3tMemoryTestAccess::ownedBytes (pedal));
+    pedal.reset(); CHECK (pedal.getPreparedMemoryBytes() == retained);
+    std::cout << "  DD-3T reprepare owned bytes high=" << high << " lower=" << retained << '\n';
 }
 
 LUTHIER_TEST (RefPedalDd3tMemory, freshPreflightBoundsActualCapacityWithoutAllocating)
 {
-    for (double rate : { 8000., 44100., 48000., 88200., 96000., 192000., 1000000. })
+    for (double rate : { 8000., 44100., 44100.1, 48000., 88200., 96000., 192000., 192000.125, 1000000. })
         for (int policy : { 0, 1, 2 })
         {
             const auto before = luthier::tests::allocationsOnThisThread();

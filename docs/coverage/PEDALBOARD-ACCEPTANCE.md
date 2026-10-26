@@ -8,12 +8,22 @@ changes initial delivery quantity, not any selected model's original numerical,
 CPU, safety or shared-board gate. No selected named model is registered yet.
 See [the retained scope comparison](../handoff/PEDALBOARD-SIX-MODEL-SCENARIO-2026-10-26.md).
 
+Latest bounded source change: DD-3T now has constructor-free fresh-memory
+estimation and actual six-buffer capacity reporting, with the unchanged
+64,000,000-byte pool cap and no shipping registration. Reviewed Pro/Free focused
+DD-3T/pool runs each pass21tests/5,020checks; strict sanitizer qualification is
+pending. DSP arithmetic, bypass and original CPU/quality gates are preserved.
+See [the source/test handoff](../handoff/PEDALBOARD-2026-10-26-DD3T-MEMORY.md).
+Earlier full-suite/artifact results below retain their earlier source identity.
+
 Current Phase90 bypass audit on unchanged productionf1efeded is **RED60/60**:
-the actual model/node compound two linear fades. Model §3 requires equal-power,
-BOARD_CORE §5.2 requires linear, and the literal1LSB24 sine delta is not met even
-by an independent ideal equal-power ramp. Existing Pro and Free Phase90 tests
+the actual model/node compound two linear fades. Independent review corrected
+the claimed law conflict: BOARD_CORE's linearly ramped control can drive the
+model's required equal-power audio law. The raw/ideal gain-step diagnostics do
+not isolate switching discontinuity, and no new24-bit estimator is approved.
+Existing Pro and Free Phase90 tests
 each pass7/53,039checks, which does not close this gate. Preserve both original
-requirements pending reviewed resolution; no production change or registration.
+requirements and original measurements; no Phase90 production change or registration.
 See [the exact contract measurements](../handoff/PEDALBOARD-2026-10-26-PHASE90-BYPASS.md).
 
 Latest bounded local QA: the corrected-HOME Linux Pro full suite passed

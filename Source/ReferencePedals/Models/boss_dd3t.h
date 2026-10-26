@@ -33,6 +33,7 @@ public:
     bool footControlsEngagement() const noexcept override {return false;}
     bool consumeEngageToggle() noexcept override {const bool request=engageRequest;engageRequest=false;return request;}
 private:
+    friend struct BossDd3tMemoryTestAccess; // Observe owned capacities without prescribing an allocation policy.
     void render(double*,double*,double*,double*,int) noexcept;
     void onParamChanged(int,float) noexcept override;void onTrigger(int) noexcept override;
     void tap() noexcept;void beginHold() noexcept;double targetTime() const noexcept;
