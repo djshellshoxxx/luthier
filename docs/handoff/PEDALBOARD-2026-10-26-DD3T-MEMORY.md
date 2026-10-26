@@ -73,13 +73,24 @@ records7,440,200 owned bytes both before and after lower-rate reprepare; the tes
 does not require that allocation policy on other libraries. Final log SHA256:
 Pro `d0968bbb546ecc2101eb4f4e7a8740953703be752db8c252de7790be457653cf`;
 Free `2688dcfd0c3dc1883aa75957008a0f15b54c992c4da0f82a4b9740d105f8fbb4`.
-Strict sanitizer status remains pending at this interim checkpoint.
-The current one existing ASan/UBSan build expanded to830objects because adding
+Strict final Pro Debug ASan/LSan/UBSan also passes **21tests/5,020checks/20.1s,
+exit0**, including shutdown. Leak and allocator-mismatch detection are enabled;
+`LSAN_OPTIONS` is unset. No sanitizer diagnostic occurred. Log SHA256
+`30b56e4e9c45bb50e6d2a7c43bb003b198e3da6398e28b34dc1f265f497898a0`;
+binary SHA256 `2d01afd12aa495716bebcd0e6d0f7ac05d3d5d64768d9273ab84831d1fbe5653`.
+This is focused Pro sanitizer qualification, not Free ASan or a full-suite pass.
+
+The one fresh local ASan/UBSan build expanded to830scheduled steps because adding
 the test caused CMake's Git-derived build string to change from `f1efeded` to
 `0bef72a6`. This is local compilation, not a full-suite run or release build.
-It is not cancelled or duplicated; the final incremental dependency check must
-finish before executing the tests on the reviewed source. No reduced sanitizer
-options are approved to save build time.
+It completed with exit0 (final printed step827/830, link/resources). It was not
+cancelled or duplicated. After completion, the local cache was pinned to the
+same existing `LUTHIER_BUILD_STRING=0bef72a6`, preventing another full rebuild
+caused solely by a Git-derived label. No compiler/sanitizer flags were reduced.
+The final dependency reconciliation rebuilt DD-3T and relinked (exit0) before
+the strict run on frozen code at `cdc4ebe6`. The binary's build string is a QA
+label, **not its source commit**; source hashes and these checkpoint SHAs are
+authoritative. This source/stamp distinction is preserved in the evidence.
 
 ## Preservation and next commands
 
@@ -95,8 +106,8 @@ Installed toolchain commands:
 source /workspace/luthier-toolchain/env.sh
 ninja -C build -j2 LuthierTests
 ninja -C build-free-qualification-20261026 -j2 LuthierTests
-# Use the existing sanitizer process first; do not start a duplicate build.
-# After it terminates, reconcile incremental dependencies on frozen source.
+# The completed sanitizer build is cached with its existing QA label.
+ninja -C build-asan -j2 LuthierTests
 ```
 
 Each focused runner uses its original build location and adjacent Resources,
@@ -106,6 +117,20 @@ Strict sanitizer qualification must keep leak detection and allocator-mismatch
 checks enabled, `LSAN_OPTIONS` unset and ASan/UBSan halt-on-error. No full-suite
 rerun, additional UI stress, manual device/DAW acceptance or current native
 Windows/macOS qualification is claimed by this slice.
+
+The completed strict invocation used:
+
+```sh
+env -u LSAN_OPTIONS -u LUTHIER_PERF DISPLAY=:99 HOME=<fresh-temp-home> \
+  ASAN_OPTIONS=detect_leaks=1:alloc_dealloc_mismatch=1:abort_on_error=1:halt_on_error=1 \
+  UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
+  build-asan/LuthierTests_artefacts/Debug/LuthierTests RefPedalDd3t RefPedalMemory
+```
+
+All builds/tests are terminal. One coordinator, zero active workers/tests/builds.
+Next ready work is a separately bounded selected-model completion slice; this
+memory prerequisite does not close DD-3T acoustic/CPU, host/UI, native or manual
+gates. No external approval is pending for the completed memory work.
 
 DD-3T remains unregistered with original CPU/tonal/model gates open. Existing
 production artifacts and full-suite results belong to their recorded earlier

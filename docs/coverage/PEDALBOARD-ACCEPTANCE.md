@@ -11,8 +11,10 @@ See [the retained scope comparison](../handoff/PEDALBOARD-SIX-MODEL-SCENARIO-202
 Latest bounded source change: DD-3T now has constructor-free fresh-memory
 estimation and actual six-buffer capacity reporting, with the unchanged
 64,000,000-byte pool cap and no shipping registration. Reviewed Pro/Free focused
-DD-3T/pool runs each pass21tests/5,020checks; strict sanitizer qualification is
-pending. DSP arithmetic, bypass and original CPU/quality gates are preserved.
+DD-3T/pool runs each pass21tests/5,020checks; strict Pro ASan/LSan/UBSan passes
+the same21/5,020 in20.1s, exit0, without diagnostics through shutdown. This is
+focused local qualification, not a full-suite, Free ASan or native release pass.
+DSP arithmetic, bypass and original CPU/quality gates are preserved.
 See [the source/test handoff](../handoff/PEDALBOARD-2026-10-26-DD3T-MEMORY.md).
 Earlier full-suite/artifact results below retain their earlier source identity.
 
