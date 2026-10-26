@@ -5,10 +5,9 @@
 - Repository: `djshellshoxxx/luthier`.
 - Integration branch: `codex/luthier-pedalboard-completion`.
 - Source baseline before the current tested changes: `51df65e9258c96dfdd3ec5047cd15e475b82f5b1`.
-- Current tested candidate includes local, uncommitted changes to the cabinet/body
-  convolution preparation, preset-preview Vorbis encoding and regression tests,
-  reference-pedal realtime soak checks, and their specs/coverage notes. The
-  source commit SHA will be added after checkpointing those changes.
+- Tested implementation and initial handoff commit: `63178fcbebcbb4bfd5ca97012ef168baa2d5324e`.
+- This handoff is being updated in a documentation-only checkpoint after that
+  implementation commit; the product code and tests were unchanged afterward.
 - One active coordinator; no implementation workers are currently active. A
   narrow read-only review completed. Other Luthier worker branches/worktrees
   remain intact and were not merged or modified in this checkpoint.
