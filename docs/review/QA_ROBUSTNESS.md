@@ -6,7 +6,7 @@ coordinator to schedule a fix for, not something this suite fixed itself.
 
 ## Summary
 
-16 finding(s) across the runs below.
+0 finding(s) across the runs below.
 
 ## Fuzz.everyFactoryPresetAcrossExtremeBuffersAndSampleRates
 
@@ -38,24 +38,10 @@ round-trip) for the seeds and presets this run covered.
 
 ## Fuzz.randomParameterStatesHostStateRoundTripAtExtremeConfigs
 
-16 random parameter states round-tripped through host state at extreme sample rates/buffer sizes (randomised before each processor's first prepare); 16 findings - see the comment above this test before treating this as a scary 100% failure rate.
+16 random parameter states round-tripped through host state at extreme sample rates/buffer sizes (randomised before each processor's first prepare); 0 findings - see the comment above this test before treating this as a scary 100% failure rate.
 
-- **state round trip fuzz (see the comment above this test)** — repro: `seed 0 (0x57a7e000), 8000 Hz, block 8192` — re-saved state text differs from the first save (drift on restore); confirmed non-trivial for seed 0 - not float noise, see the finding above
-- **state round trip fuzz (see the comment above this test)** — repro: `seed 1 (0x57a7e001), 8000 Hz, block 256` — re-saved state text differs from the first save (drift on restore); confirmed non-trivial for seed 0 - not float noise, see the finding above
-- **state round trip fuzz (see the comment above this test)** — repro: `seed 2 (0x57a7e002), 8000 Hz, block 256` — re-saved state text differs from the first save (drift on restore); confirmed non-trivial for seed 0 - not float noise, see the finding above
-- **state round trip fuzz (see the comment above this test)** — repro: `seed 3 (0x57a7e003), 8000 Hz, block 16` — re-saved state text differs from the first save (drift on restore); confirmed non-trivial for seed 0 - not float noise, see the finding above
-- **state round trip fuzz (see the comment above this test)** — repro: `seed 4 (0x57a7e004), 8000 Hz, block 8192` — re-saved state text differs from the first save (drift on restore); confirmed non-trivial for seed 0 - not float noise, see the finding above
-- **state round trip fuzz (see the comment above this test)** — repro: `seed 5 (0x57a7e005), 8000 Hz, block 256` — re-saved state text differs from the first save (drift on restore); confirmed non-trivial for seed 0 - not float noise, see the finding above
-- **state round trip fuzz (see the comment above this test)** — repro: `seed 6 (0x57a7e006), 8000 Hz, block 16` — re-saved state text differs from the first save (drift on restore); confirmed non-trivial for seed 0 - not float noise, see the finding above
-- **state round trip fuzz (see the comment above this test)** — repro: `seed 7 (0x57a7e007), 8000 Hz, block 16` — re-saved state text differs from the first save (drift on restore); confirmed non-trivial for seed 0 - not float noise, see the finding above
-- **state round trip fuzz (see the comment above this test)** — repro: `seed 8 (0x57a7e008), 8000 Hz, block 8192` — re-saved state text differs from the first save (drift on restore); confirmed non-trivial for seed 0 - not float noise, see the finding above
-- **state round trip fuzz (see the comment above this test)** — repro: `seed 9 (0x57a7e009), 8000 Hz, block 256` — re-saved state text differs from the first save (drift on restore); confirmed non-trivial for seed 0 - not float noise, see the finding above
-- **state round trip fuzz (see the comment above this test)** — repro: `seed 10 (0x57a7e00a), 8000 Hz, block 16` — re-saved state text differs from the first save (drift on restore); confirmed non-trivial for seed 0 - not float noise, see the finding above
-- **state round trip fuzz (see the comment above this test)** — repro: `seed 11 (0x57a7e00b), 8000 Hz, block 8192` — re-saved state text differs from the first save (drift on restore); confirmed non-trivial for seed 0 - not float noise, see the finding above
-- **state round trip fuzz (see the comment above this test)** — repro: `seed 12 (0x57a7e00c), 8000 Hz, block 8192` — re-saved state text differs from the first save (drift on restore); confirmed non-trivial for seed 0 - not float noise, see the finding above
-- **state round trip fuzz (see the comment above this test)** — repro: `seed 13 (0x57a7e00d), 8000 Hz, block 256` — re-saved state text differs from the first save (drift on restore); confirmed non-trivial for seed 0 - not float noise, see the finding above
-- **state round trip fuzz (see the comment above this test)** — repro: `seed 14 (0x57a7e00e), 8000 Hz, block 16` — re-saved state text differs from the first save (drift on restore); confirmed non-trivial for seed 0 - not float noise, see the finding above
-- **state round trip fuzz (see the comment above this test)** — repro: `seed 15 (0x57a7e00f), 8000 Hz, block 8192` — re-saved state text differs from the first save (drift on restore); confirmed non-trivial for seed 0 - not float noise, see the finding above
+None. Every case ran clean (finite output, bounded level, clean state
+round-trip) for the seeds and presets this run covered.
 
 ## What this run covers
 

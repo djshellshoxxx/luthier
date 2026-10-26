@@ -32,8 +32,8 @@ On the current dirty source tree derived from the baseline above:
 
 | Check | Result | Evidence |
 | --- | --- | --- |
-| Fuzz filter including tiny-block regression | 13 tests, 1,144,712 checks, 180.7 s, pass | `fuzz-tinyblock-final.log`, SHA-256 `d6fdeaa6cf5ba83a7bd70405eefdda53ae94061b26524cf998805f07552b87fb` |
-| Tiny host blocks 1, 2, 3, 4 at 8 kHz, two loaded presets, 20,000 blocks/preset/size | Included above; 2,102 checks, 14.6 s, pass | same fuzz log; pre-fix failure details in `BUFFER-SIZE-1-4-HEAP-CORRUPTION-2026-10-26.md` |
+| Fuzz filter including tiny-block and host-state regressions | 13 tests, 1,144,712 checks, 178.1 s, pass | `fuzz-host-notify-final.log`, SHA-256 `31d4255beb228d150141695365b448cef5214cf5f30deb143816660bdd447dfe` |
+| Tiny host blocks 1, 2, 3, 4 at 8 kHz, two loaded presets, 20,000 blocks/preset/size | Included above; 2,102 checks, 17.0 s in the final filter, pass | same fuzz log; pre-fix failure details in `BUFFER-SIZE-1-4-HEAP-CORRUPTION-2026-10-26.md` |
 | Preset preview suite including PB-01/02/03 | 23 tests, 1,671 checks, 162.6 s, pass | `preset-preview-final.log`, SHA-256 `4a200d9be0b94477e3417969d2961a11e6b96ba1f53093e10e607c8c96395a67` |
 | Reference-pedal race + 30-second concurrent soak | 6 tests, 1,054 checks, pass; 3,000 edits, 123,798 blocks, 54,615,551 samples, callback allocations=0, locks=0, invalid=0 | `refpedal-soak-final.log`, SHA-256 `371c9907270a47fdc26d540682691bb320d4694d0573aaeec71cf1a013cf9048` |
 | PB-27 performance | 1 test, 9 checks, 61.0 s, pass; median factory render 859.7 ms, slowest 1,145.9 ms | `pb27-perf-final.log`, SHA-256 `fee2c81a1cd0a4aeb4ce8b8cbb1ed350ae1e597e11e8c77194eafca09a73d37b` |
@@ -72,10 +72,23 @@ for triage.
   the exact allocator overwrite/root cause is unproven. No current ASan or
   Valgrind proof exists; retain the finding as a risk, not a proven root-cause
   fix.
-- The full suite has not been rerun on the current candidate. Historical QA
-  logs report 16 randomized host-state re-save mismatches; the generated
-  `docs/review/QA_ROBUSTNESS.md` retains them as findings. Deterministic state
-  restoration is not fully green.
+- The full suite has not been rerun on the current candidate. The prior 16
+  randomized host-state re-save mismatches were reproduced and traced to the
+  QA helper calling `AudioProcessorParameter::setValue()` directly: this
+  changes `getValue()` but bypasses APVTS's listener adapter, leaving raw
+  parameter atomics stale. The test mixed randomized values in the saved
+  parameter block with default engine/extra-state values. The helper now uses
+  `setValueNotifyingHost()`, which follows the host automation path; the focused
+  16-seed round-trip test passed (1 test, 1 check, 9.7 s) with 0 findings. This
+  is a test-fixture correction, not a production state-code change. The complete
+  13-test fuzz selection then passed (1,144,712 checks, 178.1 s) with 0 report
+  findings. The seed-0 pre-fix JSON pair is preserved locally under
+  `/workspace/luthier-evidence/engine-retirement-source8/` as
+  `host-state-seed0-before-invalid-fixture.json` (SHA-256
+  `4b175653c42f0904c4c43ac56380ce5b3dba9ab6cf8ecf42a2f2203758c3cbb0`) and
+  `host-state-seed0-after-invalid-fixture.json` (SHA-256
+  `9e441b76ade20cd2b0d2c2653864ab98622c419fa5e6901932e0bc74ddce870c`). The
+  full suite still needs rerunning on the corrected helper.
 - A separate additional UI callback stress operation was automatically
   security-blocked and remains unexecuted. Do not retry or repackage it. The
   existing UI lifecycle tests in the full run are separate evidence.

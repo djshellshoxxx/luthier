@@ -102,7 +102,10 @@ namespace
     void randomiseAllParameters (LuthierAudioProcessor& p, juce::Random& rng)
     {
         for (auto* param : p.getParameters())
-            param->setValue (rng.nextFloat());
+            // Exercise the same notification path as host automation. Writing
+            // through setValue() alone bypasses the APVTS parameter adapter,
+            // leaving its raw atomics stale even though getValue() has changed.
+            param->setValueNotifyingHost (rng.nextFloat());
 
         p.getParameterBridge().applyAllNow();
     }
@@ -541,33 +544,18 @@ LUTHIER_TEST (Fuzz, everyFactoryPresetHostStateRoundTrips)
 //==============================================================================
 /*  Randomised parameter states round-tripped through the real host state
     contract at extreme sample rates/buffer sizes (kept >= 16 in this broad
-    sweep). Parameters are
-    randomised on the SOURCE processor before its first prepareToPlay; the
-    RESTORED processor's setStateInformation likewise runs before its own
-    prepareToPlay, matching HostState::anUnpreparedInstanceSavesTheSameStateAsAPreparedOne's
+    sweep). Parameters are randomised on the SOURCE processor through
+    setValueNotifyingHost before its first prepareToPlay; the RESTORED
+    processor's setStateInformation likewise runs before its own prepareToPlay,
+    matching HostState::anUnpreparedInstanceSavesTheSameStateAsAPreparedOne's
     already-covered pattern. 16 seeds by default, 200 under LUTHIER_PERF=1.
 
-    FINDING (every seed in this run, worth reading before assuming a scary
-    100% failure rate): the resaved text differs from the first save in every
-    one of the 16 seeds tried, unlike everyFactoryPresetHostStateRoundTrips
-    above (0 findings across 36 real factory presets). Inspecting one failing
-    case (seed 0) showed the differences are not float noise - concrete
-    examples: "doubler_on" reads back 0.0 after restore though it was saved as
-    0.514864...; a six-entry array (looks like per-string detune/frequency
-    data) with substantially different values on both sides, not an ulp apart.
-    "doubler_on"/"doubler_amount" are called out in Source/Parameters.cpp:1665
-    as deprecated ("kept for saved automation... no longer wired to the
-    engine"), which is one plausible, non-bug explanation for that one field;
-    the per-string array's difference is not explained by that comment and
-    could be a real bug (missed restoration path) or could be re-derived from
-    other randomised parameters at apply time in a way that is not stable
-    across a save/restore/resave cycle - this harness cannot tell those apart
-    without a per-field, per-parameter diff (which PresetQaTests.cpp's own
-    ulp-comparison approach does for the preset-manager path, but this test
-    exercises the separate getStateInformation/setStateInformation contract).
-    A human should treat this as: confirmed observation, unconfirmed cause;
-    see docs/review/QA_ROBUSTNESS.md for the repro. Recorded rather than
-    failed hard (this is a report-only harness; see the file header). */
+    The earlier helper used setValue() directly. That changed getValue() but
+    bypassed APVTS's parameter adapter, leaving raw atomics stale; the first
+    host save therefore mixed randomized parameter values with default engine
+    and extra-state values. This test compares the serialized state byte for
+    byte and must use the host-notification path so all state readers observe
+    the same writes. The current helper uses setValueNotifyingHost(). */
 LUTHIER_TEST (Fuzz, randomParameterStatesHostStateRoundTripAtExtremeConfigs)
 {
     static const double sampleRates[] = { 8000.0, 48000.0, 192000.0 };
