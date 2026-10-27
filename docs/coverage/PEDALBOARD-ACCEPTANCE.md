@@ -8,6 +8,13 @@ changes initial delivery quantity, not any selected model's original numerical,
 CPU, safety or shared-board gate. No selected named model is registered yet.
 See [the retained scope comparison](../handoff/PEDALBOARD-SIX-MODEL-SCENARIO-2026-10-26.md).
 
+Latest bounded Phase90 CPU investigation retained no runtime change. The exact
+benchmark denominator/workload is correct; original CPU<0.4% failures remain.
+One exact-output redundancy candidate still failed every CPU trial and was
+removed, with its evidence retained. Next independent recommendation: DD-3T tap
+boundary/history-reset coverage, without asserting a product defect.
+See [the CPU evidence and engineering blocker](../handoff/PEDALBOARD-2026-10-27-PHASE90-CPU.md).
+
 Build-identity dependency correction: the changing stamp is now source-scoped to
 Diagnostics. Actual stamp-only generated command changes fell from1,667 to3;
 all three real metadata objects compile, and exact A/B runtime identities pass.
