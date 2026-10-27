@@ -115,3 +115,18 @@ includes frozen source/notices, no binaries/cache. Separate normal source/eviden
 checkpoint remains authorized; failed nativepacket writes are not silently rerouted.
 DeniedActions40292011494 and extraUIcallbackstress remain unexecuted/unretried;
 no newsoftware/VM/paidrequest/security/credential/settings changes.
+
+## Subsequent continuation / preserved version29
+
+Normal independent source/QA checkpoint succeeded as sameLibraryidentity version29:
+`luthier-direction-ce2-profile-1f7bfeed-20261027.zip`,13260532bytes,
+SHA3ec7474d7e5ce51bbda0dc1b8e8460b01e16008b5c7b2556c1da67ad7b854b42,
+overf1efbundleSHA7eda687b805090d9077f0add8af554d1021ede73063ec8b8c39b02279d8c52d1.
+It excludes the two failed nativepacket targets; no uploadfallback occurred.
+Parent explicitly authorized local boundedCE2correction because no broker writer
+was assigned. Supersede the reserved-broker queue row above: ce2_gate_review now
+owns localBbdCore.h/.cpp,boss_ce2.cpp and additivecandidate tests, first proposing
+the justified law for independent review. No calibration patch yet. Storageworker
+owns disjointCore.h/.cpp/reverse/geometrytests under23b95676contract. No Claude
+correction assigned/running or externalAPIcalls. Exactlocal private receipt and
+ownership state are in CURRENT_STATUS.json outside the repository.
