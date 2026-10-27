@@ -297,3 +297,57 @@ be charged by actual sizeof. Stopped reverse tests must cover partial tails,
 fresh restore/Ready, recording, OD refusal, layers/Redo/compaction, coherent
 capture/resume/JSON omission, faults and no callback allocations. Audible active
 reversal, half-speed, preset selection, UI/MIDI and registration remain separate.
+
+## RC5 prerequisite: 99-memory metadata index (2026-10-27)
+
+Fill Models/rc5_storage's retained shell with a message-thread-only Rc5MemoryBank,
+not an audio selector/file worker. Public numbers1..99 map to99fixed positional
+entries; no second selected-memory authority or MIDI numbering policy. Each entry
+holds LooperStateCodec::Stored plus its own cloned source/metadata. Return clones,
+never mutable internal var aliases. No asset-store calls, audio copies or GC claim.
+
+Typed per-memory settings follow RC5§2.4/§8: nameUnicode/defaultempty; loopLevel
+finite0..200/default100; rhythmLevel0..100/default80; tempo40..300/default120,
+fullprecision; patterninteger1..57/default1, variationinteger0..1/default0,
+kitinteger1..7/default1; reversebool/defaultfalse. RhythmOn remains the separate
+runtime/host intent: it is not invented as a saved memory-start policy. Preserve
+unknown rhythmOn/playmode/countin/precount fields without adding typed behavior.
+
+Index schema1 has exactly99positional entries. Empty/default entries may encode
+compactly as null, avoiding a large default host-state blob; objects hold settings
+and looper subtrees. Preserve unknown root/entry/settings/looper properties.
+Future index schemas remain completely opaque/read-only; future nested looper
+schemas remain opaque/unplayable. Never report successful replacement when the
+underlying forward-schema codec would merely preserve its old tree unchanged.
+All invalid decode/mutations/encode leave prior index/output unchanged. Metadata
+edits do not modify audio. Explicit clear removes a known slot's audio/history
+while preserving its settings/unknown properties; it cannot erase future-opaque
+audio through an ordinary mutation. Known persisted loops must be Ready or Empty.
+
+Saving audio requires an actual Ready capture and validates through existing
+LooperStateCodec; Recording/Pending/Failed cannot replace a saved loop. Empty
+requires the explicit clear operation. Preserve Ready fault bits, complete base/
+active/retired/redo references and source-frame/rate identities; runtime transport
+is deliberately omitted just as in the underlying codec. No preset-ready claim.
+
+Enforce each frames<=5400*sourceRate and exact sum(frames/sourceRate)<=46800seconds.
+Retain the existing codec's integral1..192000Hz acceptance. Use existing JUCE
+BigInteger for bounded99-term exact rational comparisons, not rounded durations
+or a floatingepsilon. Duplicate memories count separately; layers/history count
+one logical timeline. Replacement excludes its old duration before checking.
+Unknown future duration makes total capacity indeterminate; preserve such input
+but reject new audio saves needing fullcap proof. Known-part overcapacity rejects
+decode. Clearing known audio/metadata-only edits may reduce/preserve known usage.
+
+Export known manifest roots deterministically in memory/base/active/retired/redo
+order, optionally first-seen deduplicated, with explicit completeness status.
+Opaque entries/index make it incomplete; IAssetStore supplies no pin/GC/recursive
+page-closure facility. Do not claim physical retention, asset verification, disk
+bytes, resampling, crash-safe file commit or complete restoration from this codec.
+Future wrapper must enforce the whole board256KiB state limit, verify/prepare/
+prime assets off audio, preserve persistent reverse/settings and publish safely.
+
+Tests cover all99positions/invalidnumbers, exactmetadata types/boundaries/nonfinite,
+Unicode/deep-clone isolation, nested schema1 migration/schema2 redo/future schemas,
+transactional failure, exact90min/13h and one-frame excess, mixed/coprime rates,
+replacement/clear accounting, runtime omission and complete ordered root reporting.
