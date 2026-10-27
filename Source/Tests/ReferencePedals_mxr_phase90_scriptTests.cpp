@@ -4,6 +4,7 @@
 #include "../ReferencePedals/Routing/RoutingNodes.h"
 #include <array>
 #include <complex>
+#include <limits>
 using luthier::reference::models::MxrPhase90Script;
 namespace luthier::tests { long allocationsOnThisThread() noexcept; }
 // Actual model/node composition regression, adapted from the retained
@@ -215,8 +216,7 @@ LUTHIER_TEST(RefPedalPhase90, otherModelsRetainLinearAndResidualTailPaths)
 }
 LUTHIER_TEST(RefPedalPhase90, bothRenderEntriesKeepFreeRunningClockFrozenWhenDisabled)
 {
-    // Sync/transport phase writes are a separate retained acceptance gap.
-    // This protects the existing free-running freeze in both render entries.
+    // Protect free-running freeze independently of the sync/transport cases.
     for (bool boardOwned : {false, true})
     {
         MxrPhase90Script model; model.setEnabled(true); model.prepare(48000, 64, 1);
@@ -231,6 +231,89 @@ LUTHIER_TEST(RefPedalPhase90, bothRenderEntriesKeepFreeRunningClockFrozenWhenDis
         for (int i=0; i<8; ++i) render();
         CHECK(model.modulationPhase() == phase);
         model.setEnabled(true); render(); CHECK(model.modulationPhase() > phase);
+    }
+}
+LUTHIER_TEST(RefPedalPhase90, syncTimeKeepsBypassedPhaseAndRetainsLatestTempo)
+{
+    using namespace luthier::reference;
+    constexpr double quarters[]{4,2,1,.5,1.0/3,.25};
+    for (double rate : {44100.,48000.,88200.,96000.,192000.})
+        for (bool boardOwned : {false,true}) for (int division=0; division<6; ++division)
+    {
+        MxrPhase90Script model;
+        model.setEnabled(true); model.setParam(6,1); model.setParam(7,division/5.f);
+        model.prepare(rate,64,1);
+        std::array<double,64> l{},r{};
+        const auto render = [&] {
+            if (boardOwned) model.processForBoard(l.data(),r.data(),16);
+            else model.process(l.data(),r.data(),16);
+        };
+        TimeInfo time; time.valid=time.playing=true; time.bpm=120;
+        time.ppq=quarters[division]*.375; model.setTime(time);
+        CHECK_NEAR(model.modulationPhase(),.375,1.e-14);
+        render(); model.setEnabled(false);
+        const double frozen=model.modulationPhase();
+        bool timeFrozen=true,renderFrozen=true;
+        const auto allocations=luthier::tests::allocationsOnThisThread();
+        for (double ppq : {quarters[division]*.125,quarters[division]*.875,-quarters[division]*.25,
+                           std::numeric_limits<double>::quiet_NaN(),std::numeric_limits<double>::infinity()})
+        {
+            time.ppq=ppq; time.bpm=180; model.setTime(time);
+            timeFrozen &= model.modulationPhase()==frozen;
+            render(); renderFrozen &= model.modulationPhase()==frozen;
+        }
+        CHECK(luthier::tests::allocationsOnThisThread()==allocations);
+        const auto label=juce::String(rate)+"/division"+juce::String(division)+(boardOwned?"/board":"/direct");
+        CHECK_MSG(timeFrozen,label+" host PPQ moved bypassed phase");
+        CHECK_MSG(renderFrozen,label+" bypassed render did not preserve phase");
+
+        // Bypassed time updates must still refresh the tempo; ignoring the
+        // entire TimeInfo would break the first rendered samples on re-engage.
+        const double before=model.modulationPhase();
+        model.setEnabled(true); CHECK(model.modulationPhase()==before);
+        render();
+        const double expected=before+16*3/(quarters[division]*rate);
+        CHECK_NEAR(model.modulationPhase(),expected-std::floor(expected),1.e-14);
+        time.ppq=quarters[division]*.625; model.setTime(time);
+        CHECK_NEAR(model.modulationPhase(),.625,1.e-14);
+        time.playing=false; time.ppq=quarters[division]*.25; model.setTime(time);
+        CHECK_NEAR(model.modulationPhase(),.625,1.e-14);
+        time.playing=true; time.valid=false; model.setTime(time);
+        CHECK_NEAR(model.modulationPhase(),.625,1.e-14);
+    }
+}
+LUTHIER_TEST(RefPedalPhase90, transportResyncOnlyRunsWhileEngagedAndStompResetSurvives)
+{
+    using namespace luthier::reference;
+    for (double rate : {44100.,48000.,88200.,96000.,192000.})
+        for (bool boardOwned : {false,true}) for (bool sync : {false,true})
+            for (auto event : {TransportEvent::Start,TransportEvent::Continue,TransportEvent::Stop,TransportEvent::Locate})
+    {
+        MxrPhase90Script model; model.setEnabled(true); model.setParam(6,1); model.prepare(rate,64,1);
+        TimeInfo time; time.valid=time.playing=true; time.ppq=.375; model.setTime(time);
+        model.setParam(6,sync?1.f:0.f);
+        std::array<double,64> l{},r{};
+        const auto render = [&] {
+            if (boardOwned) model.processForBoard(l.data(),r.data(),64);
+            else model.process(l.data(),r.data(),64);
+        };
+        render(); model.setEnabled(false);
+        const double frozen=model.modulationPhase();
+        const auto allocations=luthier::tests::allocationsOnThisThread();
+        model.onTransport(event,0); const bool eventFrozen=model.modulationPhase()==frozen;
+        render(); const bool renderFrozen=model.modulationPhase()==frozen;
+        CHECK(luthier::tests::allocationsOnThisThread()==allocations);
+        CHECK_MSG(eventFrozen,"transport event moved bypassed phase"); CHECK(renderFrozen);
+
+        const double before=model.modulationPhase();
+        model.setEnabled(true); CHECK(model.modulationPhase()==before);
+        model.onTransport(event,0);
+        const bool resync=sync && (event==TransportEvent::Start || event==TransportEvent::Continue);
+        CHECK(model.modulationPhase()==(resync?0:before));
+        model.setEnabled(false); model.setParam(10,1); model.setEnabled(true);
+        CHECK(model.modulationPhase()==0); // The explicit reset-on-stomp option is retained.
+        render(); const double engaged=model.modulationPhase();
+        model.setEnabled(true); CHECK(model.modulationPhase()==engaged); // No false new stomp edge.
     }
 }
 LUTHIER_TEST(RefPedalPhase90, revisedTwoAnchorStaticNotchesAndBypass)

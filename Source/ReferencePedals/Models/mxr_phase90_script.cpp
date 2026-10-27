@@ -63,11 +63,12 @@ void MxrPhase90Script::setTime(const TimeInfo& t) noexcept
 {
     time=t;
     constexpr double quarters[]{4,2,1,.5,1.0/3,.25};
-    if(value(6)>.5f && t.valid && t.playing && std::isfinite(t.ppq))oscillator.setPhase(common::TempoSync::phase(t.ppq,quarters[int(value(7))]));
+    // Retain current timing while bypassed, but freeze phase from every writer.
+    if(enabled && value(6)>.5f && t.valid && t.playing && std::isfinite(t.ppq))oscillator.setPhase(common::TempoSync::phase(t.ppq,quarters[int(value(7))]));
 }
 void MxrPhase90Script::onTransport(TransportEvent event,int) noexcept
 {
-    if(value(6)>.5f && (event==TransportEvent::Start || event==TransportEvent::Continue))oscillator.setPhase(0);
+    if(enabled && value(6)>.5f && (event==TransportEvent::Start || event==TransportEvent::Continue))oscillator.setPhase(0);
 }
 void MxrPhase90Script::setExpression(int jack,float v) noexcept {if(jack==0)setParam(0,v);}
 void MxrPhase90Script::onParamChanged(int index,float v) noexcept {if(index==9)setParam(0,v/127);}
