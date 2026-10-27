@@ -8,6 +8,13 @@ changes initial delivery quantity, not any selected model's original numerical,
 CPU, safety or shared-board gate. No selected named model is registered yet.
 See [the retained scope comparison](../handoff/PEDALBOARD-SIX-MODEL-SCENARIO-2026-10-26.md).
 
+RC-5 synthesis DC is corrected at `809f48bdc84e51f183709a9f010f275922336f7f`,
+using an existing1Hz blocker before rhythm level and outside dry mixing.
+Original−80dB criterion is unchanged. Pro/Free/strict sanitizers each pass11tests/
+21,594checks, including149DC cases/457,524,000frames and dry/seek/partition checks.
+This does not close the full RC-5 wrapper or all rhythm Cartesian/host gates.
+See [DC evidence and compact ownership state](../handoff/PEDALBOARD-2026-10-27-RC5-RHYTHM-DC.md).
+
 Dyna unsupported-policy reservation is corrected at
 `883143b484fd28adb2e6355234f1c3f8f3d142fa`. Pro/Free/strict sanitizers each
 pass21tests/83,696checks, including45quality-memory cells and150simulated
