@@ -368,3 +368,18 @@ Local GitHub CLI token failed authentication; repository connector reads and
 public git fetch succeeded. Git push dry-run succeeded; real write outcome must
 be checked independently. Build dependencies are being staged under the
 workspace because this account cannot install system packages.
+
+
+## 2026-10-27 minimum coverage and broker outcomes
+
+Sourceed802201 includes geometric lookahead e5e73ec9: originalA12 strong-policy
+RED55/37520/fourfails; A13/SAME14slots GREEN55/37536 perPro,Free,strictsanitizers.
+Old nominal assertion retained, actual partial-tail/minimum and64,000,000cap checks
+added. Geometry does not prove I/O deadlines or implement RC5wrapper.
+
+CE2originalBBD-onTHD test is now an explicit knownRED5/55/fivelower-boundfailures
+at five rates; noDSPcorrection or criterion change. Phase90 broker CPU candidate
+was verified and tested privately: all10candidate trials0.501–0.591% fail original
+<0.4%, baseline0.500–0.600%; not applied. PrintedFR/THDequality is not full parity.
+See [exact handoff](../handoff/PEDALBOARD-2026-10-27-WINDOW-BROKER-RED.md). All
+previous failures, original24bit gate,0/6selected registration and native gaps remain.
