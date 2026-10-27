@@ -8,11 +8,17 @@ changes initial delivery quantity, not any selected model's original numerical,
 CPU, safety or shared-board gate. No selected named model is registered yet.
 See [the retained scope comparison](../handoff/PEDALBOARD-SIX-MODEL-SCENARIO-2026-10-26.md).
 
+DD-3T tap-boundary/history coverage is committed at
+`c6b67ed44330e07f0f7c0a143ddd61aebebaf759`: two new tests pass1,950checks
+on existing production; no defect/fix is claimed. Pro/Free/strict sanitizer
+model groups each pass9tests/2,142checks, with no production change or registration.
+See [the scoped evidence and remaining gates](../handoff/PEDALBOARD-2026-10-27-DD3T-TAP.md).
+
 Latest bounded Phase90 CPU investigation retained no runtime change. The exact
 benchmark denominator/workload is correct; original CPU<0.4% failures remain.
 One exact-output redundancy candidate still failed every CPU trial and was
-removed, with its evidence retained. Next independent recommendation: DD-3T tap
-boundary/history-reset coverage, without asserting a product defect.
+removed, with its evidence retained. The subsequent DD-3T tap-boundary/history
+coverage above completes that recommendation without asserting a product defect.
 See [the CPU evidence and engineering blocker](../handoff/PEDALBOARD-2026-10-27-PHASE90-CPU.md).
 
 Build-identity dependency correction: the changing stamp is now source-scoped to

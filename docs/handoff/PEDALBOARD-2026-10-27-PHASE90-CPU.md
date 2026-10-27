@@ -100,6 +100,10 @@ ARM qualification remain open. All selected six and retained twelve are preserve
 
 ## Recovery
 
+Subsequent clarification explicitly permits private Library checkpoint operations.
+The [DD-3T tap milestone](PEDALBOARD-2026-10-27-DD3T-TAP.md) incorporates this
+previously local CPU archive, preserving the no-upload facts for this older step.
+
 Evidence: `/workspace/luthier-evidence/phase90-cpu-investigation-20261027/`.
 The local portable checkpoint contains saved/new CPU records, rejected candidate,
 comparator, complete flags/hashes/disassembly, verified Git bundle and the prior
