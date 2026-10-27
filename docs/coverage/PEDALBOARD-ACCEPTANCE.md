@@ -8,6 +8,12 @@ changes initial delivery quantity, not any selected model's original numerical,
 CPU, safety or shared-board gate. No selected named model is registered yet.
 See [the retained scope comparison](../handoff/PEDALBOARD-SIX-MODEL-SCENARIO-2026-10-26.md).
 
+Paged internal capture/restore now preserves available redo at
+`88f9053f36813b2c5258e9db0afeadf9c01bb217`. Original80failedchecks retained;
+Pro/Free/strict sanitizers each pass22tests/28,474checks. JSON migration and
+full transport/phase persistence remain separate open gates.
+See [the internal graph evidence and current states](../handoff/PEDALBOARD-2026-10-27-LOOPER-REDO-GRAPH.md).
+
 RC-5 immediate press-cycle prerequisite is implemented at
 `e2c4a98d556d2592a2cbc3b0fd9e3bde5301b9c6`. Pro/Free/strict sanitizers each
 pass21tests/27,069checks against both actual cores. It is untimed and unconnected;
