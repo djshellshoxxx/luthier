@@ -49,7 +49,8 @@ const PedalDesc description = {"mxr-dynacomp",
                                true,
                                false,
                                500,
-                               1000};
+                               1000,
+                               BypassFade::EqualPower};
 } // namespace
 const PedalDesc &MxrDynaComp::descriptor() noexcept { return description; }
 MxrDynaComp::MxrDynaComp() : Processor(description) {}
