@@ -8,6 +8,12 @@ changes initial delivery quantity, not any selected model's original numerical,
 CPU, safety or shared-board gate. No selected named model is registered yet.
 See [the retained scope comparison](../handoff/PEDALBOARD-SIX-MODEL-SCENARIO-2026-10-26.md).
 
+Redo-only worker Pending/Ready/Failed coverage is added at
+`f36eb2d05f759f3e9b6f56437fc479741ae58a64`, without runtime changes.
+Pro/Free/strict sanitizers each pass29tests/28,951checks, including every
+observed polling snapshot and completion without another audio callback.
+See [worker evidence and next E64 helper slice](../handoff/PEDALBOARD-2026-10-27-LOOPER-REDO-WORKER.md).
+
 Looper JSON redo migration is implemented at
 `94e9fd99f8b7ca0f954c8ebfb84fad6432f0f642`. Original70failedchecks preserved;
 Pro/Free/strict sanitizers each pass28tests/28,861checks including15real
