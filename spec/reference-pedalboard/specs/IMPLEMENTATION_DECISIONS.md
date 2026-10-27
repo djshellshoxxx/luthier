@@ -163,3 +163,16 @@ semantics do not change in this increment. sizeof(Impl) remains included in RAM
 reservation. This closes only the internal graph prerequisite: JSON schema
 migration, full transport/phase preservation and final wrapper integration remain
 separate unfinished E64 gates; no JSON/preset compatibility claim is made here.
+
+## Looper JSON schema2 redo migration (2026-10-27)
+
+The codec writes schema2, adding mandatory ordered redo asset hashes; known
+schema2 validates active+redo<=undoDepth and complete/non-null hashes only for
+Ready. Other statuses carry an empty redo array. Legacy schema1 decodes with no
+redo (the old format never represented it) and migrates on the next encode.
+Schemas>2 remain opaque, preserved without DSP loading. Raising the schema is
+intentional: old schema1-only readers already preserve schema2 as forward state
+instead of loading it and losing history. Unknown unowned properties continue
+being cloned; redo becomes a codec-owned key in schema2. Failure leaves Stored
+or output untouched. This migration does not change transport/head semantics,
+parameter identities, registration or final model acceptance.

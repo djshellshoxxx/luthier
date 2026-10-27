@@ -54,8 +54,86 @@ LUTHIER_TEST(RefPedalLooperState, pendingRecordingAndFailureNeverClaimAnOlderHas
 }
 LUTHIER_TEST(RefPedalLooperState, futureSchemaRemainsOpaqueAndMissingStateIsEmpty)
 {
-    auto future=valid();put(future,"schema",2);put(future,"base",object());auto opaque=object();put(opaque,"curve",juce::Array<juce::var>{1e-200,.12345678901234567});put(future,"future",opaque);
+    auto future=valid();put(future,"schema",3);put(future,"base",object());auto opaque=object();put(opaque,"curve",juce::Array<juce::var>{1e-200,.12345678901234567});put(future,"future",opaque);
     LooperStateCodec::Stored stored;CHECK(LooperStateCodec::decode(future,stored));CHECK(stored.forward);juce::var out;auto invalid=config();invalid.sampleRate=0;
-    CHECK(LooperStateCodec::encode(stored,PagedLooperCore::Graph{},invalid,out));CHECK(out["schema"]==juce::var(2));CHECK(out["base"].getDynamicObject()!=nullptr);CHECK(double(out["future"]["curve"][0])==1e-200);CHECK(double(out["future"]["curve"][1])==.12345678901234567);
+    CHECK(LooperStateCodec::encode(stored,PagedLooperCore::Graph{},invalid,out));CHECK(out["schema"]==juce::var(3));CHECK(out["base"].getDynamicObject()!=nullptr);CHECK(double(out["future"]["curve"][0])==1e-200);CHECK(double(out["future"]["curve"][1])==.12345678901234567);
     CHECK(LooperStateCodec::decode({},stored));CHECK(!stored.forward);CHECK(stored.graph.status==PagedLooperCore::CaptureStatus::Empty);CHECK(stored.source.isVoid());
+}
+
+LUTHIER_TEST(RefPedalLooperState, legacySchemaOneMigratesAndMalformedSchemaTwoFailsAtomically)
+{
+    // Literal legacy bytes, independent of the current encoder.
+    const auto legacy=juce::JSON::parse(R"legacy({
+  "schema": 1,
+  "status": "ready",
+  "sampleRate": 48000,
+  "channels": 2,
+  "pageFrames": 4096,
+  "undoDepth": 2,
+  "frames": 12345,
+  "generation": 9007199254740993,
+  "faults": 0,
+  "base": "sha256:0100000000000000000000000000000000000000000000000000000000000000",
+  "layers": [
+    "sha256:0200000000000000000000000000000000000000000000000000000000000000",
+    "sha256:0200000000000000000000000000000000000000000000000000000000000000"
+  ],
+  "retired": [
+    "sha256:0300000000000000000000000000000000000000000000000000000000000000"
+  ],
+  "legacyVendor": [
+    "kept",
+    0.12345678901234566
+  ]
+})legacy");
+    LooperStateCodec::Stored old;CHECK(LooperStateCodec::decode(legacy,old));CHECK(!old.forward);
+    CHECK(old.graph.redoCount==0);CHECK(old.graph.layerCount==2);CHECK(old.graph.base==asset(1));
+    juce::var migrated;CHECK(LooperStateCodec::encode(old,old.graph,old.config,migrated));
+    CHECK(migrated["schema"]==juce::var(2));CHECK(migrated["redo"].isArray());CHECK(migrated["redo"].size()==0);
+    CHECK(migrated["legacyVendor"][0].toString()=="kept");
+    CHECK(double(migrated["legacyVendor"][1])==.12345678901234567);
+    const auto good=valid();LooperStateCodec::Stored previous;CHECK(LooperStateCodec::decode(good,previous));
+    auto reject=[&](const juce::var& bad)
+    {
+        CHECK(!LooperStateCodec::decode(bad,previous));CHECK(previous.graph.base==asset(1));
+        CHECK(previous.graph.generation==9007199254740993ull);CHECK(previous.graph.redoCount==0);
+    };
+    auto missing=good.clone();missing.getDynamicObject()->removeProperty("redo");reject(missing);
+    for(const auto& value:juce::Array<juce::var>{juce::var(),true,object(),"not an array",
+            juce::Array<juce::var>{"sha256:"+asset(4).toHex()},
+            juce::Array<juce::var>{"sha256:"+juce::String::repeatedString("0",64)}})
+    {auto bad=good.clone();put(bad,"redo",value);reject(bad);}
+    auto tooMany=juce::var(juce::Array<juce::var>{});
+    for(int i=0;i<9;++i)tooMany.append("sha256:"+asset(4).toHex());
+    {auto bad=good.clone();put(bad,"redo",tooMany);reject(bad);}
+    LooperStateCodec::Stored stored;juce::var out="unchanged";
+    auto rejectGraph=[&](const auto& graph)
+    {CHECK(!LooperStateCodec::encode(stored,graph,config(),out));CHECK(out.toString()=="unchanged");};
+    for(int count:{-1,9,std::numeric_limits<int>::max()}){auto bad=complete();bad.redoCount=count;rejectGraph(bad);}
+    {auto bad=complete();bad.redoCount=1;bad.redo[0]=asset(4);rejectGraph(bad);} // active+redo > depth
+    {auto bad=complete();bad.layerCount=1;bad.redoCount=1;rejectGraph(bad);} // missing redo hash
+    for(auto status:{PagedLooperCore::CaptureStatus::Empty,PagedLooperCore::CaptureStatus::Recording,
+            PagedLooperCore::CaptureStatus::Pending,PagedLooperCore::CaptureStatus::Failed})
+    {
+        PagedLooperCore::Graph bad;bad.status=status;bad.redoCount=1;bad.redo[0]=asset(4);rejectGraph(bad);
+    }
+}
+
+LUTHIER_TEST(RefPedalLooperState, redoHistorySurvivesJsonWithExplicitVersionAndExactOrder)
+{
+    for(int redo=0;redo<=8;++redo)
+    {
+        auto graph=complete();graph.layerCount=8-redo;graph.redoCount=redo;
+        for(int i=0;i<graph.layerCount;++i)graph.layers[size_t(i)]=asset(uint8_t(10+i));
+        for(int i=0;i<redo;++i)graph.redo[size_t(i)]=asset(uint8_t(30+i));
+        auto c=config();c.undoDepth=8;
+        LooperStateCodec::Stored stored;stored.source=object();put(stored.source,"vendor","preserved");
+        juce::var encoded;CHECK(LooperStateCodec::encode(stored,graph,c,encoded));
+        CHECK(encoded["schema"]==juce::var(2));CHECK(encoded["redo"].isArray());CHECK(encoded["redo"].size()==redo);
+        const auto json=juce::JSON::toString(encoded,true,17);
+        LooperStateCodec::Stored restored;CHECK(LooperStateCodec::decode(juce::JSON::parse(json),restored));
+        CHECK(!restored.forward);CHECK(restored.graph.redoCount==redo);CHECK(restored.graph.layerCount==graph.layerCount);
+        CHECK(restored.graph.generation==graph.generation);CHECK(restored.source["vendor"].toString()=="preserved");
+        for(int i=0;i<redo;++i)CHECK(restored.graph.redo[size_t(i)]==graph.redo[size_t(i)]);
+    }
 }

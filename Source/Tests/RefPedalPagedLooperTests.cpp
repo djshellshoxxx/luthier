@@ -1,6 +1,7 @@
 // OWNER: WP15/WP16
 #include "TestFramework.h"
 #include "../ReferencePedals/Common/PagedLooperCore.h"
+#include "../ReferencePedals/Common/LooperStateCodec.h"
 #include "../ReferencePedals/Services/AssetStore.h"
 #include <atomic>
 #include <chrono>
@@ -339,7 +340,11 @@ LUTHIER_TEST(RefPedalPagedLooper, graphRestorePreservesAvailableRedoOrderAcrossP
         {auto bad=graph;bad.redo[size_t(undone-1)]={};reject(bad);}
         {auto bad=graph;bad.status=PagedLooperCore::CaptureStatus::Empty;bad.frames=0;bad.base={};bad.layerCount=bad.retiredCount=0;reject(bad);}
         auto expanded=config;expanded.undoDepth=8;
-        PagedLooperCore restored;CHECK(restored.prepare(fixture.store,expanded));CHECK(restored.restore(graph));
+        LooperStateCodec::Stored stored;juce::var encoded;
+        CHECK(LooperStateCodec::encode(stored,graph,config,encoded));
+        CHECK(LooperStateCodec::decode(juce::JSON::parse(juce::JSON::toString(encoded,true,17)),stored));
+        CHECK(stored.graph.redo==graph.redo);CHECK(stored.graph.redoCount==graph.redoCount);
+        PagedLooperCore restored;CHECK(restored.prepare(fixture.store,expanded));CHECK(restored.restore(stored.graph));
         restored.setSeamMilliseconds(0);CHECK(ready(restored));restored.apply(LooperAction::Play);
         process(restored,warm,0,0);
         CHECK_MSG(restored.canRedo(),juce::String(rate)+" depth"+juce::String(depth)+" restored redo lost");

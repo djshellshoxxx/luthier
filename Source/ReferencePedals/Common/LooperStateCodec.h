@@ -15,6 +15,7 @@ public:
         juce::var source;
         bool forward=false;
     };
+    // Writes schema2 with ordered redo; reads legacy schema1 without redo.
     // Void means no saved loop. A newer integral schema remains opaque and
     // must not be loaded into DSP; encode preserves its complete original tree.
     // All failures leave the previous Stored/output untouched.
