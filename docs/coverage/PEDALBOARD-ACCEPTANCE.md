@@ -8,6 +8,13 @@ changes initial delivery quantity, not any selected model's original numerical,
 CPU, safety or shared-board gate. No selected named model is registered yet.
 See [the retained scope comparison](../handoff/PEDALBOARD-SIX-MODEL-SCENARIO-2026-10-26.md).
 
+Dyna unsupported-policy reservation is corrected at
+`883143b484fd28adb2e6355234f1c3f8f3d142fa`. Pro/Free/strict sanitizers each
+pass21tests/83,696checks, including45quality-memory cells and150simulated
+seconds per render route of deterministic input/control/reset processing.
+Original CPU/fidelity failures, registration and longer/native gates stay open.
+See [the boundary results and compact continuation state](../handoff/PEDALBOARD-2026-10-27-DYNA-BOUNDARIES.md).
+
 The retained Dyna Comp prototype is selectively integrated at
 `28b4c63e6785cdd101042f44f99207deab215b89`: exact model/test blobs only,
 no common-helper/drive imports. Pro/Free/strict sanitizers each pass18tests/
