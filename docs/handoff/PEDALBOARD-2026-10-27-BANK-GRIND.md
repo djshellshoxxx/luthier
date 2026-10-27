@@ -31,6 +31,17 @@ window advances. This establishes a possible benign transient, but the original
 grind result remains exit 1. Exact source, hashes, commands and results are in
 `paged-reverse-grind-20261027/FOCUSED_OUTCOME.md`.
 
+An additional privately instrumented five-rate, 35-second diagnostic retained
+the original readiness assertion and also exited 1. Of 14,696 pre/post scans,
+358 snapshots had a false full window. All 348 during active playback had at
+least two seconds of contiguous resident audio; ten shorter prefixes occurred
+only fully stopped at zero gain while the origin was being re-primed. Audio and
+state remained exact, with zero callback allocations, asset-store calls, faults
+or nonfinite samples. Page identities, direction, head, state and timing are in
+`paged-reverse-grind-20261027/diagnostic/OUTCOME.md`. This supports an assertion
+mismatch for the new run; the original 81 untraced observations remain
+unattributed and its exit 1 is unchanged. No product source was modified.
+
 CE-2 BBD-on THD remains RED at all five rates. Independent DSP reviews found
 insufficient evidence for a justified additional nonlinear transfer and voltage
 normalization; no CE-2 calibration patch was applied. CE-2 raw bypass jump remains
