@@ -19,6 +19,18 @@ not identify which pages were missing, so a moving-window expectation versus
 actual two-second lookahead defect remains under investigation. Preserve this
 failure and its original predicate. This is not hardware, DAW or UI acceptance.
 
+Subsequent focused gated-worker diagnostic: four storage/core cases in both
+directions passed at 48 kHz, page size 8192 and a one-frame final page. After
+2048 frames crossed the partial tail, the measured contiguous resident prefix
+was 96,257 frames (2.005354 seconds); full-window readiness was false while the
+far page was gated, and 2,049 stereo frames matched exactly with zero faults and
+callback allocations. Readiness became true after release. The public contract
+requires whole-window readiness before activation, not continuously while the
+window advances. This establishes a possible benign transient, but the original
+81 observations have no page-level traces and remain unattributed; the original
+grind result remains exit 1. Exact source, hashes, commands and results are in
+`paged-reverse-grind-20261027/FOCUSED_OUTCOME.md`.
+
 CE-2 BBD-on THD remains RED at all five rates. Independent DSP reviews found
 insufficient evidence for a justified additional nonlinear transfer and voltage
 normalization; no CE-2 calibration patch was applied. CE-2 raw bypass jump remains
