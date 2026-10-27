@@ -8,6 +8,15 @@ changes initial delivery quantity, not any selected model's original numerical,
 CPU, safety or shared-board gate. No selected named model is registered yet.
 See [the retained scope comparison](../handoff/PEDALBOARD-SIX-MODEL-SCENARIO-2026-10-26.md).
 
+Fresh restored-cache wrapping collision is corrected at
+`4d6f0cc7c7c558c112c2f36cb93d898bfc50b394`; original3tests/461checks/3failures
+preserved. Separate Pro/Free/strict sanitizer storage closures pass52tests/
+37,495checks. RC5 internal four-interval tap estimator is added at
+`2d313c64c0390d7c0e0a9641afbe3c26a53c0233`; separate cohorts each10tests/361checks.
+The nominal2s partial-page coverage gap remains open; no runtimewrapper/model
+registration or combined full-product pass inferred.
+See [source, review, outcomes and next geometric coverage gate](../handoff/PEDALBOARD-2026-10-27-STORAGE-WRAP-TAP.md).
+
 Dyna original5ms EqualPower node law is corrected at
 `84c463347acd9dac43028d07ce8e9edc456e62c2`, with original90failedcells retained.
 Its separate Pro/Free/strict sanitizer cohorts each pass5tests/82,567checks.
