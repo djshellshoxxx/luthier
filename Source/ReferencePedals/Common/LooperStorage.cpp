@@ -46,6 +46,7 @@ struct LooperStorage::Impl
         AtomicHash hash;
         std::atomic<uint64_t> ready{0},desired{0},mergedToken{0},mergedVersion{0};
         uint64_t residentEpoch=0;int resident=-1; // audio owner only
+        int readSlot[2]{-1,-1}; // audio owner; validated against slot epoch/index
     };
     enum class Kind {Write,Read,Manifest,Barrier,Merge};
     struct Job {Kind kind;uint64_t epoch,index,token,frames;int buffer;uint64_t version;Impl* source;};
@@ -259,23 +260,46 @@ struct LooperStorage::Impl
         }
         for(int way=0;way<2;++way)
         {
-            auto& page=reads[(pageIndex%uint64_t(config.readPages))*2+uint64_t(way)];
+            const auto slot=entry.readSlot[way];if(slot<0)continue;
+            auto& page=reads[slot];
             if(page.epoch==current && page.index==pageIndex && (page.version==version || (stale && page.version+1==version))
                 && page.tag.load(std::memory_order_acquire)==((page.token<<2)|2) && (!found || page.version>found->version))found=&page;
         }
         return found;
     }
-    void request(uint64_t pageIndex) noexcept
+    void request(uint64_t pageIndex,uint64_t windowStart,uint64_t pageCount) noexcept
     {
         if(pageIndex>=maxPages)return;
         const auto current=epoch.load(std::memory_order_relaxed);auto& entry=entries[pageIndex];
         const auto wanted=entry.desired.load(std::memory_order_acquire);
         if(stateEpoch(wanted)!=current)return;
         const auto version=stateVersion(wanted);
-        const auto slot=(pageIndex%uint64_t(config.readPages))*2+(version&1);
-        auto& page=reads[slot];const auto tag=page.tag.load(std::memory_order_acquire);
-        if(page.epoch==current && page.index==pageIndex && page.version==version && (tag&3)!=0)return;
+        const auto way=int(version&1);auto slot=entry.readSlot[way];
+        if(slot>=0)
+        {
+            const auto& page=reads[slot];
+            if(page.epoch!=current || page.index!=pageIndex)slot=-1;
+            else if(page.version==version && (page.tag.load(std::memory_order_acquire)&3)!=0)return;
+        }
         if(entry.ready.load(std::memory_order_acquire)!=wanted)return;
+        if(slot<0)
+        {
+            // Assign only on a miss, never during the per-sample cache lookup.
+            // A ragged loop can wrap two same-version pages into one modulo
+            // bucket. Protect the whole requested circular window instead.
+            // Each parity lane has readPages slots, more than readAhead; the
+            // other lane keeps the previous revision available for compaction.
+            for(int i=way;i<config.readPages*2;i+=2)
+            {
+                const auto& candidate=reads[i];
+                if(candidate.epoch!=current || candidate.tag.load(std::memory_order_acquire)==0)
+                {slot=i;break;}
+                const auto distance=(candidate.index+pageCount-windowStart)%pageCount;
+                if(slot<0 && distance>uint64_t(config.readAhead))slot=i;
+            }
+            if(slot<0)return;
+        }
+        auto& page=reads[slot];entry.readSlot[way]=slot;
         page.epoch=current;page.index=pageIndex;page.token=++nextToken;page.version=version;
         page.frames=int(std::min(uint64_t(config.pageFrames),frames.load()-pageIndex*uint64_t(config.pageFrames)));
         page.tag.store((page.token<<2)|1,std::memory_order_release);
@@ -386,7 +410,7 @@ void LooperStorage::prefetch(uint64_t frame) noexcept
     if(!impl || !impl->frames.load())return;
     auto& p=*impl;const auto count=(p.frames.load()+uint64_t(p.config.pageFrames)-1)/uint64_t(p.config.pageFrames);
     auto index=(frame%p.frames.load())/uint64_t(p.config.pageFrames);
-    for(int i=0;i<=p.config.readAhead;++i)p.request((index+uint64_t(i))%count);
+    for(int i=0;i<=p.config.readAhead;++i)p.request((index+uint64_t(i))%count,index,count);
 }
 bool LooperStorage::available(uint64_t frame,bool allowStale) const noexcept
 {
