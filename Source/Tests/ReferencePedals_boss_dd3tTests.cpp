@@ -4,6 +4,90 @@
 using namespace luthier::reference;
 using models::BossDd3t;
 namespace {void silence(BossDd3t& p,int count){for(int i=0;i<count;++i){double l=0,r=0;p.process(&l,&r,1);}}}
+namespace luthier::tests { long allocationsOnThisThread() noexcept; }
+namespace
+{
+void tapVia(BossDd3t& pedal,bool foot) noexcept
+{
+    if(foot){pedal.onFoot({true,.5f,0,0});pedal.onFoot({false,.5f,0,0});}
+    else {pedal.setParam(6,1);pedal.setParam(6,0);}
+}
+bool advanceTapFrames(BossDd3t& pedal,int count,int block) noexcept
+{
+    std::array<double,2048> l{},r{};bool finite=true;
+    while(count>0)
+    {
+        const int n=std::min(count,block);std::fill_n(l.data(),n,0.);std::fill_n(r.data(),n,0.);
+        pedal.process(l.data(),r.data(),n);
+        for(int i=0;i<n;++i)finite &= std::isfinite(l[i]) && std::isfinite(r[i]);
+        count-=n;
+    }
+    return finite;
+}
+}
+LUTHIER_TEST(RefPedalDd3t, tapIntervalBoundariesUseRepresentableSampleTimes)
+{
+    for(double rate:{44100.,48000.,88200.,96000.,192000.})
+        for(int block:{1,64,2048}) for(bool foot:{false,true}) for(int edge=0;edge<4;++edge)
+    {
+        BossDd3t pedal;pedal.setParam(3,2.f/3);pedal.setParam(7,1);pedal.prepare(rate,2048,1);
+        const int firstAccepted=int(std::ceil(133*rate/1000)),lastAccepted=int(std::floor(800*rate/1000));
+        const int frames[]{firstAccepted-1,firstAccepted,lastAccepted,lastAccepted+1};
+        const bool accepted=edge==1 || edge==2;
+        const double interval=frames[edge]*1000./rate,previousDelay=pedal.delayMilliseconds();
+        const auto allocations=luthier::tests::allocationsOnThisThread();
+        tapVia(pedal,foot);bool finite=advanceTapFrames(pedal,frames[edge],block);tapVia(pedal,foot);
+        finite &= advanceTapFrames(pedal,int(std::ceil(rate*.8)),block);
+        CHECK(luthier::tests::allocationsOnThisThread()==allocations);
+        const auto label=juce::String(rate)+"/"+juce::String(block)+(foot?"/foot":"/trigger")+"/edge"+juce::String(edge);
+        juce::var saved;pedal.saveExtra(saved);
+        CHECK_MSG(bool(saved["hasTapped"])==accepted,label+" accepted/rejected wrong sample interval");
+        CHECK_NEAR(double(saved["tapIntervalMs"]),accepted?interval:500.,1.e-9);
+        CHECK_NEAR(pedal.readUiMeters().bpm,60000/(accepted?interval:500.),1.e-9);
+        CHECK_NEAR(pedal.delayMilliseconds(),accepted?interval:previousDelay,2.); // Original tap tolerance.
+        CHECK(finite);CHECK(!pedal.consumeEngageToggle());
+        BossDd3t restored;restored.loadExtra(saved);juce::var again;restored.saveExtra(again);
+        CHECK(bool(again["hasTapped"])==accepted);
+        CHECK_NEAR(double(again["tapIntervalMs"]),accepted?interval:500.,1.e-9);
+    }
+}
+LUTHIER_TEST(RefPedalDd3t, tapAverageRejectsInvalidGapsAndResetsAfterTwoPointOneSeconds)
+{
+    for(double rate:{44100.,48000.,88200.,96000.,192000.})
+        for(int block:{1,64,2048}) for(bool foot:{false,true})
+    {
+        BossDd3t pedal;pedal.setParam(3,2.f/3);pedal.setParam(7,1);pedal.prepare(rate,2048,1);
+        tapVia(pedal,foot);std::array<double,4> intervals{};int index=0;
+        for(double ms:{300.,500.,700.,400.})
+        {
+            const int frames=int(std::llround(ms*rate/1000));intervals[index]=frames*1000./rate;
+            const auto allocations=luthier::tests::allocationsOnThisThread();
+            const bool finite=advanceTapFrames(pedal,frames,block);tapVia(pedal,foot);
+            CHECK(luthier::tests::allocationsOnThisThread()==allocations);CHECK(finite);
+            const int begin=std::max(0,index-2);double expected=0;
+            for(int i=begin;i<=index;++i)expected+=intervals[i];expected/=index-begin+1;
+            juce::var state;pedal.saveExtra(state);CHECK(bool(state["hasTapped"]));
+            CHECK_NEAR(double(state["tapIntervalMs"]),expected,1.e-9);++index;
+        }
+        const double average=(intervals[1]+intervals[2]+intervals[3])/3;
+        for(int rejectedFrames:{int(std::ceil(133*rate/1000))-1,int(std::floor(800*rate/1000))+1})
+        {
+            const auto allocations=luthier::tests::allocationsOnThisThread();
+            const bool finite=advanceTapFrames(pedal,rejectedFrames,block);tapVia(pedal,foot);
+            CHECK(luthier::tests::allocationsOnThisThread()==allocations);CHECK(finite);
+            juce::var state;pedal.saveExtra(state);CHECK(bool(state["hasTapped"]));
+            CHECK_NEAR(double(state["tapIntervalMs"]),average,1.e-9);
+        }
+        const auto allocations=luthier::tests::allocationsOnThisThread();
+        bool finite=advanceTapFrames(pedal,int(std::llround(2.1*rate)),block);tapVia(pedal,foot);
+        const int newGap=int(std::llround(.6*rate));
+        finite &= advanceTapFrames(pedal,newGap,block);tapVia(pedal,foot);
+        CHECK(luthier::tests::allocationsOnThisThread()==allocations);CHECK(finite);
+        juce::var state;pedal.saveExtra(state);CHECK(bool(state["hasTapped"]));
+        CHECK_NEAR(double(state["tapIntervalMs"]),newGap*1000./rate,1.e-9);
+        CHECK(!pedal.consumeEngageToggle());
+    }
+}
 LUTHIER_TEST(RefPedalDd3t, impulseRangesAndDryEndpoints)
 {
     for(double sr:{44100.,48000.,96000.,192000.})for(int mode=0;mode<3;++mode)for(int end=0;end<2;++end)
