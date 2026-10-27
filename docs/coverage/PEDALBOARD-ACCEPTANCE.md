@@ -8,6 +8,14 @@ changes initial delivery quantity, not any selected model's original numerical,
 CPU, safety or shared-board gate. No selected named model is registered yet.
 See [the retained scope comparison](../handoff/PEDALBOARD-SIX-MODEL-SCENARIO-2026-10-26.md).
 
+Runtime-only captured-boundary resume helper is implemented at
+`4ceb1b5d339692a1c76eaa6053368d6b9b34fac9`. Pro/Free/strict sanitizers each
+pass32tests/31,122checks, including both fades, known PCM, command clock and
+concurrent tuple capture. Default memory restore staysStopped. Live structural
+final-boundary handoff remains open; this is not full E64/RC5 acceptance.
+See [helper evidence/current states](../handoff/PEDALBOARD-2026-10-27-LOOPER-RESUME.md)
+and [fixed-source completion ranges](../handoff/LUTHIER-CURRENT-COMPLETION-2026-10-27.md).
+
 Redo-only worker Pending/Ready/Failed coverage is added at
 `f36eb2d05f759f3e9b6f56437fc479741ae58a64`, without runtime changes.
 Pro/Free/strict sanitizers each pass29tests/28,951checks, including every

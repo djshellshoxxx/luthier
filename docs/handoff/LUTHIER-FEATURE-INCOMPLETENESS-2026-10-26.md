@@ -23,6 +23,8 @@ Luthier is software artwork and a functioning virtual instrument/effects applica
 That description does not change its functional promises, licensing or acceptance
 requirements. It is not yet qualified as a feature-complete pedalboard release.
 
+2026-10-27 update: [current six-model completion ranges and affected-row corrections](LUTHIER-CURRENT-COMPLETION-2026-10-27.md) supersede the historical counts/next-slice status below; original evidence is preserved.
+
 ## How to read the remaining work
 
 The board infrastructure is substantial working code. The largest implementation
