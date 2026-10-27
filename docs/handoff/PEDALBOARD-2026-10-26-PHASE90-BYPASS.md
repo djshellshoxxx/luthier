@@ -1,5 +1,10 @@
 # Phase90 bypass contract audit — 2026-10-26
 
+Historical pre-fix measurements. The subsequent narrow correction and its
+remaining acceptance gaps are recorded in the
+[2026-10-27 handoff](PEDALBOARD-2026-10-27-PHASE90-SINGLE-ENVELOPE.md).
+All original measurements and the unresolved24-bit gate below are retained.
+
 Starting local HEAD `4d50cab038828e91424d90dfd52fc8f531fc3044`, branch
 `codex/luthier-pedalboard-completion`, same `/workspace/luthier` executor.
 Production is unchanged from `f1efeded706b9dc57da7e941ca856b17eaad5183`.

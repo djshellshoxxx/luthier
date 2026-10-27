@@ -26,15 +26,16 @@ DSP arithmetic, bypass and original CPU/quality gates are preserved.
 See [the source/test handoff](../handoff/PEDALBOARD-2026-10-26-DD3T-MEMORY.md).
 Earlier full-suite/artifact results below retain their earlier source identity.
 
-Current Phase90 bypass audit on unchanged productionf1efeded is **RED60/60**:
-the actual model/node compound two linear fades. Independent review corrected
-the claimed law conflict: BOARD_CORE's linearly ramped control can drive the
-model's required equal-power audio law. The raw/ideal gain-step diagnostics do
-not isolate switching discontinuity, and no new24-bit estimator is approved.
-Existing Pro and Free Phase90 tests
-each pass7/53,039checks, which does not close this gate. Preserve both original
-requirements and original measurements; no Phase90 production change or registration.
-See [the exact contract measurements](../handoff/PEDALBOARD-2026-10-26-PHASE90-BYPASS.md).
+Phase90's narrow single-envelope correction is committed at
+`78b1d84ffcae43de6eae5ef869c9831c087a2aba`. The board's linear control now
+drives one equal-power audio fade; the direct model retains one fade. Pro,
+Free and strict Pro ASan/LSan/UBSan focused runs each pass11tests/53,520checks.
+The original60-case double-fade RED evidence is preserved. The unchangedCPU
+<0.4% gate remains RED here on both baseline and corrected source; the separate
+24-bit criterion is unresolved/unapproved, and sync/transport freeze remains
+open. No named model is registered and no full-product/native pass is implied.
+See [the correction and exact qualification limits](../handoff/PEDALBOARD-2026-10-27-PHASE90-SINGLE-ENVELOPE.md)
+and [original measurements](../handoff/PEDALBOARD-2026-10-26-PHASE90-BYPASS.md).
 
 Latest bounded local QA: the corrected-HOME Linux Pro full suite passed
 2,806 tests / 14,935,613 checks at exact source `f1efeded706b9dc57da7e941ca856b17eaad5183`.
