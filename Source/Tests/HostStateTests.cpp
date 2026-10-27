@@ -7,12 +7,29 @@
 #include "../PluginProcessor.h"
 #include "../Parameters.h"
 #include "../Presets/ExactRestore.h"
+#include "../Support/ErrorLog.h"
 
 using namespace luthier;
 using namespace luthier::tests;
 
 namespace
 {
+    struct ScopedHostDiagnostics
+    {
+        ScopedHostDiagnostics()
+        {
+            folder.createDirectory();
+            ErrorLog::setFolderForTesting (folder);
+        }
+        ~ScopedHostDiagnostics()
+        {
+            ErrorLog::setFolderForTesting ({});
+            folder.deleteRecursively();
+        }
+        juce::File folder { juce::File::getSpecialLocation (juce::File::tempDirectory)
+                              .getChildFile ("luthier-host-state-" + juce::Uuid().toString()) };
+    };
+
     juce::MemoryBlock saveState (LuthierAudioProcessor& p)
     {
         juce::MemoryBlock block;
@@ -25,6 +42,150 @@ namespace
         return juce::String::fromUTF8 (static_cast<const char*> (block.getData()), (int) block.getSize());
     }
 
+    // Failure diagnostics only: retain numeric lexemes instead of reparsing them
+    // as doubles, and never print strings or values from opaque state sections.
+    struct StateJsonNode
+    {
+        char kind=0;
+        size_t begin=0,end=0;
+        std::vector<StateJsonNode> children;
+        std::vector<juce::String> keys;
+    };
+
+    class StateJsonReader
+    {
+    public:
+        explicit StateJsonReader (const juce::String& text) : input (text.toStdString()) {}
+        bool parse (StateJsonNode& node)
+        { return input.size() <= 16*1024*1024 && value (node,0) && (space(), position==input.size()); }
+        std::string token (const StateJsonNode& node) const { return input.substr (node.begin,node.end-node.begin); }
+    private:
+        std::string input;
+        size_t position=0,nodes=0;
+        void space() { while (position<input.size() && (input[position]==' ' || input[position]=='\n' || input[position]=='\r' || input[position]=='\t')) ++position; }
+        bool take (char c) { space(); if (position==input.size() || input[position]!=c) return false; ++position; return true; }
+        bool digits() { const auto start=position; while(position<input.size() && input[position]>='0' && input[position]<='9') ++position; return position>start; }
+        bool quoted (juce::String* decoded=nullptr)
+        {
+            const auto start=position;
+            if(position==input.size() || input[position++]!='"') return false;
+            while(position<input.size())
+            {
+                const auto c=input[position++];
+                if(c=='\\') { if(position==input.size()) return false; ++position; }
+                else if(c=='"')
+                {
+                    const auto parsed=juce::JSON::fromString(juce::String::fromUTF8(input.data()+start,int(position-start)));
+                    if(!parsed.isString()) return false;
+                    if(decoded) *decoded=parsed.toString();
+                    return true;
+                }
+            }
+            return false;
+        }
+        bool value (StateJsonNode& node,int depth)
+        {
+            space(); if(depth>64 || ++nodes>65536 || position==input.size()) return false;
+            node.begin=position; const auto c=input[position]; node.kind=c;
+            if(c=='{' || c=='[')
+            {
+                ++position; const char close=c=='{'?'}':']';
+                if(take(close)) { node.end=position; return true; }
+                do
+                {
+                    if(c=='{') { juce::String key; space(); if(!quoted(&key) || !take(':')) return false; node.keys.push_back(key); }
+                    StateJsonNode child; if(!value(child,depth+1)) return false; node.children.push_back(std::move(child));
+                    if(take(close)) { node.end=position; return true; }
+                } while(take(','));
+                return false;
+            }
+            if(c=='"') { if(!quoted()) return false; }
+            else if(c=='t' || c=='f' || c=='n')
+            {
+                const std::string word=c=='t'?"true":c=='f'?"false":"null";
+                if(input.compare(position,word.size(),word)!=0) return false;
+                position+=word.size();
+            }
+            else
+            {
+                node.kind='#'; if(c=='-') ++position;
+                if(position==input.size()) return false;
+                if(input[position]=='0') ++position; else if(!digits()) return false;
+                if(position<input.size() && input[position]=='.') { ++position; if(!digits()) return false; }
+                if(position<input.size() && (input[position]=='e' || input[position]=='E'))
+                { ++position; if(position<input.size() && (input[position]=='+' || input[position]=='-')) ++position; if(!digits()) return false; }
+            }
+            node.end=position; return true;
+        }
+    };
+
+    const char* stateJsonType (char kind)
+    {
+        switch(kind) { case '{':return "object"; case '[':return "array"; case '"':return "string";
+            case '#':return "number"; case 'n':return "null"; case 't':case 'f':return "boolean"; default:return "unknown"; }
+    }
+
+    bool stateJsonKnownKey (const juce::String& key,bool root)
+    {
+        // Unknown names may themselves contain private data. Dynamic parameter,
+        // asset and extension maps are deliberately opaque below their container.
+        static const juce::StringArray roots {"preset","referencePedals","ui","normalization","modulation","metronome","stability","setlist","routing","midiLearn","tune","lockedParameters","slotBActive","presetMorphPosition","formatVersion","savedBy","jamPlayValue","jamFillNowValue","clickToMain","liveMode"};
+        static const juce::StringArray fields {"schema","schemaVersion","parameters","params","modulation","lfos","envelopes","sequencers","followers","points","steps","v","g","s","p","rate","sync","division","phase","depth","symmetry","shape","retrigger","smoothing","bipolar","delay","attack","hold","decay","sustain","release","loop","curves","source","string","length","direction","swing","instances","order","enabled","mix","mixLaw","limiterOn","reportLatency","cpuCapPct","tempoBpm","midiChan","tempoSource","abSelect","abOut","mode","boardStyle","window","parallelNorm","numLanes","lanes","gainDb","phaseInvert","loops","used","kind","blend","sendDb","returnDb","first","last","feedback","on","src","dst","gain","kill","lpHz","runawayOk","extras","id","rev","placement","lane","slot","inDb","outDb","x","mounting","name"};
+        return (root?roots:fields).contains(key);
+    }
+
+    juce::String firstStateJsonDifference (const StateJsonReader& a,const StateJsonNode& an,
+                                          const StateJsonReader& b,const StateJsonNode& bn,
+                                          const juce::String& path,bool opaque=false)
+    {
+        const auto types=juce::String(" types=")+stateJsonType(an.kind)+"/"+stateJsonType(bn.kind);
+        if(juce::String(stateJsonType(an.kind))!=stateJsonType(bn.kind)) return "path="+path+" reason=type"+types;
+        if(an.kind=='{' || an.kind=='[')
+        {
+            const auto common=std::min(an.children.size(),bn.children.size());
+            for(size_t i=0;i<common;++i)
+            {
+                auto childPath=path+"["+juce::String(int(i))+"]"; bool childOpaque=opaque;
+                if(an.kind=='{')
+                {
+                    const auto& ak=an.keys[i]; const auto& bk=bn.keys[i];
+                    if(ak!=bk)
+                    {
+                        auto sortedA=an.keys,sortedB=bn.keys;
+                        std::sort(sortedA.begin(),sortedA.end()); std::sort(sortedB.begin(),sortedB.end());
+                        const bool sameKeys=sortedA==sortedB;
+                        return "path="+path+"[property#"+juce::String(int(i))+"] reason="+(sameKeys?"key-order":"key-membership")+types
+                            +" lengths="+juce::String(int(an.children.size()))+"/"+juce::String(int(bn.children.size()));
+                    }
+                    const bool known=!opaque && stateJsonKnownKey(ak,path=="$");
+                    childPath=known?path+"."+ak:path+"[property#"+juce::String(int(i))+"]";
+                    childOpaque=opaque || !known || ak=="extras" || ak=="parameters" || ak=="params" || ak=="name";
+                }
+                const auto difference=firstStateJsonDifference(a,an.children[i],b,bn.children[i],childPath,childOpaque);
+                if(difference.isNotEmpty()) return difference;
+            }
+            if(an.children.size()!=bn.children.size()) return "path="+path+" reason=length"+types+" lengths="+juce::String(int(an.children.size()))+"/"+juce::String(int(bn.children.size()));
+            return {};
+        }
+        const auto at=a.token(an),bt=b.token(bn);
+        if(at==bt) return {};
+        auto result="path="+path+" reason="+(an.kind=='#'?"numeric-representation":an.kind=='"'?"string-representation":"value")+types;
+        if(an.kind=='#' && !opaque && at.size()<=48 && bt.size()<=48) result+=" tokens="+juce::String(at)+"/"+juce::String(bt);
+        else result+=" values=<redacted> tokenLengths="+juce::String(int(at.size()))+"/"+juce::String(int(bt.size()));
+        return result;
+    }
+
+    juce::String stateJsonDiagnostic (const juce::String& a,const juce::String& b)
+    {
+        const auto aa=a.toStdString(),bb=b.toStdString(); size_t first=0;
+        while(first<std::min(aa.size(),bb.size()) && aa[first]==bb[first]) ++first;
+        auto summary=juce::String("bytes=")+juce::String(juce::int64(aa.size()))+"/"+juce::String(juce::int64(bb.size()))+" firstByte="+juce::String(juce::int64(first))+" ";
+        StateJsonReader ar(a),br(b); StateJsonNode an,bn;
+        if(!ar.parse(an) || !br.parse(bn)) return summary+"reason=diagnostic-parse-unavailable values=<redacted>";
+        const auto difference=firstStateJsonDifference(ar,an,br,bn,"$");
+        return summary+(difference.isEmpty()?juce::String("path=$ reason=whitespace-or-encoding"):difference);
+    }
+
     /** Equal states; when not, both are left in the temp folder to diff. */
     bool sameState (const juce::String& a, const juce::String& b, const char* name)
     {
@@ -34,6 +195,8 @@ namespace
         auto dir = juce::File::getSpecialLocation (juce::File::tempDirectory);
         dir.getChildFile (juce::String (name) + "-a.json").replaceWithText (a);
         dir.getChildFile (juce::String (name) + "-b.json").replaceWithText (b);
+        try { std::cout << "HostState exact JSON mismatch: " << stateJsonDiagnostic (a,b) << std::endl; }
+        catch (...) { std::cout << "HostState exact JSON mismatch: diagnostic unavailable; values=<redacted>" << std::endl; }
         return false;
     }
 }
@@ -77,6 +240,44 @@ LUTHIER_TEST (HostState, anUnpreparedInstanceSavesTheSameStateAsAPreparedOne)
     auto unprepared = std::make_unique<LuthierAudioProcessor>();
 
     CHECK (sameState (asText (saveState (*prepared)), asText (saveState (*unprepared)), "luthier-unprepared"));
+}
+
+LUTHIER_TEST (HostState, failureDiagnosticsPreserveNumericTokensAndRedactPrivateState)
+{
+    const auto diagnostic=[](const char* a,const char* b){return stateJsonDiagnostic(juce::String(a),juce::String(b));};
+    const auto signedZero=diagnostic(R"({"referencePedals":{"mix":-0.0}})",R"({"referencePedals":{"mix":0.0}})");
+    CHECK(signedZero.contains("path=$.referencePedals.mix")); CHECK(signedZero.contains("tokens=-0.0/0.0"));
+    CHECK(signedZero.contains("types=number/number")); CHECK(signedZero.contains("bytes=")); CHECK(signedZero.contains("firstByte="));
+    CHECK(diagnostic(R"({"referencePedals":{"mix":1}})",R"({"referencePedals":{"mix":1.0}})").contains("tokens=1/1.0"));
+    CHECK(diagnostic(R"({"referencePedals":{"mix":1e-200}})",R"({"referencePedals":{"mix":1.0000000000000001e-200}})").contains("tokens=1e-200/1.0000000000000001e-200"));
+    const auto order=diagnostic(R"({"referencePedals":{"enabled":false,"mix":1.0}})",R"({"referencePedals":{"mix":1.0,"enabled":false}})");
+    CHECK(order.contains("reason=key-order")); CHECK(order.contains("path=$.referencePedals[property#0]")); CHECK(order.contains("lengths=2/2"));
+    CHECK(diagnostic(R"({"referencePedals":{"mix":1}})",R"({"referencePedals":{"enabled":true}})").contains("reason=key-membership"));
+    const auto type=diagnostic(R"({"referencePedals":{"mix":1}})",R"({"referencePedals":{"mix":"SECRET_STRING"}})");
+    CHECK(type.contains("reason=type")); CHECK(type.contains("types=number/string")); CHECK(!type.contains("SECRET_STRING"));
+    CHECK(diagnostic(R"({"preset":{"modulation":{"lfos":[{"points":[0,1]}]}}})",R"({"preset":{"modulation":{"lfos":[{"points":[0]}]}}})").contains("path=$.preset.modulation.lfos[0].points reason=length"));
+    const auto string=diagnostic(R"({"preset":{"name":"SECRET_A"}})",R"({"preset":{"name":"SECRET_B_LONG"}})");
+    CHECK(string.contains("reason=string-representation")); CHECK(string.contains("values=<redacted>")); CHECK(!string.contains("SECRET_")); CHECK(string.contains("tokenLengths=10/15"));
+    const auto privateKey=diagnostic(R"({"PRIVATE_LICENSE_KEY":{"mix":1122334455}})",R"({"PRIVATE_LICENSE_KEY":{"mix":9988776655}})");
+    CHECK(privateKey.contains("path=$[property#0][property#0]")); CHECK(privateKey.contains("values=<redacted>")); CHECK(!privateKey.contains("PRIVATE_LICENSE_KEY")); CHECK(!privateKey.contains("1122334455")); CHECK(!privateKey.contains("9988776655"));
+    const auto opaque=diagnostic(R"({"referencePedals":{"extras":{"mix":1122334455}}})",R"({"referencePedals":{"extras":{"mix":9988776655}}})");
+    CHECK(opaque.contains("values=<redacted>")); CHECK(!opaque.contains("1122334455")); CHECK(!opaque.contains("9988776655"));
+    const auto parameters=diagnostic(R"({"preset":{"parameters":{"PRIVATE_PARAM":1122334455}}})",R"({"preset":{"parameters":{"PRIVATE_PARAM":9988776655}}})");
+    CHECK(parameters.contains("path=$.preset.parameters[property#0]")); CHECK(!parameters.contains("PRIVATE_PARAM")); CHECK(!parameters.contains("1122334455"));
+    CHECK(diagnostic(R"({"referencePedals":{"mix":1}})",R"({ "referencePedals" : { "mix" : 1 } })").contains("reason=whitespace-or-encoding"));
+    CHECK(diagnostic(R"({"referencePedals":{"mix":1}})",R"({"referencePedals":{"mix":PRIVATE_INVALID}})").contains("reason=diagnostic-parse-unavailable"));
+    CHECK(diagnostic(R"({"reference\u0050edals":{"mix":-0.0}})",R"({"referencePedals":{"mix":0.0}})").contains("path=$.referencePedals.mix"));
+    CHECK(diagnostic(R"({"referencePedals":{"mix":0}})",R"({"referencePedals":{"mix":0,}})").contains("reason=diagnostic-parse-unavailable"));
+    CHECK(diagnostic(R"({"referencePedals":{"mix":0}})",R"({"referencePedals":{"mix":01}})").contains("reason=diagnostic-parse-unavailable"));
+    const auto deep=juce::String::repeatedString("[",66)+"0"+juce::String::repeatedString("]",66);
+    CHECK(stateJsonDiagnostic(deep,deep+" ").contains("reason=diagnostic-parse-unavailable"));
+    const auto escaped=diagnostic(R"({"preset":{"name":"SECRET_\\\"VALUE_A"}})",R"({"preset":{"name":"SECRET_\\\"VALUE_B"}})");
+    CHECK(escaped.contains("values=<redacted>")); CHECK(!escaped.contains("SECRET_"));
+    CHECK(diagnostic(R"({"preset":{"name":0,"name":1}})",R"({"preset":{"name":0,"mix":1}})").contains("reason=key-membership"));
+    const auto unknownOrder=diagnostic(R"({"PRIVATE_KEY_A":123})",R"({"PRIVATE_KEY_B":456})");
+    CHECK(unknownOrder.contains("reason=key-membership")); CHECK(!unknownOrder.contains("PRIVATE_KEY"));
+
+
 }
 
 //==============================================================================
@@ -388,6 +589,8 @@ LUTHIER_TEST (HostState, unknownSectionsSurviveWriteBack)
 // place with nothing kept of the original.
 LUTHIER_TEST (HostState, anOldBlobIsBackedUpBeforeMigration)
 {
+    ScopedHostDiagnostics diagnostics;
+    CHECK (diagnostics.folder.isDirectory());
     LuthierAudioProcessor p;
     p.prepareToPlay (48000.0, 256);
 
@@ -402,14 +605,14 @@ LUTHIER_TEST (HostState, anOldBlobIsBackedUpBeforeMigration)
 
     const auto old = juce::JSON::toString (saved, false);
 
-    auto before = Diagnostics::getDiagnosticsFolder().findChildFiles (
+    auto before = LuthierAudioProcessor::getStateBackupFolder().findChildFiles (
         juce::File::findFiles, false, "state-backup-*.json");
 
     LuthierAudioProcessor restored;
     restored.prepareToPlay (48000.0, 256);
     restored.setStateInformation (old.toRawUTF8(), (int) old.getNumBytesAsUTF8());
 
-    auto after = Diagnostics::getDiagnosticsFolder().findChildFiles (
+    auto after = LuthierAudioProcessor::getStateBackupFolder().findChildFiles (
         juce::File::findFiles, false, "state-backup-*.json");
 
     // A new file, not a larger count: the folder keeps only the newest 20
@@ -426,6 +629,32 @@ LUTHIER_TEST (HostState, anOldBlobIsBackedUpBeforeMigration)
         }
 
     CHECK_MSG (created == 1, "expected one new state backup, saw " + juce::String (created));
+}
+
+LUTHIER_TEST (HostState, backupTestOverridePreservesDefaultPathExactBytesAndTwentyFileLimit)
+{
+    const auto realFolder = juce::File::getSpecialLocation (juce::File::userDocumentsDirectory)
+                                .getChildFile ("Luthier").getChildFile ("Diagnostics");
+    CHECK (LuthierAudioProcessor::getStateBackupFolder() == realFolder);
+    {
+        ScopedHostDiagnostics diagnostics;
+        CHECK (diagnostics.folder.isDirectory());
+        CHECK (LuthierAudioProcessor::getStateBackupFolder() == diagnostics.folder);
+        LuthierAudioProcessor p;
+        auto state = juce::JSON::parse (asText (saveState (p)));
+        state.getDynamicObject()->removeProperty ("formatVersion");
+        const auto original = juce::JSON::toString (state, false);
+        for (int i = 0; i < 23; ++i)
+        {
+            p.setStateInformation (original.toRawUTF8(), (int) original.getNumBytesAsUTF8());
+            const auto backups = diagnostics.folder.findChildFiles (juce::File::findFiles, false, "state-backup-*.json");
+            CHECK (backups.size() == juce::jmin (i + 1, 20));
+        }
+        const auto retained = diagnostics.folder.findChildFiles (juce::File::findFiles, false, "state-backup-*.json");
+        for (const auto& file : retained)
+            CHECK (file.loadFileAsString() == original);
+    }
+    CHECK (LuthierAudioProcessor::getStateBackupFolder() == realFolder);
 }
 
 //==============================================================================

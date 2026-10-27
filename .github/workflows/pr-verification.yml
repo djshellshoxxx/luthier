@@ -22,6 +22,40 @@ jobs:
       lto: ${{ github.head_ref == 'codex/luthier-pro-v01-release' }}
     secrets: inherit
 
+  # Posts a short digest of the uploaded native logs (unit-test failures, build
+  # errors, validator summaries) as a PR comment, so results are readable where
+  # Actions log access is unavailable. Read-only on results; never alters them.
+  digest:
+    name: Post native CI digest
+    needs: platforms
+    if: ${{ always() && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Download log artifacts
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: logs-*
+          path: ci-logs
+      - name: Comment digest
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          python3 scripts/ci_failure_digest.py ci-logs "$url" "${{ github.event.pull_request.head.sha }}" > digest.md
+          printf '\nPlatform job results: %s\n' '${{ needs.platforms.result }}' >> digest.md
+          gh pr comment "${{ github.event.pull_request.number }}" --body-file digest.md
+
 
   # A separate Mac-only prerelease, published only after all native Pro CI
   # platforms have passed. Does not modify the all-platform v0.1-beta workflow.

@@ -1,12 +1,15 @@
 # Luthier
 
-A physically-modelled guitar plugin (VST3, AU, CLAP and standalone), built with
-JUCE 8. Every note is a digital waveguide string coupled through a bridge to a
+Luthier is a software artwork and a physically modelled guitar instrument,
+built with JUCE 8 for VST3, AU, CLAP and standalone use. Every note is a digital waveguide string coupled through a bridge to a
 body, a pickup, a guitar circuit, an amp, a cabinet and a room. There are no
 samples in it.
 
 The full front page, with the content counts, architecture, DSP rules and the
 deliberate deviations from the brief, is [spec/README.md](spec/README.md).
+
+The reference pedalboard is in development. Its implementation and outstanding
+release gates are tracked in the [pedalboard acceptance ledger](docs/coverage/PEDALBOARD-ACCEPTANCE.md).
 
 ## Feature screenshots
 

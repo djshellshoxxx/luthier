@@ -130,7 +130,7 @@ The renderer runs on a worker thread, has no UI, and is shared by the plugin and
    `PreviewPlayer` adds `OutputNormalization::getPreviewGainOffsetDb (truePeakDbtp)` (`target + 18` dB, limited
    to -1 dBTP). The calibrator borrows this service's offline instance through a top-priority `calibration`
    lane once the service exists.
-8. Encode Ogg Vorbis, 48 kHz stereo, q0.5, 64 KB or less, plus a 64-point peak envelope.
+8. Encode Ogg Vorbis, 48 kHz stereo, q0.5 by default, 64 KB or less, plus a 64-point peak envelope. PB-02 also requires decoded integrated loudness within 0.5 LU of the fresh render. If the q0.5 decode exceeds that loudness tolerance, retry at q0.6 and retain that encoding only when it still meets both the same 0.5 LU fidelity limit and 64 KB per-clip limit. Otherwise retain q0.5 and report the PB-02 failure; do not relax either acceptance threshold.
 
 A cancel flag is checked every block. A job that runs longer than 10 s of wall time is abandoned and marked
 failed. A Free offline instance renders with Free's neutralised values (`editions.md` 5.1.3) automatically.
@@ -472,7 +472,7 @@ These use the reference CPU of `performance-budget.md`.
 | Trigger to audible | 30 ms or less if decoded, 60 ms or less from disk (after the dwell) |
 | Render one 4 s preview | steady-state preset 1.0 s wall or less on one core; heaviest factory preset ("8-String Djent", "Physics Showcase") 2.0 s or less |
 | Offline instance | cold create 400 ms or less; 300 MB RSS extra or less while alive; freed after 30 s idle; total under the 900 MB cap |
-| Memory and disk | decoded clips 16 MB or less; cache 128 MB or less; shipped factory previews 3 MB or less |
+| Memory and disk | decoded clips 16 MB or less; cache 128 MB or less; shipped factory previews 3 MB (3,145,728 bytes) or less |
 | Search keystroke to repaint | 16 ms or less at 5,000 presets, 4 ms or less at 500; similarity 2 ms or less at 5,000 |
 | Browser open | 150 ms or less with a warm index; cold index build 1.5 s or less per 500 presets, on the worker |
 

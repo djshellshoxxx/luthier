@@ -14,6 +14,8 @@ endif()
 
 option(LUTHIER_BUILD_TESTS "Build the Luthier unit-test runner" ON)
 option(LUTHIER_BUILD_CLI   "Build the offline batch-render CLI"  ON)
+# address | undefined | address,undefined | thread. Applies to LuthierTests only.
+set(LUTHIER_SANITIZE "" CACHE STRING "Sanitizer(s) for LuthierTests: address, undefined, thread (empty = off)")
 
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/Editions.cmake")
 # Link-time optimisation for the plugin targets. On for shipped builds; CI turns
@@ -30,6 +32,7 @@ if (LUTHIER_ENABLE_SENTRY AND (NOT DEFINED SENTRY_DSN OR SENTRY_DSN STREQUAL "")
     set(SENTRY_DSN "$ENV{SENTRY_DSN}")
 endif()
 
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/JuceMidiCapacity.cmake")
 add_subdirectory(ThirdParty/JUCE)
 
 if (LUTHIER_IS_PRO)
@@ -46,6 +49,7 @@ endif()
 # simply has no CLAP target.
 set(LUTHIER_CLAP_EXTENSIONS "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/clap-juce-extensions")
 if (EXISTS "${LUTHIER_CLAP_EXTENSIONS}/CMakeLists.txt")
+    include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/ClapHostIntent.cmake")
     add_subdirectory("${LUTHIER_CLAP_EXTENSIONS}" EXCLUDE_FROM_ALL)
     set(LUTHIER_HAS_CLAP TRUE)
 else()
@@ -76,6 +80,11 @@ if(NOT DEFINED LUTHIER_BUILD_STRING OR LUTHIER_BUILD_STRING STREQUAL "")
         endif()
     endif()
 endif()
+
+# Only Diagnostics consumes the build stamp. Scope it to that source so a new
+# Git SHA / CI identity does not recompile every DSP, UI and JUCE translation unit.
+set_property(SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/Source/Support/Diagnostics.cpp"
+    APPEND PROPERTY COMPILE_DEFINITIONS "LUTHIER_BUILD_STRING=\"${LUTHIER_BUILD_STRING}\"")
 
 set(LUTHIER_FORMATS VST3 Standalone)
 if (APPLE)
@@ -124,13 +133,28 @@ endif()
 set(LUTHIER_WIP_REGEX "Source/WIP/")
 list(FILTER LUTHIER_SOURCES EXCLUDE REGEX "${LUTHIER_WIP_REGEX}")
 
+# Reference pedalboard (spec/reference-pedalboard/specs/IMPLEMENTATION_PLAN.md WP1).
+# Source/ReferencePedals/** is compiled into LuthierRender, which is headless, so
+# none of it may include GUI code. Source/UI/ReferencePedals/** may. The same scan
+# runs as the unit test RefPedalApi.noGuiIncludes.
+file(GLOB_RECURSE LUTHIER_REF_ENGINE_FILES CONFIGURE_DEPENDS
+     "${CMAKE_CURRENT_SOURCE_DIR}/Source/ReferencePedals/*.h"
+     "${CMAKE_CURRENT_SOURCE_DIR}/Source/ReferencePedals/*.cpp"
+     "${CMAKE_CURRENT_SOURCE_DIR}/Source/ReferencePedals/*.inc")
+foreach (ref_file IN LISTS LUTHIER_REF_ENGINE_FILES)
+    file(STRINGS "${ref_file}" ref_gui_lines
+         REGEX "^[ \t]*#[ \t]*include[ \t]*[<\"][^>\"]*(juce_gui_basics|juce_gui_extra|juce_audio_utils|juce_opengl|juce_audio_plugin_client|PluginEditor|/UI/)")
+    if (ref_gui_lines)
+        message(FATAL_ERROR "Source/ReferencePedals must stay free of GUI code (it is built into the headless renderer): ${ref_file}\n  ${ref_gui_lines}")
+    endif()
+endforeach()
+
 target_sources(Luthier PRIVATE ${LUTHIER_SOURCES})
 
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/Source" FILES ${LUTHIER_SOURCES})
 
 target_compile_definitions(Luthier PUBLIC
     LUTHIER_PRO=${LUTHIER_IS_PRO}
-    LUTHIER_BUILD_STRING="${LUTHIER_BUILD_STRING}"
     LUTHIER_HEADLESS=0
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
@@ -295,7 +319,6 @@ list(FILTER LUTHIER_UI_SOURCES EXCLUDE REGEX "Source/UI/UiPreferences\.cpp$")
 
 set(LUTHIER_CONSOLE_DEFS
     LUTHIER_PRO=${LUTHIER_IS_PRO}
-    LUTHIER_BUILD_STRING="${LUTHIER_BUILD_STRING}"
     LUTHIER_HEADLESS=1
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
@@ -358,8 +381,49 @@ if (LUTHIER_BUILD_TESTS)
 
     luthier_copy_resources(LuthierTests "$<TARGET_FILE_DIR:LuthierTests>/Resources")
 
+    # Sanitizers for the unit-test runner only (reference pedalboard QA, WP1/WP24):
+    #   cmake -DLUTHIER_SANITIZE=address,undefined ...   or   -DLUTHIER_SANITIZE=thread
+    # "thread" cannot be combined with "address". Not supported on MSVC.
+    # LUTHIER_SOAK=1 (runtime env) switches the RefPedalSoak tests from 20 s to 30 min.
+    if (LUTHIER_SANITIZE AND NOT MSVC)
+        if (LUTHIER_SANITIZE MATCHES "thread" AND LUTHIER_SANITIZE MATCHES "address")
+            message(FATAL_ERROR "LUTHIER_SANITIZE: thread and address cannot be combined")
+        endif()
+        message(STATUS "Luthier: LuthierTests built with -fsanitize=${LUTHIER_SANITIZE}")
+        target_compile_options(LuthierTests PRIVATE -fsanitize=${LUTHIER_SANITIZE} -fno-omit-frame-pointer)
+        target_link_options(LuthierTests PRIVATE -fsanitize=${LUTHIER_SANITIZE})
+    elseif (LUTHIER_SANITIZE)
+        message(WARNING "LUTHIER_SANITIZE is ignored on MSVC")
+    endif()
+
+    # Header self-containment of the frozen reference-pedalboard interfaces: one
+    # translation unit per header that includes nothing else, so a missing include
+    # fails the build instead of whichever file happens to include it second.
+    set(LUTHIER_REF_FROZEN_HEADERS
+        ReferencePedals/PedalDesc.h ReferencePedals/IPedal.h ReferencePedals/PedalBase.h
+        ReferencePedals/PedalRegistry.h ReferencePedals/Registration.h ReferencePedals/Topology.h
+        ReferencePedals/BoardCommand.h ReferencePedals/BoardTypes.h ReferencePedals/BoardModel.h
+        ReferencePedals/Board.h ReferencePedals/LegacyModel.h ReferencePedals/Rt/SpscRing.h
+        ReferencePedals/Rt/RetireList.h ReferencePedals/Services/IAssetStore.h
+        ReferencePedals/Routing/RoutingNodes.h ReferencePedals/Midi/MidiTypes.h
+        ReferencePedals/Midi/MidiRouter.h UI/ReferencePedals/PedalFace.h
+        UI/ReferencePedals/PedalFaceFactory.h UI/ReferencePedals/BoardWindow.h)
+    set(LUTHIER_REF_HEADER_CHECKS "")
+    foreach (ref_header IN LISTS LUTHIER_REF_FROZEN_HEADERS)
+        string(MAKE_C_IDENTIFIER "${ref_header}" ref_header_id)
+        set(ref_check_cpp "${CMAKE_CURRENT_BINARY_DIR}/ref_header_checks/check_${ref_header_id}.cpp")
+        file(GENERATE OUTPUT "${ref_check_cpp}"
+             CONTENT "// generated by CMakeLists.txt: ${ref_header} must compile on its own\n#include \"${CMAKE_CURRENT_SOURCE_DIR}/Source/${ref_header}\"\n")
+        list(APPEND LUTHIER_REF_HEADER_CHECKS "${ref_check_cpp}")
+    endforeach()
+    target_sources(LuthierTests PRIVATE ${LUTHIER_REF_HEADER_CHECKS})
+
     enable_testing()
     add_test(NAME LuthierUnitTests COMMAND LuthierTests)
+    # Reference pedalboard: the new suites (plan sec 1 E24: names start with RefPedal)
+    # and the prototype suites that stay until they are migrated.
+    add_test(NAME RefPedalSuite COMMAND LuthierTests refpedal)
+    add_test(NAME RefPedalLegacy COMMAND LuthierTests referencepedals referencephraseloop)
     # SPEC-SWEEP (TROUBLESHOOTING TS-1): the documented install paths match the installers.
     add_test(NAME PackagingPaths COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/scripts/check_packaging_paths.cmake)
 

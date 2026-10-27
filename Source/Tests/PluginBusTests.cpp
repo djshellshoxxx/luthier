@@ -75,7 +75,7 @@ LUTHIER_TEST (PluginBuses, aux8NoiseIsDeclaredLastSoNoBusNumberMoved)
 {
     LuthierAudioProcessor processor;
 
-    CHECK (processor.getBusCount (false) == 2 + kNumAuxBuses + kNumPerStringBuses + 2);   // + Aux 9 and 10, FEAT-JAM
+    CHECK (processor.getBusCount (false) == 2 + kNumAuxBuses + kNumPerStringBuses + 2 + 3);   // + Aux 9 and 10, FEAT-JAM; + Pedal B, Wet only, Dry only (appended pedalboard buses)
     CHECK (processor.getBus (false, 1)->getName() == getAuxBusName (0));
     CHECK (processor.getBus (false, stringBusIndex (0))->getName() == "String 1");
     CHECK (processor.getBus (false, noiseBusIndex())->getName() == getAuxBusName (kNoiseAux));
@@ -172,4 +172,98 @@ LUTHIER_TEST (PluginBuses, monoMainOutputIsRefused)
 
     layout.outputBuses.getReference (0) = juce::AudioChannelSet::stereo();
     CHECK (processor.checkBusesLayoutSupported (layout));
+}
+
+// BOARD_CORE6.8/E54 appends optional sends after the complete existing host bus
+// prefix. Literal names/indices below freeze the session-facing legacy mapping.
+LUTHIER_TEST (PluginBuses, pedalboardSendsPreserveEveryLegacyOutputIndex)
+{
+    LuthierAudioProcessor processor;
+    const char* legacyNames[] {
+        "Output", "DI", "Amp (pre-cab)", "Cab Mic 1", "Cab Mic 2", "Room", "Wet FX", "Monitor",
+        "String 1", "String 2", "String 3", "String 4", "String 5", "String 6",
+        "String 7", "String 8", "String 9", "String 10", "String 11", "String 12",
+        "Noise", "Jam Drums", "Jam Bass"
+    };
+    constexpr int legacyCount = 23;
+    CHECK (kNumAuxBuses == 7 && kNumPerStringBuses == 12);
+    CHECK (processor.getBusCount (false) == legacyCount + 3);
+    for (int index = 0; index < legacyCount; ++index)
+    {
+        const auto* bus = processor.getBus (false, index);
+        CHECK_MSG (bus != nullptr, "missing legacy bus " + juce::String (index));
+        if (bus == nullptr) continue;
+        CHECK_MSG (bus->getName() == legacyNames[index], "legacy output index " + juce::String (index));
+        const bool perString = index >= 8 && index < 20;
+        CHECK (bus->getDefaultLayout() == (perString ? juce::AudioChannelSet::mono() : juce::AudioChannelSet::stereo()));
+        CHECK (bus->isEnabled() == (index == 0));
+    }
+    const char* appendedNames[] { "Pedal B", "Wet only", "Dry only" };
+    for (int send = 0; send < 3; ++send)
+    {
+        const auto* bus = processor.getBus (false, legacyCount + send);
+        CHECK (bus != nullptr);
+        if (bus == nullptr) continue;
+        CHECK (bus->getName() == appendedNames[send]);
+        CHECK (bus->getDefaultLayout() == juce::AudioChannelSet::stereo());
+        CHECK (! bus->isEnabled());
+    }
+    CHECK (processor.getBusCount (true) == 1);
+    const auto* sidechain = processor.getBus (true, 0);
+    CHECK (sidechain != nullptr);
+    if (sidechain != nullptr)
+    {
+        CHECK (sidechain->getName() == "Sidechain");
+        CHECK (sidechain->getDefaultLayout() == juce::AudioChannelSet::stereo());
+        CHECK (! sidechain->isEnabled());
+    }
+}
+
+LUTHIER_TEST (PluginBuses, appendedSendsSupportStereoIndependentlyAndKeepLegacyLayouts)
+{
+    LuthierAudioProcessor processor;
+    constexpr int legacyCount = 23;
+    const auto original = processor.getBusesLayout();
+    CHECK (original.outputBuses.size() == legacyCount + 3);
+    if (original.outputBuses.size() != legacyCount + 3) return;
+
+    for (int mask = 0; mask < 8; ++mask)
+    {
+        auto layout = original;
+        for (int send = 0; send < 3; ++send)
+            layout.outputBuses.getReference (legacyCount + send) = (mask & (1 << send)) != 0
+                ? juce::AudioChannelSet::stereo() : juce::AudioChannelSet::disabled();
+        CHECK (processor.checkBusesLayoutSupported (layout));
+        CHECK (processor.setBusesLayout (layout));
+        const auto accepted = processor.getBusesLayout();
+        for (int index = 0; index < legacyCount; ++index)
+            CHECK (accepted.outputBuses[index] == original.outputBuses[index]);
+        for (int send = 0; send < 3; ++send)
+            CHECK (accepted.outputBuses[legacyCount + send] == layout.outputBuses[legacyCount + send]);
+    }
+    for (int send = 0; send < 3; ++send)
+    {
+        auto layout = original;
+        layout.outputBuses.getReference (legacyCount + send) = juce::AudioChannelSet::mono();
+        CHECK_MSG (! processor.checkBusesLayoutSupported (layout), "an appended send accepted mono");
+        layout.outputBuses.getReference (legacyCount + send) = juce::AudioChannelSet::quadraphonic();
+        CHECK_MSG (! processor.checkBusesLayoutSupported (layout), "an appended send accepted quad");
+    }
+    // Legacy stereo-only, aux, per-string and combined layouts remain valid
+    // with all three new sends disabled; no existing bus needs to move.
+    for (int mask = 0; mask < 4; ++mask)
+    {
+        auto layout = original;
+        for (int index = 1; index < legacyCount; ++index)
+        {
+            const bool perString = index >= 8 && index < 20;
+            const bool enabled = (mask & (perString ? 2 : 1)) != 0;
+            layout.outputBuses.getReference (index) = ! enabled ? juce::AudioChannelSet::disabled()
+                : perString ? juce::AudioChannelSet::mono() : juce::AudioChannelSet::stereo();
+        }
+        CHECK (processor.checkBusesLayoutSupported (layout));
+        CHECK (processor.setBusesLayout (layout));
+        for (int send = 0; send < 3; ++send)
+            CHECK (! processor.getBus (false, legacyCount + send)->isEnabled());
+    }
 }

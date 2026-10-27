@@ -1,0 +1,16 @@
+
+================================================================
+ LUTHIER TEST SUITE
+================================================================
+
+
+IrReload
+----------------------------------------------------------------
+  [pass]  theFirstNoteAfterALoadIsEveryNote           28 checks     1496.61 ms
+  [pass]  throughThePluginAGuitarChangeLeavesNoOnsetDifference3 checks      751.596 ms
+  [pass]  tinyBlocksInstallConsecutiveResponses       16 checks     177.88 ms
+
+================================================================
+ ALL PASSED
+ 3 tests, 47 checks, 2.4 s
+================================================================

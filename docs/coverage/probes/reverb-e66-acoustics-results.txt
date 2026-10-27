@@ -1,0 +1,115 @@
+level sr44100 stimulus0 type0 actual_wet_db-0.640835 actual_wet_db_check-0.640835 actual_default_mix_db-0.100084 literal_sum_vs_L_db2.638271
+level sr44100 stimulus0 type1 actual_wet_db-0.368707 actual_wet_db_check-0.368707 actual_default_mix_db-0.092468 literal_sum_vs_L_db2.933592
+level sr44100 stimulus0 type2 actual_wet_db0.077620 actual_wet_db_check0.077620 actual_default_mix_db0.013544 literal_sum_vs_L_db3.207402
+level sr44100 stimulus0 type3 actual_wet_db0.011893 actual_wet_db_check0.011893 actual_default_mix_db-0.024676 literal_sum_vs_L_db2.863912
+level sr44100 stimulus0 type4 actual_wet_db-0.352258 actual_wet_db_check-0.352258 actual_default_mix_db-0.067230 literal_sum_vs_L_db2.860221
+level sr44100 stimulus1 type0 actual_wet_db1.299341 actual_wet_db_check1.299341 actual_default_mix_db0.256733 literal_sum_vs_L_db3.135147
+level sr44100 stimulus1 type1 actual_wet_db-0.850893 actual_wet_db_check-0.850893 actual_default_mix_db-0.061766 literal_sum_vs_L_db-0.839998
+level sr44100 stimulus1 type2 actual_wet_db0.098240 actual_wet_db_check0.098240 actual_default_mix_db0.837470 literal_sum_vs_L_db2.528172
+level sr44100 stimulus1 type3 actual_wet_db0.765043 actual_wet_db_check0.765043 actual_default_mix_db0.933050 literal_sum_vs_L_db7.608619
+level sr44100 stimulus1 type4 actual_wet_db-2.324280 actual_wet_db_check-2.324280 actual_default_mix_db-0.622082 literal_sum_vs_L_db1.819723
+level sr44100 stimulus2 type0 actual_wet_db2.307191 actual_wet_db_check2.307191 actual_default_mix_db1.210869 literal_sum_vs_L_db-3.236247
+level sr44100 stimulus2 type1 actual_wet_db-3.944338 actual_wet_db_check-3.944338 actual_default_mix_db-1.939159 literal_sum_vs_L_db-2.529208
+level sr44100 stimulus2 type2 actual_wet_db-3.715898 actual_wet_db_check-3.715898 actual_default_mix_db-0.742973 literal_sum_vs_L_db11.986010
+level sr44100 stimulus2 type3 actual_wet_db8.439560 actual_wet_db_check8.439560 actual_default_mix_db4.323384 literal_sum_vs_L_db5.465840
+level sr44100 stimulus2 type4 actual_wet_db1.412156 actual_wet_db_check1.412156 actual_default_mix_db1.993022 literal_sum_vs_L_db-1.197680
+level sr48000 stimulus0 type0 actual_wet_db-0.545695 actual_wet_db_check-0.545695 actual_default_mix_db-0.086789 literal_sum_vs_L_db2.822252
+level sr48000 stimulus0 type1 actual_wet_db-0.481748 actual_wet_db_check-0.481748 actual_default_mix_db-0.107686 literal_sum_vs_L_db2.872892
+level sr48000 stimulus0 type2 actual_wet_db0.074997 actual_wet_db_check0.074997 actual_default_mix_db0.007851 literal_sum_vs_L_db3.300693
+level sr48000 stimulus0 type3 actual_wet_db0.022220 actual_wet_db_check0.022220 actual_default_mix_db0.008289 literal_sum_vs_L_db2.809765
+level sr48000 stimulus0 type4 actual_wet_db-0.283119 actual_wet_db_check-0.283119 actual_default_mix_db-0.062218 literal_sum_vs_L_db2.741245
+level sr48000 stimulus1 type0 actual_wet_db1.464683 actual_wet_db_check1.464683 actual_default_mix_db0.437407 literal_sum_vs_L_db3.227627
+level sr48000 stimulus1 type1 actual_wet_db0.251997 actual_wet_db_check0.251997 actual_default_mix_db0.433947 literal_sum_vs_L_db-0.704741
+level sr48000 stimulus1 type2 actual_wet_db0.129285 actual_wet_db_check0.129285 actual_default_mix_db0.874914 literal_sum_vs_L_db2.524024
+level sr48000 stimulus1 type3 actual_wet_db0.717085 actual_wet_db_check0.717085 actual_default_mix_db0.907969 literal_sum_vs_L_db7.432728
+level sr48000 stimulus1 type4 actual_wet_db-2.371981 actual_wet_db_check-2.371981 actual_default_mix_db-0.543370 literal_sum_vs_L_db1.793277
+level sr48000 stimulus2 type0 actual_wet_db4.518795 actual_wet_db_check4.518795 actual_default_mix_db2.181599 literal_sum_vs_L_db-1.897810
+level sr48000 stimulus2 type1 actual_wet_db-1.133528 actual_wet_db_check-1.133528 actual_default_mix_db0.600113 literal_sum_vs_L_db6.276689
+level sr48000 stimulus2 type2 actual_wet_db-3.893414 actual_wet_db_check-3.893414 actual_default_mix_db-0.584377 literal_sum_vs_L_db9.549488
+level sr48000 stimulus2 type3 actual_wet_db7.580271 actual_wet_db_check7.580271 actual_default_mix_db3.749561 literal_sum_vs_L_db5.871088
+level sr48000 stimulus2 type4 actual_wet_db-0.211998 actual_wet_db_check-0.211998 actual_default_mix_db1.090994 literal_sum_vs_L_db-1.417304
+level sr88200 stimulus0 type0 actual_wet_db-0.522501 actual_wet_db_check-0.522501 actual_default_mix_db-0.077647 literal_sum_vs_L_db2.853774
+level sr88200 stimulus0 type1 actual_wet_db-0.427397 actual_wet_db_check-0.427397 actual_default_mix_db-0.056476 literal_sum_vs_L_db2.850682
+level sr88200 stimulus0 type2 actual_wet_db0.120673 actual_wet_db_check0.120673 actual_default_mix_db0.033324 literal_sum_vs_L_db3.317472
+level sr88200 stimulus0 type3 actual_wet_db0.054967 actual_wet_db_check0.054967 actual_default_mix_db0.018180 literal_sum_vs_L_db2.742310
+level sr88200 stimulus0 type4 actual_wet_db-0.384384 actual_wet_db_check-0.384384 actual_default_mix_db-0.060865 literal_sum_vs_L_db2.859025
+level sr88200 stimulus1 type0 actual_wet_db0.864384 actual_wet_db_check0.864384 actual_default_mix_db0.090394 literal_sum_vs_L_db2.987303
+level sr88200 stimulus1 type1 actual_wet_db-0.219762 actual_wet_db_check-0.219762 actual_default_mix_db0.121015 literal_sum_vs_L_db-0.558284
+level sr88200 stimulus1 type2 actual_wet_db0.088639 actual_wet_db_check0.088639 actual_default_mix_db0.848905 literal_sum_vs_L_db2.488951
+level sr88200 stimulus1 type3 actual_wet_db0.774325 actual_wet_db_check0.774325 actual_default_mix_db0.921008 literal_sum_vs_L_db7.389117
+level sr88200 stimulus1 type4 actual_wet_db-2.549763 actual_wet_db_check-2.549763 actual_default_mix_db-0.623412 literal_sum_vs_L_db2.155989
+level sr88200 stimulus2 type0 actual_wet_db-4.111530 actual_wet_db_check-4.111530 actual_default_mix_db-0.303491 literal_sum_vs_L_db3.548153
+level sr88200 stimulus2 type1 actual_wet_db-0.089370 actual_wet_db_check-0.089370 actual_default_mix_db-1.363502 literal_sum_vs_L_db-2.212768
+level sr88200 stimulus2 type2 actual_wet_db-3.417784 actual_wet_db_check-3.417784 actual_default_mix_db-0.945288 literal_sum_vs_L_db10.190802
+level sr88200 stimulus2 type3 actual_wet_db7.313107 actual_wet_db_check7.313107 actual_default_mix_db4.424948 literal_sum_vs_L_db6.404057
+level sr88200 stimulus2 type4 actual_wet_db-5.341785 actual_wet_db_check-5.341785 actual_default_mix_db-1.202617 literal_sum_vs_L_db4.417084
+level sr96000 stimulus0 type0 actual_wet_db-0.564256 actual_wet_db_check-0.564256 actual_default_mix_db-0.099202 literal_sum_vs_L_db2.915316
+level sr96000 stimulus0 type1 actual_wet_db-0.428962 actual_wet_db_check-0.428962 actual_default_mix_db-0.084454 literal_sum_vs_L_db2.782649
+level sr96000 stimulus0 type2 actual_wet_db0.086190 actual_wet_db_check0.086190 actual_default_mix_db-0.005492 literal_sum_vs_L_db3.205044
+level sr96000 stimulus0 type3 actual_wet_db-0.055422 actual_wet_db_check-0.055422 actual_default_mix_db-0.026570 literal_sum_vs_L_db2.963441
+level sr96000 stimulus0 type4 actual_wet_db-0.375103 actual_wet_db_check-0.375103 actual_default_mix_db-0.064013 literal_sum_vs_L_db2.831215
+level sr96000 stimulus1 type0 actual_wet_db1.984736 actual_wet_db_check1.984736 actual_default_mix_db0.319983 literal_sum_vs_L_db4.180848
+level sr96000 stimulus1 type1 actual_wet_db-0.286170 actual_wet_db_check-0.286170 actual_default_mix_db0.209195 literal_sum_vs_L_db-0.403082
+level sr96000 stimulus1 type2 actual_wet_db0.091809 actual_wet_db_check0.091809 actual_default_mix_db0.845598 literal_sum_vs_L_db2.486507
+level sr96000 stimulus1 type3 actual_wet_db0.701116 actual_wet_db_check0.701116 actual_default_mix_db0.898115 literal_sum_vs_L_db7.404997
+level sr96000 stimulus1 type4 actual_wet_db-2.553373 actual_wet_db_check-2.553373 actual_default_mix_db-0.726964 literal_sum_vs_L_db2.262379
+level sr96000 stimulus2 type0 actual_wet_db-3.637370 actual_wet_db_check-3.637370 actual_default_mix_db-0.120467 literal_sum_vs_L_db7.744520
+level sr96000 stimulus2 type1 actual_wet_db-2.499750 actual_wet_db_check-2.499750 actual_default_mix_db-1.495854 literal_sum_vs_L_db2.027651
+level sr96000 stimulus2 type2 actual_wet_db-3.509255 actual_wet_db_check-3.509255 actual_default_mix_db-0.924303 literal_sum_vs_L_db9.896058
+level sr96000 stimulus2 type3 actual_wet_db7.486544 actual_wet_db_check7.486544 actual_default_mix_db4.615450 literal_sum_vs_L_db5.870636
+level sr96000 stimulus2 type4 actual_wet_db-7.752790 actual_wet_db_check-7.752790 actual_default_mix_db-0.816303 literal_sum_vs_L_db-1.319832
+level sr192000 stimulus0 type0 actual_wet_db-0.548166 actual_wet_db_check-0.548166 actual_default_mix_db-0.096859 literal_sum_vs_L_db2.615773
+level sr192000 stimulus0 type1 actual_wet_db-0.274595 actual_wet_db_check-0.274595 actual_default_mix_db-0.053179 literal_sum_vs_L_db2.879187
+level sr192000 stimulus0 type2 actual_wet_db0.035829 actual_wet_db_check0.035829 actual_default_mix_db0.003465 literal_sum_vs_L_db3.224396
+level sr192000 stimulus0 type3 actual_wet_db0.038001 actual_wet_db_check0.038001 actual_default_mix_db0.039582 literal_sum_vs_L_db2.750730
+level sr192000 stimulus0 type4 actual_wet_db-0.436028 actual_wet_db_check-0.436028 actual_default_mix_db-0.104128 literal_sum_vs_L_db2.888010
+level sr192000 stimulus1 type0 actual_wet_db1.405770 actual_wet_db_check1.405770 actual_default_mix_db0.252964 literal_sum_vs_L_db3.295294
+level sr192000 stimulus1 type1 actual_wet_db0.567508 actual_wet_db_check0.567508 actual_default_mix_db0.652858 literal_sum_vs_L_db-0.212368
+level sr192000 stimulus1 type2 actual_wet_db0.086924 actual_wet_db_check0.086924 actual_default_mix_db0.841689 literal_sum_vs_L_db2.485941
+level sr192000 stimulus1 type3 actual_wet_db0.697160 actual_wet_db_check0.697160 actual_default_mix_db0.894481 literal_sum_vs_L_db7.399078
+level sr192000 stimulus1 type4 actual_wet_db-2.616902 actual_wet_db_check-2.616902 actual_default_mix_db-0.643066 literal_sum_vs_L_db2.221037
+level sr192000 stimulus2 type0 actual_wet_db0.550360 actual_wet_db_check0.550360 actual_default_mix_db0.639750 literal_sum_vs_L_db-1.762934
+level sr192000 stimulus2 type1 actual_wet_db1.619895 actual_wet_db_check1.619895 actual_default_mix_db1.210950 literal_sum_vs_L_db-0.185170
+level sr192000 stimulus2 type2 actual_wet_db-3.763195 actual_wet_db_check-3.763195 actual_default_mix_db-0.859581 literal_sum_vs_L_db10.155093
+level sr192000 stimulus2 type3 actual_wet_db7.463485 actual_wet_db_check7.463485 actual_default_mix_db4.957101 literal_sum_vs_L_db5.871441
+level sr192000 stimulus2 type4 actual_wet_db-3.925715 actual_wet_db_check-3.925715 actual_default_mix_db-0.872308 literal_sum_vs_L_db2.115717
+density sr44100 bandlimit20k0 time0.100 L0.996899008 R0.907571140
+density sr44100 bandlimit20k0 time0.150 L0.970786540 R0.960079336
+density sr44100 bandlimit20k0 time0.200 L0.979033435 R1.032630156
+density sr44100 bandlimit20k0 time0.250 L1.004045238 R0.946875402
+density sr44100 bandlimit20k1 time0.100 L1.029057041 R0.971887205
+density sr44100 bandlimit20k1 time0.150 L0.977924677 R1.010046290
+density sr44100 bandlimit20k1 time0.200 L0.979033435 R1.025483926
+density sr44100 bandlimit20k1 time0.250 L1.032630156 R0.993325894
+density sr48000 bandlimit20k0 time0.100 L0.958577353 R0.771457801
+density sr48000 bandlimit20k0 time0.150 L1.003491238 R1.006770621
+density sr48000 bandlimit20k0 time0.200 L1.007819340 R0.961860152
+density sr48000 bandlimit20k0 time0.250 L1.007819340 R0.978274148
+density sr48000 bandlimit20k1 time0.100 L1.034081733 R0.886355771
+density sr48000 bandlimit20k1 time0.150 L0.996932471 R1.013329387
+density sr48000 bandlimit20k1 time0.200 L1.047212930 R1.004536541
+density sr48000 bandlimit20k1 time0.250 L1.050495729 R1.007819340
+density sr88200 bandlimit20k0 time0.100 L0.800377698 R0.777152453
+density sr88200 bandlimit20k0 time0.150 L0.910628026 R0.948124474
+density sr88200 bandlimit20k0 time0.200 L1.011191467 R1.029057041
+density sr88200 bandlimit20k0 time0.250 L0.993325894 R0.975460320
+density sr88200 bandlimit20k1 time0.100 L0.871839993 R0.866480321
+density sr88200 bandlimit20k1 time0.150 L0.992763103 R1.012404099
+density sr88200 bandlimit20k1 time0.200 L1.005831795 R0.987966221
+density sr88200 bandlimit20k1 time0.250 L1.039776385 R0.975460320
+density sr96000 bandlimit20k0 time0.100 L0.796078795 R0.640145835
+density sr96000 bandlimit20k0 time0.150 L0.885894368 R0.954797263
+density sr96000 bandlimit20k0 time0.200 L0.979915547 R1.012743539
+density sr96000 bandlimit20k0 time0.250 L0.993046744 R0.986481146
+density sr96000 bandlimit20k1 time0.100 L0.984839746 R0.791154596
+density sr96000 bandlimit20k1 time0.150 L0.961359444 R0.990889256
+density sr96000 bandlimit20k1 time0.200 L1.035723133 R1.025874736
+density sr96000 bandlimit20k1 time0.250 L1.012743539 R1.007819340
+density sr192000 bandlimit20k0 time0.100 L0.756685205 R0.648352833
+density sr192000 bandlimit20k0 time0.150 L0.973917025 R0.851664593
+density sr192000 bandlimit20k0 time0.200 L0.978274148 R0.991405344
+density sr192000 bandlimit20k0 time0.250 L0.979915547 R1.019309137
+density sr192000 bandlimit20k1 time0.100 L0.837113784 R0.837113784
+density sr192000 bandlimit20k1 time0.150 L0.973096539 R0.983762858
+density sr192000 bandlimit20k1 time0.200 L1.006177941 R0.964322251
+density sr192000 bandlimit20k1 time0.250 L0.988943245 R0.996329543

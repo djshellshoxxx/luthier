@@ -1,0 +1,71 @@
+// OWNER: WP17
+#pragma once
+#include "BoardCanvas.h"
+#include "PedalBrowser.h"
+#include "BoardUiState.h"
+#include "BoardViewport.h"
+#include "OwnedCallout.h"
+#include <juce_audio_processors/juce_audio_processors.h>
+namespace luthier {class LuthierAudioProcessor;}
+namespace luthier::reference
+{
+class BoardRoot final : public juce::Component, public juce::DragAndDropContainer, private BoardModel::Listener, private juce::Timer
+{
+public:
+    explicit BoardRoot(BoardModel&, LuthierAudioProcessor* = nullptr);
+    ~BoardRoot() override;
+    void resized() override;
+    void paint(juce::Graphics&) override;
+    bool keyPressed(const juce::KeyPress&) override;
+    void visibilityChanged() override;
+    juce::String statusText() const {return status.getText();}
+    void setCompact(bool);
+    void saveView();
+    void openSettings();
+    juce::Component* findHostControl(const juce::String&);
+    juce::Component* revealHostControl(const juce::String&);
+    std::function<void()> onDock, onPopout, onToggle, onReturnFocus;
+    BoardCanvas& boardCanvas(){return canvas;}
+private:
+    void refresh();
+    void showError(const juce::String&);
+    void layoutContent();
+    void settingsChanged() override {refresh();}
+    void orderChanged() override {refresh();}
+    void rejected(const juce::String& text) override {showError(text);}
+    void timerCallback() override;
+    void zoomTo(float);
+    void flushView();
+    void showAddMenu();
+    void showSettings();
+    BoardModel& model;
+    LuthierAudioProcessor* processor;
+    OwnedCallout settingsPopup;
+    BoardCanvas canvas;
+    BoardViewport viewport;
+    class ToolbarViewport final : public juce::Viewport {
+        void focusOfChildComponentChanged(FocusChangeType) override {
+            auto* child=juce::Component::getCurrentlyFocusedComponent();auto* body=getViewedComponent();if(!child||!body||!body->isParentOf(child))return;
+            const auto bounds=body->getLocalArea(child,child->getLocalBounds());int x=getViewPositionX();if(bounds.getX()<x)x=bounds.getX();else if(bounds.getRight()>x+getViewWidth())x=bounds.getRight()-getViewWidth();setViewPosition(x,getViewPositionY());
+        }
+    } toolbarViewport;
+    juce::Component toolbar;
+    PedalBrowser browser;
+    juce::TextButton add{"+ Add"},undo{"Undo"},redo{"Redo"},fit{"Fit"},minus{"-"},plus{"+"},dock{"Dock"},popout{"Pop out"},settings{"Settings"};
+    juce::ToggleButton enabled{"Board ON"},cables{"Cables"},learn{"MIDI Learn"},keepOnTop{"Keep on top"};
+    juce::Slider mix,tempo;
+    juce::ComboBox style,mode,mixLaw;
+    juce::Label status,zoomLabel;
+    bool compact=false,refreshing=false,savingView=false,settingFocus=false;
+    juce::String statusError;
+    float zoom=1.f;
+    uint32_t mixGesture=0;
+    bool pendingView=false;
+    double viewChangedAt=0;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> mixAttachment,tempoAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> enabledAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> modeAttachment,mixLawAttachment;
+    InstanceId learnId=InstanceId::null();int learnParam=0;bool learnContinuous=true;bool learnBoard=false;
+    double learnStart=0;
+};
+}

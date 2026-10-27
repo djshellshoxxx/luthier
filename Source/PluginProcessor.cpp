@@ -4,6 +4,9 @@
 // SPDX-License-Identifier: LicenseRef-Proprietary
 
 #include "PluginProcessor.h"
+#include "ReferencePedals/BoardState.h"
+#include "ReferencePedals/BoardModel.h"
+#include "ReferencePedals/PedalRegistry.h"
 #include "Support/BoundedMidi.h"   // RT-SAFETY P1
 #include "Updates/CrashWriter.h"   // SPEC-SWEEP: UT-16
 #include "Workshop/FamilyDefaults.h"   // guitar-illustration.md 12.3 (VISUAL-WORKSHOP-QA)
@@ -27,6 +30,9 @@
 
 namespace luthier
 {
+
+namespace { thread_local const LuthierAudioProcessor* referenceRestoreWriter = nullptr; }
+
 
 //==============================================================================
 /*  Advertises layouts A to D of routing-io 1 as one superset of buses, and
@@ -61,6 +67,9 @@ juce::AudioProcessor::BusesProperties LuthierAudioProcessor::buildBusesPropertie
     // jam-mode.md 7 (FEAT-JAM): Aux 9 and 10, after Aux 8, so nothing moves.
     props = props.withOutput (getAuxBusName (kJamDrumsAux), juce::AudioChannelSet::stereo(), false);
     props = props.withOutput (getAuxBusName (kJamBassAux), juce::AudioChannelSet::stereo(), false);
+
+    for (const auto* name : { "Pedal B", "Wet only", "Dry only" })
+        props = props.withOutput (name, juce::AudioChannelSet::stereo(), false);
 
     return props;
 }
@@ -263,6 +272,16 @@ LuthierAudioProcessor::LuthierAudioProcessor()
         loadGuitarForType ((GuitarType) juce::jlimit (0, (int) GuitarType::NumTypes - 1,
                                                       edition::effectiveGuitarIndex ((int) type->load())));   // editions 5.1.3
 
+    // Discover by stable ID: future append-only additions cannot shift this base.
+    for (int i = 0; i < getParameters().size(); ++i)
+        if (auto* parameter = dynamic_cast<juce::AudioProcessorParameterWithID*> (getParameters()[i]))
+            if (parameter->paramID == ParamIDs::refBoardEnabled) { referenceParameterBase = i; break; }
+    for (int i = 0; i < 323; ++i)
+    {
+        auto* p = dynamic_cast<juce::AudioProcessorParameterWithID*> (getParameters()[referenceParameterBase + i]);
+        referenceRawParameters[(size_t) i] = p ? apvts.getRawParameterValue (p->paramID) : nullptr;
+    }
+
     // action-and-undo.md 3.1: one undo entry per parameter gesture.
     for (auto* parameter : getParameters())
         parameter->addListener (this);
@@ -373,17 +392,19 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
 
     // jam-mode 13 (FEAT-JAM): a re-prepare rebuilds the band and sends it back to Armed.
     jam.prepare (sampleRate, samplesPerBlock);
-    jamNotes.ensureSize (8192);
-    jamTuneBass.ensureSize (4096);
-    jamScratch.ensureSize (TunePlayer::kRecommendedMidiBytes);
+    jamNotes.ensureSize (BoundedMidi::kReserveBytes);
+    jamTuneBass.ensureSize (BoundedMidi::kReserveBytes);
+    jamScratch.ensureSize (BoundedMidi::kReserveBytes);
     jamMain.setSize (2, juce::jmax (1, samplesPerBlock), false, true, false);
     jamMain.clear();
 
     for (auto* tuneBuffer : { &tuneToEngine, &tuneToMidiOut, &tuneDirect })
-        tuneBuffer->ensureSize (TunePlayer::kRecommendedMidiBytes);
+        tuneBuffer->ensureSize (BoundedMidi::kReserveBytes);
 
     // RT-SAFETY P1 (CODEX_RTSAFETY): generous, so dense host MIDI fits; the
     // slice copies are bounded by what is reserved here.
+    processorMidi.ensureSize (BoundedMidi::kReserveBytes);
+    sysExMidi.ensureSize (BoundedMidi::kReserveBytes);
     sliceMidi.ensureSize ((size_t) BoundedMidi::kReserveBytes);
     sliceMidiOut.ensureSize ((size_t) BoundedMidi::kReserveBytes);
     liveMidiKept.ensureSize ((size_t) BoundedMidi::kReserveBytes);
@@ -1418,6 +1439,17 @@ void LuthierAudioProcessor::updateRoutingLatencyReport()
 void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
     juce::ScopedNoDenormals noDenormals;
+    referenceHostSliceOffset = 0;
+    auto contract = MidiCapacityContract::Unknown;
+    if (wrapperType == wrapperType_Standalone) contract = MidiCapacityContract::Standalone;
+    else if (wrapperType == wrapperType_VST3 || wrapperType == wrapperType_AudioUnit || wrapperType == wrapperType_AudioUnitv3)
+        contract = MidiCapacityContract::JuceWrapper;
+#if HAS_CLAP_JUCE_EXTENSIONS
+    if (is_clap) contract = MidiCapacityContract::JuceWrapper;
+#endif
+    // Capture the guaranteed capacity before clear; input-used bytes are a safe
+    // lower bound even for an unknown direct host with no reservation contract.
+    const int hostMidiBytes = hostMidiCapacity.lowerBound (midiMessages, contract);
 
     // cpu-quality-modes 2.5 and 4: one level per block, and Luthier's own share
     // of the block's time stamped around all of it.
@@ -1445,7 +1477,11 @@ void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
 
     if (numSamples <= maxSlice)
     {
-        processSlice (buffer, midiMessages);
+        processorMidi.clear();
+        midiOverflowDrops += BoundedMidi::addEvents (processorMidi, BoundedMidi::kReserveBytes, midiMessages, 0, -1, 0);
+        processSlice (buffer, processorMidi);
+        midiMessages.clear();
+        midiOverflowDrops += BoundedMidi::addEvents (midiMessages, hostMidiBytes, processorMidi, 0, -1, 0);
         applyDeclick (buffer);
         return;
     }
@@ -1468,6 +1504,7 @@ void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
         sliceMidi.clear();
         midiOverflowDrops += BoundedMidi::addEvents (sliceMidi, BoundedMidi::kReserveBytes, midiMessages, offset, count, -offset);
 
+        referenceHostSliceOffset = offset;
         processSlice (slice, sliceMidi);
 
         midiOverflowDrops += BoundedMidi::addEvents (sliceMidiOut, BoundedMidi::kReserveBytes, sliceMidi, 0, count, offset);
@@ -1478,8 +1515,7 @@ void LuthierAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
     // storage stays ours and is never replaced by the host's smaller one.
     midiMessages.clear();
 
-    for (const auto metadata : sliceMidiOut)
-        midiMessages.addEvent (metadata.data, metadata.numBytes, metadata.samplePosition);
+    midiOverflowDrops += BoundedMidi::addEvents (midiMessages, hostMidiBytes, sliceMidiOut, 0, -1, 0);
 
     sliceMidiOut.clear();
     applyDeclick (buffer);
@@ -1568,6 +1604,19 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
 {
     const int numSamples = buffer.getNumSamples();
     const auto hostPosition = hostClock.read (getPlayHead());
+    reference::HostTransport boardHost;
+    if (hostPosition)
+    {
+        const auto bpm = hostPosition->getBpm(); const auto ppq = hostPosition->getPpqPosition();
+        boardHost.valid = bpm && ppq && HostClock::isValidTempo (*bpm) && std::isfinite (*ppq);
+        if (boardHost.valid) { boardHost.bpm = *bpm; boardHost.ppq = *ppq; }
+        boardHost.playing = hostPosition->getIsPlaying();
+        if (auto ts = hostPosition->getTimeSignature()) { boardHost.tsNum = ts->numerator; boardHost.tsDen = ts->denominator; }
+    }
+    if (boardHost.valid && boardHost.playing)
+        boardHost.ppq += (double) referenceHostSliceOffset * boardHost.bpm / (60.0 * currentSampleRate);
+    engine.setReferencePedalTransport (boardHost);
+    captureReferenceHostAutomation();
 
     // preset-browser-previews 4.3: the live-activity half of the preview gate,
     // read before anything consumes the host's MIDI.
@@ -1795,7 +1844,7 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
         if (sl.isLocked() && ! previewMidi.isEmpty())
         {
             for (const auto metadata : previewMidi)
-                midiMessages.addEvent (metadata.getMessage(),
+                BoundedMidi::add (midiMessages, metadata.data, metadata.numBytes,
                                        juce::jlimit (0, juce::jmax (0, numSamples - 1), metadata.samplePosition));
 
             previewMidi.clear();
@@ -1814,9 +1863,9 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
         const auto message = metadata.getMessage();
 
         if (message.getChannel() == TuneMidiOptions {}.chordChannel)
-            midiMessages.addEvent (message, metadata.samplePosition);
+            BoundedMidi::add (midiMessages, metadata.data, metadata.numBytes, metadata.samplePosition);
         else
-            tuneDirect.addEvent (message, metadata.samplePosition);
+            BoundedMidi::add (tuneDirect, metadata.data, metadata.numBytes, metadata.samplePosition);
     }
 
     // jam-mode 11 (FEAT-JAM): no double drums or bass. While the Jam drums are
@@ -1840,7 +1889,7 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
             const auto message = metadata.getMessage();
 
             if (! (message.isNoteOn() && message.getChannel() == percussionChannel))
-                jamScratch.addEvent (message, metadata.samplePosition);
+                BoundedMidi::add (jamScratch, metadata.data, metadata.numBytes, metadata.samplePosition);
         }
 
         tuneDirect.swapWith (jamScratch);
@@ -1857,7 +1906,7 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
             const auto message = metadata.getMessage();
 
             if (message.isNoteOnOrOff() && message.getChannel() == TuneMidiOptions {}.bassChannel)
-                jamTuneBass.addEvent (message, metadata.samplePosition);
+                BoundedMidi::add (jamTuneBass, metadata.data, metadata.numBytes, metadata.samplePosition);
         }
 
     // What the band listens to (3.1): the block's notes after MIDI Learn, the
@@ -1868,7 +1917,7 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
     {
         for (const auto metadata : midiMessages)
             if (metadata.getMessage().isNoteOnOrOff() || metadata.getMessage().isAllNotesOff())
-                jamNotes.addEvent (metadata.getMessage(), metadata.samplePosition);
+                BoundedMidi::add (jamNotes, metadata.data, metadata.numBytes, metadata.samplePosition);
 
         if (practicePanelOpen)
             looper.renderPlaybackMidi (jamNotes, numSamples);
@@ -1949,6 +1998,18 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
         for (int slot = 0; slot < 2; ++slot)
             engine.getCabinetEngine().setPlacementBypassed (slot, cabIr[(size_t) slot].isEngaged());
 
+        reference::BoardAuxOutputs boardAux;
+        for (int bus = 1; bus < getBusCount (false); ++bus)
+        {
+            const auto& name = getBus (false, bus)->getName();
+            auto* target = name == "Pedal B" ? &boardAux.pedalB : name == "Wet only" ? &boardAux.wet : name == "Dry only" ? &boardAux.dry : nullptr;
+            if (! target) continue;
+            auto out = getBusBuffer (buffer, false, bus);
+            out.clear();
+            if (out.getNumChannels() == 2)
+                *target = { out.getWritePointer (0), out.getWritePointer (1), numSamples };
+        }
+        engine.setReferencePedalAuxOutputs (boardAux);
         if (engineLock.isLocked())
             engine.processBlock (mainOut, midiMessages);
         else
@@ -2334,16 +2395,20 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
         }
     }
 
-    midiOutRouter.emit (midiMessages, midiOutConfig, engine.getStringActivity(), numSamples);
+    midiOutRouter.emitBounded (midiMessages, midiOutConfig, engine.getStringActivity(), numSamples, BoundedMidi::kReserveBytes);
+    if (engineLock.isLocked())
+        midiOverflowDrops += BoundedMidi::addEvents (midiMessages, BoundedMidi::kReserveBytes, engine.getReferenceMidiOut(), 0, numSamples, 0);
 
     // midi-export 10 / tune-builder 8: the tune's parts, when MIDI out carries them.
     if (midiOutConfig.enabled && midiOutConfig.tunePlayback)
-        midiMessages.addEvents (tuneToMidiOut, 0, numSamples, 0);
+        midiOverflowDrops += BoundedMidi::addEvents (midiMessages, BoundedMidi::kReserveBytes, tuneToMidiOut, 0, numSamples, 0);
 
     // jam-mode 9 (FEAT-JAM): the band, drums on GM channel 10, bass on 11.
     if (jamOn && midiOutConfig.enabled && midiOutConfig.jamParts)
-        midiMessages.addEvents (jam.getMidiOut(), 0, numSamples, 0);
-    sendLuthierSysEx (midiOutConfig, midiMessages, numSamples);
+        midiOverflowDrops += BoundedMidi::addEvents (midiMessages, BoundedMidi::kReserveBytes, jam.getMidiOut(), 0, numSamples, 0);
+    sysExMidi.clear();
+    sendLuthierSysEx (midiOutConfig, sysExMidi, numSamples);
+    midiOverflowDrops += BoundedMidi::addEvents (midiMessages, BoundedMidi::kReserveBytes, sysExMidi, 0, numSamples, 0);
 
     samplePosition += numSamples;
 
@@ -2565,7 +2630,7 @@ void LuthierAudioProcessor::processAuditionMidi (juce::MidiBuffer& midi, int num
 
         const int offset = juce::jlimit (0, numSamples - 1,
                                          (int) ((timestamp - blockStart) * currentSampleRate));
-        midi.addEvent (event->message, offset);
+        BoundedMidi::add (midi, event->message.getRawData(), event->message.getRawDataSize(), offset);
         ++auditionEventIndex;
     }
 
@@ -2727,8 +2792,7 @@ void LuthierAudioProcessor::handleLiveMidi (juce::MidiBuffer& midi) noexcept
     // the pre-sized buffer stays ours and the host's storage stays the host's.
     midi.clear();
 
-    for (const auto metadata : kept)
-        midi.addEvent (metadata.data, metadata.numBytes, metadata.samplePosition);
+    midiOverflowDrops += BoundedMidi::addEvents (midi, BoundedMidi::kReserveBytes, kept, 0, -1, 0);
 
     kept.clear();
 }
@@ -3371,15 +3435,21 @@ void LuthierAudioProcessor::setSlotBActive (bool b)
 
 //==============================================================================
 //==============================================================================
-void LuthierAudioProcessor::parameterValueChanged (int, float)
+void LuthierAudioProcessor::parameterValueChanged (int parameterIndex, float value)
 {
-    /*  Deliberately empty.
+    if (referenceParameterBase >= 0)
+    {
+        referenceHostCapture.write (parameterIndex - referenceParameterBase, value);
+        const int extendedIndex = parameterIndex - referenceParameterBase - reference::HostAutomationSnapshot::count;
+        if (referenceRestoreWriter != this || extendedIndex != (int) reference::ExtendedHostField::FeedbackKill)
+            referenceExtendedCapture.write (extendedIndex, value);
+    }
+}
 
-        Every writer reaches a parameter through here - the user's mouse, host
-        automation, a learned CC, the modulation matrix - so there is nothing in a
-        value change that says who caused it. action-and-undo.md 3.1 only wants the
-        user's own edits, so the undo entry is driven by the gesture below
-        instead. */
+void LuthierAudioProcessor::captureReferenceHostAutomation() noexcept
+{
+    engine.getReferencePedals().setHostAutomation (referenceHostCapture.snapshot());
+    engine.getReferencePedals().setExtendedHostAutomation (referenceExtendedCapture.snapshot());
 }
 
 void LuthierAudioProcessor::parameterGestureChanged (int parameterIndex, bool gestureIsStarting)
@@ -3393,6 +3463,14 @@ void LuthierAudioProcessor::parameterGestureChanged (int parameterIndex, bool ge
 
     if (parameter == nullptr)
         return;
+
+    const int referenceIndex = parameterIndex - referenceParameterBase - 3;
+    if (referenceParameterBase >= 0 && referenceIndex >= 0 && referenceIndex < reference::kMaxSlots * 20 && referenceIndex % 20 == 19)
+    {
+        const auto bit = uint32_t (1) << (referenceIndex / 20);
+        if (gestureIsStarting) referencePositionGestures.fetch_or (bit, std::memory_order_acq_rel);
+        else referencePositionGestures.fetch_and (~bit, std::memory_order_acq_rel);
+    }
 
     // jam-mode 12 (FEAT-JAM): START, STOP and FILL are transport, never undo entries.
     if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (parameter))
@@ -3701,6 +3779,7 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
         }
 
         bridge.flushPendingStructuralChange();
+        serviceReferencePedalParameters();
     }
 
     presets.captureExtraState();
@@ -3708,6 +3787,9 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     auto* root = new juce::DynamicObject();
 
     root->setProperty ("preset", presets.toVar (presets.getCurrentPresetName()));
+    juce::String boardState, boardStateError;
+    if (! reference::BoardState::save (engine.getReferencePedals().model(), boardState, &boardStateError))
+        ErrorLog::write (ErrorLog::Severity::warn, "ReferencePedals", "STATE_SAVE_REJECTED", boardStateError);
 
     /*  Merge: the preset block carries MIDI Learn only when there is a mapping
         (a preset without one keeps the controller setup, live-performance 11),
@@ -3823,7 +3905,12 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 
     writeStateFormat (*root);   // HI-20/24 (HostStateFormat.cpp): last, so the sections above win
 
-    const auto json = juce::JSON::toString (juce::var (root), false);
+    // Serialize the board with its lossless codec. A newer-schema block retains
+    // its original bytes and opaque vendor numbers retain their exact double.
+    root->removeProperty ("referencePedals");
+    auto json = juce::JSON::toString (juce::var (root), false);
+    if (boardState.isNotEmpty())
+        json = json.dropLastCharacters (1) + ",\"referencePedals\":" + boardState + "}";
 
     destData.reset();
     destData.append (json.toRawUTF8(), json.getNumBytesAsUTF8());
@@ -3911,12 +3998,24 @@ void LuthierAudioProcessor::restoreState (const void* data, int sizeInBytes, Res
         return;
     }
 
+    juce::String rawBoardState, boardExtractError;
+    if (! reference::BoardState::extractFromHostJson (json, rawBoardState, &boardExtractError))
+    {
+        ErrorLog::write (ErrorLog::Severity::warn, "ReferencePedals", "HOST_SECTION_REJECTED", boardExtractError);
+        return;
+    }
+
     // host-integration HI-20/24/25 (HostStateFormat.cpp), full host restores
     // only: undo/redo and A/B recall replay a `soundOnly` slice of this same
     // state and are not "an older or newer build's blob" in the sense those
     // rows mean.
     if (scope == RestoreScope::full)
         readStateFormat (*root, data, sizeInBytes);
+
+    // Suppress only synchronous restore notifications on this control thread.
+    // Concurrent actual host writes on another thread retain their action edge.
+    const juce::ScopedValueSetter<const LuthierAudioProcessor*> restoreActions (referenceRestoreWriter, this);
+    referenceExtendedCapture.releaseRestoredActions();
 
     if (root->hasProperty ("preset"))
     {
@@ -3925,6 +4024,15 @@ void LuthierAudioProcessor::restoreState (const void* data, int sizeInBytes, Res
         if (scope == RestoreScope::full)
             noteRestoredPresetBlock (root->getProperty ("preset"), loaded);
     }
+
+    if (root->hasProperty ("referencePedals"))
+    {
+        juce::String error;
+        if (! reference::BoardState::restore (engine.getReferencePedals().model(), rawBoardState, &error))
+            ErrorLog::write (ErrorLog::Severity::warn, "ReferencePedals", "STATE_REJECTED", error);
+    }
+    else
+        engine.getReferencePedals().model().replaceAll ({}, reference::BoardSettings {});
 
     if (root->hasProperty ("midiLearn"))
         midiLearn.fromVar (root->getProperty ("midiLearn"));
@@ -4216,6 +4324,119 @@ void LuthierAudioProcessor::serviceTune()
     tuneSession.service();
 }
 
+// E57: host scalars persist without manufacturing later UI intent. Structural
+// requests remain validated model commands on this message-thread service.
+void LuthierAudioProcessor::serviceReferenceExtendedParameters()
+{
+    using F = reference::ExtendedHostField;
+    auto& model = engine.getReferencePedals().model();
+    const auto input = referenceExtendedCapture.snapshot();
+    auto changed = [&] (int i) { return input.serials[(size_t) i] != 0 && input.serials[(size_t) i] != referenceExtendedModelSerials[(size_t) i]; };
+    auto v = [&] (F f) { return input.values[(size_t) f]; };
+    auto fresh = [&] (F f) { return changed ((int) f); };
+    auto reject = [] (const juce::String& reason)
+    { ErrorLog::write (ErrorLog::Severity::warn, "ReferencePedals", "HOST_CONTROL_REJECTED", reason); };
+    auto apply = [&] (const reference::BoardCommand& command, bool structural)
+    {
+        juce::String reason;
+        const bool accepted = structural ? model.apply (command, &reason) : model.applyHostEcho (command, &reason);
+        if (! accepted) reject (reference::commandName (command) + juce::String (": ") + reason);
+    };
+    for (int i = 0; i < 50; ++i) if (changed (i)) referenceExtendedHostIntentRetained[(size_t) i] = true;
+    const auto old = model.getBoardSettings();
+    if (fresh (F::MixLaw)) apply (reference::cmd::SetMixLaw { (reference::MixLaw) (int) v (F::MixLaw) }, false);
+    if (fresh (F::Mode)) apply (reference::cmd::SetMode { (reference::Mode) (int) v (F::Mode) }, true);
+    const char* scalarKeys[] { nullptr,"reportLatency","limiterOn","limiterCeilDb","trails","mixTail",nullptr,nullptr,nullptr,
+        nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,"abSelect","abOut","reampEnable","reampReplace","reampGainDb",
+        "cpuCapPct","midiChan","tempoSource","numLanes","parallelNorm" };
+    for (int i = 0; i < 25; ++i)
+        if (changed (i) && scalarKeys[i]) apply (reference::cmd::SetBoardParam { scalarKeys[i], input.values[(size_t) i] }, reference::extendedHostParameters[(size_t) i].structural);
+    auto resolveSlot = [&] (float index)
+    {
+        if (index == 0) return reference::InstanceId::null();
+        for (const auto& id : model.getOrder()) if (auto pedal = model.getInstance (id)) if (pedal->slot + 1 == (int) index) return id;
+        return reference::InstanceId::null();
+    };
+    bool feedbackChanged = false; auto feedback = old.fb;
+    if (fresh (F::FeedbackOn)) { feedback.on = v (F::FeedbackOn) >= .5f; feedbackChanged = true; }
+    if (fresh (F::FeedbackGain)) { feedback.gain = v (F::FeedbackGain); feedbackChanged = true; }
+    if (fresh (F::FeedbackLpHz)) { feedback.lpHz = v (F::FeedbackLpHz); feedbackChanged = true; }
+    if (fresh (F::FeedbackRunawayOk)) { feedback.runawayOk = v (F::FeedbackRunawayOk) >= .5f; feedbackChanged = true; }
+    bool feedbackStructural = false;
+    if (fresh (F::FeedbackSrc)) { feedback.src = resolveSlot (v (F::FeedbackSrc)); feedbackChanged = feedbackStructural = true; }
+    if (fresh (F::FeedbackDst)) { feedback.dst = resolveSlot (v (F::FeedbackDst)); feedbackChanged = feedbackStructural = true; }
+    const bool validFeedbackTargets = (! fresh (F::FeedbackSrc) || v (F::FeedbackSrc) == 0 || ! feedback.src.isNull())
+        && (! fresh (F::FeedbackDst) || v (F::FeedbackDst) == 0 || ! feedback.dst.isNull());
+    if (feedbackChanged)
+    {
+        if (validFeedbackTargets) apply (reference::cmd::SetFeedback { feedback }, feedbackStructural);
+        else reject ("Feedback endpoint does not name an occupied slot");
+    }
+    for (int lane = 0; lane < reference::kMaxBranches; ++lane)
+    {
+        const int i = (int) F::Lane1GainDb + 2 * lane;
+        if (changed (i)) apply (reference::cmd::SetBoardParam { "laneGainDb" + std::to_string (lane), input.values[(size_t) i] }, false);
+        if (changed (i + 1)) apply (reference::cmd::SetBoardParam { "lanePhase" + std::to_string (lane), input.values[(size_t) i + 1] }, false);
+    }
+    for (int loop = 0; loop < reference::kMaxLoops; ++loop)
+    {
+        const int base = (int) F::Loop1Used + loop * 8; auto settings = old.loops[(size_t) loop]; bool any = false, structural = false, validEndpoints = true;
+        for (int f = 0; f < 8; ++f) if (changed (base + f))
+        {
+            any = true; structural |= reference::extendedHostParameters[(size_t) base + f].structural;
+            const float value = input.values[(size_t) base + f];
+            switch (f)
+            {
+                case 0: settings.used = value >= .5f; break;
+                case 1: settings.enabled = value >= .5f; break;
+                case 2: settings.kind = (reference::LoopKind) (int) value; break;
+                case 3: settings.blend = value; break;
+                case 4: settings.sendDb = value; break;
+                case 5: settings.returnDb = value; break;
+                case 6: settings.first = resolveSlot (value); validEndpoints &= value == 0 || ! settings.first.isNull(); break;
+                case 7: settings.last = resolveSlot (value); validEndpoints &= value == 0 || ! settings.last.isNull(); break;
+            }
+        }
+        if (any)
+        {
+            if (validEndpoints) apply (reference::cmd::SetLoop { loop, settings }, structural);
+            else reject ("Loop endpoint does not name an occupied slot");
+        }
+    }
+    const auto settings = model.getBoardSettings(); std::array<float, 50> values {};
+    auto put = [&] (F field, float value) { values[(size_t) field] = value; };
+    put (F::MixLaw,(float) settings.mixLaw); put (F::ReportLatency,settings.reportLatency); put (F::LimiterOn,settings.limiterOn);
+    put (F::LimiterCeilDb,settings.limiterCeilDb); put (F::Trails,settings.trails); put (F::MixTail,settings.mixTail); put (F::Mode,(float) settings.mode);
+    put (F::FeedbackOn,settings.fb.on); put (F::FeedbackGain,settings.fb.gain); put (F::FeedbackLpHz,settings.fb.lpHz); put (F::FeedbackRunawayOk,settings.fb.runawayOk);
+    put (F::AbSelect,(float) settings.abSelect); put (F::AbOut,(float) settings.abOut); put (F::ReampEnable,settings.reampEnable); put (F::ReampReplace,settings.reampReplace);
+    put (F::ReampGainDb,settings.reampGainDb); put (F::CpuCapPct,(float) settings.cpuCapPct); put (F::MidiChan,(float) settings.midiChan); put (F::TempoSource,(float) settings.tempoSource);
+    put (F::NumLanes,(float) settings.lanes.numLanes); put (F::ParallelNorm,(float) settings.lanes.norm);
+    auto slotFor = [&] (const reference::InstanceId& id) { const auto pedal = model.getInstance (id); return pedal ? (float) pedal->slot + 1 : 0.f; };
+    put (F::FeedbackSrc,slotFor(settings.fb.src)); put (F::FeedbackDst,slotFor(settings.fb.dst));
+    for (int lane = 0; lane < reference::kMaxBranches; ++lane)
+    { values[(size_t) F::Lane1GainDb + 2 * lane] = settings.lanes.gainDb[(size_t) lane]; values[(size_t) F::Lane1Phase + 2 * lane] = settings.lanes.phaseInvert[(size_t) lane]; }
+    for (int loop = 0; loop < reference::kMaxLoops; ++loop)
+    {
+        const auto& l = settings.loops[(size_t) loop]; const size_t i = (size_t) F::Loop1Used + (size_t) loop * 8;
+        values[i] = l.used; values[i+1] = l.enabled; values[i+2] = (float) l.kind; values[i+3] = l.blend;
+        values[i+4] = l.sendDb; values[i+5] = l.returnDb; values[i+6] = slotFor(l.first); values[i+7] = slotFor(l.last);
+    }
+    for (int i = 0; i < 50; ++i)
+    {
+        auto* parameter = apvts.getParameter (reference::extendedHostParameters[(size_t) i].id); if (! parameter) continue;
+        if (i == (int) F::Exp1 || i == (int) F::Exp2) values[(size_t) i] = parameter->convertFrom0to1 (parameter->getValue());
+        if (referenceExtendedCapture.serial ((size_t) i) != input.serials[(size_t) i]) continue;
+        if (! changed (i) && values[(size_t) i] != referenceExtendedModelMirror[(size_t) i])
+            referenceExtendedHostIntentRetained[(size_t) i] = false;
+        referenceExtendedModelMirror[(size_t) i] = values[(size_t) i];
+        referenceExtendedModelSerials[(size_t) i] = input.serials[(size_t) i];
+        if (referenceExtendedHostIntentRetained[(size_t) i]) continue;
+        const float normalised = parameter->convertTo0to1 (values[(size_t) i]);
+        if (parameter->getValue() != normalised)
+        { const reference::ExtendedHostAutomationCapture::EchoScope echo (referenceExtendedCapture); parameter->setValueNotifyingHost (normalised); }
+    }
+}
+
 // SPEC-SWEEP (IR-11 / LP-34): the expression calibration's audio-thread table
 // follows the set, and the wizard hears the pedal it is listening to.
 void LuthierAudioProcessor::serviceExpressionCalibration()
@@ -4230,8 +4451,120 @@ void LuthierAudioProcessor::serviceExpressionCalibration()
     expressionStage.drainObserved (expression);
 }
 
+// WP23: pending host writes are reconciled on the message thread, where model
+// compilation may allocate. Unchanged automation mirrors never overwrite UI edits.
+void LuthierAudioProcessor::serviceReferencePedalParameters()
+{
+    auto& model = engine.getReferencePedals().model();
+    std::array<juce::String, 323> ids;
+    ids[0] = ParamIDs::refBoardEnabled; ids[1] = ParamIDs::refBoardMix; ids[2] = ParamIDs::refBoardTempoBpm;
+    for (int slot = 0; slot < reference::kMaxSlots; ++slot)
+    {
+        int i = 3 + slot * 20;
+        ids[(size_t) i++] = ParamIDs::refSlot (slot, "enabled");
+        for (int lane = 0; lane < reference::kMaxLaneParams; ++lane)
+            ids[(size_t) i++] = ParamIDs::refSlot (slot, "p" + juce::String (lane + 1).paddedLeft ('0', 2));
+        ids[(size_t) i++] = ParamIDs::refSlot (slot, "in_db");
+        ids[(size_t) i++] = ParamIDs::refSlot (slot, "out_db");
+        ids[(size_t) i] = ParamIDs::refSlot (slot, "pos");
+    }
+    std::array<float, 323> incoming {};
+    std::array<uint32_t, 323> incomingSerials {};
+    for (size_t i = 0; i < ids.size(); ++i)
+    {
+        auto* p = apvts.getParameter (ids[i]);
+        if (! p) return;
+        incomingSerials[i] = referenceHostCapture.serial (i);
+        incoming[i] = incomingSerials[i] != referenceModelSerials[i] ? referenceHostCapture.value (i)
+            : p->convertFrom0to1 (p->getValue());
+        if (! referenceMirrorInitialised) referenceParameterMirror[i] = p->convertFrom0to1 (p->getDefaultValue());
+    }
+    referenceMirrorInitialised = true;
+    const auto previousModelValues = referenceParameterMirror;
+    auto fresh = [&] (size_t i) { return incomingSerials[i] != 0 && incomingSerials[i] != referenceModelSerials[i]; };
+    for (size_t i = 0; i < ids.size(); ++i) if (fresh (i)) referenceHostIntentRetained[i] = true;
+    auto isPosition = [] (size_t i) { return i >= 3 && (i - 3) % 20 == 19; };
+    auto changed = [&] (size_t i)
+    { return fresh (i) || (! isPosition (i) && ! referenceHostIntentRetained[i] && incoming[i] != previousModelValues[i]); };
+    const bool positionGestureActive = referencePositionGestures.load (std::memory_order_acquire) != 0;
+    // Vacant slots and unused lanes have host state, but no model control to mirror.
+    referenceParameterMirror = incoming;
+    auto persist = [&] (const reference::BoardCommand& command)
+    {
+        juce::String reason;
+        if (! model.applyHostEcho (command, &reason))
+            ErrorLog::write (ErrorLog::Severity::warn, "ReferencePedals", "HOST_CONTROL_REJECTED", reason);
+    };
+    if (changed (0)) persist (reference::cmd::SetBoardEnabled { incoming[0] >= .5f });
+    if (changed (1)) persist (reference::cmd::SetMix { incoming[1] });
+    if (changed (2)) persist (reference::cmd::SetBoardParam { "tempoBpm", incoming[2] });
+    for (const auto& id : model.getOrder())
+    {
+        auto instance = model.getInstance (id); if (! instance || instance->slot < 0 || instance->slot >= reference::kMaxSlots) continue;
+        const size_t base = (size_t) (3 + instance->slot * 20);
+        if (changed (base)) persist (reference::cmd::SetEnabled { id, incoming[base] >= .5f });
+        const auto& lanes = reference::PedalRegistry::laneMap (instance->modelId.c_str());
+        for (int lane = 0; lane < lanes.numLanes; ++lane)
+            if (changed (base + 1 + (size_t) lane))
+                persist (reference::cmd::SetParam { id, lanes.laneToParam[lane], incoming[base + 1 + (size_t) lane] });
+        if (changed (base + 17) || changed (base + 18))
+            persist (reference::cmd::SetTrim { id, incoming[base + 17], incoming[base + 18] });
+    }
+    // Resolve all position requests together, stable in the existing model order.
+    auto order = model.getOrder();
+    std::stable_sort (order.begin(), order.end(), [&] (const auto& a, const auto& b)
+    {
+        auto rank = [&] (const auto& id)
+        {
+            const auto p = model.getInstance (id); if (! p) return 0;
+            const size_t i = (size_t) (3 + p->slot * 20 + 19);
+            if (changed (i)) return (int) incoming[i];
+            const auto current = model.getOrder(); return (int) std::distance (current.begin(), std::find (current.begin(), current.end(), id));
+        };
+        return rank (a) < rank (b);
+    });
+    for (size_t i = 0; i < order.size(); ++i)
+        if (model.getOrder()[i] != order[i]) model.apply (reference::cmd::Move { order[i], (int) i });
+    const auto settings = model.getBoardSettings();
+    referenceParameterMirror[0] = settings.enabled ? 1.f : 0.f;
+    referenceParameterMirror[1] = settings.mix; referenceParameterMirror[2] = (float) settings.tempoBpm;
+    order = model.getOrder();
+    for (size_t pos = 0; pos < order.size(); ++pos)
+    {
+        const auto p = model.getInstance (order[pos]); if (! p) continue;
+        const size_t base = (size_t) (3 + p->slot * 20);
+        referenceParameterMirror[base] = p->enabled ? 1.f : 0.f;
+        const auto& lanes = reference::PedalRegistry::laneMap (p->modelId.c_str());
+        for (int lane = 0; lane < lanes.numLanes; ++lane) referenceParameterMirror[base + 1 + (size_t) lane] = p->params[(size_t) lanes.laneToParam[lane]];
+        referenceParameterMirror[base + 17] = p->inDb; referenceParameterMirror[base + 18] = p->outDb;
+        referenceParameterMirror[base + 19] = (float) pos;
+    }
+    for (size_t i = 0; i < ids.size(); ++i)
+    {
+        auto* p = apvts.getParameter (ids[i]); const float value = p->convertTo0to1 (referenceParameterMirror[i]);
+        if (referenceHostCapture.serial (i) != incomingSerials[i]) continue;
+        if (! fresh (i) && referenceParameterMirror[i] != previousModelValues[i]) referenceHostIntentRetained[i] = false;
+        referenceModelSerials[i] = incomingSerials[i];
+        if (referenceHostIntentRetained[i]) continue;
+        if (positionGestureActive && isPosition (i)) continue;
+        if (p->getValue() != value)
+        {
+            const reference::HostAutomationCapture::EchoScope echo (referenceHostCapture);
+            p->setValueNotifyingHost (value);
+        }
+    }
+    serviceReferenceExtendedParameters();
+    std::vector<reference::PedalInstance> namedInstances; reference::BoardSettings namedSettings;
+    model.snapshot (namedInstances, namedSettings);
+    if (updateReferenceLaneNames (apvts, namedInstances))
+        updateHostDisplay (ChangeDetails().withParameterInfoChanged (true));
+}
+
 void LuthierAudioProcessor::timerCallback()
 {
+    engine.getReferencePedals().reclaim();
+    updateLatency();
+    serviceReferencePedalParameters();
     // preset-browser-previews 4.1 / 3.3: free finished clips, pause background renders.
     if (presetLibrary != nullptr)
         presetLibrary->tick();
@@ -4646,7 +4979,10 @@ void LuthierAudioProcessor::stampBlockLoad (double busySeconds, int numSamples) 
     if (currentSampleRate <= 0.0 || numSamples <= 0)
         return;
 
-    cpuLoad.addBlock (busySeconds, (double) numSamples / currentSampleRate);
+    const double blockAudioSeconds = (double) numSamples / currentSampleRate;
+    cpuLoad.addBlock (busySeconds, blockAudioSeconds);
+    engine.getReferencePedals().setProcessorLoad (cpuLoad.getShortMeanOnAudioThread(),
+        cpuLoad.hasShortWindowOnAudioThread(), blockAudioSeconds);
 
     // 7, E3: Luthier is over its whole block budget for 200 ms. Decided here,
     // on the audio thread, so it works while the message thread is blocked.

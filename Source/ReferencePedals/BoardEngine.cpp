@@ -1,0 +1,923 @@
+// OWNER: WP2
+#include "BoardEngine.h"
+#include "ExtraState.h"
+#include "BoardLimiter.h"
+#include "PedalRegistry.h"
+#include "Routing/RoutingNodes.h"
+#include <limits>
+#include <cstring>
+namespace luthier::reference
+{
+static_assert (std::atomic<const RenderPlan*>::is_always_lock_free, "Audio plan pointer must be lock-free");
+static_assert (std::atomic<uint64_t>::is_always_lock_free && std::atomic<double>::is_always_lock_free && std::atomic<float>::is_always_lock_free, "Pedal meters require lock-free atomics");
+static_assert (std::atomic<uint64_t>::is_always_lock_free, "Audio reader sequence must be lock-free");
+BoardEngine::BoardEngine (BoardModel& source) : model (source)
+{
+    PedalRegistry::registerAll();
+    prepare (48000, 4096);
+    model.setCompiler ([this] (const auto& instances, const auto& settings, auto& info, auto& error, const BoardCommand* intent, bool hostEcho)
+        { return publish (instances, settings, info, error, intent, hostEcho); });
+    model.setExtraCapture ([this] (std::vector<PedalInstance>& instances)
+    {
+        // Shared references are copied only on the message thread and pin each
+        // runtime even if a model's message-thread save callback reenters.
+        decltype (latest->slots) pinned {};
+        std::vector<PedalInstance> stored, captured;
+        {
+            const std::lock_guard<std::mutex> guard (controlMutex);
+            if (latest) pinned = latest->slots;
+            else { stored = releasedStored; captured = releasedCaptured; }
+        }
+        // Pedal save callbacks can reenter the model: invoke them only after the
+        // owner pin is secured and the control guard has been released.
+        for (auto& instance : instances)
+            for (size_t i = 0; i < stored.size() && i < captured.size(); ++i)
+                if (instance.instanceId == stored[i].instanceId && instance.modelId == stored[i].modelId
+                    && sameExtraState (instance.extras, stored[i].extras))
+                { instance.extras = captured[i].extras.clone(); break; }
+        for (auto& instance : instances)
+            for (const auto& runtime : pinned)
+                if (runtime && runtime->identity == instance.instanceId && runtime->model == instance.modelId)
+                {
+                    auto extra = instance.extras.clone(); runtime->pedal->saveExtra (extra);
+                    if (auto* target = instance.extras.getDynamicObject(); target && extra.getDynamicObject())
+                        for (const auto& property : extra.getDynamicObject()->getProperties()) setExactExtraProperty (*target, property.name, property.value);
+                    else instance.extras = extra.clone();
+                    break;
+                }
+    });
+}
+BoardEngine::~BoardEngine() { model.setExtraCapture ({}); model.setCompiler ({}); }
+void BoardEngine::prepare (double sampleRate, int maxBlock) noexcept
+try
+{
+    {
+        const std::lock_guard<std::mutex> guard (controlMutex);
+        rate = std::isfinite (sampleRate) && sampleRate >= 8000 ? sampleRate : 48000;
+        block = std::max (1, maxBlock);
+        // Format changes precede fallible snapshots so failure cannot reuse old-rate DSP.
+        pool.setPreparationFormat (rate, block);
+    }
+    std::vector<PedalInstance> captured, instances; BoardSettings settings;
+    model.snapshot (captured, settings); model.snapshotStored (instances, settings);
+    releaseResources();
+    std::unique_lock<std::mutex> guard (controlMutex);
+    dipSamples = std::max (1, static_cast<int> (std::min (rate, 1000000.0) * 0.006));
+    mixAlpha = 1.0 - std::exp (-1.0 / (0.020 * rate));
+    pool.prepare (rate, block, captured, instances);
+    extendedModelSerials.fill (0); extendedHostSerials.fill (0);
+    hostBoardSerials.fill (0); modelBoardSerials.fill (0);
+    routingModelSerials.fill (0); routingHostSerials.fill (0);
+    cpuHotSeconds = 0; processorCpuAvailable.store (false); cpuReliefRequested.store (false);
+    cpuGovernorTripped.store (false); cpuEcoApplied.store (false); cpuGovernorFailed.store (false);
+    feedback.reset(); feedbackRearmSeen = feedbackKillSeen = 0; feedbackFault.store (false); feedbackTripped.store (false);
+    paramPulses.clear(); engageEcho.clear(); numPendingPulses = 0; numRawMidi = numMidiOutput = 0;
+    events = nullptr; sidechain[0] = sidechain[1] = nullptr; sidechainSamples = 0; auxOutputs = {};
+    resetRequested.store (false);
+    for (auto& segment : segments)
+    {
+        segment = {};
+        for (auto& line : segment.dry) line.prepare (kMaxLatencySamp);
+        for (auto& line : segment.lanes) line.prepare (kMaxLatencySamp);
+        for (auto& loop : segment.loops) loop.prepare (kMaxLatencySamp);
+    }
+    uint64_t scratch = 0;
+    for (const auto& segment : segments)
+    {
+        for (const auto& line : segment.dry) scratch += line.preparedMemoryBytes();
+        for (const auto& lane : segment.lanes) for (const auto& line : lane.channels) scratch += line.preparedMemoryBytes();
+        for (const auto& loop : segment.loops) for (const auto& line : loop.dry.channels) scratch += line.preparedMemoryBytes();
+    }
+    routingBytes.store (scratch);
+    TopologyInfo info; juce::String error;
+    if (! publishLocked (instances, settings, info, error, nullptr, false, guard)) setPreparationError (error.isEmpty() ? "Pedal preparation failed" : error.toRawUTF8());
+}
+catch (const std::exception& error) { discardRuntime(); setPreparationError (error.what()); }
+catch (...) { discardRuntime(); setPreparationError ("Unknown pedal preparation failure"); }
+juce::String BoardEngine::preparationError() const
+{
+    const std::lock_guard<std::mutex> guard (preparationMutex);
+    return juce::String::fromUTF8 (preparationMessage.data());
+}
+void BoardEngine::setPreparationError (const char* message) noexcept
+{
+    const std::lock_guard<std::mutex> guard (preparationMutex);
+    size_t length = std::min (std::strlen (message), preparationMessage.size() - 1);
+    std::memcpy (preparationMessage.data(), message, length); preparationMessage[length] = 0;
+    preparationFailure.store (length != 0, std::memory_order_release);
+}
+
+bool BoardEngine::setAssetStore (std::shared_ptr<IAssetStore> store)
+{
+    const std::lock_guard<std::mutex> guard (controlMutex);
+    if (! pool.setAssetStore (std::move (store))) return false;
+    assetStoreAvailable.store (pool.hasAssetStore()); return true;
+}
+void BoardEngine::saveExtraOutsideControlGuard (void* context, const IPedal& pedal, juce::var& state)
+{
+    auto& guard = *static_cast<std::unique_lock<std::mutex>*> (context);
+    guard.unlock();
+    try { pedal.saveExtra (state); }
+    catch (...) { guard.lock(); throw; }
+    guard.lock();
+}
+void BoardEngine::releaseResources()
+{
+    bool hadRuntime;
+    { const std::lock_guard<std::mutex> guard (controlMutex); hadRuntime = latest != nullptr; }
+    std::vector<PedalInstance> stored, captured;
+    if (hadRuntime)
+    {
+        BoardSettings ignored;
+        model.snapshotStored (stored, ignored); model.snapshot (captured, ignored);
+    }
+    const std::lock_guard<std::mutex> guard (controlMutex);
+    if (hadRuntime) { releasedStored.swap (stored); releasedCaptured.swap (captured); }
+    discardRuntimeLocked();
+}
+void BoardEngine::discardRuntime() noexcept
+{
+    const std::lock_guard<std::mutex> guard (controlMutex);
+    discardRuntimeLocked();
+}
+void BoardEngine::discardRuntimeLocked() noexcept
+{
+    paramPulses.clear(); engageEcho.clear(); numPendingPulses = 0; numRawMidi = numMidiOutput = 0;
+    events = nullptr; sidechain[0] = sidechain[1] = nullptr; sidechainSamples = 0; auxOutputs = {};
+    live.store (nullptr, std::memory_order_seq_cst);
+    for (auto& meter : pedalMeters) { meter.present.store (false); meter.available.store (0); }
+    for (auto& segment : segments) { segment.current = segment.pending = nullptr; }
+    retired.reclaimAll(); latest.reset();
+    planReader.reset();
+    running.store (false); targetActive.store (false); latencySamples.store (0);
+}
+bool BoardEngine::publish (const std::vector<PedalInstance>& instances, const BoardSettings& settings,
+    TopologyInfo& info, juce::String& error, const BoardCommand* intent, bool hostEcho)
+{
+    std::unique_lock<std::mutex> guard (controlMutex);
+    return publishLocked (instances, settings, info, error, intent, hostEcho, guard);
+}
+bool BoardEngine::publishLocked (const std::vector<PedalInstance>& instances, const BoardSettings& settings,
+    TopologyInfo& info, juce::String& error, const BoardCommand* intent, bool hostEcho, std::unique_lock<std::mutex>& controlGuard)
+{
+    if (planReader.exhausted())
+    { error = "Audio reader generation exhausted; stopped reprepare required"; return false; }
+    // Saturation fails before compiling or changing the model/history. A held
+    // reader never causes eviction, callback waiting, or an unbounded queue.
+    if (latest && retired.size() >= RetireList<RenderPlan>::capacityLimit)
+    {
+        reclaimLocked();
+        if (retired.size() >= RetireList<RenderPlan>::capacityLimit)
+        { error = "Audio-plan retirement saturated; retry after audio advances"; return false; }
+    }
+    if (! latest && ! pool.preflightFresh (instances, error)) return false;
+    auto plan = TopologyCompiler::compile (instances, settings, pool, version + 1, latest.get(), error, intent, hostEcho,
+                                          &BoardEngine::saveExtraOutsideControlGuard, &controlGuard);
+    assetStoreAvailable.store (pool.hasAssetStore());
+    if (! plan) return false;
+    // Reserve before publishing: an old plan can still be borrowed by audio.
+    try { if (latest) retired.reserveOne(); }
+    catch (...) { error = "Unable to reserve audio-plan retirement storage"; return false; }
+    pool.published();
+    setPreparationError ("");
+    ++version;
+    info.version = version; info.mode = settings.mode; info.pedalCount = plan->topology.n;
+    info.latencyTotal = plan->topology.latencyTotal; info.dryDelay = plan->topology.dryDelay;
+    info.cpuUnits = plan->topology.cpuUnits;
+    const bool active = settings.enabled && plan->topology.n > 0;
+    targetActive.store (active, std::memory_order_release);
+    latencySamples.store (active && settings.reportLatency ? plan->topology.latencyTotal : 0, std::memory_order_release);
+    auto old = std::move (latest); latest = std::move (plan);
+    live.store (latest.get(), std::memory_order_seq_cst);
+    if (! hostEcho && intent)
+        if (const auto* write = std::get_if<cmd::SetParam> (intent))
+            for (const auto& runtime : latest->slots)
+                if (runtime && runtime->identity == write->id && write->paramIdx < runtime->pedal->desc().numParams)
+                {
+                    const auto& descriptor = runtime->pedal->desc();
+                    const auto kind = descriptor.params[write->paramIdx].kind;
+                    if (kind == ParamKind::Trigger || kind == ParamKind::Momentary)
+                        paramPulses.push ({ write->id, descriptor.modelId, write->paramIdx, write->norm });
+                }
+    if (old)
+    {
+        // Sample only after live replacement: a reader that could still acquire
+        // old requires its own completion, not an earlier retained snapshot.
+        old->retirementEpoch = planReader.retirementEpoch();
+        const auto oldVersion = old->topology.version; retired.retire (std::move (old), oldVersion);
+    }
+    reclaimLocked();
+    return true;
+}
+int BoardEngine::reclaim() noexcept
+{
+    const std::lock_guard<std::mutex> guard (controlMutex);
+    return reclaimLocked();
+}
+int BoardEngine::reclaimLocked() noexcept
+{
+    int freed = 0;
+    CompletedReaderEpoch<RenderPlan, 2 * kNumPlacements>::Snapshot completed;
+    if (planReader.snapshot (completed))
+        freed = retired.reclaimExcept (completed.pointers, [&] (const RenderPlan* plan) noexcept
+            { return plan->retirementEpoch <= completed.epoch; });
+    pool.reclaim(); return freed;
+}
+void BoardEngine::setProcessorLoad (double fraction, bool measuredWindow, double seconds) noexcept
+{
+    const bool valid = measuredWindow && std::isfinite (fraction) && fraction >= 0 && std::isfinite (seconds) && seconds > 0;
+    processorCpuAvailable.store (valid, std::memory_order_relaxed);
+    if (! valid) { cpuHotSeconds = 0; return; }
+    processorCpuPct.store (static_cast<float> (std::min (fraction, 100.0) * 100.0), std::memory_order_relaxed);
+    cpuHotSeconds = isActive() && fraction > 0.85 ? std::min (2.0, cpuHotSeconds + seconds) : 0.0;
+    if (cpuHotSeconds >= 2.0 - 1.e-12 && ! cpuGovernorTripped.exchange (true, std::memory_order_acq_rel))
+        cpuReliefRequested.store (true, std::memory_order_release);
+}
+void BoardEngine::applyCpuRelief()
+{
+    std::vector<PedalInstance> instances; BoardSettings settings; model.snapshotStored (instances, settings);
+    std::vector<cmd::SetParam> changes;
+    for (const auto& instance : instances)
+        if (const auto* descriptor = PedalRegistry::find (instance.modelId.c_str()))
+            for (int param = 0; param < descriptor->numParams; ++param)
+            {
+                const auto& control = descriptor->params[param];
+                if (! control.has (PF_Config) || ! control.choices || ! juce::String (control.id).containsIgnoreCase ("quality")) continue;
+                for (int choice = 0; choice < control.steps; ++choice)
+                    if (juce::String (control.choices[choice]).equalsIgnoreCase ("Eco"))
+                    {
+                        const auto eco = static_cast<float> (control.toNormalised (choice));
+                        if (instance.params[static_cast<size_t> (param)] != eco) changes.push_back ({ instance.instanceId, param, eco });
+                        break;
+                    }
+            }
+    if (changes.empty()) { cpuGovernorFailed.store (true); return; }
+    model.beginTransaction ("CPU overload: Eco quality");
+    for (const auto& change : changes)
+        if (! model.apply (change))
+        { model.cancelTransaction(); cpuGovernorFailed.store (true); return; }
+    model.endTransaction(); cpuEcoApplied.store (true);
+}
+void BoardEngine::drainControlEcho()
+{
+    if (cpuReliefRequested.exchange (false, std::memory_order_acq_rel)) applyCpuRelief();
+    std::array<EngageEcho, kMaxSlots> last;
+    std::array<bool, kMaxSlots> seen {};
+    EngageEcho event;
+    for (int i = 0; i < 256 && engageEcho.pop (event); ++i)
+        if (event.slot < kMaxSlots) { last[event.slot] = event; seen[event.slot] = true; }
+    for (int slot = 0; slot < kMaxSlots; ++slot)
+        if (seen[static_cast<size_t> (slot)])
+        {
+            const auto& echo = last[static_cast<size_t> (slot)];
+            const auto instance = model.getInstance (echo.identity);
+            if (instance && instance->slot == slot && instance->enabled == echo.baseline && instance->enabled != echo.enabled)
+                model.apply (cmd::SetEnabled { echo.identity, echo.enabled });
+        }
+}
+void BoardEngine::finishPlanRead() noexcept
+{
+    CompletedReaderEpoch<RenderPlan, 2 * kNumPlacements>::Pointers retained {};
+    for (size_t i = 0; i < segments.size(); ++i)
+    {
+        retained[2 * i] = segments[i].current;
+        retained[2 * i + 1] = segments[i].pending;
+    }
+    planReader.finish (retained);
+}
+void BoardEngine::publishPedalMeters (const RenderPlan& plan) noexcept
+{
+    for (int slot = 0; slot < kMaxSlots; ++slot)
+    {
+        auto& meter = pedalMeters[static_cast<size_t> (slot)];
+        const auto* runtime = plan.slots[static_cast<size_t> (slot)].get();
+        const auto sequence = meter.sequence.load (std::memory_order_relaxed);
+        meter.sequence.store (sequence + 1, std::memory_order_seq_cst);
+        uint64_t identity[2] {};
+        PedalUiMeters ui;
+        if (runtime)
+        {
+            std::memcpy (identity, runtime->identity.getRawData(), sizeof (identity));
+            ui = runtime->pedal->readUiMeters();
+        }
+        meter.identity0.store (identity[0], std::memory_order_relaxed); meter.identity1.store (identity[1], std::memory_order_relaxed);
+        meter.present.store (runtime != nullptr, std::memory_order_relaxed);
+        meter.enabled.store (runtime && runtime->enabled, std::memory_order_relaxed);
+        meter.tailResidualAvailable.store (runtime && runtime->tailResidualAvailable, std::memory_order_relaxed);
+        meter.tail.store (runtime ? runtime->pedal->getTailEnergyDb() : -120.f, std::memory_order_relaxed);
+        meter.available.store (ui.available, std::memory_order_relaxed); meter.transport.store (ui.transport, std::memory_order_relaxed);
+        meter.loopLength.store (ui.loopLength, std::memory_order_relaxed); meter.playhead.store (ui.playhead, std::memory_order_relaxed);
+        meter.bpm.store (ui.bpm, std::memory_order_relaxed); meter.progress.store (ui.progress, std::memory_order_relaxed);
+        meter.faults.store (ui.faults, std::memory_order_relaxed);
+        meter.sequence.store (sequence + 2, std::memory_order_release);
+    }
+}
+PedalMeters BoardEngine::readPedalMeters (int slot) const noexcept
+{
+    if (slot < 0 || slot >= kMaxSlots) return {};
+    const auto& meter = pedalMeters[static_cast<size_t> (slot)];
+    for (int attempt = 0; attempt < 3; ++attempt)
+    {
+        const auto before = meter.sequence.load (std::memory_order_acquire);
+        if (before & 1u) continue;
+        PedalMeters result;
+        uint64_t identity[2] { meter.identity0.load (std::memory_order_relaxed), meter.identity1.load (std::memory_order_relaxed) };
+        result.identity = reinterpret_cast<const uint8_t*> (identity);
+        result.present = meter.present.load (std::memory_order_relaxed); result.enabled = meter.enabled.load (std::memory_order_relaxed);
+        result.tailEnergyDb = meter.tail.load (std::memory_order_relaxed);
+        result.tailResidualAvailable = meter.tailResidualAvailable.load (std::memory_order_relaxed);
+        result.model.available = meter.available.load (std::memory_order_relaxed); result.model.transport = meter.transport.load (std::memory_order_relaxed);
+        result.model.loopLength = meter.loopLength.load (std::memory_order_relaxed); result.model.playhead = meter.playhead.load (std::memory_order_relaxed);
+        result.model.bpm = meter.bpm.load (std::memory_order_relaxed); result.model.progress = meter.progress.load (std::memory_order_relaxed);
+        result.model.faults = meter.faults.load (std::memory_order_relaxed);
+        std::atomic_thread_fence (std::memory_order_acquire);
+        if (before == meter.sequence.load (std::memory_order_relaxed)) return result;
+    }
+    return {}; // contention is unavailable, never a fabricated stale identity
+}
+void BoardEngine::syncRouting (midi::MidiRouter& router) noexcept
+{
+    const PlanReadScope reading (*this);
+    const auto* plan = live.load (std::memory_order_seq_cst);
+    if (! plan) return;
+    router.setModelEnabled (plan->settings.enabled, plan->boardSerials[0]);
+    router.setModelTempoBpm (plan->settings.tempoBpm, plan->boardSerials[2]);
+    router.setModelTempoSource (plan->settings.tempoSource, plan->extended.serials[static_cast<size_t> (ExtendedHostField::TempoSource)]);
+    const auto send = [&] (int target, float value)
+    {
+        if (++routingRevision == 0) ++routingRevision;
+        router.setTargetValue (static_cast<uint16_t> (target), value, routingRevision);
+    };
+    const auto modelWrite = [&] (int target, float value, uint32_t serial)
+    {
+        if (routingModelSerials[static_cast<size_t> (target)] == serial) return;
+        routingModelSerials[static_cast<size_t> (target)] = serial; send (target, value);
+    };
+    const int boardTargets[] { midi::kTargetBoardBase + static_cast<int> (midi::BoardTarget::Enabled),
+        midi::kTargetBoardBase + static_cast<int> (midi::BoardTarget::Mix), midi::kTargetBoardBase + static_cast<int> (midi::BoardTarget::Tempo) };
+    const float boardValues[] { plan->settings.enabled ? 1.f : 0.f, plan->settings.mix, static_cast<float> ((plan->settings.tempoBpm - 20.0) / 280.0) };
+    for (int i = 0; i < 3; ++i) modelWrite (boardTargets[i], boardValues[i], plan->boardSerials[static_cast<size_t> (i)]);
+    for (int slot = 0; slot < kMaxSlots; ++slot)
+    {
+        const auto& runtime = plan->slots[static_cast<size_t> (slot)]; if (! runtime) continue;
+        const auto& descriptor = runtime->pedal->desc(); const auto& control = plan->controls[static_cast<size_t> (slot)];
+        auto& source = routingSlotSources[static_cast<size_t> (slot)];
+        if (source.identity != runtime->identity || source.modelId != descriptor.modelId)
+        {
+            std::fill_n (routingModelSerials.begin() + slot * kMaxParams, kMaxParams, 0);
+            if (! source.identity.isNull())
+                for (int index = 0; index < 19; ++index)
+                    routingHostSerials[static_cast<size_t> (3 + slot * 20 + index)] = hostAutomation.serials[static_cast<size_t> (3 + slot * 20 + index)];
+            source = { runtime->identity, descriptor.modelId };
+        }
+        for (int param = 0; param < descriptor.numParams; ++param)
+            modelWrite (slot * kMaxParams + param, descriptor.params[param].has (PF_Engage) ? (control.enabled ? 1.f : 0.f) : control.params[static_cast<size_t> (param)],
+                        descriptor.params[param].has (PF_Engage) ? control.enabledSerial : control.paramSerials[static_cast<size_t> (param)]);
+    }
+    for (int index = 0; index < HostAutomationSnapshot::count; ++index)
+    {
+        if (index >= 3 && ! plan->slots[static_cast<size_t> ((index - 3) / 20)]) continue;
+        const auto serial = hostAutomation.serials[static_cast<size_t> (index)];
+        if (serial == 0 || serial == routingHostSerials[static_cast<size_t> (index)]) continue;
+        routingHostSerials[static_cast<size_t> (index)] = serial;
+        const float value = hostAutomation.values[static_cast<size_t> (index)]; if (! std::isfinite (value)) continue;
+        if (index < 3) { send (boardTargets[index], index == 2 ? (value - 20.f) / 280.f : value); continue; }
+        const int slot = (index - 3) / 20, field = (index - 3) % 20;
+        const auto& runtime = plan->slots[static_cast<size_t> (slot)]; if (! runtime) continue;
+        const auto& descriptor = runtime->pedal->desc(); const auto& control = plan->controls[static_cast<size_t> (slot)];
+        if (field == 0)
+            for (int param = 0; param < descriptor.numParams; ++param)
+                if (descriptor.params[param].has (PF_Engage)) send (slot * kMaxParams + param, value >= 0.5f ? 1.f : 0.f);
+        if (field >= 1 && field <= 16)
+        {
+            const int param = control.laneToParam[static_cast<size_t> (field - 1)];
+            if (param >= 0) send (slot * kMaxParams + param, value);
+        }
+    }
+}
+BoardMeters BoardEngine::meters() const noexcept
+{
+    BoardMeters result; result.inPeakDb = inputPeak.load(); result.outPeakDb = outputPeak.load();
+    result.fbFault = feedbackFault.load(); result.fbTripped = feedbackTripped.load();
+    const auto availability = auxAvailable.load();
+    result.auxBAvailable = (availability & 1) != 0; result.auxWetAvailable = (availability & 2) != 0; result.auxDryAvailable = (availability & 4) != 0;
+    result.latencySamples = latency(); result.sidechainAvailable = sidechainConnected.load();
+    result.assetStoreAvailable = assetStoreAvailable.load();
+    result.preparationFailed = preparationFailure.load(); result.preparedMemoryBytes = pool.preparedBytes(); result.routingScratchBytes = routingBytes.load();
+    result.cpuPct = processorCpuPct.load(); result.cpuAvailable = processorCpuAvailable.load();
+    result.cpuGovernorTripped = cpuGovernorTripped.load(); result.cpuEcoApplied = cpuEcoApplied.load(); result.cpuGovernorFailed = cpuGovernorFailed.load();
+    result.midiDropped = engageEcho.dropped() + paramPulses.dropped() + rawDropped.load() + outputDropped.load(); return result;
+}
+void BoardEngine::beginRawMidi (const juce::MidiBuffer& input, int samples) noexcept
+{
+    numRawMidi = 0;
+    if (numMidiOutput > 0) { outputDropped.fetch_add (static_cast<uint32_t> (numMidiOutput), std::memory_order_relaxed); numMidiOutput = 0; }
+    for (const auto metadata : input)
+    {
+        if (metadata.samplePosition < 0 || metadata.samplePosition >= samples) continue;
+        if (metadata.numBytes < 1 || metadata.numBytes > 3 || numRawMidi == static_cast<int> (rawMidi.size()))
+        { rawDropped.fetch_add (1, std::memory_order_relaxed); continue; }
+        const auto status = metadata.data[0];
+        int expected = 0;
+        if (status >= 0x80 && status < 0xf0) expected = (status & 0xe0) == 0xc0 ? 2 : 3;
+        else if (status == 0xf1 || status == 0xf3) expected = 2;
+        else if (status == 0xf2) expected = 3;
+        else if (status == 0xf6 || status == 0xf8 || status == 0xfa || status == 0xfb || status == 0xfc || status == 0xfe || status == 0xff) expected = 1;
+        bool valid = expected != 0 && metadata.numBytes == expected;
+        for (int byte = 1; valid && byte < metadata.numBytes; ++byte) valid = metadata.data[byte] < 0x80;
+        if (! valid) { rawDropped.fetch_add (1, std::memory_order_relaxed); continue; }
+        rawMidi[static_cast<size_t> (numRawMidi++)] = { metadata.data[0],
+            static_cast<uint8_t> (metadata.numBytes > 1 ? metadata.data[1] : 0),
+            static_cast<uint8_t> (metadata.numBytes > 2 ? metadata.data[2] : 0), metadata.samplePosition };
+    }
+}
+int BoardEngine::drainMidiOut (MidiEvent* destination, int capacity) noexcept
+{
+    if (! destination || capacity <= 0) return 0;
+    const int count = std::min (capacity, numMidiOutput);
+    std::copy_n (midiOutput.data(), count, destination);
+    std::move (midiOutput.begin() + count, midiOutput.begin() + numMidiOutput, midiOutput.begin());
+    numMidiOutput -= count;
+    return count;
+}
+void BoardEngine::applyExtended (const RenderPlan& plan) noexcept
+{
+    const bool wasFeedback = extended (ExtendedHostField::FeedbackOn) >= 0.5f;
+    bool killRequested = false;
+    for (size_t index = 0; index < extendedValues.size(); ++index)
+    {
+        if (extendedModelSerials[index] != plan.extended.serials[index])
+        { extendedValues[index] = plan.extended.values[index]; extendedModelSerials[index] = plan.extended.serials[index]; }
+        const auto serial = extendedHost.serials[index];
+        if (serial == 0 || serial == extendedHostSerials[index]) continue;
+        extendedHostSerials[index] = serial;
+        const auto& descriptor = extendedHostParameters[index];
+        if (descriptor.structural || ! std::isfinite (extendedHost.values[index])) continue;
+        float value = std::clamp (extendedHost.values[index], descriptor.minimum, descriptor.maximum);
+        if (descriptor.interval > 0) value = std::round (value);
+        if (index == static_cast<size_t> (ExtendedHostField::FeedbackKill))
+        {
+            if (value >= 0.5f) killRequested = true;
+            continue; // host momentary is a pulse; held model kill remains independent
+        }
+        if (index == static_cast<size_t> (ExtendedHostField::AbSelect) && value == 3.f)
+            value = extendedValues[index] == 0.f ? 1.f : 0.f;
+        extendedValues[index] = value;
+    }
+    if (! wasFeedback && extended (ExtendedHostField::FeedbackOn) >= 0.5f) feedback.reset();
+    if (killRequested && plan.feedbackAvailable)
+    {
+        auto config = plan.topology.fb; config.on = extended (ExtendedHostField::FeedbackOn) >= 0.5f;
+        feedback.configure (config, false, rate);
+        feedback.killSamples = std::max (1, static_cast<int> (rate * 0.005));
+    }
+}
+void BoardEngine::prepareEventOffsets (const RenderPlan& plan, int samples) noexcept
+{
+    eventOffsetsPrepared = true;
+    if (samples <= 0) return;
+    constexpr int capacity = midi::kMaxRouteWrites + midi::kMaxRouteFoot + midi::kMaxRouteTransport;
+    std::array<int, capacity> original {}, mapped {}; int count = 0;
+    const auto continuous = [&] (const midi::ParamWrite& write)
+    {
+        if (write.slot >= kMaxSlots || ! plan.slots[write.slot] || write.paramIdx >= plan.slots[write.slot]->pedal->desc().numParams) return false;
+        const auto& param = plan.slots[write.slot]->pedal->desc().params[write.paramIdx];
+        return ! param.has (PF_Engage) && (param.kind == ParamKind::Continuous || param.kind == ParamKind::Tempo);
+    };
+    const auto add = [&] (int offset) { if (offset >= 0 && offset < samples) original[static_cast<size_t> (count++)] = offset; };
+    for (int i = 0; i < blockEvents.nWrites; ++i) if (! continuous (blockEvents.writes[i])) add (blockEvents.writes[i].offset);
+    for (int i = 0; i < blockEvents.nFoot; ++i) add (blockEvents.foot[i].offset);
+    for (int i = 0; i < blockEvents.nTr; ++i) add (blockEvents.trOff[i]);
+    std::sort (original.begin(), original.begin() + count);
+    count = static_cast<int> (std::unique (original.begin(), original.begin() + count) - original.begin());
+    int boundary = 0, splits = 0;
+    for (int i = 0; i < count; ++i)
+    {
+        const int requested = original[static_cast<size_t> (i)];
+        if (requested > boundary)
+        {
+            // Reserve the 32nd point for ordered delivery at the final sample.
+            boundary = splits >= 31 ? samples - 1 : std::min (samples - 1, std::max (requested, boundary + 16));
+            ++splits;
+        }
+        mapped[static_cast<size_t> (i)] = boundary;
+    }
+    const auto map = [&] (int offset)
+    {
+        const auto found = std::lower_bound (original.begin(), original.begin() + count, offset);
+        return found == original.begin() + count || *found != offset ? offset : mapped[static_cast<size_t> (found - original.begin())];
+    };
+    for (int i = 0; i < blockEvents.nWrites; ++i) if (! continuous (blockEvents.writes[i])) blockEvents.writes[i].offset = map (blockEvents.writes[i].offset);
+    for (int i = 0; i < blockEvents.nFoot; ++i) blockEvents.foot[i].offset = map (blockEvents.foot[i].offset);
+    for (int i = 0; i < blockEvents.nTr; ++i) blockEvents.trOff[i] = map (blockEvents.trOff[i]);
+}
+void BoardEngine::beginEvents (const midi::RouteOut& routed) noexcept
+{
+    blockEvents = routed;
+    blockEvents.nWrites = std::clamp (blockEvents.nWrites, 0, midi::kMaxRouteWrites);
+    blockEvents.nFoot = std::clamp (blockEvents.nFoot, 0, midi::kMaxRouteFoot);
+    blockEvents.nTr = std::clamp (blockEvents.nTr, 0, midi::kMaxRouteTransport);
+    events = &blockEvents; eventOffsetsPrepared = false;
+    const PlanReadScope reading (*this);
+    const auto* plan = live.load (std::memory_order_seq_cst);
+    if (! plan) return;
+    if (feedbackRearmSeen != plan->feedbackRearm) { feedback.reset(); feedbackRearmSeen = plan->feedbackRearm; }
+    if (feedbackKillSeen != plan->feedbackKill)
+    {
+        feedbackKillSeen = plan->feedbackKill;
+        feedback.configure (plan->topology.fb, plan->settings.fb.kill, rate);
+        feedback.killSamples = std::max (1, static_cast<int> (rate * 0.005));
+    }
+    applyExtended (*plan);
+    int retained = 0;
+    for (int i = 0; i < numPendingPulses; ++i)
+    {
+        const auto& pulse = pendingPulses[static_cast<size_t> (i)];
+        for (const auto& runtime : plan->slots)
+            if (runtime && runtime->identity == pulse.identity && runtime->pedal->desc().modelId == pulse.modelId)
+            { pendingPulses[static_cast<size_t> (retained++)] = pulse; break; }
+    }
+    numPendingPulses = retained;
+    while (numPendingPulses < static_cast<int> (pendingPulses.size())
+        && paramPulses.pop (pendingPulses[static_cast<size_t> (numPendingPulses)])) ++numPendingPulses;
+    if (modelBoardSerials[0] != plan->boardSerials[0]) effectiveEnabled = modelEnabled = plan->settings.enabled;
+    if (modelBoardSerials[1] != plan->boardSerials[1]) effectiveMix = modelMix = plan->settings.mix;
+    if (modelBoardSerials[2] != plan->boardSerials[2]) effectiveTempo = modelTempo = plan->settings.tempoBpm;
+    modelBoardSerials = plan->boardSerials;
+    for (int index = 0; index < 3; ++index)
+        if (hostAutomation.serials[static_cast<size_t> (index)] != 0
+            && hostAutomation.serials[static_cast<size_t> (index)] != hostBoardSerials[static_cast<size_t> (index)])
+        {
+            hostBoardSerials[static_cast<size_t> (index)] = hostAutomation.serials[static_cast<size_t> (index)];
+            const auto value = hostAutomation.values[static_cast<size_t> (index)];
+            if (! std::isfinite (value)) continue;
+            if (index == 0) effectiveEnabled = value >= 0.5f;
+            if (index == 1) effectiveMix = std::clamp (value, 0.f, 1.f);
+            if (index == 2) effectiveTempo = std::clamp (static_cast<double> (value), 20.0, 300.0);
+        }
+    if (effectiveEnabled && plan->topology.n > 0) running.store (true);
+    blockEnabled = effectiveEnabled; blockMix = effectiveMix; blockTempo = effectiveTempo;
+    for (int i = 0; i < blockEvents.nWrites; ++i)
+    {
+        const auto& write = blockEvents.writes[i];
+        if (write.slot != midi::kBoardTargetSlot) continue;
+        switch (static_cast<midi::BoardTarget> (write.paramIdx))
+        {
+            case midi::BoardTarget::Mix: effectiveMix = write.norm; break;
+            case midi::BoardTarget::Tempo: effectiveTempo = 20.0 + 280.0 * write.norm; break;
+            case midi::BoardTarget::Enabled:
+                effectiveEnabled = write.norm >= 0.5f;
+                if (effectiveEnabled && plan->topology.n > 0) running.store (true);
+                break;
+        }
+    }
+    latencySamples.store (effectiveEnabled && extended (ExtendedHostField::ReportLatency) >= 0.5f ? plan->topology.latencyTotal : 0);
+}
+void BoardEngine::process (double* left, double* right, int n, Placement placement) noexcept
+{
+    if (! left || ! right || n <= 0 || ! isValidPlacement (static_cast<int> (placement))) return;
+    const PlanReadScope reading (*this);
+    const auto* newest = live.load (std::memory_order_seq_cst);
+    if (! newest) return;
+    if (! events) applyExtended (*newest);
+    else if (! eventOffsetsPrepared) prepareEventOffsets (*newest, n);
+    // Empty segments do not need a transition and must not pin a retired plan.
+    for (int p = 0; p < kNumPlacements; ++p)
+    {
+        auto& s = segments[static_cast<size_t> (p)];
+        if (! s.current || (s.current->topology.segBegin[p] == s.current->topology.segEnd[p]
+            && newest->topology.segBegin[p] == newest->topology.segEnd[p]))
+        { s.current = newest; s.pending = nullptr; s.phase = Segment::Idle; }
+    }
+    bool localEnabled = events ? blockEnabled : newest->settings.enabled;
+    float localMix = events ? blockMix : newest->settings.mix;
+    const int p = static_cast<int> (placement);
+    auto& s = segments[static_cast<size_t> (p)];
+    if (resetRequested.exchange (false, std::memory_order_acq_rel))
+    {
+        for (int slot = 0; slot < kMaxSlots; ++slot)
+            if (newest->slots[static_cast<size_t> (slot)]) newest->slots[static_cast<size_t> (slot)]->reset();
+        for (auto& seg : segments)
+        { for (auto& d : seg.dry) d.reset(); for (auto& d : seg.lanes) d.reset(); for (auto& loop : seg.loops) loop.reset(); seg.ab.reset(); }
+    }
+    if (s.current != newest)
+    {
+        if (s.current->structure == newest->structure && s.phase == Segment::Idle)
+            s.current = newest;
+        else if (s.pending != newest)
+        {
+            s.pending = newest;
+            if (s.phase != Segment::Out)
+            { s.phase = Segment::Out; s.ramp = 0; s.rampStart = s.gain; }
+        }
+    }
+    if (! localEnabled && ! running.load())
+    { s.current = newest; s.pending = nullptr; s.phase = Segment::Idle; s.gain = 1.0; s.enable = 0.0; publishPedalMeters (*s.current); return; }
+    if (localEnabled && newest->topology.n > 0) running.store (true);
+    double peakIn = 0, peakOut = 0;
+    for (int offset = 0; offset < n;)
+    {
+        if (s.phase == Segment::Out && (s.ramp >= dipSamples || s.mix == 0.0))
+        {
+            s.current = s.pending; s.pending = nullptr;
+            s.phase = Segment::In; s.ramp = 0; s.gain = 0.0;
+        }
+        const auto& plan = *s.current; const auto& topology = plan.topology;
+        for (int nodeIndex = topology.segBegin[p]; nodeIndex < topology.segEnd[p]; ++nodeIndex)
+            if (topology.nodes[nodeIndex].kind == NodeKind::FbSend)
+            {
+                auto config = topology.fb; config.on = extended (ExtendedHostField::FeedbackOn) >= 0.5f;
+                config.runawayOk = extended (ExtendedHostField::FeedbackRunawayOk) >= 0.5f;
+                config.gain = std::min (extended (ExtendedHostField::FeedbackGain), config.runawayOk ? 1.05f : 0.98f);
+                config.lpHz = extended (ExtendedHostField::FeedbackLpHz);
+                feedback.configure (config, extended (ExtendedHostField::FeedbackKill) >= 0.5f, rate); break;
+            }
+        if (events)
+            for (int event = 0; event < events->nWrites; ++event)
+            {
+                const auto& write = events->writes[event];
+                if (write.offset != offset || write.slot != midi::kBoardTargetSlot) continue;
+                switch (static_cast<midi::BoardTarget> (write.paramIdx))
+                {
+                    case midi::BoardTarget::Mix: localMix = write.norm; break;
+                    case midi::BoardTarget::Tempo: break; // canonical router clock owns source priority and glide
+                    case midi::BoardTarget::Enabled: localEnabled = write.norm >= 0.5f; break;
+                }
+            }
+        int count = std::min ({ kSubBlock, block, n - offset });
+        if (events)
+        {
+            const auto split = [&] (int eventOffset) { if (eventOffset > offset) count = std::min (count, eventOffset - offset); };
+            for (int event = 0; event < events->nWrites; ++event)
+            {
+                const auto& write = events->writes[event];
+                bool continuous = false;
+                if (write.slot < kMaxSlots && plan.slots[write.slot] && write.paramIdx < plan.slots[write.slot]->pedal->desc().numParams)
+                {
+                    const auto& param = plan.slots[write.slot]->pedal->desc().params[write.paramIdx];
+                    continuous = ! param.has (PF_Engage) && (param.kind == ParamKind::Continuous || param.kind == ParamKind::Tempo);
+                }
+                if (! continuous) split (write.offset);
+            }
+            for (int event = 0; event < events->nFoot; ++event) split (events->foot[event].offset);
+            for (int event = 0; event < events->nTr; ++event) split (events->trOff[event]);
+        }
+        if (s.phase != Segment::Idle) count = std::min (count, dipSamples - s.ramp);
+        const bool hasNodes = topology.segBegin[p] != topology.segEnd[p] || (p == 0 && extended (ExtendedHostField::ReampEnable) >= 0.5f && topology.n > 0);
+        if (! hasNodes && ! s.pending) { s.phase = Segment::Idle; s.gain = 1.0; offset += count; continue; }
+        const bool hasSidechain = sidechain[0] && sidechain[1] && offset + count <= sidechainSamples;
+        if (hasSidechain)
+            for (int c = 0; c < 2; ++c)
+                for (int i = 0; i < count; ++i)
+                    sidechainScratch[static_cast<size_t> (c)][static_cast<size_t> (i)] = BoardLimiter::process (sidechain[c][offset + i], false, 1.0);
+        const bool reamp = p == 0 && (extended (ExtendedHostField::ReampEnable) >= 0.5f) && hasSidechain;
+        const double reampGain = reamp ? (extended (ExtendedHostField::ReampGainDb) <= -120.f ? 0.0 : std::pow (10.0, extended (ExtendedHostField::ReampGainDb) / 20.0)) : 0.0;
+        double dry[2][kSubBlock] {};
+        for (int c = 0; c < 2; ++c)
+            for (int i = 0; i < count; ++i)
+            {
+                double in = (c == 0 ? left : right)[offset + i];
+                if (reamp) in = (extended (ExtendedHostField::ReampReplace) >= 0.5f ? 0.0 : in)
+                    + reampGain * sidechainScratch[static_cast<size_t> (c)][static_cast<size_t> (i)];
+                peakIn = std::max (peakIn, std::abs (std::isfinite (in) ? in : 0.0));
+                const int dryLatency = s.pending ? s.pending->latency[static_cast<size_t> (p)] : plan.latency[static_cast<size_t> (p)];
+                dry[c][i] = s.dry[static_cast<size_t> (c)].processCrossfade (in, dryLatency, std::max (1, static_cast<int> (rate * 0.010)));
+                buses[0][static_cast<size_t> (c)][static_cast<size_t> (i)] = ! localEnabled && s.enable == 0.0 ? 0.0 : BoardLimiter::process (in, false, 1.0);
+            }
+        const bool wetPaused = localMix == 0.f && s.mix == 0.0 && extended (ExtendedHostField::MixTail) < 0.5f;
+        if (wetPaused) for (auto& channel : buses[0]) std::fill_n (channel.data(), count, 0.0);
+        ExecCtx context; context.n = count; context.topo = &topology;
+        context.pedals = topology.pedals; context.sampleRate = rate;
+        for (int bus = 0; bus < kMaxBuses; ++bus)
+            for (int c = 0; c < 2; ++c) context.bus[bus][c] = buses[static_cast<size_t> (bus)][static_cast<size_t> (c)].data();
+        std::array<PedalNodeState, kMaxSlots> pedalStates;
+        for (int index = topology.segBegin[p]; index < topology.segEnd[p]; ++index)
+        {
+            auto node = topology.nodes[index]; context.nodeIndex = index;
+            const auto dbGain = [] (float db) { return db <= -120.f ? 0.f : std::pow (10.f, db / 20.f); };
+            if (node.kind == NodeKind::Limiter)
+            { node.i0 = extended (ExtendedHostField::LimiterOn) >= 0.5f ? 1 : 0; node.f0 = dbGain (extended (ExtendedHostField::LimiterCeilDb)); }
+            if (node.kind == NodeKind::LaneGain)
+                node.f0 = dbGain (extendedValues[static_cast<size_t> (25 + 2 * node.lane)]) * (extendedValues[static_cast<size_t> (26 + 2 * node.lane)] >= 0.5f ? -1.f : 1.f);
+            if (node.kind == NodeKind::Sum && node.i0 != 0)
+            { const auto selection = extended (ExtendedHostField::AbSelect); node.f1 = selection == 0.f ? 0.f : selection == 1.f ? 1.f : 0.5f; }
+            if (node.kind == NodeKind::SendTap || node.kind == NodeKind::ReturnInject)
+            {
+                const int base = 33 + 8 * node.aux; const bool enabled = extendedValues[static_cast<size_t> (base + 1)] >= 0.5f;
+                if (node.kind == NodeKind::SendTap) node.f0 = enabled ? dbGain (extendedValues[static_cast<size_t> (base + 4)]) : 0.f;
+                else
+                {
+                    node.f0 = ! enabled ? 0.f : topology.loops[node.aux].kind == LoopKind::Parallel ? extendedValues[static_cast<size_t> (base + 3)] : 1.f;
+                    node.f1 = dbGain (extendedValues[static_cast<size_t> (base + 5)]);
+                }
+            }
+            if (node.kind == NodeKind::Pedal)
+            {
+                auto& state = pedalStates[node.slot]; state.runtime = plan.slots[node.slot].get(); state.control = &plan.controls[node.slot];
+                state.events = events; state.offset = offset; state.eventsEnabled = localEnabled; state.processWet = ! wetPaused;
+                state.raw = rawMidi.data(); state.numRaw = numRawMidi;
+                state.sidechain[0] = hasSidechain ? sidechainScratch[0].data() : nullptr;
+                state.sidechain[1] = hasSidechain ? sidechainScratch[1].data() : nullptr;
+                state.time = blockTime; state.time.sample += offset;
+                if (state.time.valid) state.time.ppq += offset * state.time.bpm / (60.0 * rate);
+                if (state.runtime) { state.runtime->numRenderedMidi = 0; state.runtime->midiDropped = 0; }
+                context.state[index] = &state;
+                if (state.runtime)
+                {
+                    auto& pedal = *state.runtime->pedal;
+                    state.runtime->foot.setMode (state.control->footMode);
+                    pedal.setSidechain (hasSidechain ? sidechainScratch[0].data() : nullptr,
+                                        hasSidechain ? sidechainScratch[1].data() : nullptr, hasSidechain ? count : 0);
+                    for (int param = 0; param < pedal.desc().numParams; ++param)
+                        if (! pedal.desc().params[param].has (PF_Engage)
+                            && state.runtime->modelParamSerials[static_cast<size_t> (param)] != state.control->paramSerials[static_cast<size_t> (param)])
+                        {
+                            state.runtime->modelParamSerials[static_cast<size_t> (param)] = state.control->paramSerials[static_cast<size_t> (param)];
+                            state.runtime->modelParams[static_cast<size_t> (param)] = state.control->params[static_cast<size_t> (param)];
+                            state.runtime->writeParam (param, state.control->params[static_cast<size_t> (param)]);
+                        }
+                    if (state.runtime->modelEnabledSerial != state.control->enabledSerial)
+                    {
+                        state.runtime->modelEnabledSerial = state.control->enabledSerial;
+                        state.runtime->modelEnabled = state.runtime->enabled = state.control->enabled;
+                        state.runtime->bypassSamples = std::max (1.0, 0.005 * rate);
+                        state.runtime->foot.reset (state.control->enabled); pedal.setEnabled (state.control->enabled);
+                    }
+                    if (state.runtime->modelInputSerial != state.control->inputSerial)
+                    { state.runtime->modelInputSerial = state.control->inputSerial; state.runtime->inputGain = state.runtime->modelInputGain = state.control->inputGain; }
+                    if (state.runtime->modelOutputSerial != state.control->outputSerial)
+                    { state.runtime->modelOutputSerial = state.control->outputSerial; state.runtime->outputGain = state.runtime->modelOutputGain = state.control->outputGain; }
+                    const int hostBase = 3 + 20 * node.slot;
+                    if (! state.runtime->hostInitialised)
+                    {
+                        const auto& previous = hostSlotSources[node.slot];
+                        if (! previous.identity.isNull() && (previous.identity != state.runtime->identity
+                            || previous.modelId != pedal.desc().modelId))
+                            for (int index = 0; index < 19; ++index)
+                                state.runtime->hostSerials[static_cast<size_t> (index)] = hostAutomation.serials[static_cast<size_t> (hostBase + index)];
+                        hostSlotSources[node.slot] = { state.runtime->identity, pedal.desc().modelId };
+                        state.runtime->hostInitialised = true;
+                    }
+                    for (int index = 0; index < 19; ++index)
+                    {
+                        const auto serial = hostAutomation.serials[static_cast<size_t> (hostBase + index)];
+                        if (serial == 0 || serial == state.runtime->hostSerials[static_cast<size_t> (index)]) continue;
+                        state.runtime->hostSerials[static_cast<size_t> (index)] = serial;
+                        const float value = hostAutomation.values[static_cast<size_t> (hostBase + index)];
+                        if (! std::isfinite (value)) continue;
+                        if (index == 0)
+                        { state.runtime->enabled = value >= 0.5f; pedal.setEnabled (state.runtime->enabled); state.runtime->foot.reset (state.runtime->enabled); }
+                        else if (index <= 16)
+                        {
+                            const int param = state.control->laneToParam[static_cast<size_t> (index - 1)];
+                            if (param >= 0) state.runtime->writeParam (param, std::clamp (value, 0.f, 1.f));
+                        }
+                        else if (index == 17) state.runtime->inputGain = std::pow (10.f, std::clamp (value, -12.f, 12.f) / 20.f);
+                        else state.runtime->outputGain = std::pow (10.f, std::clamp (value, -12.f, 12.f) / 20.f);
+                    }
+                    if (localEnabled)
+                        for (int i = 0; i < numPendingPulses; ++i)
+                        {
+                            auto& pulse = pendingPulses[static_cast<size_t> (i)];
+                            if (pulse.identity == state.runtime->identity && pulse.modelId == pedal.desc().modelId)
+                            { state.runtime->writeParam (pulse.param, pulse.value); pulse.identity = InstanceId::null(); }
+                        }
+                    auto time = blockTime;
+                    time.sample += offset; if (time.valid) time.ppq += offset * time.bpm / (60.0 * rate);
+                    pedal.setTime (time);
+                    if (events)
+                    {
+                        for (int event = 0; event < events->nTr; ++event)
+                            if (events->trOff[event] == offset) pedal.onTransport (events->tr[event], offset);
+                        for (int event = 0; event < events->nFoot; ++event)
+                            if (events->footSlot[event] == node.slot && events->foot[event].offset == offset)
+                            {
+                                const auto& foot = events->foot[event];
+                                pedal.onFoot (foot);
+                                if (pedal.footControlsEngagement())
+                                {
+                                    const bool value = foot.press ? state.runtime->foot.press (blockTime.sample + offset)
+                                        : state.runtime->foot.release (blockTime.sample + offset);
+                                    if (value != state.runtime->enabled)
+                                    {
+                                        state.runtime->enabled = value; pedal.setEnabled (value);
+                                        const bool knownRelease = foot.speed > 0.f && std::abs (foot.speed - 64.f / 127.f) > 0.5f / 127.f;
+                                        const double milliseconds = foot.press || knownRelease
+                                            ? 25.0 - 23.0 * std::clamp (static_cast<double> (foot.speed), 0.0, 1.0) : 12.0;
+                                        state.runtime->bypassSamples = std::max (1.0, rate * milliseconds * 0.001);
+                                        engageEcho.push ({ state.runtime->identity, node.slot, value, state.runtime->modelEnabled });
+                                    }
+                                }
+                            }
+                        if (localEnabled)
+                            for (int event = 0; event < events->nWrites; ++event)
+                            {
+                                const auto& write = events->writes[event];
+                                if (write.slot != node.slot || write.offset != offset || write.paramIdx >= pedal.desc().numParams) continue;
+                                if (pedal.desc().params[write.paramIdx].has (PF_Engage))
+                                {
+                                    state.runtime->enabled = write.norm >= 0.5f; pedal.setEnabled (state.runtime->enabled);
+                                    state.runtime->foot.reset (state.runtime->enabled);
+                                    engageEcho.push ({ state.runtime->identity, node.slot, state.runtime->enabled, state.runtime->modelEnabled });
+                                }
+                                else if (pedal.desc().params[write.paramIdx].kind != ParamKind::Continuous
+                                    && pedal.desc().params[write.paramIdx].kind != ParamKind::Tempo)
+                                    state.runtime->writeParam (write.paramIdx, write.norm, write.smoothMs);
+                            }
+                    }
+                }
+            }
+            else if (node.kind == NodeKind::FbSend || node.kind == NodeKind::FbReturn) context.state[index] = &feedback;
+            else if (node.kind == NodeKind::Sum && node.i0 != 0) context.state[index] = &s.ab;
+            else if (node.kind == NodeKind::Delay) context.state[index] = &s.lanes[node.aux];
+            else if (node.kind == NodeKind::SendTap || node.kind == NodeKind::ReturnInject) context.state[index] = &s.loops[node.aux];
+            if (! wetPaused || node.kind == NodeKind::Pedal) routing::nodeTable()[static_cast<int> (node.kind)] (node, context);
+            if (node.kind == NodeKind::Pedal)
+            {
+                auto* runtime = plan.slots[node.slot].get();
+                if (runtime)
+                {
+                    const auto& outgoing = runtime->renderedMidi;
+                    const int drained = runtime->numRenderedMidi;
+                    outputDropped.fetch_add (runtime->midiDropped, std::memory_order_relaxed);
+                    if (localEnabled)
+                        for (int event = 0; event < drained; ++event)
+                        {
+                            auto value = outgoing[event]; value.offset = offset + std::clamp (value.offset, 0, count - 1);
+                            if (numMidiOutput == static_cast<int> (midiOutput.size()))
+                            { outputDropped.fetch_add (1, std::memory_order_relaxed); continue; }
+                            int insertion = numMidiOutput++;
+                            while (insertion > 0 && midiOutput[static_cast<size_t> (insertion - 1)].offset > value.offset)
+                            { midiOutput[static_cast<size_t> (insertion)] = midiOutput[static_cast<size_t> (insertion - 1)]; --insertion; }
+                            midiOutput[static_cast<size_t> (insertion)] = value;
+                        }
+                }
+                if (runtime && runtime->pedal->consumeEngageToggle())
+                {
+                    runtime->enabled = ! runtime->enabled; runtime->pedal->setEnabled (runtime->enabled);
+                    runtime->foot.reset (runtime->enabled);
+                    engageEcho.push ({ runtime->identity, node.slot, runtime->enabled, runtime->modelEnabled });
+                }
+            }
+        }
+        const auto sendAux = [&] (const BoardAuxOutputs::Stereo& destination, const double* l, const double* r)
+        {
+            if (! destination.left || ! destination.right || offset + count > destination.samples) return;
+            for (int i = 0; i < count; ++i)
+            {
+                destination.left[offset + i] = static_cast<float> (BoardLimiter::process (destination.left[offset + i] + l[i], false, 1.0));
+                destination.right[offset + i] = static_cast<float> (BoardLimiter::process (destination.right[offset + i] + r[i], false, 1.0));
+            }
+        };
+        if (localEnabled)
+        {
+            sendAux (auxOutputs.wet, buses[0][0].data(), buses[0][1].data());
+            sendAux (auxOutputs.dry, dry[0], dry[1]);
+            if (plan.settings.mode == Mode::AB && plan.settings.abOut == AbOutMode::Dual)
+                sendAux (auxOutputs.pedalB, buses[1][0].data(), buses[1][1].data());
+        }
+        const double targetMix = localMix;
+        const double enableStep = 1.0 / std::max (1.0, 0.020 * rate);
+        for (int i = 0; i < count; ++i)
+        {
+            s.enable = std::clamp (s.enable + (localEnabled ? enableStep : -enableStep), 0.0, 1.0);
+            if (s.enable < 1.e-12) s.enable = 0.0;
+            if (s.enable > 1.0 - 1.e-12) s.enable = 1.0;
+            s.mix += mixAlpha * (targetMix - s.mix);
+            if (std::abs (s.mix - targetMix) < 1.e-10) s.mix = targetMix;
+            if (s.phase != Segment::Idle)
+            {
+                const double progress = static_cast<double> (++s.ramp) / dipSamples;
+                const double shape = mixer.render (0.0, 1.0, progress, MixLaw::EqualPower);
+                s.gain = s.phase == Segment::Out ? s.rampStart * (1.0 - shape * shape) : shape * shape;
+                if (s.phase == Segment::In && s.ramp == dipSamples) { s.phase = Segment::Idle; s.gain = 1.0; }
+            }
+            for (int c = 0; c < 2; ++c)
+            {
+                const double wet = dry[c][i] + s.gain * (buses[0][static_cast<size_t> (c)][static_cast<size_t> (i)] - dry[c][i]);
+                const double result = mixer.render (dry[c][i], wet, s.mix * s.enable, static_cast<MixLaw> (static_cast<int> (extended (ExtendedHostField::MixLaw))));
+                (c == 0 ? left : right)[offset + i] = BoardLimiter::process (result, false, 1.0);
+                peakOut = std::max (peakOut, std::abs ((c == 0 ? left : right)[offset + i]));
+            }
+        }
+        offset += count;
+    }
+    if (! localEnabled)
+    {
+        bool silent = true;
+        for (int segment = 0; segment < kNumPlacements; ++segment)
+            if (newest->topology.segBegin[segment] != newest->topology.segEnd[segment]
+                && segments[static_cast<size_t> (segment)].enable > 0.0) silent = false;
+        if (extended (ExtendedHostField::Trails) >= 0.5f)
+            for (const auto& slot : newest->slots)
+                if (slot && slot->pedal->desc().hasTails && slot->pedal->getTailEnergyDb() > -90.f) silent = false;
+        if (silent) running.store (false);
+    }
+    if (newest->topology.n == 0 && s.pending == nullptr) running.store (false);
+    inputPeak.store (static_cast<float> (20.0 * std::log10 (std::max (1.e-6, peakIn))));
+    outputPeak.store (static_cast<float> (20.0 * std::log10 (std::max (1.e-6, peakOut))));
+    feedbackFault.store (feedback.fault); feedbackTripped.store (feedback.tripped);
+    publishPedalMeters (*s.current);
+
+}
+}

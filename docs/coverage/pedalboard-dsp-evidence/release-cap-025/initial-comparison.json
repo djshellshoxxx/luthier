@@ -1,0 +1,71 @@
+{
+  "cases": 125,
+  "rates": [
+    44100,
+    48000,
+    88200,
+    96000,
+    192000
+  ],
+  "candidateMinOutputDropDb": [
+    42.29853279599319,
+    [
+      "44100",
+      "19"
+    ]
+  ],
+  "candidateMinRawDropDb": 59.92473916519978,
+  "baselineBelow35": [
+    [
+      "44100",
+      "P-Style Bass",
+      "34.45237774995627"
+    ],
+    [
+      "48000",
+      "P-Style Bass",
+      "34.738995150601191"
+    ]
+  ],
+  "candidateBelow35": [],
+  "preReleaseComparedFrames": 5853750,
+  "preReleaseComparedValues": 23415000,
+  "preReleaseMismatches": [
+    [
+      "88200",
+      "18"
+    ]
+  ],
+  "identityCases": 120,
+  "identityPreMismatches": [],
+  "fullHeldLetRingCases": 60,
+  "fullHeldLetRingMismatches": [],
+  "maxCapturedAbsoluteSample": 1.1205872297286987,
+  "pstyle": [
+    {
+      "rate": "44100",
+      "rawDrop": "63.139052556535233",
+      "outputDrop": "42.298532795993189"
+    },
+    {
+      "rate": "48000",
+      "rawDrop": "63.166277913351571",
+      "outputDrop": "43.07422372141658"
+    },
+    {
+      "rate": "88200",
+      "rawDrop": "63.073720811595813",
+      "outputDrop": "44.842897431063655"
+    },
+    {
+      "rate": "96000",
+      "rawDrop": "63.10802506139563",
+      "outputDrop": "45.025256848336042"
+    },
+    {
+      "rate": "192000",
+      "rawDrop": "63.042898455806046",
+      "outputDrop": "44.557578114952328"
+    }
+  ]
+}

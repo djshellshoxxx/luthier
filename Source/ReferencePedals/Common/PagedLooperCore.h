@@ -1,0 +1,101 @@
+// OWNER: WP15/WP16
+#pragma once
+#include "LooperCore.h"
+#include "LooperStorage.h"
+#include <array>
+#include <memory>
+namespace luthier::reference::common
+{
+// Sample-clock transport over bounded, content-addressed PCM streams. All
+// storage calls go through the IAssetStore provided by the owning pedal.
+class PagedLooperCore
+{
+public:
+    using State=LooperCore::State;
+    using Action=LooperAction;
+    using Command=LooperCommand;
+    using Direction=LooperStorage::Direction;
+    struct Config
+    {
+        double sampleRate=48000,seconds=300;
+        int channels=2,undoDepth=1;
+        // Aggregate across base, retained layers, scratch/retired streams,
+        // caches, page metadata, queues and worker I/O scratch.
+        size_t ramBudget=32*1024*1024;
+        uint64_t storageBudget=32ull*1024*1024*1024;
+        int pageFrames=4096,writePages=8,readPages=8,readAhead=3;
+    };
+    using CaptureStatus=LooperStorage::CaptureStatus;
+    // Minimum geometric coverage from any cursor, including that frame and
+    // excluding the first page outside the window, in either direction. Returns
+    // UINT64_MAX when every loop page fits; this is not a residency/I/O check.
+    static uint64_t minimumWindowFrames(uint64_t frames,int pageFrames,int readAhead) noexcept;
+    // Compatibility name for the same direction-independent minimum.
+    static uint64_t minimumForwardWindowFrames(uint64_t frames,int pageFrames,int readAhead) noexcept;
+    enum class RestorePolicy { Stopped, ResumeCaptured };
+    struct Graph
+    {
+        // Per-session boundary metadata, deliberately outside the JSON codec.
+        struct Runtime
+        {
+            bool available=false;
+            State state=State::Stopped;
+            uint64_t head=0;
+            int64_t sample=0;
+            double gain=0;
+            Direction direction=Direction::Forward;
+        } runtime;
+        uint64_t generation=0,frames=0;
+        CaptureStatus status=CaptureStatus::Empty;
+        uint32_t faults=0;
+        AssetHash base;
+        std::array<AssetHash,8> layers{};
+        int layerCount=0;
+        std::array<AssetHash,2> retired{}; // audible, already outside undo depth
+        int retiredCount=0;
+        std::array<AssetHash,8> redo{}; // retained stack order; next Redo is last
+        int redoCount=0; // layerCount + redoCount <= prepared undoDepth
+    };
+    PagedLooperCore();
+    ~PagedLooperCore();
+    bool prepare(IAssetStore&,const Config&); // stopped audio, off audio
+    void reset() noexcept;
+    bool enqueue(Command) noexcept; // one chronological producer
+    void apply(Action) noexcept; // audio owner at exact boundary
+    void process(double* left,double* right,int n,double loopGain=1,double dryGain=1) noexcept;
+    void setSeamMilliseconds(double) noexcept;
+    // Audio owner: accept only Empty or fully Stopped (gain zero). Selection
+    // survives Record/Clear/reset; recording still writes forward. Success
+    // anchors and primes the chosen origin, not a guarantee of playbackReady.
+    bool setPlaybackDirection(Direction) noexcept;
+    Direction playbackDirection() const noexcept;
+    State state() const noexcept; // remaining getters are audio owner only
+    uint64_t length() const noexcept;
+    uint64_t playhead() const noexcept;
+    uint64_t capacity() const noexcept;
+    int64_t samplePosition() const noexcept;
+    int undoDepth() const noexcept;
+    bool canUndo() const noexcept; // audio owner only; current action eligibility
+    bool canRedo() const noexcept;
+    uint32_t faults() const noexcept;
+    bool playbackReady() const noexcept; // audio owner; whole configured read-ahead window
+    size_t reservedBytes() const noexcept;
+    uint64_t reservedStorageBytes() const noexcept;
+    // Any thread while this prepared processor remains alive; lifecycle calls
+    // prepare/restore/destruction require the documented stopped owner barrier.
+    // Fixed-size atomic publication, no live audio-buffer reads.
+    // Ready resolves worker completion even without another audio callback.
+    // Only Ready describes complete assets. Other states never relabel an old
+    // manifest as current audio. Output is unchanged on contention.
+    bool capture(Graph&) const noexcept;
+    // Stopped off-audio lifecycle, normally before publishing a new processor.
+    // Stopped starts fresh Forward/head0; ResumeCaptured includes direction.
+    // ResumeCaptured requires complete runtime metadata and primed read-ahead
+    // before activation. It resumes that captured boundary, not a later live
+    // swap time. A structural owner must perform final-boundary revalidation.
+    bool restore(const Graph&,RestorePolicy=RestorePolicy::Stopped);
+private:
+    struct Impl;
+    std::unique_ptr<Impl> impl;
+};
+}

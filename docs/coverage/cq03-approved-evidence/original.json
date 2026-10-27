@@ -1,0 +1,13 @@
+{
+  "source": "5d2f4e585318970aea3264eb686256e4156b7370",
+  "binary_sha256": "fb57ec3720eded46380214b793ad5c6d7c97530554bd3393cec875a2c247b137",
+  "command": [
+    "xvfb-run",
+    "-a",
+    "/workspace/luthier/build/LuthierTests_artefacts/Release/LuthierTests",
+    "CQ03"
+  ],
+  "exit": 1,
+  "bank": "70 verified active Factory presets, original resources unchanged",
+  "owner_approval": "2026-10-25 top-level delegation: yes do it; exact ref_board_cpu_cap only"
+}

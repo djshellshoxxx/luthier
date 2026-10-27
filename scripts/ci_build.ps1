@@ -113,7 +113,11 @@ function Step-Build {
     Write-Step "Building $($targets -join ' ') with $Jobs jobs"
     # -k 0: keep going after a failed compile so one CI run surfaces every
     # compiler error, not just the first. A successful build is unaffected.
-    Invoke-Checked 'Build' { cmake --build $BuildDir --config $Config --parallel $Jobs --target @targets -- -k 0 }
+    # Keep a copy of the compiler output in the uploaded logs (build.log), like
+    # ci_build.sh does, so native build errors are readable after the run.
+    New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
+    $buildLog = Join-Path $LogDir 'build.log'
+    Invoke-Checked 'Build' { cmake --build $BuildDir --config $Config --parallel $Jobs --target @targets -- -k 0 2>&1 | Tee-Object -FilePath $buildLog }
 }
 
 function Step-Test {

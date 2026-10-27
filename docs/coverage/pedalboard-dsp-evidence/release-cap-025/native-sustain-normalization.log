@@ -1,0 +1,49 @@
+
+================================================================
+ LUTHIER TEST SUITE
+================================================================
+
+
+Normalization
+----------------------------------------------------------------
+    p41_g18_phrase: table -22.51, fresh -22.2508 LUFS
+    p68_g21_phrase: table -22.27, fresh -23.1757 LUFS
+    p21_g20_phrase: table -31.6, fresh -30.0232 LUFS
+    p30_g05_phrase: table -23.4, fresh -23.5005 LUFS
+  [pass]  ON03_FactoryTableDoesNotDrift               12 checks     6089.46 ms
+
+SustainDecay
+----------------------------------------------------------------
+  [pass]  legacyIsBitIdentical                        1 checks      2104 ms
+      slopes: early -25.1 dB/s, late -13.7 dB/s, legacy late -13.7 dB/s
+  [pass]  twoStageKnee                                2 checks      20.311 ms
+      a 0.3: knee -1.43 dB (expected -1.55)
+      a 0.5: knee -2.81 dB (expected -3.01)
+      a 0.8: knee -6.67 dB (expected -6.99)
+  [pass]  kneeDepth                                   3 checks      40.947 ms
+      tension at v127, 50-90 ms: low E 8.23 c, high E 1.09 c
+  [pass]  tensionMagnitude                            3 checks      13.452 ms
+      v127 / v64 offset ratio 5.54
+  [pass]  tensionScalesWithLevelSquared               1 checks      2.332 ms
+      2-8 kHz over 0-30 ms +1.62 dB; centroid ratio 300-330 ms 1.008
+  [pass]  brightnessOvershoot                         2 checks      32.665 ms
+      48000 Hz: ping high E 3880 Hz, low E 1980 Hz, low E at 12 3960 Hz
+      44100 Hz: ping high E 3880 Hz, low E 1980 Hz, low E at 12 3960 Hz
+      96000 Hz: ping high E 3880 Hz, low E 1980 Hz, low E at 12 3960 Hz
+  [pass]  longitudinalPing                            12 checks     757.052 ms
+      at note-off -52.4; +10 ms legacy -62.9 ramped -55.2; +250 ms legacy -115.1 ramped -110.8 dB
+  [pass]  releaseRamp                                 3 checks      5.917 ms
+      fret 5 sag -13.20 cents
+  [pass]  releaseSag                                  2 checks      4.648 ms
+      ring: 0.10 cents off the open string, -11.7 dB
+  [pass]  releaseRing                                 2 checks      2.213 ms
+  [pass]  boundedAtTheLimits                          3 checks      7423.36 ms
+  [pass]  styles                                      19 checks     356.727 ms
+  [pass]  lettingRingSkipsTheRelease                  1 checks      4.667 ms
+  [pass]  costAndSafety                               1 checks      1528.25 ms
+  [pass]  sampleRateIndependence                      4 checks      103.138 ms
+
+================================================================
+ ALL PASSED
+ 16 tests, 71 checks, 18.5 s
+================================================================

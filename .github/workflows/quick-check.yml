@@ -1,0 +1,93 @@
+# Fast, non-release verification. Full build.yml remains the release gate.
+name: quick-check
+
+on:
+  pull_request:
+    paths:
+      - 'Source/**'
+      - 'Tests/**'
+      - 'CMakeLists.txt'
+      - 'cmake/**'
+      - 'scripts/**'
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quick-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused-linux:
+    name: Focused Linux preflight (${{ matrix.edition }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        edition: [PAID, FREE]
+    env:
+      BUILD_DIR: build-quick-${{ matrix.edition }}
+      CONFIG: Release
+      LUTHIER_EDITION: ${{ matrix.edition }}
+      LUTHIER_LTO: OFF
+      JOBS: '4'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check shell and Python syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/ci_build.sh scripts/package_macos.sh
+          python3 -m compileall -q scripts
+          python3 -m unittest discover -s scripts -p 'test_prepare_pro_beta_assets.py' -v
+      - name: Linux build prerequisites
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends \
+            libasound2-dev libjack-jackd2-dev libxrandr-dev libxcursor-dev libxinerama-dev \
+            libxcomposite-dev libfontconfig1-dev libfreetype-dev libcurl4-openssl-dev \
+            libgl1-mesa-dev xvfb clang lld ninja-build dpkg-dev
+      - name: Compiler cache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          variant: ccache
+          key: quick-linux-${{ matrix.edition }}
+          max-size: 2G
+      - name: Cache pinned third-party source
+        uses: actions/cache@v4
+        with:
+          path: |
+            ThirdParty/JUCE
+            ThirdParty/clap-juce-extensions
+          key: thirdparty-Linux-${{ hashFiles('scripts/ci_build.sh', 'scripts/ci_build.ps1') }}
+      - name: Fetch pinned dependencies
+        run: scripts/ci_build.sh deps
+      - name: Configure without LTO
+        run: scripts/ci_build.sh configure
+      - name: Compile focused test runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake --build "$BUILD_DIR" --config "$CONFIG" --parallel "$JOBS" --target LuthierTests -- -k 0
+      - name: Run release blocker smoke tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$BUILD_DIR/logs"
+          runner="$BUILD_DIR/LuthierTests_artefacts/$CONFIG/LuthierTests"
+          test -x "$runner"
+          xvfb-run -a "$runner" FactoryGuitarOverrideUsesSelectedInstrument CalibrationHashIgnoresPresetMetadata ON03_FactoryTableDoesNotDrift ON03_ExplicitCalibrationTransactionIgnoresLoadDelay ON32_EditionIsPartOfTheHash CQ23_ PracticeTrack \
+            2>&1 | tee "$BUILD_DIR/logs/focused-regressions.log"
+      - name: Upload diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quick-check-linux-${{ matrix.edition }}-diagnostics
+          path: |
+            build-quick-${{ matrix.edition }}/logs/
+            build-quick-${{ matrix.edition }}/CMakeFiles/CMakeConfigureLog.yaml
+          if-no-files-found: ignore
+          retention-days: 7

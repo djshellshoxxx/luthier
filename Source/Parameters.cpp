@@ -1,4 +1,5 @@
 #include "Parameters.h"
+#include "ReferencePedals/PedalRegistry.h"
 #include "PhysicalRange.h"
 #include "DSP/Amp/MicPlacement.h"   // FEAT-MIC
 #include "Rhythm/StrumGesture.h"
@@ -15,6 +16,10 @@ using APVTS = juce::AudioProcessorValueTreeState;
 
 namespace ParamIDs
 {
+juce::String refSlot (int slot, const juce::String& suffix)
+{
+    return "ref_s" + juce::String (slot + 1).paddedLeft ('0', 2) + "_" + suffix;
+}
 const char* macroByIndex (int index) noexcept
 {
     switch (index)
@@ -60,6 +65,27 @@ const char* macroByIndex (int index) noexcept
 //==============================================================================
 namespace
 {
+    class ReferenceLaneParameter final : public juce::AudioParameterFloat
+    {
+    public:
+        ReferenceLaneParameter (const juce::String& id, const juce::String& name)
+            : juce::AudioParameterFloat ({ id, 1 }, name, juce::NormalisableRange<float> (0.f, 1.f), 0.f),
+              displayName (std::make_shared<const juce::String> ("-"))
+        { RangeRegistry::noteDeclaration (id, 0.f, 1.f); }
+        juce::String getName (int maximumLength) const override
+        { const auto name = std::atomic_load (&displayName); return maximumLength > 0 ? name->substring (0, maximumLength) : *name; }
+        bool isAutomatable() const override { return available.load (std::memory_order_relaxed); }
+        bool publishName (const juce::String& name)
+        {
+            if (*std::atomic_load (&displayName) == name) return false;
+            std::atomic_store (&displayName, std::make_shared<const juce::String> (name));
+            available.store (name != "-", std::memory_order_relaxed); return true;
+        }
+    private:
+        std::shared_ptr<const juce::String> displayName; // host metadata reads, message writes
+        std::atomic<bool> available { false };
+    };
+
     template <typename EnumType, typename NameFn>
     juce::StringArray namesFor (int count, NameFn fn)
     {
@@ -1114,7 +1140,54 @@ APVTS::ParameterLayout Parameters::createLayout()
     add (floatParam  (ParamIDs::fxSaturation, "Saturation", 0.0f, 100.0f, 0.0f, 1.0f, "%"));
     // ==== END FEAT-SAT params ====
 
+    // ==== BEGIN REF-PEDALBOARD params ====
+    add (boolParam (ParamIDs::refBoardEnabled, "Reference Board Enabled", false));
+    add (floatParam (ParamIDs::refBoardMix, "Reference Board Mix", 0.f, 1.f, 1.f));
+    add (floatParam (ParamIDs::refBoardTempoBpm, "Reference Board Tempo", 20.f, 300.f, 120.f, 1.f, "BPM"));
+    for (int slot = 0; slot < reference::kMaxSlots; ++slot)
+    {
+        const auto name = "Reference Slot " + juce::String (slot + 1) + " ";
+        add (boolParam (ParamIDs::refSlot (slot, "enabled"), name + "Enabled", true));
+        for (int lane = 0; lane < reference::kMaxLaneParams; ++lane)
+            add (std::make_unique<ReferenceLaneParameter> (ParamIDs::refSlot (slot, "p" + juce::String (lane + 1).paddedLeft ('0', 2)), name + "Parameter " + juce::String (lane + 1)));
+        add (floatParam (ParamIDs::refSlot (slot, "in_db"), name + "Input", -12.f, 12.f, 0.f, 1.f, "dB"));
+        add (floatParam (ParamIDs::refSlot (slot, "out_db"), name + "Output", -12.f, 12.f, 0.f, 1.f, "dB"));
+        add (std::make_unique<juce::AudioParameterInt> (pid (ParamIDs::refSlot (slot, "pos")), name + "Position", 0, 15, slot));
+    }
+    // ==== END REF-PEDALBOARD params ====
+    // ==== BEGIN REF-PEDALBOARD-EXTENDED params ====
+    // E57: append after every original lane; existing host indices stay fixed.
+    for (const auto& p : reference::extendedHostParameters)
+    {
+        const auto name = "Reference Board " + juce::String (p.name);
+        if (p.choices) add (choiceParam (p.id, name, juce::StringArray::fromTokens (p.choices, "|", ""), (int) p.defaultValue));
+        else if (p.minimum == 0 && p.maximum == 1 && p.interval == 1) add (boolParam (p.id, name, p.defaultValue >= .5f));
+        else if (p.interval == 1) add (std::make_unique<juce::AudioParameterInt> (pid (p.id), name, (int) p.minimum, (int) p.maximum, (int) p.defaultValue));
+        else add (floatParam (p.id, name, p.minimum, p.maximum, p.defaultValue));
+    }
+    // ==== END REF-PEDALBOARD-EXTENDED params ====
     return layout;
+}
+
+// Host metadata is computed only on the message thread and published by value.
+bool updateReferenceLaneNames (APVTS& state, const std::vector<reference::PedalInstance>& instances)
+{
+    bool changed = false;
+    for (int slot = 0; slot < reference::kMaxSlots; ++slot)
+    {
+        const reference::PedalInstance* instance = nullptr;
+        for (const auto& p : instances) if (p.slot == slot) { instance = &p; break; }
+        const auto* desc = instance ? reference::PedalRegistry::find (instance->modelId.c_str()) : nullptr;
+        const auto* lanes = desc ? &reference::PedalRegistry::laneMap (desc->modelId) : nullptr;
+        for (int lane = 0; lane < reference::kMaxLaneParams; ++lane)
+        {
+            auto* parameter = dynamic_cast<ReferenceLaneParameter*> (state.getParameter (ParamIDs::refSlot (slot, "p" + juce::String (lane + 1).paddedLeft ('0', 2))));
+            if (! parameter) continue;
+            const auto name = lanes && lane < lanes->numLanes ? "Slot " + juce::String (slot + 1) + " " + desc->displayName + " " + desc->params[lanes->laneToParam[lane]].label : juce::String ("-");
+            changed |= parameter->publishName (name);
+        }
+    }
+    return changed;
 }
 
 //==============================================================================
@@ -1133,12 +1206,16 @@ ParameterBridge::~ParameterBridge()
 
 void ParameterBridge::parameterValueChanged (int parameterIndex, float)
 {
-    ++writeSerial;
+    const auto serial = ++writeSerial;
 
-    // When, for writtenSinceGuitarType(). Never 0, which means "never written".
+    // Internal guitar defaults disable stamping: they must not become host
+    // overrides in either the timed policy or an explicit transaction.
     if (juce::isPositiveAndBelow (parameterIndex, numLastWrite) && stampingWrites.load (std::memory_order_relaxed))
+    {
         lastWrite[(size_t) parameterIndex].store (juce::jmax ((juce::uint32) 1, juce::Time::getMillisecondCounter()),
                                                   std::memory_order_relaxed);
+        lastHostWriteSerial[(size_t) parameterIndex].store (serial, std::memory_order_relaxed);
+    }
 
     // A type the player picked in the UI arrives inside a gesture (the
     // attachments wrap every edit in one); a host, a session, a preset or a
@@ -1159,7 +1236,6 @@ void ParameterBridge::parameterValueChanged (int parameterIndex, float)
 
     const int which = code % 16;
     const int chain = (code / 16) / EffectsChain::kNumSlots, slot = (code / 16) % EffectsChain::kNumSlots;
-    const auto serial = writeSerial.load (std::memory_order_relaxed);
 
     if (which == 15)
     {
@@ -1176,6 +1252,18 @@ void ParameterBridge::parameterGestureChanged (int parameterIndex, bool starting
         inGesture[(size_t) parameterIndex].store (starting, std::memory_order_relaxed);
 }
 
+ParameterBridge::ScopedHostWriteTransaction::ScopedHostWriteTransaction (ParameterBridge& b) noexcept
+    : bridge (b)
+{
+    if (bridge.hostWriteTransactionDepth++ == 0)
+        bridge.hostWriteTransactionEpoch = bridge.writeSerial.load (std::memory_order_relaxed);
+}
+
+ParameterBridge::ScopedHostWriteTransaction::~ScopedHostWriteTransaction() noexcept
+{
+    --bridge.hostWriteTransactionDepth;
+}
+
 bool ParameterBridge::writtenSinceGuitarType (const juce::String& id) const noexcept
 {
     const int index = parameterIndex (id);
@@ -1183,20 +1271,32 @@ bool ParameterBridge::writtenSinceGuitarType (const juce::String& id) const noex
     if (! juce::isPositiveAndBelow (index, numLastWrite) || ! juce::isPositiveAndBelow (guitarTypeIndex, numLastWrite))
         return false;
 
-    /*  Written with the type (a session restore, a flush of automation, a
-        snapshot - all land within a few ms, in any order) or after it: the
-        host's value. A value set well before the type changed is the old
-        guitar's, and the new guitar replaces it. */
+    // A player gesture is a deliberate instrument switch, even when a preset
+    // restore is still inside a host-write transaction. Earlier preset writes
+    // belong to the previous instrument and must never override the new one's
+    // parts or string count. Serial order is stable across slow preset loads.
+    if (guitarTypeByPlayer.load (std::memory_order_relaxed))
+    {
+        const auto writtenSerial = lastHostWriteSerial[(size_t) index].load (std::memory_order_relaxed);
+        const auto guitarSerial = lastHostWriteSerial[(size_t) guitarTypeIndex].load (std::memory_order_relaxed);
+        return guitarSerial != 0 && (juce::int32) (writtenSerial - guitarSerial) > 0;
+    }
+
+    if (hostWriteTransactionDepth > 0)
+    {
+        const auto written = lastHostWriteSerial[(size_t) index].load (std::memory_order_relaxed);
+        return (juce::int32) (written - hostWriteTransactionEpoch) > 0;
+    }
+
+    /*  A host session restore may write related parameters just before the
+        guitar type; in that case retain writes made within the same 250 ms
+        batch. Writes older than that belong to the previous instrument. */
     constexpr juce::uint32 togetherMs = 250;
     const auto written = lastWrite[(size_t) index].load (std::memory_order_relaxed);
     const auto type = lastWrite[(size_t) guitarTypeIndex].load (std::memory_order_relaxed);
 
     if (written == 0 || type == 0)
         return false;
-
-    // The player picked the guitar: only what they have touched since is theirs.
-    if (guitarTypeByPlayer.load (std::memory_order_relaxed))
-        return (int) (written - type) > 0;
 
     return (int) (written - type) > - (int) togetherMs;
 }
@@ -1287,10 +1387,12 @@ void ParameterBridge::cachePointers()
     // Every parameter reports its writes, for writtenSinceGuitarType().
     numLastWrite = parameters.size();
     lastWrite.reset (new std::atomic<juce::uint32>[(size_t) numLastWrite]);
+    lastHostWriteSerial.reset (new std::atomic<juce::uint32>[(size_t) numLastWrite]);
     inGesture.reset (new std::atomic<bool>[(size_t) numLastWrite]);
     for (int i = 0; i < numLastWrite; ++i)
     {
         lastWrite[(size_t) i].store (0, std::memory_order_relaxed);
+        lastHostWriteSerial[(size_t) i].store (0, std::memory_order_relaxed);
         inGesture[(size_t) i].store (false, std::memory_order_relaxed);
         parameters[i]->addListener (this);
         watched.add (parameters[i]);

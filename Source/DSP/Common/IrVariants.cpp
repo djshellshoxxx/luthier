@@ -20,7 +20,7 @@ void IrVariants::prepare (double sampleRate, int maxBlockSize, int numChannels, 
 
     juce::dsp::ProcessSpec spec;
     spec.sampleRate = sr;
-    spec.maximumBlockSize = (juce::uint32) maxBlock;
+    spec.maximumBlockSize = (juce::uint32) ConvolutionInstaller::preparedBlockSize (maxBlock);
     spec.numChannels = (juce::uint32) channels;
 
     for (auto& v : variants)

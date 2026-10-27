@@ -1,6 +1,7 @@
 #include "CabinetEngine.h"
 #include "CabinetVoices.h"
 #include "MicPlacement.h"
+#include <iterator>
 #include "../../ToneMatch/ToneMatch.h"   // SPEC-SWEEP TM-7
 #include "../../Support/ThreadProbe.h"
 
@@ -12,11 +13,26 @@ namespace
     constexpr int kCabPartitionSize = 128;
     constexpr double kSpeedOfSoundMmPerSample = 343.0;   // scaled by sample rate below
 
-    juce::String slug (const char* s)
+    // Resource keys are persistent asset identifiers, independent of translated or
+    // generic display labels. Enum order is also the saved parameter order.
+    constexpr const char* cabKeys[] = { "1x12_open", "1x12_closed", "2x12_open", "2x12_closed",
+        "4x12", "4x12_vintage", "1x15_bass", "4x10_bass", "8x10_bass", "acoustic_di" };
+    constexpr const char* speakerKeys[] = { "celestion_greenback", "celestion_vintage_30",
+        "celestion_g12h", "celestion_g12t_75", "jensen_c12", "alnico_blue", "evm_12l", "bass_ceramic" };
+    constexpr const char* micKeys[] = { "shure_sm57", "shure_sm7b", "sennheiser_md421",
+        "neumann_u87", "royer_r_121", "akg_c414", "akg_d112" };
+    constexpr const char* positionKeys[] = { "on_axis_centre", "cap_edge", "off_axis_45", "cone_edge", "rear" };
+    constexpr const char* distanceKeys[] = { "close", "medium", "far" };
+    static_assert (std::size (cabKeys) == (size_t) CabinetType::NumCabinets);
+    static_assert (std::size (speakerKeys) == (size_t) SpeakerType::NumSpeakers);
+    static_assert (std::size (micKeys) == (size_t) MicType::NumMics);
+    static_assert (std::size (positionKeys) == (size_t) MicPosition::NumPositions);
+    static_assert (std::size (distanceKeys) == (size_t) MicDistance::NumDistances);
+
+    template <size_t N>
+    const char* keyOrDefault (const char* const (&keys)[N], int index, int fallback) noexcept
     {
-        return juce::String (s).toLowerCase()
-                               .replaceCharacters (" /-", "___")
-                               .removeCharacters (".");
+        return keys[index >= 0 && index < (int) N ? index : fallback];
     }
 }
 
@@ -169,7 +185,7 @@ void CabinetEngine::prepare (double sampleRate, int maxBlockSize)
 
     juce::dsp::ProcessSpec spec;
     spec.sampleRate = sr;
-    spec.maximumBlockSize = (juce::uint32) maxBlock;
+    spec.maximumBlockSize = (juce::uint32) ConvolutionInstaller::preparedBlockSize (maxBlock);
     spec.numChannels = 1;
 
     pathA.convolution->prepare (spec);
@@ -710,11 +726,11 @@ void CabinetEngine::processBlock (juce::AudioBuffer<float>& buffer) noexcept
 //==============================================================================
 juce::String CabinetEngine::irFileNameFor (const CabinetConfig& cfg)
 {
-    return slug (getCabinetName (cfg.cabinet)) + "/"
-           + slug (getSpeakerName (cfg.speaker)) + "_"
-           + slug (getMicName (cfg.mic)) + "_"
-           + slug (getPositionName (cfg.position)) + "_"
-           + slug (getDistanceName (cfg.distance)) + ".wav";
+    return juce::String (keyOrDefault (cabKeys, (int) cfg.cabinet, (int) CabinetType::Cab4x12)) + "/"
+           + speakerKeys[juce::jlimit (0, (int) SpeakerType::NumSpeakers - 1, (int) cfg.speaker)] + "_"
+           + micKeys[juce::jlimit (0, (int) MicType::NumMics - 1, (int) cfg.mic)] + "_"
+           + keyOrDefault (positionKeys, (int) cfg.position, (int) MicPosition::OnAxisCapEdge) + "_"
+           + keyOrDefault (distanceKeys, (int) cfg.distance, (int) MicDistance::Close) + ".wav";
 }
 
 const char* CabinetEngine::getCabinetName (CabinetType t) noexcept
