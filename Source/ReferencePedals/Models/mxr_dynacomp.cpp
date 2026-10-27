@@ -4,9 +4,9 @@
 #include "../Common/MildTanh.h"
 namespace luthier::reference::models
 {
-PreparedMemoryRequirement MxrDynaComp::prepareMemory(double sr, int block, int, const float *) noexcept
+PreparedMemoryRequirement MxrDynaComp::prepareMemory(double sr, int block, int policy, const float *) noexcept
 {
-    if (!std::isfinite(sr) || sr < 8000 || sr > 192000 || block <= 0)
+    if (!std::isfinite(sr) || sr < 8000 || sr > 192000 || block <= 0 || policy < 0 || policy > 2)
         return {};
     return {sizeof(MxrDynaComp) + 2 * (23 + 16) * sizeof(double), 0};
 }
