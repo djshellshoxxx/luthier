@@ -6,7 +6,7 @@ namespace luthier::reference::common
 {
 namespace
 {
-constexpr double pi=3.1415926535897932384626433832795;
+constexpr double rhythmPi=3.1415926535897932384626433832795;
 struct Pattern {const char* name;int bars;Rc5Rhythm::Grid a,b;};
 constexpr Pattern patterns[]{
 #include "../Models/rc5_patterns.inc"
@@ -22,6 +22,9 @@ void Rc5Rhythm::prepare(double sr,uint32_t seed) noexcept
 {
     rate=std::isfinite(sr)&&sr>=8000&&sr<=768000?sr:48000;
     initialSeed=seed?seed:0x51a7u;
+    // Synthesis-only1Hz DC removal; dry remains outside this filter. Keep it
+    // before the existing level/stop smoother so it adds no independent tail.
+    dc.prepare(rate,1);
     levelCoefficient=std::exp(-1/(.020*rate));
     constexpr double duration[]{.12,.14,.04,.20,.10,.035,.18,.55};
     constexpr double frequency[]{150,180,0,0,1500,1600,260,0};
@@ -33,13 +36,13 @@ void Rc5Rhythm::prepare(double sr,uint32_t seed) noexcept
     {
         auto& c=coefficients[k][i];double seconds=duration[i]*lengths[k];
         c.decay=std::exp(-7/(seconds*rate));c.frequency=frequency[i]*pitches[k];c.frequencyFloor=floors[i]*pitches[k];
-        c.frequencyDecay=std::exp(-1/(.025*rate));c.noiseLow=std::exp(-2*pi*(i==1?4000:7000)/rate);
+        c.frequencyDecay=std::exp(-1/(.025*rate));c.noiseLow=std::exp(-2*rhythmPi*(i==1?4000:7000)/rate);
         c.noiseMix=noiseMix[i];c.bodyMix=1-noiseMix[i];c.duration=(int)std::ceil(seconds*rate);
     }
     reset();setTempo(120);
 }
 void Rc5Rhythm::reset() noexcept
-{voices={};random=initialSeed;phase=level=0;step=bar=0;running=false;needsTrigger=true;applySelection();}
+{voices={};dc.reset();random=initialSeed;phase=level=0;step=bar=0;running=false;needsTrigger=true;applySelection();}
 void Rc5Rhythm::applySelection() noexcept
 {pattern=pendingPattern;variation=pendingVariation;kit=pendingKit;bar%=bars(pattern);}
 void Rc5Rhythm::select(int p,int v,int k) noexcept
@@ -81,7 +84,7 @@ double Rc5Rhythm::renderVoice(int i) noexcept
     if(c.bodyMix>0)
     {
         tonal=std::sin(v.phase);if(i==5)tonal=.5*(tonal+std::sin(v.phase*1.43));
-        v.phase+=2*pi*v.frequency/rate;if(v.phase>=2*pi)v.phase-=2*pi;
+        v.phase+=2*rhythmPi*v.frequency/rate;if(v.phase>=2*rhythmPi)v.phase-=2*rhythmPi;
         v.frequency=c.frequencyFloor+c.frequencyDecay*(v.frequency-c.frequencyFloor);
     }
     const double out=v.amplitude*(c.bodyMix*tonal+c.noiseMix*n);v.amplitude*=c.decay;
@@ -96,7 +99,7 @@ void Rc5Rhythm::process(double* left,double* right,int n) noexcept
         if(running&&needsTrigger){trigger();needsTrigger=false;}
         double sum=0;for(int i=0;i<8;++i)sum+=renderVoice(i);
         const double target=running?targetLevel:0;level=target+levelCoefficient*(level-target);if(std::abs(level)<1e-15)level=0;
-        const double out=sum*level;left[sample]=std::clamp(finite(left[sample])+out,-16.,16.);right[sample]=std::clamp(finite(right[sample])+out,-16.,16.);
+        const double out=dc.process(sum)*level;left[sample]=std::clamp(finite(left[sample])+out,-16.,16.);right[sample]=std::clamp(finite(right[sample])+out,-16.,16.);
         if(running)
         {
             phase+=increment;

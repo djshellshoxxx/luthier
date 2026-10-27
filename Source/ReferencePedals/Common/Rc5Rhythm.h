@@ -2,6 +2,7 @@
 #pragma once
 #include <array>
 #include <cstdint>
+#include "DcBlock.h"
 namespace luthier::reference::common
 {
 // Original synthesized rhythm module. No Roland samples/pattern recordings.
@@ -39,5 +40,6 @@ private:
     uint32_t initialSeed=0x51a7u,random=0x51a7u;
     std::array<Voice,8> voices{};
     std::array<std::array<Coeff,8>,7> coefficients{};
+    DcBlock dc;
 };
 }
