@@ -101,9 +101,12 @@ ARM qualification remain open. All selected six and retained twelve are preserve
 ## Recovery
 
 Evidence: `/workspace/luthier-evidence/phase90-cpu-investigation-20261027/`.
-The same-identity private Library checkpoint adds saved/new CPU records, rejected
-candidate, comparator, complete flags/hashes/disassembly, verified Git bundle
-and prior checkpoint. Manifest/receipt records final HEAD/SHA256/version. Bundle
+The local portable checkpoint contains saved/new CPU records, rejected candidate,
+comparator, complete flags/hashes/disassembly, verified Git bundle and the prior
+Library-version8 archive. Its manifest records final HEAD/SHA256. No new Library
+upload is attempted under this continuation's no-external-API restriction;
+version8 already preserves the unchanged production source. The new investigation
+and documentation are local-only until an explicitly permitted export. Bundle
 requires `f1efeded706b9dc57da7e941ca856b17eaad5183`; verify/import separately,
 preserving local work. No binary builds, caches, credentials, private intake
 archive or vendor tree is packaged. Attribution and source provenance remain.
