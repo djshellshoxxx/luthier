@@ -25,8 +25,18 @@ public:
         int pageFrames=4096,writePages=8,readPages=8,readAhead=3;
     };
     using CaptureStatus=LooperStorage::CaptureStatus;
+    enum class RestorePolicy { Stopped, ResumeCaptured };
     struct Graph
     {
+        // Per-session boundary metadata, deliberately outside the JSON codec.
+        struct Runtime
+        {
+            bool available=false;
+            State state=State::Stopped;
+            uint64_t head=0;
+            int64_t sample=0;
+            double gain=0;
+        } runtime;
         uint64_t generation=0,frames=0;
         CaptureStatus status=CaptureStatus::Empty;
         uint32_t faults=0;
@@ -66,7 +76,10 @@ public:
     // manifest as current audio. Output is unchanged on contention.
     bool capture(Graph&) const noexcept;
     // Stopped off-audio lifecycle, normally before publishing a new processor.
-    bool restore(const Graph&);
+    // ResumeCaptured requires complete runtime metadata and primed read-ahead
+    // before activation. It resumes that captured boundary, not a later live
+    // swap time. A structural owner must perform final-boundary revalidation.
+    bool restore(const Graph&,RestorePolicy=RestorePolicy::Stopped);
 private:
     struct Impl;
     std::unique_ptr<Impl> impl;

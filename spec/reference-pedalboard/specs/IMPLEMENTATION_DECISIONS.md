@@ -176,3 +176,22 @@ instead of loading it and losing history. Unknown unowned properties continue
 being cloned; redo becomes a codec-owned key in schema2. Failure leaves Stored
 or output untouched. This migration does not change transport/head semantics,
 parameter identities, registration or final model acceptance.
+
+## E64 runtime-only resume helper (2026-10-27)
+
+Architecture separates persisted memory from per-session transport. Graph adds
+an available runtime-only snapshot of Empty/Playing/Stopped state, head, current
+5ms playback-ramp gain and sample clock, coherently published with assets.
+Recording/Overdubbing snapshots are unavailable for resumption. The existing
+restore defaults to Stopped, with an explicit ResumeCaptured policy for a stopped,
+unpublished candidate; malformed/unavailable runtime metadata rejects before
+clearing it. Resume primes read-ahead at the captured head; owner must confirm
+playbackReady before activation. Schema2 intentionally does not store this
+session metadata, so decoded memory cannot silently acquire resume intent.
+
+This helper resumes the captured boundary, not a later live publication time.
+Actual structural replacement still needs final-boundary handoff/revalidation
+because the old core continues during off-audio preparation. No preset auto-play,
+mid-record snapshot, registration or complete E64 acceptance is introduced.
+The signed sample clock saturates at INT64_MAX rather than overflowing when
+restored at the representable boundary; normal clock arithmetic is unchanged.
