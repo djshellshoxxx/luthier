@@ -128,3 +128,23 @@ undo/redo count. Unprepared returns false. These are eligibility now, not histor
 availability in other transport states. Cancel a provisional overdub first, then
 query the restored Playing history. No processing/layout/state format or action
 semantics change; no GUI-thread guarantee or named registration follows.
+
+## RC-5 immediate press-cycle prerequisite (2026-10-27)
+
+The existing boss-rc5 §2.1/2.2 cycle applies on a main pedal down edge:
+Empty→Record, Recording→Play, Playing→Overdub, Overdubbing→Play,
+Stopped→Play from loop origin. A small audio-owner Rc5PressCycle primitive
+returns an optional LooperAction from the current real-core state; the caller
+applies it immediately. Repeated down
+notifications while held are ignored; up releases the guard without transport
+change. reset clears only this physical-edge bookkeeping and never resets audio,
+transport, history or the sample clock. The caller splits processing at the
+sample boundary before calling down(state). Returning the action keeps it
+interceptable by future double/hold handling. No queue, clock, allocation or I/O is added.
+
+This is not a complete gesture decoder and is not connected to a registered
+pedal. A future controller must intercept double/hold gestures, remember press
+origin and cancel provisional overdub before history queries; it must not use
+this primitive alone as the final RC-5 footswitch. The separate held second
+press after double-Stop remains unresolved; no destructive Clear policy is
+chosen here. This adds no parameter/state schema or registration.
