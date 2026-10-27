@@ -135,18 +135,20 @@ LUTHIER_TEST(RefPedalPagedLooper, concurrentCaptureNeverPublishesMixedOrPartialA
             PagedLooperCore::Graph graph;if(!core.capture(graph))continue;++captures;
             if(graph.status==PagedLooperCore::CaptureStatus::Ready)
             {
-                bool complete=graph.frames==32 && !graph.base.isNull() && f.store.hasBlob(graph.base) && graph.layerCount>=0 && graph.layerCount<=1;
+                bool complete=graph.frames==32 && !graph.base.isNull() && f.store.hasBlob(graph.base) && graph.layerCount>=0 && graph.layerCount<=1
+                    && graph.redoCount>=0 && graph.layerCount+graph.redoCount<=1;
                 for(int i=0;i<graph.layerCount;++i)complete=complete && !graph.layers[size_t(i)].isNull() && f.store.hasBlob(graph.layers[size_t(i)]);
+                for(int i=0;i<graph.redoCount;++i)complete=complete && !graph.redo[size_t(i)].isNull() && f.store.hasBlob(graph.redo[size_t(i)]);
                 if(!complete)valid=false;
             }
-            else if(!graph.base.isNull() || graph.layerCount!=0)valid=false;
+            else if(!graph.base.isNull() || graph.layerCount!=0 || graph.redoCount!=0)valid=false;
         }
     });
     for(int generation=0;generation<100;++generation)
     {
         core.apply(LooperAction::Record);process(core,32,.25+double(generation)/512.,-.25);core.apply(LooperAction::Play);CHECK(ready(core));
         core.apply(LooperAction::Overdub);process(core,16,.03125,-.03125);core.apply(LooperAction::Play);CHECK(ready(core));
-        core.apply(LooperAction::Undo);core.apply(LooperAction::Redo);
+        core.apply(LooperAction::Undo);CHECK(ready(core));core.apply(LooperAction::Redo);
         core.apply(LooperAction::Overdub);process(core,7,.5,-.5);core.apply(LooperAction::CancelOverdub);CHECK(ready(core));
         if(generation%10==0)
         {
@@ -297,5 +299,60 @@ LUTHIER_TEST(RefPedalLooperQueries, rapidStopPlayRestartsAtLoopOriginInBothCores
         const auto label=juce::String(rate)+"/block"+juce::String(block)+"/stopped"+juce::String(stoppedFrames);
         CHECK_MSG(rewound,label+" paged Play did not rewind immediately");
         CHECK_MSG(error<1.e-15,label+" RAM/paged restart mismatch "+juce::String(error,15));CHECK(finite);
+    }
+}
+
+LUTHIER_TEST(RefPedalPagedLooper, graphRestorePreservesAvailableRedoOrderAcrossPreparedDepthChange)
+{
+    PagedFixture fixture;
+    for(double rate:{44100.,48000.,88200.,96000.,192000.})for(int depth:{1,3,8})
+    {
+        auto config=tiny();config.sampleRate=rate;config.seconds=.01;config.undoDepth=depth;
+        PagedLooperCore original;CHECK(original.prepare(fixture.store,config));original.setSeamMilliseconds(0);
+        original.apply(LooperAction::Record);process(original,32,.125,-.125);
+        original.apply(LooperAction::Play);CHECK(ready(original));
+        const int warm=int(std::ceil(rate*.01/32))*32;process(original,warm,0,0);
+        double expected=.125;
+        for(int layer=1;layer<=depth;++layer)
+        {
+            original.apply(LooperAction::Overdub);process(original,32,layer/256.,-layer/256.);
+            original.apply(LooperAction::Play);CHECK(ready(original));expected+=layer/256.;
+        }
+        const int undone=depth==1?1:depth-1;
+        for(int layer=depth;layer>depth-undone;--layer)
+        {original.apply(LooperAction::Undo);expected-=layer/256.;}
+        CHECK(original.canRedo());CHECK(ready(original));
+        PagedLooperCore::Graph graph;CHECK(original.capture(graph));
+        CHECK(graph.redoCount==undone);CHECK(graph.layerCount==depth-undone);
+        const auto position=original.samplePosition();
+        auto reject=[&](const auto& bad)
+        {
+            CHECK(!original.restore(bad));CHECK(original.canRedo());
+            CHECK(original.state()==PagedLooperCore::State::Playing);CHECK(original.samplePosition()==position);
+            PagedLooperCore::Graph after;CHECK(original.capture(after));
+            CHECK(after.base==graph.base);CHECK(after.layers==graph.layers);CHECK(after.redo==graph.redo);
+            CHECK(after.redoCount==graph.redoCount);CHECK(after.generation==graph.generation);
+        };
+        for(int count:{-1,9,std::numeric_limits<int>::max()})
+        {auto bad=graph;bad.redoCount=count;reject(bad);}
+        {auto bad=graph;bad.redoCount=depth+1-bad.layerCount;reject(bad);}
+        {auto bad=graph;bad.redo[size_t(undone-1)]={};reject(bad);}
+        {auto bad=graph;bad.status=PagedLooperCore::CaptureStatus::Empty;bad.frames=0;bad.base={};bad.layerCount=bad.retiredCount=0;reject(bad);}
+        auto expanded=config;expanded.undoDepth=8;
+        PagedLooperCore restored;CHECK(restored.prepare(fixture.store,expanded));CHECK(restored.restore(graph));
+        restored.setSeamMilliseconds(0);CHECK(ready(restored));restored.apply(LooperAction::Play);
+        process(restored,warm,0,0);
+        CHECK_MSG(restored.canRedo(),juce::String(rate)+" depth"+juce::String(depth)+" restored redo lost");
+        for(int layer=depth-undone+1;layer<=depth;++layer)
+        {
+            const auto allocations=luthier::tests::allocationsOnThisThread();
+            restored.apply(LooperAction::Redo);
+            CHECK(luthier::tests::allocationsOnThisThread()==allocations);
+            CHECK(ready(restored));expected+=layer/256.;
+            std::array<double,32> left{},right{};restored.process(left.data(),right.data(),32,1,0);
+            bool exact=true;for(int i=0;i<32;++i)exact &= left[i]==expected && right[i]==-expected;
+            CHECK_MSG(exact,juce::String(rate)+" depth"+juce::String(depth)+" redo layer"+juce::String(layer)+" changed");
+        }
+        CHECK(!restored.canRedo());CHECK(restored.undoDepth()==depth);
     }
 }

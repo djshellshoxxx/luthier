@@ -35,6 +35,8 @@ public:
         int layerCount=0;
         std::array<AssetHash,2> retired{}; // audible, already outside undo depth
         int retiredCount=0;
+        std::array<AssetHash,8> redo{}; // retained stack order; next Redo is last
+        int redoCount=0; // layerCount + redoCount <= prepared undoDepth
     };
     PagedLooperCore();
     ~PagedLooperCore();

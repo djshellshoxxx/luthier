@@ -148,3 +148,18 @@ origin and cancel provisional overdub before history queries; it must not use
 this primitive alone as the final RC-5 footswitch. The separate held second
 press after double-Stop remains unresolved; no destructive Clear policy is
 chosen here. This adds no parameter/state schema or registration.
+
+## E64 internal available-redo graph preservation (2026-10-27)
+
+PagedLooperCore::Graph carries available redo layers in the core's stack order,
+separately from currently audible active/retired layers. activeCount+redoCount
+must fit configured undoDepth (1..8); retired capacity stays2. Ready requires
+complete hashes for every retained redo asset as well as audible assets. Pending,
+recording, failed and empty snapshots cannot claim complete redo hashes.
+Capture remains bounded atomic publication with no live audio-buffer reads;
+restore remains stopped/off-audio on an unpublished processor. Invalid counts or
+null hashes reject before clearing that candidate. Existing stopped/head0 restore
+semantics do not change in this increment. sizeof(Impl) remains included in RAM
+reservation. This closes only the internal graph prerequisite: JSON schema
+migration, full transport/phase preservation and final wrapper integration remain
+separate unfinished E64 gates; no JSON/preset compatibility claim is made here.

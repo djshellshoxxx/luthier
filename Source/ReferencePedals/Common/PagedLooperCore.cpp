@@ -27,27 +27,29 @@ struct PagedLooperCore::Impl
     {
         bool resolve=false,frozen=false;
         AssetHash frozenBase;
-        int layerCount=0,retiredCount=0;
+        int layerCount=0,redoCount=0,retiredCount=0;
         std::array<int,11> ids{};
         std::array<uint64_t,11> epochs{};
     };
     struct Publication
     {
         std::atomic<uint64_t> sequence{0},generation{0},frames{0};
-        std::atomic<uint32_t> status{uint32_t(CaptureStatus::Empty)},faults{0},count{0},retiredCount{0};
+        std::atomic<uint32_t> status{uint32_t(CaptureStatus::Empty)},faults{0},count{0},redoCount{0},retiredCount{0};
         std::atomic<bool> resolve{false},frozen{false};
-        std::atomic<int> sourceCount{0},sourceRetiredCount{0};
+        std::atomic<int> sourceCount{0},sourceRedoCount{0},sourceRetiredCount{0};
         std::array<std::atomic<int>,11> ids{};
         std::array<std::atomic<uint64_t>,11> epochs{};
-        std::array<std::atomic<uint64_t>,48> hashes{};
+        std::array<std::atomic<uint64_t>,80> hashes{};
         void store(const Graph& graph,const References& refs) noexcept
         {
             sequence.fetch_add(1,std::memory_order_acq_rel);
             generation.store(graph.generation,std::memory_order_relaxed);frames.store(graph.frames,std::memory_order_relaxed);
             status.store(uint32_t(graph.status),std::memory_order_relaxed);faults.store(graph.faults,std::memory_order_relaxed);count.store(uint32_t(graph.layerCount),std::memory_order_relaxed);retiredCount.store(uint32_t(graph.retiredCount),std::memory_order_relaxed);
+            redoCount.store(uint32_t(graph.redoCount),std::memory_order_relaxed);
             resolve.store(refs.resolve,std::memory_order_relaxed);frozen.store(refs.frozen,std::memory_order_relaxed);sourceCount.store(refs.layerCount,std::memory_order_relaxed);sourceRetiredCount.store(refs.retiredCount,std::memory_order_relaxed);
+            sourceRedoCount.store(refs.redoCount,std::memory_order_relaxed);
             for(size_t i=0;i<11;++i){ids[i].store(refs.ids[i],std::memory_order_relaxed);epochs[i].store(refs.epochs[i],std::memory_order_relaxed);}
-            for(size_t h=0;h<12;++h){const auto& hash=h==0?graph.base:h<=8?graph.layers[h-1]:h<=10?graph.retired[h-9]:refs.frozenBase;for(size_t i=0;i<4;++i){uint64_t word;std::memcpy(&word,hash.bytes.data()+i*8,8);hashes[h*4+i].store(word,std::memory_order_relaxed);}}
+            for(size_t h=0;h<20;++h){const auto& hash=h==0?graph.base:h<=8?graph.layers[h-1]:h<=16?graph.redo[h-9]:h<=18?graph.retired[h-17]:refs.frozenBase;for(size_t i=0;i<4;++i){uint64_t word;std::memcpy(&word,hash.bytes.data()+i*8,8);hashes[h*4+i].store(word,std::memory_order_relaxed);}}
             sequence.fetch_add(1,std::memory_order_release);
         }
         bool load(Graph& out,References& refs,uint64_t& sequenceOut) const noexcept
@@ -57,9 +59,11 @@ struct PagedLooperCore::Impl
                 const auto before=sequence.load(std::memory_order_acquire);if(before&1)continue;
                 Graph next;References nextRefs;next.generation=generation.load(std::memory_order_relaxed);next.frames=frames.load(std::memory_order_relaxed);
                 next.status=CaptureStatus(status.load(std::memory_order_relaxed));next.faults=faults.load(std::memory_order_relaxed);next.layerCount=int(count.load(std::memory_order_relaxed));next.retiredCount=int(retiredCount.load(std::memory_order_relaxed));
+                next.redoCount=int(redoCount.load(std::memory_order_relaxed));
                 nextRefs.resolve=resolve.load(std::memory_order_relaxed);nextRefs.frozen=frozen.load(std::memory_order_relaxed);nextRefs.layerCount=sourceCount.load(std::memory_order_relaxed);nextRefs.retiredCount=sourceRetiredCount.load(std::memory_order_relaxed);
+                nextRefs.redoCount=sourceRedoCount.load(std::memory_order_relaxed);
                 for(size_t i=0;i<11;++i){nextRefs.ids[i]=ids[i].load(std::memory_order_relaxed);nextRefs.epochs[i]=epochs[i].load(std::memory_order_relaxed);}
-                for(size_t h=0;h<12;++h){auto& hash=h==0?next.base:h<=8?next.layers[h-1]:h<=10?next.retired[h-9]:nextRefs.frozenBase;for(size_t i=0;i<4;++i){const auto word=hashes[h*4+i].load(std::memory_order_relaxed);std::memcpy(hash.bytes.data()+i*8,&word,8);}}
+                for(size_t h=0;h<20;++h){auto& hash=h==0?next.base:h<=8?next.layers[h-1]:h<=16?next.redo[h-9]:h<=18?next.retired[h-17]:nextRefs.frozenBase;for(size_t i=0;i<4;++i){const auto word=hashes[h*4+i].load(std::memory_order_relaxed);std::memcpy(hash.bytes.data()+i*8,&word,8);}}
                 std::atomic_thread_fence(std::memory_order_acquire);if(sequence.load(std::memory_order_relaxed)!=before)continue;
                 out=next;refs=nextRefs;sequenceOut=before;return true;
             }
@@ -78,9 +82,10 @@ struct PagedLooperCore::Impl
             graph.status=CaptureStatus::Pending;
             if(current!=State::Overdubbing)
             {
-                refs.resolve=true;refs.layerCount=activeCount;refs.retiredCount=retiredCount;refs.frozen=merging>=0;refs.frozenBase=mergeBaseHash;
+                refs.resolve=true;refs.layerCount=activeCount;refs.redoCount=redoCount;refs.retiredCount=retiredCount;refs.frozen=merging>=0;refs.frozenBase=mergeBaseHash;
                 refs.ids[0]=0;refs.epochs[0]=streams[0]->generation();
                 for(int i=0;i<activeCount;++i){const auto slot=size_t(i+1);refs.ids[slot]=active[size_t(i)];refs.epochs[slot]=streams[size_t(active[size_t(i)])]->generation();}
+                for(int i=0;i<redoCount;++i){const auto slot=size_t(activeCount+i+1);refs.ids[slot]=redo[size_t(i)];refs.epochs[slot]=streams[size_t(redo[size_t(i)])]->generation();}
                 for(int i=0;i<retiredCount;++i){const auto slot=size_t(i+9);refs.ids[slot]=retired[size_t(i)];refs.epochs[slot]=streams[size_t(retired[size_t(i)])]->generation();}
             }
         }
@@ -300,7 +305,7 @@ bool PagedLooperCore::capture(Graph& out) const noexcept
             bool ready=true,failed=false;std::array<LooperStorage::Capture,11> sources;
             for(size_t slot=0;slot<11;++slot)
             {
-                if(slot>0 && !(slot<=size_t(refs.layerCount) || (slot>=9 && slot<size_t(9+refs.retiredCount))))continue;
+                if(slot>0 && !(slot<=size_t(refs.layerCount+refs.redoCount) || (slot>=9 && slot<size_t(9+refs.retiredCount))))continue;
                 if(!p.streams[size_t(refs.ids[slot])]->capture(sources[slot]) || sources[slot].generation!=refs.epochs[slot] || sources[slot].frames!=next.frames){stable=false;break;}
                 next.faults|=sources[slot].faults;
                 failed=failed || sources[slot].status==CaptureStatus::Failed;
@@ -310,7 +315,9 @@ bool PagedLooperCore::capture(Graph& out) const noexcept
             else if(stable && ready)
             {
                 next.status=CaptureStatus::Ready;next.base=refs.frozen?refs.frozenBase:sources[0].hash;next.layerCount=refs.layerCount;next.retiredCount=refs.retiredCount;
+                next.redoCount=refs.redoCount;
                 for(int i=0;i<next.layerCount;++i)next.layers[size_t(i)]=sources[size_t(i+1)].hash;
+                for(int i=0;i<next.redoCount;++i)next.redo[size_t(i)]=sources[size_t(next.layerCount+i+1)].hash;
                 for(int i=0;i<next.retiredCount;++i)next.retired[size_t(i)]=sources[size_t(i+9)].hash;
             }
         }
@@ -322,16 +329,17 @@ bool PagedLooperCore::capture(Graph& out) const noexcept
 }
 bool PagedLooperCore::restore(const Graph& graph)
 {
-    if(!impl || (graph.status!=CaptureStatus::Ready && graph.status!=CaptureStatus::Empty) || graph.layerCount<0 || graph.layerCount>impl->config.undoDepth || graph.retiredCount<0 || graph.retiredCount>2
+    if(!impl || (graph.status!=CaptureStatus::Ready && graph.status!=CaptureStatus::Empty) || graph.layerCount<0 || graph.layerCount>impl->config.undoDepth || graph.redoCount<0 || graph.redoCount>8 || graph.layerCount+graph.redoCount>impl->config.undoDepth || graph.retiredCount<0 || graph.retiredCount>2
        || graph.frames>impl->maxFrames || (graph.status==CaptureStatus::Ready && (!graph.frames || graph.base.isNull())))return false;
     auto& p=*impl;
     if(graph.status==CaptureStatus::Empty)
     {
-        if(graph.frames || graph.layerCount || graph.retiredCount || !graph.base.isNull())return false;
+        if(graph.frames || graph.layerCount || graph.redoCount || graph.retiredCount || !graph.base.isNull())return false;
         p.clear();p.publish();return true;
     }
     for(int i=0;i<graph.layerCount;++i)if(graph.layers[size_t(i)].isNull())return false;
     for(int i=0;i<graph.retiredCount;++i)if(graph.retired[size_t(i)].isNull())return false;
+    for(int i=0;i<graph.redoCount;++i)if(graph.redo[size_t(i)].isNull())return false;
     // Called on an unpublished processor during its stopped lifecycle. Store
     // failures are explicit; a partially restored processor is never Ready.
     p.clear();
@@ -343,10 +351,17 @@ bool PagedLooperCore::restore(const Graph& graph)
         {p.flags|=LooperStorage::ioFailure;p.publish();return false;}
         p.active[size_t(p.activeCount++)]=id;p.used[size_t(id)]=true;
     }
+    for(int i=0;i<graph.redoCount;++i)
+    {
+        const auto id=graph.layerCount+i+1;
+        if(!p.streams[size_t(id)]->restore(graph.redo[size_t(i)]) || p.streams[size_t(id)]->length()!=graph.frames)
+        {p.flags|=LooperStorage::ioFailure;p.publish();return false;}
+        p.redo[size_t(p.redoCount++)]=id;p.used[size_t(id)]=true;
+    }
     if(p.streams[0]->length()!=graph.frames){p.flags|=LooperStorage::ioFailure;p.publish();return false;}
     for(int i=0;i<graph.retiredCount;++i)
     {
-        const auto id=graph.layerCount+i+1;
+        const auto id=graph.layerCount+graph.redoCount+i+1;
         if(graph.retired[size_t(i)].isNull() || !p.streams[size_t(id)]->restore(graph.retired[size_t(i)]) || p.streams[size_t(id)]->length()!=graph.frames)
         {p.flags|=LooperStorage::ioFailure;p.publish();return false;}
         p.retired[size_t(p.retiredCount++)]=id;p.used[size_t(id)]=true;
