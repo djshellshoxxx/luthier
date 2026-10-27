@@ -8,6 +8,12 @@ changes initial delivery quantity, not any selected model's original numerical,
 CPU, safety or shared-board gate. No selected named model is registered yet.
 See [the retained scope comparison](../handoff/PEDALBOARD-SIX-MODEL-SCENARIO-2026-10-26.md).
 
+A second bounded Phase90 CPU candidate (paired-stage scheduling, private
+fno-math-errno flag) remains rejected:3,450,240exact output comparisons pass,
+but all10CPUtrials remain above the unchanged0.4% gate. No runtime/compiler
+change is retained, and no unchanged production suite was repeated.
+See [the failed CPU experiment and next RC-5 prerequisite](../handoff/PEDALBOARD-2026-10-27-PHASE90-PAIRED-CPU.md).
+
 Phase90 fixed inline-memory admission is implemented at
 `4fd574c653101b11512b298a4d99f0003ba2fd8a`. Pro/Free/strict sanitizers each
 pass17tests/55,056checks, including original model regressions and test-only
