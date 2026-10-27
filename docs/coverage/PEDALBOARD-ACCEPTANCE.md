@@ -383,3 +383,15 @@ was verified and tested privately: all10candidate trials0.501–0.591% fail orig
 <0.4%, baseline0.500–0.600%; not applied. PrintedFR/THDequality is not full parity.
 See [exact handoff](../handoff/PEDALBOARD-2026-10-27-WINDOW-BROKER-RED.md). All
 previous failures, original24bit gate,0/6selected registration and native gaps remain.
+
+
+## 2026-10-27 directional cache / CE2 bypass / measured profile
+
+7d20d18a directionalstorage GREEN61/45592 perPro/Free/strictSAN; same64Mcap, no
+transporttransitionclaim.4080be11 CE2bufferedequalpowerlaw GREEN1/420 peredition,
+but originalrawjump stillRED12/60/max.001498954>.001 and originalBBDTHD REDremain.
+Supplemental30pairedactualCE2diagnostic hashes matchinstrumentation;−12shapernever
+nonlinear. Phase90sampledprofilelocatescapturedhotregions, NOToriginalCPUgate;
+sharedmath/lineformatter/staticIFUNC limitationspreserved. Reversecorecontract
+23b95676 defined, implementationpending. Exactcommands,knownfailures,ownership and
+Librarytransferblocker: [handoff](../handoff/PEDALBOARD-2026-10-27-DIRECTION-CE2-PROFILE.md).
