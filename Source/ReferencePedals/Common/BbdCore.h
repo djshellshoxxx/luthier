@@ -19,6 +19,8 @@ public:
     void setFilters(double preHz,double postHz) noexcept;
     double process(double input,double delayMs,double noiseAmount=0,bool clocked=false) noexcept;
     static double clockHz(double delayMs,int stages=1024) noexcept;
+    // Heap storage only; filters/oversampler are inline in the owning model.
+    uint64_t ownedMemoryBytes() const noexcept {return delay.ownedMemoryBytes();}
 private:
     FractionalDelay delay;
     Biquad pre[2],post[2];

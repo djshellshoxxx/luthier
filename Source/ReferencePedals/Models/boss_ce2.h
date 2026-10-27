@@ -11,6 +11,8 @@ class BossCe2 final : public PedalBase<14>
 {
 public:
     BossCe2();static const PedalDesc& descriptor() noexcept;
+    static PreparedMemoryRequirement prepareMemory(double,int,int,const float*) noexcept;
+    uint64_t getPreparedMemoryBytes() const noexcept override;
     void prepare(double,int,int) override;void reset() noexcept override;
     void process(double*,double*,int) noexcept override;
     void processBypass(double*,double*,int) noexcept override;
@@ -21,6 +23,7 @@ public:
     void setExpression(int,float) noexcept override;
     double modulationPhase() const noexcept {return lfo.phase();}
 private:
+    friend struct ChorusMemoryTestAccess;
     common::BbdCore wet[2];common::OnePole inputHp[2],bypassHp[2];common::Lfo lfo;
     TimeInfo time;uint32_t seed=1;
     double lastRate=-1,cachedRate=1,triangleCoefficient=0;

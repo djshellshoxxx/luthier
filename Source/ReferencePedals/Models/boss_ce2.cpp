@@ -28,6 +28,19 @@ const PedalDesc description{"boss-ce2","boss_ce2_",1,"Vintage Bucket Chorus (pro
 }
 const PedalDesc& BossCe2::descriptor() noexcept {return description;}
 BossCe2::BossCe2() : PedalBase(description) {}
+PreparedMemoryRequirement BossCe2::prepareMemory(double rate,int maxBlock,int policy,const float*) noexcept
+{
+    if(!std::isfinite(rate) || rate<8000 || rate>1000000 || maxBlock<1 || policy<0 || policy>2)return {};
+    // Two BBD delay arrays: prepare requests int(rate*12ms)+8, then
+    // FractionalDelay adds16. Its interpolation table is shared, not owned.
+    return {sizeof(BossCe2)+2*sizeof(double)*(uint64_t(std::ceil(rate*12*.001))+24),0};
+}
+uint64_t BossCe2::getPreparedMemoryBytes() const noexcept
+{
+    uint64_t bytes=sizeof(*this);
+    for(const auto& voice:wet)if(!addPreparedBytes(bytes,voice.ownedMemoryBytes(),bytes))return kUnknownPreparedMemoryBytes;
+    return bytes;
+}
 void BossCe2::prepare(double sampleRate,int,int)
 {
     sr=sampleRate;triangleCoefficient=1-std::exp(-6.283185307179586*72/sr);prepareParams(sr);variant=int(value(3));

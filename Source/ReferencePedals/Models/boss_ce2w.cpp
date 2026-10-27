@@ -23,6 +23,18 @@ const PedalDesc description{"boss-ce2w","boss_ce2w_",1,"Three-Voice Bucket Choru
 }
 const PedalDesc& BossCe2w::descriptor() noexcept {return description;}
 BossCe2w::BossCe2w() : PedalBase(description) {}
+PreparedMemoryRequirement BossCe2w::prepareMemory(double rate,int maxBlock,int policy,const float*) noexcept
+{
+    if(!std::isfinite(rate) || rate<8000 || rate>1000000 || maxBlock<1 || policy<0 || policy>2)return {};
+    // All three mode histories stay current, including the inaudible voices.
+    return {sizeof(BossCe2w)+3*sizeof(double)*(uint64_t(std::ceil(rate*40*.001))+24),0};
+}
+uint64_t BossCe2w::getPreparedMemoryBytes() const noexcept
+{
+    uint64_t bytes=sizeof(*this);
+    for(const auto& voice:wet)if(!addPreparedBytes(bytes,voice.ownedMemoryBytes(),bytes))return kUnknownPreparedMemoryBytes;
+    return bytes;
+}
 void BossCe2w::prepare(double sampleRate,int,int)
 {
     sr=sampleRate;prepareParams(sr);
