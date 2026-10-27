@@ -17,6 +17,8 @@ constexpr int kMaxLaneParams = 16;   // host-automation lanes ref_s{nn}_p01..p16
 
 enum class ChannelMode : uint8_t { Mono, Stereo, TrueStereo, MonoInStereoOut };
 enum class BypassMode  : uint8_t { True, Buffered, DSP };
+// The board's enable position stays linear in time; this selects the audio law.
+enum class BypassFade : uint8_t { Linear, EqualPower };
 enum class ParamKind   : uint8_t { Continuous, Discrete, Toggle, Momentary, Trigger, Tempo, Enum };
 enum class Taper       : uint8_t { Linear, LogA, LogB, ReverseLog, Skew, Detent, Custom };
 
@@ -176,6 +178,7 @@ struct PedalDesc
     bool wantsRawMidi;        // true only if IPedal::onMidi() is needed (BOARD_CORE 9.5)
     uint32_t cpuUnits;        // declared model budget, not a measured result by itself
     uint32_t cpuUnitsPerPercent = 1; // explicit scale; e.g.1000 means300 units =0.3%
+    BypassFade bypassFade = BypassFade::Linear; // additive opt-in; existing models retain their law
 };
 
 } // namespace luthier::reference

@@ -15,6 +15,7 @@ void nodePedal (const Node& node, ExecCtx& ctx) noexcept
     const auto& description = runtime.pedal->desc();
     const bool buffered = description.bypass == BypassMode::Buffered;
     const bool tailContract = description.bypass == BypassMode::DSP || (buffered && description.hasTails);
+    const bool equalPower = !tailContract && description.bypassFade == BypassFade::EqualPower;
     const int latency = ctx.topo->slotLatency[node.slot];
     if (state->processWet)
         for (int i = 0; i < ctx.n; ++i)
@@ -56,6 +57,7 @@ void nodePedal (const Node& node, ExecCtx& ctx) noexcept
             std::fill_n (residualAvailable + offset, samples, available);
             runtime.tailResidualAvailable = available;
         }
+        else if (equalPower) runtime.pedal->processForBoard (left + offset, right + offset, samples);
         else runtime.pedal->process (left + offset, right + offset, samples);
     };
     if (runtime.rampMask != 0 || numWrites > 0 || numRaw > 0)
@@ -88,6 +90,17 @@ void nodePedal (const Node& node, ExecCtx& ctx) noexcept
     for (int i = 0; i < ctx.n; ++i)
     {
         runtime.enableMix = std::clamp (runtime.enableMix + (runtime.enabled ? step : -step), 0.0, 1.0);
+        double dryGain = 1.0, wetGain = 0.0;
+        if (equalPower)
+        {
+            if (runtime.enableMix >= 1.0) { dryGain = 0.0; wetGain = 1.0; }
+            else if (runtime.enableMix > 0.0)
+            {
+                constexpr double halfPi = 1.57079632679489661923;
+                dryGain = std::cos (halfPi * runtime.enableMix);
+                wetGain = std::sin (halfPi * runtime.enableMix);
+            }
+        }
         for (int channel = 0; channel < 2; ++channel)
         {
             auto& output = channel == 0 ? left[i] : right[i];
@@ -98,7 +111,10 @@ void nodePedal (const Node& node, ExecCtx& ctx) noexcept
             if (residualAvailable[i] && ! validResidual) runtime.tailResidualAvailable = false;
             const double bypass = dry[channel][i] + (validResidual ? wetResidual[channel][i] * runtime.outputGain : 0.0);
             // An unavailable residual uses ordinary fading, without a second render.
-            const double result = render ? bypass + runtime.enableMix * (processed - bypass) : dry[channel][i];
+            const double result = !render ? dry[channel][i] : equalPower
+                ? (runtime.enableMix <= 0.0 ? bypass : runtime.enableMix >= 1.0 ? processed
+                    : dryGain * bypass + wetGain * processed)
+                : bypass + runtime.enableMix * (processed - bypass);
             output = BoardLimiter::process (result, false, 1.0);
         }
     }

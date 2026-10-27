@@ -35,7 +35,7 @@ const ParamDesc parameters[]{
     {"mxr_phase90_script_noise","HISS","",ParamKind::Toggle,Taper::Linear,0.0f,1.0f,0.0f,1.f,0,nullptr,PF_Config,20.0f,-1},
     {"mxr_phase90_script_stereo_mode","STEREO MODE","",ParamKind::Enum,Taper::Linear,0,1,0,1,2,stereoModeNames,PF_Config,5,-1},
 };
-const PedalDesc description{"mxr-phase90-script","mxr_phase90_script_",1,"Four-Stage Phaser (prototype)","Phaser",nullptr,ChannelMode::Mono,BypassMode::True,13,parameters,0,false,false,false,0};
+const PedalDesc description{"mxr-phase90-script","mxr_phase90_script_",1,"Four-Stage Phaser (prototype)","Phaser",nullptr,ChannelMode::Mono,BypassMode::True,13,parameters,0,false,false,false,0,1,BypassFade::EqualPower};
 }
 const PedalDesc& MxrPhase90Script::descriptor() noexcept {return description;}
 MxrPhase90Script::MxrPhase90Script() : PedalBase(description) {}
@@ -73,6 +73,14 @@ void MxrPhase90Script::setExpression(int jack,float v) noexcept {if(jack==0)setP
 void MxrPhase90Script::onParamChanged(int index,float v) noexcept {if(index==9)setParam(0,v/127);}
 void MxrPhase90Script::process(double* left,double* right,int n) noexcept
 {
+    render(left,right,n,true);
+}
+void MxrPhase90Script::processForBoard(double* left,double* right,int n) noexcept
+{
+    render(left,right,n,false);
+}
+void MxrPhase90Script::render(double* left,double* right,int n,bool internalBypass) noexcept
+{
     constexpr double quarters[]{4,2,1,.5,1.0/3,.25};
     for(int i=0;i<n;++i)
     {
@@ -80,6 +88,18 @@ void MxrPhase90Script::process(double* left,double* right,int n) noexcept
         if(speed!=lastSpeed || value(2)!=lastVariant){lastSpeed=speed;lastVariant=value(2);cachedRate=.3*std::pow(lastVariant>.5f ? 16/.3:25,speed);}
         const double rate=value(6)>.5f && time.valid ? std::clamp(common::TempoSync::rate(time.bpm,quarters[int(value(7))]),.1,16.):cachedRate;
         engage+=std::clamp((enabled?1.:0.)-engage,-fadeStep,fadeStep);
+        // Direct model clients need the same single envelope as the board.
+        // During board rendering the node owns the only audio blend.
+        double dryGain=0,wetGain=1;
+        if(internalBypass)
+        {
+            if(engage<=0){dryGain=1;wetGain=0;}
+            else if(engage<1)
+            {
+                constexpr double halfPi=1.57079632679489661923;
+                dryGain=std::cos(halfPi*engage);wetGain=std::sin(halfPi*engage);
+            }
+        }
         const double source[2]{softGuard(left[i]),softGuard(right[i])};
         double* output[]{left,right};
         double target[4]{},targetFrequency=-1;
@@ -113,7 +133,7 @@ void MxrPhase90Script::process(double* left,double* right,int n) noexcept
             feedback[c]=x;
             const double hiss=value(11)>.5f ? noise.next()*1.4e-5:0;
             const double wet=.5*(input+x*mix)+hiss;
-            output[c][i]=softGuard(dry+(wet-dry)*engage);
+            output[c][i]=softGuard(!internalBypass || engage>=1 ? wet : engage<=0 ? dry : dryGain*dry+wetGain*wet);
         }
         coefficientClock=(coefficientClock+1)&7;
         oscillator.setRate(rate);if(enabled)oscillator.advance();

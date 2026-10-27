@@ -93,6 +93,12 @@ public:
 
     // Audio thread. In place, n <= maxBlock.
     virtual void process (double* L, double* R, int n) noexcept = 0;
+    // Opt-in board-owned bypass: called instead of process() only for a
+    // non-tail EqualPower descriptor. Render the active signal exactly once,
+    // without an internal engagement envelope. setEnabled still controls the
+    // model's LFO/transport state. Default preserves existing model behavior.
+    virtual void processForBoard (double* L, double* R, int n) noexcept
+    { process (L, R, n); }
     // E68: render exactly once and optionally expose the actual wet contribution
     // before dry summation/final output guard. Board supplies separate, nonnull
     // writable residual buffers of n samples, disjoint from L/R. Return true only

@@ -17,6 +17,7 @@ public:
     void prepare(double,int,int) override;
     void reset() noexcept override;
     void process(double*,double*,int) noexcept override;
+    void processForBoard(double*,double*,int) noexcept override;
     void setEnabled(bool) noexcept override;
     void setServices(const PedalServices& s) override { seed=s.instanceSeed; }
     void setTime(const TimeInfo&) noexcept override;
@@ -24,6 +25,7 @@ public:
     void setExpression(int,float) noexcept override;
     double modulationPhase() const noexcept {return oscillator.phase();}
 private:
+    void render(double*,double*,int,bool internalBypass) noexcept;
     void onParamChanged(int,float) noexcept override;
     common::Lfo oscillator;
     common::OnePole highpass[2];
