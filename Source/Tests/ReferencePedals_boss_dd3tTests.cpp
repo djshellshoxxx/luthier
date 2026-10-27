@@ -1,6 +1,7 @@
 #include "TestFramework.h"
 #include "../ReferencePedals/Models/boss_dd3t.h"
 #include <array>
+#include <limits>
 using namespace luthier::reference;
 using models::BossDd3t;
 namespace {void silence(BossDd3t& p,int count){for(int i=0;i<count;++i){double l=0,r=0;p.process(&l,&r,1);}}}
@@ -86,6 +87,138 @@ LUTHIER_TEST(RefPedalDd3t, tapAverageRejectsInvalidGapsAndResetsAfterTwoPointOne
         juce::var state;pedal.saveExtra(state);CHECK(bool(state["hasTapped"]));
         CHECK_NEAR(double(state["tapIntervalMs"]),newGap*1000./rate,1.e-9);
         CHECK(!pedal.consumeEngageToggle());
+    }
+}
+LUTHIER_TEST(RefPedalDd3t, syncLatchesTempoAndDivisionAtBeatWithEightyMsTimeConstant)
+{
+    constexpr double divisions[]{1,.5,.75,2./3,.25};
+    for(double rate:{44100.,48000.,88200.,96000.,192000.}) for(int block:{1,64,2048})
+        for(int division=0;division<5;++division) for(double bpm:{75.,240.})
+    {
+        BossDd3t pedal;pedal.setParam(12,1);
+        TimeInfo time;time.valid=time.playing=true;time.bpm=120;time.ppq=0;
+        pedal.setTime(time);pedal.prepare(rate,2048,1);CHECK_NEAR(pedal.delayMilliseconds(),500,1.e-12);
+        const auto allocations=luthier::tests::allocationsOnThisThread();
+        pedal.setParam(13,division/4.f);time.bpm=bpm;time.ppq=.25;pedal.setTime(time);
+        bool finite=advanceTapFrames(pedal,block,block);
+        const double beforeBeat=pedal.delayMilliseconds();
+        time.ppq=1;pedal.setTime(time);const double atBoundary=pedal.delayMilliseconds();
+        const double target=60000/bpm*divisions[division];
+        int rendered=0;double error=0;
+        for(int milestone:{1,int(std::llround(rate*.08)),int(std::llround(rate*.16)),int(std::llround(rate*.4))})
+        {
+            finite &= advanceTapFrames(pedal,milestone-rendered,block);rendered=milestone;
+            const double expected=target+(500-target)*std::exp(-rendered/(rate*.08));
+            error=std::max(error,std::abs(pedal.delayMilliseconds()-expected));
+        }
+        CHECK(luthier::tests::allocationsOnThisThread()==allocations);
+        CHECK_NEAR(beforeBeat,500,1.e-12);CHECK_NEAR(atBoundary,500,1.e-12);
+        CHECK_NEAR(error,0,1.e-7);CHECK(finite);
+    }
+}
+LUTHIER_TEST(RefPedalDd3t, syncBeatInsideCallbackMatchesSingleSampleTimeline)
+{
+    for(double rate:{44100.,48000.,88200.,96000.,192000.}) for(int block:{64,2048}) for(double bpm:{75.,240.})
+    {
+        BossDd3t blocked,sample;
+        TimeInfo time;time.valid=time.playing=true;time.bpm=120;time.ppq=0;
+        for(auto* p:{&blocked,&sample}){p->setParam(12,1);p->setTime(time);p->prepare(rate,2048,1);}
+        time.bpm=bpm;const int end=int(std::ceil(rate*.4));
+        const int changeFrame=(int((.25*60*rate/bpm)/block)+1)*block;
+        double error=0;bool finite=true;
+        const auto allocations=luthier::tests::allocationsOnThisThread();
+        for(int frame=0;frame<end;)
+        {
+            const int n=std::min(block,end-frame);
+            // A new division immediately after a predicted boundary must wait
+            // for the following beat, rather than relatching the handled beat.
+            if(frame==changeFrame){blocked.setParam(13,.25f);sample.setParam(13,.25f);}
+            time.sample=frame;time.ppq=.75+frame*bpm/(60*rate);blocked.setTime(time);
+            finite &= advanceTapFrames(blocked,n,block);
+            for(int i=0;i<n;++i)
+            {
+                time.sample=frame+i;time.ppq=.75+(frame+i)*bpm/(60*rate);sample.setTime(time);
+                double l=0,r=0;sample.process(&l,&r,1);finite &= std::isfinite(l) && std::isfinite(r);
+            }
+            error=std::max(error,std::abs(blocked.delayMilliseconds()-sample.delayMilliseconds()));frame+=n;
+        }
+        CHECK(luthier::tests::allocationsOnThisThread()==allocations);
+        const auto label=juce::String(rate)+"/"+juce::String(block)+"/"+juce::String(bpm);
+        CHECK_MSG(error<1.e-7,label+" beat crossing depends on callback size: "+juce::String(error,12));CHECK(finite);
+    }
+}
+LUTHIER_TEST(RefPedalDd3t, syncDivisionEventAfterTimeSnapshotWaitsForNextBeat)
+{
+    for(double rate:{44100.,48000.,88200.,96000.,192000.})
+    {
+        BossDd3t pedal;pedal.setParam(12,1);
+        TimeInfo time;time.valid=time.playing=true;time.bpm=120;time.ppq=0;
+        pedal.setTime(time);pedal.prepare(rate,2048,1);
+        time.ppq=.99;pedal.setTime(time);pedal.setParam(13,.25f);
+        const auto allocations=luthier::tests::allocationsOnThisThread();
+        const int before=int(std::ceil(.01*60*rate/120));
+        bool finite=advanceTapFrames(pedal,before,2048);const double beforeBeat=pedal.delayMilliseconds();
+        finite &= advanceTapFrames(pedal,1,2048);
+        const double after=pedal.delayMilliseconds();
+        CHECK(luthier::tests::allocationsOnThisThread()==allocations);
+        CHECK_NEAR(beforeBeat,500,1.e-12);
+        CHECK_NEAR(after,250+250*std::exp(-1/(rate*.08)),1.e-7);CHECK(finite);
+    }
+}
+LUTHIER_TEST(RefPedalDd3t, syncPredictionStopsOnInvalidTimeAndResetsAtPreparation)
+{
+    for(double rate:{44100.,48000.,88200.,96000.,192000.}) for(int invalid=0;invalid<5;++invalid)
+    {
+        BossDd3t pedal;pedal.setParam(12,1);
+        TimeInfo time;time.valid=time.playing=true;time.bpm=120;time.ppq=0;
+        pedal.setTime(time);pedal.prepare(rate,2048,1);
+        time.bpm=240;time.ppq=.75;pedal.setTime(time);
+        auto stopped=time;
+        if(invalid==0)stopped.playing=false;
+        if(invalid==1)stopped.valid=false;
+        if(invalid==2)stopped.ppq=std::numeric_limits<double>::quiet_NaN();
+        if(invalid==3)stopped.bpm=0;
+        if(invalid==4)stopped.bpm=std::numeric_limits<double>::min(); // Derived beat period overflows.
+        const auto allocations=luthier::tests::allocationsOnThisThread();
+        pedal.setTime(stopped);bool finite=advanceTapFrames(pedal,int(std::ceil(rate*.1)),2048);
+        const double stoppedDelay=pedal.delayMilliseconds();
+        pedal.setTime(time);pedal.reset();finite &= advanceTapFrames(pedal,int(std::ceil(rate*.1)),2048);
+        const double resetDelay=pedal.delayMilliseconds();
+        CHECK(luthier::tests::allocationsOnThisThread()==allocations);
+        CHECK_NEAR(stoppedDelay,500,1.e-12);CHECK_NEAR(resetDelay,500,1.e-12);
+        pedal.setTime(time);const double nextRate=rate==192000?44100:192000;
+        pedal.prepare(nextRate,2048,1);finite &= advanceTapFrames(pedal,int(std::ceil(nextRate*.1)),2048);
+        CHECK_NEAR(pedal.delayMilliseconds(),500,1.e-12);
+        time.ppq=-1;pedal.setTime(time); // Authoritative backward locate remains immediate.
+        const int n=int(std::llround(nextRate*.04));finite &= advanceTapFrames(pedal,n,2048);
+        CHECK_NEAR(pedal.delayMilliseconds(),250+250*std::exp(-n/(nextRate*.08)),1.e-7);
+        CHECK(finite);
+    }
+}
+LUTHIER_TEST(RefPedalDd3t, syncLongCallbackCarriesFractionalBeatPeriods)
+{
+    for(double rate:{44100.,48000.,88200.,96000.,192000.})
+    {
+        const int count=int(std::ceil(rate*.6));
+        BossDd3t blocked,sample;TimeInfo time;time.valid=time.playing=true;time.bpm=120;
+        for(auto* p:{&blocked,&sample}){p->setParam(12,1);p->setTime(time);p->prepare(rate,count,1);}
+        std::vector<double> l(size_t(count),0),r(size_t(count),0);
+        time.bpm=299;time.ppq=.75;blocked.setTime(time);
+        const auto allocations=luthier::tests::allocationsOnThisThread();
+        blocked.process(l.data(),r.data(),count); // One callback spans three fractional-period boundaries.
+        for(int frame=0;frame<count;++frame)
+        {
+            time.sample=frame;time.ppq=.75+frame*299/(60*rate);sample.setTime(time);
+            double x=0,y=0;sample.process(&x,&y,1);
+        }
+        const double error=std::abs(blocked.delayMilliseconds()-sample.delayMilliseconds());
+        blocked.setParam(13,.25f);sample.setParam(13,.25f);
+        time.sample=count;time.ppq=.75+count*299/(60*rate);blocked.setTime(time);sample.setTime(time);
+        bool finite=advanceTapFrames(blocked,int(rate*.04),2048);
+        finite &= advanceTapFrames(sample,int(rate*.04),2048);
+        const double postChangeError=std::abs(blocked.delayMilliseconds()-sample.delayMilliseconds());
+        CHECK(luthier::tests::allocationsOnThisThread()==allocations);
+        CHECK_NEAR(error,0,1.e-7);CHECK_NEAR(postChangeError,0,1.e-7);CHECK(finite);
     }
 }
 LUTHIER_TEST(RefPedalDd3t, impulseRangesAndDryEndpoints)

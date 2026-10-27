@@ -1,5 +1,6 @@
 // OWNER: WP14
 #include "boss_dd3t.h"
+#include <limits>
 namespace luthier::reference::models
 {
 namespace
@@ -74,7 +75,7 @@ void BossDd3t::reset() noexcept
         line[c].reset();highpass[c].reset();for(auto& f:pre[c])f.reset();for(auto& f:post[c])f.reset();saturation[c].reset();noise[c].reset(seed);
         std::fill(history[c].begin(),history[c].end(),0);feedback[c]=heldQuant[c]=previousQuant[c]=0;
     }
-    historyHead=loopLength=0;loopPosition=0;holding=false;holdMix=0;
+    historyHead=loopLength=0;loopPosition=0;holding=false;holdMix=0;advancingSync=false;
     engageRequest=downWasTap=false;samples=0;lastTap=downAt=-1;tapCount=tapIndex=0;energy=0;converterPhase=0;filterCountdown=0;lastCutoff=0;
     inputGain=wetGain=enabled?1:0;currentMs=cachedTargetMs=targetTime();lastLevel=lastFeedback=-1;lastBits=-1;
 }
@@ -82,14 +83,32 @@ void BossDd3t::setParam(int idx,float norm) noexcept {PedalBase::setParam(idx,id
 void BossDd3t::setExpression(int jack,float v) noexcept {if(jack==0)setParam(1,v);else if(jack==1)setParam(2,v);}
 void BossDd3t::setTime(const TimeInfo& time) noexcept
 {
+    advancingSync=false;
     if(!time.valid || !std::isfinite(time.bpm) || time.bpm<=0 || !std::isfinite(time.ppq))return;
+    const double period=60*sr/time.bpm;
+    if(!std::isfinite(period) || period<=0)return;
     hostBpm=time.bpm;const double beat=std::floor(time.ppq);
     if(!hasSync || beat!=lastBeat)
     {
-        constexpr double quarters[]{1,.5,.75,2.0/3,.25};syncMs=60000/time.bpm*quarters[int(value(13))];
-        while(syncMs>800)syncMs*=.5;syncMs=std::max(12.5,syncMs);hasSync=true;lastBeat=beat;
+        syncMs=syncDelayMs();hasSync=true;lastBeat=beat;
     }
     cachedTargetMs=targetTime();
+    const double nextBeat=beat+1,remaining=(nextBeat-time.ppq)*period;
+    if(!time.playing || period<1 || nextBeat<=time.ppq || !std::isfinite(remaining))return;
+    syncPeriodSamples=period;nextSyncBeat=nextBeat;
+    // Snap only within floating-point error of an integer sample; cap this at
+    // 1e-7 of a frame. This is not an audio/timing acceptance threshold.
+    syncRoundoff=std::min(1.e-7,16*std::numeric_limits<double>::epsilon()*period*std::max(1.,std::abs(time.ppq)));
+    const double nearest=std::round(remaining);
+    syncSamplesRemaining=std::abs(remaining-nearest)<=syncRoundoff?nearest:remaining;
+    advancingSync=true;
+}
+double BossDd3t::syncDelayMs() const noexcept
+{
+    constexpr double quarters[]{1,.5,.75,2.0/3,.25};
+    double requested=60000/hostBpm*quarters[int(value(13))];
+    while(requested>800)requested*=.5;
+    return std::max(12.5,requested);
 }
 double BossDd3t::targetTime() const noexcept
 {
@@ -175,6 +194,13 @@ void BossDd3t::render(double* left,double* right,double* residualL,double* resid
 {
     for(int i=0;i<n;++i,++samples)
     {
+        if(advancingSync && syncSamplesRemaining<=syncRoundoff)
+        {
+            // Discrete parameter events may follow setTime in this callback.
+            syncMs=syncDelayMs();lastBeat=nextSyncBeat;nextSyncBeat+=1;
+            if(nextSyncBeat<=lastBeat)advancingSync=false;
+            syncSamplesRemaining+=syncPeriodSamples;cachedTargetMs=targetTime();
+        }
         if(downAt>=0 && !holdActionFired && samples-downAt>=int64_t(2*sr)){setParam(7,value(7)>.5f?0:1);holdActionFired=true;}
         currentMs+=(cachedTargetMs-currentMs)*timeCoefficient;
         const double levelKnob=nextSmoothed(0),feedbackKnob=std::clamp(double(nextSmoothed(1))+(value(14)>.5f?force*.4:0),0.,1.);
@@ -231,6 +257,7 @@ void BossDd3t::render(double* left,double* right,double* residualL,double* resid
         if(!history[0].empty() && ++historyHead==history[0].size())historyHead=0;
         if(loopLength && (holding || holdMix>0)){loopPosition+=referenceMs/currentMs;while(loopPosition>=loopLength)loopPosition-=loopLength;}
         energy+=(.5*wetEnergy-energy)*energyCoefficient;
+        if(advancingSync)syncSamplesRemaining-=1;
     }
 }
 }
