@@ -195,3 +195,26 @@ because the old core continues during off-audio preparation. No preset auto-play
 mid-record snapshot, registration or complete E64 acceptance is introduced.
 The signed sample clock saturates at INT64_MAX rather than overflowing when
 restored at the representable boundary; normal clock arithmetic is unchanged.
+
+## RC-5 timed double-press prerequisite (2026-10-27)
+
+Extend Rc5PressCycle with an optional timed down-edge overload returning a fixed
+0..2 action batch. State mapping/held guard remain shared with the untimed API.
+The caller supplies the actual boundary sample, prepared rate(1..192000) and
+specified double-tap milliseconds(150..600); the inclusive down-to-down deadline
+is floor(rate*ms/1000). First originPlaying emits provisionalOverdub; a qualifying
+second while stillOverdubbing emits CancelOverdub thenStop without intervening
+audio. First originOverdubbing emitsPlay, accepting that pass; second emitsStop.
+Empty/Recording/Stopped origins perform the cycle and do not arm that pair.
+An eligible pair with a failed/automatically closed first action mayStop, but
+cannot cancel unless the provisionalOverdubbing state is actually still present.
+
+Release clears only held; successful pair consumes its candidate. Expiration
+itself emits nothing. Invalid/backward clocks/configuration disarm and reject
+the timed edge; reset accompanies a deliberate clock reset and touches only
+bookkeeping. Threshold/rate changes invalidate the pair. The caller MUST call
+invalidateCandidate before external transport/history/media actions, even if
+state later looks identical; matching state alone cannot prove ownership.
+Untimed down invalidates any timed candidate. No hold/Clear behavior, including
+the unresolved held second double-Stop policy, is silently introduced. This
+prerequisite stays unregistered and is not a complete RC-5 gesture controller.
