@@ -386,14 +386,20 @@ LUTHIER_TEST(RefPedalPagedLooper, redoAssetWorkerCompletionAndFailureNeverPublis
         store.release();
         const auto expected=fail?PagedLooperCore::CaptureStatus::Failed:PagedLooperCore::CaptureStatus::Ready;
         const auto until=std::chrono::steady_clock::now()+std::chrono::seconds(5);
-        bool terminal=false;
+        bool terminal=false,invalidSnapshot=false;
         do
         {
             // Worker completion must resolve capture without another audio callback.
-            if(core.capture(graph) && graph.status==expected){terminal=true;break;}
+            if(core.capture(graph))
+            {
+                if(fail && graph.status==PagedLooperCore::CaptureStatus::Ready)invalidSnapshot=true;
+                if(graph.status!=PagedLooperCore::CaptureStatus::Ready
+                    && (!graph.base.isNull() || graph.layerCount || graph.redoCount))invalidSnapshot=true;
+                if(graph.status==expected){terminal=true;break;}
+            }
             std::this_thread::yield();
         }while(std::chrono::steady_clock::now()<until);
-        CHECK(terminal);CHECK(graph.status==expected);
+        CHECK(!invalidSnapshot);CHECK(terminal);CHECK(graph.status==expected);
         if(fail)
         {
             CHECK((graph.faults&LooperStorage::ioFailure)!=0);
