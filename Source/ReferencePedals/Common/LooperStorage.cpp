@@ -267,7 +267,7 @@ struct LooperStorage::Impl
         }
         return found;
     }
-    void request(uint64_t pageIndex,uint64_t windowStart,uint64_t pageCount) noexcept
+    void request(uint64_t pageIndex,uint64_t windowStart,uint64_t pageCount,Direction direction) noexcept
     {
         if(pageIndex>=maxPages)return;
         const auto current=epoch.load(std::memory_order_relaxed);auto& entry=entries[pageIndex];
@@ -294,7 +294,9 @@ struct LooperStorage::Impl
                 const auto& candidate=reads[i];
                 if(candidate.epoch!=current || candidate.tag.load(std::memory_order_acquire)==0)
                 {slot=i;break;}
-                const auto distance=(candidate.index+pageCount-windowStart)%pageCount;
+                const auto distance=direction==Direction::Reverse
+                    ? (windowStart+pageCount-candidate.index)%pageCount
+                    : (candidate.index+pageCount-windowStart)%pageCount;
                 if(slot<0 && distance>uint64_t(config.readAhead))slot=i;
             }
             if(slot<0)return;
@@ -405,12 +407,17 @@ bool LooperStorage::finishRecord() noexcept
     if(!p.push({Impl::Kind::Manifest,p.epoch.load(),0,0,p.frames.load(),0,0,nullptr})){p.flags.fetch_or(writeOverrun);return false;}
     p.finalized=true;p.phase.store(state(p.epoch.load(),2),std::memory_order_release);return true;
 }
-void LooperStorage::prefetch(uint64_t frame) noexcept
+void LooperStorage::prefetch(uint64_t frame,Direction direction) noexcept
 {
     if(!impl || !impl->frames.load())return;
     auto& p=*impl;const auto count=(p.frames.load()+uint64_t(p.config.pageFrames)-1)/uint64_t(p.config.pageFrames);
     auto index=(frame%p.frames.load())/uint64_t(p.config.pageFrames);
-    for(int i=0;i<=p.config.readAhead;++i)p.request((index+uint64_t(i))%count,index,count);
+    for(int i=0;i<=p.config.readAhead;++i)
+    {
+        const auto page=direction==Direction::Reverse
+            ? (index+count-uint64_t(i)%count)%count : (index+uint64_t(i))%count;
+        p.request(page,index,count,direction);
+    }
 }
 bool LooperStorage::available(uint64_t frame,bool allowStale) const noexcept
 {
@@ -418,13 +425,15 @@ bool LooperStorage::available(uint64_t frame,bool allowStale) const noexcept
     auto& p=*impl;const auto index=frame/uint64_t(p.config.pageFrames);const auto wanted=p.entries[index].desired.load(std::memory_order_acquire);
     return stateEpoch(wanted)!=p.epoch.load() || p.cached(index,stateVersion(wanted),allowStale)!=nullptr;
 }
-bool LooperStorage::read(uint64_t frame,double& left,double& right,uint64_t* actualVersion,bool allowStale) noexcept
+bool LooperStorage::read(uint64_t frame,double& left,double& right,uint64_t* actualVersion,bool allowStale,Direction direction) noexcept
 {
     left=right=0;if(actualVersion)*actualVersion=0;if(!impl || frame>=impl->frames.load())return false;
     auto& p=*impl;const auto epoch=p.epoch.load();const auto index=frame/uint64_t(p.config.pageFrames),offset=frame%uint64_t(p.config.pageFrames);
+    const bool pageEntry=direction==Direction::Reverse
+        ? offset+1==std::min(uint64_t(p.config.pageFrames),p.frames.load()-index*uint64_t(p.config.pageFrames)) : offset==0;
     auto& entry=p.entries[index];
     const auto desired=entry.desired.load(std::memory_order_acquire);
-    if(stateEpoch(desired)!=epoch){if(offset==0)prefetch(frame);return true;}
+    if(stateEpoch(desired)!=epoch){if(pageEntry)prefetch(frame,direction);return true;}
     const auto wanted=stateVersion(desired);
     if(const auto* page=p.cached(index,wanted,allowStale))
     {
@@ -432,11 +441,11 @@ bool LooperStorage::read(uint64_t frame,double& left,double& right,uint64_t* act
         {
             left=page->pcm[size_t(offset)*size_t(p.config.channels)];right=p.config.channels==2?page->pcm[size_t(offset)*2+1]:left;
             if(actualVersion)*actualVersion=page->version;
-            if(offset==0 || page->version!=wanted)prefetch(frame);
+            if(pageEntry || page->version!=wanted)prefetch(frame,direction);
             return true;
         }
     }
-    p.flags.fetch_or(readUnderrun);prefetch(frame);return false;
+    p.flags.fetch_or(readUnderrun);prefetch(frame,direction);return false;
 }
 uint64_t LooperStorage::mergeLayer(LooperStorage& layer) noexcept
 {

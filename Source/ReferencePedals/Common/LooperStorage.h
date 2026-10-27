@@ -20,6 +20,7 @@ public:
     };
     enum Error : uint32_t { none=0,writeOverrun=1,readUnderrun=2,ioFailure=4,capacityReached=8,invalidAsset=16 };
     enum class CaptureStatus : uint32_t { Empty, Recording, Pending, Ready, Failed };
+    enum class Direction { Forward, Reverse };
     struct Capture
     {
         uint64_t generation=0,frames=0;
@@ -51,8 +52,10 @@ public:
     bool add(uint64_t frame,double left,double right) noexcept;
     bool canAdd(uint64_t frame) const noexcept;
     bool finishRecord() noexcept;
-    bool read(uint64_t frame,double& left,double& right,uint64_t* version=nullptr,bool allowStale=false) noexcept;
-    void prefetch(uint64_t frame) noexcept;
+    // Direction changes read-ahead only. The caller supplies the exact PCM
+    // frame; no transport state or sample reversal is held in this storage.
+    bool read(uint64_t frame,double& left,double& right,uint64_t* version=nullptr,bool allowStale=false,Direction=Direction::Forward) noexcept;
+    void prefetch(uint64_t frame,Direction=Direction::Forward) noexcept;
     bool available(uint64_t frame,bool allowStale=false) const noexcept; // audio owner, no fault side effects
     // Audio-owner call. Both loops must be finalized and have ready manifests.
     // Source remains immutable until completion; its lifetime is held internally.
