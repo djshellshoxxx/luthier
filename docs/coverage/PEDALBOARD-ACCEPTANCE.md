@@ -8,6 +8,13 @@ changes initial delivery quantity, not any selected model's original numerical,
 CPU, safety or shared-board gate. No selected named model is registered yet.
 See [the retained scope comparison](../handoff/PEDALBOARD-SIX-MODEL-SCENARIO-2026-10-26.md).
 
+Looper JSON redo migration is implemented at
+`94e9fd99f8b7ca0f954c8ebfb84fad6432f0f642`. Original70failedchecks preserved;
+Pro/Free/strict sanitizers each pass28tests/28,861checks including15real
+JSON→core→Redo exact-audio cases. Legacy1 migrates, true future>2 stays opaque.
+E64 transport/head and actual wrapper/host gates remain open.
+See [schema evidence and continuation](../handoff/PEDALBOARD-2026-10-27-LOOPER-REDO-JSON.md).
+
 Paged internal capture/restore now preserves available redo at
 `88f9053f36813b2c5258e9db0afeadf9c01bb217`. Original80failedchecks retained;
 Pro/Free/strict sanitizers each pass22tests/28,474checks. JSON migration and
