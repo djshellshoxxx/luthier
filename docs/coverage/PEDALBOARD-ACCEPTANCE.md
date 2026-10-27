@@ -8,6 +8,12 @@ changes initial delivery quantity, not any selected model's original numerical,
 CPU, safety or shared-board gate. No selected named model is registered yet.
 See [the retained scope comparison](../handoff/PEDALBOARD-SIX-MODEL-SCENARIO-2026-10-26.md).
 
+Rapid paged Stop→Play rewind is corrected at
+`526c1f1d2ac8d429c4eed88056502deeb4ca02db`. Original90/360failedchecks are
+preserved; Pro/Free/strict sanitizers each pass19tests/25,685checks. This fixes
+cached-loop cursor restart, not click or cold-I/O acceptance.
+See [restart evidence and current ownership](../handoff/PEDALBOARD-2026-10-27-LOOPER-RESTART.md).
+
 RC-5 real-core history eligibility is implemented at
 `ff23891f742d6cd284036776b3ea7edcdc06c577`. Pro/Free/strict sanitizers each pass
 18tests/25,325checks, including actual RAM/paged provisional cancellation, redo
