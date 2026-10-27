@@ -14,6 +14,8 @@ class MxrPhase90Script final : public PedalBase<13>
 public:
     MxrPhase90Script();
     static const PedalDesc& descriptor() noexcept;
+    static PreparedMemoryRequirement prepareMemory(double,int,int,const float*) noexcept;
+    uint64_t getPreparedMemoryBytes() const noexcept override {return sizeof(*this);}
     void prepare(double,int,int) override;
     void reset() noexcept override;
     void process(double*,double*,int) noexcept override;

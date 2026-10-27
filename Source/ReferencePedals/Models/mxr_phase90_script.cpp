@@ -39,6 +39,12 @@ const PedalDesc description{"mxr-phase90-script","mxr_phase90_script_",1,"Four-S
 }
 const PedalDesc& MxrPhase90Script::descriptor() noexcept {return description;}
 MxrPhase90Script::MxrPhase90Script() : PedalBase(description) {}
+PreparedMemoryRequirement MxrPhase90Script::prepareMemory(double rate,int block,int policy,const float*) noexcept
+{
+    if(!std::isfinite(rate) || rate<8000 || rate>1000000 || block<1 || policy<0 || policy>2)return {};
+    // Oscillator table, stages, filters, noise and control state are all inline.
+    return {sizeof(MxrPhase90Script),0};
+}
 void MxrPhase90Script::prepare(double sampleRate,int,int)
 {
     sr=sampleRate;triangleCoefficient=1-std::exp(-1/(sr*.02));fadeStep=1/(sr*.005);prepareParams(sr);oscillator.prepare(sr);noise.reset(seed);
