@@ -66,3 +66,34 @@ LUTHIER_TEST(RefPedalLooperWindow, invalidAndExtremeGeometryCannotOverflow)
     const auto expected=uint64_t(1)+uint64_t(maximum-1)*uint64_t(maximum)+last%uint64_t(maximum);
     CHECK(PagedLooperCore::minimumForwardWindowFrames(last,maximum,maximum)==expected);
 }
+
+LUTHIER_TEST(RefPedalLooperWindow, neutralMinimumMatchesIndependentReverseEnumerationOfEveryCursor)
+{
+    constexpr auto unlimited=std::numeric_limits<uint64_t>::max();
+    bool correct=true;int cases=0;uint64_t badFrames=0,badExpected=0,badActual=0;int badPage=0,badAhead=0;
+    const auto allocations=luthier::tests::allocationsOnThisThread();
+    for(int page:{16,17,32})for(uint64_t frames=1;frames<=uint64_t(page*9+1);++frames)
+        for(int ahead=0;ahead<=7;++ahead)
+    {
+        const auto pages=frames/uint64_t(page)+(frames%uint64_t(page)!=0);
+        uint64_t expected=unlimited;
+        if(uint64_t(ahead+1)<pages)
+            for(uint64_t cursor=0;cursor<frames;++cursor)
+            {
+                uint64_t index=cursor/uint64_t(page),covered=cursor%uint64_t(page)+1;
+                for(int offset=1;offset<=ahead;++offset)
+                {
+                    index=index==0?pages-1:index-1;
+                    covered+=std::min(uint64_t(page),frames-index*uint64_t(page));
+                }
+                expected=std::min(expected,covered);
+            }
+        const auto actual=PagedLooperCore::minimumWindowFrames(frames,page,ahead);++cases;
+        if(actual!=expected && correct)
+        {correct=false;badFrames=frames;badPage=page;badAhead=ahead;badExpected=expected;badActual=actual;}
+    }
+    const bool allocated=luthier::tests::allocationsOnThisThread()!=allocations;
+    CHECK(!allocated);CHECK(cases==4704);
+    CHECK_MSG(correct,"frames="+juce::String(badFrames)+" page="+juce::String(badPage)
+        +" ahead="+juce::String(badAhead)+" expected="+juce::String(badExpected)+" actual="+juce::String(badActual));
+}

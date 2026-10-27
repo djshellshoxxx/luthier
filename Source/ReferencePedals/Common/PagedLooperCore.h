@@ -14,6 +14,7 @@ public:
     using State=LooperCore::State;
     using Action=LooperAction;
     using Command=LooperCommand;
+    using Direction=LooperStorage::Direction;
     struct Config
     {
         double sampleRate=48000,seconds=300;
@@ -26,8 +27,10 @@ public:
     };
     using CaptureStatus=LooperStorage::CaptureStatus;
     // Minimum geometric coverage from any cursor, including that frame and
-    // excluding the first page outside the configured forward window. Returns
+    // excluding the first page outside the window, in either direction. Returns
     // UINT64_MAX when every loop page fits; this is not a residency/I/O check.
+    static uint64_t minimumWindowFrames(uint64_t frames,int pageFrames,int readAhead) noexcept;
+    // Compatibility name for the same direction-independent minimum.
     static uint64_t minimumForwardWindowFrames(uint64_t frames,int pageFrames,int readAhead) noexcept;
     enum class RestorePolicy { Stopped, ResumeCaptured };
     struct Graph
@@ -40,6 +43,7 @@ public:
             uint64_t head=0;
             int64_t sample=0;
             double gain=0;
+            Direction direction=Direction::Forward;
         } runtime;
         uint64_t generation=0,frames=0;
         CaptureStatus status=CaptureStatus::Empty;
@@ -60,6 +64,11 @@ public:
     void apply(Action) noexcept; // audio owner at exact boundary
     void process(double* left,double* right,int n,double loopGain=1,double dryGain=1) noexcept;
     void setSeamMilliseconds(double) noexcept;
+    // Audio owner: accept only Empty or fully Stopped (gain zero). Selection
+    // survives Record/Clear/reset; recording still writes forward. Success
+    // anchors and primes the chosen origin, not a guarantee of playbackReady.
+    bool setPlaybackDirection(Direction) noexcept;
+    Direction playbackDirection() const noexcept;
     State state() const noexcept; // remaining getters are audio owner only
     uint64_t length() const noexcept;
     uint64_t playhead() const noexcept;
@@ -80,6 +89,7 @@ public:
     // manifest as current audio. Output is unchanged on contention.
     bool capture(Graph&) const noexcept;
     // Stopped off-audio lifecycle, normally before publishing a new processor.
+    // Stopped starts fresh Forward/head0; ResumeCaptured includes direction.
     // ResumeCaptured requires complete runtime metadata and primed read-ahead
     // before activation. It resumes that captured boundary, not a later live
     // swap time. A structural owner must perform final-boundary revalidation.

@@ -21,6 +21,7 @@ struct PagedLooperCore::Impl
     size_t ram=0;uint64_t disk=0;
     uint32_t flags=0;
     State current=State::Empty;
+    Direction direction=Direction::Forward;
     double gain=0;uint64_t seam=0;
     SpscRing<Command,64> commands;Command pending{};bool hasPending=false;
     struct References
@@ -34,11 +35,12 @@ struct PagedLooperCore::Impl
     struct Publication
     {
         static_assert(std::atomic<double>::is_always_lock_free
-            && std::atomic<int64_t>::is_always_lock_free,
+            && std::atomic<int64_t>::is_always_lock_free && std::atomic<uint32_t>::is_always_lock_free,
             "Paged looper runtime publication requires lock-free atomics");
         std::atomic<uint64_t> sequence{0},generation{0},frames{0};
         std::atomic<bool> runtimeAvailable{false};
         std::atomic<uint32_t> runtimeState{uint32_t(State::Stopped)};
+        std::atomic<uint32_t> runtimeDirection{uint32_t(Direction::Forward)};
         std::atomic<uint64_t> runtimeHead{0};
         std::atomic<int64_t> runtimeSample{0};
         std::atomic<double> runtimeGain{0};
@@ -54,6 +56,7 @@ struct PagedLooperCore::Impl
             generation.store(graph.generation,std::memory_order_relaxed);frames.store(graph.frames,std::memory_order_relaxed);
             runtimeAvailable.store(graph.runtime.available,std::memory_order_relaxed);
             runtimeState.store(uint32_t(graph.runtime.state),std::memory_order_relaxed);
+            runtimeDirection.store(uint32_t(graph.runtime.direction),std::memory_order_relaxed);
             runtimeHead.store(graph.runtime.head,std::memory_order_relaxed);
             runtimeSample.store(graph.runtime.sample,std::memory_order_relaxed);
             runtimeGain.store(graph.runtime.gain,std::memory_order_relaxed);
@@ -73,6 +76,7 @@ struct PagedLooperCore::Impl
                 Graph next;References nextRefs;next.generation=generation.load(std::memory_order_relaxed);next.frames=frames.load(std::memory_order_relaxed);
                 next.runtime.available=runtimeAvailable.load(std::memory_order_relaxed);
                 next.runtime.state=State(runtimeState.load(std::memory_order_relaxed));
+                next.runtime.direction=Direction(runtimeDirection.load(std::memory_order_relaxed));
                 next.runtime.head=runtimeHead.load(std::memory_order_relaxed);
                 next.runtime.sample=runtimeSample.load(std::memory_order_relaxed);
                 next.runtime.gain=runtimeGain.load(std::memory_order_relaxed);
@@ -92,7 +96,7 @@ struct PagedLooperCore::Impl
     void publish() noexcept
     {
         Graph graph;References refs;graph.generation=generation;graph.frames=frames;graph.faults=flags|(commands.dropped()?uint32_t(256):0);
-        graph.runtime={current==State::Empty || current==State::Playing || current==State::Stopped,current,head,timeline,gain};
+        graph.runtime={current==State::Empty || current==State::Playing || current==State::Stopped,current,head,timeline,gain,direction};
         if(flags&LooperStorage::ioFailure)graph.status=CaptureStatus::Failed;
         else if(current==State::Recording)graph.status=CaptureStatus::Recording;
         else if(!frames)graph.status=CaptureStatus::Empty;
@@ -116,15 +120,16 @@ struct PagedLooperCore::Impl
         frames=head=0;gain=0;flags=0;current=State::Empty;++generation;
         streams[0]->beginRecord();
     }
+    uint64_t origin() const noexcept{return direction==Direction::Reverse && frames?frames-1:0;}
     void closeRecord() noexcept
     {
-        frames=streams[0]->length();streams[0]->finishRecord();head=0;gain=0;current=frames?State::Playing:State::Empty;++generation;
+        frames=streams[0]->length();streams[0]->finishRecord();head=origin();gain=0;current=frames?State::Playing:State::Empty;++generation;
     }
     void discardRedo() noexcept
     {for(int i=0;i<redoCount;++i)used[size_t(redo[size_t(i)])]=false;redoCount=0;}
     bool startOverdub() noexcept
     {
-        if(!frames)return false;
+        if(!frames || direction==Direction::Reverse)return false;
         for(int i=1;i<count;++i)if(!used[size_t(i)] && streams[size_t(i)]->beginLayer(frames))
         {scratch=i;used[size_t(i)]=true;current=State::Overdubbing;++generation;return true;}
         flags|=LooperStorage::writeOverrun;return false;
@@ -150,7 +155,9 @@ struct PagedLooperCore::Impl
         const auto pages=(frames+uint64_t(config.pageFrames)-1)/uint64_t(config.pageFrames);
         for(uint64_t ahead=0;ahead<std::min(pages,uint64_t(config.readAhead+1));++ahead)
         {
-            const auto frame=((head/uint64_t(config.pageFrames)+ahead)%pages)*uint64_t(config.pageFrames);
+            const auto index=head/uint64_t(config.pageFrames);
+            const auto page=direction==Direction::Reverse?(index+pages-ahead)%pages:(index+ahead)%pages;
+            const auto frame=page*uint64_t(config.pageFrames);
             if(!streams[size_t(id)]->available(frame,stale))return false;
         }
         return true;
@@ -159,10 +166,10 @@ struct PagedLooperCore::Impl
     {
         if(frames && current!=State::Recording)
         {
-            streams[0]->prefetch(head);
-            for(int i=0;i<activeCount;++i)streams[size_t(active[size_t(i)])]->prefetch(head);
-            for(int i=0;i<retiredCount;++i)streams[size_t(retired[size_t(i)])]->prefetch(head);
-            if(scratch>=0)streams[size_t(scratch)]->prefetch(head);
+            streams[0]->prefetch(head,direction);
+            for(int i=0;i<activeCount;++i)streams[size_t(active[size_t(i)])]->prefetch(head,direction);
+            for(int i=0;i<retiredCount;++i)streams[size_t(retired[size_t(i)])]->prefetch(head,direction);
+            if(scratch>=0)streams[size_t(scratch)]->prefetch(head,direction);
         }
     }
     void service() noexcept
@@ -170,7 +177,7 @@ struct PagedLooperCore::Impl
         primePlayback();
         if(merging>=0 && streams[0]->mergeComplete(mergeToken))
         {
-            streams[0]->prefetch(head);
+            streams[0]->prefetch(head,direction);
             if(windowReady(0))
             {
                 used[size_t(merging)]=false;
@@ -193,20 +200,20 @@ struct PagedLooperCore::Impl
     }
     bool playback(uint64_t index,double& l,double& r) noexcept
     {
-        uint64_t version=0;bool ok=streams[0]->read(index,l,r,&version,merging>=0);
+        uint64_t version=0;bool ok=streams[0]->read(index,l,r,&version,merging>=0,direction);
         for(int i=0;i<retiredCount;++i)
         {
             const auto id=retired[size_t(i)];if(id==merging && streams[0]->mergedAt(index,version,mergeToken))continue;
-            double dl=0,dr=0;ok=streams[size_t(id)]->read(index,dl,dr)&&ok;l+=dl;r+=dr;
+            double dl=0,dr=0;ok=streams[size_t(id)]->read(index,dl,dr,nullptr,false,direction)&&ok;l+=dl;r+=dr;
         }
-        for(int i=0;i<activeCount;++i){double dl=0,dr=0;ok=streams[size_t(active[size_t(i)])]->read(index,dl,dr)&&ok;l+=dl;r+=dr;}
-        if(scratch>=0){double dl=0,dr=0;ok=streams[size_t(scratch)]->read(index,dl,dr)&&ok;l+=dl;r+=dr;}
+        for(int i=0;i<activeCount;++i){double dl=0,dr=0;ok=streams[size_t(active[size_t(i)])]->read(index,dl,dr,nullptr,false,direction)&&ok;l+=dl;r+=dr;}
+        if(scratch>=0){double dl=0,dr=0;ok=streams[size_t(scratch)]->read(index,dl,dr,nullptr,false,direction)&&ok;l+=dl;r+=dr;}
         if(!ok){l=r=0;flags|=LooperStorage::readUnderrun;}
         return ok;
     }
 };
 PagedLooperCore::PagedLooperCore()=default;PagedLooperCore::~PagedLooperCore()=default;
-uint64_t PagedLooperCore::minimumForwardWindowFrames(uint64_t frames,int pageFrames,int readAhead) noexcept
+uint64_t PagedLooperCore::minimumWindowFrames(uint64_t frames,int pageFrames,int readAhead) noexcept
 {
     if(!frames || pageFrames<=0 || readAhead<0)return 0;
     const auto page=uint64_t(pageFrames),ahead=uint64_t(readAhead);
@@ -216,6 +223,8 @@ uint64_t PagedLooperCore::minimumForwardWindowFrames(uint64_t frames,int pageFra
     const auto last=1+(frames-1)%page;
     return 1+(ahead-1)*page+last;
 }
+uint64_t PagedLooperCore::minimumForwardWindowFrames(uint64_t frames,int pageFrames,int readAhead) noexcept
+{return minimumWindowFrames(frames,pageFrames,readAhead);}
 bool PagedLooperCore::prepare(IAssetStore& store,const Config& config)
 {
     if(!std::isfinite(config.sampleRate) || !std::isfinite(config.seconds) || config.sampleRate<1 || config.sampleRate>192000
@@ -246,11 +255,12 @@ void PagedLooperCore::apply(Action action) noexcept
 {
     if(!impl)return;
     auto& p=*impl;
+    if(action==Action::Overdub && p.direction==Direction::Reverse)return;
     switch(action)
     {
         case Action::Record:p.clear();p.current=State::Recording;break;
         case Action::Clear:p.clear();break;
-        case Action::Play:if(p.current==State::Recording)p.closeRecord();else if(p.current==State::Overdubbing)p.closeOverdub();else if(p.frames){if(p.current==State::Stopped)p.head=0;p.current=State::Playing;}break;
+        case Action::Play:if(p.current==State::Recording)p.closeRecord();else if(p.current==State::Overdubbing)p.closeOverdub();else if(p.frames){if(p.current==State::Stopped)p.head=p.origin();p.current=State::Playing;}break;
         case Action::Overdub:if(p.current==State::Recording)p.closeRecord();if(p.current!=State::Overdubbing)p.startOverdub();break;
         case Action::CancelOverdub:if(p.current==State::Overdubbing)p.cancelOverdub();break;
         case Action::Stop:if(p.current==State::Recording)p.closeRecord();else if(p.current==State::Overdubbing)p.closeOverdub();if(p.frames)p.current=State::Stopped;break;
@@ -297,15 +307,24 @@ void PagedLooperCore::process(double* left,double* right,int n,double loopGain,d
                 double edge=1;
                 const auto seam=std::min(p.seam,p.frames/2);
                 if(seam){if(p.head<seam)edge=double(p.head)/double(seam);else if(p.head>=p.frames-seam)edge=double(p.frames-1-p.head)/double(seam);}
-                wetL*=p.gain*loopGain*edge;wetR*=p.gain*loopGain*edge;p.head=(p.head+1)%p.frames;
+                wetL*=p.gain*loopGain*edge;wetR*=p.gain*loopGain*edge;
+                p.head=p.direction==Direction::Reverse?(p.head==0?p.frames-1:p.head-1):(p.head+1)%p.frames;
             }
         }
-        if(p.current==State::Stopped && p.gain==0)p.head=0;
+        if(p.current==State::Stopped && p.gain==0)p.head=p.origin();
         left[i]=inputL*dryGain+wetL;right[i]=inputR*dryGain+wetR;
     }
     p.service();p.publish();
 }
 void PagedLooperCore::setSeamMilliseconds(double ms) noexcept{if(impl)impl->seam=uint64_t(impl->config.sampleRate*.001*(std::isfinite(ms)?std::clamp(ms,0.,10.):0.));}
+bool PagedLooperCore::setPlaybackDirection(Direction direction) noexcept
+{
+    if(!impl || (direction!=Direction::Forward && direction!=Direction::Reverse))return false;
+    auto& p=*impl;
+    if(p.current!=State::Empty && (p.current!=State::Stopped || p.gain!=0))return false;
+    p.direction=direction;p.head=p.origin();p.primePlayback();p.publish();return true;
+}
+PagedLooperCore::Direction PagedLooperCore::playbackDirection() const noexcept{return impl?impl->direction:Direction::Forward;}
 PagedLooperCore::State PagedLooperCore::state() const noexcept{return impl?impl->current:State::Empty;}
 uint64_t PagedLooperCore::length() const noexcept{return impl?impl->frames:0;}
 uint64_t PagedLooperCore::playhead() const noexcept{return impl?impl->head:0;}
@@ -367,7 +386,8 @@ bool PagedLooperCore::restore(const Graph& graph,RestorePolicy policy)
     if(policy!=RestorePolicy::Stopped && policy!=RestorePolicy::ResumeCaptured)return false;
     const bool resume=policy==RestorePolicy::ResumeCaptured;
     const auto& runtime=graph.runtime;
-    if(resume && (!runtime.available || runtime.sample<0 || !std::isfinite(runtime.gain)
+    if(resume && (!runtime.available || (runtime.direction!=Direction::Forward && runtime.direction!=Direction::Reverse)
+        || runtime.sample<0 || !std::isfinite(runtime.gain)
         || runtime.gain<0 || runtime.gain>1
         || (graph.status==CaptureStatus::Ready && (runtime.head>=graph.frames
             || (runtime.state!=State::Playing && runtime.state!=State::Stopped)))
@@ -376,7 +396,7 @@ bool PagedLooperCore::restore(const Graph& graph,RestorePolicy policy)
     if(graph.status==CaptureStatus::Empty)
     {
         if(graph.frames || graph.layerCount || graph.redoCount || graph.retiredCount || !graph.base.isNull())return false;
-        p.clear();if(resume)p.timeline=runtime.sample;p.publish();return true;
+        p.clear();p.direction=resume?runtime.direction:Direction::Forward;if(resume)p.timeline=runtime.sample;p.publish();return true;
     }
     for(int i=0;i<graph.layerCount;++i)if(graph.layers[size_t(i)].isNull())return false;
     for(int i=0;i<graph.retiredCount;++i)if(graph.retired[size_t(i)].isNull())return false;
@@ -407,12 +427,12 @@ bool PagedLooperCore::restore(const Graph& graph,RestorePolicy policy)
         {p.flags|=LooperStorage::ioFailure;p.publish();return false;}
         p.retired[size_t(p.retiredCount++)]=id;p.used[size_t(id)]=true;
     }
-    p.frames=graph.frames;p.current=State::Stopped;p.head=0;p.gain=0;
+    p.frames=graph.frames;p.current=State::Stopped;p.head=0;p.gain=0;p.direction=Direction::Forward;
     if(resume)
     {
-        p.current=runtime.state;p.head=runtime.head;p.gain=runtime.gain;p.timeline=runtime.sample;
-        p.primePlayback();
+        p.direction=runtime.direction;p.current=runtime.state;p.head=runtime.head;p.gain=runtime.gain;p.timeline=runtime.sample;
     }
+    p.primePlayback();
     p.publish();return true;
 }
 }
