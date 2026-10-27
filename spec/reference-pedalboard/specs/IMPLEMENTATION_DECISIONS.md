@@ -218,3 +218,23 @@ state later looks identical; matching state alone cannot prove ownership.
 Untimed down invalidates any timed candidate. No hold/Clear behavior, including
 the unresolved held second double-Stop policy, is silently introduced. This
 prerequisite stays unregistered and is not a complete RC-5 gesture controller.
+
+## RC-5 internal tap-tempo prerequisite (2026-10-27)
+
+Per boss-rc5§4.4, use the arithmetic mean of the last four accepted adjacent-tap
+intervals, not ClockSync's separate weighted-three board tap policy. A small
+Rc5TapTempo prepares a finite rate1..192000 and returns an optional new full-
+precision BPM for valid intervals200..1500ms inclusive, clamped40..300. First
+tap anchors only. Every nonnegative monotonic tap updates the adjacent-tap anchor;
+out-of-range intervals are excluded from the mean. A gap>=2seconds clears the
+mean and makes the current tap the new anchor. Negative/backward events reset
+history and emit no tempo; deliberate timeline reset calls reset. Rate changes
+reset history; invalid prepare leaves prior valid state untouched. Integer frame
+bounds use ceil(rate/5),floor(3*rate/2),ceil(2*rate), avoiding boundary rounding
+ambiguity and signed arithmetic overflow. All storage is fixed-size/noalloc.
+
+The result does not select host/MIDI/internal authority or move rhythm/loop phase.
+The future wrapper applies it to internal tempo through its existing authority
+rules, with0.1BPM only for UI; actual Rc5Rhythm keeps full precision and its own
+phase-continuous setTempo. This prerequisite does not implement full RC5 controls,
+clock master/slave, wrapper/registration or advanced audio playback.
