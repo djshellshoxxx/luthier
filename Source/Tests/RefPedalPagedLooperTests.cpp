@@ -361,3 +361,52 @@ LUTHIER_TEST(RefPedalPagedLooper, graphRestorePreservesAvailableRedoOrderAcrossP
         CHECK(!restored.canRedo());CHECK(restored.undoDepth()==depth);
     }
 }
+
+LUTHIER_TEST(RefPedalPagedLooper, redoAssetWorkerCompletionAndFailureNeverPublishPartialReadyGraphs)
+{
+    for(double rate:{44100.,192000.})for(bool fail:{false,true})
+    {
+        PagedFixture fixture;GatedPagedStore store(fixture.store);PagedLooperCore core;
+        auto config=tiny();config.sampleRate=rate;config.seconds=.01;
+        CHECK(core.prepare(store,config));core.setSeamMilliseconds(0);
+        core.apply(LooperAction::Record);process(core,32,.125,-.125);
+        core.apply(LooperAction::Play);CHECK(ready(core));
+        {
+            const std::lock_guard<std::mutex> lock(store.mutex);
+            store.writes=0;store.block=true;store.fail=fail;
+        }
+        core.apply(LooperAction::Overdub);process(core,32,.0625,-.0625);CHECK(store.waitWrite());
+        core.apply(LooperAction::Play);core.apply(LooperAction::Undo);CHECK(core.canRedo());
+        PagedLooperCore::Graph graph;
+        const auto allocations=luthier::tests::allocationsOnThisThread();
+        const bool captured=core.capture(graph);
+        CHECK(luthier::tests::allocationsOnThisThread()==allocations);
+        CHECK(captured);CHECK(graph.status==PagedLooperCore::CaptureStatus::Pending);
+        CHECK(graph.base.isNull());CHECK(graph.layerCount==0);CHECK(graph.redoCount==0);
+        store.release();
+        const auto expected=fail?PagedLooperCore::CaptureStatus::Failed:PagedLooperCore::CaptureStatus::Ready;
+        const auto until=std::chrono::steady_clock::now()+std::chrono::seconds(5);
+        bool terminal=false;
+        do
+        {
+            // Worker completion must resolve capture without another audio callback.
+            if(core.capture(graph) && graph.status==expected){terminal=true;break;}
+            std::this_thread::yield();
+        }while(std::chrono::steady_clock::now()<until);
+        CHECK(terminal);CHECK(graph.status==expected);
+        if(fail)
+        {
+            CHECK((graph.faults&LooperStorage::ioFailure)!=0);
+            CHECK(graph.base.isNull());CHECK(graph.redoCount==0);CHECK(graph.layerCount==0);
+        }
+        else
+        {
+            CHECK(!graph.base.isNull());CHECK(graph.redoCount==1);CHECK(graph.layerCount==0);
+            CHECK(!graph.redo[0].isNull());CHECK(fixture.store.hasBlob(graph.redo[0]));
+        }
+        LooperStateCodec::Stored stored;juce::var encoded;
+        CHECK(LooperStateCodec::encode(stored,graph,config,encoded));
+        CHECK(LooperStateCodec::decode(encoded,stored));CHECK(stored.graph.status==expected);
+        CHECK(stored.graph.redoCount==graph.redoCount);CHECK(stored.graph.redo==graph.redo);
+    }
+}
