@@ -119,3 +119,12 @@ on rejection and reports an error. Stored momentary intent is distinct from a
 replayable action: feedback kill restores released in DSP even if host metadata
 retains1, and only a fresh actual host action can fire it. A thread-local restore
 notification guard must not suppress another thread's actual host writes.
+
+## RC-5 history eligibility prerequisite (2026-10-27)
+
+RAM `LooperCore` and `PagedLooperCore` add audio-owner-only `canUndo()` and
+`canRedo()`, mirroring their existing apply guards: Playing and a nonzero accepted
+undo/redo count. Unprepared returns false. These are eligibility now, not history
+availability in other transport states. Cancel a provisional overdub first, then
+query the restored Playing history. No processing/layout/state format or action
+semantics change; no GUI-thread guarantee or named registration follows.

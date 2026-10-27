@@ -8,6 +8,12 @@ changes initial delivery quantity, not any selected model's original numerical,
 CPU, safety or shared-board gate. No selected named model is registered yet.
 See [the retained scope comparison](../handoff/PEDALBOARD-SIX-MODEL-SCENARIO-2026-10-26.md).
 
+RC-5 real-core history eligibility is implemented at
+`ff23891f742d6cd284036776b3ea7edcdc06c577`. Pro/Free/strict sanitizers each pass
+18tests/25,325checks, including actual RAM/paged provisional cancellation, redo
+restoration and non-mutating allocation-free queries. This is a decoder prerequisite,
+not a completed wrapper. See [history evidence and next restart boundary](../handoff/PEDALBOARD-2026-10-27-LOOPER-HISTORY.md).
+
 A second bounded Phase90 CPU candidate (paired-stage scheduling, private
 fno-math-errno flag) remains rejected:3,450,240exact output comparisons pass,
 but all10CPUtrials remain above the unchanged0.4% gate. No runtime/compiler
