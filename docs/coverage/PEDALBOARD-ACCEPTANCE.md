@@ -8,6 +8,12 @@ changes initial delivery quantity, not any selected model's original numerical,
 CPU, safety or shared-board gate. No selected named model is registered yet.
 See [the retained scope comparison](../handoff/PEDALBOARD-SIX-MODEL-SCENARIO-2026-10-26.md).
 
+RC-5 immediate press-cycle prerequisite is implemented at
+`e2c4a98d556d2592a2cbc3b0fd9e3bde5301b9c6`. Pro/Free/strict sanitizers each
+pass21tests/27,069checks against both actual cores. It is untimed and unconnected;
+full double/hold grammar, wrapper and registration remain open.
+See [the scoped press evidence and next data-loss slice](../handoff/PEDALBOARD-2026-10-27-RC5-PRESS.md).
+
 Rapid paged Stop→Play rewind is corrected at
 `526c1f1d2ac8d429c4eed88056502deeb4ca02db`. Original90/360failedchecks are
 preserved; Pro/Free/strict sanitizers each pass19tests/25,685checks. This fixes
