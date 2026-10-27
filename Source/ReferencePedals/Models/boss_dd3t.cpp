@@ -176,7 +176,14 @@ PedalUiMeters BossDd3t::readUiMeters() const noexcept
     }
     return meters;
 }
-float BossDd3t::getTailEnergyDb() const noexcept {return float(10*std::log10(std::max(1e-20,energy)));}
+float BossDd3t::getTailEnergyDb() const noexcept
+{
+    // A held buffer can emit again after a silent gap even when the underlying
+    // delay has drained. Conservatively keep it scheduled until release/cut;
+    // metering only the current sample cannot certify a sparse loop as silent.
+    if(loopLength && (holding || holdMix>0) && wetGain>0)return 0;
+    return float(10*std::log10(std::max(1e-20,energy)));
+}
 void BossDd3t::saveExtra(juce::var& v) const
 {
     const double snapshot=publishedTap.load(std::memory_order_acquire),interval=std::abs(snapshot);
