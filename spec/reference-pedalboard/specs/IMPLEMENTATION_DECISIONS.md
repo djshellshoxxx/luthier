@@ -256,3 +256,44 @@ existing14read slots and P8192/16384/32768 at<=48/96/192k preserves RAM while
 covering the worst partial-page case. It does not silently reconfigure generic
 loopers or implement the absent RC5 wrapper. Keep the old nominal assertion too;
 record the stronger originalA12failure before changing that fixture policy.
+
+## RC5 prerequisite: stopped/empty reverse selection (2026-10-27)
+
+The storage direction API does not itself implement playback. Add a typed
+audio-owner PagedLooperCore playback-direction getter/setter, defaultForward.
+Accept a valid direction only while Empty or fully Stopped with gain exactly0;
+reject unprepared, invalid values, Recording, Playing, Overdubbing and an audible
+Stop fade without mutation. Success means selection accepted, not I/O ready.
+For an existing loop anchor Reverse at N−1 or Forward at0, prime that window,
+publish the coherent runtime tuple, and require playbackReady before rendering.
+No direction event/command or active-play reversal is introduced in this slice.
+
+Selection is a playback setting, like the existing seam setting: Record/Clear/
+reset clear audio/transport but retain it. Recording always appends forward;
+closing a reverse-selected recording plays from N−1. Reverse rejects Overdub
+before any closeRecord/startOverdub side effect, with the private guard retained.
+This follows the official manual's reverse/overdub restriction; it does not
+choose whether to commit/cancel an existing overdub or choose a midplay anchor.
+
+Every base/active/retired/scratch read, readiness window, initial/restore prime
+and compaction replacement handoff uses the same direction. Reverse advances
+head==0?N−1:head−1; stopped fade finishes in its current direction and then
+anchors at that direction's origin. Asset PCM/order and forward writing do not
+change. Preserve exact layers/Undo/Redo/merge version accounting and dry audio.
+
+Append defaultForward direction to Graph::Runtime and its atomic publication
+tuple; ResumeCaptured validates/restores it before priming, including arbitrary
+heads/stop fades/empty selection. Invalid values reject before mutation. Existing
+aggregate initializers retain Forward. RestorePolicy::Stopped explicitly starts
+fresh Forward/head0 transport. JSON still deliberately omits the entire runtime;
+this prerequisite does not persist a memory's reverse parameter or implement
+the RC5 wrapper. A future wrapper must preserve its separate persistent setting.
+
+The geometric minimum applies in either direction. Add a direction-neutral
+query, retaining minimumForwardWindowFrames as a compatibility wrapper. Prove
+reverse coverage by independent every-cursor enumeration; retain all original
+forward bounds, >=2seconds and64,000,000bytes. New inline/publication state must
+be charged by actual sizeof. Stopped reverse tests must cover partial tails,
+fresh restore/Ready, recording, OD refusal, layers/Redo/compaction, coherent
+capture/resume/JSON omission, faults and no callback allocations. Audible active
+reversal, half-speed, preset selection, UI/MIDI and registration remain separate.
