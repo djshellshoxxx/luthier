@@ -8,6 +8,13 @@ changes initial delivery quantity, not any selected model's original numerical,
 CPU, safety or shared-board gate. No selected named model is registered yet.
 See [the retained scope comparison](../handoff/PEDALBOARD-SIX-MODEL-SCENARIO-2026-10-26.md).
 
+The retained Dyna Comp prototype is selectively integrated at
+`28b4c63e6785cdd101042f44f99207deab215b89`: exact model/test blobs only,
+no common-helper/drive imports. Pro/Free/strict sanitizers each pass18tests/
+83,344checks in the combined cohort. Five named DSP prototypes are now integrated;
+zero are registered. Original Dyna numerical/CPU failures remain open.
+See [source provenance and qualification limits](../handoff/PEDALBOARD-2026-10-27-DYNACOMP-IMPORT.md).
+
 CE-2W rapid mode retargeting is corrected at `30d0474b28dbbf871db72880749f6d121dbbee04`.
 Original warmed-event−30dB failures remain preserved; the threshold and10ms
 transition stay intact. Pro/Free/strict sanitizers each pass14tests/1,407checks,
