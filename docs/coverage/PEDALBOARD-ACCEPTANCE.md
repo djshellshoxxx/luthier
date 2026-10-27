@@ -8,6 +8,12 @@ changes initial delivery quantity, not any selected model's original numerical,
 CPU, safety or shared-board gate. No selected named model is registered yet.
 See [the retained scope comparison](../handoff/PEDALBOARD-SIX-MODEL-SCENARIO-2026-10-26.md).
 
+CE-2/CE-2W prepared-memory admission is implemented at `d54d5719e12b9b47ca743c5e4c30a4490c1918c8`.
+Original unknown-report failures are preserved. Pro/Free/strict sanitizers each
+pass12tests/1,312checks including unchanged model tests. The64MB cap, DSP and
+unregistered status remain unchanged; native capacity checks remain open.
+See [the memory handoff](../handoff/PEDALBOARD-2026-10-27-CHORUS-MEMORY.md).
+
 DD-3T held-loop spillover scheduling is corrected at `0cdfef09ac5904bd8771822aed45958aef815de5`.
 The original continuous/sparse-loop dropout evidence is retained; no audio
 equation or threshold changed. Pro/Free/strict sanitizers each pass22tests/3,942checks.
