@@ -8,6 +8,14 @@ changes initial delivery quantity, not any selected model's original numerical,
 CPU, safety or shared-board gate. No selected named model is registered yet.
 See [the retained scope comparison](../handoff/PEDALBOARD-SIX-MODEL-SCENARIO-2026-10-26.md).
 
+DD-3T callback-interior sync latching is corrected at
+`df1dcb1de1bf200f34bf3ba8177993f8544f610d`, retaining the original80ms glide.
+Original timing/partition RED evidence and an interim event-ordering failure
+are preserved. Pro/Free/strict sanitizer groups each pass19tests/3,527checks,
+including existing prepared-memory cap checks. No model registration or
+full-product/native qualification follows from these focused results.
+See [the timing correction and remaining gates](../handoff/PEDALBOARD-2026-10-27-DD3T-SYNC.md).
+
 DD-3T tap-boundary/history coverage is committed at
 `c6b67ed44330e07f0f7c0a143ddd61aebebaf759`: two new tests pass1,950checks
 on existing production; no defect/fix is claimed. Pro/Free/strict sanitizer

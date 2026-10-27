@@ -1,5 +1,9 @@
 # DD-3T tap boundary/history coverage — 2026-10-27
 
+The subsequent [sync latch/glide milestone](PEDALBOARD-2026-10-27-DD3T-SYNC.md)
+completes the next slice recommended below; these tap-only results keep their
+original source identity.
+
 Test commit **`c6b67ed44330e07f0f7c0a143ddd61aebebaf759`**, branch
 `codex/luthier-pedalboard-completion`, starting at
 `3c2a2b63c12086392ced09c3e4eaf3d53e199985`. Same executor, one coordinator,
