@@ -8,6 +8,12 @@ changes initial delivery quantity, not any selected model's original numerical,
 CPU, safety or shared-board gate. No selected named model is registered yet.
 See [the retained scope comparison](../handoff/PEDALBOARD-SIX-MODEL-SCENARIO-2026-10-26.md).
 
+CE-2W rapid mode retargeting is corrected at `30d0474b28dbbf871db72880749f6d121dbbee04`.
+Original warmed-event−30dB failures remain preserved; the threshold and10ms
+transition stay intact. Pro/Free/strict sanitizers each pass14tests/1,407checks,
+including both-channel continuity, reset/reprepare and current memory accounting.
+See [the mode-transition handoff](../handoff/PEDALBOARD-2026-10-27-CE2W-MODE.md).
+
 CE-2/CE-2W prepared-memory admission is implemented at `d54d5719e12b9b47ca743c5e4c30a4490c1918c8`.
 Original unknown-report failures are preserved. Pro/Free/strict sanitizers each
 pass12tests/1,312checks including unchanged model tests. The64MB cap, DSP and
