@@ -10,6 +10,7 @@
 #include <mutex>
 using namespace luthier::reference;
 using namespace luthier::reference::common;
+namespace luthier::tests { long allocationsOnThisThread() noexcept; }
 namespace
 {
 struct PagedFixture
@@ -206,4 +207,47 @@ LUTHIER_TEST(RefPedalPagedLooper, provisionalHoldCancelPreservesRedoUntilTakeIsC
     process(core,32,0,0,&l);for(double x:l)CHECK_NEAR(x,.3125,0);
     PagedLooperCore::Graph graph;CHECK(core.capture(graph));auto malformed=graph;malformed.retiredCount=1;CHECK(!core.restore(malformed));
     malformed={};malformed.frames=1;CHECK(!core.restore(malformed));
+}
+
+LUTHIER_TEST(RefPedalLooperQueries, eligibilityAndProvisionalCancelMatchBothRealCores)
+{
+    const auto exercise=[&](auto& core,auto settle)
+    {
+        std::array<double,512> l{},r{};
+        const auto tick=[&](int n,double input){l.fill(input);r.fill(-input);core.process(l.data(),r.data(),n);};
+        const auto available=[&](bool undo,bool redo)
+        {
+            const auto state=core.state();const auto length=core.length();const auto depth=core.undoDepth();const auto position=core.samplePosition();
+            const auto allocations=luthier::tests::allocationsOnThisThread();bool correct=true;
+            for(int i=0;i<128;++i)correct &= core.canUndo()==undo && core.canRedo()==redo;
+            CHECK(luthier::tests::allocationsOnThisThread()==allocations);CHECK(correct);
+            CHECK(core.state()==state);CHECK(core.length()==length);CHECK(core.undoDepth()==depth);CHECK(core.samplePosition()==position);
+        };
+        const auto audio=[&](double expected)
+        {
+            CHECK(settle());tick(256,0);tick(32,0);
+            for(int i=0;i<32;++i){CHECK_NEAR(l[i],expected,0);CHECK_NEAR(r[i],-expected,0);}
+        };
+        available(false,false);core.apply(LooperAction::Record);available(false,false);tick(32,.25);
+        core.apply(LooperAction::Play);audio(.25);available(false,false);
+        core.apply(LooperAction::Overdub);available(false,false);tick(32,.125);
+        core.apply(LooperAction::Play);audio(.375);available(true,false);
+        core.apply(LooperAction::Undo);audio(.25);available(false,true);
+        core.apply(LooperAction::Overdub);available(false,false);tick(7,.5);
+        core.apply(LooperAction::CancelOverdub);audio(.25);available(false,true);
+        core.apply(LooperAction::Redo);audio(.375);available(true,false);
+        core.apply(LooperAction::Undo);available(false,true);
+        core.apply(LooperAction::Overdub);tick(32,.0625);core.apply(LooperAction::Play);
+        audio(.3125);available(true,false); // Accepting this pass invalidates old redo.
+        core.apply(LooperAction::Stop);available(false,false);tick(512,0);
+        core.apply(LooperAction::Play);audio(.3125);available(true,false);
+        core.apply(LooperAction::Clear);available(false,false);core.reset();available(false,false);
+    };
+    LooperCore ram;CHECK(!ram.canUndo());CHECK(!ram.canRedo());
+    CHECK(ram.prepare(48000,.01,1,2000000));ram.setSeamMilliseconds(0);
+    exercise(ram,[]{return true;});
+    PagedFixture f;PagedLooperCore paged;CHECK(!paged.canUndo());CHECK(!paged.canRedo());
+    auto config=tiny();config.sampleRate=48000;config.seconds=.01;config.undoDepth=1;
+    CHECK(paged.prepare(f.store,config));paged.setSeamMilliseconds(0);
+    exercise(paged,[&]{return ready(paged);});
 }

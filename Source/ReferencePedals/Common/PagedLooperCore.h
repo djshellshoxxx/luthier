@@ -50,6 +50,8 @@ public:
     uint64_t capacity() const noexcept;
     int64_t samplePosition() const noexcept;
     int undoDepth() const noexcept;
+    bool canUndo() const noexcept; // audio owner only; current action eligibility
+    bool canRedo() const noexcept;
     uint32_t faults() const noexcept;
     bool playbackReady() const noexcept; // audio owner; whole configured read-ahead window
     size_t reservedBytes() const noexcept;

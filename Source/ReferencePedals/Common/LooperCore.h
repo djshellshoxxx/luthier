@@ -30,6 +30,10 @@ public:
     size_t memoryBytes() const noexcept { return storageBytes; }
     int64_t samplePosition() const noexcept { return timeline; }
     int undoDepth() const noexcept { return activeLayers; }
+    // Audio owner only: eligibility now, matching apply(Undo/Redo), not merely
+    // retained history while recording/overdubbing/stopped.
+    bool canUndo() const noexcept {return current==State::Playing && activeLayers>0;}
+    bool canRedo() const noexcept {return current==State::Playing && redoLayers>0;}
     bool layerLimitReached() const noexcept { return layerLimit; }
     uint32_t droppedCommands() const noexcept { return commands.dropped(); }
 private:

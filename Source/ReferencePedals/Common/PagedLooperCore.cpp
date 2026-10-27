@@ -223,6 +223,10 @@ void PagedLooperCore::apply(Action action) noexcept
     }
     p.service();p.publish();
 }
+bool PagedLooperCore::canUndo() const noexcept
+{return impl && impl->current==State::Playing && impl->activeCount>0;}
+bool PagedLooperCore::canRedo() const noexcept
+{return impl && impl->current==State::Playing && impl->redoCount>0;}
 void PagedLooperCore::process(double* left,double* right,int n,double loopGain,double dryGain) noexcept
 {
     if(!impl || n<0 || (n && (!left || !right)))return;
