@@ -8,6 +8,12 @@ changes initial delivery quantity, not any selected model's original numerical,
 CPU, safety or shared-board gate. No selected named model is registered yet.
 See [the retained scope comparison](../handoff/PEDALBOARD-SIX-MODEL-SCENARIO-2026-10-26.md).
 
+DD-3T held-loop spillover scheduling is corrected at `0cdfef09ac5904bd8771822aed45958aef815de5`.
+The original continuous/sparse-loop dropout evidence is retained; no audio
+equation or threshold changed. Pro/Free/strict sanitizers each pass22tests/3,942checks.
+Silent held buffers conservatively keep processing until release/cut.
+See [the tail-scheduling handoff](../handoff/PEDALBOARD-2026-10-27-DD3T-TAILS.md).
+
 DD-3T callback-interior sync latching is corrected at
 `df1dcb1de1bf200f34bf3ba8177993f8544f610d`, retaining the original80ms glide.
 Original timing/partition RED evidence and an interim event-ordering failure
