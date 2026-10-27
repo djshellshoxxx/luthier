@@ -8,6 +8,14 @@ changes initial delivery quantity, not any selected model's original numerical,
 CPU, safety or shared-board gate. No selected named model is registered yet.
 See [the retained scope comparison](../handoff/PEDALBOARD-SIX-MODEL-SCENARIO-2026-10-26.md).
 
+Phase90 fixed inline-memory admission is implemented at
+`4fd574c653101b11512b298a4d99f0003ba2fd8a`. Pro/Free/strict sanitizers each
+pass17tests/55,056checks, including original model regressions and test-only
+pool config replacement/shared-pin accounting. CPU/24-bit gates remain open.
+The private checkpoint now includes a verified bridge from published22d6b18d
+and preserved worker-lane history, without source publication.
+See [memory evidence, recovery and current ownership states](../handoff/PEDALBOARD-2026-10-27-PHASE90-MEMORY.md).
+
 RC-5 synthesis DC is corrected at `809f48bdc84e51f183709a9f010f275922336f7f`,
 using an existing1Hz blocker before rhythm level and outside dry mixing.
 Original−80dB criterion is unchanged. Pro/Free/strict sanitizers each pass11tests/
