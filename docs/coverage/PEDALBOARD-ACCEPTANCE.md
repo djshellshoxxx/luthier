@@ -26,14 +26,23 @@ DSP arithmetic, bypass and original CPU/quality gates are preserved.
 See [the source/test handoff](../handoff/PEDALBOARD-2026-10-26-DD3T-MEMORY.md).
 Earlier full-suite/artifact results below retain their earlier source identity.
 
-Phase90's narrow single-envelope correction is committed at
+Latest Phase90 model-level sync/transport correction:
+`6e9129474255e097ddbe5f6eabd8fd7c8462cba9` guards the two bypassed phase
+writes while retaining latest timing and engaged resync/stomp semantics. The
+two new tests reproduced160failedchecks before the fix. Focused Pro/Free/strict
+Pro ASan/LSan/UBSan each pass13tests/54,620checks afterward. Full host/clock
+integration, CPU and24-bit gates remain open; no registration/native pass.
+See [the source-pinned freeze handoff](../handoff/PEDALBOARD-2026-10-27-PHASE90-SYNC-FREEZE.md).
+
+The preceding Phase90 single-envelope correction is committed at
 `78b1d84ffcae43de6eae5ef869c9831c087a2aba`. The board's linear control now
 drives one equal-power audio fade; the direct model retains one fade. Pro,
 Free and strict Pro ASan/LSan/UBSan focused runs each pass11tests/53,520checks.
 The original60-case double-fade RED evidence is preserved. The unchangedCPU
 <0.4% gate remains RED here on both baseline and corrected source; the separate
-24-bit criterion is unresolved/unapproved, and sync/transport freeze remains
-open. No named model is registered and no full-product/native pass is implied.
+24-bit criterion is unresolved/unapproved. The subsequent source-pinned
+model-level sync/transport fix above supersedes that particular open defect.
+No named model is registered and no full-product/native pass is implied.
 See [the correction and exact qualification limits](../handoff/PEDALBOARD-2026-10-27-PHASE90-SINGLE-ENVELOPE.md)
 and [original measurements](../handoff/PEDALBOARD-2026-10-26-PHASE90-BYPASS.md).
 

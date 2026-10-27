@@ -1,5 +1,10 @@
 # Phase90 single-envelope checkpoint — 2026-10-27
 
+Subsequent model-level sync/transport freeze correction:
+[source and evidence](PEDALBOARD-2026-10-27-PHASE90-SYNC-FREEZE.md).
+The earlier measurements and remaining gates recorded here keep their original
+source identity; the later note supersedes the particular phase-write gap.
+
 Code/test commit: **`78b1d84ffcae43de6eae5ef869c9831c087a2aba`**, branch
 `codex/luthier-pedalboard-completion`, based on
 `c49bffc82ad30e1e98d57565e69120c5da65df0f` in the same `/workspace/luthier` executor.
