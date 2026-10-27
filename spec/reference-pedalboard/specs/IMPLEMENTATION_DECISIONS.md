@@ -238,3 +238,21 @@ The future wrapper applies it to internal tempo through its existing authority
 rules, with0.1BPM only for UI; actual Rc5Rhythm keeps full precision and its own
 phase-continuous setTempo. This prerequisite does not implement full RC5 controls,
 clock master/slave, wrapper/registration or advanced audio playback.
+
+## Forward page-window geometric coverage (2026-10-27)
+
+A nominal pageFrames*readAhead/rate omits the partial last page and cursor offset.
+Add a constructor-free minimumForwardWindowFrames(loopFrames,pageFrames,readAhead)
+query: minimum consecutive frame count from any cursor, including the current
+frame, covered by the configured circular forward page window. Invalid nonpositive
+geometry returns0. If all loop pages fit in the window, return UINT64_MAX for
+repeatable whole-loop coverage. Otherwise A=readAhead,P=pageFrames,R=last-page
+length(in1..P): A0 returns1; A>=1 returns1+(A−1)*P+R. This is geometry, not proof
+that assets are resident or I/O meets deadlines; readiness/performance stay separate.
+
+The RC5 maximum-memory policy fixture must satisfy original>=2seconds using this
+stronger minimum, including every possible partial-page length. A13 with the
+existing14read slots and P8192/16384/32768 at<=48/96/192k preserves RAM while
+covering the worst partial-page case. It does not silently reconfigure generic
+loopers or implement the absent RC5 wrapper. Keep the old nominal assertion too;
+record the stronger originalA12failure before changing that fixture policy.

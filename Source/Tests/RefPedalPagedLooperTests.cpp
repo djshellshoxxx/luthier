@@ -62,20 +62,24 @@ LUTHIER_TEST(RefPedalPagedLooper, fullDurationAggregateReservationIncludesAllStr
     CHECK(core.prepare(f.store,c));CHECK(core.capacity()==259200000ull);CHECK(core.reservedBytes()<=c.ramBudget);CHECK(core.reservedStorageBytes()<=c.storageBudget);
     std::printf("paged90min/48k depth8 streams11 RAM=%zu storage=%llu\n",core.reservedBytes(),(unsigned long long)core.reservedStorageBytes());
     auto tooSmall=c;tooSmall.ramBudget=core.reservedBytes()-1;CHECK(!core.prepare(f.store,tooSmall));CHECK(core.capacity()==259200000ull);
-    PagedLooperCore rc5;auto high=c;high.sampleRate=192000;high.undoDepth=1;high.pageFrames=32768;high.writePages=4;high.readAhead=12;high.readPages=14;high.ramBudget=64*1024*1024;high.storageBudget=32ull*1024*1024*1024;
+    PagedLooperCore rc5;auto high=c;high.sampleRate=192000;high.undoDepth=1;high.pageFrames=32768;high.writePages=4;high.readAhead=13;high.readPages=14;high.ramBudget=64*1024*1024;high.storageBudget=32ull*1024*1024*1024;
     CHECK(rc5.prepare(f.store,high));CHECK(rc5.capacity()==1036800000ull);CHECK(double(high.pageFrames)*high.readAhead/high.sampleRate>=2);
-    std::printf("pagedRC5/192k depth1 streams4 lookahead=%.3fs RAM=%zu storage=%llu\n",double(high.pageFrames)*high.readAhead/high.sampleRate,rc5.reservedBytes(),(unsigned long long)rc5.reservedStorageBytes());
-    CHECK(rc5.reservedBytes()<=high.ramBudget);CHECK(rc5.reservedStorageBytes()<=high.storageBudget);
+    CHECK(PagedLooperCore::minimumForwardWindowFrames(rc5.capacity(),high.pageFrames,high.readAhead)>=uint64_t(high.sampleRate*2));
+    std::printf("pagedRC5/192k depth1 streams4 nominal=%.3fs minimum=%.3fs RAM=%zu storage=%llu\n",double(high.pageFrames)*high.readAhead/high.sampleRate,double(PagedLooperCore::minimumForwardWindowFrames(rc5.capacity(),high.pageFrames,high.readAhead))/high.sampleRate,rc5.reservedBytes(),(unsigned long long)rc5.reservedStorageBytes());
+    CHECK(rc5.reservedBytes()<=high.ramBudget);CHECK(rc5.reservedBytes()<=64000000);CHECK(rc5.reservedStorageBytes()<=high.storageBudget);
     auto ditto=tiny();ditto.sampleRate=192000;ditto.seconds=300;ditto.channels=1;ditto.pageFrames=4096;ditto.writePages=8;ditto.readPages=8;ditto.ramBudget=32*1024*1024;ditto.storageBudget=4ull*1024*1024*1024;
     PagedLooperCore mono;CHECK(mono.prepare(f.store,ditto));CHECK(mono.capacity()==57600000ull);CHECK(mono.reservedBytes()<=ditto.ramBudget);
     std::printf("pagedDitto/192k depth1 streams4 RAM=%zu storage=%llu\n",mono.reservedBytes(),(unsigned long long)mono.reservedStorageBytes());
     auto rc1=ditto;rc1.seconds=720;rc1.channels=2;rc1.storageBudget=8ull*1024*1024*1024;PagedLooperCore stereo;CHECK(stereo.prepare(f.store,rc1));CHECK(stereo.capacity()==138240000ull);CHECK(stereo.reservedBytes()<=rc1.ramBudget);
     std::printf("pagedRC1/192k depth1 streams4 RAM=%zu storage=%llu\n",stereo.reservedBytes(),(unsigned long long)stereo.reservedStorageBytes());
-    for(double rate:{44100.,48000.,96000.,192000.})
+    for(double rate:{44100.,48000.,88200.,96000.,192000.})
     {
         auto native=high;native.sampleRate=rate;native.pageFrames=rate<=48000?8192:rate<=96000?16384:32768;
         PagedLooperCore checked;CHECK(checked.prepare(f.store,native));CHECK(checked.capacity()==uint64_t(rate*5400));CHECK(checked.reservedBytes()<=64*1024*1024);
         CHECK(double(native.pageFrames)*native.readAhead/rate>=2);
+        CHECK(PagedLooperCore::minimumForwardWindowFrames(checked.capacity(),native.pageFrames,native.readAhead)>=uint64_t(rate*2));
+        CHECK(uint64_t(2)+uint64_t(native.readAhead-1)*uint64_t(native.pageFrames)>=uint64_t(rate*2));
+        CHECK(checked.reservedBytes()<=64000000);
     }
 }
 LUTHIER_TEST(RefPedalPagedLooper, timestampRecordAndStereoDryRemainExact)

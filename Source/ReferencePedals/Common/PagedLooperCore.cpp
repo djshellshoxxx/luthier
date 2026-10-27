@@ -206,6 +206,16 @@ struct PagedLooperCore::Impl
     }
 };
 PagedLooperCore::PagedLooperCore()=default;PagedLooperCore::~PagedLooperCore()=default;
+uint64_t PagedLooperCore::minimumForwardWindowFrames(uint64_t frames,int pageFrames,int readAhead) noexcept
+{
+    if(!frames || pageFrames<=0 || readAhead<0)return 0;
+    const auto page=uint64_t(pageFrames),ahead=uint64_t(readAhead);
+    const auto count=1+(frames-1)/page;
+    if(ahead>=count-1)return std::numeric_limits<uint64_t>::max();
+    if(!ahead)return 1;
+    const auto last=1+(frames-1)%page;
+    return 1+(ahead-1)*page+last;
+}
 bool PagedLooperCore::prepare(IAssetStore& store,const Config& config)
 {
     if(!std::isfinite(config.sampleRate) || !std::isfinite(config.seconds) || config.sampleRate<1 || config.sampleRate>192000

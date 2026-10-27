@@ -25,6 +25,10 @@ public:
         int pageFrames=4096,writePages=8,readPages=8,readAhead=3;
     };
     using CaptureStatus=LooperStorage::CaptureStatus;
+    // Minimum geometric coverage from any cursor, including that frame and
+    // excluding the first page outside the configured forward window. Returns
+    // UINT64_MAX when every loop page fits; this is not a residency/I/O check.
+    static uint64_t minimumForwardWindowFrames(uint64_t frames,int pageFrames,int readAhead) noexcept;
     enum class RestorePolicy { Stopped, ResumeCaptured };
     struct Graph
     {
