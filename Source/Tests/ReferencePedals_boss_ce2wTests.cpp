@@ -2,6 +2,89 @@
 #include "../ReferencePedals/Models/boss_ce2w.h"
 #include <array>
 using luthier::reference::models::BossCe2w;
+namespace luthier::tests { long allocationsOnThisThread() noexcept; }
+LUTHIER_TEST(RefPedalCe2w, rapidModeReversalKeepsTheCurrentAudibleBlend)
+{
+    // The three fixed-mode models have identical prepared histories. Blend their
+    // independently rendered outputs using the written10ms transition, starting
+    // a new transition at the current blend rather than an abandoned endpoint.
+    for(double rate:{44100.,48000.,88200.,96000.,192000.}) for(int hostBlock:{1,64,2048})
+    {
+        BossCe2w changing;
+        std::array<BossCe2w,3> voices;
+        changing.setParam(7,0);changing.setParam(1,0);changing.prepare(rate,2048,1);
+        for(int mode=0;mode<3;++mode)
+        {
+            voices[mode].setParam(7,0);voices[mode].setParam(1,0);voices[mode].setParam(2,mode*.5f);
+            voices[mode].prepare(rate,2048,1);
+        }
+        const int start=int(rate*.125),end=start+int(rate*.05);
+        const int events[]{start,start+int(rate*.003),start+int(rate*.005),start+int(rate*.0065)};
+        const int targets[]{2,1,0,2};
+        std::array<double,3> weights{1,0,0},origin=weights;
+        double blend=1,error=0,maxDelta=0,previousL=0,previousR=0;bool finite=true;
+        int target=0,eventIndex=0,frame=0;
+        const auto allocations=luthier::tests::allocationsOnThisThread();
+        while(frame<end)
+        {
+            if(eventIndex<4 && frame==events[eventIndex])
+            {
+                target=targets[eventIndex++];origin=weights;blend=0;changing.setParam(2,target*.5f);
+            }
+            int n=std::min({2048,hostBlock-frame%hostBlock,end-frame});
+            if(eventIndex<4)n=std::min(n,events[eventIndex]-frame);
+            std::array<double,2048> l{},r{};
+            std::array<std::array<double,2048>,3> x{},y{};
+            for(int i=0;i<n;++i)
+            {
+                l[i]=.1*std::sin(6.283185307179586*100*(frame+i)/rate+.37);r[i]=l[i];
+                for(int m=0;m<3;++m){x[m][i]=l[i];y[m][i]=r[i];}
+            }
+            changing.process(l.data(),r.data(),n);
+            for(int m=0;m<3;++m)voices[m].process(x[m].data(),y[m].data(),n);
+            for(int i=0;i<n;++i)
+            {
+                blend=std::min(1.,blend+1/(rate*.01));
+                double expectedL=0,expectedR=0;
+                for(int m=0;m<3;++m)
+                {
+                    weights[m]=origin[m]+((m==target?1.:0.)-origin[m])*blend;
+                    expectedL+=weights[m]*x[m][i];expectedR+=weights[m]*y[m][i];
+                }
+                error=std::max({error,std::abs(l[i]-expectedL),std::abs(r[i]-expectedR)});
+                if(frame+i>=start)maxDelta=std::max({maxDelta,std::abs(l[i]-previousL),std::abs(r[i]-previousR)});
+                previousL=l[i];previousR=r[i];
+                finite &= std::isfinite(l[i]) && std::isfinite(r[i]);
+            }
+            frame+=n;
+        }
+        CHECK(luthier::tests::allocationsOnThisThread()==allocations);
+        const auto label=juce::String(rate)+"/"+juce::String(hostBlock);
+        CHECK_MSG(error<1.e-12,label+" interrupted fade lost audible weights "+juce::String(error,15));
+        CHECK_MSG(maxDelta<std::pow(10,-30./20),label+" original-30dB mode-step gate "+juce::String(maxDelta,15));
+        CHECK(finite);
+    }
+}
+LUTHIER_TEST(RefPedalCe2w, resetAndReprepareClearInterruptedModeWeights)
+{
+    for(double rate:{44100.,48000.,88200.,96000.,192000.})for(bool reprepare:{false,true})
+    {
+        BossCe2w pedal,fresh;
+        for(auto* p:{&pedal,&fresh}){p->setParam(7,0);p->prepare(rate,2048,1);}
+        std::array<double,2048> l{},r{},x{},y{};
+        pedal.setParam(2,1);pedal.process(l.data(),r.data(),int(rate*.003));
+        pedal.setParam(2,.5f);pedal.process(l.data(),r.data(),int(rate*.002));
+        const auto allocations=luthier::tests::allocationsOnThisThread();
+        if(reprepare)pedal.prepare(rate,2048,1);else pedal.reset();
+        if(!reprepare)CHECK(luthier::tests::allocationsOnThisThread()==allocations);
+        fresh.setParam(2,.5f);fresh.reset();
+        for(int i=0;i<2048;++i){l[i]=x[i]=.1*std::sin(i*.13);r[i]=y[i]=.12*std::cos(i*.17);}
+        const auto renderAllocations=luthier::tests::allocationsOnThisThread();
+        pedal.process(l.data(),r.data(),2048);fresh.process(x.data(),y.data(),2048);
+        CHECK(luthier::tests::allocationsOnThisThread()==renderAllocations);
+        CHECK(l==x);CHECK(r==y);
+    }
+}
 LUTHIER_TEST(RefPedalCe2w, modesImpulseStereoAndBypass)
 {
     for(double sr:{44100.,48000.,96000.,192000.})for(int mode=0;mode<3;++mode)

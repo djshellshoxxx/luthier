@@ -5,6 +5,7 @@
 #include "../Common/Biquad.h"
 #include "../Common/OnePole.h"
 #include "../Common/Lfo.h"
+#include <array>
 namespace luthier::reference::models
 {
 class BossCe2w final : public PedalBase<9>
@@ -27,6 +28,7 @@ private:
     common::Lfo lfo;TimeInfo time;uint32_t seed=1;
     double lastRate=-1,cachedRate=1;
     double sr=48000,modeBlend=1,stereoBlend=1;
-    int mode=0,oldMode=0;
+    std::array<double,3> modeWeights{1,0,0},modeOrigin{1,0,0};
+    int mode=0;
 };
 }
