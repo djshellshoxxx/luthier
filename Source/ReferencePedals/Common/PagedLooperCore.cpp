@@ -212,7 +212,7 @@ void PagedLooperCore::apply(Action action) noexcept
     {
         case Action::Record:p.clear();p.current=State::Recording;break;
         case Action::Clear:p.clear();break;
-        case Action::Play:if(p.current==State::Recording)p.closeRecord();else if(p.current==State::Overdubbing)p.closeOverdub();else if(p.frames)p.current=State::Playing;break;
+        case Action::Play:if(p.current==State::Recording)p.closeRecord();else if(p.current==State::Overdubbing)p.closeOverdub();else if(p.frames){if(p.current==State::Stopped)p.head=0;p.current=State::Playing;}break;
         case Action::Overdub:if(p.current==State::Recording)p.closeRecord();if(p.current!=State::Overdubbing)p.startOverdub();break;
         case Action::CancelOverdub:if(p.current==State::Overdubbing)p.cancelOverdub();break;
         case Action::Stop:if(p.current==State::Recording)p.closeRecord();else if(p.current==State::Overdubbing)p.closeOverdub();if(p.frames)p.current=State::Stopped;break;

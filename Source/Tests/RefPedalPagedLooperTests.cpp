@@ -251,3 +251,51 @@ LUTHIER_TEST(RefPedalLooperQueries, eligibilityAndProvisionalCancelMatchBothReal
     CHECK(paged.prepare(f.store,config));paged.setSeamMilliseconds(0);
     exercise(paged,[&]{return ready(paged);});
 }
+
+LUTHIER_TEST(RefPedalLooperQueries, rapidStopPlayRestartsAtLoopOriginInBothCores)
+{
+    PagedFixture fixture;
+    for(double rate:{44100.,48000.,88200.,96000.,192000.})for(int block:{1,64,2048})
+        for(int stoppedFrames:{0,1,int(rate*.002)})
+    {
+        LooperCore ram;PagedLooperCore paged;
+        CHECK(ram.prepare(rate,.01,1,2000000));ram.setSeamMilliseconds(0);
+        auto config=tiny();config.sampleRate=rate;config.seconds=.01;
+        CHECK(paged.prepare(fixture.store,config));paged.setSeamMilliseconds(0);
+        std::array<double,2048> a{},ar{},b{},br{};
+        const auto zeros=[&](int count)
+        {
+            while(count>0)
+            {
+                const int n=std::min(count,block);a.fill(0);ar.fill(0);b.fill(0);br.fill(0);
+                ram.process(a.data(),ar.data(),n);paged.process(b.data(),br.data(),n);count-=n;
+            }
+        };
+        ram.apply(LooperAction::Record);paged.apply(LooperAction::Record);
+        for(int frame=0;frame<32;)
+        {
+            const int n=std::min(block,32-frame);
+            for(int i=0;i<n;++i){a[i]=b[i]=.125+(frame+i)/1024.;ar[i]=br[i]=-a[i];}
+            ram.process(a.data(),ar.data(),n);paged.process(b.data(),br.data(),n);frame+=n;
+        }
+        ram.apply(LooperAction::Play);paged.apply(LooperAction::Play);CHECK(ready(paged));
+        zeros(int(std::ceil(rate*.01/32))*32);zeros(11);CHECK(paged.playhead()==11);
+        const auto allocations=luthier::tests::allocationsOnThisThread();
+        ram.apply(LooperAction::Stop);paged.apply(LooperAction::Stop);zeros(stoppedFrames);
+        ram.apply(LooperAction::Play);paged.apply(LooperAction::Play);
+        const bool rewound=paged.playhead()==0;
+        double error=0;bool finite=true;
+        for(int frame=0;frame<2048;)
+        {
+            const int n=std::min(block,2048-frame);a.fill(0);ar.fill(0);b.fill(0);br.fill(0);
+            ram.process(a.data(),ar.data(),n);paged.process(b.data(),br.data(),n);
+            for(int i=0;i<n;++i)
+            {error=std::max({error,std::abs(a[i]-b[i]),std::abs(ar[i]-br[i])});finite &= std::isfinite(b[i]) && std::isfinite(br[i]);}
+            frame+=n;
+        }
+        CHECK(luthier::tests::allocationsOnThisThread()==allocations);
+        const auto label=juce::String(rate)+"/block"+juce::String(block)+"/stopped"+juce::String(stoppedFrames);
+        CHECK_MSG(rewound,label+" paged Play did not rewind immediately");
+        CHECK_MSG(error<1.e-15,label+" RAM/paged restart mismatch "+juce::String(error,15));CHECK(finite);
+    }
+}
