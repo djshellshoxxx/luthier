@@ -8,6 +8,15 @@ changes initial delivery quantity, not any selected model's original numerical,
 CPU, safety or shared-board gate. No selected named model is registered yet.
 See [the retained scope comparison](../handoff/PEDALBOARD-SIX-MODEL-SCENARIO-2026-10-26.md).
 
+Dyna original5ms EqualPower node law is corrected at
+`84c463347acd9dac43028d07ce8e9edc456e62c2`, with original90failedcells retained.
+Its separate Pro/Free/strict sanitizer cohorts each pass5tests/82,567checks.
+RC5 timed double-press selection is implemented at
+`371d6b572edec1e065ad88536fe48676a11f1fd4`; separate real-core Pro/Free/strict
+sanitizer cohorts each pass34tests/34,207checks. OriginalStopcontinuity,
+fullhold/Clear/controller/wrapper and model registration remainopen.
+See [combined checkpoint, ownership and broker packet identities](../handoff/PEDALBOARD-2026-10-27-RC5-DOUBLE-DYNA.md).
+
 Runtime-only captured-boundary resume helper is implemented at
 `4ceb1b5d339692a1c76eaa6053368d6b9b34fac9`. Pro/Free/strict sanitizers each
 pass32tests/31,122checks, including both fades, known PCM, command clock and
