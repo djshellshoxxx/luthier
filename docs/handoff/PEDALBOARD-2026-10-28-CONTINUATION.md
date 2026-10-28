@@ -208,3 +208,27 @@ Wrapper probe: 0.3/1/3/10 s loops now start at frame 1 with faults 0.
 Full `RefPedal`: 527 tests / 12,400,451 checks; only failure = known CE-2 BBD THD RED.
 Whole-target TSan cannot link (the harness overrides global operator new; conflicts with the
 TSan runtime) — focused harness used instead.
+
+## Native Windows evidence — build.yml run 40617409778, exact commit `97d3b013` (MSVC 14.51, VS 18, LTO off, pluginval strictness 10)
+
+| Step | Free | Pro |
+|---|---|---|
+| Configure and build (Windows) | pass | pass |
+| Early release regression tests (Windows Pro) | — | pass |
+| Unit tests (Windows) | **FAIL** | **FAIL** |
+| pluginval + clap-validator (Windows) | pass (CLAP 21 run / 17 pass / 0 fail / 4 skip) | pass |
+| Stage / upload plugins | pass | pass |
+
+Unit-test failure (both editions, identical): every suite passes up to `RefPedalHistoryFailure`,
+whose first test fail-fasts with `Tests failed (-1073740791)` = 0xC0000409 (terminate/abort).
+Same suite passes on Linux clang 18 (Release and ASan/UBSan, 7 tests / 2,104 checks). The base
+branch's Windows run never reached tests (C2653), so this is the first MSVC execution. Diagnosis:
+an injected `bad_alloc` escapes a `noexcept` boundary only under the MSVC STL; static audit of
+the apply/publication `noexcept` functions found no MSVC-only allocation. Diagnostic terminate
+handler pushed in `4159a634`; Windows Pro re-dispatched on that commit.
+
+Uploaded artifacts (unqualified diagnostic binaries — unit tests red, not release candidates):
+`Luthier-FREE-windows-97d3b013…` sha256 `a31fab050f4c6d8a7a7cd10a94b4299213547c1909c93f9bfeba94d04e4f34d9`;
+`Luthier-PAID-windows-97d3b013…` sha256 `6c51367658be3ff9e2e1b04c43dc48d1cb8ca740610e80ae8788692210320053`
+(artifact zip digests from the Actions API). Log download from the blob host is blocked by this
+environment's network policy; job logs were read through the API.
