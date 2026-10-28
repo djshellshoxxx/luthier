@@ -26,33 +26,42 @@ qualified `::luthier::reference::ChannelMode::Stereo` / `BypassMode::True`. Test
 Native verification: `build.yml` dispatched (windows, pro+free, LTO off, strictness 10)
 on exact commit `97d3b013`: run 40617409778. Original failing logs remain in run 40603478203.
 
-## Slice 2 — CE-2 BBD-on THD gate (RED → GREEN on Linux)
+## Slice 2 — CE-2 BBD-on THD gate: candidate applied, then REVERTED (gate stays RED)
 
 Root cause (measured): at −12 dBFS the CE-2 input shaper is linear (onset 0.5) and the
-~150 kHz BBD clock is far above host rate, so the clocked ZOH adds no harmonic distortion.
-The model had no BBD transfer nonlinearity at all; baseline BBD-on THD 0.0003–0.0097 %
-(reproduced exactly by the standalone probe) vs spec §9 0.5–3 %.
+~150 kHz BBD clock is far above host rate, so the clocked ZOH adds no harmonics; the model
+has no BBD transfer nonlinearity. BBD-on THD 0.0003–0.0097 % vs spec §9 0.5–3 % [E].
 
-Change: `common::BbdCore::setTransferNonlinearity(even, odd)` — clocked mode only,
-`x += even*(x²−⟨x²⟩₅Hz) − odd*x³`; default 0 leaves output bit-identical. Only CE-2 sets it:
-`even=.02, odd=.03` (ESTIMATED; no hardware capture). The odd term keeps spec §9's −3 dBFS
-clause (2–6 %, 3rd harmonic dominant) true with BBD on as well.
+Commit `4dd4adc2` added an opt-in clocked-mode term in `BbdCore`
+(`x += even*(x²−⟨x²⟩) − odd*x³`, CE-2 even=.02/odd=.03), measured 0.90–1.08 % at −12 dBFS
+and 3.97–4.75 % (3rd dominant) at −3 dBFS. It was **reverted in the next commit** after
+reading `PEDALBOARD-2026-10-27-REVERSE-DSP-GATES.md`: an independent DSP review had already
+ruled that fitting a cubic/tanh to meet the floor is unsupported without "aggregate
+conditioned transfer/harmonic data or a defensible explicit estimated behavioral
+rationale". The only rationale found does not support it:
 
-| Rate | BBD-on −12 dBFS | BBD-on −3 dBFS (h2 / h3) | BBD-off (unchanged) |
-|---|---|---|---|
-| 44.1k | 1.0825 % | 4.752 % (2.891 / 3.656) | −12: 0.0000 %, −3: 2.683 % |
-| 48k | 1.0465 % | 4.589 % (2.796 / 3.527) | −3: 2.583 % |
-| 88.2k | 0.9350 % | 4.117 % (2.502 / 3.168) | −3: 2.268 % |
-| 96k | 0.9234 % | 4.077 % (2.479 / 3.136) | −3: 2.250 % |
-| 192k | 0.8982 % | 3.973 % (2.412 / 3.057) | −3: 2.179 % |
+- MN3007 THD is quoted as 0.5 % typ / 2.5 % max at Vi = 0.78 Vrms (forum-quoted datasheet
+  figures: diystompboxes.com MN3007/MN3207 thread; the Panasonic PDF was not read).
+- With spec §3's 0 dBFS = 1.0 V pk, −12 dBFS ≈ 0.18 Vrms; second-order BBD distortion that
+  scales with level gives ≈ 0.1 % at the BBD, before dilution by the 1:1 dry path.
+- The fitted coefficients therefore needed ≈ 9× the datasheet typical.
 
-New test `RefPedalCe2.bbdOnHeadroomGateKeepsThirdHarmonicDominant` encodes the −3 dBFS
-clause with BBD on. Thresholds unchanged. Bit-exact A/B (sha256 of full outputs, 4 rates ×
-3 blocks × 4 settings): CE-2 BBD-off and CE-2W all modes incl. clocked staircase identical
-(`4d60f37b…`).
+So the spec's [E] 0.5–3 % at −12 dBFS appears inconsistent with datasheet-scale evidence
+unless the CE-2 drives the BBD well above unity (unsourced). **Owner decision needed:**
+revise the [E] threshold, supply level/transfer data, or approve an explicit estimated
+rationale. Source is back to `97d3b013` for BbdCore/CE-2 (bit-identical); the gate test is
+the original known RED.
 
-Still open for CE-2: raw on/off jump (RED 12/60 cells, max 0.0014990 > 0.001, unchanged;
-not touched), CPU <0.4 % / <1.0 % (bbd) not yet measured as a gate.
+Kept: `RefPedalCe2.bbdOnHeadroomGateKeepsThirdHarmonicDominant` encodes spec §9's −3 dBFS
+clause (2–6 %, 3rd dominant) with BBD on; it passes on the unmodified model
+(2.02–2.42 %; 192 kHz margin is small, 2.015 %).
+
+Still open for CE-2: raw on/off jump (RED 12/60, max 0.0014990 > 0.001). Analysis: the
+metric is the max sample-to-sample step inside the toggle window; the spec's own 5 ms
+equal-power slope (π/2 over 0.005·fs samples) times |wet−dry| (~0.14 for the fixture's
+20/31 Hz inputs) is ≈ 0.0010–0.0015 at 44.1/48 kHz, halving at higher rates — i.e. the
+criterion conflicts with the specified 5 ms law rather than indicating a click. Owner
+ruling needed on the jump definition; the fade law was not changed.
 
 ## Slice 3 — exact-output CPU reductions (gates still RED)
 
@@ -88,7 +97,7 @@ CE-1 THD criterion applies to. DSP unchanged.
 | Model | DSP | Registered | Open original gates |
 |---|---|---|---|
 | Phase90 | integrated | no | CPU <0.4 % RED; 24-bit click criterion unresolved |
-| CE-2 | integrated | no | BBD THD now GREEN; raw jump RED; CPU unmeasured as gate |
+| CE-2 | integrated | no | BBD-on THD RED (owner: spec vs datasheet); raw jump RED (owner: definition); CPU ~0.66 % contended |
 | DD-3T | integrated | no | CPU <0.5 % gate open |
 | CE-2W | integrated | no | CE-1 THD criterion ambiguous (above); CPU |
 | Dyna Comp | integrated | no | CPU RED; THD/attack original failures (90 cells) retained |

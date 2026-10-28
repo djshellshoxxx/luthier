@@ -24,11 +24,6 @@ const ParamDesc parameters[]{
     {"boss_ce2_mono_out_dup","MONO DUP","",ParamKind::Toggle,Taper::Linear,0.0f,1.0f,1.0f,1.f,0,nullptr,PF_Config,20.0f,-1},
     {"boss_ce2_stereo_mode","STEREO MODE","",ParamKind::Enum,Taper::Linear,0,1,0,1,2,stereoModeNames,PF_Config,5,-1},
 };
-// Spec sec 9 [E]: BBD sim ON gives 0.5-3% THD at 1 kHz/-12 dBFS (OFF <0.3%), and
-// -3 dBFS stays 2-6% with the 3rd harmonic dominant. MN3007 charge transfer is an
-// ESTIMATED even term plus mild odd compression, clocked mode only; measured
-// 0.90-1.08% / 3.97-4.75% across 44.1-192 kHz. No hardware capture exists.
-constexpr double bbdTransferEven=.02,bbdTransferOdd=.03;
 const PedalDesc description{"boss-ce2","boss_ce2_",1,"Vintage Bucket Chorus (prototype)","Chorus",nullptr,ChannelMode::Mono,BypassMode::Buffered,14,parameters,0,false,false,false,0,1,BypassFade::EqualPower};
 }
 const PedalDesc& BossCe2::descriptor() noexcept {return description;}
@@ -49,7 +44,7 @@ uint64_t BossCe2::getPreparedMemoryBytes() const noexcept
 void BossCe2::prepare(double sampleRate,int,int)
 {
     sr=sampleRate;triangleCoefficient=1-std::exp(-6.283185307179586*72/sr);prepareParams(sr);variant=int(value(3));
-    for(int c=0;c<2;++c){wet[c].prepare(sr,12,variant?7500:6500,variant?6000:5500);wet[c].setClipOnset(.5);wet[c].setTransferNonlinearity(bbdTransferEven,bbdTransferOdd);inputHp[c].setLowpass(sr,15);bypassHp[c].setLowpass(sr,15);}
+    for(int c=0;c<2;++c){wet[c].prepare(sr,12,variant?7500:6500,variant?6000:5500);wet[c].setClipOnset(.5);inputHp[c].setLowpass(sr,15);bypassHp[c].setLowpass(sr,15);}
     lfo.prepare(sr);reset();
 }
 void BossCe2::reset() noexcept
