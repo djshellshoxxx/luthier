@@ -17,6 +17,8 @@ uint64_t MxrDynaComp::getPreparedMemoryBytes() const noexcept
 
 namespace
 {
+// Constants hoisted from the per-oversample OTA law (same values, computed once).
+const double controlFloor = common::dbGain(-36), bias = std::tanh(.02), biasScale = 1 - bias * bias;
 const char *const attackModes[] = {"Fast", "Slow"};
 const char *const variants[] = {"M102", "Mini", "Script76"};
 const char *const qualities[] = {"2x", "4x", "Off"};
@@ -77,7 +79,8 @@ void MxrDynaComp::reset() noexcept
     for (auto &o : otaOs)
         o.reset();
     env.fill(0);
-    previousAttack = previousOutput = -1;
+    previousAttack = previousOutput = previousNoiseSens = -1;
+    lastReleaseMs.fill(-1);
     reduction.store(0, std::memory_order_relaxed);
     for (int c = 0; c < 2; ++c)
     {
@@ -132,20 +135,24 @@ void MxrDynaComp::process(double *l, double *r, int n) noexcept
                 hp[c].highpass(x),
                 [&](double v)
                 {
-                    const double control = std::max(common::dbGain(-36), 1 / (1 + kc * env[c]));
+                    const double control = std::max(controlFloor, 1 / (1 + kc * env[c]));
                     // 2% asymmetry ESTIMATED. Subtraction keeps silence exactly zero.
-                    const double linear = common::mildTanh(1.5 * v * control), bias = std::tanh(.02);
-                    const double ota = linear * (1 - bias * bias) / (1 + linear * bias) / 1.5;
+                    const double linear = common::mildTanh(1.5 * v * control);
+                    const double ota = linear * biasScale / (1 + linear * bias) / 1.5;
                     const double rect = std::max(0.0, std::abs(ota * sens) - .6);
                     // Secondary-source 1s recovery; program-dependent shortening ESTIMATED.
                     const double releaseMs = std::max(300.0, 1000 / (1 + 4 * rect));
                     // Exactly the same coefficient at the two frequent endpoints.
                     // The continuously varying middle range keeps the original exp.
-                    const double release =
-                        releaseMs == 1000.0 ? releaseAtZero
-                        : releaseMs == 300.0
-                            ? releaseAtFloor
-                            : common::EnvelopeFollower::coefficient(otaOs[c].rate(), releaseMs);
+                    if (releaseMs != lastReleaseMs[c])
+                    {
+                        lastReleaseMs[c] = releaseMs;
+                        lastRelease[c] = releaseMs == 1000.0 ? releaseAtZero
+                                         : releaseMs == 300.0
+                                             ? releaseAtFloor
+                                             : common::EnvelopeFollower::coefficient(otaOs[c].rate(), releaseMs);
+                    }
+                    const double release = lastRelease[c];
                     const double coeff = rect > env[c] ? attack : release;
                     env[c] = std::clamp(common::safe(rect + coeff * (env[c] - rect)), 0.0, 1000.0);
                     minimumControl = std::min(minimumControl, control);
@@ -153,7 +160,14 @@ void MxrDynaComp::process(double *l, double *r, int n) noexcept
                 });
             double wet = dc[c].process(lp[c].process(y * outputGain));
             if (value(5) >= .5)
-                wet += noise[c].next() * common::dbGain(-90 + 15 * p[0]);
+            {
+                if (p[0] != previousNoiseSens)
+                {
+                    previousNoiseSens = p[0];
+                    noiseGain = common::dbGain(-90 + 15 * p[0]);
+                }
+                wet += noise[c].next() * noiseGain;
+            }
             output[c][i] = guard(clean + (wet - clean) * p[8]);
         }
         advance();

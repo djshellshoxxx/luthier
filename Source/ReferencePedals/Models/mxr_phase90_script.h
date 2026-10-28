@@ -32,9 +32,10 @@ private:
     common::Lfo oscillator;
     common::OnePole highpass[2];
     common::NoiseGen noise;
-    std::array<std::array<double,4>,2> states{};
+    // Stage-major [stage][channel] so both channels' stage k are adjacent.
+    std::array<std::array<double,2>,4> states{};
     std::array<double,4> mismatch{};
-    double allpass[2][4]{},allpassStep[2][4]{},triangleCoefficient=0,fadeStep=0;
+    double allpass[4][2]{},allpassStep[4][2]{},triangleCoefficient=0,fadeStep=0;
     double lastSpeed=-1,lastVariant=-1,cachedRate=1;int coefficientClock=0;
     double sr=48000,triangle[2]{.5,.5},feedback[2]{},engage=1;
     uint32_t seed=1;

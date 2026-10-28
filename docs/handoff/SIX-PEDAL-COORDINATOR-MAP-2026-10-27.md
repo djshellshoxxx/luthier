@@ -58,3 +58,7 @@ build output into `logs/build.log`. Neither changes a test, threshold or validat
 | Gate | Source SHA | Command | Result |
 |---|---|---|---|
 | Six-model focused suites, Linux Pro | 1e7aaf1c | see above | 100/101 pass; CE-2 BBD THD RED |
+| Windows MSVC C2653/C2065 (Phase90 test fixture) | 97d3b013 | build.yml windows pro+free, run 40617409778 | pending at time of writing |
+| CE-2 BBD-on THD (spec §9) + new −3 dBFS BBD-on test; full RefPedal 514 tests/12,368,320 checks pass | slice-2 commit (PR #83) | `LuthierTests RefPedalPhase90 RefPedalCe2 RefPedalCe2w RefPedalDd3t RefPedalDyna RefPedalBossRc5 RefPedalRc5 RefPedalChorusMemory RefPedalBbdCore` | **105/105 pass, 172,227 checks, 64.9 s, Linux Pro clang 18** |
+
+2026-10-28 continuation and lane reconciliation: [PEDALBOARD-2026-10-28-CONTINUATION.md](PEDALBOARD-2026-10-28-CONTINUATION.md).

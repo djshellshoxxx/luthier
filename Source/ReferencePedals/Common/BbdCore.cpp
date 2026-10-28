@@ -5,7 +5,7 @@ namespace luthier::reference::common
 void BbdCore::prepare(double sampleRate,double maximumDelayMs,double preHz,double postHz)
 {
     sr=common::sampleRate(sampleRate);maxDelay=std::clamp(common::safe(maximumDelayMs),1.,100.);
-    delay.prepare(int(sr*maxDelay*.001)+8);saturation.prepareFactor(sr,sr<=48000 ? 2:1);
+    delay.prepare(int(sr*maxDelay*.001)+8);saturation.prepareFactor(sr,sr<=48000 ? 2:1);squareMean.setLowpass(sr,5);
     setFilters(preHz,postHz);reset();
 }
 void BbdCore::setFilters(double preHz,double postHz) noexcept
@@ -17,7 +17,7 @@ void BbdCore::setFilters(double preHz,double postHz) noexcept
 void BbdCore::reset(uint32_t seed) noexcept
 {
     delay.reset();saturation.reset();for(auto& f:pre)f.reset();for(auto& f:post)f.reset();
-    noise.reset(seed);clockPhase=held=previousWet=0;
+    noise.reset(seed);squareMean.reset();clockPhase=held=previousWet=0;
 }
 double BbdCore::clockHz(double delayMs,int stages) noexcept
 {
@@ -33,7 +33,11 @@ double BbdCore::process(double input,double delayMs,double noiseAmount,bool cloc
         // C2-continuous compression thereafter, preserving the original ceiling.
         const double magnitude=std::abs(v),span=clipLevel-clipOnset;
         return magnitude<=clipOnset?v:std::copysign(clipOnset+span*common::mildTanh((magnitude-clipOnset)/span),v);
-    });delay.push(x);
+    });
+    // The mean is tracked in both modes so engaging the clocked path adds no DC step.
+    const double square=x*x,mean=squareMean.process(square);
+    if(clocked && (transferEven>0 || transferOdd>0))x+=transferEven*(square-mean)-transferOdd*square*x;
+    delay.push(x);
     const double ms=std::clamp(common::safe(delayMs),.1,maxDelay);
     double wet=delay.read(std::max(1.,sr*.001*ms-saturation.latencySamples()));
     const double unheld=wet;

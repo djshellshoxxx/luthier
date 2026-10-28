@@ -37,5 +37,8 @@ class MxrDynaComp final : public common::Processor<10>
     uint32_t seed = 1;
     double releaseAtZero = 0, releaseAtFloor = 0;
     double attack = 0, previousAttack = -1, previousOutput = -1, outputGain = 0;
+    // Exact-value caches: each reuses a result only for an identical operand.
+    std::array<double, 2> lastReleaseMs{{-1, -1}}, lastRelease{};
+    double previousNoiseSens = -1, noiseGain = 0;
 };
 } // namespace luthier::reference::models
