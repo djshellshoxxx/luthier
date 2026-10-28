@@ -92,6 +92,51 @@ CE-1 THD criterion applies to. DSP unchanged.
 | DD-3T | integrated | no | CPU <0.5 % gate open |
 | CE-2W | integrated | no | CE-1 THD criterion ambiguous (above); CPU |
 | Dyna Comp | integrated | no | CPU RED; THD/attack original failures (90 cells) retained |
-| RC-5 | **wrapper is an empty skeleton** | no | everything above the core/rhythm/storage components |
+| RC-5 | wrapper v1 (slice 4) | no | memory switching, quantize/auto-length, MIDI PC/CC map, half-speed, live reverse toggle, sanitizer/soak/native |
 
 Registration stays gated on original thresholds (ledger policy); 0/6 registered.
+
+## Slice 4 — RC-5 model wrapper v1 (`Models/boss_rc5.{h,cpp}`)
+
+Was an empty skeleton on every branch. Now a real `IPedal` composed from the existing
+tested components (`PagedLooperCore`, `Rc5PressCycle`, `Rc5Rhythm`, `LooperStateCodec`):
+
+- Descriptor: 23 params in spec §8 order; the 13 host lanes match the reconciled header
+  exactly; pedal1..3 Momentary; lofi/ram_cap PF_Config; sync/quantize/exp/clock_out PF_Ext.
+  Unregistered (`registerRc5()` unchanged).
+- Looper: one stereo paged track (5400 s, undo depth 1, ≥2 s read-ahead, RAM budget =
+  `ram_cap_mb`) on the board's asset store. No store → looper unavailable, dry+rhythm
+  still run, `noAssetStore` fault bit, gestures ignored.
+- Main pedal (onFoot / pedal1): REC→PLAY→OVERDUB→PLAY; double press ≤ dtap_ms stops (and
+  cancels a provisional pass); hold ≥ hold_ms in PLAY/OVERDUB = undo, again = redo; hold in
+  STOP = clear. A double-press STOP never arms the clear. CTL1 = play/stop, CTL2 = undo/redo
+  (plugin defaults, ESTIMATED per spec).
+- Overdub across passes: a paged layer cannot be rewritten after its first pass (page
+  already flushed → `readUnderrun|writeOverrun`, auto-close; found by test). The wrapper
+  closes each pass at the wrap and opens the next at that sample, so undo removes the last
+  pass (spec §2.2 "single level (last pass)"). Each closed pass retires the previous one and
+  the worker folds it into the base asynchronously; at real-time pace this keeps up
+  (test), faster than real time it can exhaust streams (writeOverrun, overdub stops, audio
+  kept). While a hold from PLAY is pending, the provisional pass is cancelled at the wrap
+  instead, so a hold never consumes the undo level; released before hold_ms → overdub resumes.
+- Loop level 0..200 → gain 0..2 (20 ms smoothing, 32-frame steps), dry mute 20 ms ramp,
+  rhythm pattern/variation/kit/level/on, tempo from host clock in SYNC AUTO else the param
+  (clamped 40..300), lofi 20 Hz/20 kHz one-poles, EXP to loop/rhythm level or tempo.
+- User data: `reset()` stops but keeps the loop; re-`prepare()` at the same rate restores
+  it; at a new rate (no resampler yet) the completed loop is kept and re-saved unchanged.
+  `saveExtra` overlays only `extras.looper` (codec schema 2); an incomplete capture re-emits
+  the last saved loop instead of dropping it. `loadExtra` before or after prepare restores
+  Stopped; decode failures keep the previous state.
+
+Tests (`ReferencePedals_boss_rc5Tests.cpp`, 11 new): descriptor/lanes, exact record length +
+float32-exact playback at 44.1/48/96 k, loop level ±0.1 dB with dry unchanged, double press,
+hold undo/redo/clear incl. the one-sample-short boundary, real-time multi-pass overdub and
+last-pass undo, no-store fallback, sync tempo, state round trip in both load orders,
+reset/re-prepare preservation, zero callback allocations. `RefPedalBossRc5`: 13 tests /
+25,635 checks, stable ×3; with RC-5/looper suites 120 tests / 109,340 checks pass.
+
+Not done (RC-5 stays unregistered): 99-memory switching (`Rc5MemoryBank` exists, no audio
+handoff), MIDI PC/CC80-87 (`wantsRawMidi` false), quantize/auto loop length, tap tempo
+button, half-speed (param present, no effect), live reverse toggle (core accepts direction
+only when stopped; applied at next stop), MIDI clock out, sanitizer/30-min soak, 90-min spill
+test, native host validation.
