@@ -93,7 +93,15 @@ void checkOperation (TestContext& ctx, Operation operation)
 {
     long count = 0;
     { Fixture warm (operation); CHECK (warm.ready); if (! warm.ready) return;
+      std::array<std::size_t, 256> sizes {};
+      logAllocationSizesOnThisThread (sizes.data(), sizes.size());
       const auto before = allocationsOnThisThread(); const bool accepted = warm.operate (operation); count = allocationsOnThisThread() - before;
+      const auto logged = loggedAllocationCountOnThisThread(); logAllocationSizesOnThisThread (nullptr, 0);
+      // Diagnostic: per-ordinal request sizes, to map a platform-specific fault ordinal to a type.
+      std::fprintf (stderr, "history sizes op=%d sites=%ld PedalInstance=%zu BoardSettings=%zu TopologyInfo=%zu:", static_cast<int> (operation),
+                    count, sizeof (PedalInstance), sizeof (BoardSettings), sizeof (TopologyInfo));
+      for (std::size_t i = 0; i < std::min (logged, sizes.size()); ++i) std::fprintf (stderr, " %zu", sizes[i]);
+      std::fprintf (stderr, "\n"); std::fflush (stderr);
       CHECK (accepted); }
     CHECK (count > 0 && count <= 2048); if (count <= 0 || count > 2048) return;
     int triggered = 0, thrown = 0;
