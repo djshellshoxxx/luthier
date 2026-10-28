@@ -149,3 +149,34 @@ handoff), MIDI PC/CC80-87 (`wantsRawMidi` false), quantize/auto loop length, tap
 button, half-speed (param present, no effect), live reverse toggle (core accepts direction
 only when stopped; applied at next stop), MIDI clock out, sanitizer/30-min soak, 90-min spill
 test, native host validation.
+
+## Dyna Comp spec §9 probe (current model, standalone, 1-sample blocks)
+
+| Gate | Spec | Measured (44.1/48/96 k) | Status |
+|---|---|---|---|
+| #6 THD 1 kHz −20 dBFS, SENS 0.5 | 0.1–1 % | 0.183–0.184 % | pass |
+| #6 THD at max SENS | "up to 3–5 %" [E] | 0.017 % | RED |
+| #4 attack, 63 % of GR, −30→−10 dBFS, FAST | 5 ms ±50 % | 1.22–1.29 ms | RED |
+| #4 release, 63 %, −10→−30 dBFS | ~1 s ±50 % | 1.247 s | pass |
+
+SLOW equals FAST on the default M102 variant by design (the attack switch is Mini-only).
+The model uses the documented 5 ms as the detector RC; in this feedback topology the
+measured GR attack is ~4× faster. A detector sweep gives 2.33/2.88/3.40/3.94 ms at
+15/20/25/30 ms, so meeting §9 #4 needs ≈ 40 ms (8× the documented figure, whose spec text
+says "measurement method unknown"). Not changed.
+
+## Owner decisions needed (blocking original gates; nothing here was relaxed)
+
+1. **CPU reference machine.** Phase90 (<0.4 %), CE-2 (<0.4 %/<1 %), DD-3T (<0.5 %), Dyna
+   (≤0.5 % "on 3 GHz") all measure RED on this loaded 2.1 GHz Xeon (contended indicative:
+   Phase90 0.42–0.78 %, CE-2 ~0.66 %, CE-2W ~1.5 %, DD-3T ~0.9 %, Dyna 0.93–1.78 %).
+   Name the qualifying CPU class, or approve non-bit-exact optimizations.
+2. **CE-2 BBD-on THD** (0.5–3 % [E] vs datasheet-scale ~0.1 %): revise, supply data, or
+   approve an explicit estimated rationale.
+3. **CE-2 raw jump** definition vs the specified 5 ms equal-power law.
+4. **CE-2W CE-1 THD 1–3 %**: which output (A, B, vibrato) and depth.
+5. **Dyna attack**: is "5 ms" the detector RC (current) or the §9 #4 63 % GR time?
+   **Dyna max-SENS THD 3–5 %** [E]: requires a topology change (sensitivity as pre-OTA gain).
+6. **Phase90 24-bit click criterion** (unresolved since 2026-10-26).
+7. **RC-5 memory switching** needs a message-thread hook for an off-audio `restore`
+   (frozen IPedal/board interface, WP1 errata) before 99-memory audio selection can work.
