@@ -8,6 +8,16 @@ changes initial delivery quantity, not any selected model's original numerical,
 CPU, safety or shared-board gate. No selected named model is registered yet.
 See [the retained scope comparison](../handoff/PEDALBOARD-SIX-MODEL-SCENARIO-2026-10-26.md).
 
+2026-10-28 continuation (PR #83 onto PR #82): Windows MSVC C2653/C2065 test fix
+`97d3b013` (Windows Free compiles natively). RC-5 model wrapper v1 implemented over the
+paged core/press cycle/rhythm/codec with 12 wrapper tests incl. a seeded 120 s stress;
+**still unregistered** (memory switching, MIDI, quantize, half-speed, live reverse open).
+Phase90/Dyna CPU work is bit-identical; CPU gates stay RED. A fitted CE-2 BBD
+nonlinearity was applied then reverted (no defensible rationale); CE-2 BBD THD stays RED.
+Dyna §9 probe: attack and max-SENS THD RED, SENS-0.5 THD and release pass. Seven owner
+decisions are listed in [the continuation handoff](../handoff/PEDALBOARD-2026-10-28-CONTINUATION.md).
+No threshold was changed; 0/6 registered.
+
 Fresh restored-cache wrapping collision is corrected at
 `4d6f0cc7c7c558c112c2f36cb93d898bfc50b394`; original3tests/461checks/3failures
 preserved. Separate Pro/Free/strict sanitizer storage closures pass52tests/

@@ -26,6 +26,9 @@ namespace
     thread_local std::size_t failedAllocationSize = 0;
     thread_local bool allocationFailureTriggered = false;
     thread_local std::size_t allocationsBeforeFailure = static_cast<std::size_t> (-1);
+    // Optional caller-owned log of requested sizes (diagnostics only; off by default).
+    thread_local std::size_t* sizeLog = nullptr;
+    thread_local std::size_t sizeLogCapacity = 0, sizeLogCount = 0;
     bool failAllocation (std::size_t size) noexcept
     {
         if (allocationsBeforeFailure != static_cast<std::size_t> (-1))
@@ -54,6 +57,9 @@ namespace luthier::tests
     { failedAllocationSize = size; allocationsBeforeFailure = successfulMatches; allocationFailureTriggered = false; }
     void clearAllocationFailureOnThisThread() noexcept { failedAllocationSize = 0; allocationsBeforeFailure = static_cast<std::size_t> (-1); }
     bool allocationFailureTriggeredOnThisThread() noexcept { return allocationFailureTriggered; }
+    void logAllocationSizesOnThisThread (std::size_t* buffer, std::size_t capacity) noexcept
+    { sizeLog = buffer; sizeLogCapacity = buffer != nullptr ? capacity : 0; sizeLogCount = 0; }
+    std::size_t loggedAllocationCountOnThisThread() noexcept { return sizeLogCount; }
 }
 
 struct AllocationCounter
@@ -71,6 +77,7 @@ long luthierTestAllocationCount() noexcept { return threadAllocationCount; }
 void* operator new (std::size_t size)
 {
     ++threadAllocationCount;
+    if (sizeLog != nullptr) { if (sizeLogCount < sizeLogCapacity) sizeLog[sizeLogCount] = size; ++sizeLogCount; }
     if (failAllocation (size)) throw std::bad_alloc();
 
     if (auto* p = std::malloc (size == 0 ? 1 : size))
@@ -82,6 +89,7 @@ void* operator new (std::size_t size)
 void* operator new[] (std::size_t size)
 {
     ++threadAllocationCount;
+    if (sizeLog != nullptr) { if (sizeLogCount < sizeLogCapacity) sizeLog[sizeLogCount] = size; ++sizeLogCount; }
     if (failAllocation (size)) throw std::bad_alloc();
 
     if (auto* p = std::malloc (size == 0 ? 1 : size))

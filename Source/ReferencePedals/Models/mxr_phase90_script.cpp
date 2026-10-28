@@ -57,7 +57,7 @@ void MxrPhase90Script::reset() noexcept
     coefficientClock=0;lastSpeed=lastVariant=-1;
     for(int c=0;c<2;++c)for(int k=0;k<4;++k)
     {
-        allpass[c][k]=anchoredCoefficient(sr,330*std::sqrt(10.)*(1+mismatch[k]*value(5)),k);allpassStep[c][k]=0;
+        allpass[k][c]=anchoredCoefficient(sr,330*std::sqrt(10.)*(1+mismatch[k]*value(5)),k);allpassStep[k][c]=0;
     }
 }
 void MxrPhase90Script::setEnabled(bool e) noexcept
@@ -109,7 +109,7 @@ void MxrPhase90Script::render(double* left,double* right,int n,bool internalBypa
         }
         const double source[2]{softGuard(left[i]),softGuard(right[i])};
         double* output[]{left,right};
-        double target[4]{},targetFrequency=-1;
+        double target[4]{},targetFrequency=-1,input[2],x[2];
         for(int c=0;c<2;++c)
         {
             double phase=oscillator.phase()+c*offset;phase-=std::floor(phase);
@@ -126,20 +126,29 @@ void MxrPhase90Script::render(double* left,double* right,int n,bool internalBypa
                     for(int k=0;k<4;++k)target[k]=anchoredCoefficient(sr,frequency*(1+mismatch[k]*value(5)),k);
                 }
                 for(int k=0;k<4;++k)
-                    allpassStep[c][k]=(target[k]-allpass[c][k])*.125;
+                    allpassStep[k][c]=(target[k]-allpass[k][c])*.125;
             }
-            const double dry=source[c],signal=value(12)>.5f ? (source[0]+source[1])*.5:dry,input=highpass[c].highpass(signal);
-            double x=input+(value(2)>.5f ? .35*std::tanh(feedback[c]):0);
-            for(int k=0;k<4;++k)
+            const double signal=value(12)>.5f ? (source[0]+source[1])*.5:source[c];
+            input[c]=highpass[c].highpass(signal);
+            x[c]=input[c]+(value(2)>.5f ? .35*std::tanh(feedback[c]):0);
+        }
+        // Stage-major order: the two channels' serial sqrt/divide chains are
+        // independent, so interleaving them lets the CPU overlap their latency.
+        // Each channel performs exactly the same operations in the same order.
+        for(int k=0;k<4;++k)
+            for(int c=0;c<2;++c)
             {
-                const double a=allpass[c][k]+=allpassStep[c][k];
-                const double y=a*x+states[c][k];states[c][k]=x-a*y;
-                if(std::abs(states[c][k])<1e-30)states[c][k]=0;
-                x=y/std::sqrt(1+.04*y*y); // Estimated mild per-stage JFET law.
+                const double a=allpass[k][c]+=allpassStep[k][c];
+                const double y=a*x[c]+states[k][c],state=x[c]-a*y;
+                states[k][c]=std::abs(state)<1e-30 ? 0:state;
+                x[c]=y/std::sqrt(1+.04*y*y); // Estimated mild per-stage JFET law.
             }
-            feedback[c]=x;
+        for(int c=0;c<2;++c)
+        {
+            const double dry=source[c];
+            feedback[c]=x[c];
             const double hiss=value(11)>.5f ? noise.next()*1.4e-5:0;
-            const double wet=.5*(input+x*mix)+hiss;
+            const double wet=.5*(input[c]+x[c]*mix)+hiss;
             output[c][i]=softGuard(!internalBypass || engage>=1 ? wet : engage<=0 ? dry : dryGain*dry+wetGain*wet);
         }
         coefficientClock=(coefficientClock+1)&7;

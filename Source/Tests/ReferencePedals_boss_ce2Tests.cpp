@@ -92,3 +92,30 @@ LUTHIER_TEST(RefPedalCe2, bbdOnOriginalThdGate)
         CHECK_MSG(thd<=.03,detail);
     }
 }
+
+// Spec section 9's -3 dBFS clause (2-6%, 3rd harmonic dominant) states no BBD
+// mode; the test above covers BBD off. Same coherent fixture with BBD sim on.
+LUTHIER_TEST(RefPedalCe2, bbdOnHeadroomGateKeepsThirdHarmonicDominant)
+{
+    constexpr double pi=3.14159265358979323846;
+    for(double sr:{44100.,48000.,88200.,96000.,192000.})
+    {
+        BossCe2 pedal;pedal.setParam(1,0);pedal.setParam(4,1);pedal.setParam(5,0);pedal.prepare(sr,1,1);
+        std::array<std::complex<double>,10> harmonics{};const double amplitude=std::pow(10.,-3./20);
+        for(int i=0;i<int(sr*2);++i)
+        {
+            const double angle=2*pi*1000*i/sr;double left=amplitude*std::sin(angle),right=left;pedal.process(&left,&right,1);
+            if(i>=int(sr))
+            {
+                const std::complex<double> rotation(std::cos(angle),-std::sin(angle));auto phase=rotation;
+                for(int h=1;h<10;++h){harmonics[h]+=left*phase;phase*=rotation;}
+            }
+        }
+        double energy=0;for(int h=2;h<10;++h)energy+=std::norm(harmonics[h]);
+        const double fundamental=std::abs(harmonics[1]),thd=std::sqrt(energy)/fundamental;
+        const juce::String detail="BBD-on -3 dBFS rate "+juce::String(sr,1)+" Hz: THD "+juce::String(thd*100,4)
+            +"%, h2 "+juce::String(std::abs(harmonics[2])/fundamental*100,4)+"%, h3 "+juce::String(std::abs(harmonics[3])/fundamental*100,4)+"%";
+        CHECK_MSG(thd>=.02,detail);CHECK_MSG(thd<=.06,detail);
+        CHECK_MSG(std::abs(harmonics[3])>std::abs(harmonics[2]),detail);
+    }
+}

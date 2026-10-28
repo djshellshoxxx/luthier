@@ -104,11 +104,23 @@ LUTHIER_TEST(RefPedalUiLifecycle, tenThousandNativeOperationsAndEditorDestructio
     {
         const int failuresBefore=ctx.failures;
         const int kind=operation%500==499?18:operation<18?operation:(int)((next()>>16)%18);
+        // "context:" lines are kept in the CI failure recap (scripts/ci_build.*):
+        // native window geometry and the last model rejection explain platform-
+        // specific dock/duplicate outcomes without the full log.
+        const auto describe=[&]
+        {
+            juce::String text;
+            if(editor){text<<" editor "<<editor->getBounds().toString();if(auto* peer=editor->getPeer())text<<" peer "<<peer->getBounds().toString();}
+            if(auto* display=juce::Desktop::getInstance().getDisplays().getPrimaryDisplay())text<<" display "<<display->userArea.toString()<<" scale "<<display->scale;
+            if(root){auto* parent=root->getParentComponent();text<<" rootParent "<<(root->findParentComponentOfClass<Drawer>()?"Drawer":root->findParentComponentOfClass<BoardWindow>()?"BoardWindow":parent?"other":"none")<<" status '"<<root->statusText()<<"'";}
+            text<<" instances "<<model.getInstanceCount()<<" rejections "<<rejections.count<<" last '"<<rejections.last<<"'";
+            return text;
+        };
         struct FailureContext
         {
-            luthier::tests::TestContext& context;int failuresBefore,operation,kind;uint32_t seed;
-            ~FailureContext(){if(context.failures!=failuresBefore)context.failureMessages.add("Native UI operation "+juce::String(operation)+" kind "+juce::String(kind)+" initial seed0x55494235 current seed "+juce::String::toHexString((juce::int64)seed));}
-        } failureContext{ctx,failuresBefore,operation,kind,seed};
+            luthier::tests::TestContext& context;int failuresBefore,operation,kind;uint32_t seed;std::function<juce::String()> describe;
+            ~FailureContext(){if(context.failures!=failuresBefore)context.failureMessages.add("    context: Native UI operation "+juce::String(operation)+" kind "+juce::String(kind)+" initial seed0x55494235 current seed "+juce::String::toHexString((juce::int64)seed)+describe());}
+        } failureContext{ctx,failuresBefore,operation,kind,seed,describe};
         CHECK(root!=nullptr);if(!root)return;
         auto order=model.getOrder();CHECK(!order.empty());if(order.empty())return;
         const auto id=order[(next()>>16)%order.size()];auto* view=root->boardCanvas().viewFor(id);
