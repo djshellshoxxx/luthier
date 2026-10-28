@@ -169,7 +169,10 @@ LUTHIER_TEST(RefPedalPhase90, otherModelsRetainLinearAndResidualTailPaths)
     {
     public:
         PedalDesc description{"test.bypass", "test_bypass_", 1, "Bypass fixture", "Test", nullptr,
-            ChannelMode::Stereo, BypassMode::True, 0, nullptr, 0, false, false, false, 0};
+            // Qualified: MSVC does not apply the enclosing function's using-directive
+            // inside a local class's default member initializer (C2653/C2065).
+            ::luthier::reference::ChannelMode::Stereo, ::luthier::reference::BypassMode::True,
+            0, nullptr, 0, false, false, false, 0};
         int ordinary = 0, board = 0, residual = 0;
         const PedalDesc& desc() const noexcept override { return description; }
         void prepare(double, int, int) override {}
