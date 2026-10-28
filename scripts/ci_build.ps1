@@ -134,7 +134,7 @@ function Step-Test {
         # tail of a truncated CI log viewer (the per-test rows print far above).
         Write-Output '===== UNIT TEST FAILURE RECAP ====='
         if (Test-Path $testLog) {
-            Select-String -Path $testLog -Pattern '\[FAIL\]', '^\s*line [0-9]+:', '[0-9]+ of [0-9]+ tests failed' |
+            Select-String -Path $testLog -Pattern '\[FAIL\]', '^\s*line [0-9]+:', '^\s*context:', '[0-9]+ of [0-9]+ tests failed' |
                 ForEach-Object { $_.Line }
         }
         Write-Output '===== END FAILURE RECAP ====='

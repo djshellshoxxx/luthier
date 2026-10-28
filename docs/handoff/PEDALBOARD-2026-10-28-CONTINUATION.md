@@ -264,3 +264,20 @@ pass (Apply now 22 sites); full `RefPedal` 527 tests / 12,395,541 checks, only t
 ASan/UBSan board/MIDI/history/extra-state 108 tests / 59,872 checks clean. Diagnostics kept
 (terminate report + size log; silent/one line per op). Windows Free+Pro re-dispatched on the
 fix commit.
+
+## Windows after the MIDI-key fix — build.yml run 40649780764, exact commit `c7a78559`
+
+The fail-fast is gone: the full Windows suites now run to completion.
+- Pro: **2,922 tests / 14,700,445 checks; 2 failures** — known CE-2 `bbdOnOriginalThdGate` RED and
+  `RefPedalUiLifecycle.tenThousandNativeOperationsAndEditorDestruction` (line 197, Ctrl+D duplicate
+  did not add an instance; 305 checks in).
+- Free: **2,905 tests / 14,700,644 checks; 2 failures** — same CE-2 RED and the same native UI
+  stress test (line 155, root not in a `Drawer` after `onDock()`; 634 checks in).
+- The same stress test passes on Linux/Xvfb (10,000 operations, 393,576 checks).
+- The test's "Native UI operation N kind K seed" context was printed in the run section but
+  dropped from the CI recap and the 5,000-line log-API tail; the log archive host is blocked here.
+  Hypothesis (unconfirmed): `dockReferenceBoard()` refuses below 840 px editor height and the
+  native Windows window may be constrained by the runner desktop; the Ctrl+D case needs the
+  model rejection reason. Diagnostic: the failure context now adds editor/peer bounds, display
+  user area/scale, root parent type, status text and last rejection, prefixed `context:`, and
+  `ci_build.ps1`'s recap keeps `context:` lines. Windows Free+Pro re-dispatched.
