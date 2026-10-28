@@ -41,7 +41,7 @@ const PedalDesc description = {"mxr-dynacomp",
                                1,
                                "Dyna Comp-style (estimated)",
                                "Dynamics",
-                               "MXR Dyna Comp",
+                               nullptr, // shipped strings carry no brand names (Trademarks test)
                                ChannelMode::Mono,
                                BypassMode::True,
                                10,

@@ -41,7 +41,7 @@ const ParamDesc parameters[]{
     {"boss_rc5_ram_cap_mb","RAM CAP","MB",ParamKind::Continuous,Taper::Linear,64,2048,256,1,0,nullptr,PF_Config,0,-1},
     {"boss_rc5_clock_out","MIDI CLOCK OUT (EXT)","",ParamKind::Toggle,Taper::Linear,0,1,0,1,0,nullptr,PF_Ext|PF_Hidden,0,-1},
 };
-const PedalDesc description{"boss-rc5","boss_rc5_",1,"Loop Station (prototype)","Looper","BOSS RC-5",
+const PedalDesc description{"boss-rc5","boss_rc5_",1,"Loop Station (prototype)","Looper",nullptr,
     ChannelMode::Stereo,BypassMode::Buffered,23,parameters,0,false,false,false,800,1000};
 // Spec 4.2/1: one stereo track of 1.5 h; worst-case undo layer; >=2 s read-ahead.
 common::PagedLooperCore::Config looperConfig(double rate,double ramMb) noexcept

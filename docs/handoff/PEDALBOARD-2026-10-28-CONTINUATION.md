@@ -232,3 +232,16 @@ Uploaded artifacts (unqualified diagnostic binaries — unit tests red, not rele
 `Luthier-PAID-windows-97d3b013…` sha256 `6c51367658be3ff9e2e1b04c43dc48d1cb8ca740610e80ae8788692210320053`
 (artifact zip digests from the Actions API). Log download from the blob host is blocked by this
 environment's network policy; job logs were read through the API.
+
+## Full Linux Pro suite (binary at `66d3e65a`, clang 18 Release, xvfb)
+
+`LuthierTests` (all suites): **2,921 tests / 15,095,657 checks, 108 min; 1 failure**:
+`Trademarks.sourceTreeHasNoUnmarkedBrandNames` — `mxr_dynacomp.cpp` `inspiredBy "MXR Dyna Comp"`.
+Pre-existing on the base (`25cd2135`, from the Dyna import); the other four named models already
+use `inspiredBy = nullptr`. Fixed by aligning Dyna (and the new RC-5 wrapper) to `nullptr`; the
+test is unchanged and now passes. Owner question (optional): whether nominative "Inspired by …;
+independent and unaffiliated" provenance text should be permitted for named models — the
+scanner currently forbids it. Note: that run's binary contained the later-reverted CE-2
+candidate, so `bbdOnOriginalThdGate` passed in it; at the current source it is the known RED.
+The suite rewrites `docs/review/QA_ROBUSTNESS.md` while running; a mid-run truncated copy was
+restored, not committed.
