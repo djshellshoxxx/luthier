@@ -6,6 +6,10 @@
 #include "../ReferencePedals/BoardState.h"
 #include "../ReferencePedals/PedalRegistry.h"
 #include <array>
+#include <atomic>
+#include <cstdio>
+#include <cstdlib>
+#include <exception>
 #include <new>
 using namespace luthier::reference;
 using namespace luthier::tests;
@@ -26,6 +30,25 @@ public:
 };
 std::unique_ptr<IPedal> makeHistoryFailurePedal() { return std::make_unique<HistoryFailurePedal>(); }
 enum class Operation { Apply, Undo, Redo, Snapshot, Replace };
+// Diagnostic only: Windows (MSVC) runs fail-fast (0xC0000409) inside these
+// fault-injection loops while Linux passes, i.e. an injected bad_alloc escapes a
+// noexcept boundary there. On terminate, report the operation, the failing
+// allocation ordinal and a stack backtrace before aborting. Silent on success.
+std::atomic<int> faultOperation { -1 };
+std::atomic<long> faultOrdinal { -1 };
+[[noreturn]] void reportFaultTerminate()
+{
+    std::fprintf (stderr, "\nHISTORY-FAULT terminate: op=%d ordinal=%ld\n", faultOperation.load(), faultOrdinal.load());
+    std::fflush (stderr);
+    std::fprintf (stderr, "%s\n", juce::SystemStats::getStackBacktrace().toRawUTF8());
+    std::fflush (stderr);
+    std::abort();
+}
+struct FaultTerminateReport
+{
+    std::terminate_handler previous = std::set_terminate (reportFaultTerminate);
+    ~FaultTerminateReport() { std::set_terminate (previous); faultOperation = -1; faultOrdinal = -1; }
+};
 struct Fixture
 {
     Board board;
@@ -74,8 +97,10 @@ void checkOperation (TestContext& ctx, Operation operation)
       CHECK (accepted); }
     CHECK (count > 0 && count <= 2048); if (count <= 0 || count > 2048) return;
     int triggered = 0, thrown = 0;
+    FaultTerminateReport report; faultOperation = static_cast<int> (operation);
     for (long ordinal = 0; ordinal <= count; ++ordinal)
     {
+        faultOrdinal = ordinal;
         Fixture fixture (operation); CHECK (fixture.ready); if (! fixture.ready) return;
         auto& model = fixture.board.model(); const auto version = model.getTopologyInfo().version;
         const float initial = operation == Operation::Undo ? .5f : .25f;
@@ -134,8 +159,10 @@ LUTHIER_TEST (RefPedalHistoryFailure, transactionSetupFailurePreservesDepthAndPr
       fixture.board.model().beginTransaction ("test"); sites = allocationsOnThisThread() - before; CHECK (fixture.board.model().cancelTransaction()); }
     std::cout << "history auxiliary fault sites=" << sites << "\n";
     CHECK (sites > 0 && sites < 128); if (sites <= 0 || sites >= 128) return;
+    FaultTerminateReport report; faultOperation = 99; // transaction setup
     for (long ordinal = 0; ordinal <= sites; ++ordinal)
     {
+        faultOrdinal = ordinal;
         Fixture fixture (Operation::Apply); CHECK (fixture.ready); auto& model = fixture.board.model(); bool caught = false;
         failAllocationAfterOnThisThread (static_cast<size_t> (ordinal));
         try { model.beginTransaction ("test"); } catch (const std::bad_alloc&) { caught = true; }
