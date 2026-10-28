@@ -7,8 +7,39 @@
 #include <algorithm>
 #include <numeric>
 #include <mutex>
+#include <cstring>
 namespace luthier::reference
 {
+namespace
+{
+// Change-detection key for the MIDI map. It deliberately avoids JUCE's double
+// formatting (String(double), JSON doubles): that path is declared noexcept but
+// builds a std::ostream, which allocates with the MSVC STL, so an allocation
+// failure there terminates instead of reaching the board's atomic-apply recovery
+// (RefPedalHistoryFailure, Windows). Doubles are keyed by exact bit pattern.
+void appendKey (juce::String& key, const juce::var& v)
+{
+    if (v.isDouble())
+    {
+        const double d = v; uint64_t bits = 0; std::memcpy (&bits, &d, sizeof (bits));
+        key << "d" << juce::String::toHexString (static_cast<juce::int64> (bits));
+    }
+    else if (v.isBool()) key << (static_cast<bool> (v) ? "T" : "F");
+    else if (v.isInt() || v.isInt64()) key << "i" << juce::String (static_cast<juce::int64> (v));
+    else if (v.isString()) { const auto text = v.toString(); key << "s" << text.length() << ":" << text; }
+    else if (const auto* array = v.getArray())
+    { key << "["; for (const auto& element : *array) { appendKey (key, element); key << ","; } key << "]"; }
+    else if (const auto* object = v.getDynamicObject())
+    {
+        key << "{";
+        for (const auto& property : object->getProperties())
+        { key << property.name.toString() << "="; appendKey (key, property.value); key << ";"; }
+        key << "}";
+    }
+    else if (const auto* block = v.getBinaryData()) key << "b" << block->toBase64Encoding();
+    else key << (v.isVoid() ? "v" : v.isUndefined() ? "u" : "?");
+}
+}
 struct Board::Impl : BoardModel::Listener
 {
     BoardModel model;
@@ -29,10 +60,16 @@ struct Board::Impl : BoardModel::Listener
     {
         const std::lock_guard<std::mutex> guard (mapPublishMutex);
         std::vector<PedalInstance> instances; BoardSettings settings; model.snapshotStored (instances, settings);
-        auto key = juce::JSON::toString (settings.midi) + juce::String (settings.midiChan)
-            + ":" + juce::String (settings.enabled ? 1 : 0) + ":" + juce::String (settings.tempoBpm) + ":" + juce::String (static_cast<int> (settings.tempoSource));
+        juce::String key;
+        appendKey (key, settings.midi);
+        key << ":" << settings.midiChan << ":" << (settings.enabled ? 1 : 0) << ":";
+        appendKey (key, juce::var (settings.tempoBpm));
+        key << ":" << static_cast<int> (settings.tempoSource);
         for (const auto& instance : instances)
-            key += instance.instanceId.toString() + juce::String (instance.modelId) + juce::String (instance.slot) + juce::JSON::toString (instance.extras["midi"]);
+        {
+            key << "|" << instance.instanceId.toString() << ":" << juce::String (instance.modelId) << ":" << instance.slot << ":";
+            appendKey (key, instance.extras["midi"]);
+        }
         if (key != mapKey) { router.publishMap (midi::MidiState::buildMap (instances, settings)); mapKey = key; }
     }
     std::optional<PedalInstance> slot (int index) const

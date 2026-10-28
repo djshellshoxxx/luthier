@@ -245,3 +245,22 @@ scanner currently forbids it. Note: that run's binary contained the later-revert
 candidate, so `bbdOnOriginalThdGate` passed in it; at the current source it is the known RED.
 The suite rewrites `docs/review/QA_ROBUSTNESS.md` while running; a mid-run truncated copy was
 restored, not committed.
+
+## Slice 6 — Windows unit-test fail-fast root-caused and fixed
+
+Diagnostic runs (Windows Pro): `4159a634` → `HISTORY-FAULT terminate: op=0 ordinal=13`;
+`350733ef` → per-ordinal allocation sizes. Apply, MSVC: `224 32 32 224 32 32 8960 32 32 27 224 32 27
+**16 16 64** 27 …` vs Linux `… 224 21 27 31 27 31 …`: three MSVC-only allocations exactly at the
+fault ordinal, where `Board::Impl::settingsChanged` builds its MIDI-map change key with
+`juce::String(settings.tempoBpm)`. JUCE's `NumberToStringConverters::doubleToString` is declared
+`noexcept` but constructs a `std::ostream`, which allocates under the MSVC STL (not libstdc++);
+JUCE's JSON writer formats doubles through the same path. An injected `bad_alloc` there hits a
+`noexcept` frame → `std::terminate` → 0xC0000409 on Windows only.
+
+Fix (production, `Board.cpp`): the change-detection key is built by a small `appendKey(var)` that
+encodes doubles by exact bit pattern and never calls JUCE double formatting or `JSON::toString`.
+Same change semantics (stricter for doubles). Test unchanged. Linux: history-failure 7 tests
+pass (Apply now 22 sites); full `RefPedal` 527 tests / 12,395,541 checks, only the known CE-2 RED;
+ASan/UBSan board/MIDI/history/extra-state 108 tests / 59,872 checks clean. Diagnostics kept
+(terminate report + size log; silent/one line per op). Windows Free+Pro re-dispatched on the
+fix commit.
