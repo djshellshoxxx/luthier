@@ -180,3 +180,12 @@ says "measurement method unknown"). Not changed.
 6. **Phase90 24-bit click criterion** (unresolved since 2026-10-26).
 7. **RC-5 memory switching** needs a message-thread hook for an off-audio `restore`
    (frozen IPedal/board interface, WP1 errata) before 99-memory audio selection can work.
+
+## Sanitizer evidence (source `0b5af0c3`, Linux x64, clang 18 `-fsanitize=address,undefined`, Release)
+
+`ASAN_OPTIONS=detect_leaks=1:alloc_dealloc_mismatch=1:abort_on_error=1:halt_on_error=1`,
+`UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1`;
+`LuthierTests RefPedalPhase90 RefPedalCe2 RefPedalCe2w RefPedalDd3t RefPedalDyna RefPedalBossRc5 RefPedalRc5 RefPedalChorusMemory RefPedalBbdCore RefPedalPagedLooper`:
+**129 tests / 199,110 checks, 123.3 s; only failure = known RED `RefPedalCe2.bbdOnOriginalThdGate`
+(5 checks); no ASan/UBSan/LSan report.** Environment note: sanitizer runtimes needed
+`libclang-rt-18-dev` (link failed without it; not a code issue). TSan not run.
