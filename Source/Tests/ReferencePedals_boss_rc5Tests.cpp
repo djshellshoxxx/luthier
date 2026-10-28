@@ -344,3 +344,43 @@ LUTHIER_TEST(RefPedalBossRc5, wrapperCallbacksAndGesturesAllocateNothing)
     }
     CHECK(luthier::tests::allocationsOnThisThread()==before);
 }
+
+// Light stress (spec 9 #14, bounded): seeded random gestures, parameters and
+// block sizes for 120 s of audio. Not the 30-minute soak.
+LUTHIER_TEST(RefPedalBossRc5, wrapperSeededGestureStressStaysFiniteBoundedAndAllocationFree)
+{
+    Rc5Fixture f;auto pedal=f.make(48000,true,512);
+    uint32_t seed=0x5c5a7e11u;auto next=[&]{seed^=seed<<13;seed^=seed>>17;seed^=seed<<5;return seed;};
+    std::vector<double> l(512),r(512);int64_t frame=0,releaseAt=-1;bool down=false,finite=true,bounded=true;
+    pedal->process(l.data(),r.data(),64);
+    const auto before=luthier::tests::allocationsOnThisThread();
+    while(frame<48000*120)
+    {
+        const int n=1+int(next()%512);
+        if(down && frame>=releaseAt){pedal->onFoot({false});down=false;}
+        if(!down && next()%40==0){pedal->onFoot({true});down=true;const auto kind=next()%10;releaseAt=frame+(kind<7?int64_t(next()%4800):kind<9?int64_t(96000+next()%9600):int64_t(19200+next()%9600));}
+        switch(next()%60)
+        {
+            case 0:pedal->setParam(BossRc5::Pedal2,1);pedal->setParam(BossRc5::Pedal2,0);break;
+            case 1:pedal->setParam(BossRc5::Pedal3,1);pedal->setParam(BossRc5::Pedal3,0);break;
+            case 2:pedal->setParam(BossRc5::LoopLevel,float(next()%1001)/1000.f);break;
+            case 3:pedal->setParam(BossRc5::Reverse,float(next()%2));break;
+            case 4:pedal->setParam(BossRc5::RhythmOn,float(next()%2));break;
+            case 5:pedal->setParam(BossRc5::Tempo,float(next()%1001)/1000.f);break;
+            case 6:pedal->setParam(BossRc5::DryMute,float(next()%2));break;
+            case 7:pedal->setParam(BossRc5::Pattern,float(next()%1001)/1000.f);break;
+            case 8:if(next()%8==0)pedal->reset();break;
+            default:break;
+        }
+        for(int i=0;i<n;++i){l[size_t(i)]=.5*std::sin(double(frame+i)*.011);r[size_t(i)]=(next()%2?.3:-.3)*(i&1);}
+        pedal->process(l.data(),r.data(),n);
+        for(int i=0;i<n;++i){finite&=std::isfinite(l[size_t(i)])&&std::isfinite(r[size_t(i)]);bounded&=std::abs(l[size_t(i)])<=16&&std::abs(r[size_t(i)])<=16;}
+        if(next()%200==0)std::this_thread::sleep_for(std::chrono::milliseconds(2)); // let the worker run
+        frame+=n;
+    }
+    CHECK(finite);CHECK(bounded);
+    CHECK(luthier::tests::allocationsOnThisThread()==before);
+    const auto state=pedal->transportState();CHECK(int(state)>=0 && int(state)<=4);
+    CHECK(pedal->loopLength()<=uint64_t(48000)*5400);
+    CHECK((pedal->readUiMeters().faults&LooperStorage::ioFailure)==0);
+}
