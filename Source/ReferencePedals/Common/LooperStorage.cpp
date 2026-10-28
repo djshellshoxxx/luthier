@@ -238,7 +238,18 @@ struct LooperStorage::Impl
         ++mergeIndex;
     }
     int freeWrite() noexcept
-    {for(int i=0;i<config.writePages;++i)if(writes[i].tag.load(std::memory_order_acquire)==0)return i;return -1;}
+    {
+        // While recording, the slot holding the loop's first page is used only as
+        // a last resort: it keeps the origin resident so playback can start the
+        // moment the recording closes, instead of waiting for a disk read-back.
+        int origin=-1;const auto current=epoch.load(std::memory_order_relaxed);
+        for(int i=0;i<config.writePages;++i)if(writes[i].tag.load(std::memory_order_acquire)==0)
+        {
+            if(recording && !sparse && writes[i].epoch==current && writes[i].index==0){origin=i;continue;}
+            return i;
+        }
+        return origin;
+    }
     bool flush() noexcept
     {
         if(writeBuffer<0)return true;

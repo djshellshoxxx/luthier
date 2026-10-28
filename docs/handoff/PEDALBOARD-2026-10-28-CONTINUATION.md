@@ -189,3 +189,22 @@ says "measurement method unknown"). Not changed.
 **129 tests / 199,110 checks, 123.3 s; only failure = known RED `RefPedalCe2.bbdOnOriginalThdGate`
 (5 checks); no ASan/UBSan/LSan report.** Environment note: sanitizer runtimes needed
 `libclang-rt-18-dev` (link failed without it; not a code issue). TSan not run.
+
+## Slice 5 — paged looper REC→PLAY origin underrun (real defect, fixed)
+
+Found by a focused TSan harness (RC-5 wrapper + paged core + AssetStore + juce_core built
+with `-fsanitize=thread`, real-time pace, concurrent message-thread `saveExtra`/capture):
+**TSan reported nothing** (4,408 concurrent saves), but the run ended with `readUnderrun`.
+Reproduced without TSan and at core level: at real-time pace the worker finishes page 0's
+write and `LooperStorage::freeWrite()` reuses that slot for page 1, so after REC→PLAY the
+origin page is only on disk → 256–513 frames (5–11 ms) of silence at the start of the first
+pass + sticky `readUnderrun`, for any loop longer than one page. Unpaced tests never hit it
+because the worker lagged.
+
+Fix: while recording (not sparse layers), the slot holding page 0 is a last-resort choice,
+so the origin stays resident. New `RefPedalPagedLooper.realtimeRecordThenImmediatePlay…`
+(RC-5 geometry, 0.3/1/4.3 s): RED without the fix (silence + underrun), GREEN with it.
+Wrapper probe: 0.3/1/3/10 s loops now start at frame 1 with faults 0.
+Full `RefPedal`: 527 tests / 12,400,451 checks; only failure = known CE-2 BBD THD RED.
+Whole-target TSan cannot link (the harness overrides global operator new; conflicts with the
+TSan runtime) — focused harness used instead.

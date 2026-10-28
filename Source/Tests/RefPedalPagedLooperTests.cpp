@@ -420,3 +420,25 @@ LUTHIER_TEST(RefPedalPagedLooper, redoAssetWorkerCompletionAndFailureNeverPublis
         CHECK(stored.graph.redoCount==graph.redoCount);CHECK(stored.graph.redo==graph.redo);
     }
 }
+
+// Regression (2026-10-28): at real-time pace the worker finished page 0's write
+// and its slot was reused for page 1, so REC->PLAY underran at the loop origin
+// until a disk read-back (5-11 ms silence, readUnderrun). The origin page now
+// stays resident while recording. RC-5 geometry: 8192-frame pages, 4 write slots.
+LUTHIER_TEST(RefPedalPagedLooper, realtimeRecordThenImmediatePlayStartsAtTheOriginWithoutUnderrun)
+{
+    for(int blocks:{56,190,800})
+    {
+        PagedFixture f;PagedLooperCore core;PagedLooperCore::Config c;c.sampleRate=48000;c.seconds=5400;c.undoDepth=1;
+        c.pageFrames=8192;c.writePages=4;c.readPages=14;c.readAhead=13;c.ramBudget=256u<<20;c.storageBudget=32ull<<30;
+        CHECK(core.prepare(f.store,c));core.setSeamMilliseconds(0);
+        core.apply(LooperAction::Record);
+        for(int b=0;b<blocks;++b){process(core,256,.25,-.25);std::this_thread::sleep_for(std::chrono::microseconds(5333));}
+        CHECK(core.faults()==0);
+        core.apply(LooperAction::Play);CHECK(core.state()==PagedLooperCore::State::Playing);
+        std::vector<double> l;int silent=0;
+        for(int b=0;b<8;++b){process(core,256,0,0,&l);for(size_t i=b==0?1:0;i<l.size();++i)silent+=l[i]==0;}
+        CHECK(silent==0); // only frame 0 sits at the 5 ms fade-in origin
+        CHECK((core.faults()&LooperStorage::readUnderrun)==0);
+    }
+}
