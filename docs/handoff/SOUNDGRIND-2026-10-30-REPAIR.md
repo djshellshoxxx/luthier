@@ -24,6 +24,12 @@ was used for a single `constantsAndPodSizesAreFrozen` run (exit 0) and a
 nonexistent filter (selection rejected, exit 1). This validates the runner
 against that binary's report format, not current product or release acceptance.
 
+Follow-up review replaced Unix-shebang fake child executables in the Python
+tests with mocked process results so the tests do not depend on Unix execution
+semantics. `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts -p
+'test_*.py'` passed 21 tests locally on Linux. Actual Windows/macOS execution
+and native CI are still unverified; this is not an independent review.
+
 Outstanding: original PR #76 CI included failed platform cells; the repaired
 branch has not been run through CI or independently reviewed. The runner still
 buffers complete child output before retaining the last 30,000 characters.
