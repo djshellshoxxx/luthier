@@ -295,6 +295,32 @@ LUTHIER_TEST(RefPedalBossRc5, wrapperTempoFollowsHostOnlyInAutoSync)
     pedal->setParam(BossRc5::SyncClock,0);render(*pedal,64,silence);CHECK_NEAR(pedal->rhythmTempo(),300,0); // clamped host tempo
 }
 
+LUTHIER_TEST(RefPedalBossRc5, tempoButtonEightTapsSetInternalTempoAtFiveRates)
+{
+    const auto& desc=BossRc5::descriptor();
+    int tapIndex=-1;
+    for(int i=0;i<desc.numParams;++i)
+        if(juce::String(desc.params[i].id)=="boss_rc5_tap")tapIndex=i;
+    CHECK(tapIndex>=0);
+    if(tapIndex<0)return;
+    CHECK(desc.params[tapIndex].kind==ParamKind::Trigger);
+    CHECK(desc.params[tapIndex].isLaneExcluded());
+    for(double rate:{44100.,48000.,88200.,96000.,192000.})
+    {
+        Rc5Fixture f;auto pedal=f.make(rate,false,512);
+        pedal->setParam(BossRc5::SyncClock,1);
+        pedal->setParam(BossRc5::Tempo,norm(BossRc5::Tempo,90));
+        render(*pedal,int(rate*.2),silence,512);
+        for(int i=0;i<8;++i)
+        {
+            pedal->setParam(tapIndex,1);pedal->setParam(tapIndex,0);
+            if(i!=7)render(*pedal,int(rate*.5),silence,512);
+        }
+        render(*pedal,1,silence,1);
+        CHECK_NEAR(pedal->rhythmTempo(),120.,.5);
+    }
+}
+
 LUTHIER_TEST(RefPedalBossRc5, wrapperStateRoundTripRestoresTheLoopInEitherLoadOrder)
 {
     Rc5Fixture f;juce::var extra;const int frames=4800;
