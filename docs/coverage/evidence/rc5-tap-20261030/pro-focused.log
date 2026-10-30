@@ -1,0 +1,29 @@
+
+================================================================
+ LUTHIER TEST SUITE
+================================================================
+
+
+RefPedalRc5TapTempo
+----------------------------------------------------------------
+  [pass]  eight120BpmTapsAtFiveRates                  130 checks    0.076 ms
+  [pass]  arithmeticMeanUsesLastFourAcceptedIntervals 14 checks     0.000999999 ms
+  [pass]  inclusiveIntegerIntervalBounds              84 checks     0.003 ms
+  [pass]  invalidIntervalsAreExcludedButUpdateAdjacentAnchor9 checks      0 ms
+  [pass]  twoSecondGapClearsMeanAndReanchors          45 checks     0.01 ms
+  [pass]  backwardNegativeAndResetClearBookkeeping    14 checks     0 ms
+  [pass]  prepareValidationPreservesPriorStateAndValidPrepareResets38 checks     0 ms
+  [pass]  sampleClockExtremesCannotOverflow           12 checks     0 ms
+  [pass]  callbackMethodsAllocateNothing              3 checks      0.002 ms
+  [pass]  acceptedTemposDriveActualRhythmWithoutPhaseResetOrPartitionDependence12 checks     12.532 ms
+
+RefPedalBossRc5
+----------------------------------------------------------------
+  [pass]  tempoButtonEightTapsSetInternalTempoAtFiveRates8 checks      32.474 ms
+  [pass]  tempoTapKeepsHostClockAuthorityAndManualTempoCanReplaceIt4 checks      0.664 ms
+
+================================================================
+ ALL PASSED
+ 12 tests, 373 checks, 0.0 s
+================================================================
+
