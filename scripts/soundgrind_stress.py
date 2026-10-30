@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import random
+import re
 import subprocess
 import sys
 import time
@@ -47,8 +48,27 @@ def main():
     suites = args.suite or [""]
     failures = 0
     args.log.parent.mkdir(parents=True, exist_ok=True)
-    # Start fresh: a stale failure must never be mistaken for this campaign.
-    with args.log.open("w", encoding="utf-8") as log:
+    # A campaign owns a fresh path; never destroy an earlier campaign's evidence.
+    try:
+        log = args.log.open("x", encoding="utf-8")
+    except OSError as exc:
+        p.error("cannot create new log {}: {}".format(args.log, exc))
+    with log:
+        # Validate every requested filter, including ones the random schedule
+        # might not happen to select during this campaign.
+        for suite in dict.fromkeys(args.suite):
+            cmd = [str(args.runner.resolve()), "--list", suite]
+            if args.xvfb and sys.platform.startswith("linux"):
+                cmd = ["xvfb-run", "-a", "-s", "-screen 0 1920x1080x24"] + cmd
+            rc, output, seconds = run(cmd, args.timeout, dict(os.environ))
+            summary = re.search(r"(?m)^\s*(\d+) tests\s*$", output)
+            if rc != 0 or summary is None or int(summary.group(1)) == 0:
+                record = {"phase": "selection", "suite": suite, "returncode": rc,
+                          "duration_seconds": seconds, "command": cmd,
+                          "output": output[-30000:] + "\nNo valid nonzero test selection"}
+                log.write(json.dumps(record, ensure_ascii=False) + "\n")
+                print("FAIL suite={} selection invalid log={}".format(suite, args.log), file=sys.stderr)
+                return 1
         for round_no in range(args.rounds):
             suite = suites[rng.randrange(len(suites))]
             cmd = [str(args.runner.resolve())] + ([suite] if suite else [])
@@ -57,6 +77,14 @@ def main():
             env = dict(os.environ)
             env["SOUNDGRIND_SEED"] = str(args.seed + round_no)
             rc, output, seconds = run(cmd, args.timeout, env)
+            if rc == 0:
+                # LuthierTests returns zero even when a filter selects no tests.
+                # Require its successful summary and an actual test count.
+                summary = re.search(r"(?m)^\s*ALL PASSED\s*\n\s*(\d+) tests,\s*\d+ checks,", output)
+                if summary is None:
+                    rc, output = 1, output + "\nMissing successful test summary"
+                elif int(summary.group(1)) == 0:
+                    rc, output = 1, output + "\nZero tests selected"
             if rc != 0:
                 failures += 1
                 record = {"round": round_no, "seed": args.seed + round_no,
