@@ -40,9 +40,10 @@ const ParamDesc parameters[]{
     {"boss_rc5_half_speed","HALF SPEED (EXT)","",ParamKind::Toggle,Taper::Linear,0,1,0,1,0,nullptr,PF_Automatable,20,-1},
     {"boss_rc5_ram_cap_mb","RAM CAP","MB",ParamKind::Continuous,Taper::Linear,64,2048,256,1,0,nullptr,PF_Config,0,-1},
     {"boss_rc5_clock_out","MIDI CLOCK OUT (EXT)","",ParamKind::Toggle,Taper::Linear,0,1,0,1,0,nullptr,PF_Ext|PF_Hidden,0,-1},
+    {"boss_rc5_tap","TEMPO TAP","",ParamKind::Trigger,Taper::Linear,0,1,0,1,0,nullptr,PF_None,0,-1},
 };
 const PedalDesc description{"boss-rc5","boss_rc5_",1,"Loop Station (prototype)","Looper",nullptr,
-    ChannelMode::Stereo,BypassMode::Buffered,23,parameters,0,false,false,false,800,1000};
+    ChannelMode::Stereo,BypassMode::Buffered,24,parameters,0,false,false,false,800,1000};
 // Spec 4.2/1: one stereo track of 1.5 h; worst-case undo layer; >=2 s read-ahead.
 common::PagedLooperCore::Config looperConfig(double rate,double ramMb) noexcept
 {
@@ -80,6 +81,7 @@ void BossRc5::prepare(double sampleRate,int,int)
     }
     sr=common::sampleRate(sampleRate);prepareParams(sr);
     rhythm.prepare(sr,services.instanceSeed?services.instanceSeed:0x51a7u);
+    tapTempo.prepare(sr);
     for(int c=0;c<2;++c){lofiHp[c].setLowpass(sr,20);lofiLp[c].setLowpass(sr,std::min(20000.,sr*.45));}
     config=looperConfig(sr,value(RamCapMb));
     looperReady=services.assets!=nullptr && core.prepare(*services.assets,config);
@@ -94,6 +96,7 @@ void BossRc5::reset() noexcept
     // A loop is user data: reset stops transport and gestures but keeps audio.
     if(looperReady)core.apply(Action::Stop);
     cycle.reset();rhythm.reset();rhythmPattern=rhythmVariation=rhythmKit=-1;
+    tapTempo.reset();tappedTempoActive=false;
     for(auto& f:lofiHp)f.reset();for(auto& f:lofiLp)f.reset();
     mainHeld=holdArmed=provisionalCut=false;footDown={};dryGain=value(DryMute)>.5f?0:1;
 }
@@ -108,6 +111,7 @@ bool BossRc5::restoreStored() noexcept
 }
 void BossRc5::onParamChanged(int index,float v) noexcept
 {
+    if(index==Tempo){tappedTempoActive=false;return;}
     if(index<Pedal1 || index>Pedal3)return;
     const bool down=v>=.5f;auto& was=footDown[size_t(index-Pedal1)];
     if(down==was)return;
@@ -125,6 +129,12 @@ void BossRc5::onParamChanged(int index,float v) noexcept
         else if(s==State::Stopped)core.apply(Action::Play);
     }
     else undoOrRedo(); // CTL2: TRK UND/RED (plugin default, ESTIMATED).
+}
+void BossRc5::onTrigger(int index) noexcept
+{
+    if(index!=TapTempo || !prepared)return;
+    if(const auto measured=tapTempo.tap(samples))
+    {tappedTempo=*measured;tappedTempoActive=true;}
 }
 void BossRc5::onFoot(const FootEvent& event) noexcept
 {
@@ -177,7 +187,7 @@ void BossRc5::updateRhythm() noexcept
     {rhythm.select(pattern,variation,kit);rhythmPattern=pattern;rhythmVariation=variation;rhythmKit=kit;}
     // SYNC CLOCK AUTO follows a running host clock, else the internal tempo.
     const bool follow=value(SyncClock)<.5f && time.valid && time.playing && std::isfinite(time.bpm) && time.bpm>0;
-    tempo=std::clamp(follow?time.bpm:double(value(Tempo)),40.,300.);
+    tempo=std::clamp(follow?time.bpm:(tappedTempoActive?tappedTempo:double(value(Tempo))),40.,300.);
     rhythm.setTempo(tempo);rhythm.setLevel(value(RhythmLevel));rhythm.setRunning(value(RhythmOn)>.5f);
 }
 void BossRc5::process(double* left,double* right,int n) noexcept

@@ -164,7 +164,7 @@ template<class F> void recordLoop(BossRc5& pedal,int frames,F input)
 LUTHIER_TEST(RefPedalBossRc5, wrapperDescriptorMatchesReconciledParameterTableAndLanes)
 {
     const auto& d=BossRc5::descriptor();
-    CHECK(juce::String(d.modelId)=="boss-rc5");CHECK(juce::String(d.paramPrefix)=="boss_rc5_");CHECK(d.numParams==23);
+    CHECK(juce::String(d.modelId)=="boss-rc5");CHECK(juce::String(d.paramPrefix)=="boss_rc5_");CHECK(d.numParams==24);
     const char* lanes[]{"loop_level","rhythm_level","rhythm_on","tempo","pattern","variation","kit","memory","reverse","hold_ms","dtap_ms","dry_mute","half_speed"};
     int lane=0;
     for(int i=0;i<d.numParams;++i)
@@ -319,6 +319,23 @@ LUTHIER_TEST(RefPedalBossRc5, tempoButtonEightTapsSetInternalTempoAtFiveRates)
         render(*pedal,1,silence,1);
         CHECK_NEAR(pedal->rhythmTempo(),120.,.5);
     }
+}
+
+LUTHIER_TEST(RefPedalBossRc5, tempoTapKeepsHostClockAuthorityAndManualTempoCanReplaceIt)
+{
+    Rc5Fixture f;auto pedal=f.make(48000,false,512);
+    TimeInfo host;host.valid=host.playing=true;host.bpm=75;pedal->setTime(host);
+    const auto allocations=luthier::tests::allocationsOnThisThread();
+    pedal->setParam(BossRc5::TapTempo,1);pedal->setParam(BossRc5::TapTempo,0);
+    CHECK(luthier::tests::allocationsOnThisThread()==allocations);
+    render(*pedal,24000,silence,512);
+    pedal->setParam(BossRc5::TapTempo,1);pedal->setParam(BossRc5::TapTempo,1);
+    pedal->setParam(BossRc5::TapTempo,0);
+    render(*pedal,1,silence,1);CHECK_NEAR(pedal->rhythmTempo(),75,1e-9);
+    host.playing=false;pedal->setTime(host);render(*pedal,1,silence,1);
+    CHECK_NEAR(pedal->rhythmTempo(),120,.5);
+    pedal->setParam(BossRc5::Tempo,norm(BossRc5::Tempo,90));
+    render(*pedal,9600,silence,512);CHECK_NEAR(pedal->rhythmTempo(),90,.5);
 }
 
 LUTHIER_TEST(RefPedalBossRc5, wrapperStateRoundTripRestoresTheLoopInEitherLoadOrder)
