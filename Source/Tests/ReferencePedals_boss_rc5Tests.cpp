@@ -348,10 +348,12 @@ LUTHIER_TEST(RefPedalBossRc5, tappedInternalTempoSurvivesExtraStateWithoutLoopAs
     source->setParam(BossRc5::TapTempo,1);source->setParam(BossRc5::TapTempo,0);
     render(*source,1,silence,1);CHECK_NEAR(source->rhythmTempo(),120,.5);
     juce::var extra;source->saveExtra(extra);
+    const auto json=juce::JSON::toString(extra);
+    juce::var decoded;CHECK(juce::JSON::parse(json,decoded).wasOk());
     auto restored=f.make(48000,false,512);
     restored->setParam(BossRc5::SyncClock,1);
     restored->setParam(BossRc5::Tempo,norm(BossRc5::Tempo,90));
-    restored->loadExtra(extra);
+    restored->loadExtra(decoded);
     render(*restored,1,silence,1);CHECK_NEAR(restored->rhythmTempo(),120,.5);
 }
 
