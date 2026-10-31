@@ -1,0 +1,30 @@
+JUCE v8.0.10
+
+================================================================
+ LUTHIER TEST SUITE
+================================================================
+
+
+RefPedalRc5TapTempo
+----------------------------------------------------------------
+  [pass]  eight120BpmTapsAtFiveRates                  130 checks    0.038 ms
+  [pass]  arithmeticMeanUsesLastFourAcceptedIntervals 14 checks     0.008 ms
+  [pass]  inclusiveIntegerIntervalBounds              84 checks     0.016 ms
+  [pass]  invalidIntervalsAreExcludedButUpdateAdjacentAnchor9 checks      0.006 ms
+  [pass]  twoSecondGapClearsMeanAndReanchors          45 checks     0.01 ms
+  [pass]  backwardNegativeAndResetClearBookkeeping    14 checks     0.006 ms
+  [pass]  prepareValidationPreservesPriorStateAndValidPrepareResets38 checks     0.212 ms
+  [pass]  sampleClockExtremesCannotOverflow           12 checks     0.008 ms
+  [pass]  callbackMethodsAllocateNothing              3 checks      0.279 ms
+  [pass]  acceptedTemposDriveActualRhythmWithoutPhaseResetOrPartitionDependence12 checks     150.14 ms
+
+RefPedalBossRc5
+----------------------------------------------------------------
+  [pass]  tempoButtonEightTapsSetInternalTempoAtFiveRates8 checks      850.917 ms
+  [pass]  tempoTapKeepsHostClockAuthorityAndManualTempoCanReplaceIt4 checks      16.979 ms
+
+================================================================
+ ALL PASSED
+ 12 tests, 373 checks, 1.0 s
+================================================================
+

@@ -1,0 +1,30 @@
+
+================================================================
+ LUTHIER TEST SUITE
+================================================================
+
+
+RefPedalBossRc5
+----------------------------------------------------------------
+  [pass]  immediateMainPressCycleUsesActualRamAndPagedCores1381 checks   43.631 ms
+  [pass]  immediatePressOnUnpreparedCoresRemainsSafe  3 checks      0.001 ms
+  [pass]  wrapperDescriptorMatchesReconciledParameterTableAndLanes71 checks     0.012 ms
+  [pass]  wrapperRecordsExactLengthAndPlaysBackRecordedAudio18831 checks  33.479 ms
+  [pass]  wrapperLoopLevelIsLinearToTwoAndDryIsUnchanged487 checks    10.769 ms
+  [pass]  wrapperDoublePressStopsAndSlowSecondPressClosesOverdub7 checks      17.358 ms
+  [pass]  wrapperHoldUndoesRedoesAndClearsOnlyFromStop18 checks     120.254 ms
+  [pass]  wrapperOverdubContinuesAcrossPassesAndUndoRemovesTheLastPass9 checks      911.649 ms
+  [pass]  wrapperWithoutAssetStorePassesDryRunsRhythmAndReportsFault4804 checks   1.237 ms
+  [pass]  wrapperTempoFollowsHostOnlyInAutoSync       4 checks      0.063 ms
+  [pass]  tempoButtonEightTapsSetInternalTempoAtFiveRates8 checks      21.766 ms
+  [pass]  tempoTapKeepsHostClockAuthorityAndManualTempoCanReplaceIt4 checks      0.51 ms
+  [pass]  wrapperStateRoundTripRestoresTheLoopInEitherLoadOrder12 checks     26.21 ms
+  [pass]  wrapperResetAndReprepareKeepTheUsersLoop    8 checks      15.359 ms
+  [pass]  wrapperCallbacksAndGesturesAllocateNothing  1 checks      11.941 ms
+  [pass]  wrapperSeededGestureStressStaysFiniteBoundedAndAllocationFree6 checks      682.262 ms
+
+================================================================
+ ALL PASSED
+ 16 tests, 25654 checks, 1.9 s
+================================================================
+
