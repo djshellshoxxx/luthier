@@ -1,0 +1,17 @@
+
+================================================================
+ LUTHIER TEST SUITE
+================================================================
+
+
+RefPedalBossRc5
+----------------------------------------------------------------
+  [pass]  boardRestoreKeepsTappedTempoThroughInitialParameterSnapshot6 checks      3.058 ms
+  [pass]  boardExplicitSameTempoWriteBeforeFirstBlockOverridesRestoredTap6 checks      1.57 ms
+  [pass]  boardHostTempoWriteBeforeFirstBlockOverridesRestoredTap6 checks      1.51 ms
+
+================================================================
+ ALL PASSED
+ 3 tests, 18 checks, 0.0 s
+================================================================
+
