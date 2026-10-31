@@ -114,6 +114,9 @@ LUTHIER_TEST(RefPedalBossRc5, immediatePressOnUnpreparedCoresRemainsSafe)
 // ---------------------------------------------------------------------------
 // BossRc5 model wrapper (Models/boss_rc5.*), spec sec 2.2, 4.3, 8 and 9.
 #include "../ReferencePedals/Models/boss_rc5.h"
+#include "../ReferencePedals/Board.h"
+#include "../ReferencePedals/BoardModel.h"
+#include "../ReferencePedals/PedalRegistry.h"
 #include <memory>
 #include <vector>
 namespace
@@ -374,6 +377,28 @@ LUTHIER_TEST(RefPedalBossRc5, tappedTempoExtraStateValidatesAndSurvivesPrepare)
     juce::var legacy(new juce::DynamicObject());pedal->loadExtra(legacy);
     render(*pedal,1,silence,1);CHECK_NEAR(pedal->rhythmTempo(),90,.5);
     pedal->saveExtra(saved);CHECK(!saved.hasProperty("rc5TapTempoBpm"));
+}
+
+LUTHIER_TEST(RefPedalBossRc5, boardRestoreKeepsTappedTempoThroughInitialParameterSnapshot)
+{
+    PedalRegistry::TestScope scope;
+    const auto factory=+[]()->std::unique_ptr<IPedal>{return std::make_unique<BossRc5>();};
+    CHECK(PedalRegistry::add(BossRc5::descriptor(),factory,&BossRc5::prepareMemory));
+    Board board;CHECK(board.setAssetStore(nullptr));board.prepare(48000,512);
+    PedalInstance instance;instance.modelId=BossRc5::descriptor().modelId;instance.slot=0;
+    for(int i=0;i<BossRc5::descriptor().numParams;++i)
+        instance.params[size_t(i)]=float(BossRc5::descriptor().params[i].defaultNormalised());
+    instance.params[BossRc5::Tempo]=norm(BossRc5::Tempo,90);
+    instance.params[BossRc5::SyncClock]=1;
+    instance.extras=juce::var(new juce::DynamicObject());
+    instance.extras.getDynamicObject()->setProperty("rc5TapTempoBpm",120.0);
+    BoardSettings settings;settings.enabled=true;
+    juce::String error;CHECK_MSG(board.model().replaceAll({instance},settings,&error),error);
+    double left[512]{},right[512]{};juce::MidiBuffer in,out;
+    board.beginBlock(in,{},512);board.processStereo(left,right,512,Placement::beforeExistingPre);board.endBlock(out);
+    const auto meter=board.readPedalMeters(0);
+    CHECK(meter.present);CHECK((meter.model.available&UiTempo)!=0);
+    CHECK_NEAR(meter.model.bpm,120,.5);
 }
 
 LUTHIER_TEST(RefPedalBossRc5, wrapperStateRoundTripRestoresTheLoopInEitherLoadOrder)
