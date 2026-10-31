@@ -1,0 +1,45 @@
+
+================================================================
+ LUTHIER TEST SUITE
+================================================================
+
+
+RefPedalRc5TapTempo
+----------------------------------------------------------------
+  [pass]  eight120BpmTapsAtFiveRates                  130 checks    0.019 ms
+  [pass]  arithmeticMeanUsesLastFourAcceptedIntervals 14 checks     0.001 ms
+  [pass]  inclusiveIntegerIntervalBounds              84 checks     0.004 ms
+  [pass]  invalidIntervalsAreExcludedButUpdateAdjacentAnchor9 checks      0 ms
+  [pass]  twoSecondGapClearsMeanAndReanchors          45 checks     0.001 ms
+  [pass]  backwardNegativeAndResetClearBookkeeping    14 checks     0 ms
+  [pass]  prepareValidationPreservesPriorStateAndValidPrepareResets38 checks     0 ms
+  [pass]  sampleClockExtremesCannotOverflow           12 checks     0 ms
+  [pass]  callbackMethodsAllocateNothing              3 checks      0.002 ms
+  [pass]  acceptedTemposDriveActualRhythmWithoutPhaseResetOrPartitionDependence12 checks     10.956 ms
+
+RefPedalBossRc5
+----------------------------------------------------------------
+  [pass]  immediateMainPressCycleUsesActualRamAndPagedCores1381 checks   39.231 ms
+  [pass]  immediatePressOnUnpreparedCoresRemainsSafe  3 checks      0.002 ms
+  [pass]  wrapperDescriptorMatchesReconciledParameterTableAndLanes71 checks     0.01 ms
+  [pass]  wrapperRecordsExactLengthAndPlaysBackRecordedAudio18831 checks  29.199 ms
+  [pass]  wrapperLoopLevelIsLinearToTwoAndDryIsUnchanged487 checks    8.97 ms
+  [pass]  wrapperDoublePressStopsAndSlowSecondPressClosesOverdub7 checks      19.218 ms
+  [pass]  wrapperHoldUndoesRedoesAndClearsOnlyFromStop18 checks     79.344 ms
+  [pass]  wrapperOverdubContinuesAcrossPassesAndUndoRemovesTheLastPass9 checks      904.386 ms
+  [pass]  wrapperWithoutAssetStorePassesDryRunsRhythmAndReportsFault4804 checks   1.7 ms
+  [pass]  wrapperTempoFollowsHostOnlyInAutoSync       4 checks      0.1 ms
+  [pass]  tempoButtonEightTapsSetInternalTempoAtFiveRates8 checks      25.246 ms
+  [pass]  tempoTapKeepsHostClockAuthorityAndManualTempoCanReplaceIt4 checks      0.681 ms
+  [pass]  tappedInternalTempoSurvivesExtraStateWithoutLoopAsset2 checks      0.625 ms
+  [pass]  tappedTempoExtraStateValidatesAndSurvivesPrepare5 checks      0.068 ms
+  [pass]  wrapperStateRoundTripRestoresTheLoopInEitherLoadOrder12 checks     28.348 ms
+  [pass]  wrapperResetAndReprepareKeepTheUsersLoop    8 checks      17.597 ms
+  [pass]  wrapperCallbacksAndGesturesAllocateNothing  1 checks      10.039 ms
+  [pass]  wrapperSeededGestureStressStaysFiniteBoundedAndAllocationFree6 checks      607.66 ms
+
+================================================================
+ ALL PASSED
+ 28 tests, 26022 checks, 1.8 s
+================================================================
+

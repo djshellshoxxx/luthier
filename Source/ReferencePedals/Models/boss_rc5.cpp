@@ -96,7 +96,7 @@ void BossRc5::reset() noexcept
     // A loop is user data: reset stops transport and gestures but keeps audio.
     if(looperReady)core.apply(Action::Stop);
     cycle.reset();rhythm.reset();rhythmPattern=rhythmVariation=rhythmKit=-1;
-    tapTempo.reset();tappedTempoActive=false;
+    tapTempo.reset();
     for(auto& f:lofiHp)f.reset();for(auto& f:lofiLp)f.reset();
     mainHeld=holdArmed=provisionalCut=false;footDown={};dryGain=value(DryMute)>.5f?0:1;
 }
@@ -111,7 +111,7 @@ bool BossRc5::restoreStored() noexcept
 }
 void BossRc5::onParamChanged(int index,float v) noexcept
 {
-    if(index==Tempo){tappedTempoActive=false;return;}
+    if(index==Tempo){tappedTempo.store(0,std::memory_order_release);return;}
     if(index<Pedal1 || index>Pedal3)return;
     const bool down=v>=.5f;auto& was=footDown[size_t(index-Pedal1)];
     if(down==was)return;
@@ -134,7 +134,7 @@ void BossRc5::onTrigger(int index) noexcept
 {
     if(index!=TapTempo || !prepared)return;
     if(const auto measured=tapTempo.tap(samples))
-    {tappedTempo=*measured;tappedTempoActive=true;}
+    tappedTempo.store(*measured,std::memory_order_release);
 }
 void BossRc5::onFoot(const FootEvent& event) noexcept
 {
@@ -187,7 +187,8 @@ void BossRc5::updateRhythm() noexcept
     {rhythm.select(pattern,variation,kit);rhythmPattern=pattern;rhythmVariation=variation;rhythmKit=kit;}
     // SYNC CLOCK AUTO follows a running host clock, else the internal tempo.
     const bool follow=value(SyncClock)<.5f && time.valid && time.playing && std::isfinite(time.bpm) && time.bpm>0;
-    tempo=std::clamp(follow?time.bpm:(tappedTempoActive?tappedTempo:double(value(Tempo))),40.,300.);
+    const auto tapped=tappedTempo.load(std::memory_order_acquire);
+    tempo=std::clamp(follow?time.bpm:(tapped>0?tapped:double(value(Tempo))),40.,300.);
     rhythm.setTempo(tempo);rhythm.setLevel(value(RhythmLevel));rhythm.setRunning(value(RhythmOn)>.5f);
 }
 void BossRc5::process(double* left,double* right,int n) noexcept
@@ -266,7 +267,9 @@ PedalUiMeters BossRc5::readUiMeters() const noexcept
 }
 void BossRc5::saveExtra(juce::var& extra) const
 {
+    const auto tapped=tappedTempo.load(std::memory_order_acquire);
     juce::var looper;
+    bool hasLooper=false;
     common::PagedLooperCore::Graph graph;
     const bool captured=looperReady && core.capture(graph);
     const auto status=graph.status;
@@ -276,17 +279,29 @@ void BossRc5::saveExtra(juce::var& extra) const
         || (status==common::PagedLooperCore::CaptureStatus::Empty && !storedPending));
     // An opaque future-schema prior would make encode re-emit it; a live loop
     // recorded here replaces it, so encode against a fresh prior in that case.
-    if(live){if(!common::LooperStateCodec::encode(stored.forward?common::LooperStateCodec::Stored{}:stored,graph,config,looper))return;}
-    else if(stored.source.getDynamicObject())looper=stored.source.clone(); // incomplete capture: keep last saved loop
-    else return;
+    if(live){if(!common::LooperStateCodec::encode(stored.forward?common::LooperStateCodec::Stored{}:stored,graph,config,looper))return;hasLooper=true;}
+    else if(stored.source.getDynamicObject()){looper=stored.source.clone();hasLooper=true;} // keep last saved loop
+    if(!hasLooper && tapped==0 && !extra.getDynamicObject())return;
     if(!extra.getDynamicObject())extra=juce::var(new juce::DynamicObject());
-    extra.getDynamicObject()->setProperty("looper",looper);
+    auto* object=extra.getDynamicObject();
+    if(hasLooper)object->setProperty("looper",looper);
+    if(tapped>0)object->setProperty("rc5TapTempoBpm",tapped);
+    else object->removeProperty("rc5TapTempoBpm");
 }
 void BossRc5::loadExtra(const juce::var& extra)
 {
-    if(!extra.hasProperty("looper"))return;
+    double nextTapped=0;
+    if(extra.hasProperty("rc5TapTempoBpm"))
+    {
+        const auto v=extra["rc5TapTempoBpm"];
+        if(!(v.isDouble() || v.isInt() || v.isInt64()))return;
+        nextTapped=double(v);
+        if(!std::isfinite(nextTapped) || nextTapped<40 || nextTapped>300)return;
+    }
+    if(!extra.hasProperty("looper")){tappedTempo.store(nextTapped,std::memory_order_release);return;}
     common::LooperStateCodec::Stored next;
     if(!common::LooperStateCodec::decode(extra["looper"],next))return; // keep previous on failure
+    tappedTempo.store(nextTapped,std::memory_order_release);
     stored=next;
     storedPending=stored.forward || stored.graph.status==common::PagedLooperCore::CaptureStatus::Ready;
     if(looperReady && storedPending && core.state()!=State::Empty)

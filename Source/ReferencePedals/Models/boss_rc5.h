@@ -74,10 +74,14 @@ private:
     common::Rc5TapTempo tapTempo;
     common::OnePole lofiHp[2],lofiLp[2];
     TimeInfo time;
-    double sr=48000,tempo=120,dryGain=1,tappedTempo=120;
+    double sr=48000,tempo=120,dryGain=1;
+    // Zero means no tapped override. Message-thread state capture and audio
+    // changes communicate only through this lock-free scalar.
+    static_assert(std::atomic<double>::is_always_lock_free,"RC-5 tempo state must be lock-free");
+    std::atomic<double> tappedTempo{0};
     int64_t samples=0,holdStart=0;
     State holdOrigin=State::Empty;
-    bool looperReady=false,prepared=false,mainHeld=false,holdArmed=false,provisionalCut=false,tappedTempoActive=false;
+    bool looperReady=false,prepared=false,mainHeld=false,holdArmed=false,provisionalCut=false;
     std::array<bool,3> footDown{};
     int rhythmPattern=-1,rhythmVariation=-1,rhythmKit=-1;
 };

@@ -355,6 +355,25 @@ LUTHIER_TEST(RefPedalBossRc5, tappedInternalTempoSurvivesExtraStateWithoutLoopAs
     render(*restored,1,silence,1);CHECK_NEAR(restored->rhythmTempo(),120,.5);
 }
 
+LUTHIER_TEST(RefPedalBossRc5, tappedTempoExtraStateValidatesAndSurvivesPrepare)
+{
+    Rc5Fixture f;auto pedal=std::make_unique<BossRc5>();
+    pedal->setParam(BossRc5::Tempo,norm(BossRc5::Tempo,90));
+    juce::var valid(new juce::DynamicObject());
+    valid.getDynamicObject()->setProperty("rc5TapTempoBpm",120.0);
+    pedal->loadExtra(valid);pedal->prepare(48000,512,1);
+    pedal->setParam(BossRc5::SyncClock,1);render(*pedal,1,silence,1);
+    CHECK_NEAR(pedal->rhythmTempo(),120,.5);
+    juce::var saved;pedal->saveExtra(saved);
+    CHECK_NEAR(double(saved["rc5TapTempoBpm"]),120,1e-9);
+    juce::var bad(new juce::DynamicObject());
+    bad.getDynamicObject()->setProperty("rc5TapTempoBpm",1000.0);
+    pedal->loadExtra(bad);render(*pedal,1,silence,1);CHECK_NEAR(pedal->rhythmTempo(),120,.5);
+    juce::var legacy(new juce::DynamicObject());pedal->loadExtra(legacy);
+    render(*pedal,1,silence,1);CHECK_NEAR(pedal->rhythmTempo(),90,.5);
+    pedal->saveExtra(saved);CHECK(!saved.hasProperty("rc5TapTempoBpm"));
+}
+
 LUTHIER_TEST(RefPedalBossRc5, wrapperStateRoundTripRestoresTheLoopInEitherLoadOrder)
 {
     Rc5Fixture f;juce::var extra;const int frames=4800;
