@@ -401,6 +401,26 @@ LUTHIER_TEST(RefPedalBossRc5, boardRestoreKeepsTappedTempoThroughInitialParamete
     CHECK_NEAR(meter.model.bpm,120,.5);
 }
 
+LUTHIER_TEST(RefPedalBossRc5, boardExplicitSameTempoWriteBeforeFirstBlockOverridesRestoredTap)
+{
+    PedalRegistry::TestScope scope;
+    const auto factory=+[]()->std::unique_ptr<IPedal>{return std::make_unique<BossRc5>();};
+    CHECK(PedalRegistry::add(BossRc5::descriptor(),factory,&BossRc5::prepareMemory));
+    Board board;CHECK(board.setAssetStore(nullptr));board.prepare(48000,512);
+    PedalInstance instance;instance.modelId=BossRc5::descriptor().modelId;instance.slot=0;
+    for(int i=0;i<BossRc5::descriptor().numParams;++i)
+        instance.params[size_t(i)]=float(BossRc5::descriptor().params[i].defaultNormalised());
+    instance.params[BossRc5::Tempo]=norm(BossRc5::Tempo,90);instance.params[BossRc5::SyncClock]=1;
+    instance.extras=juce::var(new juce::DynamicObject());
+    instance.extras.getDynamicObject()->setProperty("rc5TapTempoBpm",120.0);
+    BoardSettings settings;settings.enabled=true;
+    juce::String error;CHECK_MSG(board.model().replaceAll({instance},settings,&error),error);
+    CHECK(board.model().apply(cmd::SetParam{instance.instanceId,BossRc5::Tempo,norm(BossRc5::Tempo,90)}));
+    double left[512]{},right[512]{};juce::MidiBuffer in,out;
+    board.beginBlock(in,{},512);board.processStereo(left,right,512,Placement::beforeExistingPre);board.endBlock(out);
+    const auto meter=board.readPedalMeters(0);CHECK(meter.present);CHECK_NEAR(meter.model.bpm,90,.5);
+}
+
 LUTHIER_TEST(RefPedalBossRc5, wrapperStateRoundTripRestoresTheLoopInEitherLoadOrder)
 {
     Rc5Fixture f;juce::var extra;const int frames=4800;

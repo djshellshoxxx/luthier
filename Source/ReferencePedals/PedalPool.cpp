@@ -92,9 +92,10 @@ bool PedalPool::preflightFresh (const std::vector<PedalInstance>& instances, juc
     return true;
 }
 std::shared_ptr<PedalRuntime> PedalPool::acquire (const PedalInstance& instance, juce::String& error, const PedalRuntime* active, bool restoreExtras,
-                                                  ExtraSaveCallback saveExtraCallback, void* callbackContext)
+                                                  ExtraSaveCallback saveExtraCallback, void* callbackContext, bool* created)
 try
 {
+    if(created)*created=false;
     if (instance.missing) return {};
     if (! std::isfinite (rate) || rate < 8000 || rate > 1000000 || block < 1)
     { error = "Unsupported pedal preparation sample rate/block"; return {}; }
@@ -215,6 +216,7 @@ try
     result->bypassSamples = std::max (1.0, rate * 0.005);
     result->foot.prepare (rate); result->foot.reset (instance.enabled);
     objects.emplace_back (result);
+    if(created)*created=true;
     return result;
 }
 catch (const std::exception& failure)

@@ -44,6 +44,8 @@ public:
     void setExpression(int,float) noexcept override;
     void saveExtra(juce::var&) const override;
     void loadExtra(const juce::var&) override;
+    bool extraOverridesInitialParam(int idx) const noexcept override
+    {return idx==Tempo && tappedTempo.load(std::memory_order_acquire)>0;}
 
     // Audio-owner inspection (tests, UI meters).
     State transportState() const noexcept {return looperReady ? core.state() : State::Empty;}

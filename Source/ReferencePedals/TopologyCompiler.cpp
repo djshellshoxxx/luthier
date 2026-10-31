@@ -114,7 +114,8 @@ std::unique_ptr<RenderPlan> TopologyCompiler::compile (const std::vector<PedalIn
         if (branched && (instance.lane < 0 || instance.lane >= t.numLanes))
             return reject ("Pedal lane exceeds active lane count");
         const auto active = previous ? previous->slots[static_cast<size_t> (instance.slot)] : std::shared_ptr<PedalRuntime> {};
-        auto object = pool.acquire (instance, error, active.get(), restoreExtras, saveExtraCallback, callbackContext);
+        bool created = false;
+        auto object = pool.acquire (instance, error, active.get(), restoreExtras, saveExtraCallback, callbackContext, &created);
         if (! object && ! instance.missing) return {};
         const auto slot = static_cast<size_t> (instance.slot);
         result->slots[slot] = object;
@@ -165,6 +166,14 @@ std::unique_ptr<RenderPlan> TopologyCompiler::compile (const std::vector<PedalIn
             control.enabledSerial = control.inputSerial = control.outputSerial = version;
             control.paramSerials.fill (version);
         }
+        // A freshly constructed pedal has already received its initial params
+        // before loadExtra. For explicitly opted-in extra-state overrides, do
+        // not replay that same initial value on the first audio block. Marking
+        // occurs before publication, never on an existing shared runtime.
+        if(created && object)
+            for(int param=0;param<object->pedal->desc().numParams;++param)
+                if(object->pedal->extraOverridesInitialParam(param))
+                    object->modelParamSerials[static_cast<size_t>(param)]=control.paramSerials[static_cast<size_t>(param)];
         const int lane = branched ? instance.lane : 0;
         auto& laneList = t.lanes[lane]; laneList.slots[laneList.count++] = static_cast<uint8_t> (slot);
     }

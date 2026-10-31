@@ -1,0 +1,17 @@
+
+================================================================
+ LUTHIER TEST SUITE
+================================================================
+
+
+RefPedalBossRc5
+----------------------------------------------------------------
+  [FAIL]  boardRestoreKeepsTappedTempoThroughInitialParameterSnapshot6 checks      2.58 ms
+    line 401: meter.model.bpm = 90.000000, expected 120.000000 +/- 0.500000
+  [pass]  boardExplicitSameTempoWriteBeforeFirstBlockOverridesRestoredTap6 checks      1.464 ms
+
+================================================================
+ FAILED
+ 1 of 2 tests failed (1 of 12 checks), 0.0 s
+================================================================
+
