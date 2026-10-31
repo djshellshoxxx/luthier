@@ -1,6 +1,7 @@
 #include "TestFramework.h"
 #include "../ReferencePedals/Models/boss_ce2w.h"
 #include <array>
+#include <complex>
 using luthier::reference::models::BossCe2w;
 namespace luthier::tests { long allocationsOnThisThread() noexcept; }
 LUTHIER_TEST(RefPedalCe2w, rapidModeReversalKeepsTheCurrentAudibleBlend)
@@ -139,4 +140,35 @@ LUTHIER_TEST(RefPedalCe2w, inactiveModesDoNotReplayStaleAudio)
     pedal.setParam(2,0);double energy=0;
     for(int i=0;i<4800;++i){double l=0,r=0;pedal.process(&l,&r,1);energy+=l*l+r*r;}
     CHECK(energy<1e-20);
+}
+
+// Original provisional section 9 gates, with modulation/noise disabled so the
+// coherent harmonic measurement isolates transfer distortion, not sidebands.
+LUTHIER_TEST(RefPedalCe2w, originalStandardAndCe1ThdGates)
+{
+    constexpr double pi=3.14159265358979323846;
+    for(double sr:{44100.,48000.,88200.,96000.,192000.})for(int mode=0;mode<3;++mode)
+    {
+        BossCe2w pedal;pedal.setParam(1,0);pedal.setParam(2,mode*.5f);pedal.setParam(7,0);pedal.prepare(sr,1,1);
+        const double amplitude=mode==0?std::pow(10.,-10./20):1.;
+        std::array<std::complex<double>,10> harmonics{};bool finite=true;
+        for(int i=0;i<int(sr*2);++i)
+        {
+            const double angle=2*pi*1000*i/sr;double l=amplitude*std::sin(angle),r=l;pedal.process(&l,&r,1);
+            finite &= std::isfinite(l) && std::isfinite(r);
+            if(i>=int(sr))
+            {
+                const std::complex<double> rotation(std::cos(angle),-std::sin(angle));auto phase=rotation;
+                for(int h=1;h<10;++h){harmonics[h]+=l*phase;phase*=rotation;}
+            }
+        }
+        double energy=0;for(int h=2;h<10;++h)energy+=std::norm(harmonics[h]);
+        const double fundamental=std::abs(harmonics[1]);
+        CHECK(finite);CHECK(fundamental>0);
+        if(!finite || fundamental<=0)continue;
+        const double thd=std::sqrt(energy)/fundamental;
+        const auto detail=juce::String(sr)+" Hz mode "+juce::String(mode)+" THD ratio "+juce::String(thd,6);
+        if(mode==0){CHECK_MSG(thd<.01,detail);}
+        else {CHECK_MSG(thd>=.01,detail);CHECK_MSG(thd<=.03,detail);}
+    }
 }

@@ -1,0 +1,36 @@
+name: Pedalboard focused acceptance
+on:
+  push:
+    branches: [codex/luthier-pedalboard-release]
+    paths: ['Source/**', 'Tests/PedalboardFocused/**', 'scripts/pedalboard_focused_main.py', '.github/workflows/pedalboard-focused.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: pedalboard-focused-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch pinned JUCE
+        run: git clone --depth 1 --branch 8.0.10 https://github.com/juce-framework/JUCE.git ThirdParty/JUCE
+      - name: Configure and compile real headless DSP and acceptance suites
+        run: |
+          cmake -S Tests/PedalboardFocused -B build-focused -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_COMPILER=clang
+          cmake --build build-focused --parallel 4
+      - name: Run all focused assertions without exclusions
+        run: |
+          set -o pipefail
+          build-focused/PedalboardFocused 2>&1 | tee focused-results.log
+      - name: Preserve actual failure evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: focused-pedalboard-${{ github.sha }}
+          path: |
+            focused-results.log
+            build-focused/CMakeFiles/CMakeConfigureLog.yaml
+          if-no-files-found: warn

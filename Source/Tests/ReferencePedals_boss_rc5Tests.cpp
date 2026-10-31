@@ -110,3 +110,74 @@ LUTHIER_TEST(RefPedalBossRc5, immediatePressOnUnpreparedCoresRemainsSafe)
     CHECK(luthier::tests::allocationsOnThisThread()==allocations);
     CHECK(ram.state()==LooperCore::State::Empty);CHECK(paged.state()==LooperCore::State::Empty);
 }
+
+// Black-box release acceptance: these tests exercise the registered runtime,
+// unlike helper tests above. Missing registration is a real, early failure.
+#include "../ReferencePedals/PedalRegistry.h"
+
+LUTHIER_TEST(RefPedalBossRc5Runtime, maintainedRuntimeExposesNormativeControls)
+{
+    PedalRegistry::registerAll();
+    auto pedal=PedalRegistry::make("boss-rc5");
+    CHECK_MSG(pedal!=nullptr,"boss-rc5 needs an actual maintained IPedal runtime");
+    if(!pedal)return;
+    const auto& d=pedal->desc();
+    CHECK(juce::String(d.paramPrefix)=="boss_rc5_");
+    CHECK(d.wantsRawMidi);CHECK(!pedal->footControlsEngagement());
+    const char* lanes[]{"loop_level","rhythm_level","rhythm_on","tempo","pattern","variation","kit","memory","reverse","hold_ms","dtap_ms","dry_mute","half_speed"};
+    const auto map=PedalRegistry::buildLaneMap(d);CHECK(map.numLanes==13);
+    for(int i=0;i<13 && i<map.numLanes;++i)
+        CHECK(juce::String(d.params[map.laneToParam[i]].id)==juce::String("boss_rc5_")+lanes[i]);
+    for(const auto* suffix:{"pedal1","pedal2","pedal3","sync_clock","quantize","exp_target","exp","lofi","ram_cap_mb"})
+        CHECK(PedalRegistry::findParam(d,(juce::String("boss_rc5_")+suffix).toRawUTF8())>=0);
+}
+
+LUTHIER_TEST(RefPedalBossRc5Runtime, mainFootRecordsExactlyAndStopHoldClearsAtThreshold)
+{
+    PedalRegistry::registerAll();auto pedal=PedalRegistry::make("boss-rc5");
+    CHECK_MSG(pedal!=nullptr,"missing boss-rc5 wrapper");if(!pedal)return;
+    const auto directory=juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("rc5-runtime-"+juce::Uuid().toString());
+    {
+        AssetStore store(directory);PedalServices services;services.assets=&store;services.sampleRate=48000;services.maxBlock=64;
+        pedal->setServices(services);pedal->prepare(48000,64,0);
+        CHECK(pedal->getPreparedMemoryBytes()!=kUnknownPreparedMemoryBytes);
+        std::array<double,64> left{},right{};
+        const auto render=[&](int count,double input)
+        {while(count>0){const int n=std::min(64,count);left.fill(input);right.fill(-input);pedal->process(left.data(),right.data(),n);count-=n;}};
+        const auto down=[&]{FootEvent e;e.press=true;pedal->onFoot(e);};
+        const auto up=[&]{FootEvent e;e.press=false;pedal->onFoot(e);};
+        down();CHECK(pedal->readUiMeters().transport==int(LooperCore::State::Recording));up();render(1024,.125);
+        down();up();auto meters=pedal->readUiMeters();CHECK(meters.loopLength==1024);CHECK(meters.transport==int(LooperCore::State::Playing));
+        // External stop disarms the provisional double-press gesture.
+        pedal->onTransport(TransportEvent::Stop,0);render(1024,0);
+        CHECK(pedal->readUiMeters().transport==int(LooperCore::State::Stopped));
+        down();render(95999,0);CHECK(pedal->readUiMeters().loopLength==1024);
+        render(1,0);CHECK(pedal->readUiMeters().loopLength==0);up();
+        pedal.reset(); // retire storage workers before their asset service
+    }
+    CHECK(directory.deleteRecursively());
+}
+
+LUTHIER_TEST(RefPedalBossRc5Runtime, unassignedCcAndInvalidProgramLeaveEmptyDryAudioUntouched)
+{
+    PedalRegistry::registerAll();auto pedal=PedalRegistry::make("boss-rc5");
+    CHECK_MSG(pedal!=nullptr,"missing boss-rc5 wrapper");if(!pedal)return;
+    const auto directory=juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("rc5-midi-"+juce::Uuid().toString());
+    {
+        AssetStore store(directory);PedalServices services;services.assets=&store;services.sampleRate=48000;services.maxBlock=64;
+        pedal->setServices(services);pedal->prepare(48000,64,0);
+        std::array<double,64> left{},right{};
+        const auto allocations=luthier::tests::allocationsOnThisThread();
+        for(int cc=80;cc<=87;++cc)
+        {MidiEvent event;event.status=0xb0;event.d1=uint8_t(cc);event.d2=127;pedal->onMidi(event);event.d2=0;pedal->onMidi(event);}
+        for(int pc=99;pc<128;++pc){MidiEvent event;event.status=0xc0;event.d1=uint8_t(pc);pedal->onMidi(event);}
+        for(int cc:{0,7,11,32}){MidiEvent event;event.status=0xb0;event.d1=uint8_t(cc);event.d2=127;pedal->onMidi(event);}
+        left.fill(.125);right.fill(-.0625);pedal->process(left.data(),right.data(),64);
+        const bool allocated=luthier::tests::allocationsOnThisThread()!=allocations;
+        bool exact=true;for(int i=0;i<64;++i)exact &= left[i]==.125 && right[i]==-.0625;
+        CHECK(!allocated);CHECK(exact);CHECK(pedal->readUiMeters().transport==int(LooperCore::State::Empty));
+        CHECK(pedal->readUiMeters().loopLength==0);
+        pedal.reset(); // retire storage workers before their asset service
+    }
+    CHECK(directory.deleteRecursively());
+}

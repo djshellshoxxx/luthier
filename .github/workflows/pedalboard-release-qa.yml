@@ -2,6 +2,7 @@ name: Pedalboard release QA
 on:
   push:
     branches: [codex/luthier-pedalboard-release]
+    paths: ['release/**', '.github/workflows/pedalboard-release-qa.yml']
   workflow_dispatch:
 permissions:
   contents: read
