@@ -1,0 +1,22 @@
+name: Pedalboard release QA
+on:
+  push:
+    branches: [codex/luthier-pedalboard-release]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: pedalboard-release-qa-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  native:
+    uses: ./.github/workflows/build.yml
+    with:
+      platforms: linux,windows,macos
+      editions: pro,free
+      strictness: 10
+      lto: true
+      package: true
+      version: 0.1.0-pedalboard-qa
+      ref: ${{ github.sha }}
+    secrets: inherit
