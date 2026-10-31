@@ -338,6 +338,23 @@ LUTHIER_TEST(RefPedalBossRc5, tempoTapKeepsHostClockAuthorityAndManualTempoCanRe
     render(*pedal,9600,silence,512);CHECK_NEAR(pedal->rhythmTempo(),90,.5);
 }
 
+LUTHIER_TEST(RefPedalBossRc5, tappedInternalTempoSurvivesExtraStateWithoutLoopAsset)
+{
+    Rc5Fixture f;auto source=f.make(48000,false,512);
+    source->setParam(BossRc5::SyncClock,1);
+    source->setParam(BossRc5::Tempo,norm(BossRc5::Tempo,90));
+    source->setParam(BossRc5::TapTempo,1);source->setParam(BossRc5::TapTempo,0);
+    render(*source,24000,silence,512);
+    source->setParam(BossRc5::TapTempo,1);source->setParam(BossRc5::TapTempo,0);
+    render(*source,1,silence,1);CHECK_NEAR(source->rhythmTempo(),120,.5);
+    juce::var extra;source->saveExtra(extra);
+    auto restored=f.make(48000,false,512);
+    restored->setParam(BossRc5::SyncClock,1);
+    restored->setParam(BossRc5::Tempo,norm(BossRc5::Tempo,90));
+    restored->loadExtra(extra);
+    render(*restored,1,silence,1);CHECK_NEAR(restored->rhythmTempo(),120,.5);
+}
+
 LUTHIER_TEST(RefPedalBossRc5, wrapperStateRoundTripRestoresTheLoopInEitherLoadOrder)
 {
     Rc5Fixture f;juce::var extra;const int frames=4800;
