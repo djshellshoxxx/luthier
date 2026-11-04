@@ -164,14 +164,25 @@ LUTHIER_TEST(RefPedalUiLifecycle, tenThousandNativeOperationsAndEditorDestructio
                 CHECK_NEAR(rig.state().getRawParameterValue("ref_board_fb_gain")->load(),gain->getValue(),.001);break;
             }
             case 9: root->openSettings();CHECK(root->keyPressed({juce::KeyPress::escapeKey,juce::ModifierKeys(),0}));break;
-            case 10: root->onDock();CHECK(root->findParentComponentOfClass<Drawer>()!=nullptr);break;
+            case 10: // Docking needs an editor at least 840 px tall (PluginEditor::dockReferenceBoard);
+            {        // below that the request is refused and the board stays where it was.
+                const bool dockable=editor->getHeight()>=840;auto* parentBefore=root->getParentComponent();root->onDock();
+                if(dockable)CHECK(root->findParentComponentOfClass<Drawer>()!=nullptr);else CHECK(root->getParentComponent()==parentBefore);
+                break;
+            }
             case 11: root->onPopout();CHECK(root->findParentComponentOfClass<BoardWindow>()!=nullptr);break;
             case 12:
             {
                 root->onPopout();auto* window=root->findParentComponentOfClass<BoardWindow>();CHECK(window!=nullptr);if(!window)return;
                 CHECK(window->getPeer()!=nullptr);window->closeButtonPressed();++nativeCloses;CHECK(!window->isShowing());root->onDock();break;
             }
-            case 13: editor->setSize((next()&1)?1280:1600,(next()&1)?900:1000);break;
+            case 13: // Sizes on the editor's fixed 5:3 aspect, which native peers (Windows) enforce on
+            {        // programmatic resizes and X11 does not: off-aspect sizes differ per platform.
+                     // Two sequenced draws (argument order is unspecified) span both sides of the dock floor.
+                constexpr std::array<std::array<int,2>,4> sizes{{{1280,768},{1400,840},{1500,900},{1600,960}}};
+                const auto high=next()&1u;const auto low=next()&1u;const auto& size=sizes[(size_t)(high*2+low)];
+                editor->setSize(size[0],size[1]);break;
+            }
             case 14: // Actual browser Add button, never a test-only model alias.
             {
                 root->onPopout();auto* browser=uiChild<PedalBrowser>(*root);CHECK(browser!=nullptr);if(!browser)return;
