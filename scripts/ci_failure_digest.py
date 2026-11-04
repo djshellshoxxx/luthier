@@ -8,6 +8,7 @@ unit-tests.log, build.log, pluginval/clap-validator/auval logs. Prints Markdown 
 capped well below GitHub's comment limit. It never changes a result; it only makes the
 uploaded evidence readable from the pull-request conversation.
 """
+import json
 import pathlib
 import re
 import sys
@@ -37,6 +38,9 @@ def digest_artifact(path):
         fails = tail_matches(text, r"\[FAIL\]", after=5, cap=60)
         if fails:
             parts.append("```\n" + "\n".join(fails) + "\n```")
+        if not summary:
+            # Where the runner stopped: the last suite and test rows before the exit.
+            parts.append("unit-tests.log tail:\n```\n" + "\n".join(text.splitlines()[-20:]) + "\n```")
     else:
         parts.append("unit tests: no unit-tests.log (build failed or step skipped)")
     build = list(path.rglob("build.log"))
@@ -45,12 +49,34 @@ def digest_artifact(path):
         errs = tail_matches(text, r"(error[: ]|fatal error|FAILED:|LINK : fatal|undefined reference)", after=3, cap=60)
         if errs:
             parts.append("build errors:\n```\n" + "\n".join(errs) + "\n```")
+    for report in sorted(path.rglob("*-report-*.json")):
+        # Sanitised OS crash reports (collect_native_failure_evidence.py): exception and top frames.
+        try:
+            data = json.loads(report.read_text(errors="replace"))
+        except ValueError:
+            continue
+        images = {i.get("imageIndex"): i.get("name", "?") for i in data.get("images", []) if isinstance(i, dict)}
+        frames = [f"{images.get(f.get('imageIndex'), '?')} {f.get('symbol', hex(f.get('imageOffset', 0)))}"
+                  for f in data.get("frames", [])[:16] if isinstance(f, dict)]
+        head = " ".join(str(data.get(k, "")) for k in ("process", "type", "signal", "terminationNamespace")).strip()
+        parts.append(f"{report.name}: {head}\n```\n" + "\n".join(frames) + "\n```")
+    for log in sorted(path.rglob("*-lldb.log")):
+        # Validator crash re-run under lldb (ci_build.sh validate, macOS): the stop reason and frames.
+        lines = [l for l in log.read_text(errors="replace").splitlines() if re.search(r"stop reason|frame #", l)]
+        parts.append(f"{log.name}:\n```\n" + "\n".join(lines[:40]) + "\n```")
     for log in sorted(path.rglob("*.log")):
         name = log.name.lower()
+        if name.endswith("-lldb.log"):
+            continue
         if any(k in name for k in ("pluginval", "clap-validator", "auval")):
             text = log.read_text(errors="replace")
             keep = [l for l in text.splitlines() if re.search(r"SUCCESS|FAILED|failed|passed|skipped|Bus error|Segmentation|crash", l)]
             parts.append(f"{log.name}: " + (" | ".join(k.strip() for k in keep[-6:]) or "(no summary lines)"))
+            crash = tail_matches(text, r"pluginval received|Segmentation fault|Bus error", after=0, cap=4)
+            if crash:
+                # The validator test running when the process died.
+                lines = text.splitlines(); at = lines.index(crash[0]) if crash[0] in lines else len(lines)
+                parts.append("```\n" + "\n".join(lines[max(0, at - 8):at + 1]) + "\n```")
     return parts
 
 

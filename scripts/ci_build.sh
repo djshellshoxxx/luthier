@@ -322,7 +322,18 @@ do_validate() {
         ${wrap[@]+"${wrap[@]}"} ${native_args[@]+"${native_args[@]}"} "$pluginval" --strictness-level "$PLUGINVAL_STRICTNESS" \
             "${isolation_args[@]}" --timeout-ms 600000 \
             --output-dir "$LOG_DIR" --validate "$p" 2>&1 | tee "$LOG_DIR/pluginval-$name.log"
-        [ "${PIPESTATUS[0]}" -eq 0 ] || failed=1
+        local pluginval_rc=${PIPESTATUS[0]}
+        [ "$pluginval_rc" -eq 0 ] || failed=1
+        # Diagnostic only (the failure above stands): pluginval's own signal handler exits
+        # without an OS crash report, so a macOS validator crash is re-run once under lldb,
+        # which stops at the fault first and records the faulting backtrace. 30 min cap.
+        if [ "$pluginval_rc" -ne 0 ] && [ "$PLATFORM" = macos ] && command -v lldb >/dev/null \
+           && grep -Eq 'pluginval received|Segmentation fault|Bus error' "$LOG_DIR/pluginval-$name.log"; then
+            step "pluginval crashed on $name: re-running under lldb for a backtrace (diagnostic)"
+            perl -e 'alarm shift; exec @ARGV' 1800 lldb --batch -o run -k 'thread backtrace' -k 'thread backtrace all' -k 'kill' -- \
+                "$pluginval" --strictness-level "$PLUGINVAL_STRICTNESS" "${isolation_args[@]}" --timeout-ms 600000 \
+                --validate "$p" > "$LOG_DIR/pluginval-$name-lldb.log" 2>&1 || true
+        fi
         set -e
     done
 
