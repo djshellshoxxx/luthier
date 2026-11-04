@@ -12,6 +12,7 @@
 
 #include "../PluginProcessor.h"
 #include "../LuthierEngine.h"
+#include "../ReferencePedals/BoardModel.h"
 #include "../Support/QualityProfile.h"
 #include "../Support/QualityController.h"
 #include "../Support/PerformanceSettings.h"
@@ -32,6 +33,12 @@ namespace
 {
     constexpr double kSr = 48000.0;
     constexpr int kBlock = 256;
+
+    bool permittedQualityParameterId (const juce::String& id)
+    {
+        return id == "ref_board_cpu_cap"
+            || (! id.startsWithIgnoreCase ("quality") && ! id.containsIgnoreCase ("cpu"));
+    }
 
     const QualityLevel kLevels[3] = { QualityLevel::High, QualityLevel::Medium, QualityLevel::Low };
 
@@ -226,11 +233,12 @@ LUTHIER_TEST (CpuQuality, CQ03_theLevelIsNeverInAPreset)
         CHECK (PerformanceSettings::get().getQuality() == QualityChoice::Low);
     }
 
-    // No parameter was added: nothing named for quality, and `oversample`
+    // Global quality adds no parameter. The separately specified board admission
+    // cap is the single exact exception; `oversample`
     // keeps its id, choices and default.
     for (auto* param : p.getParameters())
         if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (param))
-            CHECK_MSG (! withId->paramID.startsWithIgnoreCase ("quality") && ! withId->paramID.containsIgnoreCase ("cpu"),
+            CHECK_MSG (permittedQualityParameterId (withId->paramID),
                        "unexpected parameter " + withId->paramID);   // (cable_quality is the cable's, not this)
 
     auto* os = dynamic_cast<juce::AudioParameterChoice*> (p.getState().getParameter (ParamIDs::oversample));
@@ -241,6 +249,59 @@ LUTHIER_TEST (CpuQuality, CQ03_theLevelIsNeverInAPreset)
         CHECK (os->choices.size() == 4);
         CHECK (juce::roundToInt (os->convertFrom0to1 (static_cast<juce::AudioProcessorParameter*> (os)->getDefaultValue())) == 2);   // 4x
     }
+}
+
+LUTHIER_TEST (CpuQuality, CQ03_onlyTheRequiredBoardAdmissionIdIsExempt)
+{
+    CHECK (permittedQualityParameterId ("ref_board_cpu_cap"));
+    CHECK (permittedQualityParameterId (ParamIDs::oversample));
+    CHECK (permittedQualityParameterId ("cable_quality"));
+    for (const auto* id : { "cpu", "cpu_quality", "quality", "qualityLevel",
+                           "ref_cpu_quality", "ref_board_cpu_quality", "ref_board_cpu_cap_extra",
+                           "ref_board_cpu_cap2", "REF_BOARD_CPU_CAP" })
+        CHECK_MSG (! permittedQualityParameterId (id), juce::String ("quality preference admitted: ") + id);
+}
+
+// Owner-approved reconciliation: BOARD_CORE section 13 mandates this admission
+// parameter. It does not select or persist the machine's global quality level.
+LUTHIER_TEST (CpuQuality, CQ03_boardAdmissionCapIsDistinctFromGlobalQuality)
+{
+    QualityTestSupport::ScopedTempSettings temp;
+    PerformanceSettings::get().setQuality (QualityChoice::Low);
+    LuthierAudioProcessor p;
+    p.prepareToPlay (kSr, kBlock);
+    auto* cap = dynamic_cast<juce::AudioParameterInt*> (p.getState().getParameter ("ref_board_cpu_cap"));
+    CHECK (cap != nullptr);
+    if (! cap) return;
+    CHECK (cap->convertFrom0to1 (0.f) == 1 && cap->convertFrom0to1 (1.f) == 100);
+    CHECK_NEAR (cap->convertFrom0to1 (static_cast<juce::AudioProcessorParameter*> (cap)->getDefaultValue()), 30.f, 0.f);
+    int matches = 0;
+    for (auto* parameter : p.getParameters())
+        if (auto* identified = dynamic_cast<juce::AudioProcessorParameterWithID*> (parameter))
+            if (identified->paramID == "ref_board_cpu_cap") ++matches;
+    CHECK (matches == 1);
+    const auto index = cap->getParameterIndex();
+    CHECK (index > 0 && index + 1 < p.getParameters().size());
+    if (index > 0 && index + 1 < p.getParameters().size())
+    {
+        CHECK (dynamic_cast<juce::AudioProcessorParameterWithID*> (p.getParameters()[index - 1])->paramID == "ref_board_reamp_gain");
+        CHECK (dynamic_cast<juce::AudioProcessorParameterWithID*> (p.getParameters()[index + 1])->paramID == "ref_board_midi_chan");
+    }
+    for (const int percent : { 1, 100, 30 })
+    {
+        cap->setValueNotifyingHost (cap->convertTo0to1 (static_cast<float> (percent)));
+        juce::MemoryBlock state;
+        p.getStateInformation (state); // public message-thread host-intent service
+        CHECK (p.getEngine().getReferencePedals().model().getBoardSettings().cpuCapPct == percent);
+        CHECK (PerformanceSettings::get().getQuality() == QualityChoice::Low);
+        CHECK (p.getQualityController().getLiveLevel() == QualityLevel::Low);
+        const auto preset = juce::JSON::toString (p.getPresetManager().toVar ("board admission"));
+        CHECK (! preset.contains ("\"quality\""));
+        CHECK (! preset.contains ("qualityOverride"));
+        CHECK (! preset.contains ("offline_at_high"));
+        CHECK (! preset.contains ("auto_last_level"));
+    }
+    p.releaseResources();
 }
 
 //==============================================================================

@@ -1,6 +1,7 @@
 #include "CommandPalette.h"
 #include "SearchCatalog.h"
 #include "LiveControls.h"
+#include "../ReferencePedals/ReferenceSearch.h"
 
 #include "../Theme.h"
 #include "../Widgets.h"
@@ -57,7 +58,22 @@ class CommandPalette::RowComponent : public juce::Component
 public:
     explicit RowComponent (CommandPalette& p) : owner (p) {}
 
-    void update (int newRow) { row = newRow; repaint(); }
+    ~RowComponent() override { endDrag(); }
+
+    void update (int newRow) { if(newRow != row)endDrag();row = newRow; repaint(); }
+
+    bool referenceUnavailable(const SearchItem& item)
+    {
+        const auto target=reference::resolveSearchTarget(owner.navigator.getProcessor().getEngine().getReferencePedals().model(),item.target);
+        if(!target.recognized||target.available)return false;
+        owner.setFooter(target.reason,true);return true;
+    }
+
+    void endDrag()
+    {
+        if(auto* parameter=dragParameter){dragParameter=nullptr;parameter->endChangeGesture();}
+        dragging=false;
+    }
 
     void paint (juce::Graphics& g) override
     {
@@ -90,11 +106,15 @@ public:
         }
 
         const auto& r = owner.rows[(size_t) row];
+        endDrag();
+        if(r.item&&referenceUnavailable(*r.item))return;
         dragging = isParameterRow (r) && sliderArea().expanded (2, 6).contains (e.getPosition());
 
         if (dragging)
             if (auto* p = owner.navigator.getProcessor().getState().getParameter (r.item->target))
             {
+                dragParameter=p;dragId=r.item->target;
+                dragGeneration=reference::searchModelGeneration(owner.navigator.getProcessor().getEngine().getReferencePedals().model());
                 p->beginChangeGesture();
                 mouseDrag (e);
             }
@@ -105,9 +125,12 @@ public:
         if (! dragging)
             return;
 
+        if(!juce::isPositiveAndBelow(row,(int)owner.rows.size())){endDrag();return;}
         const auto& r = owner.rows[(size_t) row];
-
-        if (auto* p = owner.navigator.getProcessor().getState().getParameter (r.item->target))
+        if(!r.item||r.item->target!=dragId||referenceUnavailable(*r.item)
+            ||(dragId.startsWith("ref_")&&dragGeneration!=reference::searchModelGeneration(owner.navigator.getProcessor().getEngine().getReferencePedals().model())))
+        {endDrag();return;}
+        if (auto* p = dragParameter)
         {
             const auto area = sliderArea();
             const float v = juce::jlimit (0.0f, 1.0f, (float) (e.x - area.getX()) / (float) juce::jmax (1, area.getWidth()));
@@ -120,15 +143,8 @@ public:
     {
         if (dragging)
         {
-            dragging = false;
-            const auto& r = owner.rows[(size_t) row];
-
-            if (auto* p = owner.navigator.getProcessor().getState().getParameter (r.item->target))
-            {
-                p->endChangeGesture();
-                owner.announce (InlineValue::displayText (*p, p->getValue()));
-            }
-
+            auto* p=dragParameter;endDrag();
+            if(p)owner.announce(InlineValue::displayText(*p,p->getValue()));
             return;
         }
 
@@ -141,6 +157,9 @@ private:
     CommandPalette& owner;
     int row = -1;
     bool dragging = false;
+    juce::RangedAudioParameter* dragParameter=nullptr; // Processor/APVTS outlives the palette.
+    juce::String dragId;
+    juce::uint32 dragGeneration=0;
 };
 
 //==============================================================================
@@ -768,7 +787,7 @@ void CommandPalette::paintRow (juce::Graphics& g, int row, int width, int height
     }
 
     // The inline slider on a parameter row (4.4: 44 x 8 px).
-    if (isParameterRow (r) && isSelectedRow && ! locked)
+    if (isParameterRow (r) && isSelectedRow && ! locked && r.availability != Availability::unavailable)
         if (auto* p = navigator.getProcessor().getState().getParameter (item.target))
         {
             auto slider = rtl ? bounds.removeFromLeft (scaled (50)) : bounds.removeFromRight (scaled (50));
@@ -1134,6 +1153,8 @@ juce::PopupMenu CommandPalette::buildSecondaryMenu (int row)
         return menu;
 
     const auto& r = rows[(size_t) row];
+    const auto target=reference::resolveSearchTarget(navigator.getProcessor().getEngine().getReferencePedals().model(),r.item->target);
+    if(target.recognized&&!target.available){menu.addItem(1,target.reason,false);return menu;}
 
     // 5: a parameter row is exactly the control's own right-click menu.
     if (r.item->kind == ItemKind::parameter)
@@ -1164,6 +1185,8 @@ void CommandPalette::runSecondary (int row, int result)
         return;
 
     const auto* item = rows[(size_t) row].item;
+    const auto target=reference::resolveSearchTarget(navigator.getProcessor().getEngine().getReferencePedals().model(),item->target);
+    if(target.recognized&&!target.available){setFooter(target.reason,true);return;}
 
     if (item->kind == ItemKind::parameter)
     {

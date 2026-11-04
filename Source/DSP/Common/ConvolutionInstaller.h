@@ -26,6 +26,18 @@
 
 namespace luthier::ConvolutionInstaller
 {
+    // Keep convolution's internal capacity above the reported 1-4-sample
+    // heap-corruption boundary when the host declares a tiny maximum block.
+    // The fix hypothesis is that this avoids a too-small internal FFT/work
+    // buffer during impulse swaps; the host callback size is never padded or
+    // changed. The active robustness regression verifies the behavior.
+    inline constexpr int kMinimumPreparedBlockSize = 8;
+
+    inline int preparedBlockSize (int hostBlockSize) noexcept
+    {
+        return juce::jmax (kMinimumPreparedBlockSize, hostBlockSize);
+    }
+
     /*  How long a caller waits for JUCE's background loader. Its thread can be
         starved on a loaded machine (an offline bounce next to a build, a CI
         runner); a deadline that passes leaves the response out - the analytic

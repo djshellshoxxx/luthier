@@ -1,0 +1,22 @@
+
+================================================================
+ LUTHIER TEST SUITE
+================================================================
+
+
+ReleaseCapProbe
+----------------------------------------------------------------
+completed rate=44100
+completed rate=48000
+completed rate=88200
+completed rate=96000
+completed rate=192000
+  [FAIL]  unchangedReleaseCriterion                   1000 checks   44894.3 ms
+    original35dB: rate=44100 type=P-Style Bass drop=34.45237775
+    original35dB: rate=48000 type=P-Style Bass drop=34.73899515
+  [pass]  heldOpenAndLetRingIdentity                  280 checks    1450.04 ms
+
+================================================================
+ FAILED
+ 1 of 2 tests failed (2 of 1280 checks), 46.3 s
+================================================================

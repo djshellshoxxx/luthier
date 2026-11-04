@@ -478,11 +478,13 @@ LUTHIER_TEST (ModelGapsUi, characterSeedAndEnvironmentGoOutAsTheyChange)
     {
         juce::Array<LuthierEvent> found;
         juce::AudioBuffer<float> audio (juce::jmax (processor.getTotalNumOutputChannels(), 2), kBlock);
+        juce::MidiBuffer midi;
+        processor.reserveMidiOutputBuffer (midi);
 
         for (int b = 0; b < blocks; ++b)
         {
             audio.clear();
-            juce::MidiBuffer midi;
+            midi.clear();
             processor.processBlock (audio, midi);
 
             for (const auto metadata : midi)

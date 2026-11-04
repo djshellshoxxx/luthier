@@ -1583,6 +1583,8 @@ LUTHIER_TEST (Combo, releasedStringIsDampedQuickly)
         rig.setNormalised (ParamIDs::couplingAmount, 0.0f);
         rig.setNormalised (ParamIDs::couplingAirAmount, 0.0f);    // string-interaction 1: the air path is sympathetic too
         rig.setNormalised (ParamIDs::bodyCouplingAmount, 0.0f);   // body-coupling 3: the body rings the other strings back
+        // Isolate SUS-08 from resonator body tails without relaxing its limit.
+        rig.setIndex (ParamIDs::bodyMode, 3);
         rig.setIndex (ParamIDs::roomOn, 0);
         rig.apply();
         rig.processSilence (4);

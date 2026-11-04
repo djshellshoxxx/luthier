@@ -48,6 +48,8 @@ namespace
         std::vector<float> left;
         std::vector<std::vector<float>> buses;   ///< first channel of every output bus
         std::vector<std::pair<int64_t, juce::MidiMessage>> midiOut;
+        juce::MidiBuffer hostMidi;          // one buffer with declared capacity, like a real host's
+        bool hostMidiReserved = false;
         std::vector<std::pair<int64_t, juce::MidiMessage>> notes;
         std::function<void (Plugin&)> beforeBlock;
         bool keepBuses = false;
@@ -98,7 +100,15 @@ namespace
                     beforeBlock (*this);
 
                 buffer.clear();
-                juce::MidiBuffer midi;
+
+                if (! hostMidiReserved)
+                {
+                    p->reserveMidiOutputBuffer (hostMidi);
+                    hostMidiReserved = true;
+                }
+
+                hostMidi.clear();
+                auto& midi = hostMidi;
 
                 for (const auto& n : notes)
                     if (n.first >= position && n.first < position + kBlock)

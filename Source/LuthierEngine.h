@@ -36,6 +36,7 @@
 #include "DSP/Feedback/EBowDriver.h"
 #include "Model/Workshop/PartAcoustics.h"
 #include "DSP/Effects/EffectsChain.h"
+#include "ReferencePedals/Board.h"
 #include "DSP/Effects/Saturation.h"
 #include "DSP/Effects/SecretEffect.h"
 #include "DSP/Amp/AmpEngine.h"
@@ -350,6 +351,7 @@ public:
         visualiser, which draws the network the audio is going through. */
     CircuitComponents getLiveCircuitComponents() const noexcept;
     EffectsChain&    getPreEffects() noexcept      { return preEffects; }
+    reference::Board& getReferencePedals() noexcept { return referencePedals; }
     AmpEngine&       getAmpEngine() noexcept       { return amp; }
     EffectsChain&    getPostEffects() noexcept     { return postEffects; }
     CabinetEngine&   getCabinetEngine() noexcept   { return cabinet; }
@@ -450,6 +452,11 @@ public:
 
     void setTempoBpm (double bpm) noexcept;
     double getTempoBpm() const noexcept { return tempoBpm; }   // SPEC-SWEEP: LP-25 (tests)
+
+    // WP23: validated position already read once by the processor's HostClock.
+    const juce::MidiBuffer& getReferenceMidiOut() const noexcept { return referenceMidiOut; }
+    void setReferencePedalAuxOutputs (const reference::BoardAuxOutputs& outputs) noexcept { referenceAuxOutputs = outputs; }
+    void setReferencePedalTransport (const reference::HostTransport& t) noexcept { referenceTransport = t; }
 
     /** Host transport position, for the rhythm engine's grid. */
     void setTransportPosition (double ppqPosition, bool isPlaying) noexcept
@@ -892,6 +899,10 @@ private:
     // --- signal chain ---------------------------------------------------------
     GuitarCircuit circuit;
     CircuitComponents circuitControls;
+    reference::HostTransport referenceTransport;
+    reference::BoardAuxOutputs referenceAuxOutputs;
+    juce::MidiBuffer referenceMidiOut;
+    reference::Board referencePedals;  // separate experimental rack, default off
     EffectsChain preEffects;
     AmpEngine amp;
     EffectsChain postEffects;

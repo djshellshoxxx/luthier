@@ -1,0 +1,35 @@
+FR sr44100 fc330.000000000 notch_residual 2.21314001e-11 3.79057448e-12 max_db_error 6.82167179e-10 complex_error 1.5072935e-10 stereo_difference 0 latency0
+FR sr44100 fc1043.551627856 notch_residual 6.90460812e-12 1.19306919e-12 max_db_error 2.0452807e-10 complex_error 1.48738774e-10 stereo_difference 0 latency0
+FR sr44100 fc3300.000000000 notch_residual 2.14380972e-12 4.84743538e-13 max_db_error 6.27005719e-11 complex_error 1.4811864e-10 stereo_difference 0 latency0
+FR sr48000 fc330.000000000 notch_residual 2.21240699e-11 3.78474925e-12 max_db_error 6.88501846e-10 complex_error 1.50752022e-10 stereo_difference 0 latency0
+FR sr48000 fc1043.551627856 notch_residual 6.90325477e-12 1.19071518e-12 max_db_error 2.04695863e-10 complex_error 1.48736794e-10 stereo_difference 0 latency0
+FR sr48000 fc3300.000000000 notch_residual 2.13799701e-12 4.79218606e-13 max_db_error 6.2017828e-11 complex_error 1.48115987e-10 stereo_difference 0 latency0
+FR sr88200 fc330.000000000 notch_residual 2.2115703e-11 3.77127542e-12 max_db_error 6.72294394e-10 complex_error 1.50786238e-10 stereo_difference 0 latency0
+FR sr88200 fc1043.551627856 notch_residual 6.89956507e-12 1.18026427e-12 max_db_error 2.04508783e-10 complex_error 1.4872243e-10 stereo_difference 0 latency0
+FR sr88200 fc3300.000000000 notch_residual 2.09507433e-12 4.86714047e-13 max_db_error 5.82029486e-11 complex_error 1.48105479e-10 stereo_difference 0 latency0
+FR sr96000 fc330.000000000 notch_residual 2.21343607e-11 3.79086419e-12 max_db_error 6.81256853e-10 complex_error 1.50782508e-10 stereo_difference 0 latency0
+FR sr96000 fc1043.551627856 notch_residual 6.90109448e-12 1.1798091e-12 max_db_error 2.03777823e-10 complex_error 1.48729026e-10 stereo_difference 0 latency0
+FR sr96000 fc3300.000000000 notch_residual 2.08960861e-12 4.94247732e-13 max_db_error 5.79290796e-11 complex_error 1.48108114e-10 stereo_difference 0 latency0
+FR sr192000 fc330.000000000 notch_residual 2.21041463e-11 3.77178873e-12 max_db_error 7.15567625e-10 complex_error 1.50402372e-10 stereo_difference 0 latency0
+FR sr192000 fc1043.551627856 notch_residual 6.8975275e-12 1.1744056e-12 max_db_error 2.06595588e-10 complex_error 1.48708086e-10 stereo_difference 0 latency0
+FR sr192000 fc3300.000000000 notch_residual 2.03734304e-12 7.06025542e-13 max_db_error 5.08528446e-11 complex_error 1.48115064e-10 stereo_difference 0 latency0
+THD sr44100 dbv-20 peak0.069117914080 percent0.000888972
+THD sr44100 dbv-6 peak0.346410161520 percent0.022025786
+THD sr48000 dbv-20 peak0.069117914080 percent0.000916283
+THD sr48000 dbv-6 peak0.346410161520 percent0.022702444
+THD sr88200 dbv-20 peak0.069117914080 percent0.001055682
+THD sr88200 dbv-6 peak0.346410161520 percent0.026156219
+THD sr96000 dbv-20 peak0.069117914080 percent0.001069015
+THD sr96000 dbv-6 peak0.346410161520 percent0.026486550
+THD sr192000 dbv-20 peak0.069117914080 percent0.001143453
+THD sr192000 dbv-6 peak0.346410161520 percent0.028330842
+CPU trial0 stereo_phase0 0.356024250% checksum0.0102810213206
+CPU trial0 stereo_phase180 0.377559520% checksum0.0664081828056
+CPU trial1 stereo_phase0 0.332379330% checksum0.0102810213206
+CPU trial1 stereo_phase180 0.390465350% checksum0.0664081828056
+CPU trial2 stereo_phase0 0.334276870% checksum0.0102810213206
+CPU trial2 stereo_phase180 0.378758610% checksum0.0664081828056
+CPU trial3 stereo_phase0 0.338632000% checksum0.0102810213206
+CPU trial3 stereo_phase180 0.381153700% checksum0.0664081828056
+CPU trial4 stereo_phase0 0.337859040% checksum0.0102810213206
+CPU trial4 stereo_phase180 0.382618800% checksum0.0664081828056

@@ -415,13 +415,16 @@ void PreviewRenderer::applyEndFade (juce::AudioBuffer<float>& clip, double sampl
     }
 }
 
-juce::MemoryBlock PreviewRenderer::encodeOgg (const juce::AudioBuffer<float>& clip, double sampleRate, juce::uint32 serial)
+juce::MemoryBlock PreviewRenderer::encodeOgg (const juce::AudioBuffer<float>& clip, double sampleRate,
+                                               juce::uint32 serial, int preferredQuality)
 {
     juce::OggVorbisAudioFormat format;
     juce::MemoryBlock best;
 
-    // q0.5 first (3.2 step 8); lower qualities only if 64 KB is exceeded.
-    for (int quality = 5; quality >= 0; --quality)
+    // q0.5 by default; callers can request a higher quality when the lossy
+    // decode misses the shipped-preview loudness tolerance. Lower qualities
+    // are used only when needed to keep the clip within 64 KB.
+    for (int quality = juce::jlimit (0, 10, preferredQuality); quality >= 0; --quality)
     {
         juce::MemoryBlock block;
 
@@ -730,6 +733,28 @@ PreviewResult PreviewRenderer::renderLoaded (const juce::File& file, const std::
         serial = (serial << 4) | (juce::uint32) juce::CharacterFunctions::getHexDigitValue (result.soundHash[i]);
 
     result.ogg = encodeOgg (result.clip, kSampleRate, serial);
+
+    // A low-level, peak-bound clip can lose enough energy to Vorbis masking at
+    // q0.5 that its decoded integrated loudness misses PB-02's 0.5 LU limit.
+    // Try one quality step higher only for those clips, and keep it only when
+    // it still fits the per-clip byte cap and meets the unchanged tolerance.
+    const double sourceLoudness = ToneFeatures::integratedLoudness (result.clip, kSampleRate);
+    juce::AudioBuffer<float> decoded;
+    double decodedRate = 0.0;
+
+    if (decodeOgg (result.ogg.getData(), result.ogg.getSize(), decoded, decodedRate)
+        && std::abs (ToneFeatures::integratedLoudness (decoded, decodedRate) - sourceLoudness) > 0.5)
+    {
+        const auto higherQuality = encodeOgg (result.clip, kSampleRate, serial, 6);
+        juce::AudioBuffer<float> higherDecoded;
+        double higherRate = 0.0;
+
+        if (! higherQuality.isEmpty() && higherQuality.getSize() <= (size_t) kMaxOggBytes
+            && higherQuality != result.ogg
+            && decodeOgg (higherQuality.getData(), higherQuality.getSize(), higherDecoded, higherRate)
+            && std::abs (ToneFeatures::integratedLoudness (higherDecoded, higherRate) - sourceLoudness) <= 0.5)
+            result.ogg = higherQuality;
+    }
     result.peaks = computePeaks (result.clip);
     result.renderMs = juce::Time::getMillisecondCounterHiRes() - startMs;
 

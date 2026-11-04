@@ -113,7 +113,11 @@ function Step-Build {
     Write-Step "Building $($targets -join ' ') with $Jobs jobs"
     # -k 0: keep going after a failed compile so one CI run surfaces every
     # compiler error, not just the first. A successful build is unaffected.
-    Invoke-Checked 'Build' { cmake --build $BuildDir --config $Config --parallel $Jobs --target @targets -- -k 0 }
+    # Keep a copy of the compiler output in the uploaded logs (build.log), like
+    # ci_build.sh does, so native build errors are readable after the run.
+    New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
+    $buildLog = Join-Path $LogDir 'build.log'
+    Invoke-Checked 'Build' { cmake --build $BuildDir --config $Config --parallel $Jobs --target @targets -- -k 0 2>&1 | Tee-Object -FilePath $buildLog }
 }
 
 function Step-Test {
@@ -130,7 +134,7 @@ function Step-Test {
         # tail of a truncated CI log viewer (the per-test rows print far above).
         Write-Output '===== UNIT TEST FAILURE RECAP ====='
         if (Test-Path $testLog) {
-            Select-String -Path $testLog -Pattern '\[FAIL\]', '^\s*line [0-9]+:', '[0-9]+ of [0-9]+ tests failed' |
+            Select-String -Path $testLog -Pattern '\[FAIL\]', '^\s*line [0-9]+:', '^\s*context:', '[0-9]+ of [0-9]+ tests failed' |
                 ForEach-Object { $_.Line }
         }
         Write-Output '===== END FAILURE RECAP ====='

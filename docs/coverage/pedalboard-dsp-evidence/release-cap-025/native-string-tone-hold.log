@@ -1,0 +1,34 @@
+
+================================================================
+ LUTHIER TEST SUITE
+================================================================
+
+
+EBow
+----------------------------------------------------------------
+  [pass]  heldStringsLetGoOnReleaseChosenStringsDoNot 3 checks      1635.2 ms
+
+StringEngine
+----------------------------------------------------------------
+  [pass]  pluckProducesCorrectPitch                   14 checks     24.84 ms
+  [pass]  higherNotesDecayFaster                      2 checks      27.33 ms
+  [pass]  harderPluckIsBrighterNotJustLouder          1 checks      3.746 ms
+  [pass]  palmMuteShortensAndDarkens                  1 checks      43.171 ms
+  [pass]  bendIsSmoothAndReachesTarget                3 checks      9.661 ms
+  [pass]  dispersionStretchesPartialsSharp            2 checks      8.82 ms
+  [pass]  survivesExtremeParameters                   2 checks      9.129 ms
+  [pass]  legatoDoesNotRetriggerTheAttack             1 checks      3.161 ms
+
+Sustain
+----------------------------------------------------------------
+  [pass]  releaseFadesOutAndStops                     2 checks      3.925 ms
+
+StringEngine
+----------------------------------------------------------------
+  [pass]  aRepluckMutesTheRingingStringOverFiveMs     3 checks      1.141 ms
+  [pass]  fingerVibratoIsAsymmetricAndRampsIn         5 checks      556.23 ms
+
+================================================================
+ ALL PASSED
+ 12 tests, 39 checks, 2.3 s
+================================================================

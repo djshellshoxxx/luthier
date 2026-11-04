@@ -53,8 +53,20 @@ void RoomEngine::prepare (double sampleRate, int maxBlockSize)
     roomTapValid = false;
     roomTapSamples = 0;
 
-    // Longest early reflection we support: a cathedral's far wall.
-    erSize = juce::nextPowerOfTwo ((int) (sr * 0.5) + 16);
+    // Size for the latest tap of the largest, most diffuse room. A half-second
+    // ring buffer clamps Cathedral's later reflections together and changes its
+    // apparent geometry.
+    double longestReflectionSeconds = 0.0;
+    for (const auto& room : kRooms)
+    {
+        const double baseDelay = room.dimensionM / 343.0;
+        for (int i = 0; i < kNumTaps; ++i)
+        {
+            const double spread = 0.35 + (double) i * (0.55 + room.diffusion * 0.9);
+            longestReflectionSeconds = juce::jmax (longestReflectionSeconds, baseDelay * spread * 1.15);
+        }
+    }
+    erSize = juce::nextPowerOfTwo ((int) std::ceil (sr * longestReflectionSeconds) + 16);
     erMask = erSize - 1;
     erBuffer.assign ((size_t) erSize, 0.0);
     erIndex = 0;

@@ -1619,6 +1619,92 @@ LUTHIER_TEST (Normalization, ON25_NoRecursion)
     CHECK (offline->getOutputNormalization().getCalibrator() == nullptr);
 }
 
+LUTHIER_TEST (Normalization, ON03_ExplicitCalibrationTransactionIgnoresLoadDelay)
+{
+    for (const auto& combo : std::vector<Combo> { { 68, 21 }, { 30, 5 } })
+    {
+        auto fast = makeProcessor();
+        CHECK (loadCombo (*fast, combo.preset, combo.guitarType));
+        fast->getOutputNormalization().refreshStructuralSnapshot();
+        const auto fastState = fast->getOutputNormalization().captureSoundState();
+        const auto fastKey = NormalizationCalibrator::canonicalSoundState (fastState, *fast);
+
+        auto delayed = makeProcessor();
+        ParameterBridge::ScopedHostWriteTransaction transaction (delayed->getParameterBridge());
+        CHECK (loadCombo (*delayed, combo.preset, -1));
+        juce::Thread::sleep (350);
+        // Match loadCombo's explicit player-selection gesture. A plain
+        // setValueNotifyingHost is a host restore with different precedence.
+        auto* guitarParam = delayed->getState().getParameter (ParamIDs::guitarType);
+        CHECK (guitarParam != nullptr);
+        if (guitarParam == nullptr)
+            continue;
+        guitarParam->beginChangeGesture();
+        guitarParam->setValueNotifyingHost (guitarParam->convertTo0to1 ((float) combo.guitarType));
+        guitarParam->endChangeGesture();
+        delayed->getParameterBridge().applyAllNow();
+        delayed->getOutputNormalization().refreshStructuralSnapshot();
+        const auto delayedState = delayed->getOutputNormalization().captureSoundState();
+        const auto delayedKey = NormalizationCalibrator::canonicalSoundState (delayedState, *delayed);
+
+        CHECK_MSG (fastKey == delayedKey, combo.key() + " calibration state depends on time before guitar switch");
+    }
+}
+
+LUTHIER_TEST (Normalization, ON26_HostWriteTransactionScopesWrites)
+{
+    auto p = makeProcessor();
+    auto& bridge = p->getParameterBridge();
+    CHECK (setPlain (*p, ParamIDs::ampGain, 0.2f));
+
+    {
+        ParameterBridge::ScopedHostWriteTransaction outer (bridge);
+        CHECK (! bridge.writtenSinceGuitarType (ParamIDs::ampGain));
+        CHECK (setPlain (*p, ParamIDs::ampGain, 0.3f));
+        CHECK (bridge.writtenSinceGuitarType (ParamIDs::ampGain));
+
+        {
+            ParameterBridge::ScopedHostWriteTransaction inner (bridge);
+            CHECK (bridge.writtenSinceGuitarType (ParamIDs::ampGain));
+            bridge.setStampingWrites (false);
+            CHECK (setPlain (*p, ParamIDs::ampBass, 0.4f));
+            bridge.setStampingWrites (true);
+            CHECK (! bridge.writtenSinceGuitarType (ParamIDs::ampBass));
+        }
+
+        CHECK (bridge.writtenSinceGuitarType (ParamIDs::ampGain));
+    }
+
+    ParameterBridge::ScopedHostWriteTransaction next (bridge);
+    CHECK (! bridge.writtenSinceGuitarType (ParamIDs::ampGain));
+}
+
+// A deliberate player guitar selection must discard the prior preset's
+// structural overrides, even when both changes occur inside one host load scope.
+LUTHIER_TEST (Normalization, ON26_PlayerGuitarSelectionWinsInsideTransaction)
+{
+    auto p = makeProcessor();
+    auto& bridge = p->getParameterBridge();
+    ParameterBridge::ScopedHostWriteTransaction transaction (bridge);
+
+    CHECK (setPlain (*p, ParamIDs::ampGain, 0.31f));
+    CHECK (bridge.writtenSinceGuitarType (ParamIDs::ampGain));
+
+    auto* type = p->getState().getParameter (ParamIDs::guitarType);
+    CHECK (type != nullptr);
+    if (type == nullptr)
+        return;
+    type->beginChangeGesture();
+    type->setValueNotifyingHost (type->convertTo0to1 ((float) GuitarType::JazzBass));
+    type->endChangeGesture();
+
+    // The amplifier gain preceded the explicit player choice; it cannot
+    // override the selected instrument's own defaults.
+    CHECK (! bridge.writtenSinceGuitarType (ParamIDs::ampGain));
+    CHECK (setPlain (*p, ParamIDs::ampBass, 0.37f));
+    CHECK (bridge.writtenSinceGuitarType (ParamIDs::ampBass));
+}
+
 LUTHIER_TEST (Normalization, ON26_RolesAndHash)
 {
     auto p = makeProcessor();
@@ -1688,14 +1774,20 @@ LUTHIER_TEST (Normalization, ON26_RolesAndHash)
 
 LUTHIER_TEST (Normalization, ON27_Cache)
 {
-    // Every factory preset on its own guitar is a factory-table hit (the real
-    // table in Resources).
+    // The shipped Pro factory table only describes Pro DSP. Free must not
+    // borrow its calibration measurements when a gated guitar/amp is replaced.
     {
         NormalizationCalibrator::setFactoryTableFileForTesting ({});
         NormalizationCalibrator::reloadFactoryTable();
+        if constexpr (! luthier::edition::isPro)
+        {
+            CHECK_MSG (NormalizationCalibrator::getNumFactoryEntries() == 0,
+                       "Free reused the Pro-only factory normalization table");
+        }
         int hits = 0;
         int byName = 0;
 
+        if constexpr (luthier::edition::isPro)
         for (int i = 0; i < numFactoryPresets(); ++i)
         {
             auto p = makeProcessor();
@@ -1981,7 +2073,20 @@ LUTHIER_TEST (Normalization, ON32_EditionIsPartOfTheHash)
 
     NormalizationCalibrator::setFactoryTableFileForTesting ({});
     const auto json = juce::JSON::parse (NormalizationCalibrator::getFactoryTableFile());
-    CHECK (json.getProperty ("edition", {}).toString() == NormalizationCalibrator::getEditionName());
+    const auto shippedEdition = json.getProperty ("edition", {}).toString();
+    // Factory data belongs to Pro ("standard"). Free gets a distinct key
+    // and calibrates its actual substituted sound instead of reusing Pro LUFS.
+    CHECK (NormalizationCalibrator::getEditionName() ==
+           (luthier::edition::isPro ? "standard" : "free"));
+    CHECK (shippedEdition == "standard");
+    if constexpr (luthier::edition::isPro)
+        CHECK (shippedEdition == NormalizationCalibrator::getEditionName());
+    else
+    {
+        CHECK (shippedEdition != NormalizationCalibrator::getEditionName());
+        NormalizationCalibrator::reloadFactoryTable();
+        CHECK (NormalizationCalibrator::getNumFactoryEntries() == 0);
+    }
     CHECK ((int) json.getProperty ("revision", 0) == NormalizationCalibrator::kCalibrationRevision);
 }
 

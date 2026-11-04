@@ -1042,10 +1042,15 @@ void StringEngine::updateLoopCoefficients() noexcept
         sustain: the pad's own damping dominates. As a fraction alone (0.13 x a
         4.5-7 s open T60) a released note took 0.6-0.9 s to die, 21-28 dB down
         at 250 ms where sustain-and-decay SUS-08 has more than 40 (B-03). So the
-        released T60 is capped at 0.3 s (50 dB in 250 ms), geometric in the
-        damping amount so a release ramp (SUS 5.1) still eases in. */
+        original 0.3 s cap supplied only 50 dB in 250 ms; the default amp's
+        compression and cabinet tail left a released bass below the separate
+        35 dB whole-output requirement. Use a universal 0.25 s cap: one full
+        60 dB decay in that interval, within the 0.2-0.4 s fingertip-damping
+        estimate. This is a stronger release target, not a hardware constant.
+        Geometric interpolation preserves the release ramp (SUS 5.1); open and
+        held notes, tuning and the other damping modes are unchanged. */
     if (damping == Damping::Released)
-        t60 = juce::jmin (t60, std::exp (juce::jmap (dampingAmount, std::log (juce::jmax (0.01, t60)), std::log (0.3))));
+        t60 = juce::jmin (t60, std::exp (juce::jmap (dampingAmount, std::log (juce::jmax (0.01, t60)), std::log (0.25))));
 
     t60 = juce::jlimit (0.01, 60.0, t60);
 

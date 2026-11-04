@@ -1,0 +1,15 @@
+{
+  "source": "280e182a8f033457f3d84384b9917a024b1d1ed9",
+  "input": "/workspace/luthier-evidence/release-survey-b5/original-stage-data/r48000-t19.f32",
+  "inputSha256": "c625b9ba0094f450bbe85c84c14632e3288f96f3d90e4f0be0dccbbbd7efdcd7",
+  "inputLayout": [
+    "raw",
+    "di",
+    "amp",
+    "mic",
+    "final"
+  ],
+  "inputRate": 48000,
+  "inputFrames": 43200,
+  "sourceAmpUnchangedFromB5": true
+}

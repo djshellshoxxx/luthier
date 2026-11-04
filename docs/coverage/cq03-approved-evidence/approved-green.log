@@ -1,0 +1,17 @@
+
+================================================================
+ LUTHIER TEST SUITE
+================================================================
+
+
+CpuQuality
+----------------------------------------------------------------
+  [pass]  CQ03_theLevelIsNeverInAPreset               1177 checks   618.815 ms
+  [pass]  CQ03_onlyTheRequiredBoardAdmissionIdIsExempt12 checks     0.006 ms
+  [pass]  CQ03_boardAdmissionCapIsDistinctFromGlobalQuality28 checks     369.056 ms
+
+================================================================
+ ALL PASSED
+ 3 tests, 1217 checks, 1.0 s
+================================================================
+

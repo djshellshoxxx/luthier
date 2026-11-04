@@ -1,0 +1,17 @@
+
+================================================================
+ LUTHIER TEST SUITE
+================================================================
+
+
+CabinetAssetKeys
+----------------------------------------------------------------
+  [pass]  resourceKeysDoNotDependOnDisplayLabels      577 checks    0.381 ms
+  [pass]  shippedCatalogResolvesExactSpeakerAndMic    1009 checks   5.839 ms
+  [pass]  unsupportedCatalogChoicesHaveStableFallback 5 checks      1.553 ms
+  [pass]  invalidEnumsKeepExistingFallbackSemantics   2 checks      0.001 ms
+
+================================================================
+ ALL PASSED
+ 4 tests, 1593 checks, 0.0 s
+================================================================

@@ -46,10 +46,12 @@ namespace
         juce::AudioBuffer<float> buffer (juce::jmax (2, processor.getTotalNumInputChannels(),
                                                      processor.getTotalNumOutputChannels()), kBlock);
         int noteOns = 0;
+        juce::MidiBuffer midi;
+        processor.reserveMidiOutputBuffer (midi);
 
         for (int block = 0; block < 200; ++block)
         {
-            juce::MidiBuffer midi;
+            midi.clear();
 
             if (block == 0)
                 for (int note : { 40, 47, 52, 56, 59, 64 })

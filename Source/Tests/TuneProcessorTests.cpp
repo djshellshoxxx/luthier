@@ -62,6 +62,8 @@ namespace
         Played played;
         juce::AudioBuffer<float> buffer (juce::jmax (2, processor.getTotalNumOutputChannels()), kBlock);
         const int blocks = (int) (seconds * kSr / kBlock);
+        juce::MidiBuffer midi;
+        processor.reserveMidiOutputBuffer (midi);
 
         for (int b = 0; b < blocks; ++b)
         {
@@ -69,7 +71,7 @@ namespace
                 processor.serviceTune();
 
             buffer.clear();
-            juce::MidiBuffer midi;
+            midi.clear();
             processor.processBlock (buffer, midi);
 
             played.rhythmDrove = played.rhythmDrove || processor.getEngine().getRhythmEngine().isDriving();

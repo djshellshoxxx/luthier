@@ -37,7 +37,7 @@ namespace
             "preset", "midiLearn", "ui", "setlist", "lockedParameters", "slotBActive",
             "routing", "modulation", "rhythm", "snapshots", "liveMode", "controllerProfile",
             "character", "stability", "toneMatch", "metronome", "clickToMain", "normalization",
-            "tune", "presetMorphPosition", "formatVersion", "savedBy",
+            "referencePedals", "tune", "presetMorphPosition", "formatVersion", "savedBy",
             "aftertouchBends", "bankSelectsPreset",
             "jamPlayValue", "jamFillNowValue"   // jam-mode 10 (FEAT-JAM)
         };
@@ -80,7 +80,9 @@ namespace
 //==============================================================================
 juce::File LuthierAudioProcessor::getStateBackupFolder()
 {
-    return Diagnostics::getDiagnosticsFolder();
+    // The production default is still Diagnostics::getDiagnosticsFolder().
+    // Share the existing test-only override so backups stay in the fixture.
+    return ErrorLog::getFolder();
 }
 
 juce::String LuthierAudioProcessor::stateBlobToText (const void* data, int sizeInBytes)

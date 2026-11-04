@@ -1,0 +1,20 @@
+alias sr44100 peak0.069117914080 worst_folded_odd5 -172.951734203dBc
+alias sr44100 peak0.346410161520 worst_folded_odd5 -117.139984277dBc
+alias sr44100 peak1.000000000000 worst_folded_odd5 -81.658715801dBc
+alias sr48000 peak0.069117914080 worst_folded_odd5 -172.753718772dBc
+alias sr48000 peak0.346410161520 worst_folded_odd5 -116.941786250dBc
+alias sr48000 peak1.000000000000 worst_folded_odd5 -81.460571769dBc
+alias sr88200 peak0.069117914080 worst_folded_odd17 -233.958752863dBc
+alias sr88200 peak0.346410161520 worst_folded_odd9 -221.053870418dBc
+alias sr88200 peak1.000000000000 worst_folded_odd9 -149.536822138dBc
+alias sr96000 peak0.069117914080 worst_folded_odd19 -223.880425652dBc
+alias sr96000 peak0.346410161520 worst_folded_odd19 -223.910359284dBc
+alias sr96000 peak1.000000000000 worst_folded_odd11 -183.357853062dBc
+alias sr192000 peak0.069117914080 worst_folded_odd31 -254.594855518dBc
+alias sr192000 peak0.346410161520 worst_folded_odd31 -254.637623223dBc
+alias sr192000 peak1.000000000000 worst_folded_odd31 -254.933392644dBc
+bypass sr44100 off_error0 ramp_residual2.77555756156e-17 first_fade_step4.23151327322e-05 original_24bit_LSB1.19209289551e-07 A_PED_step_ratio1.000436151
+bypass sr48000 off_error0 ramp_residual2.08166817117e-17 first_fade_step3.84261590624e-05 original_24bit_LSB1.19209289551e-07 A_PED_step_ratio1.002943942
+bypass sr88200 off_error0 ramp_residual6.76542155631e-17 first_fade_step1.99780527577e-05 original_24bit_LSB1.19209289551e-07 A_PED_step_ratio1.002170717
+bypass sr96000 off_error0 ramp_residual2.77555756156e-17 first_fade_step1.82985812049e-05 original_24bit_LSB1.19209289551e-07 A_PED_step_ratio1.002797814
+bypass sr192000 off_error0 ramp_residual2.02962646689e-16 first_fade_step9.03510236e-06 original_24bit_LSB1.19209289551e-07 A_PED_step_ratio1.002761417

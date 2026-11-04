@@ -7,6 +7,7 @@
 */
 
 #include "TestFramework.h"
+#include "AllocationFailureTestHook.h"
 
 #include "../DSP/Circuit/GuitarCircuit.h"
 #include "../LuthierEngine.h"
@@ -22,6 +23,24 @@ using namespace luthier::tests;
 namespace
 {
     thread_local long threadAllocationCount = 0;
+    thread_local std::size_t failedAllocationSize = 0;
+    thread_local bool allocationFailureTriggered = false;
+    thread_local std::size_t allocationsBeforeFailure = static_cast<std::size_t> (-1);
+    // Optional caller-owned log of requested sizes (diagnostics only; off by default).
+    thread_local std::size_t* sizeLog = nullptr;
+    thread_local std::size_t sizeLogCapacity = 0, sizeLogCount = 0;
+    bool failAllocation (std::size_t size) noexcept
+    {
+        if (allocationsBeforeFailure != static_cast<std::size_t> (-1))
+        {
+            if (failedAllocationSize != 0 && size != failedAllocationSize) return false;
+            if (allocationsBeforeFailure-- != 0) return false;
+            allocationsBeforeFailure = static_cast<std::size_t> (-1); failedAllocationSize = 0;
+            allocationFailureTriggered = true; return true;
+        }
+        if (failedAllocationSize == 0 || size != failedAllocationSize) return false;
+        failedAllocationSize = 0; allocationFailureTriggered = true; return true;
+    }
 }
 
 /*  notation-export 7.1 (MODEL-GAPS, TODO 2k): the counter the other suites'
@@ -30,6 +49,17 @@ namespace
 namespace luthier::tests
 {
     long allocationsOnThisThread() noexcept { return threadAllocationCount; }
+    void failNextAllocationOfSizeOnThisThread (std::size_t size) noexcept
+    { failedAllocationSize = size; allocationsBeforeFailure = static_cast<std::size_t> (-1); allocationFailureTriggered = false; }
+    void failAllocationAfterOnThisThread (std::size_t successfulAllocations) noexcept
+    { failedAllocationSize = 0; allocationsBeforeFailure = successfulAllocations; allocationFailureTriggered = false; }
+    void failMatchingAllocationAfterOnThisThread (std::size_t size, std::size_t successfulMatches) noexcept
+    { failedAllocationSize = size; allocationsBeforeFailure = successfulMatches; allocationFailureTriggered = false; }
+    void clearAllocationFailureOnThisThread() noexcept { failedAllocationSize = 0; allocationsBeforeFailure = static_cast<std::size_t> (-1); }
+    bool allocationFailureTriggeredOnThisThread() noexcept { return allocationFailureTriggered; }
+    void logAllocationSizesOnThisThread (std::size_t* buffer, std::size_t capacity) noexcept
+    { sizeLog = buffer; sizeLogCapacity = buffer != nullptr ? capacity : 0; sizeLogCount = 0; }
+    std::size_t loggedAllocationCountOnThisThread() noexcept { return sizeLogCount; }
 }
 
 struct AllocationCounter
@@ -47,6 +77,8 @@ long luthierTestAllocationCount() noexcept { return threadAllocationCount; }
 void* operator new (std::size_t size)
 {
     ++threadAllocationCount;
+    if (sizeLog != nullptr) { if (sizeLogCount < sizeLogCapacity) sizeLog[sizeLogCount] = size; ++sizeLogCount; }
+    if (failAllocation (size)) throw std::bad_alloc();
 
     if (auto* p = std::malloc (size == 0 ? 1 : size))
         return p;
@@ -57,6 +89,8 @@ void* operator new (std::size_t size)
 void* operator new[] (std::size_t size)
 {
     ++threadAllocationCount;
+    if (sizeLog != nullptr) { if (sizeLogCount < sizeLogCapacity) sizeLog[sizeLogCount] = size; ++sizeLogCount; }
+    if (failAllocation (size)) throw std::bad_alloc();
 
     if (auto* p = std::malloc (size == 0 ? 1 : size))
         return p;
@@ -69,11 +103,20 @@ void operator delete[] (void* p) noexcept                 { std::free (p); }
 void operator delete (void* p, std::size_t) noexcept      { std::free (p); }
 void operator delete[] (void* p, std::size_t) noexcept    { std::free (p); }
 
+// Match the test executable's malloc/free family for standard-library nothrow
+// temporary buffers too. Delegate so allocation counters/fault injection agree.
+void* operator new (std::size_t size, const std::nothrow_t&) noexcept
+{ try { return ::operator new (size); } catch (...) { return nullptr; } }
+void* operator new[] (std::size_t size, const std::nothrow_t&) noexcept
+{ try { return ::operator new[] (size); } catch (...) { return nullptr; } }
+void operator delete (void* p, const std::nothrow_t&) noexcept { ::operator delete (p); }
+void operator delete[] (void* p, const std::nothrow_t&) noexcept { ::operator delete[] (p); }
+
 namespace
 {
     /** The spec's reference guitar: a single coil, 500 k pots, 22 nF, 3 m of
         standard cable into 1 M. */
-    CircuitComponents reference()
+    CircuitComponents referenceGuitar()
     {
         CircuitComponents p;
         p.coilInductance = 2.5;
@@ -165,8 +208,8 @@ namespace
 //==============================================================================
 LUTHIER_TEST (Circuit, turningDownDarkensAsWellAsQuietens)
 {
-    auto full = reference();
-    auto down = reference();
+    auto full = referenceGuitar();
+    auto down = referenceGuitar();
     down.volume = 0.7;
 
     /*  "Level drops within 0.5 dB of the audio taper's prediction": the taper's
@@ -200,7 +243,7 @@ LUTHIER_TEST (Circuit, turningDownDarkensAsWellAsQuietens)
 
 LUTHIER_TEST (Circuit, aKinmanBleedKeepsTheTop)
 {
-    auto full = reference();
+    auto full = referenceGuitar();
     full.bleed = TrebleBleed::kinman;
 
     auto down = full;
@@ -213,14 +256,14 @@ LUTHIER_TEST (Circuit, aKinmanBleedKeepsTheTop)
                  + " to " + juce::String (after, 1) + " dB");
 
     // And it keeps more than no bleed at all does.
-    auto plain = reference();
+    auto plain = referenceGuitar();
     plain.volume = 0.7;
     CHECK (after > presenceDb (plain) + 3.0);
 }
 
 LUTHIER_TEST (Circuit, activeModeRemovesTheLoading)
 {
-    auto full = reference();
+    auto full = referenceGuitar();
     full.active = true;
 
     auto down = full;
@@ -250,11 +293,11 @@ LUTHIER_TEST (Circuit, activeModeRemovesTheLoading)
 
 LUTHIER_TEST (Circuit, potValueMovesTheResonance)
 {
-    auto small = reference();
+    auto small = referenceGuitar();
     small.volumePot = 250.0e3;
     small.tonePot = 250.0e3;
 
-    auto large = reference();
+    auto large = referenceGuitar();
     large.volumePot = 1.0e6;
     large.tonePot = 1.0e6;
 
@@ -270,11 +313,11 @@ LUTHIER_TEST (Circuit, potValueMovesTheResonance)
 
 LUTHIER_TEST (Circuit, cableCapacitanceMovesTheResonance)
 {
-    auto shortCable = reference();
+    auto shortCable = referenceGuitar();
     shortCable.cableLength = 1.0;
     shortCable.cableQuality = CableQuality::studio;
 
-    auto longCable = reference();
+    auto longCable = referenceGuitar();
     longCable.cableLength = 10.0;
     longCable.cableQuality = CableQuality::cheap;
 
@@ -289,11 +332,11 @@ LUTHIER_TEST (Circuit, cableCapacitanceMovesTheResonance)
 LUTHIER_TEST (Circuit, theToneControlSweepsDownAndNeverBoosts)
 {
     double previousPresence = 1.0e9;
-    const double openLowLevel = level (reference(), 100.0);
+    const double openLowLevel = level (referenceGuitar(), 100.0);
 
     for (int step = 10; step >= 0; --step)
     {
-        auto p = reference();
+        auto p = referenceGuitar();
         p.tone = step / 10.0;
 
         // Monotonically less top. (The -3 dB corner is not monotonic near 0:
@@ -316,7 +359,7 @@ LUTHIER_TEST (Circuit, theToneControlSweepsDownAndNeverBoosts)
         for (double hz = 20.0; hz <= 20000.0; hz *= 1.05)
         {
             loudest = juce::jmax (loudest, level (p, hz));
-            openLoudest = juce::jmax (openLoudest, level (reference(), hz));
+            openLoudest = juce::jmax (openLoudest, level (referenceGuitar(), hz));
         }
 
         CHECK_MSG (loudest <= openLoudest * 1.0001,
@@ -332,7 +375,7 @@ LUTHIER_TEST (Circuit, bypassIsNeutral)
         flat within 0.1 dB". An active pickup still has its coil - 1.4 keeps its
         resonance "put" - so flat is measured against that bare coil: the
         buffered circuit adds nothing to it. */
-    auto p = reference();
+    auto p = referenceGuitar();
     p.active = true;
     p.cableOn = false;
 
@@ -367,7 +410,7 @@ LUTHIER_TEST (Circuit, theAudioPathMatchesTheResponse)
     for (double volume : { 1.0, 0.7, 0.3 })
         for (double hz : { 110.0, 440.0, 1000.0, 2500.0 })
         {
-            auto p = reference();
+            auto p = referenceGuitar();
             p.volume = volume;
             p.bleed = TrebleBleed::kinman;
 
@@ -393,7 +436,7 @@ LUTHIER_TEST (Circuit, everyCornerOfTheAdvancedRangeIsStable)
                         for (double volume : { 0.0, 0.05, 0.5, 1.0 })
                             for (auto bleed : { TrebleBleed::none, TrebleBleed::kinman })
                             {
-                                auto p = reference();
+                                auto p = referenceGuitar();
                                 p.volumePot = pot;
                                 p.tonePot = pot;
                                 p.toneCap = cap;
@@ -449,7 +492,7 @@ LUTHIER_TEST (Circuit, sweepingEveryControlDoesNotAllocate)
     GuitarCircuit circuit;
     circuit.prepare (48000.0);
 
-    auto p = reference();
+    auto p = referenceGuitar();
 
     // The engine's allocation guard is a counter of global operator new calls
     // on this thread; the circuit has no container that could grow.
@@ -487,7 +530,7 @@ LUTHIER_TEST (Circuit, theEngineRunsThroughTheCircuit)
         engine.getRoomEngine().setEnabled (false);
         engine.getAmpEngine().setGain (0.0);
 
-        CircuitComponents controls = reference();
+        CircuitComponents controls = referenceGuitar();
         controls.volume = volume;
         engine.setCircuitControls (controls);
 
@@ -602,7 +645,7 @@ LUTHIER_TEST (Circuit, aParameterChangeCostsUnderFiveHundredthsOfAPercent)
     GuitarCircuit circuit;
     circuit.prepare (48000.0);
 
-    auto p = reference();
+    auto p = referenceGuitar();
     double best = 1.0e9;
 
     for (int run = 0; run < 5; ++run)

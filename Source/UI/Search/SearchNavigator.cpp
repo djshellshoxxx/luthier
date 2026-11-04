@@ -3,6 +3,8 @@
 #include "SearchCatalog.h"
 #include "LiveControls.h"
 #include "SearchOptionsGroup.h"
+#include "../ReferencePedals/ReferenceSearch.h"
+#include "../ReferencePedals/BoardWindow.h"
 
 #include "../../PluginEditor.h"
 #include "../../Parameters.h"
@@ -657,7 +659,7 @@ bool SearchNavigator::isPaletteOpen() const
 void SearchNavigator::layout (juce::Rectangle<int> editorBounds, int)
 {
     palette->setBounds (editorBounds);
-    highlighter.setBounds (editorBounds);
+    if(auto* parent=highlighter.getParentComponent())highlighter.setBounds(parent==&editor?editorBounds:parent->getLocalBounds());
 
     // 13: resized below 1000 px while open, rows re-evaluate modeUnavailable.
     if (palette->isOpen())
@@ -807,6 +809,8 @@ SearchNavigator::Mode SearchNavigator::modeOf (juce::Component& c) const
 
 juce::Component* SearchNavigator::chooseControl (const juce::String& parameterId, bool& needsModeSwitch)
 {
+    const auto referenceTarget=reference::resolveSearchTarget(processor.getEngine().getReferencePedals().model(),parameterId);
+    if(referenceTarget.recognized){needsModeSwitch=false;return referenceTarget.available?editor.referencePedalDrawer.boardRoot().findHostControl(parameterId):nullptr;}
     rebuildControlMap();
     needsModeSwitch = false;
 
@@ -918,6 +922,8 @@ juce::String SearchNavigator::breadcrumbFor (juce::Component& control)
 void SearchNavigator::describeParameter (const juce::String& parameterId, juce::String& breadcrumb,
                                          bool& inEasy, bool& inAdvanced)
 {
+    const auto referenceTarget=reference::resolveSearchTarget(processor.getEngine().getReferencePedals().model(),parameterId);
+    if(referenceTarget.recognized){breadcrumb=referenceTarget.breadcrumb;inEasy=inAdvanced=true;return;}
     rebuildControlMap();
 
     inEasy = inAdvanced = false;
@@ -946,7 +952,7 @@ void SearchNavigator::describeParameter (const juce::String& parameterId, juce::
 
 juce::uint32 SearchNavigator::getUiGeneration()
 {
-    return (juce::uint32) LiveControls::getChangeCount() + 1u;
+    return ((juce::uint32) LiveControls::getChangeCount() + 1u) ^ reference::searchModelGeneration(processor.getEngine().getReferencePedals().model());
 }
 
 bool SearchNavigator::isAdvancedModeAvailable()
@@ -1037,7 +1043,9 @@ void SearchNavigator::focusAndHighlight (juce::Component& control, juce::Rectang
 {
     auto* inner = LiveControls::innerControl (control);
 
-    if (dynamic_cast<LearnTarget*> (&control) == nullptr)
+    const bool nativeParameter=dynamic_cast<juce::Slider*>(&control)||dynamic_cast<juce::ComboBox*>(&control)||dynamic_cast<juce::Button*>(&control);
+    if(nativeParameter)inner=&control;
+    else if (dynamic_cast<LearnTarget*> (&control) == nullptr)
     {
         // A place: its first interactive child, as an overlay does (accessibility 1).
         inner = nullptr;
@@ -1062,7 +1070,10 @@ void SearchNavigator::focusAndHighlight (juce::Component& control, juce::Rectang
     last.focused = inner;
     last.control = &control;
 
-    highlighter.flash (&control, area);
+    juce::Component* ringParent=&editor;
+    if(auto* window=control.findParentComponentOfClass<reference::BoardWindow>())ringParent=window;
+    if(highlighter.getParentComponent()!=ringParent)ringParent->addChildComponent(highlighter);
+    highlighter.setBounds(ringParent->getLocalBounds());highlighter.flash (&control, area);
 }
 
 bool SearchNavigator::finishOnControl (juce::Component& control, const SearchItem& item)
@@ -1104,6 +1115,24 @@ SearchNavigator::Outcome SearchNavigator::goToParameterControl (const SearchItem
 
     auto* provider = index.getProviderFor (item);
     const auto availability = provider != nullptr ? provider->availabilityOf (item) : Availability::available;
+    const auto referenceTarget=reference::resolveSearchTarget(processor.getEngine().getReferencePedals().model(),id);
+    if(referenceTarget.recognized)
+    {
+        pending.reset();highlighter.stop();
+        if(!referenceTarget.available){outcome.status=Outcome::Status::refused;outcome.warning=true;outcome.message=referenceTarget.reason;last.message=outcome.message;return outcome;}
+        if(editor.overlayHost.isShowingOverlay())editor.overlayHost.dismiss();
+        auto& board=editor.referencePedalDrawer.boardRoot();
+        if(!board.isShowing())
+        {
+            const auto ui=reference::BoardUiState::read(processor.getEngine().getReferencePedals().model().getBoardSettings().ui);
+            if(ui.windowMode=="popout"||editor.getHeight()<840)editor.popoutReferenceBoard();else editor.dockReferenceBoard();
+        }
+        juce::Component::SafePointer<juce::Component> target=board.revealHostControl(id);
+        if(!target||!target->isEnabled()||!isOnScreen(*target)){outcome.status=Outcome::Status::refused;outcome.warning=true;outcome.message="Pedalboard control is unavailable. Open or enlarge the pedalboard and try again.";last.message=outcome.message;return outcome;}
+        scrollIntoView(*target);focusAndHighlight(*target);if(!target)return outcome;
+        last.itemId=item.id;last.ok=true;last.pending=false;last.message.clear();outcome.status=Outcome::Status::done;
+        announce(SearchCatalog::text("search.announce.target",{{"name",item.title},{"breadcrumb",referenceTarget.breadcrumb}}));return outcome;
+    }
 
     // Step 4: context gates.
     if (availability == Availability::needsSlideMode)
@@ -1489,6 +1518,14 @@ SearchNavigator::Outcome SearchNavigator::activate (const SearchItem& item, Acti
     auto* provider = index.getProviderFor (item);
     const auto availability = provider != nullptr ? provider->availabilityOf (item) : Availability::available;
 
+    if(availability==Availability::unavailable)
+    {
+        pending.reset();highlighter.stop();
+        outcome.status=Outcome::Status::refused;outcome.warning=true;
+        outcome.message=reference::resolveSearchTarget(processor.getEngine().getReferencePedals().model(),item.target).reason;
+        last={};last.itemId=item.id;last.message=outcome.message;return outcome;
+    }
+
     if (availability == Availability::proLocked)
     {
         // 10: Enter opens the upsell. There is no upsell panel in this build
@@ -1589,7 +1626,7 @@ SearchNavigator::Outcome SearchNavigator::applyValue (const ValueReading& readin
 
     // 4.4 limits: refused for needs*, proLocked; modeUnavailable is allowed
     // (it is the fallback of 4.2 step 3).
-    if (isContextGate (availability) || isLocked (availability))
+    if (isContextGate (availability) || isLocked (availability) || availability==Availability::unavailable)
     {
         outcome.status = Outcome::Status::refused;
         outcome.warning = true;
@@ -1618,7 +1655,7 @@ bool SearchNavigator::nudge (const juce::String& parameterId, int direction, boo
 
     if (auto* item = index.find ("param:" + parameterId))
         if (auto* provider = index.getProviderFor (*item))
-            if (const auto a = provider->availabilityOf (*item); isContextGate (a) || isLocked (a))
+            if (const auto a = provider->availabilityOf (*item); isContextGate (a) || isLocked (a) || a==Availability::unavailable)
                 return false;
 
     const double now = juce::Time::getMillisecondCounterHiRes();
@@ -1667,6 +1704,8 @@ juce::String SearchNavigator::valueTextFor (const SearchItem& item)
 {
     if (item.kind != ItemKind::parameter && item.kind != ItemKind::choiceOption)
         return {};
+    const auto referenceTarget=reference::resolveSearchTarget(processor.getEngine().getReferencePedals().model(),item.target);
+    if(referenceTarget.recognized&&!referenceTarget.available)return "Unavailable";
 
     auto* p = processor.getState().getParameter (item.target);
 
@@ -1683,6 +1722,7 @@ juce::String SearchNavigator::subtitleFor (const SearchItem& item, Availability 
 {
     switch (availability)
     {
+        case Availability::unavailable: return reference::resolveSearchTarget(processor.getEngine().getReferencePedals().model(),item.target).reason;
         case Availability::needsSlideMode:  return SearchCatalog::text ("search.needsSlideMode");
         case Availability::needsBass:       return SearchCatalog::text ("search.needsPart", { { "part", SearchCatalog::text ("search.part.bass") }, { "category", "Body" } });
         case Availability::needsWhammy:     return SearchCatalog::text ("search.needsPart", { { "part", SearchCatalog::text ("search.part.whammy") }, { "category", "Bridge" } });

@@ -1,0 +1,24 @@
+[
+  {
+    "variant": "baseline",
+    "cwd": "/workspace/luthier-evidence/release-cap-025-280/generation3",
+    "env": {
+      "LUTHIER_RELEASE_SURVEY_OUT": "/workspace/luthier-evidence/release-cap-025-280/generation3/baseline-data"
+    },
+    "argv": [
+      "/workspace/luthier-evidence/release-cap-025-280/generation3/baseline-probe",
+      "ReleaseCapProbe"
+    ]
+  },
+  {
+    "variant": "candidate",
+    "cwd": "/workspace/luthier-evidence/release-cap-025-280/generation3",
+    "env": {
+      "LUTHIER_RELEASE_SURVEY_OUT": "/workspace/luthier-evidence/release-cap-025-280/generation3/candidate-data"
+    },
+    "argv": [
+      "/workspace/luthier-evidence/release-cap-025-280/generation3/candidate-probe",
+      "ReleaseCapProbe"
+    ]
+  }
+]

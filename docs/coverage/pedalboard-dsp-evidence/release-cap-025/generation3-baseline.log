@@ -1,0 +1,53 @@
+
+================================================================
+ LUTHIER TEST SUITE
+================================================================
+
+
+ReleaseCapProbe
+----------------------------------------------------------------
+completed rate=44100
+completed rate=48000
+completed rate=88200
+completed rate=96000
+completed rate=192000
+  [FAIL]  unchangedReleaseCriterion                   1000 checks   43313.9 ms
+    original35dB: rate=44100 type=P-Style Bass drop=34.45237775
+    original35dB: rate=48000 type=P-Style Bass drop=34.73899515
+  [pass]  heldOpenAndLetRingIdentity                  280 checks    1530.1 ms
+  [FAIL]  actualSustainAndSostenutoHoldIdentity       120 checks    12644.6 ms
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+
+================================================================
+ FAILED
+ 2 of 3 tests failed (32 of 1400 checks), 57.5 s
+================================================================

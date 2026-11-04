@@ -1,0 +1,16 @@
+{
+  "repeat-baseline-a vs repeat-baseline-b": {
+    "preReleaseMismatchingTypes": []
+  },
+  "repeat-baseline-a vs repeat-candidate": {
+    "preReleaseMismatchingTypes": []
+  },
+  "baseline-data vs repeat-baseline-a": {
+    "preReleaseMismatchingTypes": [
+      18
+    ]
+  },
+  "repeat-baseline-a Resonator state SHA": "36f77ad363b48dbc4f18b60c1913d9cb671b81e2330eb36da840bda426ec092d",
+  "repeat-baseline-b Resonator state SHA": "36f77ad363b48dbc4f18b60c1913d9cb671b81e2330eb36da840bda426ec092d",
+  "repeat-candidate Resonator state SHA": "36f77ad363b48dbc4f18b60c1913d9cb671b81e2330eb36da840bda426ec092d"
+}

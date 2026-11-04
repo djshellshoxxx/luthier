@@ -90,6 +90,8 @@ inline bool setPlain (LuthierAudioProcessor& p, const juce::String& id, float pl
     cannot shift the index) and, when asked, a guitar type on top. */
 inline bool loadCombo (LuthierAudioProcessor& p, int presetIndex, int guitarType)
 {
+    // A preset plus guitar override is one host operation, independent of load time.
+    ParameterBridge::ScopedHostWriteTransaction transaction (p.getParameterBridge());
     auto& presets = p.getPresetManager();
     // getPreset() returns a thread-local view. indexOfPreset() can lazily
     // refresh the bank, which calls getPreset() again and invalidates def.name.

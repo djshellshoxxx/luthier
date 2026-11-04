@@ -150,6 +150,24 @@ class ReleaseAssetsTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 self.prepare()
 
+    def test_a_new_beta_version_uses_distinct_source_and_release_assets(self):
+        prior = (release.VERSION, release.TAG, release.CONTRACT.copy())
+        try:
+            release.configure_release("0.1.0-beta2", "v0.1.0-beta2")
+            self.assertEqual(release.VERSION, "0.1.0-beta2")
+            self.assertEqual(release.TAG, "v0.1.0-beta2")
+            self.assertEqual(len(release.CONTRACT), 3)
+            self.assertTrue(all("0.1.0-beta2" in source for source, _ in release.CONTRACT.values()))
+            self.assertTrue(all("v0.1.0-beta2" in target for _, target in release.CONTRACT.values()))
+        finally:
+            release.VERSION, release.TAG, release.CONTRACT = prior
+
+    def test_custom_version_and_tag_must_match(self):
+        with self.assertRaisesRegex(ValueError, "tag"):
+            release.configure_release("0.1.0-beta2", "v0.1.0-beta1")
+        with self.assertRaisesRegex(ValueError, "version"):
+            release.configure_release("../bad", "v../bad")
+
     def test_wrong_version_is_rejected(self):
         files = payload("linux")
         files["VERSION"] = b"1.0.0-beta1"
