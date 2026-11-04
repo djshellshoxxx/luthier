@@ -1,0 +1,42 @@
+# Small, isolated regression gate for the SoundGrind Python runner.
+# This does not run native audio/UI tests or qualify any pedal for release.
+name: SoundGrind runner regressions
+
+on:
+  pull_request:
+    branches: [master, codex/luthier-soundgrind-repair-20261030]
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'scripts/soundgrind_stress.py'
+      - 'scripts/test_soundgrind_stress.py'
+      - 'scripts/test_soundgrind_ci_contract.py'
+      - '.github/workflows/soundgrind-runner-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: soundgrind-regressions-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  runner-python-tests:
+    name: Python runner / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify runner failure semantics
+        run: python -m unittest discover -s scripts -p test_soundgrind_stress.py -v
+      - name: Verify CI contract
+        run: python -m unittest discover -s scripts -p test_soundgrind_ci_contract.py -v
