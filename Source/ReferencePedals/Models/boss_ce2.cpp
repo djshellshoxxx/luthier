@@ -25,6 +25,22 @@ const ParamDesc parameters[]{
     {"boss_ce2_stereo_mode","STEREO MODE","",ParamKind::Enum,Taper::Linear,0,1,0,1,2,stereoModeNames,PF_Config,5,-1},
 };
 const PedalDesc description{"boss-ce2","boss_ce2_",1,"Vintage Bucket Chorus (prototype)","Chorus",nullptr,ChannelMode::Mono,BypassMode::Buffered,14,parameters,0,false,false,false,0,1,BypassFade::EqualPower};
+// BBD SIM transfer curvature. ESTIMATED from the device sheet, not fitted to an
+// output threshold and not a hardware measurement:
+// - MN3007 sheet: THD 0.5 % typical (2.5 % maximum) at Vi = 0.78 Vrms, 1 kHz,
+//   40 kHz clock, VDD = -15 V. Secondary: read from search-result text and a
+//   forum quote, the sheet itself could not be opened.
+// - A single-ended charge-transfer chain distorts in even order at low level,
+//   so HD2 = k*A/2 for a sine of peak A and the sheet point gives k = 2*THD/A.
+// - This circuit runs the device from 9 V. To first order its voltages scale
+//   with the supply, which scales the sheet's level axis by 9/15. Thresholds do
+//   not scale, so this is the least distortion a 9 V supply supports.
+// - One unit is 1 V peak at the BBD input (spec section 3).
+// k = 0.0151 per unit: HD2 0.19 % in the wet path at -12 dBFS. The output figure is
+// about four times that at 1 kHz, where the 3.4 ms comb nearly cancels the
+// fundamental. docs/handoff/PEDALBOARD-2026-11-11-CE2-BBD-THD.md has the numbers.
+constexpr double sheetThdTypical=.005,sheetLevelVrms=.78,sheetSupplyVolts=15,circuitSupplyVolts=9;
+constexpr double bbdTransferCurvature=2*sheetThdTypical/(1.4142135623730951*sheetLevelVrms*circuitSupplyVolts/sheetSupplyVolts);
 }
 const PedalDesc& BossCe2::descriptor() noexcept {return description;}
 BossCe2::BossCe2() : PedalBase(description) {}
@@ -44,7 +60,7 @@ uint64_t BossCe2::getPreparedMemoryBytes() const noexcept
 void BossCe2::prepare(double sampleRate,int,int)
 {
     sr=sampleRate;triangleCoefficient=1-std::exp(-6.283185307179586*72/sr);prepareParams(sr);variant=int(value(3));
-    for(int c=0;c<2;++c){wet[c].prepare(sr,12,variant?7500:6500,variant?6000:5500);wet[c].setClipOnset(.5);inputHp[c].setLowpass(sr,15);bypassHp[c].setLowpass(sr,15);}
+    for(int c=0;c<2;++c){wet[c].prepare(sr,12,variant?7500:6500,variant?6000:5500);wet[c].setClipOnset(.5);wet[c].setTransferCurvature(bbdTransferCurvature);inputHp[c].setLowpass(sr,15);bypassHp[c].setLowpass(sr,15);}
     lfo.prepare(sr);reset();
 }
 void BossCe2::reset() noexcept
