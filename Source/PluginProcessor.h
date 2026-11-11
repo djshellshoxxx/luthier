@@ -59,6 +59,12 @@
 #include "Support/InstallLayout.h"
 #include "Support/SoundingNotesPublisher.h"
 #include "Presets/Preview/PreviewPlayer.h"   // preset-browser-previews.md 4
+#include "ReferencePedals/Midi/HostAutomationCapture.h"
+#include "ReferencePedals/Midi/ExtendedHostAutomationCapture.h"
+#include "Support/HostMidiCapacity.h"
+#if HAS_CLAP_JUCE_EXTENSIONS
+#include <clap-juce-extensions/clap-juce-extensions.h>
+#endif
 #include "Support/HostClockGuard.h"   // RT-SAFETY P2
 
 namespace luthier
@@ -68,6 +74,9 @@ namespace luthier
 class LuthierAudioProcessor : public juce::AudioProcessor,
                               private juce::AudioProcessorParameter::Listener,
                               private juce::Timer
+#if HAS_CLAP_JUCE_EXTENSIONS
+                              , protected clap_juce_extensions::clap_properties
+#endif
 {
 public:
     LuthierAudioProcessor();
@@ -76,6 +85,8 @@ public:
     //==========================================================================
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
     void releaseResources() override;
+    // Direct hosts/tests: call while stopped, before the first callback.
+    void reserveMidiOutputBuffer (juce::MidiBuffer& b, int bytes = kStandaloneMidiReserve) { hostMidiCapacity.reserveExternal (b, bytes); }
     bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
 
@@ -851,6 +862,17 @@ private:
 
     AssistDecisionLog assistLog;   // FEAT-ASSIST: session state, never saved
 
+    void serviceReferencePedalParameters(); // message thread; model remains order authority
+    std::array<float, 323> referenceParameterMirror {};
+    std::array<std::atomic<float>*, 323> referenceRawParameters {};
+    reference::HostAutomationCapture referenceHostCapture;
+    reference::ExtendedHostAutomationCapture referenceExtendedCapture;
+    std::array<uint32_t, reference::ExtendedHostAutomationSnapshot::count> referenceExtendedModelSerials {};
+    void serviceReferenceExtendedParameters();
+    std::array<uint32_t, 323> referenceModelSerials {};
+    int referenceParameterBase = -1;
+    void captureReferenceHostAutomation() noexcept;
+    bool referenceMirrorInitialised = false;
     void timerCallback() override;
     void updateLatency();
     void updateRoutingLatencyReport();
@@ -1160,7 +1182,8 @@ private:
         such a block is rendered in slices of at most currentBlockSize. These
         carry each slice's MIDI in and the whole block's MIDI out, sized in
         prepareToPlay. */
-    juce::MidiBuffer sliceMidi, sliceMidiOut;
+    juce::MidiBuffer sliceMidi, sliceMidiOut, processorMidi, sysExMidi;
+    HostMidiCapacity hostMidiCapacity;
     juce::MidiBuffer liveMidiKept;   ///< handleLiveMidi's output, sized in prepareToPlay
 
     /** The macro parameters' values, looked up once: a lookup by ID builds a
@@ -1168,6 +1191,7 @@ private:
     std::array<std::atomic<float>*, ParamIDs::kNumMacros> macroValues {};
     std::array<int, ParamIDs::kNumMacros> macroParamIndex {};   // SPEC-SWEEP: MM-29, index into getParameters()
 
+    int referenceHostSliceOffset = 0;
     void processSlice (juce::AudioBuffer<float>&, juce::MidiBuffer&);
     int reportedLatency = 0;
 
@@ -1334,6 +1358,13 @@ private:
     bool offlineRenderInstance = false;
     int previewHeldNotes = 0;                 // audio thread: live notes held (4.3)
     // ==== END FEAT-BROWSER ====
+
+    // Preserve requested host state independently of a rejected/inactive model target.
+    // Appended here to keep prior member offsets stable in native overlay checks.
+    std::array<bool, 323> referenceHostIntentRetained {};
+    std::array<bool, reference::ExtendedHostAutomationSnapshot::count> referenceExtendedHostIntentRetained {};
+    std::array<float, reference::ExtendedHostAutomationSnapshot::count> referenceExtendedModelMirror {};
+    std::atomic<uint32_t> referencePositionGestures { 0 };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LuthierAudioProcessor)
 };

@@ -1,0 +1,5 @@
+sr44100 seconds1800 frames79380000 blocks180072 initial_seed73 final_seed2483458471 finite1 peak1.53620064538 allocations0 cpu_seconds8.229246
+sr48000 seconds1800 frames86400000 blocks195996 initial_seed73 final_seed2146269331 finite1 peak1.44962380513 allocations0 cpu_seconds8.796870
+sr88200 seconds1800 frames158760000 blocks360138 initial_seed73 final_seed3364429717 finite1 peak1.43856732291 allocations0 cpu_seconds16.601949
+sr96000 seconds1800 frames172800000 blocks391986 initial_seed73 final_seed1331135007 finite1 peak1.42831547048 allocations0 cpu_seconds18.226507
+sr192000 seconds1800 frames345600000 blocks783972 initial_seed73 final_seed2945760773 finite1 peak1.40217938093 allocations0 cpu_seconds36.841076

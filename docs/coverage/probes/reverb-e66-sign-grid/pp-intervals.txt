@@ -1,0 +1,9 @@
+scope default_seed_phase cases 10
+polarity 1 intersection_first_empty_at sr96000 stimulus1 seed1 preroll0.00 prior_relative [(1.0070741272450356, 1.2769752938749799)] new_relative [(0.0, 0.2565412946512954), (2.8570210193505488, 4.331541278230499)]
+polarity 1 white_relative [(1.0070741272450356, 1.7108881994017464)] mixed_relative [(0.0, 0.2565412946512954)] combined_relative [] combined_absolute []
+polarity -1 white_relative [(1.0070741272450356, 1.7108881994017464)] mixed_relative [(0.0, 0.29269731174422015), (0.7694192064305477, 1.103362819269629)] combined_relative [(1.0070741272450356, 1.103362819269629)] combined_absolute [(1.40990377814305, 1.5447079469774805)]
+scope expanded_seed_phase cases 90
+polarity 1 intersection_first_empty_at sr96000 stimulus1 seed1 preroll0.00 prior_relative [(1.0070741272450356, 1.2276095888619198)] new_relative [(0.0, 0.2565412946512954), (2.8570210193505488, 4.331541278230499)]
+polarity 1 white_relative [(1.0070741272450356, 1.7006261561007994)] mixed_relative [(0.0, 0.25381736833650326)] combined_relative [] combined_absolute []
+polarity -1 intersection_first_empty_at sr88200 stimulus1 seed73 preroll0.00 prior_relative [(1.0070741272450356, 1.0180824842696388)] new_relative [(0.0, 1.0024313135008371)]
+polarity -1 white_relative [(1.0070741272450356, 1.7006261561007994)] mixed_relative [(0.0, 0.23277222537388711), (0.8361612655870267, 1.0024313135008371)] combined_relative [] combined_absolute []

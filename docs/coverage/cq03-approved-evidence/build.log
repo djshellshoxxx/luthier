@@ -1,0 +1,3 @@
+[0/2] Re-checking globbed directories...
+[1/3] Building CXX object CMakeFiles/LuthierTests.dir/Source/Tests/QualityModeTests.cpp.o
+[2/3] Linking CXX executable LuthierTests_artefacts/Release/LuthierTests; Copying Luthier resources to /workspace/luthier/build/LuthierTests_artefacts/Release/Resources

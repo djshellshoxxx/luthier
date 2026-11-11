@@ -1,0 +1,40 @@
+
+================================================================
+ LUTHIER TEST SUITE
+================================================================
+
+
+Combo
+----------------------------------------------------------------
+  [pass]  releasedStringIsDampedQuickly               25 checks     6467.72 ms
+  [pass]  liftingTheSustainPedalReleasesItsNotes      2 checks      1004.68 ms
+
+Technique
+----------------------------------------------------------------
+  [pass]  sustainRingsAndSostenutoHoldsOnlyWhatIsDown 10 checks     0.125 ms
+
+StringEngine
+----------------------------------------------------------------
+  [pass]  legatoDoesNotRetriggerTheAttack             1 checks      3.385 ms
+
+Technique
+----------------------------------------------------------------
+  [pass]  legatoBecomesHammerOnAndPullOff             4 checks      0.008 ms
+
+StringInteraction
+----------------------------------------------------------------
+  [pass]  SI08_SI09_releaseStagger                    25 checks     1660.25 ms
+
+SustainDecay
+----------------------------------------------------------------
+      at note-off -52.4; +10 ms legacy -62.9 ramped -55.2; +250 ms legacy -115.1 ramped -110.8 dB
+  [pass]  releaseRamp                                 3 checks      6.906 ms
+      fret 5 sag -13.20 cents
+  [pass]  releaseSag                                  2 checks      5.818 ms
+      ring: 0.10 cents off the open string, -11.7 dB
+  [pass]  releaseRing                                 2 checks      2.677 ms
+
+================================================================
+ ALL PASSED
+ 9 tests, 74 checks, 9.2 s
+================================================================

@@ -1,5 +1,6 @@
 #include "MidiOutRouter.h"
 #include "../Support/BoundedMidi.h"
+#include <algorithm>
 
 namespace luthier
 {
@@ -70,10 +71,14 @@ void MidiOutRouter::setMacroValue (int macroIndex, float value) noexcept
 }
 
 //==============================================================================
-void MidiOutRouter::emit (juce::MidiBuffer& midiMessages,
-                          const MidiOutConfig& cfg,
-                          const StringActivityQueue& stringActivity,
-                          int numSamples) noexcept
+void MidiOutRouter::emit (juce::MidiBuffer& dest, const MidiOutConfig& config,
+                          const StringActivityQueue& activity, int n) noexcept
+{ emitImpl (dest, config, activity, n, -1); }
+void MidiOutRouter::emitBounded (juce::MidiBuffer& dest, const MidiOutConfig& config,
+                                 const StringActivityQueue& activity, int n, int bytes) noexcept
+{ emitImpl (dest, config, activity, n, std::max (0, bytes)); }
+void MidiOutRouter::emitImpl (juce::MidiBuffer& midiMessages, const MidiOutConfig& cfg,
+                              const StringActivityQueue& stringActivity, int numSamples, int reservedBytes) noexcept
 {
     // Disabled means the plugin emits nothing at all. Leaving the host's own
     // events in the buffer would be an accidental pass-through.
@@ -86,6 +91,11 @@ void MidiOutRouter::emit (juce::MidiBuffer& midiMessages,
 
     midiMessages.clear();
 
+    auto append = [&] (const juce::uint8* bytes, int size, int offset)
+    {
+        if (reservedBytes < 0) midiMessages.addEvent (bytes, size, offset);
+        else if (! BoundedMidi::add (midiMessages, reservedBytes, bytes, size, offset)) overflow.fetch_add (1, std::memory_order_relaxed);
+    };
     const int lastSample = juce::jmax (0, numSamples - 1);
     const int channel = juce::jlimit (1, 16, cfg.channel);
 
@@ -94,14 +104,12 @@ void MidiOutRouter::emit (juce::MidiBuffer& midiMessages,
     // is what makes the timestamps exact rather than merely close.
     if (cfg.passThrough)
         for (const auto metadata : captured)
-            midiMessages.addEvent (metadata.data, metadata.numBytes,
-                                   juce::jlimit (0, lastSample, metadata.samplePosition));
+            append (metadata.data, metadata.numBytes, juce::jlimit (0, lastSample, metadata.samplePosition));
 
     // ---- rhythm engine --------------------------------------------------------
     if (cfg.rhythmEngine)
         for (const auto metadata : rhythm)
-            midiMessages.addEvent (metadata.data, metadata.numBytes,
-                                   juce::jlimit (0, lastSample, metadata.samplePosition));
+            append (metadata.data, metadata.numBytes, juce::jlimit (0, lastSample, metadata.samplePosition));
 
     // ---- string activity ------------------------------------------------------
     if (cfg.stringActivity)
@@ -122,7 +130,7 @@ void MidiOutRouter::emit (juce::MidiBuffer& midiMessages,
                                    ? juce::MidiMessage::noteOn (channel, note, e.velocity)
                                    : juce::MidiMessage::noteOff (channel, note);
 
-            midiMessages.addEvent (message, offset);
+            append (message.getRawData(), message.getRawDataSize(), offset);
         }
 
         if (stringActivity.getDroppedCount() > 0)
@@ -151,7 +159,8 @@ void MidiOutRouter::emit (juce::MidiBuffer& midiMessages,
             if (coarse == lastCoarse)
                 continue;
 
-            midiMessages.addEvent (juce::MidiMessage::controllerEvent (channel, cc, coarse), 0);
+            const auto message = juce::MidiMessage::controllerEvent (channel, cc, coarse);
+            append (message.getRawData(), message.getRawDataSize(), 0);
             lastSentMacro[m] = value;
         }
     }

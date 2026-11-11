@@ -16,14 +16,25 @@
 #include "LuthierEngine.h"
 #include "Modulation/ModMatrix.h"
 #include "Jam/JamSettings.h"   // FEAT-JAM
+#include "ReferencePedals/Midi/ExtendedHostAutomation.h"
 #include "Support/Edition.h"   // FEAT-ASSIST
 
 namespace luthier
 {
 
+// Message thread metadata publication; audio callbacks never consult model/registry.
+bool updateReferenceLaneNames (juce::AudioProcessorValueTreeState&, const std::vector<reference::PedalInstance>&);
+
 //==============================================================================
 namespace ParamIDs
 {
+    // ==== BEGIN REF-PEDALBOARD params ====
+    inline constexpr const char* refBoardEnabled = "ref_board_enabled";
+    inline constexpr const char* refBoardMix = "ref_board_mix";
+    inline constexpr const char* refBoardTempoBpm = "ref_board_tempo_bpm";
+    juce::String refSlot (int slot, const juce::String& suffix); // slot is 0-based
+    // ==== END REF-PEDALBOARD params ====
+
     // --- macros ---------------------------------------------------------------
     inline constexpr const char* macroAttack   = "macro_attack";
     inline constexpr const char* macroBody     = "macro_body";
@@ -775,7 +786,22 @@ public:
     void setModMatrix (ModMatrix* matrix) noexcept { modMatrix = matrix; }
     ModMatrix* getModMatrix() const noexcept { return modMatrix; }
 
-    /** True if `id` was written (by anyone) after the guitar type last was. */
+    /** Groups an explicit host preset load and guitar override into one operation,
+        independent of elapsed wall time. Message thread only; nested scopes retain
+        the outer operation's write epoch. Unscoped writes keep the timing policy. */
+    class ScopedHostWriteTransaction
+    {
+    public:
+        explicit ScopedHostWriteTransaction (ParameterBridge& bridge) noexcept;
+        ~ScopedHostWriteTransaction() noexcept;
+
+    private:
+        ParameterBridge& bridge;
+        JUCE_DECLARE_NON_COPYABLE (ScopedHostWriteTransaction)
+    };
+
+    /** Whether `id` belongs to the active explicit host operation, or was written
+        together with/after the guitar type under the default policy. */
     bool writtenSinceGuitarType (const juce::String& id) const noexcept;
 
     /** While false, writes are not stamped for writtenSinceGuitarType(): the
@@ -863,6 +889,9 @@ private:
         the parameters its parts overlap; one the host wrote after the type
         (a session restoring both, automation at the same time) is kept. */
     std::unique_ptr<std::atomic<juce::uint32>[]> lastWrite;
+    std::unique_ptr<std::atomic<juce::uint32>[]> lastHostWriteSerial;
+    int hostWriteTransactionDepth = 0;          ///< message thread only
+    juce::uint32 hostWriteTransactionEpoch = 0; ///< outer scope's write serial
     std::unique_ptr<std::atomic<bool>[]> inGesture;       ///< per parameter: a player is holding it
     std::atomic<bool> guitarTypeByPlayer { false };        ///< the last guitar type write was a player's pick
     std::array<std::array<std::atomic<bool>, EffectsChain::kNumSlots>, 2> typeByPlayer {};

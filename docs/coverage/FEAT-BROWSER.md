@@ -33,7 +33,7 @@ rendered once per test run (`PresetBrowserTestHelpers.h`, `factoryCorpus()`).
 | BR-3.1d | 3.1 rhythm engine: two held chords at 100 BPM from the offline playhead | `hitsFor (..., rhythmEngine)`, `OfflinePlayHead` | - | verified by inspection: no factory preset stores a rhythm engine |
 | BR-3.2a | 3.2 steps 1-5 (reset, own loadPreset, 48k/256, 0.5 s settle, 256 blocks) | `PreviewRenderer::renderLoaded` | PB01, PB02 | verified |
 | BR-3.2b | 3.2 step 7: -18 LUFS BS.1770-4, -3 dBTP 4x true peak, no limiter, gain in sidecar | `ToneFeatures::integratedLoudness/truePeakDb`, `sidecarFor` | PB03 | verified |
-| BR-3.2c | 3.2 step 8: Ogg 48k stereo q0.5, <= 64 KB, 64-point peaks | `PreviewRenderer::encodeOgg`, `computePeaks` | PB03 | verified |
+| BR-3.2c | 3.2 step 8: Ogg 48k stereo q0.5 default, <= 64 KB, 64-point peaks; conditional q0.6 retry only to meet unchanged PB-02 loudness fidelity | `PreviewRenderer::encodeOgg`, `computePeaks` | PB02, PB03 | verified on current fixture |
 | BR-3.2d | 3.2 cancel per block, 10 s timeout | `renderLoaded` (`cancel`, `timedOut`) | PB18, PB19 | verified |
 | BR-3.2e | 3.2 CLI host shares the plugin's guitar-block wiring | the CLI renders through `LuthierAudioProcessor` itself (headless) | PB02 | verified (see Decisions) |
 | BR-3.3 | 3.3 service: one low-priority thread, interactive/onSave/background, pausing, callAsync + WeakReference, 500 ms shutdown | `PreviewRenderService` | PB15, PB17, PB19 | verified |
@@ -81,8 +81,8 @@ keep this workstream out of a file the auditor session is editing.
 | Search keystroke, 5,000 entries | 16 ms | well under (test gate 16 ms) |
 | Similarity, 5,000 entries | 2 ms | under (test gate 2 ms) |
 | Preview mix | 0.02 units | 0.0025 units (vectorised steady state; gate 0.04) |
-| Steady-state render (median of the factory bank) | 1.0 s | 0.76 s on a quiet machine; ~1.17 s with the full suite running alongside |
-| Heaviest ("8-String Djent", "Physics Showcase") | 2.0 s | under 1.0 s quiet, ~1.5 s under load |
+| Steady-state render (median of the factory bank) | 1.0 s | 0.860 s on the isolated 2026-10-26 `LUTHIER_PERF=1` run |
+| Heaviest ("8-String Djent", "Physics Showcase") | 2.0 s | 1.146 s slowest on the isolated 2026-10-26 run |
 | Save to cached preview | 3 s | ~1.5 s |
 
 ## Decisions
@@ -92,7 +92,8 @@ keep this workstream out of a file the auditor session is editing.
 - **`FactoryPresets` range source cleared on processor destruction** so it never dangles after an offline instance or a test processor dies.
 - **The CLI renders through `LuthierAudioProcessor` itself** (it already compiles headless) rather than a moved `RenderHost`: the plugin and the CLI then resolve guitar blocks identically by construction; `Source/Presets/Preview/PreviewRenderHost.h` was not needed.
 - **Ogg stream serial fixed per sound hash** (JUCE seeds it randomly), with each page's CRC recomputed, so identical audio encodes to identical bytes (PB-01).
-- **Quality steps below q0.5 only when a clip exceeds 64 KB**; in practice every factory clip fits at q0.5.
+- **Vorbis quality policy (revised with evidence):** the original requirement was q0.5 with a 64 KB cap. The first unchanged PB-02 run failed only for Wah Funk Rhythm: decoded shipped loudness -33.18 LUFS versus fresh-render -32.66 LUFS, a 0.52 LU difference against the unchanged <= 0.5 LU gate. A global q0.6 increase was rejected because it raised the aggregate Ogg payload above the unchanged 3 MiB (3,145,728-byte) PB-03 cap. The bounded correction keeps q0.5 for every clip unless its decoded loudness exceeds the PB-02 tolerance; then it tries q0.6 and retains it only if the decoded result is within 0.5 LU and the file remains <= 64 KB. If the higher-quality encoding is over the cap or misses fidelity, q0.5 remains and PB-02 remains a failure. In the measured factory bank, q0.6 was retained only for Wah Funk Rhythm; three other q0.6 attempts fell back because of the per-clip cap. Wah grew from 39,253 bytes (q0.5 SHA-256 `2e22d7e95813e40f42ddc53c0e942624954792f68b6a8bcda8172ff192010bed`) to 45,322 bytes (adaptive SHA-256 `95a3daabfd3eba2b33e9d7c8e758eab75030d27462b6678bdcd887628444cae8`). The 70-file Ogg sum was 2,931,405 bytes (214,323 bytes below the unchanged 3,145,728-byte aggregate cap). The original threshold and cap remain unchanged. Release packaging must regenerate shipped previews and change the plugin version so old sound-hash caches are invalidated; `kRenderRevision` remains unchanged because the source PCM is unchanged.
+- **PB-27 current-source performance run (2026-10-26, `LUTHIER_PERF=1`):** passed all 9 checks. Preview mix measured 0.0018 units; median factory render was 859.7 ms and slowest 1,145.9 ms, within the CI runner's recorded 2x reference-CPU allowance. The strict reference-CPU budgets remain 0.02 preview units, 1.0 s median, and 2.0 s for the two heaviest presets.
 - **The last 10 ms of every clip are true silence** (the 250 ms raised-cosine fade completes 10 ms early) so PB-03's "-60 dBFS in the last 10 ms" holds for any level.
 - **Early stop**: rendering ends once the tail has sat 60 dB under the peak longer than the clip keeps after it; the clip is identical, short presets render faster.
 - **Tail is measured to 30 dB down or to 6 dB above the rig's idle noise** (measured in the settle period): a high-gain amp's hiss is not the note's tail.

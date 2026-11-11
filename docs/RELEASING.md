@@ -252,7 +252,7 @@ Target: a bad release is withdrawn in 30 minutes, a fixed one is out in 24 hours
   tests, because the plugin does not implement CLAP's (draft)
   preset-discovery factory. The other 18 pass.
 
-## 9. Elevation, silent installs and enterprise policy
+## 11. Elevation, silent installs and enterprise policy
 
 Why each installer asks for what it asks for (`installer.md` 0.4):
 
@@ -297,7 +297,7 @@ off:
 Deploy it with the software-distribution tool alongside a silent install;
 the installers do not take it as a switch yet.
 
-## 10. Rollback and hotfix (`qa-polish.md` 13, `installer.md` 12)
+## 12. Rollback and hotfix, second part (`qa-polish.md` 13, `installer.md` 12; continues section 8)
 
 A release that has to come back:
 
@@ -320,3 +320,25 @@ A release that has to come back:
 6. **Monitoring** for 72 hours after a release (crash reports opted into,
    support inbox, community channels) is a process step owned by the
    release lead.
+
+## 13. Release hazards
+
+**The beta 2 publisher can fire on a merge to master.** `.github/workflows/pro-beta2-release.yml`
+runs on `pull_request: closed` for `master` and publishes a beta when the closed pull
+request is number 77, was merged, and has the head branch
+`codex/preflight-build-hardening-2026-10-20`. The workflow's own header says only the
+merge of PR #77 authorizes the publication.
+
+The integration branch (`integration/luthier-completion`) contains the commits of open
+PR #77 (head `910cc2a9`). GitHub marks a pull request as merged when its commits reach the
+base branch by any route, not only through the merge button. Merging the integration
+branch into master may therefore mark PR #77 as merged and fire that publisher.
+
+Before any merge to master, either close PR #77 without merging, or remove or disable the
+`pro-beta2-release.yml` trigger. Do the same check for any other workflow that reacts to a
+closed or merged pull request. This hazard was established from the workflow file and the
+branch contents; it has not been demonstrated by a test merge.
+
+Other things to keep in mind: the release workflows refuse to overwrite an existing
+release (see `release.yml`), and publication of a public release
+needs the checks in section 6 and the ledger in `docs/coverage/PRO-V01-RELEASE.md`.

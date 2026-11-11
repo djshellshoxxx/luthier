@@ -1,0 +1,18 @@
+
+================================================================
+ LUTHIER TEST SUITE
+================================================================
+
+
+Normalization
+----------------------------------------------------------------
+  [FAIL]  ON03_FactoryTableDoesNotDrift               4 checks      1810.93 ms
+    line 351: p41_g18_phrase factory preset failed to load
+    line 351: p68_g21_phrase factory preset failed to load
+    line 351: p21_g20_phrase factory preset failed to load
+    line 351: p30_g05_phrase factory preset failed to load
+
+================================================================
+ FAILED
+ 1 of 1 tests failed (4 of 4 checks), 1.8 s
+================================================================

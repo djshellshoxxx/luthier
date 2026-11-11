@@ -173,6 +173,13 @@ namespace
         if ((int) json.getProperty ("revision", 0) != NormalizationCalibrator::kCalibrationRevision)
             return;
 
+        // Reject calibration produced by a different edition. Free can
+        // substitute restricted guitars, amps and pedals while retaining
+        // their original saved parameter values, so a matching parameter hash
+        // does not imply that its rendered loudness matches the Pro build.
+        if (json.getProperty ("edition", {}).toString() != NormalizationCalibrator::getEditionName())
+            return;
+
         if (auto* entries = json.getProperty ("entries", {}).getDynamicObject())
             for (const auto& p : entries->getProperties())
                 c.factory[p.name.toString()] = { (double) p.value.getProperty ("lufs", -120.0),
@@ -259,13 +266,11 @@ double NormalizationCalibrator::getRenderTimeoutSeconds() noexcept
 
 juce::String NormalizationCalibrator::getEditionName()
 {
-    // editions.md has no Edition.h in this build yet: one edition, named here
-    // so a second one (Free) gets its own hashes and factory table (11).
-   #ifdef LUTHIER_EDITION_NAME
-    return LUTHIER_EDITION_NAME;
-   #else
-    return "standard";
-   #endif
+    // Preserve the Pro factory table's historical "standard" identity, but
+    // give Free its own hash namespace so a restricted instrument/amp cannot
+    // inherit a Pro-only loudness measurement. Free renders/cache-calibrates
+    // its actual playback substitution until a separate Free table is shipped.
+    return edition::isPro ? "standard" : "free";
 }
 
 //==============================================================================

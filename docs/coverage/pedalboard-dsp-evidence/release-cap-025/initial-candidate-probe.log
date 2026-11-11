@@ -1,0 +1,20 @@
+
+================================================================
+ LUTHIER TEST SUITE
+================================================================
+
+
+ReleaseCapProbe
+----------------------------------------------------------------
+completed rate=44100
+completed rate=48000
+completed rate=88200
+completed rate=96000
+completed rate=192000
+  [pass]  unchangedReleaseCriterion                   1000 checks   43476.9 ms
+  [pass]  heldOpenAndLetRingIdentity                  280 checks    1578.54 ms
+
+================================================================
+ ALL PASSED
+ 2 tests, 1280 checks, 45.1 s
+================================================================

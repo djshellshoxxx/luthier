@@ -167,3 +167,82 @@ Required coverage:
   always produce a status + exit code.
 - **Overwrite / `--out`**: beside-input, into-dir, same-format suffix, and
   `--no-clobber` behaviour.
+
+## 7. Flag reference, as parsed by `Tools/RenderCli.cpp`
+
+This section lists every flag the argument parser accepts (`parseArguments`,
+`Tools/RenderCli.cpp:202-260` at commit `ca14934e`) and what the code does with it.
+It was written from the code. It was not checked against a run of the built tool,
+because the tool was not built for this revision of the document.
+
+### 7.1 General behaviour
+
+- A flag that takes a value reads the next argument. If the flag is the last
+  argument, the value is empty and no error is reported by the parser; the later
+  checks then fail or misbehave according to the flag (not specified further).
+- A path value is resolved against the current working directory.
+- An argument the parser does not know prints `Unknown option: <arg>` to standard
+  error and the tool exits `1`. (A positional argument is also an unknown option.)
+- With no arguments, or with `--help` / `-h`, the usage text is printed and the tool
+  exits `0`. Note that `--help` is only noticed after the whole command line has
+  parsed, so `--help --bogus` exits `1`.
+
+### 7.2 Flags that were not covered in sections 1 to 6
+
+| Flag | Takes | Default | Effect |
+|---|---|---|---|
+| `--help`, `-h` | - | - | Print usage, exit `0`. |
+| `--preset-file <file>` | path | none | Load a preset from a `.luthierpreset` file. Takes precedence over `--preset` if both are given. A missing file prints `Preset file not found: <path>` and exits `1`; an unreadable file prints `Could not read that preset file.` and exits `1`. |
+| `--guitar <name>` | text | none | Select the instrument by name, case-insensitive, after the preset has loaded. An unknown name prints `No instrument called "<name>". Use --list-guitars ...` and exits `1`. |
+| `--rate <hz>` | number | 48000 | Output sample rate. Clamped to 8000..192000. |
+| `--depth <bits>` | integer | 24 | Output bit depth. Passed to the audio file writer; a depth the format cannot write prints `That format does not support <n>-bit.` and exits `1`. For `.flac`, a value above 24 is lowered to 24. |
+| `--tail <seconds>` | number | 4 | Time rendered after the last MIDI event. Clamped to 0..30. |
+| `--tempo <bpm>` | number | 120 | Tempo of a `--audition` phrase. In the code it is used only when building the audition phrase; it is not passed to the engine for tempo-synced effects, although the usage text says "for tempo-synced effects". |
+| `--verbose`, `-v` | - | off | During a render, print the instrument, preset, resource summary, event count, durations, latency and a progress line at every 10 percent. No effect on other commands. |
+| `--list-guitars` | - | - | Print the instrument count, then the instruments grouped by category with a description. Exit `0`. |
+| `--list-phrases` | - | - | Print the built-in audition phrase names. Exit `0`. |
+| `--profile <name>` | `luthier` or `generic` | `luthier` | The MIDI profile written by `--export-riffs`. Any value other than `generic` (case-insensitive) selects the Luthier profile. No effect on other commands. |
+| `--write-rhythm-resources <dir>` | path | none | Write every built-in rhythm pattern as `<dir>/Rhythm/<name>.luthierpattern` and every genre kit as `<dir>/Genres/<name>.json`. Prints the two counts. Exit `0`; `1` if a directory cannot be created or a file cannot be written. |
+| `--normalise [dBFS]`, `--normalize [dBFS]` | optional number | off; target -1 | Scale the render so its peak reaches the target. The number is read only if the next argument does not start with `-`. A negative target therefore cannot be given: in `--normalise -3` the `-3` is not consumed and is then reported as an unknown option (exit `1`). In practice the choices are the default of -1 dBFS (flag alone) or a non-negative number, which is clamped to the maximum of 0 dBFS. The target range is -24..0 dBFS. A silent render (peak below 1e-6) is not scaled. |
+| `-o` | path | none | Short form of `--out`. |
+
+### 7.3 Behaviour of the render path
+
+The render path runs when no other command claimed the command line. Commands are
+dispatched in this order, and the first match wins: `--render-previews`,
+`--list-formats`, `--convert`, `--convert-batch`, `--inspect`, `--validate`; then, after
+the audio engine is constructed, `--list-presets`, `--list-guitars`, `--list-phrases`,
+`--calibrate-factory`, `--write-rhythm-resources`, `--export-riffs`; then the render.
+
+For a render:
+
+1. `--out` is required (`No output file. Use --out <file>.`, exit `1`).
+2. One of `--midi` and `--audition` is required (`Nothing to render. ...`, exit `1`). If
+   both are given, `--audition` is used.
+3. The preset is applied, then the instrument, then the sequence is built. A failure in
+   any of these prints a message and exits `1`. A MIDI file that cannot be read, or has
+   no events, also exits `1`.
+4. The engine runs in blocks of 512 samples. Rendered length is the end of the sequence
+   (at least 0.25 s) plus the tail. Output is always stereo.
+5. The output format follows the extension: `.aiff` or `.aif` writes AIFF, `.flac`
+   writes FLAC, anything else writes WAV. The output file is deleted first if it exists
+   (`--no-clobber` applies to conversion only, not to rendering). The parent directory
+   is created.
+6. On success it prints the path, the length, rate, bit depth and the peak in dBFS, and
+   exits `0`. If the file cannot be created or written, it exits `1`.
+
+### 7.4 Exit codes of the utility commands
+
+| Command | `0` | `1` | `2` |
+|---|---|---|---|
+| `--render-previews <dir>` | previews written | could not write them | - |
+| `--calibrate-factory <file>` | table written | table could not be written | calibration incomplete (any preset failed or the counts do not match); the destination file is left unchanged |
+| `--export-riffs <dir>` | every factory riff written | factory riffs not found, or fewer riffs written than exist | - |
+| `--write-rhythm-resources <dir>` | written | a directory or file could not be written | - |
+| `--list-presets`, `--list-guitars`, `--list-phrases` | always | - | - |
+
+Conversion, inspection and validation exit codes are in sections 2 to 4.
+
+`--render-previews <dir>` writes `<dir>/Previews` (audio plus `previews.json`) and
+`<dir>/descriptor-calibration.json` according to the usage text; the second file is
+confirmed in `Source/Presets/Preview/FactoryPreviews.cpp`.

@@ -1,0 +1,17 @@
+..failed.log: exit 9
+.focused-marker.log: exit 0
+focused-list.log: exit 0
+focused-tests.log: exit 139
+focused-collection.log: exit 17
+..signal.log: exit 139
+..timeout.log: exit 124
+.universal-0.log: exit 0
+universal-1.log: exit 0
+universal-2.log: exit 0
+universal-3.log: exit 0
+universal-4.log: exit 0
+...........
+----------------------------------------------------------------------
+Ran 19 tests in 0.807s
+
+OK

@@ -1248,6 +1248,21 @@ LUTHIER_TEST (MicPlacement, closeMicsBleedTheRoomWhenBackedOff)
 }
 
 //==============================================================================
+// Regression: Cathedral's final geometric reflection stays beyond the old half-second buffer.
+LUTHIER_TEST (MicPlacement, cathedralKeepsLateEarlyReflections)
+{
+    RoomEngine room;
+    room.prepare (kSr, 256);
+    room.setRoomSize (RoomSize::Cathedral);
+
+    // The last tap's unjittered geometry is about 2.79 seconds. This checks the
+    // actual delay after prepare/rebuild, without mixing in the FDN's response.
+    const int finalTap = room.getEarlyReflectionTapDelaySamples (RoomEngine::kNumTaps - 1);
+    CHECK_MSG (finalTap > (int) (2.35 * kSr),
+               "Cathedral's last early reflection is only " + juce::String (finalTap / kSr, 3) + " seconds");
+    CHECK (finalTap < (int) (3.25 * kSr));
+}
+
 // MP-19
 LUTHIER_TEST (MicPlacement, speakersVaryALittleAndDeterministically)
 {

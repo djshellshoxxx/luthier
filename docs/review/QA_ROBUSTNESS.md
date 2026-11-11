@@ -6,7 +6,7 @@ coordinator to schedule a fix for, not something this suite fixed itself.
 
 ## Summary
 
-17 finding(s) across the runs below.
+0 finding(s) across the runs below.
 
 ## Fuzz.everyFactoryPresetAcrossExtremeBuffersAndSampleRates
 
@@ -17,10 +17,10 @@ round-trip) for the seeds and presets this run covered.
 
 ## Fuzz.presetLoadAtTrulyExtremeBufferSizes
 
-70 (preset, sample rate, safe block size >= 16) switch-while-running cases run across 70 factory presets, plus the permanent critical finding below for block sizes <= 4.
+70 (preset, sample rate, block size >= 16) switch-while-running cases run across 70 factory presets; block sizes 1-4 are covered by the active tiny-block regression.
 
-- **CRITICAL: heap corruption** — repro: `prepareToPlay(sr, bs) with bs <= 4, with any preset/config whose cabinet or body differs from the compiled-in default (e.g. "Clean Double-Cut Funk" @ 8000 Hz, block 3 or 4) - order of preset-load vs. prepare does not matter` — process aborts (glibc "corrupted size vs. prev_size" / "munmap_chunk(): invalid pointer" / "free(): invalid pointer", varies between runs) from heap corruption; sometimes only detected thousands of render blocks later. Bisected clean at buffer size 5 and up (soak-tested to 20000 blocks at size 5) - see the comment above this test for the full empirical writeup, what was ruled out, and why a byte-precise root cause needs ASan/valgrind this session could not finish
-  - **UPDATE (2026-10-09): root cause found and FIXED.** It was a heap-buffer-overflow in JUCE's Convolution crossover mixer, reached from `ConvolutionInstaller::pumpUntilInstalled` pushing >=16-sample blocks into a convolution prepared for a tiny host block size. Fixed in commit 08e2d479 (clamps the pumped block to the prepared max block at all five call sites). Verified ASan-clean at HEAD across the exercised suite (2298 tests). Recommend a dedicated bs<=4-enabled ASan CI job (e.g. extend IrReloadTests) to lock it. Not a beta blocker; real hosts use >=16.
+None. Every case ran clean (finite output, bounded level, clean state
+round-trip) for the seeds and presets this run covered.
 
 ## Fuzz.randomParameterAndMidiCombosWithReproSeeds
 
@@ -38,39 +38,23 @@ round-trip) for the seeds and presets this run covered.
 
 ## Fuzz.randomParameterStatesHostStateRoundTripAtExtremeConfigs
 
-16 random parameter states round-tripped through host state at extreme sample rates/buffer sizes (randomised before each processor's first prepare); 16 findings - see the comment above this test before treating this as a scary 100% failure rate.
+16 random parameter states round-tripped through host state at extreme sample rates/buffer sizes (randomised before each processor's first prepare); 0 findings - see the comment above this test before treating this as a scary 100% failure rate.
 
-- **state round trip fuzz (see the comment above this test)** — repro: `seed 0 (0x57a7e000), 8000 Hz, block 8192` — re-saved state text differs from the first save (drift on restore); confirmed non-trivial for seed 0 - not float noise, see the finding above
-- **state round trip fuzz (see the comment above this test)** — repro: `seed 1 (0x57a7e001), 8000 Hz, block 256` — re-saved state text differs from the first save (drift on restore); confirmed non-trivial for seed 0 - not float noise, see the finding above
-- **state round trip fuzz (see the comment above this test)** — repro: `seed 2 (0x57a7e002), 8000 Hz, block 256` — re-saved state text differs from the first save (drift on restore); confirmed non-trivial for seed 0 - not float noise, see the finding above
-- **state round trip fuzz (see the comment above this test)** — repro: `seed 3 (0x57a7e003), 8000 Hz, block 16` — re-saved state text differs from the first save (drift on restore); confirmed non-trivial for seed 0 - not float noise, see the finding above
-- **state round trip fuzz (see the comment above this test)** — repro: `seed 4 (0x57a7e004), 8000 Hz, block 8192` — re-saved state text differs from the first save (drift on restore); confirmed non-trivial for seed 0 - not float noise, see the finding above
-- **state round trip fuzz (see the comment above this test)** — repro: `seed 5 (0x57a7e005), 8000 Hz, block 256` — re-saved state text differs from the first save (drift on restore); confirmed non-trivial for seed 0 - not float noise, see the finding above
-- **state round trip fuzz (see the comment above this test)** — repro: `seed 6 (0x57a7e006), 8000 Hz, block 16` — re-saved state text differs from the first save (drift on restore); confirmed non-trivial for seed 0 - not float noise, see the finding above
-- **state round trip fuzz (see the comment above this test)** — repro: `seed 7 (0x57a7e007), 8000 Hz, block 16` — re-saved state text differs from the first save (drift on restore); confirmed non-trivial for seed 0 - not float noise, see the finding above
-- **state round trip fuzz (see the comment above this test)** — repro: `seed 8 (0x57a7e008), 8000 Hz, block 8192` — re-saved state text differs from the first save (drift on restore); confirmed non-trivial for seed 0 - not float noise, see the finding above
-- **state round trip fuzz (see the comment above this test)** — repro: `seed 9 (0x57a7e009), 8000 Hz, block 256` — re-saved state text differs from the first save (drift on restore); confirmed non-trivial for seed 0 - not float noise, see the finding above
-- **state round trip fuzz (see the comment above this test)** — repro: `seed 10 (0x57a7e00a), 8000 Hz, block 16` — re-saved state text differs from the first save (drift on restore); confirmed non-trivial for seed 0 - not float noise, see the finding above
-- **state round trip fuzz (see the comment above this test)** — repro: `seed 11 (0x57a7e00b), 8000 Hz, block 8192` — re-saved state text differs from the first save (drift on restore); confirmed non-trivial for seed 0 - not float noise, see the finding above
-- **state round trip fuzz (see the comment above this test)** — repro: `seed 12 (0x57a7e00c), 8000 Hz, block 8192` — re-saved state text differs from the first save (drift on restore); confirmed non-trivial for seed 0 - not float noise, see the finding above
-- **state round trip fuzz (see the comment above this test)** — repro: `seed 13 (0x57a7e00d), 8000 Hz, block 256` — re-saved state text differs from the first save (drift on restore); confirmed non-trivial for seed 0 - not float noise, see the finding above
-- **state round trip fuzz (see the comment above this test)** — repro: `seed 14 (0x57a7e00e), 8000 Hz, block 16` — re-saved state text differs from the first save (drift on restore); confirmed non-trivial for seed 0 - not float noise, see the finding above
-- **state round trip fuzz (see the comment above this test)** — repro: `seed 15 (0x57a7e00f), 8000 Hz, block 8192` — re-saved state text differs from the first save (drift on restore); confirmed non-trivial for seed 0 - not float noise, see the finding above
+None. Every case ran clean (finite output, bounded level, clean state
+round-trip) for the seeds and presets this run covered.
 
 ## What this run covers
 
 - Every factory preset (`FactoryPresets`), rendered at a spread of extreme
-  sample rates (8 kHz - 192 kHz) and buffer sizes (16 - 8192 samples; see the
-  critical finding below for why buffer sizes under 16 are excluded here).
+  sample rates (8 kHz - 192 kHz) and buffer sizes (16 - 8192 samples); a
+  dedicated regression also processes a non-default cabinet/body at sizes 1-4.
 - A dedicated sweep of switching preset/guitar/cabinet *while already prepared*
   at an extreme buffer size - the realistic "host changes patch mid-session"
-  case - restricted to buffer sizes >= 16 for the same reason, plus a permanent,
-  always-present finding recording the confirmed-bad zone (buffer size <= 4) with
-  its empirical bisection, a manual repro, and what was ruled out.
+  case - restricted to buffer sizes >= 16, with sizes 1-4 covered separately.
 - Randomised parameter combinations (every automatable parameter set to a
   random normalised value, which can land on a non-default cabinet/body/guitar
   config) crossed with random MIDI (notes, CCs, pitch bend, channel pressure,
-  all-notes-off), at extreme buffer sizes (>= 16, same reason) and sample rates.
+  all-notes-off), at extreme buffer sizes (>= 16) and sample rates.
 - Host-level state round trips (`getStateInformation` / `setStateInformation`,
   not the preset manager's own save/load, which `PresetQaTests.cpp` already covers
   to the ulp) for every factory preset and for a batch of randomised parameter

@@ -1,0 +1,45 @@
+
+================================================================
+ LUTHIER TEST SUITE
+================================================================
+
+
+DecayProbe
+----------------------------------------------------------------
+guitar_type=Vintage Double-Cut note 42 output=-41.0224 raw=-54.8602 before=0.188796 after=0.00167831 rawBefore=0.0531539 rawAfter=9.60557e-05 idle=0 parts=1 missingRaw=0
+guitar_type=Classic T-Style note 42 output=-39.0789 raw=-54.9 before=0.193578 after=0.00215234 rawBefore=0.04696 rawAfter=8.44751e-05 idle=0 parts=1 missingRaw=0
+guitar_type=Vintage Single-Cut note 42 output=-40.0577 raw=-54.9282 before=0.191883 after=0.00190612 rawBefore=0.0513335 rawAfter=9.20426e-05 idle=0 parts=1 missingRaw=0
+guitar_type=SG note 42 output=-39.446 raw=-54.9359 before=0.193799 after=0.00206562 rawBefore=0.0523079 rawAfter=9.37074e-05 idle=0 parts=1 missingRaw=0
+guitar_type=Semi-Hollow 335 note 42 output=-39.5754 raw=-54.883 before=0.194062 after=0.00203783 rawBefore=0.0505121 rawAfter=9.10424e-05 idle=0 parts=1 missingRaw=0
+guitar_type=Offset Modern note 42 output=-39.0948 raw=-54.9297 before=0.196806 after=0.00218423 rawBefore=0.0507156 rawAfter=9.09194e-05 idle=0 parts=1 missingRaw=0
+guitar_type=Angular Korina note 42 output=-39.7407 raw=-54.8443 before=0.194805 after=0.00200708 rawBefore=0.043852 rawAfter=7.93914e-05 idle=0 parts=1 missingRaw=0
+guitar_type=Superstrat note 42 output=-38.7776 raw=-54.7289 before=0.190929 after=0.00219781 rawBefore=0.0520384 rawAfter=9.54723e-05 idle=0 parts=1 missingRaw=0
+guitar_type=7-String note 42 output=-41.7625 raw=-55.0706 before=0.182727 after=0.00149169 rawBefore=0.0459079 rawAfter=8.09758e-05 idle=0 parts=1 missingRaw=0
+guitar_type=8-String note 42 output=-40.9842 raw=-55.0626 before=0.18748 after=0.00167397 rawBefore=0.0495585 rawAfter=8.74955e-05 idle=0 parts=1 missingRaw=0
+guitar_type=Baritone Electric note 42 output=-39.8639 raw=-54.9893 before=0.193714 after=0.00196774 rawBefore=0.0521922 rawAfter=9.29267e-05 idle=0 parts=1 missingRaw=0
+guitar_type=Dreadnought note 42 output=-47.4855 raw=-54.7601 before=0.134269 after=0.000567154 rawBefore=0.0392938 rawAfter=7.18325e-05 idle=0 parts=1 missingRaw=0
+guitar_type=Auditorium note 42 output=-47.4773 raw=-54.7831 before=0.134493 after=0.000568634 rawBefore=0.0395092 rawAfter=7.20351e-05 idle=0 parts=1 missingRaw=0
+guitar_type=Jumbo note 42 output=-47.4643 raw=-54.7534 before=0.134596 after=0.000569924 rawBefore=0.0394687 rawAfter=7.22077e-05 idle=0 parts=1 missingRaw=0
+guitar_type=Parlor note 42 output=-48.7424 raw=-54.7189 before=0.107886 after=0.000394314 rawBefore=0.028299 rawAfter=5.1979e-05 idle=0 parts=1 missingRaw=0
+guitar_type=Classical note 42 output=-49.6202 raw=-54.6986 before=0.0947699 after=0.000313083 rawBefore=0.0237847 rawAfter=4.37893e-05 idle=0 parts=1 missingRaw=0
+guitar_type=Flamenco note 42 output=-49.562 raw=-54.687 before=0.0954341 after=0.000317397 rawBefore=0.024 rawAfter=4.42444e-05 idle=0 parts=1 missingRaw=0
+guitar_type=12-String note 42 output=-50.0783 raw=-52.8974 before=0.104392 after=0.000327153 rawBefore=0.0257618 rawAfter=5.83588e-05 idle=0 parts=1 missingRaw=0
+guitar_type=Resonator note 42 output=-48.1424 raw=-54.7593 before=0.120849 after=0.000473284 rawBefore=0.0333307 rawAfter=6.0937e-05 idle=0 parts=1 missingRaw=0
+guitar_type=P-Style Bass note 42 output=-34.739 raw=-54.7552 before=0.212501 after=0.00389414 rawBefore=0.0567515 rawAfter=0.000103805 idle=0 parts=1 missingRaw=0
+guitar_type=J-Style Bass note 42 output=-39.7877 raw=-54.8111 before=0.188616 after=0.00193283 rawBefore=0.0581533 rawAfter=0.000105686 idle=0 parts=1 missingRaw=0
+guitar_type=Violin-Style Bass note 42 output=-42.9713 raw=-54.8208 before=0.176302 after=0.00125226 rawBefore=0.0469521 rawAfter=8.52344e-05 idle=0 parts=1 missingRaw=0
+guitar_type=5-String Bass note 42 output=-40.774 raw=-54.9792 before=0.182703 after=0.00167127 rawBefore=0.0532066 rawAfter=9.48428e-05 idle=0 parts=1 missingRaw=0
+guitar_type=Fretless Bass note 42 output=-40.3777 raw=-54.6723 before=0.190768 after=0.00182649 rawBefore=0.054701 rawAfter=0.000101014 idle=0 parts=1 missingRaw=0
+guitar_type=Custom note 42 output=-36.4116 raw=-54.7473 before=0.209989 after=0.00317408 rawBefore=0.0500708 rawAfter=9.16681e-05 idle=0 parts=0 missingRaw=0
+
+---- combination findings: Combo.releasedString ----
+  [Combo.releasedString] released note only 34.7 dB down 250 ms after note-off (35 at the output; SUS-08: 40 at the string)
+      settings: guitar_type=P-Style Bass note 42
+  summary: 1 x released note only 34.7 dB down 250 ms after note-off
+  [FAIL]  isolatedReleasedString                      25 checks     6200.86 ms
+    released note only 34.7 dB down 250 ms after note-off (35 at the output; SUS-08: 40 at the string) | guitar_type=P-Style Bass note 42
+
+================================================================
+ FAILED
+ 1 of 1 tests failed (1 of 25 checks), 6.2 s
+================================================================

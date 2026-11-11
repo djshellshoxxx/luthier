@@ -299,6 +299,7 @@ LUTHIER_TEST (MidiOutPanel, liveEventsAndWorkshopChangesGoOutAsLuthierSysEx)
     {
         juce::AudioBuffer<float> audio (2, kBlock);
         juce::Array<LuthierEvent> found;
+        processor.reserveMidiOutputBuffer (midi);
 
         for (int block = 0; block < 8; ++block)
         {

@@ -1,0 +1,15 @@
+
+================================================================
+ LUTHIER TEST SUITE
+================================================================
+
+
+MicPlacement
+----------------------------------------------------------------
+    MP-03: 420 legacy IRs; worst close 2.55426 dB (1x12_closed/evm_12l_royer_r_121_on_axis_centre_close.wav @ 4794.58 Hz), medium 4.93162 dB (2x12_closed/celestion_g12t_75_neumann_u87_off_axis_45_medium.wav @ 4794.58 Hz), 5-10 kHz 5.94939 dB (1x12_closed/evm_12l_neumann_u87_off_axis_45_medium.wav @ 9589.17 Hz)
+  [pass]  legacyFidelityAgainstTheShippedIrs          5 checks      3576.96 ms
+
+================================================================
+ ALL PASSED
+ 1 tests, 5 checks, 3.6 s
+================================================================

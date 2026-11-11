@@ -1,0 +1,21 @@
+# midi-continuity (worktree /home/user/lw/rt-midi, branch agents/luthier/audio/midi-continuity)
+
+Status: paused. Nothing compiled or run (build was stopped while waiting for the machine lock). Only a RED-candidate test was written; no fix code.
+
+## F-A1 rhythm MIDI out written twice / stale replay: CONFIRMED BY READING
+- Writer 1: Source/LuthierEngine.cpp:2967-2968 writeRhythmMidi (deferred pending queue, kMaxPendingRhythmMidi=128, LuthierEngine.h:837-843), :2983 flushRhythmMidi -> :2818 rhythmMidiOut->addEvent at sidechainReadOffset + samplesFromNow.
+- Writer 2: Source/PluginProcessor.cpp:2373-2396 copies engine.getRhythmEvents() into midiOutRouter.getRhythmBuffer() again (clamped to block, so different timing). Router emits that buffer once (Source/Routing/MidiOutRouter.cpp:112-115, cleared at :166).
+- Stale: rhythmEvents.clear() only inside `if (rhythm.isEnabled())` (LuthierEngine.cpp:2956-2958); writer 2 re-sends last block's strokes forever after disable.
+- Additional findings (not in audit):
+  - Writer 2 uses only the LAST engine sub-block's events with sub-block-relative offsets.
+  - Stuck notes at the host on disable even after removing writer 2: RhythmEngine::setEnabled(false) only sets pendingRelease (Rhythm/RhythmEngine.cpp:95-104), consumed in processBlock (:703) which the engine never calls while disabled (LuthierEngine.cpp:2956). Also releaseAll (RhythmEngine.cpp:443-458) emits NoteOffEvent with midiNote default 60 (Model/Playing/PlayingEvents.h:141), and those offs are produced with driving=false, so writer 1 (guarded by isDriving()) never writes them -> chord release / transport stop leaves MIDI-out notes on.
+  - flushRhythmMidi drops all pending (incl. note-offs) when rhythmMidiOut becomes null (routing source switched off) -> stuck notes.
+  - Pending queue is flushed in insertion order, not time order.
+- Intended fix: delete writer 2; clear rhythmEvents at top of every sub-block; in the engine's single writer keep a per-string-channel "note held at MIDI out" table, write offs whenever rhythm produced them (driving or not) using the held pitch, synthesise an off before a re-strike on a held channel, drop orphan offs, keep pending queue time-sorted (insertion sort, <=128), and on observing rhythm disabled drop pending and emit offs at offset 0 for every held note.
+- Test written (not compiled): Source/Tests/RhythmMidiOutContinuityTests.cpp, suite RhythmMidiOut: on/off pairing per pitch, 7 strums x strings exactly once, strum starts on beat sample, no events after switch-off except offs at the switch-off sample, no stuck notes, identical stream at block sizes 1/37/512/2048. Existing Routing.rhythmSourceCarriesTheStrum (RoutingSweepTests.cpp, RoutingTests.cpp; duplicate test name in two files) uses `> 12` note-ons so it passes with duplicates.
+
+## F-A2 MIDI dropped on failed engine try-lock: CONFIRMED BY READING (drop); stuck note not reproduced
+- Source/PluginProcessor.cpp:1948 ScopedTryLock on bridge.getEngineLock(); :2013-2016 on failure mainOut.clear() and engine.processBlock is skipped, so midiMessages never reach the engine (no carry-over). Bridge apply, controllerStage, engineCommands skipped (:1950-1958; commands stay queued). Reference MIDI out skipped (:2399-2400). Upstream consumers already ran on the block's MIDI (MIDI learn, live MIDI, capture, previewHeldNotes, jam, tune) so their state advances while the engine's does not. Audio: hard clear of main out (click unless declick fade already silent: applyDeclick PluginProcessor.cpp:1521-1557, fadeOutBeforeStructuralChange waits <=60 ms for silence first).
+- Precedent: engine already carries MIDI while parked (LuthierEngine.cpp:2556-2573, parkedMidi, kParkedMidiBytes, offset 0) but its overflow policy drops anything that does not fit, releases included.
+- Intended fix: processor member carry buffer pre-sized in prepareToPlay (BoundedMidi::kReserveBytes), on lock failure append the engine-bound MIDI at offset 0 with BoundedMidi::addEvents (releases prioritised); on next locked block prepend it before the block's MIDI; if releases alone overflow, replace with CC123 per channel. Compose with 9167c620 (not read yet).
+- Not done: test holding the lock from a thread; click measurement.

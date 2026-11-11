@@ -2,6 +2,7 @@
 #include "SearchIndex.h"
 #include "SearchCatalog.h"
 #include "ParameterVisibility.h"
+#include "../ReferencePedals/ReferenceSearch.h"
 
 #include "../../PluginProcessor.h"
 #include "../../Parameters.h"
@@ -125,6 +126,8 @@ bool ParameterText::isInertSlotParameter (LuthierAudioProcessor& processor, cons
 juce::String ParameterText::titleFor (LuthierAudioProcessor& processor, const juce::RangedAudioParameter& p, bool english)
 {
     const auto id = p.getParameterID();
+    const auto referenceTarget = reference::resolveSearchTarget(processor.getEngine().getReferencePedals().model(),id);
+    if(referenceTarget.recognized)return referenceTarget.title;
     const auto key = "search.title.param:" + id;
 
     if (! english && SearchCatalog::isLocalised (key))
@@ -167,7 +170,7 @@ ParameterProvider::ParameterProvider (LuthierAudioProcessor& p, SearchServices* 
 
 juce::uint32 ParameterProvider::getGeneration() const
 {
-    juce::uint32 h = localeHash();
+    juce::uint32 h = localeHash() ^ reference::searchModelGeneration(processor.getEngine().getReferencePedals().model());
 
     for (int chain = 0; chain < 2; ++chain)
         for (int s = 0; s < EffectsChain::kNumSlots; ++s)
@@ -213,6 +216,8 @@ void ParameterProvider::collect (std::vector<SearchItem>& out) const
 
 Availability ParameterProvider::availabilityOf (const SearchItem& item) const
 {
+    const auto referenceTarget=reference::resolveSearchTarget(processor.getEngine().getReferencePedals().model(),item.target);
+    if(referenceTarget.recognized&&!referenceTarget.available)return Availability::unavailable;
     if (services != nullptr && services->isProLocked (item))
         return Availability::proLocked;
 
@@ -241,7 +246,7 @@ ChoiceOptionProvider::ChoiceOptionProvider (LuthierAudioProcessor& p, SearchServ
 
 juce::uint32 ChoiceOptionProvider::getGeneration() const
 {
-    return localeHash() + 1u;
+    return (localeHash() + 1u) ^ reference::searchModelGeneration(processor.getEngine().getReferencePedals().model());
 }
 
 void ChoiceOptionProvider::collect (std::vector<SearchItem>& out) const
@@ -283,6 +288,8 @@ void ChoiceOptionProvider::collect (std::vector<SearchItem>& out) const
 
 Availability ChoiceOptionProvider::availabilityOf (const SearchItem& item) const
 {
+    const auto referenceTarget=reference::resolveSearchTarget(processor.getEngine().getReferencePedals().model(),item.target);
+    if(referenceTarget.recognized&&!referenceTarget.available)return Availability::unavailable;
     if (services != nullptr && services->isProLocked (item))
         return Availability::proLocked;
 

@@ -269,7 +269,7 @@ A complete, organized list of Luthier's features and capabilities, grouped by ca
 - Standalone application
 - Proper latency reporting to host
 - State serialization: plugin state saved/loaded by host
-- Per-host quirk handling: Ableton, Logic, Cubase, Studio One, Reaper, FL, Bitwig, Pro Tools
+- Per-host quirk handling (intended, not manually tested): Ableton, Logic, Cubase, Studio One, Reaper, FL, Bitwig
 - Sidechain input support
 - Per-string audio outputs (Pro)
 - Bus layout switching (7 aux pairs, re-amp routing in Pro)
@@ -603,7 +603,7 @@ A complete, organized list of Luthier's features and capabilities, grouped by ca
 - CLAP: Windows, macOS, Linux
 - Standalone application: Windows, macOS, Linux
 
-**Tested DAWs**
+**Hosts with documented quirk handling** (not tested manually; see `HOST_COMPATIBILITY.md`)
 - Ableton Live
 - Logic Pro
 - Cubase
@@ -611,7 +611,7 @@ A complete, organized list of Luthier's features and capabilities, grouped by ca
 - Reaper
 - FL Studio
 - Bitwig Studio
-- Pro Tools
+- Pro Tools (needs AAX, which is not built; unsupported)
 - Plus any host supporting VST3, AU, or CLAP
 
 **System Requirements**

@@ -1,0 +1,51 @@
+
+================================================================
+ LUTHIER TEST SUITE
+================================================================
+
+
+ReleaseCapProbe
+----------------------------------------------------------------
+completed rate=44100
+completed rate=48000
+completed rate=88200
+completed rate=96000
+completed rate=192000
+  [pass]  unchangedReleaseCriterion                   1000 checks   43203.7 ms
+  [pass]  heldOpenAndLetRingIdentity                  280 checks    1554.31 ms
+  [FAIL]  actualSustainAndSostenutoHoldIdentity       120 checks    12735.5 ms
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+    line 101: expected s.actualOff==pedalUp
+
+================================================================
+ FAILED
+ 1 of 3 tests failed (30 of 1400 checks), 57.5 s
+================================================================
