@@ -29,6 +29,9 @@ namespace
     // Optional caller-owned log of requested sizes (diagnostics only; off by default).
     thread_local std::size_t* sizeLog = nullptr;
     thread_local std::size_t sizeLogCapacity = 0, sizeLogCount = 0;
+    // Optional caller-owned per-allocation callback (ProcessorStress captures
+    // audio-thread call sites with it; off by default).
+    thread_local void (*allocationObserver) (std::size_t) noexcept = nullptr;
     bool failAllocation (std::size_t size) noexcept
     {
         if (allocationsBeforeFailure != static_cast<std::size_t> (-1))
@@ -60,6 +63,7 @@ namespace luthier::tests
     void logAllocationSizesOnThisThread (std::size_t* buffer, std::size_t capacity) noexcept
     { sizeLog = buffer; sizeLogCapacity = buffer != nullptr ? capacity : 0; sizeLogCount = 0; }
     std::size_t loggedAllocationCountOnThisThread() noexcept { return sizeLogCount; }
+    void setAllocationObserverOnThisThread (void (*observer) (std::size_t) noexcept) noexcept { allocationObserver = observer; }
 }
 
 struct AllocationCounter
@@ -78,6 +82,7 @@ void* operator new (std::size_t size)
 {
     ++threadAllocationCount;
     if (sizeLog != nullptr) { if (sizeLogCount < sizeLogCapacity) sizeLog[sizeLogCount] = size; ++sizeLogCount; }
+    if (allocationObserver != nullptr) allocationObserver (size);
     if (failAllocation (size)) throw std::bad_alloc();
 
     if (auto* p = std::malloc (size == 0 ? 1 : size))
@@ -90,6 +95,7 @@ void* operator new[] (std::size_t size)
 {
     ++threadAllocationCount;
     if (sizeLog != nullptr) { if (sizeLogCount < sizeLogCapacity) sizeLog[sizeLogCount] = size; ++sizeLogCount; }
+    if (allocationObserver != nullptr) allocationObserver (size);
     if (failAllocation (size)) throw std::bad_alloc();
 
     if (auto* p = std::malloc (size == 0 ? 1 : size))
