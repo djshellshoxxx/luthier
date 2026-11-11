@@ -1,5 +1,119 @@
 # Changelog
 
+## Unreleased (2026-10-17 to 2026-11-04, source `ca14934e`)
+
+This section summarises the commits after the last changelog entry (2026-10-16) up to
+`ca14934e`. Nothing in it is a release. The project version in `CMakeLists.txt` is
+0.1.0. No native macOS or Windows release qualification exists for this source; see
+`KNOWN_ISSUES.md`, "Platform qualification". Sources: `git log`, and for pedalboard
+status the handoff records under `docs/handoff/` (their numbers are quoted, not
+re-measured).
+
+### Pedalboard engine
+
+- A reference pedalboard was added as a separate subsystem from the two legacy pedal
+  racks (`Source/ReferencePedals/**`): board model with add, remove, move, duplicate,
+  trims, mounting and grouped bounded undo and redo; validated board state with lossless
+  restore; series, parallel, A/B and loop routing with send and return loops and bounded
+  feedback; equal-power A/B and bounded auxiliary sends. See `PEDALBOARD.md`.
+- Bypass contracts for buffered and tail-preserving models, board-owned equal-power
+  bypass fades, and dry-latency read taps inside structural transitions.
+- Host automation: append-only extended automation lanes captured allocation-free for
+  board processing; host intent preserved through state reload without replay.
+- Scene capture and snapshot recall as undoable, runtime-aware commands (no on-screen
+  control for them yet; see `PEDALBOARD.md`).
+- Estimated CPU admission budgets per model, prepared-memory accounting before
+  construction, a CPU governor fed by processor measurements, bounded retirement of
+  audio plans, and rejection of failed pedal preparation without replacing the live
+  runtime.
+- Host sidechain slices routed into pedal detectors.
+
+### Models
+
+- Ten generic effects (four drive and dynamics, modulation, delay, three reverb
+  topologies) with double-precision smoothing and sample-rate behaviour tests. These
+  are registered and available on the board, along with three prototypes: 13 models in
+  all.
+- Six named models for the first pedalboard release (a phaser, two bucket-brigade
+  choruses, a digital delay, a compressor and a looper) were implemented as
+  prototypes. **They are not registered and are not available to users.** Open gates
+  recorded in the handoff: CPU budgets, and several acoustic criteria awaiting owner
+  decisions.
+- A bucket-brigade delay core shared by the chorus models. A transfer nonlinearity
+  added to the first chorus model was then reverted; its test `RefPedalCe2.bbdOnOriginalThdGate` stays failing
+  on purpose and has not been loosened.
+- Phaser and compressor CPU work with bit-exact output, a corrected phaser bypass, and
+  a corrected sync freeze. A digital-delay tail regression and sync boundary latching
+  were fixed.
+- Shipped descriptor strings no longer carry third-party names.
+
+### Looper
+
+- A bounded layered looper core, then a paged looper with streaming asset pages,
+  compact layers, versioned caches, undo and redo preservation, stopped reverse
+  playback, explicit resume, and encoded model-owned assets.
+- A first wrapper for the looper model (rhythm helper, tap tempo, double-press stop,
+  transactional memory metadata). Several features remain unimplemented: 99-memory audio
+  switching, MIDI program change, quantise and automatic length, half speed, live
+  reverse and MIDI clock out. It is not registered.
+- Fixed: restart before the stop fade finished, restored cache collisions across ragged
+  wraps, loop origin eviction while recording.
+
+### UI
+
+- Model-backed board window with dock and pop-out; dock needs an editor 840 pixels
+  tall. Descriptor-driven controls and physical pedal faces, nonmodal settings and MIDI
+  mapping panels, keyboard operation (reorder, fine and coarse knob steps), live drag
+  with a ghost and rollback, compact layout, board search routed to real controls.
+- UI tests: ten thousand native UI operations, a 16-pedal paint budget (now the best of
+  three 300-frame batches), and the dock-floor and aspect-ratio fix in the lifecycle
+  test.
+
+### Host and MIDI
+
+- Board MIDI routing: bounded, sample-offset rendering, shared canonical targets,
+  channel-local profiles, footswitch modes, learn, actual MIDI feedback, malformed
+  input rejection, bounded host MIDI output, and a canonical tempo source with
+  phase-continuous clock glide.
+- Three appended pedalboard output buses; tests confirm legacy buses and layouts are
+  unchanged.
+- A pinned patch to the CLAP wrapper preserves same-value host write intent.
+- Discrete parameters map to their natural ranges.
+- Persisted pedalboard window preferences are restored.
+
+### CI and release tooling
+
+- Native diagnostics workflow, macOS failure evidence collection, and a PR digest of
+  native logs that now includes crash frames and the log tail.
+- Cached focused Linux preflight, Unix build concurrency caps, parallel focused Pro and
+  Free regression gates.
+- Release packaging: parameterised, strictly validated beta asset versions and tags,
+  per-edition identities, manifest validation, and draft-only release creation. A
+  workflow for a second beta was added; no release is claimed here. See `RELEASING.md`
+  for the publishing hazard.
+
+### Fixes
+
+- Tiny host block sizes (1 to 4 samples) with convolution: the convolution engines
+  are prepared with a minimum internal capacity of 8; the root cause of an earlier heap
+  abort is not proven (`docs/handoff/BUFFER-SIZE-1-4-HEAP-CORRUPTION-2026-10-26.md`).
+- A deliberate guitar selection is no longer overridden by earlier preset writes
+  within a host transaction.
+- Output normalisation host writes are deterministic; the Free loudness cache is
+  isolated from Pro factory measurements.
+- Looper takes are preserved and the room reflection buffer is sized from geometry.
+- Reader retirement and callback re-entry are bounded.
+- Exact numbers and raw host state blocks are preserved when saving board state; an
+  allocation under MSVC while building a change key was removed.
+- The interface is labelled as software artwork.
+
+### Documentation
+
+- New: `PEDALBOARD.md`, `EFFECTS_REFERENCE.md`, `TESTING.md`, `CONTRIBUTING.md`; the
+  luthier-render flag reference in `spec/cli-tools.md`; wiki drafts reorganised.
+- `KNOWN_ISSUES.md` corrected (formats, version, Panic behaviour, unevidenced
+  validator claim) and extended.
+
 ## 0.1.0-beta (release preparation)
 
 Public tag: `v0.1-beta`. The numeric plug-in version is 0.1.0; beta builds include

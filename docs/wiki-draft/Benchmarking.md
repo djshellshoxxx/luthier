@@ -1,0 +1,3 @@
+# Benchmarking
+
+There is no separate benchmark harness. CPU measurements are unit tests that run only when `LUTHIER_PERF=1` is set, on a quiet machine; results from a shared or loaded machine are not comparable. `scripts/perf_compare.py` compares performance logs; the optimisation history is [docs/perf/OPTIMISATION_LOG.md](https://github.com/djshellshoxxx/luthier/blob/master/docs/perf/OPTIMISATION_LOG.md). The quality modes and their CPU budget are in [spec/cpu-quality-modes.md](https://github.com/djshellshoxxx/luthier/blob/master/spec/cpu-quality-modes.md). See [TESTING.md](https://github.com/djshellshoxxx/luthier/blob/master/docs/TESTING.md).

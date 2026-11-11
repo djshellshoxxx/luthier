@@ -26,6 +26,6 @@ For batch rendering, build `LuthierRender` and run:
 luthier-render --midi riff.mid --preset "Modern Metal Chug" --out riff.wav
 ```
 
-The CLI also accepts a `.luthierpreset` file. See `Tools/RenderCli.cpp` for its actual options.
+The CLI also accepts a `.luthierpreset` file. All options are listed in [spec/cli-tools.md](https://github.com/djshellshoxxx/luthier/blob/master/spec/cli-tools.md), section 7.
 
-Continue with [[Build by OS]] and [[Testing]].
+Continue with [[Build System]], [[Testing]] and [[Pedalboard]].

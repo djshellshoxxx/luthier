@@ -1,4 +1,4 @@
-# Build by OS
+# Build System
 
 All commands start in the repository root. `CMakeLists.txt` defines VST3 and Standalone on all platforms, AU on Apple systems, and CLAP only when `clap-juce-extensions` is present. `LuthierTests` and `LuthierRender` are enabled by default and can be disabled with `-DLUTHIER_BUILD_TESTS=OFF -DLUTHIER_BUILD_CLI=OFF`.
 
@@ -20,7 +20,7 @@ Install Visual Studio 2022 with the C++ toolchain and CMake 3.22+. Fetch JUCE 8.
 scripts/build.ps1 -Target All -Jobs 2 -Test
 ```
 
-Or configure explicitly with `cmake -B build -G "Visual Studio 17 2022" -A x64` and build `Luthier_VST3`, `Luthier_Standalone`, `LuthierTests`, and `LuthierRender`. The PowerShell wrapper defaults to two build jobs for memory constrained machines. Windows build success should be checked on Windows; it is not established by a Linux run.
+Or configure explicitly with `cmake -B build -G "Visual Studio 17 2022" -A x64` and build `Luthier_VST3`, `Luthier_Standalone`, `LuthierTests`, and `LuthierRender`. The PowerShell wrapper defaults to two build jobs for memory constrained machines. Windows build success should be checked on Windows; it is not established by a Linux run. CI has built Windows, but the current source has failing tests there ([Known Issues](https://github.com/djshellshoxxx/luthier/blob/master/docs/KNOWN_ISSUES.md), "Platform qualification").
 
 ## macOS
 
@@ -31,6 +31,6 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release --parallel 2
 ```
 
-The Apple configuration includes `Luthier_AU`. Signing and notarization require credentials and manual release checks; see [Releasing](https://github.com/djshellshoxxx/luthier/blob/master/docs/RELEASING.md). macOS validation is currently paused in the project handoff.
+The Apple configuration includes `Luthier_AU`. Signing and notarization require credentials and manual release checks; see [Releasing](https://github.com/djshellshoxxx/luthier/blob/master/docs/RELEASING.md). No native macOS release qualification exists for the current source ([Known Issues](https://github.com/djshellshoxxx/luthier/blob/master/docs/KNOWN_ISSUES.md)).
 
 For CI-like steps, use `scripts/ci_build.sh` or `scripts/ci_build.ps1` and consult the scripts and workflows for current versions, validators, staging and package outputs. Built plugin artifacts and signed public releases are different states.
