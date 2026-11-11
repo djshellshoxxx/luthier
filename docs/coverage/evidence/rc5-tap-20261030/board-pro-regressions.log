@@ -1,0 +1,182 @@
+
+================================================================
+ LUTHIER TEST SUITE
+================================================================
+
+
+RefPedalApi
+----------------------------------------------------------------
+  [pass]  constantsAndPodSizesAreFrozen               20 checks     0.006 ms
+  [pass]  bindingPacksModeAndCurve                    86 checks     0 ms
+  [pass]  taperRoundTripAndEndpoints                  5659 checks   0.765 ms
+  [pass]  discreteAndSwitchKinds                      16 checks     0.007 ms
+  [pass]  registryRejectsMalformedDescriptors         23 checks     0.023 ms
+  [pass]  registryRejectsDuplicateIdAndPrefix         6 checks      0.005 ms
+  [pass]  registryFindMakeAndOrder                    57 checks     0.143 ms
+  [pass]  registerAllIsIdempotent                     1 checks      0.071 ms
+  [pass]  registryContentValid                        65 checks     0.301 ms
+  [pass]  laneMapSkipsEngageConfigExtTriggerMomentary 19 checks     0.009 ms
+  [pass]  pedalBaseValidatesAndAppliesTapers          13 checks     0.003 ms
+  [pass]  pedalBaseTriggerFiresOnRisingEdgeOnly       5 checks      0.002 ms
+  [pass]  pedalBaseSmoothsAndStaysRtSafe              965 checks    0.206 ms
+  [pass]  softGuardAndDcGuard                         6 checks      0.152 ms
+  [pass]  spscRingBasics                              434 checks    0.003 ms
+  [pass]  spscRingStressKeepsOrderAndNeverBlocks      2 checks      60.708 ms
+  [pass]  retireListReclaimsByVersion                 10 checks     0.002 ms
+  [pass]  assetHashHexRoundTrip                       5 checks      0.004 ms
+  [pass]  commandNamesAreDistinct                     25 checks     0.023 ms
+  [pass]  boardTypesStringHelpers                     23 checks     0.004 ms
+  [pass]  routingNodeTableIsComplete                  15 checks     0.006 ms
+  [pass]  boardFacadeKeepsLegacyContract              39 checks     5.158 ms
+  [pass]  boardModelStubRejectsUntilImplemented       0 checks      0.005 ms
+  [pass]  faceFactoryFallsBackToPlaceholder           5 checks      0.01 ms
+  [pass]  noGuiIncludes                               14673 checks  5.27 ms
+  [pass]  skeletonFilesHaveOwners                     198 checks    3.109 ms
+
+RefPedalBoardCore
+----------------------------------------------------------------
+  [pass]  boardSettingsCommandsRoundTrip              8 checks      0.013 ms
+  [pass]  invalidSettingsDoNotMutate                  5 checks      0.006 ms
+  [pass]  stateSnapshotRoundTrip                      5 checks      0.084 ms
+  [pass]  instanceMoveRemoveAndUndo                   11 checks     0.013 ms
+  [pass]  duplicatePreservesControlsAndHasIndependentIdentity17 checks     0.007 ms
+  [pass]  trimAndMountingValidateBeforeMutation       11 checks     0.005 ms
+  [pass]  transactionIsOneUndoStepAndRetainsEarlierHistory13 checks     0.018 ms
+  [pass]  emptyAndRejectedTransactionsDoNotConsumeUndo5 checks      0.065 ms
+  [pass]  nestedTransactionsRemainOneStep             8 checks      0.003 ms
+  [pass]  undoDuringOpenTransactionWaitsUntilCommit   7 checks      0.002 ms
+  [pass]  consecutiveGestureWritesCoalesceByTarget    14 checks     0.016 ms
+  [pass]  mixAndTrimGesturesHaveIndependentHistory    10 checks     0.005 ms
+  [pass]  historyIsBoundedToOneHundredSteps           109 checks    0.497 ms
+  [pass]  automationSlotsStayWithInstancesAcrossEdits 16 checks     0.012 ms
+  [pass]  restorePreservesSlotsAndAssignsUnspecifiedOnes8 checks      0.073 ms
+  [pass]  scalarBoardControlsRoundTripAndUndo         32 checks     0.013 ms
+  [pass]  malformedScalarControlsDoNotMutateOrConsumeHistory29 checks     0.012 ms
+  [pass]  invalidRestoredSettingsLeaveBoardAndHistoryIntact83 checks     0.089 ms
+  [pass]  invalidRestoredPedalControlsDoNotReplaceExistingBoard25 checks     0.019 ms
+  [pass]  modelEditsPublishToFacadeAudio              8 checks      4.775 ms
+  [pass]  rejectedUnknownFactoryLeavesModelAndHistoryUntouched4 checks      0.872 ms
+  [pass]  delayAndMixEndpointsAreExact                26 checks     0.000999998 ms
+  [pass]  poolKeepsPedalIdentityAcrossReorderAndControls9 checks      0.153 ms
+  [pass]  outputIsIndependentOfHostBlockPartitionIncludingReorder40960 checks  30.809 ms
+  [pass]  publicationReclamationAndControlEditsCanOverlapAudio2 checks      120.222 ms
+  [pass]  uiMetadataAndSnapshotsDoNotShareMutableVarObjects3 checks      0.006 ms
+  [pass]  callbackAllocatesNothingDuringStructuralTransitions1 checks      20.831 ms
+  [pass]  boardDisableFinishesInTwentyMilliseconds    3 checks      3.212 ms
+  [pass]  midiWritesStartAtOffsetAndPersistUntilModelChanges133 checks    0.672 ms
+  [pass]  footPressEngagesPedalsWithoutBypassingTransportLoopers8 checks      0.477 ms
+  [pass]  boardMidiEnableCanWakeAnInitiallyDisabledBoard35 checks     0.2 ms
+  [pass]  hostAutomationIsImmediatePersistentAndDoesNotOverwriteModelEdits17 checks     3.896 ms
+  [pass]  midiFocusIsMetadataWithoutUndoOrTopologyPublication7 checks      0.009 ms
+  [pass]  hostEchoDoesNotCreateHistoryOrOverrideFreshHostSerial7 checks      2.24 ms
+  [pass]  pedalMetersPublishActualDataAndFullInstanceIdentity15 checks     8.664 ms
+  [pass]  rapidUiTriggerEdgesSurviveSnapshotCoalescing11 checks     2.369 ms
+  [pass]  cancelTransactionRestoresOuterBaselineAndExistingHistory19 checks     0.011 ms
+  [pass]  legacyMoveRetainsAllSixteenSlotsWithSparsePedals20 checks     2.278 ms
+  [pass]  rawMidiAndBoundedOutputPreserveOffsetsWithoutAllocation396 checks    4.011 ms
+  [pass]  runtimeExtraCaptureIsIsolatedAndSurvivesPrepareReorderAndUndo6686 checks   6.564 ms
+  [pass]  mixTailHostControlPausesWetDspAndResumesWithoutReset137 checks    3.429 ms
+  [pass]  extendedTempoSourceUsesCanonicalPriorityAndExplicitModelIntent9 checks      3.12 ms
+  [pass]  injectedAssetStoreIsPinnedThroughPedalTeardownAndStoppedReplacement20 checks     2.998 ms
+  [pass]  continuousMidiSmoothingIsPerSampleAndPartitionIndependent9242 checks   1.947 ms
+  [pass]  malformedRawMidiNeverReachesOptedInPedals   70 checks     2.458 ms
+  [pass]  ownSmoothingReceivesExactTargetAtOffsetWithoutBindingRamp67 checks     0.251 ms
+  [pass]  discreteBurstsCoalesceToThirtyTwoPointsAndRetainEveryTriggerEdge42 checks     0.62 ms
+  [pass]  slotFootMetadataPreservesUnknownFieldsAndRejectsInvalidRestore18 checks     0.031 ms
+  [pass]  configuredMomentaryReleaseUsesVelocityAndAutoRestoresAfterHold28 checks     1.428 ms
+  [pass]  modelFootModeConfigOverridesPerSlotFallback 4 checks      0.01 ms
+  [pass]  relativeMidiUsesResolvedHostModelAndSourceGenerationTargets16 checks     3.62 ms
+  [pass]  failedRuntimePreparationAndRestoreLeaveWorkingModelUntouched13 checks     2.688 ms
+  [pass]  estimatedCpuCapRejectsAtomicallyAndUsesWideAccumulation16 checks     0.015 ms
+  [pass]  measuredProcessorOverloadRequestsEcoOnlyAfterContinuousTwoSeconds17 checks     1.823 ms
+  [pass]  sceneCommandsPreserveBankAndMakeRecallOneUndoableIntent29 checks     10.128 ms
+  [pass]  snapshotRecallAndHistoryCaptureRuntimeExtrasOutsideTheModelLock19 checks     3.348 ms
+  [pass]  explicitSnapshotRecallOverridesConsumedHostSerialEvenAtSameStoredValue7 checks      3.128 ms
+  [pass]  snapshotHelpersKeepUndoRedoAndCaptureRuntimeExtras26 checks     3.317 ms
+  [pass]  preparedMemoryReservationsBoundPeakAndFollowOwnership26 checks     0.002 ms
+
+RefPedalHistoryFailure
+----------------------------------------------------------------
+history sizes op=0 sites=22 PedalInstance=224 BoardSettings=272 TopologyInfo=40: 224 21 21 224 21 21 8960 21 32 27 224 21 27 31 43 47 51 59 83 47 103 107
+history fault op=0 sites=22 triggered=22 exceptions=19
+  [pass]  applyPublicationAndHistoryStayAtomicAtEveryAllocation271 checks    72.144 ms
+history sizes op=1 sites=20 PedalInstance=224 BoardSettings=272 TopologyInfo=40: 224 21 304 21 8960 21 32 27 224 21 27 31 43 47 51 59 83 47 103 107
+history fault op=1 sites=20 triggered=20 exceptions=17
+  [pass]  undoPublicationAndHistoryStayAtomicAtEveryAllocation244 checks    65.594 ms
+history sizes op=2 sites=19 PedalInstance=224 BoardSettings=272 TopologyInfo=40: 224 21 21 8960 21 32 27 224 21 27 31 43 47 51 59 83 47 103 107
+history fault op=2 sites=19 triggered=19 exceptions=16
+  [pass]  redoPublicationAndHistoryStayAtomicAtEveryAllocation238 checks    65.218 ms
+history sizes op=3 sites=1177 PedalInstance=224 BoardSettings=272 TopologyInfo=40: 224 21 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 32 224 21 27 27 27 27 27 27 27 35 27 27 27 27 27 27 27 27 27 27 27 35 31 27 31 27 27 27 27 31 61 27 27 27 27 27 27 27 35 27 27 27 27 27 27 27 27 27 27 27 27 27 27 27 27 27 39 121 27 31 27 27 27 27 27 27 27 27 27 27 35 27 31 27 27 27 27 27 27 27 27 27 27 27 27 27 27 39 27 27 27 27 27 27 27 35 27 31 241 27 27 27 27 27 27 27 27 35 27 31 27 27 27 27 27 27 27 27 27 27 27 27 39 27 31 27 27 27 27 27 27 27 27 27 27 27 27 27 39 27 31 27 27 27 27 27 27 27 27 27 27 27 27 39 27 27 27 27 27 27 27 27 27 27 35 27 27 27 27 27 27 27 27 27 27 27 27 35 27 27 27 27 27 27 27 27 27 35 27 27 27 481 27 27 27 27 27 27 27 27 27 27 27 27 39 27 27 27 27 27 27 27 27 27 27 27 27 35 27 27 27 27 27 27 27 27 27 31 27 27 27 27 27 27 27 27 31 27
+history fault op=3 sites=1177 triggered=7 exceptions=7
+  [pass]  snapshotRuntimeHistoryVectorCopiesPrecedePublication95 checks     28.421 ms
+history sizes op=4 sites=22 PedalInstance=224 BoardSettings=272 TopologyInfo=40: 21 224 21 32 21 8960 21 32 27 224 21 32 27 31 43 47 51 59 83 47 103 107
+history fault op=4 sites=22 triggered=2 exceptions=2
+  [pass]  wholeRestoreVectorCopiesPrecedePublication  32 checks     11.617 ms
+history auxiliary fault sites=9
+  [pass]  transactionSetupFailurePreservesDepthAndPriorRedo114 checks    18.195 ms
+history auxiliary fault sites=5
+  [pass]  failedEditAtHundredEntriesPreservesOldestUndoAndGesture725 checks    2.451 ms
+
+RefPedalHost
+----------------------------------------------------------------
+  [pass]  appendOnlyLaneIdsAndDefaults                53 checks     39.642 ms
+  [pass]  boardStateSurvivesHostReloadAndRateChange   5 checks      453.623 ms
+  [pass]  missingBoardBlockRestoresLegacyDefault      2 checks      37.474 ms
+  [pass]  repeatedRateAndSmallBlockLifecycle          9 checks      2319.85 ms
+  [pass]  forwardBoardSectionPreservesRawBytes        3 checks      43.59 ms
+  [pass]  automationWithoutMessagePump                6 checks      416.407 ms
+  [pass]  automationThousandWritesPerSecond           1504 checks   687.092 ms
+  [pass]  hostPersistenceEchoDoesNotCreateUndo        7 checks      427.172 ms
+  [pass]  appendedAuxBusesPreserveLayoutAndRenderSlicedSends16 checks     363.588 ms
+  [pass]  outputRouterBoundsCombinedSources           4 checks      0.345 ms
+  [pass]  extendedTempoSourceAndBpmWithoutMessagePump 8 checks      374.082 ms
+  [pass]  extendedParameterDefaultsNamesAndLowGainPreservation109 checks    48.997 ms
+  [pass]  vacantSlotHostValuesSurviveSaveRestoreAndService16 checks     392.239 ms
+  [pass]  unusedPopulatedSlotLanePreservesHostValueWithoutChangingPedal6 checks      89.145 ms
+  [pass]  allReferenceHostIntentSurvivesRejectedStructuralRequests751 checks    89.35 ms
+  [pass]  restoredKillIntentStaysReleasedUntilFreshHostEdge12 checks     753.918 ms
+  [pass]  processorFeedsMeasuredLoadIntoBoardWithoutMessagePump4 checks      333.201 ms
+  [pass]  positionGestureDoesNotPublishPreviewOrCancelledValues10 checks     58.653 ms
+  [pass]  acceptedPositionGestureRecordsFinalValueWithOneModelMove12 checks     48.706 ms
+
+RefPedalRc5TapTempo
+----------------------------------------------------------------
+  [pass]  eight120BpmTapsAtFiveRates                  130 checks    0.017 ms
+  [pass]  arithmeticMeanUsesLastFourAcceptedIntervals 14 checks     0.000999998 ms
+  [pass]  inclusiveIntegerIntervalBounds              84 checks     0.001 ms
+  [pass]  invalidIntervalsAreExcludedButUpdateAdjacentAnchor9 checks      0 ms
+  [pass]  twoSecondGapClearsMeanAndReanchors          45 checks     0.002 ms
+  [pass]  backwardNegativeAndResetClearBookkeeping    14 checks     0 ms
+  [pass]  prepareValidationPreservesPriorStateAndValidPrepareResets38 checks     0.001 ms
+  [pass]  sampleClockExtremesCannotOverflow           12 checks     0 ms
+  [pass]  callbackMethodsAllocateNothing              3 checks      0.002 ms
+  [pass]  acceptedTemposDriveActualRhythmWithoutPhaseResetOrPartitionDependence12 checks     8.272 ms
+
+RefPedalBossRc5
+----------------------------------------------------------------
+  [pass]  immediateMainPressCycleUsesActualRamAndPagedCores1381 checks   38.662 ms
+  [pass]  immediatePressOnUnpreparedCoresRemainsSafe  3 checks      0.001 ms
+  [pass]  wrapperDescriptorMatchesReconciledParameterTableAndLanes71 checks     0.019 ms
+  [pass]  wrapperRecordsExactLengthAndPlaysBackRecordedAudio18831 checks  16.065 ms
+  [pass]  wrapperLoopLevelIsLinearToTwoAndDryIsUnchanged487 checks    4.859 ms
+  [pass]  wrapperDoublePressStopsAndSlowSecondPressClosesOverdub7 checks      13.734 ms
+  [pass]  wrapperHoldUndoesRedoesAndClearsOnlyFromStop18 checks     80.44 ms
+  [pass]  wrapperOverdubContinuesAcrossPassesAndUndoRemovesTheLastPass9 checks      901.146 ms
+  [pass]  wrapperWithoutAssetStorePassesDryRunsRhythmAndReportsFault4804 checks   1.536 ms
+  [pass]  wrapperTempoFollowsHostOnlyInAutoSync       4 checks      0.105 ms
+  [pass]  tempoButtonEightTapsSetInternalTempoAtFiveRates8 checks      24.884 ms
+  [pass]  tempoTapKeepsHostClockAuthorityAndManualTempoCanReplaceIt4 checks      0.504 ms
+  [pass]  tappedInternalTempoSurvivesExtraStateWithoutLoopAsset3 checks      0.402 ms
+  [pass]  tappedTempoExtraStateValidatesAndSurvivesPrepare5 checks      0.07 ms
+  [pass]  boardRestoreKeepsTappedTempoThroughInitialParameterSnapshot6 checks      0.797 ms
+  [pass]  boardExplicitSameTempoWriteBeforeFirstBlockOverridesRestoredTap6 checks      0.484 ms
+  [pass]  wrapperStateRoundTripRestoresTheLoopInEitherLoadOrder12 checks     10.785 ms
+  [pass]  wrapperResetAndReprepareKeepTheUsersLoop    8 checks      6.626 ms
+  [pass]  wrapperCallbacksAndGesturesAllocateNothing  1 checks      6.996 ms
+  [pass]  wrapperSeededGestureStressStaysFiniteBoundedAndAllocationFree6 checks      598.928 ms
+
+================================================================
+ ALL PASSED
+ 141 tests, 111253 checks, 9.3 s
+================================================================
+

@@ -1,0 +1,31 @@
+JUCE v8.0.10
+
+================================================================
+ LUTHIER TEST SUITE
+================================================================
+
+
+RefPedalBossRc5
+----------------------------------------------------------------
+  [pass]  immediateMainPressCycleUsesActualRamAndPagedCores1381 checks   136.918 ms
+  [pass]  immediatePressOnUnpreparedCoresRemainsSafe  3 checks      0.012 ms
+  [pass]  wrapperDescriptorMatchesReconciledParameterTableAndLanes71 checks     0.087 ms
+  [pass]  wrapperRecordsExactLengthAndPlaysBackRecordedAudio18831 checks  155.665 ms
+  [pass]  wrapperLoopLevelIsLinearToTwoAndDryIsUnchanged487 checks    104.095 ms
+  [pass]  wrapperDoublePressStopsAndSlowSecondPressClosesOverdub7 checks      210.727 ms
+  [pass]  wrapperHoldUndoesRedoesAndClearsOnlyFromStop18 checks     2388.86 ms
+  [pass]  wrapperOverdubContinuesAcrossPassesAndUndoRemovesTheLastPass9 checks      1206.25 ms
+  [pass]  wrapperWithoutAssetStorePassesDryRunsRhythmAndReportsFault4804 checks   34.135 ms
+  [pass]  wrapperTempoFollowsHostOnlyInAutoSync       4 checks      0.609 ms
+  [pass]  tempoButtonEightTapsSetInternalTempoAtFiveRates8 checks      894.39 ms
+  [pass]  tempoTapKeepsHostClockAuthorityAndManualTempoCanReplaceIt4 checks      16.903 ms
+  [pass]  wrapperStateRoundTripRestoresTheLoopInEitherLoadOrder12 checks     104.215 ms
+  [pass]  wrapperResetAndReprepareKeepTheUsersLoop    8 checks      69.604 ms
+  [pass]  wrapperCallbacksAndGesturesAllocateNothing  1 checks      182.584 ms
+  [pass]  wrapperSeededGestureStressStaysFiniteBoundedAndAllocationFree6 checks      7829.75 ms
+
+================================================================
+ ALL PASSED
+ 16 tests, 25654 checks, 13.3 s
+================================================================
+

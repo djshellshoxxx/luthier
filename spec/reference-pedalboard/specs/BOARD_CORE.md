@@ -207,6 +207,16 @@ Board preset file = same JSON object (`referencePedals`) + `name`. A/B slot (`sl
 BoardModel mutations are `BoardCommand` objects: Add, Remove, Duplicate, Move(instanceId,newIndex), SetModel, SetParam(gesture-coalesced), SetEnabled, SetPlacement, SetMode, SetLane, SetLoop, SetFeedback, SetStyle, SetMounting, SetMix/SetMixLaw, SetBoardEnabled, SetMidiBinding (add/remove/edit), SetSlotChannel, SetScene, ApplySnapshot. Stack 100, coalesces drags. Undo = inverse command -> republish (transition). Not in audio thread.
 
 ## 11. Pedal library API (IPedal)  [FROZEN INTERFACE I-1, see IMPLEMENTATION_PLAN sec 2]
+
+**Proposed WIP erratum (2026-10-31; not yet accepted):** A freshly prepared
+pedal may report `extraOverridesInitialParam(index)` on the message thread
+after its initial params, `prepare`, and `loadExtra`. The topology compiler
+uses this only for a newly created unpublished runtime to avoid replaying that
+same initial parameter over the loaded extra-state value. The default is false.
+Subsequent explicit model and host writes, including writes before the first
+audio block, must still be applied. Reused or already published runtimes are
+never mutated on the message thread. This does not provide a pedal-to-host
+parameter echo; that separate feature and full tests remain open.
 Located `Source/ReferencePedals/IPedal.h`, `PedalDesc.h` (juce_core/juce_audio_basics only; NO juce_gui). Distinct from legacy `Pedal`/`PedalType` (not modified), but descriptors reuse `PedalParam` field semantics (min,max,default,skew,discrete) so tapers match. Namespaces: core `luthier::reference`; generic pedals `luthier::reference::generic`; branded models `luthier::reference::models` (the `ReferencePedals::Models` spelling in per-model specs is VOID).
 ```cpp
 namespace luthier::reference {

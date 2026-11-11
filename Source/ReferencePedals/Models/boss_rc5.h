@@ -5,6 +5,7 @@
 #include "../Common/LooperStateCodec.h"
 #include "../Common/Rc5PressCycle.h"
 #include "../Common/Rc5Rhythm.h"
+#include "../Common/Rc5TapTempo.h"
 #include "../Common/OnePole.h"
 #include <array>
 
@@ -15,14 +16,14 @@ namespace luthier::reference::models
 // synthesized rhythm, and the main-pedal tap/double/hold grammar. Without an
 // asset store the looper is unavailable: dry and rhythm still run and the
 // fault bit noAssetStore is reported; gestures are ignored.
-class BossRc5 final : public PedalBase<23>
+class BossRc5 final : public PedalBase<24>
 {
 public:
     enum Param
     {
         LoopLevel, RhythmLevel, RhythmOn, Tempo, Pattern, Variation, Kit, Memory, Reverse,
         Pedal1, Pedal2, Pedal3, SyncClock, Quantize, ExpTarget, Exp, HoldMs, DtapMs, Lofi,
-        DryMute, HalfSpeed, RamCapMb, ClockOut
+        DryMute, HalfSpeed, RamCapMb, ClockOut, TapTempo
     };
     using State=common::PagedLooperCore::State;
     static constexpr uint32_t noAssetStore=1u<<31; // above LooperStorage::Error bits
@@ -43,6 +44,8 @@ public:
     void setExpression(int,float) noexcept override;
     void saveExtra(juce::var&) const override;
     void loadExtra(const juce::var&) override;
+    bool extraOverridesInitialParam(int idx) const noexcept override
+    {return idx==Tempo && tappedTempo.load(std::memory_order_acquire)>0;}
 
     // Audio-owner inspection (tests, UI meters).
     State transportState() const noexcept {return looperReady ? core.state() : State::Empty;}
@@ -54,6 +57,7 @@ public:
 
 private:
     void onParamChanged(int,float) noexcept override;
+    void onTrigger(int) noexcept override;
     void mainDown() noexcept;
     void mainUp() noexcept;
     void fireHold() noexcept;
@@ -69,9 +73,14 @@ private:
     bool storedPending=false;                 // stored loop not yet in the core
     common::Rc5PressCycle cycle;
     common::Rc5Rhythm rhythm;
+    common::Rc5TapTempo tapTempo;
     common::OnePole lofiHp[2],lofiLp[2];
     TimeInfo time;
     double sr=48000,tempo=120,dryGain=1;
+    // Zero means no tapped override. Message-thread state capture and audio
+    // changes communicate only through this lock-free scalar.
+    static_assert(std::atomic<double>::is_always_lock_free,"RC-5 tempo state must be lock-free");
+    std::atomic<double> tappedTempo{0};
     int64_t samples=0,holdStart=0;
     State holdOrigin=State::Empty;
     bool looperReady=false,prepared=false,mainHeld=false,holdArmed=false,provisionalCut=false;
