@@ -47,6 +47,11 @@ Configure the main checkout with link-time optimisation off for development buil
   suite prints "LuthierRender not found beside the test runner; skipping subprocess checks".
 - **Do not kill processes by matching `LuthierTests_artefacts`.** Compiler and linker command
   lines of every worktree contain that string.
+- **An orphaned Xvfb can hold a lock forever.** `flock` locks live as long as any process has the
+  file descriptor open. A first version of `test.sh` took the machine lock; when a test run was
+  killed by a timeout, its `Xvfb` child survived with the descriptor and every build on the
+  machine waited on it. Tests no longer take the lock. If builds ever stall with an idle machine,
+  look for stray `Xvfb` processes whose parent is pid 1.
 - **Timing and CPU-budget tests are noisy while other workers load the machine.** Re-run a failed
   timing test on a quiet machine before believing it.
 - **Line endings are mixed.** Run `scripts/fixeol.sh` before each commit.
