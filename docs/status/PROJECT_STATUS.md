@@ -1,89 +1,163 @@
-# Luthier project status
+# Luthier project status: PAUSED
 
-Canonical status for the completion cycle that started on 2026-11-11. Updated after each
-integration step. Companion documents: [FEATURE_INVENTORY.md](FEATURE_INVENTORY.md),
-[BRANCH_PR_LEDGER.md](BRANCH_PR_LEDGER.md), [CONTINUATION.md](CONTINUATION.md).
+**Paused on 2026-11-11 by the owner.** The instruction ("stop working on all projects except
+circula, classrupted, ghostpay, p2p offramp [and patchtrace]; have the workers finish the work they
+are working on and then update to github and then stop") was given at 01:00 UTC in the owner's
+project-prioritisation session and relayed to this cycle's coordinator. All workers were stopped,
+everything was committed and pushed, and nothing further is running.
+
+Nothing was merged to `master`. No release or tag was created. No test or threshold was weakened.
+
+Companion documents: [FEATURE_INVENTORY.md](FEATURE_INVENTORY.md),
+[BRANCH_PR_LEDGER.md](BRANCH_PR_LEDGER.md), [CONTINUATION.md](CONTINUATION.md),
+the audit reports in [discovery-2026-11-11/](discovery-2026-11-11/), three worker write-ups in
+[handoff-2026-11-11/](handoff-2026-11-11/), and six baseline screenshots in
+[screenshots-2026-11-11/](screenshots-2026-11-11/).
 
 Rule for this file: every figure names what was counted and where the evidence is. "Implemented"
 means code exists. "Validated" means a named test or validator run proves it on a named platform.
 Nothing here is an independent professional audit.
 
-## Where things stand
+## What is on GitHub
+
+| PR | Branch | State |
+|---|---|---|
+| #89 | `integration/luthier-completion` into `master` | Draft, **do not merge**. Baseline `ca14934e` (head of #85) plus the documentation refresh, these status documents and the worker scripts. No product code changed |
+| #88 | `agents/luthier/docs/refresh` | **Merged** into the integration branch. Documentation only |
+| #90 | `agents/luthier/integration/cherry-picks` | Parked. Stuck-note fix ported and verified (fails before, passes after); four other small ports not done |
+| #91 | `agents/luthier/integration/rc5-tap` | Parked. Trial merge of the looper tap-tempo branch: builds, no new failures in the suites run; coordinator review and full suite not done |
+| #92 | `agents/luthier/gui/columns-scroll-collapse` | Parked WIP. Tests and uncompiled drafts only |
+| #93 | `agents/luthier/gui/sizing-board` | Parked WIP. Screenshot sweep test only |
+| #94 | `agents/luthier/gui/controls-focus-reset` | Parked WIP. One unbuilt screenshot test; nothing implemented |
+| #95 | `agents/luthier/testing/processor-stress` | Parked WIP. 30-second full-processor stress test written, never built |
+| #96 | `agents/luthier/ci/speed` | Parked WIP. Workflow restructure validated locally (YAML, `needs`, shard arithmetic), never run on GitHub |
+| #97 | `agents/luthier/audio/session-recorder` | Parked WIP. Unbuilt tests, no fix |
+| #98 | `agents/luthier/audio/effects-chain-retire` | Parked WIP. Unbuilt stress tests for the rack-pedal use-after-free, no fix |
+| #99 | `agents/luthier/audio/midi-continuity` | Parked WIP. Unbuilt test, no fix |
+| #100 | `agents/luthier/dsp/ce2-bbd-thd` | Parked WIP. Root cause of the chorus distortion gate measured; model change written, never built |
+
+Every parked branch ends in a commit that carries `[skip ci]`, so opening those pull requests
+started no CI runs. Each pull-request description states exactly what was and was not verified.
+
+**Not on GitHub, on purpose:** the security review of untrusted-input handling and three unfinished
+security branches. This repository is public and they describe unfixed defects, so they were
+delivered to the owner as files attached to the coordinating session instead (an audit report,
+three patch files on base `ca14934e`, and a small archive of drafts, with a README).
+
+## What the build and the discovery produced
+
+- **Local Linux x64 build** of the test binary at `ca14934e` with clang 18 and JUCE 8.0.10:
+  844 objects, about 15 minutes on 4 cores. `LuthierTests --list` reports 2,923 tests in 367 suites.
+- **The one known Linux failure reproduces locally with the same numbers as CI**:
+  `RefPedalCe2.bbdOnOriginalThdGate` (0.0017 % at 48 kHz against a required 0.5 to 3 %).
+  `RefPedalCe2`: 1 of 13 tests failed, 5 of 637 checks.
+- **Focused local runs that passed**: `OutputNormalization`, `Looper` and `Notation` together
+  (125 tests, 46,264 checks); a worker's run of every `RefPedal` suite (526 of 527 passed, the one
+  failure being the gate above) and of `HostState StateModel Parameters Trademarks` (73 of 73);
+  the documentation-reading suites after the documentation merge.
+- **Ten read-only audits**, all kept in `discovery-2026-11-11/` except the security one:
+  open pull requests, unmerged branches, pedalboard inventory, core product inventory, GUI,
+  CI, real-time safety, stress testing, documentation, and security (private).
+- **Worker tooling** in `scripts/agents/`: a fresh worktree builds the test binary in about
+  38 seconds with a 98.8 % compiler-cache hit rate.
+
+## Started but not finished
+
+See each pull request above. In order of value when work resumes:
+
+1. **Rack-pedal use-after-free** (#98). Confirmed by reading the code: the message thread frees a
+   rack pedal that four unlocked audio-thread paths may still call. Not yet reproduced or fixed.
+2. **Chorus distortion gate** (#100). The gate is measured at the pedal output, where a comb notch
+   next to the 1 kHz test tone makes output THD 3.5 to 4.3 times the wet-path THD. The gate therefore
+   needs only 0.14 to 0.70 % in the wet path, not the figure an earlier review compared against.
+   Whether a datasheet-typical curve passes depends on a supply-voltage scaling that is not verified.
+3. **Stuck-note fix** (#90): done and verified in isolation; needs the full suite and a merge.
+4. **MIDI continuity** (#99): rhythm MIDI output written twice and replayed after switch-off;
+   MIDI dropped when the engine lock is contended. The write-up lists three further causes of stuck
+   notes at the host that a simple fix would miss.
+5. **Full-processor 30-second stress test** (#95): written, never built.
+6. **CI restructure** (#96): one pull-request push costs about 263 minutes today.
+7. **GUI** (#92, #93, #94) and **session recorder** (#97).
+8. **Looper tap-tempo trial merge** (#91).
+9. **Security hardening**: private patches, see above.
+
+## Never started or never completed
+
+- **A complete local run of the full test suite.** Two attempts were invalidated by set-up
+  mistakes in this cycle (tests started from the wrong directory under the shared compiler cache;
+  then a build lock held by a stray display-server process) and the third was stopped by the pause.
+  The pitfalls are recorded in `scripts/agents/README.md`.
+- Building the plugin formats (VST3, CLAP, Standalone) and the offline renderer locally, and running
+  pluginval and clap-validator. Both validator downloads were confirmed reachable.
+- Performance benchmarks. Any real-host test.
+- Independent review of the worker branches.
+- Two real-time review items whose workers were stopped before doing anything: moving
+  `setLatencySamples` off the audio thread and keeping reported latency constant under pedalboard
+  bypass; a click-free cabinet and body impulse-response swap. Both are described in
+  `discovery-2026-11-11/rt-audit.md`.
+- macOS failure triage. Tracking issues for the owner decisions. Publishing wiki pages (the wiki
+  repository was not reachable from the build environment; drafts are in `docs/wiki-draft/`).
+
+## Known failures and CI state
+
+| Platform | State at `ca14934e` | Evidence |
+|---|---|---|
+| Linux x64 | 1 failing test per edition: `RefPedalCe2.bbdOnOriginalThdGate` | CI run 41796728348 (2026-11-04); reproduced locally |
+| Windows x64 | 2 failing tests per edition: the same gate, and `RefPedalUiLifecycle.tenThousandNativeOperationsAndEditorDestruction` | same CI run |
+| macOS universal | not qualified: the Free unit run ended with no summary line after 189 minutes; named failures in `HostState`, `Fuzz` convolution, `RefPedalControlRace` | same CI run |
+
+- **CI on #89**: the runs started by opening the pull request sat in the queue and were cancelled
+  when the project was paused, so there is no CI result for the integration head. Its code is the
+  baseline's; only documents and scripts differ.
+- **Windows-only failure, narrowed but not fixed**: a Linux run reproduces the same seeds, instance
+  counts and rejection counts as the Windows log, which rules out library random-number differences
+  and machine-dependent admission. The likely cause is that Ctrl+D posts the duplicate through an
+  asynchronous call that the test's message drain did not run before checking the count on Windows.
+  See `handoff-2026-11-11/windows-ui-lifecycle.md`.
+- **Intermittent crash, pre-existing**: the seeded looper gesture stress test segfaulted in 2 of 5
+  runs on the baseline binary (and 1 of 5 on the tap-tempo merge). Not investigated. It may be
+  related to macOS unit runs that end without a summary line.
+- **A test rewrites a tracked file**: running the suite modifies `docs/review/QA_ROBUSTNESS.md` in
+  the source tree. Discard that change; do not commit it.
+
+## Counts
+
+No single completion percentage is meaningful for this project, so none is given.
 
 | Metric | Value | Evidence |
 |---|---|---|
-| Integration branch | `integration/luthier-completion`, draft PR #89 into `master` | GitHub |
-| Baseline | `ca14934e` (head of #85), 342 commits ahead of `master` | `git rev-list --count` |
-| Unit tests | 2,923 tests in 367 suites | `LuthierTests --list` |
-| Linux x64, baseline | 1 failing test per edition in CI (`RefPedalCe2.bbdOnOriginalThdGate`); reproduced locally with the same numbers | CI run 41796728348; local run on 2026-11-11 |
-| Windows x64, baseline | 2 failing tests per edition | same CI run |
-| macOS, baseline | not qualified: the Free unit run produced no summary line after 189 minutes; several named failures | same CI run |
-| Platform cells qualified for release | 0 of 4 (Windows x64, macOS Intel, macOS ARM, Linux x64) | `docs/handoff/LUTHIER-CURRENT-COMPLETION-2026-10-27.md`; nothing newer contradicts it |
-| Real hosts (DAWs) validated | 0 | `docs/beta/HOST_TEST_SHEET.md` is blank |
-| Named pedalboard models registered | 0 of 6 | `Source/ReferencePedals/Models/Register*.cpp` (empty registration functions) |
-| Pedalboard models available to users | 13 (10 generic, 3 prototypes) | `PedalRegistry` registrations |
-| Owner-reported defects (`spec/issues.md`, 11 items) | 8 fixed with tests, 1 fixed without a test (illustration, subjective), 2 partly open (Reset & Stop control; MOD/RHYTHM tab-height tests missing) | `docs/status/FEATURE_INVENTORY.md`, section A |
-| Security findings on untrusted input | 22 (2 high, 10 medium, 10 low); fixes in progress | independent read-only review, 2026-11-11 |
-| Real-time safety findings | 9 (1 critical, 2 high, 4 medium, 2 low); fixes in progress | independent read-only review, 2026-11-11 |
+| Specification rows verified | 673 of 1,989 (34 %); 757 more implemented or partial; 502 pending; 28 blocked | `docs/spec-coverage.md`, audited 2026-09-23 and known to under-report |
+| Linux tests passing at the baseline | 2,922 of 2,923 | CI run 41796728348 |
+| Named pedalboard models registered | 0 of 6 | empty registration functions in `Source/ReferencePedals/Models/Register*.cpp` |
+| Pedalboard models available to users | 13 (10 generic, 3 prototypes) | registry |
+| Platform cells qualified for release | 0 of 4 | `docs/handoff/LUTHIER-CURRENT-COMPLETION-2026-10-27.md`; nothing newer contradicts it |
+| Real hosts validated | 0 | `docs/beta/HOST_TEST_SHEET.md` is blank |
+| Owner-reported defects (`spec/issues.md`, 11) | 8 fixed with tests; 1 fixed without a test; 2 partly open | `FEATURE_INVENTORY.md` |
+| Real-time review findings | 9 (1 critical, 2 high, 4 medium, 2 low); 0 fixed | `discovery-2026-11-11/rt-audit.md` |
+| Security review findings | 22 (2 high, 10 medium, 10 low); 0 fixed | private report |
 
-## Completion, stated as counts
+An earlier integrator estimated the six-pedal release at 55 to 65 % complete on 2026-10-27, with
+low-to-medium confidence. That estimate was not re-derived here.
 
-No single percentage is meaningful for this project, so none is given. The countable facts:
+## Decisions that are the owner's
 
-- **Specification rows** (`docs/spec-coverage.md`, audited 2026-09-23, known to under-report):
-  673 of 1,989 verified (34 %); a further 757 implemented or partial; 502 pending; 28 blocked.
-- **Tests**: 2,922 of 2,923 pass on Linux at the baseline.
-- **Pedalboard release scope**: 0 of 6 named models registered; an earlier integrator estimated
-  the six-pedal release at 55-65 % complete overall on 2026-10-27, with low-to-medium confidence
-  and before the looper wrapper existed. That estimate was not re-derived here.
-- **Platforms**: 0 of 4 cells qualified.
+Found in the repository's own records; none was decided in this cycle.
 
-## Work in this cycle
-
-| Workstream | Branch | State | Result |
-|---|---|---|---|
-| Documentation refresh | `agents/luthier/docs/refresh` | merged (PR #88) | 10 commits, documentation only |
-| Chorus BBD distortion gate | `agents/luthier/dsp/ce2-bbd-thd` | in progress | - |
-| Full-processor 30 s stress test | `agents/luthier/testing/processor-stress` | in progress | - |
-| Legacy effects-chain use-after-free | `agents/luthier/audio/effects-chain-retire` | in progress | - |
-| MIDI continuity in the audio callback | `agents/luthier/audio/midi-continuity` | in progress | - |
-| Latency reporting off the audio thread; constant latency under board bypass | `agents/luthier/audio/latency-reporting` | in progress | - |
-| Click-free cabinet and body impulse-response swap | `agents/luthier/audio/ir-swap-crossfade` | in progress | - |
-| Session recorder sample rate and reset race | `agents/luthier/audio/session-recorder` | in progress | - |
-| GUI: column scrolling, scrollbars, collapsible sections | `agents/luthier/gui/columns-scroll-collapse` | in progress | - |
-| GUI: screen clamp, pedalboard at real sizes, layout integrity test | `agents/luthier/gui/sizing-board` | in progress | - |
-| GUI: Reset & Stop, Workshop guitar types, focus ring, LIVE pads | `agents/luthier/gui/controls-focus-reset` | in progress | - |
-| Security: JSON/XML depth and size guards | `agents/luthier/security/parse-depth-guards` | in progress | - |
-| Security: path confinement, audio-file caps | `agents/luthier/security/file-asset-hardening` | in progress | - |
-| Security: NaN, update check, crash handler | `agents/luthier/security/nan-update-crash` | in progress | - |
-| Small fixes ported from unmerged branches | `agents/luthier/integration/cherry-picks` | in progress | - |
-| Looper tap-tempo branch: trial merge and review | `agents/luthier/integration/rc5-tap` | in progress | - |
-| Windows-only UI lifecycle failure | `agents/luthier/platform/windows-ui-lifecycle` | in progress | - |
-| CI speed and safety | `agents/luthier/ci/speed` | in progress | - |
-
-## Decisions that are the owner's to make
-
-These block specific gates. They were found in the repository's own records; none was decided here.
-
-1. **CPU reference machine** for the per-pedal CPU budgets (phaser, both choruses, delay,
-   compressor fail them on a 2.1 GHz Xeon).
-2. **Chorus BBD-on distortion threshold** if no physically defensible model meets it
-   (see the chorus workstream's handoff when it lands).
-3. **Chorus bypass raw-jump definition**, **two-mode chorus THD output and depth**, **compressor
-   attack-time definition and maximum-sensitivity distortion**, **phaser 24-bit bypass click
-   criterion**.
-4. **Looper memory switching**: needs a message-thread restore hook on an interface the project
-   treats as frozen.
-5. **Licensing**: the Pro edition has no runtime licence check; the signed-licence code exists but
-   is not wired in. Recorded as deferred by the owner on 2026-10-06.
-6. **Pull requests #72 (trial lock), #86/#84 (repeat-runner), #87 (autonomous agent workflow)**:
-   see the ledger.
-7. **Pull request #77**: close unmerged, or remove the beta 2 publisher trigger, before any merge
-   of this branch to `master`.
-8. **Signing and notarisation** certificates; real-host and listening tests.
+1. **CPU reference machine** for the per-pedal CPU budgets.
+2. **Chorus distortion gate**: accept a datasheet-based model with a supply-voltage scaling, or
+   revise the estimated threshold (see #100).
+3. Chorus bypass raw-jump definition; two-mode chorus THD output and depth; compressor attack-time
+   definition and maximum-sensitivity distortion; phaser 24-bit bypass click criterion.
+4. **Looper memory switching**: a message-thread restore hook on an interface treated as frozen.
+5. **Licensing rollout**, deferred on 2026-10-06, and the related review findings in the private report.
+6. Pull requests #72, #84/#86 and #87: see the ledger.
+7. **Pull request #77**: close it unmerged, or remove the beta 2 publisher trigger, before any merge
+   of the integration branch to `master` (see the ledger).
+8. Whether to make the repository private or prioritise the security fixes before publishing more
+   prerelease builds.
+9. Signing and notarisation certificates; real-host and listening tests.
 
 ## What cannot be done from a Linux container
 
-- Running or debugging on Windows or macOS (only GitHub Actions output is available).
-- Audio-device tests, real DAW hosts, listening tests, hardware MIDI controllers.
-- Signing, notarisation, and anything that needs credentials.
+Running or debugging on Windows or macOS (only GitHub Actions output is available); audio-device
+tests, real hosts, listening tests, hardware controllers; signing and notarisation.
