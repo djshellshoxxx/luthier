@@ -13,6 +13,13 @@
     Without it the test still opens every view once in the default palette and
     checks each painted something, which is cheap and catches a view that
     collapses to nothing.
+
+    Screenshots.sizingSweep renders, in the default palette, Easy and every
+    Advanced workspace tab at the three review sizes (940x564, the effective
+    minimum; 1200x720, the default; 1666x1000, the largest 5:3 window on a
+    1920x1080 screen) and the pedalboard with six pedals docked and popped out
+    at each. It writes to LUTHIER_SCREENSHOTS too ("sizes_" prefix); run it
+    alone with the filter "sizingSweep".
 */
 
 #include "TestFramework.h"
@@ -25,6 +32,10 @@
 #include "../Presets/PresetLibrary.h"   // FEAT-BROWSER
 #include "../UI/OptionsPages.h"
 #include "../UI/Theme.h"
+#include "../UI/ReferencePedalDrawer.h"
+#include "../UI/ReferencePedals/BoardRoot.h"
+#include "../UI/ReferencePedals/BoardWindow.h"
+#include "SizingTestSupport.h"
 
 using namespace luthier;
 using namespace luthier::tests;
@@ -265,4 +276,94 @@ LUTHIER_TEST (Screenshots, everyPanelInEveryPalette)
         shootWindows (s, folder != juce::File());
         CHECK (s.shots > 10);
     }
+}
+
+//==============================================================================
+/*  Advanced is refused below AdvancedPanel::minimumUsableWidth (1000), so at
+    940x564 only Easy exists; the editor's own refusal is what is shot there. */
+LUTHIER_TEST (Screenshots, sizingSweep)
+{
+    const auto env = juce::SystemStats::getEnvironmentVariable ("LUTHIER_SCREENSHOTS", {});
+    juce::File folder;
+
+    if (env.isNotEmpty())
+    {
+        folder = juce::File (env);
+        folder.createDirectory();
+    }
+
+    PaletteScope scope;
+    scope.use (PaletteId::defaultDark);
+    Shooter s { ctx, folder, "sizes_" };
+
+    for (const auto& size : sizing::kReviewSizes)
+    {
+        const juce::String tag (size.tag);
+
+        {
+            LuthierAudioProcessor processor;
+            processor.prepareToPlay (kSr, kBlock);
+            auto editor = openEditor (processor, size.width, size.height, false);
+            CHECK (editor != nullptr);
+            if (editor == nullptr)
+                continue;
+
+            s.shoot (*editor, "easy_" + tag);
+        }
+
+        {
+            LuthierAudioProcessor processor;
+            processor.prepareToPlay (kSr, kBlock);
+            auto editor = openEditor (processor, size.width, size.height, true);
+            CHECK (editor != nullptr);
+            if (editor == nullptr)
+                continue;
+
+            auto* panel = findOne<AdvancedPanel> (*editor);
+
+            if (panel != nullptr && panel->isVisible())
+                for (int t = 0; t < panel->getNumWorkspaceTabs(); ++t)
+                {
+                    panel->setWorkspaceTab (t);
+                    s.shoot (*editor, "advanced_" + tag + "_" + panel->getWorkspaceTabName (t).toLowerCase().replaceCharacter (' ', '_'));
+                }
+            else
+                s.shoot (*editor, "advanced_" + tag + "_refused");
+        }
+
+        // ---- the pedalboard, six pedals ---------------------------------------------------
+        {
+            LuthierAudioProcessor processor;
+            processor.prepareToPlay (kSr, kBlock);
+
+            if (! sizing::loadSixPedals (ctx, processor.getEngine().getReferencePedals().model()))
+                continue;
+
+            auto editor = openEditor (processor, size.width, size.height, false);
+            CHECK (editor != nullptr);
+            if (editor == nullptr)
+                continue;
+
+            auto* root = sizing::findChild<reference::BoardRoot> (*editor);
+            CHECK (root != nullptr && root->onDock && root->onPopout);
+            if (root == nullptr || ! root->onDock || ! root->onPopout)
+                continue;
+
+            root->onDock();
+            auto* drawer = root->findParentComponentOfClass<reference::Drawer>();
+            const bool docked = drawer != nullptr && drawer->isOpen();
+            s.shoot (*editor, "board_docked_" + tag + (docked ? "" : "_refused"));
+
+            root->onPopout();
+
+            if (auto* window = root->findParentComponentOfClass<reference::BoardWindow>())
+            {
+                s.shoot (*editor, "board_popped_" + tag + "_editor");
+                s.shoot (*root, "board_popped_" + tag + "_window_" + juce::String (root->getWidth()) + "x" + juce::String (root->getHeight()));
+                window->hideWindow();
+            }
+        }
+    }
+
+    CHECK (s.shots > 10);
 }
