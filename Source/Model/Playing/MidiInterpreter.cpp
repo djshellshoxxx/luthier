@@ -1385,7 +1385,8 @@ void MidiInterpreter::flushDeferredReleases (int64_t blockStartSample, int numSa
         e.midiNote = slot.midiNote;
         e.sampleOffset = offset;
         e.letRing = slot.releaseWasLetRing;
-        out.addNoteOff (e);
+        if (! out.addNoteOff (e))
+            continue; // keep held/releaseDueAt until a later block has capacity
 
         slot.pedalRinging = slot.releaseWasLetRing;
         slot.pedalRingingNote = slot.midiNote;
@@ -1436,7 +1437,15 @@ void MidiInterpreter::releaseString (int stringIndex, int blockOffset, PlayEvent
     e.midiNote = slot.midiNote;
     e.sampleOffset = blockOffset;
     e.letRing = letRing;
-    out.addNoteOff (e);
+    if (! out.addNoteOff (e))
+    {
+        // Admission failed: clearing held here would forget the only release
+        // obligation while the rendered string keeps sounding. Reuse the
+        // existing minimum-duration retry path on the next block.
+        slot.releaseDueAt = blockStart + juce::jmax (1, blockLength);
+        slot.releaseWasLetRing = letRing;
+        return;
+    }
 
     slot.pedalRinging = letRing;
     slot.pedalRingingNote = slot.midiNote;
