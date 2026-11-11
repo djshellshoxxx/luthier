@@ -106,9 +106,11 @@ See each pull request above. In order of value when work resumes:
 | Windows x64 | 2 failing tests per edition: the same gate, and `RefPedalUiLifecycle.tenThousandNativeOperationsAndEditorDestruction` | same CI run |
 | macOS universal | not qualified: the Free unit run ended with no summary line after 189 minutes; named failures in `HostState`, `Fuzz` convolution, `RefPedalControlRace` | same CI run |
 
-- **CI on #89**: the runs started by opening the pull request sat in the queue and were cancelled
-  when the project was paused, so there is no CI result for the integration head. Its code is the
-  baseline's; only documents and scripts differ.
+- **CI on #89**: the three runs started by opening the pull request never left the queue. When the
+  project was paused, CodeQL and quick-check were cancelled. The PR verification run
+  (42939545725, on `0e02b6bf`) still showed "queued" after two accepted cancel requests; cancel it
+  in the Actions page if it is still there, or read its result if it ran. There is no CI result
+  for the integration head. Its code is the baseline's; only documents and scripts differ.
 - **Windows-only failure, narrowed but not fixed**: a Linux run reproduces the same seeds, instance
   counts and rejection counts as the Windows log, which rules out library random-number differences
   and machine-dependent admission. The likely cause is that Ctrl+D posts the duplicate through an
