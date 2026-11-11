@@ -137,6 +137,10 @@ public:
 
     virtual void saveExtra (juce::var&) const {}          // message thread; non-param state (tap time, loop asset refs)
     virtual void loadExtra (const juce::var&) {}
+    // Message thread, immediately after initial parameters/prepare/loadExtra.
+    // Opt in only when loaded extra state deliberately supersedes that initial
+    // parameter value. Later explicit model/host writes must still be delivered.
+    virtual bool extraOverridesInitialParam (int /*idx*/) const noexcept { return false; }
 };
 
 using PedalFactory = std::unique_ptr<IPedal> (*) ();

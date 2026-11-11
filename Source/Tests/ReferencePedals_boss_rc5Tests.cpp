@@ -114,6 +114,9 @@ LUTHIER_TEST(RefPedalBossRc5, immediatePressOnUnpreparedCoresRemainsSafe)
 // ---------------------------------------------------------------------------
 // BossRc5 model wrapper (Models/boss_rc5.*), spec sec 2.2, 4.3, 8 and 9.
 #include "../ReferencePedals/Models/boss_rc5.h"
+#include "../ReferencePedals/Board.h"
+#include "../ReferencePedals/BoardModel.h"
+#include "../ReferencePedals/PedalRegistry.h"
 #include <memory>
 #include <vector>
 namespace
@@ -164,7 +167,7 @@ template<class F> void recordLoop(BossRc5& pedal,int frames,F input)
 LUTHIER_TEST(RefPedalBossRc5, wrapperDescriptorMatchesReconciledParameterTableAndLanes)
 {
     const auto& d=BossRc5::descriptor();
-    CHECK(juce::String(d.modelId)=="boss-rc5");CHECK(juce::String(d.paramPrefix)=="boss_rc5_");CHECK(d.numParams==23);
+    CHECK(juce::String(d.modelId)=="boss-rc5");CHECK(juce::String(d.paramPrefix)=="boss_rc5_");CHECK(d.numParams==24);
     const char* lanes[]{"loop_level","rhythm_level","rhythm_on","tempo","pattern","variation","kit","memory","reverse","hold_ms","dtap_ms","dry_mute","half_speed"};
     int lane=0;
     for(int i=0;i<d.numParams;++i)
@@ -293,6 +296,154 @@ LUTHIER_TEST(RefPedalBossRc5, wrapperTempoFollowsHostOnlyInAutoSync)
     pedal->setParam(BossRc5::SyncClock,1);render(*pedal,64,silence);CHECK_NEAR(pedal->rhythmTempo(),120,1e-4);
     pedal->setParam(BossRc5::Tempo,norm(BossRc5::Tempo,300));host.bpm=500;pedal->setTime(host);render(*pedal,64,silence);CHECK_NEAR(pedal->rhythmTempo(),300,1e-3);
     pedal->setParam(BossRc5::SyncClock,0);render(*pedal,64,silence);CHECK_NEAR(pedal->rhythmTempo(),300,0); // clamped host tempo
+}
+
+LUTHIER_TEST(RefPedalBossRc5, tempoButtonEightTapsSetInternalTempoAtFiveRates)
+{
+    const auto& desc=BossRc5::descriptor();
+    int tapIndex=-1;
+    for(int i=0;i<desc.numParams;++i)
+        if(juce::String(desc.params[i].id)=="boss_rc5_tap")tapIndex=i;
+    CHECK(tapIndex>=0);
+    if(tapIndex<0)return;
+    CHECK(desc.params[tapIndex].kind==ParamKind::Trigger);
+    CHECK(desc.params[tapIndex].isLaneExcluded());
+    for(double rate:{44100.,48000.,88200.,96000.,192000.})
+    {
+        Rc5Fixture f;auto pedal=f.make(rate,false,512);
+        pedal->setParam(BossRc5::SyncClock,1);
+        pedal->setParam(BossRc5::Tempo,norm(BossRc5::Tempo,90));
+        render(*pedal,int(rate*.2),silence,512);
+        for(int i=0;i<8;++i)
+        {
+            pedal->setParam(tapIndex,1);pedal->setParam(tapIndex,0);
+            if(i!=7)render(*pedal,int(rate*.5),silence,512);
+        }
+        render(*pedal,1,silence,1);
+        CHECK_NEAR(pedal->rhythmTempo(),120.,.5);
+    }
+}
+
+LUTHIER_TEST(RefPedalBossRc5, tempoTapKeepsHostClockAuthorityAndManualTempoCanReplaceIt)
+{
+    Rc5Fixture f;auto pedal=f.make(48000,false,512);
+    TimeInfo host;host.valid=host.playing=true;host.bpm=75;pedal->setTime(host);
+    const auto allocations=luthier::tests::allocationsOnThisThread();
+    pedal->setParam(BossRc5::TapTempo,1);pedal->setParam(BossRc5::TapTempo,0);
+    CHECK(luthier::tests::allocationsOnThisThread()==allocations);
+    render(*pedal,24000,silence,512);
+    pedal->setParam(BossRc5::TapTempo,1);pedal->setParam(BossRc5::TapTempo,1);
+    pedal->setParam(BossRc5::TapTempo,0);
+    render(*pedal,1,silence,1);CHECK_NEAR(pedal->rhythmTempo(),75,1e-9);
+    host.playing=false;pedal->setTime(host);render(*pedal,1,silence,1);
+    CHECK_NEAR(pedal->rhythmTempo(),120,.5);
+    pedal->setParam(BossRc5::Tempo,norm(BossRc5::Tempo,90));
+    render(*pedal,9600,silence,512);CHECK_NEAR(pedal->rhythmTempo(),90,.5);
+}
+
+LUTHIER_TEST(RefPedalBossRc5, tappedInternalTempoSurvivesExtraStateWithoutLoopAsset)
+{
+    Rc5Fixture f;auto source=f.make(48000,false,512);
+    source->setParam(BossRc5::SyncClock,1);
+    source->setParam(BossRc5::Tempo,norm(BossRc5::Tempo,90));
+    source->setParam(BossRc5::TapTempo,1);source->setParam(BossRc5::TapTempo,0);
+    render(*source,24000,silence,512);
+    source->setParam(BossRc5::TapTempo,1);source->setParam(BossRc5::TapTempo,0);
+    render(*source,1,silence,1);CHECK_NEAR(source->rhythmTempo(),120,.5);
+    juce::var extra;source->saveExtra(extra);
+    const auto json=juce::JSON::toString(extra);
+    juce::var decoded;CHECK(juce::JSON::parse(json,decoded).wasOk());
+    auto restored=f.make(48000,false,512);
+    restored->setParam(BossRc5::SyncClock,1);
+    restored->setParam(BossRc5::Tempo,norm(BossRc5::Tempo,90));
+    restored->loadExtra(decoded);
+    render(*restored,1,silence,1);CHECK_NEAR(restored->rhythmTempo(),120,.5);
+}
+
+LUTHIER_TEST(RefPedalBossRc5, tappedTempoExtraStateValidatesAndSurvivesPrepare)
+{
+    Rc5Fixture f;auto pedal=std::make_unique<BossRc5>();
+    pedal->setParam(BossRc5::Tempo,norm(BossRc5::Tempo,90));
+    juce::var valid(new juce::DynamicObject());
+    valid.getDynamicObject()->setProperty("rc5TapTempoBpm",120.0);
+    pedal->loadExtra(valid);pedal->prepare(48000,512,1);
+    pedal->setParam(BossRc5::SyncClock,1);render(*pedal,1,silence,1);
+    CHECK_NEAR(pedal->rhythmTempo(),120,.5);
+    juce::var saved;pedal->saveExtra(saved);
+    CHECK_NEAR(double(saved["rc5TapTempoBpm"]),120,1e-9);
+    juce::var bad(new juce::DynamicObject());
+    bad.getDynamicObject()->setProperty("rc5TapTempoBpm",1000.0);
+    pedal->loadExtra(bad);render(*pedal,1,silence,1);CHECK_NEAR(pedal->rhythmTempo(),120,.5);
+    juce::var legacy(new juce::DynamicObject());pedal->loadExtra(legacy);
+    render(*pedal,1,silence,1);CHECK_NEAR(pedal->rhythmTempo(),90,.5);
+    pedal->saveExtra(saved);CHECK(!saved.hasProperty("rc5TapTempoBpm"));
+}
+
+LUTHIER_TEST(RefPedalBossRc5, boardRestoreKeepsTappedTempoThroughInitialParameterSnapshot)
+{
+    PedalRegistry::TestScope scope;
+    const auto factory=+[]()->std::unique_ptr<IPedal>{return std::make_unique<BossRc5>();};
+    CHECK(PedalRegistry::add(BossRc5::descriptor(),factory,&BossRc5::prepareMemory));
+    Board board;CHECK(board.setAssetStore(nullptr));board.prepare(48000,512);
+    PedalInstance instance;instance.modelId=BossRc5::descriptor().modelId;instance.slot=0;
+    for(int i=0;i<BossRc5::descriptor().numParams;++i)
+        instance.params[size_t(i)]=float(BossRc5::descriptor().params[i].defaultNormalised());
+    instance.params[BossRc5::Tempo]=norm(BossRc5::Tempo,90);
+    instance.params[BossRc5::SyncClock]=1;
+    instance.extras=juce::var(new juce::DynamicObject());
+    instance.extras.getDynamicObject()->setProperty("rc5TapTempoBpm",120.0);
+    BoardSettings settings;settings.enabled=true;
+    juce::String error;CHECK_MSG(board.model().replaceAll({instance},settings,&error),error);
+    double left[512]{},right[512]{};juce::MidiBuffer in,out;
+    board.beginBlock(in,{},512);board.processStereo(left,right,512,Placement::beforeExistingPre);board.endBlock(out);
+    const auto meter=board.readPedalMeters(0);
+    CHECK(meter.present);CHECK((meter.model.available&UiTempo)!=0);
+    CHECK_NEAR(meter.model.bpm,120,.5);
+}
+
+LUTHIER_TEST(RefPedalBossRc5, boardExplicitSameTempoWriteBeforeFirstBlockOverridesRestoredTap)
+{
+    PedalRegistry::TestScope scope;
+    const auto factory=+[]()->std::unique_ptr<IPedal>{return std::make_unique<BossRc5>();};
+    CHECK(PedalRegistry::add(BossRc5::descriptor(),factory,&BossRc5::prepareMemory));
+    Board board;CHECK(board.setAssetStore(nullptr));board.prepare(48000,512);
+    PedalInstance instance;instance.modelId=BossRc5::descriptor().modelId;instance.slot=0;
+    for(int i=0;i<BossRc5::descriptor().numParams;++i)
+        instance.params[size_t(i)]=float(BossRc5::descriptor().params[i].defaultNormalised());
+    instance.params[BossRc5::Tempo]=norm(BossRc5::Tempo,90);instance.params[BossRc5::SyncClock]=1;
+    instance.extras=juce::var(new juce::DynamicObject());
+    instance.extras.getDynamicObject()->setProperty("rc5TapTempoBpm",120.0);
+    BoardSettings settings;settings.enabled=true;
+    juce::String error;CHECK_MSG(board.model().replaceAll({instance},settings,&error),error);
+    CHECK(board.model().apply(cmd::SetParam{instance.instanceId,BossRc5::Tempo,norm(BossRc5::Tempo,90)}));
+    double left[512]{},right[512]{};juce::MidiBuffer in,out;
+    board.beginBlock(in,{},512);board.processStereo(left,right,512,Placement::beforeExistingPre);board.endBlock(out);
+    const auto meter=board.readPedalMeters(0);CHECK(meter.present);CHECK_NEAR(meter.model.bpm,90,.5);
+}
+
+LUTHIER_TEST(RefPedalBossRc5, boardHostTempoWriteBeforeFirstBlockOverridesRestoredTap)
+{
+    PedalRegistry::TestScope scope;
+    const auto factory=+[]()->std::unique_ptr<IPedal>{return std::make_unique<BossRc5>();};
+    CHECK(PedalRegistry::add(BossRc5::descriptor(),factory,&BossRc5::prepareMemory));
+    Board board;CHECK(board.setAssetStore(nullptr));board.prepare(48000,512);
+    PedalInstance instance;instance.modelId=BossRc5::descriptor().modelId;instance.slot=0;
+    for(int i=0;i<BossRc5::descriptor().numParams;++i)
+        instance.params[size_t(i)]=float(BossRc5::descriptor().params[i].defaultNormalised());
+    instance.params[BossRc5::Tempo]=norm(BossRc5::Tempo,90);instance.params[BossRc5::SyncClock]=1;
+    instance.extras=juce::var(new juce::DynamicObject());
+    instance.extras.getDynamicObject()->setProperty("rc5TapTempoBpm",120.0);
+    BoardSettings settings;settings.enabled=true;
+    juce::String error;CHECK_MSG(board.model().replaceAll({instance},settings,&error),error);
+    const auto lanes=PedalRegistry::buildLaneMap(BossRc5::descriptor());
+    int tempoLane=-1;for(int i=0;i<lanes.numLanes;++i)if(lanes.laneToParam[i]==BossRc5::Tempo)tempoLane=i;
+    CHECK(tempoLane>=0);if(tempoLane<0)return;
+    HostAutomationSnapshot host;const int field=3+1+tempoLane;
+    host.values[size_t(field)]=norm(BossRc5::Tempo,90);host.serials[size_t(field)]=1;
+    board.setHostAutomation(host);
+    double left[512]{},right[512]{};juce::MidiBuffer in,out;
+    board.beginBlock(in,{},512);board.processStereo(left,right,512,Placement::beforeExistingPre);board.endBlock(out);
+    const auto meter=board.readPedalMeters(0);CHECK(meter.present);CHECK_NEAR(meter.model.bpm,90,.5);
 }
 
 LUTHIER_TEST(RefPedalBossRc5, wrapperStateRoundTripRestoresTheLoopInEitherLoadOrder)
