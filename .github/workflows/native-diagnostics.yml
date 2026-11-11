@@ -36,21 +36,43 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - uses: seanmiddleditch/gha-setup-ninja@v5
-      - uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
-      - uses: hendrikmuhs/ccache-action@v1.2
-        with:
-          variant: sccache
-          key: windows-PAID-ltoOFF
-          max-size: 2G
+      # First-party replacement for the MSVC and Ninja setup actions (same
+      # steps as build.yml); compiler output is not cached.
+      - name: MSVC environment
+        shell: pwsh
+        run: |
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          $vs = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vs) { throw 'No Visual Studio with the x64 C++ tools on this runner.' }
+          $vcvars = Join-Path $vs 'VC\Auxiliary\Build\vcvarsall.bat'
+          $vars = & cmd.exe /d /c "`"$vcvars`" x64 >nul && set"
+          if ($LASTEXITCODE -ne 0) { throw "vcvarsall.bat x64 failed ($LASTEXITCODE)." }
+          foreach ($line in $vars) {
+            if ($line -match '^([^=]+)=(.*)$' -and [Environment]::GetEnvironmentVariable($Matches[1]) -ne $Matches[2]) {
+              "$($Matches[1])=$($Matches[2])" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+            }
+          }
+      - name: Ninja
+        shell: pwsh
+        run: |
+          if (-not (Get-Command ninja -ErrorAction SilentlyContinue)) { choco install ninja --no-progress -y }
+          ninja --version
+          Get-Command cl.exe | Select-Object -ExpandProperty Source
+      - name: Dependency pins
+        id: pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          juce=$(sed -n 's/^JUCE_TAG="\(.*\)"$/\1/p' scripts/ci_build.sh)
+          clap=$(sed -n 's/^CLAP_JUCE_EXT_COMMIT="\(.*\)"$/\1/p' scripts/ci_build.sh)
+          [ -n "$juce" ] && [ "${#clap}" -eq 40 ] || { echo "::error::cannot read the dependency pins from scripts/ci_build.sh"; exit 1; }
+          echo "key=juce-$juce-clap-$clap" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@v4
         with:
           path: |
             ThirdParty/JUCE
             ThirdParty/clap-juce-extensions
-          key: thirdparty-${{ runner.os }}-${{ hashFiles('scripts/ci_build.sh', 'scripts/ci_build.ps1') }}
+          key: thirdparty-${{ runner.os }}-${{ steps.pins.outputs.key }}-${{ hashFiles('scripts/patch_juce_midi_capacity.py', 'scripts/patch_clap_host_intent.py') }}
       - name: Fetch pinned dependencies
         shell: pwsh
         run: scripts/ci_build.ps1 -Step deps
@@ -106,6 +128,8 @@ jobs:
     if: github.ref == 'refs/heads/codex/luthier-native-diagnostics' || github.ref == 'refs/heads/codex/luthier-macos-diagnostics'
     runs-on: macos-latest
     timeout-minutes: 105
+    env:
+      JOBS: '3'   # 3 vCPU / 7 GB arm64 runner, universal build (docs/infra/CI.md)
     steps:
       - uses: actions/checkout@v4
         with:
@@ -113,18 +137,25 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - uses: seanmiddleditch/gha-setup-ninja@v5
-      - uses: hendrikmuhs/ccache-action@v1.2
-        with:
-          variant: ccache
-          key: macos-PAID-ltoOFF
-          max-size: 2G
+      - name: Ninja
+        run: |
+          command -v ninja >/dev/null || brew install ninja
+          ninja --version
+      - name: Dependency pins
+        id: pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          juce=$(sed -n 's/^JUCE_TAG="\(.*\)"$/\1/p' scripts/ci_build.sh)
+          clap=$(sed -n 's/^CLAP_JUCE_EXT_COMMIT="\(.*\)"$/\1/p' scripts/ci_build.sh)
+          [ -n "$juce" ] && [ "${#clap}" -eq 40 ] || { echo "::error::cannot read the dependency pins from scripts/ci_build.sh"; exit 1; }
+          echo "key=juce-$juce-clap-$clap" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@v4
         with:
           path: |
             ThirdParty/JUCE
             ThirdParty/clap-juce-extensions
-          key: thirdparty-${{ runner.os }}-${{ hashFiles('scripts/ci_build.sh', 'scripts/ci_build.ps1') }}
+          key: thirdparty-${{ runner.os }}-${{ steps.pins.outputs.key }}-${{ hashFiles('scripts/patch_juce_midi_capacity.py', 'scripts/patch_clap_host_intent.py') }}
       - name: Fetch pinned dependencies
         shell: bash
         run: scripts/ci_build.sh deps

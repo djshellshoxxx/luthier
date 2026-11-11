@@ -13,9 +13,10 @@ on:
         required: true
         type: string
 
+# Read-only by default; only publish and screenshots write (job level).
 permissions:
   actions: read
-  contents: write
+  contents: read
 
 concurrency:
   group: luthier-pro-alpha-publish
@@ -145,6 +146,9 @@ jobs:
     needs: [preflight, package-macos]
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    permissions:
+      actions: read
+      contents: write   # gh release create / edit
     env:
       GH_TOKEN: ${{ github.token }}
       SOURCE_SHA: ${{ needs.preflight.outputs.sha }}
@@ -270,7 +274,11 @@ jobs:
         with:
           ref: ${{ needs.preflight.outputs.sha }}
           fetch-depth: 0
-      - uses: seanmiddleditch/gha-setup-ninja@v5
+      # Ninja is preinstalled on macos-15 (actions/runner-images readme).
+      - name: Ninja
+        run: |
+          command -v ninja >/dev/null || brew install ninja
+          ninja --version
 
       - name: Build native JUCE screenshot test runner
         shell: bash

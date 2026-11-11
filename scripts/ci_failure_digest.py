@@ -41,6 +41,16 @@ def digest_artifact(path):
         if not summary:
             # Where the runner stopped: the last suite and test rows before the exit.
             parts.append("unit-tests.log tail:\n```\n" + "\n".join(text.splitlines()[-20:]) + "\n```")
+        # Sharded runs (ci_build.sh TEST_SHARDS): one line per shard, and where
+        # a shard that printed no summary line stopped.
+        for shard in sorted(path.rglob("unit-tests-shard-*.log")):
+            stext = shard.read_text(errors="replace")
+            slines = [l for l in stext.splitlines() if re.search(r"^ [0-9]+ tests, |tests failed", l)]
+            if slines:
+                parts.append(f"{shard.name}: {slines[-1].strip()}")
+            else:
+                parts.append(f"{shard.name}: no summary line (crash or timeout?); tail:\n```\n"
+                             + "\n".join(stext.splitlines()[-12:]) + "\n```")
     else:
         parts.append("unit tests: no unit-tests.log (build failed or step skipped)")
     build = list(path.rglob("build.log"))

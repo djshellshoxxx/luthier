@@ -9,6 +9,7 @@
 #   deps       fetch JUCE and clap-juce-extensions into ThirdParty/ (pinned)
 #   configure  CMake configure into $BUILD_DIR (Ninja, compiler cache if present)
 #   build      build every plugin format, LuthierTests and LuthierRender
+#              (or only $BUILD_TARGETS)
 #   build-diagnostic  Standalone/VST3/CLAP/Tests/Render only; normal build retains AU
 #   test       run the unit tests (under xvfb on a headless Linux box)
 #   collect-failure-evidence  macOS failure diagnostics only (no tests rerun)
@@ -24,6 +25,9 @@
 #   CONFIG               CMake build type                 (default: Release)
 #   LUTHIER_LTO          ON / OFF link-time optimisation  (default: OFF)
 #   JOBS                 parallel jobs                    (default: CPU count)
+#   BUILD_TARGETS        targets for the build step, space or comma separated
+#                                                         (default: all of them)
+#   TEST_SHARDS          parallel unit-test processes, 1..8 (default: 1)
 #   PLUGINVAL_STRICTNESS 1..10                            (default: 5)
 #   PLUGINVAL_VERSION    pluginval release tag            (default: v1.0.4)
 #   CLAP_VALIDATOR_VERSION                                (default: 0.3.2)
@@ -135,6 +139,20 @@ do_configure() {
 }
 
 build_targets() {
+    # BUILD_TARGETS narrows a normal build to what the calling job uses (a
+    # test gate does not need the Standalone or the AU). Unset or empty: all.
+    if [ "${1:-0}" != 1 ] && [ -n "${BUILD_TARGETS:-}" ]; then
+        local t
+        for t in ${BUILD_TARGETS//,/ }; do
+            case "$t" in
+                Luthier_VST3|Luthier_Standalone|Luthier_CLAP|LuthierTests|LuthierRender) ;;
+                Luthier_AU) [ "$PLATFORM" = macos ] || { echo "ci_build.sh: Luthier_AU is macOS only" >&2; return 2; } ;;
+                *) echo "ci_build.sh: unknown BUILD_TARGETS entry '$t'" >&2; return 2 ;;
+            esac
+        done
+        echo ${BUILD_TARGETS//,/ }
+        return 0
+    fi
     local targets=(Luthier_VST3 Luthier_Standalone LuthierTests LuthierRender)
     [ "$PLATFORM" = macos ] && [ "${1:-0}" != 1 ] && targets+=(Luthier_AU)
     [ -d ThirdParty/clap-juce-extensions ] && targets+=(Luthier_CLAP)
@@ -142,8 +160,9 @@ build_targets() {
 }
 
 do_build() {
-    local targets
-    read -r -a targets <<< "$(build_targets "${1:-0}")"
+    local targets list
+    list="$(build_targets "${1:-0}")"
+    read -r -a targets <<< "$list"
     step "Building ${targets[*]} with $JOBS jobs"
     # -k 0: keep going after a failed compile so one CI run surfaces every
     # compiler error, not just the first. A successful build is unaffected.
@@ -163,6 +182,136 @@ do_build() {
     fi
 }
 
+# The summary line LuthierTests prints last (Source/Tests/TestMain.cpp):
+#   " <n> tests, <c> checks, <s> s"                  after " ALL PASSED"
+#   " <f> of <n> tests failed (<x> of <c> checks), <s> s" after " FAILED"
+# Prints "<n> <f>" for the log in $1, or nothing when the line is missing (the
+# process crashed, was killed, or never started).
+shard_summary() {
+    sed -nE 's/^ ([0-9]+) tests, [0-9]+ checks, .*/\1 0/p; s/^ ([0-9]+) of ([0-9]+) tests failed .*/\2 \1/p' "$1" | tail -n 1
+}
+
+# run_test_shards <runner> <count> [display wrapper ...]
+# Runs <runner> --shard=i/<count> for every i as parallel processes. Before
+# running, it checks with --list that the shards partition the full test list
+# (every test in exactly one shard). After running, it fails when any shard
+# exits non-zero, prints no summary line, or ran a different number of tests
+# than it listed. Logs: $LOG_DIR/unit-tests-shard-<i>.log, and the
+# concatenation plus an aggregate summary in $LOG_DIR/unit-tests.log.
+run_test_shards() {
+    local runner="$1" count="$2"; shift 2
+    local -a wrap=("$@")
+    local work="$BUILD_DIR/test-shards" i rc=0
+    rm -rf "$work"
+    mkdir -p "$work"
+    : > "$LOG_DIR/unit-tests.log"
+
+    # 1. The partition, checked on this exact binary: the shard lists
+    # together are the full list (as a multiset: a few suites register two
+    # tests under one name, and both land in the same shard), and no name is
+    # listed by two shards.
+    ${wrap[@]+"${wrap[@]}"} "$runner" --list > "$work/all.list" 2> "$work/all.list.err"
+    grep ' :: ' "$work/all.list" | LC_ALL=C sort > "$work/all.sorted"
+    : > "$work/union"; : > "$work/names"
+    for ((i=1; i<=count; i++)); do
+        ${wrap[@]+"${wrap[@]}"} "$runner" --list "--shard=$i/$count" 2>> "$work/all.list.err" \
+            | grep ' :: ' > "$work/shard-$i.list"
+        cat "$work/shard-$i.list" >> "$work/union"
+        LC_ALL=C sort -u "$work/shard-$i.list" >> "$work/names"
+    done
+    local total cross
+    total=$(wc -l < "$work/all.sorted")
+    cross=$(LC_ALL=C sort "$work/names" | uniq -d | wc -l)
+    if [ "$total" -eq 0 ] || [ "$cross" -ne 0 ] || ! LC_ALL=C sort "$work/union" | cmp -s - "$work/all.sorted"; then
+        {
+            echo "SHARD CHECK FAILED: the $count shard lists do not partition the full list"
+            echo "  full list: $total tests; shard lists: $(wc -l < "$work/union") entries; names in two shards: $cross"
+            LC_ALL=C sort "$work/union" | diff "$work/all.sorted" - | head -20
+            cat "$work/all.list.err"
+        } | tee -a "$LOG_DIR/unit-tests.log" >&2
+        return 1
+    fi
+    step "Running $total tests in $count parallel shards"
+
+    # 2. The shards. Own HOME, XDG folders and TMPDIR per shard: tests that
+    # write user settings, presets or temp files cannot see another shard's.
+    # Own Xvfb server number range per shard: xvfb-run -a probes for a free
+    # display, and parallel probes from the same start can collide.
+    local -a pids=()
+    for ((i=1; i<=count; i++)); do
+        local home="$work/home-$i"
+        mkdir -p "$home/.config" "$home/.local/share" "$home/.local/state" "$home/.cache" "$home/tmp"
+        local -a swrap=()
+        if [ "${#wrap[@]}" -gt 0 ] && [ "${wrap[0]}" = xvfb-run ]; then
+            swrap=(xvfb-run -a -n $((100 + 10 * i)) -s "-screen 0 1920x1080x24")
+        else
+            swrap=(${wrap[@]+"${wrap[@]}"})
+        fi
+        (
+            HOME="$home" XDG_CONFIG_HOME="$home/.config" XDG_DATA_HOME="$home/.local/share" \
+            XDG_STATE_HOME="$home/.local/state" XDG_CACHE_HOME="$home/.cache" TMPDIR="$home/tmp" \
+                ${swrap[@]+"${swrap[@]}"} "$runner" "--shard=$i/$count" > "$LOG_DIR/unit-tests-shard-$i.log" 2>&1
+            echo "$?" > "$work/shard-$i.rc"
+        ) &
+        pids+=("$!")
+    done
+    # Progress: one line per finished test, prefixed with its shard, so the
+    # step log shows the run is alive without interleaving whole reports.
+    # GNU tail only (--pid ends each follower when its shard exits).
+    local -a tails=()
+    if tail --version >/dev/null 2>&1; then
+        for ((i=1; i<=count; i++)); do
+            tail -n +1 -F --pid="${pids[i-1]}" "$LOG_DIR/unit-tests-shard-$i.log" 2>/dev/null \
+                | awk -v p="[shard $i/$count]" '/^  \[(pass|FAIL)\]/ { print p, $0; fflush() }' &
+            tails+=("$!")
+        done
+    fi
+    for pid in "${pids[@]}"; do wait "$pid"; done
+    [ "${#tails[@]}" -eq 0 ] || wait "${tails[@]}"
+
+    # 3. Every shard ran its whole list and said so.
+    local ran=0 failed=0 crashed=0 report=()
+    for ((i=1; i<=count; i++)); do
+        local log="$LOG_DIR/unit-tests-shard-$i.log" src summary listed
+        src=$(cat "$work/shard-$i.rc" 2>/dev/null || echo missing)
+        listed=$(wc -l < "$work/shard-$i.list")
+        summary=$(shard_summary "$log")
+        cat "$log" >> "$LOG_DIR/unit-tests.log"
+        if [ -z "$summary" ]; then
+            report+=(" shard $i/$count printed no summary line (crash or timeout?), exit $src; last lines:")
+            while IFS= read -r line; do report+=("    $line"); done < <(tail -n 8 "$log")
+            crashed=$((crashed + 1)); rc=1
+            continue
+        fi
+        local n=${summary% *} f=${summary#* }
+        ran=$((ran + n)); failed=$((failed + f))
+        report+=(" shard $i/$count: $n tests, $f failed, exit $src")
+        if [ "$n" -ne "$listed" ]; then
+            report+=(" SHARD CHECK FAILED: shard $i/$count listed $listed tests but ran $n")
+            rc=1
+        fi
+        if [ "$src" != 0 ] || [ "$f" -ne 0 ]; then rc=1; fi
+    done
+    if [ "$rc" -eq 0 ] && [ "$ran" -ne "$total" ]; then
+        report+=(" SHARD CHECK FAILED: ran $ran tests, full list has $total")
+        rc=1
+    fi
+    {
+        echo
+        echo "================================================================"
+        if [ "$rc" -eq 0 ]; then
+            echo " SHARDED RUN: ALL PASSED"
+            echo " $ran of $total tests passed in $count shards (each listed test ran exactly once)"
+        else
+            echo " SHARDED RUN: FAILED"
+            echo " $failed of $total tests failed in $count shards; $crashed shard(s) printed no summary line; $ran tests reported"
+        fi
+        printf '%s\n' "${report[@]}"
+        echo "================================================================"
+    } | tee -a "$LOG_DIR/unit-tests.log"
+    return "$rc"
+}
+
 do_test() {
     mkdir -p "$LOG_DIR"
     local runner="$BUILD_DIR/LuthierTests_artefacts/$CONFIG/LuthierTests"
@@ -174,9 +323,11 @@ do_test() {
         wrap=(xvfb-run -a -s "-screen 0 1920x1080x24")
     fi
 
-    # Optional deterministic test sharding for faster macOS/CI verification.
-    # Off by default; enable with TEST_SHARDS=2 after platform QA. Each shard
-    # runs in its own process and writes a separate failure-diagnostic log.
+    # Optional deterministic test sharding (TestSelection --shard=N/M): M
+    # processes run on one machine, each with its own HOME and TMPDIR. Off by
+    # default (TEST_SHARDS=1 is the classic single process); build.yml sets it
+    # per runner. run_test_shards fails unless every listed test ran in
+    # exactly one shard and every shard printed its summary line.
     local shards="${TEST_SHARDS:-1}"
     if ! [[ "$shards" =~ ^[1-9][0-9]*$ ]] || [ "$shards" -gt 8 ]; then
         echo "TEST_SHARDS must be an integer between 1 and 8" >&2
@@ -189,22 +340,8 @@ do_test() {
         ${wrap[@]+"${wrap[@]}"} "$runner" 2>&1 | tee "$LOG_DIR/unit-tests.log"
         rc=${PIPESTATUS[0]}
     else
-        local -a pids=()
-        local i
-        for ((i=1; i<=shards; i++)); do
-            # tee streams progress live so lengthy audio-render tests do not
-            # appear hung; stdout may interleave but each shard log is intact.
-            (
-                set -o pipefail
-                ${wrap[@]+"${wrap[@]}"} "$runner" "--shard=$i/$shards" 2>&1 | tee "$LOG_DIR/unit-tests-shard-$i.log"
-            ) &
-            pids+=("$!")
-        done
-        : > "$LOG_DIR/unit-tests.log"
-        for ((i=1; i<=shards; i++)); do
-            wait "${pids[i-1]}" || rc=1
-            cat "$LOG_DIR/unit-tests-shard-$i.log" >> "$LOG_DIR/unit-tests.log"
-        done
+        run_test_shards "$runner" "$shards" ${wrap[@]+"${wrap[@]}"}
+        rc=$?
     fi
 
     # Failure recap: re-print every [FAIL] row and its indented detail lines,
@@ -248,6 +385,8 @@ do_test() {
               -DOUT_DIR="$BUILD_DIR/render-cli-smoke" -P scripts/render_cli_smoke.cmake \
               2>&1 | tee "$LOG_DIR/render-cli.log"
         [ "${PIPESTATUS[0]}" -eq 0 ] || rc=1
+    else
+        echo "luthier-render smoke test NOT run: $render was not built" >&2
     fi
     if [ "$rc" -ne 0 ]; then
         do_collect_failure_evidence
