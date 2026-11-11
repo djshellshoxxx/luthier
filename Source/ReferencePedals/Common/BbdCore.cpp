@@ -6,6 +6,9 @@ void BbdCore::prepare(double sampleRate,double maximumDelayMs,double preHz,doubl
 {
     sr=common::sampleRate(sampleRate);maxDelay=std::clamp(common::safe(maximumDelayMs),1.,100.);
     delay.prepare(int(sr*maxDelay*.001)+8);saturation.prepareFactor(sr,sr<=48000 ? 2:1);
+    // 15 Hz, the CE2 input buffer's ESTIMATED coupling corner, at the rate the
+    // shaper really runs at.
+    curvatureMeanCoefficient=1-std::exp(-2*pi*15/saturation.rate());
     setFilters(preHz,postHz);reset();
 }
 void BbdCore::setFilters(double preHz,double postHz) noexcept
@@ -17,7 +20,7 @@ void BbdCore::setFilters(double preHz,double postHz) noexcept
 void BbdCore::reset(uint32_t seed) noexcept
 {
     delay.reset();saturation.reset();for(auto& f:pre)f.reset();for(auto& f:post)f.reset();
-    noise.reset(seed);clockPhase=held=previousWet=0;
+    noise.reset(seed);clockPhase=held=previousWet=curvatureMean=0;
 }
 double BbdCore::clockHz(double delayMs,int stages) noexcept
 {
@@ -26,14 +29,34 @@ double BbdCore::clockHz(double delayMs,int stages) noexcept
 double BbdCore::process(double input,double delayMs,double noiseAmount,bool clocked) noexcept
 {
     double x=common::safe(input);for(auto& f:pre)x=f.process(x);
-    x=saturation.process(x,[this](double v)
+    const auto headroom=[this](double v)
     {
         if(clipOnset<=0)return clipLevel*common::mildTanh(v/clipLevel);
         // E51 estimated CE2 headroom: unity small-signal gain up to -6 dBFS,
         // C2-continuous compression thereafter, preserving the original ceiling.
         const double magnitude=std::abs(v),span=clipLevel-clipOnset;
         return magnitude<=clipOnset?v:std::copysign(clipOnset+span*common::mildTanh((magnitude-clipOnset)/span),v);
-    });delay.push(x);
+    };
+    if(clocked && transferCurvature>0)
+    {
+        // A bucket-brigade line is a single-ended charge-transfer chain, so its
+        // low-level distortion is even order: the stored value is v+k*v^2 and the
+        // headroom law limits that. Squaring the limited value keeps the curved
+        // characteristic monotonic and the ceiling exactly where the headroom law
+        // puts it, so the even harmonics fade as the line saturates. Only the
+        // deviation from the uncurved law is AC-coupled (the device output is
+        // capacitor-coupled): no DC is added and the linear path keeps its
+        // response. It shares the headroom law's oversampled shaper, so its
+        // products are band-limited the same way.
+        x=saturation.process(x,[this,&headroom](double v)
+        {
+            const double limited=headroom(v),deviation=headroom(v+transferCurvature*limited*limited)-limited;
+            curvatureMean=common::safe(curvatureMean+curvatureMeanCoefficient*(deviation-curvatureMean));
+            return limited+(deviation-curvatureMean);
+        });
+    }
+    else x=saturation.process(x,headroom);
+    delay.push(x);
     const double ms=std::clamp(common::safe(delayMs),.1,maxDelay);
     double wet=delay.read(std::max(1.,sr*.001*ms-saturation.latencySamples()));
     const double unheld=wet;
