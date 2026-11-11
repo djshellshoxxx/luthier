@@ -1,25 +1,55 @@
+# The per-push pull-request gate: Linux Pro and Linux Free, one build each,
+# the whole unit suite in parallel shards, pluginval and clap-validator.
+# Windows and macOS run on pushes to the default branch (ci-cadence.yml) or on
+# demand: Actions -> build -> Run workflow on the PR branch (docs/infra/CI.md).
+#
+# Exception: the release branch codex/luthier-pro-v01-release still runs the
+# strict three-platform Pro matrix with every target, because
+# pro-alpha-release.yml and the macos-beta-release job below gate on those
+# jobs and package their plugin artifacts.
 name: PR verification
 
 on:
   pull_request:
     branches: [master, main]
     types: [opened, synchronize, reopened, ready_for_review]
+    # Skip runs for documentation and images only. A positive list with
+    # exclusions (not paths-ignore) so the few documentation files that are
+    # test inputs still trigger: docs/TROUBLESHOOTING.md is checked by
+    # scripts/check_packaging_paths.cmake in the test step, and
+    # Source/Tests/Fixtures holds markdown test corpora.
+    paths:
+      - '**'
+      - '.github/**'
+      - '!docs/**'
+      - '!spec/**'
+      - '!troubleshooting/**'
+      - '!**/*.md'
+      - '!*.png'
+      - '!*.jpg'
+      - '!LICENSE'
+      - 'docs/TROUBLESHOOTING.md'
+      - 'Source/Tests/Fixtures/**'
 
 permissions:
   contents: read
 
 concurrency:
-  group: pr-verification-${{ github.event.pull_request.number }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   platforms:
     uses: ./.github/workflows/build.yml
     with:
-      platforms: linux,windows,macos
+      platforms: ${{ github.head_ref == 'codex/luthier-pro-v01-release' && 'linux,windows,macos' || 'linux' }}
       editions: ${{ github.head_ref == 'codex/luthier-pro-v01-release' && 'pro' || 'pro,free' }}
       strictness: ${{ github.head_ref == 'codex/luthier-pro-v01-release' && 10 || 5 }}
       lto: ${{ github.head_ref == 'codex/luthier-pro-v01-release' }}
+      # The gate builds what it tests: the test runner, the render CLI (smoke
+      # test) and the VST3 and CLAP (validators). No Standalone, no staged
+      # plugin artifact.
+      targets: ${{ github.head_ref != 'codex/luthier-pro-v01-release' && 'LuthierTests LuthierRender Luthier_VST3 Luthier_CLAP' || '' }}
     secrets: inherit
 
   # Posts a short digest of the uploaded native logs (unit-test failures, build

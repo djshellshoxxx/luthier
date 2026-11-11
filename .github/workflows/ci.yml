@@ -6,8 +6,14 @@ on:
   # Manual only since 2026-09-26: ci-cadence.yml builds Linux on every push.
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+# Keyed on the workflow name: the old "ci-<ref>" group was shared with
+# ci-cadence.yml (workflow "ci"), so a manual package run and a push build on
+# the same branch cancelled each other.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:

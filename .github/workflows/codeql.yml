@@ -3,22 +3,32 @@
 # dev packages and a fetched JUCE tree, which autobuild does not set up.
 # Building LuthierTests compiles the engine + UI sources, giving CodeQL a full
 # database without the cost of the plugin/packaging steps.
+#
+# Runs on pushes to the default and beta branches, weekly, and on demand. Not
+# on pull requests: a 1 to 2 hour analysis per PR push duplicated the PR gate
+# and was cancelled by its own timeout in 5 of 7 runs (docs/infra/CI.md).
 name: CodeQL
 
 on:
   push:
     branches: [master, codex/luthier-beta]
-  pull_request:
-    branches: [master, codex/luthier-beta]
+    paths-ignore:
+      - 'docs/**'
+      - 'spec/**'
+      - 'troubleshooting/**'
+      - '**/*.md'
+      - '**/*.png'
+      - '**/*.jpg'
+      - 'LICENSE'
   schedule:
     - cron: '27 4 * * 1'   # weekly, Mondays 04:27 UTC
+  workflow_dispatch:
 
 permissions:
   contents: read
-  security-events: write   # required to upload code-scanning results
 
 concurrency:
-  group: codeql-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -32,9 +42,17 @@ jobs:
   analyze:
     name: Analyze (C/C++)
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    # Measured at ninja -j2: build 73 to 115 min, analysis 14 min, so the old
+    # 120-minute cap cancelled most runs. At -j4 the build is expected to take
+    # about half that; 150 leaves room for slow runners.
+    timeout-minutes: 150
+    permissions:
+      contents: read
+      security-events: write   # required to upload code-scanning results
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
@@ -51,8 +69,11 @@ jobs:
           # root-owned ccache dir permission error).
           cmake -B build -DCMAKE_C_COMPILER_LAUNCHER= -DCMAKE_CXX_COMPILER_LAUNCHER=
 
+      # 4 jobs for the 4-vCPU / 16 GB runner (about 2 GB per heavy C++ job
+      # with the CodeQL tracer attached). Exit 143 or "Killed signal" means
+      # out of memory: lower it.
       - name: Build LuthierTests
-        run: ninja -C build -j2 LuthierTests
+        run: cmake --build build --target LuthierTests --parallel 4
 
       - name: Perform CodeQL analysis
         uses: github/codeql-action/analyze@v3

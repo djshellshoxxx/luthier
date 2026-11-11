@@ -1,11 +1,12 @@
 # Build, test and validate Luthier on Linux, Windows (MSVC) and macOS (universal).
 #
-# Called per push and pull request by ci-cadence.yml (Linux, Windows and macOS
-# in parallel on every push: plugin targets + LuthierTests +
-# LuthierRender, unit tests, pluginval at strictness 5, clap-validator). On
-# manual dispatch: any platforms, LTO on and pluginval at strictness 10.
-# release.yml calls this workflow with package=true to build the installers
-# from the same jobs.
+# Called by pr-verification.yml (the per-push Linux gate), ci-cadence.yml
+# (pushes to the default and integration branches) and the release workflows.
+# Each job compiles once and runs every test, validator and packaging step on
+# that one build tree. On manual dispatch: any platforms, LTO on and pluginval
+# at strictness 10 by default. release.yml calls this workflow with
+# package=true to build the installers from the same jobs.
+# See docs/infra/CI.md for what runs when.
 #
 # The heavy lifting is in scripts/ci_build.sh and scripts/ci_build.ps1 so that
 # every step can be reproduced locally with the same command.
@@ -30,6 +31,10 @@ on:
         description: 'Link-time optimisation'
         type: boolean
         default: true
+      targets:
+        description: 'Build only these CMake targets (space separated; empty = all, needed for the plugin artifacts)'
+        type: string
+        default: ''
   workflow_call:
     inputs:
       platforms:
@@ -56,6 +61,13 @@ on:
         default: ''
       ref:
         description: 'Git ref to build (release.yml passes the tag)'
+        type: string
+        default: ''
+      targets:
+        description: >-
+          Build only these CMake targets (space separated). Empty = every
+          target, which staging, the plugin artifacts and packaging need.
+          Validators run when Luthier_VST3 is built.
         type: string
         default: ''
 
@@ -86,7 +98,8 @@ env:
 jobs:
   plan:
     name: Pick platforms
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
     outputs:
       matrix: ${{ steps.m.outputs.matrix }}
     steps:
@@ -94,23 +107,27 @@ jobs:
         env:
           PLATFORMS: ${{ inputs.platforms || 'linux,windows,macos' }}
           EDITIONS: ${{ inputs.editions || 'pro,free' }}
+          TARGETS: ${{ inputs.targets }}
+          PACKAGE: ${{ inputs.package }}
         run: |
+          # Installers are built from the staged products, which need every target.
+          if [ "$PACKAGE" = true ] && [ -n "$TARGETS" ]; then echo "::error::package=true needs every target (targets must be empty)"; exit 1; fi
           items=()
           add() { # name os platform edition
             case "$4" in PAID) e=pro;; *) e=free;; esac
             case ",$EDITIONS," in *,"$e",*) items+=("{\"name\":\"$1\",\"os\":\"$2\",\"platform\":\"$3\",\"edition\":\"$4\"}");; esac
           }
           case ",$PLATFORMS," in *,linux,*)
-            add "Linux x64 / Pro" ubuntu-latest linux PAID
-            add "Linux x64 / Free" ubuntu-latest linux FREE;;
+            add "Linux x64 / Pro" ubuntu-24.04 linux PAID
+            add "Linux x64 / Free" ubuntu-24.04 linux FREE;;
           esac
           case ",$PLATFORMS," in *,windows,*)
-            add "Windows x64 / Pro" windows-latest windows PAID
-            add "Windows x64 / Free" windows-latest windows FREE;;
+            add "Windows x64 / Pro" windows-2025 windows PAID
+            add "Windows x64 / Free" windows-2025 windows FREE;;
           esac
           case ",$PLATFORMS," in *,macos,*)
-            add "macOS universal / Pro" macos-latest macos PAID
-            add "macOS universal / Free" macos-latest macos FREE;;
+            add "macOS universal / Pro" macos-26 macos PAID
+            add "macOS universal / Free" macos-26 macos FREE;;
           esac
           if [ ${#items[@]} -eq 0 ]; then echo "::error::no builds for platforms '$PLATFORMS' editions '$EDITIONS'"; exit 1; fi
           joined=$(IFS=,; echo "${items[*]}")
@@ -121,6 +138,14 @@ jobs:
     needs: plan
     env:
       LUTHIER_EDITION: ${{ matrix.edition }}
+      # Empty = every target (ci_build.sh build_targets).
+      BUILD_TARGETS: ${{ inputs.targets }}
+      # Parallel compile jobs per runner, about one per 2 GB for this heavy
+      # C++ (runner sizes for public repositories): Linux and Windows 4 vCPU
+      # / 16 GB, macOS arm64 3 vCPU / 7 GB (a universal build compiles every
+      # source twice). Exit 143 / "Killed signal terminated program cc1plus"
+      # mid-compile means out of memory: lower this, never use a bare --parallel.
+      JOBS: ${{ matrix.platform == 'macos' && '3' || '4' }}
     runs-on: ${{ matrix.os }}
     # macOS runners are markedly slower than Linux/Windows for this LTO build +
     # the sequential render/preset-heavy LuthierTests suite: run #12 (beta1) was
@@ -129,7 +154,7 @@ jobs:
     # 39196004115 after the full unit suite passed, during AU pluginval.
     # GitHub-hosted jobs permit at most 360 minutes. Keep the full test and
     # validator gates and give this platform the available headroom.
-    timeout-minutes: ${{ matrix.os == 'macos-latest' && 360 || 180 }}
+    timeout-minutes: ${{ matrix.platform == 'macos' && 360 || 180 }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
@@ -138,6 +163,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || '' }}
+          fetch-depth: 1
 
       # ---------------------------------------------------------- toolchains
       - name: Linux packages
@@ -150,33 +176,67 @@ jobs:
             libgl1-mesa-dev \
             xvfb clang lld ninja-build dpkg-dev
 
-      - name: Ninja
-        if: runner.os != 'Linux'
-        uses: seanmiddleditch/gha-setup-ninja@v5
+      # Ninja is preinstalled on the pinned ubuntu-24.04, windows-2025 and
+      # macos-26 images (actions/runner-images readmes, 2026-11); Linux also
+      # gets it from apt above. Fall back to the system package manager.
+      - name: Ninja (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          command -v ninja >/dev/null || brew install ninja
+          ninja --version
 
+      # The MSVC developer environment, imported from vcvarsall.bat of the
+      # newest Visual Studio with the x64 C++ tools (vswhere ships with the
+      # image). Compiler output is not cached (docs/infra/CI.md).
       - name: MSVC environment
         if: runner.os == 'Windows'
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
-
-      - name: Compiler cache
-        uses: hendrikmuhs/ccache-action@v1.2
-        with:
-          # ccache cannot wrap MSVC through CMake's launcher reliably; sccache can.
-          variant: ${{ runner.os == 'Windows' && 'sccache' || 'ccache' }}
-          key: ${{ matrix.platform }}-${{ matrix.edition }}-lto${{ env.LTO }}
-          max-size: 2G
+        shell: pwsh
+        run: |
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          $vs = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vs) { throw 'No Visual Studio with the x64 C++ tools on this runner.' }
+          $vcvars = Join-Path $vs 'VC\Auxiliary\Build\vcvarsall.bat'
+          $vars = & cmd.exe /d /c "`"$vcvars`" x64 >nul && set"
+          if ($LASTEXITCODE -ne 0) { throw "vcvarsall.bat x64 failed ($LASTEXITCODE)." }
+          foreach ($line in $vars) {
+            if ($line -match '^([^=]+)=(.*)$' -and [Environment]::GetEnvironmentVariable($Matches[1]) -ne $Matches[2]) {
+              "$($Matches[1])=$($Matches[2])" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+            }
+          }
+          Write-Host "MSVC environment from $vcvars"
+      - name: Ninja (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (-not (Get-Command ninja -ErrorAction SilentlyContinue)) { choco install ninja --no-progress -y }
+          ninja --version
+          Get-Command cl.exe | Select-Object -ExpandProperty Source
 
       # ---------------------------------------------------------- sources
+      # The cache key is the pins themselves, read from the CI scripts, so an
+      # unrelated script edit does not re-clone JUCE. The two scripts must pin
+      # the same clap-juce-extensions commit. Configure patches both trees in
+      # place (cmake/JuceMidiCapacity.cmake, cmake/ClapHostIntent.cmake), so
+      # the patch scripts are part of the key too.
+      - name: Dependency pins
+        id: pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          juce=$(sed -n 's/^JUCE_TAG="\(.*\)"$/\1/p' scripts/ci_build.sh)
+          clap=$(sed -n 's/^CLAP_JUCE_EXT_COMMIT="\(.*\)"$/\1/p' scripts/ci_build.sh)
+          ps_juce=$(sed -n "s/^\$JuceTag = '\(.*\)'.*$/\1/p" scripts/ci_build.ps1)
+          ps_clap=$(sed -n "s/^\$ClapJuceExtCommit = '\(.*\)'.*$/\1/p" scripts/ci_build.ps1)
+          [ -n "$juce" ] && [ "${#clap}" -eq 40 ] || { echo "::error::cannot read the dependency pins from scripts/ci_build.sh"; exit 1; }
+          [ "$juce" = "$ps_juce" ] && [ "$clap" = "$ps_clap" ] || { echo "::error::scripts/ci_build.sh and scripts/ci_build.ps1 pin different dependencies"; exit 1; }
+          echo "key=juce-$juce-clap-$clap" >> "$GITHUB_OUTPUT"
       - name: Cache JUCE and clap-juce-extensions
         uses: actions/cache@v4
         with:
           path: |
             ThirdParty/JUCE
             ThirdParty/clap-juce-extensions
-          # The pinned versions live in the CI scripts; changing them busts this.
-          key: thirdparty-${{ runner.os }}-${{ hashFiles('scripts/ci_build.sh', 'scripts/ci_build.ps1') }}
+          key: thirdparty-${{ runner.os }}-${{ steps.pins.outputs.key }}-${{ hashFiles('scripts/patch_juce_midi_capacity.py', 'scripts/patch_clap_host_intent.py') }}
 
       - name: Fetch dependencies (Unix)
         if: runner.os != 'Windows'
@@ -198,21 +258,28 @@ jobs:
         if: runner.os == 'Linux'
         run: python3 -m unittest discover -s scripts -p 'test_regen_normalization_factory.py' -v
 
+      # Formerly quick-check.yml: script syntax and the beta-asset helper tests.
+      - name: Shell and Python syntax, release-asset helper tests
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/ci_build.sh scripts/package_macos.sh
+          python3 -m compileall -q scripts
+          python3 -m unittest discover -s scripts -p 'test_prepare_pro_beta_assets.py' -v
+
       # ---------------------------------------------------------- build
       - name: Configure and build (Unix)
         id: build_unix
         if: runner.os != 'Windows'
         env:
           LUTHIER_LTO: ${{ env.LTO }}
-          # Universal macOS builds compile each source for two architectures.
-          # Bound concurrent compiler processes to reduce runner memory pressure.
-          JOBS: ${{ runner.os == 'macOS' && '4' || '8' }}
         run: scripts/ci_build.sh configure build
       - name: Configure and build (Windows)
         id: build_windows
         if: runner.os == 'Windows'
         shell: pwsh
-        run: scripts/ci_build.ps1 -Step configure,build -Lto ${{ env.LTO }} -Edition ${{ matrix.edition }} -Jobs 4
+        run: scripts/ci_build.ps1 -Step configure,build -Lto ${{ env.LTO }} -Edition ${{ matrix.edition }} -Jobs ${{ env.JOBS }}
 
       # Run the known macOS release blockers first so their diagnostics are
       # available without waiting for the multi-hour complete suite. The full
@@ -284,8 +351,14 @@ jobs:
           if-no-files-found: ignore
 
       # ---------------------------------------------------------- test
+      # Linux: the whole suite as one process per vCPU (TestSelection
+      # --shard=i/N, own HOME and TMPDIR each). The step fails unless every
+      # listed test ran in exactly one shard and every shard printed its
+      # summary. macOS and Windows still run one process.
       - name: Unit tests (Unix)
         if: runner.os != 'Windows' && steps.build_unix.outcome == 'success'
+        env:
+          TEST_SHARDS: ${{ runner.os == 'Linux' && '4' || '1' }}
         run: scripts/ci_build.sh test
       - name: Unit tests (Windows)
         if: runner.os == 'Windows' && steps.build_windows.outcome == 'success'
@@ -300,26 +373,28 @@ jobs:
       # question (does the plugin load and behave in a host) and the log is
       # worth having either way.
       - name: pluginval + clap-validator (Unix)
-        if: ${{ !cancelled() && runner.os != 'Windows' && steps.build_unix.outcome == 'success' }}
+        if: ${{ !cancelled() && runner.os != 'Windows' && steps.build_unix.outcome == 'success' && (inputs.targets == '' || contains(format(' {0} ', inputs.targets), ' Luthier_VST3 ')) }}
         env:
           PLUGINVAL_STRICTNESS: ${{ env.STRICTNESS }}
         run: scripts/ci_build.sh validate
       - name: pluginval + clap-validator (Windows)
-        if: ${{ !cancelled() && runner.os == 'Windows' && steps.build_windows.outcome == 'success' }}
+        if: ${{ !cancelled() && runner.os == 'Windows' && steps.build_windows.outcome == 'success' && (inputs.targets == '' || contains(format(' {0} ', inputs.targets), ' Luthier_VST3 ')) }}
         shell: pwsh
         run: scripts/ci_build.ps1 -Step validate -Edition ${{ matrix.edition }} -Strictness ${{ env.STRICTNESS }}
 
       # ---------------------------------------------------------- stage
+      # Only a full build stages and uploads the plugins: a narrowed gate
+      # build (inputs.targets) ships nothing.
       - name: Stage products (Unix)
-        if: ${{ !cancelled() && runner.os != 'Windows' && steps.build_unix.outcome == 'success' }}
+        if: ${{ !cancelled() && runner.os != 'Windows' && steps.build_unix.outcome == 'success' && inputs.targets == '' }}
         run: scripts/ci_build.sh stage
       - name: Stage products (Windows)
-        if: ${{ !cancelled() && runner.os == 'Windows' && steps.build_windows.outcome == 'success' }}
+        if: ${{ !cancelled() && runner.os == 'Windows' && steps.build_windows.outcome == 'success' && inputs.targets == '' }}
         shell: pwsh
         run: scripts/ci_build.ps1 -Step stage -Edition ${{ matrix.edition }}
 
       - name: Upload plugins
-        if: ${{ !cancelled() && (steps.build_unix.outcome == 'success' || steps.build_windows.outcome == 'success') }}
+        if: ${{ !cancelled() && (steps.build_unix.outcome == 'success' || steps.build_windows.outcome == 'success') && inputs.targets == '' }}
         uses: actions/upload-artifact@v4
         with:
           name: Luthier-${{ matrix.edition }}-${{ matrix.platform }}-${{ github.sha }}

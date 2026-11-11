@@ -1,10 +1,12 @@
-# The product owner's build cadence (2026-09-26), to keep GitHub Actions
-# minutes in check:
-#   - Linux builds and tests on every push to the integration and edition
-#     branches.
-#   - Windows also builds on every 3rd successful Linux build.
-#   - macOS also builds on every 15th successful Linux build (macOS minutes
-#     cost 10x Linux ones).
+# Build cadence for pushes (docs/infra/CI.md):
+#   - Linux builds and tests on every push to the default, integration and
+#     edition branches.
+#   - A push to the default branch (master or main: a merged pull request)
+#     also builds and tests Windows and macOS, after Linux passes. Pull
+#     requests run Linux only (pr-verification.yml), so this is where native
+#     regressions are caught automatically.
+#   - Other branches: Windows on every 3rd and macOS on every 15th successful
+#     Linux build (the cadence of 2026-09-26).
 # Any platform can still be run by hand: Actions -> build -> Run workflow.
 #
 # Counting: every Linux build that passes uploads a tiny marker artefact named
@@ -24,20 +26,30 @@ on:
       - codex/luthier-beta-looper-concurrency
       - claude/luthier-consolidate        # consolidation of every open branch
     tags-ignore: ['v*']   # release.yml handles version tags
-    paths-ignore:
-      - 'spec/**'
-      - 'docs/**'
-      - '**/*.md'
-      - 'troubleshooting/**'
-      - '*.png'
+    # Skip runs for documentation and images only. A positive list with
+    # exclusions (not paths-ignore) so the few documentation files that are
+    # test inputs still trigger: docs/TROUBLESHOOTING.md is checked by
+    # scripts/check_packaging_paths.cmake in the test step, and
+    # Source/Tests/Fixtures holds markdown test corpora.
+    paths:
+      - '**'
+      - '.github/**'
+      - '!docs/**'
+      - '!spec/**'
+      - '!troubleshooting/**'
+      - '!**/*.md'
+      - '!*.png'
+      - '!*.jpg'
+      - '!LICENSE'
+      - 'docs/TROUBLESHOOTING.md'
+      - 'Source/Tests/Fixtures/**'
   workflow_dispatch:
 
 permissions:
   contents: read
-  actions: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -51,7 +63,10 @@ jobs:
   gate:
     name: Cadence
     needs: linux
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read   # count the ci-linux-success markers
     outputs:
       windows: ${{ steps.count.outputs.windows }}
       macos: ${{ steps.count.outputs.macos }}
@@ -63,22 +78,24 @@ jobs:
         run: |
           before=$(gh api "repos/${{ github.repository }}/actions/artifacts?name=ci-linux-success&per_page=1" --jq '.total_count')
           n=$((before + 1))
-          # PAUSED 2026-09-26 (owner request): Windows and macOS builds are held
-          # until the project is fully complete. The cadence logic below is kept
-          # but forced off. To resume: restore the modulo lines and delete the
-          # two "false  # PAUSED" overrides.
           windows=false; macos=false
-          # [ $((n % 3)) -eq 0 ] && windows=true    # PAUSED
-          # [ $((n % 15)) -eq 0 ] && macos=true     # PAUSED
-          [ $((n % 3)) -eq 0 ] && windows=true   # beta: Windows re-enabled (PR #9)
-          macos=true      # public repo: macOS runners are free, build every push/PR
+          case "$GITHUB_REF" in
+            refs/heads/master|refs/heads/main)
+              # The default branch: every push (a merge) gets every platform.
+              windows=true; macos=true; why="default branch: every push" ;;
+            *)
+              [ $((n % 3)) -eq 0 ] && windows=true
+              [ $((n % 15)) -eq 0 ] && macos=true
+              why="Windows every 3rd, macOS every 15th successful Linux build" ;;
+          esac
           echo "number=$n" >> "$GITHUB_OUTPUT"
           echo "windows=$windows" >> "$GITHUB_OUTPUT"
           echo "macos=$macos" >> "$GITHUB_OUTPUT"
           {
             echo "### Successful Linux build #$n"
-            echo "- Windows this time: $windows (every 3rd Linux build)"
-            echo "- macOS this time: $macos (public repo: enabled)"
+            echo "- Windows this time: $windows"
+            echo "- macOS this time: $macos"
+            echo "- Rule: $why"
           } >> "$GITHUB_STEP_SUMMARY"
           echo "$n" > marker.txt
       - uses: actions/upload-artifact@v4

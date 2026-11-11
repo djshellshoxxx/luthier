@@ -92,7 +92,7 @@ function Step-Deps {
 function Step-Configure {
     Write-Step "Configuring $BuildDir ($Config, LTO $Lto)"
     if (-not (Get-Command cl.exe -ErrorAction SilentlyContinue)) {
-        throw 'cl.exe is not on PATH. Run from a Developer PowerShell for VS 2022 (CI uses ilammy/msvc-dev-cmd).'
+        throw 'cl.exe is not on PATH. Run from a Developer PowerShell for VS (CI imports vcvarsall.bat x64; see build.yml).'
     }
     $cmakeArgs = @('-S', '.', '-B', $BuildDir, '-G', 'Ninja',
                    "-DCMAKE_BUILD_TYPE=$Config", "-DLUTHIER_LTO=$Lto", "-DLUTHIER_EDITION=$Edition",
