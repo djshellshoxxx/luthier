@@ -7,8 +7,9 @@
 # Exit: 75 = lock busy, run the same command again; otherwise ninja's exit code.
 #
 # Several workers compiling at once oversubscribe a small machine and can get the compiler
-# killed for lack of memory, so builds take the lock exclusively and test runs (test.sh)
-# take it shared: tests never run while something compiles.
+# killed for lack of memory, so builds take the machine lock exclusively. Test runs do not
+# take it: a first version made tests hold it shared, and one long suite then stalled every
+# other worker's build for minutes.
 set -uo pipefail
 . "$(dirname "$0")/common.sh"
 WT="$1"; shift

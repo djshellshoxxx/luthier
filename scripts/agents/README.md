@@ -8,7 +8,7 @@ and used on a 4-core, 15 GB Linux container on 2026-11-11.
 |---|---|
 | `worktree.sh <name> <branch> [base]` | Create a worktree under `$LUTHIER_WT_ROOT`, symlink the pinned JUCE and clap-juce-extensions checkouts, configure `build/` |
 | `build.sh <dir> <target>...` | Build with ninja, one compile at a time machine-wide (exclusive lock) |
-| `test.sh <dir> [filters]` | Run `LuthierTests` under xvfb from the build directory with a private HOME (shared lock) |
+| `test.sh <dir> [filters]` | Run `LuthierTests` under xvfb from the build directory with a private HOME (no lock: tests may overlap builds) |
 | `shards.sh <binary> <N> <outdir>` | Run the whole suite as N exact, disjoint shards in parallel |
 
 ## One-time setup

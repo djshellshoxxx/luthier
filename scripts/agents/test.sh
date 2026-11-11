@@ -5,7 +5,7 @@
 #   Arguments are passed through: name fragments (case-insensitive substring of a suite or
 #   test name), --list, --skip=<ExactSuite>. Environment variables pass through too
 #   (LUTHIER_SOAK, LUTHIER_PERF, LUTHIER_SCREENSHOTS, LUTHIER_STRESS_JSON, ...).
-# Exit: 75 = lock busy, run again; otherwise the test binary's exit code
+# Exit: the test binary's exit code
 #       (0 pass, 1 failures, above 128 = killed by a signal, i.e. a crash).
 #
 # Two things this wrapper does that a bare invocation does not:
@@ -17,11 +17,8 @@ set -uo pipefail
 WT="$1"; shift
 BIN="$WT/build/LuthierTests_artefacts/Release/LuthierTests"
 [ -x "$BIN" ] || { echo "test.sh: test binary missing: $BIN (build target LuthierTests first)" >&2; exit 2; }
-exec 9>"$LOCK_FILE"
-if ! flock -s -w 540 9; then
-    echo "test.sh: BUSY - a build holds the machine. Run the same command again." >&2
-    exit 75
-fi
+# No machine lock for tests: a long suite must not block every other worker's build.
+# Timing-sensitive tests can therefore see load; rerun a failed timing test on a quiet machine.
 LOG="$WT/build/last-test.log"
 TH="$(mktemp -d "$WT/build/test-home.XXXXXX")"
 ( cd "$WT/build" && HOME="$TH" XDG_CONFIG_HOME="$TH/.config" XDG_DATA_HOME="$TH/.local/share" \
