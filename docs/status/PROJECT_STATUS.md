@@ -47,6 +47,9 @@ No single percentage is meaningful for this project, so none is given. The count
 | Full-processor 30 s stress test | `agents/luthier/testing/processor-stress` | in progress | - |
 | Legacy effects-chain use-after-free | `agents/luthier/audio/effects-chain-retire` | in progress | - |
 | MIDI continuity in the audio callback | `agents/luthier/audio/midi-continuity` | in progress | - |
+| Latency reporting off the audio thread; constant latency under board bypass | `agents/luthier/audio/latency-reporting` | in progress | - |
+| Click-free cabinet and body impulse-response swap | `agents/luthier/audio/ir-swap-crossfade` | in progress | - |
+| Session recorder sample rate and reset race | `agents/luthier/audio/session-recorder` | in progress | - |
 | GUI: column scrolling, scrollbars, collapsible sections | `agents/luthier/gui/columns-scroll-collapse` | in progress | - |
 | GUI: screen clamp, pedalboard at real sizes, layout integrity test | `agents/luthier/gui/sizing-board` | in progress | - |
 | GUI: Reset & Stop, Workshop guitar types, focus ring, LIVE pads | `agents/luthier/gui/controls-focus-reset` | in progress | - |
