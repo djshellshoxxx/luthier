@@ -99,7 +99,7 @@ Polyphony is 6 strings by default (7–12 for extended range), 12 for 12-string 
 
 - **Accessibility**. Screen reader, keyboard-only navigation, color-blind palettes, UI scale 75–200%, high contrast, safe mode, panic button, kill switch.
 
-- **Cross-platform**. VST3, AU, CLAP, Standalone on Windows, macOS, Linux. Tested in Ableton, Logic, Cubase, Studio One, Reaper, FL, Bitwig, Pro Tools.
+- **Cross-platform**. VST3 and Standalone on Windows, macOS and Linux; AU on macOS only; CLAP where the CLAP wrapper is present at build time. The CI scripts run pluginval and clap-validator; manual testing in named DAWs has not been carried out (see `HOST_COMPATIBILITY.md` and `KNOWN_ISSUES.md`). AAX is not built, so Pro Tools is not supported.
 
 - **Free and Pro editions**. Same engine and sound quality. Free has 6 guitars, 7 amps, 15 pedals, 16 presets, 1 snapshot bank, no Workshop, Tune Builder, advanced techniques or notation export. Pro has everything.
 
@@ -145,7 +145,7 @@ And it's not slow. Double-precision DSP throughout, 4x oversampling, no audio-th
 - **Sample rates**: 44.1 kHz to 192 kHz, live rate switching
 - **Polyphony**: 6-12 strings depending on mode
 - **Latency**: reported to host, proper MIDI/audio sync
-- **VST3, AU, CLAP, Standalone** on Windows, macOS, Linux
+- **VST3 and Standalone** on Windows, macOS, Linux; **AU** on macOS only; **CLAP** when the CLAP wrapper is present at build time
 - **~720 impulse responses** (synthesized from physics)
 - **Offline renderer** CLI for batch MIDI-to-audio and regression testing
 
