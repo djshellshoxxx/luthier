@@ -31,7 +31,7 @@ void EffectsChain::prepare (double sampleRate, int maxBlockSize)
     }
 
     setOversamplingFactor (effectiveFactor, oversamplingFactor, false);
-    retired.clear();
+    reclaimRetired();
 }
 
 void EffectsChain::reset() noexcept
@@ -103,10 +103,11 @@ void EffectsChain::setSlotType (int slot, PedalType type)
 
         slots[(size_t) slot].pedal = std::move (replacement);
         slots[(size_t) slot].type = type;
+        slots[(size_t) slot].live.store (slots[(size_t) slot].pedal.get());
     }
 
-    // Safe here: we are on the message thread and hold no audio-thread state.
-    retired.clear();
+    // Unlocked control/latency readers may still hold the outgoing pointer.
+    reclaimRetired();
 }
 
 PedalType EffectsChain::getSlotType (int slot) const noexcept
@@ -165,13 +166,14 @@ void EffectsChain::applySlotState (int slot, bool bypassed, double mix,
 
 void EffectsChain::setSlotBypassed (int slot, bool bypassed) noexcept
 {
+    const ReadScope reader (*this);
     if (! juce::isPositiveAndBelow (slot, kNumSlots))
         return;
 
     slots[(size_t) slot].bypassed = bypassed;
 
-    if (slots[(size_t) slot].pedal != nullptr)
-        slots[(size_t) slot].pedal->setBypassed (bypassed);
+    if (auto* pedal = slots[(size_t) slot].live.load())
+        pedal->setBypassed (bypassed);
 }
 
 bool EffectsChain::isSlotBypassed (int slot) const noexcept
@@ -184,13 +186,14 @@ bool EffectsChain::isSlotBypassed (int slot) const noexcept
 
 void EffectsChain::setSlotMix (int slot, double mix) noexcept
 {
+    const ReadScope reader (*this);
     if (! juce::isPositiveAndBelow (slot, kNumSlots))
         return;
 
     slots[(size_t) slot].mix = juce::jlimit (0.0, 1.0, mix);
 
-    if (slots[(size_t) slot].pedal != nullptr)
-        slots[(size_t) slot].pedal->setMix (slots[(size_t) slot].mix);
+    if (auto* pedal = slots[(size_t) slot].live.load())
+        pedal->setMix (slots[(size_t) slot].mix);
 }
 
 void EffectsChain::moveSlot (int fromSlot, int toSlot)
@@ -224,6 +227,7 @@ void EffectsChain::clear()
 
     for (auto& slot : slots)
     {
+        slot.live.store (nullptr);
         if (slot.pedal != nullptr)
             retired.push_back (std::move (slot.pedal));
 
@@ -232,48 +236,61 @@ void EffectsChain::clear()
         slot.mix = 1.0;
     }
 
-    retired.clear();
+    reclaimRetired();
 }
 
 //==============================================================================
 void EffectsChain::setTempoBpm (double bpm) noexcept
 {
-    tempoBpm = juce::jlimit (20.0, 300.0, bpm);
-
+    const ReadScope reader (*this);
+    const double value = juce::jlimit (20.0, 300.0, bpm);
+    tempoBpm.store (value);
     for (auto& slot : slots)
-        if (slot.pedal != nullptr)
-            slot.pedal->setTempoBpm (tempoBpm);
+        if (auto* pedal = slot.live.load())
+            pedal->setTempoBpm (value);
 }
 
 void EffectsChain::setExpression (double value) noexcept
 {
-    expression = juce::jlimit (0.0, 1.0, value);
-
+    const ReadScope reader (*this);
+    value = juce::jlimit (0.0, 1.0, value);
+    expression.store (value);
     for (auto& slot : slots)
-        if (slot.pedal != nullptr)
-            slot.pedal->setExpression (expression);
+        if (auto* pedal = slot.live.load())
+            pedal->setExpression (value);
 }
 
 void EffectsChain::setOversamplingFactor (int effective, int nominal, bool crossfade) noexcept
 {
-    oversamplingFactor = juce::jlimit (1, 8, nominal);
-    effectiveFactor = juce::jlimit (1, oversamplingFactor, effective);
-
-    // SPEC-SWEEP JG-4: a virtual call rather than a dynamic_cast per slot.
+    const ReadScope reader (*this);
+    nominal = juce::jlimit (1, 8, nominal);
+    effective = juce::jlimit (1, nominal, effective);
+    oversamplingFactor.store (nominal);
+    effectiveFactor.store (effective);
     for (auto& slot : slots)
-        if (slot.pedal != nullptr)
-            slot.pedal->setOversamplingFactor (effectiveFactor, oversamplingFactor, crossfade);
+        if (auto* pedal = slot.live.load())
+            pedal->setOversamplingFactor (effective, nominal, crossfade);
 }
 
 int EffectsChain::getLatencySamples() const noexcept
 {
+    const ReadScope reader (*this);
     int total = 0;
-
     for (const auto& slot : slots)
-        if (slot.pedal != nullptr && ! slot.bypassed)
-            total += slot.pedal->getLatencySamples();
-
+        if (auto* pedal = slot.live.load(); pedal != nullptr && ! slot.bypassed.load())
+            total += pedal->getLatencySamples();
     return total;
+}
+
+void EffectsChain::reclaimRetired()
+{
+    std::vector<std::unique_ptr<Pedal>> garbage;
+    {
+        const juce::ScopedLock sl (swapLock);
+        if (unlockedReaders.load() == 0)
+            garbage.swap (retired);
+    }
+    // Destruction stays on this non-audio caller, after removal from live.
 }
 
 //==============================================================================

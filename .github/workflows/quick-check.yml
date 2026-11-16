@@ -43,6 +43,8 @@ jobs:
           bash -n scripts/ci_build.sh scripts/package_macos.sh
           python3 -m compileall -q scripts
           python3 -m unittest discover -s scripts -p 'test_prepare_pro_beta_assets.py' -v
+      - name: Rack lifetime ASan and UBSan isolation checks
+        run: python3 scripts/check_effects_chain_lifetime.py
       - name: Linux build prerequisites
         run: |
           sudo apt-get update -q
@@ -79,7 +81,7 @@ jobs:
           mkdir -p "$BUILD_DIR/logs"
           runner="$BUILD_DIR/LuthierTests_artefacts/$CONFIG/LuthierTests"
           test -x "$runner"
-          xvfb-run -a "$runner" FactoryGuitarOverrideUsesSelectedInstrument CalibrationHashIgnoresPresetMetadata ON03_FactoryTableDoesNotDrift ON03_ExplicitCalibrationTransactionIgnoresLoadDelay ON32_EditionIsPartOfTheHash CQ23_ PracticeTrack SessionRecorderRate BackendRelease RefPedalUiLifecycle \
+          xvfb-run -a "$runner" FactoryGuitarOverrideUsesSelectedInstrument CalibrationHashIgnoresPresetMetadata ON03_FactoryTableDoesNotDrift ON03_ExplicitCalibrationTransactionIgnoresLoadDelay ON32_EditionIsPartOfTheHash CQ23_ PracticeTrack SessionRecorderRate BackendRelease RefPedalUiLifecycle EffectsChainLifetime \
             2>&1 | tee "$BUILD_DIR/logs/focused-regressions.log"
       - name: Upload diagnostics on failure
         if: failure()

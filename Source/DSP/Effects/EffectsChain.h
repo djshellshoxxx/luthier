@@ -65,6 +65,9 @@ public:
     /** Moves a pedal from one slot to another, shuffling the rest along. */
     void moveSlot (int fromSlot, int toSlot);
 
+    /** Message thread: reclaim pedals after all unlocked readers have left. */
+    void reclaimRetired();
+
     /** Empties every slot. */
     void clear();
 
@@ -91,10 +94,45 @@ private:
     struct Slot
     {
         std::unique_ptr<Pedal> pedal;
-        PedalType type = PedalType::None;
-        bool bypassed = false;
-        double mix = 1.0;
+        std::atomic<Pedal*> live { nullptr };
+        std::atomic<PedalType> type { PedalType::None };
+        std::atomic<bool> bypassed { false };
+        std::atomic<double> mix { 1.0 };
+
+        Slot() = default;
+        Slot (Slot&& other) noexcept { *this = std::move (other); }
+        Slot& operator= (Slot&& other) noexcept
+        {
+            // moveSlot only moves into an empty owner under swapLock. Readers
+            // can observe an intermediate order, but never a destroyed pedal.
+            jassert (pedal == nullptr);
+            other.live.store (nullptr);
+            pedal = std::move (other.pedal);
+            type.store (other.type.load());
+            bypassed.store (other.bypassed.load());
+            mix.store (other.mix.load());
+            live.store (pedal.get());
+            return *this;
+        }
     };
+
+    friend struct EffectsChainLifetimeTestAccess;
+
+    // seq_cst entry, pointer publication and zero observation form one order:
+    // readers that could see an outgoing pedal must leave before reclamation.
+    struct ReadScope
+    {
+        explicit ReadScope (const EffectsChain& c) noexcept : chain (c)
+        { chain.unlockedReaders.fetch_add (1); }
+        ~ReadScope() { chain.unlockedReaders.fetch_sub (1); }
+        const EffectsChain& chain;
+        ReadScope (const ReadScope&) = delete;
+        ReadScope& operator= (const ReadScope&) = delete;
+    };
+    mutable std::atomic<unsigned> unlockedReaders { 0 };
+    static_assert (std::atomic<unsigned>::is_always_lock_free);
+    static_assert (std::atomic<double>::is_always_lock_free);
+    static_assert (std::atomic<Pedal*>::is_always_lock_free);
 
     void applyPendingSwaps() noexcept;
     void resetPedalsLocked() noexcept;
@@ -103,10 +141,10 @@ private:
     int maxBlock = 512;
     Position position = Position::PreAmp;
 
-    double tempoBpm = 120.0;
-    double expression = 0.5;
-    int oversamplingFactor = 4;
-    int effectiveFactor = 4;   // cpu-quality-modes 2.2
+    std::atomic<double> tempoBpm { 120.0 };
+    std::atomic<double> expression { 0.5 };
+    std::atomic<int> oversamplingFactor { 4 };
+    std::atomic<int> effectiveFactor { 4 };   // cpu-quality-modes 2.2
 
     std::array<Slot, kNumSlots> slots;
 

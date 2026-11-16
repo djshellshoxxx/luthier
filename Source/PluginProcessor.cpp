@@ -4565,6 +4565,8 @@ void LuthierAudioProcessor::serviceReferencePedalParameters()
 void LuthierAudioProcessor::timerCallback()
 {
     engine.getReferencePedals().reclaim();
+    engine.getPreEffects().reclaimRetired();
+    engine.getPostEffects().reclaimRetired();
     updateLatency();
     serviceReferencePedalParameters();
     // preset-browser-previews 4.1 / 3.3: free finished clips, pause background renders.
