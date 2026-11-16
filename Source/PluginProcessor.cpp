@@ -482,8 +482,8 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     qualityController.setNonRealtime (lastNonRealtime);
     applyQualityForBlock (true);
 
-    updateLatency();
     updateRoutingLatencyReport();
+    updateLatency();
 
     Diagnostics::HostInfo info;
     info.hostName = juce::PluginHostType().getHostDescription();
@@ -1414,15 +1414,15 @@ double LuthierAudioProcessor::getTailLengthSeconds() const
 
 void LuthierAudioProcessor::updateLatency()
 {
-    const int latency = engine.getLatencySamples();
+    // prepareToPlay or the message timer only. The audio thread publishes
+    // routing atomics and never enters JUCE's listener lock or host callbacks.
+    const int latency = routing.getReportedLatency();
 
-    if (latency != reportedLatency)
+    if (latency != reportedLatency.load (std::memory_order_relaxed))
     {
-        reportedLatency = latency;
         setLatencySamples (latency);
+        reportedLatency.store (latency, std::memory_order_relaxed);
     }
-
-    updateRoutingLatencyReport();
 }
 
 void LuthierAudioProcessor::updateRoutingLatencyReport()
@@ -2408,9 +2408,10 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
 
     samplePosition += numSamples;
 
-    // The engine's latency can change when an IR finishes loading or the
-    // oversampling factor changes, so it is re-reported rather than assumed fixed.
-    updateLatency();
+    // Publish only while this callback owns the engine. A failed admission
+    // keeps the prior snapshot; never read a concurrent structural rebuild.
+    if (engineLock.isLocked())
+        updateRoutingLatencyReport();
 }
 
 //==============================================================================
@@ -4561,6 +4562,11 @@ void LuthierAudioProcessor::timerCallback()
     engine.getReferencePedals().reclaim();
     engine.getPreEffects().reclaimRetired();
     engine.getPostEffects().reclaimRetired();
+    {
+        const juce::ScopedTryLock engineLock (bridge.getEngineLock());
+        if (engineLock.isLocked())
+            updateRoutingLatencyReport();
+    }
     updateLatency();
     serviceReferencePedalParameters();
     // preset-browser-previews 4.1 / 3.3: free finished clips, pause background renders.

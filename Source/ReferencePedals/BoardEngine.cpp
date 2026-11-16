@@ -72,7 +72,7 @@ try
     cpuGovernorTripped.store (false); cpuEcoApplied.store (false); cpuGovernorFailed.store (false);
     feedback.reset(); feedbackRearmSeen = feedbackKillSeen = 0; feedbackFault.store (false); feedbackTripped.store (false);
     paramPulses.clear(); engageEcho.clear(); numPendingPulses = 0; numRawMidi = numMidiOutput = 0;
-    events = nullptr; sidechain[0] = sidechain[1] = nullptr; sidechainSamples = 0; auxOutputs = {};
+    events = nullptr; blockPlan = nullptr; sidechain[0] = sidechain[1] = nullptr; sidechainSamples = 0; auxOutputs = {};
     resetRequested.store (false);
     for (auto& segment : segments)
     {
@@ -143,7 +143,7 @@ void BoardEngine::discardRuntime() noexcept
 void BoardEngine::discardRuntimeLocked() noexcept
 {
     paramPulses.clear(); engageEcho.clear(); numPendingPulses = 0; numRawMidi = numMidiOutput = 0;
-    events = nullptr; sidechain[0] = sidechain[1] = nullptr; sidechainSamples = 0; auxOutputs = {};
+    events = nullptr; blockPlan = nullptr; sidechain[0] = sidechain[1] = nullptr; sidechainSamples = 0; auxOutputs = {};
     live.store (nullptr, std::memory_order_seq_cst);
     for (auto& meter : pedalMeters) { meter.present.store (false); meter.available.store (0); }
     for (auto& segment : segments) { segment.current = segment.pending = nullptr; }
@@ -185,8 +185,9 @@ bool BoardEngine::publishLocked (const std::vector<PedalInstance>& instances, co
     info.latencyTotal = plan->topology.latencyTotal; info.dryDelay = plan->topology.dryDelay;
     info.cpuUnits = plan->topology.cpuUnits;
     const bool active = settings.enabled && plan->topology.n > 0;
-    targetActive.store (active, std::memory_order_release);
-    latencySamples.store (active && settings.reportLatency ? plan->topology.latencyTotal : 0, std::memory_order_release);
+    // Bypass retains the same physical dry delay, including the post-cab path.
+    targetActive.store (active || plan->topology.latencyTotal > 0, std::memory_order_release);
+    latencySamples.store (settings.reportLatency ? plan->topology.latencyTotal : 0, std::memory_order_release);
     auto old = std::move (latest); latest = std::move (plan);
     live.store (latest.get(), std::memory_order_seq_cst);
     if (! hostEcho && intent)
@@ -217,7 +218,7 @@ int BoardEngine::reclaim() noexcept
 int BoardEngine::reclaimLocked() noexcept
 {
     int freed = 0;
-    CompletedReaderEpoch<RenderPlan, 2 * kNumPlacements>::Snapshot completed;
+    CompletedReaderEpoch<RenderPlan, kRetainedPlanSlots>::Snapshot completed;
     if (planReader.snapshot (completed))
         freed = retired.reclaimExcept (completed.pointers, [&] (const RenderPlan* plan) noexcept
             { return plan->retirementEpoch <= completed.epoch; });
@@ -277,12 +278,13 @@ void BoardEngine::drainControlEcho()
 }
 void BoardEngine::finishPlanRead() noexcept
 {
-    CompletedReaderEpoch<RenderPlan, 2 * kNumPlacements>::Pointers retained {};
+    CompletedReaderEpoch<RenderPlan, kRetainedPlanSlots>::Pointers retained {};
     for (size_t i = 0; i < segments.size(); ++i)
     {
         retained[2 * i] = segments[i].current;
         retained[2 * i + 1] = segments[i].pending;
     }
+    retained.back() = blockPlan;
     planReader.finish (retained);
 }
 void BoardEngine::publishPedalMeters (const RenderPlan& plan) noexcept
@@ -519,7 +521,7 @@ void BoardEngine::beginEvents (const midi::RouteOut& routed) noexcept
     blockEvents.nTr = std::clamp (blockEvents.nTr, 0, midi::kMaxRouteTransport);
     events = &blockEvents; eventOffsetsPrepared = false;
     const PlanReadScope reading (*this);
-    const auto* plan = live.load (std::memory_order_seq_cst);
+    const auto* plan = blockPlan = live.load (std::memory_order_seq_cst);
     if (! plan) return;
     if (feedbackRearmSeen != plan->feedbackRearm) { feedback.reset(); feedbackRearmSeen = plan->feedbackRearm; }
     if (feedbackKillSeen != plan->feedbackKill)
@@ -571,13 +573,15 @@ void BoardEngine::beginEvents (const midi::RouteOut& routed) noexcept
                 break;
         }
     }
-    latencySamples.store (effectiveEnabled && extended (ExtendedHostField::ReportLatency) >= 0.5f ? plan->topology.latencyTotal : 0);
+    latencySamples.store (extended (ExtendedHostField::ReportLatency) >= 0.5f ? plan->topology.latencyTotal : 0);
 }
 void BoardEngine::process (double* left, double* right, int n, Placement placement) noexcept
 {
     if (! left || ! right || n <= 0 || ! isValidPlacement (static_cast<int> (placement))) return;
     const PlanReadScope reading (*this);
-    const auto* newest = live.load (std::memory_order_seq_cst);
+    // One publication per block: a move between placement calls must not
+    // make a shared runtime advance twice (or disappear) in that block.
+    const auto* newest = events ? blockPlan : live.load (std::memory_order_seq_cst);
     if (! newest) return;
     if (! events) applyExtended (*newest);
     else if (! eventOffsetsPrepared) prepareEventOffsets (*newest, n);
@@ -612,7 +616,21 @@ void BoardEngine::process (double* left, double* right, int n, Placement placeme
         }
     }
     if (! localEnabled && ! running.load())
-    { s.current = newest; s.pending = nullptr; s.phase = Segment::Idle; s.gain = 1.0; s.enable = 0.0; publishPedalMeters (*s.current); return; }
+    {
+        s.current = newest; s.pending = nullptr; s.phase = Segment::Idle; s.gain = 1.0; s.enable = 0.0;
+        // A settled bypass must continue advancing the dry delay. Returning
+        // the undelayed input here made every footswitch change host timing.
+        const int delay = newest->latency[static_cast<size_t> (p)];
+        for (int i = 0; i < n; ++i)
+            for (int c = 0; c < 2; ++c)
+            {
+                auto& sample = (c == 0 ? left : right)[i];
+                sample = s.dry[static_cast<size_t> (c)].processCrossfade (sample, delay,
+                            std::max (1, static_cast<int> (rate * 0.010)));
+            }
+        publishPedalMeters (*s.current);
+        return;
+    }
     if (localEnabled && newest->topology.n > 0) running.store (true);
     double peakIn = 0, peakOut = 0;
     for (int offset = 0; offset < n;)

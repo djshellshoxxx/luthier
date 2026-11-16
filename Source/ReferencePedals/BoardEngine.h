@@ -72,7 +72,7 @@ public:
     void beginRawMidi (const juce::MidiBuffer&, int samples) noexcept;
     int drainMidiOut (MidiEvent*, int capacity) noexcept;
     void beginEvents (const midi::RouteOut&) noexcept;
-    void endEvents() noexcept { events = nullptr; sidechain[0] = sidechain[1] = nullptr; sidechainSamples = 0; auxOutputs = {}; }
+    void endEvents() noexcept { events = nullptr; blockPlan = nullptr; sidechain[0] = sidechain[1] = nullptr; sidechainSamples = 0; auxOutputs = {}; }
     int reclaim() noexcept;
     // Message-thread diagnostics for the original T-RETIRE acceptance gate.
     std::size_t retiredPlanCount() const noexcept { const std::lock_guard<std::mutex> guard (controlMutex); return retired.size(); }
@@ -142,7 +142,11 @@ private:
     std::vector<PedalInstance> releasedStored, releasedCaptured;
     RetireList<RenderPlan> retired;
     std::atomic<const RenderPlan*> live { nullptr };
-    CompletedReaderEpoch<RenderPlan, 2 * kNumPlacements> planReader;
+    // The per-block plan is retained between placement calls, alongside each
+    // segment's current/pending transition plans.
+    static constexpr size_t kRetainedPlanSlots = 2 * kNumPlacements + 1;
+    CompletedReaderEpoch<RenderPlan, kRetainedPlanSlots> planReader;
+    const RenderPlan* blockPlan = nullptr; // single audio reader
     std::atomic<bool> targetActive { false }, running { false }, resetRequested { false };
     std::atomic<int> latencySamples { 0 };
     std::atomic<float> inputPeak { -120.f }, outputPeak { -120.f };

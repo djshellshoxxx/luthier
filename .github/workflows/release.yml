@@ -1,4 +1,5 @@
-# Release: a version tag (v1.2.3, v1.3.0-beta1) builds, tests and validates on
+# Release: a version tag (v1.2.3, v1.3.0-beta1), or a release/v* candidate
+# branch, builds, tests and validates on
 # every platform at full strictness with LTO, builds the installers, and
 # uploads them with SHA-256 checksums to a DRAFT GitHub Release. A person
 # reviews the draft and publishes it; nothing here publishes on its own.
@@ -8,11 +9,12 @@ name: release
 
 on:
   push:
+    branches: ['release/v*']
     tags: ['v*']
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to (re)build a draft release for, e.g. v1.0.0 or v1.0.0-beta1'
+        description: 'New tag to build a draft release for, e.g. v1.0.0 or v1.0.0-beta1'
         required: true
         type: string
       ref:
@@ -49,7 +51,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.ref || inputs.tag || github.ref }}
+          ref: ${{ inputs.ref || inputs.tag || github.sha }}
       - id: v
         name: Tag matches CMakeLists.txt
         env:
@@ -57,6 +59,12 @@ jobs:
         run: |
           set -euo pipefail
           tag="$TAG"
+          # Creating a dedicated candidate branch starts the same qualification
+          # pipeline as a manual dispatch. Its name carries the intended tag;
+          # the tag itself is created only after every build/package job passes.
+          if [ "$GITHUB_EVENT_NAME" = push ] && [ "$GITHUB_REF_TYPE" = branch ]; then
+            tag="${tag#release/}"
+          fi
           [[ "$tag" =~ ^v[0-9]+\.[0-9]+(\.[0-9]+)?(-[A-Za-z0-9][A-Za-z0-9.-]*)?$ ]] || {
             echo "::error::Invalid version tag"; exit 1;
           }
@@ -84,6 +92,18 @@ jobs:
           fi
           # Freeze checkout once; all platform jobs and the final tag use this commit.
           echo "ref=$source_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Refuse an existing release before building
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.v.outputs.tag }}
+        run: |
+          set -euo pipefail
+          tags="$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq '.[].tag_name')"
+          if grep -Fxq -- "$TAG" <<< "$tags"; then
+            echo "::error::Release or draft already exists; choose a new version."
+            exit 1
+          fi
 
   build:
     name: Build and package
@@ -137,6 +157,13 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          if [ "$GITHUB_EVENT_NAME" = push ] && [ "$GITHUB_REF_TYPE" = branch ]; then
+            candidate_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/${GITHUB_REF#refs/}" --jq '.object.sha')"
+            test "$candidate_sha" = "$SOURCE_SHA" || {
+              echo "::error::Candidate branch advanced during qualification; refusing stale release."
+              exit 1
+            }
+          fi
           refs="$(git ls-remote --tags origin "refs/tags/$TAG" "refs/tags/$TAG^{}")"
           if [ -z "$refs" ]; then
             # Create-only API: a concurrent tag creation fails; never update a ref.

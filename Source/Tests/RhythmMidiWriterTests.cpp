@@ -90,6 +90,30 @@ LUTHIER_TEST (RhythmMidiWriter, stoppingCancelsFutureAttacksAndClosesActualPitch
     CHECK (output.isEmpty());
 }
 
+LUTHIER_TEST (RhythmMidiWriter, resetReleaseDoesNotConsumeTheNextAttackBlock)
+{
+    for (bool previouslyHeld : {false, true})
+    {
+        RhythmMidiWriter writer;
+        PlayEventQueue strokes;
+        juce::MidiBuffer output;
+        output.ensureSize (BoundedMidi::kReserveBytes);
+        if (previouslyHeld)
+        {
+            strike (strokes, 0, 43, 0);
+            writer.process (strokes, true, &output, 64, 0);
+        }
+        writer.cancel(); // engine prepare/reset or transport restart
+        strokes.clear(); output.clear();
+        strike (strokes, 0, 48, 0);
+        writer.process (strokes, true, &output, 64, 0);
+        std::vector<Event> expected;
+        if (previouslyHeld) expected.emplace_back (0, 0x80, 43, 0);
+        expected.emplace_back (0, 0x90, 48, 127);
+        CHECK (collect (output) == expected);
+    }
+}
+
 LUTHIER_TEST (RhythmMidiWriter, overflowReleasesHeldNotesAndDropsFutureAttacks)
 {
     RhythmMidiWriter writer;

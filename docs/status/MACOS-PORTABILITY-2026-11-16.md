@@ -68,3 +68,10 @@ before the unchanged full suite. Release builds still require all selected
 platforms, full tests, validators, LTO and packaging. The full local native
 runner is still compiling at this checkpoint; exact-source native results and
 remaining latency/IR audit work are not inferred from the isolated checks.
+
+
+The real-JUCE libc++/FMA portability CI job and recorder ThreadSanitizer job
+both passed on commit `ec38f6ac` (quick-check run `43894765167`). The later local
+headless processor selection also passed all 59 tests / 19,314 checks across
+state, control, asset lifetime, MIDI and backend release paths. These Linux
+results do not establish native macOS GUI or package acceptance.

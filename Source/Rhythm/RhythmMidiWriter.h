@@ -40,6 +40,35 @@ public:
             return;
         if (! driving)
             cancel();
+
+        auto release = [&] (int string, int when)
+        {
+            auto& note = held[(size_t) string];
+            if (note < 0)
+                return true;
+            const juce::uint8 bytes[] { (juce::uint8) (0x80 | string), (juce::uint8) note, 0 };
+            if (! BoundedMidi::add (*output, bytes, 3, offset + when))
+                return false;
+            note = -1;
+            return true;
+        };
+
+        auto drainReleases = [&]
+        {
+            bool complete = true;
+            for (int string = 0; string < kMaxStrings; ++string)
+                complete = release (string, 0) && complete;
+            releasing = ! complete;
+        };
+
+        // A reset can leave a release obligation even with no held notes.
+        // Discharge it before collecting this block's strokes so playback's
+        // first attack is retained. A blocked release still suppresses attacks.
+        if (releasing)
+            drainReleases();
+        if (releasing || ! driving)
+            return;
+
         if (! releasing)
         {
             for (int i = 0; i < strokes.getNumNoteOffs(); ++i)
@@ -57,24 +86,11 @@ public:
             }
         }
 
-        auto release = [&] (int string, int when)
-        {
-            auto& note = held[(size_t) string];
-            if (note < 0)
-                return true;
-            const juce::uint8 bytes[] { (juce::uint8) (0x80 | string), (juce::uint8) note, 0 };
-            if (! BoundedMidi::add (*output, bytes, 3, offset + when))
-                return false;
-            note = -1;
-            return true;
-        };
 
+        // An overflow discovered while collecting cancels these new attacks.
         if (releasing)
         {
-            bool complete = true;
-            for (int string = 0; string < kMaxStrings; ++string)
-                complete = release (string, 0) && complete;
-            releasing = ! complete;
+            drainReleases();
             return;
         }
 

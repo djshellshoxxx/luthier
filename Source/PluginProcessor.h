@@ -1196,7 +1196,7 @@ private:
 
     int referenceHostSliceOffset = 0;
     void processSlice (juce::AudioBuffer<float>&, juce::MidiBuffer&);
-    int reportedLatency = 0;
+    std::atomic<int> reportedLatency { 0 };
 
     /*  gui-integration 15: "Sample rate changed to 96 kHz, IRs and circuit filters
         re-resampled." The rate the window has already accounted for.
