@@ -20,6 +20,31 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  native-library-portability:
+    name: Native library portability (libc++ and FMA)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Clang and libc++
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends clang libc++-dev libc++abi-dev
+      - name: Fetch pinned JUCE
+        run: git clone --depth 1 --branch 8.0.10 https://github.com/juce-framework/JUCE.git ThirdParty/JUCE
+      - name: Build ownership and exact-gain checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          fma=OFF
+          if grep -qw fma /proc/cpuinfo; then fma=ON; fi
+          cmake -S scripts/portability_checks -B build-portability \
+            -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DUSE_LIBCXX=ON -DEXERCISE_FMA="$fma" -DSANITIZE=address,undefined
+          cmake --build build-portability --parallel 2
+      - name: Exercise queued destruction and host parameter capture
+        run: build-portability/portability_checks
+
   recorder-thread-safety:
     name: Recorder thread safety (real JUCE)
     runs-on: ubuntu-latest
@@ -101,6 +126,7 @@ jobs:
           xvfb-run -a "$runner" FactoryGuitarOverrideUsesSelectedInstrument CalibrationHashIgnoresPresetMetadata ON03_FactoryTableDoesNotDrift ON03_ExplicitCalibrationTransactionIgnoresLoadDelay ON32_EditionIsPartOfTheHash CQ23_ PracticeTrack SessionRecorderRate SessionRecorderConcurrency BackendRelease RefPedalUiLifecycle EffectsChainLifetime \
             RefPedalCe2 RefPedalBbdCore RefPedalChorusMemory RefPedalCe2w RefPedalCe2NodeBypass RefPedalRouting RefPedalBufferedTimeFx RefPedalBbdCurvature \
             RhythmMidiWriter RhythmMidiRouter RhythmMidiOut DeferredEngineMidi \
+            RefPedalAssetLifetime RefPedalHostCapture RefPedalControlRace RefPedalState HostState convolutionPreparesSafelyForTinyHostBlocks convolutionTinyHostRateAndCapacityBoundaries \
             2>&1 | tee "$BUILD_DIR/logs/focused-regressions.log"
       - name: Upload diagnostics on failure
         if: failure()

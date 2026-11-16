@@ -23,8 +23,17 @@ public:
         if (index < 0 || index >= ExtendedHostAutomationSnapshot::count || echoWriter == this || ! std::isfinite (normalised)) return false;
         if (index == (int) ExtendedHostField::FeedbackKill && normalised < .5f) return false; // retain sub-block pulse
         const auto& p = extendedHostParameters[(size_t) index];
-        float physical = p.minimum + std::clamp (normalised, 0.f, 1.f) * (p.maximum - p.minimum);
-        if (p.interval > 0) physical = p.minimum + std::round ((physical - p.minimum) / p.interval) * p.interval;
+        // Host parameters use binary32 stages. Fusing multiply/add changes
+        // their rounding on ARM/FMA targets: a saved 0 dB then restores as a
+        // tiny nonzero gain, changing the exact persisted board state. Force
+        // the product's float rounding before adding the range origin.
+        const volatile float offset = std::clamp (normalised, 0.f, 1.f) * (p.maximum - p.minimum);
+        float physical = p.minimum + offset;
+        if (p.interval > 0)
+        {
+            const volatile float snapped = std::round ((physical - p.minimum) / p.interval) * p.interval;
+            physical = p.minimum + snapped;
+        }
         values[(size_t) index].store (std::clamp (physical, p.minimum, p.maximum), std::memory_order_relaxed);
         const auto old = serials[(size_t) index].fetch_add (1, std::memory_order_release);
         if (old == std::numeric_limits<uint32_t>::max()) serials[(size_t) index].fetch_add (1, std::memory_order_release);

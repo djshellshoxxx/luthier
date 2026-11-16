@@ -43,6 +43,7 @@ LUTHIER_TEST(RefPedalControlRace, publisherReclaimerAndAudioHaveDistinctThreads)
 #include "../ReferencePedals/PedalRegistry.h"
 #include <functional>
 #include <stdexcept>
+#include <utility>
 namespace
 {
 std::function<void()> duringExtraSave;
@@ -63,7 +64,9 @@ public:
     uint64_t getPreparedMemoryBytes()const noexcept override{return sizeof(*this);}
     void saveExtra(juce::var& output)const override
     {
-        auto callback=repeatExtraSaveCallback?duringExtraSave:std::move(duringExtraSave);if(callback)callback();
+        // A moved-from std::function is valid but not guaranteed empty (libc++
+        // may retain a small callable). This fixture's callback is explicitly once.
+        auto callback=repeatExtraSaveCallback?duringExtraSave:std::exchange(duringExtraSave,{});if(callback)callback();
         ++extraPinSaved;auto* object=new juce::DynamicObject;object->setProperty("marker",marker);output=juce::var(object);
     }
 private:int marker=73;

@@ -6,6 +6,25 @@
 #include <thread>
 namespace luthier::reference
 {
+namespace
+{
+bool putBlobInDirectory(const juce::File& directory,const AssetHash& hash,const uint8_t* data,size_t size)
+{
+    if ((size != 0 && data == nullptr) || hash != AssetStore::hashBlob(data,size)) return false;
+    if (! directory.createDirectory()) return false;
+    const auto target = directory.getChildFile(hash.toHex() + ".blob");
+    // Same-directory temporary + OS atomic replacement. Never delete the old
+    // target first (File::moveFileTo may fall back to delete+copy on failure).
+    juce::TemporaryFile temporary(target);
+    {
+        juce::FileOutputStream stream(temporary.getFile());
+        if (! stream.openedOk() || (size != 0 && ! stream.write(data,size))) return false;
+        stream.flush();
+        if (stream.getStatus().failed()) return false;
+    }
+    return temporary.overwriteTargetFileWithTemporary();
+}
+}
 struct AssetStore::Impl
 {
     juce::File directory;
@@ -53,19 +72,7 @@ AssetHash AssetStore::hashBlob(const uint8_t* data, size_t size)
 juce::String AssetStore::reference(const AssetHash& hash) { return "sha256:" + hash.toHex(); }
 bool AssetStore::putBlob(const AssetHash& hash, const uint8_t* data, size_t size)
 {
-    if ((size != 0 && data == nullptr) || hash != hashBlob(data,size)) return false;
-    if (! impl->directory.createDirectory()) return false;
-    const auto target = impl->directory.getChildFile(hash.toHex() + ".blob");
-    // Same-directory temporary + OS atomic replacement. Never delete the old
-    // target first (File::moveFileTo may fall back to delete+copy on failure).
-    juce::TemporaryFile temporary(target);
-    {
-        juce::FileOutputStream stream(temporary.getFile());
-        if (! stream.openedOk() || (size != 0 && ! stream.write(data,size))) return false;
-        stream.flush();
-        if (stream.getStatus().failed()) return false;
-    }
-    return temporary.overwriteTargetFileWithTemporary();
+    return putBlobInDirectory(impl->directory,hash,data,size);
 }
 juce::File AssetStore::getBlobPath(const AssetHash& hash) const
 {
@@ -80,14 +87,16 @@ juce::File AssetStore::getBlobPath(const AssetHash& hash) const
 bool AssetStore::hasBlob(const AssetHash& hash) const { return getBlobPath(hash) != juce::File(); }
 void AssetStore::putBlobAsync(const AssetHash& hash, AssetBlob blob, std::function<void(bool)> done)
 {
-    impl->enqueue([this,hash,blob=std::move(blob),done=std::move(done)]
-    { const bool ok = blob && putBlob(hash,blob->data(),blob->size()); if (done) done(ok); });
+    // Jobs must not access the outer object's unique_ptr during destruction:
+    // libc++ clears that pointer before invoking Impl::~Impl and draining jobs.
+    impl->enqueue([directory=impl->directory,hash,blob=std::move(blob),done=std::move(done)]
+    { const bool ok = blob && putBlobInDirectory(directory,hash,blob->data(),blob->size()); if (done) done(ok); });
 }
 void AssetStore::getBlobAsync(const AssetHash& hash, std::function<void(AssetBlob)> done)
 {
-    impl->enqueue([this,hash,done=std::move(done)]
+    impl->enqueue([directory=impl->directory,hash,done=std::move(done)]
     {
-        const auto file = impl->directory.getChildFile(hash.toHex() + ".blob");
+        const auto file = directory.getChildFile(hash.toHex() + ".blob");
         juce::MemoryBlock data; AssetBlob blob;
         if (file.loadFileAsData(data) && hashBlob(static_cast<const uint8_t*>(data.getData()),data.getSize()) == hash)
         {

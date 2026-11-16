@@ -560,6 +560,12 @@ LUTHIER_TEST (CpuQualityUi, CQ23_lowMeansNoAnimationRepaints)
         ringChord (p);
         pump (p, 0.3);
 
+        // Native window paints are deferred (notably displayIfNeeded on macOS).
+        // Drain warm-up invalidations before taking the state/count baseline;
+        // otherwise a state change before measurement can be painted during it.
+        if (auto* peer = shown.host->getPeer())
+            peer->performAnyPendingRepaintsNow();
+
         // Chord-name and fixed string-overlay changes independently request
         // repaints at Off. Count both, per body, so a ringing string becoming
         // silent cannot be mistaken for animation (or excuse another component).

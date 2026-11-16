@@ -313,15 +313,15 @@ namespace
             CHECK_MSG (p->getPresetManager().fromVar (FactoryPresets::toVar (preset, *p)),
                        presetName + " failed to load at " + configuration);
             p->getParameterBridge().applyAllNow();
-            if (presetIndex == 1)
             {
-                // Free plays both original recipes as Tele. Give the alternate
-                // fixture a shipped, distinct body IR through the real host path;
-                // do not turn a valid same-file cache hit into a forced reload.
+                // Free plays both recipes as Tele. Set BOTH woods explicitly:
+                // nearest-IR selection for the factory recipe can already pick
+                // mahogany on macOS. Exercise an actual alder -> mahogany swap
+                // through the host path, preserving the reload assertions.
                 auto* topWood = p->getState().getParameter (ParamIDs::bodyTopWood);
                 CHECK_MSG (topWood != nullptr, "body IR fixture requires the top-wood parameter");
                 if (topWood != nullptr)
-                    topWood->setValueNotifyingHost (topWood->convertTo0to1 ((float) Wood::Mahogany));
+                    topWood->setValueNotifyingHost (topWood->convertTo0to1 ((float) (presetIndex == 0 ? Wood::Alder : Wood::Mahogany)));
                 p->getParameterBridge().applyToEngine();
                 p->getParameterBridge().flushPendingStructuralChange();
             }
