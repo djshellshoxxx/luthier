@@ -42,10 +42,11 @@ class ReleaseGuards(unittest.TestCase):
             ["git", "-c", "user.name=Release guard fixture", "-c", "user.email=fixture@example.invalid", *args],
             cwd=cwd or self.repo, stderr=subprocess.DEVNULL, text=True)
 
-    def version(self, tag="v0.1.0-preview1"):
+    def version(self, tag="v0.1.0-preview1", event="workflow_dispatch", ref_type="branch"):
         output = self.root / "output"
         output.write_text("")
-        env = dict(os.environ, TAG=tag, REF="candidate", GITHUB_OUTPUT=str(output))
+        env = dict(os.environ, TAG=tag, REF="candidate", GITHUB_OUTPUT=str(output),
+                   GITHUB_EVENT_NAME=event, GITHUB_REF_TYPE=ref_type)
         result = subprocess.run(["bash", "-e", "-c", step_script("Tag matches CMakeLists.txt")],
                                 cwd=self.repo, env=env, capture_output=True, text=True)
         return result, dict(line.split("=", 1) for line in output.read_text().splitlines())
@@ -58,6 +59,30 @@ class ReleaseGuards(unittest.TestCase):
         self.git("add", "."); self.git("commit", "-m", "Source B")
         self.git("push", "origin", "HEAD:refs/heads/candidate")
         self.assertNotEqual(self.git("rev-parse", "HEAD").strip(), output["ref"])
+
+    def test_candidate_branch_name_selects_version_and_freezes_source(self):
+        result, output = self.version("release/v0.1.0-beta2", "push", "branch")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(output, {"version": "0.1.0-beta2", "tag": "v0.1.0-beta2", "ref": self.source})
+        self.assertNotEqual(self.version("release/v0.1.0-beta2", "push", "tag")[0].returncode, 0)
+
+    def test_advanced_candidate_refuses_tag_creation(self):
+        bindir = self.root / "bin"; bindir.mkdir()
+        stub = bindir / "gh"; log = self.root / "gh-calls"
+        stub.write_text('#!/bin/bash\nprintf "%s\\n" "$*" >> "$CALL_LOG"\n'
+                        '[[ "$*" == *"git/ref/heads/release/v0.1.0-beta2"* ]] || exit 9\n'
+                        'printf "%s\\n" "$CANDIDATE_SHA"\n')
+        stub.chmod(0o755)
+        env = dict(os.environ, PATH=str(bindir) + os.pathsep + os.environ["PATH"], CALL_LOG=str(log),
+                   GITHUB_EVENT_NAME="push", GITHUB_REF_TYPE="branch", GITHUB_REF="refs/heads/release/v0.1.0-beta2",
+                   GITHUB_REPOSITORY="fixture/repo", SOURCE_SHA=self.source, TAG="v0.1.0-beta2",
+                   CANDIDATE_SHA="0" * 40)
+        result = subprocess.run(["bash", "-c", step_script("Verify or create the frozen source tag")],
+                                cwd=self.repo, env=env, capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Candidate branch advanced", result.stdout)
+        self.assertEqual(len(log.read_text().splitlines()), 1)
+        self.assertEqual(self.git("ls-remote", "--tags", "origin"), "")
 
     def test_annotated_tag_at_same_source_is_accepted(self):
         self.git("tag", "-a", "v0.1.0-preview1", "-m", "Fixture")
@@ -103,7 +128,8 @@ class ReleaseGuards(unittest.TestCase):
         self.git("tag", "v0.1.0-preview1"); self.git("push", "origin", "refs/tags/v0.1.0-preview1")
         (self.repo / "later.txt").write_text("Later source\n")
         self.git("add", "."); self.git("commit", "-m", "Source B")
-        env = dict(os.environ, SOURCE_SHA=self.git("rev-parse", "HEAD").strip(), TAG="v0.1.0-preview1")
+        env = dict(os.environ, SOURCE_SHA=self.git("rev-parse", "HEAD").strip(), TAG="v0.1.0-preview1",
+                   GITHUB_EVENT_NAME="workflow_dispatch", GITHUB_REF_TYPE="branch")
         result = subprocess.run(["bash", "-c", step_script("Verify or create the frozen source tag")],
                                 cwd=self.repo, env=env, capture_output=True, text=True)
         self.assertNotEqual(result.returncode, 0)
