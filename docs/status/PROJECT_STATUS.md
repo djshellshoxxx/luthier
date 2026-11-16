@@ -3,7 +3,8 @@
 **Resumed by the owner on 2026-11-16 for Windows/macOS releases.** Current work is
 recorded in [RELEASE-CONTINUATION-2026-11-16.md](RELEASE-CONTINUATION-2026-11-16.md),
 [RACK-LIFETIME-2026-11-16.md](RACK-LIFETIME-2026-11-16.md), and
-[RECORDER-CONCURRENCY-2026-11-16.md](RECORDER-CONCURRENCY-2026-11-16.md).
+[RECORDER-CONCURRENCY-2026-11-16.md](RECORDER-CONCURRENCY-2026-11-16.md), and
+[CHORUS-QUALIFICATION-2026-11-16.md](CHORUS-QUALIFICATION-2026-11-16.md).
 PRs #101/#102 and the recorder continuation carry changes that are not yet
 integrated or release-qualified. The snapshot below records the November 11
 pause; its counts and queued-run statuses are historical, not current claims.

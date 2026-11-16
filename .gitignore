@@ -25,4 +25,5 @@ BUILD_GATE_NOTES.md
 # Focused real-JUCE recorder/sanitizer builds.
 build-recorder/
 build-recorder-asan/
+build-chorus/
 scripts/__pycache__/
