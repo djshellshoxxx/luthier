@@ -62,6 +62,7 @@
 #include "ReferencePedals/Midi/HostAutomationCapture.h"
 #include "ReferencePedals/Midi/ExtendedHostAutomationCapture.h"
 #include "Support/HostMidiCapacity.h"
+#include "Support/DeferredEngineMidi.h"
 #if HAS_CLAP_JUCE_EXTENSIONS
 #include <clap-juce-extensions/clap-juce-extensions.h>
 #endif
@@ -916,6 +917,8 @@ private:
     Diagnostics diagnostics;
     RoutingMatrix routing;
     MidiOutRouter midiOutRouter;
+    DeferredEngineMidi deferredEngineMidi, deferredDirectMidi;
+    bool resetRhythmMidiOnNextEngineBlock = false;
 
     // midi-export.md 6: character / noise and Workshop events as Luthier SysEx.
     void sendLuthierSysEx (const MidiOutConfig& config, juce::MidiBuffer& midi, int numSamples) noexcept;

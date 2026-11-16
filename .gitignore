@@ -26,4 +26,5 @@ BUILD_GATE_NOTES.md
 build-recorder/
 build-recorder-asan/
 build-chorus/
+build-midi/
 scripts/__pycache__/

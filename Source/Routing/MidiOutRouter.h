@@ -23,6 +23,7 @@
 
 #include <array>
 #include <atomic>
+#include <bitset>
 
 namespace luthier
 {
@@ -118,6 +119,9 @@ private:
                    int numSamples, int reservedBytes) noexcept;
     juce::MidiBuffer captured;
     juce::MidiBuffer rhythm;
+    std::array<std::bitset<128>, 16> rhythmHeld {};
+    int rhythmHeldCount = 0;
+    bool rhythmDrainPending = false;
 
     std::array<std::atomic<float>, MidiOutConfig::kNumMacroCcs> macroValues;
     std::array<float, MidiOutConfig::kNumMacroCcs> lastSentMacro {};

@@ -28,6 +28,31 @@ struct BackendReleaseRig
     int note() const { return processor->getEngine().getStringMidiNote(0); }
 };
 }
+LUTHIER_TEST(BackendRelease, hostReleaseSurvivesStructuralLockContention)
+{
+    BackendReleaseRig rig;
+    rig.processor->getEngine().getMidiInterpreter().setMinimumNoteDurationMs(0);
+    rig.midi.addEvent(juce::MidiMessage::noteOn(1,72,.8f),0);
+    rig.block(); rig.settle(); CHECK(rig.note()==72);
+    juce::WaitableEvent locked, unlock;
+    std::thread owner([&]
+    {
+        const juce::ScopedLock lock(rig.processor->getParameterBridge().getEngineLock());
+        locked.signal();
+        unlock.wait(10000);
+    });
+    const bool acquired=locked.wait(5000);
+    CHECK(acquired);
+    if(acquired)
+    {
+        rig.midi.addEvent(juce::MidiMessage::noteOff(1,72),19);
+        rig.block();
+        CHECK(rig.note()==72); // The engine did not consume this blocked callback.
+    }
+    unlock.signal(); owner.join();
+    rig.settle();
+    CHECK(rig.note()<0);
+}
 LUTHIER_TEST(BackendRelease, immediateReleaseRetriesAfterEventQueueSaturation)
 {
     BackendReleaseRig rig;
