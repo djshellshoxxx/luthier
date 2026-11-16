@@ -66,7 +66,13 @@ AssetHash recordWrapAsset(GatedWrapStore& store,luthier::tests::TestContext& ctx
     LooperStorage recorded;CHECK(recorded.prepare(store,wrapConfig()));recorded.beginRecord();
     for(int frame=0;frame<144;++frame)
         CHECK(recorded.append((frame+1)/256.,-(frame+1)/512.));
-    CHECK(recorded.finishRecord());AssetHash hash;CHECK(recorded.manifest(hash));return hash;
+    CHECK(recorded.finishRecord());AssetHash hash;
+    const auto start=juce::Time::getMillisecondCounterHiRes();const bool saved=recorded.manifest(hash);
+    LooperStorage::Capture snapshot;const bool captured=recorded.capture(snapshot);
+    CHECK_MSG(saved,"manifest wait " + juce::String(juce::Time::getMillisecondCounterHiRes()-start,1)
+        + " ms, snapshot=" + juce::String(captured ? int(snapshot.status) : -1)
+        + ", faults=" + juce::String(recorded.errors()));
+    return hash;
 }
 }
 

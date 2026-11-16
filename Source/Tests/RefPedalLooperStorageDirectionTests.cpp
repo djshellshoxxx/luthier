@@ -66,7 +66,13 @@ AssetHash recordDirectionAsset(DirectionStore& store,luthier::tests::TestContext
     LooperStorage recorded;CHECK(recorded.prepare(store,directionConfig()));recorded.beginRecord();
     for(uint64_t frame=0;frame<frames;++frame)
         CHECK(recorded.append(double(frame+1)/256.,-double(frame+1)/512.));
-    CHECK(recorded.finishRecord());AssetHash hash;CHECK(recorded.manifest(hash));return hash;
+    CHECK(recorded.finishRecord());AssetHash hash;
+    const auto start=juce::Time::getMillisecondCounterHiRes();const bool saved=recorded.manifest(hash);
+    LooperStorage::Capture snapshot;const bool captured=recorded.capture(snapshot);
+    CHECK_MSG(saved,"manifest wait " + juce::String(juce::Time::getMillisecondCounterHiRes()-start,1)
+        + " ms, snapshot=" + juce::String(captured ? int(snapshot.status) : -1)
+        + ", faults=" + juce::String(recorded.errors()));
+    return hash;
 }
 bool reverseWindowReady(LooperStorage& storage,uint64_t page,int ahead)
 {

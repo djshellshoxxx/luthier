@@ -85,6 +85,23 @@ jobs:
           TSAN_OPTIONS: halt_on_error=1
         run: build-ir/ir_checks
 
+  looper-publication-safety:
+    name: Looper manifest publication (ThreadSanitizer)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch pinned JUCE
+        run: git clone --depth 1 --branch 8.0.10 https://github.com/juce-framework/JUCE.git ThirdParty/JUCE
+      - name: Build production storage with a controlled publication pause
+        run: |
+          cmake -S scripts/looper_publication_checks -B build-looper-publication -DCMAKE_BUILD_TYPE=Debug -DSANITIZE=thread
+          cmake --build build-looper-publication --parallel 2
+      - name: Exercise snapshot waiting and disk-backed loop storage
+        env:
+          TSAN_OPTIONS: halt_on_error=1
+        run: build-looper-publication/looper_publication_checks
+
   focused-linux:
     name: Focused Linux preflight (${{ matrix.edition }})
     runs-on: ubuntu-latest
@@ -148,7 +165,7 @@ jobs:
           test -x "$runner"
           xvfb-run -a "$runner" FactoryGuitarOverrideUsesSelectedInstrument CalibrationHashIgnoresPresetMetadata ON03_FactoryTableDoesNotDrift ON03_ExplicitCalibrationTransactionIgnoresLoadDelay ON32_EditionIsPartOfTheHash CQ23_ PracticeTrack SessionRecorderRate SessionRecorderConcurrency BackendRelease RefPedalUiLifecycle EffectsChainLifetime \
             RefPedalCe2 RefPedalBbdCore RefPedalChorusMemory RefPedalCe2w RefPedalCe2NodeBypass RefPedalRouting RefPedalBufferedTimeFx RefPedalBbdCurvature \
-            IrSwapContinuity LiveConvolution HostLatencyThread RefPedalBypassLatency RefPedalBlockPlan RhythmMidiWriter RhythmMidiRouter RhythmMidiOut DeferredEngineMidi \
+            RefPedalLooperStorage IrSwapContinuity LiveConvolution HostLatencyThread RefPedalBypassLatency RefPedalBlockPlan RhythmMidiWriter RhythmMidiRouter RhythmMidiOut DeferredEngineMidi \
             RefPedalAssetLifetime RefPedalHostCapture RefPedalControlRace RefPedalState HostState convolutionPreparesSafelyForTinyHostBlocks convolutionTinyHostRateAndCapacityBoundaries \
             2>&1 | tee "$BUILD_DIR/logs/focused-regressions.log"
       - name: Upload diagnostics on failure

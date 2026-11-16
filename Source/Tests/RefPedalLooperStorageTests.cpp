@@ -78,8 +78,17 @@ LUTHIER_TEST(RefPedalLooperStorage, diskPagesAndExternalManifestRoundTrip)
 {
     ControlledStore store;LooperStorage storage;auto c=smallConfig();CHECK(storage.prepare(store,c));storage.beginRecord();
     for(int i=0;i<128;++i)CHECK(storage.append(std::sin(i*.1)*.25,-std::cos(i*.1)*.25));
-    CHECK(storage.finishRecord());AssetHash hash;CHECK(storage.manifest(hash));CHECK(!hash.isNull());
-    LooperStorage restored;CHECK(restored.prepare(store,c));CHECK(restored.restore(hash));CHECK(restored.length()==128);
+    CHECK(storage.finishRecord());AssetHash hash;
+    const auto start=juce::Time::getMillisecondCounterHiRes();const bool saved=storage.manifest(hash);
+    LooperStorage::Capture snapshot;const bool captured=storage.capture(snapshot);
+    CHECK_MSG(saved,"manifest wait " + juce::String(juce::Time::getMillisecondCounterHiRes()-start,1)
+        + " ms, snapshot=" + juce::String(captured ? int(snapshot.status) : -1)
+        + ", faults=" + juce::String(storage.errors()));
+    if(!saved)return; // The failing prerequisite cannot support 128 read retries.
+    CHECK(!hash.isNull());
+    LooperStorage restored;CHECK(restored.prepare(store,c));const bool restoredOk=restored.restore(hash);CHECK(restoredOk);
+    if(!restoredOk)return;
+    CHECK(restored.length()==128);
     for(int i=0;i<128;++i)
     {
         double l=0,r=0;CHECK(eventually([&]{return restored.read(uint64_t(i),l,r);}));

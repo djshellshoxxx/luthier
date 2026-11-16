@@ -38,7 +38,9 @@ permissions:
 
 concurrency:
   group: release-${{ inputs.tag || github.ref_name }}
-  cancel-in-progress: false
+  # Candidate updates supersede their prior run; immutable tag/dispatch builds
+  # retain their existing serialization and create-only release behavior.
+  cancel-in-progress: ${{ github.event_name == 'push' && github.ref_type == 'branch' }}
 
 jobs:
   version:
@@ -232,6 +234,11 @@ jobs:
           set -euo pipefail
           # Unlike update-or-create actions, this command never edits a release.
           args=(release create "$TAG" --verify-tag --target "$SOURCE_SHA" --draft
-                --title "Luthier $VERSION" --generate-notes)
+                --title "Luthier $VERSION")
+          if [ "$VERSION" = "0.1.0-beta2" ]; then
+            args+=(--notes-file docs/beta/PRO-V01-BETA2-RELEASE-NOTES.md)
+          else
+            args+=(--generate-notes)
+          fi
           [[ "$VERSION" != *-* ]] || args+=(--prerelease)
           gh "${args[@]}" release/*

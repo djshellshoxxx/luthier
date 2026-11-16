@@ -14,6 +14,8 @@ and the qualification run; SHA256SUMS.txt identifies the exact downloads.
 - Preserve recorded loop audio during same-format host reinitialization; update
   recorder format after host sample-rate changes and protect concurrent exports.
 - Preserve cathedral early reflections through correctly sized buffers.
+- Wait for a complete disk-loop hash snapshot before reporting persistence
+  completion.
 - Repair rhythm MIDI timing, first-strum delivery, release retries and retained
   input during structural engine-lock contention.
 - Retain pedalboard bypass delay and use one routing plan per audio block.

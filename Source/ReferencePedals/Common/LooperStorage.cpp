@@ -514,8 +514,14 @@ bool LooperStorage::manifest(AssetHash& hash,int timeoutMs) const
     if(!impl)return false;
     auto& p=*impl;const auto epoch=p.epoch.load();
     std::unique_lock<std::mutex> lock(p.mutex);
-    p.done.wait_for(lock,std::chrono::milliseconds(std::clamp(timeoutMs,0,5000)),[&]{return (p.manifestReady.load()==epoch && !p.mergeBusy.load()) || (p.flags.load()&ioFailure)!=0;});
-    Capture next;if(!capture(next) || next.generation!=epoch || next.status!=CaptureStatus::Ready)return false;hash=next.hash;return true;
+    // Ready is published before the hash seqlock closes. Wait for a complete
+    // snapshot, not just that flag: a preempted publisher must not make a
+    // bounded capture retry look like a failed manifest before the deadline.
+    Capture next;
+    const bool complete=p.done.wait_for(lock,std::chrono::milliseconds(std::clamp(timeoutMs,0,5000)),[&]
+    {return capture(next) && (next.generation!=epoch || next.status==CaptureStatus::Ready || next.status==CaptureStatus::Failed);});
+    if(!complete || next.generation!=epoch || next.status!=CaptureStatus::Ready)return false;
+    hash=next.hash;return true;
 }
 bool LooperStorage::restore(const AssetHash& hash)
 {
