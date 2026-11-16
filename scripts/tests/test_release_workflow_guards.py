@@ -7,6 +7,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = Path(os.environ.get("LUTHIER_TEST_RELEASE_WORKFLOW", ROOT / ".github/workflows/release.yml"))
+BUILD_WORKFLOW = ROOT / ".github/workflows/build.yml"
 
 
 def step_script(name):
@@ -65,6 +66,16 @@ class ReleaseGuards(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(output, {"version": "0.1.0-beta2", "tag": "v0.1.0-beta2", "ref": self.source})
         self.assertNotEqual(self.version("release/v0.1.0-beta2", "push", "tag")[0].returncode, 0)
+
+    def test_windows_release_build_pins_visual_studio_2022_runner(self):
+        build = BUILD_WORKFLOW.read_text()
+        self.assertIn('add "Windows x64 / Pro" windows-2022 windows PAID', build)
+        self.assertIn('add "Windows x64 / Free" windows-2022 windows FREE', build)
+        self.assertNotIn('add "Windows x64 / Pro" windows-latest', build)
+        self.assertNotIn('add "Windows x64 / Free" windows-latest', build)
+        release = WORKFLOW.read_text()
+        self.assertIn("strictness: 10", release)
+        self.assertIn("lto: true", release)
 
     def test_advanced_candidate_refuses_tag_creation(self):
         bindir = self.root / "bin"; bindir.mkdir()

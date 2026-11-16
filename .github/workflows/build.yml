@@ -105,8 +105,10 @@ jobs:
             add "Linux x64 / Free" ubuntu-latest linux FREE;;
           esac
           case ",$PLATFORMS," in *,windows,*)
-            add "Windows x64 / Pro" windows-latest windows PAID
-            add "Windows x64 / Free" windows-latest windows FREE;;
+            # Pin Visual Studio 2022. windows-latest moved to Visual Studio 2026,
+            # whose MSVC 14.51 LTO objects overflow COFF archive's 4 GiB limit.
+            add "Windows x64 / Pro" windows-2022 windows PAID
+            add "Windows x64 / Free" windows-2022 windows FREE;;
           esac
           case ",$PLATFORMS," in *,macos,*)
             add "macOS universal / Pro" macos-latest macos PAID
