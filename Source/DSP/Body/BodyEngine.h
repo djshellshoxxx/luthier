@@ -16,7 +16,7 @@
 
 #include "../Common/DspCommon.h"
 #include "../Common/ConvolutionInstaller.h"
-#include "../Common/IrVariants.h"
+#include "../Common/LiveConvolution.h"
 #include "../../Support/QualityProfile.h"
 #include "../../Model/Guitar/BodyModels.h"
 #include <atomic>
@@ -89,7 +89,7 @@ public:
         rebuild and no allocation. */
     void commitStagedConfig (const BodyConfig& cfg) noexcept;
 
-    /** Loads a body IR from a file. Asynchronous inside juce::dsp::Convolution;
+    /** Prepares a body IR off the audio thread and publishes its replacement;
         the engine keeps producing sound throughout (engine spec 13.4). */
     bool loadImpulseResponse (const juce::File& file);
 
@@ -146,7 +146,7 @@ public:
     /** The priority order the modal cap uses: indices into getModes(). */
     const int* getModePriority() const noexcept { return modePriority.data(); }
 
-    const IrVariants& getIrVariants() const noexcept { return irVariants; }
+    LiveConvolution::VariantInfo getIrVariants() const noexcept { return convolution.getVariantInfo(); }
 
     /** Number of active modes in the modal bank. */
     int getNumModes() const noexcept { return numActiveModes; }
@@ -169,7 +169,7 @@ private:
     BodyConfig config;
 
     // --- convolution ---------------------------------------------------------
-    std::unique_ptr<juce::dsp::Convolution> convolution;
+    LiveConvolution convolution;
     std::atomic<bool> irLoaded { false };
     juce::String loadedIrName;
 
@@ -190,9 +190,6 @@ public:
 private:
     int irLoadCount = 0;
 
-    // Held while a response is swapped in; the audio thread try-locks and leaves
-    // the convolution out of the path for the one block a swap can overlap.
-    juce::SpinLock convolutionLock;
 
     // --- modal ---------------------------------------------------------------
     std::array<ModalResonator, BodyModels::kMaxModes> resonators;
@@ -206,7 +203,7 @@ private:
     std::vector<BodyMode> buildScratch;
 
     // --- cpu-quality-modes ----------------------------------------------------
-    IrVariants irVariants;
+
     std::array<int, BodyModels::kMaxModes> modePriority {}, stagedPriority {};
     int modeCap = BodyModels::kMaxModes;
     int modeRunCount = BodyModels::kMaxModes;   ///< modes processed (priority order)

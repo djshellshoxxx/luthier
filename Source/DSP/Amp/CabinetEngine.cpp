@@ -39,11 +39,6 @@ namespace
 //==============================================================================
 CabinetEngine::CabinetEngine()
 {
-    pathA.convolution = std::make_unique<juce::dsp::Convolution> (
-        juce::dsp::Convolution::Latency { kCabPartitionSize });
-    pathB.convolution = std::make_unique<juce::dsp::Convolution> (
-        juce::dsp::Convolution::Latency { kCabPartitionSize });
-
     // mic-placement.md 5.
     for (auto* path : { &pathA, &pathB })
     {
@@ -158,16 +153,7 @@ void CabinetEngine::MicPath::resetFallback() noexcept
     topRoll2.reset();
     highpass.reset();
 
-    if (convolution != nullptr)
-    {
-        // A try-lock, so a reset is safe from any thread. If a response is being
-        // swapped in right now there is nothing to clear: the swap resets the
-        // convolution itself once it completes.
-        const juce::SpinLock::ScopedTryLockType lock (convolutionLock);
 
-        if (lock.isLocked())
-            convolution->reset();
-    }
 }
 
 //==============================================================================
@@ -183,21 +169,12 @@ void CabinetEngine::prepare (double sampleRate, int maxBlockSize)
     sr = sampleRate;
     maxBlock = juce::jmax (1, maxBlockSize);
 
-    juce::dsp::ProcessSpec spec;
-    spec.sampleRate = sr;
-    spec.maximumBlockSize = (juce::uint32) ConvolutionInstaller::preparedBlockSize (maxBlock);
-    spec.numChannels = 1;
-
-    pathA.convolution->prepare (spec);
-    pathB.convolution->prepare (spec);
     prepared = true;
-
-    // cpu-quality-modes 2.3: the Medium and Low variants, same partition latency.
     for (auto* path : { &pathA, &pathB })
-        path->variants.prepare (sr, maxBlock, 1, kCabPartitionSize,
-                                { QualityProfile::forLevel (QualityLevel::Medium).cabinetIrSeconds,
-                                  QualityProfile::forLevel (QualityLevel::Low).cabinetIrSeconds },
-                        QualityProfile::kCabinetMicVariantBudgetMegabytes);
+        path->convolution.prepare (sr, maxBlock, 1, kCabPartitionSize,
+                                   { QualityProfile::forLevel (QualityLevel::Medium).cabinetIrSeconds,
+                                     QualityProfile::forLevel (QualityLevel::Low).cabinetIrSeconds },
+                                   QualityProfile::kCabinetMicVariantBudgetMegabytes);
 
     blendSmooth.prepare (sr, constants::kParamSmoothSeconds);
     widthSmooth.prepare (sr, constants::kParamSmoothSeconds);
@@ -213,6 +190,11 @@ void CabinetEngine::prepare (double sampleRate, int maxBlockSize)
 
     bufferA.setSize (1, maxBlock, false, true, true);
     bufferB.setSize (1, maxBlock, false, true, true);
+    bypassBuffer.setSize (2, maxBlock, false, true, true);
+    for (auto& delay : bypassDelay) delay.assign ((size_t) pathA.convolution.getLatency() + 1, 0.0f);
+    bypassWrite = enableWarmRemaining = 0;
+    enabledMix.prepare (sr, 0.020);
+    enabledMix.snapTo (enabled ? 1.0 : 0.0);
     micInput.assign ((size_t) maxBlock, 0.0f);   // SPEC-SWEEP TM-7
 
     // mic-placement.md 5: 12 ms covers 200 cm of path at any rate.
@@ -248,21 +230,13 @@ void CabinetEngine::prepare (double sampleRate, int maxBlockSize)
 
 void CabinetEngine::reset() noexcept
 {
+    bypassWrite = enableWarmRemaining = 0;
+    for (auto& delay : bypassDelay) std::fill (delay.begin(), delay.end(), 0.0f);
+    enabledMix.snapTo (enabled ? 1.0 : 0.0);
     pathA.resetFallback();
     pathB.resetFallback();
 
-    // The loaded responses' tails too; a try-lock, as BodyEngine::reset does,
-    // because a response being swapped in resets itself when the swap lands.
-    for (auto* path : { &pathA, &pathB })
-    {
-        const juce::SpinLock::ScopedTryLockType lock (path->convolutionLock);
-
-        if (lock.isLocked() && path->convolution != nullptr)
-        {
-            path->convolution->reset();
-            path->variants.reset();
-        }
-    }
+    for (auto* path : { &pathA, &pathB }) path->convolution.reset();
 
     std::fill (alignBuffer.begin(), alignBuffer.end(), 0.0);
     alignIndex = 0;
@@ -405,50 +379,12 @@ void CabinetEngine::setPhaseAlignMm (double mm) noexcept
 //==============================================================================
 bool CabinetEngine::loadImpulseResponse (int slot, const juce::File& file)
 {
-    auto& path = (slot == 0) ? pathA : pathB;
-
-    if (path.loaded.load() && file == path.loadedFile && file.existsAsFile())
-        return true;
-
+    auto& path = slot == 0 ? pathA : pathB;
+    if (path.loaded.load() && file == path.loadedFile && file.existsAsFile()) return true;
     ThreadProbe::noteFileAccess();
-    path.loadedFile = juce::File();
-    path.pendingIr.setSize (0, 0);
-
-    if (! file.existsAsFile())
-    {
-        path.loaded.store (false);
-        return false;
-    }
-
-    // The fallback carries the signal for as long as the swap takes, so the amp is
-    // never heard without a speaker on it.
-    path.loaded.store (false);
-
-    const juce::SpinLock::ScopedLockType lock (path.convolutionLock);
-    path.variants.clear();
-
-    if (prepared)
-        ConvolutionInstaller::installUnitImpulse (*path.convolution, sr, 1, maxBlock);
-
-    path.convolution->loadImpulseResponse (file,
-                                           juce::dsp::Convolution::Stereo::no,
-                                           juce::dsp::Convolution::Trim::yes,
-                                           0,
-                                           juce::dsp::Convolution::Normalise::yes);
-
-    if (prepared)
-    {
-        if (! ConvolutionInstaller::pumpUntilInstalled (*path.convolution, 1, maxBlock, 1, ConvolutionInstaller::kInstallTimeoutMs, (int) (0.06 * sr)))
-            return false;
-
-        path.convolution->reset();
-
-        // cpu-quality-modes 2.3: the shorter responses, under the same lock.
-        path.variants.buildFromFile (file, juce::dsp::Convolution::Stereo::no,
-                                     juce::dsp::Convolution::Trim::yes, juce::dsp::Convolution::Normalise::yes);
-    }
-
-    path.loadedFile = file;
+    if (! file.existsAsFile()) return false;
+    if (prepared && ! path.convolution.loadFile (file, juce::dsp::Convolution::Stereo::no)) return false;
+    path.pendingIr.setSize (0, 0); path.loadedFile = file;
     ++path.loadCount;
     path.loaded.store (true);
     return true;
@@ -456,51 +392,13 @@ bool CabinetEngine::loadImpulseResponse (int slot, const juce::File& file)
 
 void CabinetEngine::loadImpulseResponse (int slot, const float* samples, int numSamples, double irSampleRate)
 {
-    auto& path = (slot == 0) ? pathA : pathB;
-    path.loadedFile = juce::File();
-    path.pendingIr.setSize (0, 0);
-
-    if (samples == nullptr || numSamples <= 0)
-    {
-        path.loaded.store (false);
-        return;
-    }
-
+    auto& path = slot == 0 ? pathA : pathB;
+    if (samples == nullptr || numSamples <= 0 || ! std::isfinite (irSampleRate) || irSampleRate <= 0) return;
     juce::AudioBuffer<float> ir (1, numSamples);
     ir.copyFrom (0, 0, samples, numSamples);
-    const auto rawForVariants = ir;   // cpu-quality-modes 2.3
-
-    if (! prepared)
-    {
-        path.pendingIr = ir;   // prepare() installs it synchronously
-        path.pendingIrRate = irSampleRate;
-    }
-
-    path.loaded.store (false);
-
-    const juce::SpinLock::ScopedLockType lock (path.convolutionLock);
-    path.variants.clear();
-
-    if (prepared)
-        ConvolutionInstaller::installUnitImpulse (*path.convolution, sr, 1, maxBlock);
-
-    path.convolution->loadImpulseResponse (std::move (ir),
-                                           irSampleRate,
-                                           juce::dsp::Convolution::Stereo::no,
-                                           juce::dsp::Convolution::Trim::no,
-                                           juce::dsp::Convolution::Normalise::yes);
-
-    if (prepared)
-    {
-        if (! ConvolutionInstaller::pumpUntilInstalled (*path.convolution, 1, maxBlock, 1, ConvolutionInstaller::kInstallTimeoutMs, (int) (0.06 * sr)))
-            return;
-
-        path.convolution->reset();
-        path.variants.buildFromBuffer (rawForVariants, irSampleRate, juce::dsp::Convolution::Stereo::no,
-                                       juce::dsp::Convolution::Trim::no, juce::dsp::Convolution::Normalise::yes);
-    }
-
-    path.loaded.store (true);
+    if (prepared && ! path.convolution.loadBuffer (ir, irSampleRate)) return;
+    path.pendingIr = ir; path.pendingIrRate = irSampleRate;
+    path.loadedFile = juce::File(); path.loaded.store (true);
 }
 
 bool CabinetEngine::hasImpulseResponse (int slot) const noexcept
@@ -510,16 +408,13 @@ bool CabinetEngine::hasImpulseResponse (int slot) const noexcept
 
 int CabinetEngine::getLatencySamples() const noexcept
 {
-    if (! enabled)
-        return 0;
-
     int latency = 0;
 
-    if (pathA.loaded.load() && pathA.convolution != nullptr)
-        latency = (int) pathA.convolution->getLatency();
+    if (pathA.loaded.load())
+        latency = pathA.convolution.getLatency();
 
-    if (dualMic && pathB.loaded.load() && pathB.convolution != nullptr)
-        latency = juce::jmax (latency, (int) pathB.convolution->getLatency());
+    if (dualMic && pathB.loaded.load())
+        latency = juce::jmax (latency, pathB.convolution.getLatency());
 
     return latency;
 }
@@ -530,10 +425,42 @@ void CabinetEngine::processBlock (juce::AudioBuffer<float>& buffer) noexcept
     const int numSamples = buffer.getNumSamples();
     const int numChannels = buffer.getNumChannels();
 
-    if (! enabled || numSamples <= 0 || numChannels <= 0)
+    if (numSamples <= 0 || numChannels <= 0 || numSamples > maxBlock)
     {
         micTapsValid = false;
         micTapSamples = 0;
+        return;
+    }
+
+    // Keep bypass at the convolution's physical latency. The dry history runs
+    // while engaged too, so either edge can crossfade without a time jump.
+    const int delaySamples = getLatencySamples();
+    const int capacity = (int) bypassDelay[0].size();
+    if (capacity <= delaySamples) return;
+    for (int i = 0; i < numSamples; ++i)
+    {
+        const int read = (bypassWrite + capacity - delaySamples) % capacity;
+        for (int ch = 0; ch < juce::jmin (2, numChannels); ++ch)
+        {
+            auto& delay = bypassDelay[(size_t) ch];
+            delay[(size_t) bypassWrite] = buffer.getSample (ch, i);
+            bypassBuffer.setSample (ch, i, delay[(size_t) read]);
+        }
+        bypassWrite = (bypassWrite + 1) % capacity;
+    }
+    if (! enabled) enableWarmRemaining = 0;
+    if (enabled && enabledMix.getCurrent() == 0.0 && enabledMix.getTarget() == 0.0 && enableWarmRemaining == 0)
+    {
+        for (auto* path : { &pathA, &pathB }) path->convolution.reset();
+        // Keep delayed dry audible until the reset partition has real history.
+        enableWarmRemaining = delaySamples + QualityProfile::kSwitchSettleSamples;
+    }
+    enabledMix.setTarget (enabled && enableWarmRemaining == 0 ? 1.0 : 0.0);
+    if (! enabled && ! enabledMix.isSmoothing())
+    {
+        for (int ch = 0; ch < juce::jmin (2, numChannels); ++ch)
+            buffer.copyFrom (ch, 0, bypassBuffer, ch, 0, numSamples);
+        micTapsValid = false; micTapSamples = 0;
         return;
     }
 
@@ -562,13 +489,11 @@ void CabinetEngine::processBlock (juce::AudioBuffer<float>& buffer) noexcept
 
     // ---- mic A ----------------------------------------------------------------
     {
-        const juce::SpinLock::ScopedTryLockType lock (pathA.convolutionLock);
-
-        if (pathA.loaded.load() && lock.isLocked())
+        if (pathA.loaded.load())
         {
             juce::dsp::AudioBlock<float> blockA (bufferA);
             auto sub = blockA.getSubBlock (0, (size_t) numSamples);
-            pathA.variants.process (*pathA.convolution, sub);   // the full IR at High
+            pathA.convolution.process (sub);   // the full IR at High
         }
         else
         {
@@ -587,13 +512,11 @@ void CabinetEngine::processBlock (juce::AudioBuffer<float>& buffer) noexcept
     // ---- mic B ----------------------------------------------------------------
     if (dualMic)
     {
-        const juce::SpinLock::ScopedTryLockType lock (pathB.convolutionLock);
-
-        if (pathB.loaded.load() && lock.isLocked())
+        if (pathB.loaded.load())
         {
             juce::dsp::AudioBlock<float> blockB (bufferB);
             auto sub = blockB.getSubBlock (0, (size_t) numSamples);
-            pathB.variants.process (*pathB.convolution, sub);   // the full IR at High
+            pathB.convolution.process (sub);   // the full IR at High
         }
         else
         {
@@ -717,10 +640,24 @@ void CabinetEngine::processBlock (juce::AudioBuffer<float>& buffer) noexcept
         }
     }
 
+    if (enabledMix.isSmoothing() || enabledMix.getCurrent() != 1.0)
+        for (int i = 0; i < numSamples; ++i)
+        {
+            if (enabled && enableWarmRemaining > 0)
+            {
+                --enableWarmRemaining;
+                if (enableWarmRemaining == 0) enabledMix.setTarget (1.0);
+            }
+            const float mix = (float) enabledMix.next();
+            for (int ch = 0; ch < juce::jmin (2, numChannels); ++ch)
+                buffer.setSample (ch, i, buffer.getSample (ch, i) * mix
+                                  + bypassBuffer.getSample (ch, i) * (1.0f - mix));
+        }
+
     // The blend wrote to the caller's buffer, not to a[] and b[], so the two mic
     // signals are still intact and can be handed out as tap points.
-    micTapsValid = true;
-    micTapSamples = numSamples;
+    micTapsValid = enabled;
+    micTapSamples = enabled ? numSamples : 0;
 }
 
 //==============================================================================
@@ -791,8 +728,8 @@ const char* CabinetEngine::getDistanceName (MicDistance d) noexcept
 //==============================================================================
 void CabinetEngine::setQualityLevel (const QualityProfile& profile, bool hard) noexcept
 {
-    pathA.variants.setLevel ((int) profile.level, hard);
-    pathB.variants.setLevel ((int) profile.level, hard);
+    pathA.convolution.setLevel ((int) profile.level, hard);
+    pathB.convolution.setLevel ((int) profile.level, hard);
 
     // mic-placement.md 5 under cpu-quality-modes (INTEGRATE-2).
     for (auto* path : { &pathA, &pathB })

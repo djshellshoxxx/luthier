@@ -49,3 +49,15 @@ with a headless processor and mixed local low-memory optimization settings.
 These are functional regression results, not shipping performance or native GUI
 qualification. Both native platform and quick-check workflows include the three
 new regression groups. The full suites and shipping validators remain required.
+
+
+## Native follow-up
+
+The real native Linux runner passed a broader selection of 118 tests / 132,988
+checks, including all three latency/plan regressions, GUI repaint boundaries,
+tiny convolution buffers, host state, asset lifetime, control races and chorus
+qualification. The completed optimized runner also passed 16 MIDI/deferred-input
+tests / 159 checks. These results precede the later IR-handoff change and do not
+replace Windows/macOS qualification. Quick-check run `43903370643` passed all
+four jobs on commit `7906408b`, including Free and Pro processor selections,
+recorder ThreadSanitizer and libc++/FMA portability.

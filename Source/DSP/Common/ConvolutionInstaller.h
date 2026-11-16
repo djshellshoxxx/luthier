@@ -15,9 +15,9 @@
 
     These helpers drive the swap to completion on the thread that asked for it, so
     that once the load call returns the response really is in place. The caller
-    holds its own lock while doing so; see CabinetEngine and BodyEngine, where the
-    audio thread try-locks and falls back to its analytic model for the one block
-    a swap can overlap.
+    provides exclusive access while doing so. CabinetEngine and BodyEngine use
+    LiveConvolution to prepare an unpublished bank, keeping the current response
+    audible until the replacement is ready and its crossfade completes.
 */
 
 #pragma once
