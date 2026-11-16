@@ -140,7 +140,8 @@ Source: "{#StageDir}\Resources\*"; DestDir: "{commonappdata}\Luthier\Resources";
 
 ; installer.md 7 (IN-34): a managed install can pre-place the policy file the plug-in
 ; reads (Policy::getPolicyFile): Setup.exe /VERYSILENT /POLICY=C:\path\luthier-policy.json
-Source: "{param:POLICY|}"; DestDir: "{commonappdata}\Luthier"; DestName: "luthier-policy.json"; Flags: external ignoreversion; Check: HasPolicyParam
+; Machine policy is administrator-owned and shared by both editions.
+Source: "{param:POLICY|}"; DestDir: "{commonappdata}\Luthier"; DestName: "luthier-policy.json"; Flags: external ignoreversion uninsneveruninstall; Check: HasPolicyParam
 
 [Dirs]
 Name: "{commonappdata}\Luthier"

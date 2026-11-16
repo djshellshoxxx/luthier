@@ -10,7 +10,7 @@ and the qualification run; SHA256SUMS.txt identifies the exact downloads.
 
 - Consolidated single pedalboard, saved-state and routing work.
 - Keep shared factory content when uninstalling one edition while the other
-  remains installed.
+  remains installed, and preserve administrator-managed machine policy.
 - Correct guitar/parts override ordering for explicit player selections made
   during or just after a preset load.
 - Preserve recorded loop audio during same-format host reinitialization; update

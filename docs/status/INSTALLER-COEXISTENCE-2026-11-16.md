@@ -13,6 +13,10 @@ registrar. All 28 fixture checks pass, including both removal orders, plugin-onl
 coexistence and final cleanup. These check script behavior, not Installer.app.
 
 Windows factory files now use Inno Setup `sharedfile uninsnosharedfileprompt`.
+Administrator-supplied machine policy uses `uninsneveruninstall`: removing either
+edition, including the final edition, must not delete independently managed
+policy. The fixture supplies policy through the first edition, reinstalls it,
+and verifies its exact contents after both removals.
 Its standard reference count includes reinstalls and is decremented by the same
 number on uninstall, retaining a file until all owners are removed. Reference:
 https://jrsoftware.org/inno-setup/documentation/topic_filessection.htm#sharedfile
@@ -21,7 +25,8 @@ https://jrsoftware.org/inno-setup/documentation/topic_filessection.htm#sharedfil
 synthetic payloads and exercises both edition orders plus reinstall and cleanup.
 It is restricted to clean, disposable GitHub-hosted Windows runners and does not
 launch the synthetic binaries. The release pipeline requires this check before
-native compilation/package qualification and retains installer logs. Windows
-execution remains pending at this commit; local script review does not establish
-native installer success. Older installed uninstallers are not retroactively
+native compilation/package qualification and retains installer logs. The initial Windows factory-content fixture passed both removal orders in
+release run 43915893590, job 133470310776. Execution of the extended policy
+retention fixture remains pending at this commit; local review alone does not
+establish its native success. Older installed uninstallers are not retroactively
 changed by this repair.
