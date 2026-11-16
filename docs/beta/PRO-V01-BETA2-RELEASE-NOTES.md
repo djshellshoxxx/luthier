@@ -9,6 +9,8 @@ and the qualification run; SHA256SUMS.txt identifies the exact downloads.
 ## Changes since the published alpha
 
 - Consolidated single pedalboard, saved-state and routing work.
+- Keep shared factory content when uninstalling one edition while the other
+  remains installed.
 - Correct guitar/parts override ordering for explicit player selections made
   during or just after a preset load.
 - Preserve recorded loop audio during same-format host reinitialization; update

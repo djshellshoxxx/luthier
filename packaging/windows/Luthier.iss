@@ -135,7 +135,8 @@ Source: "{#StageDir}\{#AppExe}"; DestDir: "{app}"; Components: standalone; Flags
 Source: "{#StageDir}\luthier-render.exe"; DestDir: "{app}"; Components: standalone; Flags: ignoreversion
 #endif
 Source: "{#StageDir}\luthier.ico"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#StageDir}\Resources\*"; DestDir: "{commonappdata}\Luthier\Resources"; Components: content; Flags: ignoreversion recursesubdirs createallsubdirs
+; SharedDLLs reference counts retain factory files until both editions are removed.
+Source: "{#StageDir}\Resources\*"; DestDir: "{commonappdata}\Luthier\Resources"; Components: content; Flags: ignoreversion recursesubdirs createallsubdirs sharedfile uninsnosharedfileprompt
 
 ; installer.md 7 (IN-34): a managed install can pre-place the policy file the plug-in
 ; reads (Policy::getPolicyFile): Setup.exe /VERYSILENT /POLICY=C:\path\luthier-policy.json

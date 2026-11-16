@@ -58,6 +58,7 @@ jobs:
         run: |
           python3 -m unittest discover -s scripts/tests -p test_release_workflow_guards.py -v
           python3 -m unittest discover -s scripts -p test_release_packaging_compat.py -v
+          bash scripts/test_uninstall_macos.sh
 
       - id: v
         name: Tag matches CMakeLists.txt
@@ -112,9 +113,29 @@ jobs:
             exit 1
           fi
 
+  installer-checks:
+    name: Windows edition coexistence
+    needs: version
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.ref }}
+      - name: Install, reinstall and remove both editions using real Inno Setup
+        shell: pwsh
+        run: scripts/test_install_windows.ps1
+      - name: Preserve installer diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer-coexistence-logs
+          path: ${{ runner.temp }}/luthier-install-check-*/*.log
+          if-no-files-found: ignore
+
   build:
     name: Build and package
-    needs: version
+    needs: [version, installer-checks]
     uses: ./.github/workflows/build.yml
     with:
       platforms: ${{ inputs.platforms || 'linux,windows,macos' }}

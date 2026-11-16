@@ -25,6 +25,7 @@ lay_out() { # lay_out [product]: a fresh "installed" scratch machine (default: L
              "$H/Documents/Luthier/Presets"
     touch "$R/Library/Audio/Plug-Ins/CLAP/$P.clap" "$R/Library/Audio/Plug-Ins/VST3/Other.vst3/keep"
     echo mine > "$H/Documents/Luthier/Presets/my.luthierpreset"
+    echo factory > "$R/Library/Application Support/Luthier/Resources/factory.json"
 }
 run() { LUTHIER_UNINSTALL_ROOT="$R" HOME="$H" bash "$SCRIPT" >"$work/out.txt" 2>&1; }
 
@@ -63,7 +64,44 @@ for p in "Library/Audio/Plug-Ins/Components/Luthier Free.component" "Library/Aud
 done
 [ -d "$R/Applications/Luthier Pro.app" ] && [ -d "$R/Library/Audio/Plug-Ins/VST3/Luthier Pro.vst3" ] \
     && ok "Pro's app and VST3 untouched" || bad "Free's uninstaller removed Pro"
+[ -f "$R/Library/Application Support/Luthier/Resources/factory.json" ] \
+    && ok "shared factory content kept for Pro" || bad "Free uninstaller removed Pro factory content"
 grep -q "Luthier Free has been removed" "$work/out.txt" && ok "names the edition it removed" || bad "does not name the edition"
+
+echo "6. every remaining Pro format retains shared content after Free removal"
+for other_path in "Applications/Luthier Pro.app" \
+                  "Library/Audio/Plug-Ins/Components/Luthier Pro.component" \
+                  "Library/Audio/Plug-Ins/VST3/Luthier Pro.vst3" \
+                  "Library/Audio/Plug-Ins/CLAP/Luthier Pro.clap"; do
+    lay_out "Luthier Free"
+    mkdir -p "$R/$other_path"
+    saved_script="$SCRIPT"; SCRIPT="$FREE_SCRIPT"
+    printf 'y\nn\n' | run
+    SCRIPT="$saved_script"
+    [ -f "$R/Library/Application Support/Luthier/Resources/factory.json" ] \
+        && ok "shared content survives with $other_path" || bad "lost content with $other_path"
+done
+
+echo "7. Pro removal keeps Free's content; removing the last edition removes it"
+lay_out
+mkdir -p "$R/Library/Audio/Plug-Ins/CLAP/Luthier Free.clap"
+printf 'y\nn\n' | run
+[ -f "$R/Library/Application Support/Luthier/Resources/factory.json" ] \
+    && ok "shared content kept for Free" || bad "Pro uninstaller removed Free factory content"
+saved_script="$SCRIPT"; SCRIPT="$FREE_SCRIPT"
+printf 'y\nn\n' | run
+SCRIPT="$saved_script"
+[ ! -e "$R/Library/Application Support/Luthier/Resources" ] \
+    && ok "last edition removes factory content" || bad "last edition left factory content"
+
+echo "8. independently managed machine policy survives the final uninstall"
+lay_out
+echo policy > "$R/Library/Application Support/Luthier/policy.json"
+printf 'y\nn\n' | run
+[ -f "$R/Library/Application Support/Luthier/policy.json" ] \
+    && ok "machine policy kept" || bad "machine policy was deleted"
+[ ! -e "$R/Library/Application Support/Luthier/Resources" ] \
+    && ok "factory content removed beside retained policy" || bad "factory content left behind"
 
 echo
 [ $fail -eq 0 ] && echo "macOS uninstall: all checks passed" || echo "macOS uninstall: $fail check(s) FAILED"
