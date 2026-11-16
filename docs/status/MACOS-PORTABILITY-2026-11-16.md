@@ -75,3 +75,24 @@ both passed on commit `ec38f6ac` (quick-check run `43894765167`). The later loca
 headless processor selection also passed all 59 tests / 19,314 checks across
 state, control, asset lifetime, MIDI and backend release paths. These Linux
 results do not establish native macOS GUI or package acceptance.
+
+## Exact-source follow-up
+
+PR verification job `133630891947` on
+`53632189ed05a56b2bba35012f883b2b522a074a` exposed two additional fixture and
+tooling issues before release qualification:
+
+- `RefPedalControlRace.publisherReclaimerAndAudioHaveDistinctThreads` could let
+  the control loop finish before macOS scheduled the audio worker. The fixture
+  now uses a three-worker readiness barrier after each worker performs its first
+  real audio, reclaim or snapshot operation. Allocation, lock, finite-sample and
+  retired-plan assertions are unchanged.
+- CLAP Validator 0.3.2 hit its known temporary-state-file failure and obsolete
+  reproducibility checks. All platform scripts now use 0.4.1 build
+  `0.4.1-127-g152b982`, whose current validation set includes explicit binary
+  state reproducibility and additional audio, parameter, fuzz and state checks.
+  CLAP validation is not skipped or relaxed.
+
+The changed race fixture and all partitioned UI sources pass local C++17 syntax
+compilation; the release guards and shell syntax also pass. Native macOS
+execution, AU/VST3/CLAP validation and package qualification remain required.

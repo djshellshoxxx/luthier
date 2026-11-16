@@ -135,15 +135,29 @@ list(FILTER LUTHIER_SOURCES EXCLUDE REGEX "${LUTHIER_WIP_REGEX}")
 
 # MSVC's librarian uses 32-bit member offsets and cannot create an archive over
 # 4 GiB. Full release LTO makes the shared-code archive cross that limit by only
-# a few MiB. Keep /GL and split one large, self-contained UI translation unit
-# into a second archive; the plugin wrappers link both archives and still run
-# one /LTCG link over the complete program.
-set(LUTHIER_WINDOWS_LTO_PARTITION_SOURCE
-    "${CMAKE_CURRENT_SOURCE_DIR}/Source/UI/Guitar/GuitarRenderer.cpp")
+# a few MiB. Keep /GL and split several large, self-contained UI translation
+# units into a second archive; the plugin wrappers link both archives and still
+# run one /LTCG link over the complete program. Leave enough headroom for both
+# editions so small compiler-generated size changes do not hit the hard limit.
+set(LUTHIER_WINDOWS_LTO_PARTITION_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/UI/Guitar/GuitarRenderer.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/UI/Guitar/StringMotion.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/UI/ReferencePedals/PedalView.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/UI/Faces/AmpFace.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/UI/Faces/FaceMaterials.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/UI/Faces/KnobCaps.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/UI/Faces/PedalFace.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/UI/Search/InlineValue.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/UI/Search/SearchCatalog.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/UI/Search/SearchIndex.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/UI/Search/SearchMatcher.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/UI/AnimationPolicy.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/UI/Theme.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/UI/TunePianoRoll.cpp")
 if (MSVC AND LUTHIER_LTO)
-    list(REMOVE_ITEM LUTHIER_SOURCES "${LUTHIER_WINDOWS_LTO_PARTITION_SOURCE}")
+    list(REMOVE_ITEM LUTHIER_SOURCES ${LUTHIER_WINDOWS_LTO_PARTITION_SOURCES})
     add_library(luthier_windows_lto_partition STATIC
-        "${LUTHIER_WINDOWS_LTO_PARTITION_SOURCE}")
+        ${LUTHIER_WINDOWS_LTO_PARTITION_SOURCES})
     target_include_directories(luthier_windows_lto_partition PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/Source"
         "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/JUCE/modules")
@@ -353,7 +367,7 @@ list(FILTER LUTHIER_UI_SOURCES EXCLUDE REGEX "Source/UI/UiPreferences\.cpp$")
 if (TARGET luthier_windows_lto_partition)
     # The test runner is an executable, not the 4 GiB shared-code archive, so it
     # still compiles the complete UI and exercises the partitioned translation unit.
-    list(APPEND LUTHIER_UI_SOURCES "${LUTHIER_WINDOWS_LTO_PARTITION_SOURCE}")
+    list(APPEND LUTHIER_UI_SOURCES ${LUTHIER_WINDOWS_LTO_PARTITION_SOURCES})
 endif()
 
 set(LUTHIER_CONSOLE_DEFS

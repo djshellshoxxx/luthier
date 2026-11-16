@@ -46,7 +46,8 @@ param(
     [string] $DistDir = 'dist',
     [string] $LogDir = '',
     [string] $PluginvalVersion = 'v1.0.4',
-    [string] $ClapValidatorVersion = '0.3.2',
+    [string] $ClapValidatorVersion = '0.4.1',
+    [string] $ClapValidatorAssetVersion = '0.4.1-127-g152b982',
     [switch] $SkipValidators
 )
 
@@ -172,7 +173,7 @@ function Get-ClapValidator {
     $exe = Join-Path $toolsDir 'clap-validator.exe'
     if (-not (Test-Path $exe)) {
         New-Item -ItemType Directory -Force -Path $toolsDir | Out-Null
-        $name = "clap-validator-$ClapValidatorVersion-windows.zip"
+        $name = "clap-validator-$ClapValidatorAssetVersion-windows.zip"
         $zip = Join-Path $toolsDir $name
         Invoke-WebRequest -UseBasicParsing -OutFile $zip `
             "https://github.com/free-audio/clap-validator/releases/download/$ClapValidatorVersion/$name"

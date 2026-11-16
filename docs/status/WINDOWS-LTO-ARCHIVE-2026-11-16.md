@@ -28,3 +28,18 @@ also checks that release LTO and strictness 10 remain enabled.
 
 Native Windows requalification is required. No release claim follows from the
 workflow correction alone.
+
+## Exact-source follow-up
+
+Release run `43961668477` on `53632189ed05a56b2bba35012f883b2b522a074a`
+confirmed that the single-translation-unit partition still left too little
+headroom with MSVC 14.44: Free reached `0x10004B7CC` and Pro reached
+`0x1004269D5`, so both again failed with `LNK1248`.
+
+The partition now contains fourteen self-contained UI translation units. They
+remain compiled with `/GL`; the final plugin wrappers still link both archives
+with `/LTCG`. The test executable adds the partitioned sources back to its own
+source list so test coverage is unchanged. The partition source set and LTO
+flags are guarded by the release tests. All fourteen translation units pass a
+local C++17 syntax compile with the release definitions. Native Windows release
+qualification is still required.

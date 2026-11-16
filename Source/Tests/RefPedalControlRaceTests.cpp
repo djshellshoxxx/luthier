@@ -11,13 +11,16 @@ LUTHIER_TEST(RefPedalControlRace, publisherReclaimerAndAudioHaveDistinctThreads)
 {
     BoardModel model;BoardEngine engine(model);CHECK(engine.setAssetStore(nullptr));
     CHECK(model.apply(cmd::Add{"generic.boost"}));CHECK(model.apply(cmd::SetBoardEnabled{true}));
-    std::atomic<bool> start{false},done{false};std::atomic<int> invalid{0},audioLocks{0},audioBlocks{0};std::atomic<long> audioAllocations{0};
+    std::atomic<bool> start{false},done{false};std::atomic<int> ready{0},invalid{0},audioLocks{0},audioBlocks{0};std::atomic<long> audioAllocations{0};
     std::thread audio([&]
     {
         double l[64]{},r[64]{};while(!start.load())std::this_thread::yield();
         luthier::ThreadProbe::markAsAudioThread();
         const auto allocationsBefore=luthier::tests::allocationsOnThisThread();
         const auto locksBefore=luthier::ThreadProbe::audioThreadLocks.load();
+        engine.process(l,r,64,Placement::beforeExistingPre);++audioBlocks;
+        for(int i=0;i<64;++i)if(!std::isfinite(l[i])||!std::isfinite(r[i]))++invalid;
+        ++ready;
         while(!done.load())
         {
             engine.process(l,r,64,Placement::beforeExistingPre);
@@ -28,9 +31,10 @@ LUTHIER_TEST(RefPedalControlRace, publisherReclaimerAndAudioHaveDistinctThreads)
         audioLocks.store(luthier::ThreadProbe::audioThreadLocks.load()-locksBefore);
         luthier::ThreadProbe::markAsAudioThread(false);
     });
-    std::thread reclaimer([&]{while(!start.load())std::this_thread::yield();while(!done.load())engine.reclaim();});
-    std::thread capture([&]{while(!start.load())std::this_thread::yield();while(!done.load()){std::vector<PedalInstance> instances;BoardSettings settings;model.snapshot(instances,settings);}});
+    std::thread reclaimer([&]{while(!start.load())std::this_thread::yield();engine.reclaim();++ready;while(!done.load())engine.reclaim();});
+    std::thread capture([&]{while(!start.load())std::this_thread::yield();{std::vector<PedalInstance> instances;BoardSettings settings;model.snapshot(instances,settings);}++ready;while(!done.load()){std::vector<PedalInstance> instances;BoardSettings settings;model.snapshot(instances,settings);}});
     start.store(true);
+    while(ready.load()!=3)std::this_thread::yield();
     for(int i=0;i<1000;++i){juce::String error;const bool accepted=model.apply(cmd::SetMix{float(i%100)/100,0},&error);CHECK_MSG(accepted||error.containsIgnoreCase("saturated"),error);}
     done.store(true);audio.join();reclaimer.join();capture.join();CHECK(invalid.load()==0);
     CHECK(audioBlocks.load()>0);

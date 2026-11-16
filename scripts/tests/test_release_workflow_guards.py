@@ -81,11 +81,29 @@ class ReleaseGuards(unittest.TestCase):
         cmake = (ROOT / "CMakeLists.txt").read_text()
         self.assertIn("if (MSVC AND LUTHIER_LTO)", cmake)
         self.assertIn("add_library(luthier_windows_lto_partition STATIC", cmake)
-        self.assertIn("list(REMOVE_ITEM LUTHIER_SOURCES \"${LUTHIER_WINDOWS_LTO_PARTITION_SOURCE}\")", cmake)
+        self.assertIn("list(REMOVE_ITEM LUTHIER_SOURCES ${LUTHIER_WINDOWS_LTO_PARTITION_SOURCES})", cmake)
+        for source in ("Guitar/GuitarRenderer.cpp", "Guitar/StringMotion.cpp",
+                       "ReferencePedals/PedalView.cpp", "Faces/AmpFace.cpp",
+                       "Faces/FaceMaterials.cpp", "Faces/KnobCaps.cpp", "Faces/PedalFace.cpp",
+                       "Search/InlineValue.cpp", "Search/SearchCatalog.cpp", "Search/SearchIndex.cpp",
+                       "Search/SearchMatcher.cpp", "AnimationPolicy.cpp", "Theme.cpp", "TunePianoRoll.cpp"):
+            self.assertIn(source, cmake)
         self.assertIn("juce::juce_recommended_lto_flags", cmake)
         self.assertIn("target_link_libraries(Luthier PUBLIC luthier_windows_lto_partition)", cmake)
-        self.assertIn("list(APPEND LUTHIER_UI_SOURCES \"${LUTHIER_WINDOWS_LTO_PARTITION_SOURCE}\")", cmake)
+        self.assertIn("list(APPEND LUTHIER_UI_SOURCES ${LUTHIER_WINDOWS_LTO_PARTITION_SOURCES})", cmake)
         self.assertNotIn("LUTHIER_LTO=OFF", (ROOT / ".github/workflows/release.yml").read_text())
+
+    def test_clap_validator_is_current_on_all_release_platforms(self):
+        unix = (ROOT / "scripts/ci_build.sh").read_text()
+        windows = (ROOT / "scripts/ci_build.ps1").read_text()
+        for script in (unix, windows):
+            self.assertIn("0.4.1", script)
+            self.assertIn("0.4.1-127-g152b982", script)
+            self.assertNotIn("0.3.2", script)
+        self.assertIn("ubuntu-22.04", unix)
+        self.assertIn("macos-universal", unix)
+        self.assertIn("unzip -oq", unix)
+        self.assertIn('$ClapValidatorAssetVersion-windows.zip', windows)
 
     def test_advanced_candidate_refuses_tag_creation(self):
         bindir = self.root / "bin"; bindir.mkdir()

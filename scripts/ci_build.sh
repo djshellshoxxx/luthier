@@ -26,7 +26,8 @@
 #   JOBS                 parallel jobs                    (default: CPU count)
 #   PLUGINVAL_STRICTNESS 1..10                            (default: 5)
 #   PLUGINVAL_VERSION    pluginval release tag            (default: v1.0.4)
-#   CLAP_VALIDATOR_VERSION                                (default: 0.3.2)
+#   CLAP_VALIDATOR_VERSION                                (default: 0.4.1)
+#   CLAP_VALIDATOR_ASSET_VERSION                          (default: 0.4.1-127-g152b982)
 #   MACOS_ARCHS          CMAKE_OSX_ARCHITECTURES          (default: arm64;x86_64)
 #   SKIP_VALIDATORS      1 = skip the validate step (no network, for instance)
 set -euo pipefail
@@ -54,7 +55,8 @@ case "$LUTHIER_EDITION" in
 esac
 PLUGINVAL_STRICTNESS="${PLUGINVAL_STRICTNESS:-5}"
 PLUGINVAL_VERSION="${PLUGINVAL_VERSION:-v1.0.4}"
-CLAP_VALIDATOR_VERSION="${CLAP_VALIDATOR_VERSION:-0.3.2}"
+CLAP_VALIDATOR_VERSION="${CLAP_VALIDATOR_VERSION:-0.4.1}"
+CLAP_VALIDATOR_ASSET_VERSION="${CLAP_VALIDATOR_ASSET_VERSION:-0.4.1-127-g152b982}"
 MACOS_ARCHS="${MACOS_ARCHS:-arm64;x86_64}"
 TOOLS_DIR="${TOOLS_DIR:-$BUILD_DIR/tools}"
 
@@ -248,14 +250,15 @@ fetch_pluginval() {
 fetch_clap_validator() {
     local exe="$TOOLS_DIR/clap-validator"
     if [ ! -x "$exe" ]; then
-        local tgz; [ "$PLATFORM" = linux ] && tgz="clap-validator-$CLAP_VALIDATOR_VERSION-ubuntu-18.04.tar.gz" \
-                                          || tgz="clap-validator-$CLAP_VALIDATOR_VERSION-macos-universal.tar.gz"
+        local platform archive found
+        [ "$PLATFORM" = linux ] && platform="ubuntu-22.04" || platform="macos-universal"
+        archive="clap-validator-$CLAP_VALIDATOR_ASSET_VERSION-$platform.zip"
         mkdir -p "$TOOLS_DIR"
-        curl -fsSL -o "$TOOLS_DIR/$tgz" \
-             "https://github.com/free-audio/clap-validator/releases/download/$CLAP_VALIDATOR_VERSION/$tgz"
-        tar xzf "$TOOLS_DIR/$tgz" -C "$TOOLS_DIR"
-        # The macOS tarball keeps the program in binaries/; the Linux one does not.
-        [ -f "$TOOLS_DIR/binaries/clap-validator" ] && mv -f "$TOOLS_DIR/binaries/clap-validator" "$exe"
+        curl -fsSL -o "$TOOLS_DIR/$archive" \
+             "https://github.com/free-audio/clap-validator/releases/download/$CLAP_VALIDATOR_VERSION/$archive"
+        unzip -oq "$TOOLS_DIR/$archive" -d "$TOOLS_DIR"
+        found="$(find "$TOOLS_DIR" -type f -name clap-validator ! -path "$exe" -print -quit)"
+        [ -z "$found" ] || mv -f "$found" "$exe"
         chmod +x "$exe"
     fi
     echo "$exe"
