@@ -1,11 +1,9 @@
-# Only reviewed PR #77 merging into master authorizes this beta2 publication.
-# Other PR merges, forks and tag pushes cannot activate this workflow.
+# Retired publisher: integration contains PR #77, so an indirect merge must
+# never publish its obsolete beta. Keep the recipe for historical reference.
 name: Luthier Pro v0.1.0 Beta 2
 
 on:
-  pull_request:
-    types: [closed]
-    branches: [master]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -16,11 +14,7 @@ concurrency:
 
 jobs:
   preflight:
-    if: >-
-      github.event.pull_request.merged == true &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      github.event.pull_request.number == 77 &&
-      github.event.pull_request.head.ref == 'codex/preflight-build-hardening-2026-10-20'
+    if: ${{ false }} # Retired; a new release requires a separately verified workflow.
     runs-on: ubuntu-latest
     outputs:
       source-sha: ${{ steps.source.outputs.sha }}

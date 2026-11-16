@@ -2,7 +2,7 @@ name: PR verification
 
 on:
   pull_request:
-    branches: [master, main]
+    branches: [master, main, integration/luthier-completion]
     types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:

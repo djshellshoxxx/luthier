@@ -47,6 +47,10 @@ void MidiOutRouter::reset() noexcept
     // -1 forces every assigned macro to transmit once after a reset, so the
     // receiving device is never left showing a value we think we already sent.
     lastSentMacro.fill (-1.0f);
+    for (auto& notes : rhythmHeld)
+        notes.reset();
+    rhythmHeldCount = 0;
+    rhythmDrainPending = false;
 
     overflow.store (0, std::memory_order_relaxed);
 }
@@ -80,22 +84,49 @@ void MidiOutRouter::emitBounded (juce::MidiBuffer& dest, const MidiOutConfig& co
 void MidiOutRouter::emitImpl (juce::MidiBuffer& midiMessages, const MidiOutConfig& cfg,
                               const StringActivityQueue& stringActivity, int numSamples, int reservedBytes) noexcept
 {
-    // Disabled means the plugin emits nothing at all. Leaving the host's own
-    // events in the buffer would be an accidental pass-through.
-    if (! cfg.enabled)
+    midiMessages.clear();
+    if ((! cfg.enabled || ! cfg.rhythmEngine) && rhythmHeldCount > 0)
+        rhythmDrainPending = true;
+    if (numSamples <= 0)
     {
-        midiMessages.clear();
         rhythm.clear();
         return;
     }
 
-    midiMessages.clear();
-
     auto append = [&] (const juce::uint8* bytes, int size, int offset)
     {
-        if (reservedBytes < 0) midiMessages.addEvent (bytes, size, offset);
-        else if (! BoundedMidi::add (midiMessages, reservedBytes, bytes, size, offset)) overflow.fetch_add (1, std::memory_order_relaxed);
+        if (reservedBytes < 0)
+            return midiMessages.addEvent (bytes, size, offset);
+        if (BoundedMidi::add (midiMessages, reservedBytes, bytes, size, offset))
+            return true;
+        overflow.fetch_add (1, std::memory_order_relaxed);
+        return false;
     };
+
+    // A source/global switch must close notes that reached the host. Retain any
+    // release that did not fit, even if the source is switched back on meanwhile.
+    if (rhythmDrainPending)
+    {
+        bool remaining = false;
+        for (size_t ch = 0; ch < rhythmHeld.size(); ++ch)
+            for (size_t note = 0; note < 128; ++note)
+                if (rhythmHeld[ch].test (note))
+                {
+                    const juce::uint8 bytes[] { (juce::uint8) (0x80 | ch), (juce::uint8) note, 0 };
+                    if (append (bytes, 3, 0))
+                    {
+                        rhythmHeld[ch].reset (note);
+                        --rhythmHeldCount;
+                    }
+                    else remaining = true;
+                }
+        rhythmDrainPending = remaining;
+    }
+    if (! cfg.enabled)
+    {
+        rhythm.clear();
+        return; // Only outstanding releases, never accidental input echo.
+    }
     const int lastSample = juce::jmax (0, numSamples - 1);
     const int channel = juce::jlimit (1, 16, cfg.channel);
 
@@ -107,9 +138,34 @@ void MidiOutRouter::emitImpl (juce::MidiBuffer& midiMessages, const MidiOutConfi
             append (metadata.data, metadata.numBytes, juce::jlimit (0, lastSample, metadata.samplePosition));
 
     // ---- rhythm engine --------------------------------------------------------
-    if (cfg.rhythmEngine)
+    if (cfg.rhythmEngine && ! rhythmDrainPending)
         for (const auto metadata : rhythm)
-            append (metadata.data, metadata.numBytes, juce::jlimit (0, lastSample, metadata.samplePosition));
+        {
+            if (! append (metadata.data, metadata.numBytes, juce::jlimit (0, lastSample, metadata.samplePosition)))
+            {
+                if (BoundedMidi::isRelease (metadata.data, metadata.numBytes))
+                {
+                    rhythmDrainPending = true;
+                    break; // Retry releases before any source writes next block.
+                }
+                continue;
+            }
+            if (metadata.numBytes == 3 && metadata.data[1] < 128)
+            {
+                const auto* bytes = metadata.data;
+                auto& held = rhythmHeld[(size_t) (bytes[0] & 0x0f)];
+                if ((bytes[0] & 0xf0) == 0x90 && bytes[2] > 0 && ! held.test (bytes[1]))
+                {
+                    held.set (bytes[1]);
+                    ++rhythmHeldCount;
+                }
+                else if (((bytes[0] & 0xf0) == 0x80 || ((bytes[0] & 0xf0) == 0x90 && bytes[2] == 0)) && held.test (bytes[1]))
+                {
+                    held.reset (bytes[1]);
+                    --rhythmHeldCount;
+                }
+            }
+        }
 
     // ---- string activity ------------------------------------------------------
     if (cfg.stringActivity)

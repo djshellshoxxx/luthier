@@ -7,6 +7,9 @@
 #include "../UI/ReferencePedals/KnobControl.h"
 #include <array>
 #include <set>
+#include <chrono>
+#include <memory>
+#include <thread>
 
 #if JUCE_MAC
  #include <CoreFoundation/CoreFoundation.h>
@@ -45,18 +48,41 @@ struct HostGestures final : juce::AudioProcessorParameter::Listener
     juce::AudioProcessor& processor;std::vector<std::atomic<int>> depth;
     std::atomic<int> values{0},gestures{0},errors{0};
 };
-void drainUiMessages()
+bool drainUiMessages()
 {
-    // Bounded native dispatch: no sleeping, host simulation or fake callbacks.
-    for(int message=0;message<128;++message)
+    // Wait for a marker in JUCE's real message queue, not a platform-specific
+    // count of native messages. The posted command must run before the marker.
+    // Shared ownership also makes a timed-out marker safe to deliver later.
+    const auto delivered = std::make_shared<std::atomic<bool>> (false);
+    if (! juce::MessageManager::callAsync ([delivered]
+        { delivered->store (true, std::memory_order_release); }))
+        return false;
+
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds (2);
+    while (! delivered->load (std::memory_order_acquire))
     {
+        if (std::chrono::steady_clock::now() >= deadline)
+            return false;
        #if JUCE_MAC
-        if(CFRunLoopRunInMode(kCFRunLoopDefaultMode,0,true)!=kCFRunLoopRunHandledSource)break;
+        const bool dispatched = CFRunLoopRunInMode(kCFRunLoopDefaultMode,0,true)
+                                    == kCFRunLoopRunHandledSource;
        #else
-        if(!juce::detail::dispatchNextMessageOnSystemQueue(true))break;
+        const bool dispatched = juce::detail::dispatchNextMessageOnSystemQueue(true);
        #endif
+        if (! dispatched)
+            std::this_thread::yield();
     }
+    return true;
 }
+}
+
+LUTHIER_TEST(RefPedalUiLifecycle, messageDrainWaitsForQueuedCommands)
+{
+    const auto delivered = std::make_shared<std::atomic<int>> (0);
+    for (int i = 0; i < 512; ++i)
+        CHECK (juce::MessageManager::callAsync ([delivered] { delivered->fetch_add (1); }));
+    CHECK (drainUiMessages());
+    CHECK (delivered->load() == 512);
 }
 
 LUTHIER_TEST(RefPedalUiLifecycle, tenThousandNativeOperationsAndEditorDestruction)
@@ -84,7 +110,7 @@ LUTHIER_TEST(RefPedalUiLifecycle, tenThousandNativeOperationsAndEditorDestructio
         editor.reset(rig.p().createEditor());CHECK(editor!=nullptr);if(!editor)return false;
         editor->setSize(1600,1000);editor->addToDesktop(0);editor->setVisible(true);
         root=uiChild<BoardRoot>(*editor);CHECK(root!=nullptr);if(!root)return false;
-        drainUiMessages();CHECK(editor->getPeer()!=nullptr);if(!editor->getPeer())return false;
+        CHECK(drainUiMessages());CHECK(editor->getPeer()!=nullptr);if(!editor->getPeer())return false;
         CHECK((bool)root->onDock);if(!root->onDock)return false;root->onDock();
         CHECK(root->findParentComponentOfClass<Drawer>()!=nullptr);if(!root->findParentComponentOfClass<Drawer>())return false;
         rejections.onRejected=[&](const juce::String& reason){CHECK(root!=nullptr);if(root)CHECK(root->statusText()==reason);};
@@ -94,7 +120,7 @@ LUTHIER_TEST(RefPedalUiLifecycle, tenThousandNativeOperationsAndEditorDestructio
     {
         juce::Component::SafePointer<BoardWindow> window=root?root->findParentComponentOfClass<BoardWindow>():nullptr;
         model.removeListener(&rejections);rejections.onRejected=nullptr;
-        auto priorRoot=root;editor.reset();++editorsDestroyed;drainUiMessages();
+        auto priorRoot=root;editor.reset();++editorsDestroyed;CHECK(drainUiMessages());
         CHECK(priorRoot==nullptr);CHECK(window==nullptr);root=nullptr;
     };
     if(!createEditor())return;
@@ -125,14 +151,14 @@ LUTHIER_TEST(RefPedalUiLifecycle, tenThousandNativeOperationsAndEditorDestructio
         auto order=model.getOrder();CHECK(!order.empty());if(order.empty())return;
         const auto id=order[(next()>>16)%order.size()];auto* view=root->boardCanvas().viewFor(id);
         CHECK(view!=nullptr);if(!view)return;
-        if(kind==2||kind==3||kind==4||kind==6||kind==15||kind==17){view->grabKeyboardFocus();drainUiMessages();order=model.getOrder();}
+        if(kind==2||kind==3||kind==4||kind==6||kind==15||kind==17){view->grabKeyboardFocus();CHECK(drainUiMessages());order=model.getOrder();}
         switch(kind)
         {
             case 0: // Native rotary keyboard path, including its APVTS gesture.
             {
                 root->boardCanvas().closeInspectors();root->keyPressed({juce::KeyPress::escapeKey,juce::ModifierKeys(),0});
                 auto* knob=uiChild<KnobControl>(*view,[view](auto& value){return value.getParentComponent()==view;});CHECK(knob!=nullptr);if(!knob)return;
-                knob->grabKeyboardFocus();drainUiMessages();
+                knob->grabKeyboardFocus();CHECK(drainUiMessages());
                 const auto before=knob->getValue();const int direction=before>.8?juce::KeyPress::downKey:juce::KeyPress::upKey;
                 CHECK(knob->keyPressed({direction,juce::ModifierKeys(),0}));CHECK(knob->getValue()!=before);
                 if(auto* parameter=rig.state().getParameter(knob->getComponentID()))CHECK_NEAR(parameter->getValue(),knob->getValue(),.001);
@@ -142,7 +168,7 @@ LUTHIER_TEST(RefPedalUiLifecycle, tenThousandNativeOperationsAndEditorDestructio
             {
                 root->boardCanvas().closeInspectors();root->keyPressed({juce::KeyPress::escapeKey,juce::ModifierKeys(),0});
                 auto* knob=uiChild<KnobControl>(*view,[view](auto& value){return value.getParentComponent()==view;});CHECK(knob!=nullptr);if(!knob)return;
-                knob->grabKeyboardFocus();drainUiMessages();knob->showValueEditor();auto* entry=uiChild<juce::TextEditor>(*knob->getTopLevelComponent(),[](auto& value){return value.getTitle().contains("natural value");});
+                knob->grabKeyboardFocus();CHECK(drainUiMessages());knob->showValueEditor();auto* entry=uiChild<juce::TextEditor>(*knob->getTopLevelComponent(),[](auto& value){return value.getTitle().contains("natural value");});
                 CHECK(entry!=nullptr);if(!entry)return;entry->setText("12 dB",false);CHECK((bool)entry->onReturnKey);if(!entry->onReturnKey)return;entry->onReturnKey();
                 CHECK(juce::Component::getCurrentlyModalComponent()==nullptr);break;
             }
@@ -159,7 +185,7 @@ LUTHIER_TEST(RefPedalUiLifecycle, tenThousandNativeOperationsAndEditorDestructio
             case 8:
             {
                 root->openSettings();auto* gain=uiChild<juce::Slider>(*root,[](auto& value){return value.getComponentID()=="ref_board_fb_gain";});CHECK(gain!=nullptr);if(!gain)return;
-                gain->grabKeyboardFocus();drainUiMessages();
+                gain->grabKeyboardFocus();CHECK(drainUiMessages());
                 {juce::Slider::ScopedDragNotification gesture(*gain);gain->setValue(gain->getValue()>.5?.2:.7,juce::sendNotificationSync);}
                 CHECK_NEAR(rig.state().getRawParameterValue("ref_board_fb_gain")->load(),gain->getValue(),.001);break;
             }
@@ -188,7 +214,7 @@ LUTHIER_TEST(RefPedalUiLifecycle, tenThousandNativeOperationsAndEditorDestructio
                 root->onPopout();auto* browser=uiChild<PedalBrowser>(*root);CHECK(browser!=nullptr);if(!browser)return;
                 auto* search=uiChild<juce::TextEditor>(*browser);auto* add=uiChild<juce::TextButton>(*browser);
                 CHECK(search&&add);if(!search||!add)return;
-                if(order.size()==kMaxSlots){CHECK(view->keyPressed({juce::KeyPress::deleteKey,juce::ModifierKeys(),0}));drainUiMessages();}
+                if(order.size()==kMaxSlots){CHECK(view->keyPressed({juce::KeyPress::deleteKey,juce::ModifierKeys(),0}));CHECK(drainUiMessages());}
                 search->setText("boost",false);if(search->onTextChange)search->onTextChange();
                 const int before=model.getInstanceCount();CHECK(add->isEnabled());CHECK((bool)add->onClick);if(!add->isEnabled()||!add->onClick)return;add->onClick();CHECK(model.getInstanceCount()==before+1);break;
             }
@@ -217,17 +243,17 @@ LUTHIER_TEST(RefPedalUiLifecycle, tenThousandNativeOperationsAndEditorDestructio
             }
             case 17: // Reach the real capacity rejection by keyboard duplication.
             {
-                for(int attempt=0;attempt<kMaxSlots&&model.getInstanceCount()<kMaxSlots;++attempt){const int count=model.getInstanceCount();CHECK(view->keyPressed({'D',juce::ModifierKeys(juce::ModifierKeys::commandModifier),0}));drainUiMessages();CHECK(model.getInstanceCount()==count+1);if(model.getInstanceCount()!=count+1)return;}
+                for(int attempt=0;attempt<kMaxSlots&&model.getInstanceCount()<kMaxSlots;++attempt){const int count=model.getInstanceCount();CHECK(view->keyPressed({'D',juce::ModifierKeys(juce::ModifierKeys::commandModifier),0}));CHECK(drainUiMessages());CHECK(model.getInstanceCount()==count+1);if(model.getInstanceCount()!=count+1)return;}
                 CHECK(model.getInstanceCount()==kMaxSlots);if(model.getInstanceCount()!=kMaxSlots)return;
                 // State capture settles earlier real host position intent before the isolated rejection.
                 juce::MemoryBlock settledState;rig.p().getStateInformation(settledState);CHECK(settledState.getSize()>0);
-                const auto before=model.getOrder();const int rejectedBefore=rejections.count;CHECK(view->keyPressed({'D',juce::ModifierKeys(juce::ModifierKeys::commandModifier),0}));drainUiMessages();CHECK(model.getOrder()==before);CHECK(rejections.count==rejectedBefore+1);CHECK(rejections.last.containsIgnoreCase("invalid"));break;
+                const auto before=model.getOrder();const int rejectedBefore=rejections.count;CHECK(view->keyPressed({'D',juce::ModifierKeys(juce::ModifierKeys::commandModifier),0}));CHECK(drainUiMessages());CHECK(model.getOrder()==before);CHECK(rejections.count==rejectedBefore+1);CHECK(rejections.last.containsIgnoreCase("invalid"));break;
             }
             case 18:
                 if(editorsDestroyed%2==0)root->onPopout();else root->onDock();
                 destroyEditor();if(!createEditor())return;break;
         }
-        drainUiMessages();if(operation%8==0)rig.processSilence(1);
+        CHECK(drainUiMessages());if(operation%8==0)rig.processSilence(1);
         ++operations[(size_t)kind];order=model.getOrder();std::set<juce::String> identities;
         CHECK(order.size()>=1&&order.size()<=kMaxSlots);
         for(const auto& current:order){CHECK(identities.insert(current.toString()).second);CHECK(root->boardCanvas().viewFor(current)!=nullptr);}

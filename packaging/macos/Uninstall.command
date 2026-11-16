@@ -23,18 +23,38 @@ paths=(
   "$ROOT/Library/Audio/Plug-Ins/VST3/$PRODUCT.vst3"
   "$ROOT/Library/Audio/Plug-Ins/CLAP/$PRODUCT.clap"
   "$ROOT/Applications/$PRODUCT.app"
-  "$ROOT/Library/Application Support/Luthier"
   "$ROOT/Applications/$PRODUCT"
 )
 echo "Administrator rights are needed to remove files in /Library and /Applications."
 for p in "${paths[@]}"; do
   [ -e "$p" ] && $SUDO rm -rf "$p" && echo "Removed $p"
 done
+# Both editions use this factory directory. A plugin-only installation also
+# needs it; do not decide ownership from the standalone application alone.
+OTHER_PRODUCT="Luthier Free"
+[ "$PRODUCT" = "Luthier Free" ] && OTHER_PRODUCT="Luthier Pro"
+other_present=false
+for p in "$ROOT/Applications/$OTHER_PRODUCT.app" \
+         "$ROOT/Library/Audio/Plug-Ins/Components/$OTHER_PRODUCT.component" \
+         "$ROOT/Library/Audio/Plug-Ins/VST3/$OTHER_PRODUCT.vst3" \
+         "$ROOT/Library/Audio/Plug-Ins/CLAP/$OTHER_PRODUCT.clap"; do
+  [ -e "$p" ] && other_present=true
+done
+if $other_present; then
+  echo "Kept shared factory content for $OTHER_PRODUCT."
+else
+  $SUDO rm -rf "$ROOT/Library/Application Support/Luthier/Resources"
+  # Preserve independently managed policy/settings beside the factory content.
+  $SUDO rmdir "$ROOT/Library/Application Support/Luthier" >/dev/null 2>&1 || true
+fi
+# Scratch-tree tests must not alter the real machine's receipts or registrar.
+if [ -z "$ROOT" ]; then
 for id in $ID_PREFIX.au $ID_PREFIX.vst3 $ID_PREFIX.clap \
           $ID_PREFIX.app $ID_PREFIX.content $ID_PREFIX.uninstaller; do
   $SUDO pkgutil --forget "$id" >/dev/null 2>&1 || true
 done
 killall -9 AudioComponentRegistrar >/dev/null 2>&1 || true
+fi
 
 read -r -p "Also delete your presets, guitars, tunes and recordings in ~/Documents/Luthier? [y/N] " purge
 case "${purge:-n}" in

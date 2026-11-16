@@ -151,8 +151,24 @@ entitlement (`packaging/macos/entitlements.plist`) for the sidechain.
 6. Update the update-check manifest (`updates-telemetry.md` 1) to point
    at the new downloads.
 
-To rebuild a draft for an existing tag (after fixing a signing secret,
-say): *Actions -> release -> Run workflow*, enter the tag.
+To build a draft for an existing tag that has no release yet, use *Actions ->
+release -> Run workflow* and enter the tag. Existing drafts and releases are
+never overwritten; a correction after drafting requires a new version.
+
+### Creating a new candidate without a manual dispatch
+
+Push the qualified source commit to a new branch named `release/v<version>`,
+for example `release/v0.1.0-beta2`. This starts the same release workflow.
+The workflow freezes that commit, verifies the version, builds all selected
+editions/platforms with LTO and strictness 10, runs the full tests and validators,
+and packages the installers. Only after all jobs pass does it create the new
+tag and draft release. Ordinary development branches do not trigger releases.
+
+Existing releases and drafts are rejected before building and checked again
+before drafting. Existing tags must identify exactly the tested source; they
+are never moved. A corrected candidate needs a new version once its tag/release
+exists. The installers still need the manual acceptance checks below before
+public publication.
 
 ## 6. Manual checks before publishing (`installer.md` 13, `qa-polish.md`)
 

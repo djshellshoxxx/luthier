@@ -20,6 +20,88 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  native-library-portability:
+    name: Native library portability (libc++ and FMA)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Clang and libc++
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends clang libc++-dev libc++abi-dev
+      - name: Fetch pinned JUCE
+        run: git clone --depth 1 --branch 8.0.10 https://github.com/juce-framework/JUCE.git ThirdParty/JUCE
+      - name: Build ownership and exact-gain checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          fma=OFF
+          if grep -qw fma /proc/cpuinfo; then fma=ON; fi
+          cmake -S scripts/portability_checks -B build-portability \
+            -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DUSE_LIBCXX=ON -DEXERCISE_FMA="$fma" -DSANITIZE=address,undefined
+          cmake --build build-portability --parallel 2
+      - name: Exercise queued destruction and host parameter capture
+        run: build-portability/portability_checks
+
+  recorder-thread-safety:
+    name: Recorder thread safety (real JUCE)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch pinned JUCE
+        run: git clone --depth 1 --branch 8.0.10 https://github.com/juce-framework/JUCE.git ThirdParty/JUCE
+      - name: Build recorder checks with ThreadSanitizer
+        run: |
+          cmake -S scripts/recorder_checks -B build-recorder -DCMAKE_BUILD_TYPE=Debug -DSANITIZE=thread
+          cmake --build build-recorder --parallel 2
+      - name: Exercise reset, resize, capture, and snapshot export
+        env:
+          TSAN_OPTIONS: halt_on_error=1
+        run: build-recorder/recorder_checks
+
+  ir-handoff-safety:
+    name: IR handoff (${{ matrix.sanitizer }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        sanitizer: [thread, 'address,undefined']
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch pinned JUCE
+        run: git clone --depth 1 --branch 8.0.10 https://github.com/juce-framework/JUCE.git ThirdParty/JUCE
+      - name: Build real cabinet and body handoff checks
+        env:
+          SANITIZER: ${{ matrix.sanitizer }}
+        run: |
+          cmake -S scripts/ir_checks -B build-ir -DCMAKE_BUILD_TYPE=Debug -DSANITIZE="$SANITIZER"
+          cmake --build build-ir --parallel 2
+      - name: Exercise replacement, bypass, reprepare and concurrent publication
+        env:
+          TSAN_OPTIONS: halt_on_error=1
+        run: build-ir/ir_checks
+
+  looper-publication-safety:
+    name: Looper manifest publication (ThreadSanitizer)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch pinned JUCE
+        run: git clone --depth 1 --branch 8.0.10 https://github.com/juce-framework/JUCE.git ThirdParty/JUCE
+      - name: Build production storage with a controlled publication pause
+        run: |
+          cmake -S scripts/looper_publication_checks -B build-looper-publication -DCMAKE_BUILD_TYPE=Debug -DSANITIZE=thread
+          cmake --build build-looper-publication --parallel 2
+      - name: Exercise snapshot waiting and disk-backed loop storage
+        env:
+          TSAN_OPTIONS: halt_on_error=1
+        run: build-looper-publication/looper_publication_checks
+
   focused-linux:
     name: Focused Linux preflight (${{ matrix.edition }})
     runs-on: ubuntu-latest
@@ -43,6 +125,8 @@ jobs:
           bash -n scripts/ci_build.sh scripts/package_macos.sh
           python3 -m compileall -q scripts
           python3 -m unittest discover -s scripts -p 'test_prepare_pro_beta_assets.py' -v
+      - name: Rack lifetime ASan and UBSan isolation checks
+        run: python3 scripts/check_effects_chain_lifetime.py
       - name: Linux build prerequisites
         run: |
           sudo apt-get update -q
@@ -79,7 +163,11 @@ jobs:
           mkdir -p "$BUILD_DIR/logs"
           runner="$BUILD_DIR/LuthierTests_artefacts/$CONFIG/LuthierTests"
           test -x "$runner"
-          xvfb-run -a "$runner" FactoryGuitarOverrideUsesSelectedInstrument CalibrationHashIgnoresPresetMetadata ON03_FactoryTableDoesNotDrift ON03_ExplicitCalibrationTransactionIgnoresLoadDelay ON32_EditionIsPartOfTheHash CQ23_ PracticeTrack \
+          xvfb-run -a "$runner" FactoryGuitarOverrideUsesSelectedInstrument CalibrationHashIgnoresPresetMetadata ON03_FactoryTableDoesNotDrift ON03_ExplicitCalibrationTransactionIgnoresLoadDelay ON32_EditionIsPartOfTheHash CQ23_ PracticeTrack SessionRecorderRate SessionRecorderConcurrency BackendRelease RefPedalUiLifecycle EffectsChainLifetime \
+            RefPedalCe2 RefPedalBbdCore RefPedalChorusMemory RefPedalCe2w RefPedalCe2NodeBypass RefPedalRouting RefPedalBufferedTimeFx RefPedalBbdCurvature \
+            RefPedalLooperStorage IrSwapContinuity LiveConvolution HostLatencyThread RefPedalBypassLatency RefPedalBlockPlan RhythmMidiWriter RhythmMidiRouter RhythmMidiOut DeferredEngineMidi \
+            RefPedalAssetLifetime RefPedalHostCapture RefPedalControlRace RefPedalState HostState convolutionPreparesSafelyForTinyHostBlocks convolutionTinyHostRateAndCapacityBoundaries \
+            intermittentJackDurationUsesAudioTimeOnly theIntermittentJackDropsOutAndRecovers \
             2>&1 | tee "$BUILD_DIR/logs/focused-regressions.log"
       - name: Upload diagnostics on failure
         if: failure()

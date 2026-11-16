@@ -161,13 +161,18 @@ LUTHIER_TEST (CharacterWiring, theIntermittentJackDropsOutAndRecovers)
         same = same && a[i] == b[i];
     CHECK_MSG (same, "before any dropout the jack must change nothing");
 
-    // The dropout: the first 15 ms after it starts are well down on the reference.
-    const size_t start = (size_t) (forceAt * kBlock) + (size_t) (0.006 * kSr);
+    const auto outputLatency = withJack->getLatencySamples();
+    CHECK (outputLatency == without->getLatencySamples());
+
+    // The dropout: after the engine's reported latency, the first 15 ms are
+    // well down on the reference. The old test sampled the output before the
+    // dropout arrived after the latency-preserving routing repair.
+    const size_t start = (size_t) (forceAt * kBlock + outputLatency) + (size_t) (0.006 * kSr);
     const double down = rmsOf (a, start, (size_t) (0.012 * kSr)) / juce::jmax (1.0e-9, rmsOf (b, start, (size_t) (0.012 * kSr)));
     CHECK_MSG (down < 0.4, "the jack should drop the signal out, ratio " + juce::String (down, 3));
 
     // And back within 100 ms plus the ramp: 150 ms later the level matches.
-    const size_t after = (size_t) (forceAt * kBlock) + (size_t) (0.15 * kSr);
+    const size_t after = (size_t) (forceAt * kBlock + outputLatency) + (size_t) (0.15 * kSr);
     const double back = rmsOf (a, after, (size_t) (0.02 * kSr)) / juce::jmax (1.0e-9, rmsOf (b, after, (size_t) (0.02 * kSr)));
     CHECK_MSG (back > 0.7 && back < 1.3, "the signal should come back after the dropout, ratio " + juce::String (back, 3));
 }

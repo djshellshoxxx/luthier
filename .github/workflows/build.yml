@@ -105,8 +105,10 @@ jobs:
             add "Linux x64 / Free" ubuntu-latest linux FREE;;
           esac
           case ",$PLATFORMS," in *,windows,*)
-            add "Windows x64 / Pro" windows-latest windows PAID
-            add "Windows x64 / Free" windows-latest windows FREE;;
+            # Pin Visual Studio 2022. windows-latest moved to Visual Studio 2026,
+            # whose MSVC 14.51 LTO objects overflow COFF archive's 4 GiB limit.
+            add "Windows x64 / Pro" windows-2022 windows PAID
+            add "Windows x64 / Free" windows-2022 windows FREE;;
           esac
           case ",$PLATFORMS," in *,macos,*)
             add "macOS universal / Pro" macos-latest macos PAID
@@ -217,8 +219,8 @@ jobs:
       # Run the known macOS release blockers first so their diagnostics are
       # available without waiting for the multi-hour complete suite. The full
       # suite below remains mandatory; this does not change release gates.
-      - name: Early release regression tests (Unix Pro)
-        if: runner.os != 'Windows' && matrix.edition == 'PAID'
+      - name: Early release regression tests (Unix)
+        if: runner.os != 'Windows'
         env:
           LUTHIER_NORMALIZATION_TRACE_KEYS: '1'
         shell: bash
@@ -233,16 +235,20 @@ jobs:
           wrap=()
           if [ "$RUNNER_OS" = Linux ]; then wrap=(xvfb-run -a); fi
           ${wrap[@]+"${wrap[@]}"} "$runner" FactoryGuitarOverrideUsesSelectedInstrument CalibrationHashIgnoresPresetMetadata ON03_FactoryTableDoesNotDrift CQ23_ PracticeTrack \
+            HostState RefPedalControlRace RefPedalState RefPedalAssetLifetime RefPedalHostCapture \
+            RefPedalLooperStorage IrSwapContinuity LiveConvolution HostLatencyThread RefPedalBypassLatency RefPedalBlockPlan RhythmMidiWriter RhythmMidiRouter RhythmMidiOut DeferredEngineMidi BackendRelease \
+            intermittentJackDurationUsesAudioTimeOnly theIntermittentJackDropsOutAndRecovers \
+            convolutionPreparesSafelyForTinyHostBlocks convolutionTinyHostRateAndCapacityBoundaries \
             2>&1 | tee "$BUILD_DIR/logs/release-regressions.log"
 
-      - name: Early release regression tests (Windows Pro)
-        if: runner.os == 'Windows' && matrix.edition == 'PAID'
+      - name: Early release regression tests (Windows)
+        if: runner.os == 'Windows'
         env:
           LUTHIER_NORMALIZATION_TRACE_KEYS: '1'
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path (Join-Path $env:BUILD_DIR 'logs') | Out-Null
-          & "$env:BUILD_DIR/LuthierTests_artefacts/$env:CONFIG/LuthierTests.exe" FactoryGuitarOverrideUsesSelectedInstrument CalibrationHashIgnoresPresetMetadata ON03_FactoryTableDoesNotDrift CQ23_ PracticeTrack 2>&1 | Tee-Object -FilePath "$env:BUILD_DIR/logs/release-regressions.log"
+          & "$env:BUILD_DIR/LuthierTests_artefacts/$env:CONFIG/LuthierTests.exe" FactoryGuitarOverrideUsesSelectedInstrument CalibrationHashIgnoresPresetMetadata ON03_FactoryTableDoesNotDrift CQ23_ PracticeTrack HostState RefPedalControlRace RefPedalState RefPedalAssetLifetime RefPedalHostCapture RefPedalLooperStorage IrSwapContinuity LiveConvolution HostLatencyThread RefPedalBypassLatency RefPedalBlockPlan RhythmMidiWriter RhythmMidiRouter RhythmMidiOut DeferredEngineMidi BackendRelease intermittentJackDurationUsesAudioTimeOnly theIntermittentJackDropsOutAndRecovers convolutionPreparesSafelyForTinyHostBlocks convolutionTinyHostRateAndCapacityBoundaries 2>&1 | Tee-Object -FilePath "$env:BUILD_DIR/logs/release-regressions.log"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       # When the committed factory cache misses live Pro hashes, regenerate

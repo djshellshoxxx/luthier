@@ -237,6 +237,7 @@ void LuthierEngine::reset() noexcept
     rhythmVoicer.reset();
     midi.reset();
     rhythm.reset();
+    rhythmMidiWriter.cancel();
     character.reset();
     tuning.reset();
     validator.reset();
@@ -1293,6 +1294,7 @@ void LuthierEngine::panic() noexcept
     // strums go too - a free-running engine otherwise strums its remembered
     // chord straight back in. Whether it is enabled is a setting (9.6).
     rhythm.reset();
+    rhythmMidiWriter.cancel();
     technique.reset();
 
     // live-performance 9.2 - 9.4: every tail - the body's and the cabinet's
@@ -2769,64 +2771,6 @@ void LuthierEngine::applyLivePickupPlacements() noexcept
 }
 
 //==============================================================================
-// SPEC-SWEEP (RE-41): the rhythm engine's strokes, as MIDI for routing-io's
-// rhythm source. Held strokes land in the sub-block they fall in.
-void LuthierEngine::writeRhythmMidi (const PlayEventQueue& strokes) noexcept
-{
-    auto hold = [this] (juce::uint8 status, int note, int velocity, int when) noexcept
-    {
-        if (numPendingRhythmMidi >= kMaxPendingRhythmMidi)
-            return;
-
-        auto& p = pendingRhythmMidi[(size_t) numPendingRhythmMidi++];
-        p.bytes[0] = status;
-        p.bytes[1] = (juce::uint8) juce::jlimit (0, 127, note);
-        p.bytes[2] = (juce::uint8) juce::jlimit (0, 127, velocity);
-        p.samplesFromNow = juce::jmax (0, when);
-    };
-
-    for (int i = 0; i < strokes.getNumNoteOffs(); ++i)
-    {
-        const auto& e = strokes.getNoteOff (i);
-        hold ((juce::uint8) (0x80 | juce::jlimit (0, 15, e.stringIndex)), e.midiNote, 0, e.sampleOffset);
-    }
-
-    for (int i = 0; i < strokes.getNumNoteOns(); ++i)
-    {
-        const auto& e = strokes.getNoteOn (i);
-        hold ((juce::uint8) (0x90 | juce::jlimit (0, 15, e.stringIndex)), e.midiNote,
-              juce::jlimit (1, 127, (int) std::lround (e.velocity * 127.0)), e.sampleOffset);
-    }
-}
-
-void LuthierEngine::flushRhythmMidi (int numSamples) noexcept
-{
-    if (rhythmMidiOut == nullptr)
-    {
-        numPendingRhythmMidi = 0;
-        return;
-    }
-
-    int kept = 0;
-
-    for (int i = 0; i < numPendingRhythmMidi; ++i)
-    {
-        auto p = pendingRhythmMidi[(size_t) i];
-
-        if (p.samplesFromNow < numSamples)
-        {
-            rhythmMidiOut->addEvent (p.bytes, 3, sidechainReadOffset + p.samplesFromNow);
-        }
-        else
-        {
-            p.samplesFromNow -= numSamples;
-            pendingRhythmMidi[(size_t) kept++] = p;
-        }
-    }
-
-    numPendingRhythmMidi = kept;
-}
-
 void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages) noexcept
 {
     juce::ScopedNoDenormals noDenormals;
@@ -2874,9 +2818,9 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
         Advanced once per block, not per sample. The drift moves over tens of
         seconds, so a block's worth of resolution is thousands of times finer
-        than it needs, and it keeps the whole of character out of the inner loop
-        as rule 2 of that spec's section 0 requires. */
-    character.advance ((double) numSamples / juce::jmax (1.0, sr));
+        than it needs. Only the millisecond-scale intermittent jack advances in
+        the inner loop. */
+    character.advanceSlowState ((double) numSamples / juce::jmax (1.0, sr));
 
     // REALISM-A: string aging, the environment and the body-coupling bank, at block rate.
     advanceRealism (numSamples);
@@ -2953,34 +2897,23 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
     // Events go onto the schedule rather than being applied here, so a strum
     // that runs past the end of this block still sounds.
-    if (rhythm.isEnabled())
-    {
-        rhythmEvents.clear();
+    // Always consume pending releases, including the first disabled block.
+    rhythmEvents.clear();
+    RhythmTransport transport;
+    transport.bpm = tempoBpm;
+    transport.ppqPosition = hostPpq;
+    transport.isPlaying = hostPlaying;
+    rhythm.processBlock (numSamples, transport, rhythmEvents);
+    const bool rhythmDriving = rhythm.isEnabled() && rhythm.isDriving();
+    rhythmMidiWriter.process (rhythmEvents, rhythmDriving, rhythmMidiOut, numSamples, sidechainReadOffset);
 
-        RhythmTransport transport;
-        transport.bpm = tempoBpm;
-        transport.ppqPosition = hostPpq;
-        transport.isPlaying = hostPlaying;
-
-        rhythm.processBlock (numSamples, transport, rhythmEvents);
-
-        if (rhythmMidiOut != nullptr && rhythm.isDriving())   // SPEC-SWEEP RE-41
-            writeRhythmMidi (rhythmEvents);
-
-        // When the rhythm engine is driving, its stream replaces the
-        // interpreter's note events; the interpreter's bends and controllers
-        // still apply, because those are the player's hands, not the pattern's.
-        // muting-rhythm.md 4 (TECHNIQUES): each note leaves with its mute.
-        techniqueStampEvents (rhythm.isDriving() ? rhythmEvents : events, rhythm.isDriving());
-        scheduleEvents (rhythm.isDriving() ? rhythmEvents : events, numSamples);
-    }
-    else
-    {
-        techniqueStampEvents (events, false);   // TECHNIQUES: muting-rhythm.md 4
-        scheduleEvents (events, numSamples);
-    }
-
-    flushRhythmMidi (numSamples);   // SPEC-SWEEP RE-41: strokes held from earlier blocks too
+    // When rhythm stops, its string releases still reach the audio scheduler.
+    // MIDI output resolves those releases against its own actually-held pitches.
+    if (! rhythmDriving)
+        for (int i = 0; i < rhythmEvents.getNumNoteOffs(); ++i)
+            events.addNoteOff (rhythmEvents.getNoteOff (i));
+    techniqueStampEvents (rhythmDriving ? rhythmEvents : events, rhythmDriving);
+    scheduleEvents (rhythmDriving ? rhythmEvents : events, numSamples);
 
     // Direct notes play as written whether or not the rhythm engine drives.
     if (directForSubBlock != nullptr && ! directForSubBlock->isEmpty())
@@ -3376,7 +3309,7 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         acMicMixSmooth.snapToTarget();
 
     double blockPeak = 0.0;
-    const double jackTarget = character.getJackGain();   // SPEC-SWEEP: CW-18, advanced at the block's start
+    const double jackSecondsPerSample = 1.0 / juce::jmax (1.0, sr);
 
     for (int i = 0; i < numSamples; ++i)
     {
@@ -3388,9 +3321,11 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
             // the body. The blend between them is the acoustic-electric sound.
             const double piezo = pickups.processPiezo (piezoSumBuffer[(size_t) i]);   // SPEC-SWEEP: CW-19
             // string-squeak.md 5.1: the mic also hears a finger squeak straight
-            // from the fingerboard, not only what the top makes of it.
+            // from the fingerboard, not only what the top makes of it. This is
+            // 70% of the raw squeak itself; unlike the summed strings it must
+            // not be divided by the instrument's total string count.
             const double mic = pickups.processInternalMic ((double) bodyData[i])
-                               + PlayingNoise::kAcousticDirectAirShare * stringSumNormalisation * squeakAirBuffer[(size_t) i];
+                               + PlayingNoise::kAcousticDirectAirShare * squeakAirBuffer[(size_t) i];
             instrument = piezo * (1.0 - micBlend) + mic * micBlend;
         }
         else
@@ -3419,7 +3354,10 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
         // SPEC-SWEEP: CW-18 - the intermittent output jack (character-wear 5,
         // off by default): a 20-100 ms drop, ramped over a few ms so it is a
-        // dropout and not a click. Exactly unity while nothing is happening.
+        // dropout and not a click. Advance at sample rate so duration never
+        // changes with host block size. Exactly unity while idle.
+        character.advanceJack (jackSecondsPerSample);
+        const double jackTarget = character.getJackGain();
         if (jackGainNow != 1.0 || jackTarget != 1.0)
         {
             jackGainNow += (jackTarget - jackGainNow) * jackRampCoeff;

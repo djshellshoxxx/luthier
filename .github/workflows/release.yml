@@ -1,4 +1,5 @@
-# Release: a version tag (v1.2.3, v1.3.0-beta1) builds, tests and validates on
+# Release: a version tag (v1.2.3, v1.3.0-beta1), or a release/v* candidate
+# branch, builds, tests and validates on
 # every platform at full strictness with LTO, builds the installers, and
 # uploads them with SHA-256 checksums to a DRAFT GitHub Release. A person
 # reviews the draft and publishes it; nothing here publishes on its own.
@@ -8,11 +9,12 @@ name: release
 
 on:
   push:
+    branches: ['release/v*']
     tags: ['v*']
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to (re)build a draft release for, e.g. v1.0.0 or v1.0.0-beta1'
+        description: 'New tag to build a draft release for, e.g. v1.0.0 or v1.0.0-beta1'
         required: true
         type: string
       ref:
@@ -36,7 +38,9 @@ permissions:
 
 concurrency:
   group: release-${{ inputs.tag || github.ref_name }}
-  cancel-in-progress: false
+  # Candidate updates supersede their prior run; immutable tag/dispatch builds
+  # retain their existing serialization and create-only release behavior.
+  cancel-in-progress: ${{ github.event_name == 'push' && github.ref_type == 'branch' }}
 
 jobs:
   version:
@@ -49,7 +53,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.ref || inputs.tag || github.ref }}
+          ref: ${{ inputs.ref || inputs.tag || github.sha }}
+      - name: Exercise release source and publication guards
+        run: |
+          python3 -m unittest discover -s scripts/tests -p test_release_workflow_guards.py -v
+          python3 -m unittest discover -s scripts -p test_release_packaging_compat.py -v
+          bash scripts/test_uninstall_macos.sh
+
       - id: v
         name: Tag matches CMakeLists.txt
         env:
@@ -57,6 +67,12 @@ jobs:
         run: |
           set -euo pipefail
           tag="$TAG"
+          # Creating a dedicated candidate branch starts the same qualification
+          # pipeline as a manual dispatch. Its name carries the intended tag;
+          # the tag itself is created only after every build/package job passes.
+          if [ "$GITHUB_EVENT_NAME" = push ] && [ "$GITHUB_REF_TYPE" = branch ]; then
+            tag="${tag#release/}"
+          fi
           [[ "$tag" =~ ^v[0-9]+\.[0-9]+(\.[0-9]+)?(-[A-Za-z0-9][A-Za-z0-9.-]*)?$ ]] || {
             echo "::error::Invalid version tag"; exit 1;
           }
@@ -85,9 +101,41 @@ jobs:
           # Freeze checkout once; all platform jobs and the final tag use this commit.
           echo "ref=$source_sha" >> "$GITHUB_OUTPUT"
 
+      - name: Refuse an existing release before building
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.v.outputs.tag }}
+        run: |
+          set -euo pipefail
+          tags="$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq '.[].tag_name')"
+          if grep -Fxq -- "$TAG" <<< "$tags"; then
+            echo "::error::Release or draft already exists; choose a new version."
+            exit 1
+          fi
+
+  installer-checks:
+    name: Windows edition coexistence
+    needs: version
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.ref }}
+      - name: Install, reinstall and remove both editions using real Inno Setup
+        shell: pwsh
+        run: scripts/test_install_windows.ps1
+      - name: Preserve installer diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer-coexistence-logs
+          path: ${{ runner.temp }}/luthier-install-check-*/*.log
+          if-no-files-found: ignore
+
   build:
     name: Build and package
-    needs: version
+    needs: [version, installer-checks]
     uses: ./.github/workflows/build.yml
     with:
       platforms: ${{ inputs.platforms || 'linux,windows,macos' }}
@@ -137,6 +185,13 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          if [ "$GITHUB_EVENT_NAME" = push ] && [ "$GITHUB_REF_TYPE" = branch ]; then
+            candidate_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/${GITHUB_REF#refs/}" --jq '.object.sha')"
+            test "$candidate_sha" = "$SOURCE_SHA" || {
+              echo "::error::Candidate branch advanced during qualification; refusing stale release."
+              exit 1
+            }
+          fi
           refs="$(git ls-remote --tags origin "refs/tags/$TAG" "refs/tags/$TAG^{}")"
           if [ -z "$refs" ]; then
             # Create-only API: a concurrent tag creation fails; never update a ref.
@@ -205,6 +260,11 @@ jobs:
           set -euo pipefail
           # Unlike update-or-create actions, this command never edits a release.
           args=(release create "$TAG" --verify-tag --target "$SOURCE_SHA" --draft
-                --title "Luthier $VERSION" --generate-notes)
+                --title "Luthier $VERSION")
+          if [ "$VERSION" = "0.1.0-beta2" ]; then
+            args+=(--notes-file docs/beta/PRO-V01-BETA2-RELEASE-NOTES.md)
+          else
+            args+=(--generate-notes)
+          fi
           [[ "$VERSION" != *-* ]] || args+=(--prerelease)
           gh "${args[@]}" release/*

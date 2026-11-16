@@ -12,11 +12,7 @@ namespace
 }
 
 //==============================================================================
-BodyEngine::BodyEngine()
-{
-    convolution = std::make_unique<juce::dsp::Convolution> (
-        juce::dsp::Convolution::Latency { kBodyPartitionSize });
-}
+BodyEngine::BodyEngine() = default;
 
 BodyEngine::~BodyEngine() = default;
 
@@ -36,12 +32,10 @@ void BodyEngine::prepare (double sampleRate, int maxBlockSize)
     sr = sampleRate;
     maxBlock = juce::jmax (1, maxBlockSize);
 
-    juce::dsp::ProcessSpec spec;
-    spec.sampleRate = sr;
-    spec.maximumBlockSize = (juce::uint32) ConvolutionInstaller::preparedBlockSize (maxBlock);
-    spec.numChannels = 2;
-
-    convolution->prepare (spec);
+    convolution.prepare (sr, maxBlock, 2, kBodyPartitionSize,
+                         { QualityProfile::forLevel (QualityLevel::Medium).bodyIrSeconds,
+                           QualityProfile::forLevel (QualityLevel::Low).bodyIrSeconds },
+                         QualityProfile::kBodyVariantBudgetMegabytes);
     prepared = true;
 
     for (auto& r : resonators)
@@ -58,11 +52,6 @@ void BodyEngine::prepare (double sampleRate, int maxBlockSize)
 
     wetBuffer.setSize (2, maxBlock, false, true, true);
 
-    // cpu-quality-modes 2.3: the Medium and Low variants, same partition latency.
-    irVariants.prepare (sr, maxBlock, 2, kBodyPartitionSize,
-                        { QualityProfile::forLevel (QualityLevel::Medium).bodyIrSeconds,
-                          QualityProfile::forLevel (QualityLevel::Low).bodyIrSeconds },
-                        QualityProfile::kBodyVariantBudgetMegabytes);
     modeRampTotal = juce::jmax (1, (int) std::round (QualityProfile::kDroppedVoiceRampSeconds * sr));
 
     setAirResonanceGainDb (airGainDb);
@@ -84,18 +73,7 @@ void BodyEngine::prepare (double sampleRate, int maxBlockSize)
 
 void BodyEngine::reset() noexcept
 {
-    // A try-lock, so this is safe to call from anywhere. If a response is being
-    // swapped in right now there is nothing to clear: the swap resets the
-    // convolution itself once it completes.
-    {
-        const juce::SpinLock::ScopedTryLockType lock (convolutionLock);
-
-        if (lock.isLocked())
-        {
-            convolution->reset();
-            irVariants.reset();
-        }
-    }
+    convolution.reset();
 
     // A bank staged since the last block goes in now, not part-way into the
     // next render (reset runs with the audio stopped).
@@ -281,7 +259,7 @@ void BodyEngine::applyRuntimeScaling (bool force) noexcept
 //==============================================================================
 void BodyEngine::setQualityLevel (const QualityProfile& profile, bool hard) noexcept
 {
-    irVariants.setLevel ((int) profile.level, hard);
+    convolution.setLevel ((int) profile.level, hard);
     modeCap = juce::jlimit (0, BodyModels::kMaxModes, profile.bodyModes);
     updateModeRun (hard);
 }
@@ -364,50 +342,12 @@ void BodyEngine::advanceModeRamp (int numSamples) noexcept
 //==============================================================================
 bool BodyEngine::loadImpulseResponse (const juce::File& file)
 {
-    if (irLoaded.load() && file == loadedIrFile && file.existsAsFile())
-        return true;
-
+    if (irLoaded.load() && file == loadedIrFile && file.existsAsFile()) return true;
     ThreadProbe::noteFileAccess();
-    loadedIrFile = juce::File();
+    if (! file.existsAsFile()) return false;
+    if (prepared && ! convolution.loadFile (file, juce::dsp::Convolution::Stereo::yes)) return false;
     pendingIr.setSize (0, 0);
-
-    if (! file.existsAsFile())
-    {
-        irLoaded.store (false);
-        return false;
-    }
-
-    // Until the response is actually installed the convolution is a unit impulse,
-    // which would pass the strings through with no body on them at all. Keep it
-    // out of the path until the swap has really happened.
-    irLoaded.store (false);
-
-    const juce::SpinLock::ScopedLockType lock (convolutionLock);
-    irVariants.clear();
-
-    if (prepared)
-        ConvolutionInstaller::installUnitImpulse (*convolution, sr, 2, maxBlock);
-
-    convolution->loadImpulseResponse (file,
-                                      juce::dsp::Convolution::Stereo::yes,
-                                      juce::dsp::Convolution::Trim::yes,
-                                      0,
-                                      juce::dsp::Convolution::Normalise::yes);
-
-    if (prepared)
-    {
-        if (! ConvolutionInstaller::pumpUntilInstalled (*convolution, 2, maxBlock, 1, ConvolutionInstaller::kInstallTimeoutMs, (int) (0.06 * sr)))
-            return false;
-
-        convolution->reset();
-    }
-
-    // cpu-quality-modes 2.3: the shorter responses, under the same lock.
-    irVariants.buildFromFile (file, juce::dsp::Convolution::Stereo::yes,
-                              juce::dsp::Convolution::Trim::yes, juce::dsp::Convolution::Normalise::yes);
-
-    loadedIrName = file.getFileNameWithoutExtension();
-    loadedIrFile = file;
+    loadedIrName = file.getFileNameWithoutExtension(); loadedIrFile = file;
     ++irLoadCount;
     irLoaded.store (true);
     return true;
@@ -415,56 +355,21 @@ bool BodyEngine::loadImpulseResponse (const juce::File& file)
 
 void BodyEngine::loadImpulseResponse (const float* samples, int numSamples, double irSampleRate)
 {
-    loadedIrFile = juce::File();
-    pendingIr.setSize (0, 0);
-
-    if (samples == nullptr || numSamples <= 0)
-    {
-        irLoaded.store (false);
-        return;
-    }
-
+    if (samples == nullptr || numSamples <= 0 || ! std::isfinite (irSampleRate) || irSampleRate <= 0) return;
     juce::AudioBuffer<float> ir (1, numSamples);
     ir.copyFrom (0, 0, samples, numSamples);
-    const auto rawForVariants = ir;   // cpu-quality-modes 2.3
-
-    if (! prepared)
-    {
-        pendingIr = ir;   // prepare() installs it synchronously
-        pendingIrRate = irSampleRate;
-    }
-
-    irLoaded.store (false);
-
-    const juce::SpinLock::ScopedLockType lock (convolutionLock);
-    irVariants.clear();
-
-    if (prepared)
-        ConvolutionInstaller::installUnitImpulse (*convolution, sr, 2, maxBlock);
-
-    convolution->loadImpulseResponse (std::move (ir),
-                                      irSampleRate,
-                                      juce::dsp::Convolution::Stereo::no,
-                                      juce::dsp::Convolution::Trim::no,
-                                      juce::dsp::Convolution::Normalise::yes);
-
-    if (prepared)
-    {
-        if (! ConvolutionInstaller::pumpUntilInstalled (*convolution, 2, maxBlock, 1, ConvolutionInstaller::kInstallTimeoutMs, (int) (0.06 * sr)))
-            return;
-
-        convolution->reset();
-        irVariants.buildFromBuffer (rawForVariants, irSampleRate, juce::dsp::Convolution::Stereo::no,
-                                    juce::dsp::Convolution::Trim::no, juce::dsp::Convolution::Normalise::yes);
-    }
-
+    if (prepared && ! convolution.loadBuffer (ir, irSampleRate)) return;
+    // Keep the source for a later sample-rate/block-size prepare. The prepared
+    // bank is disposable; replacing it must not discard a buffer-loaded IR.
+    pendingIr = ir; pendingIrRate = irSampleRate;
+    loadedIrFile = juce::File();
     irLoaded.store (true);
 }
 
 int BodyEngine::getLatencySamples() const noexcept
 {
     if (mode == Mode::Convolution || mode == Mode::Hybrid)
-        return convolution != nullptr ? (int) convolution->getLatency() : 0;
+        return convolution.getLatency();
 
     return 0;
 }
@@ -508,10 +413,7 @@ void BodyEngine::processBlock (juce::dsp::AudioBlock<float>& block) noexcept
     // ---- convolution path ---------------------------------------------------
     if (mode == Mode::Convolution || mode == Mode::Hybrid)
     {
-        const juce::SpinLock::ScopedTryLockType lock (convolutionLock);
-
-        if (irLoaded.load() && lock.isLocked())
-            irVariants.process (*convolution, wetSub);   // the full IR at High (cpu-quality-modes 2.3)
+        if (irLoaded.load()) convolution.process (wetSub);
     }
 
     // ---- modal path ----------------------------------------------------------

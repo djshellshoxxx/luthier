@@ -15,7 +15,7 @@
 
 #include "../Common/DspCommon.h"
 #include "../Common/ConvolutionInstaller.h"
-#include "../Common/IrVariants.h"
+#include "../Common/LiveConvolution.h"
 #include "../../Support/QualityProfile.h"
 #include "RoomEngine.h"
 #include <atomic>
@@ -158,7 +158,7 @@ public:
     /** cpu-quality-modes 2.3: each mic's IR variant for the level. Audio thread. */
     void setQualityLevel (const QualityProfile& profile, bool hard) noexcept;
 
-    const IrVariants& getIrVariants (int slot) const noexcept { return slot == 0 ? pathA.variants : pathB.variants; }
+    LiveConvolution::VariantInfo getIrVariants (int slot) const noexcept { return (slot == 0 ? pathA.convolution : pathB.convolution).getVariantInfo(); }
 
     //==========================================================================
     /** Each mic on its own, as it was after its impulse response and the
@@ -196,7 +196,7 @@ public:
 private:
     struct MicPath
     {
-        std::unique_ptr<juce::dsp::Convolution> convolution;
+        LiveConvolution convolution;
         std::atomic<bool> loaded { false };
 
         /** The file behind the installed response; see BodyEngine::loadedIrFile. */
@@ -207,13 +207,6 @@ private:
             (a file is re-read from loadedFile instead); see BodyEngine::pendingIr. */
         juce::AudioBuffer<float> pendingIr;
         double pendingIrRate = 0.0;
-
-        // Held while an impulse response is swapped in. The loading thread takes
-        // it and blocks; the audio thread try-locks and uses the fallback for the
-        // one block a swap can overlap, so neither ever waits on the other.
-        juce::SpinLock convolutionLock;
-
-        IrVariants variants;   ///< cpu-quality-modes 2.3
 
         // Procedural fallback: a speaker is a bandpass with a cone-breakup peak
         // and a sharp roll-off above it.
@@ -260,7 +253,10 @@ private:
     std::vector<double> alignBuffer;
     int alignSize = 0, alignMask = 0, alignIndex = 0, alignSamples = 0;
 
-    juce::AudioBuffer<float> bufferA, bufferB;
+    juce::AudioBuffer<float> bufferA, bufferB, bypassBuffer;
+    std::array<std::vector<float>, 2> bypassDelay;
+    int bypassWrite = 0, enableWarmRemaining = 0;
+    LinSmoother enabledMix;
 
     IrSlot* userSlotA = nullptr;          // SPEC-SWEEP TM-7
     IrSlot* userSlotB = nullptr;

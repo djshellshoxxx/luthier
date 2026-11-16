@@ -1,4 +1,16 @@
-# Luthier project status: PAUSED
+# Luthier project status
+
+**Resumed by the owner on 2026-11-16 for Windows/macOS releases.** Current work is
+recorded in [RELEASE-CONTINUATION-2026-11-16.md](RELEASE-CONTINUATION-2026-11-16.md),
+[RACK-LIFETIME-2026-11-16.md](RACK-LIFETIME-2026-11-16.md), and
+[RECORDER-CONCURRENCY-2026-11-16.md](RECORDER-CONCURRENCY-2026-11-16.md), and
+[CHORUS-QUALIFICATION-2026-11-16.md](CHORUS-QUALIFICATION-2026-11-16.md), and
+[MIDI-CONTINUITY-2026-11-16.md](MIDI-CONTINUITY-2026-11-16.md).
+PRs #101/#102/#103 and the chorus/MIDI continuation carry changes that are not yet
+integrated or release-qualified. The snapshot below records the November 11
+pause; its counts and queued-run statuses are historical, not current claims.
+
+## Historical snapshot — 2026-11-11
 
 **Paused on 2026-11-11 by the owner.** The instruction ("stop working on all projects except
 circula, classrupted, ghostpay, p2p offramp [and patchtrace]; have the workers finish the work they

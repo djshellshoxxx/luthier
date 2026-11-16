@@ -357,6 +357,8 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     // Combo.history). Audio is not running during prepare.
     engineCommands.drain ([this] (const EngineCommand& c) { applyEngineCommand (c); });
 
+    sessionRecorder.prepareForHost (sampleRate);
+
     currentSampleRate = sampleRate;
     currentBlockSize = samplesPerBlock;
 
@@ -383,6 +385,9 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     routing.setActiveLayout (getNegotiatedLayout());
     routing.setSidechainPresent (hasSidechainInput());
     midiOutRouter.prepare (sampleRate, samplesPerBlock);
+    deferredEngineMidi.prepare();
+    deferredDirectMidi.prepare();
+    resetRhythmMidiOnNextEngineBlock = false;
     modMatrix.prepare (sampleRate, samplesPerBlock, apvts);
     transportWasRunning = false;
     midiCapture.prepare (sampleRate, 60.0);
@@ -477,8 +482,8 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     qualityController.setNonRealtime (lastNonRealtime);
     applyQualityForBlock (true);
 
-    updateLatency();
     updateRoutingLatencyReport();
+    updateLatency();
 
     Diagnostics::HostInfo info;
     info.hostName = juce::PluginHostType().getHostDescription();
@@ -503,6 +508,9 @@ void LuthierAudioProcessor::releaseResources()
     engine.releaseResources();
     routing.reset();
     midiOutRouter.reset();
+    deferredEngineMidi.reset();
+    deferredDirectMidi.reset();
+    resetRhythmMidiOnNextEngineBlock = false;
     modMatrix.reset();
     killSwitch.reset();
     previewPlayer.dropAll();   // preset-browser-previews 4.1
@@ -1406,15 +1414,15 @@ double LuthierAudioProcessor::getTailLengthSeconds() const
 
 void LuthierAudioProcessor::updateLatency()
 {
-    const int latency = engine.getLatencySamples();
+    // prepareToPlay or the message timer only. The audio thread publishes
+    // routing atomics and never enters JUCE's listener lock or host callbacks.
+    const int latency = routing.getReportedLatency();
 
-    if (latency != reportedLatency)
+    if (latency != reportedLatency.load (std::memory_order_relaxed))
     {
-        reportedLatency = latency;
         setLatencySamples (latency);
+        reportedLatency.store (latency, std::memory_order_relaxed);
     }
-
-    updateRoutingLatencyReport();
 }
 
 void LuthierAudioProcessor::updateRoutingLatencyReport()
@@ -1925,11 +1933,11 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
     // output-normalization.md 4.3: the calibration render's phrase, as written.
     outputNormalization.mergeCalibrationDirect (tuneDirect);
 
-    engine.setDirectMidi (tuneDirect.isEmpty() ? nullptr : &tuneDirect);
 
-    // SPEC-SWEEP (RE-41): the rhythm engine's strokes feed MIDI out's rhythm source.
-    engine.setRhythmMidiOut ((midiOutConfig.enabled && midiOutConfig.rhythmEngine)
-                                 ? &midiOutRouter.getRhythmBuffer() : nullptr);
+    // Remember a source disable even if the engine lock is unavailable, so a
+    // later re-enable cannot revive its stale pending strum or held-note table.
+    const bool rhythmOutputEnabled = midiOutConfig.enabled && midiOutConfig.rhythmEngine;
+    if (! rhythmOutputEnabled) resetRhythmMidiOnNextEngineBlock = true;
 
     // ---- modulation ------------------------------------------------------------
     // Sources first, then the matrix, then the bridge: the bridge reads every
@@ -2011,9 +2019,22 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
         }
         engine.setReferencePedalAuxOutputs (boardAux);
         if (engineLock.isLocked())
-            engine.processBlock (mainOut, midiMessages);
+        {
+            if (resetRhythmMidiOnNextEngineBlock) engine.setRhythmMidiOut (nullptr);
+            resetRhythmMidiOnNextEngineBlock = false;
+            engine.setRhythmMidiOut (rhythmOutputEnabled ? &midiOutRouter.getRhythmBuffer() : nullptr);
+            auto& direct = deferredDirectMidi.take (tuneDirect);
+            engine.setDirectMidi (direct.isEmpty() ? nullptr : &direct);
+            engine.processBlock (mainOut, deferredEngineMidi.take (midiMessages));
+        }
         else
+        {
+            // Other consumers already saw these messages. Carry only the two
+            // engine-bound streams; do not replay MIDI learn, echo, or capture.
+            deferredEngineMidi.defer (midiMessages);
+            deferredDirectMidi.defer (tuneDirect);
             mainOut.clear();
+        }
     }
 
     // ---- jam mode (jam-mode.md, FEAT-JAM) ---------------------------------------------
@@ -2236,8 +2257,7 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
 
         // practice-tools 8: the session recorder takes what the plugin produced,
         // and the MIDI that played it (MODEL-GAPS: it was never given the MIDI).
-        sessionRecorder.captureMidi (midiMessages, numSamples);   // before the block advances its clock
-        sessionRecorder.processBlock (mainOut, numSamples);
+        sessionRecorder.captureBlock (mainOut, midiMessages, numSamples);
     }
     else
     {
@@ -2370,31 +2390,7 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
         if (auto* raw = macroValues[(size_t) m])
             midiOutRouter.setMacroValue (m, raw->load());
 
-    // RE-41, rhythm-engine.md 9: the RHYTHM source was carrying nothing because
-    // nobody converted the engine's PlayEvents into MIDI for it.
-    {
-        auto& rhythmBuffer = midiOutRouter.getRhythmBuffer();
-        const auto& rhythmEvents = engine.getRhythmEvents();
-        const int lastSample = juce::jmax (0, numSamples - 1);
-
-        for (int i = 0; i < rhythmEvents.getNumNoteOns(); ++i)
-        {
-            const auto& e = rhythmEvents.getNoteOn (i);
-            rhythmBuffer.addEvent (juce::MidiMessage::noteOn (juce::jlimit (1, 16, e.stringIndex + 1),
-                                                              juce::jlimit (0, 127, e.midiNote),
-                                                              (float) juce::jlimit (0.0, 1.0, e.velocity)),
-                                   juce::jlimit (0, lastSample, e.sampleOffset));
-        }
-
-        for (int i = 0; i < rhythmEvents.getNumNoteOffs(); ++i)
-        {
-            const auto& e = rhythmEvents.getNoteOff (i);
-            rhythmBuffer.addEvent (juce::MidiMessage::noteOff (juce::jlimit (1, 16, e.stringIndex + 1),
-                                                               juce::jlimit (0, 127, e.midiNote)),
-                                   juce::jlimit (0, lastSample, e.sampleOffset));
-        }
-    }
-
+    // LuthierEngine owns rhythm conversion, including sub-block timing and releases.
     midiOutRouter.emitBounded (midiMessages, midiOutConfig, engine.getStringActivity(), numSamples, BoundedMidi::kReserveBytes);
     if (engineLock.isLocked())
         midiOverflowDrops += BoundedMidi::addEvents (midiMessages, BoundedMidi::kReserveBytes, engine.getReferenceMidiOut(), 0, numSamples, 0);
@@ -2412,9 +2408,10 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
 
     samplePosition += numSamples;
 
-    // The engine's latency can change when an IR finishes loading or the
-    // oversampling factor changes, so it is re-reported rather than assumed fixed.
-    updateLatency();
+    // Publish only while this callback owns the engine. A failed admission
+    // keeps the prior snapshot; never read a concurrent structural rebuild.
+    if (engineLock.isLocked())
+        updateRoutingLatencyReport();
 }
 
 //==============================================================================
@@ -4563,6 +4560,13 @@ void LuthierAudioProcessor::serviceReferencePedalParameters()
 void LuthierAudioProcessor::timerCallback()
 {
     engine.getReferencePedals().reclaim();
+    engine.getPreEffects().reclaimRetired();
+    engine.getPostEffects().reclaimRetired();
+    {
+        const juce::ScopedTryLock engineLock (bridge.getEngineLock());
+        if (engineLock.isLocked())
+            updateRoutingLatencyReport();
+    }
     updateLatency();
     serviceReferencePedalParameters();
     // preset-browser-previews 4.1 / 3.3: free finished clips, pause background renders.

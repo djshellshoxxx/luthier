@@ -340,6 +340,12 @@ void CharacterEngine::setTunerLooseness (double percent) noexcept
 
 void CharacterEngine::advance (double secondsElapsed) noexcept
 {
+    advanceSlowState (secondsElapsed);
+    advanceJack (secondsElapsed);
+}
+
+void CharacterEngine::advanceSlowState (double secondsElapsed) noexcept
+{
     if (secondsElapsed <= 0.0)
         return;
 
@@ -374,8 +380,15 @@ void CharacterEngine::advance (double secondsElapsed) noexcept
                                    * driftAmplitude[(size_t) s] * scale * settling;
     }
 
+}
+
+void CharacterEngine::advanceJack (double secondsElapsed) noexcept
+{
+    if (secondsElapsed <= 0.0)
+        return;
+
     // ---- the intermittent jack (character-wear 5) ---------------------------------
-    if (jackIntermittent.load (std::memory_order_relaxed))
+    if (isEnabled() && jackIntermittent.load (std::memory_order_relaxed))
     {
         if (jackDropoutRemaining > 0.0)
         {
