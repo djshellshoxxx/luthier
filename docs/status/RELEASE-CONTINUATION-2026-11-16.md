@@ -46,3 +46,25 @@ remain unresolved unless explicitly superseded below.
 5. Only after integration passes: strictness-10/LTO builds and native installers,
    Windows standalone/VST3 and universal macOS standalone/VST3/AU validation,
    followed by real-host checks and the signing/notarization steps available.
+
+## Follow-up: backend release admission and Windows UI dispatch
+
+- Ported the isolated backend note-release admission fix from #90 (original
+  `6ead9d1d`): rejected note-offs retain their release obligation and retry on
+  later blocks instead of forgetting a still-sounding string. Both processor
+  regression tests are included; the unrelated unfinished delay test is not.
+  Historical isolated pass results are recorded in
+  `docs/coverage/BACKEND-RELEASE-ADMISSION.md`, not fresh combined-source evidence.
+- Replaced the UI lifecycle test's 128-native-message assumption with a queued
+  JUCE marker and a two-second deadline. Every drain is asserted. A 512-callback
+  regression checks delivery beyond the former fixed count. This addresses the
+  documented Windows dispatch hypothesis; Windows confirmation is still needed.
+  No production UI behavior or lifecycle acceptance assertion is weakened.
+- Added SessionRecorderRate, BackendRelease and RefPedalUiLifecycle to both
+  editions' quick-check smoke selection so these regressions run before the
+  full native matrix completes.
+- Local shell syntax and 13 release-asset tests pass. C++ compilation/execution
+  remains unavailable locally. At inspection, #101's original quick-check and
+  PR verification runs were queued; even the matrix planning job had not run.
+- The rack-pedal lifetime fix is still outstanding. This follow-up does not
+  qualify a Windows, macOS or VST3 release.

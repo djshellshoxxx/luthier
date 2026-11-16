@@ -79,7 +79,7 @@ jobs:
           mkdir -p "$BUILD_DIR/logs"
           runner="$BUILD_DIR/LuthierTests_artefacts/$CONFIG/LuthierTests"
           test -x "$runner"
-          xvfb-run -a "$runner" FactoryGuitarOverrideUsesSelectedInstrument CalibrationHashIgnoresPresetMetadata ON03_FactoryTableDoesNotDrift ON03_ExplicitCalibrationTransactionIgnoresLoadDelay ON32_EditionIsPartOfTheHash CQ23_ PracticeTrack \
+          xvfb-run -a "$runner" FactoryGuitarOverrideUsesSelectedInstrument CalibrationHashIgnoresPresetMetadata ON03_FactoryTableDoesNotDrift ON03_ExplicitCalibrationTransactionIgnoresLoadDelay ON32_EditionIsPartOfTheHash CQ23_ PracticeTrack SessionRecorderRate BackendRelease RefPedalUiLifecycle \
             2>&1 | tee "$BUILD_DIR/logs/focused-regressions.log"
       - name: Upload diagnostics on failure
         if: failure()
