@@ -370,6 +370,12 @@ public:
         the size is checked against what is actually available first. */
     bool prepare (double sampleRate, double minutes = kDefaultMinutes);
 
+    /** Called by prepareToPlay while audio is stopped. A changed rate discards
+        the old take and preserves the ring duration; an unused recorder stays
+        unallocated. Same-rate host restarts preserve the take. */
+    void prepareForHost (double sampleRate);
+    double getSampleRate() const noexcept { return sr; }
+
     void reset() noexcept;
 
     void setEnabled (bool shouldRecord) noexcept

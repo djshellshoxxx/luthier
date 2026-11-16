@@ -357,6 +357,8 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     // Combo.history). Audio is not running during prepare.
     engineCommands.drain ([this] (const EngineCommand& c) { applyEngineCommand (c); });
 
+    sessionRecorder.prepareForHost (sampleRate);
+
     currentSampleRate = sampleRate;
     currentBlockSize = samplesPerBlock;
 

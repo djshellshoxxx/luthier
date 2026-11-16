@@ -1099,6 +1099,26 @@ bool Looper::load (const juce::File& file)
 SessionRecorder::SessionRecorder() = default;
 SessionRecorder::~SessionRecorder() = default;
 
+void SessionRecorder::prepareForHost (double sampleRate)
+{
+    if (! std::isfinite (sampleRate) || sampleRate <= 0.0 || sampleRate == sr)
+        return;
+
+    const double minutes = getCapacityMinutes();
+    if (capacity > 0)
+    {
+        // prepare() clears both audio and MIDI: never label old-rate samples
+        // with the new rate, even when growing the ring cannot allocate.
+        if (! prepare (sampleRate, minutes))
+            reset();
+    }
+    else
+    {
+        sr = sampleRate;
+        reset();
+    }
+}
+
 bool SessionRecorder::prepare (double sampleRate, double minutes)
 {
     sr = juce::jmax (1.0, sampleRate);
