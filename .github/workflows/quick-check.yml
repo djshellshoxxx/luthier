@@ -20,6 +20,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  recorder-thread-safety:
+    name: Recorder thread safety (real JUCE)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch pinned JUCE
+        run: git clone --depth 1 --branch 8.0.10 https://github.com/juce-framework/JUCE.git ThirdParty/JUCE
+      - name: Build recorder checks with ThreadSanitizer
+        run: |
+          cmake -S scripts/recorder_checks -B build-recorder -DCMAKE_BUILD_TYPE=Debug -DSANITIZE=thread
+          cmake --build build-recorder --parallel 2
+      - name: Exercise reset, resize, capture, and snapshot export
+        env:
+          TSAN_OPTIONS: halt_on_error=1
+        run: build-recorder/recorder_checks
+
   focused-linux:
     name: Focused Linux preflight (${{ matrix.edition }})
     runs-on: ubuntu-latest
@@ -81,7 +98,7 @@ jobs:
           mkdir -p "$BUILD_DIR/logs"
           runner="$BUILD_DIR/LuthierTests_artefacts/$CONFIG/LuthierTests"
           test -x "$runner"
-          xvfb-run -a "$runner" FactoryGuitarOverrideUsesSelectedInstrument CalibrationHashIgnoresPresetMetadata ON03_FactoryTableDoesNotDrift ON03_ExplicitCalibrationTransactionIgnoresLoadDelay ON32_EditionIsPartOfTheHash CQ23_ PracticeTrack SessionRecorderRate BackendRelease RefPedalUiLifecycle EffectsChainLifetime \
+          xvfb-run -a "$runner" FactoryGuitarOverrideUsesSelectedInstrument CalibrationHashIgnoresPresetMetadata ON03_FactoryTableDoesNotDrift ON03_ExplicitCalibrationTransactionIgnoresLoadDelay ON32_EditionIsPartOfTheHash CQ23_ PracticeTrack SessionRecorderRate SessionRecorderConcurrency BackendRelease RefPedalUiLifecycle EffectsChainLifetime \
             2>&1 | tee "$BUILD_DIR/logs/focused-regressions.log"
       - name: Upload diagnostics on failure
         if: failure()

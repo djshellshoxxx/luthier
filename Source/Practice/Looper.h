@@ -374,8 +374,9 @@ public:
         the old take and preserves the ring duration; an unused recorder stays
         unallocated. Same-rate host restarts preserve the take. */
     void prepareForHost (double sampleRate);
-    double getSampleRate() const noexcept { return sr; }
+    double getSampleRate() const noexcept { return sr.load (std::memory_order_relaxed); }
 
+    /** Clears the take on the message thread, after active capture finishes. */
     void reset() noexcept;
 
     void setEnabled (bool shouldRecord) noexcept
@@ -387,11 +388,17 @@ public:
 
     double getCapacityMinutes() const noexcept
     {
-        return (double) capacity / juce::jmax (1.0, sr) / 60.0;
+        return (double) capacity.load (std::memory_order_relaxed)
+             / juce::jmax (1.0, sr.load (std::memory_order_relaxed)) / 60.0;
     }
 
     /** How much of the buffer holds audio. */
     int getRecordedSamples() const noexcept { return recorded.load (std::memory_order_relaxed); }
+
+    /** Captures audio and MIDI on one clock under one nonblocking admission.
+        A reset or resize cannot split the two parts of this host block. */
+    void captureBlock (const juce::AudioBuffer<float>& audio, const juce::MidiBuffer& midi,
+                       int numSamples) noexcept;
 
     /** Writes the block into the ring. Audio thread; never allocates. */
     void processBlock (const juce::AudioBuffer<float>& buffer, int numSamples) noexcept;
@@ -451,13 +458,15 @@ private:
     mutable juce::MidiMessageSequence midi;
     juce::CriticalSection midiLock;
 
-    /** Held by prepare() while it resizes the ring; processBlock only try-locks
-        it. The ring can be resized while recording (PRACTICE setup's ring
-        length), which used to free it under the audio thread. */
-    juce::SpinLock ringLock;
+    // Message-thread storage changes exclude both audio and MIDI capture.
+    // Callbacks skip capture during an exclusive operation; they never wait.
+    mutable detail::StorageAccessGate storageGate;
+    void resetWhileExclusive() noexcept;
+    void processAudioWhileAdmitted (const juce::AudioBuffer<float>&, int) noexcept;
+    void captureMidiWhileAdmitted (const juce::MidiBuffer&, int) noexcept;
 
-    double sr = 44100.0;
-    int capacity = 0;
+    std::atomic<double> sr { 44100.0 };
+    std::atomic<int> capacity { 0 };
 
     std::atomic<bool> enabled { false };
     std::atomic<bool> recordAudio { true }, recordMidi { true };
@@ -474,7 +483,7 @@ private:
     std::atomic<int> writePosition { 0 };
     std::atomic<int> recorded { 0 };
 
-    int64_t samplesSeen = 0;
+    std::atomic<int64_t> samplesSeen { 0 };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SessionRecorder)
 };

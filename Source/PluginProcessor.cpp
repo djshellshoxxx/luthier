@@ -2238,8 +2238,7 @@ void LuthierAudioProcessor::processSlice (juce::AudioBuffer<float>& buffer, juce
 
         // practice-tools 8: the session recorder takes what the plugin produced,
         // and the MIDI that played it (MODEL-GAPS: it was never given the MIDI).
-        sessionRecorder.captureMidi (midiMessages, numSamples);   // before the block advances its clock
-        sessionRecorder.processBlock (mainOut, numSamples);
+        sessionRecorder.captureBlock (mainOut, midiMessages, numSamples);
     }
     else
     {

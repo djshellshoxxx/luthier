@@ -21,3 +21,8 @@ ThirdParty/JUCE
 ThirdParty/clap-juce-extensions
 .claude/worktrees/
 BUILD_GATE_NOTES.md
+
+# Focused real-JUCE recorder/sanitizer builds.
+build-recorder/
+build-recorder-asan/
+scripts/__pycache__/
