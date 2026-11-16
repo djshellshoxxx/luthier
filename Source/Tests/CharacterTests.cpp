@@ -676,6 +676,41 @@ LUTHIER_TEST (Character, intermittentJackIsOffByDefault)
     CHECK_MSG (droppedOut, "the intermittent jack never dropped out in ten minutes");
 }
 
+LUTHIER_TEST (Character, intermittentJackDurationUsesAudioTimeOnly)
+{
+    constexpr double sampleRate = 48000.0;
+    CharacterEngine engine;
+    engine.prepare (sampleRate, 6);
+    engine.setSeed (0x1234ull);
+    engine.setEnabled (true);
+    engine.setJackIntermittentEnabled (true);
+    engine.reset();
+
+    engine.advance (500.0); // deterministic jump to the next dropout
+    const double droppedGain = engine.getJackGain();
+    CHECK (droppedGain < 0.15);
+
+    // A large host block advances drift, but must not consume jack duration.
+    engine.advanceSlowState (4096.0 / sampleRate);
+    CHECK (engine.getJackGain() == droppedGain);
+
+    int samples = 0;
+    while (engine.getJackGain() < 1.0 && samples <= 4801)
+    {
+        engine.advanceJack (1.0 / sampleRate);
+        ++samples;
+    }
+
+    CHECK_MSG (samples >= 960 && samples <= 4801,
+               "the dropout must last 20-100 ms, got " + juce::String (1000.0 * samples / sampleRate, 3) + " ms");
+
+    engine.advance (500.0);
+    CHECK (engine.getJackGain() < 1.0);
+    engine.setEnabled (false);
+    engine.advanceJack (1.0 / sampleRate);
+    CHECK (engine.getJackGain() == 1.0);
+}
+
 //==============================================================================
 /*  character-wear 10: the two audition presets do what they say. */
 LUTHIER_TEST (Character, allFreshAndAllOldPresets)

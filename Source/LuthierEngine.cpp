@@ -2818,9 +2818,9 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
         Advanced once per block, not per sample. The drift moves over tens of
         seconds, so a block's worth of resolution is thousands of times finer
-        than it needs, and it keeps the whole of character out of the inner loop
-        as rule 2 of that spec's section 0 requires. */
-    character.advance ((double) numSamples / juce::jmax (1.0, sr));
+        than it needs. Only the millisecond-scale intermittent jack advances in
+        the inner loop. */
+    character.advanceSlowState ((double) numSamples / juce::jmax (1.0, sr));
 
     // REALISM-A: string aging, the environment and the body-coupling bank, at block rate.
     advanceRealism (numSamples);
@@ -3309,7 +3309,7 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         acMicMixSmooth.snapToTarget();
 
     double blockPeak = 0.0;
-    const double jackTarget = character.getJackGain();   // SPEC-SWEEP: CW-18, advanced at the block's start
+    const double jackSecondsPerSample = 1.0 / juce::jmax (1.0, sr);
 
     for (int i = 0; i < numSamples; ++i)
     {
@@ -3352,7 +3352,10 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
         // SPEC-SWEEP: CW-18 - the intermittent output jack (character-wear 5,
         // off by default): a 20-100 ms drop, ramped over a few ms so it is a
-        // dropout and not a click. Exactly unity while nothing is happening.
+        // dropout and not a click. Advance at sample rate so duration never
+        // changes with host block size. Exactly unity while idle.
+        character.advanceJack (jackSecondsPerSample);
+        const double jackTarget = character.getJackGain();
         if (jackGainNow != 1.0 || jackTarget != 1.0)
         {
             jackGainNow += (jackTarget - jackGainNow) * jackRampCoeff;

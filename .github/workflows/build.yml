@@ -235,6 +235,7 @@ jobs:
           ${wrap[@]+"${wrap[@]}"} "$runner" FactoryGuitarOverrideUsesSelectedInstrument CalibrationHashIgnoresPresetMetadata ON03_FactoryTableDoesNotDrift CQ23_ PracticeTrack \
             HostState RefPedalControlRace RefPedalState RefPedalAssetLifetime RefPedalHostCapture \
             RefPedalLooperStorage IrSwapContinuity LiveConvolution HostLatencyThread RefPedalBypassLatency RefPedalBlockPlan RhythmMidiWriter RhythmMidiRouter RhythmMidiOut DeferredEngineMidi BackendRelease \
+            intermittentJackDurationUsesAudioTimeOnly theIntermittentJackDropsOutAndRecovers \
             convolutionPreparesSafelyForTinyHostBlocks convolutionTinyHostRateAndCapacityBoundaries \
             2>&1 | tee "$BUILD_DIR/logs/release-regressions.log"
 
@@ -245,7 +246,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path (Join-Path $env:BUILD_DIR 'logs') | Out-Null
-          & "$env:BUILD_DIR/LuthierTests_artefacts/$env:CONFIG/LuthierTests.exe" FactoryGuitarOverrideUsesSelectedInstrument CalibrationHashIgnoresPresetMetadata ON03_FactoryTableDoesNotDrift CQ23_ PracticeTrack HostState RefPedalControlRace RefPedalState RefPedalAssetLifetime RefPedalHostCapture RefPedalLooperStorage IrSwapContinuity LiveConvolution HostLatencyThread RefPedalBypassLatency RefPedalBlockPlan RhythmMidiWriter RhythmMidiRouter RhythmMidiOut DeferredEngineMidi BackendRelease convolutionPreparesSafelyForTinyHostBlocks convolutionTinyHostRateAndCapacityBoundaries 2>&1 | Tee-Object -FilePath "$env:BUILD_DIR/logs/release-regressions.log"
+          & "$env:BUILD_DIR/LuthierTests_artefacts/$env:CONFIG/LuthierTests.exe" FactoryGuitarOverrideUsesSelectedInstrument CalibrationHashIgnoresPresetMetadata ON03_FactoryTableDoesNotDrift CQ23_ PracticeTrack HostState RefPedalControlRace RefPedalState RefPedalAssetLifetime RefPedalHostCapture RefPedalLooperStorage IrSwapContinuity LiveConvolution HostLatencyThread RefPedalBypassLatency RefPedalBlockPlan RhythmMidiWriter RhythmMidiRouter RhythmMidiOut DeferredEngineMidi BackendRelease intermittentJackDurationUsesAudioTimeOnly theIntermittentJackDropsOutAndRecovers convolutionPreparesSafelyForTinyHostBlocks convolutionTinyHostRateAndCapacityBoundaries 2>&1 | Tee-Object -FilePath "$env:BUILD_DIR/logs/release-regressions.log"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       # When the committed factory cache misses live Pro hashes, regenerate

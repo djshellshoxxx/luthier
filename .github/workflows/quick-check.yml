@@ -167,6 +167,7 @@ jobs:
             RefPedalCe2 RefPedalBbdCore RefPedalChorusMemory RefPedalCe2w RefPedalCe2NodeBypass RefPedalRouting RefPedalBufferedTimeFx RefPedalBbdCurvature \
             RefPedalLooperStorage IrSwapContinuity LiveConvolution HostLatencyThread RefPedalBypassLatency RefPedalBlockPlan RhythmMidiWriter RhythmMidiRouter RhythmMidiOut DeferredEngineMidi \
             RefPedalAssetLifetime RefPedalHostCapture RefPedalControlRace RefPedalState HostState convolutionPreparesSafelyForTinyHostBlocks convolutionTinyHostRateAndCapacityBoundaries \
+            intermittentJackDurationUsesAudioTimeOnly theIntermittentJackDropsOutAndRecovers \
             2>&1 | tee "$BUILD_DIR/logs/focused-regressions.log"
       - name: Upload diagnostics on failure
         if: failure()

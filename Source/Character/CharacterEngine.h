@@ -129,8 +129,16 @@ public:
     void setTunerLooseness (double percent) noexcept;
     double getTunerLooseness() const noexcept { return tunerLooseness.load (std::memory_order_relaxed); }
 
-    /** Advances the drift. Called once per block with the block's duration. */
+    /** Advances every time-based character state. Useful for offline/session
+        time jumps; the audio engine advances slow state and jack time separately. */
     void advance (double secondsElapsed) noexcept;
+
+    /** Advances tuner drift and session age at block rate. */
+    void advanceSlowState (double secondsElapsed) noexcept;
+
+    /** Advances intermittent-jack timing. The audio engine calls this at sample
+        rate so a 20-100 ms dropout does not depend on host block size. */
+    void advanceJack (double secondsElapsed) noexcept;
 
     /** The drift on a string right now, in cents. */
     double getTunerDriftCents (int stringIndex) const noexcept;
