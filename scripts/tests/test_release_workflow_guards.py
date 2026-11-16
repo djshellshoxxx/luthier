@@ -77,6 +77,16 @@ class ReleaseGuards(unittest.TestCase):
         self.assertIn("strictness: 10", release)
         self.assertIn("lto: true", release)
 
+    def test_windows_release_lto_is_partitioned_without_disabling_ltcg(self):
+        cmake = (ROOT / "CMakeLists.txt").read_text()
+        self.assertIn("if (MSVC AND LUTHIER_LTO)", cmake)
+        self.assertIn("add_library(luthier_windows_lto_partition STATIC", cmake)
+        self.assertIn("list(REMOVE_ITEM LUTHIER_SOURCES \"${LUTHIER_WINDOWS_LTO_PARTITION_SOURCE}\")", cmake)
+        self.assertIn("juce::juce_recommended_lto_flags", cmake)
+        self.assertIn("target_link_libraries(Luthier PUBLIC luthier_windows_lto_partition)", cmake)
+        self.assertIn("list(APPEND LUTHIER_UI_SOURCES \"${LUTHIER_WINDOWS_LTO_PARTITION_SOURCE}\")", cmake)
+        self.assertNotIn("LUTHIER_LTO=OFF", (ROOT / ".github/workflows/release.yml").read_text())
+
     def test_advanced_candidate_refuses_tag_creation(self):
         bindir = self.root / "bin"; bindir.mkdir()
         stub = bindir / "gh"; log = self.root / "gh-calls"

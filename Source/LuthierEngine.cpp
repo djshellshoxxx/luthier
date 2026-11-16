@@ -3321,9 +3321,11 @@ void LuthierEngine::processSubBlock (juce::AudioBuffer<float>& buffer, juce::Mid
             // the body. The blend between them is the acoustic-electric sound.
             const double piezo = pickups.processPiezo (piezoSumBuffer[(size_t) i]);   // SPEC-SWEEP: CW-19
             // string-squeak.md 5.1: the mic also hears a finger squeak straight
-            // from the fingerboard, not only what the top makes of it.
+            // from the fingerboard, not only what the top makes of it. This is
+            // 70% of the raw squeak itself; unlike the summed strings it must
+            // not be divided by the instrument's total string count.
             const double mic = pickups.processInternalMic ((double) bodyData[i])
-                               + PlayingNoise::kAcousticDirectAirShare * stringSumNormalisation * squeakAirBuffer[(size_t) i];
+                               + PlayingNoise::kAcousticDirectAirShare * squeakAirBuffer[(size_t) i];
             instrument = piezo * (1.0 - micBlend) + mic * micBlend;
         }
         else

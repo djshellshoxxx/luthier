@@ -133,6 +133,34 @@ endif()
 set(LUTHIER_WIP_REGEX "Source/WIP/")
 list(FILTER LUTHIER_SOURCES EXCLUDE REGEX "${LUTHIER_WIP_REGEX}")
 
+# MSVC's librarian uses 32-bit member offsets and cannot create an archive over
+# 4 GiB. Full release LTO makes the shared-code archive cross that limit by only
+# a few MiB. Keep /GL and split one large, self-contained UI translation unit
+# into a second archive; the plugin wrappers link both archives and still run
+# one /LTCG link over the complete program.
+set(LUTHIER_WINDOWS_LTO_PARTITION_SOURCE
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/UI/Guitar/GuitarRenderer.cpp")
+if (MSVC AND LUTHIER_LTO)
+    list(REMOVE_ITEM LUTHIER_SOURCES "${LUTHIER_WINDOWS_LTO_PARTITION_SOURCE}")
+    add_library(luthier_windows_lto_partition STATIC
+        "${LUTHIER_WINDOWS_LTO_PARTITION_SOURCE}")
+    target_include_directories(luthier_windows_lto_partition PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/Source"
+        "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/JUCE/modules")
+    target_compile_definitions(luthier_windows_lto_partition PRIVATE
+        LUTHIER_PRO=${LUTHIER_IS_PRO}
+        JUCE_GLOBAL_MODULE_SETTINGS_INCLUDED=1
+        JUCE_WEB_BROWSER=0
+        JUCE_USE_CURL=0
+        JUCE_DISPLAY_SPLASH_SCREEN=0
+        JUCE_REPORT_APP_USAGE=0
+        JUCE_STRICT_REFCOUNTEDPOINTER=1
+        JUCE_MODAL_LOOPS_PERMITTED=0)
+    target_link_libraries(luthier_windows_lto_partition PRIVATE
+        juce::juce_recommended_config_flags
+        juce::juce_recommended_lto_flags)
+endif()
+
 # Reference pedalboard (spec/reference-pedalboard/specs/IMPLEMENTATION_PLAN.md WP1).
 # Source/ReferencePedals/** is compiled into LuthierRender, which is headless, so
 # none of it may include GUI code. Source/UI/ReferencePedals/** may. The same scan
@@ -177,6 +205,12 @@ target_link_libraries(Luthier PRIVATE
     juce::juce_cryptography
     PUBLIC
     juce::juce_recommended_config_flags)
+
+if (TARGET luthier_windows_lto_partition)
+    # PUBLIC keeps the partition as a distinct archive on each plugin wrapper's
+    # link line instead of attempting to absorb it back into Luthier.lib.
+    target_link_libraries(Luthier PUBLIC luthier_windows_lto_partition)
+endif()
 
 if (LUTHIER_LTO)
     target_link_libraries(Luthier PUBLIC juce::juce_recommended_lto_flags)
@@ -316,6 +350,11 @@ list(FILTER LUTHIER_ENGINE_SOURCES EXCLUDE REGEX "PluginEditor[A-Za-z]*\.(cpp|h)
 set(LUTHIER_UI_SOURCES ${LUTHIER_SOURCES})
 list(FILTER LUTHIER_UI_SOURCES INCLUDE REGEX "Source/UI/|PluginEditor[A-Za-z]*\.(cpp|h)$")   # FEAT-NORMALIZE: PluginEditorOnboarding.cpp too
 list(FILTER LUTHIER_UI_SOURCES EXCLUDE REGEX "Source/UI/UiPreferences\.cpp$")
+if (TARGET luthier_windows_lto_partition)
+    # The test runner is an executable, not the 4 GiB shared-code archive, so it
+    # still compiles the complete UI and exercises the partitioned translation unit.
+    list(APPEND LUTHIER_UI_SOURCES "${LUTHIER_WINDOWS_LTO_PARTITION_SOURCE}")
+endif()
 
 set(LUTHIER_CONSOLE_DEFS
     LUTHIER_PRO=${LUTHIER_IS_PRO}

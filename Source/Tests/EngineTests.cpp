@@ -990,21 +990,29 @@ LUTHIER_TEST (Cabinet, procedualFallbackRemovesTheFizz)
         cab.reset();
 
         const int n = 8192;
-        juce::AudioBuffer<float> buffer (2, n);
-
-        for (int i = 0; i < n; ++i)
-        {
-            const float v = (float) std::sin (2.0 * constants::kPi * hz * i / kSr);
-            buffer.setSample (0, i, v);
-            buffer.setSample (1, i, v);
-        }
-
-        cab.processBlock (buffer);
-
+        const int blockSize = 512;
+        juce::AudioBuffer<float> buffer (2, blockSize);
         double sum = 0.0;
 
-        for (int i = n / 2; i < n; ++i)
-            sum += (double) buffer.getSample (0, i) * buffer.getSample (0, i);
+        // CabinetEngine deliberately rejects buffers larger than the maximum
+        // block passed to prepare(). Run a realistic sequence of host blocks so
+        // the fallback filters are exercised and retain their state across the
+        // complete measurement window.
+        for (int offset = 0; offset < n; offset += blockSize)
+        {
+            for (int i = 0; i < blockSize; ++i)
+            {
+                const float v = (float) std::sin (2.0 * constants::kPi * hz * (offset + i) / kSr);
+                buffer.setSample (0, i, v);
+                buffer.setSample (1, i, v);
+            }
+
+            cab.processBlock (buffer);
+
+            if (offset >= n / 2)
+                for (int i = 0; i < blockSize; ++i)
+                    sum += (double) buffer.getSample (0, i) * buffer.getSample (0, i);
+        }
 
         return std::sqrt (sum / (double) (n / 2));
     };
