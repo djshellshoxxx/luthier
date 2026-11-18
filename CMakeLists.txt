@@ -13,6 +13,7 @@ if (MSVC)
 endif()
 
 option(LUTHIER_BUILD_TESTS "Build the Luthier unit-test runner" ON)
+option(LUTHIER_BUILD_FUZZERS "Build the LuthierFuzz libFuzzer target (clang, address+undefined)" OFF)
 option(LUTHIER_BUILD_CLI   "Build the offline batch-render CLI"  ON)
 # address | undefined | address,undefined | thread. Applies to LuthierTests only.
 set(LUTHIER_SANITIZE "" CACHE STRING "Sanitizer(s) for LuthierTests: address, undefined, thread (empty = off)")
@@ -132,6 +133,8 @@ endif()
 # line here when its feature is integrated.
 set(LUTHIER_WIP_REGEX "Source/WIP/")
 list(FILTER LUTHIER_SOURCES EXCLUDE REGEX "${LUTHIER_WIP_REGEX}")
+# Fuzz harnesses define LLVMFuzzerTestOneInput: only the LuthierFuzz target builds them.
+list(FILTER LUTHIER_SOURCES EXCLUDE REGEX "Source/Fuzz/")
 
 # MSVC's librarian uses 32-bit member offsets and cannot create an archive over
 # 4 GiB. Full release LTO makes the shared-code archive cross that limit by only
@@ -518,6 +521,30 @@ if (LUTHIER_BUILD_CLI)
         juce::juce_recommended_config_flags)
 
     luthier_copy_resources(LuthierRender "$<TARGET_FILE_DIR:LuthierRender>/Resources")
+
+    # Coverage-guided fuzzing of the untrusted-input parsers (Source/Fuzz/FuzzMain.cpp).
+    # Headless engine sources only; libFuzzer supplies main().
+    if (LUTHIER_BUILD_FUZZERS)
+        if (NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+            message(FATAL_ERROR "LUTHIER_BUILD_FUZZERS needs clang (-fsanitize=fuzzer)")
+        endif()
+        juce_add_console_app(LuthierFuzz PRODUCT_NAME "LuthierFuzz")
+        target_sources(LuthierFuzz PRIVATE ${LUTHIER_ENGINE_SOURCES}
+                       "${CMAKE_CURRENT_SOURCE_DIR}/Source/Fuzz/FuzzMain.cpp"
+                       "${CMAKE_CURRENT_SOURCE_DIR}/Source/UI/UiPreferences.cpp")
+        target_include_directories(LuthierFuzz PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/Source")
+        target_compile_definitions(LuthierFuzz PRIVATE ${LUTHIER_CONSOLE_DEFS})
+        target_link_libraries(LuthierFuzz PRIVATE
+            $<$<BOOL:${LUTHIER_IS_PRO}>:luthier_monocypher>
+            juce::juce_audio_utils
+            juce::juce_dsp
+            juce::juce_cryptography
+            PUBLIC
+            juce::juce_recommended_config_flags)
+        target_compile_options(LuthierFuzz PRIVATE -fsanitize=fuzzer,address,undefined -fno-omit-frame-pointer)
+        target_link_options(LuthierFuzz PRIVATE -fsanitize=fuzzer,address,undefined)
+        luthier_copy_resources(LuthierFuzz "$<TARGET_FILE_DIR:LuthierFuzz>/Resources")
+    endif()
 
     # SPEC-SWEEP (README RM-17): every documented luthier-render flag, end to end.
     enable_testing()

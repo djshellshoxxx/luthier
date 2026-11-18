@@ -28,3 +28,4 @@ build-recorder-asan/
 build-chorus/
 build-midi/
 scripts/__pycache__/
+build-fuzz/
