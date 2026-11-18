@@ -6,6 +6,9 @@
 #include "TestFramework.h"
 #include "../Notation/GuitarProLegacyReader.h"
 #include "../Notation/PerformanceScore.h"
+#include "../Notation/NotationExport.h"
+#include "../Tune/TuneImport.h"
+#include "../Tune/TuneFile.h"
 
 using namespace luthier;
 
@@ -46,4 +49,73 @@ LUTHIER_TEST (FuzzRegression, guitarProLegacyInputsAreReadOrRefused)
         const bool ok = reader.read (bytes.getData(), bytes.getSize(), score);
         CHECK_MSG (ok || reader.getLastError().isNotEmpty(), file.getFileName() + ": refused without a reason");
     }
+}
+
+LUTHIER_TEST (FuzzRegression, midiInputsAreReadOrRefused)
+{
+    const auto files = inputs ("midi");
+    CHECK (! files.isEmpty());
+    for (const auto& file : files)
+    {
+        juce::MemoryBlock bytes;
+        CHECK (file.loadFileAsData (bytes));
+        Tune tune;
+        juce::String error;
+        const bool ok = importMidiData (bytes.getData(), bytes.getSize(), file.getFileName(), tune, TuneImportOptions {}, error);
+        CHECK_MSG (ok || error.isNotEmpty(), file.getFileName() + ": refused without a reason");
+    }
+}
+
+LUTHIER_TEST (FuzzRegression, musicXmlInputsAreReadOrRefused)
+{
+    const auto files = inputs ("musicxml");
+    CHECK (! files.isEmpty());
+    for (const auto& file : files)
+    {
+        NotationImporter importer;
+        PerformanceScore score;
+        const bool ok = importer.readMusicXml (file.loadFileAsString(), score);
+        juce::ignoreUnused (ok);   // the contract is no crash; the sanitizer build checks memory
+        CHECK (true);
+    }
+}
+
+LUTHIER_TEST (FuzzRegression, jsonInputsParseOrRefuse)
+{
+    const auto files = inputs ("json");
+    CHECK (! files.isEmpty());
+    for (const auto& file : files)
+    {
+        juce::var parsed;
+        juce::JSON::parse (file.loadFileAsString(), parsed);
+        Tune tune;
+        TuneFile::fromVar (parsed, tune);
+    }
+}
+
+// JUCE 8.0.10 patch (scripts/patch_juce_untrusted_text.py): malformed UTF-8 never
+// steps over the terminator. Unpatched, `++` skipped the NUL after a lone lead byte.
+LUTHIER_TEST (FuzzRegression, malformedUtf8StopsAtTheTerminator)
+{
+    const char bytes[] = { (char) 0xd0, (char) 0xd0, 'x', (char) 0xf0, 0, 'y', 'y', 'y', 0 };
+    juce::CharPointer_UTF8 p (bytes);
+    int steps = 0;
+    while (! p.isEmpty() && steps < 16)
+    {
+        ++p;
+        ++steps;
+    }
+    CHECK (p.getAddress() == bytes + 4);   // the first NUL, not beyond it
+}
+
+// JUCE 8.0.10 patch: an integer beyond int64 parses as a double, not a wrapped value.
+LUTHIER_TEST (FuzzRegression, oversizedJsonIntegersBecomeDoubles)
+{
+    const auto big = juce::JSON::parse ("[11111111111111111111, -99999999999999999999, 9223372036854775807]");
+    CHECK (big.isArray() && big.size() == 3);
+    if (! big.isArray() || big.size() != 3)
+        return;
+    CHECK (big[0].isDouble() && (double) big[0] > 1.0e19);
+    CHECK (big[1].isDouble() && (double) big[1] < -9.0e19);
+    CHECK (big[2].isInt64() && (juce::int64) big[2] == std::numeric_limits<juce::int64>::max());
 }

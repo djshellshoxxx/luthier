@@ -1,0 +1,117 @@
+#!/usr/bin/env python3
+"""Apply/check Luthier's narrow JUCE 8.0.10 untrusted-text patches, each pinned to the exact
+8.0.10 code block it replaces (applied once; refuses any other source).
+
+Found by LuthierFuzz (Source/Fuzz). Both affect every parse of host state,
+presets, tunes and imported files, which are untrusted input:
+
+1. juce_CharPointer_UTF8.h, operator++: a lead byte advanced over as many bytes
+   as it announced, continuation or not, so malformed UTF-8 stepped over the
+   string's terminator (heap-buffer-overflow in XmlDocument on a MusicXML file).
+   It now stops at the first non-continuation byte, as operator* already does.
+   Valid UTF-8 is unaffected.
+2. juce_JSON.cpp, parseNumber: an integer literal longer than int64 overflowed
+   a signed multiply (undefined behaviour). It is now read as a double, the
+   same path a literal with a '.' or exponent takes. In-range integers are
+   unaffected.
+
+The upstream licence is retained. Call during configuration, never from audio.
+"""
+import argparse
+import hashlib
+import os
+from pathlib import Path
+import stat
+import sys
+import tempfile
+
+PATCHES = [
+    {
+        "relative": Path("modules/juce_core/text/juce_CharPointer_UTF8.h"),
+        "before": b"""            while ((static_cast<uint8> (n) & bit) != 0 && bit > 0x8)
+            {
+                ++data;
+                bit = static_cast<uint8> (bit >> 1);
+            }""",
+        "after": b"""            while ((static_cast<uint8> (n) & bit) != 0 && bit > 0x8)
+            {
+                // Luthier (JUCE 8.0.10 patch): never step over a byte that is not a
+                // continuation - malformed UTF-8 must not skip the terminator.
+                if ((static_cast<uint8> (*data) & 0xc0) != 0x80)
+                    break;
+
+                ++data;
+                bit = static_cast<uint8> (bit >> 1);
+            }""",
+    },
+    {
+        "relative": Path("modules/juce_core/json/juce_JSON.cpp"),
+        "before": b"""            if (isPositiveAndBelow (digit, 10))
+            {
+                intValue = intValue * 10 + digit;
+                continue;
+            }""",
+        "after": b"""            if (isPositiveAndBelow (digit, 10))
+            {
+                // Luthier (JUCE 8.0.10 patch): a literal beyond int64 is read as a
+                // double instead of overflowing a signed multiply.
+                if (intValue > (std::numeric_limits<int64>::max() - digit) / 10)
+                {
+                    currentLocation = originalPos;
+                    auto asDouble = CharacterFunctions::readDoubleValue (currentLocation);
+                    return var (isNegative ? -asDouble : asDouble);
+                }
+
+                intValue = intValue * 10 + digit;
+                continue;
+            }""",
+    },
+]
+
+
+def apply_one(root, patch, check):
+    target = root / patch["relative"]
+    original = target.read_bytes()
+    canonical = original.replace(b"\r\n", b"\n")
+    if canonical.count(patch["after"]) == 1:
+        return f"{patch['relative'].name}: verified"
+    if canonical.count(patch["before"]) != 1:
+        raise ValueError(f"{patch['relative']}: source differs from the pinned JUCE 8.0.10 preimage; refusing to patch")
+    if check:
+        raise ValueError(f"{patch['relative']}: untrusted-text patch is not applied")
+    patched = canonical.replace(patch["before"], patch["after"], 1)
+    if b"\r\n" in original:
+        patched = patched.replace(b"\n", b"\r\n")
+    mode = stat.S_IMODE(target.stat().st_mode)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=target.parent, prefix=".luthier-text-", delete=False) as stream:
+            temporary = Path(stream.name)
+            stream.write(patched)
+            stream.flush()
+            os.fsync(stream.fileno())
+        temporary.chmod(mode)
+        os.replace(temporary, target)
+        temporary = None
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+    return f"{patch['relative'].name}: applied"
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("juce_root", type=Path)
+    parser.add_argument("--check", action="store_true", help="Require the patches without writing")
+    args = parser.parse_args()
+    try:
+        results = [apply_one(args.juce_root, patch, args.check) for patch in PATCHES]
+        print("JUCE 8.0.10 untrusted-text patches: " + ", ".join(results))
+        return 0
+    except (OSError, ValueError) as error:
+        print(str(error), file=sys.stderr)
+        return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())

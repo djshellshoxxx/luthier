@@ -34,6 +34,7 @@ if (LUTHIER_ENABLE_SENTRY AND (NOT DEFINED SENTRY_DSN OR SENTRY_DSN STREQUAL "")
 endif()
 
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/JuceMidiCapacity.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/JuceUntrustedText.cmake")
 add_subdirectory(ThirdParty/JUCE)
 
 if (LUTHIER_IS_PRO)

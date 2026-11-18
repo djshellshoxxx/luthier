@@ -202,8 +202,16 @@ namespace
                 }
                 else if (m.isTimeSignatureMetaEvent())
                 {
-                    if (p.timeSigNumerator == 0)
-                        m.getTimeSignatureInfo (p.timeSigNumerator, p.timeSigDenominator);
+                    // Read the bytes ourselves: JUCE's getTimeSignatureInfo shifts
+                    // 1 << power with no bound (undefined for power >= 31; found by
+                    // LuthierFuzz). A real file uses powers 0..6 (whole to 64th).
+                    const auto* meta = m.getMetaEventData();
+                    if (p.timeSigNumerator == 0 && m.getMetaEventLength() >= 2
+                        && meta[0] >= 1 && meta[1] <= 6)
+                    {
+                        p.timeSigNumerator = meta[0];
+                        p.timeSigDenominator = 1 << meta[1];
+                    }
                 }
                 else if (m.isKeySignatureMetaEvent())
                 {
