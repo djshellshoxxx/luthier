@@ -60,7 +60,7 @@ definition; engine and UI read only from it.
 | `NoiseEngine` pools | full | full | halved (`setDegraded(true)`) | Only with > 8 simultaneous events per class; quietest stolen |
 | Mod-matrix control interval | 128 | 128 | 256 samples | ~5 ms staircase before destination smoothing; stays 128 while any LFO runs above 20 Hz |
 | Idle-string sleep | off | on | on | None (below -100 dBFS, 2.4) |
-| Ring-out truncation (released strings) | off | at -80 dB re note peak | at -60 dB, max 8 ringing out | Last of the tail; held / E-Bow / feedback strings exempt |
+| Ring-out truncation (released strings) | off | at -80 dB re note peak | at -70 dB, max 8 ringing out | Last of the tail; held / E-Bow / feedback strings exempt |
 | Coupling, pickups, circuit, tone stack, other pedals, feedback, E-Bow, freeze, body coupling bank, noise floor, scrape, per-string outputs | unchanged | unchanged | unchanged | None |
 | UI motion (`AnimationPolicy`, 6) | Full | Limited | Off | Display only |
 | Live readouts (meters, heatmap, playheads) | requested | requested | ≤ 10 Hz, stepped | Display only |
