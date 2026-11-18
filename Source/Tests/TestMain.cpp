@@ -7,6 +7,7 @@
         LuthierTests Tuning       run only suites whose name contains "Tuning"
         LuthierTests --list       list the tests without running them
         LuthierTests --skip=Combo exclude an exact suite name (case-insensitive)
+        LuthierTests --shard=2/4  run the 2nd of 4 interleaved slices of the selection
 */
 
 #include "TestFramework.h"
@@ -44,14 +45,21 @@ int main (int argc, char* argv[])
     for (int i = 1; i < argc; ++i)
         arguments.emplace_back (argv[i]);
     const TestSelection selection (arguments);
+    if (! selection.valid)
+    {
+        std::cerr << "Invalid arguments: --shard expects i/n with 1 <= i <= n" << std::endl;
+        return 2;
+    }
 
     const auto& entries = TestRegistry::get().getEntries();
 
     if (selection.listOnly)
     {
         int listed = 0;
+        int ordinal = 0;
         for (const auto& entry : entries)
-            if (selection.includes (entry.suite.toStdString(), entry.name.toStdString()))
+            if (selection.includes (entry.suite.toStdString(), entry.name.toStdString())
+                && selection.inShard (ordinal++))
             {
                 std::cout << entry.suite << " :: " << entry.name << std::endl;
                 ++listed;
@@ -76,9 +84,12 @@ int main (int argc, char* argv[])
 
     const auto startTime = juce::Time::getMillisecondCounterHiRes();
 
+    int selectedOrdinal = 0;
     for (const auto& entry : entries)
     {
         if (! selection.includes (entry.suite.toStdString(), entry.name.toStdString()))
+            continue;
+        if (! selection.inShard (selectedOrdinal++))
             continue;
 
         if (entry.suite != currentSuite)
