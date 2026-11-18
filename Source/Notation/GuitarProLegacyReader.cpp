@@ -282,7 +282,7 @@ namespace
                 track.name = in.byteSizeString (40);
                 const int strings = in.i32();
                 for (int i = 0; i < 7; ++i)
-                    track.tuning[i] = in.i32();
+                    track.tuning[i] = juce::jlimit (0, 127, in.i32());   // MIDI note; later summed with capo and fret
 
                 if (strings < 1 || strings > 7)
                 {
@@ -294,7 +294,8 @@ namespace
                 track.numStrings = strings;
 
                 in.i32();                        // port
-                const int channel = in.i32();
+                // 1-based, four ports of 16; a hostile value must not overflow below.
+                const int channel = juce::jlimit (1, 64, in.i32());
                 in.i32();                        // effect channel
                 track.channel = channel - 1;
                 if (track.channel % 16 == 9)
