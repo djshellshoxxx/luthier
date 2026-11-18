@@ -110,7 +110,8 @@ function Step-Configure {
 
 function Step-Build {
     $targets = @('Luthier_VST3', 'Luthier_Standalone', 'LuthierTests', 'LuthierRender')
-    if (Test-Path 'ThirdParty/clap-juce-extensions') { $targets += 'Luthier_CLAP' }
+    # LUTHIER_NO_CLAP=1: release builds that do not ship CLAP skip the target.
+    if ((Test-Path 'ThirdParty/clap-juce-extensions') -and $env:LUTHIER_NO_CLAP -ne '1') { $targets += 'Luthier_CLAP' }
     Write-Step "Building $($targets -join ' ') with $Jobs jobs"
     # -k 0: keep going after a failed compile so one CI run surfaces every
     # compiler error, not just the first. A successful build is unaffected.
@@ -127,7 +128,10 @@ function Step-Test {
     if (-not (Test-Path $runner)) { throw "Test runner not found at $runner." }
     Write-Step 'Running the unit tests'
     $testLog = Join-Path $LogDir 'unit-tests.log'
-    & $runner 2>&1 | Tee-Object -FilePath $testLog
+    # TEST_SHARD=i/n runs one interleaved slice of the suite (release.yml).
+    $select = @()
+    if ($env:TEST_SHARD) { $select = @("--shard=$($env:TEST_SHARD)") }
+    & $runner @select 2>&1 | Tee-Object -FilePath $testLog
     $testRc = $LASTEXITCODE
     if ($testRc -ne 0) {
         # Failure recap: re-print every [FAIL] row and its detail lines plus the

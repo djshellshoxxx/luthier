@@ -23,10 +23,10 @@ on:
         type: string
         default: ''
       platforms:
-        description: 'Comma-separated platforms to build: linux, windows, macos (default all)'
+        description: 'Comma-separated platforms to build: linux, windows, macos (default windows,macos)'
         required: false
         type: string
-        default: 'linux,windows,macos'
+        default: 'windows,macos'
       editions:
         description: 'Comma-separated editions to build: pro, free (default both)'
         required: false
@@ -138,8 +138,13 @@ jobs:
     needs: [version, installer-checks]
     uses: ./.github/workflows/build.yml
     with:
-      platforms: ${{ inputs.platforms || 'linux,windows,macos' }}
+      # The 0.1 beta ships Windows and macOS (VST3, AU, standalone). Linux and
+      # CLAP stay in per-push CI but are not release-qualified here.
+      platforms: ${{ inputs.platforms || 'windows,macos' }}
       editions: ${{ inputs.editions || 'pro,free' }}
+      no_clap: true
+      # Four interleaved shards keep each macOS job inside the 6-hour limit.
+      test_shards: 4
       strictness: 10
       lto: true
       package: true
@@ -209,7 +214,7 @@ jobs:
         env:
           SOURCE_SHA: ${{ needs.version.outputs.ref }}
           RELEASE_VERSION: ${{ needs.version.outputs.version }}
-          PLATFORMS: ${{ inputs.platforms || 'linux,windows,macos' }}
+          PLATFORMS: ${{ inputs.platforms || 'windows,macos' }}
           EDITIONS: ${{ inputs.editions || 'pro,free' }}
         run: |
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"

@@ -139,7 +139,9 @@ do_configure() {
 build_targets() {
     local targets=(Luthier_VST3 Luthier_Standalone LuthierTests LuthierRender)
     [ "$PLATFORM" = macos ] && [ "${1:-0}" != 1 ] && targets+=(Luthier_AU)
-    [ -d ThirdParty/clap-juce-extensions ] && targets+=(Luthier_CLAP)
+    # LUTHIER_NO_CLAP=1: release builds that do not ship CLAP skip the target,
+    # so neither clap-validator nor packaging sees one.
+    [ -d ThirdParty/clap-juce-extensions ] && [ "${LUTHIER_NO_CLAP:-0}" != 1 ] && targets+=(Luthier_CLAP)
     echo "${targets[@]}"
 }
 
@@ -176,9 +178,14 @@ do_test() {
         wrap=(xvfb-run -a -s "-screen 0 1920x1080x24")
     fi
 
+    # TEST_SHARD=i/n runs one interleaved slice of the suite (release.yml
+    # spreads the multi-hour suite across parallel jobs).
+    local select=()
+    [ -z "${TEST_SHARD:-}" ] || select=("--shard=$TEST_SHARD")
+
     # The runner exits non-zero on any failure; tee keeps the log either way.
     set +e
-    ${wrap[@]+"${wrap[@]}"} "$runner" 2>&1 | tee "$LOG_DIR/unit-tests.log"
+    ${wrap[@]+"${wrap[@]}"} "$runner" ${select[@]+"${select[@]}"} 2>&1 | tee "$LOG_DIR/unit-tests.log"
     local rc=${PIPESTATUS[0]}
 
     # Failure recap: re-print every [FAIL] row and its indented detail lines,
@@ -257,8 +264,15 @@ fetch_clap_validator() {
         curl -fsSL -o "$TOOLS_DIR/$archive" \
              "https://github.com/free-audio/clap-validator/releases/download/$CLAP_VALIDATOR_VERSION/$archive"
         unzip -oq "$TOOLS_DIR/$archive" -d "$TOOLS_DIR"
+        # The Linux/macOS zips wrap a .tar.gz rather than the bare binary.
+        local tarball
+        while IFS= read -r tarball; do
+            tar -xzf "$tarball" -C "$TOOLS_DIR"
+        done < <(find "$TOOLS_DIR" -maxdepth 1 -type f -name 'clap-validator-*.tar.gz')
         found="$(find "$TOOLS_DIR" -type f -name clap-validator ! -path "$exe" -print -quit)"
         [ -z "$found" ] || mv -f "$found" "$exe"
+        # Called through $(...), so an error here would otherwise be swallowed.
+        [ -f "$exe" ] || { echo "clap-validator not found in $archive" >&2; return 1; }
         chmod +x "$exe"
     fi
     echo "$exe"

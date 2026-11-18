@@ -93,6 +93,21 @@ class ReleaseGuards(unittest.TestCase):
         self.assertIn("list(APPEND LUTHIER_UI_SOURCES ${LUTHIER_WINDOWS_LTO_PARTITION_SOURCES})", cmake)
         self.assertNotIn("LUTHIER_LTO=OFF", (ROOT / ".github/workflows/release.yml").read_text())
 
+    def test_beta_release_scope_is_windows_and_macos_without_clap(self):
+        release = (ROOT / ".github/workflows/release.yml").read_text()
+        build = (ROOT / ".github/workflows/build.yml").read_text()
+        self.assertIn("platforms: ${{ inputs.platforms || 'windows,macos' }}", release)
+        self.assertIn("no_clap: true", release)
+        self.assertIn("test_shards: 4", release)
+        # Sharded runs must still execute the suite: the build job hands its
+        # binaries to a test job that passes --shard through TEST_SHARD.
+        self.assertIn("TEST_SHARD: ${{ matrix.shard }}", build)
+        self.assertIn("needs.plan.outputs.test_matrix", build)
+        for script in ("scripts/ci_build.sh", "scripts/ci_build.ps1"):
+            text = (ROOT / script).read_text()
+            self.assertIn("--shard=", text)
+            self.assertIn("LUTHIER_NO_CLAP", text)
+
     def test_clap_validator_is_current_on_all_release_platforms(self):
         unix = (ROOT / "scripts/ci_build.sh").read_text()
         windows = (ROOT / "scripts/ci_build.ps1").read_text()
