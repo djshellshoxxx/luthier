@@ -42,8 +42,12 @@ namespace
 enum class Target { hostState, boardState, boardExtract, presetJson, tuneJson, midi, gpLegacy, asciiTab, musicXml };
 
 Target target = Target::hostState;
-std::unique_ptr<juce::ScopedJuceInitialiser_GUI> juceInit;
-std::unique_ptr<LuthierAudioProcessor> processor;
+// Deliberately never destroyed: JUCE creates some of its own statics lazily
+// (ShutdownDetector, the timer thread) after these exist, so any exit-time
+// teardown order touches freed JUCE state. They stay reachable, so
+// LeakSanitizer does not report them; the process exit reclaims them.
+juce::ScopedJuceInitialiser_GUI* juceInit = nullptr;
+LuthierAudioProcessor* processor = nullptr;
 
 juce::String asText (const uint8_t* data, size_t size)
 {
@@ -136,7 +140,7 @@ void runMusicXml (const uint8_t* data, size_t size)
 
 extern "C" int LLVMFuzzerInitialize (int*, char***)
 {
-    juceInit = std::make_unique<juce::ScopedJuceInitialiser_GUI>();
+    juceInit = new juce::ScopedJuceInitialiser_GUI();
 
     const char* name = std::getenv ("LUTHIER_FUZZ_TARGET");
     const juce::String t (name != nullptr ? name : "host_state");
@@ -154,7 +158,7 @@ extern "C" int LLVMFuzzerInitialize (int*, char***)
 
     if (target == Target::hostState || target == Target::presetJson)
     {
-        processor = std::make_unique<LuthierAudioProcessor>();
+        processor = new LuthierAudioProcessor();
         processor->prepareToPlay (48000.0, 256);
     }
 
