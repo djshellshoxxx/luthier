@@ -1,8 +1,8 @@
-# Host state, presets, tunes and imported files are untrusted text. Four narrow
+# Host state, presets, tunes and imported files are untrusted text. Narrow
 # JUCE 8.0.10 fixes found by LuthierFuzz (scripts/patch_juce_untrusted_text.py):
 # malformed UTF-8 overrunning its terminator, JSON integer overflow, and an XML
 # parser hang on a processing instruction inside element text, and an exponent
-# overflow in readDoubleValue.
+# overflow in readDoubleValue, unbounded JSON nesting and an XML entity overread.
 find_package(Python3 3.8 REQUIRED COMPONENTS Interpreter)
 set(_luthier_text_patch "${CMAKE_CURRENT_SOURCE_DIR}/scripts/patch_juce_untrusted_text.py")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS

@@ -20,6 +20,10 @@ presets, tunes and imported files, which are untrusted input:
 4. juce_CharacterFunctions.h, readDoubleValue: the exponent of a number such
    as 1e9999999999 overflowed int. It now saturates; the value is unchanged
    (infinity or zero either way).
+5. juce_JSON.cpp, JSONParser: recursion depth is bounded (256); deeply nested
+   brackets in a session or preset overflowed the stack.
+6. juce_XmlDocument.cpp, readEntity: a hex character reference ended by an
+   illegal digit or the terminator ("&#x" at the end) read past the text.
 
 The upstream licence is retained. Call during configuration, never from audio.
 """
@@ -118,6 +122,62 @@ PATCHES = [
                 // Any exponent this large already yields infinity or zero.
                 if ((digit != 0 || exponent != 0) && exponent < 100000)
                     exponent = (exponent * 10) + digit;""",
+    },
+    {
+        "relative": Path("modules/juce_core/json/juce_JSON.cpp"),
+        "before": b"""    String::CharPointerType startLocation, currentLocation;
+""",
+        "after": b"""    String::CharPointerType startLocation, currentLocation;
+
+    // Luthier (JUCE 8.0.10 patch): bounded nesting. The parser recurses once per
+    // '[' or '{', so a session or preset of nested brackets overflowed the stack.
+    int nestingDepth = 0;
+    static constexpr int maxNestingDepth = 256;
+
+    struct NestingScope
+    {
+        NestingScope (JSONParser& parserIn, String::CharPointerType location) : parser (parserIn)
+        {
+            if (++parser.nestingDepth > maxNestingDepth)
+            {
+                --parser.nestingDepth;
+                parser.throwError ("Nesting too deep", location);
+            }
+        }
+
+        ~NestingScope() { --parser.nestingDepth; }
+
+        JSONParser& parser;
+    };
+""",
+    },
+    {
+        "relative": Path("modules/juce_core/json/juce_JSON.cpp"),
+        "before": b"""            case '{':    return parseObject();
+            case '[':    return parseArray();
+""",
+        "after": b"""            case '{':    { const NestingScope scope (*this, originalLocation); return parseObject(); }
+            case '[':    { const NestingScope scope (*this, originalLocation); return parseArray(); }
+""",
+    },
+    {
+        "relative": Path("modules/juce_core/xml/juce_XmlDocument.cpp"),
+        "before": b"""                charCode = (charCode << 4) | hexValue;
+                ++input;
+            }
+
+            ++input;
+        }""",
+        "after": b"""                charCode = (charCode << 4) | hexValue;
+                ++input;
+            }
+
+            // Luthier (JUCE 8.0.10 patch): step over the ';' only. After an
+            // illegal digit - including the terminator, as in a trailing
+            // "&#x" - this stepped past the end of the text.
+            if (*input == ';')
+                ++input;
+        }""",
     },
 ]
 

@@ -143,3 +143,27 @@ LUTHIER_TEST (FuzzRegression, hugeJsonExponentsSaturate)
     CHECK ((double) v[1] == 0.0);
     CHECK ((double) v[2] == 2500.0);
 }
+
+// JUCE 8.0.10 patch: JSON nesting is bounded, so a session of nested brackets
+// is refused instead of overflowing the stack. Real documents nest a few deep.
+LUTHIER_TEST (FuzzRegression, deeplyNestedJsonIsRefusedNotACrash)
+{
+    juce::var parsed;
+    const auto deep = juce::String::repeatedString ("[", 100000);
+    CHECK (juce::JSON::parse (deep, parsed).failed());
+
+    const auto shallow = juce::String::repeatedString ("[", 200) + juce::String::repeatedString ("]", 200);
+    CHECK (juce::JSON::parse (shallow, parsed).wasOk());
+}
+
+// JUCE 8.0.10 patch: a hex character reference cut off by the end of the text
+// ("&#x") no longer steps past the terminator.
+LUTHIER_TEST (FuzzRegression, truncatedHexEntityStaysInBounds)
+{
+    for (const char* text : { "<a>&#x", "<a>&#x4", "<a b='&#x'/>", "<a>&#xZZ;</a>" })
+    {
+        auto xml = juce::parseXML (juce::String (text));
+        juce::ignoreUnused (xml);   // malformed: refusal or a partial tree; the sanitizer build checks memory
+    }
+    CHECK (true);
+}
