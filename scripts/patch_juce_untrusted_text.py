@@ -14,6 +14,9 @@ presets, tunes and imported files, which are untrusted input:
    a signed multiply (undefined behaviour). It is now read as a double, the
    same path a literal with a '.' or exponent takes. In-range integers are
    unaffected.
+3. juce_XmlDocument.cpp, readChildElements: a processing instruction inside
+   element text ("<?pi?>x") made the parser loop forever (a crafted MusicXML
+   file hung the importer). It is now skipped like a comment.
 
 The upstream licence is retained. Call during configuration, never from audio.
 """
@@ -67,6 +70,42 @@ PATCHES = [
                 intValue = intValue * 10 + digit;
                 continue;
             }""",
+    },
+    {
+        "relative": Path("modules/juce_core/xml/juce_XmlDocument.cpp"),
+        "before": b"""                        input += closeComment + 3;
+                        continue;
+                    }
+
+                    break;
+                }""",
+        "after": b"""                        input += closeComment + 3;
+                        continue;
+                    }
+
+                    // Luthier (JUCE 8.0.10 patch): a processing instruction inside
+                    // text is skipped like a comment. Without this, "<?pi?>x" in an
+                    // element looped forever: skipNextWhiteSpace stepped over the
+                    // instruction, the text block rolled back to before it and
+                    // stopped at its '<' having read nothing.
+                    if (input[1] == '?')
+                    {
+                        input += 2;
+                        auto closeInstruction = input.indexOf (CharPointer_ASCII ("?>"));
+
+                        if (closeInstruction < 0)
+                        {
+                            setLastError ("unterminated processing instruction", false);
+                            outOfData = true;
+                            return;
+                        }
+
+                        input += closeInstruction + 2;
+                        continue;
+                    }
+
+                    break;
+                }""",
     },
 ]
 

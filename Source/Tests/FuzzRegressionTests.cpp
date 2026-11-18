@@ -119,3 +119,15 @@ LUTHIER_TEST (FuzzRegression, oversizedJsonIntegersBecomeDoubles)
     CHECK (big[1].isDouble() && (double) big[1] < -9.0e19);
     CHECK (big[2].isInt64() && (juce::int64) big[2] == std::numeric_limits<juce::int64>::max());
 }
+
+// JUCE 8.0.10 patch: a processing instruction inside element text used to make
+// XmlDocument loop forever (a crafted MusicXML file hung the importer).
+LUTHIER_TEST (FuzzRegression, processingInstructionInsideTextDoesNotHang)
+{
+    const auto xml = juce::parseXML ("<a>t<?pi data?>x</a>");
+    CHECK (xml != nullptr);
+    if (xml == nullptr)
+        return;
+    CHECK (xml->hasTagName ("a"));
+    CHECK (xml->getAllSubText().contains ("t") && xml->getAllSubText().contains ("x"));
+}
