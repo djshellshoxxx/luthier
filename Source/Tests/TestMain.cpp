@@ -13,6 +13,8 @@
 #include "TestFramework.h"
 #include "TestSelection.h"
 #include <juce_events/juce_events.h>
+#include <juce_gui_basics/juce_gui_basics.h>
+#include <typeinfo>
 #include "../UI/FirstRun.h"
 #include "../UI/Onboarding.h"
 #include "../Support/QualityController.h"
@@ -24,6 +26,31 @@ namespace
     juce::String pad (const juce::String& s, int width)
     {
         return s.paddedRight (' ', width);
+    }
+
+    // Test isolation: an asynchronous popup (menu, call-out, message box) a test
+    // opened and never closed stays modal and would steal keys and modal checks
+    // from whichever test runs next, so results would depend on test order and
+    // on the --shard slice. Report the leak against the test that caused it,
+    // then close it so the next test starts from a clean UI state.
+    void closeLeftoverModals (const juce::String& testName)
+    {
+        auto* modal = juce::ModalComponentManager::getInstanceWithoutCreating();
+        const int count = modal != nullptr ? modal->getNumModalComponents() : 0;
+        if (count == 0)
+            return;
+
+        juce::StringArray kinds;
+        for (int i = 0; i < count; ++i)
+            if (auto* component = modal->getModalComponent (i))
+                kinds.add (typeid (*component).name());
+
+        std::cout << "  [note]  " << testName << " left " << count << " modal component(s) open"
+                  << (kinds.isEmpty() ? juce::String() : " (" + kinds.joinIntoString (", ") + ")")
+                  << "; closed before the next test" << std::endl;
+        juce::PopupMenu::dismissAllActiveMenus();
+        if (modal != nullptr)
+            modal->cancelAllModalComponents();
     }
 }
 
@@ -118,6 +145,7 @@ int main (int argc, char* argv[])
         }
 
         const auto elapsed = juce::Time::getMillisecondCounterHiRes() - testStart;
+        closeLeftoverModals (entry.suite + "." + entry.name);
 
         ++totalTests;
         totalChecks += ctx.checks;
