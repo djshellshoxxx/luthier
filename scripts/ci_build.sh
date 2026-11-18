@@ -155,6 +155,12 @@ do_build() {
     cmake --build "$BUILD_DIR" --config "$CONFIG" --parallel "$JOBS" --target "${targets[@]}" -- -k 0 \
         2>&1 | tee "$LOG_DIR/build.log"
 
+    # Configure lays out an empty CLAP bundle (resources, Info.plist) even when
+    # its target is not built; remove it so validate/stage/package see no CLAP.
+    if [ "${LUTHIER_NO_CLAP:-0}" = 1 ]; then
+        rm -rf "$ARTEFACTS/CLAP"
+    fi
+
     if [ "$PLATFORM" = macos ]; then
         # Resources are copied into each bundle after JUCE has signed it, which
         # breaks the seal. An ad-hoc signature keeps the bundles loadable on
