@@ -1,4 +1,5 @@
 #include "Patterns.h"
+#include "../Support/UntrustedText.h"
 
 namespace luthier
 {
@@ -462,7 +463,7 @@ bool RhythmPattern::loadFrom (const juce::File& file)
     if (! file.existsAsFile())
         return false;
 
-    const auto parsed = juce::JSON::parse (file.loadFileAsString());
+    const auto parsed = juce::JSON::parse (UntrustedText::loadFile (file));
 
     if (parsed.getDynamicObject() == nullptr)
         return false;

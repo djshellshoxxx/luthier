@@ -1,4 +1,5 @@
 #include "Setlist.h"
+#include "../Support/UntrustedText.h"
 #include "../Presets/FactoryPresets.h"   // SPEC-SWEEP: FC-1
 
 namespace luthier
@@ -163,7 +164,7 @@ bool Setlist::loadFrom (const juce::File& file)
         return false;
     }
 
-    const auto parsed = juce::JSON::parse (file.loadFileAsString());
+    const auto parsed = juce::JSON::parse (UntrustedText::loadFile (file));
     auto* root = parsed.getDynamicObject();
 
     if (root == nullptr)
@@ -304,7 +305,7 @@ juce::var SetlistPlayer::readEntry (int index)
         return {};
     }
 
-    const auto parsed = juce::JSON::parse (file.loadFileAsString());
+    const auto parsed = juce::JSON::parse (UntrustedText::loadFile (file));
 
     if (parsed.getDynamicObject() == nullptr)
     {

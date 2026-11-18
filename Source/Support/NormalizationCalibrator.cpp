@@ -1,4 +1,5 @@
 #include "NormalizationCalibrator.h"
+#include "UntrustedText.h"
 #include "OutputNormalization.h"
 #include "NormalizationPhrase.h"
 #include "ErrorLog.h"
@@ -168,7 +169,7 @@ namespace
         if (! file.existsAsFile())
             return;
 
-        const auto json = juce::JSON::parse (file);
+        const auto json = juce::JSON::parse (UntrustedText::loadFile (file));
 
         if ((int) json.getProperty ("revision", 0) != NormalizationCalibrator::kCalibrationRevision)
             return;
@@ -713,7 +714,7 @@ bool NormalizationCalibrator::lookupCached (const juce::String& hash, Measuremen
 
     if (file.existsAsFile())
     {
-        const auto json = juce::JSON::parse (file);
+        const auto json = juce::JSON::parse (UntrustedText::loadFile (file));
 
         if (json.isObject()
              && json.getProperty ("hash", {}).toString() == hash

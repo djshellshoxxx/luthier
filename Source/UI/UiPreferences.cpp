@@ -1,4 +1,5 @@
 #include "UiPreferences.h"
+#include "../Support/UntrustedText.h"
 
 namespace luthier
 {
@@ -128,7 +129,7 @@ bool UiPreferences::load()
     if (! file.existsAsFile())
         return false;
 
-    const auto parsed = juce::JSON::parse (file.loadFileAsString());
+    const auto parsed = juce::JSON::parse (UntrustedText::loadFile (file));
 
     /*  A file that is there but unreadable is treated as no file. Refusing to
         start because a preference file was corrupted would be the worse failure,

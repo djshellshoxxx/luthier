@@ -1,4 +1,5 @@
 #include "LicenceStore.h"
+#include "../Support/UntrustedText.h"
 
 namespace luthier
 {
@@ -47,7 +48,7 @@ std::optional<juce::String> LicenceStore::loadEnvelope() const
     if (! file.existsAsFile())
         return std::nullopt;
 
-    const auto text = file.loadFileAsString();
+    const auto text = UntrustedText::loadFile (file);
 
     if (juce::JSON::parse (text).getDynamicObject() == nullptr)
         return std::nullopt;
@@ -63,7 +64,7 @@ bool LicenceStore::removeEnvelope() const
 
 juce::Time LicenceStore::loadLastSeen() const
 {
-    const auto state = juce::JSON::parse (getStateFile().loadFileAsString());
+    const auto state = juce::JSON::parse (UntrustedText::loadFile (getStateFile()));
     const auto* obj = state.getDynamicObject();
 
     if (obj == nullptr)

@@ -1,4 +1,5 @@
 #include "Localisation.h"
+#include "../Support/UntrustedText.h"
 #include "QualityStrings.h"   // cpu-quality-modes
 
 namespace luthier
@@ -82,7 +83,7 @@ bool Localisation::loadCatalog (const juce::String& code,
     if (! file.existsAsFile())
         return false;
 
-    const auto parsed = juce::JSON::parse (file.loadFileAsString());
+    const auto parsed = juce::JSON::parse (UntrustedText::loadFile (file));
     auto* object = parsed.getDynamicObject();
 
     if (object == nullptr)

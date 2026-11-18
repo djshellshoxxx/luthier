@@ -1,4 +1,5 @@
 #include "PreviewCache.h"
+#include "../../Support/UntrustedText.h"
 #include <mutex>
 
 namespace luthier
@@ -83,7 +84,7 @@ juce::var PreviewCache::lookup (const juce::String& hash) const
     if (! sidecar.existsAsFile() || ! oggFileFor (hash).existsAsFile())
         return {};
 
-    auto parsed = juce::JSON::parse (sidecar.loadFileAsString());
+    auto parsed = juce::JSON::parse (UntrustedText::loadFile (sidecar));
 
     if (parsed.getProperty ("magic", {}).toString() != kMagic
         || parsed.getProperty ("hash", {}).toString() != hash)

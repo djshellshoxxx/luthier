@@ -1,4 +1,5 @@
 #include "PresetIndex.h"
+#include "../../Support/UntrustedText.h"
 
 namespace luthier
 {
@@ -83,7 +84,7 @@ PresetIndex::Parsed PresetIndex::parseFile (const juce::File& file, const Preset
     p.file = file;
     p.modified = file.getLastModificationTime();
 
-    const auto json = juce::JSON::parse (file.loadFileAsString());
+    const auto json = juce::JSON::parse (UntrustedText::loadFile (file));
     auto* object = json.getDynamicObject();
 
     // 15: a corrupt or refused file is still listed by name, without a preview.

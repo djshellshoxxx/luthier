@@ -1,4 +1,5 @@
 #include "ConfigRecovery.h"
+#include "UntrustedText.h"
 #include "ErrorLog.h"
 
 namespace luthier
@@ -50,7 +51,7 @@ juce::var loadObject (const juce::File& file, const juce::String& module, int ma
     if (! file.existsAsFile())
         return {};
 
-    const auto parsed = juce::JSON::parse (file.loadFileAsString());
+    const auto parsed = juce::JSON::parse (UntrustedText::loadFile (file));
 
     const bool unreadable = parsed.getDynamicObject() == nullptr;
     const bool newer = ! unreadable && maxSchema >= 0 && parsed.hasProperty ("schema")

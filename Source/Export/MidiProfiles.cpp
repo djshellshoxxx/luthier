@@ -1,4 +1,5 @@
 #include "MidiProfiles.h"
+#include "../Support/UntrustedText.h"
 
 #include "../Support/MidiCapture.h"
 
@@ -2066,7 +2067,7 @@ bool loadProfile (const juce::File& file, MidiExportOptions& options, juce::Stri
     }
 
     juce::var parsed;
-    const auto parseResult = juce::JSON::parse (file.loadFileAsString(), parsed);
+    const auto parseResult = juce::JSON::parse (UntrustedText::loadFile (file), parsed);
 
     if (parseResult.failed())
     {

@@ -1,4 +1,5 @@
 #include "NotationExport.h"
+#include "../Support/UntrustedText.h"
 #include "AsciiTabWriter.h" // FEAT2-TAB
 #include "TabFingering.h"  // tab-import-export 8
 #include "GuitarProLegacyReader.h"
@@ -1415,7 +1416,7 @@ NotationImporter::FileKind NotationImporter::detectKind (const juce::File& file)
     if (extension == ".musicxml" || extension == ".xml")
         return FileKind::musicXml;
 
-    const juce::String text = juce::String::fromUTF8 ((const char*) head, (int) got).trimStart();
+    const juce::String text = UntrustedText::fromBytes (head, (size_t) got).trimStart();
     if (text.startsWith ("<?xml") && (text.contains ("score-") || extension.isEmpty()))
         return FileKind::musicXml;
 
@@ -1467,14 +1468,14 @@ bool NotationImporter::read (const juce::File& file, PerformanceScore& destinati
             return readMidi (file, destination);
 
         case FileKind::musicXml:
-            return readMusicXml (file.loadFileAsString(), destination);
+            return readMusicXml (UntrustedText::loadFile (file), destination);
 
         case FileKind::asciiTab:
         case FileKind::unknown:
             break;
     }
 
-    return readAsciiTab (file.loadFileAsString(), destination);
+    return readAsciiTab (UntrustedText::loadFile (file), destination);
 }
 
 bool NotationImporter::readGuitarProLegacy (const void* data, size_t numBytes, PerformanceScore& destination)
@@ -1513,7 +1514,11 @@ bool NotationImporter::readCompressedMusicXml (const juce::File& file, Performan
             return {};
 
         std::unique_ptr<juce::InputStream> stream (zip.createStreamForEntry (index));
-        return stream != nullptr ? stream->readEntireStreamAsString() : juce::String();
+        if (stream == nullptr)
+            return juce::String();
+        juce::MemoryBlock bytes;
+        stream->readIntoMemoryBlock (bytes);
+        return UntrustedText::fromBytes (bytes.getData(), bytes.getSize());
     };
 
     juce::String rootPath;
@@ -2231,7 +2236,9 @@ bool NotationImporter::readGuitarPro (const juce::File& file, PerformanceScore& 
         if (stream == nullptr)
             break;
 
-        return readGpif (stream->readEntireStreamAsString(), destination);
+        juce::MemoryBlock bytes;
+        stream->readIntoMemoryBlock (bytes);
+        return readGpif (UntrustedText::fromBytes (bytes.getData(), bytes.getSize()), destination);
     }
 
     lastError = file.getFileName() + " is not a Guitar Pro 7/8 file (no Content/score.gpif inside).";

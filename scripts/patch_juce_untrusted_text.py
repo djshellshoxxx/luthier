@@ -54,8 +54,10 @@ PATCHES = [
         "after": b"""            if (isPositiveAndBelow (digit, 10))
             {
                 // Luthier (JUCE 8.0.10 patch): a literal beyond int64 is read as a
-                // double instead of overflowing a signed multiply.
-                if (intValue > (std::numeric_limits<int64>::max() - digit) / 10)
+                // double instead of overflowing a signed multiply. intValue is
+                // negative when the literal began "--" (the first '-' chose
+                // parseNumber, the second was read as a digit).
+                if (intValue < 0 || intValue > (std::numeric_limits<int64>::max() - digit) / 10)
                 {
                     currentLocation = originalPos;
                     auto asDouble = CharacterFunctions::readDoubleValue (currentLocation);

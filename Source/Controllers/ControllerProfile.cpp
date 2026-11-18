@@ -1,4 +1,5 @@
 #include "ControllerProfile.h"
+#include "../Support/UntrustedText.h"
 #include "ControllerStage.h"   // SPEC-SWEEP
 
 #include <algorithm>
@@ -258,7 +259,7 @@ bool ControllerProfile::loadFrom (const juce::File& file)
     if (! file.existsAsFile())
         return false;
 
-    const auto parsed = juce::JSON::parse (file.loadFileAsString());
+    const auto parsed = juce::JSON::parse (UntrustedText::loadFile (file));
 
     if (parsed.getDynamicObject() == nullptr)
         return false;

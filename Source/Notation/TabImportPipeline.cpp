@@ -1,4 +1,5 @@
 #include "TabImportPipeline.h"
+#include "../Support/UntrustedText.h"
 #include "TabDirectiveApplier.h"
 #include "TabChordChart.h"
 #include "TabKeyDetector.h"
@@ -116,7 +117,7 @@ bool TabImportPipeline::read (const juce::File& file, PerformanceScore& destinat
         return false;
     }
 
-    return read (file.loadFileAsString(), destination, diagnostics);
+    return read (UntrustedText::loadFile (file), destination, diagnostics);
 }
 
 } // namespace luthier

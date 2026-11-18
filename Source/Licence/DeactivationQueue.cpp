@@ -1,4 +1,5 @@
 #include "DeactivationQueue.h"
+#include "../Support/UntrustedText.h"
 
 namespace luthier
 {
@@ -21,7 +22,7 @@ juce::Array<juce::var> DeactivationQueue::load() const
     if (! file.existsAsFile())
         return {};
 
-    const auto parsed = juce::JSON::parse (file.loadFileAsString());
+    const auto parsed = juce::JSON::parse (UntrustedText::loadFile (file));
     if (const auto* a = parsed.getArray())
         return *a;
 

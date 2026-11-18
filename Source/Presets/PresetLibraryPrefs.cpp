@@ -1,4 +1,5 @@
 #include "PresetLibraryPrefs.h"
+#include "../Support/UntrustedText.h"
 
 namespace luthier
 {
@@ -41,7 +42,7 @@ bool PresetLibraryPrefs::load()
     if (! file.existsAsFile())
         return false;
 
-    const auto parsed = juce::JSON::parse (file.loadFileAsString());
+    const auto parsed = juce::JSON::parse (UntrustedText::loadFile (file));
 
     if (parsed.getProperty ("magic", {}).toString() != kMagic)
         return false;

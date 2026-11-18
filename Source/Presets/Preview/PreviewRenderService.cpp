@@ -1,4 +1,5 @@
 #include "PreviewRenderService.h"
+#include "../../Support/UntrustedText.h"
 #include "../../PluginProcessor.h"
 #include "../../Support/IrLibrary.h"
 #include "../../Support/ErrorLog.h"
@@ -269,7 +270,7 @@ void PreviewRenderService::loadManifest()
     if (! manifestFile.existsAsFile())
         return;   // 15: factory presets render locally
 
-    const auto parsed = juce::JSON::parse (manifestFile.loadFileAsString());
+    const auto parsed = juce::JSON::parse (UntrustedText::loadFile (manifestFile));
 
     if (auto* entries = parsed.getProperty ("entries", {}).getArray())
         for (const auto& e : *entries)
@@ -367,7 +368,7 @@ PreviewRenderService::Ready PreviewRenderService::process (const Job& job)
     Ready r;
     r.file = job.file;
 
-    const auto json = juce::JSON::parse (job.file.loadFileAsString());
+    const auto json = juce::JSON::parse (UntrustedText::loadFile (job.file));
 
     if (json.getDynamicObject() == nullptr || json.getProperty ("parameters", {}).getDynamicObject() == nullptr)
     {

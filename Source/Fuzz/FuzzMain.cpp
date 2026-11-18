@@ -34,6 +34,7 @@
 #include "../Tune/TuneImport.h"
 #include "../Notation/GuitarProLegacyReader.h"
 #include "../Notation/NotationExport.h"
+#include "../Support/UntrustedText.h"
 
 using namespace luthier;
 
@@ -49,9 +50,11 @@ Target target = Target::hostState;
 juce::ScopedJuceInitialiser_GUI* juceInit = nullptr;
 LuthierAudioProcessor* processor = nullptr;
 
+// The product decodes every external byte stream through UntrustedText; so
+// does the harness, which makes it fuzz what a file or paste can really reach.
 juce::String asText (const uint8_t* data, size_t size)
 {
-    return juce::String::fromUTF8 (reinterpret_cast<const char*> (data), (int) size);
+    return UntrustedText::fromBytes (data, size);
 }
 
 void requireFinite (const juce::AudioBuffer<float>& buffer)

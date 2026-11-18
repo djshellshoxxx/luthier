@@ -1,4 +1,5 @@
 #include "PresetManager.h"
+#include "../Support/UntrustedText.h"
 #if defined(LUTHIER_ALLOCATION_COUNTER)
  #include "../Tests/PresetFolderTestSupport.h"
 #endif
@@ -330,7 +331,7 @@ void PresetManager::scanFolder (const juce::File& folder, bool factory)
                                                                           .upToFirstOccurrenceOf ("/", false, false);
 
         // Read just the metadata; the full parameter block is only parsed on load.
-        if (auto parsed = juce::JSON::parse (file.loadFileAsString()); auto* obj = parsed.getDynamicObject())
+        if (auto parsed = juce::JSON::parse (UntrustedText::loadFile (file)); auto* obj = parsed.getDynamicObject())
         {
             if (obj->hasProperty ("name"))        info.name = obj->getProperty ("name").toString();
             if (obj->hasProperty ("author"))      info.author = obj->getProperty ("author").toString();
@@ -1644,7 +1645,7 @@ bool PresetManager::saveAs (const juce::String& name, const juce::String& catego
         juce::String existingUid;
 
         if (file.existsAsFile())
-            existingUid = juce::JSON::parse (file.loadFileAsString()).getProperty ("uid", {}).toString();
+            existingUid = juce::JSON::parse (UntrustedText::loadFile (file)).getProperty ("uid", {}).toString();
 
         currentUid = existingUid.isNotEmpty() ? existingUid : juce::Uuid().toString();
 

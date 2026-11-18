@@ -1,4 +1,5 @@
 #include "FactoryPresets.h"
+#include "../Support/UntrustedText.h"
 #include "PresetManager.h"
 #include "../Parameters.h"
 #include "TechniquePresets.h"
@@ -994,7 +995,7 @@ void FactoryPresets::writeAll (const juce::File& folder)
                 common case - every factory file already current - without parsing
                 all seventy on every refresh (OPTIMISATION_LOG: 50 ms per refresh,
                 and a refresh follows every save). Anything else takes the parse. */
-            const auto text = file.loadFileAsString();
+            const auto text = UntrustedText::loadFile (file);
 
             if (const int at = text.indexOf ("\"factoryRevision\""); at >= 0)
             {

@@ -1,4 +1,5 @@
 #include "GuitarThumbnails.h"
+#include "../../Support/UntrustedText.h"
 #include "GuitarRenderer.h"
 #include "../../PluginProcessor.h"
 
@@ -78,7 +79,7 @@ bool GuitarThumbnails::guitarForPreset (const juce::File& presetFile, const Part
 {
     juce::var json;
 
-    if (juce::JSON::parse (presetFile.loadFileAsString(), json).failed() || ! json.isObject())
+    if (juce::JSON::parse (UntrustedText::loadFile (presetFile), json).failed() || ! json.isObject())
         return false;
 
     PartLibrary::LoadReport report;

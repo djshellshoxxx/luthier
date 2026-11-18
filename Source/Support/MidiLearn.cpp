@@ -1,4 +1,5 @@
 #include "MidiLearn.h"
+#include "UntrustedText.h"
 #include "BoundedMidi.h"
 
 namespace luthier
@@ -441,7 +442,7 @@ void MidiLearnManager::loadGlobalMappings()
     if (! file.existsAsFile())
         return;
 
-    const auto parsed = juce::JSON::parse (file.loadFileAsString());   // kept: getArray points into it
+    const auto parsed = juce::JSON::parse (UntrustedText::loadFile (file));   // kept: getArray points into it
 
     if (auto* array = parsed.getArray())
         for (const auto& item : *array)

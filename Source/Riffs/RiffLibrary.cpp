@@ -1,4 +1,5 @@
 #include "RiffLibrary.h"
+#include "../Support/UntrustedText.h"
 
 #include "../Support/IrLibrary.h"
 
@@ -203,7 +204,7 @@ RiffLibrary::IndexData RiffLibrary::buildIndex (const juce::File& factory, const
 
     if (factory != juce::File() && catalogFile.existsAsFile())
     {
-        const auto root = juce::JSON::parse (catalogFile.loadFileAsString());
+        const auto root = juce::JSON::parse (UntrustedText::loadFile (catalogFile));
 
         if (root["magic"].toString() == "luthier.riffcatalog")
         {
@@ -677,7 +678,7 @@ void RiffLibrary::loadGlobal()
     if (! globalFile.existsAsFile())
         return;
 
-    const auto root = juce::JSON::parse (globalFile.loadFileAsString());
+    const auto root = juce::JSON::parse (UntrustedText::loadFile (globalFile));
 
     if (auto* f = root["favourites"].getArray())
         for (const auto& id : *f)

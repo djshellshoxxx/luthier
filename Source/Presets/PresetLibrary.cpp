@@ -1,4 +1,5 @@
 #include "PresetLibrary.h"
+#include "../Support/UntrustedText.h"
 #include "../PluginProcessor.h"
 
 namespace luthier
@@ -238,7 +239,7 @@ bool PresetLibrary::renamePreset (int entry, const juce::String& newName)
     if (e.info.isFactory || safe.isEmpty())
         return false;
 
-    auto json = juce::JSON::parse (e.info.file.loadFileAsString());
+    auto json = juce::JSON::parse (UntrustedText::loadFile (e.info.file));
 
     if (auto* o = json.getDynamicObject())
     {

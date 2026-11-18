@@ -1,4 +1,5 @@
 #include "PreviewRenderer.h"
+#include "../../Support/UntrustedText.h"
 #include "../../PluginProcessor.h"
 #include "../../Parameters.h"
 #include <juce_cryptography/juce_cryptography.h>
@@ -133,7 +134,7 @@ namespace
             if (file.existsAsFile())
             {
                 out << "file:";
-                writeCanonical (out, juce::JSON::parse (file.loadFileAsString()));
+                writeCanonical (out, juce::JSON::parse (UntrustedText::loadFile (file)));
             }
             else
             {
@@ -496,7 +497,7 @@ PreviewResult PreviewRenderer::renderLoaded (const juce::File& file, const std::
     PreviewResult result;
     const auto startMs = juce::Time::getMillisecondCounterHiRes();
 
-    const auto json = juce::JSON::parse (file.loadFileAsString());
+    const auto json = juce::JSON::parse (UntrustedText::loadFile (file));
 
     if (json.getDynamicObject() == nullptr)
     {

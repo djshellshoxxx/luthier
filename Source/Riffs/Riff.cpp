@@ -1,4 +1,5 @@
 #include "Riff.h"
+#include "../Support/UntrustedText.h"
 
 #include <algorithm>
 #include <cmath>
@@ -1078,7 +1079,7 @@ juce::Result Riff::loadFromFile (const juce::File& file, Riff& out, juce::String
     if (file.getSize() > 4 * 1024 * 1024)
         return juce::Result::fail ("oversized " + file.getFileName());
 
-    return fromJson (file.loadFileAsString(), out, warnings);
+    return fromJson (UntrustedText::loadFile (file), out, warnings);
 }
 
 juce::Result Riff::saveToFile (const juce::File& file) const

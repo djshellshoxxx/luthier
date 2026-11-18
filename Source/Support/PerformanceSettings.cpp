@@ -1,4 +1,5 @@
 #include "PerformanceSettings.h"
+#include "UntrustedText.h"
 #include "../Support/ConfigRecovery.h"
 
 namespace luthier
@@ -133,7 +134,7 @@ bool PerformanceSettings::load()
 
     if (file.existsAsFile())
     {
-        ok = parse (file.loadFileAsString(), v);
+        ok = parse (UntrustedText::loadFile (file), v);
         lastModification = file.getLastModificationTime();
 
         if (! ok)

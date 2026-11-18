@@ -1,4 +1,5 @@
 #include "PracticeRoutine.h"
+#include "../Support/UntrustedText.h"
 
 #include <cmath>
 
@@ -240,7 +241,7 @@ namespace practicefiles
         }
 
         juce::var parsed;
-        const auto parse = juce::JSON::parse (file.loadFileAsString(), parsed);
+        const auto parse = juce::JSON::parse (UntrustedText::loadFile (file), parsed);
 
         if (parse.failed())
         {

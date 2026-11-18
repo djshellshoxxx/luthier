@@ -1,4 +1,5 @@
 #include "Telemetry.h"
+#include "../Support/UntrustedText.h"
 #include "../Support/ConfigRecovery.h"
 
 #include <juce_events/juce_events.h>   // SPEC-SWEEP: UT-4 (MessageManager)
@@ -221,7 +222,7 @@ Policy Policy::load()
     if (! file.existsAsFile())
         return policy;
 
-    const auto parsed = juce::JSON::parse (file.loadFileAsString());
+    const auto parsed = juce::JSON::parse (UntrustedText::loadFile (file));
     auto* root = parsed.getDynamicObject();
 
     if (root == nullptr)
@@ -587,7 +588,7 @@ void Telemetry::logNetworkCall (const juce::String& destination, const juce::Str
     // reads and a disk nobody expected to fill.
     if (file.getSize() > 1024 * 512)
     {
-        const auto lines = juce::StringArray::fromLines (file.loadFileAsString());
+        const auto lines = juce::StringArray::fromLines (UntrustedText::loadFile (file));
 
         juce::StringArray kept;
 
@@ -600,12 +601,12 @@ void Telemetry::logNetworkCall (const juce::String& destination, const juce::Str
 
 juce::StringArray Telemetry::readNetworkLog() const
 {
-    return juce::StringArray::fromLines (getNetworkLogFile().loadFileAsString());
+    return juce::StringArray::fromLines (UntrustedText::loadFile (getNetworkLogFile()));
 }
 
 juce::StringArray Telemetry::readTelemetryLog() const
 {
-    return juce::StringArray::fromLines (getTelemetryLogFile().loadFileAsString());
+    return juce::StringArray::fromLines (UntrustedText::loadFile (getTelemetryLogFile()));
 }
 
 //==============================================================================
@@ -684,7 +685,7 @@ juce::String Telemetry::describePendingCrashReport() const
     if (report.existsAsFile())
     {
         description << "Accompanying troubleshooting report:\n\n"
-                    << report.loadFileAsString();
+                    << UntrustedText::loadFile (report);
     }
     else
     {

@@ -1,4 +1,5 @@
 #include "InstallLayout.h"
+#include "UntrustedText.h"
 
 namespace luthier
 {
@@ -59,7 +60,7 @@ InstallLayout::Result InstallLayout::ensure (const juce::File& root, const juce:
     }
     else
     {
-        const auto previous = marker.loadFileAsString().trim();
+        const auto previous = UntrustedText::loadFile (marker).trim();
 
         if (previous != runningVersion)
             result.upgradedFrom = previous.isEmpty() ? juce::String ("unknown") : previous;

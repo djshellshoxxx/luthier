@@ -1,4 +1,5 @@
 #include "Part.h"
+#include "../../Support/UntrustedText.h"
 #include "../../Support/ThreadProbe.h"
 
 namespace luthier
@@ -193,7 +194,7 @@ std::shared_ptr<Part> Part::load (const juce::File& file, juce::String& error)
     ThreadProbe::noteFileAccess();
 
     juce::var json;
-    const auto result = juce::JSON::parse (file.loadFileAsString(), json);
+    const auto result = juce::JSON::parse (UntrustedText::loadFile (file), json);
 
     if (result.failed())
     {

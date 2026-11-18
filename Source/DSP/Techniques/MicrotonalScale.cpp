@@ -1,4 +1,5 @@
 #include "MicrotonalScale.h"
+#include "../../Support/UntrustedText.h"
 #include <algorithm>
 
 namespace luthier
@@ -201,7 +202,7 @@ bool MicrotonalScale::loadFile (const juce::File& file, juce::String& error)
         return false;
     }
 
-    const auto text = file.loadFileAsString();
+    const auto text = UntrustedText::loadFile (file);
     const bool ok = file.hasFileExtension ("tun") ? loadTun (text, error) : loadScala (text, error);
 
     if (ok && ! tun && name == "Scala scale")

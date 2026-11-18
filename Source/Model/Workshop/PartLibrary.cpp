@@ -1,4 +1,5 @@
 #include "PartLibrary.h"
+#include "../../Support/UntrustedText.h"
 #include "../../Support/ThreadProbe.h"
 #include "../../Support/IrLibrary.h"
 #include <mutex>
@@ -579,7 +580,7 @@ namespace
         static const juce::var table = []
         {
             const auto file = PartLibrary::getFactoryGuitarsFolder().getChildFile ("migration.json");
-            const auto parsed = file.existsAsFile() ? juce::JSON::parse (file) : juce::var();
+            const auto parsed = file.existsAsFile() ? juce::JSON::parse (UntrustedText::loadFile (file)) : juce::var();
             return parsed.getProperty ("magic", {}).toString() == "luthier.guitar-migration" ? parsed : juce::var();
         }();
 
@@ -794,7 +795,7 @@ bool PartLibrary::loadGuitar (const juce::File& file, WorkshopGuitar& out, LoadR
 {
     ThreadProbe::noteFileAccess();
     juce::var json;
-    const auto result = juce::JSON::parse (file.loadFileAsString(), json);
+    const auto result = juce::JSON::parse (UntrustedText::loadFile (file), json);
 
     if (result.failed())
     {

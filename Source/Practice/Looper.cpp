@@ -1,4 +1,5 @@
 #include "Looper.h"
+#include "../Support/UntrustedText.h"
 #include "../Export/MidiProfiles.h"   // SPEC-SWEEP MX-25
 
 #include <cstring>
@@ -1019,7 +1020,7 @@ bool Looper::load (const juce::File& file)
     if (! json.existsAsFile())
         return false;
 
-    const auto parsed = juce::JSON::parse (json.loadFileAsString());
+    const auto parsed = juce::JSON::parse (UntrustedText::loadFile (json));
     auto* root = parsed.getDynamicObject();
 
     if (root == nullptr)

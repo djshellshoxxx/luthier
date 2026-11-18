@@ -1,4 +1,5 @@
 #include "ToneMatch.h"
+#include "../Support/UntrustedText.h"
 
 #include <algorithm>
 #include <complex>
@@ -77,7 +78,7 @@ IrMetadata IrMetadata::forFile (const juce::File& irFile)
 
     if (sidecar.existsAsFile())
     {
-        const auto parsed = juce::JSON::parse (sidecar.loadFileAsString());
+        const auto parsed = juce::JSON::parse (UntrustedText::loadFile (sidecar));
 
         if (parsed.getDynamicObject() != nullptr)
             return fromVar (parsed);

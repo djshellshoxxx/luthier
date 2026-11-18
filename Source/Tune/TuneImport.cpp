@@ -1,4 +1,5 @@
 #include "TuneImport.h"
+#include "../Support/UntrustedText.h"
 #include "TuneHarmony.h"
 #include "../Support/ThreadProbe.h"
 
@@ -224,7 +225,7 @@ namespace
                 }
                 else if (m.isTrackNameEvent())
                 {
-                    const auto text = m.getTextFromTextMetaEvent().trim();
+                    const auto text = UntrustedText::fromBytes (m.getMetaEventData(), (size_t) juce::jmax (0, m.getMetaEventLength())).trim();
 
                     if (trackName.isEmpty())
                         trackName = text;
@@ -242,7 +243,7 @@ namespace
                 else if (m.isTextMetaEvent())
                 {
                     const auto type = m.getMetaEventType();
-                    const auto text = m.getTextFromTextMetaEvent().trim();
+                    const auto text = UntrustedText::fromBytes (m.getMetaEventData(), (size_t) juce::jmax (0, m.getMetaEventLength())).trim();
 
                     if (type == 6)
                     {
