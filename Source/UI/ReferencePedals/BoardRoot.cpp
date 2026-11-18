@@ -1,6 +1,7 @@
 // OWNER: WP17
 #include "BoardRoot.h"
 #include "../Theme.h"
+#include "../../ReferencePedals/ReleaseCatalogue.h"
 #include "../AnimationPolicy.h"
 #include "../../PluginProcessor.h"
 #include "../../ReferencePedals/Midi/MidiRouter.h"
@@ -118,7 +119,7 @@ void BoardRoot::layoutContent()
 void BoardRoot::paint(juce::Graphics& g){AnimationPolicy::notePaint(*this);g.fillAll(Palette::backgroundDeep);}
 void BoardRoot::showAddMenu()
 {
-    juce::PopupMenu menu;std::vector<std::string> ids;for(const auto* d:PedalRegistry::all()){ids.emplace_back(d->modelId);menu.addItem((int)ids.size(),d->displayName,model.getInstanceCount()<kMaxSlots);}
+    juce::PopupMenu menu;std::vector<std::string> ids;for(const auto* d:PedalRegistry::all()){if(!ReleaseCatalogue::offers(*d))continue;ids.emplace_back(d->modelId);menu.addItem((int)ids.size(),d->displayName,model.getInstanceCount()<kMaxSlots);}
     juce::Component::SafePointer<BoardRoot> self(this);menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&add),[self,ids](int n){if(self&&n>0&&n<=(int)ids.size())self->model.apply(cmd::Add{ids[(size_t)n-1]});});
 }
 void BoardRoot::openSettings(){if(!settingsPopup.isOpen())showSettings();}

@@ -215,7 +215,7 @@ LUTHIER_TEST(RefPedalUiLifecycle, tenThousandNativeOperationsAndEditorDestructio
                 auto* search=uiChild<juce::TextEditor>(*browser);auto* add=uiChild<juce::TextButton>(*browser);
                 CHECK(search&&add);if(!search||!add)return;
                 if(order.size()==kMaxSlots){CHECK(view->keyPressed({juce::KeyPress::deleteKey,juce::ModifierKeys(),0}));CHECK(drainUiMessages());}
-                search->setText("boost",false);if(search->onTextChange)search->onTextChange();
+                search->setText("phaser",false);   // the release catalogue offers the phaser onlyif(search->onTextChange)search->onTextChange();
                 const int before=model.getInstanceCount();CHECK(add->isEnabled());CHECK((bool)add->onClick);if(!add->isEnabled()||!add->onClick)return;add->onClick();CHECK(model.getInstanceCount()==before+1);break;
             }
             case 15:

@@ -3,6 +3,7 @@
 #include "../../ReferencePedals/PedalRegistry.h"
 #include "BoardSurfacePainter.h"
 #include "../Theme.h"
+#include "../../ReferencePedals/ReleaseCatalogue.h"
 #include "../AnimationPolicy.h"
 namespace luthier::reference
 {
@@ -45,6 +46,7 @@ bool BoardCanvas::isInterestedInDragSource(const SourceDetails& d){return d.desc
 void BoardCanvas::itemDropped(const SourceDetails& d)
 {
     const auto id=d.description.toString().fromFirstOccurrenceOf("ref-pedal:",false,false);int index=0;
+    if(!ReleaseCatalogue::offers(id.toRawUTF8()))return;   // only models the release catalogue offers
     for(const auto& other:model.getOrder())if(viewFor(other)->getBounds().getCentreX()<d.localPosition.x)++index;
     model.apply(cmd::Add{id.toStdString(),index});
 }

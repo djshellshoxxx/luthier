@@ -1,6 +1,7 @@
 // OWNER: WP22
 #include "PedalBrowser.h"
 #include "../Theme.h"
+#include "../../ReferencePedals/ReleaseCatalogue.h"
 namespace luthier::reference
 {
 PedalBrowser::PedalBrowser(BoardModel& m):model(m)
@@ -15,6 +16,7 @@ void PedalBrowser::refresh()
     const auto selected=list.getSelectedRow();items.clear();const auto q=search.getText().trim();
     for(const auto* d:PedalRegistry::all())
     {
+        if(!ReleaseCatalogue::offers(*d))continue;   // registered for saved state only
         const juce::String text=juce::String(d->displayName)+" "+d->family+" "+(d->inspiredBy?d->inspiredBy:"");
         const bool generic=juce::String(d->modelId).startsWith("generic.");
         if((q.isEmpty()||text.containsIgnoreCase(q))&&(category.getSelectedId()!=2||generic)&&(category.getSelectedId()!=3||!generic))items.push_back(d->modelId);
