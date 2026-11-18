@@ -131,3 +131,15 @@ LUTHIER_TEST (FuzzRegression, processingInstructionInsideTextDoesNotHang)
     CHECK (xml->hasTagName ("a"));
     CHECK (xml->getAllSubText().contains ("t") && xml->getAllSubText().contains ("x"));
 }
+
+// JUCE 8.0.10 patch: a huge exponent saturates instead of overflowing int.
+LUTHIER_TEST (FuzzRegression, hugeJsonExponentsSaturate)
+{
+    const auto v = juce::JSON::parse ("[1e99999999999, 1e-99999999999, 2.5e3]");
+    CHECK (v.isArray() && v.size() == 3);
+    if (! v.isArray() || v.size() != 3)
+        return;
+    CHECK (std::isinf ((double) v[0]));
+    CHECK ((double) v[1] == 0.0);
+    CHECK ((double) v[2] == 2500.0);
+}

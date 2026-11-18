@@ -17,6 +17,9 @@ presets, tunes and imported files, which are untrusted input:
 3. juce_XmlDocument.cpp, readChildElements: a processing instruction inside
    element text ("<?pi?>x") made the parser loop forever (a crafted MusicXML
    file hung the importer). It is now skipped like a comment.
+4. juce_CharacterFunctions.h, readDoubleValue: the exponent of a number such
+   as 1e9999999999 overflowed int. It now saturates; the value is unchanged
+   (infinity or zero either way).
 
 The upstream licence is retained. Call during configuration, never from audio.
 """
@@ -106,6 +109,15 @@ PATCHES = [
 
                     break;
                 }""",
+    },
+    {
+        "relative": Path("modules/juce_core/text/juce_CharacterFunctions.h"),
+        "before": b"""                if (digit != 0 || exponent != 0)
+                    exponent = (exponent * 10) + digit;""",
+        "after": b"""                // Luthier (JUCE 8.0.10 patch): saturate instead of overflowing int.
+                // Any exponent this large already yields infinity or zero.
+                if ((digit != 0 || exponent != 0) && exponent < 100000)
+                    exponent = (exponent * 10) + digit;""",
     },
 ]
 

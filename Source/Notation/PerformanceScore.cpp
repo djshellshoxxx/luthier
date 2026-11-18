@@ -1,5 +1,6 @@
 #include "PerformanceScore.h"
 
+#include <cmath>
 #include <algorithm>
 
 namespace luthier
@@ -258,6 +259,23 @@ void PerformanceScore::addChordSymbol (double beat, const juce::String& symbol)
 }
 
 //==============================================================================
+namespace
+{
+    // An imported file can place a note anywhere (LuthierFuzz: a MusicXML beat
+    // of 2.5e11). Measure arithmetic stays in double and is clamped before any
+    // conversion to int, and a score never grows past this many measures - the
+    // same bound the Guitar Pro reader applies.
+    constexpr int kMaxScoreMeasures = 20000;
+
+    int measureIndexFor (double beat, double beatsPerMeasure, int numMeasures) noexcept
+    {
+        const double index = std::floor (beat / beatsPerMeasure);
+        if (! std::isfinite (index) || index <= 0.0)
+            return 0;
+        return (int) juce::jmin ((double) (numMeasures - 1), index);
+    }
+}
+
 void PerformanceScore::endCapture (double finalBeat)
 {
     if (! capturing)
@@ -288,7 +306,10 @@ void PerformanceScore::endCapture (double finalBeat)
         return latest;
     }());
 
-    const int numMeasures = juce::jmax (1, (int) std::ceil (lastBeat / beatsPerMeasure));
+    const double wantedMeasures = std::ceil (lastBeat / beatsPerMeasure);
+    const int numMeasures = std::isfinite (wantedMeasures)
+                              ? (int) juce::jlimit (1.0, (double) kMaxScoreMeasures, wantedMeasures)
+                              : 1;
 
     track.measures.resize ((size_t) numMeasures);
 
@@ -308,8 +329,7 @@ void PerformanceScore::endCapture (double finalBeat)
         string the tail was on. */
     for (const auto& entry : captured)
     {
-        const int measureIndex = juce::jlimit (
-            0, numMeasures - 1, (int) (entry.note.startBeat / beatsPerMeasure));
+        const int measureIndex = measureIndexFor (entry.note.startBeat, beatsPerMeasure, numMeasures);
 
         auto note = entry.note;
         note.startBeat -= (double) measureIndex * beatsPerMeasure;
@@ -385,8 +405,7 @@ void PerformanceScore::endCapture (double finalBeat)
     // ---- chord symbols -------------------------------------------------------------
     for (const auto& [beat, symbol] : capturedChords)
     {
-        const int measureIndex = juce::jlimit (
-            0, numMeasures - 1, (int) (beat / beatsPerMeasure));
+        const int measureIndex = measureIndexFor (beat, beatsPerMeasure, numMeasures);
 
         track.measures[(size_t) measureIndex].chordSymbols.emplace_back (
             beat - (double) measureIndex * beatsPerMeasure, symbol);
