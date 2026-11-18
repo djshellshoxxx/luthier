@@ -15,6 +15,16 @@
 #include <juce_events/juce_events.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <typeinfo>
+#include <atomic>
+#include <chrono>
+#include <memory>
+#include <thread>
+
+#if JUCE_MAC
+ #include <CoreFoundation/CoreFoundation.h>
+#else
+ namespace juce::detail { bool dispatchNextMessageOnSystemQueue (bool returnIfNoPendingMessages); }
+#endif
 #include "../UI/FirstRun.h"
 #include "../UI/Onboarding.h"
 #include "../Support/QualityController.h"
@@ -51,6 +61,36 @@ namespace
         juce::PopupMenu::dismissAllActiveMenus();
         if (modal != nullptr)
             modal->cancelAllModalComponents();
+    }
+
+    // Test isolation: deliver what a test left in JUCE's message queue before
+    // the next test starts. Otherwise a later test inherits the backlog (in
+    // the --shard order a light UI test waited 2 s behind it on macOS, which
+    // delivers a few messages per run-loop pass). A marker posted now runs
+    // after everything already queued; the deadline only bounds a test that
+    // keeps re-posting forever, and is reported against that test.
+    void drainMessageQueue (const juce::String& testName)
+    {
+        const auto delivered = std::make_shared<std::atomic<bool>> (false);
+        if (! juce::MessageManager::callAsync ([delivered] { delivered->store (true, std::memory_order_release); }))
+            return;
+
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds (30);
+        while (! delivered->load (std::memory_order_acquire))
+        {
+            if (std::chrono::steady_clock::now() >= deadline)
+            {
+                std::cout << "  [note]  " << testName << " left messages that did not drain in 30 s" << std::endl;
+                return;
+            }
+           #if JUCE_MAC
+            const bool dispatched = CFRunLoopRunInMode (kCFRunLoopDefaultMode, 0, true) == kCFRunLoopRunHandledSource;
+           #else
+            const bool dispatched = juce::detail::dispatchNextMessageOnSystemQueue (true);
+           #endif
+            if (! dispatched)
+                std::this_thread::yield();
+        }
     }
 }
 
@@ -146,6 +186,7 @@ int main (int argc, char* argv[])
 
         const auto elapsed = juce::Time::getMillisecondCounterHiRes() - testStart;
         closeLeftoverModals (entry.suite + "." + entry.name);
+        drainMessageQueue (entry.suite + "." + entry.name);
 
         ++totalTests;
         totalChecks += ctx.checks;
