@@ -185,8 +185,10 @@ int main (int argc, char* argv[])
         }
 
         const auto elapsed = juce::Time::getMillisecondCounterHiRes() - testStart;
-        closeLeftoverModals (entry.suite + "." + entry.name);
+        // Drain first: a queued showAsync from this test opens its window here,
+        // so it is closed (and reported) against this test, not the next one.
         drainMessageQueue (entry.suite + "." + entry.name);
+        closeLeftoverModals (entry.suite + "." + entry.name);
 
         ++totalTests;
         totalChecks += ctx.checks;
