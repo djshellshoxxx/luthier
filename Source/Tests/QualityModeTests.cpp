@@ -91,7 +91,7 @@ LUTHIER_TEST (CpuQuality, CQ01_profileTableMatchesTheSpec)
 
     // Sleep and ring-out.
     CHECK (! h.idleSleep && m.idleSleep && l.idleSleep);
-    CHECK (h.ringOutDb == 0.0 && m.ringOutDb == -80.0 && l.ringOutDb == -60.0);
+    CHECK (h.ringOutDb == 0.0 && m.ringOutDb == -80.0 && l.ringOutDb == -70.0);
     CHECK (h.maxRingingOut == 0 && m.maxRingingOut == 0 && l.maxRingingOut == 8);
 
     // UI.

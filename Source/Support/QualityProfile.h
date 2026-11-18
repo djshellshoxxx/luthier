@@ -113,7 +113,10 @@ struct QualityProfile
             p.modIntervalMultiplier = 2;
             p.idleSleep = true;
             p.micEvaluateEvery = 2;
-            p.ringOutDb = -60.0;
+            // -70, not -60: at -60 the truncated palm-muted tails moved the
+            // BS.1770 gate and read +0.4-0.53 LU on "Metal Chug 16ths" with
+            // unchanged RMS (owner decision 2026-11-18, CQ-12).
+            p.ringOutDb = -70.0;
             p.maxRingingOut = 8;
             p.motion = MotionLevel::Off;
             p.liveReadoutMaxHz = 10;

@@ -196,9 +196,13 @@ struct LooperStorage::Impl
             notifyDone();
         }
     }
-    bool decodePage(Impl& owner,uint64_t index,uint64_t current,std::vector<float>& samples)
+    // `loopFrames` is one snapshot of frames taken by the caller: the audio thread
+    // may restart recording (frames -> 0) at any time, and both pages of one merge
+    // step must decode to the same length.
+    bool decodePage(Impl& owner,uint64_t index,uint64_t current,uint64_t loopFrames,std::vector<float>& samples)
     {
-        const auto count=std::min(uint64_t(config.pageFrames),frames.load()-index*uint64_t(config.pageFrames));
+        if(index*uint64_t(config.pageFrames)>=loopFrames)return false;
+        const auto count=std::min(uint64_t(config.pageFrames),loopFrames-index*uint64_t(config.pageFrames));
         samples.assign(size_t(count)*size_t(config.channels),0.f);
         const auto wanted=owner.entries[index].desired.load(std::memory_order_acquire);
         if(stateEpoch(wanted)!=current)return true;
@@ -214,15 +218,17 @@ struct LooperStorage::Impl
     {
         if(epoch.load(std::memory_order_acquire)!=mergeEpoch || mergeSource->epoch.load(std::memory_order_acquire)!=mergeSourceEpoch)
         {mergeBusy=0;releaseSource();notifyDone();return;}
-        const auto count=(frames.load()+uint64_t(config.pageFrames)-1)/uint64_t(config.pageFrames);
+        const auto loopFrames=frames.load(std::memory_order_acquire);
+        const auto count=(loopFrames+uint64_t(config.pageFrames)-1)/uint64_t(config.pageFrames);
         if(mergeIndex==count)
         {
-            work({Kind::Manifest,mergeEpoch,0,0,frames.load(),0,0,nullptr});
+            work({Kind::Manifest,mergeEpoch,0,0,loopFrames,0,0,nullptr});
             const bool ok=manifestReady.load(std::memory_order_acquire)==mergeEpoch && !(flags.load()&ioFailure);
             const auto token=mergeToken;releaseSource();if(ok)mergeDone.store(token,std::memory_order_release);else mergeBusy=0;notifyDone();return;
         }
         std::vector<float> base,layer;
-        if(!decodePage(*this,mergeIndex,mergeEpoch,base) || !decodePage(*mergeSource,mergeIndex,mergeSourceEpoch,layer))
+        if(!decodePage(*this,mergeIndex,mergeEpoch,loopFrames,base) || !decodePage(*mergeSource,mergeIndex,mergeSourceEpoch,loopFrames,layer)
+           || base.size()!=layer.size())
         {if(mergeEpoch==epoch.load())flags.fetch_or(ioFailure);mergeBusy=0;releaseSource();notifyDone();return;}
         std::vector<uint8_t> bytes;bytes.reserve(20+base.size()*4);
         integer(bytes,0x3150434c,4);integer(bytes,uint64_t(config.channels),4);integer(bytes,uint64_t(config.sampleRate),4);integer(bytes,base.size()/size_t(config.channels),8);

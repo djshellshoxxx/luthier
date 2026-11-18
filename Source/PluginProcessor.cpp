@@ -3335,8 +3335,10 @@ bool LuthierAudioProcessor::isParameterLocked (const juce::String& paramId) cons
 //==============================================================================
 juce::MemoryBlock LuthierAudioProcessor::captureStateBlock()
 {
+    // Undo, A/B slots and offline renders parse this in-process: no
+    // indentation, which is most of the formatting cost of a large state.
     juce::MemoryBlock block;
-    getStateInformation (block);
+    writeState (block, juce::JSON::Spacing::none);
     return block;
 }
 
@@ -3761,6 +3763,11 @@ void LuthierAudioProcessor::changeProgramName (int, const juce::String&)
 //==============================================================================
 void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
+    writeState (destData, juce::JSON::Spacing::multiLine);
+}
+
+void LuthierAudioProcessor::writeState (juce::MemoryBlock& destData, juce::JSON::Spacing spacing)
+{
     // A parameter change the bridge has not built yet (a guitar type, a tuning)
     // is part of what the host is saving: build it first.
     if (juce::MessageManager::existsAndIsCurrentThread())
@@ -3905,12 +3912,24 @@ void LuthierAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     // Serialize the board with its lossless codec. A newer-schema block retains
     // its original bytes and opaque vendor numbers retain their exact double.
     root->removeProperty ("referencePedals");
-    auto json = juce::JSON::toString (juce::var (root), false);
-    if (boardState.isNotEmpty())
-        json = json.dropLastCharacters (1) + ",\"referencePedals\":" + boardState + "}";
 
-    destData.reset();
-    destData.append (json.toRawUTF8(), json.getNumBytesAsUTF8());
+    // Written straight into destData: building a String and splicing the
+    // board into it copied the whole state three times per call, and undo
+    // captures the state on every edit (performance-budget.md 3: part swap).
+    // The host-state bytes are unchanged; only `spacing` differs for callers.
+    const juce::var state (root);
+    {
+        juce::MemoryOutputStream out (destData, false);
+        juce::JSON::writeToStream (out, state, juce::JSON::FormatOptions{}.withSpacing (spacing)
+                                                                          .withMaxDecimalPlaces (15));
+        if (boardState.isNotEmpty())
+        {
+            // The object's closing brace is its last byte; reopen it for the board.
+            jassert (out.getDataSize() > 0 && static_cast<const char*> (out.getData())[out.getDataSize() - 1] == '}');
+            out.setPosition ((juce::int64) out.getDataSize() - 1);
+            out << ",\"referencePedals\":" << boardState << "}";
+        }
+    }
 }
 
 // ==== BEGIN REALISM-A state ====

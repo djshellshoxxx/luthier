@@ -189,13 +189,17 @@ The reference pedalboard is a separate, newer subsystem from the two eight-slot 
 racks in the Advanced panel. See [PEDALBOARD.md](PEDALBOARD.md) and
 [EFFECTS_REFERENCE.md](EFFECTS_REFERENCE.md).
 
-- It is not release-qualified. The first pedalboard release was planned around six
-  named models: a phaser, two bucket-brigade choruses, a digital delay, a compressor
-  and a looper. All six exist as unregistered prototypes and are **not available to
-  users**.
-- What users can add today is 13 registered models: 10 generic effects and 3
-  prototypes (`Source/ReferencePedals/PedalRegistry.cpp` and the register functions
-  beside it).
+- **0.1 beta scope: one pedal.** The browser, the Add menu and drag-and-drop offer
+  only the Four-Stage Phaser (`mxr-phase90-script`), the first named model developed
+  (`Source/ReferencePedals/ReleaseCatalogue.h`). The original plan of six named models
+  (adding two bucket-brigade choruses, a digital delay, a compressor and a looper) is
+  deferred; those five stay unregistered.
+- The 10 generic effects and 3 legacy prototypes remain registered only so that a
+  session saved by an earlier build still loads them. They cannot be added.
+- Phaser gates still open: CPU under 0.4 % of one core is not met on the 2.1 GHz Xeon
+  reference measurements (0.42-0.78 %); the specification's "peak delta < 1 LSB 24b"
+  bypass criterion has no ruling on how it is measured; the 30-minute model soak and a
+  hardware listening comparison have not been run.
 - Board capacity is 16 slots and 8 snapshots.
 - The test `RefPedalCe2.bbdOnOriginalThdGate` fails on every platform: the chorus
   model's distortion with the bucket-brigade simulation on is below the specified

@@ -58,6 +58,14 @@ on:
         description: 'Git ref to build (release.yml passes the tag)'
         type: string
         default: ''
+      test_shards:
+        description: 'Run the unit suite as this many parallel jobs per build (0 = inside the build job)'
+        type: number
+        default: 0
+      no_clap:
+        description: 'Do not build, validate or package the CLAP plug-in'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -89,16 +97,24 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.m.outputs.matrix }}
+      test_matrix: ${{ steps.m.outputs.test_matrix }}
     steps:
       - id: m
         env:
           PLATFORMS: ${{ inputs.platforms || 'linux,windows,macos' }}
           EDITIONS: ${{ inputs.editions || 'pro,free' }}
+          SHARDS: ${{ inputs.test_shards || 0 }}
         run: |
           items=()
+          shards=()
           add() { # name os platform edition
             case "$4" in PAID) e=pro;; *) e=free;; esac
-            case ",$EDITIONS," in *,"$e",*) items+=("{\"name\":\"$1\",\"os\":\"$2\",\"platform\":\"$3\",\"edition\":\"$4\"}");; esac
+            case ",$EDITIONS," in *,"$e",*)
+              items+=("{\"name\":\"$1\",\"os\":\"$2\",\"platform\":\"$3\",\"edition\":\"$4\"}")
+              for ((i = 1; i <= SHARDS; i++)); do
+                shards+=("{\"name\":\"$1\",\"os\":\"$2\",\"platform\":\"$3\",\"edition\":\"$4\",\"shard\":\"$i/$SHARDS\"}")
+              done;;
+            esac
           }
           case ",$PLATFORMS," in *,linux,*)
             add "Linux x64 / Pro" ubuntu-latest linux PAID
@@ -117,12 +133,17 @@ jobs:
           if [ ${#items[@]} -eq 0 ]; then echo "::error::no builds for platforms '$PLATFORMS' editions '$EDITIONS'"; exit 1; fi
           joined=$(IFS=,; echo "${items[*]}")
           echo "matrix={\"include\":[$joined]}" >> "$GITHUB_OUTPUT"
+          # An empty include list is invalid; the test job is skipped when SHARDS=0.
+          [ ${#shards[@]} -gt 0 ] || shards=('{"name":"none","os":"ubuntu-latest","platform":"none","edition":"none","shard":"0/0"}')
+          joined=$(IFS=,; echo "${shards[*]}")
+          echo "test_matrix={\"include\":[$joined]}" >> "$GITHUB_OUTPUT"
 
   build:
     name: ${{ matrix.name }}
     needs: plan
     env:
       LUTHIER_EDITION: ${{ matrix.edition }}
+      LUTHIER_NO_CLAP: ${{ inputs.no_clap && '1' || '0' }}
     runs-on: ${{ matrix.os }}
     # macOS runners are markedly slower than Linux/Windows for this LTO build +
     # the sequential render/preset-heavy LuthierTests suite: run #12 (beta1) was
@@ -291,12 +312,29 @@ jobs:
 
       # ---------------------------------------------------------- test
       - name: Unit tests (Unix)
-        if: runner.os != 'Windows' && steps.build_unix.outcome == 'success'
+        if: runner.os != 'Windows' && steps.build_unix.outcome == 'success' && !(inputs.test_shards > 0)
         run: scripts/ci_build.sh test
       - name: Unit tests (Windows)
-        if: runner.os == 'Windows' && steps.build_windows.outcome == 'success'
+        if: runner.os == 'Windows' && steps.build_windows.outcome == 'success' && !(inputs.test_shards > 0)
         shell: pwsh
         run: scripts/ci_build.ps1 -Step test -Edition ${{ matrix.edition }}
+
+      # Sharded mode: hand the exact test and render binaries to the test job
+      # instead of recompiling them. tar keeps the executable bits that
+      # upload-artifact would drop.
+      - name: Pack test binaries
+        if: ${{ inputs.test_shards > 0 && (steps.build_unix.outcome == 'success' || steps.build_windows.outcome == 'success') }}
+        shell: bash
+        run: tar -cf test-binaries.tar "$BUILD_DIR/LuthierTests_artefacts" "$BUILD_DIR/LuthierRender_artefacts"
+      - name: Upload test binaries
+        if: ${{ inputs.test_shards > 0 && (steps.build_unix.outcome == 'success' || steps.build_windows.outcome == 'success') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-binaries-${{ matrix.edition }}-${{ matrix.platform }}-${{ github.run_attempt }}
+          path: test-binaries.tar
+          retention-days: 3
+          if-no-files-found: error
+          compression-level: 6
 
       - name: Collect macOS native failure evidence
         if: ${{ failure() && runner.os == 'macOS' }}
@@ -390,7 +428,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for kind in app vst3 component clap; do
+          kinds=(app vst3 component)
+          [ "$LUTHIER_NO_CLAP" = 1 ] || kinds+=(clap)
+          for kind in "${kinds[@]}"; do
             bundle="$DIST_DIR/macos/Luthier Pro.$kind"
             lipo "$bundle/Contents/MacOS/Luthier Pro" -verify_arch arm64 x86_64
             codesign --verify --deep --strict "$bundle"
@@ -411,3 +451,60 @@ jobs:
           name: installers-${{ matrix.edition }}-${{ matrix.platform }}
           path: ${{ env.DIST_DIR }}/installers
           if-no-files-found: error
+
+  # The complete unit suite, split into interleaved shards (TestSelection
+  # --shard=i/n) of the binaries the build job compiled. Every shard must pass;
+  # together they run exactly the tests a single in-job run would.
+  test:
+    name: ${{ matrix.name }} / tests ${{ matrix.shard }}
+    needs: [plan, build]
+    if: ${{ !cancelled() && inputs.test_shards > 0 }}
+    env:
+      LUTHIER_EDITION: ${{ matrix.edition }}
+      TEST_SHARD: ${{ matrix.shard }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: ${{ matrix.os == 'macos-latest' && 300 || 150 }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.test_matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || '' }}
+          fetch-depth: 1
+
+      - name: Linux packages
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends xvfb libasound2t64 libfreetype6 libfontconfig1 libgl1 libcurl4t64 \
+            || sudo apt-get install -y -q --no-install-recommends xvfb libasound2 libfreetype6 libfontconfig1 libgl1 libcurl4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: test-binaries-${{ matrix.edition }}-${{ matrix.platform }}-${{ github.run_attempt }}
+
+      - name: Unpack test binaries
+        shell: bash
+        run: tar -xf test-binaries.tar && rm test-binaries.tar
+
+      - name: Unit tests (Unix)
+        if: runner.os != 'Windows'
+        run: scripts/ci_build.sh test
+      - name: Unit tests (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: scripts/ci_build.ps1 -Step test -Edition ${{ matrix.edition }}
+
+      - name: Collect macOS native failure evidence
+        if: ${{ failure() && runner.os == 'macOS' }}
+        run: scripts/ci_build.sh collect-failure-evidence
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs-${{ matrix.edition }}-${{ matrix.platform }}-shard${{ strategy.job-index }}-${{ github.sha }}
+          path: ${{ env.BUILD_DIR }}/logs
+          retention-days: 14
+          if-no-files-found: ignore

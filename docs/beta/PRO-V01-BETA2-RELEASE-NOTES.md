@@ -6,6 +6,22 @@ platform/edition with LTO, complete unit suites and strictness-10 plugin
 validation before creating a draft. BUILD-PROVENANCE.json records that commit
 and the qualification run; SHA256SUMS.txt identifies the exact downloads.
 
+## Pedalboard in this beta
+
+The reference pedalboard offers one pedal: the **Four-Stage Phaser**, a
+circuit-derived behavioural model of a classic four-stage script-logo phaser
+(speed, sweep depth, wet trim, stage mismatch, tempo sync, stereo phase and
+mono/dual-mono stereo). It was the first reference model developed, and it is
+the only one the browser, the Add menu and drag-and-drop offer. The other
+planned models (the two choruses, the delay, the compressor and the loopers)
+are deferred to later updates. A session saved with a pedal from an earlier
+build still loads that pedal.
+
+Phase 90 limitations still open in this beta: its CPU target (under 0.4 % of
+one core) is not yet met on every reference machine, the "under 1 LSB at 24
+bits" bypass-click wording has not been ruled on, and the 30-minute soak and
+hardware listening comparison have not been run. See docs/KNOWN_ISSUES.md.
+
 ## Changes since the published alpha
 
 - Consolidated single pedalboard, saved-state and routing work.
@@ -30,13 +46,15 @@ and the qualification run; SHA256SUMS.txt identifies the exact downloads.
 
 ## Downloads and installation
 
-- Windows x64: Setup installer or portable archive, with standalone, VST3,
-  CLAP and factory Resources. Close the DAW before installing or replacing
+- Windows x64: Setup installer or portable archive, with standalone, VST3
+  and factory Resources. Close the DAW before installing or replacing
   plugin files, then rescan the selected plugin format in the host.
-- macOS Intel/Apple Silicon: universal installer with standalone, AU, VST3,
-  CLAP and factory Resources. Close the host before installation, then rescan
+- macOS Intel/Apple Silicon: universal installer with standalone, AU, VST3
+  and factory Resources. Close the host before installation, then rescan
   its plugins. The Pro beta also includes a universal bundle archive.
-- Linux x64: standalone and plugin packages with factory Resources.
+- Linux and CLAP builds are not part of this beta. They are still built and
+  tested in development CI; CLAP has open host-state round-trip defects found
+  by clap-validator.
 
 ## Qualification and limitations
 

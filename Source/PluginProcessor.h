@@ -814,6 +814,8 @@ public:
 
     /** Snapshot of the plugin state, for the exporter. */
     juce::MemoryBlock captureStateBlock();
+    /** The host state as JSON; getStateInformation is this with multi-line spacing. */
+    void writeState (juce::MemoryBlock& destData, juce::JSON::Spacing spacing);
 
     /** Factory used by the exporter to make an offline instance. */
     static std::unique_ptr<juce::AudioProcessor> createOfflineInstance();
