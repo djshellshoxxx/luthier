@@ -4,7 +4,9 @@ The Free and Pro installers identify their edition in the filename and product
 name. The release workflow freezes one source commit and builds every selected
 platform/edition with LTO, complete unit suites and strictness-10 plugin
 validation before creating a draft. BUILD-PROVENANCE.json records that commit
-and the qualification run; SHA256SUMS.txt identifies the exact downloads.
+and the qualification run; SHA256SUMS.txt identifies the exact downloads. The
+authorized beta2 candidate publishes only after the complete download set is
+verified against those checksums and the frozen source.
 
 ## Pedalboard in this beta
 
@@ -40,7 +42,20 @@ hardware listening comparison have not been run. See docs/KNOWN_ISSUES.md.
 - Move host latency notifications off the audio callback.
 - Crossfade prepared cabinet/body IR replacements and preserve cabinet bypass
   delay and raw IRs across host preparation.
+- Build shorter quality IR banks only when the response needs them, avoiding
+  unused loader threads during preparation and short-IR replacement. Repreparing
+  with a different partition size now resets every quality bank's latency.
+- Reserve MIDI output capacity for pedal releases and remember a pressed note
+  only after its event is accepted, preventing stuck pedals during bursts.
+- Bound content-package input, entry sizes and total expansion before extraction;
+  verify exact decoded entry lengths while retaining signed-package rollback.
+- Consolidate the newer external-text decoding and file-parser QA fixes, with
+  their regression fixtures and an opt-in fuzz harness.
 - Correct CE-2 BBD response against the unchanged distortion acceptance gate.
+- Keep an external clock in control when a tap-tempo request arrives, and retry
+  tempo/clock UI notices after an activity flood fills the feedback queue.
+- Preserve the LFO's exact waveform and phase while simplifying its phase wrap;
+  flush the digital delay's exhausted meter state before it becomes subnormal.
 - Repair queued asset destruction under libc++, exact host gain capture under
   fused arithmetic, and explicit tiny-buffer regression fixtures.
 

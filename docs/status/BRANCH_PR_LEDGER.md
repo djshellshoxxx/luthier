@@ -1,5 +1,10 @@
 # Branch and pull-request ledger
 
+The table below is the November 11 discovery snapshot. See
+[CONSOLIDATION-2026-11-19.md](CONSOLIDATION-2026-11-19.md) for current ancestry,
+semantic-duplicate decisions and the retired publisher's status. Historical
+"not merged" rows do not establish that a fix is absent from the newer candidate.
+
 State of every open pull request and every remote branch that is not already contained in the
 integration baseline, with the decision taken for each. Checked on 2026-11-11.
 

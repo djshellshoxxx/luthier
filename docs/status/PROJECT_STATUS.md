@@ -1,14 +1,19 @@
 # Luthier project status
 
-**Resumed by the owner on 2026-11-16 for Windows/macOS releases.** Current work is
-recorded in [RELEASE-CONTINUATION-2026-11-16.md](RELEASE-CONTINUATION-2026-11-16.md),
+**Resumed by the owner for consolidation and releases on 2026-11-19.** Current
+branch decisions, recovered changes and exact native qualification results are in
+[CONSOLIDATION-2026-11-19.md](CONSOLIDATION-2026-11-19.md).
+
+The November 16 repair evidence is recorded in
+[RELEASE-CONTINUATION-2026-11-16.md](RELEASE-CONTINUATION-2026-11-16.md),
 [RACK-LIFETIME-2026-11-16.md](RACK-LIFETIME-2026-11-16.md), and
 [RECORDER-CONCURRENCY-2026-11-16.md](RECORDER-CONCURRENCY-2026-11-16.md), and
 [CHORUS-QUALIFICATION-2026-11-16.md](CHORUS-QUALIFICATION-2026-11-16.md), and
 [MIDI-CONTINUITY-2026-11-16.md](MIDI-CONTINUITY-2026-11-16.md).
-PRs #101/#102/#103 and the chorus/MIDI continuation carry changes that are not yet
-integrated or release-qualified. The snapshot below records the November 11
-pause; its counts and queued-run statuses are historical, not current claims.
+PR #104 consolidates PRs #101/#102/#103, and PR #105 continues it with the
+one-phaser Windows/macOS beta. Those changes have native evidence but the latest
+release attempt still failed four performance checks. The snapshot below records
+the November 11 pause; its counts and queued-run statuses are historical.
 
 ## Historical snapshot — 2026-11-11
 

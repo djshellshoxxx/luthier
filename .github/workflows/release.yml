@@ -1,8 +1,9 @@
 # Release: a version tag (v1.2.3, v1.3.0-beta1), or a release/v* candidate
 # branch, builds, tests and validates on
 # every platform at full strictness with LTO, builds the installers, and
-# uploads them with SHA-256 checksums to a DRAFT GitHub Release. A person
-# reviews the draft and publishes it; nothing here publishes on its own.
+# uploads them with SHA-256 checksums to a DRAFT GitHub Release. The authorized
+# release/v0.1.0-beta2 push additionally verifies and publishes that prerelease;
+# every other tag, candidate and manual dispatch retains draft review.
 #
 # See docs/RELEASING.md for the whole procedure and the signing secrets.
 name: release
@@ -57,6 +58,8 @@ jobs:
       - name: Exercise release source and publication guards
         run: |
           python3 -m unittest discover -s scripts/tests -p test_release_workflow_guards.py -v
+          python3 -m unittest discover -s scripts/tests -p test_publish_qualified_beta.py -v
+          python3 -m unittest discover -s scripts/tests -p test_consolidate_qualified_beta.py -v
           python3 -m unittest discover -s scripts -p test_release_packaging_compat.py -v
           bash scripts/test_uninstall_macos.sh
 
@@ -273,3 +276,34 @@ jobs:
           fi
           [[ "$VERSION" != *-* ]] || args+=(--prerelease)
           gh "${args[@]}" release/*
+
+      - name: Publish the authorized qualified beta2
+        if: github.event_name == 'push' && github.ref == 'refs/heads/release/v0.1.0-beta2' && needs.version.outputs.tag == 'v0.1.0-beta2'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.version.outputs.tag }}
+          SOURCE_SHA: ${{ needs.version.outputs.ref }}
+          QUALIFICATION_RESULT: ${{ needs.build.result }}
+        run: |
+          python3 scripts/publish_qualified_beta.py --directory release --source "$SOURCE_SHA" --tag "$TAG"
+
+  consolidate:
+    name: Consolidate the published beta2 source
+    needs: [version, draft]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/release/v0.1.0-beta2' && needs.version.outputs.tag == 'v0.1.0-beta2'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.ref }}
+          persist-credentials: false
+      - name: Fast-forward unchanged master to the verified release source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ needs.version.outputs.ref }}
+          PUBLICATION_RESULT: ${{ needs.draft.result }}
+        run: |
+          python3 scripts/consolidate_qualified_beta.py --source "$SOURCE_SHA"

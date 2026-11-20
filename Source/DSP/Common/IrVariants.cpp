@@ -18,18 +18,13 @@ void IrVariants::prepare (double sampleRate, int maxBlockSize, int numChannels, 
     partition = partitionSize;
     caps = capsSeconds;
 
-    juce::dsp::ProcessSpec spec;
-    spec.sampleRate = sr;
-    spec.maximumBlockSize = (juce::uint32) ConvolutionInstaller::preparedBlockSize (maxBlock);
-    spec.numChannels = (juce::uint32) channels;
-
+    // A short IR (such as a factory cabinet response) needs no shorter
+    // quality bank. Constructing a JUCE convolution also starts its loader
+    // thread, so defer that work until build() accepts an actual variant.
+    // prepare() runs with audio stopped; retiring old banks here also ensures
+    // a changed partition size cannot retain the previous fixed latency.
     for (auto& v : variants)
-    {
-        if (v == nullptr)
-            v = std::make_unique<juce::dsp::Convolution> (juce::dsp::Convolution::Latency { partition });
-
-        v->prepare (spec);
-    }
+        v.reset();
 
     scratch.setSize (channels, maxBlock, false, true, true);
     clear();
@@ -233,7 +228,7 @@ int IrVariants::build (const juce::AudioBuffer<float>& prepared)
 
     for (size_t v = 0; v < variants.size(); ++v)
     {
-        if (caps[v] <= 0.0 || variants[v] == nullptr || ! enabled.load())
+        if (caps[v] <= 0.0 || ! enabled.load())
             continue;
 
         const int cut = findCut (prepared, (int) std::round (caps[v] * sr), QualityProfile::kTailEnergyDb);
@@ -251,6 +246,13 @@ int IrVariants::build (const juce::AudioBuffer<float>& prepared)
 
         if (heldMegabytes + cost > budgetMegabytes)
             continue;   // over the memory budget: the next longer response runs
+
+        if (variants[v] == nullptr)
+        {
+            variants[v] = std::make_unique<juce::dsp::Convolution> (juce::dsp::Convolution::Latency { partition });
+            variants[v]->prepare ({ sr, (juce::uint32) ConvolutionInstaller::preparedBlockSize (maxBlock),
+                                    (juce::uint32) channels });
+        }
 
         auto ir = prepared;
         truncateWithFade (ir, cut, (int) std::round (QualityProfile::kTailFadeSeconds * sr));

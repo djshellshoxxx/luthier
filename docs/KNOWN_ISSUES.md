@@ -3,8 +3,10 @@
 Written honestly. A model that hides its approximations is harder to trust than one
 that states them, and a "known issues" file that says "none" is never true.
 
-Describes the source at commit `ca14934e`. The project version in `CMakeLists.txt` is 0.1.0;
-no release has been published from this source.
+Updated for the beta2 candidate `7fcb88c6` and the November 19 consolidation.
+The project version in `CMakeLists.txt` is 0.1.0. No beta2 release has been
+published. Exact native results and remaining gates are recorded in
+[the current consolidation status](status/CONSOLIDATION-2026-11-19.md).
 
 ---
 
@@ -59,13 +61,12 @@ nearest one for that shape, and then to modal synthesis. A cabinet with no IR fa
 back to the procedural speaker model. Neither is silent, but neither is the
 convolution you asked for.
 
-**A response swap is heard through the fallback.** Changing a preset must not stall
-the audio thread, so the new impulse response is prepared on the thread that asked
-for it and the audio thread keeps running on the analytic speaker and body models
-until it is ready. The changeover is a single block, and the fallback is a
-reasonable speaker rather than a dry signal, so what you hear is a brief change of
-character rather than a dropout. It is only noticeable if you switch presets while
-a note is ringing.
+**Replacement responses are prepared off the audio thread.** Cabinet and body IR
+banks now prime their latency and use bounded crossfades when a prepared replacement
+becomes active. The former one-block fallback handoff has been repaired; the
+production-path tests and limits are recorded in
+[IR-HANDOFF-2026-11-16.md](status/IR-HANDOFF-2026-11-16.md). A different IR still changes
+the instrument's sound, including notes already ringing.
 
 ---
 
@@ -142,11 +143,10 @@ version of this file said Panic leaves the reverb ringing; the code does not.
 Things the brief describes that are not in this release, stated plainly rather than
 quietly omitted.
 
-**Plugin formats.** VST3 and Standalone are always built. AU is added on macOS only
-(`CMakeLists.txt`, `LUTHIER_FORMATS`). CLAP is built when
-`ThirdParty/clap-juce-extensions` is present (`scripts/setup_linux.sh` and the CI
-workflows fetch it); without it the build has no CLAP target. AAX is not built, so
-Pro Tools is not supported.
+**Plugin formats.** This beta targets Windows VST3 and Standalone, plus universal
+macOS VST3, AU and Standalone. Linux and CLAP remain development targets; CLAP's
+state round-trip defects keep it out of the release. AAX is not built, so Pro Tools
+is not supported.
 
 **Linux build steps.** `scripts/setup_linux.sh` installs the build dependencies and
 JUCE 8.0.10 and configures a Release Ninja tree; then
@@ -155,9 +155,10 @@ under `xvfb-run -a`. `cpack` in the build tree produces the `.tar.gz` and `.deb`
 packages. Linux builds; see "Platform qualification" for what has and has not been
 run.
 
-**Signed and notarised installers.** The build produces the plugin bundles; it does
-not produce signed installers, which need certificates that cannot be part of a
-source repository.
+**Signed and notarised installers.** Packaging scripts can sign Windows installers
+and sign/notarise macOS installers when the required identities are configured.
+A successful build does not prove signing. The release's per-platform logs and
+provenance must state the actual result.
 
 **Verified host testing.** The automated suite covers the plugin's own behaviour,
 including opening the editor and exercising its panels and shortcuts inside the test
@@ -201,13 +202,15 @@ racks in the Advanced panel. See [PEDALBOARD.md](PEDALBOARD.md) and
   bypass criterion has no ruling on how it is measured; the 30-minute model soak and a
   hardware listening comparison have not been run.
 - Board capacity is 16 slots and 8 snapshots.
-- The test `RefPedalCe2.bbdOnOriginalThdGate` fails on every platform: the chorus
-  model's distortion with the bucket-brigade simulation on is below the specified
-  band. The model stays unregistered. The gate has not been loosened.
+- The CE-2 distortion regression was repaired without changing the original
+  acceptance limits; see [CHORUS-QUALIFICATION-2026-11-16.md](status/CHORUS-QUALIFICATION-2026-11-16.md).
+  The chorus stays outside the one-pedal beta catalogue. Passing its distortion
+  test does not close the other model-specific acceptance gates.
 - Several other pedalboard gates are open according to the project's handoff records (`docs/handoff/PEDALBOARD-2026-10-28-CONTINUATION.md`; not re-measured here): CPU budget for four of the six
   models; the looper's memory switching, MIDI program change, quantise, half-speed and
   live reverse are not implemented). These apply to the unregistered models and do not
-  affect the 13 users can add.
+  affect the beta's one-pedal Add catalogue. Legacy sessions can still load their
+  previously registered generic/prototype pedals.
 - MIDI learn and tempo handling on the board are partial: no MIDI clock output.
 - Whether the board behaves differently in the Free edition is not verified; no
   edition gating was found in the board code.
@@ -216,16 +219,22 @@ racks in the Advanced panel. See [PEDALBOARD.md](PEDALBOARD.md) and
 
 ## Platform qualification
 
-- **Linux x64, clang 18:** the unit-test binary builds and has 2,923 tests in 367
-  suites. On the CI run for this commit (GitHub Actions run 41796728348), exactly one
-  test failed in both editions: `RefPedalCe2.bbdOnOriginalThdGate`.
-- **Windows:** the same run additionally failed
-  `RefPedalUiLifecycle.tenThousandNativeOperationsAndEditorDestruction`.
-- **macOS:** the same run had further failures. Earlier macOS runs also showed an AU
-  pluginval crash in the Automation test. The causes are not established here.
-- **No native macOS or Windows release qualification exists for this source.**
-  Do not treat the formats for those platforms as validated.
-- No installer is signed or notarised.
+The latest completed release attempt inspected is
+[run 44259292225](https://github.com/djshellshoxxx/luthier/actions/runs/44259292225),
+which tested exact source `7fcb88c601288e7a7a02cf64548a822b9c3fcfc4`.
+
+- All four native Windows/macOS Free/Pro build, plugin-validator and packaging
+  jobs passed with LTO and strictness 10. Windows edition-coexistence installation
+  checks also passed.
+- Twelve of sixteen full-suite shards passed. macOS Free passed all four shards.
+- The four failing shards each reported one performance failure: Windows Free
+  and Pro part swaps at p95 54.4/57.0 ms against 50 ms; macOS Pro warm instantiation
+  at 1287.5 ms against 1000 ms; and macOS Pro guitar loading at p95 1414.3 ms
+  against 1200 ms. The thresholds remain unchanged.
+- These failures prevented draft release creation. Subsequent code changes need
+  a new complete qualification run; the earlier results are not final-head evidence.
+- Linux was not selected for this release attempt. Manual DAW/hardware/listening
+  acceptance and signing status remain separate from automated qualification.
 
 ---
 

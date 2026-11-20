@@ -1,5 +1,11 @@
 # Luthier feature inventory
 
+This is the November 11 inventory. Its evidence dates and incomplete coverage
+counts are retained for traceability. The owner subsequently selected a
+one-phaser Windows/macOS beta; current fixes and native qualification are tracked
+in [CONSOLIDATION-2026-11-19.md](CONSOLIDATION-2026-11-19.md). In particular, the
+old six-pedal availability and CE-2 failure statements below are historical.
+
 Canonical inventory of what the product is specified to do, what is implemented, and what has
 been validated. It separates *implemented* (code exists) from *validated* (a test or a validator
 run proves it on a named platform).
