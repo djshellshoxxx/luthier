@@ -57,6 +57,41 @@ namespace
         zip.writeToStream (out, nullptr);
     }
 
+    bool writeArchive (const juce::File& file, const std::map<juce::String, juce::MemoryBlock>& entries)
+    {
+        juce::ZipFile::Builder zip;
+        for (const auto& [path, data] : entries)
+            zip.addEntry (new juce::MemoryInputStream (data, true), 9, path, {});
+
+        file.deleteFile();
+        juce::FileOutputStream out (file);
+        return out.openedOk() && zip.writeToStream (out, nullptr);
+    }
+
+    // The central-directory size is attacker-controlled independently of the
+    // signed manifest. Alter only that field, keeping real bytes and hashes.
+    bool changeDeclaredSize (const juce::File& file, const juce::String& path, juce::uint32 size)
+    {
+        juce::MemoryBlock contents;
+        if (! file.loadFileAsData (contents))
+            return false;
+
+        auto* data = static_cast<juce::uint8*> (contents.getData());
+        for (size_t i = 0; i + 46 <= contents.getSize(); ++i)
+        {
+            if (juce::ByteOrder::littleEndianInt (data + i) != 0x02014b50)
+                continue;
+            const auto nameLength = juce::ByteOrder::littleEndianShort (data + i + 28);
+            if (i + 46 + nameLength > contents.getSize()
+                || juce::String::fromUTF8 (reinterpret_cast<const char*> (data + i + 46), nameLength) != path)
+                continue;
+            for (int byte = 0; byte < 4; ++byte)
+                data[i + 24 + (size_t) byte] = (juce::uint8) (size >> (8 * byte));
+            return file.replaceWithData (data, contents.getSize());
+        }
+        return false;
+    }
+
     juce::var manifestFor (const juce::String& name, const std::map<juce::String, juce::MemoryBlock>& files,
                            const juce::String& hashOverride = {})
     {
@@ -313,4 +348,110 @@ LUTHIER_TEST (ContentPackage, aBadHashRollsBackAndOffersTheFullDownload)
         r = ContentPackage::applyDelta (delta, keys().publicKey, s.root());
         CHECK (r.status == ContentPackage::Status::wrongBase);
     }
+}
+
+LUTHIER_TEST (ContentPackage, oversizedManifestIsRejectedBeforeSignatureVerification)
+{
+    Scratch s;
+    const std::map<juce::String, juce::MemoryBlock> files { { "Presets/A.luthierpreset", bytes ("{}") } };
+    auto manifest = manifestFor ("Pack", files);
+    manifest.getDynamicObject()->setProperty ("padding", juce::String::repeatedString ("x", (int) ContentPackage::kMaxManifestBytes));
+    const auto pkg = s.dir.getChildFile ("large-manifest.luthiercontent");
+
+    // No signature: this must be refused for its size before trying to find
+    // or authenticate one. A tiny deflated input must not expand unchecked.
+    CHECK (writeArchive (pkg, { { "manifest.json", bytes (juce::JSON::toString (manifest)) } }));
+    CHECK (ContentPackage::apply (pkg, keys().publicKey, s.root()).status == ContentPackage::Status::notAPackage);
+
+    // Authentication does not make an oversized manifest acceptable either.
+    writeRawPackage (pkg, manifest, files, keys().privateKey);
+    CHECK (ContentPackage::apply (pkg, keys().publicKey, s.root()).status == ContentPackage::Status::notAPackage);
+    CHECK (! s.root().exists());
+}
+
+LUTHIER_TEST (ContentPackage, oversizedSignatureIsRefusedBeforeTrimming)
+{
+    Scratch s;
+    const auto manifest = bytes (juce::JSON::toString (manifestFor ("Pack", {})));
+    const auto signature = ContentPackage::signManifest (manifest, keys().privateKey)
+                           + juce::String::repeatedString (" ", (int) ContentPackage::kMaxSignatureBytes);
+    const auto pkg = s.dir.getChildFile ("large-signature.luthiercontent");
+    CHECK (writeArchive (pkg, { { "manifest.json", manifest }, { "manifest.sig", bytes (signature) } }));
+    CHECK (ContentPackage::apply (pkg, keys().publicKey, s.root()).status == ContentPackage::Status::badSignature);
+    CHECK (! s.root().exists());
+}
+
+LUTHIER_TEST (ContentPackage, declaredEntrySizesAreBoundedAndMustMatchActualBytes)
+{
+    const auto path = juce::String ("Presets/A.luthierpreset");
+    const std::map<juce::String, juce::MemoryBlock> files { { path, bytes ("version two") } };
+    const juce::uint32 sizes[] { (juce::uint32) ContentPackage::kMaxDataEntryBytes + 1, 1, 1000 };
+    for (const auto declared : sizes)
+    {
+        Scratch s;
+        const auto pkg = s.dir.getChildFile ("entry-size.luthiercontent");
+        CHECK (ContentPackage::build (pkg, "Pack", "1", { { path, bytes ("version one") } }, keys().privateKey));
+        CHECK (ContentPackage::apply (pkg, keys().publicKey, s.root()).ok());
+        CHECK (ContentPackage::build (pkg, "Pack", "2", files, keys().privateKey));
+        CHECK (changeDeclaredSize (pkg, path, declared));
+        const auto r = ContentPackage::apply (pkg, keys().publicKey, s.root());
+        CHECK (r.status == (declared > ContentPackage::kMaxDataEntryBytes ? ContentPackage::Status::notAPackage
+                                                                        : ContentPackage::Status::hashMismatch));
+        CHECK (s.root().getChildFile ("Pack/Presets/A.luthierpreset").loadFileAsString() == "version one");
+        CHECK (s.root().getChildFile ("Pack/.version").loadFileAsString() == "1");
+        CHECK (! s.root().getChildFile (".staging-Pack").exists());
+    }
+}
+
+LUTHIER_TEST (ContentPackage, totalExpansionBudgetIsCheckedBeforeExtraction)
+{
+    Scratch s;
+    std::map<juce::String, juce::MemoryBlock> files;
+    const int count = (int) (ContentPackage::kMaxExpandedBytes / ContentPackage::kMaxDataEntryBytes) + 1;
+    for (int i = 0; i < count; ++i)
+        files["Presets/" + juce::String (i) + ".luthierpreset"] = bytes ("{}");
+    const auto pkg = s.dir.getChildFile ("expanded-budget.luthiercontent");
+    writeRawPackage (pkg, manifestFor ("Pack", files), files, keys().privateKey);
+    for (const auto& [path, data] : files)
+    {
+        juce::ignoreUnused (data);
+        CHECK (changeDeclaredSize (pkg, path, (juce::uint32) ContentPackage::kMaxDataEntryBytes));
+    }
+    CHECK (ContentPackage::apply (pkg, keys().publicKey, s.root()).status == ContentPackage::Status::notAPackage);
+    CHECK (! s.root().exists());
+}
+
+LUTHIER_TEST (ContentPackage, excessiveArchiveEntriesAreRefused)
+{
+    Scratch s;
+    const auto manifest = bytes (juce::JSON::toString (manifestFor ("Pack", {})));
+    std::map<juce::String, juce::MemoryBlock> entries {
+        { "manifest.json", manifest },
+        { "manifest.sig", bytes (ContentPackage::signManifest (manifest, keys().privateKey)) }
+    };
+    for (int i = 0; i < ContentPackage::kMaxArchiveEntries - 1; ++i)
+        entries["unused-" + juce::String (i) + "/"] = {};
+    const auto pkg = s.dir.getChildFile ("entry-count.luthiercontent");
+    CHECK (writeArchive (pkg, entries));
+    CHECK (ContentPackage::apply (pkg, keys().publicKey, s.root()).status == ContentPackage::Status::notAPackage);
+    CHECK (! s.root().exists());
+}
+
+LUTHIER_TEST (ContentPackage, repeatedManifestEntriesCannotMultiplyExpansionBudget)
+{
+    Scratch s;
+    const auto path = juce::String ("Presets/A.luthierpreset");
+    const std::map<juce::String, juce::MemoryBlock> files { { path, bytes ("{}") } };
+    auto manifest = manifestFor ("Pack", files);
+    const auto entry = manifest.getProperty ("files", {})[0];
+    juce::Array<juce::var> repeated;
+    const int count = (int) (ContentPackage::kMaxExpandedBytes / ContentPackage::kMaxDataEntryBytes) + 1;
+    for (int i = 0; i < count; ++i)
+        repeated.add (entry);
+    manifest.getDynamicObject()->setProperty ("files", repeated);
+    const auto pkg = s.dir.getChildFile ("repeated-files.luthiercontent");
+    writeRawPackage (pkg, manifest, files, keys().privateKey);
+    CHECK (changeDeclaredSize (pkg, path, (juce::uint32) ContentPackage::kMaxDataEntryBytes));
+    CHECK (ContentPackage::apply (pkg, keys().publicKey, s.root()).status == ContentPackage::Status::notAPackage);
+    CHECK (! s.root().exists());
 }

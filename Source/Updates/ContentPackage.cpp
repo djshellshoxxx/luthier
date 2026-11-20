@@ -37,11 +37,16 @@ namespace
         juce::String signature;
     };
 
-    bool readEntry (juce::ZipFile& zip, const juce::String& name, juce::MemoryBlock& out)
+    bool readEntry (juce::ZipFile& zip, const juce::String& name, juce::MemoryBlock& out,
+                    juce::int64 limit = ContentPackage::kMaxDataEntryBytes)
     {
         const int index = zip.getIndexOfFileName (name);
 
         if (index < 0)
+            return false;
+
+        const auto size = zip.getEntry (index)->uncompressedSize;
+        if (size < 0 || size > limit)
             return false;
 
         std::unique_ptr<juce::InputStream> in (zip.createStreamForEntry (index));
@@ -50,8 +55,13 @@ namespace
             return false;
 
         out.reset();
-        in->readIntoMemoryBlock (out);
-        return true;
+        // Neither the compressed stream nor its advertised size is trusted.
+        // Read the bounded size, then probe separately for one extra byte.
+        // readIntoMemoryBlock() clamps its request to the advertised length,
+        // so including the sentinel in that request would not check for it.
+        const auto read = in->readIntoMemoryBlock (out, (juce::pointer_sized_int) size);
+        char sentinel {};
+        return read == (size_t) size && in->read (&sentinel, 1) == 0;
     }
 
     ContentPackage::Result open (const juce::File& file, const juce::RSAKey& key, Opened& o)
@@ -59,15 +69,34 @@ namespace
         if (! file.existsAsFile())
             return fail (ContentPackage::Status::notAPackage, file.getFileName() + " does not exist.");
 
+        // ZipFile also allocates its central directory. Bound the input file
+        // before constructing it, then bound every entry before decompression
+        // (including the manifest and signature, which are not yet trusted).
+        if (file.getSize() > ContentPackage::kMaxArchiveBytes)
+            return fail (ContentPackage::Status::notAPackage, file.getFileName() + " exceeds the content package size limit.");
+
         o.zip = std::make_unique<juce::ZipFile> (file);
+
+        if (o.zip->getNumEntries() <= 0 || o.zip->getNumEntries() > ContentPackage::kMaxArchiveEntries)
+            return fail (ContentPackage::Status::notAPackage, file.getFileName() + " has an invalid number of entries.");
+
+        juce::int64 expanded = 0;
+        for (int i = 0; i < o.zip->getNumEntries(); ++i)
+        {
+            const auto size = o.zip->getEntry (i)->uncompressedSize;
+            if (size < 0 || size > ContentPackage::kMaxDataEntryBytes
+                || size > ContentPackage::kMaxExpandedBytes - expanded)
+                return fail (ContentPackage::Status::notAPackage, file.getFileName() + " exceeds the content expansion limit.");
+            expanded += size;
+        }
 
         juce::MemoryBlock sig;
 
-        if (o.zip->getNumEntries() == 0 || ! readEntry (*o.zip, "manifest.json", o.manifestBytes))
+        if (! readEntry (*o.zip, "manifest.json", o.manifestBytes, ContentPackage::kMaxManifestBytes))
             return fail (ContentPackage::Status::notAPackage, file.getFileName() + " is not a Luthier content package.");
 
         // Signature first: nothing in an unsigned manifest is trusted, not even its paths.
-        if (! readEntry (*o.zip, "manifest.sig", sig))
+        if (! readEntry (*o.zip, "manifest.sig", sig, ContentPackage::kMaxSignatureBytes))
             return fail (ContentPackage::Status::badSignature, file.getFileName() + " is not signed.");
 
         o.signature = sig.toString().trim();
@@ -102,7 +131,14 @@ namespace
                 return fail (ContentPackage::Status::unsafePath, "\"" + entry + "\" is a link.");
         }
 
-        for (const auto& f : *o.manifest.getProperty ("files", {}).getArray())
+        const auto* files = o.manifest.getProperty ("files", {}).getArray();
+        if (files->size() > ContentPackage::kMaxArchiveEntries)
+            return fail (ContentPackage::Status::notAPackage, file.getFileName() + " lists too many content files.");
+
+        // Repeated references in a signed manifest must not multiply the
+        // amount extracted beyond the same aggregate budget.
+        juce::int64 requested = (juce::int64) (o.manifestBytes.getSize() + sig.getSize());
+        for (const auto& f : *files)
         {
             const auto path = f.getProperty ("path", {}).toString();
 
@@ -111,6 +147,15 @@ namespace
 
             if (! ContentPackage::isAllowedDataFile (path))
                 return fail (ContentPackage::Status::notData, "\"" + path + "\" is not a content file.");
+
+            const int index = o.zip->getIndexOfFileName (path);
+            if (index >= 0)
+            {
+                const auto size = o.zip->getEntry (index)->uncompressedSize;
+                if (size > ContentPackage::kMaxExpandedBytes - requested)
+                    return fail (ContentPackage::Status::notAPackage, file.getFileName() + " exceeds the content expansion limit.");
+                requested += size;
+            }
         }
 
         ContentPackage::Result ok;
@@ -204,7 +249,9 @@ juce::String ContentPackage::signManifest (const juce::MemoryBlock& manifestJson
 bool ContentPackage::verifyManifest (const juce::MemoryBlock& manifestJson, const juce::String& signatureHex,
                                      const juce::RSAKey& publicKey)
 {
-    if (signatureHex.isEmpty() || ! publicKey.isValid()
+    if (manifestJson.getSize() > (size_t) kMaxManifestBytes
+          || signatureHex.length() > kMaxSignatureBytes
+          || signatureHex.isEmpty() || ! publicKey.isValid()
           || ! signatureHex.containsOnly ("0123456789abcdefABCDEF"))
         return false;
 

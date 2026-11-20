@@ -17,7 +17,9 @@
     unpacks into a staging folder beside the destination, verifies everything
     there, and only then swaps it into ContentUpdates/<name>/, keeping the
     previous version until the swap has succeeded - so a failure at any point
-    leaves the installed content exactly as it was.
+    leaves the installed content exactly as it was. Compressed input, entry
+    counts and expanded bytes have explicit bounds; even the unauthenticated
+    manifest and signature are read with strict byte limits.
 
     A delta patch is the same container with `"kind": "delta"`, `"from"` (the
     version it applies to) and per-file actions ("replace" / "delete"); every
@@ -39,6 +41,16 @@ class ContentPackage
 public:
     static constexpr const char* kFileExtension = ".luthiercontent";
     static constexpr const char* kMagic = "luthier.content";
+
+    // Bounds apply before authentication too: ZIP metadata and compressed
+    // manifests are untrusted until the signature has been verified. Packs
+    // exceeding these limits must be split into smaller content updates.
+    static constexpr int kMaxArchiveEntries = 4096;
+    static constexpr juce::int64 kMaxArchiveBytes = 256LL * 1024 * 1024;
+    static constexpr juce::int64 kMaxManifestBytes = 1024 * 1024;
+    static constexpr juce::int64 kMaxSignatureBytes = 4096;
+    static constexpr juce::int64 kMaxDataEntryBytes = 64LL * 1024 * 1024;
+    static constexpr juce::int64 kMaxExpandedBytes = 512LL * 1024 * 1024;
 
     enum class Status
     {

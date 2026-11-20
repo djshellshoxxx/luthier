@@ -9,7 +9,10 @@ set(MODULES "${ROOT}/ThirdParty/JUCE/modules")
 set(SANITIZE "" CACHE STRING "Optional address,undefined or thread sanitizer")
 add_executable(midi_checks ../recorder_checks/main.cpp ../recorder_checks/juce_colour.cpp
     "${ROOT}/Source/Routing/MidiOutRouter.cpp"
+    "${ROOT}/Source/ReferencePedals/Midi/MidiRouter.cpp"
+    "${ROOT}/Source/ReferencePedals/Midi/MidiMap.cpp"
     "${ROOT}/Source/Tests/DeferredEngineMidiTests.cpp"
+    "${ROOT}/Source/Tests/RefPedalMidiReleaseTests.cpp"
     "${ROOT}/Source/Tests/RhythmMidiWriterTests.cpp")
 foreach(module juce_core juce_events juce_data_structures juce_audio_basics juce_audio_formats juce_dsp)
     target_sources(midi_checks PRIVATE "${MODULES}/${module}/${module}.cpp")
@@ -26,3 +29,4 @@ if(SANITIZE)
     target_compile_options(midi_checks PRIVATE "-fsanitize=${SANITIZE}" -fno-omit-frame-pointer)
     target_link_options(midi_checks PRIVATE "-fsanitize=${SANITIZE}")
 endif()
+
