@@ -1,5 +1,7 @@
 # Beta 2 qualification execution — November 19, 2026
 
+Checkpoint: November 19, 2026, 8:07 p.m. Pacific (2026-11-20 04:07 UTC).
+
 ## Candidate and decision
 
 Source: `51fd4de677fd0d4a056ded5ee2e8845b9e81584d`. Scope: Windows x64 and
@@ -18,16 +20,19 @@ failed release workflow into a pass.
 |---|---|---|
 | Reference-board state persistence | **Pass** | 23 existing tests, 9,533 checks, zero failures; includes 1,000 seeded save/restore round trips |
 | Phaser correctness and prepared memory | **Pass** | 17 existing tests, 55,056 checks, zero failures |
-| Named-phaser state/audio round trip | Running | Supplemental actual-model test; does not establish DAW project reopen |
+| Named-phaser state/audio round trip | **Pass** | 2 supplemental tests, 5,420 checks; 40 rate/block/clock-mode combinations; bit-identical fresh restored audio and zero observed callback allocations |
 | Extended phaser render | **Pass** | Original soak template selected for the phaser: 1 test, 8 checks; 1,800 seconds at each of 44.1/48/96/192 kHz, 684,180,000 samples per channel; 101.7 seconds wall time |
-| Original concurrent generic-board soak | Running | Existing 1,800-second wall-clock test; unchanged checks |
-| Concurrent phaser-board soak | Running | Supplemental test derived from existing soak; eleven block sizes and parameter edits |
+| Original concurrent generic-board soak | **Pass** | 1,800.14 wall-clock seconds; 180,000 attempted edits; 9 checks, zero failures |
+| Concurrent phaser-board soak | **Pass** | 1,800.14 wall-clock seconds; 180,000 attempted edits; 9 checks, zero failures; eleven block sizes and parameter edits |
 | Phaser CPU below 0.4% of one core | **Fail on this machine** | Ten existing-probe trials: best 0.483628860%, maximum 1.468951710%; none below 0.4% |
 | Bypass “peak delta <1 LSB at 24 bits” | **Blocked: measurement definition** | No replacement metric or inferred pass |
 | Physical reference listening | **Not run** | Requires reference hardware and a listening comparison |
 
 Local execution is on Linux x86_64. It supplements the Windows/macOS matrix;
 it does not establish native host, device-driver, installer, or signature status.
+Allocation observations cover ordinary unaligned `new`/`new[]` and nothrow forms,
+not aligned allocation or direct `malloc`/`calloc`/`realloc`. Lock observations
+cover ThreadProbe-instrumented blocking locks only.
 
 ### State persistence
 
@@ -43,6 +48,46 @@ defaults, numeric conversion and locale independence, and momentary controls.
 Fetched production and existing-test files were checked against their Git blob
 identities. The component runner and extracted allocation hooks are supplemental
 test infrastructure, not the shipping executable.
+
+The general suite uses fixture pedals for its seeded round trips. The separate
+named-phaser check closes that model-specific gap: two real phasers with distinct
+nondefault parameters, trims and reversed order are saved and restored across
+sample-rate changes. Fresh direct-state and JSON-restored boards produced
+bit-identical audio at 44.1/48/88.2/96/192 kHz and blocks of 1/37/64/512 samples,
+both free-running and host-synced. A changed host tempo affected synced output
+and left free-running output unchanged. An additional fresh control preserves
+slot trims, routing, all other parameters and host timing while setting only
+both phasers' wet-trim parameters to zero. Every render cell exceeded the
+`1e-6` output-difference guard (observed peaks 0.0435626–0.0440371), establishing
+digital model-parameter response without making a listening claim. This is board-state
+evidence, not a full-processor or DAW project-reopen claim. The log label `free`
+means free-running clock, not the product's Free edition.
+
+### Completed 30-minute concurrent soaks
+
+Both processes completed successfully using the same component executable,
+SHA-256 `ddf5b51b79810de0184244ebc7bdee5e139817b68d5090704381ccb79e304c27`.
+Each ran for 1,800 wall-clock seconds, with a separate audio-processing thread
+and 100 attempted edits per second. Audio runs as fast as possible in this
+harness; it is not paced by an audio-device callback or a DAW.
+
+| Observation | Original generic-board test | Supplemental phaser-board test |
+|---|---:|---:|
+| Attempted edits | 180,000 | 180,000 |
+| Recorded rejected edits | 18,439 | 16,129 |
+| Processed blocks | 5,657,526 | 7,729,469 |
+| Samples per channel | 2,495,911,887 | 3,211,945,709 |
+| Nonfinite or absolute magnitude above 16 detections | 0 | 0 |
+| Counted ordinary C++ callback allocations | 0 | 0 |
+| ThreadProbe-instrumented callback blocking locks | 0 | 0 |
+| Maximum sampled resident memory | 25,228 KiB | 14,100 KiB |
+| Test checks / failures | 9 / 0 | 9 / 0 |
+
+The harness records rejected random edit attempts; it does not require every
+attempt to be accepted. Memory observations are diagnostics, not a new memory
+acceptance threshold or proof of no leaks. These results establish component
+concurrency and numerical evidence for this candidate. Hardware callback
+deadlines, DAW interaction, audio-device dropouts and listening remain untested.
 
 ### CPU measurement
 
@@ -61,12 +106,22 @@ was not applied to the release candidate and does not resolve the gate.
 ## Native release and artifact qualification
 
 Release-source checks, Windows edition-coexistence fixtures and platform
-selection have passed. The macOS Pro build is running; the other three native
-build jobs are queued. Five
+selection have passed. macOS Pro and Windows Free builds are running; macOS Free
+and Windows Pro are queued. Five
 supplemental Linux jobs passed: looper publication under ThreadSanitizer, IR
 handoff under ThreadSanitizer, IR handoff under AddressSanitizer/UndefinedBehaviorSanitizer,
-recorder thread safety, and native-library portability. Free and Pro focused
-runners are building in [run 44662141836](https://github.com/djshellshoxxx/luthier/actions/runs/44662141836).
+recorder thread safety, and native-library portability. Both application
+preflights also passed: 199 tests/560,107 checks in Pro and 199 tests/560,091
+checks in Free, zero failures. All seven jobs in
+[run 44662141836](https://github.com/djshellshoxxx/luthier/actions/runs/44662141836)
+have passed. Those pull-request jobs checked out synthetic merge commit
+`527085a20570e69626c5e0aa88d624906fa4294a`; its complete source tree is identical
+to the candidate's `fae7e7ab0f70dfa533d2857f1df904f89a20cf5d` tree.
+
+No `v0.1.0-beta2` release exists at this checkpoint. The candidate branch remains
+at the source above; `master` remains `0f62c3d67bdba055b41e66c7ab8ac9ab4b728662`.
+Full native unit shards, validators, packaging and publication verification
+remain pending. The completed component tests do not bypass those gates.
 
 The release requires all four builds, every native test shard, strictness-10
 VST3 validation, AU validation where applicable, and packaging. Publication then

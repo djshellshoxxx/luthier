@@ -1,0 +1,45 @@
+RUN PhaserStateQualification.nonDefaultParametersAndOrderSurviveSampleRateChanges
+PhaserStateQualification.nonDefaultParametersAndOrderSurviveSampleRateChanges: 2350 checks, 0 failures, 0.177221 wall seconds
+RUN PhaserStateQualification.freshRestoredAudioMatchesDirectStateAndFollowsHostTempo
+    44100/1/free restored_max_error=0 wet_trim_control_delta=0.0435626 tempo_delta=0 callback_allocations=0
+    44100/37/free restored_max_error=0 wet_trim_control_delta=0.0435626 tempo_delta=0 callback_allocations=0
+    44100/64/free restored_max_error=0 wet_trim_control_delta=0.0435626 tempo_delta=0 callback_allocations=0
+    44100/512/free restored_max_error=0 wet_trim_control_delta=0.0435626 tempo_delta=0 callback_allocations=0
+    48000/1/free restored_max_error=0 wet_trim_control_delta=0.0435949 tempo_delta=0 callback_allocations=0
+    48000/37/free restored_max_error=0 wet_trim_control_delta=0.0435949 tempo_delta=0 callback_allocations=0
+    48000/64/free restored_max_error=0 wet_trim_control_delta=0.0435949 tempo_delta=0 callback_allocations=0
+    48000/512/free restored_max_error=0 wet_trim_control_delta=0.0435949 tempo_delta=0 callback_allocations=0
+    88200/1/free restored_max_error=0 wet_trim_control_delta=0.0436563 tempo_delta=0 callback_allocations=0
+    88200/37/free restored_max_error=0 wet_trim_control_delta=0.0436563 tempo_delta=0 callback_allocations=0
+    88200/64/free restored_max_error=0 wet_trim_control_delta=0.0436563 tempo_delta=0 callback_allocations=0
+    88200/512/free restored_max_error=0 wet_trim_control_delta=0.0436563 tempo_delta=0 callback_allocations=0
+    96000/1/free restored_max_error=0 wet_trim_control_delta=0.0436647 tempo_delta=0 callback_allocations=0
+    96000/37/free restored_max_error=0 wet_trim_control_delta=0.0436647 tempo_delta=0 callback_allocations=0
+    96000/64/free restored_max_error=0 wet_trim_control_delta=0.0436647 tempo_delta=0 callback_allocations=0
+    96000/512/free restored_max_error=0 wet_trim_control_delta=0.0436647 tempo_delta=0 callback_allocations=0
+    192000/1/free restored_max_error=0 wet_trim_control_delta=0.0436848 tempo_delta=0 callback_allocations=0
+    192000/37/free restored_max_error=0 wet_trim_control_delta=0.0436848 tempo_delta=0 callback_allocations=0
+    192000/64/free restored_max_error=0 wet_trim_control_delta=0.0436848 tempo_delta=0 callback_allocations=0
+    192000/512/free restored_max_error=0 wet_trim_control_delta=0.0436848 tempo_delta=0 callback_allocations=0
+    44100/1/sync restored_max_error=0 wet_trim_control_delta=0.043951 tempo_delta=0.0120251 callback_allocations=0
+    44100/37/sync restored_max_error=0 wet_trim_control_delta=0.0437786 tempo_delta=0.0120234 callback_allocations=0
+    44100/64/sync restored_max_error=0 wet_trim_control_delta=0.0436972 tempo_delta=0.0119382 callback_allocations=0
+    44100/512/sync restored_max_error=0 wet_trim_control_delta=0.0436972 tempo_delta=0.0118146 callback_allocations=0
+    48000/1/sync restored_max_error=0 wet_trim_control_delta=0.0439594 tempo_delta=0.0120324 callback_allocations=0
+    48000/37/sync restored_max_error=0 wet_trim_control_delta=0.0438393 tempo_delta=0.0119903 callback_allocations=0
+    48000/64/sync restored_max_error=0 wet_trim_control_delta=0.043714 tempo_delta=0.0120105 callback_allocations=0
+    48000/512/sync restored_max_error=0 wet_trim_control_delta=0.043714 tempo_delta=0.0118099 callback_allocations=0
+    88200/1/sync restored_max_error=0 wet_trim_control_delta=0.044008 tempo_delta=0.0120398 callback_allocations=0
+    88200/37/sync restored_max_error=0 wet_trim_control_delta=0.0439498 tempo_delta=0.0120389 callback_allocations=0
+    88200/64/sync restored_max_error=0 wet_trim_control_delta=0.043899 tempo_delta=0.0120052 callback_allocations=0
+    88200/512/sync restored_max_error=0 wet_trim_control_delta=0.043899 tempo_delta=0.0118482 callback_allocations=0
+    96000/1/sync restored_max_error=0 wet_trim_control_delta=0.0440181 tempo_delta=0.0120395 callback_allocations=0
+    96000/37/sync restored_max_error=0 wet_trim_control_delta=0.0439601 tempo_delta=0.0120228 callback_allocations=0
+    96000/64/sync restored_max_error=0 wet_trim_control_delta=0.0439083 tempo_delta=0.012018 callback_allocations=0
+    96000/512/sync restored_max_error=0 wet_trim_control_delta=0.0439083 tempo_delta=0.0118266 callback_allocations=0
+    192000/1/sync restored_max_error=0 wet_trim_control_delta=0.0440371 tempo_delta=0.012039 callback_allocations=0
+    192000/37/sync restored_max_error=0 wet_trim_control_delta=0.0440089 tempo_delta=0.0120347 callback_allocations=0
+    192000/64/sync restored_max_error=0 wet_trim_control_delta=0.0439858 tempo_delta=0.0120389 callback_allocations=0
+    192000/512/sync restored_max_error=0 wet_trim_control_delta=0.0439858 tempo_delta=0.0120166 callback_allocations=0
+PhaserStateQualification.freshRestoredAudioMatchesDirectStateAndFollowsHostTempo: 3070 checks, 0 failures, 3.71076 wall seconds
+2 tests, 5420 checks, 0 failures

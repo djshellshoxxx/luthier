@@ -6,7 +6,20 @@ scope and remaining work. This directory contains source identities, commands,
 test infrastructure and raw execution results. No shipping binary is replaced.
 
 - `state-qualification.log`: original 23-test board-state suite.
+- `generic-board-30min.log`, `phaser-board-30min.log`, `soak-results.json` and
+  `soak-monitor.log`: both completed 1,800-second concurrent component tests,
+  final counters, executable identity and sampled resident-memory observations.
 - `phaser-correctness*`: original 13 phaser tests and four prepared-memory tests.
+- `phaser-state*`: two supplemental actual-phaser state/audio tests, 5,420
+  checks, 40 rate/block/clock-mode render cells. The `free` log label means
+  free-running clock, not Free edition. Copy `phaser-state-roundtrip.cpp` into
+  `Source/Tests/PhaserStateQualificationTests.cpp`, rebuild the runner, and select
+  `PhaserStateQualification` to repeat the additional cases.
+- `ci-linux-pro.log`: application preflight test section from successful job
+  136042655621; 199 tests and 560,107 checks passed.
+- `ci-linux-free.log`: matching Free-edition job 136042655631; 199 tests and
+  560,091 checks passed. `ci-source-identity.json` records the checkout merge
+  commit and confirms its source tree equals the candidate's tree.
 - `phaser-offline-soak*`: the original numerical-soak template, selected only for
   the phaser, and its four-rate 1,800-second-per-rate run. The template matches the
   original source bytes. Its 7,200 seconds of simulated audio took about 102 real
@@ -20,9 +33,10 @@ test infrastructure and raw execution results. No shipping binary is replaced.
   input identities and compiler/linker arguments for the native component runner.
 - `component-runner.cpp`, `allocation-counter.cpp`, `phaser-board-soak.cpp` and
   `soak-monitor.py`: supplemental harnesses. Allocation hooks are extracted from
-  the candidate's `CircuitTests.cpp`. They observe C++ allocation calls; the
-  existing ThreadProbe counter observes explicitly instrumented locks, not every
-  possible operating-system allocation or synchronization operation.
+  the candidate's `CircuitTests.cpp`. They intercept ordinary unaligned
+  `new`/`new[]` and their nothrow forms. They do not intercept aligned allocation
+  or direct `malloc`/`calloc`/`realloc`. The existing ThreadProbe counter observes
+  explicitly instrumented blocking locks, not every synchronization operation.
 
 For the existing full project runner, the matching invocations are:
 

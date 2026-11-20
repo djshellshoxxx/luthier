@@ -1,0 +1,476 @@
+Source: 51fd4de677fd0d4a056ded5ee2e8845b9e81584d
+Job: https://github.com/djshellshoxxx/luthier/actions/runs/44662141836/job/136042655621
+Section copied from the successful job log; setup and cleanup omitted.
+
+2026-11-20T03:38:43.0856559Z ================================================================
+2026-11-20T03:38:43.0857005Z  LUTHIER TEST SUITE
+2026-11-20T03:38:43.0857282Z ================================================================
+2026-11-20T03:38:43.0857454Z 
+2026-11-20T03:38:43.0857460Z 
+2026-11-20T03:38:43.0857545Z AutoArticulationEngine
+2026-11-20T03:38:43.0857777Z ----------------------------------------------------------------
+2026-11-20T03:38:44.4214193Z   [pass]  presetSnapshotAndHostStateKeepTheFourValues 16 checks     1335.45 ms
+2026-11-20T03:38:44.4214678Z 
+2026-11-20T03:38:44.4214779Z BackendRelease
+2026-11-20T03:38:44.4215096Z ----------------------------------------------------------------
+2026-11-20T03:38:44.7196779Z   [pass]  hostReleaseSurvivesStructuralLockContention 4 checks      298.167 ms
+2026-11-20T03:38:45.0064211Z   [pass]  immediateReleaseRetriesAfterEventQueueSaturation4 checks      286.724 ms
+2026-11-20T03:38:45.6241745Z   [pass]  minimumDurationReleaseRetriesAfterEventQueueSaturation2 checks      617.653 ms
+2026-11-20T03:38:45.6242326Z 
+2026-11-20T03:38:45.6242419Z Character
+2026-11-20T03:38:45.6242711Z ----------------------------------------------------------------
+2026-11-20T03:38:45.6243269Z   [pass]  intermittentJackDurationUsesAudioTimeOnly   5 checks      0.024 ms
+2026-11-20T03:38:45.6243662Z 
+2026-11-20T03:38:45.6243773Z CharacterWiring
+2026-11-20T03:38:45.6244073Z ----------------------------------------------------------------
+2026-11-20T03:38:45.8642175Z   [pass]  theIntermittentJackDropsOutAndRecovers      4 checks      239.827 ms
+2026-11-20T03:38:45.8642516Z 
+2026-11-20T03:38:45.8642592Z DeferredEngineMidi
+2026-11-20T03:38:45.8642811Z ----------------------------------------------------------------
+2026-11-20T03:38:45.8666891Z   [pass]  missedReleasePrecedesCurrentInputAndIsConsumedOnce6 checks      0.025 ms
+2026-11-20T03:38:45.8667391Z   [pass]  repeatedMissesKeepOrderAndResetDropsHistory 4 checks      0.005 ms
+2026-11-20T03:38:46.1313927Z   [pass]  overflowReleasesEveryChannelAndPedal        6 checks      266.892 ms
+2026-11-20T03:38:46.1314340Z 
+2026-11-20T03:38:46.1314455Z EffectsChainLifetime
+2026-11-20T03:38:46.1314806Z ----------------------------------------------------------------
+2026-11-20T03:38:46.1315351Z   [pass]  replacementWaitsForLatencyReader            8 checks      0.122 ms
+2026-11-20T03:38:46.1315935Z   [pass]  clearWaitsForLatencyReader                  8 checks      0.052 ms
+2026-11-20T03:38:46.1316581Z   [pass]  replacementWaitsForQualityReader            7 checks      0.058 ms
+2026-11-20T03:38:46.1317148Z   [pass]  moveRepublishesWithoutDestroyingPedal       7 checks      0.002 ms
+2026-11-20T03:38:46.1318084Z 
+2026-11-20T03:38:46.1318258Z HostLatencyThread
+2026-11-20T03:38:46.1318569Z ----------------------------------------------------------------
+2026-11-20T03:38:46.5695280Z   [pass]  audioPublishesButOnlyControlNotifiesHost    18 checks     437.476 ms
+2026-11-20T03:38:46.5695667Z 
+2026-11-20T03:38:46.5695736Z HostState
+2026-11-20T03:38:46.5695975Z ----------------------------------------------------------------
+2026-11-20T03:38:47.1763499Z   [pass]  aSessionSurvivesThePrepareThatFollowsIt     10 checks     606.785 ms
+2026-11-20T03:38:47.4668737Z   [pass]  anUnpreparedInstanceSavesTheSameStateAsAPreparedOne1 checks      290.436 ms
+2026-11-20T03:38:47.4669642Z   [pass]  failureDiagnosticsPreserveNumericTokensAndRedactPrivateState41 checks     0.164 ms
+2026-11-20T03:38:47.5693844Z   [pass]  aRestoredNormalisedValueReadsBackExactly    5 checks      102.246 ms
+2026-11-20T03:38:47.5943438Z   [pass]  theMorphSliderAndTheCharacterAmountAreSaved 2 checks      24.978 ms
+2026-11-20T03:38:48.0489107Z   [pass]  aHostWritingAGuitarTypeWithItsPartsKeepsTheParts3 checks      454.497 ms
+2026-11-20T03:38:48.0634404Z   [pass]  parameterTextRoundTripsStably               8240 checks   14.564 ms
+2026-11-20T03:38:48.3561309Z   [pass]  processingDoesNotMoveParameters             1 checks      292.544 ms
+2026-11-20T03:38:48.7703992Z   [pass]  theSameParametersGiveTheSameStateHoweverTheyArrived1 checks      414.192 ms
+2026-11-20T03:38:48.7704509Z   [pass]  versionCarriesABuildString                  3 checks      0.002 ms
+2026-11-20T03:38:49.0545185Z   [pass]  theStateCarriesAFormatVersion               3 checks      284.052 ms
+2026-11-20T03:38:49.6714540Z   [pass]  unknownSectionsSurviveWriteBack             6 checks      616.882 ms
+2026-11-20T03:38:50.2880887Z   [pass]  anOldBlobIsBackedUpBeforeMigration          4 checks      616.566 ms
+2026-11-20T03:38:50.3963459Z   [pass]  backupTestOverridePreservesDefaultPathExactBytesAndTwentyFileLimit47 checks     108.138 ms
+2026-11-20T03:38:50.6896789Z   [pass]  bypassOutputsSilence                        2 checks      293.3 ms
+2026-11-20T03:38:51.2850300Z   [pass]  programsEnumerateFactoryPresetsAndLoadByIndex145 checks    595.279 ms
+2026-11-20T03:38:51.2850836Z 
+2026-11-20T03:38:51.2850953Z IrSwapContinuity
+2026-11-20T03:38:51.2851200Z ----------------------------------------------------------------
+2026-11-20T03:38:51.3567884Z   [pass]  cabinetKeepsItsDelayAndCrossfadesReplacement6 checks      71.628 ms
+2026-11-20T03:38:51.4478843Z   [pass]  bodyKeepsItsDelayAndCrossfadesReplacement   6 checks      91.039 ms
+2026-11-20T03:38:51.5754351Z   [pass]  cabinetBypassPreservesPhysicalDelay         15 checks     127.503 ms
+2026-11-20T03:38:51.8594069Z   [pass]  cabinetBypassEdgesDoNotIntroduceAnImpulse   12 checks     283.934 ms
+2026-11-20T03:38:52.1069518Z   [pass]  rawResponsesSurviveHostReprepare            16 checks     247.473 ms
+2026-11-20T03:38:52.1069971Z 
+2026-11-20T03:38:52.1070069Z JamPlugin
+2026-11-20T03:38:52.1070300Z ----------------------------------------------------------------
+2026-11-20T03:38:52.7126940Z   [pass]  JM35_presetsSnapshotsAndHostState           46 checks     605.617 ms
+2026-11-20T03:38:52.7127310Z 
+2026-11-20T03:38:52.7127419Z IrSwapContinuity
+2026-11-20T03:38:52.7127650Z ----------------------------------------------------------------
+2026-11-20T03:38:52.7965061Z   [pass]  preparedBankKeepsItsDelayAndCrossfadesReplacement7 checks      83.715 ms
+2026-11-20T03:38:52.7965388Z 
+2026-11-20T03:38:52.7965467Z LiveConvolution
+2026-11-20T03:38:52.7965686Z ----------------------------------------------------------------
+2026-11-20T03:38:54.2534553Z   [pass]  repeatedPublicationQualityAndResetKeepOwnershipOffAudio8 checks      1456.9 ms
+2026-11-20T03:38:54.2535858Z 
+2026-11-20T03:38:54.2535960Z Normalization
+2026-11-20T03:38:54.2536398Z ----------------------------------------------------------------
+2026-11-20T03:38:55.4483645Z     p41_g18_phrase: table -22.51, fresh -22.2805 LUFS
+2026-11-20T03:38:56.7075008Z     p68_g21_phrase: table -22.27, fresh -23.172 LUFS
+2026-11-20T03:38:57.9484021Z     p21_g20_phrase: table -31.6, fresh -30.0232 LUFS
+2026-11-20T03:38:59.3294938Z     p30_g05_phrase: table -23.4, fresh -23.5005 LUFS
+2026-11-20T03:38:59.4348256Z   [pass]  ON03_FactoryTableDoesNotDrift               12 checks     5180.97 ms
+2026-11-20T03:39:02.1880717Z   [pass]  ON03_ExplicitCalibrationTransactionIgnoresLoadDelay8 checks      2753.09 ms
+2026-11-20T03:39:02.1923613Z   [pass]  ON32_EditionIsPartOfTheHash                 5 checks      4.354 ms
+2026-11-20T03:39:04.2148412Z   [pass]  FactoryGuitarOverrideUsesSelectedInstrument 12 checks     2022.26 ms
+2026-11-20T03:39:04.6094429Z   [pass]  CalibrationHashIgnoresPresetMetadata        3 checks      394.546 ms
+2026-11-20T03:39:04.6095366Z 
+2026-11-20T03:39:04.6095474Z Fuzz
+2026-11-20T03:39:04.6095729Z ----------------------------------------------------------------
+2026-11-20T03:39:04.6107002Z [tiny-convolution] 8000 Hz / 1 samples, 20000 blocks per preset
+2026-11-20T03:39:07.0052983Z [tiny-convolution-swap] 8000 Hz / 1 samples guitar=0->1 body=offset/medium_alder_played.wav->solid/medium_mahogany_played.wav loads=4->5 cabinet=2x12_open/jensen_c12_shure_sm57_cap_edge_close.wav->1x12_open/jensen_c12_shure_sm57_cap_edge_close.wav loads=14->16
+2026-11-20T03:39:07.0853554Z [tiny-convolution] 8000 Hz / 2 samples, 20000 blocks per preset
+2026-11-20T03:39:09.5438701Z [tiny-convolution-swap] 8000 Hz / 2 samples guitar=0->1 body=offset/medium_alder_played.wav->solid/medium_mahogany_played.wav loads=4->5 cabinet=2x12_open/jensen_c12_shure_sm57_cap_edge_close.wav->1x12_open/jensen_c12_shure_sm57_cap_edge_close.wav loads=14->16
+2026-11-20T03:39:09.6218896Z [tiny-convolution] 8000 Hz / 3 samples, 20000 blocks per preset
+2026-11-20T03:39:12.1702314Z [tiny-convolution-swap] 8000 Hz / 3 samples guitar=0->1 body=offset/medium_alder_played.wav->solid/medium_mahogany_played.wav loads=4->5 cabinet=2x12_open/jensen_c12_shure_sm57_cap_edge_close.wav->1x12_open/jensen_c12_shure_sm57_cap_edge_close.wav loads=14->16
+2026-11-20T03:39:12.2689340Z [tiny-convolution] 8000 Hz / 4 samples, 20000 blocks per preset
+2026-11-20T03:39:14.8766757Z [tiny-convolution-swap] 8000 Hz / 4 samples guitar=0->1 body=offset/medium_alder_played.wav->solid/medium_mahogany_played.wav loads=4->5 cabinet=2x12_open/jensen_c12_shure_sm57_cap_edge_close.wav->1x12_open/jensen_c12_shure_sm57_cap_edge_close.wav loads=14->16
+2026-11-20T03:39:14.9755825Z   [pass]  convolutionPreparesSafelyForTinyHostBlocks  2150 checks   10365.7 ms
+2026-11-20T03:39:14.9756669Z [tiny-convolution] 8000 Hz / 5 samples, 2000 blocks per preset
+2026-11-20T03:39:15.5123644Z [tiny-convolution-swap] 8000 Hz / 5 samples guitar=0->1 body=offset/medium_alder_played.wav->solid/medium_mahogany_played.wav loads=4->5 cabinet=2x12_open/jensen_c12_shure_sm57_cap_edge_close.wav->1x12_open/jensen_c12_shure_sm57_cap_edge_close.wav loads=14->16
+2026-11-20T03:39:15.6007896Z [tiny-convolution] 8000 Hz / 7 samples, 2000 blocks per preset
+2026-11-20T03:39:16.1536335Z [tiny-convolution-swap] 8000 Hz / 7 samples guitar=0->1 body=offset/medium_alder_played.wav->solid/medium_mahogany_played.wav loads=4->5 cabinet=2x12_open/jensen_c12_shure_sm57_cap_edge_close.wav->1x12_open/jensen_c12_shure_sm57_cap_edge_close.wav loads=14->16
+2026-11-20T03:39:16.2461330Z [tiny-convolution] 8000 Hz / 8 samples, 2000 blocks per preset
+2026-11-20T03:39:16.8022917Z [tiny-convolution-swap] 8000 Hz / 8 samples guitar=0->1 body=offset/medium_alder_played.wav->solid/medium_mahogany_played.wav loads=4->5 cabinet=2x12_open/jensen_c12_shure_sm57_cap_edge_close.wav->1x12_open/jensen_c12_shure_sm57_cap_edge_close.wav loads=14->16
+2026-11-20T03:39:16.8802369Z [tiny-convolution] 44100 Hz / 1 samples, 2000 blocks per preset
+2026-11-20T03:39:17.4236833Z [tiny-convolution-swap] 44100 Hz / 1 samples guitar=0->1 body=offset/medium_alder_played.wav->solid/medium_mahogany_played.wav loads=4->5 cabinet=2x12_open/jensen_c12_shure_sm57_cap_edge_close.wav->1x12_open/jensen_c12_shure_sm57_cap_edge_close.wav loads=14->16
+2026-11-20T03:39:17.5078020Z [tiny-convolution] 44100 Hz / 2 samples, 2000 blocks per preset
+2026-11-20T03:39:18.0685503Z [tiny-convolution-swap] 44100 Hz / 2 samples guitar=0->1 body=offset/medium_alder_played.wav->solid/medium_mahogany_played.wav loads=4->5 cabinet=2x12_open/jensen_c12_shure_sm57_cap_edge_close.wav->1x12_open/jensen_c12_shure_sm57_cap_edge_close.wav loads=14->16
+2026-11-20T03:39:18.1547723Z [tiny-convolution] 44100 Hz / 3 samples, 2000 blocks per preset
+2026-11-20T03:39:18.7199566Z [tiny-convolution-swap] 44100 Hz / 3 samples guitar=0->1 body=offset/medium_alder_played.wav->solid/medium_mahogany_played.wav loads=4->5 cabinet=2x12_open/jensen_c12_shure_sm57_cap_edge_close.wav->1x12_open/jensen_c12_shure_sm57_cap_edge_close.wav loads=14->16
+2026-11-20T03:39:18.8123165Z [tiny-convolution] 44100 Hz / 4 samples, 2000 blocks per preset
+2026-11-20T03:39:19.3811905Z [tiny-convolution-swap] 44100 Hz / 4 samples guitar=0->1 body=offset/medium_alder_played.wav->solid/medium_mahogany_played.wav loads=4->5 cabinet=2x12_open/jensen_c12_shure_sm57_cap_edge_close.wav->1x12_open/jensen_c12_shure_sm57_cap_edge_close.wav loads=14->16
+2026-11-20T03:39:19.4591644Z [tiny-convolution] 44100 Hz / 5 samples, 2000 blocks per preset
+2026-11-20T03:39:20.0835788Z [tiny-convolution-swap] 44100 Hz / 5 samples guitar=0->1 body=offset/medium_alder_played.wav->solid/medium_mahogany_played.wav loads=4->5 cabinet=2x12_open/jensen_c12_shure_sm57_cap_edge_close.wav->1x12_open/jensen_c12_shure_sm57_cap_edge_close.wav loads=14->16
+2026-11-20T03:39:20.1656630Z [tiny-convolution] 44100 Hz / 7 samples, 2000 blocks per preset
+2026-11-20T03:39:20.7605888Z [tiny-convolution-swap] 44100 Hz / 7 samples guitar=0->1 body=offset/medium_alder_played.wav->solid/medium_mahogany_played.wav loads=4->5 cabinet=2x12_open/jensen_c12_shure_sm57_cap_edge_close.wav->1x12_open/jensen_c12_shure_sm57_cap_edge_close.wav loads=14->16
+2026-11-20T03:39:20.8427550Z [tiny-convolution] 44100 Hz / 8 samples, 2000 blocks per preset
+2026-11-20T03:39:21.4492936Z [tiny-convolution-swap] 44100 Hz / 8 samples guitar=0->1 body=offset/medium_alder_played.wav->solid/medium_mahogany_played.wav loads=4->5 cabinet=2x12_open/jensen_c12_shure_sm57_cap_edge_close.wav->1x12_open/jensen_c12_shure_sm57_cap_edge_close.wav loads=14->16
+2026-11-20T03:39:21.5293823Z [tiny-convolution] 192000 Hz / 1 samples, 2000 blocks per preset
+2026-11-20T03:39:22.0226802Z [tiny-convolution-swap] 192000 Hz / 1 samples guitar=0->1 body=offset/medium_alder_played.wav->solid/medium_mahogany_played.wav loads=4->5 cabinet=2x12_open/jensen_c12_shure_sm57_cap_edge_close.wav->1x12_open/jensen_c12_shure_sm57_cap_edge_close.wav loads=14->16
+2026-11-20T03:39:22.1247818Z [tiny-convolution] 192000 Hz / 2 samples, 2000 blocks per preset
+2026-11-20T03:39:22.6089462Z [tiny-convolution-swap] 192000 Hz / 2 samples guitar=0->1 body=offset/medium_alder_played.wav->solid/medium_mahogany_played.wav loads=4->5 cabinet=2x12_open/jensen_c12_shure_sm57_cap_edge_close.wav->1x12_open/jensen_c12_shure_sm57_cap_edge_close.wav loads=14->16
+2026-11-20T03:39:22.7192324Z [tiny-convolution] 192000 Hz / 3 samples, 2000 blocks per preset
+2026-11-20T03:39:23.2285897Z [tiny-convolution-swap] 192000 Hz / 3 samples guitar=0->1 body=offset/medium_alder_played.wav->solid/medium_mahogany_played.wav loads=4->5 cabinet=2x12_open/jensen_c12_shure_sm57_cap_edge_close.wav->1x12_open/jensen_c12_shure_sm57_cap_edge_close.wav loads=14->16
+2026-11-20T03:39:23.3442133Z [tiny-convolution] 192000 Hz / 4 samples, 2000 blocks per preset
+2026-11-20T03:39:23.8749497Z [tiny-convolution-swap] 192000 Hz / 4 samples guitar=0->1 body=offset/medium_alder_played.wav->solid/medium_mahogany_played.wav loads=4->5 cabinet=2x12_open/jensen_c12_shure_sm57_cap_edge_close.wav->1x12_open/jensen_c12_shure_sm57_cap_edge_close.wav loads=14->16
+2026-11-20T03:39:23.9991099Z [tiny-convolution] 192000 Hz / 5 samples, 2000 blocks per preset
+2026-11-20T03:39:24.5260678Z [tiny-convolution-swap] 192000 Hz / 5 samples guitar=0->1 body=offset/medium_alder_played.wav->solid/medium_mahogany_played.wav loads=4->5 cabinet=2x12_open/jensen_c12_shure_sm57_cap_edge_close.wav->1x12_open/jensen_c12_shure_sm57_cap_edge_close.wav loads=14->16
+2026-11-20T03:39:24.6290969Z [tiny-convolution] 192000 Hz / 7 samples, 2000 blocks per preset
+2026-11-20T03:39:25.1613639Z [tiny-convolution-swap] 192000 Hz / 7 samples guitar=0->1 body=offset/medium_alder_played.wav->solid/medium_mahogany_played.wav loads=4->5 cabinet=2x12_open/jensen_c12_shure_sm57_cap_edge_close.wav->1x12_open/jensen_c12_shure_sm57_cap_edge_close.wav loads=14->16
+2026-11-20T03:39:25.2827529Z [tiny-convolution] 192000 Hz / 8 samples, 2000 blocks per preset
+2026-11-20T03:39:25.8211003Z [tiny-convolution-swap] 192000 Hz / 8 samples guitar=0->1 body=offset/medium_alder_played.wav->solid/medium_mahogany_played.wav loads=4->5 cabinet=2x12_open/jensen_c12_shure_sm57_cap_edge_close.wav->1x12_open/jensen_c12_shure_sm57_cap_edge_close.wav loads=14->16
+2026-11-20T03:39:25.9151171Z   [pass]  convolutionTinyHostRateAndCapacityBoundaries9131 checks   10939.3 ms
+2026-11-20T03:40:07.2894010Z   [pass]  everyFactoryPresetHostStateRoundTrips       1 checks      41374 ms
+2026-11-20T03:40:15.1346349Z   [pass]  randomParameterStatesHostStateRoundTripAtExtremeConfigs1 checks      7844.97 ms
+2026-11-20T03:40:15.1346980Z 
+2026-11-20T03:40:15.1347058Z HostState
+2026-11-20T03:40:15.1347269Z ----------------------------------------------------------------
+2026-11-20T03:40:15.4090700Z   [pass]  bypassOutputsSilence                        0 checks      274.401 ms
+2026-11-20T03:40:15.4091092Z 
+2026-11-20T03:40:15.4091192Z CpuQualityUi
+2026-11-20T03:40:15.4091456Z ----------------------------------------------------------------
+2026-11-20T03:40:18.0586465Z   [pass]  CQ23_staticOverlayCountsStateChangesOnly    4 checks      2649.13 ms
+2026-11-20T03:40:23.9343304Z     Advanced at high: paint 2878.2 ms of 82.3 ms dispatching
+2026-11-20T03:40:29.9034394Z     Advanced at low: paint 398.2 ms of 55.5 ms dispatching
+2026-11-20T03:40:29.9034814Z     at Low: GuitarBodyComponent painted 1
+2026-11-20T03:40:29.9035072Z     at Low: StringAnimator painted 1
+2026-11-20T03:40:29.9237261Z     Advanced: High busiest decorative 113 paints, 2878.2 ms; Low decorative 1 paints, worst readout 20, 398.2 ms
+2026-11-20T03:40:34.5780948Z     Easy at high: paint 2965.7 ms of 95.3 ms dispatching
+2026-11-20T03:40:39.2502803Z     Easy at low: paint 422.3 ms of 64.5 ms dispatching
+2026-11-20T03:40:39.2503210Z     at Low: GuitarBodyComponent painted 1
+2026-11-20T03:40:39.2503479Z     at Low: StringAnimator painted 1
+2026-11-20T03:40:39.2673458Z     Easy: High busiest decorative 115 paints, 2965.7 ms; Low decorative 1 paints, worst readout 20, 422.3 ms
+2026-11-20T03:40:39.3637766Z   [pass]  CQ23_lowMeansNoAnimationRepaints            36 checks     21304.8 ms
+2026-11-20T03:40:39.3638230Z 
+2026-11-20T03:40:39.3638347Z RefPedalAssetLifetime
+2026-11-20T03:40:39.3638676Z ----------------------------------------------------------------
+2026-11-20T03:40:40.2369377Z   [pass]  destructionDrainsQueuedIoWithoutUsingOuterOwner17 checks     872.973 ms
+2026-11-20T03:40:40.2376900Z   [pass]  throwingCallbackDoesNotLoseFollowingWork    2 checks      0.814 ms
+2026-11-20T03:40:40.2377296Z 
+2026-11-20T03:40:40.2377411Z RefPedalBbdCore
+2026-11-20T03:40:40.2377681Z ----------------------------------------------------------------
+2026-11-20T03:40:40.2383822Z   [pass]  clockLawImpulseAndReset                     11 checks     0.688 ms
+2026-11-20T03:40:40.2500300Z   [pass]  seedDeterminismAndBandwidth                 2 checks      11.574 ms
+2026-11-20T03:40:40.2554399Z   [pass]  clockEventsRemainDistinctAboveHostRate      12 checks     5.424 ms
+2026-11-20T03:40:40.2554787Z 
+2026-11-20T03:40:40.2554902Z RefPedalBbdCurvature
+2026-11-20T03:40:40.2555172Z ----------------------------------------------------------------
+2026-11-20T03:40:40.2686330Z   [pass]  disabledCurvatureAndUnclockedModePreserveSamples5 checks      13.149 ms
+2026-11-20T03:40:40.2789332Z   [pass]  resetReproducesFreshCoreAndSilenceHasNoDc   10 checks     10.296 ms
+2026-11-20T03:40:40.2987444Z   [pass]  clockedPedalIsIndependentOfBlockPartition   4 checks      19.705 ms
+2026-11-20T03:40:40.3824200Z   [pass]  wetDistortionIsFiniteAndAcCoupled           15 checks     83.564 ms
+2026-11-20T03:40:40.3824574Z 
+2026-11-20T03:40:40.3824696Z RefPedalBlockPlan
+2026-11-20T03:40:40.3824927Z ----------------------------------------------------------------
+2026-11-20T03:40:40.3858013Z   [pass]  placementMoveBetweenCallsCannotAdvanceOnePedalTwice39 checks     3.475 ms
+2026-11-20T03:40:40.3858490Z 
+2026-11-20T03:40:40.3858603Z RefPedalBufferedTimeFx
+2026-11-20T03:40:40.3858936Z ----------------------------------------------------------------
+2026-11-20T03:40:40.5138847Z   [pass]  analyticBufferColourAndStereoIsolation      150 checks    127.834 ms
+2026-11-20T03:40:40.5325042Z   [pass]  boardOwnsFadeAndBypassHistoryIsIndependent  160 checks    18.647 ms
+2026-11-20T03:40:40.5325333Z 
+2026-11-20T03:40:40.5325413Z RefPedalBypassLatency
+2026-11-20T03:40:40.5325655Z ----------------------------------------------------------------
+2026-11-20T03:40:40.5385985Z   [pass]  modelAndHostBypassRetainMeasuredDelayAtEveryPlacement2380 checks   6.101 ms
+2026-11-20T03:40:40.5386451Z 
+2026-11-20T03:40:40.5386539Z RefPedalCe2NodeBypass
+2026-11-20T03:40:40.5387089Z ----------------------------------------------------------------
+2026-11-20T03:40:40.5528117Z CE2_NODE rate44100 bbd0 block1 enable0 error4.4408920985006262e-16 control3.5527136788005009e-15 step0.0014945131824113875 dry1 active5f03dfa8333ab452
+2026-11-20T03:40:40.5528880Z CE2_NODE rate44100 bbd0 block1 enable1 error3.7470027081099033e-16 control2.3314683517128287e-15 step0.00095717096924141654 dry1 active5f03dfa8333ab452
+2026-11-20T03:40:40.5529610Z CE2_NODE rate44100 bbd0 block64 enable0 error4.4408920985006262e-16 control3.1641356201816961e-15 step0.0014945131824113875 dry1 active5f03dfa8333ab452
+2026-11-20T03:40:40.5530340Z CE2_NODE rate44100 bbd0 block64 enable1 error3.7470027081099033e-16 control1.3322676295501878e-15 step0.00095717096924141654 dry1 active5f03dfa8333ab452
+2026-11-20T03:40:40.5531067Z CE2_NODE rate44100 bbd0 block2048 enable0 error4.4408920985006262e-16 control3.1086244689504383e-15 step0.0014945131824113875 dry1 active5f03dfa8333ab452
+2026-11-20T03:40:40.5531791Z CE2_NODE rate44100 bbd0 block2048 enable1 error3.7470027081099033e-16 control1.4432899320127035e-15 step0.00095717096924141654 dry1 active5f03dfa8333ab452
+2026-11-20T03:40:40.5532553Z CE2_NODE rate44100 bbd1 block1 enable0 error4.4408920985006262e-16 control3.5527136788005009e-15 step0.0014984037547822529 dry1 activec226b06b4d6edc6b
+2026-11-20T03:40:40.5533258Z CE2_NODE rate44100 bbd1 block1 enable1 error3.7470027081099033e-16 control2.3314683517128287e-15 step0.00095948339601617527 dry1 activec226b06b4d6edc6b
+2026-11-20T03:40:40.5533960Z CE2_NODE rate44100 bbd1 block64 enable0 error4.4408920985006262e-16 control3.1641356201816961e-15 step0.0014984037547822529 dry1 activec226b06b4d6edc6b
+2026-11-20T03:40:40.5534661Z CE2_NODE rate44100 bbd1 block64 enable1 error3.7470027081099033e-16 control1.3322676295501878e-15 step0.00095948339601617527 dry1 activec226b06b4d6edc6b
+2026-11-20T03:40:40.5535384Z CE2_NODE rate44100 bbd1 block2048 enable0 error4.4408920985006262e-16 control3.1086244689504383e-15 step0.0014984037547822529 dry1 activec226b06b4d6edc6b
+2026-11-20T03:40:40.5536301Z CE2_NODE rate44100 bbd1 block2048 enable1 error3.7470027081099033e-16 control1.4432899320127035e-15 step0.00095948339601617527 dry1 activec226b06b4d6edc6b
+2026-11-20T03:40:40.5537246Z CE2_NODE rate48000 bbd0 block1 enable0 error4.3021142204224816e-16 control2.6645352591003757e-15 step0.0013731696710928415 dry1 actived29e00d244840ced
+2026-11-20T03:40:40.5537959Z CE2_NODE rate48000 bbd0 block1 enable1 error3.7470027081099033e-16 control2.3314683517128287e-15 step0.00088265090121660006 dry1 actived29e00d244840ced
+2026-11-20T03:40:40.5538662Z CE2_NODE rate48000 bbd0 block64 enable0 error4.3021142204224816e-16 control2.55351295663786e-15 step0.0013731696710928415 dry1 actived29e00d244840ced
+2026-11-20T03:40:40.5539381Z CE2_NODE rate48000 bbd0 block64 enable1 error3.7470027081099033e-16 control2.3314683517128287e-15 step0.00088265090121660006 dry1 actived29e00d244840ced
+2026-11-20T03:40:40.5540097Z CE2_NODE rate48000 bbd0 block2048 enable0 error4.3021142204224816e-16 control2.55351295663786e-15 step0.0013731696710928415 dry1 actived29e00d244840ced
+2026-11-20T03:40:40.5540815Z CE2_NODE rate48000 bbd0 block2048 enable1 error3.7470027081099033e-16 control1.6653345369377348e-15 step0.00088265090121660006 dry1 actived29e00d244840ced
+2026-11-20T03:40:40.5541519Z CE2_NODE rate48000 bbd1 block1 enable0 error4.3021142204224816e-16 control2.6645352591003757e-15 step0.0013779705198223025 dry1 activec175cae4518efdd2
+2026-11-20T03:40:40.5542214Z CE2_NODE rate48000 bbd1 block1 enable1 error3.7470027081099033e-16 control2.3314683517128287e-15 step0.00088953017420378977 dry1 activec175cae4518efdd2
+2026-11-20T03:40:40.5542946Z CE2_NODE rate48000 bbd1 block64 enable0 error4.3021142204224816e-16 control2.55351295663786e-15 step0.0013779705198223025 dry1 activec175cae4518efdd2
+2026-11-20T03:40:40.5543674Z CE2_NODE rate48000 bbd1 block64 enable1 error3.7470027081099033e-16 control2.3314683517128287e-15 step0.00088953017420378977 dry1 activec175cae4518efdd2
+2026-11-20T03:40:40.5544388Z CE2_NODE rate48000 bbd1 block2048 enable0 error4.3021142204224816e-16 control2.55351295663786e-15 step0.0013779705198223025 dry1 activec175cae4518efdd2
+2026-11-20T03:40:40.5545224Z CE2_NODE rate48000 bbd1 block2048 enable1 error3.7470027081099033e-16 control1.6653345369377348e-15 step0.00088953017420378977 dry1 activec175cae4518efdd2
+2026-11-20T03:40:40.5545931Z CE2_NODE rate88200 bbd0 block1 enable0 error1.3461454173580023e-15 control8.7152507433074788e-15 step0.00074768417389880701 dry1 active7a7ed9afae88ab67
+2026-11-20T03:40:40.5546828Z CE2_NODE rate88200 bbd0 block1 enable1 error1.1796119636642288e-15 control7.5495165674510645e-15 step0.00048668738304956383 dry1 active7a7ed9afae88ab67
+2026-11-20T03:40:40.5758200Z CE2_NODE rate88200 bbd0 block64 enable0 error1.3461454173580023e-15 control8.1046280797636427e-15 step0.00074768417389880701 dry1 active7a7ed9afae88ab67
+2026-11-20T03:40:40.5759284Z CE2_NODE rate88200 bbd0 block64 enable1 error1.1796119636642288e-15 control5.773159728050814e-15 step0.00048668738304956383 dry1 active7a7ed9afae88ab67
+2026-11-20T03:40:40.5760402Z CE2_NODE rate88200 bbd0 block2048 enable0 error1.3461454173580023e-15 control8.1046280797636427e-15 step0.00074768417389880701 dry1 active7a7ed9afae88ab67
+2026-11-20T03:40:40.5761561Z CE2_NODE rate88200 bbd0 block2048 enable1 error1.1796119636642288e-15 control5.773159728050814e-15 step0.00048668738304956383 dry1 active7a7ed9afae88ab67
+2026-11-20T03:40:40.5762558Z CE2_NODE rate88200 bbd1 block1 enable0 error1.3461454173580023e-15 control8.7152507433074788e-15 step0.00074957608023179523 dry1 active9e275c611d7c6e93
+2026-11-20T03:40:40.5763526Z CE2_NODE rate88200 bbd1 block1 enable1 error1.1796119636642288e-15 control7.5495165674510645e-15 step0.0004897532468938065 dry1 active9e275c611d7c6e93
+2026-11-20T03:40:40.5764530Z CE2_NODE rate88200 bbd1 block64 enable0 error1.3461454173580023e-15 control8.1046280797636427e-15 step0.00074957608023179523 dry1 active9e275c611d7c6e93
+2026-11-20T03:40:40.5765537Z CE2_NODE rate88200 bbd1 block64 enable1 error1.1796119636642288e-15 control5.773159728050814e-15 step0.0004897532468938065 dry1 active9e275c611d7c6e93
+2026-11-20T03:40:40.5767049Z CE2_NODE rate88200 bbd1 block2048 enable0 error1.3461454173580023e-15 control8.1046280797636427e-15 step0.00074957608023179523 dry1 active9e275c611d7c6e93
+2026-11-20T03:40:40.5768252Z CE2_NODE rate88200 bbd1 block2048 enable1 error1.1796119636642288e-15 control5.773159728050814e-15 step0.0004897532468938065 dry1 active9e275c611d7c6e93
+2026-11-20T03:40:40.5769398Z CE2_NODE rate96000 bbd0 block1 enable0 error5.2735593669694936e-16 control3.1086244689504383e-15 step0.00068697782139305261 dry1 activecfd2c939755c36b9
+2026-11-20T03:40:40.5770522Z CE2_NODE rate96000 bbd0 block1 enable1 error4.4408920985006262e-16 control2.886579864025407e-15 step0.00044768525767674427 dry1 activecfd2c939755c36b9
+2026-11-20T03:40:40.5771653Z CE2_NODE rate96000 bbd0 block64 enable0 error5.2735593669694936e-16 control3.0669911055269949e-15 step0.00068697782139305261 dry1 activecfd2c939755c36b9
+2026-11-20T03:40:40.5772832Z CE2_NODE rate96000 bbd0 block64 enable1 error4.4408920985006262e-16 control2.55351295663786e-15 step0.00044768525767674427 dry1 activecfd2c939755c36b9
+2026-11-20T03:40:40.5773975Z CE2_NODE rate96000 bbd0 block2048 enable0 error5.2735593669694936e-16 control3.0669911055269949e-15 step0.00068697782139305261 dry1 activecfd2c939755c36b9
+2026-11-20T03:40:40.5775156Z CE2_NODE rate96000 bbd0 block2048 enable1 error4.4408920985006262e-16 control2.55351295663786e-15 step0.00044768525767674427 dry1 activecfd2c939755c36b9
+2026-11-20T03:40:40.5776562Z CE2_NODE rate96000 bbd1 block1 enable0 error5.2735593669694936e-16 control3.1086244689504383e-15 step0.00068784926756797204 dry1 active8f2abf1ca6b27df6
+2026-11-20T03:40:40.5777775Z CE2_NODE rate96000 bbd1 block1 enable1 error4.4408920985006262e-16 control2.886579864025407e-15 step0.00044852629646020825 dry1 active8f2abf1ca6b27df6
+2026-11-20T03:40:40.5778931Z CE2_NODE rate96000 bbd1 block64 enable0 error5.2735593669694936e-16 control3.0669911055269949e-15 step0.00068784926756797204 dry1 active8f2abf1ca6b27df6
+2026-11-20T03:40:40.5780026Z CE2_NODE rate96000 bbd1 block64 enable1 error4.4408920985006262e-16 control2.55351295663786e-15 step0.00044852629646020825 dry1 active8f2abf1ca6b27df6
+2026-11-20T03:40:40.5780778Z CE2_NODE rate96000 bbd1 block2048 enable0 error5.2735593669694936e-16 control3.0669911055269949e-15 step0.00068784926756797204 dry1 active8f2abf1ca6b27df6
+2026-11-20T03:40:40.5781516Z CE2_NODE rate96000 bbd1 block2048 enable1 error4.4408920985006262e-16 control2.55351295663786e-15 step0.00044852629646020825 dry1 active8f2abf1ca6b27df6
+2026-11-20T03:40:40.5782234Z CE2_NODE rate192000 bbd0 block1 enable0 error4.1355807667287081e-15 control2.4813484600372249e-14 step0.00034361677977506888 dry1 activefb103129541c52b5
+2026-11-20T03:40:40.5782943Z CE2_NODE rate192000 bbd0 block1 enable1 error3.5110803153770576e-15 control2.3425705819590803e-14 step0.00022533436194394074 dry1 activefb103129541c52b5
+2026-11-20T03:40:40.5783655Z CE2_NODE rate192000 bbd0 block64 enable0 error4.1355807667287081e-15 control2.4757973449140991e-14 step0.00034361677977506888 dry1 activefb103129541c52b5
+2026-11-20T03:40:40.5784377Z CE2_NODE rate192000 bbd0 block64 enable1 error3.5110803153770576e-15 control2.2537527399890678e-14 step0.00022533436194394074 dry1 activefb103129541c52b5
+2026-11-20T03:40:40.5785100Z CE2_NODE rate192000 bbd0 block2048 enable0 error4.1355807667287081e-15 control2.4757973449140991e-14 step0.00034361677977506888 dry1 activefb103129541c52b5
+2026-11-20T03:40:40.5846773Z CE2_NODE rate192000 bbd0 block2048 enable1 error3.5110803153770576e-15 control2.2537527399890678e-14 step0.00022533436194394074 dry1 activefb103129541c52b5
+2026-11-20T03:40:40.5847534Z CE2_NODE rate192000 bbd1 block1 enable0 error4.1355807667287081e-15 control2.4813484600372249e-14 step0.00034414192594642637 dry1 active60f6acb2fa53714a
+2026-11-20T03:40:40.5848244Z CE2_NODE rate192000 bbd1 block1 enable1 error3.5110803153770576e-15 control2.3425705819590803e-14 step0.00022473946741695394 dry1 active60f6acb2fa53714a
+2026-11-20T03:40:40.5848972Z CE2_NODE rate192000 bbd1 block64 enable0 error4.1355807667287081e-15 control2.4757973449140991e-14 step0.00034414192594642637 dry1 active60f6acb2fa53714a
+2026-11-20T03:40:40.5849871Z CE2_NODE rate192000 bbd1 block64 enable1 error3.5110803153770576e-15 control2.2537527399890678e-14 step0.00022473946741695394 dry1 active60f6acb2fa53714a
+2026-11-20T03:40:40.5850617Z CE2_NODE rate192000 bbd1 block2048 enable0 error4.1355807667287081e-15 control2.4757973449140991e-14 step0.00034414192594642637 dry1 active60f6acb2fa53714a
+2026-11-20T03:40:40.5851346Z CE2_NODE rate192000 bbd1 block2048 enable1 error3.5110803153770576e-15 control2.2537527399890678e-14 step0.00022473946741695394 dry1 active60f6acb2fa53714a
+2026-11-20T03:40:40.5851952Z   [pass]  originalFiveMsEqualPowerUsesSeparatelyBufferedDry420 checks    46.009 ms
+2026-11-20T03:40:40.5852224Z 
+2026-11-20T03:40:40.5852299Z RefPedalChorusMemory
+2026-11-20T03:40:40.5852529Z ----------------------------------------------------------------
+2026-11-20T03:40:40.5872135Z   boss-ce2 owned bytes high=58512 lower=58512
+2026-11-20T03:40:40.5872464Z   boss-ce2w owned bytes high=208400 lower=208400
+2026-11-20T03:40:40.5872832Z   [pass]  freshBoundsAndReprepareCoverAllModeHistories762 checks    2.565 ms
+2026-11-20T03:40:40.5873245Z   [pass]  invalidPreparationCannotReserve             24 checks     0.001 ms
+2026-11-20T03:40:40.6026546Z   boss-ce2 admitted=296 retained bytes=63853120
+2026-11-20T03:40:40.6026868Z   boss-ce2w admitted=64 retained bytes=63113728
+2026-11-20T03:40:40.6027229Z   [pass]  poolRejectsBeforeFactoryAndPreservesSharedPins404 checks    15.204 ms
+2026-11-20T03:40:40.6028173Z   [pass]  preparedModelsHaveKnownCapacityReports      30 checks     0.305 ms
+2026-11-20T03:40:40.6028449Z 
+2026-11-20T03:40:40.6028528Z RefPedalControlRace
+2026-11-20T03:40:40.6028761Z ----------------------------------------------------------------
+2026-11-20T03:40:40.6159269Z   [pass]  publisherReclaimerAndAudioHaveDistinctThreads1008 checks   13.047 ms
+2026-11-20T03:40:40.6161377Z   [pass]  runtimePinSurvivesReentrantRemovalAndReclaimOutsideControlGuard12 checks     0.205 ms
+2026-11-20T03:40:40.6163029Z   [pass]  configRebuildAllowsSaveExtraToReclaimEngine 8 checks      0.16 ms
+2026-11-20T03:40:40.6173739Z   [pass]  snapshotRestoreAllowsSaveExtraToReclaimEngine10 checks     1.044 ms
+2026-11-20T03:40:40.6175667Z   [pass]  saveExtraExceptionReacquiresGuardAndAllowsRetry7 checks      0.176 ms
+2026-11-20T03:40:40.6176684Z 
+2026-11-20T03:40:40.6176806Z RefPedalHostCapture
+2026-11-20T03:40:40.6177077Z ----------------------------------------------------------------
+2026-11-20T03:40:40.6177609Z   [pass]  zeroGainRemainsExactAcrossHostCapture       18 checks     0.007 ms
+2026-11-20T03:40:40.6178356Z   [pass]  allControlsAreMonotonicWithExactEndpoints   147 checks    0.052 ms
+2026-11-20T03:40:40.6179894Z 
+2026-11-20T03:40:40.6180310Z RefPedalLooperStorageDirection
+2026-11-20T03:40:40.6180593Z ----------------------------------------------------------------
+2026-11-20T03:40:40.6315049Z   [pass]  freshReverseWrapKeepsSameVersionPagesAndExactDescendingStereo400 checks    13.576 ms
+2026-11-20T03:40:41.1443500Z   [pass]  partialTailAndFullWindowEvictionStayExactAcrossReverseWraps6999 checks   512.741 ms
+2026-11-20T03:40:41.3708273Z   [pass]  reverseReadPrimesAtActualPartialPageEnd     152 checks    226.44 ms
+2026-11-20T03:40:41.3741252Z   [pass]  reverseSparseReadPrimesFromImplicitZeroPartialPage17 checks     3.35 ms
+2026-11-20T03:40:41.3885382Z   [pass]  queuedOppositeDirectionsCannotPublishObsoleteSlots330 checks    14.367 ms
+2026-11-20T03:40:41.3963090Z   [pass]  reverseMissReportsUnderrunAndRecoversWithoutRelabellingAssets158 checks    7.719 ms
+2026-11-20T03:40:41.3963583Z 
+2026-11-20T03:40:41.3963685Z RefPedalLooperStorage
+2026-11-20T03:40:41.3963952Z ----------------------------------------------------------------
+2026-11-20T03:40:41.3965956Z 90min/48k stereo: frames=259200000 RAM=8878704 storage=2076890704 bytes
+2026-11-20T03:40:41.3966684Z   [pass]  fullDurationFitsBoundedRamWithoutTruncation 9 checks      0.329 ms
+2026-11-20T03:40:41.4034053Z   [pass]  diskPagesAndExternalManifestRoundTrip       520 checks    6.764 ms
+2026-11-20T03:40:41.4051167Z   [pass]  slowWriterNeverBlocksAudioAndReportsOverrun 39 checks     1.672 ms
+2026-11-20T03:40:41.4052061Z   [pass]  failedWritesPreservePriorManifestOutput     21 checks     0.122 ms
+2026-11-20T03:40:41.4116909Z   [pass]  slowReaderReturnsSilenceAndRecovers         141 checks    6.414 ms
+2026-11-20T03:40:41.4156447Z   [pass]  corruptManifestIsAtomicAndMissingPageIsReported43 checks     3.927 ms
+2026-11-20T03:40:41.4204548Z   [pass]  monoPagesAndMalformedManifest               43 checks     4.805 ms
+2026-11-20T03:40:41.4252020Z   [pass]  audioPagingCallsNeverAllocate               2 checks      4.732 ms
+2026-11-20T03:40:42.5879668Z   [pass]  restoreWaitsForOldJobsAndTimeoutKeepsLoop   60 checks     1162.6 ms
+2026-11-20T03:40:42.6078285Z   [pass]  sparsePartialOverdubPagesPersistAndAccumulateAcrossWraps1109 checks   19.902 ms
+2026-11-20T03:40:42.6101136Z   [pass]  atomicCaptureDistinguishesPendingAndNeverReusesOldHash55 checks     2.3 ms
+2026-11-20T03:40:43.9480001Z   [pass]  concurrentAtomicCaptureReportsCompleteGenerations303 checks    1337.73 ms
+2026-11-20T03:40:43.9674377Z   [pass]  workerCompactsSparseLayerAndPersistsNewBase 1061 checks   19.47 ms
+2026-11-20T03:40:43.9738292Z   [pass]  compactionCancelCannotOverwriteNewRecording 64 checks     6.388 ms
+2026-11-20T03:40:43.9992818Z   [pass]  compactionRevisionHandoffDoesNotDoubleCountRetiredAudio161 checks    25.405 ms
+2026-11-20T03:40:44.0069565Z   [pass]  compactionSourceLifetimeIsHeldUntilWorkerFinishes15 checks     7.668 ms
+2026-11-20T03:40:45.3916994Z   [pass]  repeatedWorkerCompactionKeepsLongRunOverdubs1091 checks   1384.59 ms
+2026-11-20T03:40:45.3973180Z   [pass]  failedCompactionIsExplicitAndDoesNotClaimOldHashIsLatest12 checks     5.684 ms
+2026-11-20T03:40:45.3984215Z   [pass]  reservationIncludesFixedWorkerStackAndRejectsInvalidConfig10 checks     1.101 ms
+2026-11-20T03:40:45.3985035Z 
+2026-11-20T03:40:45.3985162Z RefPedalLooperStorageWrap
+2026-11-20T03:40:45.3985455Z ----------------------------------------------------------------
+2026-11-20T03:40:45.4054694Z   [pass]  freshRestoreKeepsEntireForwardWindowAcrossNinePageWrap347 checks    7.007 ms
+2026-11-20T03:40:45.4123582Z   [pass]  freshCoreResumePrimesRaggedWindowBeforeForwardPlayback286 checks    6.854 ms
+2026-11-20T03:40:45.4470919Z   [pass]  fullCacheWindowSurvivesEvictionAndRepeatedForwardWraps2365 checks   34.66 ms
+2026-11-20T03:40:45.4472111Z 
+2026-11-20T03:40:45.4472230Z RefPedalRouting
+2026-11-20T03:40:45.4472546Z ----------------------------------------------------------------
+2026-11-20T03:40:45.4483392Z   [pass]  parallelLatencyAndPolarityCompileAndRender  259 checks    1.056 ms
+2026-11-20T03:40:45.4526224Z   [pass]  slotBypassAndBoardDryHaveIdenticalLatency   387 checks    4.249 ms
+2026-11-20T03:40:45.4531405Z   [pass]  segmentLatencyIsSummedAndDryIsSegmentLocal  130 checks    0.525 ms
+2026-11-20T03:40:45.4535859Z   [pass]  reampUsesActualSidechainOnceAtPreAndDisconnectIsTransparent6 checks      0.423 ms
+2026-11-20T03:40:45.4560317Z   [pass]  sendReturnBlendAndBypassKeepExactLatency    780 checks    2.42 ms
+2026-11-20T03:40:45.4562950Z   [pass]  invalidLoopEndpointsAndOverlapRejectAtomically6 checks      0.259 ms
+2026-11-20T03:40:45.4569592Z   [pass]  abSwitchIsEqualPowerForTenMillisecondsAndToggleIsSticky490 checks    0.636 ms
+2026-11-20T03:40:45.4574971Z   [pass]  auxSendsAlignDualLanesAndAccumulatePlacementsWithoutAllocation390 checks    0.522 ms
+2026-11-20T03:40:45.4602081Z   [pass]  feedbackHasSixtyFourSampleDelayKillAndSafeGainClamp2393 checks   2.686 ms
+2026-11-20T03:40:45.4608399Z   [pass]  feedbackWatchdogFaultGuardAndExplicitRearm  38535 checks  0.638 ms
+2026-11-20T03:40:45.4609092Z   [pass]  routingReferencesAreValidatedWithoutAnAttachedEngine6 checks      0.015 ms
+2026-11-20T03:40:45.4613092Z   [pass]  extendedHostScalarsPersistAndExplicitSameValueModelWritesWin15 checks     0.413 ms
+2026-11-20T03:40:45.4619703Z   [pass]  extendedFeedbackCanEnablePreparedEndpointsWithoutMessagePump5 checks      0.643 ms
+2026-11-20T03:40:45.4666252Z   [pass]  bypassModesPreserveColourLatencyAndDecayingTailsWithTrimCorrection560 checks    4.575 ms
+2026-11-20T03:40:45.4666882Z   [pass]  dryLatencyReadTapCrossfadeHasExactTenMillisecondDuration2217 checks   0.01 ms
+2026-11-20T03:40:45.4682952Z   [pass]  structuralDryLatencyChangeUsesSharedHistoryDuringTheDip1027 checks   1.684 ms
+2026-11-20T03:40:45.4692907Z   [pass]  clippedTailDryMustNotBeInferredFromUnclippedSlotInput1038 checks   0.973 ms
+2026-11-20T03:40:45.4697690Z   [pass]  missingWetResidualUsesOneRenderAndReportsUnavailable133 checks    0.47 ms
+2026-11-20T03:40:45.5769597Z   [pass]  registeredDelayAndReverbHotBypassPreserveActualTailsAndDry49232 checks  106.963 ms
+2026-11-20T03:40:45.5769962Z 
+2026-11-20T03:40:45.5770042Z RefPedalState
+2026-11-20T03:40:45.5770262Z ----------------------------------------------------------------
+2026-11-20T03:40:45.5796762Z   [pass]  malformedRestoreIsAtomic                    86 checks     2.815 ms
+2026-11-20T03:40:45.5801297Z   [pass]  futureSchemaVerbatimAndDisabled             7 checks      0.447 ms
+2026-11-20T03:40:45.5805056Z   [pass]  capRejectsAtomically                        3 checks      0.401 ms
+2026-11-20T03:40:45.5812213Z   [pass]  unknownNestedAndMissingModel                20 checks     0.691 ms
+2026-11-20T03:40:45.5813206Z   [pass]  identityAndOrderValidation                  6 checks      0.095 ms
+2026-11-20T03:40:45.6018313Z   [pass]  eightSnapshotsSurvivePersistence            44 checks     20.383 ms
+2026-11-20T03:40:46.6429477Z   [pass]  seededThousandRoundTrips                    5001 checks   1041.02 ms
+2026-11-20T03:40:46.7044576Z   [pass]  concurrentSaveIsCompleteGeneration          1 checks      61.493 ms
+2026-11-20T03:40:47.2073992Z   [pass]  assetsVerifyAtomicFailureAndAsyncDrain      14 checks     502.895 ms
+2026-11-20T03:40:47.2079179Z   [pass]  descriptorDefaultsAndDeterministicAudio     10 checks     0.577 ms
+2026-11-20T03:40:47.2128286Z   [pass]  invalidTypedOutputKeepsPrevious             7 checks      4.891 ms
+2026-11-20T03:40:47.2135041Z   [pass]  savedSchemaFixtures                         8 checks      0.676 ms
+2026-11-20T03:40:47.2138721Z   [pass]  unknownNumbersDoNotLosePrecision            9 checks      0.349 ms
+2026-11-20T03:40:47.2139488Z   [pass]  invalidRoutingReferencesKeepPrevious        10 checks     0.086 ms
+2026-11-20T03:40:47.2156030Z   [pass]  rawHostExtractionPreservesOnlyTopLevelBlock 19 checks     1.601 ms
+2026-11-20T03:40:47.2158282Z   [pass]  windowPreferenceMirrorsLegacyRoot           9 checks      0.235 ms
+2026-11-20T03:40:47.2162217Z   [pass]  momentaryFeedbackKillNeverResumes           8 checks      0.372 ms
+2026-11-20T03:40:47.2323498Z   [pass]  portableDoubleConversionRoundTripsEveryFiniteExponent4127 checks   16.051 ms
+2026-11-20T03:40:47.2344931Z   [pass]  portableDoubleConversionRejectsOverflowUnderflowAndMalformedGrammarAtomically56 checks     2.139 ms
+2026-11-20T03:40:47.2350545Z portable codec locale: C decimal=., custom C++ decimal=comma
+2026-11-20T03:40:47.2351242Z   [pass]  portableDoubleConversionIgnoresCppAndSystemNumericLocales11 checks     0.576 ms
+2026-11-20T03:40:47.2358866Z   [pass]  pedalMidiFootswitchModeRequiresStrictIntegerAndPreservesUnknowns39 checks     0.815 ms
+2026-11-20T03:40:47.2408479Z   [pass]  exactRuntimeExtraKeysDistinguishOpaqueDoublesAndTypes26 checks     4.944 ms
+2026-11-20T03:40:47.2411956Z   [pass]  knownOverlayUsesExactAssignmentForTinyEditsAndSignedZero12 checks     0.35 ms
+2026-11-20T03:40:47.2412462Z 
+2026-11-20T03:40:47.2412583Z RefPedalUiLifecycle
+2026-11-20T03:40:47.2412809Z ----------------------------------------------------------------
+2026-11-20T03:40:47.2417489Z   [pass]  messageDrainWaitsForQueuedCommands          514 checks    0.463 ms
+2026-11-20T03:40:47.6050132Z Native UI stress seed=0x55494235 target=10000; real processor/editor/peers, unattended native display
+2026-11-20T03:40:56.8111808Z Native UI completed 1000 operations, editors 3/2, closes 50
+2026-11-20T03:41:06.2339422Z Native UI completed 2000 operations, editors 5/4, closes 112
+2026-11-20T03:41:15.3419197Z Native UI completed 3000 operations, editors 7/6, closes 168
+2026-11-20T03:41:24.6747215Z Native UI completed 4000 operations, editors 9/8, closes 236
+2026-11-20T03:41:33.4867847Z Native UI completed 5000 operations, editors 11/10, closes 294
+2026-11-20T03:41:42.3423045Z Native UI completed 6000 operations, editors 13/12, closes 350
+2026-11-20T03:41:51.3130047Z Native UI completed 7000 operations, editors 15/14, closes 405
+2026-11-20T03:42:00.2594279Z Native UI completed 8000 operations, editors 17/16, closes 443
+2026-11-20T03:42:09.1355293Z Native UI completed 9000 operations, editors 19/18, closes 499
+2026-11-20T03:42:18.0685228Z Native UI completed 10000 operations, editors 21/20, closes 546
+2026-11-20T03:42:18.1171083Z Native UI operations=10000 seed=0x55494235 elapsedMs=90512 editorDestructions=21 nativeCloses=546 dragCancels=271 acceptedDrops=272 changedDrops=272 hostGestures=6658 hostValues=12030 kinds=knob=586,naturalValue=536,bypass=544,keyboardReorder=583,placement=541,style=534,inspector=573,settingsOpen=534,settingsGain=537,settingsClose=593,dock=563,popout=589,nativeClose=546,resize=581,browserAdd=547,removeOrDuplicate=521,drag=543,capacityError=529,editorDestroy=20,
+2026-11-20T03:42:18.2105331Z   [pass]  tenThousandNativeOperationsAndEditorDestruction409783 checks 90968.7 ms
+2026-11-20T03:42:18.2106779Z 
+2026-11-20T03:42:18.2107194Z RefPedalCe2
+2026-11-20T03:42:18.2107517Z ----------------------------------------------------------------
+2026-11-20T03:42:18.2141392Z   [pass]  impulseTimingSilenceAndBypass               20 checks     3.567 ms
+2026-11-20T03:42:18.2147789Z   [pass]  expressionAndBlockPartition                 4 checks      0.638 ms
+2026-11-20T03:42:18.2875004Z   [pass]  lfoRateAndSync                              4 checks      72.544 ms
+2026-11-20T03:42:18.5194533Z   [pass]  originalDistortionGatesWithEstimatedHeadroom12 checks     231.847 ms
+2026-11-20T03:42:18.6712600Z   [pass]  bbdOnOriginalThdGate                        15 checks     151.774 ms
+2026-11-20T03:42:18.8718430Z   [pass]  bbdOnHeadroomGateKeepsThirdHarmonicDominant 15 checks     200.499 ms
+2026-11-20T03:42:18.8718943Z 
+2026-11-20T03:42:18.8719048Z RefPedalCe2w
+2026-11-20T03:42:18.8720798Z ----------------------------------------------------------------
+2026-11-20T03:42:19.2043983Z   [pass]  rapidModeReversalKeepsTheCurrentAudibleBlend60 checks     332.53 ms
+2026-11-20T03:42:19.2165070Z   [pass]  resetAndReprepareClearInterruptedModeWeights35 checks     12.188 ms
+2026-11-20T03:42:19.2292519Z   [pass]  modesImpulseStereoAndBypass                 44 checks     12.701 ms
+2026-11-20T03:42:19.2311686Z   [pass]  partitionAndNoiseOffReset                   3 checks      1.944 ms
+2026-11-20T03:42:19.4205482Z   [pass]  lfoRatesAndModeTransition                   4 checks      189.241 ms
+2026-11-20T03:42:19.4378604Z   [pass]  inactiveModesDoNotReplayStaleAudio          1 checks      17.302 ms
+2026-11-20T03:42:19.4379163Z 
+2026-11-20T03:42:19.4379325Z RhythmMidiOut
+2026-11-20T03:42:19.4379637Z ----------------------------------------------------------------
+2026-11-20T03:42:20.0646589Z   [pass]  strokesReachMidiOutOnceAndStopWithTheEngine 27 checks     626.538 ms
+2026-11-20T03:42:33.9041215Z   [pass]  streamIsIndependentOfTheBlockSize           84 checks     13839.3 ms
+2026-11-20T03:42:33.9041661Z 
+2026-11-20T03:42:33.9041757Z RhythmMidiWriter
+2026-11-20T03:42:33.9042047Z ----------------------------------------------------------------
+2026-11-20T03:42:33.9042583Z   [pass]  exactChronologicalStreamAcrossBlockPartitions4 checks      0.114 ms
+2026-11-20T03:42:33.9043253Z   [pass]  stoppingCancelsFutureAttacksAndClosesActualPitches3 checks      0.003 ms
+2026-11-20T03:42:33.9043896Z   [pass]  resetReleaseDoesNotConsumeTheNextAttackBlock2 checks      0.005 ms
+2026-11-20T03:42:33.9044505Z   [pass]  overflowReleasesHeldNotesAndDropsFutureAttacks2 checks      0.004 ms
+2026-11-20T03:42:33.9571311Z   [pass]  blockedReleaseRetriesBeforeAnyNewAttack     2 checks      52.78 ms
+2026-11-20T03:42:33.9572053Z   [pass]  invalidAndDeadStrikesDoNotEmitNotes         1 checks      0.004 ms
+2026-11-20T03:42:33.9572441Z 
+2026-11-20T03:42:33.9572896Z RhythmMidiRouter
+2026-11-20T03:42:33.9573224Z ----------------------------------------------------------------
+2026-11-20T03:42:33.9573850Z   [pass]  disablingSourceOrGlobalOutputClosesNotesExactlyOnce8 checks      0.006 ms
+2026-11-20T03:42:33.9574569Z   [pass]  tinyDestinationAndZeroFramesRetainReleases  4 checks      0.004 ms
+2026-11-20T03:42:33.9575227Z   [pass]  droppedReleaseRetriesBeforePassThrough      2 checks      0.004 ms
+2026-11-20T03:42:33.9651497Z   [pass]  seededSwitchAndCapacityStressLeavesNoHeldNotes3 checks      7.993 ms
+2026-11-20T03:42:33.9652159Z   [pass]  writerAndRouterAllocateNothingAfterPreparation1 checks      0.004 ms
+2026-11-20T03:42:33.9656797Z 
+2026-11-20T03:42:33.9656940Z HostState
+2026-11-20T03:42:33.9657248Z ----------------------------------------------------------------
+2026-11-20T03:42:34.2590792Z   [pass]  theBlobCarriesItsFormatVersion              2 checks      293.751 ms
+2026-11-20T03:42:34.9261576Z   [pass]  aNewerBlobKeepsWhatItCannotReadOnWriteBack  10 checks     666.97 ms
+2026-11-20T03:42:35.2095175Z   [pass]  anOlderBlobIsBackedUpBeforeItIsMigrated     3 checks      283.29 ms
+2026-11-20T03:42:35.5349897Z   [pass]  anUnreadableBlobChangesNothingAndIsKept     4 checks      325.426 ms
+2026-11-20T03:42:36.1195244Z   [pass]  nonAsciiTextRoundTripsThroughTheBlob        1 checks      584.466 ms
+2026-11-20T03:42:36.4642640Z   [pass]  presetLoadsAndSnapshotRecallsNotifyTheHost  7 checks      344.659 ms
+2026-11-20T03:42:37.1117949Z   [pass]  everyFactoryPresetsSessionIsUnder200KB      2 checks      647.43 ms
+2026-11-20T03:42:37.1118406Z 
+2026-11-20T03:42:37.1118538Z SessionRecorderConcurrency
+2026-11-20T03:42:37.1118901Z ----------------------------------------------------------------
+2026-11-20T03:42:37.1141245Z   [pass]  resetStartsANewAudioAndMidiTimeline         13 checks     2.225 ms
+2026-11-20T03:42:37.1159210Z   [pass]  resizingAndResettingWhileCapturingRemainsUsable14 checks     1.812 ms
+2026-11-20T03:42:37.1173606Z   [pass]  savingDuringCaptureSnapshotsCoherentStereo  59 checks     1.411 ms
+2026-11-20T03:42:37.1189768Z   [pass]  combinedCapturePreservesRateAndMidiOnlyClock10 checks     1.58 ms
+2026-11-20T03:42:37.1190031Z 
+2026-11-20T03:42:37.1190111Z SessionRecorderRate
+2026-11-20T03:42:37.1190335Z ----------------------------------------------------------------
+2026-11-20T03:42:37.8460750Z   [pass]  hostRateChangesDiscardOldAudioAndMidi       10 checks     726.921 ms
+2026-11-20T03:42:38.3996039Z   [pass]  unusedRecorderRemainsUnallocated            4 checks      553.43 ms
+2026-11-20T03:42:38.4018081Z   [pass]  exportedWavUsesNewRateAndOnlyNewSamples     9 checks      2.269 ms
+2026-11-20T03:42:38.4018444Z 
+2026-11-20T03:42:38.4018534Z StateWrite
+2026-11-20T03:42:38.4018813Z ----------------------------------------------------------------
+2026-11-20T03:42:39.0075470Z   [pass]  compactSnapshotMatchesHostStateWithBoard    11 checks     605.494 ms
+2026-11-20T03:42:39.0085567Z 
+2026-11-20T03:42:39.0085690Z PracticeTrack
+2026-11-20T03:42:39.0086015Z ----------------------------------------------------------------
+2026-11-20T03:42:39.0455477Z   [pass]  loadsEveryAdvertisedFormat                  15 checks     37.923 ms
+2026-11-20T03:42:39.0599655Z   [pass]  bufferingWaitRejectsUnavailableInput        6 checks      14.427 ms
+2026-11-20T03:42:39.1832828Z   [pass]  pitchShiftMovesPitchNotTempo                6 checks      123.171 ms
+2026-11-20T03:42:39.3136549Z   [pass]  tempoShiftChangesDurationNotPitch           10 checks     130.338 ms
+2026-11-20T03:42:40.6681403Z   [pass]  panAndFiltersShapeTheTrack                  10 checks     1354.35 ms
+2026-11-20T03:42:40.6848371Z   [pass]  theTimePitchShiftDoesNotAllocate            513 checks    16.739 ms
+2026-11-20T03:42:44.7020644Z   [pass]  levelAndMonoApply                           3 checks      4017.08 ms
+2026-11-20T03:42:46.0429703Z   [pass]  loopPointsSnapToZeroCrossingsAndWrap        6 checks      1340.81 ms
+2026-11-20T03:42:46.0533101Z   [pass]  estimatesTheTempoOfAClickTrack              2 checks      10.413 ms
+2026-11-20T03:42:46.0533695Z 
+2026-11-20T03:42:46.0533792Z HostState
+2026-11-20T03:42:46.1237242Z ----------------------------------------------------------------
+2026-11-20T03:42:46.1237686Z   [pass]  programsEnumeratePresetsAndLoadByIndex      9 checks      70.279 ms
+2026-11-20T03:42:46.4794915Z   [pass]  typicalStateIsSmall                         1 checks      355.705 ms
+2026-11-20T03:42:46.5505314Z   [pass]  aSnapshotRecallAndPresetLoadNotifyTheHost   6 checks      70.973 ms
+2026-11-20T03:42:46.5509133Z 
+2026-11-20T03:42:46.5509297Z ================================================================
+2026-11-20T03:42:46.5509676Z  ALL PASSED
+2026-11-20T03:42:46.5509905Z  199 tests, 560107 checks, 243.5 s
+2026-11-20T03:42:46.5510221Z ================================================================
+
