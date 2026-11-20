@@ -158,7 +158,10 @@ run.
 **Signed and notarised installers.** Packaging scripts can sign Windows installers
 and sign/notarise macOS installers when the required identities are configured.
 A successful build does not prove signing. The release's per-platform logs and
-provenance must state the actual result.
+provenance must state the actual result. For beta2 candidate `51fd4de6` in
+[run 44662100996](https://github.com/djshellshoxxx/luthier/actions/runs/44662100996),
+both Windows editions are unsigned. Both macOS editions use ad-hoc-signed bundles,
+their package installers are unsigned, and no Apple notarization was performed.
 
 **Verified host testing.** The automated suite covers the plugin's own behaviour,
 including opening the editor and exercising its panels and shortcuts inside the test
@@ -199,8 +202,14 @@ racks in the Advanced panel. See [PEDALBOARD.md](PEDALBOARD.md) and
   session saved by an earlier build still loads them. They cannot be added.
 - Phaser gates still open: CPU under 0.4 % of one core is not met on the 2.1 GHz Xeon
   reference measurements (0.42-0.78 %); the specification's "peak delta < 1 LSB 24b"
-  bypass criterion has no ruling on how it is measured; the 30-minute model soak and a
-  hardware listening comparison have not been run.
+  bypass criterion has no ruling on how it is measured; a hardware listening
+  comparison has not been run. The November 19 supplemental Linux CPU probe also
+  missed the unchanged target in all ten trials (0.483628860-1.468951710 %).
+- Two 30-minute concurrent component board soaks and the four-rate extended
+  phaser render completed successfully. These are numerical and component
+  concurrency checks, not live DAW or audio-device qualification. See
+  [QUALIFICATION-2026-11-19.md](status/QUALIFICATION-2026-11-19.md) for the
+  actual execution evidence and measurement limits.
 - Board capacity is 16 slots and 8 snapshots.
 - The CE-2 distortion regression was repaired without changing the original
   acceptance limits; see [CHORUS-QUALIFICATION-2026-11-16.md](status/CHORUS-QUALIFICATION-2026-11-16.md).
@@ -219,7 +228,17 @@ racks in the Advanced panel. See [PEDALBOARD.md](PEDALBOARD.md) and
 
 ## Platform qualification
 
-The latest completed release attempt inspected is
+The current beta2 qualification is
+[run 44662100996](https://github.com/djshellshoxxx/luthier/actions/runs/44662100996)
+for exact source `51fd4de677fd0d4a056ded5ee2e8845b9e81584d`.
+All four Windows/macOS Free/Pro build, strictness-10 plugin-validation and
+packaging jobs passed, as did Windows edition-coexistence checks. The complete
+native unit-test shards remain pending at this documentation checkpoint.
+Build success and archived packages do not establish release publication or a
+pass for the remaining performance assertions. See the
+[qualification report](status/QUALIFICATION-2026-11-19.md) for current evidence.
+
+The previous completed release attempt was
 [run 44259292225](https://github.com/djshellshoxxx/luthier/actions/runs/44259292225),
 which tested exact source `7fcb88c601288e7a7a02cf64548a822b9c3fcfc4`.
 

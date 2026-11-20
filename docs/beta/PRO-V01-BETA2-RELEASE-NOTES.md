@@ -21,8 +21,12 @@ build still loads that pedal.
 
 Phase 90 limitations still open in this beta: its CPU target (under 0.4 % of
 one core) is not yet met on every reference machine, the "under 1 LSB at 24
-bits" bypass-click wording has not been ruled on, and the 30-minute soak and
-hardware listening comparison have not been run. See docs/KNOWN_ISSUES.md.
+bits" bypass-click measurement has not been defined, and the hardware listening
+comparison has not been run. The supplemental Linux component qualification
+completed two 30-minute concurrent board soaks and a four-rate extended phaser
+render. Those checks do not establish live DAW or audio-device behaviour. See
+[the qualification report](../status/QUALIFICATION-2026-11-19.md) and
+[known issues](../KNOWN_ISSUES.md).
 
 ## Changes since the published alpha
 
@@ -76,8 +80,12 @@ hardware listening comparison have not been run. See docs/KNOWN_ISSUES.md.
 Automated qualification does not establish compatibility with every DAW,
 interface or driver. Hardware listening, installation and saved-session
 acceptance are separate from CI. Developer ID signing/notarization on macOS
-and publisher signing on Windows depend on configured identities; use the
-per-platform build logs to establish their actual status. Factory impulse
+and publisher signing on Windows were not configured for candidate
+`51fd4de677fd0d4a056ded5ee2e8845b9e81584d` in
+[release run 44662100996](https://github.com/djshellshoxxx/luthier/actions/runs/44662100996).
+Its Windows packages are unsigned. Its macOS bundles are ad-hoc signed, its
+package installers are unsigned, and no Apple notarization was performed.
+Factory impulse
 responses are synthesized rather than measured captures. The remaining GUI
 fit and feature limitations are tracked in docs/KNOWN_ISSUES.md and the status
 inventory; this beta does not claim every planned feature is complete.

@@ -5,6 +5,14 @@ Read the [qualification report](../QUALIFICATION-2026-11-19.md) for the decision
 scope and remaining work. This directory contains source identities, commands,
 test infrastructure and raw execution results. No shipping binary is replaced.
 
+- `native-build-evidence.json`: four completed native build/validator/package
+  jobs, early regressions, actual signing messages, and the pending full-suite
+  snapshot. It distinguishes completed build checks from remaining test shards.
+- `native-package-artifacts.json`: all four downloaded installer archive sizes
+  and SHA-256 digests matched to GitHub Actions artifact metadata.
+- `binary-artifact-review-44662100996.json`: read-only nested archive inspection,
+  executable architecture and source SHA checks, factory resource comparison,
+  checksum sidecars and payload hashes. No executable was run or installed.
 - `state-qualification.log`: original 23-test board-state suite.
 - `generic-board-30min.log`, `phaser-board-30min.log`, `soak-results.json` and
   `soak-monitor.log`: both completed 1,800-second concurrent component tests,

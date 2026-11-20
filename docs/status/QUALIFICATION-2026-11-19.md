@@ -1,6 +1,6 @@
 # Beta 2 qualification execution — November 19, 2026
 
-Checkpoint: November 19, 2026, 8:07 p.m. Pacific (2026-11-20 04:07 UTC).
+Checkpoint: November 19, 2026, 10:11 p.m. Pacific (2026-11-20 06:11 UTC).
 
 ## Candidate and decision
 
@@ -106,8 +106,28 @@ was not applied to the release candidate and does not resolve the gate.
 ## Native release and artifact qualification
 
 Release-source checks, Windows edition-coexistence fixtures and platform
-selection have passed. macOS Pro and Windows Free builds are running; macOS Free
-and Windows Pro are queued. Five
+selection have passed. **All four Windows/macOS Free/Pro build, strictness-10
+plugin-validation and packaging jobs have passed.** Each native build also
+passed 139 early regression tests: 49,795 checks in Free and 49,812 in Pro.
+The full unit suites run separately in sixteen shards and remain pending.
+
+| Build | Job | Plugin formats validated | Result |
+|---|---|---|---|
+| Windows x64 Free | [136063305082](https://github.com/djshellshoxxx/luthier/actions/runs/44662100996/job/136063305082) | VST3 | Pass |
+| Windows x64 Pro | [136063305320](https://github.com/djshellshoxxx/luthier/actions/runs/44662100996/job/136063305320) | VST3 | Pass |
+| macOS universal Free | [136063305021](https://github.com/djshellshoxxx/luthier/actions/runs/44662100996/job/136063305021) | VST3 and AU | Pass |
+| macOS universal Pro | [136063305115](https://github.com/djshellshoxxx/luthier/actions/runs/44662100996/job/136063305115) | VST3 and AU | Pass |
+
+At the 06:09:59 UTC job snapshot, eight full-suite shards were running and eight
+were queued; none had completed or failed. The previous complete attempt took
+about 25-51 minutes per Windows shard and 64-162 minutes per macOS shard.
+The observed current durations do not establish a stalled job. Queued time is
+not execution time. The older four performance failures are not current-source
+results, and the current candidate leaves `PerfBudgetTests.cpp`,
+`TestFramework.h` and the native build workflow unchanged from that attempt.
+No performance assertion or threshold has been waived.
+
+Five
 supplemental Linux jobs passed: looper publication under ThreadSanitizer, IR
 handoff under ThreadSanitizer, IR handoff under AddressSanitizer/UndefinedBehaviorSanitizer,
 recorder thread safety, and native-library portability. Both application
@@ -120,16 +140,59 @@ to the candidate's `fae7e7ab0f70dfa533d2857f1df904f89a20cf5d` tree.
 
 No `v0.1.0-beta2` release exists at this checkpoint. The candidate branch remains
 at the source above; `master` remains `0f62c3d67bdba055b41e66c7ab8ac9ab4b728662`.
-Full native unit shards, validators, packaging and publication verification
-remain pending. The completed component tests do not bypass those gates.
+Full native unit shards and publication verification remain pending. The
+completed builds, validators, packaging and component tests do not bypass
+those gates.
 
 The release requires all four builds, every native test shard, strictness-10
 VST3 validation, AU validation where applicable, and packaging. Publication then
 checks the frozen source/tag, complete asset set, provenance, uploaded metadata,
-and downloaded hashes. Actual platform logs must establish signing/notarization.
-The Pro universal ZIP uses the ad-hoc-signed staging bundles; the Developer-ID
-signing/notarization path, when configured, applies to installer payload copies.
-Do not describe that ZIP as Developer-ID signed or notarized.
+and downloaded hashes.
+
+### Downloaded candidate packages
+
+All four Actions installer archives were downloaded. Their byte counts and
+SHA-256 digests match GitHub's artifact metadata. Together they contain the
+seven expected binary downloads and the two Windows portable checksum sidecars.
+Both portable sidecars match their nested archive bytes. The provenance file
+and overall checksum manifest are generated later by the publication job;
+they are not being represented as existing release assets here.
+
+Independent static inspection of both Windows portable archives and the macOS
+Pro universal archive verified:
+
+- The expected edition names and formats, with no CLAP or opposite-edition
+  payloads, unsafe paths, duplicate paths, case-insensitive collisions or symlinks.
+- Windows standalone and VST3 executables are AMD64 PE32+ and embed the exact
+  candidate source SHA. Free and Pro VST3 class identities are distinct.
+- macOS Pro standalone, VST3 and AU executables each contain x86_64 and arm64
+  Mach-O slices. Every individual slice embeds the exact candidate source SHA.
+- Shared factory resources match the candidate: 1,251 files per Windows edition
+  (three license files differ only in newlines), and 1,250 byte-identical macOS
+  Pro files. Platform icon exclusions match the staging scripts.
+- Both macOS DMGs are nonempty and have valid UDIF footer signatures. Their
+  mounted contents and installation were not inspected in this Linux workspace.
+
+These are structure, identity and integrity observations, not execution,
+installation, DAW or listening acceptance. The frozen archives retain the
+candidate's original README. The updated repository notes correct the later
+soak and signing evidence without modifying any candidate bytes.
+
+### Actual signing status
+
+Both Windows packaging logs report missing signing identities; the packages
+are unsigned. The four inspected Windows application/plugin binaries also
+have empty PE certificate directories. Both macOS packaging logs report ad-hoc
+bundle signing, unsigned package installers, and no Apple notarization. The Pro
+universal ZIP uses those ad-hoc-signed staging bundles. Native operating-system
+trust assessment was not performed by the static archive inspection.
+
+Evidence: `qualification-2026-11-19/native-build-evidence.json` records native
+jobs, validator results, early-test counts, signing log excerpts and the pending
+shard snapshot. `native-package-artifacts.json` records downloaded outer-archive
+identity and digests. `binary-artifact-review-44662100996.json` records binary
+headers, embedded source identities, factory content and all nine payload
+sizes/digests. The evidence index hashes these files.
 
 ## Hands-on acceptance
 
