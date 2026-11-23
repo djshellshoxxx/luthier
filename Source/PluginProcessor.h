@@ -1075,6 +1075,11 @@ private:
     bool loadGuitarForType (GuitarType type);
     bool loadGuitarFrom (const juce::String& reference, const juce::var& override,
                          GuitarType type, bool writeParameters);
+    /** Applies the already-loaded parts guitar to the DSP engine when the host
+        first needs engine state (prepare or unprepared state persistence). The
+        constructor still loads the file and writes its parameter defaults, but
+        does not build the same engine twice before the first audio block. */
+    void applyCurrentGuitarToEngine();
     void writeGuitarParameters (const DerivedAcoustics& derived);
     bool guitarLoadKeepsHostWrites = false;   ///< only a type load defers to the host's writes
 
@@ -1115,6 +1120,8 @@ private:
     juce::uint32 guitarRevision = 0;   // getGuitarRevision
     WorkshopBench bench { *this };
     bool partsGuitarLoaded = false;
+    bool deferGuitarEngineBuild = true;
+    GuitarType partsGuitarStandsFor = GuitarType::Stratocaster;
     juce::String lastGuitarSaveError;   // SPEC-SWEEP ER-44
     bool strumFamilyIsBass = false;   ///< strum-dynamics 4: the family the strum parameters' defaults follow
     juce::StringArray guitarNotices;

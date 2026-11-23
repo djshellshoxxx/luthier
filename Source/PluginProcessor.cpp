@@ -456,12 +456,11 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
 
     samplePosition = 0;
 
-    // The guitar may have been built into the engine before it knew its sample
-    // rate (the constructor loads the default one): rebuild the engine side
-    // now. Parameters are not written - they are the player's or the host's.
-    if (partsGuitarLoaded)
-        engine.applyWorkshopGuitar (mapSpec (currentGuitar), engine.getGuitarType());
-
+    // Consume a pre-prepare host guitar choice while builds are still deferred,
+    // then build the selected guitar once at the prepared sample rate. Reapply
+    // parameters afterward so host writes still win over structural defaults.
+    bridge.applyAllNow();
+    applyCurrentGuitarToEngine();
     bridge.applyAllNow();
 
     if (presets.hasExtraState())
@@ -877,7 +876,7 @@ bool LuthierAudioProcessor::loadGuitarFrom (const juce::String& reference, const
     const auto key = override.isVoid() ? reference
                                        : reference + "|" + juce::String (juce::JSON::toString (override, true).hashCode64());
 
-    if (partsGuitarLoaded && key == loadedGuitarKey && (int) engine.getGuitarType() == (int) type)
+    if (partsGuitarLoaded && key == loadedGuitarKey && partsGuitarStandsFor == type)
         return true;
 
     WorkshopGuitar guitar;
@@ -1175,14 +1174,18 @@ void LuthierAudioProcessor::applyGuitar (const WorkshopGuitar& guitar, GuitarTyp
     currentGuitar = guitar;
     ++guitarRevision;
     partsGuitarLoaded = true;
+    partsGuitarStandsFor = standsFor;
 
     const auto derived = mapSpec (guitar);
 
     // TODO 6e / DECISIONS C-09 (MODEL-GAPS): a swap that keeps the structure is
     // built here and taken at the audio thread's next block boundary, with the
     // strings still sounding; anything else parks the engine as before.
-    if (! engine.swapPartsAtBlockBoundary (derived, standsFor))
-        engine.applyWorkshopGuitar (derived, standsFor);
+    if (! deferGuitarEngineBuild)
+    {
+        if (! engine.swapPartsAtBlockBoundary (derived, standsFor))
+            engine.applyWorkshopGuitar (derived, standsFor);
+    }
 
     // strum-dynamics 4 / bass-techniques 8: the family's strum defaults.
     const bool isBass = guitar.family == "bass";
@@ -1226,6 +1229,14 @@ void LuthierAudioProcessor::applyGuitar (const WorkshopGuitar& guitar, GuitarTyp
         ErrorLog::write (ErrorLog::Severity::info, "Workshop", "STRING_COUNT_MISMATCH",
                          "The neck and bridge disagree by " + juce::String (report.stringExcess)
                            + " strings; the guitar has " + juce::String (derived.numStrings) + ".");
+}
+
+void LuthierAudioProcessor::applyCurrentGuitarToEngine()
+{
+    deferGuitarEngineBuild = false;
+
+    if (partsGuitarLoaded)
+        engine.applyWorkshopGuitar (mapSpec (currentGuitar), partsGuitarStandsFor);
 }
 
 void LuthierAudioProcessor::retargetStrumDefaults (bool fromBass, bool toBass)
@@ -3779,6 +3790,10 @@ void LuthierAudioProcessor::writeState (juce::MemoryBlock& destData, juce::JSON:
         if (! initialStateApplied)
         {
             bridge.applyAllNow();
+            applyCurrentGuitarToEngine();
+            // The guitar supplies structural defaults; host writes still win,
+            // exactly as they do in prepareToPlay after its engine rebuild.
+            bridge.applyAllNow();
             initialStateApplied = true;
         }
 
@@ -4179,6 +4194,16 @@ void LuthierAudioProcessor::restoreState (const void* data, int sizeInBytes, Res
     // the plugin"): a plugin undo or redo leaves the tune as it is.
     if (root->hasProperty ("tune") && ! restoringPluginUndo)
         tuneSession.restoreState (root->getProperty ("tune"));
+
+    // A host commonly restores before its first prepareToPlay. Build the parts
+    // guitar before applying the restored per-string extras, just as the old
+    // eager constructor path did; prepared instances keep the existing order.
+    if (deferGuitarEngineBuild)
+    {
+        bridge.applyAllNow();
+        applyCurrentGuitarToEngine();
+        bridge.applyAllNow();
+    }
 
     presets.applyExtraState();
     bridge.applyAllNow();

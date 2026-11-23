@@ -137,6 +137,32 @@ no failed shard is ignored, and the earlier passes do not qualify later changes.
 
 ## Publication and remaining work
 
+### Latest exact-source qualification
+
+[Run 44662100996](https://github.com/djshellshoxxx/luthier/actions/runs/44662100996)
+tested `51fd4de677fd0d4a056ded5ee2e8845b9e81584d`. Release preflight, Windows
+edition coexistence, all four Windows/macOS Free/Pro build-validator-package
+jobs, and fifteen of sixteen native test shards passed. The only product failure
+was macOS Pro shard 3/4: `Boot.coldAndWarmInstantiationStayInBudget` measured
+1,033.4 ms warm against its unchanged 1,000 ms limit. Its cold measurement was
+678.7 ms. A narrow job rerun could not reproduce the test because the archived
+build artifact had expired; it failed during artifact download before executing
+the test binary.
+
+The remediation following `51fd4de` removes the redundant Workshop-guitar DSP
+build from processor construction. Construction still loads the selected parts
+file and establishes parameter defaults. The selected engine structure is built
+once, after the host supplies its pre-prepare parameter writes and the engine
+knows its sample rate. Unprepared save and restore paths explicitly materialize
+the same engine state before capturing or applying per-string state. A focused
+regression checks both editions: a pre-prepare guitar selection remains deferred,
+then the selected Workshop guitar exists after first prepare. Pro and Free
+production and regression translation units pass C++17 syntax compilation with
+JUCE 8.0.10. All 46 publication, release-source, and guarded-consolidation tests
+also pass. No performance threshold, assertion, validator strictness, or release
+matrix requirement changed. Complete Windows/macOS qualification remains required
+for this new exact source.
+
 - The current release chain retires the old PR-#77-triggered beta publisher.
   Consolidating the latest chain includes this repair; the older integration
   snapshot alone does not.
@@ -150,8 +176,7 @@ no failed shard is ignored, and the earlier passes do not qualify later changes.
   `0f62c3d67bdba055b41e66c7ab8ac9ab4b728662`. It verifies ancestry and atomically
   checks the prior head without forcing the update or changing branch protection.
   Concurrent work stops consolidation for review without withdrawing the beta.
-- Final source needs a new complete native run after performance, parser-security,
-  MIDI and recovered-code changes are integrated.
+- The remediation successor of `51fd4de` needs a new complete native release run.
 - Phaser CPU/reference-listening/bypass-criterion questions and real DAW/hardware
   acceptance remain as described in the beta notes. They are not implied by the
   focused tests above.

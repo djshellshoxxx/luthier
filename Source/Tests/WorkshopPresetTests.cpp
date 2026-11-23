@@ -75,6 +75,27 @@ LUTHIER_TEST (WorkshopPresets, aFreshInstanceNamesItsFactoryGuitar)
     CHECK (block.getProperty ("override", juce::var ("absent")).isVoid());
 }
 
+LUTHIER_TEST (WorkshopPresets, aPrePrepareGuitarChoiceBuildsOnceAtFirstPrepare)
+{
+    LuthierAudioProcessor processor;
+
+    // The constructor has loaded the factory file and written its parameter
+    // defaults, but audio cannot run before prepareToPlay. Keep the expensive
+    // engine build deferred so prepare does not immediately repeat it.
+    CHECK (processor.hasPartsGuitar());
+    CHECK (! processor.getEngine().isWorkshopGuitar());
+
+    const auto chosen = luthier::edition::isPro ? GuitarType::Classical : GuitarType::Auditorium;
+    auto* type = processor.getState().getParameter (ParamIDs::guitarType);
+    type->setValueNotifyingHost (type->convertTo0to1 ((float) chosen));
+    processor.getParameterBridge().applyAllNow();
+
+    CHECK (! processor.getEngine().isWorkshopGuitar());
+    processor.prepareToPlay (48000.0, 512);
+    CHECK (processor.getEngine().isWorkshopGuitar());
+    CHECK (processor.getEngine().getGuitarType() == chosen);
+}
+
 LUTHIER_TEST (WorkshopPresets, anEditedGuitarTravelsWholeInTheState)
 {
     LuthierAudioProcessor source;
