@@ -220,7 +220,7 @@ private:
         that are sounding and repaints only when that set or a fret changes. */
     void staticRefresh();
     AnimationPolicy::Registration motion { *this, AnimationPolicy::Decorative, "GuitarBodyComponent",
-                                           [this] { staticRefresh(); repaint(); },
+                                           [this] { staticRefresh(); }, // one repaint owner: staticRefresh
                                            [this] { staticRefresh(); } };
 
     GuitarOverlay overlay;

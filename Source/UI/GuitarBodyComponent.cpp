@@ -39,11 +39,22 @@ void GuitarBodyComponent::staticRefresh()
     rebuildScene (false);
 
     auto& engine = processor.getEngine();
-    bool changed = ! overlay.reducedMotion;
+    const bool wasReduced = overlay.reducedMotion;
     overlay.reducedMotion = ! AnimationPolicy::get().mayAnimate (AnimationPolicy::Decorative);
 
     if (! overlay.reducedMotion)
+    {
+        // The policy callback used to repaint again after staticRefresh. That
+        // produced two native paint passes for one High/Low transition when a
+        // host flushed the first invalidation immediately. Own the transition
+        // repaint here so each visible state change requests it once.
+        if (wasReduced)
+            repaint();
+
         return;
+    }
+
+    bool changed = ! wasReduced;
 
     for (int s = 0; s < juce::jmin (12, engine.getNumStrings()); ++s)
     {

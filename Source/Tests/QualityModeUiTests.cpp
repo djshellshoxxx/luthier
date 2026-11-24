@@ -536,6 +536,45 @@ LUTHIER_TEST (CpuQualityUi, CQ23_staticOverlayCountsStateChangesOnly)
     p.getQualityController().forceLevelForTesting (-1);
 }
 
+LUTHIER_TEST (CpuQualityUi, CQ23_policyTransitionRepaintsGuitarOnce)
+{
+    QualityTestSupport::ScopedTempSettings temp;
+    AccessibilitySettings::get().setReducedMotion (false);
+    AnimationPolicy::get().refreshReducedMotion();
+    LuthierAudioProcessor p;
+    p.prepareToPlay (kSr, kBlock);
+    EditorOnDesktop shown (p, true);
+    auto* body = findChild<GuitarBodyComponent> (*shown.editor);
+    CHECK (body != nullptr);
+
+    if (body != nullptr)
+    {
+        auto transitionPaints = [&]
+        {
+            if (auto* peer = shown.host->getPeer())
+                peer->performAnyPendingRepaintsNow();
+
+            int paints = 0;
+            for (const auto& r : AnimationPolicy::get().getRegistry())
+                if (r.component == body && r.motionClass != AnimationPolicy::LiveReadout)
+                    paints = juce::jmax (paints, r.paints);
+            return paints;
+        };
+
+        AnimationPolicy::get().resetPaintCounts();
+        p.getQualityController().forceLevelForTesting ((int) QualityLevel::Low);
+        shown.editor->getQualityLink().pumpForTesting();
+        CHECK_MSG (transitionPaints() == 1, "entering Low must paint the guitar exactly once");
+
+        AnimationPolicy::get().resetPaintCounts();
+        p.getQualityController().forceLevelForTesting ((int) QualityLevel::High);
+        shown.editor->getQualityLink().pumpForTesting();
+        CHECK_MSG (transitionPaints() == 1, "leaving Low must paint the guitar exactly once");
+    }
+
+    p.getQualityController().forceLevelForTesting (-1);
+}
+
 LUTHIER_TEST (CpuQualityUi, CQ23_lowMeansNoAnimationRepaints)
 {
     QualityTestSupport::ScopedTempSettings temp;
