@@ -330,11 +330,15 @@ jobs:
         if: ${{ inputs.test_shards > 0 && (steps.build_unix.outcome == 'success' || steps.build_windows.outcome == 'success') }}
         uses: actions/upload-artifact@v4
         with:
-          name: test-binaries-${{ matrix.edition }}-${{ matrix.platform }}-${{ github.run_attempt }}
+          # Keep the name stable across attempts. A leaf-job rerun must be able
+          # to download the exact-source binaries from the original attempt.
+          name: test-binaries-${{ matrix.edition }}-${{ matrix.platform }}-${{ github.run_id }}
           path: test-binaries.tar
           retention-days: 3
           if-no-files-found: error
           compression-level: 6
+          # If the build itself is rerun, replace its same-run artifact.
+          overwrite: true
 
       - name: Collect macOS native failure evidence
         if: ${{ failure() && runner.os == 'macOS' }}
@@ -482,7 +486,7 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: test-binaries-${{ matrix.edition }}-${{ matrix.platform }}-${{ github.run_attempt }}
+          name: test-binaries-${{ matrix.edition }}-${{ matrix.platform }}-${{ github.run_id }}
 
       - name: Unpack test binaries
         shell: bash

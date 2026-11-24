@@ -108,6 +108,13 @@ class ReleaseGuards(unittest.TestCase):
             self.assertIn("--shard=", text)
             self.assertIn("LUTHIER_NO_CLAP", text)
 
+    def test_sharded_test_artifacts_survive_leaf_job_reruns(self):
+        build = BUILD_WORKFLOW.read_text()
+        stable_name = "name: test-binaries-${{ matrix.edition }}-${{ matrix.platform }}-${{ github.run_id }}"
+        self.assertEqual(build.count(stable_name), 2)
+        self.assertNotIn("github.run_attempt", build)
+        self.assertIn("overwrite: true", build)
+
     def test_clap_validator_is_current_on_all_release_platforms(self):
         unix = (ROOT / "scripts/ci_build.sh").read_text()
         windows = (ROOT / "scripts/ci_build.ps1").read_text()
