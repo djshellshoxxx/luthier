@@ -64,7 +64,7 @@ Pinned tool versions (change them in one place, the CI scripts):
 | Tool | Version | Where |
 |---|---|---|
 | JUCE | 8.0.10 | `JUCE_TAG` in `scripts/ci_build.sh`, `$JuceTag` in `scripts/ci_build.ps1`, `scripts/setup_linux.sh` |
-| clap-juce-extensions | commit `55525c98` | `CLAP_JUCE_EXT_COMMIT` / `$ClapJuceExtCommit` |
+| clap-juce-extensions | commit `6bde1083` | `CLAP_JUCE_EXT_COMMIT` / `$ClapJuceExtCommit` |
 | pluginval | v1.0.4 | `PLUGINVAL_VERSION` |
 | clap-validator | 0.4.1 (`0.4.1-127-g152b982`) | `CLAP_VALIDATOR_VERSION` / pinned binary build in CI scripts; development builds only for the current beta |
 

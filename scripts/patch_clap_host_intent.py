@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Preserve same-value CLAP host-write intent in pinned clap-juce-extensions.
 
-Upstream commit 55525c9858d4b25687be7759a5e0f70eccef218e; licence retained.
+Upstream commit 6bde108329ff9fc24404b79b8b397261a75cf6a8; licence retained.
+That pin already carries upstream #194 (parameter rescan after state.load).
 Only paramSetValueAndNotifyIfChanged changes: equal writes notify listeners,
 while value mutation remains changed-only and outgoing feedback stays suppressed.
 Run during configuration before compiling the CLAP wrapper, never from audio.
@@ -15,8 +16,8 @@ import sys
 import tempfile
 
 RELATIVE = Path("src/wrapper/clap-juce-wrapper.cpp")
-BEFORE_SHA256 = "80de1ed18a3ba3a753a1f07c80fb8ab6323a8b28098a3506e12249be9384cee5"
-AFTER_SHA256 = "d930bb74aaa55a2fd94e65a0610b7e50d3962821a1e0bf4c4a67354122cd6d1f"
+BEFORE_SHA256 = "ec14608e66770b6d097744a6a7b9c493fcd1cdb7a6e18ce71197715f0e1c85d6"
+AFTER_SHA256 = "c991964c4838ddd449ca5efd31c6e0efb03aea4f2bbf2fffd6629caca1e9e766"
 BEFORE = b'        if (param.processorParam->getValue() == newValue)\n            return;\n        JUCE_END_IGNORE_WARNINGS_GCC_LIKE\n\n        param.processorParam->setValue(newValue);\n'
 AFTER = b'        // Even an unchanged host value carries explicit write intent. Notify\n        // listeners so deferred instrument defaults cannot replace that value.\n        const bool changed = param.processorParam->getValue() != newValue;\n        JUCE_END_IGNORE_WARNINGS_GCC_LIKE\n\n        if (changed)\n            param.processorParam->setValue(newValue);\n'
 
@@ -35,7 +36,7 @@ def main():
             print("CLAP host-write intent patch verified")
             return 0
         if digest != BEFORE_SHA256 or canonical.count(BEFORE) != 1:
-            raise ValueError("CLAP wrapper differs from pinned 55525c98 preimage; refusing to patch")
+            raise ValueError("CLAP wrapper differs from pinned 6bde1083 preimage; refusing to patch")
         if args.check:
             raise ValueError("CLAP host-write intent patch is not applied")
         patched = canonical.replace(BEFORE, AFTER, 1)
@@ -57,7 +58,7 @@ def main():
         finally:
             if temporary is not None:
                 temporary.unlink(missing_ok=True)
-        print("Applied CLAP host-write intent patch (55525c98)")
+        print("Applied CLAP host-write intent patch (6bde1083)")
         return 0
     except (OSError, ValueError) as error:
         print(str(error), file=sys.stderr)

@@ -64,7 +64,7 @@ $productName = if ($Edition -eq 'FREE') { 'Luthier Free' } else { 'Luthier Pro' 
 
 $JuceTag = '8.0.10'
 # Keep in step with CLAP_JUCE_EXT_COMMIT in scripts/ci_build.sh.
-$ClapJuceExtCommit = '55525c9858d4b25687be7759a5e0f70eccef218e'
+$ClapJuceExtCommit = '6bde108329ff9fc24404b79b8b397261a75cf6a8'
 
 function Write-Step([string] $message) {
     Write-Host ''

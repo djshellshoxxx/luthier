@@ -17,8 +17,8 @@
 
 | Platform | OS image/version | Compiler/toolchain | CMake/Ninja | JUCE | CLAP dependency | Build command | Log locations |
 |---|---|---|---|---|---|---|---|
-| Linux x86-64 | | | | 8.0.10 | commit `55525c9858d4b25687be7759a5e0f70eccef218e` if CLAP built | `PLUGINVAL_STRICTNESS=10 scripts/ci_build.sh deps configure build test validate stage` | |
-| Windows x64 | | Visual Studio 2022 / MSVC | | 8.0.10 | commit `55525c9858d4b25687be7759a5e0f70eccef218e` if CLAP built | `scripts/ci_build.ps1 -Step deps,configure,build,test,validate,stage -Jobs 2 -Strictness 10` | |
+| Linux x86-64 | | | | 8.0.10 | commit `6bde108329ff9fc24404b79b8b397261a75cf6a8` if CLAP built | `PLUGINVAL_STRICTNESS=10 scripts/ci_build.sh deps configure build test validate stage` | |
+| Windows x64 | | Visual Studio 2022 / MSVC | | 8.0.10 | commit `6bde108329ff9fc24404b79b8b397261a75cf6a8` if CLAP built | `scripts/ci_build.ps1 -Step deps,configure,build,test,validate,stage -Jobs 2 -Strictness 10` | |
 
 The build scripts default to `build-ci/`, stage products in `dist/linux` or `dist/windows`, and write logs under `build-ci/logs` unless configured otherwise. Record the actual paths if you override them.
 

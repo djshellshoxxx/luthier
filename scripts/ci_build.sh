@@ -37,7 +37,7 @@ cd "$(dirname "$0")/.."
 JUCE_TAG="8.0.10"
 # clap-juce-extensions has no release tags; pin the commit this build was
 # verified against so a new upstream commit cannot break CI without a change here.
-CLAP_JUCE_EXT_COMMIT="55525c9858d4b25687be7759a5e0f70eccef218e"
+CLAP_JUCE_EXT_COMMIT="6bde108329ff9fc24404b79b8b397261a75cf6a8"
 
 BUILD_DIR="${BUILD_DIR:-build-ci}"
 DIST_DIR="${DIST_DIR:-dist}"
