@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
-"""Publish the authorized beta2 draft after its complete release workflow passes.
+"""Publish an owner-authorized beta draft after its complete release workflow passes.
 
-This deliberately supports one candidate only. It creates no releases, uploads
-no assets, and never changes a tag. Other release paths retain draft review.
+Only the candidates listed in CANDIDATES publish, each only from its own run
+(GitHub event and ref) for its own tag, with the exact asset set that its
+qualified platforms package: beta2 from a push of release/v0.1.0-beta2, beta3
+from a workflow_dispatch on claude/determined-ptolemy-mlbclp. This creates no
+releases, uploads no assets, and never changes a tag. Every other tag, candidate
+and manual dispatch retains draft review.
 """
 from __future__ import annotations
 
@@ -19,19 +23,16 @@ import tempfile
 from typing import Any
 
 
-VERSION = "0.1.0-beta2"
-TAG = "v" + VERSION
-CANDIDATE = "refs/heads/release/" + TAG
 MANIFEST = "SHA256SUMS.txt"
 SIGNATURE = MANIFEST + ".asc"
 PROVENANCE = "BUILD-PROVENANCE.json"
-PAYLOADS = frozenset(
-    f"Luthier-{edition}-{VERSION}-{suffix}"
-    for edition in ("Pro", "Free")
-    for suffix in ("Setup-win64.exe", "portable-win64.zip", "macOS.dmg")
-) | {f"Luthier-Pro-{VERSION}-macOS-universal.zip"}
-SIDECARS = frozenset(name + ".sha256" for name in PAYLOADS if "portable-win64" in name)
-REQUIRED = PAYLOADS | SIDECARS | {MANIFEST, PROVENANCE}
+EDITIONS = ("Pro", "Free")
+# release.yml records the selected platforms in this order (its default list).
+PLATFORMS = ("linux", "windows", "macos")
+# scripts/package_linux.sh PKG_NAME: each edition's .deb/.rpm package name.
+LINUX_PACKAGES = {"Pro": "luthier-pro", "Free": "luthier-free"}
+# The GitHub events an allowlist entry may name as its one publishing run.
+EVENTS = ("push", "workflow_dispatch")
 
 
 class PublicationError(Exception):
@@ -46,6 +47,111 @@ def require(condition: bool, message: str) -> None:
 def json_object(value: Any, context: str) -> dict[str, Any]:
     require(isinstance(value, dict), f"{context} must be a JSON object")
     return value
+
+
+@dataclass(frozen=True)
+class Candidate:
+    """One owner-authorized candidate, its one publishing run, and the assets
+    its qualification packages.
+
+    event and ref name the only run that may publish it: GITHUB_EVENT_NAME and
+    GITHUB_REF (the candidate branch, which must still identify the frozen
+    source). The names are the real packaging outputs: scripts/package_windows.ps1
+    (and packaging/windows/Luthier.iss), scripts/package_macos.sh, build.yml's
+    universal Pro archive, and scripts/package_linux.sh.
+    """
+
+    version: str
+    platforms: tuple[str, ...]
+    event: str
+    ref: str
+
+    def __post_init__(self) -> None:
+        # A malformed allowlist entry fails closed instead of widening publication.
+        if re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+-beta[0-9]+", self.version) is None:
+            raise ValueError(f"Malformed authorized version: {self.version!r}")
+        if not self.platforms or list(self.platforms) != [p for p in PLATFORMS if p in self.platforms]:
+            raise ValueError(f"{self.version} platforms must be distinct and in release.yml order")
+        if self.event not in EVENTS:
+            raise ValueError(f"{self.version} must name one publishing event: {', '.join(EVENTS)}")
+        if re.fullmatch(r"refs/heads/[A-Za-z0-9_-]+(?:[./][A-Za-z0-9_-]+)*", self.ref) is None:
+            raise ValueError(f"{self.version} must name one exact branch ref: {self.ref!r}")
+        # release.yml derives a candidate push's tag from its release/<tag> branch.
+        if self.event == "push" and self.ref != "refs/heads/release/" + self.tag:
+            raise ValueError(f"A pushed {self.version} candidate must be refs/heads/release/{self.tag}")
+
+    @property
+    def tag(self) -> str:
+        return "v" + self.version
+
+    @property
+    def linux_payloads(self) -> frozenset[str]:
+        """The Linux packages every qualified Linux build writes (no rpmbuild needed)."""
+        if "linux" not in self.platforms:
+            return frozenset()
+        return frozenset(name for edition in EDITIONS for name in (
+            f"Luthier-{edition}-{self.version}-linux-x64.tar.gz",
+            f"Luthier-{edition}-{self.version}-standalone-linux-x64.tar.gz",
+            f"{LINUX_PACKAGES[edition]}_{self.version}_amd64.deb"))
+
+    @property
+    def payloads(self) -> frozenset[str]:
+        names = set(self.linux_payloads)
+        for edition in EDITIONS:
+            if "windows" in self.platforms:
+                names |= {f"Luthier-{edition}-{self.version}-Setup-win64.exe",
+                          f"Luthier-{edition}-{self.version}-portable-win64.zip"}
+            if "macos" in self.platforms:
+                names.add(f"Luthier-{edition}-{self.version}-macOS.dmg")
+        if "macos" in self.platforms:
+            names.add(f"Luthier-Pro-{self.version}-macOS-universal.zip")
+        return frozenset(names)
+
+    @property
+    def sidecars(self) -> frozenset[str]:
+        return frozenset(name + ".sha256" for name in self.payloads if "portable-win64" in name)
+
+    @property
+    def rpms(self) -> frozenset[str]:
+        """Best effort: package_linux.sh writes an .rpm only when rpmbuild succeeds."""
+        if "linux" not in self.platforms:
+            return frozenset()
+        return frozenset(f"{LINUX_PACKAGES[edition]}-{self.version}-1.x86_64.rpm" for edition in EDITIONS)
+
+    @property
+    def required(self) -> frozenset[str]:
+        return self.payloads | self.sidecars | {MANIFEST, PROVENANCE}
+
+    def accepts(self, names: set[str]) -> bool:
+        """Exactly the required assets plus only the explicitly optional extras.
+
+        Those are each edition's .rpm and one complete set of detached
+        signatures. The same GPG_PRIVATE_KEY signs SHA256SUMS.txt (release.yml)
+        and every Linux package (package_linux.sh writes <package>.asc), so the
+        signatures are either all present or all absent.
+        """
+        if not self.required <= names:
+            return False
+        extras = names - self.required
+        rpms = extras & self.rpms
+        signatures = {SIGNATURE} | {name + ".asc" for name in self.linux_payloads | rpms}
+        return extras in (rpms, rpms | signatures)
+
+
+# The owner-authorized candidates, the platforms each was qualified on, and the
+# one run (event, ref) that may publish each. Nothing else publishes automatically.
+CANDIDATES = (
+    Candidate("0.1.0-beta2", ("windows", "macos"), "push", "refs/heads/release/v0.1.0-beta2"),
+    Candidate("0.1.0-beta3", ("linux", "windows", "macos"), "workflow_dispatch",
+              "refs/heads/claude/determined-ptolemy-mlbclp"),
+)
+AUTHORIZED = {candidate.ref: candidate for candidate in CANDIDATES}
+if len(AUTHORIZED) != len(CANDIDATES) or len({c.tag for c in CANDIDATES}) != len(CANDIDATES):
+    raise ValueError("Each authorized candidate needs its own ref and tag")
+# scripts/consolidate_qualified_beta.py consolidates beta2 only: it imports these
+# names and builds GitHub(repository), whose default candidate is beta2.
+BETA2 = AUTHORIZED["refs/heads/release/v0.1.0-beta2"]
+CANDIDATE, TAG = BETA2.ref, BETA2.tag
 
 
 @dataclass(frozen=True)
@@ -66,10 +172,11 @@ def file_digest(path: Path) -> Digest:
     return Digest(size, digest.hexdigest())
 
 
-def inventory(directory: Path) -> dict[str, Digest]:
+def inventory(directory: Path, candidate: Candidate) -> dict[str, Digest]:
     files = {path.name: file_digest(path) for path in directory.iterdir()}
-    require(set(files) in (REQUIRED, REQUIRED | {SIGNATURE}),
-            "Asset inventory must contain exactly the beta2 binaries, sidecars, provenance and checksums")
+    require(candidate.accepts(set(files)),
+            f"Asset inventory must contain exactly the {candidate.version} binaries, sidecars, "
+            "provenance and checksums, plus only the optional .rpm and complete signature set")
     return files
 
 
@@ -84,21 +191,24 @@ def checksum_entries(path: Path) -> dict[str, str]:
     return entries
 
 
-def validate_local(directory: Path, source: str, repository: str, run_id: str) -> dict[str, Digest]:
-    files = inventory(directory)
+def validate_local(directory: Path, candidate: Candidate, source: str,
+                   repository: str, run_id: str) -> dict[str, Digest]:
+    files = inventory(directory, candidate)
     entries = checksum_entries(directory / MANIFEST)
     expected = {name: digest.sha256 for name, digest in files.items()
                 if name not in (MANIFEST, SIGNATURE)}
     require(entries == expected, "Checksum manifest does not match every qualified asset")
-    for sidecar in SIDECARS:
+    for sidecar in candidate.sidecars:
         archive = sidecar.removesuffix(".sha256")
         require(checksum_entries(directory / sidecar) == {archive: files[archive].sha256},
                 f"Portable checksum does not match {archive}")
     provenance = json_object(json.loads((directory / PROVENANCE).read_text(encoding="utf-8")),
                              "Build provenance")
     require(provenance.get("source_commit") == source, "Provenance source differs from frozen source")
-    require(provenance.get("version") == VERSION, "Provenance version differs from beta2")
-    require(provenance.get("platforms") == ["windows", "macos"], "Both qualified platforms are required")
+    require(provenance.get("version") == candidate.version,
+            f"Provenance version differs from {candidate.version}")
+    require(provenance.get("platforms") == list(candidate.platforms),
+            "Provenance must list exactly the qualified platforms: " + ",".join(candidate.platforms))
     require(provenance.get("editions") == ["pro", "free"], "Both qualified editions are required")
     require(provenance.get("ci_run") == f"https://github.com/{repository}/actions/runs/{run_id}",
             "Provenance does not identify this qualification run")
@@ -106,8 +216,9 @@ def validate_local(directory: Path, source: str, repository: str, run_id: str) -
 
 
 class GitHub:
-    def __init__(self, repository: str):
+    def __init__(self, repository: str, candidate: Candidate = BETA2):
         self.repository = repository
+        self.candidate = candidate
         self.prefix = "repos/" + repository
 
     @staticmethod
@@ -133,12 +244,13 @@ class GitHub:
         return items
 
     def check_source(self, source: str) -> None:
-        branch = json_object(self.api("/git/ref/" + CANDIDATE.removeprefix("refs/")), "Candidate ref")
+        ref, tag_name = self.candidate.ref, self.candidate.tag
+        branch = json_object(self.api("/git/ref/" + ref.removeprefix("refs/")), "Candidate ref")
         target = json_object(branch.get("object"), "Candidate object")
-        require(branch.get("ref") == CANDIDATE and target.get("type") == "commit"
+        require(branch.get("ref") == ref and target.get("type") == "commit"
                 and target.get("sha") == source, "Candidate branch advanced or differs from frozen source")
-        tag = json_object(self.api("/git/ref/tags/" + TAG), "Release tag")
-        require(tag.get("ref") == "refs/tags/" + TAG, "Release tag identity differs")
+        tag = json_object(self.api("/git/ref/tags/" + tag_name), "Release tag")
+        require(tag.get("ref") == "refs/tags/" + tag_name, "Release tag identity differs")
         target = json_object(tag.get("object"), "Tag object")
         # The workflow creates lightweight tags; allow an already verified
         # annotated tag, while bounding malformed/cyclic API responses.
@@ -155,16 +267,17 @@ class GitHub:
 
     def find_draft(self) -> dict[str, Any]:
         releases = [json_object(item, "Release") for item in self.pages("/releases?per_page=100")]
-        matches = [release for release in releases if release.get("tag_name") == TAG]
-        require(len(matches) == 1, "Expected exactly one newly created beta2 draft")
+        matches = [release for release in releases if release.get("tag_name") == self.candidate.tag]
+        require(len(matches) == 1, f"Expected exactly one newly created {self.candidate.version} draft")
         return matches[0]
 
     def verify_release(self, release: dict[str, Any], source: str, draft: bool,
                        files: dict[str, Digest]) -> dict[str, int]:
+        tag, version = self.candidate.tag, self.candidate.version
         release_id = release.get("id")
         require(type(release_id) is int and release_id > 0, "Invalid release ID")
-        require(release.get("tag_name") == TAG and release.get("name") == "Luthier " + VERSION,
-                "Release identity differs from the authorized beta2")
+        require(release.get("tag_name") == tag and release.get("name") == "Luthier " + version,
+                f"Release identity differs from the authorized {version}")
         require(release.get("target_commitish") == source, "Release target differs from frozen source")
         require(release.get("draft") is draft and release.get("prerelease") is True,
                 "Release must retain its prerelease status and expected draft state")
@@ -172,7 +285,7 @@ class GitHub:
                 "Release API identity differs from the authorized repository")
         # GitHub gives drafts an untagged-* web URL until publication.
         if not draft:
-            require(release.get("html_url") == f"https://github.com/{self.repository}/releases/tag/{TAG}",
+            require(release.get("html_url") == f"https://github.com/{self.repository}/releases/tag/{tag}",
                     "Published release URL differs from the authorized repository and tag")
         assets = self.pages(f"/releases/{release_id}/assets?per_page=100")
         identities: dict[str, int] = {}
@@ -193,27 +306,36 @@ class GitHub:
         return identities
 
 
+def authorized_candidate(tag: str) -> Candidate:
+    # An exact ref lookup: no prefix, pattern or case folding selects a candidate.
+    # Each candidate publishes only from its own event and ref, for its own tag.
+    candidate = AUTHORIZED.get(os.environ.get("GITHUB_REF", ""))
+    require(candidate is not None and os.environ.get("GITHUB_EVENT_NAME") == candidate.event
+            and tag == candidate.tag,
+            "Automatic publication is authorized only for an allowlisted candidate's own event, ref and tag")
+    return candidate
+
+
 def publish(directory: Path, source: str, tag: str) -> str:
-    require(os.environ.get("GITHUB_EVENT_NAME") == "push"
-            and os.environ.get("GITHUB_REF") == CANDIDATE and tag == TAG,
-            "Automatic publication is authorized only for the beta2 candidate push")
+    candidate = authorized_candidate(tag)
     require(re.fullmatch(r"[0-9a-f]{40}", source) is not None
-            and os.environ.get("GITHUB_SHA") == source, "Frozen source must match this push")
+            and os.environ.get("GITHUB_SHA") == source, "Frozen source must be this run's commit (GITHUB_SHA)")
     require(os.environ.get("QUALIFICATION_RESULT") == "success", "Full build qualification did not succeed")
     repository = os.environ.get("GITHUB_REPOSITORY", "")
     run_id = os.environ.get("GITHUB_RUN_ID", "")
     require(re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository) is not None
             and re.fullmatch(r"[0-9]+", run_id) is not None, "Invalid qualification run identity")
     require(os.environ.get("GITHUB_SERVER_URL") == "https://github.com", "Unexpected GitHub server")
-    files = validate_local(directory, source, repository, run_id)
-    github = GitHub(repository)
+    files = validate_local(directory, candidate, source, repository, run_id)
+    github = GitHub(repository, candidate)
     github.check_source(source)
     release = github.find_draft()
     identities = github.verify_release(release, source, True, files)
     release_id = release["id"]
-    with tempfile.TemporaryDirectory(prefix="luthier-beta2-download-") as temporary:
-        github.run("release", "download", TAG, "--repo", repository, "--dir", temporary, timeout=1800)
-        require(inventory(Path(temporary)) == files, "Downloaded release bytes differ from qualified assets")
+    with tempfile.TemporaryDirectory(prefix=f"luthier-{candidate.version}-download-") as temporary:
+        github.run("release", "download", candidate.tag, "--repo", repository, "--dir", temporary, timeout=1800)
+        require(inventory(Path(temporary), candidate) == files,
+                "Downloaded release bytes differ from qualified assets")
     # Re-read the exact draft and its asset IDs after downloading, then check
     # the candidate immediately before the sole state-changing request.
     current = json_object(github.api(f"/releases/{release_id}"), "Current draft")
@@ -241,7 +363,7 @@ def main() -> int:
     try:
         url = publish(args.directory, args.source, args.tag)
     except (PublicationError, OSError, ValueError, subprocess.SubprocessError) as error:
-        print(f"::error::Beta2 publication did not complete verification: {error}. "
+        print(f"::error::Qualified beta publication did not complete verification: {error}. "
               "No automatic retry or rollback was attempted; inspect the draft/release state.", file=sys.stderr)
         return 1
     print("Published and verified prerelease: " + url)
