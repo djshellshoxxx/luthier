@@ -82,9 +82,10 @@ saved-session acceptance are separate from CI.
 Developer ID signing/notarization on macOS, publisher signing on Windows and
 GPG signatures for the Linux packages and the checksum manifest depend on
 configured identities; use the per-platform build logs and the release assets
-to establish their actual status. The Linux binaries are built on GitHub's
-current Ubuntu runner; the `.deb` states the minimum glibc they need, and
-older distributions may not run them. Factory impulse responses are
+to establish their actual status. The Linux binaries are built on Ubuntu 24.04
+and need glibc 2.38 or newer (Ubuntu 24.04, Debian 13, Fedora 39 or later); the
+`.deb` states that requirement, and older distributions such as Ubuntu 22.04 do
+not run them. Factory impulse responses are
 synthesized rather than measured captures. The remaining GUI fit and feature
 limitations are tracked in docs/KNOWN_ISSUES.md and the status inventory; this
 beta does not claim every planned feature is complete.

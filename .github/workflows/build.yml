@@ -117,8 +117,12 @@ jobs:
             esac
           }
           case ",$PLATFORMS," in *,linux,*)
-            add "Linux x64 / Pro" ubuntu-latest linux PAID
-            add "Linux x64 / Free" ubuntu-latest linux FREE;;
+            # Pin Ubuntu 24.04. The Linux binaries need the glibc they were built
+            # against: ubuntu-latest moved to a glibc 2.43 image, whose plug-ins
+            # do not load on Ubuntu 24.04 or Debian 13. On 24.04 the floor is
+            # glibc 2.38 (docs/beta/VALIDATOR_REPORT.md, docs/RELEASING.md 7).
+            add "Linux x64 / Pro" ubuntu-24.04 linux PAID
+            add "Linux x64 / Free" ubuntu-24.04 linux FREE;;
           esac
           case ",$PLATFORMS," in *,windows,*)
             # Pin Visual Studio 2022. windows-latest moved to Visual Studio 2026,
