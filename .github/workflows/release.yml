@@ -58,6 +58,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || inputs.tag || github.sha }}
+      - name: PyYAML for the structural workflow guards
+        # The guard tests parse release.yml; install the distro package only if the
+        # runner image lacks it (a missing module would fail the guards, safely).
+        run: python3 -c 'import yaml' 2>/dev/null || { sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends python3-yaml; }
+
       - name: Exercise release source and publication guards
         run: |
           python3 -m unittest discover -s scripts/tests -p test_release_workflow_guards.py -v
