@@ -839,6 +839,16 @@ public:
         ~ScopedOfflineRenderConstruction() { flag() = false; }
         static bool& flag() noexcept { static thread_local bool f = false; return f; }
     };
+
+    /** Test seam: constructing inside this scope builds an instance that adopts
+        its startup guitar's values as its guitar-owned host defaults, as a CLAP
+        instance does (Parameters::adoptStartupGuitarDefaults; HostDefaultsTests). */
+    struct ScopedClapHostDefaults
+    {
+        ScopedClapHostDefaults()  { flag() = true; }
+        ~ScopedClapHostDefaults() { flag() = false; }
+        static bool& flag() noexcept { static thread_local bool f = false; return f; }
+    };
     bool isOfflineRenderInstance() const noexcept { return offlineRenderInstance; }
 
     /** Resolves a preset's guitar reference the way a load does (5.1 hash). */

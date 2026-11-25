@@ -272,6 +272,28 @@ LuthierAudioProcessor::LuthierAudioProcessor()
         loadGuitarForType ((GuitarType) juce::jlimit (0, (int) GuitarType::NumTypes - 1,
                                                       edition::effectiveGuitarIndex ((int) type->load())));   // editions 5.1.3
 
+    /*  clap-validator 0.4.1 param-default-values: a fresh CLAP instance must sit
+        on the defaults it reports, and the startup guitar has just moved some
+        guitar-owned parameters (ParamIDs::isGuitarOwned; 13 in Pro) off their
+        declared defaults. A CLAP instance takes those values as its host
+        defaults, once (Parameters::adoptStartupGuitarDefaults). VST3, AU and
+        Standalone keep the declared defaults, identical to beta2's; presets,
+        the loudness table and search read the declared ones in every format
+        (Parameters::referenceDefault). The defaults are fixed for the
+        instance's life, but can differ between machines when a user guitar
+        shadows the factory one. is_clap reads clap-juce-extensions'
+        building_clap, a plain (non-atomic) static its factory sets around
+        construction: this assumes hosts create instances on the main thread
+        (CLAP allows any; one created concurrently could miss the adoption and
+        keep the declared defaults). */
+    bool clapInstance = false;
+   #if HAS_CLAP_JUCE_EXTENSIONS
+    clapInstance = is_clap;
+   #endif
+
+    if (! offlineConstruction && (clapInstance || ScopedClapHostDefaults::flag()))
+        Parameters::adoptStartupGuitarDefaults (getParameters());
+
     // Discover by stable ID: future append-only additions cannot shift this base.
     for (int i = 0; i < getParameters().size(); ++i)
         if (auto* parameter = dynamic_cast<juce::AudioProcessorParameterWithID*> (getParameters()[i]))
@@ -1308,7 +1330,11 @@ void LuthierAudioProcessor::writeGuitarParameters (const DerivedAcoustics& d)
         refinements, initialised from the parts on every guitar load so the
         controls show the guitar that is playing. Written without gestures:
         a guitar load is one action, and its own undo entry (if any) is the
-        caller's. Values outside a parameter's range clamp to it. */
+        caller's. Values outside a parameter's range clamp to it.
+
+        Every ID written here must be ParamIDs::isGuitarOwned: a CLAP instance
+        reports these as its startup guitar's defaults (the constructor), and
+        HostDefaults.guitarOwnedCoversEveryGuitarLoadWrite guards the list. */
     auto write = [this] (const juce::String& id, double plain)
     {
         // A value the host wrote after the guitar type is the host's (a session

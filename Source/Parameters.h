@@ -654,7 +654,32 @@ namespace ParamIDs
     /** The count this block adds (1), for the integration test's arithmetic. */
     inline constexpr int kFeatSatParamCount = 1;
     // ==== END FEAT-SAT params ====
+
+    /*  The parameters a guitar load writes from its parts: exactly the IDs
+        LuthierAudioProcessor::writeGuitarParameters writes (string material,
+        fretless, tuning, bridge, body, pickup types and magnets, circuit,
+        setup and nut depths; HostDefaults.guitarOwnedCoversEveryGuitarLoadWrite
+        holds the two together). Each is declared as a GuitarOwnedParameter. */
+    bool isGuitarOwned (const juce::String& id);
 }
+
+//==============================================================================
+/*  A guitar-owned parameter (ParamIDs::isGuitarOwned). Its declared default is
+    the reference that presets, the loudness table and preset search are written
+    against (Parameters::referenceDefault). What getDefaultValue() tells the host
+    is that, unless the instance has adopted its startup guitar's values
+    (Parameters::adoptStartupGuitarDefaults), which a CLAP instance does. */
+struct GuitarOwnedParameter
+{
+    virtual ~GuitarOwnedParameter() = default;
+
+    /** The declared default, normalised exactly as JUCE's getDefaultValue() does it. */
+    virtual float getReferenceDefaultValue() const noexcept = 0;
+
+    /** Makes the current value the default getDefaultValue() reports. The first
+        call wins; later ones change nothing. */
+    virtual void adoptStartupValue() noexcept = 0;
+};
 
 //==============================================================================
 class Parameters
@@ -722,6 +747,19 @@ public:
         and plays every rule. */
     static AutoArticulationSettings effectiveAssistSettings (bool enabled, int style, float amountPercent,
                                                              int rules, Edition edition) noexcept;
+
+    /*  The declared default of `parameter`, normalised: what a preset's absent
+        key, a factory preset's starting point, the loudness table's hash and
+        preset search mean by "the default", whatever host format the instance
+        is. getDefaultValue() is the host's default and, for a guitar-owned
+        parameter in a CLAP instance, is the startup guitar's value instead. */
+    static float referenceDefault (const juce::AudioProcessorParameter& parameter) noexcept;
+
+    /*  clap-validator param-default-values: every guitar-owned parameter's
+        current value becomes the default getDefaultValue() reports. Called
+        once, by the processor's constructor, right after the startup guitar
+        has written its parts; the defaults stay fixed for the instance's life. */
+    static void adoptStartupGuitarDefaults (const juce::Array<juce::AudioProcessorParameter*>& parameters) noexcept;
 };
 
 //==============================================================================

@@ -842,8 +842,10 @@ bool PresetManager::fromVar (const juce::var& data)
                     /*  SPEC-SWEEP: PF-14 (docs/PRESET_FORMAT.md): a key the file
                         leaves out means that parameter's default, not whatever
                         the last preset set - so a hand-written three-line preset
-                        is the same sound whatever was loaded before it. */
-                    const float d = withId->getDefaultValue();
+                        is the same sound whatever was loaded before it - and
+                        whatever host format loads it (the declared default, not
+                        a CLAP instance's startup-guitar one). */
+                    const float d = Parameters::referenceDefault (*withId);
 
                     if (withId->getValue() != d)
                         withId->setValueNotifyingHost (d);

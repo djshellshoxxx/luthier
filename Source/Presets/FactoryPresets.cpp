@@ -852,12 +852,14 @@ juce::var FactoryPresets::toVar (const Definition& def, const juce::AudioProcess
     root->setProperty ("tags", tagArray);
 
     // Start from every parameter's default, then apply the recipe's overrides.
+    // The declared default, not the host's: a CLAP range source's startup
+    // guitar must not leak into the factory files it writes.
     auto* params = new juce::DynamicObject();
 
     for (auto* p : processor.getParameters())
     {
         if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (p))
-            params->setProperty (withId->paramID, (double) p->getDefaultValue());
+            params->setProperty (withId->paramID, (double) Parameters::referenceDefault (*p));
     }
 
     for (int i = 0; i < def.numEntries; ++i)
