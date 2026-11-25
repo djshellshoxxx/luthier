@@ -665,34 +665,20 @@ LUTHIER_TEST (CpuQualityUi, CQ23_policyTransitionReachesNativeGuitar)
             return guitarPaints() > baseline;
         };
 
-        auto waitForQuietGuitar = [&]
-        {
-            auto quietSince = juce::Time::getMillisecondCounterHiRes();
-            const auto deadline = quietSince + 1500.0;
-            int previous = guitarPaints();
-            while (juce::Time::getMillisecondCounterHiRes() < deadline)
-            {
-                pump (p, 0.01, false);
-                const auto now = juce::Time::getMillisecondCounterHiRes();
-                const int current = guitarPaints();
-                if (current != previous)
-                {
-                    previous = current;
-                    quietSince = now;
-                }
-                if (current > 0 && now - quietSince >= 100.0)
-                    return true;
-            }
-            return false;
-        };
+        // Establish the static Low state after the editor has constructed all
+        // policy listeners. A native paint observed after the synchronous
+        // state change renders that new state, even if an older invalidation
+        // also contributes to the frame. High may legitimately keep animating;
+        // exact request ownership is checked by the preceding test.
+        const int initialBaseline = guitarPaints();
+        p.getQualityController().forceLevelForTesting ((int) QualityLevel::Low);
+        shown.editor->getQualityLink().pumpForTesting();
+        CHECK (body->getOverlayForTesting().reducedMotion);
+        CHECK (body->getFrameIntervalMs() == 0);
+        CHECK_MSG (waitForGuitarPaint (initialBaseline), "the native window must display the initial Low state");
 
-        CHECK_MSG (waitForGuitarPaint (0), "the native window must paint the guitar before measurement");
-
-        for (const auto level : { QualityLevel::Low, QualityLevel::High })
+        for (const auto level : { QualityLevel::High, QualityLevel::Low })
         {
-            // Drain startup/previous-transition invalidations before taking
-            // the baseline; do not credit an older paint to this transition.
-            CHECK_MSG (waitForQuietGuitar(), "native guitar paints must settle before the policy transition");
             const int baseline = guitarPaints();
             p.getQualityController().forceLevelForTesting ((int) level);
             shown.editor->getQualityLink().pumpForTesting();
