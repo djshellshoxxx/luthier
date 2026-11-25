@@ -7,6 +7,7 @@
 #include "../PluginProcessor.h"
 #include "../Parameters.h"
 #include "../Presets/ExactRestore.h"
+#include "../ReferencePedals/BoardModel.h"
 #include "../Support/ErrorLog.h"
 
 using namespace luthier;
@@ -511,6 +512,121 @@ LUTHIER_TEST (HostState, theSameParametersGiveTheSameStateHoweverTheyArrived)
         second->getParameters()[i]->setValueNotifyingHost (values[(size_t) i]);
 
     CHECK (sameState (asText (saveState (*first)), asText (saveState (*second)), "luthier-arrival"));
+}
+
+namespace
+{
+    /*  As clap-juce-extensions builds a CLAP instance (its startup guitar's
+        values are the guitar-owned host defaults). Never prepared. */
+    std::unique_ptr<LuthierAudioProcessor> makeClapInstance()
+    {
+        const LuthierAudioProcessor::ScopedClapHostDefaults clap;
+        return std::make_unique<LuthierAudioProcessor>();
+    }
+
+    /*  One CLAP params.flush with a random value for every parameter, the way
+        clap-validator's state tests send it and the CLAP wrapper applies it:
+        in CLAP id order (the parameter ID's hash), setValue when the value
+        changes, then the listeners with the host's own number; no gesture.
+        CLAP_PARAM_IS_STEPPED (booleans only, in this wrapper) is a rounded
+        draw; everything else is any number in [0, 1]. */
+    void randomiseAsClapHost (LuthierAudioProcessor& processor, int seed)
+    {
+        auto clapId = [] (const juce::AudioProcessorParameter* parameter)
+        {
+            auto* withId = dynamic_cast<const juce::AudioProcessorParameterWithID*> (parameter);
+            return withId != nullptr ? (juce::uint32) withId->paramID.hashCode() : 0u;
+        };
+
+        juce::Array<juce::AudioProcessorParameter*> ordered (processor.getParameters());
+        std::sort (ordered.begin(), ordered.end(), [&] (auto* a, auto* b) { return clapId (a) < clapId (b); });
+
+        juce::Random rng (seed);
+
+        for (auto* parameter : ordered)
+        {
+            auto value = (float) rng.nextDouble();
+
+            if (parameter->isBoolean())
+                value = std::round (value);
+
+            if (parameter->getValue() != value)
+                parameter->setValue (value);
+
+            parameter->sendValueChangedMessageToListeners (value);
+        }
+    }
+
+    /*  clap-validator state-reproducibility-binary on `saved`: a fresh
+        instance loads it and saves again; true when the bytes are the same. */
+    bool reloadSavesTheSameBytes (const juce::MemoryBlock& saved, const char* name)
+    {
+        auto second = makeClapInstance();
+        second->setStateInformation (saved.getData(), (int) saved.getSize());
+        return sameState (asText (saveState (*second)), asText (saved), name);
+    }
+}
+
+/*  clap-validator state-reproducibility-binary, which failed on Apple Silicon
+    only (release run 45613472492, both editions): a CLAP host gives every
+    parameter a random value with one params.flush and saves; a fresh instance
+    loads that state and saves again, and the two saves must be the same bytes.
+    Each seed gives every parameter new values.
+
+    On an FMA target (arm64; an x86 build with -mfma -ffp-contract=on behaves
+    the same) a reference-board lane gain came back one float ULP away: the
+    board recorded the gain from the host's raw normalised number, a reload can
+    only restore the parameter's own value, and JUCE's range conversion is
+    contracted to a fused multiply-add there, so the two numbers differ. */
+LUTHIER_TEST (HostState, aRandomisedHostSessionSavesTheSameBytesAfterAReload)
+{
+    ScopedHostDiagnostics diagnostics;
+    juce::StringArray differing;
+
+    for (int seed = 1; seed <= 12; ++seed)
+    {
+        juce::MemoryBlock saved;
+
+        {
+            auto first = makeClapInstance();
+            randomiseAsClapHost (*first, seed);
+            first->getStateInformation (saved);
+        }
+
+        if (! reloadSavesTheSameBytes (saved, "luthier-host-binary"))
+            differing.add (juce::String (seed));
+    }
+
+    CHECK_MSG (differing.isEmpty(), "save -> load -> save differs for seeds " + differing.joinIntoString (", "));
+}
+
+/*  The same with pedals on the board, so the slots' host parameters (enabled,
+    lanes, input and output trim, position) reach the board model as well. */
+LUTHIER_TEST (HostState, aRandomisedHostSessionWithPedalsSavesTheSameBytesAfterAReload)
+{
+    ScopedHostDiagnostics diagnostics;
+    juce::StringArray differing;
+
+    for (int seed = 101; seed <= 112; ++seed)
+    {
+        juce::MemoryBlock saved;
+
+        {
+            auto first = makeClapInstance();
+            auto& board = first->getEngine().getReferencePedals().model();
+
+            for (const char* model : { "generic.boost", "generic.overdrive", "generic.boost" })
+                CHECK (board.apply (reference::cmd::Add { model }));
+
+            randomiseAsClapHost (*first, seed);
+            first->getStateInformation (saved);
+        }
+
+        if (! reloadSavesTheSameBytes (saved, "luthier-host-binary-pedals"))
+            differing.add (juce::String (seed));
+    }
+
+    CHECK_MSG (differing.isEmpty(), "save -> load -> save differs for seeds " + differing.joinIntoString (", "));
 }
 
 //==============================================================================

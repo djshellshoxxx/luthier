@@ -3481,8 +3481,24 @@ void LuthierAudioProcessor::parameterValueChanged (int parameterIndex, float val
 {
     if (referenceParameterBase >= 0)
     {
-        referenceHostCapture.write (parameterIndex - referenceParameterBase, value);
-        const int extendedIndex = parameterIndex - referenceParameterBase - reference::HostAutomationSnapshot::count;
+        const int referenceIndex = parameterIndex - referenceParameterBase;
+
+        /*  The captures turn a write into the board's physical value from the
+            parameter's own normalised value, not the number the writer handed
+            setValue: getValue() is what the session stores and what a reload
+            restores to the bit (ExactRestore.h), so the board value a reload
+            rebuilds is the one that was saved. Where JUCE's range conversion
+            is a fused multiply-add (arm64, x86 with FMA), getValue() and the
+            host's number can give board values a float ULP apart, and a lane
+            gain, the reamp gain or a slot trim saved one value and reloaded
+            another (clap-validator state-reproducibility-binary on macOS). */
+        if (referenceIndex >= 0
+              && referenceIndex < reference::HostAutomationSnapshot::count + reference::ExtendedHostAutomationSnapshot::count)
+            if (auto* parameter = getParameters()[parameterIndex])
+                value = parameter->getValue();
+
+        referenceHostCapture.write (referenceIndex, value);
+        const int extendedIndex = referenceIndex - reference::HostAutomationSnapshot::count;
         if (referenceRestoreWriter != this || extendedIndex != (int) reference::ExtendedHostField::FeedbackKill)
             referenceExtendedCapture.write (extendedIndex, value);
     }

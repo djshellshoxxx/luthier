@@ -30,6 +30,17 @@ Entries added after the 2026-11-04 summary below; not a summary of every commit 
   Pro (they timed out at 45 s on the macOS runner). The sound, the latency and IR
   switching are unchanged: a republished bank is the same response at the same
   specification, reset. Measured on Linux only; macOS has not been re-run.
+- Host state on Apple Silicon: a session saved, reloaded and saved again is the same
+  bytes (clap-validator 0.4.1 `state-reproducibility-binary`, which failed on macOS in
+  both editions). The reference board took a host-written lane gain, reamp gain, loop
+  send or return, limiter ceiling, feedback low pass or slot trim from the host's raw
+  normalised number, but a reload restores the parameter's stored value, and where the
+  compiler fuses JUCE's range conversion into one multiply-add (arm64) the two land a
+  float ULP apart, so the board saved one value and reloaded another. The board now
+  takes every host write from the parameter's own value. x86 builds do not fuse it,
+  which is why Linux and Windows passed. Tests:
+  `HostState::aRandomisedHostSessionSavesTheSameBytesAfterAReload` and
+  `HostState::aRandomisedHostSessionWithPedalsSavesTheSameBytesAfterAReload`.
 
 ## Unreleased (2026-10-17 to 2026-11-04, source `ca14934e`)
 
