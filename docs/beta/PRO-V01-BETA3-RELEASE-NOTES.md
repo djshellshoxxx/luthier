@@ -42,6 +42,10 @@ listening comparison have not been run. See docs/KNOWN_ISSUES.md.
   state-reproducibility tests failed on the previous pin), latency is reported
   during activate, transport events are delivered in split blocks, and GUI
   resizing is guarded. The existing host-write intent patch is kept.
+- A fresh CLAP instance reports its startup guitar's values as the defaults of
+  the guitar-owned parameters (clap-validator's param-default-values test).
+  VST3, AU and Standalone defaults, presets, sessions and the loudness table
+  are unchanged.
 - Preparing no longer waits for a parked or fading audio callback
   (re-activation took about 0.9 s; clap-validator parameter fuzzing timed out).
 

@@ -30,10 +30,14 @@ namespace
     constexpr double kSr = 48000.0;
     constexpr int kBlock = 512;
 
-    /*  The declared normalised defaults of the guitar-owned parameters, as beta2
-        shipped them: printed with %a from the build before host defaults existed
-        (3a365fb7, Pro), in parameter order. A VST3, AU or Standalone instance
-        keeps reporting exactly these. */
+    /*  The declared normalised defaults of 29 of the 33 guitar-owned parameters,
+        as beta2 shipped them: printed with %a from the build before host
+        defaults existed (3a365fb7, Pro), in parameter order. Each is a bool's
+        0 or 1, or one division - a choice's index over its highest index, a
+        linear range's (default - min) / (max - min) - so it rounds the same on
+        every IEEE platform. A VST3, AU or Standalone instance keeps reporting
+        exactly these. The other four are on a skewed range
+        (kBeta2SkewedDeclarations). */
     const std::pair<const char*, float> kBeta2GuitarOwnedDefaults[] = {
         { "tuning_preset",        0x0p+0f },          // index 0
         { "string_material",      0x0p+0f },          // index 0
@@ -50,7 +54,6 @@ namespace
         { "setup_fret_height",    0x1.999998p-2f },   // 1.0 mm
         { "body_width",           0x1p-1f },          // 1.0
         { "body_depth",           0x1.999998p-2f },   // 1.0
-        { "body_top_thickness",   0x1.13b13ep-1f },   // 2.8 mm
         { "body_bracing",         0x0p+0f },          // index 0
         { "body_top_wood",        0x0p+0f },          // index 0
         { "body_back_wood",       0x1.99999ap-2f },   // index 6
@@ -62,13 +65,63 @@ namespace
         { "pickup2_type",         0x0p+0f },
         { "pickup2_magnet",       0x1.555556p-1f },
         { "bridge_type",          0x1p-2f },          // index 1
-        { "circuit_volume_pot",   0x1.5950b2p-1f },   // 500k
-        { "circuit_tone_pot",     0x1.5950b2p-1f },   // 500k
-        { "circuit_tone_cap",     0x1.80d80cp-2f },   // 22 nF
         { "circuit_pot_taper",    0x0p+0f },          // index 0
         { "circuit_treble_bleed", 0x0p+0f },          // index 0
         { "circuit_active",       0x0p+0f },          // off
     };
+
+    /*  The four guitar-owned parameters on a skewed range, as Parameters.cpp
+        declares them and beta2 declared them: min, max, default, and the skew
+        centre as a fraction of the span. Their normalised default goes through
+        logf and powf (NormalisableRange::setSkewForCentre, convertTo0to1),
+        which MSVC's UCRT and Apple's libm need not round as glibc does, so a
+        number printed on Linux (beta2's were 0x1.13b13ep-1, 0x1.5950b2p-1
+        twice and 0x1.80d80cp-2) is no reference on Windows or macOS. Each is
+        compared instead with a stock AudioParameterFloat declared the same way
+        on the machine that runs the test (declaredTwin). */
+    struct SkewedDeclaration
+    {
+        const char* id;
+        float min, max, def, skew;
+    };
+
+    const SkewedDeclaration kBeta2SkewedDeclarations[] = {
+        { "body_top_thickness", 1.4f,     4.0f,   2.8f,     0.5f  },   // floatParam, 2.8 mm
+        { "circuit_volume_pot", 100.0e3f, 1.0e6f, 500.0e3f, 0.24f },   // ohmParam, 500k
+        { "circuit_tone_pot",   100.0e3f, 1.0e6f, 500.0e3f, 0.24f },   // ohmParam, 500k
+        { "circuit_tone_cap",   10.0f,    100.0f, 22.0f,    0.24f },   // floatParam, 22 nF
+    };
+
+    /** Every guitar-owned ID: the printed table's 29 and the four skewed ones. */
+    juce::StringArray beta2GuitarOwnedIds()
+    {
+        juce::StringArray ids;
+
+        for (const auto& [id, value] : kBeta2GuitarOwnedDefaults)
+            ids.add (id);
+
+        for (const auto& declaration : kBeta2SkewedDeclarations)
+            ids.add (declaration.id);
+
+        return ids;
+    }
+
+    /** A stock juce::AudioParameterFloat declared as floatParam and ohmParam
+        declare one (Parameters.cpp): the range (min, max), its skew set for the
+        centre min + (max - min) * skew, and the default. Their
+        RangeRegistry::noteDeclaration record is left out: it does not touch the
+        parameter, and writing it from here would overwrite the layout's. The
+        label and text functions do not reach the range or the default. Held
+        by its base: AudioParameterFloat's own overrides are private. */
+    std::unique_ptr<juce::RangedAudioParameter> declaredTwin (const SkewedDeclaration& d)
+    {
+        juce::NormalisableRange<float> range (d.min, d.max);
+
+        if (d.skew != 1.0f)
+            range.setSkewForCentre (d.min + (d.max - d.min) * d.skew);
+
+        return std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { d.id, 1 }, d.id, range, d.def);
+    }
 
     bool sameBits (float a, float b) noexcept
     {
@@ -202,6 +255,16 @@ namespace
         return sameBits (a.start, b.start) && sameBits (a.end, b.end) && sameBits (a.skew, b.skew)
             && sameBits (a.interval, b.interval) && a.symmetricSkew == b.symmetricSkew;
     }
+
+    /** What a parameter reads back after setValueNotifyingHost (normalised): a
+        float or choice parameter keeps the plain value, so getValue() is
+        convertTo0to1 (convertFrom0to1 (normalised)), which a skewed range's
+        pow and log can leave an ulp off on one libm and not on another (for a
+        bool, both are the 0 or 1 itself). */
+    float readBackAfterWriting (const juce::RangedAudioParameter& p, float normalised)
+    {
+        return p.convertTo0to1 (p.convertFrom0to1 (normalised));
+    }
 }
 
 //==============================================================================
@@ -258,8 +321,15 @@ LUTHIER_TEST (HostDefaults, aFreshClapInstanceSitsOnItsReportedDefaults)
 }
 
 //==============================================================================
-/*  Without the CLAP adoption (VST3, AU, Standalone) every host default is the
-    declared one, bit for bit, and the guitar-owned ones are beta2's. */
+/*  Without the CLAP adoption (VST3, AU, Standalone) the guitar-owned parameters
+    report beta2's defaults, bit for bit: the printed table for 29 of them, and
+    for the four on a skewed range what beta2's declaration gives on this
+    machine (declaredTwin). Every other parameter reports JUCE's own default;
+    the evidence for that is the type check below (it is not declared as a
+    GuitarOwnedParameter, so its getDefaultValue() is the stock one). Comparing
+    its host default with Parameters::referenceDefault would prove nothing -
+    for it, that is the same getDefaultValue() call, so it could not fail - and
+    that comparison is made only on the guitar-owned parameters. */
 LUTHIER_TEST (HostDefaults, nonClapInstancesKeepTheBeta2Defaults)
 {
     const auto processor = makeProcessor (false);
@@ -269,8 +339,13 @@ LUTHIER_TEST (HostDefaults, nonClapInstancesKeepTheBeta2Defaults)
     for (const auto& [id, value] : kBeta2GuitarOwnedDefaults)
         beta2[id] = value;
 
+    std::map<juce::String, const SkewedDeclaration*> skewed;
+
+    for (const auto& declaration : kBeta2SkewedDeclarations)
+        skewed[declaration.id] = &declaration;
+
     juce::StringArray problems;
-    int guitarOwned = 0;
+    int guitarOwned = 0, comparedWithATwin = 0;
 
     for (auto* p : processor->getParameters())
     {
@@ -279,31 +354,52 @@ LUTHIER_TEST (HostDefaults, nonClapInstancesKeepTheBeta2Defaults)
         if (id.isEmpty())
             continue;
 
-        const float host = p->getDefaultValue();
-        const float reference = Parameters::referenceDefault (*p);
         const bool owned = ParamIDs::isGuitarOwned (id);
         const bool declaredOwned = dynamic_cast<const GuitarOwnedParameter*> (p) != nullptr;
 
         if (owned != declaredOwned)
             problems.add (id + (owned ? " is guitar-owned but not declared as one" : " is declared guitar-owned but is not"));
 
+        if (! owned)
+            continue;
+
+        ++guitarOwned;
+        const float host = p->getDefaultValue();
+        const float reference = Parameters::referenceDefault (*p);
+
+        // Not adopted: the host default is still the declared one.
         if (! sameBits (host, reference))
             problems.add (id + ": host default " + hex (host) + " != declared " + hex (reference));
 
-        if (owned)
+        if (const auto it = beta2.find (id); it != beta2.end())
         {
-            ++guitarOwned;
-            const auto it = beta2.find (id);
-
-            if (it == beta2.end())
-                problems.add (id + ": guitar-owned but not in the beta2 table");
-            else if (! sameBits (host, it->second) || ! sameBits (reference, it->second))
+            if (! sameBits (host, it->second) || ! sameBits (reference, it->second))
                 problems.add (id + ": " + hex (host) + " / " + hex (reference) + ", beta2 " + hex (it->second));
+        }
+        else if (const auto declaration = skewed.find (id); declaration != skewed.end())
+        {
+            ++comparedWithATwin;
+            const auto twin = declaredTwin (*declaration->second);
+            const float expected = twin->getDefaultValue();
+            const auto* ranged = dynamic_cast<const juce::RangedAudioParameter*> (p);
+
+            if (ranged == nullptr || ! sameRange (ranged->getNormalisableRange(), twin->getNormalisableRange()))
+                problems.add (id + ": its range is not beta2's declaration");
+
+            if (! sameBits (host, expected) || ! sameBits (reference, expected))
+                problems.add (id + ": " + hex (host) + " / " + hex (reference) + ", beta2's declaration gives " + hex (expected));
+        }
+        else
+        {
+            problems.add (id + ": guitar-owned but in neither beta2 table");
         }
     }
 
-    CHECK_MSG (guitarOwned == (int) beta2.size(),
-               juce::String (guitarOwned) + " guitar-owned parameters, beta2 table has " + juce::String ((int) beta2.size()));
+    const int expected = beta2GuitarOwnedIds().size();
+    CHECK_MSG (guitarOwned == expected,
+               juce::String (guitarOwned) + " guitar-owned parameters, the beta2 tables have " + juce::String (expected));
+    CHECK_MSG (comparedWithATwin == (int) std::size (kBeta2SkewedDeclarations),
+               juce::String (comparedWithATwin) + " skewed parameters compared with their declaration");
     CHECK_MSG (problems.isEmpty(), problems.joinIntoString ("; "));
 }
 
@@ -430,7 +526,7 @@ LUTHIER_TEST (HostDefaults, guitarOwnedCoversEveryGuitarLoadWrite)
     {
         juce::StringArray neverWritten;
 
-        for (const auto& [id, value] : kBeta2GuitarOwnedDefaults)
+        for (const auto& id : beta2GuitarOwnedIds())
             if (! everWritten.contains (id))
                 neverWritten.add (id);
 
@@ -460,7 +556,7 @@ LUTHIER_TEST (HostDefaults, hashesIgnoreHostDefaults)
         if (ParamIDs::isGuitarOwned (idOf (clapParams[i])) && idOf (clapParams[i]) == idOf (vst3Params[i]))
             guitarOwned.push_back (i);
 
-    CHECK ((int) guitarOwned.size() == (int) std::size (kBeta2GuitarOwnedDefaults));
+    CHECK ((int) guitarOwned.size() == beta2GuitarOwnedIds().size());
 
     // Not vacuous: the adopting instance's host defaults differ from the declared ones.
     int differing = 0;
@@ -515,9 +611,109 @@ LUTHIER_TEST (HostDefaults, hashesIgnoreHostDefaults)
     const PresetFeatureReader clapReader (*clap), vst3Reader (*vst3);
     juce::StringArray searchDiffers;
 
-    for (const auto& [id, value] : kBeta2GuitarOwnedDefaults)
+    for (const auto& id : beta2GuitarOwnedIds())
         if (clapReader.plain (sparse, id) != vst3Reader.plain (sparse, id))
             searchDiffers.add (id);
 
     CHECK_MSG (searchDiffers.isEmpty(), "preset search reads absent keys differently: " + searchDiffers.joinIntoString (", "));
+}
+
+//==============================================================================
+/*  PF-14 through the real load (PresetManager::fromVar, then the bridge): a
+    preset that leaves the guitar out - no guitar block, no guitar-owned key -
+    puts every guitar-owned parameter on its declared default, the same bits in
+    an adopting (CLAP) instance as in a VST3 one. Red with getDefaultValue() in
+    the PF-14 branch: the CLAP instance kept its startup guitar's values, the
+    defaults it adopted, and the two instances loaded different sounds. */
+LUTHIER_TEST (HostDefaults, absentGuitarKeysLoadTheDeclaredDefaults)
+{
+    const auto clap = makeProcessor (true);
+    const auto vst3 = makeProcessor (false);
+    clap->prepareToPlay (kSr, kBlock);
+    vst3->prepareToPlay (kSr, kBlock);
+
+    const auto& clapParams = clap->getParameters();
+    const auto& vst3Params = vst3->getParameters();
+    CHECK (clapParams.size() == vst3Params.size());
+
+    std::vector<int> guitarOwned;
+
+    for (int i = 0; i < clapParams.size() && i < vst3Params.size(); ++i)
+        if (ParamIDs::isGuitarOwned (idOf (clapParams[i])) && idOf (clapParams[i]) == idOf (vst3Params[i]))
+            guitarOwned.push_back (i);
+
+    CHECK ((int) guitarOwned.size() == beta2GuitarOwnedIds().size());
+
+    // Not vacuous: before the load, the startup guitar holds guitar-owned values
+    // off their declared defaults, and the CLAP instance reports exactly those as
+    // its defaults - a load that wrote getDefaultValue() would leave them there.
+    int startupOffDeclared = 0;
+
+    for (const int i : guitarOwned)
+    {
+        const auto* p = clapParams[i];
+        const float value = p->getValue();
+
+        if (! sameBits (value, Parameters::referenceDefault (*p)) && sameBits (value, p->getDefaultValue()))
+            ++startupOffDeclared;
+    }
+
+    CHECK_MSG (startupOffDeclared > 0, "the CLAP instance starts with no guitar-owned value off its declared default");
+
+    // A minimal valid preset: the magic and schema PresetManager checks, two keys
+    // that are not the guitar's, and nothing of the guitar.
+    auto* parameters = new juce::DynamicObject();
+    parameters->setProperty (ParamIDs::ampGain, 0.6);
+    parameters->setProperty (ParamIDs::roomBlend, 0.3);
+
+    auto* root = new juce::DynamicObject();
+    root->setProperty ("magic", PresetManager::kMagic);
+    root->setProperty ("schemaVersion", PresetManager::kSchemaVersion);
+    root->setProperty ("parameters", juce::var (parameters));
+    const juce::var preset (root);
+
+    for (auto* processor : { clap.get(), vst3.get() })
+    {
+        CHECK_MSG (processor->getPresetManager().fromVar (preset), "the minimal preset did not load");
+        processor->getParameterBridge().applyAllNow();
+
+        // It loaded: the keys it has are applied.
+        auto* gain = processor->getState().getParameter (ParamIDs::ampGain);
+        auto* room = processor->getState().getParameter (ParamIDs::roomBlend);
+        CHECK (gain != nullptr && std::abs (gain->getValue() - 0.6f) <= 1.0e-6f);
+        CHECK (room != nullptr && std::abs (room->getValue() - 0.3f) <= 1.0e-6f);
+    }
+
+    juce::StringArray differ, offDeclared;
+    int exactlyDeclared = 0;
+
+    for (const int i : guitarOwned)
+    {
+        const auto id = idOf (clapParams[i]);
+        const float clapValue = clapParams[i]->getValue();
+        const float vst3Value = vst3Params[i]->getValue();
+
+        if (! sameBits (clapValue, vst3Value))
+            differ.add (id + " (CLAP " + hex (clapValue) + ", VST3 " + hex (vst3Value) + ")");
+
+        for (const auto* p : { clapParams[i], vst3Params[i] })
+        {
+            const auto* ranged = dynamic_cast<const juce::RangedAudioParameter*> (p);
+            const float value = p->getValue();
+            const float declared = Parameters::referenceDefault (*p);
+            exactlyDeclared += sameBits (value, declared) ? 1 : 0;
+
+            // The declared default, as the load's write of it reads back.
+            if (ranged == nullptr || ! (sameBits (value, declared) || sameBits (value, readBackAfterWriting (*ranged, declared))))
+                offDeclared.addIfNotAlreadyThere (id + " (" + (p == clapParams[i] ? "CLAP " : "VST3 ") + hex (value)
+                                                  + ", declared " + hex (declared) + ")");
+        }
+    }
+
+    std::printf ("    %d guitar-owned parameters start off their declared default; after the load %d differ between CLAP and VST3,"
+                 " %d are off it (%d of %d values on it bit for bit)\n",
+                 startupOffDeclared, differ.size(), offDeclared.size(), exactlyDeclared, 2 * (int) guitarOwned.size());
+
+    CHECK_MSG (differ.isEmpty(), "absent guitar-owned keys load differently in CLAP and VST3: " + differ.joinIntoString ("; "));
+    CHECK_MSG (offDeclared.isEmpty(), "absent guitar-owned keys did not load the declared default: " + offDeclared.joinIntoString ("; "));
 }

@@ -8,11 +8,15 @@ Entries added after the 2026-11-04 summary below; not a summary of every commit 
 
 - CLAP: a fresh instance reports its startup guitar's values as the defaults of the 33
   guitar-owned parameters (the ones a guitar load writes, `ParamIDs::isGuitarOwned`), so
-  it sits on the defaults it reports (clap-validator 0.4.1 `param-default-values`). A
-  reset to defaults in CLAP (the host's, Reset, a double-click, a randomise's starting
-  point) returns them to the startup guitar's values, even after a guitar change.
-  VST3, AU and Standalone keep the declared defaults. Apart from those resets, presets,
-  sessions, the sound and the loudness table are unchanged in every format. See
+  it sits on the defaults it reports (clap-validator 0.4.1 `param-default-values`).
+  VST3, AU and Standalone keep the declared defaults. Only three things differ in CLAP:
+  the host's reset to default, a knob's reset menu and double-click, and the search
+  `default` keyword return a guitar-owned parameter to the startup guitar's value, even
+  after a guitar change. Reset ends on the startup guitar's parts in every format, and
+  randomise re-draws every unlocked guitar-owned parameter, so neither differs. Presets,
+  sessions, the sound and the loudness table are unchanged in every format. Only Linux
+  Pro was run locally: CLAP behaviour in the Free edition and on Windows and macOS is
+  not verified yet, until CI runs clap-validator and the `HostDefaults` tests there. See
   `spec/DECISIONS.md` (2026-11-25).
 
 ## Unreleased (2026-10-17 to 2026-11-04, source `ca14934e`)
