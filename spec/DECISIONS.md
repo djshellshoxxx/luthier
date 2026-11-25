@@ -580,7 +580,7 @@ chosen") and `ambiguity-resolutions.md`.
   (`ParamIDs::isGuitarOwned`) off their declared defaults in Pro. A CLAP
   instance adopts those values as its host defaults once, at construction
   (`Parameters::adoptStartupGuitarDefaults`). Only three things differ in
-  CLAP: the host's reset to default, a knob's reset menu and double-click,
+  CLAP: the host's reset to default, a knob's reset menu, double-click and at-default dot,
   and the search `default` keyword return a guitar-owned parameter to the
   startup guitar's value, even after a guitar change. Reset ends on the
   startup guitar's parts in every format, and randomise re-draws every

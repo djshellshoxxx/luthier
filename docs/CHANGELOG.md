@@ -10,7 +10,7 @@ Entries added after the 2026-11-04 summary below; not a summary of every commit 
   guitar-owned parameters (the ones a guitar load writes, `ParamIDs::isGuitarOwned`), so
   it sits on the defaults it reports (clap-validator 0.4.1 `param-default-values`).
   VST3, AU and Standalone keep the declared defaults. Only three things differ in CLAP:
-  the host's reset to default, a knob's reset menu and double-click, and the search
+  the host's reset to default, a knob's reset menu, double-click and at-default dot, and the search
   `default` keyword return a guitar-owned parameter to the startup guitar's value, even
   after a guitar change. Reset ends on the startup guitar's parts in every format, and
   randomise re-draws every unlocked guitar-owned parameter, so neither differs. Presets,
