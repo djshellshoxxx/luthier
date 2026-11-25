@@ -9,7 +9,7 @@ to run every step on your own machine.
 |---|---|---|
 | `.github/workflows/build.yml` | every push and pull request | Linux (clang), Windows (MSVC), macOS (universal arm64 + x86_64): build the VST3, CLAP, Standalone (and AU on macOS), `LuthierTests` and `LuthierRender`; run the unit tests (under xvfb on Linux); pluginval at **strictness 5** on the VST3 (and the AU, plus `auval`, on macOS); clap-validator on the CLAP; upload the plugins and the logs as artifacts |
 | same | nightly 03:17 UTC, and **Run workflow** (workflow_dispatch) | Same, with LTO on and pluginval at **strictness 10** (dispatch lets you pick) |
-| `.github/workflows/release.yml` | a tag `v*` or candidate branch `release/v*` pushed, or dispatch with a tag | Freezes one source SHA, checks the tag matches `project(VERSION)` in `CMakeLists.txt`, and builds/tests/packages with LTO and strictness 10. The beta defaults to Linux/Windows/macOS, both editions, four unit-test shards per build, and the CLAP plug-in built, validated and packaged on every platform. Only a fully successful matrix creates the source tag and a **draft** GitHub Release with checksums and provenance. Only the authorized `release/v0.1.0-beta2` push and the authorized beta3 dispatch (on `claude/determined-ptolemy-mlbclp`, tag `v0.1.0-beta3`) additionally verify and publish their own prerelease; only beta2 then consolidates its source into unchanged `master`. Other invocations, including a `release/v0.1.0-beta3` push, retain draft review |
+| `.github/workflows/release.yml` | a tag `v*` or candidate branch `release/v*` pushed, or dispatch with a tag | Freezes one source SHA, checks the tag matches `project(VERSION)` in `CMakeLists.txt`, and builds/tests/packages with LTO and strictness 10. Runs default to Linux/Windows/macOS, both editions, four unit-test shards per build, and the CLAP plug-in built, validated and packaged on every platform; the `release/v0.1.0-beta2` candidate push keeps beta2's Windows/macOS scope without CLAP. Only a fully successful matrix creates the source tag and a **draft** GitHub Release with checksums and provenance. Only the authorized `release/v0.1.0-beta2` push and the authorized beta3 dispatch (on `claude/determined-ptolemy-mlbclp`, tag `v0.1.0-beta3`) additionally verify and publish their own prerelease; only beta2 then consolidates its source into unchanged `master`. Other invocations, including a `release/v0.1.0-beta3` push, retain draft review |
 
 Push and pull-request builds turn LTO off (it doubles the link time and
 defeats the compiler cache); nightly and release builds turn it on, so
@@ -177,7 +177,8 @@ public publication. The limited beta2 and beta3 exceptions are described next.
 Only two successful runs publish automatically, each for its own tag:
 
 - **beta2**: a push of `refs/heads/release/v0.1.0-beta2` for tag `v0.1.0-beta2`
-  (qualified on Windows and macOS, without CLAP).
+  (qualified on Windows and macOS, without CLAP; `release.yml` builds and
+  records that scope for this push only).
 - **beta3**: a dispatch of `release.yml` on `claude/determined-ptolemy-mlbclp`
   with tag `v0.1.0-beta3` and ref `claude/determined-ptolemy-mlbclp` (qualified
   on Linux, Windows and macOS, with CLAP):

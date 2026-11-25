@@ -739,8 +739,13 @@ class LinuxPackagingOutputs(unittest.TestCase):
 
 # The exact release.yml gates: beta2 publishes and consolidates from its push;
 # beta3 publishes only from its dispatch and never consolidates master.
-BETA2_PUSH = ("github.event_name == 'push' && github.ref == 'refs/heads/release/v0.1.0-beta2'"
-              " && needs.version.outputs.tag == 'v0.1.0-beta2'")
+BETA2_SCOPE = "github.event_name == 'push' && github.ref == 'refs/heads/release/v0.1.0-beta2'"
+BETA2_PUSH = BETA2_SCOPE + " && needs.version.outputs.tag == 'v0.1.0-beta2'"
+# The beta2 push keeps master's build scope (its entry's platforms, no CLAP);
+# every other run builds and records the beta3 entry's platforms with CLAP.
+SCOPE_PLATFORMS = ("${{ inputs.platforms || (" + BETA2_SCOPE + " && '" + ",".join(BETA2.platforms)
+                   + "' || '" + ",".join(BETA3.platforms) + "') }}")
+SCOPE_NO_CLAP = "${{ " + BETA2_SCOPE + " }}"
 BETA3_DISPATCH = ("github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/claude/determined-ptolemy-mlbclp'"
                   " && inputs.tag == 'v0.1.0-beta3' && inputs.ref == 'claude/determined-ptolemy-mlbclp'")
 BETA3_PUBLISH = BETA3_DISPATCH + " && needs.version.outputs.tag == 'v0.1.0-beta3'"
@@ -751,12 +756,19 @@ class WorkflowPublicationGuards(unittest.TestCase):
         workflow = (ROOT / ".github/workflows/release.yml").read_text()
         self.assertIn("needs: [version, build]", workflow)
         self.assertIn("needs: [version, installer-checks]", workflow)
-        # Owner-approved beta3 scope: Linux joins, and CLAP is built, validated and packaged.
-        self.assertIn("platforms: ${{ inputs.platforms || 'linux,windows,macos' }}", workflow)
+        # The beta2 candidate push keeps master's Windows/macOS scope without
+        # CLAP; every other run, beta3 included, adds Linux and builds,
+        # validates and packages CLAP. Provenance records the built platforms.
+        self.assertEqual(BETA2.platforms, ("windows", "macos"))
+        self.assertIn("platforms: " + SCOPE_PLATFORMS, workflow)
+        self.assertIn("PLATFORMS: " + SCOPE_PLATFORMS, workflow)
         self.assertIn("editions: ${{ inputs.editions || 'pro,free' }}", workflow)
-        for gate in ("strictness: 10", "lto: true", "package: true", "no_clap: false"):
+        self.assertIn("no_clap: " + SCOPE_NO_CLAP, workflow)
+        for gate in ("strictness: 10", "lto: true", "package: true"):
             self.assertIn(gate, workflow)
+        # Neither scope is a literal that applies to every run.
         self.assertNotIn("no_clap: true", workflow)
+        self.assertNotIn("no_clap: false", workflow)
         for version, gate in (("beta2", BETA2_PUSH), ("beta3", BETA3_PUBLISH)):
             with self.subTest(version=version):
                 self.assertIn("if: " + gate, workflow)
@@ -783,7 +795,10 @@ class WorkflowPublicationGuards(unittest.TestCase):
         # Beta3 does not consolidate master: only the beta2 push fast-forwards it.
         self.assertEqual(gates["scripts/consolidate_qualified_beta.py"], ["if: " + BETA2_PUSH])
         release_refs = [line.strip() for line in lines if "refs/heads/release/" in line]
-        self.assertEqual(release_refs, ["if: " + BETA2_PUSH] * 2)
+        # The beta2 push also selects its own build scope: built platforms, no
+        # CLAP and the recorded platforms.
+        self.assertEqual(release_refs, ["platforms: " + SCOPE_PLATFORMS, "no_clap: " + SCOPE_NO_CLAP,
+                                        "PLATFORMS: " + SCOPE_PLATFORMS] + ["if: " + BETA2_PUSH] * 2)
         # The dispatch gate appears twice: the version job's HEAD == github.sha
         # check and the beta3 publication step.
         dispatch_refs = [line.strip() for line in lines if "refs/heads/claude/" in line]

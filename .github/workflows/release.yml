@@ -161,10 +161,12 @@ jobs:
     with:
       # Beta3 ships Linux, Windows and macOS (VST3, CLAP, standalone; AU on
       # macOS): every platform builds, validates (pluginval, clap-validator)
-      # and packages the CLAP plug-in.
-      platforms: ${{ inputs.platforms || 'linux,windows,macos' }}
+      # and packages the CLAP plug-in. The release/v0.1.0-beta2 candidate push
+      # (a push has no inputs) keeps beta2's qualified scope, Windows and macOS
+      # without CLAP, which its publisher allowlist entry requires.
+      platforms: ${{ inputs.platforms || (github.event_name == 'push' && github.ref == 'refs/heads/release/v0.1.0-beta2' && 'windows,macos' || 'linux,windows,macos') }}
       editions: ${{ inputs.editions || 'pro,free' }}
-      no_clap: false
+      no_clap: ${{ github.event_name == 'push' && github.ref == 'refs/heads/release/v0.1.0-beta2' }}
       # Four interleaved shards keep each macOS job inside the 6-hour limit.
       test_shards: 4
       strictness: 10
@@ -236,7 +238,7 @@ jobs:
         env:
           SOURCE_SHA: ${{ needs.version.outputs.ref }}
           RELEASE_VERSION: ${{ needs.version.outputs.version }}
-          PLATFORMS: ${{ inputs.platforms || 'linux,windows,macos' }}
+          PLATFORMS: ${{ inputs.platforms || (github.event_name == 'push' && github.ref == 'refs/heads/release/v0.1.0-beta2' && 'windows,macos' || 'linux,windows,macos') }}
           EDITIONS: ${{ inputs.editions || 'pro,free' }}
         run: |
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"

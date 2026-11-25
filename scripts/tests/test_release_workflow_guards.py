@@ -23,6 +23,12 @@ BETA3_REF = "refs/heads/claude/determined-ptolemy-mlbclp"
 BETA3_DISPATCH = ("github.event_name == 'workflow_dispatch' && github.ref == '" + BETA3_REF + "'"
                   " && inputs.tag == 'v0.1.0-beta3' && inputs.ref == 'claude/determined-ptolemy-mlbclp'")
 HEAD_CHECK = "Require the authorized beta3 dispatch to build its dispatched commit"
+BETA2_REF = "refs/heads/release/v0.1.0-beta2"
+# The beta2 candidate push keeps master's (a2e6fda8) build scope, Windows and
+# macOS without CLAP; every other run builds the beta3 scope by default.
+BETA2_SCOPE = "github.event_name == 'push' && github.ref == '" + BETA2_REF + "'"
+SCOPE_PLATFORMS = "${{ inputs.platforms || (" + BETA2_SCOPE + " && 'windows,macos' || 'linux,windows,macos') }}"
+SCOPE_NO_CLAP = "${{ " + BETA2_SCOPE + " }}"
 # The pinned clap-validator 0.4.1-127-g152b982 release zips.
 CLAP_VALIDATOR_SHA256 = {
     "ubuntu-22.04": "49edadcfb407ea0dd946ce418300e853fbd2660fa4b0d00e4f19ff8eef24ad90",
@@ -59,6 +65,22 @@ def admits(gate, run):
         required[match.group(1)] = match.group(2)
     return all(isinstance(run.get(name), str) and run[name].lower() == value.lower()
                for name, value in required.items())
+
+
+def build_scope(workflow, run):
+    """(platforms, no_clap) for a run, as release.yml's own build inputs evaluate.
+
+    Only the form `inputs.platforms || (<gate> && '<list>' || '<list>')` and a
+    bare `<gate>` for no_clap are understood; inputs.* is absent on a push.
+    """
+    build = workflow["jobs"]["build"]["with"]
+    platforms = re.fullmatch(r"\$\{\{ inputs\.platforms \|\| \((.+) && '([a-z,]+)' \|\| '([a-z,]+)'\) \}\}",
+                             str(build["platforms"]))
+    no_clap = re.fullmatch(r"\$\{\{ (.+) \}\}", str(build["no_clap"]))
+    if platforms is None or no_clap is None:
+        raise AssertionError(f"Unsupported build scope: {build['platforms']!r}, no_clap {build['no_clap']!r}")
+    gate, selected, default = platforms.groups()
+    return run.get("inputs.platforms") or (selected if admits(gate, run) else default), admits(no_clap.group(1), run)
 
 
 def load_publisher():
@@ -155,15 +177,21 @@ class ReleaseGuards(unittest.TestCase):
         self.assertIn("list(APPEND LUTHIER_UI_SOURCES ${LUTHIER_WINDOWS_LTO_PARTITION_SOURCES})", cmake)
         self.assertNotIn("LUTHIER_LTO=OFF", (ROOT / ".github/workflows/release.yml").read_text())
 
-    def test_beta_release_scope_is_linux_windows_and_macos_with_clap(self):
+    def test_beta_release_scope_is_windows_and_macos_without_clap(self):
+        # master's (a2e6fda8) beta2 scope, kept for the release/v0.1.0-beta2
+        # candidate push (a push has no inputs): Windows and macOS, no CLAP.
         release = (ROOT / ".github/workflows/release.yml").read_text()
         build = (ROOT / ".github/workflows/build.yml").read_text()
-        # Owner-approved beta3 scope: Linux joins and CLAP is built, validated and packaged.
-        self.assertIn("platforms: ${{ inputs.platforms || 'linux,windows,macos' }}", release)
-        self.assertIn("no_clap: false", release)
-        self.assertNotIn("no_clap: true", release)
-        self.assertIn("default: 'linux,windows,macos'", release)
+        self.assertIn("platforms: " + SCOPE_PLATFORMS, release)
+        self.assertIn("no_clap: " + SCOPE_NO_CLAP, release)
         self.assertIn("test_shards: 4", release)
+        beta2_push = {"github.event_name": "push", "github.ref": BETA2_REF}
+        self.assertEqual(build_scope(load_workflow(), beta2_push), ("windows,macos", True))
+        self.assertEqual(load_publisher().AUTHORIZED[BETA2_REF].platforms, ("windows", "macos"))
+        # no_clap reaches every CLAP step: nothing is built, validated, required
+        # or archived as CLAP for that push.
+        self.assertIn("LUTHIER_NO_CLAP: ${{ inputs.no_clap && '1' || '0' }}", build)
+        self.assertIn('[ "$LUTHIER_NO_CLAP" = 1 ] || kinds+=(clap)', build)
         # Sharded runs must still execute the suite: the build job hands its
         # binaries to a test job that passes --shard through TEST_SHARD.
         self.assertIn("TEST_SHARD: ${{ matrix.shard }}", build)
@@ -172,6 +200,36 @@ class ReleaseGuards(unittest.TestCase):
             text = (ROOT / script).read_text()
             self.assertIn("--shard=", text)
             self.assertIn("LUTHIER_NO_CLAP", text)
+
+    def test_beta_release_scope_is_linux_windows_and_macos_with_clap(self):
+        # Owner-approved beta3 scope for every run except the beta2 candidate
+        # push: Linux joins and CLAP is built, validated and packaged.
+        workflow = load_workflow()
+        default = workflow["on"]["workflow_dispatch"]["inputs"]["platforms"]["default"]
+        self.assertEqual(default, "linux,windows,macos")
+        dispatch = {"github.event_name": "workflow_dispatch", "github.ref": BETA3_REF, "inputs.tag": "v0.1.0-beta3",
+                    "inputs.ref": "claude/determined-ptolemy-mlbclp", "inputs.platforms": default}
+        self.assertEqual(build_scope(workflow, dispatch), ("linux,windows,macos", False))
+        self.assertEqual(load_publisher().AUTHORIZED[BETA3_REF].platforms, ("linux", "windows", "macos"))
+
+        def push(ref):
+            return {"github.event_name": "push", "github.ref": ref}
+
+        runs = {
+            "push of release/v0.1.0-beta3": (push("refs/heads/release/v0.1.0-beta3"), ("linux,windows,macos", False)),
+            "push of another candidate": (push("refs/heads/release/v0.1.0-beta4"), ("linux,windows,macos", False)),
+            "push of a near-miss beta2 branch": (push(BETA2_REF + "-fix"), ("linux,windows,macos", False)),
+            "push of tag v0.1.0-beta2": (push("refs/tags/v0.1.0-beta2"), ("linux,windows,macos", False)),
+            "push of tag v0.1.0-beta3": (push("refs/tags/v0.1.0-beta3"), ("linux,windows,macos", False)),
+            # A dispatch is never the beta2 push, even on its branch.
+            "dispatch on the beta2 branch": (dict(dispatch, **{"github.ref": BETA2_REF}), ("linux,windows,macos", False)),
+            "dispatch on the beta2 branch with blank platforms":
+                (dict(dispatch, **{"github.ref": BETA2_REF, "inputs.platforms": ""}), ("linux,windows,macos", False)),
+            "dispatch of chosen platforms": (dict(dispatch, **{"inputs.platforms": "windows"}), ("windows", False)),
+        }
+        for name, (run, scope) in runs.items():
+            with self.subTest(run=name):
+                self.assertEqual(build_scope(workflow, run), scope)
 
     def test_sharded_test_artifacts_survive_leaf_job_reruns(self):
         build = BUILD_WORKFLOW.read_text()
@@ -303,24 +361,35 @@ class ReleaseGuards(unittest.TestCase):
         self.assertEqual(self.git("ls-remote", "--tags", "origin"), "")
 
     def test_recorded_provenance_platforms_are_the_built_platforms(self):
-        release = WORKFLOW.read_text()
-        recorded = re.search(r"PLATFORMS: \$\{\{ inputs\.platforms \|\| '([a-z,]+)' \}\}", release).group(1)
-        built = re.search(r"platforms: \$\{\{ inputs\.platforms \|\| '([a-z,]+)' \}\}", release).group(1)
-        self.assertEqual(recorded, built)
-        self.assertIn(f"default: '{recorded}'", release)
-        (self.repo / "release").mkdir()
-        env = dict(os.environ, SOURCE_SHA=self.source, RELEASE_VERSION="0.1.0-beta3", PLATFORMS=recorded,
-                   EDITIONS="pro,free", GITHUB_SERVER_URL="https://github.com",
-                   GITHUB_REPOSITORY="fixture/repo", GITHUB_RUN_ID="77")
-        result = subprocess.run(["bash", "-e", "-c", step_script("Record source and qualification provenance")],
-                                cwd=self.repo, env=env, capture_output=True, text=True)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        provenance = json.loads((self.repo / "release/BUILD-PROVENANCE.json").read_text())
-        self.assertEqual(provenance["platforms"], ["linux", "windows", "macos"])
-        self.assertEqual(provenance["editions"], ["pro", "free"])
-        beta3 = load_publisher().AUTHORIZED[BETA3_REF]
-        self.assertEqual(provenance["platforms"], list(beta3.platforms))
-        self.assertEqual(provenance["version"], beta3.version)
+        workflow = load_workflow()
+        steps = {step.get("name"): step for step in workflow["jobs"]["draft"]["steps"]}
+        recorded = steps["Record source and qualification provenance"]["env"]["PLATFORMS"]
+        # One expression selects both what is built and what provenance records.
+        self.assertEqual(recorded, workflow["jobs"]["build"]["with"]["platforms"])
+        self.assertEqual(recorded, SCOPE_PLATFORMS)
+        default = workflow["on"]["workflow_dispatch"]["inputs"]["platforms"]["default"]
+        authorized = load_publisher().AUTHORIZED
+        runs = {  # each publishing run records exactly its allowlist entry's platforms
+            "the beta2 candidate push": ({"github.event_name": "push", "github.ref": BETA2_REF}, authorized[BETA2_REF]),
+            "the authorized beta3 dispatch": ({"github.event_name": "workflow_dispatch", "github.ref": BETA3_REF,
+                                               "inputs.tag": "v0.1.0-beta3", "inputs.platforms": default,
+                                               "inputs.ref": "claude/determined-ptolemy-mlbclp"}, authorized[BETA3_REF]),
+        }
+        for name, (run, candidate) in runs.items():
+            with self.subTest(run=name):
+                platforms, _ = build_scope(workflow, run)
+                shutil.rmtree(self.repo / "release", ignore_errors=True)
+                (self.repo / "release").mkdir()
+                env = dict(os.environ, SOURCE_SHA=self.source, RELEASE_VERSION=candidate.version, PLATFORMS=platforms,
+                           EDITIONS="pro,free", GITHUB_SERVER_URL="https://github.com",
+                           GITHUB_REPOSITORY="fixture/repo", GITHUB_RUN_ID="77")
+                result = subprocess.run(["bash", "-e", "-c", step_script("Record source and qualification provenance")],
+                                        cwd=self.repo, env=env, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                provenance = json.loads((self.repo / "release/BUILD-PROVENANCE.json").read_text())
+                self.assertEqual(provenance["platforms"], list(candidate.platforms))
+                self.assertEqual(provenance["editions"], ["pro", "free"])
+                self.assertEqual(provenance["version"], candidate.version)
 
     def test_draft_notes_follow_the_candidate_version(self):
         bindir = self.root / "bin"; bindir.mkdir()
