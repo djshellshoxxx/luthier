@@ -564,12 +564,16 @@ LUTHIER_TEST (CpuQualityUi, CQ23_policyTransitionRepaintsGuitarOnce)
         AnimationPolicy::get().resetPaintCounts();
         p.getQualityController().forceLevelForTesting ((int) QualityLevel::Low);
         shown.editor->getQualityLink().pumpForTesting();
-        CHECK_MSG (transitionPaints() == 1, "entering Low must paint the guitar exactly once");
+        const int enteringPaints = transitionPaints();
+        CHECK_MSG (enteringPaints == 1, "entering Low must paint the guitar exactly once; observed " + juce::String (enteringPaints));
 
         AnimationPolicy::get().resetPaintCounts();
         p.getQualityController().forceLevelForTesting ((int) QualityLevel::High);
         shown.editor->getQualityLink().pumpForTesting();
-        CHECK_MSG (transitionPaints() == 1, "leaving Low must paint the guitar exactly once");
+        const int leavingPaints = transitionPaints();
+        CHECK_MSG (leavingPaints == 1, "leaving Low must paint the guitar exactly once; observed " + juce::String (leavingPaints));
+        pump (p, 0.2, false);
+        ctx.failureMessages.add ("[DEBUG-repaint-20261124] paints after native message dispatch: " + juce::String (transitionPaints()));
     }
 
     p.getQualityController().forceLevelForTesting (-1);
