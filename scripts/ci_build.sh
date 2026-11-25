@@ -57,6 +57,11 @@ PLUGINVAL_STRICTNESS="${PLUGINVAL_STRICTNESS:-5}"
 PLUGINVAL_VERSION="${PLUGINVAL_VERSION:-v1.0.4}"
 CLAP_VALIDATOR_VERSION="${CLAP_VALIDATOR_VERSION:-0.4.1}"
 CLAP_VALIDATOR_ASSET_VERSION="${CLAP_VALIDATOR_ASSET_VERSION:-0.4.1-127-g152b982}"
+# SHA-256 of the pinned clap-validator 0.4.1-127-g152b982 release zips. A
+# download is unpacked and run only when it matches; another version needs its
+# own digests here. Keep the Windows digest in scripts/ci_build.ps1 in step.
+CLAP_VALIDATOR_SHA256_LINUX="49edadcfb407ea0dd946ce418300e853fbd2660fa4b0d00e4f19ff8eef24ad90"  # ubuntu-22.04
+CLAP_VALIDATOR_SHA256_MACOS="bbec8cd7d18274e549d5d8c12ece3cec54be966129388dd2e742b9957f2ba9f1"  # macos-universal
 MACOS_ARCHS="${MACOS_ARCHS:-arm64;x86_64}"
 TOOLS_DIR="${TOOLS_DIR:-$BUILD_DIR/tools}"
 
@@ -263,12 +268,28 @@ fetch_pluginval() {
 fetch_clap_validator() {
     local exe="$TOOLS_DIR/clap-validator"
     if [ ! -x "$exe" ]; then
-        local platform archive found
-        [ "$PLATFORM" = linux ] && platform="ubuntu-22.04" || platform="macos-universal"
+        local platform archive expected actual found
+        if [ "$PLATFORM" = linux ]; then
+            platform="ubuntu-22.04"; expected="$CLAP_VALIDATOR_SHA256_LINUX"
+        else
+            platform="macos-universal"; expected="$CLAP_VALIDATOR_SHA256_MACOS"
+        fi
         archive="clap-validator-$CLAP_VALIDATOR_ASSET_VERSION-$platform.zip"
         mkdir -p "$TOOLS_DIR"
         curl -fsSL -o "$TOOLS_DIR/$archive" \
              "https://github.com/free-audio/clap-validator/releases/download/$CLAP_VALIDATOR_VERSION/$archive"
+        # Nothing from the download is unpacked or run unless it is the pinned zip.
+        # Called through $(...), where set -e does not apply: every failure returns.
+        if [ "$PLATFORM" = linux ]; then
+            actual="$(sha256sum "$TOOLS_DIR/$archive" | cut -d' ' -f1)"
+        else
+            actual="$(shasum -a 256 "$TOOLS_DIR/$archive" | cut -d' ' -f1)"
+        fi
+        if [ -z "$expected" ] || [ "$actual" != "$expected" ]; then
+            echo "clap-validator: $archive SHA-256 is ${actual:-unavailable}, expected $expected; refusing to unpack it" >&2
+            rm -f "$TOOLS_DIR/$archive"
+            return 1
+        fi
         unzip -oq "$TOOLS_DIR/$archive" -d "$TOOLS_DIR"
         # The Linux/macOS zips wrap a .tar.gz rather than the bare binary.
         local tarball

@@ -1,10 +1,12 @@
 # Release: a version tag (v1.2.3, v1.3.0-beta1), or a release/v* candidate
 # branch, builds, tests and validates on
 # every platform at full strictness with LTO, builds the installers, and
-# uploads them with SHA-256 checksums to a DRAFT GitHub Release. The authorized
-# release/v0.1.0-beta2 and release/v0.1.0-beta3 pushes additionally verify and
-# publish their own prerelease; every other tag, candidate and manual dispatch
-# retains draft review.
+# uploads them with SHA-256 checksums to a DRAFT GitHub Release. Two runs
+# additionally verify and publish their own prerelease: the authorized
+# release/v0.1.0-beta2 push, and the authorized beta3 dispatch (a dispatch of
+# this workflow on claude/determined-ptolemy-mlbclp with tag v0.1.0-beta3 and
+# ref claude/determined-ptolemy-mlbclp). Every other tag, candidate (including
+# release/v0.1.0-beta3) and manual dispatch retains draft review.
 #
 # See docs/RELEASING.md for the whole procedure and the signing secrets.
 name: release
@@ -104,6 +106,21 @@ jobs:
           fi
           # Freeze checkout once; all platform jobs and the final tag use this commit.
           echo "ref=$source_sha" >> "$GITHUB_OUTPUT"
+
+      # The checkout resolves inputs.ref when this job starts, so the branch can
+      # have moved since the dispatch. The authorized beta3 dispatch qualifies and
+      # publishes only the dispatched commit itself.
+      - name: Require the authorized beta3 dispatch to build its dispatched commit
+        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/claude/determined-ptolemy-mlbclp' && inputs.tag == 'v0.1.0-beta3' && inputs.ref == 'claude/determined-ptolemy-mlbclp'
+        env:
+          SOURCE_SHA: ${{ steps.v.outputs.ref }}
+        run: |
+          set -euo pipefail
+          head_sha="$(git rev-parse HEAD)"
+          if [ "$head_sha" != "$GITHUB_SHA" ] || [ "$SOURCE_SHA" != "$GITHUB_SHA" ]; then
+            echo "::error::Checked out $head_sha (frozen ${SOURCE_SHA:-none}), not the dispatched commit $GITHUB_SHA; refusing the beta3 dispatch."
+            exit 1
+          fi
 
       - name: Refuse an existing release before building
         env:
@@ -292,7 +309,7 @@ jobs:
           python3 scripts/publish_qualified_beta.py --directory release --source "$SOURCE_SHA" --tag "$TAG"
 
       - name: Publish the authorized qualified beta3
-        if: github.event_name == 'push' && github.ref == 'refs/heads/release/v0.1.0-beta3' && needs.version.outputs.tag == 'v0.1.0-beta3'
+        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/claude/determined-ptolemy-mlbclp' && inputs.tag == 'v0.1.0-beta3' && inputs.ref == 'claude/determined-ptolemy-mlbclp' && needs.version.outputs.tag == 'v0.1.0-beta3'
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.version.outputs.tag }}
@@ -317,30 +334,7 @@ jobs:
       - name: Fast-forward unchanged master to the verified release source
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ needs.version.outputs.tag }}
           SOURCE_SHA: ${{ needs.version.outputs.ref }}
           PUBLICATION_RESULT: ${{ needs.draft.result }}
         run: |
-          python3 scripts/consolidate_qualified_beta.py --source "$SOURCE_SHA" --tag "$TAG"
-
-  consolidate-beta3:
-    name: Consolidate the published beta3 source
-    needs: [version, draft]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/release/v0.1.0-beta3' && needs.version.outputs.tag == 'v0.1.0-beta3'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.version.outputs.ref }}
-          persist-credentials: false
-      - name: Fast-forward unchanged master to the verified beta3 source
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ needs.version.outputs.tag }}
-          SOURCE_SHA: ${{ needs.version.outputs.ref }}
-          PUBLICATION_RESULT: ${{ needs.draft.result }}
-        run: |
-          python3 scripts/consolidate_qualified_beta.py --source "$SOURCE_SHA" --tag "$TAG"
+          python3 scripts/consolidate_qualified_beta.py --source "$SOURCE_SHA"

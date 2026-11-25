@@ -65,6 +65,10 @@ $productName = if ($Edition -eq 'FREE') { 'Luthier Free' } else { 'Luthier Pro' 
 $JuceTag = '8.0.10'
 # Keep in step with CLAP_JUCE_EXT_COMMIT in scripts/ci_build.sh.
 $ClapJuceExtCommit = '6bde108329ff9fc24404b79b8b397261a75cf6a8'
+# SHA-256 of the pinned clap-validator 0.4.1-127-g152b982 windows zip; the
+# Linux and macOS digests are in scripts/ci_build.sh. A download is unpacked
+# and run only when it matches; another version needs its own digest here.
+$ClapValidatorWindowsSha256 = 'd935c3af0a45c3911ea2e900f4aa5d6709dac82bb485f0c4ce28648ab2cd0c10'
 
 function Write-Step([string] $message) {
     Write-Host ''
@@ -181,6 +185,13 @@ function Get-ClapValidator {
         $zip = Join-Path $toolsDir $name
         Invoke-WebRequest -UseBasicParsing -OutFile $zip `
             "https://github.com/free-audio/clap-validator/releases/download/$ClapValidatorVersion/$name"
+        # Nothing from the download is unpacked or run unless it is the pinned zip.
+        # Get-FileHash returns upper-case hex; -ne compares it case-insensitively.
+        $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $zip).Hash
+        if ($actual -ne $ClapValidatorWindowsSha256) {
+            Remove-Item -Force -LiteralPath $zip
+            throw "clap-validator: $name SHA-256 is $actual, expected $ClapValidatorWindowsSha256; refusing to unpack it."
+        }
         Expand-Archive -Force $zip $toolsDir
         if (-not (Test-Path $exe)) {
             $found = Get-ChildItem -Recurse -Filter 'clap-validator.exe' $toolsDir | Select-Object -First 1

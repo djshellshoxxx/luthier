@@ -9,7 +9,7 @@ to run every step on your own machine.
 |---|---|---|
 | `.github/workflows/build.yml` | every push and pull request | Linux (clang), Windows (MSVC), macOS (universal arm64 + x86_64): build the VST3, CLAP, Standalone (and AU on macOS), `LuthierTests` and `LuthierRender`; run the unit tests (under xvfb on Linux); pluginval at **strictness 5** on the VST3 (and the AU, plus `auval`, on macOS); clap-validator on the CLAP; upload the plugins and the logs as artifacts |
 | same | nightly 03:17 UTC, and **Run workflow** (workflow_dispatch) | Same, with LTO on and pluginval at **strictness 10** (dispatch lets you pick) |
-| `.github/workflows/release.yml` | a tag `v*` or candidate branch `release/v*` pushed, or dispatch with a tag | Freezes one source SHA, checks the tag matches `project(VERSION)` in `CMakeLists.txt`, and builds/tests/packages with LTO and strictness 10. The beta defaults to Linux/Windows/macOS, both editions, four unit-test shards per build, and the CLAP plug-in built, validated and packaged on every platform. Only a fully successful matrix creates the source tag and a **draft** GitHub Release with checksums and provenance. Only the authorized `release/v0.1.0-beta2` and `release/v0.1.0-beta3` pushes additionally verify and publish their own prerelease, then consolidate its source into unchanged `master`; other invocations retain draft review |
+| `.github/workflows/release.yml` | a tag `v*` or candidate branch `release/v*` pushed, or dispatch with a tag | Freezes one source SHA, checks the tag matches `project(VERSION)` in `CMakeLists.txt`, and builds/tests/packages with LTO and strictness 10. The beta defaults to Linux/Windows/macOS, both editions, four unit-test shards per build, and the CLAP plug-in built, validated and packaged on every platform. Only a fully successful matrix creates the source tag and a **draft** GitHub Release with checksums and provenance. Only the authorized `release/v0.1.0-beta2` push and the authorized beta3 dispatch (on `claude/determined-ptolemy-mlbclp`, tag `v0.1.0-beta3`) additionally verify and publish their own prerelease; only beta2 then consolidates its source into unchanged `master`. Other invocations, including a `release/v0.1.0-beta3` push, retain draft review |
 
 Push and pull-request builds turn LTO off (it doubles the link time and
 defeats the compiler cache); nightly and release builds turn it on, so
@@ -66,7 +66,7 @@ Pinned tool versions (change them in one place, the CI scripts):
 | JUCE | 8.0.10 | `JUCE_TAG` in `scripts/ci_build.sh`, `$JuceTag` in `scripts/ci_build.ps1`, `scripts/setup_linux.sh` |
 | clap-juce-extensions | commit `6bde1083` | `CLAP_JUCE_EXT_COMMIT` / `$ClapJuceExtCommit` |
 | pluginval | v1.0.4 | `PLUGINVAL_VERSION` |
-| clap-validator | 0.4.1 (`0.4.1-127-g152b982`) | `CLAP_VALIDATOR_VERSION` / pinned binary build in CI scripts; development builds and the beta3 release qualification |
+| clap-validator | 0.4.1 (`0.4.1-127-g152b982`) | `CLAP_VALIDATOR_VERSION` / pinned binary build in CI scripts, each download verified against its SHA-256 (`CLAP_VALIDATOR_SHA256_LINUX`/`_MACOS`, `$ClapValidatorWindowsSha256`) before it is unpacked; a new build needs new digests. Development builds and the beta3 release qualification |
 
 ## 3. What gets installed where
 
@@ -105,7 +105,9 @@ one tag's draft release carries both without a collision:
 - `Luthier-<Edition>-<v>-macOS.dmg` (holding `Luthier-<Edition>-<v>.pkg`)
 - `Luthier-<Edition>-<v>-linux-x64.tar.gz`, `Luthier-<Edition>-<v>-standalone-linux-x64.tar.gz`,
   `luthier-pro_<v>_amd64.deb` / `luthier-free_<v>_amd64.deb`, and the best-effort
-  `luthier-pro-<v>-1.x86_64.rpm` / `luthier-free-<v>-1.x86_64.rpm` (+ `.asc` signatures)
+  `luthier-pro-<v>-1.x86_64.rpm` / `luthier-free-<v>-1.x86_64.rpm` (+ `.asc` signatures).
+  No `.rpm` is built while `<v>` carries a pre-release suffix such as `-beta3`:
+  RPM rejects `-` in Version.
 - `SHA256SUMS.txt` (+ `SHA256SUMS.txt.asc`)
 
 ## 4. Signing secrets
@@ -172,13 +174,32 @@ public publication. The limited beta2 and beta3 exceptions are described next.
 
 ### Authorized beta publication
 
-Only a successful push run of an allowlisted candidate publishes automatically:
-`refs/heads/release/v0.1.0-beta2` for tag `v0.1.0-beta2` (qualified on Windows
-and macOS, without CLAP), and `refs/heads/release/v0.1.0-beta3` for tag
-`v0.1.0-beta3` (qualified on Linux, Windows and macOS, with CLAP). Each retains
-its complete Free/Pro qualification: Windows installer coexistence, all
-unit-test shards, plugin validators at strictness 10, LTO, and packaging.
-Manual dispatches, tag pushes and every other candidate version stop at a draft.
+Only two successful runs publish automatically, each for its own tag:
+
+- **beta2**: a push of `refs/heads/release/v0.1.0-beta2` for tag `v0.1.0-beta2`
+  (qualified on Windows and macOS, without CLAP).
+- **beta3**: a dispatch of `release.yml` on `claude/determined-ptolemy-mlbclp`
+  with tag `v0.1.0-beta3` and ref `claude/determined-ptolemy-mlbclp` (qualified
+  on Linux, Windows and macOS, with CLAP):
+
+  ```bash
+  gh workflow run release.yml --ref claude/determined-ptolemy-mlbclp \
+      -f tag=v0.1.0-beta3 -f ref=claude/determined-ptolemy-mlbclp
+  ```
+
+  Leave the `platforms` and `editions` inputs at their defaults: provenance must
+  list `linux,windows,macos` and `pro,free`. The version job refuses the run
+  unless its checkout is the dispatched commit (`github.sha`), and the publisher
+  requires the branch and the new tag to identify that commit before the
+  download, before publishing and afterwards. Do not push
+  `claude/determined-ptolemy-mlbclp` until the run has finished: a moved branch
+  stops publication and leaves the draft.
+
+Each retains its complete Free/Pro qualification: Windows installer coexistence,
+all unit-test shards, plugin validators at strictness 10, LTO, and packaging.
+Everything else stops at a draft: a push of `release/v0.1.0-beta3`, tag pushes,
+dispatches from another branch or with another `tag` or `ref` input, and every
+other candidate version.
 
 After creating its new draft, `scripts/publish_qualified_beta.py` verifies the
 candidate and release tag still identify the frozen source. It requires exactly
@@ -187,7 +208,8 @@ installers and two portable ZIPs with their checksum sidecars; for macOS, the tw
 DMGs and the Pro universal ZIP; for Linux (beta3), each edition's
 `Luthier-<Edition>-<v>-linux-x64.tar.gz`, `Luthier-<Edition>-<v>-standalone-linux-x64.tar.gz`
 and `<pkg>_<v>_amd64.deb`; and provenance and the checksum manifest. The only
-optional extras are each edition's best-effort `<pkg>-<v>-1.x86_64.rpm` and one
+optional extras are each edition's best-effort `<pkg>-<v>-1.x86_64.rpm` (never
+built for a pre-release version such as `0.1.0-beta3`) and one
 complete set of detached signatures: when `GPG_PRIVATE_KEY` is configured,
 `SHA256SUMS.txt.asc` and a `.asc` for every Linux package, otherwise none.
 Provenance must name this source, version, CI run, both editions and exactly the
@@ -204,13 +226,15 @@ prerelease became public; it must not be treated as permission to recreate it.
 Hardware, DAW, listening and signing acceptance remain explicitly limited in the
 beta2 and beta3 release notes and are not claimed by this automation.
 
-After verified publication, the same candidate run fast-forwards `master` to
-that exact source. `scripts/consolidate_qualified_beta.py` requires the master
-observed when the candidate was authorized (beta2:
-`0f62c3d67bdba055b41e66c7ab8ac9ab4b728662`; beta3: the published beta2 source
-`a2e6fda8877b93923d2e902ee28dd10fd0257f49`), verifies ancestry, and
+After verified beta2 publication, the same candidate run fast-forwards `master` to
+that exact source. `scripts/consolidate_qualified_beta.py` (beta2 only) requires the original
+observed master (`0f62c3d67bdba055b41e66c7ab8ac9ab4b728662`), verifies ancestry, and
 uses an atomic expected-head, non-forced ref update. An intervening master change stops consolidation
 for review while retaining the published beta. Branch protection is never changed.
+
+Beta3 does not consolidate `master`. Its dispatch publishes the verified
+prerelease and leaves `master` unchanged; bringing that source into `master` is
+a separate, reviewed change.
 
 ## 6. Manual checks before publishing (`installer.md` 13, `qa-polish.md`)
 
@@ -391,9 +415,9 @@ continuation and is present in PR #105's source.
 Older `master`/integration snapshots predate that change. Consolidate a source that
 includes the retirement, and inspect the effective base-branch workflows before
 merging. The current `release.yml` creates a draft only after the selected native
-test and validator matrix succeeds. The authorized beta2 and beta3 candidates have the
-additional verified-publication step described above; other drafts require a separate
-release action. Source tags and existing release assets must not be moved or replaced.
+test and validator matrix succeeds. The authorized beta2 candidate push and beta3
+dispatch have the additional verified-publication step described above; other drafts
+require a separate release action. Source tags and existing release assets must not be moved or replaced.
 
 Other things to keep in mind: the release workflows refuse to overwrite an existing
 release (see `release.yml`), and publication of a public release

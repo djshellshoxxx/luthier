@@ -37,16 +37,13 @@ listening comparison have not been run. See docs/KNOWN_ISSUES.md.
 
 - Linux x64 packages for both editions.
 - The CLAP plug-in on Linux, Windows and macOS.
-- clap-juce-extensions is pinned to upstream commit 6bde1083. The wrapper now
-  requests a parameter rescan after a state load, so the host sees the restored
-  values; clap-validator's state-reproducibility tests failed on the previous
-  pin. The same update reports latency during activation, delivers transport
-  events in split blocks and guards GUI resizing. The existing host-write
-  intent patch is retained.
-- Preparing for playback no longer waits for a parked or fading audio callback.
-  Before this change re-activation took about 0.9 s, and clap-validator's
-  parameter fuzzing timed out.
-- The parameter defaults a host reads match a fresh instance.
+- The CLAP wrapper, clap-juce-extensions, is re-pinned to upstream commit
+  6bde1083: parameter values are rescanned after a state load (clap-validator's
+  state-reproducibility tests failed on the previous pin), latency is reported
+  during activate, transport events are delivered in split blocks, and GUI
+  resizing is guarded. The existing host-write intent patch is kept.
+- Preparing no longer waits for a parked or fading audio callback
+  (re-activation took about 0.9 s; clap-validator parameter fuzzing timed out).
 
 ## Downloads and installation
 
@@ -64,8 +61,10 @@ listening comparison have not been run. See docs/KNOWN_ISSUES.md.
   and a `.deb` package (`luthier-pro` or `luthier-free`). On Linux both
   editions use the same `luthier` command, desktop entry and content folder,
   so installing one edition replaces the other. The standalone needs ALSA
-  (JACK or PipeWire for low-latency audio) and X11 or XWayland. An `.rpm` is
-  built only on a best-effort basis and may be absent.
+  (JACK or PipeWire for low-latency audio) and X11 or XWayland. No `.rpm` is
+  provided while the version carries a pre-release suffix such as `-beta3`:
+  RPM does not accept `-` in a package Version. On RPM-based distributions,
+  use the archive and its `install.sh` instead.
 
 ## Qualification and limitations
 

@@ -23,11 +23,11 @@ spec.loader.exec_module(publisher)
 SOURCE = "1" * 40
 REPOSITORY = "fixture/luthier"
 BETA2 = publisher.AUTHORIZED["refs/heads/release/v0.1.0-beta2"]
-BETA3 = publisher.AUTHORIZED["refs/heads/release/v0.1.0-beta3"]
+BETA3 = publisher.AUTHORIZED["refs/heads/claude/determined-ptolemy-mlbclp"]
 
 # Every process shares a JSON fixture and records its exact argv. No network,
 # credentials, installed gh binary or real GitHub release is involved. The
-# fixture names the one tag (and so candidate ref) this fake GitHub serves.
+# fixture names the one tag and candidate ref this fake GitHub serves.
 FAKE_GH = r'''#!/usr/bin/env python3
 import json, os, pathlib, shutil, sys
 args = sys.argv[1:]
@@ -38,6 +38,7 @@ with open(os.environ["GH_CALL_LOG"], "a") as log:
 prefix = "repos/fixture/luthier"
 release = fixture["release"]
 tag = fixture["tag"]
+ref = fixture["ref"]
 if args[:2] == ["release", "download"]:
     assert args[:5] == ["release", "download", tag, "--repo", "fixture/luthier"]
     assert args[5] == "--dir" and len(args) == 7
@@ -62,11 +63,11 @@ if "--method" in args:
     fixture["published"] = True
     path.write_text(json.dumps(fixture))
     print(json.dumps(release))
-elif endpoint == "/git/ref/heads/release/" + tag:
+elif endpoint == "/git/ref/" + ref.removeprefix("refs/"):
     sha = fixture.get("candidate_sha", "1" * 40)
     if fixture.get("downloaded"):
         sha = fixture.get("candidate_after_download", sha)
-    print(json.dumps({"ref": "refs/heads/release/" + tag, "object": {"type": "commit", "sha": sha}}))
+    print(json.dumps({"ref": ref, "object": {"type": "commit", "sha": sha}}))
 elif endpoint == "/git/ref/tags/" + tag:
     print(json.dumps({"ref": "refs/tags/" + tag, "object": fixture.get("tag_object", {"type": "commit", "sha": "1" * 40})}))
 elif endpoint == "/git/tags/" + "2" * 40:
@@ -117,7 +118,7 @@ class PublicationGuards:
         (binary / "gh").chmod(0o755)
         self.env = dict(os.environ, PATH=str(binary) + os.pathsep + os.environ["PATH"],
                         GH_FIXTURE=str(self.fixture_path), GH_CALL_LOG=str(self.log),
-                        GITHUB_EVENT_NAME="push", GITHUB_REF=self.candidate.ref,
+                        GITHUB_EVENT_NAME=self.candidate.event, GITHUB_REF=self.candidate.ref,
                         GITHUB_SHA=SOURCE, QUALIFICATION_RESULT="success",
                         GITHUB_REPOSITORY=REPOSITORY, GITHUB_RUN_ID="1234",
                         GITHUB_SERVER_URL="https://github.com")
@@ -134,6 +135,7 @@ class PublicationGuards:
         self.fixture = {
             "remote": str(self.remote),
             "tag": self.candidate.tag,
+            "ref": self.candidate.ref,
             "release": {"id": 91, "tag_name": self.candidate.tag, "target_commitish": SOURCE,
                         "name": "Luthier " + self.candidate.version, "draft": True, "prerelease": True,
                         "url": f"https://api.github.com/repos/{REPOSITORY}/releases/91",
@@ -181,7 +183,7 @@ class PublicationGuards:
     def run_publisher(self, tag=None):
         self.fixture_path.write_text(json.dumps(self.fixture))
         return subprocess.run([sys.executable, str(SCRIPT), "--directory", str(self.local),
-                               "--source", SOURCE, "--tag", tag or self.candidate.tag],
+                               "--source", SOURCE, "--tag", self.candidate.tag if tag is None else tag],
                               env=self.env, capture_output=True, text=True)
 
     def calls(self):
@@ -216,24 +218,36 @@ class PublicationGuards:
         self.fixture["tag_object"] = {"type": "tag", "sha": "2" * 40}
         self.assertEqual(self.run_publisher().returncode, 0)
 
-    def test_dispatch_tag_push_and_other_candidates_do_not_publish(self):
+    def test_other_events_tag_pushes_and_other_candidates_do_not_publish(self):
         other = BETA3 if self.candidate is BETA2 else BETA2
-        for changes, tag in [({"GITHUB_EVENT_NAME": "workflow_dispatch"}, self.candidate.tag),
+        # beta2 publishes only from its push, beta3 only from its dispatch.
+        other_event = next(event for event in publisher.EVENTS if event != self.candidate.event)
+        for changes, tag in [({"GITHUB_EVENT_NAME": other_event}, self.candidate.tag),
                              ({"GITHUB_REF": "refs/tags/" + self.candidate.tag}, self.candidate.tag),
                              ({"GITHUB_REF": other.ref}, self.candidate.tag),
                              ({}, other.tag),
+                             # The other candidate's own authorized run cannot publish this tag.
+                             ({"GITHUB_EVENT_NAME": other.event, "GITHUB_REF": other.ref}, self.candidate.tag),
+                             # The release/v0.1.0-beta3 candidate branch only drafts.
+                             ({"GITHUB_EVENT_NAME": "push", "GITHUB_REF": "refs/heads/release/v0.1.0-beta3"},
+                              self.candidate.tag),
                              # Unlisted candidates and near-miss refs keep draft review.
                              ({"GITHUB_EVENT_NAME": "pull_request"}, self.candidate.tag),
+                             ({"GITHUB_EVENT_NAME": ""}, self.candidate.tag),
                              ({"GITHUB_REF": "refs/heads/release/v0.1.0-beta4"}, "v0.1.0-beta4"),
                              ({"GITHUB_REF": self.candidate.ref + "-fix"}, self.candidate.tag + "-fix"),
+                             ({"GITHUB_REF": self.candidate.ref + "-fix"}, self.candidate.tag),
                              ({"GITHUB_REF": self.candidate.ref.upper()}, self.candidate.tag),
                              ({"GITHUB_REF": "refs/heads/" + self.candidate.tag}, self.candidate.tag)]:
             with self.subTest(changes=changes, tag=tag):
                 previous = self.env.copy()
                 self.env.update(changes)
-                self.assert_refused(self.run_publisher(tag))
-                self.assertEqual(self.calls(), [])
-                self.env = previous
+                try:
+                    self.assert_refused(self.run_publisher(tag))
+                    self.assertEqual(self.calls(), [])
+                finally:  # one failing case must not leak into the next
+                    self.env = previous
+                    self.log.unlink(missing_ok=True)
 
     def test_failed_qualification_and_wrong_push_source_are_refused(self):
         for key, value in [("QUALIFICATION_RESULT", "failure"), ("QUALIFICATION_RESULT", "skipped"),
@@ -395,6 +409,7 @@ class Beta2PublicationGuards(PublicationGuards, unittest.TestCase):
                     for suffix in ("Setup-win64.exe", "portable-win64.zip", "macOS.dmg")}
         payloads.add(f"Luthier-Pro-{version}-macOS-universal.zip")
         sidecars = {f"Luthier-{edition}-{version}-portable-win64.zip.sha256" for edition in ("Pro", "Free")}
+        self.assertEqual(self.candidate.event, "push")
         self.assertEqual(self.candidate.ref, "refs/heads/release/v0.1.0-beta2")
         self.assertEqual(self.candidate.tag, "v0.1.0-beta2")
         self.assertEqual(self.candidate.platforms, ("windows", "macos"))
@@ -443,7 +458,8 @@ class Beta3PublicationGuards(PublicationGuards, unittest.TestCase):
                   for suffix in ("Setup-win64.exe", "portable-win64.zip", "macOS.dmg")}
         native.add(f"Luthier-Pro-{version}-macOS-universal.zip")
         sidecars = {f"Luthier-{edition}-{version}-portable-win64.zip.sha256" for edition in ("Pro", "Free")}
-        self.assertEqual(self.candidate.ref, "refs/heads/release/v0.1.0-beta3")
+        self.assertEqual(self.candidate.event, "workflow_dispatch")
+        self.assertEqual(self.candidate.ref, "refs/heads/claude/determined-ptolemy-mlbclp")
         self.assertEqual(self.candidate.tag, "v0.1.0-beta3")
         self.assertEqual(self.candidate.platforms, ("linux", "windows", "macos"))
         self.assertEqual(self.candidate.linux_payloads, self.LINUX)
@@ -545,32 +561,87 @@ class Beta3PublicationGuards(PublicationGuards, unittest.TestCase):
                 self.sync_assets()
                 self.assert_refused(self.run_publisher())
 
-    def test_wrong_ref_or_tag_for_beta3_is_refused_before_any_request(self):
-        for ref, tag in [(BETA3.ref, BETA2.tag), (BETA2.ref, BETA3.tag), ("refs/tags/v0.1.0-beta3", BETA3.tag),
-                         ("refs/heads/release/v0.1.0-beta3 ", BETA3.tag), (BETA3.ref, "v0.1.0-beta3 "),
-                         ("refs/heads/release/v0.1.0-Beta3", BETA3.tag), (BETA3.ref, "0.1.0-beta3")]:
-            with self.subTest(ref=ref, tag=tag):
+    def test_beta3_publishes_from_the_authorized_dispatch_on_its_exact_ref(self):
+        self.assertEqual((self.env["GITHUB_EVENT_NAME"], self.env["GITHUB_REF"]),
+                         ("workflow_dispatch", "refs/heads/claude/determined-ptolemy-mlbclp"))
+        self.assert_published(self.run_publisher("v0.1.0-beta3"))
+        # The dispatched branch must still be the frozen source before the
+        # download, before the state change and after publication.
+        checks = [args[1] for args in self.calls() if args[0] == "api" and "/git/ref/heads/" in args[1]]
+        self.assertEqual(checks, ["repos/fixture/luthier/git/ref/heads/claude/determined-ptolemy-mlbclp"] * 3)
+
+    def test_push_of_release_v0_1_0_beta3_does_not_publish_beta3(self):
+        self.env.update(GITHUB_EVENT_NAME="push", GITHUB_REF="refs/heads/release/v0.1.0-beta3")
+        self.assert_refused(self.run_publisher("v0.1.0-beta3"))
+        self.assertEqual(self.calls(), [])
+
+    def test_beta3_dispatch_from_another_ref_is_refused_before_any_request(self):
+        for ref in ("refs/heads/master", "refs/heads/release/v0.1.0-beta3", BETA2.ref,
+                    "refs/heads/claude/beta3-release-adapt", "refs/heads/claude/determined-ptolemy-mlbclp-fix",
+                    "refs/heads/claude/determined-ptolemy-mlbclp/x", "refs/heads/Claude/determined-ptolemy-mlbclp",
+                    "refs/heads/claude/determined-ptolemy-mlbclp ", "claude/determined-ptolemy-mlbclp",
+                    "refs/tags/v0.1.0-beta3", ""):
+            with self.subTest(ref=ref):
                 self.env["GITHUB_REF"] = ref
-                self.assert_refused(self.run_publisher(tag))
+                self.assert_refused(self.run_publisher("v0.1.0-beta3"))
                 self.assertEqual(self.calls(), [])
         self.env["GITHUB_REF"] = BETA3.ref
-        self.assert_published(self.run_publisher())
+        self.assert_published(self.run_publisher("v0.1.0-beta3"))
+
+    def test_beta3_dispatch_for_another_tag_is_refused_before_any_request(self):
+        for tag in ("v0.1.0-beta2", "v0.1.0-beta4", "v0.1.0-beta3-fix", "v0.1.0-Beta3", "v0.1.0-beta3 ",
+                    "0.1.0-beta3", "refs/tags/v0.1.0-beta3", ""):
+            with self.subTest(tag=tag):
+                self.assert_refused(self.run_publisher(tag))
+                self.assertEqual(self.calls(), [])
+        self.assert_published(self.run_publisher("v0.1.0-beta3"))
+
+    def test_beta3_source_must_be_the_dispatched_commit(self):
+        # release.yml's version job freezes HEAD only when it equals github.sha;
+        # the publisher independently requires GITHUB_SHA to be the frozen source.
+        self.env["GITHUB_SHA"] = "3" * 40
+        self.assert_refused(self.run_publisher("v0.1.0-beta3"))
+        self.assertEqual(self.calls(), [])
 
 
 class AllowlistShape(unittest.TestCase):
-    def test_only_beta2_and_beta3_are_authorized(self):
+    def test_only_the_beta2_push_and_the_beta3_dispatch_are_authorized(self):
+        self.assertEqual({(c.version, c.event, c.ref) for c in publisher.CANDIDATES},
+                         {("0.1.0-beta2", "push", "refs/heads/release/v0.1.0-beta2"),
+                          ("0.1.0-beta3", "workflow_dispatch", "refs/heads/claude/determined-ptolemy-mlbclp")})
         self.assertEqual(set(publisher.AUTHORIZED), {"refs/heads/release/v0.1.0-beta2",
-                                                     "refs/heads/release/v0.1.0-beta3"})
+                                                     "refs/heads/claude/determined-ptolemy-mlbclp"})
         for ref, candidate in publisher.AUTHORIZED.items():
-            self.assertEqual(ref, "refs/heads/release/" + candidate.tag)
+            self.assertEqual(ref, candidate.ref)
+
+    def test_beta2_consolidation_imports_are_unchanged(self):
+        # scripts/consolidate_qualified_beta.py is master's beta2-only script.
+        self.assertEqual(publisher.CANDIDATE, "refs/heads/release/v0.1.0-beta2")
+        self.assertEqual(publisher.TAG, "v0.1.0-beta2")
+        self.assertIs(publisher.GitHub("fixture/luthier").candidate, BETA2)
 
     def test_malformed_candidates_fail_closed(self):
-        for version, platforms in [("0.1.0", ("linux",)), ("0.1.0-beta3/x", ("linux",)), ("0.1.0-beta3", ()),
-                                   ("0.1.0-beta3", ("macos", "windows")), ("0.1.0-beta3", ("linux", "linux")),
-                                   ("0.1.0-beta3", ("freebsd",))]:
-            with self.subTest(version=version, platforms=platforms):
+        dispatch = ("workflow_dispatch", "refs/heads/claude/determined-ptolemy-mlbclp")
+        for version, platforms, event, ref in [
+                ("0.1.0", ("linux",), *dispatch), ("0.1.0-beta3/x", ("linux",), *dispatch),
+                ("0.1.0-beta3", (), *dispatch), ("0.1.0-beta3", ("macos", "windows"), *dispatch),
+                ("0.1.0-beta3", ("linux", "linux"), *dispatch), ("0.1.0-beta3", ("freebsd",), *dispatch),
+                # Exactly one real publishing event and one exact branch.
+                ("0.1.0-beta3", ("linux",), "pull_request", dispatch[1]),
+                ("0.1.0-beta3", ("linux",), "Push", dispatch[1]), ("0.1.0-beta3", ("linux",), "", dispatch[1]),
+                ("0.1.0-beta3", ("linux",), "workflow_dispatch", "claude/determined-ptolemy-mlbclp"),
+                ("0.1.0-beta3", ("linux",), "workflow_dispatch", "refs/tags/v0.1.0-beta3"),
+                ("0.1.0-beta3", ("linux",), "workflow_dispatch", "refs/heads/"),
+                ("0.1.0-beta3", ("linux",), "workflow_dispatch", "refs/heads/claude/*"),
+                ("0.1.0-beta3", ("linux",), "workflow_dispatch", "refs/heads/claude//x"),
+                ("0.1.0-beta3", ("linux",), "workflow_dispatch", "refs/heads/claude/../master"),
+                ("0.1.0-beta3", ("linux",), "workflow_dispatch", "refs/heads/claude/x "),
+                # A pushed candidate is its own release/<tag> branch.
+                ("0.1.0-beta3", ("linux",), "push", "refs/heads/claude/determined-ptolemy-mlbclp"),
+                ("0.1.0-beta3", ("linux",), "push", "refs/heads/release/v0.1.0-beta2")]:
+            with self.subTest(version=version, platforms=platforms, event=event, ref=ref):
                 with self.assertRaises(ValueError):
-                    publisher.Candidate(version, platforms)
+                    publisher.Candidate(version, platforms, event, ref)
 
 
 class PackagerOutputNames(unittest.TestCase):
@@ -666,6 +737,15 @@ class LinuxPackagingOutputs(unittest.TestCase):
         self.assertFalse(BETA3.accepts(others | names))
 
 
+# The exact release.yml gates: beta2 publishes and consolidates from its push;
+# beta3 publishes only from its dispatch and never consolidates master.
+BETA2_PUSH = ("github.event_name == 'push' && github.ref == 'refs/heads/release/v0.1.0-beta2'"
+              " && needs.version.outputs.tag == 'v0.1.0-beta2'")
+BETA3_DISPATCH = ("github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/claude/determined-ptolemy-mlbclp'"
+                  " && inputs.tag == 'v0.1.0-beta3' && inputs.ref == 'claude/determined-ptolemy-mlbclp'")
+BETA3_PUBLISH = BETA3_DISPATCH + " && needs.version.outputs.tag == 'v0.1.0-beta3'"
+
+
 class WorkflowPublicationGuards(unittest.TestCase):
     def test_workflow_keeps_full_qualification_and_narrows_publication(self):
         workflow = (ROOT / ".github/workflows/release.yml").read_text()
@@ -677,16 +757,17 @@ class WorkflowPublicationGuards(unittest.TestCase):
         for gate in ("strictness: 10", "lto: true", "package: true", "no_clap: false"):
             self.assertIn(gate, workflow)
         self.assertNotIn("no_clap: true", workflow)
-        for version in ("0.1.0-beta2", "0.1.0-beta3"):
+        for version, gate in (("beta2", BETA2_PUSH), ("beta3", BETA3_PUBLISH)):
             with self.subTest(version=version):
-                self.assertIn("if: github.event_name == 'push' && github.ref == 'refs/heads/release/v"
-                              + version + "' && needs.version.outputs.tag == 'v" + version + "'", workflow)
+                self.assertIn("if: " + gate, workflow)
                 self.assertLess(workflow.index("- name: Create draft release"),
-                                workflow.index("- name: Publish the authorized qualified " + version[6:]))
+                                workflow.index("- name: Publish the authorized qualified " + version))
         self.assertIn("QUALIFICATION_RESULT: ${{ needs.build.result }}", workflow)
         self.assertEqual(workflow.count("QUALIFICATION_RESULT: ${{ needs.build.result }}"), 2)
         self.assertIn("-p test_publish_qualified_beta.py", workflow)
         self.assertNotIn("continue-on-error:", workflow)
+        # A push of the release/v0.1.0-beta3 candidate branch drafts like any other.
+        self.assertNotIn("refs/heads/release/v0.1.0-beta3", workflow)
 
     def test_every_publication_and_consolidation_is_gated_by_an_exact_candidate(self):
         lines = (ROOT / ".github/workflows/release.yml").read_text().splitlines()
@@ -697,14 +778,16 @@ class WorkflowPublicationGuards(unittest.TestCase):
                     gate = next(lines[i].strip() for i in range(index, -1, -1)
                                 if lines[i].strip().startswith("if: "))
                     gates.setdefault(script, []).append(gate)
-        exact = {"if: github.event_name == 'push' && github.ref == 'refs/heads/release/v" + version
-                 + "' && needs.version.outputs.tag == 'v" + version + "'" for version in ("0.1.0-beta2", "0.1.0-beta3")}
-        for script in ("scripts/publish_qualified_beta.py", "scripts/consolidate_qualified_beta.py"):
-            with self.subTest(script=script):
-                self.assertEqual(sorted(gates[script]), sorted(exact))
-        release_refs = [line for line in lines if "refs/heads/release/" in line]
-        self.assertEqual(len(release_refs), 4)
-        self.assertTrue(all(line.strip() in exact for line in release_refs))
+        self.assertEqual(sorted(gates["scripts/publish_qualified_beta.py"]),
+                         sorted(["if: " + BETA2_PUSH, "if: " + BETA3_PUBLISH]))
+        # Beta3 does not consolidate master: only the beta2 push fast-forwards it.
+        self.assertEqual(gates["scripts/consolidate_qualified_beta.py"], ["if: " + BETA2_PUSH])
+        release_refs = [line.strip() for line in lines if "refs/heads/release/" in line]
+        self.assertEqual(release_refs, ["if: " + BETA2_PUSH] * 2)
+        # The dispatch gate appears twice: the version job's HEAD == github.sha
+        # check and the beta3 publication step.
+        dispatch_refs = [line.strip() for line in lines if "refs/heads/claude/" in line]
+        self.assertEqual(dispatch_refs, ["if: " + BETA3_DISPATCH, "if: " + BETA3_PUBLISH])
 
 
 if __name__ == "__main__":

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Publish an owner-authorized beta draft after its complete release workflow passes.
 
-Only the candidates listed in CANDIDATES publish, each from a push of its own
-release/v<version> branch for its own tag, with the exact asset set that its
-qualified platforms package. This creates no releases, uploads no assets, and
-never changes a tag. Every other tag, candidate and manual dispatch retains
-draft review.
+Only the candidates listed in CANDIDATES publish, each only from its own run
+(GitHub event and ref) for its own tag, with the exact asset set that its
+qualified platforms package: beta2 from a push of release/v0.1.0-beta2, beta3
+from a workflow_dispatch on claude/determined-ptolemy-mlbclp. This creates no
+releases, uploads no assets, and never changes a tag. Every other tag, candidate
+and manual dispatch retains draft review.
 """
 from __future__ import annotations
 
@@ -30,6 +31,8 @@ EDITIONS = ("Pro", "Free")
 PLATFORMS = ("linux", "windows", "macos")
 # scripts/package_linux.sh PKG_NAME: each edition's .deb/.rpm package name.
 LINUX_PACKAGES = {"Pro": "luthier-pro", "Free": "luthier-free"}
+# The GitHub events an allowlist entry may name as its one publishing run.
+EVENTS = ("push", "workflow_dispatch")
 
 
 class PublicationError(Exception):
@@ -48,15 +51,20 @@ def json_object(value: Any, context: str) -> dict[str, Any]:
 
 @dataclass(frozen=True)
 class Candidate:
-    """One owner-authorized candidate and the assets its qualification packages.
+    """One owner-authorized candidate, its one publishing run, and the assets
+    its qualification packages.
 
-    The names are the real packaging outputs: scripts/package_windows.ps1 (and
-    packaging/windows/Luthier.iss), scripts/package_macos.sh, build.yml's
+    event and ref name the only run that may publish it: GITHUB_EVENT_NAME and
+    GITHUB_REF (the candidate branch, which must still identify the frozen
+    source). The names are the real packaging outputs: scripts/package_windows.ps1
+    (and packaging/windows/Luthier.iss), scripts/package_macos.sh, build.yml's
     universal Pro archive, and scripts/package_linux.sh.
     """
 
     version: str
     platforms: tuple[str, ...]
+    event: str
+    ref: str
 
     def __post_init__(self) -> None:
         # A malformed allowlist entry fails closed instead of widening publication.
@@ -64,14 +72,17 @@ class Candidate:
             raise ValueError(f"Malformed authorized version: {self.version!r}")
         if not self.platforms or list(self.platforms) != [p for p in PLATFORMS if p in self.platforms]:
             raise ValueError(f"{self.version} platforms must be distinct and in release.yml order")
+        if self.event not in EVENTS:
+            raise ValueError(f"{self.version} must name one publishing event: {', '.join(EVENTS)}")
+        if re.fullmatch(r"refs/heads/[A-Za-z0-9_-]+(?:[./][A-Za-z0-9_-]+)*", self.ref) is None:
+            raise ValueError(f"{self.version} must name one exact branch ref: {self.ref!r}")
+        # release.yml derives a candidate push's tag from its release/<tag> branch.
+        if self.event == "push" and self.ref != "refs/heads/release/" + self.tag:
+            raise ValueError(f"A pushed {self.version} candidate must be refs/heads/release/{self.tag}")
 
     @property
     def tag(self) -> str:
         return "v" + self.version
-
-    @property
-    def ref(self) -> str:
-        return "refs/heads/release/" + self.tag
 
     @property
     def linux_payloads(self) -> frozenset[str]:
@@ -127,13 +138,20 @@ class Candidate:
         return extras in (rpms, rpms | signatures)
 
 
-# The owner-authorized candidates and the platforms each was qualified on.
-# Nothing else publishes automatically.
+# The owner-authorized candidates, the platforms each was qualified on, and the
+# one run (event, ref) that may publish each. Nothing else publishes automatically.
 CANDIDATES = (
-    Candidate("0.1.0-beta2", ("windows", "macos")),
-    Candidate("0.1.0-beta3", ("linux", "windows", "macos")),
+    Candidate("0.1.0-beta2", ("windows", "macos"), "push", "refs/heads/release/v0.1.0-beta2"),
+    Candidate("0.1.0-beta3", ("linux", "windows", "macos"), "workflow_dispatch",
+              "refs/heads/claude/determined-ptolemy-mlbclp"),
 )
 AUTHORIZED = {candidate.ref: candidate for candidate in CANDIDATES}
+if len(AUTHORIZED) != len(CANDIDATES) or len({c.tag for c in CANDIDATES}) != len(CANDIDATES):
+    raise ValueError("Each authorized candidate needs its own ref and tag")
+# scripts/consolidate_qualified_beta.py consolidates beta2 only: it imports these
+# names and builds GitHub(repository), whose default candidate is beta2.
+BETA2 = AUTHORIZED["refs/heads/release/v0.1.0-beta2"]
+CANDIDATE, TAG = BETA2.ref, BETA2.tag
 
 
 @dataclass(frozen=True)
@@ -198,7 +216,7 @@ def validate_local(directory: Path, candidate: Candidate, source: str,
 
 
 class GitHub:
-    def __init__(self, repository: str, candidate: Candidate):
+    def __init__(self, repository: str, candidate: Candidate = BETA2):
         self.repository = repository
         self.candidate = candidate
         self.prefix = "repos/" + repository
@@ -290,17 +308,18 @@ class GitHub:
 
 def authorized_candidate(tag: str) -> Candidate:
     # An exact ref lookup: no prefix, pattern or case folding selects a candidate.
+    # Each candidate publishes only from its own event and ref, for its own tag.
     candidate = AUTHORIZED.get(os.environ.get("GITHUB_REF", ""))
-    require(os.environ.get("GITHUB_EVENT_NAME") == "push" and candidate is not None
+    require(candidate is not None and os.environ.get("GITHUB_EVENT_NAME") == candidate.event
             and tag == candidate.tag,
-            "Automatic publication is authorized only for an allowlisted candidate push of its own tag")
+            "Automatic publication is authorized only for an allowlisted candidate's own event, ref and tag")
     return candidate
 
 
 def publish(directory: Path, source: str, tag: str) -> str:
     candidate = authorized_candidate(tag)
     require(re.fullmatch(r"[0-9a-f]{40}", source) is not None
-            and os.environ.get("GITHUB_SHA") == source, "Frozen source must match this push")
+            and os.environ.get("GITHUB_SHA") == source, "Frozen source must be this run's commit (GITHUB_SHA)")
     require(os.environ.get("QUALIFICATION_RESULT") == "success", "Full build qualification did not succeed")
     repository = os.environ.get("GITHUB_REPOSITORY", "")
     run_id = os.environ.get("GITHUB_RUN_ID", "")
