@@ -9,7 +9,7 @@ to run every step on your own machine.
 |---|---|---|
 | `.github/workflows/build.yml` | every push and pull request | Linux (clang), Windows (MSVC), macOS (universal arm64 + x86_64): build the VST3, CLAP, Standalone (and AU on macOS), `LuthierTests` and `LuthierRender`; run the unit tests (under xvfb on Linux); pluginval at **strictness 5** on the VST3 (and the AU, plus `auval`, on macOS); clap-validator on the CLAP; upload the plugins and the logs as artifacts |
 | same | nightly 03:17 UTC, and **Run workflow** (workflow_dispatch) | Same, with LTO on and pluginval at **strictness 10** (dispatch lets you pick) |
-| `.github/workflows/release.yml` | a tag `v*` or candidate branch `release/v*` pushed, or dispatch with a tag | Freezes one source SHA, checks the tag matches `project(VERSION)` in `CMakeLists.txt`, and builds/tests/packages with LTO and strictness 10. The beta defaults to Windows/macOS, both editions, four unit-test shards per build, and no CLAP. Only a fully successful matrix creates the source tag and a **draft** GitHub Release with checksums and provenance. Only the authorized `release/v0.1.0-beta2` push additionally verifies and publishes beta2, then consolidates its source into unchanged `master`; other invocations retain draft review |
+| `.github/workflows/release.yml` | a tag `v*` or candidate branch `release/v*` pushed, or dispatch with a tag | Freezes one source SHA, checks the tag matches `project(VERSION)` in `CMakeLists.txt`, and builds/tests/packages with LTO and strictness 10. The beta defaults to Linux/Windows/macOS, both editions, four unit-test shards per build, and the CLAP plug-in built, validated and packaged on every platform. Only a fully successful matrix creates the source tag and a **draft** GitHub Release with checksums and provenance. Only the authorized `release/v0.1.0-beta2` and `release/v0.1.0-beta3` pushes additionally verify and publish their own prerelease, then consolidate its source into unchanged `master`; other invocations retain draft review |
 
 Push and pull-request builds turn LTO off (it doubles the link time and
 defeats the compiler cache); nightly and release builds turn it on, so
@@ -66,7 +66,7 @@ Pinned tool versions (change them in one place, the CI scripts):
 | JUCE | 8.0.10 | `JUCE_TAG` in `scripts/ci_build.sh`, `$JuceTag` in `scripts/ci_build.ps1`, `scripts/setup_linux.sh` |
 | clap-juce-extensions | commit `55525c98` | `CLAP_JUCE_EXT_COMMIT` / `$ClapJuceExtCommit` |
 | pluginval | v1.0.4 | `PLUGINVAL_VERSION` |
-| clap-validator | 0.4.1 (`0.4.1-127-g152b982`) | `CLAP_VALIDATOR_VERSION` / pinned binary build in CI scripts; development builds only for the current beta |
+| clap-validator | 0.4.1 (`0.4.1-127-g152b982`) | `CLAP_VALIDATOR_VERSION` / pinned binary build in CI scripts; development builds and the beta3 release qualification |
 
 ## 3. What gets installed where
 
@@ -168,36 +168,47 @@ Existing releases and drafts are rejected before building and checked again
 before drafting. Existing tags must identify exactly the tested source; they
 are never moved. A corrected candidate needs a new version once its tag/release
 exists. General releases still need the manual acceptance checks below before
-public publication. The limited beta2 exception is described next.
+public publication. The limited beta2 and beta3 exceptions are described next.
 
-### Authorized beta2 publication
+### Authorized beta publication
 
-Only a successful push run for `refs/heads/release/v0.1.0-beta2` and tag
-`v0.1.0-beta2` publishes automatically. It retains the complete Windows/macOS,
-Free/Pro qualification: installer coexistence, all unit-test shards, plugin
-validators at strictness 10, LTO, and packaging. Manual dispatches, tag pushes
-and other candidate versions stop at a draft.
+Only a successful push run of an allowlisted candidate publishes automatically:
+`refs/heads/release/v0.1.0-beta2` for tag `v0.1.0-beta2` (qualified on Windows
+and macOS, without CLAP), and `refs/heads/release/v0.1.0-beta3` for tag
+`v0.1.0-beta3` (qualified on Linux, Windows and macOS, with CLAP). Each retains
+its complete Free/Pro qualification: Windows installer coexistence, all
+unit-test shards, plugin validators at strictness 10, LTO, and packaging.
+Manual dispatches, tag pushes and every other candidate version stop at a draft.
 
 After creating its new draft, `scripts/publish_qualified_beta.py` verifies the
 candidate and release tag still identify the frozen source. It requires exactly
-the two Windows Setup installers, two portable ZIPs and their checksum sidecars,
-two macOS DMGs, the Pro universal macOS ZIP, provenance and the checksum manifest
-(plus the optional manifest signature). Provenance must name this source and CI
-run. Local checksums, uploaded sizes and SHA-256 digests, and freshly downloaded
-bytes must all match. It checks the draft and asset IDs again immediately before
-publishing that exact release ID as a prerelease, then verifies the published
-state, assets and source. No assets, tags, existing releases or notes are replaced.
+the asset set the candidate's platforms package: for Windows, the two Setup
+installers and two portable ZIPs with their checksum sidecars; for macOS, the two
+DMGs and the Pro universal ZIP; for Linux (beta3), each edition's
+`Luthier-<Edition>-<v>-linux-x64.tar.gz`, `Luthier-<Edition>-<v>-standalone-linux-x64.tar.gz`
+and `<pkg>_<v>_amd64.deb`; and provenance and the checksum manifest. The only
+optional extras are each edition's best-effort `<pkg>-<v>-1.x86_64.rpm` and one
+complete set of detached signatures: when `GPG_PRIVATE_KEY` is configured,
+`SHA256SUMS.txt.asc` and a `.asc` for every Linux package, otherwise none.
+Provenance must name this source, version, CI run, both editions and exactly the
+candidate's platforms in the order `release.yml` records them. Local checksums,
+uploaded sizes and SHA-256 digests, and freshly downloaded bytes must all match.
+It checks the draft and asset IDs again immediately before publishing that exact
+release ID as a prerelease, then verifies the published state, assets and source.
+No assets, tags, existing releases or notes are replaced.
 
 A failed publication check stops the job without automatic retry or rollback.
 Inspect its draft/release state before choosing the next action. A failure during
 the final API request or post-publication verification can occur after the
 prerelease became public; it must not be treated as permission to recreate it.
 Hardware, DAW, listening and signing acceptance remain explicitly limited in the
-beta2 release notes and are not claimed by this automation.
+beta2 and beta3 release notes and are not claimed by this automation.
 
 After verified publication, the same candidate run fast-forwards `master` to
-that exact source. `scripts/consolidate_qualified_beta.py` requires the original
-observed master (`0f62c3d67bdba055b41e66c7ab8ac9ab4b728662`), verifies ancestry, and
+that exact source. `scripts/consolidate_qualified_beta.py` requires the master
+observed when the candidate was authorized (beta2:
+`0f62c3d67bdba055b41e66c7ab8ac9ab4b728662`; beta3: the published beta2 source
+`a2e6fda8877b93923d2e902ee28dd10fd0257f49`), verifies ancestry, and
 uses an atomic expected-head, non-forced ref update. An intervening master change stops consolidation
 for review while retaining the published beta. Branch protection is never changed.
 
@@ -295,9 +306,10 @@ Target: a bad release is withdrawn in 30 minutes, a fixed one is out in 24 hours
 - Determinism: the Linux archives are reproducible (sorted, fixed
   mtime and owner); the Windows and macOS installers embed signing
   timestamps and are not byte-identical between runs.
-- CLAP is excluded from the current beta because native validator runs exposed
-  state round-trip defects. Its development workflow uses clap-validator 0.4.1;
-  older 0.3.2 pass/skip counts are historical and do not qualify this release.
+- Beta2 excluded CLAP because native validator runs exposed state round-trip
+  defects. Beta3 builds, validates (clap-validator 0.4.1) and packages CLAP on
+  every platform; older 0.3.2 pass/skip counts are historical and do not
+  qualify a release.
 
 ## 11. Elevation, silent installs and enterprise policy
 
@@ -379,9 +391,9 @@ continuation and is present in PR #105's source.
 Older `master`/integration snapshots predate that change. Consolidate a source that
 includes the retirement, and inspect the effective base-branch workflows before
 merging. The current `release.yml` creates a draft only after the selected native
-test and validator matrix succeeds. The authorized beta2 candidate has the additional
-verified-publication step described above; other drafts require a separate release
-action. Source tags and existing release assets must not be moved or replaced.
+test and validator matrix succeeds. The authorized beta2 and beta3 candidates have the
+additional verified-publication step described above; other drafts require a separate
+release action. Source tags and existing release assets must not be moved or replaced.
 
 Other things to keep in mind: the release workflows refuse to overwrite an existing
 release (see `release.yml`), and publication of a public release

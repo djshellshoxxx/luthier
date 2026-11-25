@@ -2,8 +2,9 @@
 # branch, builds, tests and validates on
 # every platform at full strictness with LTO, builds the installers, and
 # uploads them with SHA-256 checksums to a DRAFT GitHub Release. The authorized
-# release/v0.1.0-beta2 push additionally verifies and publishes that prerelease;
-# every other tag, candidate and manual dispatch retains draft review.
+# release/v0.1.0-beta2 and release/v0.1.0-beta3 pushes additionally verify and
+# publish their own prerelease; every other tag, candidate and manual dispatch
+# retains draft review.
 #
 # See docs/RELEASING.md for the whole procedure and the signing secrets.
 name: release
@@ -24,10 +25,10 @@ on:
         type: string
         default: ''
       platforms:
-        description: 'Comma-separated platforms to build: linux, windows, macos (default windows,macos)'
+        description: 'Comma-separated platforms to build: linux, windows, macos (default linux,windows,macos)'
         required: false
         type: string
-        default: 'windows,macos'
+        default: 'linux,windows,macos'
       editions:
         description: 'Comma-separated editions to build: pro, free (default both)'
         required: false
@@ -141,11 +142,12 @@ jobs:
     needs: [version, installer-checks]
     uses: ./.github/workflows/build.yml
     with:
-      # The 0.1 beta ships Windows and macOS (VST3, AU, standalone). Linux and
-      # CLAP stay in per-push CI but are not release-qualified here.
-      platforms: ${{ inputs.platforms || 'windows,macos' }}
+      # Beta3 ships Linux, Windows and macOS (VST3, CLAP, standalone; AU on
+      # macOS): every platform builds, validates (pluginval, clap-validator)
+      # and packages the CLAP plug-in.
+      platforms: ${{ inputs.platforms || 'linux,windows,macos' }}
       editions: ${{ inputs.editions || 'pro,free' }}
-      no_clap: true
+      no_clap: false
       # Four interleaved shards keep each macOS job inside the 6-hour limit.
       test_shards: 4
       strictness: 10
@@ -217,7 +219,7 @@ jobs:
         env:
           SOURCE_SHA: ${{ needs.version.outputs.ref }}
           RELEASE_VERSION: ${{ needs.version.outputs.version }}
-          PLATFORMS: ${{ inputs.platforms || 'windows,macos' }}
+          PLATFORMS: ${{ inputs.platforms || 'linux,windows,macos' }}
           EDITIONS: ${{ inputs.editions || 'pro,free' }}
         run: |
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
@@ -269,7 +271,9 @@ jobs:
           # Unlike update-or-create actions, this command never edits a release.
           args=(release create "$TAG" --verify-tag --target "$SOURCE_SHA" --draft
                 --title "Luthier $VERSION")
-          if [ "$VERSION" = "0.1.0-beta2" ]; then
+          if [ "$VERSION" = "0.1.0-beta3" ]; then
+            args+=(--notes-file docs/beta/PRO-V01-BETA3-RELEASE-NOTES.md)
+          elif [ "$VERSION" = "0.1.0-beta2" ]; then
             args+=(--notes-file docs/beta/PRO-V01-BETA2-RELEASE-NOTES.md)
           else
             args+=(--generate-notes)
@@ -279,6 +283,16 @@ jobs:
 
       - name: Publish the authorized qualified beta2
         if: github.event_name == 'push' && github.ref == 'refs/heads/release/v0.1.0-beta2' && needs.version.outputs.tag == 'v0.1.0-beta2'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.version.outputs.tag }}
+          SOURCE_SHA: ${{ needs.version.outputs.ref }}
+          QUALIFICATION_RESULT: ${{ needs.build.result }}
+        run: |
+          python3 scripts/publish_qualified_beta.py --directory release --source "$SOURCE_SHA" --tag "$TAG"
+
+      - name: Publish the authorized qualified beta3
+        if: github.event_name == 'push' && github.ref == 'refs/heads/release/v0.1.0-beta3' && needs.version.outputs.tag == 'v0.1.0-beta3'
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.version.outputs.tag }}
@@ -303,7 +317,30 @@ jobs:
       - name: Fast-forward unchanged master to the verified release source
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.version.outputs.tag }}
           SOURCE_SHA: ${{ needs.version.outputs.ref }}
           PUBLICATION_RESULT: ${{ needs.draft.result }}
         run: |
-          python3 scripts/consolidate_qualified_beta.py --source "$SOURCE_SHA"
+          python3 scripts/consolidate_qualified_beta.py --source "$SOURCE_SHA" --tag "$TAG"
+
+  consolidate-beta3:
+    name: Consolidate the published beta3 source
+    needs: [version, draft]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/release/v0.1.0-beta3' && needs.version.outputs.tag == 'v0.1.0-beta3'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.ref }}
+          persist-credentials: false
+      - name: Fast-forward unchanged master to the verified beta3 source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.version.outputs.tag }}
+          SOURCE_SHA: ${{ needs.version.outputs.ref }}
+          PUBLICATION_RESULT: ${{ needs.draft.result }}
+        run: |
+          python3 scripts/consolidate_qualified_beta.py --source "$SOURCE_SHA" --tag "$TAG"
