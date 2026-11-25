@@ -42,6 +42,13 @@ LuthierEngine::~LuthierEngine()
 //==============================================================================
 void LuthierEngine::prepare (double sampleRate, int maxBlockSize)
 {
+    /*  Hosts never render while preparing (prepareToPlay and processBlock do not
+        overlap), so no audio thread can park for the structural changes below.
+        Without this, a prepare that followed a block by under 200 ms (a host
+        re-activating, clap-validator's param fuzzing) waited the full 250 ms
+        park timeout in every structural scope, about a second per prepare. */
+    markAudioStopped();
+
     sr = sampleRate;
     maxBlock = juce::jmax (1, maxBlockSize);
     riffPlayer.prepare (sr);   // riff-library 5.3
@@ -335,6 +342,7 @@ void LuthierEngine::reset() noexcept
 
 void LuthierEngine::releaseResources()
 {
+    markAudioStopped();   // released: the host has stopped calling processBlock
     referencePedals.releaseResources();
     stringSumBuffer.clear();
     magneticBuffer.clear();

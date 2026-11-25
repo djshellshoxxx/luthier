@@ -349,6 +349,11 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     sampleRate = HostClockGuard::validSampleRate (sampleRate, currentSampleRate);
     samplesPerBlock = samplesPerBlock > 0 ? samplesPerBlock : juce::jmax (1, currentBlockSize);
 
+    // Hosts never render while preparing: the structural changes below must not
+    // wait to fade out a callback that cannot come (fadeOutBeforeStructuralChange;
+    // the engine's own park is skipped the same way in LuthierEngine::prepare).
+    lastAudioCallbackMs.store (0.0, std::memory_order_relaxed);
+
     // SPEC-SWEEP (UW-5): commands the message thread queued for the audio
     // thread (a panic from Reset, a string mute or detune) are applied now,
     // before the engine is prepared, rather than on the first block after it -
@@ -504,6 +509,7 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
 
 void LuthierAudioProcessor::releaseResources()
 {
+    lastAudioCallbackMs.store (0.0, std::memory_order_relaxed);   // the host has stopped rendering
     engine.releaseResources();
     routing.reset();
     midiOutRouter.reset();

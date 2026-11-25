@@ -1155,6 +1155,10 @@ private:
     /** Whether an audio thread other than the caller's is rendering. */
     bool isAudioRunningElsewhere() const noexcept;
 
+    /** prepare and releaseResources: the host is not rendering, so a structural
+        change made now applies at once instead of waiting to park a callback. */
+    void markAudioStopped() noexcept { lastProcessMs.store (0, std::memory_order_relaxed); }
+
     int structuralDepth = 0;         ///< message thread
     bool structuralParked = false;   ///< message thread: this scope parked the audio thread
 

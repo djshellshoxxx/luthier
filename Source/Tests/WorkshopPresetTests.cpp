@@ -461,6 +461,41 @@ LUTHIER_TEST (WorkshopSwap, aChangeFromTheAudioThreadItselfDoesNotWait)
         CHECK_MSG (took < 200.0, "the change waited " + juce::String (took, 1) + " ms");
 }
 
+LUTHIER_TEST (WorkshopSwap, aPrepareRightAfterABlockDoesNotWaitToPark)
+{
+    // A host re-activating soon after its last block (clap-validator's param
+    // fuzzing re-activates 50 times) used to find a block under 200 ms old and
+    // wait the full 250 ms park timeout in every structural scope of prepare,
+    // although hosts never render while preparing. Relative to an identical
+    // prepare with no recent block, so the machine's speed cancels out.
+    LuthierEngine engine;
+    engine.prepare (48000.0, 256);
+
+    const auto timedPrepare = [&engine]
+    {
+        const auto start = juce::Time::getMillisecondCounterHiRes();
+        engine.prepare (48000.0, 256);
+        return juce::Time::getMillisecondCounterHiRes() - start;
+    };
+
+    const auto quiet = timedPrepare();
+
+    // A block rendered by another thread just now, as by the host's audio thread.
+    std::thread audio ([&engine]
+    {
+        juce::AudioBuffer<float> buffer (2, 256);
+        juce::MidiBuffer midi;
+        engine.processBlock (buffer, midi);
+    });
+    audio.join();
+
+    const auto afterBlock = timedPrepare();
+
+    CHECK_MSG (afterBlock < quiet + 200.0,
+               "prepare after a block took " + juce::String (afterBlock, 1) + " ms against "
+                   + juce::String (quiet, 1) + " ms without one");
+}
+
 LUTHIER_TEST (WorkshopPresets, oldPickupPlacementParametersBecomeTheGuitars)
 {
     // guitar-workshop.md 9: a preset from before the Workshop stored pickup
