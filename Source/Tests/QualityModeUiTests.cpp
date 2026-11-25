@@ -102,6 +102,24 @@ namespace
     constexpr double kSr = 48000.0;
     constexpr int kBlock = 256;
 
+    struct ScopedReducedMotionSetting
+    {
+        explicit ScopedReducedMotionSetting (bool reduced)
+            : previous (AccessibilitySettings::get().isReducedMotion())
+        {
+            AccessibilitySettings::get().setReducedMotion (reduced);
+            AnimationPolicy::get().refreshReducedMotion();
+        }
+
+        ~ScopedReducedMotionSetting()
+        {
+            AccessibilitySettings::get().setReducedMotion (previous);
+            AnimationPolicy::get().refreshReducedMotion();
+        }
+
+        bool previous;
+    };
+
     template <typename T>
     T* findChild (juce::Component& root)
     {
@@ -538,22 +556,95 @@ LUTHIER_TEST (CpuQualityUi, CQ23_staticOverlayCountsStateChangesOnly)
 
 LUTHIER_TEST (CpuQualityUi, CQ23_policyTransitionRepaintsGuitarOnce)
 {
+    // Count invalidations before a native renderer can defer or coalesce them.
+    // The real guitar keeps its normal policy-controlled cache; observe its
+    // requests at a visible parent so entering/leaving Low cannot replace the
+    // observer. Native presentation is checked separately below.
+    struct RepaintObserver final : juce::CachedComponentImage
+    {
+        explicit RepaintObserver (juce::Component& c) : owner (c) {}
+        void paint (juce::Graphics& g) override { owner.paintEntireComponent (g, true); }
+        bool invalidateAll() override { ++requests; return true; }
+        bool invalidate (const juce::Rectangle<int>&) override { ++requests; return true; }
+        void releaseResources() override {}
+        juce::Component& owner;
+        int requests = 0;
+    };
+
+    struct PolicySource
+    {
+        ~PolicySource() { AnimationPolicy::get().removeSource (this); }
+        void set (QualityLevel level) { AnimationPolicy::get().setSource (this, level, 0); }
+    };
+
     QualityTestSupport::ScopedTempSettings temp;
-    AccessibilitySettings::get().setReducedMotion (false);
-    AnimationPolicy::get().refreshReducedMotion();
+    ScopedReducedMotionSetting reducedMotion (false);
+    PolicySource policy;
+    policy.set (QualityLevel::High);
     LuthierAudioProcessor p;
     p.prepareToPlay (kSr, kBlock);
+    juce::Component host;
+    GuitarBodyComponent body (p);
+    host.setVisible (true);
+    host.setSize (640, 400);
+    host.addAndMakeVisible (body);
+    body.setBounds (host.getLocalBounds());
+    body.checkForGuitarChange();
+    body.tickForTesting();
+
+    juce::Image image (juce::Image::ARGB, host.getWidth(), host.getHeight(), true);
+    juce::Graphics graphics (image);
+    body.paintEntireComponent (graphics, true);
+    auto* observer = new RepaintObserver (host);
+    host.setCachedComponentImage (observer);
+    CHECK (AnimationPolicy::get().getMotion() == MotionLevel::Full);
+    CHECK (! body.getOverlayForTesting().reducedMotion);
+
+    observer->requests = 0;
+    body.repaint();
+    body.repaint();
+    CHECK_MSG (observer->requests == 2, "the observer must retain both requests before native coalescing");
+
+    for (const auto level : { QualityLevel::Low, QualityLevel::High })
+    {
+        observer->requests = 0;
+        policy.set (level);
+        CHECK (body.getOverlayForTesting().reducedMotion == (level == QualityLevel::Low));
+        CHECK_MSG (observer->requests == 1,
+                   juce::String (level == QualityLevel::Low ? "entering" : "leaving")
+                   + " Low requested " + juce::String (observer->requests) + " guitar repaints; expected exactly 1");
+
+        observer->requests = 0;
+        policy.set (level);
+        CHECK_MSG (observer->requests == 0,
+                   "unchanged policy requested " + juce::String (observer->requests) + " guitar repaints; expected 0");
+    }
+}
+
+LUTHIER_TEST (CpuQualityUi, CQ23_policyTransitionReachesNativeGuitar)
+{
+    QualityTestSupport::ScopedTempSettings temp;
+    ScopedReducedMotionSetting reducedMotion (false);
+    LuthierAudioProcessor p;
+    p.prepareToPlay (kSr, kBlock);
+    struct ResetQualityOverride
+    {
+        ~ResetQualityOverride() { processor.getQualityController().forceLevelForTesting (-1); }
+        LuthierAudioProcessor& processor;
+    } resetQuality { p };
+    p.getQualityController().forceLevelForTesting ((int) QualityLevel::High);
     EditorOnDesktop shown (p, true);
+    shown.editor->getQualityLink().pumpForTesting();
     auto* body = findChild<GuitarBodyComponent> (*shown.editor);
     CHECK (body != nullptr);
+    CHECK (shown.host->getPeer() != nullptr);
 
     if (body != nullptr)
     {
-        auto transitionPaints = [&]
+        CHECK (body->isShowing());
+        CHECK (! body->getLocalBounds().isEmpty());
+        auto guitarPaints = [&]
         {
-            if (auto* peer = shown.host->getPeer())
-                peer->performAnyPendingRepaintsNow();
-
             int paints = 0;
             for (const auto& r : AnimationPolicy::get().getRegistry())
                 if (r.component == body && r.motionClass != AnimationPolicy::LiveReadout)
@@ -561,22 +652,57 @@ LUTHIER_TEST (CpuQualityUi, CQ23_policyTransitionRepaintsGuitarOnce)
             return paints;
         };
 
-        AnimationPolicy::get().resetPaintCounts();
-        p.getQualityController().forceLevelForTesting ((int) QualityLevel::Low);
-        shown.editor->getQualityLink().pumpForTesting();
-        const int enteringPaints = transitionPaints();
-        CHECK_MSG (enteringPaints == 1, "entering Low must paint the guitar exactly once; observed " + juce::String (enteringPaints));
+        auto waitForGuitarPaint = [&] (int baseline)
+        {
+            // Direct2D's performAnyPendingRepaintsNow() is a no-op; X11 can
+            // also have a presentation outstanding, and Cocoa defers display
+            // notifications. Service the real message queue until a paint is
+            // observed, with a bounded scheduler timeout, as the other CQ23
+            // native tests do. This is not a performance threshold.
+            const auto deadline = juce::Time::getMillisecondCounterHiRes() + 1500.0;
+            while (guitarPaints() <= baseline && juce::Time::getMillisecondCounterHiRes() < deadline)
+                pump (p, 0.01, false);
+            return guitarPaints() > baseline;
+        };
 
-        AnimationPolicy::get().resetPaintCounts();
-        p.getQualityController().forceLevelForTesting ((int) QualityLevel::High);
-        shown.editor->getQualityLink().pumpForTesting();
-        const int leavingPaints = transitionPaints();
-        CHECK_MSG (leavingPaints == 1, "leaving Low must paint the guitar exactly once; observed " + juce::String (leavingPaints));
-        pump (p, 0.2, false);
-        ctx.failureMessages.add ("[DEBUG-repaint-20261124] paints after native message dispatch: " + juce::String (transitionPaints()));
+        auto waitForQuietGuitar = [&]
+        {
+            auto quietSince = juce::Time::getMillisecondCounterHiRes();
+            const auto deadline = quietSince + 1500.0;
+            int previous = guitarPaints();
+            while (juce::Time::getMillisecondCounterHiRes() < deadline)
+            {
+                pump (p, 0.01, false);
+                const auto now = juce::Time::getMillisecondCounterHiRes();
+                const int current = guitarPaints();
+                if (current != previous)
+                {
+                    previous = current;
+                    quietSince = now;
+                }
+                if (current > 0 && now - quietSince >= 100.0)
+                    return true;
+            }
+            return false;
+        };
+
+        CHECK_MSG (waitForGuitarPaint (0), "the native window must paint the guitar before measurement");
+
+        for (const auto level : { QualityLevel::Low, QualityLevel::High })
+        {
+            // Drain startup/previous-transition invalidations before taking
+            // the baseline; do not credit an older paint to this transition.
+            CHECK_MSG (waitForQuietGuitar(), "native guitar paints must settle before the policy transition");
+            const int baseline = guitarPaints();
+            p.getQualityController().forceLevelForTesting ((int) level);
+            shown.editor->getQualityLink().pumpForTesting();
+            CHECK (body->getOverlayForTesting().reducedMotion == (level == QualityLevel::Low));
+            CHECK ((body->getFrameIntervalMs() == 0) == (level == QualityLevel::Low));
+            CHECK_MSG (waitForGuitarPaint (baseline),
+                       juce::String (level == QualityLevel::Low ? "entering" : "leaving")
+                       + " Low must reach a native guitar paint");
+        }
     }
-
-    p.getQualityController().forceLevelForTesting (-1);
 }
 
 LUTHIER_TEST (CpuQualityUi, CQ23_lowMeansNoAnimationRepaints)

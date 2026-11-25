@@ -10,7 +10,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: repaint-diagnostics-${{ github.ref }}
+  # Keep the original failure and corrected-source verification inspectable.
+  group: repaint-diagnostics-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: true
 
 jobs:
@@ -94,17 +95,18 @@ jobs:
           set -euo pipefail
           cmake --build "$BUILD_DIR" --config "$CONFIG" --parallel "$JOBS" --target LuthierTests -- -k 0 \
             2>&1 | tee "$BUILD_DIR/logs/repaint-build.log"
-      - name: Run the unchanged native-peer repaint assertion
+      - name: Verify repaint requests and native delivery
         shell: bash
         run: |
           set -euo pipefail
           runner="$BUILD_DIR/LuthierTests_artefacts/$CONFIG/LuthierTests"
           test -x "$runner"
-          xvfb-run -a "$runner" --list CQ23_policyTransitionRepaintsGuitarOnce \
+          xvfb-run -a "$runner" --list CQ23_policyTransition \
             2>&1 | tee "$BUILD_DIR/logs/repaint-selection.log"
           grep -Fxq 'CpuQualityUi :: CQ23_policyTransitionRepaintsGuitarOnce' "$BUILD_DIR/logs/repaint-selection.log"
-          grep -Fxq '1 tests' "$BUILD_DIR/logs/repaint-selection.log"
-          xvfb-run -a "$runner" CQ23_policyTransitionRepaintsGuitarOnce \
+          grep -Fxq 'CpuQualityUi :: CQ23_policyTransitionReachesNativeGuitar' "$BUILD_DIR/logs/repaint-selection.log"
+          grep -Fxq '2 tests' "$BUILD_DIR/logs/repaint-selection.log"
+          xvfb-run -a "$runner" CQ23_policyTransition CQ23_lowMeansNoAnimationRepaints CQ23_staticOverlayCountsStateChangesOnly \
             2>&1 | tee "$BUILD_DIR/logs/repaint-regression.log"
       - name: Preserve native diagnosis
         if: always()
