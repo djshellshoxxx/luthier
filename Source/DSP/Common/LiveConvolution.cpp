@@ -33,6 +33,7 @@ void LiveConvolution::prepare (double rate, int block, int numChannels, int part
     sr = rate; maxBlock = blockSize; channels = numChannels;
     partition = partitionSize; caps = capSeconds; budget = memoryBudget; prepared = true;
     pending.store (-1); current = incoming = -1; warmLeft = fadePosition = 0;
+    settled = handed = -1;
     fadeLength = juce::jmax (1, (int) std::round (0.020 * sr));
     for (size_t i = 0; i < banks.size(); ++i) { if (! unchanged) banks[i].reset(); owned[i].store (false); }
     scratch.setSize (channels, maxBlock, false, true, true);
@@ -99,7 +100,7 @@ bool LiveConvolution::loadFile (const juce::File& file, juce::dsp::Convolution::
     const std::lock_guard<std::mutex> guard (loading);
     if (! file.existsAsFile()) return false;
     auto source = Source::of (file, stereo == juce::dsp::Convolution::Stereo::yes);
-    if (republish (source)) return true;
+    if (keepsPlaying (source) || republish (source)) return true;
     return build (std::move (source), [&] (Bank& bank)
     {
         ConvolutionInstaller::installExclusively (bank.convolution, spec(), [&] (juce::dsp::Convolution& convolution)
@@ -150,6 +151,29 @@ bool LiveConvolution::republish (const Source& source)
     return false;
 }
 
+bool LiveConvolution::keepsPlaying (const Source& source)
+{
+    const auto holds = [this, &source] (int slot)
+    {
+        return slot >= 0 && banks[(size_t) slot] != nullptr && banks[(size_t) slot]->source.sameAs (source);
+    };
+    // The reader ends on the bank handed to it last, whether or not it has
+    // taken it yet.
+    if (holds (handed)) return true;
+    if (! holds (settled)) return false;
+    if (handed < 0) return true;
+    // A replacement was queued after the reader's bank: take it back. If the
+    // reader took it meanwhile, it ends on that one instead, and this file is
+    // republished or built as any other.
+    const int back = handOver (-1);
+    if (back < 0) return false;
+    owned[(size_t) back].store (false, std::memory_order_release);
+    auto& kept = *banks[(size_t) settled];
+    kept.publication = ++publications;
+    announce (kept);
+    return true;
+}
+
 int LiveConvolution::claimRetiredSlot() noexcept
 {
     // An empty slot first, so every retired response stays available; then the
@@ -170,16 +194,32 @@ void LiveConvolution::publishSlot (int slot)
 {
     auto& bank = *banks[(size_t) slot];
     bank.publication = ++publications;
+    announce (bank);
+    double held = 0.0;
+    for (const auto& retained : banks) if (retained) held += retained->variants.getHeldMegabytes();
+    publishedMegabytes.store (held);
+    const int replaced = handOver (slot);
+    if (replaced >= 0) owned[(size_t) replaced].store (false, std::memory_order_release);
+}
+
+int LiveConvolution::handOver (int slot)
+{
+    // The reader takes a pending bank and never hands one back, so a bank
+    // handed over and not returned by this exchange is the one it ends on.
+    const int back = pending.exchange (slot, std::memory_order_acq_rel);
+    jassert (back < 0 || back == handed);
+    if (back < 0 && handed >= 0) settled = handed;
+    handed = slot;
+    return back;
+}
+
+void LiveConvolution::announce (const Bank& bank)
+{
     for (size_t i = 0; i < 3; ++i)
     {
         publishedSeconds[i].store (bank.variants.getSecondsForLevel ((int) i));
         publishedShorter[i].store (bank.variants.hasVariant ((int) i));
     }
-    double held = 0.0;
-    for (const auto& retained : banks) if (retained) held += retained->variants.getHeldMegabytes();
-    publishedMegabytes.store (held);
-    const int replaced = pending.exchange (slot, std::memory_order_acq_rel);
-    if (replaced >= 0) owned[(size_t) replaced].store (false, std::memory_order_release);
 }
 
 bool LiveConvolution::publish (std::unique_ptr<Bank> bank)
@@ -194,7 +234,7 @@ bool LiveConvolution::publish (std::unique_ptr<Bank> bank)
         }
         // A pending bank is exclusive after exchange. If audio just consumed it,
         // it necessarily released another slot; rescan rather than drop a load.
-        if (slot < 0) slot = pending.exchange (-1, std::memory_order_acq_rel);
+        if (slot < 0) slot = handOver (-1);
     }
     if (slot < 0) return false;
     banks[(size_t) slot] = std::move (bank); // Any retired destruction is control-thread only.

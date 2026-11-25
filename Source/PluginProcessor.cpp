@@ -269,8 +269,18 @@ LuthierAudioProcessor::LuthierAudioProcessor()
     // reads anything, so the first prepare does not move parameters under it
     // (clap-validator: parameters must not change by themselves).
     if (auto* type = apvts.getRawParameterValue (ParamIDs::guitarType))
-        loadGuitarForType ((GuitarType) juce::jlimit (0, (int) GuitarType::NumTypes - 1,
-                                                      edition::effectiveGuitarIndex ((int) type->load())));   // editions 5.1.3
+    {
+        const auto startup = (GuitarType) juce::jlimit (0, (int) GuitarType::NumTypes - 1,
+                                                        edition::effectiveGuitarIndex ((int) type->load()));   // editions 5.1.3
+
+        // The engine builds its own guitar type at the first prepare, before
+        // this guitar is applied: make that this type, not the engine's
+        // default Stratocaster, which Free plays as the Classic T-Style. A
+        // first prepare that built the Stratocaster loaded body and cabinet
+        // IRs no later prepare loads, so a second identical one built again.
+        engine.setStartupGuitarType (startup);
+        loadGuitarForType (startup);
+    }
 
     /*  clap-validator 0.4.1 param-default-values: a fresh CLAP instance must sit
         on the defaults it reports, and the startup guitar has just moved some

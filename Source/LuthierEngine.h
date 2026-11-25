@@ -125,6 +125,11 @@ public:
     GuitarType getGuitarType() const noexcept { return guitarType; }
     const GuitarSpec& getGuitarSpec() const noexcept { return spec; }
 
+    /** Before anything is applied: the factory instrument the first prepare()
+        loads, as if the engine had been constructed with it. A processor builds
+        its startup guitar only at that prepare. */
+    void setStartupGuitarType (GuitarType type) { guitarType = type; spec = GuitarLibrary::get (type); }
+
     //==========================================================================
     /*  Easter-egg (Dueling Banjos). When the player performs the opening motif,
         the string model is re-voiced as a bright, short-decay banjo - the

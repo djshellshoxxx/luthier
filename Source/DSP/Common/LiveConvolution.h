@@ -18,7 +18,12 @@ namespace luthier
     re-activating at an unchanged specification (clap-validator's param fuzzing
     activates 50 times) keeps every bank the same way, so its reloads build
     nothing. Constructing a bank starts JUCE's loader thread and destroying one
-    waits for that thread to wake: most of a re-activation's ~330 ms. */
+    waits for that thread to wake: most of a re-activation's ~330 ms.
+
+    A load of the file the reader already ends on builds nothing either: the
+    replacement queued after it is taken back. Its bank cannot be republished
+    while the reader holds it, so a prepare that loads A, resets (the reader
+    takes A), then loads B and A again built A a second time. */
 class LiveConvolution
 {
 public:
@@ -68,14 +73,20 @@ private:
     juce::dsp::ProcessSpec spec() const noexcept;
     template <typename Fill> bool build (Source, Fill&&);
     bool republish (const Source&);
+    bool keepsPlaying (const Source&);
     int claimRetiredSlot() noexcept;
     void publishSlot (int slot);
+    int handOver (int slot);
+    void announce (const Bank&);
     bool publish (std::unique_ptr<Bank>);
     void adopt() noexcept;
     std::mutex loading;
     std::array<std::unique_ptr<Bank>, 3> banks;
     std::array<std::atomic<bool>, 3> owned {};
     std::atomic<int> pending {-1}, latency {0};
+    // Control thread, under `loading`: the bank the reader was last seen to have
+    // taken, and the bank handed to it since, which it may not have taken yet.
+    int settled = -1, handed = -1;
     int current = -1, incoming = -1, warmLeft = 0, fadePosition = 0, fadeLength = 1, level = 0;
     double sr = 44100.0, budget = 0;
     int maxBlock = 512, channels = 1, partition = 128;

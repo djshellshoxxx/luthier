@@ -30,6 +30,13 @@ Entries added after the 2026-11-04 summary below; not a summary of every commit 
   Pro (they timed out at 45 s on the macOS runner). The sound, the latency and IR
   switching are unchanged: a republished bank is the same response at the same
   specification, reset. Measured on Linux only; macOS has not been re-run.
+- Luthier Free: an identical re-prepare built two cabinet responses again (`PrepareCost`
+  failed on Linux and Windows CI). Its startup guitar's compiled and factory cabinets
+  are one file, and a load of the response the convolution already plays built it a
+  second time; it now takes back the replacement queued after it. A fresh engine also
+  starts on the guitar the instance plays (the Classic T-Style in Free, not the
+  Stratocaster), so the first prepare loads the IRs every later one does. The sound is
+  unchanged.
 - Host state on Apple Silicon: a session saved, reloaded and saved again is the same
   bytes (clap-validator 0.4.1 `state-reproducibility-binary`, which failed on macOS in
   both editions). The reference board took a host-written lane gain, reamp gain, loop
