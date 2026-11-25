@@ -1,0 +1,21 @@
+
+================================================================
+ LUTHIER TEST SUITE
+================================================================
+
+
+CpuQualityUi
+----------------------------------------------------------------
+  [FAIL]  CQ23_policyTransitionRepaintsGuitarOnce     9 checks      401.057 ms
+    line 613: leaving Low requested 0 guitar repaints; expected exactly 1
+
+CpuQualityUiHarness
+----------------------------------------------------------------
+  [FAIL]  policyTransitionRequestsExactlyOneGuitarRepaint5 checks      300.943 ms
+    line 72: leaving Low requested 0 guitar repaints; expected exactly 1
+
+================================================================
+ FAILED
+ 2 of 2 tests failed (2 of 14 checks), 0.7 s
+================================================================
+

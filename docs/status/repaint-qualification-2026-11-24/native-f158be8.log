@@ -1,0 +1,28 @@
+
+================================================================
+ LUTHIER TEST SUITE
+================================================================
+
+
+CpuQualityUi
+----------------------------------------------------------------
+  [pass]  CQ23_staticOverlayCountsStateChangesOnly    4 checks      2336.96 ms
+  [pass]  CQ23_policyTransitionRepaintsGuitarOnce     9 checks      327.521 ms
+  [pass]  CQ23_policyTransitionReachesNativeGuitar    13 checks     960.199 ms
+    Advanced at high: paint 2701.7 ms of 74.9 ms dispatching
+    Advanced at low: paint 442.1 ms of 54.0 ms dispatching
+    at Low: GuitarBodyComponent painted 1
+    at Low: StringAnimator painted 1
+    Advanced: High busiest decorative 110 paints, 2701.7 ms; Low decorative 1 paints, worst readout 20, 442.1 ms
+    Easy at high: paint 2537.0 ms of 79.1 ms dispatching
+    Easy at low: paint 384.4 ms of 53.8 ms dispatching
+    at Low: GuitarBodyComponent painted 1
+    at Low: StringAnimator painted 1
+    Easy: High busiest decorative 107 paints, 2537.0 ms; Low decorative 1 paints, worst readout 20, 384.4 ms
+  [pass]  CQ23_lowMeansNoAnimationRepaints            36 checks     20834.6 ms
+
+================================================================
+ ALL PASSED
+ 4 tests, 62 checks, 24.5 s
+================================================================
+
