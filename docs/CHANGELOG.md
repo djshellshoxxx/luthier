@@ -18,6 +18,18 @@ Entries added after the 2026-11-04 summary below; not a summary of every commit 
   Pro was run locally: CLAP behaviour in the Free edition and on Windows and macOS is
   not verified yet, until CI runs clap-validator and the `HostDefaults` tests there. See
   `spec/DECISIONS.md` (2026-11-25).
+- Re-activating at an unchanged rate and block size no longer rebuilds the cabinet and
+  body convolutions or the TONE MATCH slots, which cost 240-330 ms each time: each
+  constructed `juce::dsp::Convolution` starts a loader thread, each destroyed one waits
+  for it to wake, and each of the 14 responses one re-activation loaded polled that
+  thread. Retired banks are kept and a file a bank still holds is republished, the
+  latency probe is measured once per specification, and a response is installed
+  synchronously before its bank is published. An identical re-prepare went from
+  240-330 ms to 7 ms (`PrepareCost`), and clap-validator 0.4.1 `param-fuzz-basic` and
+  `param-fuzz-bounds` from 17.8 s and 17.5 s to 2.1-2.9 s and 1.6-1.9 s alone on Linux
+  Pro (they timed out at 45 s on the macOS runner). The sound, the latency and IR
+  switching are unchanged: a republished bank is the same response at the same
+  specification, reset. Measured on Linux only; macOS has not been re-run.
 
 ## Unreleased (2026-10-17 to 2026-11-04, source `ca14934e`)
 

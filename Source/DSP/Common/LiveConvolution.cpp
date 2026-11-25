@@ -1,64 +1,185 @@
 #include "LiveConvolution.h"
+#include "../../Support/ThreadProbe.h"
 
 namespace luthier
 {
+LiveConvolution::Source LiveConvolution::Source::of (const juce::File& file, bool stereo)
+{
+    return { file.getFullPathName(), file.getSize(), file.getLastModificationTime().toMilliseconds(), stereo };
+}
+
+bool LiveConvolution::Source::sameAs (const Source& other) const noexcept
+{
+    return path.isNotEmpty() && path == other.path && bytes == other.bytes
+        && modified == other.modified && stereo == other.stereo;
+}
+
+LiveConvolution::Bank::Bank (int partitionSize) : convolution (juce::dsp::Convolution::Latency {partitionSize})
+{
+    ThreadProbe::noteConvolutionCreated();
+}
+
 void LiveConvolution::prepare (double rate, int block, int numChannels, int partitionSize,
                                std::array<double, 2> capSeconds, double memoryBudget)
 {
     const std::lock_guard<std::mutex> guard (loading);
-    sr = rate; maxBlock = juce::jmax (1, block); channels = numChannels;
-    partition = partitionSize; caps = capSeconds; budget = memoryBudget;
+    const int blockSize = juce::jmax (1, block);
+    // Unchanged, every bank still holds a valid response: all are kept as
+    // retired ones, and the reload that follows republishes one instead of
+    // building it again. Any change starts from nothing, as a kept bank would
+    // hold the old rate's response or the old partition's latency.
+    const bool unchanged = prepared && rate == sr && blockSize == maxBlock && numChannels == channels
+                        && partitionSize == partition && capSeconds == caps && memoryBudget == budget;
+    sr = rate; maxBlock = blockSize; channels = numChannels;
+    partition = partitionSize; caps = capSeconds; budget = memoryBudget; prepared = true;
     pending.store (-1); current = incoming = -1; warmLeft = fadePosition = 0;
     fadeLength = juce::jmax (1, (int) std::round (0.020 * sr));
-    for (size_t i = 0; i < banks.size(); ++i) { banks[i].reset(); owned[i].store (false); }
+    for (size_t i = 0; i < banks.size(); ++i) { if (! unchanged) banks[i].reset(); owned[i].store (false); }
     scratch.setSize (channels, maxBlock, false, true, true);
     // Ask the real engine: fixed latency also depends on the prepared block size.
-    juce::dsp::Convolution probe (juce::dsp::Convolution::Latency {partition});
-    probe.prepare ({sr, (juce::uint32) ConvolutionInstaller::preparedBlockSize (maxBlock), (juce::uint32) channels});
-    latency.store ((int) probe.getLatency());
+    if (! (spec() == probedSpec) || partition != probedPartition)
+    {
+        juce::dsp::Convolution probe (juce::dsp::Convolution::Latency {partition});
+        ThreadProbe::noteConvolutionCreated();
+        probe.prepare (spec());
+        latency.store ((int) probe.getLatency());
+        probedSpec = spec(); probedPartition = partition;
+    }
     for (size_t i = 0; i < 3; ++i) { publishedSeconds[i].store (0); publishedShorter[i].store (false); }
     publishedMegabytes.store (0);
 }
 
+juce::dsp::ProcessSpec LiveConvolution::spec() const noexcept
+{
+    return {sr, (juce::uint32) ConvolutionInstaller::preparedBlockSize (maxBlock), (juce::uint32) channels};
+}
+
 std::unique_ptr<LiveConvolution::Bank> LiveConvolution::makeBank()
 {
+    // build() installs every response with installExclusively, which prepares the convolution.
     auto bank = std::make_unique<Bank> (partition);
-    bank->convolution.prepare ({sr, (juce::uint32) ConvolutionInstaller::preparedBlockSize (maxBlock), (juce::uint32) channels});
     bank->variants.prepare (sr, maxBlock, channels, partition, caps, budget);
     return bank;
+}
+
+template <typename Fill>
+bool LiveConvolution::build (Source source, Fill&& fill)
+{
+    ThreadProbe::noteConvolutionResponseBuilt();
+    const int slot = claimRetiredSlot();
+    if (slot < 0)
+    {
+        // Audio holds all three banks (current, fading, pending): build aside
+        // and let publish() replace the pending one.
+        auto bank = makeBank();
+        fill (*bank);
+        bank->source = std::move (source);
+        return publish (std::move (bank));
+    }
+    try
+    {
+        // Built in place: no thread to start, and none to join for the old response.
+        auto& bank = banks[(size_t) slot];
+        if (bank == nullptr) bank = makeBank();
+        bank->source = {};
+        fill (*bank);
+        bank->source = std::move (source);
+    }
+    catch (...)
+    {
+        owned[(size_t) slot].store (false, std::memory_order_release);
+        throw;
+    }
+    publishSlot (slot);
+    return true;
 }
 
 bool LiveConvolution::loadFile (const juce::File& file, juce::dsp::Convolution::Stereo stereo)
 {
     const std::lock_guard<std::mutex> guard (loading);
     if (! file.existsAsFile()) return false;
-    auto bank = makeBank();
-    bank->convolution.loadImpulseResponse (file, stereo, juce::dsp::Convolution::Trim::yes, 0,
-                                          juce::dsp::Convolution::Normalise::yes);
-    if (! ConvolutionInstaller::pumpUntilInstalled (bank->convolution, channels, maxBlock, 1,
-            ConvolutionInstaller::kInstallTimeoutMs, (int) std::ceil (0.06 * sr))) return false;
-    bank->convolution.reset();
-    bank->variants.buildFromFile (file, stereo, juce::dsp::Convolution::Trim::yes,
-                                 juce::dsp::Convolution::Normalise::yes);
-    return publish (std::move (bank));
+    auto source = Source::of (file, stereo == juce::dsp::Convolution::Stereo::yes);
+    if (republish (source)) return true;
+    return build (std::move (source), [&] (Bank& bank)
+    {
+        ConvolutionInstaller::installExclusively (bank.convolution, spec(), [&] (juce::dsp::Convolution& convolution)
+        {
+            convolution.loadImpulseResponse (file, stereo, juce::dsp::Convolution::Trim::yes, 0,
+                                             juce::dsp::Convolution::Normalise::yes);
+        });
+        bank.variants.buildFromFile (file, stereo, juce::dsp::Convolution::Trim::yes,
+                                     juce::dsp::Convolution::Normalise::yes);
+    });
 }
 
 bool LiveConvolution::loadBuffer (const juce::AudioBuffer<float>& raw, double rate)
 {
     const std::lock_guard<std::mutex> guard (loading);
     if (raw.getNumSamples() <= 0 || raw.getNumChannels() <= 0 || ! std::isfinite (rate) || rate <= 0) return false;
-    auto bank = makeBank();
-    auto input = raw;
-    // A two-sample response distinguishes installation from JUCE's unit impulse.
-    if (input.getNumSamples() == 1) { input.setSize (input.getNumChannels(), 2, true, true); }
-    bank->convolution.loadImpulseResponse (std::move (input), rate, juce::dsp::Convolution::Stereo::no,
-                                          juce::dsp::Convolution::Trim::no, juce::dsp::Convolution::Normalise::yes);
-    if (! ConvolutionInstaller::pumpUntilInstalled (bank->convolution, channels, maxBlock, 1,
-            ConvolutionInstaller::kInstallTimeoutMs, (int) std::ceil (0.06 * sr))) return false;
-    bank->convolution.reset();
-    bank->variants.buildFromBuffer (raw, rate, juce::dsp::Convolution::Stereo::no,
-                                   juce::dsp::Convolution::Trim::no, juce::dsp::Convolution::Normalise::yes);
-    return publish (std::move (bank));
+    return build ({}, [&] (Bank& bank)
+    {
+        auto input = raw;
+        // Two samples, not JUCE's one-sample unit impulse: the length sets a
+        // replacement's warm-up, and it has always been at least two.
+        if (input.getNumSamples() == 1) { input.setSize (input.getNumChannels(), 2, true, true); }
+        ConvolutionInstaller::installExclusively (bank.convolution, spec(), [&] (juce::dsp::Convolution& convolution)
+        {
+            convolution.loadImpulseResponse (std::move (input), rate, juce::dsp::Convolution::Stereo::no,
+                                             juce::dsp::Convolution::Trim::no, juce::dsp::Convolution::Normalise::yes);
+        });
+        bank.variants.buildFromBuffer (raw, rate, juce::dsp::Convolution::Stereo::no,
+                                       juce::dsp::Convolution::Trim::no, juce::dsp::Convolution::Normalise::yes);
+    });
+}
+
+bool LiveConvolution::republish (const Source& source)
+{
+    for (size_t i = 0; i < banks.size(); ++i)
+    {
+        bool free = false;
+        if (banks[i] == nullptr || owned[i].load (std::memory_order_acquire) || ! banks[i]->source.sameAs (source)
+            || ! owned[i].compare_exchange_strong (free, true, std::memory_order_acq_rel)) continue;
+        // Retired after its last block, it differs from a new build of the same
+        // file only by that block's history.
+        auto& bank = *banks[i];
+        bank.convolution.reset();
+        bank.variants.reset();
+        publishSlot ((int) i);
+        return true;
+    }
+    return false;
+}
+
+int LiveConvolution::claimRetiredSlot() noexcept
+{
+    // An empty slot first, so every retired response stays available; then the
+    // retired bank published longest ago.
+    int chosen = -1;
+    for (size_t i = 0; i < banks.size(); ++i)
+    {
+        if (owned[i].load (std::memory_order_acquire)) continue;
+        if (banks[i] == nullptr) { chosen = (int) i; break; }
+        if (chosen < 0 || banks[i]->publication < banks[(size_t) chosen]->publication) chosen = (int) i;
+    }
+    bool free = false;
+    return chosen >= 0 && owned[(size_t) chosen].compare_exchange_strong (free, true, std::memory_order_acq_rel)
+               ? chosen : -1;
+}
+
+void LiveConvolution::publishSlot (int slot)
+{
+    auto& bank = *banks[(size_t) slot];
+    bank.publication = ++publications;
+    for (size_t i = 0; i < 3; ++i)
+    {
+        publishedSeconds[i].store (bank.variants.getSecondsForLevel ((int) i));
+        publishedShorter[i].store (bank.variants.hasVariant ((int) i));
+    }
+    double held = 0.0;
+    for (const auto& retained : banks) if (retained) held += retained->variants.getHeldMegabytes();
+    publishedMegabytes.store (held);
+    const int replaced = pending.exchange (slot, std::memory_order_acq_rel);
+    if (replaced >= 0) owned[(size_t) replaced].store (false, std::memory_order_release);
 }
 
 bool LiveConvolution::publish (std::unique_ptr<Bank> bank)
@@ -76,17 +197,8 @@ bool LiveConvolution::publish (std::unique_ptr<Bank> bank)
         if (slot < 0) slot = pending.exchange (-1, std::memory_order_acq_rel);
     }
     if (slot < 0) return false;
-    for (size_t i = 0; i < 3; ++i)
-    {
-        publishedSeconds[i].store (bank->variants.getSecondsForLevel ((int) i));
-        publishedShorter[i].store (bank->variants.hasVariant ((int) i));
-    }
     banks[(size_t) slot] = std::move (bank); // Any retired destruction is control-thread only.
-    double held = 0.0;
-    for (const auto& retained : banks) if (retained) held += retained->variants.getHeldMegabytes();
-    publishedMegabytes.store (held);
-    const int replaced = pending.exchange (slot, std::memory_order_acq_rel);
-    if (replaced >= 0) owned[(size_t) replaced].store (false, std::memory_order_release);
+    publishSlot (slot);
     return true;
 }
 

@@ -99,6 +99,31 @@ namespace luthier::ConvolutionInstaller
         }
     }
 
+    /** Loads a response into a convolution no other thread is using (one being
+        built before it is published, never one the audio thread may process)
+        and installs it before returning, without waiting for JUCE's loader.
+
+        juce::dsp::Convolution::prepare() runs the queued load on the calling
+        thread (or waits for the loader thread to finish the one it is
+        running), builds the engine from the most recent response and installs
+        it with no crossfade from the previous one. Preparing first empties the
+        queue, so the load cannot find it full and be left pending. It ends in
+        the state pumpUntilInstalled() with its settle and then reset() leave -
+        the new response alone, nothing fading, no history - but takes no
+        sleeps: polling for the loader, which sleeps 10 ms when idle, cost up
+        to that a response, and a host re-activation loaded fourteen.
+
+        `load` is called with the convolution and must make one
+        loadImpulseResponse() call on it. */
+    template <typename Load>
+    void installExclusively (juce::dsp::Convolution& convolution, const juce::dsp::ProcessSpec& spec, Load&& load)
+    {
+        convolution.prepare (spec);
+        load (convolution);
+        convolution.prepare (spec);
+        convolution.reset();
+    }
+
     /** Puts the convolution back to a one-sample unit impulse and waits for that
         to take effect.
 
