@@ -177,33 +177,67 @@ LUTHIER_TEST (LiveInput, aFootswitchTapsTheTempo)
 
     p.getLiveActions().assign (LiveAction::tapTempo, 40);
 
-    double firstTapMs = 0.0, lastTapMs = 0.0;
+    // The moments the processor stamped, recorded on their way to its tap tempo.
+    std::vector<double> stampedSeconds;
+    auto& handlers = p.getLiveActions().handlers;
+    const auto forward = handlers.tapAt;
+    handlers.tapAt = [&stampedSeconds, forward] (double t)
+    {
+        stampedSeconds.push_back (t);
+        if (forward != nullptr)
+            forward (t);
+    };
 
-    for (int i = 0; i < 4; ++i)
+    constexpr int kTaps = 4;
+    std::array<double, kTaps> pressStartMs {}, pressEndMs {};
+
+    for (int i = 0; i < kTaps; ++i)
     {
         if (i > 0)
             juce::Thread::sleep (400);   // 150 bpm
 
-        const double tMs = juce::Time::getMillisecondCounterHiRes();
-        if (i == 0) firstTapMs = tMs;
-        lastTapMs = tMs;
-
+        pressStartMs[(size_t) i] = juce::Time::getMillisecondCounterHiRes();
         rig.cc (40, 127);
+        pressEndMs[(size_t) i] = juce::Time::getMillisecondCounterHiRes();
         rig.cc (40, 0);
     }
 
-    // LiveInput stamps each tap with the wall clock on arrival, so the inferred
-    // BPM is 60 / (mean gap). On the contended macOS arm64 CI host the 400 ms
-    // sleeps overrun, dragging the gaps (and so the BPM) off 150; there, compare
-    // against the gaps the test actually took (its own cc() brackets cancel in
-    // the span). Linux/Windows keep the nominal 150 bpm assertion.
-    const double target = luthier::tests::slowCiHost()
-                            ? 60.0 / ((lastTapMs - firstTapMs) * 0.001 / 3.0)
-                            : 150.0;
+    handlers.tapAt = forward;
 
     CHECK (p.getTapTempo().hasTempo());
-    CHECK_MSG (std::abs (p.getTapTempo().getTappedBpm() - target) < 8.0,
-               "tapped " + juce::String (p.getTapTempo().getTappedBpm()) + " vs " + juce::String (target, 1));
+    CHECK_MSG ((int) stampedSeconds.size() == kTaps,
+               juce::String ((int) stampedSeconds.size()) + " taps for " + juce::String (kTaps) + " presses");
+
+    /*  Stamped on arrival: each press is stamped inside the block that carried
+        it, so the stamp lies between the clock readings either side of that
+        block, however slowly the host ran it. */
+    for (size_t i = 0; i < juce::jmin (stampedSeconds.size(), (size_t) kTaps); ++i)
+    {
+        const double stampMs = stampedSeconds[i] * 1000.0;
+        CHECK_MSG (stampMs >= pressStartMs[i] - 1.0e-6 && stampMs <= pressEndMs[i] + 1.0e-6,
+                   "tap " + juce::String ((int) i) + " stamped at " + juce::String (stampMs, 3) + " ms, outside its block "
+                     + juce::String (pressStartMs[i], 3) + " - " + juce::String (pressEndMs[i], 3) + " ms");
+    }
+
+    /*  And the tempo is the one those stamps give. The tempo is fitted to the
+        run of gaps that agree with their median (TapTempo), so a gap the host
+        stretched is dropped, not averaged in. A mean of the test's own gaps
+        cannot predict that: on the contended macOS arm64 runner one overrun
+        sleep, or a block delayed before its stamp, put the mean 11 bpm from the
+        fit. Replaying the processor's own stamps reproduces it exactly. */
+    TapTempo replay;
+    for (const double t : stampedSeconds)
+        replay.tap (t);
+
+    CHECK (replay.hasTempo());
+    CHECK_MSG (std::abs (p.getTapTempo().getTappedBpm() - replay.getTappedBpm()) < 1.0e-9,
+               "tapped " + juce::String (p.getTapTempo().getTappedBpm()) + " vs "
+                 + juce::String (replay.getTappedBpm()) + " from its own stamps");
+
+    // Where 400 ms sleeps keep time (Linux/Windows), the taps are 150 bpm.
+    if (! luthier::tests::slowCiHost())
+        CHECK_MSG (std::abs (p.getTapTempo().getTappedBpm() - 150.0) < 8.0,
+                   "tapped " + juce::String (p.getTapTempo().getTappedBpm()) + " vs 150");
 }
 
 /*  LP-1 / LP-21: every live action has a key and a CC route. */
