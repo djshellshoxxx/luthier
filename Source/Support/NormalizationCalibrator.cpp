@@ -106,13 +106,16 @@ namespace
         return {};
     }
 
-    /** The value a parameter takes in the reference render (4.3 setup). */
+    /*  The value a parameter takes in the reference render (4.3 setup).
+        "Default" here and in the hash is the declared one
+        (Parameters::referenceDefault), so a CLAP instance, whose guitar-owned
+        host defaults are its startup guitar's, renders and hashes alike. */
     float renderValue (const juce::AudioProcessorParameter& p, const juce::String& id, float live)
     {
         switch (LoudnessRoles::roleFor (id))
         {
             case LoudnessRole::performance:
-                return p.getDefaultValue();
+                return Parameters::referenceDefault (p);
 
             case LoudnessRole::mix:
                 if (id == "master_gain")
@@ -122,7 +125,7 @@ namespace
                 if (id == "limiter_on")
                     return 0.0f;
 
-                return p.getDefaultValue();
+                return Parameters::referenceDefault (p);
 
             case LoudnessRole::config:
             default:
@@ -460,7 +463,7 @@ juce::String NormalizationCalibrator::canonicalSoundState (const NormalizationSo
         // appends at its default leaves every existing hash alone.
         const float q = quantise (*p, state.values[(size_t) i]);
 
-        if (q != quantise (*p, p->getDefaultValue()))
+        if (q != quantise (*p, Parameters::referenceDefault (*p)))
             params->setProperty (id, (double) q);
     }
 
@@ -544,7 +547,7 @@ juce::MemoryBlock NormalizationCalibrator::makeRenderState (const NormalizationS
         if (id.isEmpty() || id == "preset_morph_position")
             continue;
 
-        const float live = i < (int) state.values.size() ? state.values[(size_t) i] : all[i]->getDefaultValue();
+        const float live = i < (int) state.values.size() ? state.values[(size_t) i] : Parameters::referenceDefault (*all[i]);
         values->setProperty (id, (double) renderValue (*all[i], id, live));
     }
 

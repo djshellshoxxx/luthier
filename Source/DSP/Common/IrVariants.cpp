@@ -2,6 +2,7 @@
 #include <juce_audio_formats/juce_audio_formats.h>
 #include "ConvolutionInstaller.h"
 #include "../../Support/QualityProfile.h"
+#include "../../Support/ThreadProbe.h"
 #include <numeric>
 
 namespace luthier
@@ -250,26 +251,26 @@ int IrVariants::build (const juce::AudioBuffer<float>& prepared)
         if (variants[v] == nullptr)
         {
             variants[v] = std::make_unique<juce::dsp::Convolution> (juce::dsp::Convolution::Latency { partition });
-            variants[v]->prepare ({ sr, (juce::uint32) ConvolutionInstaller::preparedBlockSize (maxBlock),
-                                    (juce::uint32) channels });
+            ThreadProbe::noteConvolutionCreated();
         }
 
         auto ir = prepared;
         truncateWithFade (ir, cut, (int) std::round (QualityProfile::kTailFadeSeconds * sr));
 
-        auto& conv = *variants[v];
-        ConvolutionInstaller::installUnitImpulse (conv, sr, channels, maxBlock);
+        // The owner builds variants only while no audio thread can reach them
+        // (LiveConvolution fills a bank before publishing it), so the response
+        // is installed here at once rather than waited for. Already at the
+        // processing rate and normalised with the full IR's factor, so JUCE
+        // applies no further gain (rate ratio 1).
+        ConvolutionInstaller::installExclusively (*variants[v],
+            { sr, (juce::uint32) ConvolutionInstaller::preparedBlockSize (maxBlock), (juce::uint32) channels },
+            [&] (juce::dsp::Convolution& conv)
+            {
+                conv.loadImpulseResponse (std::move (ir), sr, stereo,
+                                          juce::dsp::Convolution::Trim::no,
+                                          juce::dsp::Convolution::Normalise::no);
+            });
 
-        // Already at the processing rate and normalised with the full IR's
-        // factor, so JUCE applies no further gain (rate ratio 1).
-        conv.loadImpulseResponse (std::move (ir), sr, stereo,
-                                  juce::dsp::Convolution::Trim::no,
-                                  juce::dsp::Convolution::Normalise::no);
-
-        if (! ConvolutionInstaller::pumpUntilInstalled (conv, channels, maxBlock, 1, ConvolutionInstaller::kInstallTimeoutMs, (int) (0.06 * sr)))
-            continue;   // 11: that level uses the full IR
-
-        conv.reset();
         valid[v] = true;
         seconds[v] = (double) cut / sr;
         heldMegabytes += cost;

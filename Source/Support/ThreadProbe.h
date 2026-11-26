@@ -34,6 +34,19 @@ namespace luthier::ThreadProbe
 
     inline void noteMapSpec() noexcept { mapSpecCalls.fetch_add (1, std::memory_order_relaxed); }
 
+    /*  What a re-activation costs (clap-validator's param fuzzing activates
+        the plugin 50 times at one rate and block size). Every
+        juce::dsp::Convolution constructed starts JUCE's loader thread, and
+        destroying one waits for that thread to wake from its 10 ms idle
+        sleep; a response built reads, resamples and partitions an impulse
+        response. The tests use these to show an identical re-prepare keeps
+        both rather than paying for them again. */
+    inline std::atomic<int> convolutionsCreated { 0 };
+    inline std::atomic<int> convolutionResponsesBuilt { 0 };
+
+    inline void noteConvolutionCreated() noexcept { convolutionsCreated.fetch_add (1, std::memory_order_relaxed); }
+    inline void noteConvolutionResponseBuilt() noexcept { convolutionResponsesBuilt.fetch_add (1, std::memory_order_relaxed); }
+
     /*  performance-budget.md 0.5 / 10: "The audio callback locks nothing." A
         blocking lock taken on a marked thread is counted. ProbedCriticalSection
         is a CriticalSection whose enter() notes itself; hold it with

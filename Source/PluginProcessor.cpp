@@ -269,8 +269,40 @@ LuthierAudioProcessor::LuthierAudioProcessor()
     // reads anything, so the first prepare does not move parameters under it
     // (clap-validator: parameters must not change by themselves).
     if (auto* type = apvts.getRawParameterValue (ParamIDs::guitarType))
-        loadGuitarForType ((GuitarType) juce::jlimit (0, (int) GuitarType::NumTypes - 1,
-                                                      edition::effectiveGuitarIndex ((int) type->load())));   // editions 5.1.3
+    {
+        const auto startup = (GuitarType) juce::jlimit (0, (int) GuitarType::NumTypes - 1,
+                                                        edition::effectiveGuitarIndex ((int) type->load()));   // editions 5.1.3
+
+        // The engine builds its own guitar type at the first prepare, before
+        // this guitar is applied: make that this type, not the engine's
+        // default Stratocaster, which Free plays as the Classic T-Style. A
+        // first prepare that built the Stratocaster loaded body and cabinet
+        // IRs no later prepare loads, so a second identical one built again.
+        engine.setStartupGuitarType (startup);
+        loadGuitarForType (startup);
+    }
+
+    /*  clap-validator 0.4.1 param-default-values: a fresh CLAP instance must sit
+        on the defaults it reports, and the startup guitar has just moved some
+        guitar-owned parameters (ParamIDs::isGuitarOwned; 13 in Pro) off their
+        declared defaults. A CLAP instance takes those values as its host
+        defaults, once (Parameters::adoptStartupGuitarDefaults). VST3, AU and
+        Standalone keep the declared defaults, identical to beta2's; presets,
+        the loudness table and search read the declared ones in every format
+        (Parameters::referenceDefault). The defaults are fixed for the
+        instance's life, but can differ between machines when a user guitar
+        shadows the factory one. is_clap reads clap-juce-extensions'
+        building_clap, a plain (non-atomic) static its factory sets around
+        construction: this assumes hosts create instances on the main thread
+        (CLAP allows any; one created concurrently could miss the adoption and
+        keep the declared defaults). */
+    bool clapInstance = false;
+   #if HAS_CLAP_JUCE_EXTENSIONS
+    clapInstance = is_clap;
+   #endif
+
+    if (! offlineConstruction && (clapInstance || ScopedClapHostDefaults::flag()))
+        Parameters::adoptStartupGuitarDefaults (getParameters());
 
     // Discover by stable ID: future append-only additions cannot shift this base.
     for (int i = 0; i < getParameters().size(); ++i)
@@ -348,6 +380,11 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     // is refused; the last valid one (or the default) stands in for it.
     sampleRate = HostClockGuard::validSampleRate (sampleRate, currentSampleRate);
     samplesPerBlock = samplesPerBlock > 0 ? samplesPerBlock : juce::jmax (1, currentBlockSize);
+
+    // Hosts never render while preparing: the structural changes below must not
+    // wait to fade out a callback that cannot come (fadeOutBeforeStructuralChange;
+    // the engine's own park is skipped the same way in LuthierEngine::prepare).
+    lastAudioCallbackMs.store (0.0, std::memory_order_relaxed);
 
     // SPEC-SWEEP (UW-5): commands the message thread queued for the audio
     // thread (a panic from Reset, a string mute or detune) are applied now,
@@ -504,6 +541,7 @@ void LuthierAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
 
 void LuthierAudioProcessor::releaseResources()
 {
+    lastAudioCallbackMs.store (0.0, std::memory_order_relaxed);   // the host has stopped rendering
     engine.releaseResources();
     routing.reset();
     midiOutRouter.reset();
@@ -1302,7 +1340,11 @@ void LuthierAudioProcessor::writeGuitarParameters (const DerivedAcoustics& d)
         refinements, initialised from the parts on every guitar load so the
         controls show the guitar that is playing. Written without gestures:
         a guitar load is one action, and its own undo entry (if any) is the
-        caller's. Values outside a parameter's range clamp to it. */
+        caller's. Values outside a parameter's range clamp to it.
+
+        Every ID written here must be ParamIDs::isGuitarOwned: a CLAP instance
+        reports these as its startup guitar's defaults (the constructor), and
+        HostDefaults.guitarOwnedCoversEveryGuitarLoadWrite guards the list. */
     auto write = [this] (const juce::String& id, double plain)
     {
         // A value the host wrote after the guitar type is the host's (a session
@@ -3449,8 +3491,24 @@ void LuthierAudioProcessor::parameterValueChanged (int parameterIndex, float val
 {
     if (referenceParameterBase >= 0)
     {
-        referenceHostCapture.write (parameterIndex - referenceParameterBase, value);
-        const int extendedIndex = parameterIndex - referenceParameterBase - reference::HostAutomationSnapshot::count;
+        const int referenceIndex = parameterIndex - referenceParameterBase;
+
+        /*  The captures turn a write into the board's physical value from the
+            parameter's own normalised value, not the number the writer handed
+            setValue: getValue() is what the session stores and what a reload
+            restores to the bit (ExactRestore.h), so the board value a reload
+            rebuilds is the one that was saved. Where JUCE's range conversion
+            is a fused multiply-add (arm64, x86 with FMA), getValue() and the
+            host's number can give board values a float ULP apart, and a lane
+            gain, the reamp gain or a slot trim saved one value and reloaded
+            another (clap-validator state-reproducibility-binary on macOS). */
+        if (referenceIndex >= 0
+              && referenceIndex < reference::HostAutomationSnapshot::count + reference::ExtendedHostAutomationSnapshot::count)
+            if (auto* parameter = getParameters()[parameterIndex])
+                value = parameter->getValue();
+
+        referenceHostCapture.write (referenceIndex, value);
+        const int extendedIndex = referenceIndex - reference::HostAutomationSnapshot::count;
         if (referenceRestoreWriter != this || extendedIndex != (int) reference::ExtendedHostField::FeedbackKill)
             referenceExtendedCapture.write (extendedIndex, value);
     }

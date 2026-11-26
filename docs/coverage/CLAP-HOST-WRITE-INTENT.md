@@ -60,3 +60,18 @@ rebuild/revalidate the production CLAP artifact and CI platforms. This isolated
 candidate is qualification evidence, not a replacement for that combined build.
 The pre-existing unscoped guitar-write timing policy remains unchanged; this
 patch restores notification of explicit input, not a new transaction policy.
+
+## Re-pin to upstream 6bde1083 (2026-11-25)
+
+clap-validator 0.4.1 (`0.4.1-127-g152b982`) fails `state-reproducibility-basic`, `-binary`
+and `-buffered` on the 55525c98 wrapper: after `state.load()` the reloaded values are
+correct, but the wrapper never asks the host to re-read them ("these parameter values
+changed without a rescan request"). Upstream fixed exactly this in
+`6bde108329ff9fc24404b79b8b397261a75cf6a8` ("Request a parameter values rescan after
+loading state", #194). The pin moves there; the three intervening upstream commits are
+small wrapper fixes (latency reported during `activate()`, transport events in split
+blocks, `guiRequestResize` guarded by `canUseGui`) and the `clap`/`clap-helpers`
+submodules are unchanged. `paramSetValueAndNotifyIfChanged` is identical at 6bde1083, so
+the host-write intent patch above applies unchanged; only its whole-file preimage and
+postimage hashes are updated. Linux Pro, local: the three state tests pass on the
+re-pinned wrapper (they fail on 55525c98), and the five patch tests pass.

@@ -143,10 +143,13 @@ version of this file said Panic leaves the reverb ringing; the code does not.
 Things the brief describes that are not in this release, stated plainly rather than
 quietly omitted.
 
-**Plugin formats.** This beta targets Windows VST3 and Standalone, plus universal
-macOS VST3, AU and Standalone. Linux and CLAP remain development targets; CLAP's
-state round-trip defects keep it out of the release. AAX is not built, so Pro Tools
-is not supported.
+**Plugin formats.** Beta 3 targets Linux x64, Windows x64 and universal macOS:
+VST3, CLAP and Standalone on each, plus AU on macOS. Beta 2 shipped Windows and
+macOS without CLAP. The beta3 release workflow builds, validates (pluginval on the
+VST3 and AU, clap-validator on the CLAP) and packages every format on every
+platform, and publishes only when all of those jobs pass; that run's logs are the
+evidence. Linux and CLAP have not been tested host by host. AAX is not built, so
+Pro Tools is not supported.
 
 **Linux build steps.** `scripts/setup_linux.sh` installs the build dependencies and
 JUCE 8.0.10 and configures a Release Ninja tree; then

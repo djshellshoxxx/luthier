@@ -75,7 +75,7 @@ PresetFeatureReader::PresetFeatureReader (const juce::AudioProcessor& rangeSourc
 {
     for (auto* p : rangeSource.getParameters())
         if (auto* ranged = dynamic_cast<const juce::RangedAudioParameter*> (p))
-            ranges[ranged->paramID.toStdString()] = { ranged->getNormalisableRange(), ranged->getDefaultValue() };
+            ranges[ranged->paramID.toStdString()] = { ranged->getNormalisableRange(), Parameters::referenceDefault (*ranged) };
 }
 
 double PresetFeatureReader::plain (const juce::var& json, const juce::String& paramId) const

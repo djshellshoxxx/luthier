@@ -405,7 +405,7 @@ NormalizationSoundState OutputNormalization::soundStateFromPreset (const juce::v
 
     for (auto* p : all)
     {
-        float v = p->getDefaultValue();
+        float v = Parameters::referenceDefault (*p);   // an absent key, as PresetManager reads it (PF-14)
 
         if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*> (p))
             if (values != nullptr && values->hasProperty (withId->paramID))

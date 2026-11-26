@@ -33,7 +33,7 @@ def digest_artifact(path):
     tests = list(path.rglob("unit-tests.log"))
     if tests:
         text = tests[0].read_text(errors="replace")
-        summary = [l for l in text.splitlines() if re.search(r"tests failed|tests passed|^ (PASSED|FAILED)|checks\), [0-9.]+ s", l)]
+        summary = [l for l in text.splitlines() if re.search(r"tests failed|tests passed|^ *(ALL PASSED|PASSED|FAILED)\s*$|checks\), [0-9.]+ s|^ *[0-9]+ tests, [0-9]+ checks, [0-9.]+ s", l)]
         parts.append("unit tests: " + (" / ".join(s.strip() for s in summary[-3:]) or "no summary line (crash or timeout?)"))
         fails = tail_matches(text, r"\[FAIL\]", after=5, cap=60)
         if fails:

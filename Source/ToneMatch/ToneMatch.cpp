@@ -1,5 +1,6 @@
 #include "ToneMatch.h"
 #include "../Support/UntrustedText.h"
+#include "../Support/ThreadProbe.h"
 
 #include <algorithm>
 #include <complex>
@@ -137,17 +138,38 @@ IrSlot::~IrSlot()
 
 void IrSlot::prepare (double sampleRate, int maxBlockSize)
 {
-    sr = juce::jmax (1.0, sampleRate);
-    blockSize = juce::jmax (1, maxBlockSize);
+    const double rate = juce::jmax (1.0, sampleRate);
+    const int block = juce::jmax (1, maxBlockSize);
 
-    convolution = std::make_unique<juce::dsp::Convolution>();
+    /*  A convolution no response was ever loaded into (rebuild() sets `live`,
+        unload() keeps it as `retired`) is still the unit impulse a new one is,
+        prepared for this rate and block size: reset() leaves it as a new one
+        starts. Constructing a juce::dsp::Convolution starts JUCE's loader
+        thread and destroying one waits for that thread to wake, ~10 ms a slot
+        each time a host re-activates (clap-validator's param fuzzing does it
+        50 times). Once it has held a response it is replaced as before. */
+    const bool keep = convolution != nullptr && live == nullptr && retired == nullptr
+                      && rate == sr && block == blockSize;
 
-    juce::dsp::ProcessSpec spec;
-    spec.sampleRate = sr;
-    spec.maximumBlockSize = (juce::uint32) blockSize;
-    spec.numChannels = 2;
+    sr = rate;
+    blockSize = block;
 
-    convolution->prepare (spec);
+    if (keep)
+    {
+        convolution->reset();
+    }
+    else
+    {
+        convolution = std::make_unique<juce::dsp::Convolution>();
+        ThreadProbe::noteConvolutionCreated();
+
+        juce::dsp::ProcessSpec spec;
+        spec.sampleRate = sr;
+        spec.maximumBlockSize = (juce::uint32) blockSize;
+        spec.numChannels = 2;
+
+        convolution->prepare (spec);
+    }
 
     wetBuffer.setSize (2, blockSize, false, true, false);
     wetBuffer.clear();

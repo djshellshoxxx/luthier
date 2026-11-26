@@ -1,9 +1,12 @@
 # Release: a version tag (v1.2.3, v1.3.0-beta1), or a release/v* candidate
 # branch, builds, tests and validates on
 # every platform at full strictness with LTO, builds the installers, and
-# uploads them with SHA-256 checksums to a DRAFT GitHub Release. The authorized
-# release/v0.1.0-beta2 push additionally verifies and publishes that prerelease;
-# every other tag, candidate and manual dispatch retains draft review.
+# uploads them with SHA-256 checksums to a DRAFT GitHub Release. Two runs
+# additionally verify and publish their own prerelease: the authorized
+# release/v0.1.0-beta2 push, and the authorized beta3 dispatch (a dispatch of
+# this workflow on claude/determined-ptolemy-mlbclp with tag v0.1.0-beta3 and
+# ref claude/determined-ptolemy-mlbclp). Every other tag, candidate (including
+# release/v0.1.0-beta3) and manual dispatch retains draft review.
 #
 # See docs/RELEASING.md for the whole procedure and the signing secrets.
 name: release
@@ -24,10 +27,10 @@ on:
         type: string
         default: ''
       platforms:
-        description: 'Comma-separated platforms to build: linux, windows, macos (default windows,macos)'
+        description: 'Comma-separated platforms to build: linux, windows, macos (default linux,windows,macos)'
         required: false
         type: string
-        default: 'windows,macos'
+        default: 'linux,windows,macos'
       editions:
         description: 'Comma-separated editions to build: pro, free (default both)'
         required: false
@@ -55,6 +58,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || inputs.tag || github.sha }}
+      - name: PyYAML for the structural workflow guards
+        # The guard tests parse release.yml; install the distro package only if the
+        # runner image lacks it (a missing module would fail the guards, safely).
+        run: python3 -c 'import yaml' 2>/dev/null || { sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends python3-yaml; }
+
       - name: Exercise release source and publication guards
         run: |
           python3 -m unittest discover -s scripts/tests -p test_release_workflow_guards.py -v
@@ -104,6 +112,21 @@ jobs:
           # Freeze checkout once; all platform jobs and the final tag use this commit.
           echo "ref=$source_sha" >> "$GITHUB_OUTPUT"
 
+      # The checkout resolves inputs.ref when this job starts, so the branch can
+      # have moved since the dispatch. The authorized beta3 dispatch qualifies and
+      # publishes only the dispatched commit itself.
+      - name: Require the authorized beta3 dispatch to build its dispatched commit
+        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/claude/determined-ptolemy-mlbclp' && inputs.tag == 'v0.1.0-beta3' && inputs.ref == 'claude/determined-ptolemy-mlbclp'
+        env:
+          SOURCE_SHA: ${{ steps.v.outputs.ref }}
+        run: |
+          set -euo pipefail
+          head_sha="$(git rev-parse HEAD)"
+          if [ "$head_sha" != "$GITHUB_SHA" ] || [ "$SOURCE_SHA" != "$GITHUB_SHA" ]; then
+            echo "::error::Checked out $head_sha (frozen ${SOURCE_SHA:-none}), not the dispatched commit $GITHUB_SHA; refusing the beta3 dispatch."
+            exit 1
+          fi
+
       - name: Refuse an existing release before building
         env:
           GH_TOKEN: ${{ github.token }}
@@ -141,11 +164,14 @@ jobs:
     needs: [version, installer-checks]
     uses: ./.github/workflows/build.yml
     with:
-      # The 0.1 beta ships Windows and macOS (VST3, AU, standalone). Linux and
-      # CLAP stay in per-push CI but are not release-qualified here.
-      platforms: ${{ inputs.platforms || 'windows,macos' }}
+      # Beta3 ships Linux, Windows and macOS (VST3, CLAP, standalone; AU on
+      # macOS): every platform builds, validates (pluginval, clap-validator)
+      # and packages the CLAP plug-in. The release/v0.1.0-beta2 candidate push
+      # (a push has no inputs) keeps beta2's qualified scope, Windows and macOS
+      # without CLAP, which its publisher allowlist entry requires.
+      platforms: ${{ inputs.platforms || (github.event_name == 'push' && github.ref == 'refs/heads/release/v0.1.0-beta2' && 'windows,macos' || 'linux,windows,macos') }}
       editions: ${{ inputs.editions || 'pro,free' }}
-      no_clap: true
+      no_clap: ${{ github.event_name == 'push' && github.ref == 'refs/heads/release/v0.1.0-beta2' }}
       # Four interleaved shards keep each macOS job inside the 6-hour limit.
       test_shards: 4
       strictness: 10
@@ -217,7 +243,7 @@ jobs:
         env:
           SOURCE_SHA: ${{ needs.version.outputs.ref }}
           RELEASE_VERSION: ${{ needs.version.outputs.version }}
-          PLATFORMS: ${{ inputs.platforms || 'windows,macos' }}
+          PLATFORMS: ${{ inputs.platforms || (github.event_name == 'push' && github.ref == 'refs/heads/release/v0.1.0-beta2' && 'windows,macos' || 'linux,windows,macos') }}
           EDITIONS: ${{ inputs.editions || 'pro,free' }}
         run: |
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
@@ -269,7 +295,9 @@ jobs:
           # Unlike update-or-create actions, this command never edits a release.
           args=(release create "$TAG" --verify-tag --target "$SOURCE_SHA" --draft
                 --title "Luthier $VERSION")
-          if [ "$VERSION" = "0.1.0-beta2" ]; then
+          if [ "$VERSION" = "0.1.0-beta3" ]; then
+            args+=(--notes-file docs/beta/PRO-V01-BETA3-RELEASE-NOTES.md)
+          elif [ "$VERSION" = "0.1.0-beta2" ]; then
             args+=(--notes-file docs/beta/PRO-V01-BETA2-RELEASE-NOTES.md)
           else
             args+=(--generate-notes)
@@ -279,6 +307,16 @@ jobs:
 
       - name: Publish the authorized qualified beta2
         if: github.event_name == 'push' && github.ref == 'refs/heads/release/v0.1.0-beta2' && needs.version.outputs.tag == 'v0.1.0-beta2'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.version.outputs.tag }}
+          SOURCE_SHA: ${{ needs.version.outputs.ref }}
+          QUALIFICATION_RESULT: ${{ needs.build.result }}
+        run: |
+          python3 scripts/publish_qualified_beta.py --directory release --source "$SOURCE_SHA" --tag "$TAG"
+
+      - name: Publish the authorized qualified beta3
+        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/claude/determined-ptolemy-mlbclp' && inputs.tag == 'v0.1.0-beta3' && inputs.ref == 'claude/determined-ptolemy-mlbclp' && needs.version.outputs.tag == 'v0.1.0-beta3'
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.version.outputs.tag }}

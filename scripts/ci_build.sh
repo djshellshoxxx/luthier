@@ -25,7 +25,8 @@
 #   LUTHIER_LTO          ON / OFF link-time optimisation  (default: OFF)
 #   JOBS                 parallel jobs                    (default: CPU count)
 #   PLUGINVAL_STRICTNESS 1..10                            (default: 5)
-#   PLUGINVAL_VERSION    pluginval release tag            (default: v1.0.4)
+#   PLUGINVAL_VERSION    pluginval release tag (macOS)    (default: v1.0.4)
+#   PLUGINVAL_COMMIT     pluginval source built on Linux  (default: v1.0.4's commit)
 #   CLAP_VALIDATOR_VERSION                                (default: 0.4.1)
 #   CLAP_VALIDATOR_ASSET_VERSION                          (default: 0.4.1-127-g152b982)
 #   MACOS_ARCHS          CMAKE_OSX_ARCHITECTURES          (default: arm64;x86_64)
@@ -37,7 +38,7 @@ cd "$(dirname "$0")/.."
 JUCE_TAG="8.0.10"
 # clap-juce-extensions has no release tags; pin the commit this build was
 # verified against so a new upstream commit cannot break CI without a change here.
-CLAP_JUCE_EXT_COMMIT="55525c9858d4b25687be7759a5e0f70eccef218e"
+CLAP_JUCE_EXT_COMMIT="6bde108329ff9fc24404b79b8b397261a75cf6a8"
 
 BUILD_DIR="${BUILD_DIR:-build-ci}"
 DIST_DIR="${DIST_DIR:-dist}"
@@ -55,8 +56,21 @@ case "$LUTHIER_EDITION" in
 esac
 PLUGINVAL_STRICTNESS="${PLUGINVAL_STRICTNESS:-5}"
 PLUGINVAL_VERSION="${PLUGINVAL_VERSION:-v1.0.4}"
+# Linux builds the same pluginval (v1.0.4 and the JUCE 8.0.3 its submodule pins)
+# from source with JUCE 04e167d applied (scripts/patch_pluginval_vst3_runloop.py).
+# The v1.0.4 release binary frees its VST3 run loop while the event loop still
+# holds a callback it copied for that pass, and segfaults on the message thread
+# when it releases the last plugin instance (Tracktion/pluginval#185; release run
+# 45658630418, after Fuzz parameters). Same tests, same command line.
+PLUGINVAL_COMMIT="${PLUGINVAL_COMMIT:-ed19c2c16b57a6d94db391bea3ef4a80b769d5bf}"
+PLUGINVAL_JUCE_COMMIT="5179f4e720d8406ebd1b5401c86aea8da6cc83c9"
 CLAP_VALIDATOR_VERSION="${CLAP_VALIDATOR_VERSION:-0.4.1}"
 CLAP_VALIDATOR_ASSET_VERSION="${CLAP_VALIDATOR_ASSET_VERSION:-0.4.1-127-g152b982}"
+# SHA-256 of the pinned clap-validator 0.4.1-127-g152b982 release zips. A
+# download is unpacked and run only when it matches; another version needs its
+# own digests here. Keep the Windows digest in scripts/ci_build.ps1 in step.
+CLAP_VALIDATOR_SHA256_LINUX="49edadcfb407ea0dd946ce418300e853fbd2660fa4b0d00e4f19ff8eef24ad90"  # ubuntu-22.04
+CLAP_VALIDATOR_SHA256_MACOS="bbec8cd7d18274e549d5d8c12ece3cec54be966129388dd2e742b9957f2ba9f1"  # macos-universal
 MACOS_ARCHS="${MACOS_ARCHS:-arm64;x86_64}"
 TOOLS_DIR="${TOOLS_DIR:-$BUILD_DIR/tools}"
 
@@ -243,13 +257,35 @@ do_test() {
     return "$rc"
 }
 
+# Called through fetch_pluginval's $(...): set -e does not apply there, so every
+# failure returns, and everything but the path goes to stderr.
+build_pluginval_linux() {
+    local exe="$1" src="$TOOLS_DIR/pluginval-src" build="$TOOLS_DIR/pluginval-build"
+    local launcher=()
+    command -v ccache >/dev/null && launcher=(-DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache)
+    rm -rf "$src" && mkdir -p "$src" || return 1
+    git -C "$src" init -q && git -C "$src" fetch -q --depth 1 https://github.com/Tracktion/pluginval "$PLUGINVAL_COMMIT" \
+        && git -C "$src" checkout -q FETCH_HEAD || return 1
+    mkdir -p "$src/modules/juce" && git -C "$src/modules/juce" init -q \
+        && git -C "$src/modules/juce" fetch -q --depth 1 https://github.com/juce-framework/JUCE "$PLUGINVAL_JUCE_COMMIT" \
+        && git -C "$src/modules/juce" checkout -q FETCH_HEAD || return 1
+    python3 scripts/patch_pluginval_vst3_runloop.py "$src/modules/juce" || return 1
+    cmake -S "$src" -B "$build" -G Ninja -DCMAKE_BUILD_TYPE=Release ${launcher[@]+"${launcher[@]}"} || return 1
+    cmake --build "$build" --target pluginval --parallel "$JOBS" || return 1
+    cp "$build/pluginval_artefacts/Release/pluginval" "$exe" && chmod +x "$exe"
+}
+
 fetch_pluginval() {
     local exe
     case "$PLATFORM" in
-        linux) exe="$TOOLS_DIR/pluginval" ;;
+        # Named for the source and the fix, so a cached release binary is never reused.
+        linux) exe="$TOOLS_DIR/pluginval-${PLUGINVAL_COMMIT:0:12}-runloop-fix" ;;
         macos) exe="$TOOLS_DIR/pluginval.app/Contents/MacOS/pluginval" ;;
     esac
-    if [ ! -x "$exe" ]; then
+    if [ ! -x "$exe" ] && [ "$PLATFORM" = linux ]; then
+        mkdir -p "$TOOLS_DIR"
+        build_pluginval_linux "$exe" >&2 || { echo "pluginval: source build failed" >&2; return 1; }
+    elif [ ! -x "$exe" ]; then
         local zip; [ "$PLATFORM" = linux ] && zip=pluginval_Linux.zip || zip=pluginval_macOS.zip
         mkdir -p "$TOOLS_DIR"
         curl -fsSL -o "$TOOLS_DIR/$zip" \
@@ -263,12 +299,28 @@ fetch_pluginval() {
 fetch_clap_validator() {
     local exe="$TOOLS_DIR/clap-validator"
     if [ ! -x "$exe" ]; then
-        local platform archive found
-        [ "$PLATFORM" = linux ] && platform="ubuntu-22.04" || platform="macos-universal"
+        local platform archive expected actual found
+        if [ "$PLATFORM" = linux ]; then
+            platform="ubuntu-22.04"; expected="$CLAP_VALIDATOR_SHA256_LINUX"
+        else
+            platform="macos-universal"; expected="$CLAP_VALIDATOR_SHA256_MACOS"
+        fi
         archive="clap-validator-$CLAP_VALIDATOR_ASSET_VERSION-$platform.zip"
         mkdir -p "$TOOLS_DIR"
         curl -fsSL -o "$TOOLS_DIR/$archive" \
              "https://github.com/free-audio/clap-validator/releases/download/$CLAP_VALIDATOR_VERSION/$archive"
+        # Nothing from the download is unpacked or run unless it is the pinned zip.
+        # Called through $(...), where set -e does not apply: every failure returns.
+        if [ "$PLATFORM" = linux ]; then
+            actual="$(sha256sum "$TOOLS_DIR/$archive" | cut -d' ' -f1)"
+        else
+            actual="$(shasum -a 256 "$TOOLS_DIR/$archive" | cut -d' ' -f1)"
+        fi
+        if [ -z "$expected" ] || [ "$actual" != "$expected" ]; then
+            echo "clap-validator: $archive SHA-256 is ${actual:-unavailable}, expected $expected; refusing to unpack it" >&2
+            rm -f "$TOOLS_DIR/$archive"
+            return 1
+        fi
         unzip -oq "$TOOLS_DIR/$archive" -d "$TOOLS_DIR"
         # The Linux/macOS zips wrap a .tar.gz rather than the bare binary.
         local tarball
@@ -333,10 +385,11 @@ do_validate() {
             auval -strict -v aumu "$PLUGIN_CODE" Ltha 2>&1 | tee "$LOG_DIR/auval.log" || failed=1
         fi
         set +e
-        # Linux pluginval v1.0.4 can segfault during in-process shutdown
-        # after completing its VST3 tests (Tracktion/pluginval#185).
-        # Run Linux in the default isolated child process; pluginval still
-        # returns failure if its child crashes or a validation check fails.
+        # pluginval's --validate command line always validates in this process
+        # (CommandLineValidator uses ValidationType::inProcess); the flag below
+        # only changes the GUI's validator, so leaving it off on Linux isolates
+        # nothing. A plugin crash fails the run either way. The Linux validator
+        # is built with the fix for its own run-loop crash (fetch_pluginval).
         local isolation_args=()
         [ "$PLATFORM" = linux ] || isolation_args+=(--validate-in-process)
         if [ "${#native_args[@]}" != 0 ]; then

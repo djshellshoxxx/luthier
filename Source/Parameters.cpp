@@ -60,6 +60,33 @@ const char* macroByIndex (int index) noexcept
     // ==== BEGIN TECHNIQUES params ====
     juce::String bendStringRange (int stringNumber) { return "bend_string_range_" + juce::String (stringNumber); }
     // ==== END TECHNIQUES params ====
+
+    bool isGuitarOwned (const juce::String& id)
+    {
+        // writeGuitarParameters' IDs, in its order.
+        static const juce::StringArray ids = []
+        {
+            juce::StringArray s { stringMaterial, fretless, tuningPreset, bridgeType,
+                                  bodyTopWood, bodyBackWood, bodyBracing, bodyWidth, bodyDepth, bodyAge, bodyTopThick };
+
+            for (int slot = 0; slot < PickupEngine::kMaxPickups; ++slot)
+            {
+                s.add (pickupType (slot));
+                s.add (pickupMagnet (slot));
+            }
+
+            s.addArray (juce::StringArray { circuitVolumePot, circuitTonePot, circuitToneCap, circuitPotTaper,
+                                            circuitTrebleBleed, circuitActive,
+                                            setupActionTreble, setupActionBass, setupRelief, setupFretHeight });
+
+            for (int n = 1; n <= kNumNutDepths; ++n)
+                s.add (setupNutDepth (n));
+
+            return s;
+        }();
+
+        return ids.contains (id);
+    }
 }
 
 //==============================================================================
@@ -85,6 +112,67 @@ namespace
         std::shared_ptr<const juce::String> displayName; // host metadata reads, message writes
         std::atomic<bool> available { false };
     };
+
+    /*  A guitar-owned parameter (ParamIDs::isGuitarOwned): Base exactly as
+        declared, plus a host default the instance may take from its startup
+        guitar (GuitarOwnedParameter). Defaults are held as plain values, as
+        JUCE holds them, so an advanced-range swap (RangeState::applyTo)
+        renormalises them the way it renormalises every other default. */
+    template <typename Base>
+    class GuitarOwned final : public Base,
+                              public GuitarOwnedParameter
+    {
+    public:
+        template <typename... Args>
+        explicit GuitarOwned (Args&&... args) : Base (std::forward<Args> (args)...) {}
+
+        float getReferenceDefaultValue() const noexcept override { return normalise (referencePlain); }
+
+        void adoptStartupValue() noexcept override
+        {
+            if (! adopted.exchange (true))
+                hostPlain.store (plainOf (*this), std::memory_order_relaxed);
+        }
+
+    private:
+        float getDefaultValue() const override { return normalise (hostPlain.load (std::memory_order_relaxed)); }
+
+        static float plainOf (const Base& p) noexcept
+        {
+            if constexpr (std::is_same_v<Base, juce::AudioParameterChoice>)
+                return (float) p.getIndex();
+            else if constexpr (std::is_same_v<Base, juce::AudioParameterBool>)
+                return p.get() ? 1.0f : 0.0f;
+            else
+                return p.get();
+        }
+
+        /*  Bit-identical to JUCE's own getDefaultValue() for the same plain
+            value: AudioParameterFloat and AudioParameterChoice normalise it
+            through convertTo0to1, AudioParameterBool's default is the 0 or 1. */
+        float normalise (float plain) const noexcept
+        {
+            if constexpr (std::is_same_v<Base, juce::AudioParameterBool>)
+                return plain;
+            else
+                return this->convertTo0to1 (plain);
+        }
+
+        // Read straight after Base is built: the declared default.
+        const float referencePlain { plainOf (*this) };
+        std::atomic<float> hostPlain { referencePlain };
+        std::atomic<bool> adopted { false };
+    };
+
+    /** Param as declared, or its GuitarOwned form for a guitar-owned ID. */
+    template <typename Param, typename... Args>
+    std::unique_ptr<Param> makeParameter (const juce::String& id, Args&&... args)
+    {
+        if (ParamIDs::isGuitarOwned (id))
+            return std::make_unique<GuitarOwned<Param>> (std::forward<Args> (args)...);
+
+        return std::make_unique<Param> (std::forward<Args> (args)...);
+    }
 
     template <typename EnumType, typename NameFn>
     juce::StringArray namesFor (int count, NameFn fn)
@@ -129,8 +217,8 @@ namespace
             Values are shown as numbers only; the unit is the label. */
         const int decimals = juce::jlimit (0, 6, 4 - (int) std::ceil (std::log10 (juce::jmax (1.0e-6f, max - min))));
 
-        return std::make_unique<juce::AudioParameterFloat> (
-            pid (id), name, range, def,
+        return makeParameter<juce::AudioParameterFloat> (
+            id, pid (id), name, range, def,
             juce::AudioParameterFloatAttributes()
                 .withLabel (unit)
                 .withStringFromValueFunction ([decimals] (float v, int) { return juce::String (v, decimals); })
@@ -149,8 +237,8 @@ namespace
 
         RangeRegistry::noteDeclaration (id, min, max);
 
-        return std::make_unique<juce::AudioParameterFloat> (
-            pid (id), name, range, def,
+        return makeParameter<juce::AudioParameterFloat> (
+            id, pid (id), name, range, def,
             juce::AudioParameterFloatAttributes()
                 .withLabel ("ohm")
                 .withStringFromValueFunction ([] (float v, int) { return Parameters::formatOhms (v); })
@@ -162,8 +250,8 @@ namespace
                                                              const juce::StringArray& choices,
                                                              int def = 0)
     {
-        return std::make_unique<juce::AudioParameterChoice> (
-            pid (id), name, choices, juce::jlimit (0, juce::jmax (0, choices.size() - 1), def));
+        return makeParameter<juce::AudioParameterChoice> (
+            id, pid (id), name, choices, juce::jlimit (0, juce::jmax (0, choices.size() - 1), def));
     }
 
     /*  FEAT-ASSIST (auto-articulation.md 6): aa_rules is a bitmask, and a
@@ -179,7 +267,7 @@ namespace
                                                          const juce::String& name,
                                                          bool def)
     {
-        return std::make_unique<juce::AudioParameterBool> (pid (id), name, def);
+        return makeParameter<juce::AudioParameterBool> (id, pid (id), name, def);
     }
 }
 
@@ -201,6 +289,21 @@ AutoArticulationSettings Parameters::effectiveAssistSettings (bool enabled, int 
     }
 
     return s;
+}
+
+float Parameters::referenceDefault (const juce::AudioProcessorParameter& parameter) noexcept
+{
+    if (auto* owned = dynamic_cast<const GuitarOwnedParameter*> (&parameter))
+        return owned->getReferenceDefaultValue();
+
+    return parameter.getDefaultValue();
+}
+
+void Parameters::adoptStartupGuitarDefaults (const juce::Array<juce::AudioProcessorParameter*>& parameters) noexcept
+{
+    for (auto* parameter : parameters)
+        if (auto* owned = dynamic_cast<GuitarOwnedParameter*> (parameter))
+            owned->adoptStartupValue();
 }
 
 juce::StringArray Parameters::guitarTypeNames()

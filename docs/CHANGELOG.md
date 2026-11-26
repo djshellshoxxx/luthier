@@ -1,5 +1,54 @@
 # Changelog
 
+## Unreleased (2026-11-25)
+
+Entries added after the 2026-11-04 summary below; not a summary of every commit since.
+
+### Host and MIDI
+
+- CLAP: a fresh instance reports its startup guitar's values as the defaults of the 33
+  guitar-owned parameters (the ones a guitar load writes, `ParamIDs::isGuitarOwned`), so
+  it sits on the defaults it reports (clap-validator 0.4.1 `param-default-values`).
+  VST3, AU and Standalone keep the declared defaults. Only three things differ in CLAP:
+  the host's reset to default, a knob's reset menu, double-click and at-default dot, and the search
+  `default` keyword return a guitar-owned parameter to the startup guitar's value, even
+  after a guitar change. Reset ends on the startup guitar's parts in every format, and
+  randomise re-draws every unlocked guitar-owned parameter, so neither differs. Presets,
+  sessions, the sound and the loudness table are unchanged in every format. Only Linux
+  Pro was run locally: CLAP behaviour in the Free edition and on Windows and macOS is
+  not verified yet, until CI runs clap-validator and the `HostDefaults` tests there. See
+  `spec/DECISIONS.md` (2026-11-25).
+- Re-activating at an unchanged rate and block size no longer rebuilds the cabinet and
+  body convolutions or the TONE MATCH slots, which cost 240-330 ms each time: each
+  constructed `juce::dsp::Convolution` starts a loader thread, each destroyed one waits
+  for it to wake, and each of the 14 responses one re-activation loaded polled that
+  thread. Retired banks are kept and a file a bank still holds is republished, the
+  latency probe is measured once per specification, and a response is installed
+  synchronously before its bank is published. An identical re-prepare went from
+  240-330 ms to 7 ms (`PrepareCost`), and clap-validator 0.4.1 `param-fuzz-basic` and
+  `param-fuzz-bounds` from 17.8 s and 17.5 s to 2.1-2.9 s and 1.6-1.9 s alone on Linux
+  Pro (they timed out at 45 s on the macOS runner). The sound, the latency and IR
+  switching are unchanged: a republished bank is the same response at the same
+  specification, reset. Measured on Linux only; macOS has not been re-run.
+- Luthier Free: an identical re-prepare built two cabinet responses again (`PrepareCost`
+  failed on Linux and Windows CI). Its startup guitar's compiled and factory cabinets
+  are one file, and a load of the response the convolution already plays built it a
+  second time; it now takes back the replacement queued after it. A fresh engine also
+  starts on the guitar the instance plays (the Classic T-Style in Free, not the
+  Stratocaster), so the first prepare loads the IRs every later one does. The sound is
+  unchanged.
+- Host state on Apple Silicon: a session saved, reloaded and saved again is the same
+  bytes (clap-validator 0.4.1 `state-reproducibility-binary`, which failed on macOS in
+  both editions). The reference board took a host-written lane gain, reamp gain, loop
+  send or return, limiter ceiling, feedback low pass or slot trim from the host's raw
+  normalised number, but a reload restores the parameter's stored value, and where the
+  compiler fuses JUCE's range conversion into one multiply-add (arm64) the two land a
+  float ULP apart, so the board saved one value and reloaded another. The board now
+  takes every host write from the parameter's own value. x86 builds do not fuse it,
+  which is why Linux and Windows passed. Tests:
+  `HostState::aRandomisedHostSessionSavesTheSameBytesAfterAReload` and
+  `HostState::aRandomisedHostSessionWithPedalsSavesTheSameBytesAfterAReload`.
+
 ## Unreleased (2026-10-17 to 2026-11-04, source `ca14934e`)
 
 This section summarises the commits after the last changelog entry (2026-10-16) up to

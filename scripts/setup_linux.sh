@@ -5,9 +5,9 @@ set -e
 cd "$(dirname "$0")/.."
 if command -v apt-get >/dev/null; then
   (apt-get install -y libasound2-dev libxrandr-dev libxcursor-dev libxinerama-dev libxcomposite-dev \
-     libfontconfig1-dev libfreetype-dev libcurl4-openssl-dev libgl1-mesa-dev xvfb ninja-build clang ccache >/dev/null 2>&1) || \
+     libfontconfig1-dev libfreetype-dev libcurl4-openssl-dev libgl1-mesa-dev ladspa-sdk xvfb ninja-build clang ccache >/dev/null 2>&1) || \
   (apt-get update >/dev/null 2>&1 && apt-get install -y libasound2-dev libxrandr-dev libxcursor-dev libxinerama-dev \
-     libxcomposite-dev libfontconfig1-dev libfreetype-dev libcurl4-openssl-dev libgl1-mesa-dev xvfb ninja-build clang ccache >/dev/null)
+     libxcomposite-dev libfontconfig1-dev libfreetype-dev libcurl4-openssl-dev libgl1-mesa-dev ladspa-sdk xvfb ninja-build clang ccache >/dev/null)
 fi
 [ -d ThirdParty/JUCE ] || git clone --depth 1 --branch 8.0.10 https://github.com/juce-framework/JUCE.git ThirdParty/JUCE
 # CLAP support (CMakeLists.txt adds Luthier_CLAP when this is present). Pinned to

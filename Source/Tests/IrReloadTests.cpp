@@ -143,14 +143,19 @@ LUTHIER_TEST (IrReload, tinyBlocksInstallConsecutiveResponses)
                     juce::dsp::Convolution::Trim::no,
                     juce::dsp::Convolution::Normalise::no);
             };
+            /*  The product's own deadline for JUCE's loader thread, not a tighter
+                one: that thread can be starved for seconds on a loaded runner
+                (ConvolutionInstaller.h), and a 1000 ms deadline timed out once on
+                the macOS arm64 release runner (run 45658630418). An install that
+                never happens still fails here, at the same check. */
             load (1.0f);
             CHECK (ConvolutionInstaller::pumpUntilInstalled (
-                convolution, 1, size, 1, 1000, (int) (0.06 * rate)));
+                convolution, 1, size, 1, ConvolutionInstaller::kInstallTimeoutMs, (int) (0.06 * rate)));
             ConvolutionInstaller::installUnitImpulse (convolution, rate, 1, size);
             CHECK (convolution.getCurrentIRSize() == 1);
             load (0.5f);
             CHECK_MSG (ConvolutionInstaller::pumpUntilInstalled (
-                convolution, 1, size, 1, 1000, (int) (0.06 * rate)),
+                convolution, 1, size, 1, ConvolutionInstaller::kInstallTimeoutMs, (int) (0.06 * rate)),
                 "IR reload timed out at " + juce::String (rate) + " Hz / " + juce::String (size) + " samples");
             convolution.reset();
             juce::AudioBuffer<float> audio (1, size);

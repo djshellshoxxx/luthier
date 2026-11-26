@@ -117,8 +117,12 @@ jobs:
             esac
           }
           case ",$PLATFORMS," in *,linux,*)
-            add "Linux x64 / Pro" ubuntu-latest linux PAID
-            add "Linux x64 / Free" ubuntu-latest linux FREE;;
+            # Pin Ubuntu 24.04. The Linux binaries need the glibc they were built
+            # against: ubuntu-latest moved to a glibc 2.43 image, whose plug-ins
+            # do not load on Ubuntu 24.04 or Debian 13. On 24.04 the floor is
+            # glibc 2.38 (docs/beta/VALIDATOR_REPORT.md, docs/RELEASING.md 7).
+            add "Linux x64 / Pro" ubuntu-24.04 linux PAID
+            add "Linux x64 / Free" ubuntu-24.04 linux FREE;;
           esac
           case ",$PLATFORMS," in *,windows,*)
             # Pin Visual Studio 2022. windows-latest moved to Visual Studio 2026,
@@ -170,7 +174,7 @@ jobs:
           sudo apt-get install -y -q --no-install-recommends \
             libasound2-dev libjack-jackd2-dev libxrandr-dev libxcursor-dev libxinerama-dev \
             libxcomposite-dev libfontconfig1-dev libfreetype-dev libcurl4-openssl-dev \
-            libgl1-mesa-dev \
+            libgl1-mesa-dev ladspa-sdk \
             xvfb clang lld ninja-build dpkg-dev
 
       - name: Ninja
@@ -389,11 +393,30 @@ jobs:
       # ---------------------------------------------------------- installers
       # Only when release.yml calls this workflow. Signing secrets are optional:
       # each script signs when its secrets are present and says so when not.
+      # A release that builds CLAP must package the validated plug-in: the
+      # build, validate, stage and packaging steps only act on a CLAP bundle
+      # that exists, so its absence would otherwise ship silently.
+      - name: Require the validated CLAP plug-in
+        if: inputs.package && !inputs.no_clap
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$LUTHIER_EDITION" in
+            PAID) product="Luthier Pro" ;;
+            FREE) product="Luthier Free" ;;
+            *) echo "::error::Unknown edition $LUTHIER_EDITION"; exit 1 ;;
+          esac
+          clap="$DIST_DIR/${{ matrix.platform }}/$product.clap"
+          [ -e "$clap" ] || { echo "::error::$clap was not staged; this release requires the CLAP plug-in"; exit 1; }
+          [ -s "$BUILD_DIR/logs/clap-validator.log" ] || {
+            echo "::error::clap-validator did not run on $product.clap"; exit 1;
+          }
+
       - name: Package (Linux)
         if: inputs.package && runner.os == 'Linux'
         env:
           VERSION: ${{ inputs.version }}
-          BETA_README: ${{ inputs.version == '0.1.0-beta2' && 'docs/beta/PRO-V01-BETA2-RELEASE-NOTES.md' || (inputs.version == '0.1.0-beta' && 'docs/beta/PRO-V01-RELEASE-NOTES.md' || '') }}
+          BETA_README: ${{ inputs.version == '0.1.0-beta3' && 'docs/beta/PRO-V01-BETA3-RELEASE-NOTES.md' || (inputs.version == '0.1.0-beta2' && 'docs/beta/PRO-V01-BETA2-RELEASE-NOTES.md' || (inputs.version == '0.1.0-beta' && 'docs/beta/PRO-V01-RELEASE-NOTES.md' || '')) }}
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: scripts/package_linux.sh
@@ -419,7 +442,9 @@ jobs:
           WINDOWS_CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
           WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
         run: |
-          if ($env:VERSION -eq '0.1.0-beta2') {
+          if ($env:VERSION -eq '0.1.0-beta3') {
+            scripts/package_windows.ps1 -BetaReadme docs/beta/PRO-V01-BETA3-RELEASE-NOTES.md
+          } elseif ($env:VERSION -eq '0.1.0-beta2') {
             scripts/package_windows.ps1 -BetaReadme docs/beta/PRO-V01-BETA2-RELEASE-NOTES.md
           } elseif ($env:VERSION -eq '0.1.0-beta') {
             scripts/package_windows.ps1 -BetaReadme docs/beta/PRO-V01-RELEASE-NOTES.md
@@ -428,7 +453,7 @@ jobs:
           }
 
       - name: Verify and archive universal Pro beta bundles
-        if: inputs.package && runner.os == 'macOS' && matrix.edition == 'PAID' && (inputs.version == '0.1.0-beta' || inputs.version == '0.1.0-beta2')
+        if: inputs.package && runner.os == 'macOS' && matrix.edition == 'PAID' && (inputs.version == '0.1.0-beta' || inputs.version == '0.1.0-beta2' || inputs.version == '0.1.0-beta3')
         shell: bash
         run: |
           set -euo pipefail
@@ -439,7 +464,9 @@ jobs:
             lipo "$bundle/Contents/MacOS/Luthier Pro" -verify_arch arm64 x86_64
             codesign --verify --deep --strict "$bundle"
           done
-          if [ "${{ inputs.version }}" = "0.1.0-beta2" ]; then
+          if [ "${{ inputs.version }}" = "0.1.0-beta3" ]; then
+            beta_readme=docs/beta/PRO-V01-BETA3-RELEASE-NOTES.md
+          elif [ "${{ inputs.version }}" = "0.1.0-beta2" ]; then
             beta_readme=docs/beta/PRO-V01-BETA2-RELEASE-NOTES.md
           else
             beta_readme=docs/beta/PRO-V01-RELEASE-NOTES.md

@@ -572,3 +572,32 @@ chosen") and `ambiguity-resolutions.md`.
 - **Chuck damps every string** (strum-dynamics 6.1 "every string is damped
   hard"): a string the voicing skips is damped too; before, it rang on
   sympathetically at about -42 dB and carried the chord's pitch.
+- **2026-11-25 - CLAP reports the startup guitar's values as the defaults of
+  the guitar-owned parameters.** Made under the owner's request to ship CLAP
+  (clap-validator 0.4.1 `param-default-values`: a fresh instance must sit on
+  the defaults it reports). The constructor loads the startup guitar, whose
+  parts move 13 of the 33 parameters `writeGuitarParameters` writes
+  (`ParamIDs::isGuitarOwned`) off their declared defaults in Pro. A CLAP
+  instance adopts those values as its host defaults once, at construction
+  (`Parameters::adoptStartupGuitarDefaults`). Only three things differ in
+  CLAP: the host's reset to default, a knob's reset menu, double-click and at-default dot,
+  and the search `default` keyword return a guitar-owned parameter to the
+  startup guitar's value, even after a guitar change. Reset ends on the
+  startup guitar's parts in every format, and randomise re-draws every
+  unlocked guitar-owned parameter, so neither differs. The defaults are
+  fixed for the instance but can differ between machines when a user guitar
+  shadows the factory one. Factory presets, a preset's absent keys (PF-14),
+  the loudness table and preset search read the declared default
+  (`Parameters::referenceDefault`), so presets, sessions, sound and hashes
+  are the same in every format (`HostDefaults.*`). Only Linux Pro was run
+  locally: CLAP behaviour in the Free edition and on Windows and macOS is
+  not verified yet, until CI runs clap-validator and `HostDefaults` there.
+  Rejected: (A) changing the declared defaults - every saved preset's absent
+  keys, the factory files and the loudness-table hashes would change
+  meaning, and Free's startup guitar is not Pro's; (C) not writing the
+  startup guitar's parts into the parameters at construction - the controls
+  would not show the guitar that plays, and writing them later moves
+  parameters after the host has read them, which clap-validator also
+  rejects. **Open (owner):** should VST3, AU and Standalone adopt the
+  startup values too? Until decided they keep the declared, beta2-identical
+  defaults.

@@ -299,7 +299,12 @@ LUTHIER_TEST(RefPedalPagedReverse, atomicCaptureKeepsStoppedDirectionAndOriginIn
                 || (sample.runtime.direction==Direction::Forward?sample.runtime.head!=0:sample.runtime.head!=32))valid=false;
         }
     });
-    while(!started.load())std::this_thread::yield();
+    /*  The reader's first capture, not just its start, before the writer runs: a
+        contended runner can deschedule it after `started` for longer than the
+        2000 direction switches take, and it then saw no capture at all
+        (Windows Free CI). A capture that never succeeds still fails below. */
+    const auto firstCaptureDeadline=std::chrono::steady_clock::now()+std::chrono::seconds(10);
+    while((!started.load() || captures.load()==0) && std::chrono::steady_clock::now()<firstCaptureDeadline)std::this_thread::yield();
     bool selected=true;const auto allocations=luthier::tests::allocationsOnThisThread();
     for(int i=0;i<2000;++i)selected=core.setPlaybackDirection(i%2?Direction::Forward:Direction::Reverse)&&selected;
     const auto allocated=luthier::tests::allocationsOnThisThread()-allocations;stop=true;reader.join();

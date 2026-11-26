@@ -125,6 +125,11 @@ public:
     GuitarType getGuitarType() const noexcept { return guitarType; }
     const GuitarSpec& getGuitarSpec() const noexcept { return spec; }
 
+    /** Before anything is applied: the factory instrument the first prepare()
+        loads, as if the engine had been constructed with it. A processor builds
+        its startup guitar only at that prepare. */
+    void setStartupGuitarType (GuitarType type) { guitarType = type; spec = GuitarLibrary::get (type); }
+
     //==========================================================================
     /*  Easter-egg (Dueling Banjos). When the player performs the opening motif,
         the string model is re-voiced as a bright, short-decay banjo - the
@@ -1154,6 +1159,10 @@ private:
 
     /** Whether an audio thread other than the caller's is rendering. */
     bool isAudioRunningElsewhere() const noexcept;
+
+    /** prepare and releaseResources: the host is not rendering, so a structural
+        change made now applies at once instead of waiting to park a callback. */
+    void markAudioStopped() noexcept { lastProcessMs.store (0, std::memory_order_relaxed); }
 
     int structuralDepth = 0;         ///< message thread
     bool structuralParked = false;   ///< message thread: this scope parked the audio thread
