@@ -8,9 +8,29 @@ samples in it.
 The full front page, with the content counts, architecture, DSP rules and the
 deliberate deviations from the brief, is [spec/README.md](spec/README.md).
 
-The reference pedalboard is in development and is not release-qualified. 13 models
-are registered today (10 generic effects and 3 prototypes); the six named models
-planned for the first pedalboard release are not available yet. See the
+## Download Beta 3
+
+[Luthier 0.1.0-beta3](https://github.com/djshellshoxxx/luthier/releases/tag/v0.1.0-beta3)
+was published on November 25, 2026. Choose an edition and platform:
+
+| Platform | Free installer | Pro installer |
+|---|---|---|
+| Windows x64 | [Download .exe](https://github.com/djshellshoxxx/luthier/releases/download/v0.1.0-beta3/Luthier-Free-0.1.0-beta3-Setup-win64.exe) | [Download .exe](https://github.com/djshellshoxxx/luthier/releases/download/v0.1.0-beta3/Luthier-Pro-0.1.0-beta3-Setup-win64.exe) |
+| macOS Intel and Apple Silicon (universal) | [Download .dmg](https://github.com/djshellshoxxx/luthier/releases/download/v0.1.0-beta3/Luthier-Free-0.1.0-beta3-macOS.dmg) | [Download .dmg](https://github.com/djshellshoxxx/luthier/releases/download/v0.1.0-beta3/Luthier-Pro-0.1.0-beta3-macOS.dmg) |
+
+Both platforms include the standalone application, VST3 and CLAP; macOS also
+includes AU. Windows portable ZIPs, the Pro macOS bundle ZIP, Linux packages,
+`SHA256SUMS.txt` and `BUILD-PROVENANCE.json` are on the release page. Close your
+DAW before installation, then rescan its plug-ins.
+
+These are beta builds: Windows packages are unsigned; macOS bundles are ad-hoc
+signed, the installer is unsigned, and the release is not notarized. See the
+[Beta 3 release notes](docs/beta/PRO-V01-BETA3-RELEASE-NOTES.md) for installation,
+qualification evidence and remaining limitations.
+
+The beta's reference pedalboard offers the **Four-Stage Phaser**. Other planned
+models remain deferred; saved sessions can still load their earlier pedals.
+The phaser's remaining acceptance limits are documented in the
 [pedalboard guide](docs/PEDALBOARD.md), the [effects reference](docs/EFFECTS_REFERENCE.md),
 [known issues](docs/KNOWN_ISSUES.md) and the
 [pedalboard acceptance ledger](docs/coverage/PEDALBOARD-ACCEPTANCE.md).

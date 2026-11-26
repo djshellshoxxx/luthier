@@ -1,5 +1,9 @@
 # Luthier v0.1.0 Beta 3
 
+Published on November 25, 2026: [GitHub Release](https://github.com/djshellshoxxx/luthier/releases/tag/v0.1.0-beta3).
+The downloads were built from source `3078f78b2352a188741d083e3349d1f59a7c52b0`
+by [release run 45692500167](https://github.com/djshellshoxxx/luthier/actions/runs/45692500167).
+
 The Free and Pro installers identify their edition in the filename and product
 name. The release workflow freezes one source commit and builds every selected
 platform/edition with LTO, complete unit suites and strictness-10 plugin
@@ -51,6 +55,18 @@ listening comparison have not been run. See docs/KNOWN_ISSUES.md.
 
 ## Downloads and installation
 
+| Download | Free | Pro |
+|---|---|---|
+| Windows x64 installer | [Setup .exe](https://github.com/djshellshoxxx/luthier/releases/download/v0.1.0-beta3/Luthier-Free-0.1.0-beta3-Setup-win64.exe) | [Setup .exe](https://github.com/djshellshoxxx/luthier/releases/download/v0.1.0-beta3/Luthier-Pro-0.1.0-beta3-Setup-win64.exe) |
+| Windows x64 portable | [ZIP](https://github.com/djshellshoxxx/luthier/releases/download/v0.1.0-beta3/Luthier-Free-0.1.0-beta3-portable-win64.zip) | [ZIP](https://github.com/djshellshoxxx/luthier/releases/download/v0.1.0-beta3/Luthier-Pro-0.1.0-beta3-portable-win64.zip) |
+| macOS universal installer | [DMG](https://github.com/djshellshoxxx/luthier/releases/download/v0.1.0-beta3/Luthier-Free-0.1.0-beta3-macOS.dmg) | [DMG](https://github.com/djshellshoxxx/luthier/releases/download/v0.1.0-beta3/Luthier-Pro-0.1.0-beta3-macOS.dmg) |
+
+The [Pro macOS universal bundle ZIP](https://github.com/djshellshoxxx/luthier/releases/download/v0.1.0-beta3/Luthier-Pro-0.1.0-beta3-macOS-universal.zip)
+and Linux downloads are also on the release page. Verify downloaded files against
+[SHA256SUMS.txt](https://github.com/djshellshoxxx/luthier/releases/download/v0.1.0-beta3/SHA256SUMS.txt);
+[BUILD-PROVENANCE.json](https://github.com/djshellshoxxx/luthier/releases/download/v0.1.0-beta3/BUILD-PROVENANCE.json)
+records the source and qualification run.
+
 - Windows x64: Setup installer or portable archive, with standalone, VST3,
   CLAP and factory Resources. Close the DAW before installing or replacing
   plugin files, then rescan the selected plugin format in the host. The
@@ -79,10 +95,23 @@ the other platforms and formats: complete unit suites, plugin validation
 Neither has been tested host by host, and this beta makes no DAW-by-DAW
 compatibility claim for any format. Hardware listening, installation and
 saved-session acceptance are separate from CI.
-Developer ID signing/notarization on macOS, publisher signing on Windows and
-GPG signatures for the Linux packages and the checksum manifest depend on
-configured identities; use the per-platform build logs and the release assets
-to establish their actual status. The Linux binaries are built on Ubuntu 24.04
+
+The published Beta 3 assets have the following signing status:
+
+- **Windows: unsigned.** No publisher certificate was configured for the
+  [Windows packaging job](https://github.com/djshellshoxxx/luthier/actions/runs/45692500167/job/139482386660).
+- **macOS: ad-hoc signed bundles, unsigned installer package, not notarized.**
+  No Developer ID identities or notarization were used in the
+  [macOS packaging job](https://github.com/djshellshoxxx/luthier/actions/runs/45692500167/job/139482386565).
+- **Checksums: no GPG signature.** The
+  [publication job](https://github.com/djshellshoxxx/luthier/actions/runs/45692500167/job/139564342145)
+  verified the asset hashes but had no GPG signing key for `SHA256SUMS.txt`.
+
+Windows and macOS may show publisher or security warnings for these beta downloads.
+Checksum verification confirms matching bytes; it does not provide a publisher
+signature or Apple notarization.
+
+The Linux binaries are built on Ubuntu 24.04
 and need glibc 2.38 or newer (Ubuntu 24.04, Debian 13, Fedora 39 or later); the
 `.deb` states that requirement, and older distributions such as Ubuntu 22.04 do
 not run them. Factory impulse responses are
