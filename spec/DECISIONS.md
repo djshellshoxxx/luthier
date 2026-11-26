@@ -589,9 +589,11 @@ chosen") and `ambiguity-resolutions.md`.
   shadows the factory one. Factory presets, a preset's absent keys (PF-14),
   the loudness table and preset search read the declared default
   (`Parameters::referenceDefault`), so presets, sessions, sound and hashes
-  are the same in every format (`HostDefaults.*`). Only Linux Pro was run
-  locally: CLAP behaviour in the Free edition and on Windows and macOS is
-  not verified yet, until CI runs clap-validator and `HostDefaults` there.
+  are the same in every format (`HostDefaults.*`). Initial local verification
+  covered Linux Pro. [Beta 3 release run 45692500167](https://github.com/djshellshoxxx/luthier/actions/runs/45692500167)
+  subsequently passed clap-validator and the full unit suites, including
+  `HostDefaults`, for Free and Pro on Linux, Windows and macOS. This is
+  automated qualification, not a claim of manual DAW acceptance.
   Rejected: (A) changing the declared defaults - every saved preset's absent
   keys, the factory files and the loudness-table hashes would change
   meaning, and Free's startup guitar is not Pro's; (C) not writing the

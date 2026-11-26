@@ -3,10 +3,13 @@
 Written honestly. A model that hides its approximations is harder to trust than one
 that states them, and a "known issues" file that says "none" is never true.
 
-Updated for the beta2 candidate `7fcb88c6` and the November 19 consolidation.
-The project version in `CMakeLists.txt` is 0.1.0. No beta2 release has been
-published. Exact native results and remaining gates are recorded in
-[the current consolidation status](status/CONSOLIDATION-2026-11-19.md).
+Updated for the published [0.1.0-beta3 release](https://github.com/djshellshoxxx/luthier/releases/tag/v0.1.0-beta3)
+(November 25, 2026), built from `3078f78b2352a188741d083e3349d1f59a7c52b0`.
+The numeric project version in `CMakeLists.txt` remains 0.1.0. See
+"Platform qualification" below for the completed automated gates and the
+[Beta 3 release notes](beta/PRO-V01-BETA3-RELEASE-NOTES.md) for downloads and
+signing status. The [November 19 consolidation record](status/CONSOLIDATION-2026-11-19.md)
+describes an earlier candidate, not the published release.
 
 ---
 
@@ -222,22 +225,28 @@ racks in the Advanced panel. See [PEDALBOARD.md](PEDALBOARD.md) and
 
 ## Platform qualification
 
-The latest completed release attempt inspected is
-[run 44259292225](https://github.com/djshellshoxxx/luthier/actions/runs/44259292225),
-which tested exact source `7fcb88c601288e7a7a02cf64548a822b9c3fcfc4`.
+[Release run 45692500167](https://github.com/djshellshoxxx/luthier/actions/runs/45692500167)
+qualified and published Beta 3 from exact source
+`3078f78b2352a188741d083e3349d1f59a7c52b0`.
 
-- All four native Windows/macOS Free/Pro build, plugin-validator and packaging
-  jobs passed with LTO and strictness 10. Windows edition-coexistence installation
-  checks also passed.
-- Twelve of sixteen full-suite shards passed. macOS Free passed all four shards.
-- The four failing shards each reported one performance failure: Windows Free
-  and Pro part swaps at p95 54.4/57.0 ms against 50 ms; macOS Pro warm instantiation
-  at 1287.5 ms against 1000 ms; and macOS Pro guitar loading at p95 1414.3 ms
-  against 1200 ms. The thresholds remain unchanged.
-- These failures prevented draft release creation. Subsequent code changes need
-  a new complete qualification run; the earlier results are not final-head evidence.
-- Linux was not selected for this release attempt. Manual DAW/hardware/listening
-  acceptance and signing status remain separate from automated qualification.
+- All six native Linux/Windows/macOS Free/Pro build and packaging jobs passed,
+  with LTO, pluginval at strictness 10 and clap-validator 0.4.1.
+- All 24 full-suite shards and the Windows edition-coexistence installation
+  checks passed. The run has 34 successful jobs; its beta2-only consolidation
+  job was intentionally skipped.
+- Publication verified the source tag, provenance and exact set of 17 uploaded
+  assets against their checksums.
+- [PR verification run 45720731033](https://github.com/djshellshoxxx/luthier/actions/runs/45720731033)
+  passed all six native suites at `521e4e9c`. Its only change after the published
+  source is a synchronization fix in a paged-reverse test. macOS Free passed on
+  retry after a repaint-count failure; deterministic repaint instrumentation
+  remains a follow-up.
+- The Windows packages are unsigned. macOS bundles are ad-hoc signed; its
+  installer is unsigned and not notarized. Manual DAW, hardware and listening
+  acceptance remains separate from automated qualification.
+
+The failed [earlier release attempt 44259292225](https://github.com/djshellshoxxx/luthier/actions/runs/44259292225)
+at `7fcb88c6` is historical evidence, not the status of the published Beta 3.
 
 ---
 
