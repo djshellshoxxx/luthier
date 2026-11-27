@@ -1,0 +1,476 @@
+Source: 51fd4de677fd0d4a056ded5ee2e8845b9e81584d
+Job: https://github.com/djshellshoxxx/luthier/actions/runs/44662141836/job/136042655631
+Section copied from the successful job log; setup and cleanup omitted.
+
+2026-11-20T03:48:02.3253526Z ================================================================
+2026-11-20T03:48:02.3253920Z  LUTHIER TEST SUITE
+2026-11-20T03:48:02.3254264Z ================================================================
+2026-11-20T03:48:02.3254662Z 
+2026-11-20T03:48:02.3254674Z 
+2026-11-20T03:48:02.3254847Z AutoArticulationEngine
+2026-11-20T03:48:02.3255498Z ----------------------------------------------------------------
+2026-11-20T03:48:03.4116624Z   [pass]  presetSnapshotAndHostStateKeepTheFourValues 16 checks     1085.95 ms
+2026-11-20T03:48:03.4117108Z 
+2026-11-20T03:48:03.4117217Z BackendRelease
+2026-11-20T03:48:03.4117551Z ----------------------------------------------------------------
+2026-11-20T03:48:03.6896302Z   [pass]  hostReleaseSurvivesStructuralLockContention 4 checks      277.886 ms
+2026-11-20T03:48:03.9882309Z   [pass]  immediateReleaseRetriesAfterEventQueueSaturation4 checks      298.55 ms
+2026-11-20T03:48:04.5472934Z   [pass]  minimumDurationReleaseRetriesAfterEventQueueSaturation2 checks      558.991 ms
+2026-11-20T03:48:04.5473837Z 
+2026-11-20T03:48:04.5474010Z Character
+2026-11-20T03:48:04.5474398Z ----------------------------------------------------------------
+2026-11-20T03:48:04.5475203Z   [pass]  intermittentJackDurationUsesAudioTimeOnly   5 checks      0.027 ms
+2026-11-20T03:48:04.5475666Z 
+2026-11-20T03:48:04.5475779Z CharacterWiring
+2026-11-20T03:48:04.5476098Z ----------------------------------------------------------------
+2026-11-20T03:48:04.8091342Z   [pass]  theIntermittentJackDropsOutAndRecovers      4 checks      261.523 ms
+2026-11-20T03:48:04.8091990Z 
+2026-11-20T03:48:04.8092608Z DeferredEngineMidi
+2026-11-20T03:48:04.8092994Z ----------------------------------------------------------------
+2026-11-20T03:48:04.8093627Z   [pass]  missedReleasePrecedesCurrentInputAndIsConsumedOnce6 checks      0.028 ms
+2026-11-20T03:48:04.8094360Z   [pass]  repeatedMissesKeepOrderAndResetDropsHistory 4 checks      0.002 ms
+2026-11-20T03:48:05.1040672Z   [pass]  overflowReleasesEveryChannelAndPedal        6 checks      294.44 ms
+2026-11-20T03:48:05.1041491Z 
+2026-11-20T03:48:05.1041690Z EffectsChainLifetime
+2026-11-20T03:48:05.1042289Z ----------------------------------------------------------------
+2026-11-20T03:48:05.1043293Z   [pass]  replacementWaitsForLatencyReader            8 checks      0.125 ms
+2026-11-20T03:48:05.1044154Z   [pass]  clearWaitsForLatencyReader                  8 checks      0.074 ms
+2026-11-20T03:48:05.1045499Z   [pass]  replacementWaitsForQualityReader            7 checks      0.079 ms
+2026-11-20T03:48:05.1046222Z   [pass]  moveRepublishesWithoutDestroyingPedal       7 checks      0.002 ms
+2026-11-20T03:48:05.1046632Z 
+2026-11-20T03:48:05.1046739Z HostLatencyThread
+2026-11-20T03:48:05.1047059Z ----------------------------------------------------------------
+2026-11-20T03:48:05.4915925Z   [pass]  audioPublishesButOnlyControlNotifiesHost    18 checks     386.874 ms
+2026-11-20T03:48:05.4916510Z 
+2026-11-20T03:48:05.4916607Z HostState
+2026-11-20T03:48:05.4916919Z ----------------------------------------------------------------
+2026-11-20T03:48:06.0152579Z   [pass]  aSessionSurvivesThePrepareThatFollowsIt     10 checks     523.614 ms
+2026-11-20T03:48:06.2495581Z   [pass]  anUnpreparedInstanceSavesTheSameStateAsAPreparedOne1 checks      234.268 ms
+2026-11-20T03:48:06.2496973Z   [pass]  failureDiagnosticsPreserveNumericTokensAndRedactPrivateState41 checks     0.187 ms
+2026-11-20T03:48:06.3814433Z   [pass]  aRestoredNormalisedValueReadsBackExactly    5 checks      131.591 ms
+2026-11-20T03:48:06.4128808Z   [pass]  theMorphSliderAndTheCharacterAmountAreSaved 2 checks      31.407 ms
+2026-11-20T03:48:06.7766276Z   [pass]  aHostWritingAGuitarTypeWithItsPartsKeepsTheParts3 checks      363.625 ms
+2026-11-20T03:48:06.7952978Z   [pass]  parameterTextRoundTripsStably               8240 checks   18.694 ms
+2026-11-20T03:48:07.0395785Z   [pass]  processingDoesNotMoveParameters             1 checks      244.131 ms
+2026-11-20T03:48:07.4164617Z   [pass]  theSameParametersGiveTheSameStateHoweverTheyArrived1 checks      376.841 ms
+2026-11-20T03:48:07.4165869Z   [pass]  versionCarriesABuildString                  3 checks      0.003 ms
+2026-11-20T03:48:07.6517816Z   [pass]  theStateCarriesAFormatVersion               3 checks      235.254 ms
+2026-11-20T03:48:08.1188207Z   [pass]  unknownSectionsSurviveWriteBack             6 checks      466.974 ms
+2026-11-20T03:48:08.5637674Z   [pass]  anOldBlobIsBackedUpBeforeMigration          4 checks      444.852 ms
+2026-11-20T03:48:08.7035441Z   [pass]  backupTestOverridePreservesDefaultPathExactBytesAndTwentyFileLimit47 checks     139.717 ms
+2026-11-20T03:48:08.9269785Z   [pass]  bypassOutputsSilence                        2 checks      223.393 ms
+2026-11-20T03:48:09.4824738Z   [pass]  programsEnumerateFactoryPresetsAndLoadByIndex145 checks    555.369 ms
+2026-11-20T03:48:09.4825621Z 
+2026-11-20T03:48:09.4825741Z IrSwapContinuity
+2026-11-20T03:48:09.4826104Z ----------------------------------------------------------------
+2026-11-20T03:48:09.5752242Z   [pass]  cabinetKeepsItsDelayAndCrossfadesReplacement6 checks      92.598 ms
+2026-11-20T03:48:09.6766863Z   [pass]  bodyKeepsItsDelayAndCrossfadesReplacement   6 checks      101.391 ms
+2026-11-20T03:48:09.8057852Z   [pass]  cabinetBypassPreservesPhysicalDelay         15 checks     129.031 ms
+2026-11-20T03:48:10.1194145Z   [pass]  cabinetBypassEdgesDoNotIntroduceAnImpulse   12 checks     313.572 ms
+2026-11-20T03:48:10.3663876Z   [pass]  rawResponsesSurviveHostReprepare            16 checks     246.942 ms
+2026-11-20T03:48:10.3664844Z 
+2026-11-20T03:48:10.3665354Z JamPlugin
+2026-11-20T03:48:10.3665929Z ----------------------------------------------------------------
+2026-11-20T03:48:10.8230213Z   [pass]  JM35_presetsSnapshotsAndHostState           46 checks     456.543 ms
+2026-11-20T03:48:10.8230869Z 
+2026-11-20T03:48:10.8230992Z IrSwapContinuity
+2026-11-20T03:48:10.8231349Z ----------------------------------------------------------------
+2026-11-20T03:48:10.9065904Z   [pass]  preparedBankKeepsItsDelayAndCrossfadesReplacement7 checks      83.416 ms
+2026-11-20T03:48:10.9066450Z 
+2026-11-20T03:48:10.9066572Z LiveConvolution
+2026-11-20T03:48:10.9066925Z ----------------------------------------------------------------
+2026-11-20T03:48:12.3559136Z   [pass]  repeatedPublicationQualityAndResetKeepOwnershipOffAudio8 checks      1449.33 ms
+2026-11-20T03:48:12.3561511Z 
+2026-11-20T03:48:12.3561711Z Normalization
+2026-11-20T03:48:12.3562105Z ----------------------------------------------------------------
+2026-11-20T03:48:12.7322295Z     p17_g10_phrase calibration hash ebaf4abc221eb42b1316312b8475f758d91cb5053dcf09ff73671b14d1c3f0c8 canonical {"edition":"free","params":{"amp_gain":0.0498046875,"amp_master":0.75,"amp_model":0.923076928,"amp_presence":0.299804688,"amp_treble":0.51953125,"body_back_wood":0.266666681,"body_bracing":0.714285731,"body_coupling_amount":0,"body_depth":0.459960938,"body_top_wood":0.266666681,"body_width":0.530273438,"bridge_type":0,"cab_speaker":0,"cab_type":1,"circuit_tone_cap":0.649414062,"circuit_tone_pot":0.418945312,"circuit_treble_bleed":0.666666687,"circuit_volume_pot":0.418945312,"guitar_type":0.416666657,"macro_attack":0.419921875,"macro_body":0.950195312,"macro_drive":0,"macro_humanize":0.549804688,"macro_space":0.3203125,"macro_tone":0.51953125,"mic_dist":0.23828125,"mic_distance":0.5,"mic_position":0,"mic_type":0.5,"mic_x":0.5,"nail_vs_flesh":0.349609375,"noise_slide":0.450195312,"pick_material":0.636363626,"piezo_mic_blend":0.849609375,"pluck_position":0.5,"room_blend":0.299804688,"setup_action_bass":0.478515625,"setup_action_treble":0.400390625,"setup_fret_height":0.540039062,"setup_relief":0.545898438,"string_age_detail":0,"string_gauge":0.454545468,"use_fingers":1},"revision":3,"structural":{"character":{"amount":0.25,"bodyAge":20,"boneNut":true,"capacitorDriftRange":0.05,"enabled":true,"jackIntermittent":false,"potLinearity":0.35,"seed":"1592639710","tunerLooseness":15},"modulation":{"envelopes":[{"attack":0.005,"curves":[0,0,0,0,1,0,1],"decay":0.15,"delay":0,"hold":0,"loop":0,"release":0.2,"retrigger":1,"sustain":0.7},{"attack":0.005,"curves":[0,0,0,0,1,0,1],"decay":0.15,"delay":0,"hold":0,"loop":0,"release":0.2,"retrigger":1,"sustain":0.7},{"attack":0.005,"curves":[0,0,0,0,1,0,1],"decay":0.15,"delay":0,"hold":0,"loop":0,"release":0.2,"retrigger":1,"sustain":0.7},{"attack":0.005,"curves":[0,0,0,0,1,0,1],"decay":0.15,"delay":0,"hold":0,"loop":0,"release":0.2,"retrigger":1,"sustain":0.7}],"followers":[{"attack":10,"detection":0,"log":false,"release":200,"source":0,"string":0,"threshold":0},{"attack":10,"detection":0,"log":false,"release":200,"source":1,"string":0,"threshold":0}],"lfos":[{"bipolar":true,"depth":1,"division":9,"phase":0,"points":[-1,-0.714285714,-0.428571429,-0.142857143,0.142857143,0.428571429,0.714285714,1],"rate":1,"retrigger":0,"shape":0,"smoothing":0,"symmetry":0.5,"sync":false},{"bipolar":true,"depth":1,"division":9,"phase":0,"points":[-1,-0.714285714,-0.428571429,-0.142857143,0.142857143,0.428571429,0.714285714,1],"rate":1,"retrigger":0,"shape":0,"smoothing":0,"symmetry":0.5,"sync":false},{"bipolar":true,"depth":1,"division":9,"phase":0,"points":[-1,-0.714285714,-0.428571429,-0.142857143,0.142857143,0.428571429,0.714285714,1],"rate":1,"retrigger":0,"shape":0,"smoothing":0,"symmetry":0.5,"sync":false},{"bipolar":true,"depth":1,"division":9,"phase":0,"points":[-1,-0.714285714,-0.428571429,-0.142857143,0.142857143,0.428571429,0.714285714,1],"rate":1,"retrigger":0,"shape":0,"smoothing":0,"symmetry":0.5,"sync":false},{"bipolar":true,"depth":1,"division":9,"phase":0,"points":[-1,-0.714285714,-0.428571429,-0.142857143,0.142857143,0.428571429,0.714285714,1],"rate":1,"retrigger":0,"shape":0,"smoothing":0,"symmetry":0.5,"sync":false},{"bipolar":true,"depth":1,"division":9,"phase":0,"points":[-1,-0.714285714,-0.428571429,-0.142857143,0.142857143,0.428571429,0.714285714,1],"rate":1,"retrigger":0,"shape":0,"smoothing":0,"symmetry":0.5,"sync":false},{"bipolar":true,"depth":1,"division":9,"phase":0,"points":[-1,-0.714285714,-0.428571429,-0.142857143,0.142857143,0.428571429,0.714285714,1],"rate":1,"retrigger":0,"shape":0,"smoothing":0,"symmetry":0.5,"sync":false},{"bipolar":true,"depth":1,"division":9,"phase":0,"points":[-1,-0.714285714,-0.428571429,-0.142857143,0.142857143,0.428571429,0.714285714,1],"rate":1,"retrigger":0,"shape":0,"smoothing":0,"symmetry":0.5,"sync":false}],"routes":[],"sequencers":[{"direction":0,"division":3,"length":16,"rate":4,"steps":[{"g":true,"p":1,"s":false,"v":-1},{"g":true,"p":1,"s":false,"v":-0.866666667},{"g":true,"p":1,"s":false,"v":-0.733333333},{"g":true,"p":1,"s":false,"v":-0.6},{"g":true,"p":1,"s":false,"v":-0.466666667},{"g":true,"p":1,"s":false,"v":-0.333333333},{"g":true,"p":1,"s":false,"v":-0.2},{"g":true,"p":1,"s":false,"v":-0.0666666667},{"g":true,"p":1,"s":false,"v":0.0666666667},{"g":true,"p":1,"s":false,"v":0.2},{"g":true,"p":1,"s":false,"v":0.333333333},{"g":true,"p":1,"s":false,"v":0.466666667},{"g":true,"p":1,"s":false,"v":0.6},{"g":true,"p":1,"s":false,"v":0.733333333},{"g":true,"p":1,"s":false,"v":0.866666667},{"g":true,"p":1,"s":false,"v":1}],"swing":0,"sync":true},{"direction":0,"division":3,"length":16,"rate":4,"steps":[{"g":true,"p":1,"s":false,"v":-1},{"g":true,"p":1,"s":false,"v":-0.866666667},{"g":true,"p":1,"s":false,"v":-0.733333333},{"g":true,"p":1,"s":false,"v":-0.6},{"g":true,"p":1,"s":false,"v":-0.466666667},{"g":true,"p":1,"s":false,"v":-0.333333333},{"g":true,"p":1,"s":false,"v":-0.2},{"g":true,"p":1,"s":false,"v":-0.0666666667},{"g":true,"p":1,"s":false,"v":0.0666666667},{"g":true,"p":1,"s":false,"v":0.2},{"g":true,"p":1,"s":false,"v":0.333333333},{"g":true,"p":1,"s":false,"v":0.466666667},{"g":true,"p":1,"s":false,"v":0.6},{"g":true,"p":1,"s":false,"v":0.733333333},{"g":true,"p":1,"s":false,"v":0.866666667},{"g":true,"p":1,"s":false,"v":1}],"swing":0,"sync":true}]},"preset":{"factoryRevision":3,"guitar":{"capo":"Trigger Capo","override":null,"reference":"Factory/Electric/Baritone Electric.luthierguitar"},"jam":{"link_rhythm_kit":false,"seed":4849997,"style_ref":null},"magic":"luthier.preset","micLegacy":{"mic_distance":0.5,"mic_distance_2":0.5,"mic_position":0,"mic_position_2":0.5},"ranges":{"families":{"amp":"stock","body":"stock","buzz":"stock","circuit":"stock","environment":"stock","jam":"stock","mic":"stock","modulation":"stock","pick":"stock","slide":"stock","squeak":"stock","strings":"stock"},"per_control_unlocks":[]},"schema":1,"schemaVersion":1,"strings":{"customGaugeInches":[0.014,0.018,0.026,0.036,0.05,0.068],"customTemperament":[1,1.05946309,1.12246205,1.18920712,1.25992105,1.33483985,1.41421356,1.49830708,1.58740105,1.68179283,1.78179744,1.88774863],"detuneCents":[0,0,0,0,0,0],"muted":[false,false,false,false,false,false],"numStrings":6,"openFrequencyHz":[329.628,246.942,195.998,146.832,110,82.407],"useCustomTuning":false},"techniques":{"bend_curve":[0,0.0625,0.25,0.5625,1],"bend_scale":null,"mute_grid":"open,open,open,open,open,open,open,open,open,open,open,open,open,open,open,open"}},"routing":{"aux":[{"gain":0,"mute":false,"solo":false},{"gain":0,"mute":false,"solo":false},{"gain":0,"mute":false,"solo":false},{"gain":0,"mute":false,"solo":false},{"gain":0,"mute":false,"solo":false},{"gain":0,"mute":false,"solo":false},{"gain":0,"mute":false,"solo":false},{"gain":0,"mute":false,"solo":false},{"gain":0,"mute":false,"solo":false},{"gain":0,"mute":false,"solo":false}],"midiOut":{"ccBroadcast":false,"channel":1,"enabled":false,"jamBassChannel":11,"jamDrumChannel":10,"jamParts":false,"luthierEvents":false,"macroCc":[-1,-1,-1,-1,-1,-1,-1,-1],"passThrough":true,"rhythm":false,"stringActivity":false,"tunePlayback":false,"workshopChanges":false},"perString":[{"gain":0,"mute":false},{"gain":0,"mute":false},{"gain":0,"mute":false},{"gain":0,"mute":false},{"gain":0,"mute":false},{"gain":0,"mute":false},{"gain":0,"mute":false},{"gain":0,"mute":false},{"gain":0,"mute":false},{"gain":0,"mute":false},{"gain":0,"mute":false},{"gain":0,"mute":false}],"sidechainToAmp":false},"toneMatch":{"body":{"channel":-1,"endTrim":0,"engaged":false,"file":"","gainTrimDb":0,"maxSeconds":4,"mix":1,"predelayMs":0,"reversed":false,"startTrim":0},"cab1":{"channel":-1,"endTrim":0,"engaged":false,"file":"","gainTrimDb":0,"maxSeconds":4,"mix":1,"predelayMs":0,"reversed":false,"startTrim":0},"cab2":{"channel":-1,"endTrim":0,"engaged":false,"file":"","gainTrimDb":0,"maxSeconds":4,"mix":1,"predelayMs":0,"reversed":false,"startTrim":0}}}}
+2026-11-20T03:48:13.1561733Z     p01_g20_phrase calibration hash 1e3cd8f26950b43495c4c5c7e1d99b135d4849d196b145ba5541fa59a314c410 canonical {"edition":"free","params":{"amp_bass":0.419921875,"amp_gain":0.33984375,"amp_master":0.66015625,"amp_mid":0.549804688,"amp_model":0.0769230798,"amp_presence":0.620117188,"amp_treble":0.719726562,"body_age":0.370117188,"body_back_wood":0.266666681,"body_bracing":0.714285731,"body_coupling_amount":0,"body_depth":0.388671875,"body_top_wood":0.266666681,"body_width":0.5546875,"bridge_type":0,"cab_speaker":0.571428597,"cab_type":0,"circuit_tone_cap":0.649414062,"circuit_tone_pot":0.418945312,"circuit_volume_pot":0.418945312,"guitar_type":0.833333313,"macro_attack":0.8203125,"macro_body":0.240234375,"macro_drive":0.219726562,"macro_humanize":0.419921875,"macro_space":0.240234375,"macro_tone":0.700195312,"mic_position":0,"mic_x":0.5,"pick_material":0.545454562,"pick_thickness":0.53125,"pluck_position":0.125,"post0_mix":0.799804688,"post0_p0":0.139648438,"post0_p1":0.219726562,"post0_p2":0.200195312,"post0_p3":0.549804688,"post0_p4":0,"post0_p5":0,"post0_p6":0,"post0_type":0.739130437,"pre0_p0":0.599609375,"pre0_p1":0.299804688,"pre0_p2":0.150390625,"pre0_p3":0.299804688,"pre0_p4":0.299804688,"pre0_p5":1,"pre0_type":0.0434782617,"setup_action_bass":0.521484375,"setup_action_treble":0.5,"setup_fret_height":0.540039062,"setup_nut_depth_1":0.5,"setup_nut_depth_2":0.5,"setup_nut_depth_3":0.5,"setup_nut_depth_4":0.5,"setup_nut_depth_5":0.5,"setup_nut_depth_6":0.5,"setup_relief":0.63671875,"setup_style":0,"squeak_finger_pressure":0.349609375,"string_age":0,"string_age_detail":0,"string_age_hours":0,"string_gauge":0.0909090936,"tuning_preset":0.882352948,"use_fingers":1},"revision":3,"structural":{"character":{"amount":0.25,"bodyAge":20,"boneNut":true,"capacitorDriftRange":0.05,"enabled":true,"jackIntermittent":false,"potLinearity":0.35,"seed":"1592639710","tunerLooseness":15},"modulation":{"envelopes":[{"attack":0.005,"curves":[0,0,0,0,1,0,1],"decay":0.15,"delay":0,"hold":0,"loop":0,"release":0.2,"retrigger":1,"sustain":0.7},{"attack":0.005,"curves":[0,0,0,0,1,0,1],"decay":0.15,"delay":0,"hold":0,"loop":0,"release":0.2,"retrigger":1,"sustain":0.7},{"attack":0.005,"curves":[0,0,0,0,1,0,1],"decay":0.15,"delay":0,"hold":0,"loop":0,"release":0.2,"retrigger":1,"sustain":0.7},{"attack":0.005,"curves":[0,0,0,0,1,0,1],"decay":0.15,"delay":0,"hold":0,"loop":0,"release":0.2,"retrigger":1,"sustain":0.7}],"followers":[{"attack":10,"detection":0,"log":false,"release":200,"source":0,"string":0,"threshold":0},{"attack":10,"detection":0,"log":false,"release":200,"source":1,"string":0,"threshold":0}],"lfos":[{"bipolar":true,"depth":1,"division":9,"phase":0,"points":[-1,-0.714285714,-0.428571429,-0.142857143,0.142857143,0.428571429,0.714285714,1],"rate":1,"retrigger":0,"shape":0,"smoothing":0,"symmetry":0.5,"sync":false},{"bipolar":true,"depth":1,"division":9,"phase":0,"points":[-1,-0.714285714,-0.428571429,-0.142857143,0.142857143,0.428571429,0.714285714,1],"rate":1,"retrigger":0,"shape":0,"smoothing":0,"symmetry":0.5,"sync":false},{"bipolar":true,"depth":1,"division":9,"phase":0,"points":[-1,-0.714285714,-0.428571429,-0.142857143,0.142857143,0.428571429,0.714285714,1],"rate":1,"retrigger":0,"shape":0,"smoothing":0,"symmetry":0.5,"sync":false},{"bipolar":true,"depth":1,"division":9,"phase":0,"points":[-1,-0.714285714,-0.428571429,-0.142857143,0.142857143,0.428571429,0.714285714,1],"rate":1,"retrigger":0,"shape":0,"smoothing":0,"symmetry":0.5,"sync":false},{"bipolar":true,"depth":1,"division":9,"phase":0,"points":[-1,-0.714285714,-0.428571429,-0.142857143,0.142857143,0.428571429,0.714285714,1],"rate":1,"retrigger":0,"shape":0,"smoothing":0,"symmetry":0.5,"sync":false},{"bipolar":true,"depth":1,"division":9,"phase":0,"points":[-1,-0.714285714,-0.428571429,-0.142857143,0.142857143,0.428571429,0.714285714,1],"rate":1,"retrigger":0,"shape":0,"smoothing":0,"symmetry":0.5,"sync":false},{"bipolar":true,"depth":1,"division":9,"phase":0,"points":[-1,-0.714285714,-0.428571429,-0.142857143,0.142857143,0.428571429,0.714285714,1],"rate":1,"retrigger":0,"shape":0,"smoothing":0,"symmetry":0.5,"sync":false},{"bipolar":true,"depth":1,"division":9,"phase":0,"points":[-1,-0.714285714,-0.428571429,-0.142857143,0.142857143,0.428571429,0.714285714,1],"rate":1,"retrigger":0,"shape":0,"smoothing":0,"symmetry":0.5,"sync":false}],"routes":[],"sequencers":[{"direction":0,"division":3,"length":16,"rate":4,"steps":[{"g":true,"p":1,"s":false,"v":-1},{"g":true,"p":1,"s":false,"v":-0.866666667},{"g":true,"p":1,"s":false,"v":-0.733333333},{"g":true,"p":1,"s":false,"v":-0.6},{"g":true,"p":1,"s":false,"v":-0.466666667},{"g":true,"p":1,"s":false,"v":-0.333333333},{"g":true,"p":1,"s":false,"v":-0.2},{"g":true,"p":1,"s":false,"v":-0.0666666667},{"g":true,"p":1,"s":false,"v":0.0666666667},{"g":true,"p":1,"s":false,"v":0.2},{"g":true,"p":1,"s":false,"v":0.333333333},{"g":true,"p":1,"s":false,"v":0.466666667},{"g":true,"p":1,"s":false,"v":0.6},{"g":true,"p":1,"s":false,"v":0.733333333},{"g":true,"p":1,"s":false,"v":0.866666667},{"g":true,"p":1,"s":false,"v":1}],"swing":0,"sync":true},{"direction":0,"division":3,"length":16,"rate":4,"steps":[{"g":true,"p":1,"s":false,"v":-1},{"g":true,"p":1,"s":false,"v":-0.866666667},{"g":true,"p":1,"s":false,"v":-0.733333333},{"g":true,"p":1,"s":false,"v":-0.6},{"g":true,"p":1,"s":false,"v":-0.466666667},{"g":true,"p":1,"s":false,"v":-0.333333333},{"g":true,"p":1,"s":false,"v":-0.2},{"g":true,"p":1,"s":false,"v":-0.0666666667},{"g":true,"p":1,"s":false,"v":0.0666666667},{"g":true,"p":1,"s":false,"v":0.2},{"g":true,"p":1,"s":false,"v":0.333333333},{"g":true,"p":1,"s":false,"v":0.466666667},{"g":true,"p":1,"s":false,"v":0.6},{"g":true,"p":1,"s":false,"v":0.733333333},{"g":true,"p":1,"s":false,"v":0.866666667},{"g":true,"p":1,"s":false,"v":1}],"swing":0,"sync":true}]},"preset":{"factoryRevision":3,"guitar":{"capo":"Trigger Capo","override":null,"reference":"Factory/Bass/J-Style Bass.luthierguitar"},"jam":{"link_rhythm_kit":false,"seed":4849997,"style_ref":null},"magic":"luthier.preset","micLegacy":{"mic_distance":0,"mic_distance_2":0.5,"mic_position":0,"mic_position_2":0.5},"ranges":{"families":{"amp":"stock","body":"stock","buzz":"stock","circuit":"stock","environment":"stock","jam":"stock","mic":"stock","modulation":"stock","pick":"stock","slide":"stock","squeak":"stock","strings":"stock"},"per_control_unlocks":[]},"schema":1,"schemaVersion":1,"strings":{"customGaugeInches":[0.045,0.065,0.085,0.105],"customTemperament":[1,1.05946309,1.12246205,1.18920712,1.25992105,1.33483985,1.41421356,1.49830708,1.58740105,1.68179283,1.78179744,1.88774863],"detuneCents":[0,0,0,0],"muted":[false,false,false,false],"numStrings":4,"openFrequencyHz":[97.999,73.416,55,41.203],"useCustomTuning":false},"techniques":{"bend_curve":[0,0.0625,0.25,0.5625,1],"bend_scale":null,"mute_grid":"open,open,open,open,open,open,open,open,open,open,open,open,open,open,open,open"}},"routing":{"aux":[{"gain":0,"mute":false,"solo":false},{"gain":0,"mute":false,"solo":false},{"gain":0,"mute":false,"solo":false},{"gain":0,"mute":false,"solo":false},{"gain":0,"mute":false,"solo":false},{"gain":0,"mute":false,"solo":false},{"gain":0,"mute":false,"solo":false},{"gain":0,"mute":false,"solo":false},{"gain":0,"mute":false,"solo":false},{"gain":0,"mute":false,"solo":false}],"midiOut":{"ccBroadcast":false,"channel":1,"enabled":false,"jamBassChannel":11,"jamDrumChannel":10,"jamParts":false,"luthierEvents":false,"macroCc":[-1,-1,-1,-1,-1,-1,-1,-1],"passThrough":true,"rhythm":false,"stringActivity":false,"tunePlayback":false,"workshopChanges":false},"perString":[{"gain":0,"mute":false},{"gain":0,"mute":false},{"gain":0,"mute":false},{"gain":0,"mute":false},{"gain":0,"mute":false},{"gain":0,"mute":false},{"gain":0,"mute":false},{"gain":0,"mute":false},{"gain":0,"mute":false},{"gain":0,"mute":false},{"gain":0,"mute":false},{"gain":0,"mute":false}],"sidechainToAmp":false},"toneMatch":{"body":{"channel":-1,"endTrim":0,"engaged":false,"file":"","gainTrimDb":0,"maxSeconds":4,"mix":1,"predelayMs":0,"reversed":false,"startTrim":0},"cab1":{"channel":-1,"endTrim":0,"engaged":false,"file":"","gainTrimDb":0,"maxSeconds":4,"mix":1,"predelayMs":0,"reversed":false,"startTrim":0},"cab2":{"channel":-1,"endTrim":0,"engaged":false,"file":"","gainTrimDb":0,"maxSeconds":4,"mix":1,"predelayMs":0,"reversed":false,"startTrim":0}}}}
+2026-11-20T03:48:13.6366906Z     p59_g12_phrase calibration hash e3c1768c803995fe66ebdd7d9c3e0add9e2c3bd60fac5d3c13e442f025e125bf canonical {"edition":"free","params":{"amp_gain":0.200195312,"body_coupling_amount":0,"body_depth":0.4453125,"body_width":0.760742188,"bridge_type":0,"cab_type":0.222222224,"circuit_active":1,"circuit_tone_pot":0,"circuit_volume_pot":0,"guitar_type":0.5,"setup_action_bass":0.521484375,"setup_action_treble":0.450195312,"setup_fret_height":0.540039062,"string_age_detail":0,"string_material":0.363636374,"tap_armed":1,"tap_fret_snap":0,"tap_source":1},"revision":3,"structural":{"character":{"amount":0.25,"bodyAge":20,"boneNut":true,"capacitorDriftRange":0.05,"enabled":true,"jackIntermittent":false,"potLinearity":0.35,"seed":"1592639710","tunerLooseness":15},"modulation":{"envelopes":[{"attack":0.005,"curves":[0,0,0,0,1,0,1],"decay":0.15,"delay":0,"hold":0,"loop":0,"release":0.2,"retrigger":1,"sustain":0.7},{"attack":0.005,"curves":[0,0,0,0,1,0,1],"decay":0.15,"delay":0,"hold":0,"loop":0,"release":0.2,"retrigger":1,"sustain":0.7},{"attack":0.005,"curves":[0,0,0,0,1,0,1],"decay":0.15,"delay":0,"hold":0,"loop":0,"release":0.2,"retrigger":1,"sustain":0.7},{"attack":0.005,"curves":[0,0,0,0,1,0,1],"decay":0.15,"delay":0,"hold":0,"loop":0,"release":0.2,"retrigger":1,"sustain":0.7}],"followers":[{"attack":10,"detection":0,"log":false,"release":200,"source":0,"string":0,"threshold":0},{"attack":10,"detection":0,"log":false,"release":200,"source":1,"string":0,"threshold":0}],"lfos":[{"bipolar":true,"depth":1,"division":9,"phase":0,"points":[-1,-0.714285714,-0.428571429,-0.142857143,0.142857143,0.428571429,0.714285714,1],"rate":1,"retrigger":0,"shape":0,"smoothing":0,"symmetry":0.5,"sync":false},{"bipolar":true,"depth":1,"division":9,"phase":0,"points":[-1,-0.714285714,-0.428571429,-0.142857143,0.142857143,0.428571429,0.714285714,1],"rate":1,"retrigger":0,"shape":0,"smoothing":0,"symmetry":0.5,"sync":false},{"bipolar":true,"depth":1,"division":9,"phase":0,"points":[-1,-0.714285714,-0.428571429,-0.142857143,0.142857143,0.428571429,0.714285714,1],"rate":1,"retrigger":0,"shape":0,"smoothing":0,"symmetry":0.5,"sync":false},{"bipolar":true,"depth":1,"division":9,"phase":0,"points":[-1,-0.714285714,-0.428571429,-0.142857143,0.142857143,0.428571429,0.714285714,1],"rate":1,"retrigger":0,"shape":0,"smoothing":0,"symmetry":0.5,"sync":false},{"bipolar":true,"depth":1,"division":9,"phase":0,"points":[-1,-0.714285714,-0.428571429,-0.142857143,0.142857143,0.428571429,0.714285714,1],"rate":1,"retrigger":0,"shape":0,"smoothing":0,"symmetry":0.5,"sync":false},{"bipolar":true,"depth":1,"division":9,"phase":0,"points":[-1,-0.714285714,-0.428571429,-0.142857143,0.142857143,0.428571429,0.714285714,1],"rate":1,"retrigger":0,"shape":0,"smoothing":0,"symmetry":0.5,"sync":false},{"bipolar":true,"depth":1,"division":9,"phase":0,"points":[-1,-0.714285714,-0.428571429,-0.142857143,0.142857143,0.428571429,0.714285714,1],"rate":1,"retrigger":0,"shape":0,"smoothing":0,"symmetry":0.5,"sync":false},{"bipolar":true,"depth":1,"division":9,"phase":0,"points":[-1,-0.714285714,-0.428571429,-0.142857143,0.142857143,0.428571429,0.714285714,1],"rate":1,"retrigger":0,"shape":0,"smoothing":0,"symmetry":0.5,"sync":false}],"routes":[],"sequencers":[{"direction":0,"division":3,"length":16,"rate":4,"steps":[{"g":true,"p":1,"s":false,"v":-1},{"g":true,"p":1,"s":false,"v":-0.866666667},{"g":true,"p":1,"s":false,"v":-0.733333333},{"g":true,"p":1,"s":false,"v":-0.6},{"g":true,"p":1,"s":false,"v":-0.466666667},{"g":true,"p":1,"s":false,"v":-0.333333333},{"g":true,"p":1,"s":false,"v":-0.2},{"g":true,"p":1,"s":false,"v":-0.0666666667},{"g":true,"p":1,"s":false,"v":0.0666666667},{"g":true,"p":1,"s":false,"v":0.2},{"g":true,"p":1,"s":false,"v":0.333333333},{"g":true,"p":1,"s":false,"v":0.466666667},{"g":true,"p":1,"s":false,"v":0.6},{"g":true,"p":1,"s":false,"v":0.733333333},{"g":true,"p":1,"s":false,"v":0.866666667},{"g":true,"p":1,"s":false,"v":1}],"swing":0,"sync":true},{"direction":0,"division":3,"length":16,"rate":4,"steps":[{"g":true,"p":1,"s":false,"v":-1},{"g":true,"p":1,"s":false,"v":-0.866666667},{"g":true,"p":1,"s":false,"v":-0.733333333},{"g":true,"p":1,"s":false,"v":-0.6},{"g":true,"p":1,"s":false,"v":-0.466666667},{"g":true,"p":1,"s":false,"v":-0.333333333},{"g":true,"p":1,"s":false,"v":-0.2},{"g":true,"p":1,"s":false,"v":-0.0666666667},{"g":true,"p":1,"s":false,"v":0.0666666667},{"g":true,"p":1,"s":false,"v":0.2},{"g":true,"p":1,"s":false,"v":0.333333333},{"g":true,"p":1,"s":false,"v":0.466666667},{"g":true,"p":1,"s":false,"v":0.6},{"g":true,"p":1,"s":false,"v":0.733333333},{"g":true,"p":1,"s":false,"v":0.866666667},{"g":true,"p":1,"s":false,"v":1}],"swing":0,"sync":true}]},"preset":{"factoryRevision":3,"guitar":{"capo":"Trigger Capo","override":null,"reference":"Factory/Acoustic/Grand Auditorium.luthierguitar"},"jam":{"link_rhythm_kit":false,"seed":4849997,"style_ref":null},"magic":"luthier.preset","micLegacy":{"mic_distance":0,"mic_distance_2":0.5,"mic_position":0.25,"mic_position_2":0.5},"ranges":{"families":{"amp":"stock","body":"stock","buzz":"stock","circuit":"stock","environment":"stock","jam":"stock","mic":"stock","modulation":"stock","pick":"stock","slide":"stock","squeak":"stock","strings":"stock"},"per_control_unlocks":[]},"schema":1,"schemaVersion":1,"strings":{"customGaugeInches":[0.012,0.016,0.024,0.032,0.042,0.053],"customTemperament":[1,1.05946309,1.12246205,1.18920712,1.25992105,1.33483985,1.41421356,1.49830708,1.58740105,1.68179283,1.78179744,1.88774863],"detuneCents":[0,0,0,0,0,0],"muted":[false,false,false,false,false,false],"numStrings":6,"openFrequencyHz":[329.628,246.942,195.998,146.832,110,82.407],"useCustomTuning":false},"techniques":{"bend_curve":[0,0.0625,0.25,0.5625,1],"bend_scale":null,"mute_grid":"open,open,open,open,open,open,open,open,open,open,open,open,open,open,open,open"}},"routing":{"aux":[{"gain":0,"mute":false,"solo":false},{"gain":0,"mute":false,"solo":false},{"gain":0,"mute":false,"solo":false},{"gain":0,"mute":false,"solo":false},{"gain":0,"mute":false,"solo":false},{"gain":0,"mute":false,"solo":false},{"gain":0,"mute":false,"solo":false},{"gain":0,"mute":false,"solo":false},{"gain":0,"mute":false,"solo":false},{"gain":0,"mute":false,"solo":false}],"midiOut":{"ccBroadcast":false,"channel":1,"enabled":false,"jamBassChannel":11,"jamDrumChannel":10,"jamParts":false,"luthierEvents":false,"macroCc":[-1,-1,-1,-1,-1,-1,-1,-1],"passThrough":true,"rhythm":false,"stringActivity":false,"tunePlayback":false,"workshopChanges":false},"perString":[{"gain":0,"mute":false},{"gain":0,"mute":false},{"gain":0,"mute":false},{"gain":0,"mute":false},{"gain":0,"mute":false},{"gain":0,"mute":false},{"gain":0,"mute":false},{"gain":0,"mute":false},{"gain":0,"mute":false},{"gain":0,"mute":false},{"gain":0,"mute":false},{"gain":0,"mute":false}],"sidechainToAmp":false},"toneMatch":{"body":{"channel":-1,"endTrim":0,"engaged":false,"file":"","gainTrimDb":0,"maxSeconds":4,"mix":1,"predelayMs":0,"reversed":false,"startTrim":0},"cab1":{"channel":-1,"endTrim":0,"engaged":false,"file":"","gainTrimDb":0,"maxSeconds":4,"mix":1,"predelayMs":0,"reversed":false,"startTrim":0},"cab2":{"channel":-1,"endTrim":0,"engaged":false,"file":"","gainTrimDb":0,"maxSeconds":4,"mix":1,"predelayMs":0,"reversed":false,"startTrim":0}}}}
+2026-11-20T03:48:14.1221114Z     p44_g20_phrase calibration hash 41aaf809c2ade897bb6e1f4d944b11ba7bd3cc485b5e3c7d6448f2d450088b25 canonical {"edition":"free","params":{"amp_gain":0.780273438,"amp_model":0.384615391,"bend_armed":1,"body_age":0.370117188,"body_back_wood":0.266666681,"body_bracing":0.714285731,"body_coupling_amount":0,"body_depth":0.388671875,"body_top_wood":0.266666681,"body_width":0.5546875,"bridge_type":0,"circuit_tone_cap":0.649414062,"circuit_tone_pot":0.418945312,"circuit_volume_pot":0.418945312,"guitar_type":0.833333313,"mute_armed":1,"mute_palm_pressure":0.599609375,"pick_thickness":0.53125,"pluck_position":0.208007812,"pre0_p0":0.625,"pre0_p1":0.170898438,"pre0_p2":0.362304688,"pre0_p3":0.415039062,"pre0_p4":0,"pre0_p5":0,"pre0_type":0.0434782617,"setup_action_bass":0.521484375,"setup_action_treble":0.5,"setup_fret_height":0.540039062,"setup_nut_depth_1":0.5,"setup_nut_depth_2":0.5,"setup_nut_depth_3":0.5,"setup_nut_depth_4":0.5,"setup_nut_depth_5":0.5,"setup_nut_depth_6":0.5,"setup_relief":0.63671875,"setup_style":0,"squeak_finger_pressure":0.349609375,"string_age_detail":0,"tap_armed":1,"tuning_preset":0.882352948},"revision":3,"structural":{"character":{"amount":0.25,"bodyAge":20,"boneNut":true,"capacitorDriftRange":0.05,"enabled":true,"jackIntermittent":false,"potLinearity":0.35,"seed":"1592639710","tunerLooseness":15},"modulation":{"envelopes":[{"attack":0.005,"curves":[0,0,0,0,1,0,1],"decay":0.15,"delay":0,"hold":0,"loop":0,"release":0.2,"retrigger":1,"sustain":0.7},{"attack":0.005,"curves":[0,0,0,0,1,0,1],"decay":0.15,"delay":0,"hold":0,"loop":0,"release":0.2,"retrigger":1,"sustain":0.7},{"attack":0.005,"curves":[0,0,0,0,1,0,1],"decay":0.15,"delay":0,"hold":0,"loop":0,"release":0.2,"retrigger":1,"sustain":0.7},{"attack":0.005,"curves":[0,0,0,0,1,0,1],"decay":0.15,"delay":0,"hold":0,"loop":0,"release":0.2,"retrigger":1,"sustain":0.7}],"followers":[{"attack":10,"detection":0,"log":false,"release":200,"source":0,"string":0,"threshold":0},{"attack":10,"detection":0,"log":false,"release":200,"source":1,"string":0,"threshold":0}],"lfos":[{"bipolar":true,"depth":1,"division":9,"phase":0,"points":[-1,-0.714285714,-0.428571429,-0.142857143,0.142857143,0.428571429,0.714285714,1],"rate":1,"retrigger":0,"shape":0,"smoothing":0,"symmetry":0.5,"sync":false},{"bipolar":true,"depth":1,"division":9,"phase":0,"points":[-1,-0.714285714,-0.428571429,-0.142857143,0.142857143,0.428571429,0.714285714,1],"rate":1,"retrigger":0,"shape":0,"smoothing":0,"symmetry":0.5,"sync":false},{"bipolar":true,"depth":1,"division":9,"phase":0,"points":[-1,-0.714285714,-0.428571429,-0.142857143,0.142857143,0.428571429,0.714285714,1],"rate":1,"retrigger":0,"shape":0,"smoothing":0,"symmetry":0.5,"sync":false},{"bipolar":true,"depth":1,"division":9,"phase":0,"points":[-1,-0.714285714,-0.428571429,-0.142857143,0.142857143,0.428571429,0.714285714,1],"rate":1,"retrigger":0,"shape":0,"smoothing":0,"symmetry":0.5,"sync":false},{"bipolar":true,"depth":1,"division":9,"phase":0,"points":[-1,-0.714285714,-0.428571429,-0.142857143,0.142857143,0.428571429,0.714285714,1],"rate":1,"retrigger":0,"shape":0,"smoothing":0,"symmetry":0.5,"sync":false},{"bipolar":true,"depth":1,"division":9,"phase":0,"points":[-1,-0.714285714,-0.428571429,-0.142857143,0.142857143,0.428571429,0.714285714,1],"rate":1,"retrigger":0,"shape":0,"smoothing":0,"symmetry":0.5,"sync":false},{"bipolar":true,"depth":1,"division":9,"phase":0,"points":[-1,-0.714285714,-0.428571429,-0.142857143,0.142857143,0.428571429,0.714285714,1],"rate":1,"retrigger":0,"shape":0,"smoothing":0,"symmetry":0.5,"sync":false},{"bipolar":true,"depth":1,"division":9,"phase":0,"points":[-1,-0.714285714,-0.428571429,-0.142857143,0.142857143,0.428571429,0.714285714,1],"rate":1,"retrigger":0,"shape":0,"smoothing":0,"symmetry":0.5,"sync":false}],"routes":[],"sequencers":[{"direction":0,"division":3,"length":16,"rate":4,"steps":[{"g":true,"p":1,"s":false,"v":-1},{"g":true,"p":1,"s":false,"v":-0.866666667},{"g":true,"p":1,"s":false,"v":-0.733333333},{"g":true,"p":1,"s":false,"v":-0.6},{"g":true,"p":1,"s":false,"v":-0.466666667},{"g":true,"p":1,"s":false,"v":-0.333333333},{"g":true,"p":1,"s":false,"v":-0.2},{"g":true,"p":1,"s":false,"v":-0.0666666667},{"g":true,"p":1,"s":false,"v":0.0666666667},{"g":true,"p":1,"s":false,"v":0.2},{"g":true,"p":1,"s":false,"v":0.333333333},{"g":true,"p":1,"s":false,"v":0.466666667},{"g":true,"p":1,"s":false,"v":0.6},{"g":true,"p":1,"s":false,"v":0.733333333},{"g":true,"p":1,"s":false,"v":0.866666667},{"g":true,"p":1,"s":false,"v":1}],"swing":0,"sync":true},{"direction":0,"division":3,"length":16,"rate":4,"steps":[{"g":true,"p":1,"s":false,"v":-1},{"g":true,"p":1,"s":false,"v":-0.866666667},{"g":true,"p":1,"s":false,"v":-0.733333333},{"g":true,"p":1,"s":false,"v":-0.6},{"g":true,"p":1,"s":false,"v":-0.466666667},{"g":true,"p":1,"s":false,"v":-0.333333333},{"g":true,"p":1,"s":false,"v":-0.2},{"g":true,"p":1,"s":false,"v":-0.0666666667},{"g":true,"p":1,"s":false,"v":0.0666666667},{"g":true,"p":1,"s":false,"v":0.2},{"g":true,"p":1,"s":false,"v":0.333333333},{"g":true,"p":1,"s":false,"v":0.466666667},{"g":true,"p":1,"s":false,"v":0.6},{"g":true,"p":1,"s":false,"v":0.733333333},{"g":true,"p":1,"s":false,"v":0.866666667},{"g":true,"p":1,"s":false,"v":1}],"swing":0,"sync":true}]},"preset":{"factoryRevision":3,"guitar":{"capo":"Trigger Capo","override":null,"reference":"Factory/Bass/J-Style Bass.luthierguitar"},"jam":{"link_rhythm_kit":false,"seed":4849997,"style_ref":null},"magic":"luthier.preset","micLegacy":{"mic_distance":0,"mic_distance_2":0.5,"mic_position":0.25,"mic_position_2":0.5},"ranges":{"families":{"amp":"stock","body":"stock","buzz":"stock","circuit":"stock","environment":"stock","jam":"stock","mic":"stock","modulation":"stock","pick":"stock","slide":"stock","squeak":"stock","strings":"stock"},"per_control_unlocks":[]},"schema":1,"schemaVersion":1,"strings":{"customGaugeInches":[0.045,0.065,0.085,0.105],"customTemperament":[1,1.05946309,1.12246205,1.18920712,1.25992105,1.33483985,1.41421356,1.49830708,1.58740105,1.68179283,1.78179744,1.88774863],"detuneCents":[0,0,0,0],"muted":[false,false,false,false],"numStrings":4,"openFrequencyHz":[97.999,73.416,55,41.203],"useCustomTuning":false},"techniques":{"bend_curve":[0,0.0625,0.25,0.5625,1],"bend_scale":null,"mute_grid":"palm_mute_heavy,open,open,palm_mute_heavy,palm_mute_heavy,open,open,open,palm_mute_heavy,open,open,palm_mute_heavy,palm_mute_heavy,open,open,open"}},"routing":{"aux":[{"gain":0,"mute":false,"solo":false},{"gain":0,"mute":false,"solo":false},{"gain":0,"mute":false,"solo":false},{"gain":0,"mute":false,"solo":false},{"gain":0,"mute":false,"solo":false},{"gain":0,"mute":false,"solo":false},{"gain":0,"mute":false,"solo":false},{"gain":0,"mute":false,"solo":false},{"gain":0,"mute":false,"solo":false},{"gain":0,"mute":false,"solo":false}],"midiOut":{"ccBroadcast":false,"channel":1,"enabled":false,"jamBassChannel":11,"jamDrumChannel":10,"jamParts":false,"luthierEvents":false,"macroCc":[-1,-1,-1,-1,-1,-1,-1,-1],"passThrough":true,"rhythm":false,"stringActivity":false,"tunePlayback":false,"workshopChanges":false},"perString":[{"gain":0,"mute":false},{"gain":0,"mute":false},{"gain":0,"mute":false},{"gain":0,"mute":false},{"gain":0,"mute":false},{"gain":0,"mute":false},{"gain":0,"mute":false},{"gain":0,"mute":false},{"gain":0,"mute":false},{"gain":0,"mute":false},{"gain":0,"mute":false},{"gain":0,"mute":false}],"sidechainToAmp":false},"toneMatch":{"body":{"channel":-1,"endTrim":0,"engaged":false,"file":"","gainTrimDb":0,"maxSeconds":4,"mix":1,"predelayMs":0,"reversed":false,"startTrim":0},"cab1":{"channel":-1,"endTrim":0,"engaged":false,"file":"","gainTrimDb":0,"maxSeconds":4,"mix":1,"predelayMs":0,"reversed":false,"startTrim":0},"cab2":{"channel":-1,"endTrim":0,"engaged":false,"file":"","gainTrimDb":0,"maxSeconds":4,"mix":1,"predelayMs":0,"reversed":false,"startTrim":0}}}}
+2026-11-20T03:48:14.2162109Z   [pass]  ON03_FactoryTableDoesNotDrift               4 checks      1859.89 ms
+2026-11-20T03:48:16.7885367Z   [pass]  ON03_ExplicitCalibrationTransactionIgnoresLoadDelay8 checks      2572.1 ms
+2026-11-20T03:48:16.7999556Z   [pass]  ON32_EditionIsPartOfTheHash                 6 checks      11.485 ms
+2026-11-20T03:48:17.2448657Z   [pass]  FactoryGuitarOverrideUsesSelectedInstrument 3 checks      444.81 ms
+2026-11-20T03:48:17.5788859Z   [pass]  CalibrationHashIgnoresPresetMetadata        3 checks      333.903 ms
+2026-11-20T03:48:17.5792141Z 
+2026-11-20T03:48:17.5792342Z Fuzz
+2026-11-20T03:48:17.5793147Z ----------------------------------------------------------------
+2026-11-20T03:48:17.5794067Z [tiny-convolution] 8000 Hz / 1 samples, 20000 blocks per preset
+2026-11-20T03:48:20.7271356Z [tiny-convolution-swap] 8000 Hz / 1 samples guitar=1->1 body=solid/medium_alder_played.wav->solid/medium_mahogany_played.wav loads=5->6 cabinet=2x12_open/jensen_c12_shure_sm57_cap_edge_close.wav->1x12_open/jensen_c12_shure_sm57_cap_edge_close.wav loads=10->12
+2026-11-20T03:48:20.8198697Z [tiny-convolution] 8000 Hz / 2 samples, 20000 blocks per preset
+2026-11-20T03:48:24.0074743Z [tiny-convolution-swap] 8000 Hz / 2 samples guitar=1->1 body=solid/medium_alder_played.wav->solid/medium_mahogany_played.wav loads=5->6 cabinet=2x12_open/jensen_c12_shure_sm57_cap_edge_close.wav->1x12_open/jensen_c12_shure_sm57_cap_edge_close.wav loads=10->12
+2026-11-20T03:48:24.0982915Z [tiny-convolution] 8000 Hz / 3 samples, 20000 blocks per preset
+2026-11-20T03:48:27.3613829Z [tiny-convolution-swap] 8000 Hz / 3 samples guitar=1->1 body=solid/medium_alder_played.wav->solid/medium_mahogany_played.wav loads=5->6 cabinet=2x12_open/jensen_c12_shure_sm57_cap_edge_close.wav->1x12_open/jensen_c12_shure_sm57_cap_edge_close.wav loads=10->12
+2026-11-20T03:48:27.4540038Z [tiny-convolution] 8000 Hz / 4 samples, 20000 blocks per preset
+2026-11-20T03:48:30.8052891Z [tiny-convolution-swap] 8000 Hz / 4 samples guitar=1->1 body=solid/medium_alder_played.wav->solid/medium_mahogany_played.wav loads=5->6 cabinet=2x12_open/jensen_c12_shure_sm57_cap_edge_close.wav->1x12_open/jensen_c12_shure_sm57_cap_edge_close.wav loads=10->12
+2026-11-20T03:48:30.8855976Z   [pass]  convolutionPreparesSafelyForTinyHostBlocks  2150 checks   13306 ms
+2026-11-20T03:48:30.8857218Z [tiny-convolution] 8000 Hz / 5 samples, 2000 blocks per preset
+2026-11-20T03:48:31.4756357Z [tiny-convolution-swap] 8000 Hz / 5 samples guitar=1->1 body=solid/medium_alder_played.wav->solid/medium_mahogany_played.wav loads=5->6 cabinet=2x12_open/jensen_c12_shure_sm57_cap_edge_close.wav->1x12_open/jensen_c12_shure_sm57_cap_edge_close.wav loads=10->12
+2026-11-20T03:48:31.5622573Z [tiny-convolution] 8000 Hz / 7 samples, 2000 blocks per preset
+2026-11-20T03:48:32.1689724Z [tiny-convolution-swap] 8000 Hz / 7 samples guitar=1->1 body=solid/medium_alder_played.wav->solid/medium_mahogany_played.wav loads=5->6 cabinet=2x12_open/jensen_c12_shure_sm57_cap_edge_close.wav->1x12_open/jensen_c12_shure_sm57_cap_edge_close.wav loads=10->12
+2026-11-20T03:48:32.2658720Z [tiny-convolution] 8000 Hz / 8 samples, 2000 blocks per preset
+2026-11-20T03:48:32.8847008Z [tiny-convolution-swap] 8000 Hz / 8 samples guitar=1->1 body=solid/medium_alder_played.wav->solid/medium_mahogany_played.wav loads=5->6 cabinet=2x12_open/jensen_c12_shure_sm57_cap_edge_close.wav->1x12_open/jensen_c12_shure_sm57_cap_edge_close.wav loads=10->12
+2026-11-20T03:48:32.9734321Z [tiny-convolution] 44100 Hz / 1 samples, 2000 blocks per preset
+2026-11-20T03:48:33.5632298Z [tiny-convolution-swap] 44100 Hz / 1 samples guitar=1->1 body=solid/medium_alder_played.wav->solid/medium_mahogany_played.wav loads=5->6 cabinet=2x12_open/jensen_c12_shure_sm57_cap_edge_close.wav->1x12_open/jensen_c12_shure_sm57_cap_edge_close.wav loads=10->12
+2026-11-20T03:48:33.6598647Z [tiny-convolution] 44100 Hz / 2 samples, 2000 blocks per preset
+2026-11-20T03:48:34.2665092Z [tiny-convolution-swap] 44100 Hz / 2 samples guitar=1->1 body=solid/medium_alder_played.wav->solid/medium_mahogany_played.wav loads=5->6 cabinet=2x12_open/jensen_c12_shure_sm57_cap_edge_close.wav->1x12_open/jensen_c12_shure_sm57_cap_edge_close.wav loads=10->12
+2026-11-20T03:48:34.3653167Z [tiny-convolution] 44100 Hz / 3 samples, 2000 blocks per preset
+2026-11-20T03:48:34.9650508Z [tiny-convolution-swap] 44100 Hz / 3 samples guitar=1->1 body=solid/medium_alder_played.wav->solid/medium_mahogany_played.wav loads=5->6 cabinet=2x12_open/jensen_c12_shure_sm57_cap_edge_close.wav->1x12_open/jensen_c12_shure_sm57_cap_edge_close.wav loads=10->12
+2026-11-20T03:48:35.0517729Z [tiny-convolution] 44100 Hz / 4 samples, 2000 blocks per preset
+2026-11-20T03:48:35.6646727Z [tiny-convolution-swap] 44100 Hz / 4 samples guitar=1->1 body=solid/medium_alder_played.wav->solid/medium_mahogany_played.wav loads=5->6 cabinet=2x12_open/jensen_c12_shure_sm57_cap_edge_close.wav->1x12_open/jensen_c12_shure_sm57_cap_edge_close.wav loads=10->12
+2026-11-20T03:48:35.7570552Z [tiny-convolution] 44100 Hz / 5 samples, 2000 blocks per preset
+2026-11-20T03:48:36.3750531Z [tiny-convolution-swap] 44100 Hz / 5 samples guitar=1->1 body=solid/medium_alder_played.wav->solid/medium_mahogany_played.wav loads=5->6 cabinet=2x12_open/jensen_c12_shure_sm57_cap_edge_close.wav->1x12_open/jensen_c12_shure_sm57_cap_edge_close.wav loads=10->12
+2026-11-20T03:48:36.4720219Z [tiny-convolution] 44100 Hz / 7 samples, 2000 blocks per preset
+2026-11-20T03:48:37.1126039Z [tiny-convolution-swap] 44100 Hz / 7 samples guitar=1->1 body=solid/medium_alder_played.wav->solid/medium_mahogany_played.wav loads=5->6 cabinet=2x12_open/jensen_c12_shure_sm57_cap_edge_close.wav->1x12_open/jensen_c12_shure_sm57_cap_edge_close.wav loads=10->12
+2026-11-20T03:48:37.2177880Z [tiny-convolution] 44100 Hz / 8 samples, 2000 blocks per preset
+2026-11-20T03:48:37.8723218Z [tiny-convolution-swap] 44100 Hz / 8 samples guitar=1->1 body=solid/medium_alder_played.wav->solid/medium_mahogany_played.wav loads=5->6 cabinet=2x12_open/jensen_c12_shure_sm57_cap_edge_close.wav->1x12_open/jensen_c12_shure_sm57_cap_edge_close.wav loads=10->12
+2026-11-20T03:48:37.9628899Z [tiny-convolution] 192000 Hz / 1 samples, 2000 blocks per preset
+2026-11-20T03:48:38.5345367Z [tiny-convolution-swap] 192000 Hz / 1 samples guitar=1->1 body=solid/medium_alder_played.wav->solid/medium_mahogany_played.wav loads=5->6 cabinet=2x12_open/jensen_c12_shure_sm57_cap_edge_close.wav->1x12_open/jensen_c12_shure_sm57_cap_edge_close.wav loads=10->12
+2026-11-20T03:48:38.6478027Z [tiny-convolution] 192000 Hz / 2 samples, 2000 blocks per preset
+2026-11-20T03:48:39.2470097Z [tiny-convolution-swap] 192000 Hz / 2 samples guitar=1->1 body=solid/medium_alder_played.wav->solid/medium_mahogany_played.wav loads=5->6 cabinet=2x12_open/jensen_c12_shure_sm57_cap_edge_close.wav->1x12_open/jensen_c12_shure_sm57_cap_edge_close.wav loads=10->12
+2026-11-20T03:48:39.3785696Z [tiny-convolution] 192000 Hz / 3 samples, 2000 blocks per preset
+2026-11-20T03:48:39.9780293Z [tiny-convolution-swap] 192000 Hz / 3 samples guitar=1->1 body=solid/medium_alder_played.wav->solid/medium_mahogany_played.wav loads=5->6 cabinet=2x12_open/jensen_c12_shure_sm57_cap_edge_close.wav->1x12_open/jensen_c12_shure_sm57_cap_edge_close.wav loads=10->12
+2026-11-20T03:48:40.1205165Z [tiny-convolution] 192000 Hz / 4 samples, 2000 blocks per preset
+2026-11-20T03:48:40.7691600Z [tiny-convolution-swap] 192000 Hz / 4 samples guitar=1->1 body=solid/medium_alder_played.wav->solid/medium_mahogany_played.wav loads=5->6 cabinet=2x12_open/jensen_c12_shure_sm57_cap_edge_close.wav->1x12_open/jensen_c12_shure_sm57_cap_edge_close.wav loads=10->12
+2026-11-20T03:48:40.8846608Z [tiny-convolution] 192000 Hz / 5 samples, 2000 blocks per preset
+2026-11-20T03:48:41.5544261Z [tiny-convolution-swap] 192000 Hz / 5 samples guitar=1->1 body=solid/medium_alder_played.wav->solid/medium_mahogany_played.wav loads=5->6 cabinet=2x12_open/jensen_c12_shure_sm57_cap_edge_close.wav->1x12_open/jensen_c12_shure_sm57_cap_edge_close.wav loads=10->12
+2026-11-20T03:48:41.6647814Z [tiny-convolution] 192000 Hz / 7 samples, 2000 blocks per preset
+2026-11-20T03:48:42.3050450Z [tiny-convolution-swap] 192000 Hz / 7 samples guitar=1->1 body=solid/medium_alder_played.wav->solid/medium_mahogany_played.wav loads=5->6 cabinet=2x12_open/jensen_c12_shure_sm57_cap_edge_close.wav->1x12_open/jensen_c12_shure_sm57_cap_edge_close.wav loads=10->12
+2026-11-20T03:48:42.4223293Z [tiny-convolution] 192000 Hz / 8 samples, 2000 blocks per preset
+2026-11-20T03:48:43.0732445Z [tiny-convolution-swap] 192000 Hz / 8 samples guitar=1->1 body=solid/medium_alder_played.wav->solid/medium_mahogany_played.wav loads=5->6 cabinet=2x12_open/jensen_c12_shure_sm57_cap_edge_close.wav->1x12_open/jensen_c12_shure_sm57_cap_edge_close.wav loads=10->12
+2026-11-20T03:48:43.2008987Z   [pass]  convolutionTinyHostRateAndCapacityBoundaries9131 checks   12315 ms
+2026-11-20T03:49:21.0043099Z   [pass]  everyFactoryPresetHostStateRoundTrips       1 checks      37803.2 ms
+2026-11-20T03:49:29.0753307Z   [pass]  randomParameterStatesHostStateRoundTripAtExtremeConfigs1 checks      8070.75 ms
+2026-11-20T03:49:29.0754294Z 
+2026-11-20T03:49:29.0754485Z HostState
+2026-11-20T03:49:29.0755204Z ----------------------------------------------------------------
+2026-11-20T03:49:29.3094567Z   [pass]  bypassOutputsSilence                        0 checks      234.118 ms
+2026-11-20T03:49:29.3095461Z 
+2026-11-20T03:49:29.3095616Z CpuQualityUi
+2026-11-20T03:49:29.3096055Z ----------------------------------------------------------------
+2026-11-20T03:49:31.7055475Z   [pass]  CQ23_staticOverlayCountsStateChangesOnly    4 checks      2395.66 ms
+2026-11-20T03:49:37.5619291Z     Advanced at high: paint 3286.5 ms of 99.7 ms dispatching
+2026-11-20T03:49:43.2061755Z     Advanced at low: paint 524.8 ms of 68.4 ms dispatching
+2026-11-20T03:49:43.2062336Z     at Low: GuitarBodyComponent painted 1
+2026-11-20T03:49:43.2062757Z     at Low: StringAnimator painted 1
+2026-11-20T03:49:43.2290276Z     Advanced: High busiest decorative 110 paints, 3286.5 ms; Low decorative 1 paints, worst readout 19, 524.8 ms
+2026-11-20T03:49:47.9071842Z     Easy at high: paint 3249.4 ms of 101.7 ms dispatching
+2026-11-20T03:49:52.6039138Z     Easy at low: paint 540.1 ms of 69.4 ms dispatching
+2026-11-20T03:49:52.6039914Z     at Low: GuitarBodyComponent painted 1
+2026-11-20T03:49:52.6040704Z     at Low: StringAnimator painted 1
+2026-11-20T03:49:52.6255734Z     Easy: High busiest decorative 114 paints, 3249.4 ms; Low decorative 1 paints, worst readout 20, 540.1 ms
+2026-11-20T03:49:52.7015481Z   [pass]  CQ23_lowMeansNoAnimationRepaints            36 checks     20995.6 ms
+2026-11-20T03:49:52.7016183Z 
+2026-11-20T03:49:52.7016500Z RefPedalAssetLifetime
+2026-11-20T03:49:52.7017084Z ----------------------------------------------------------------
+2026-11-20T03:49:52.9875743Z   [pass]  destructionDrainsQueuedIoWithoutUsingOuterOwner17 checks     285.82 ms
+2026-11-20T03:49:52.9883417Z   [pass]  throwingCallbackDoesNotLoseFollowingWork    2 checks      0.838 ms
+2026-11-20T03:49:52.9884210Z 
+2026-11-20T03:49:52.9884412Z RefPedalBbdCore
+2026-11-20T03:49:52.9885139Z ----------------------------------------------------------------
+2026-11-20T03:49:52.9893149Z   [pass]  clockLawImpulseAndReset                     11 checks     0.967 ms
+2026-11-20T03:49:53.0035872Z   [pass]  seedDeterminismAndBandwidth                 2 checks      14.192 ms
+2026-11-20T03:49:53.0100709Z   [pass]  clockEventsRemainDistinctAboveHostRate      12 checks     6.473 ms
+2026-11-20T03:49:53.0101325Z 
+2026-11-20T03:49:53.0101488Z RefPedalBbdCurvature
+2026-11-20T03:49:53.0101962Z ----------------------------------------------------------------
+2026-11-20T03:49:53.0260969Z   [pass]  disabledCurvatureAndUnclockedModePreserveSamples5 checks      15.963 ms
+2026-11-20T03:49:53.0383734Z   [pass]  resetReproducesFreshCoreAndSilenceHasNoDc   10 checks     12.236 ms
+2026-11-20T03:49:53.0619801Z   [pass]  clockedPedalIsIndependentOfBlockPartition   4 checks      23.453 ms
+2026-11-20T03:49:53.1621139Z   [pass]  wetDistortionIsFiniteAndAcCoupled           15 checks     100.048 ms
+2026-11-20T03:49:53.1621773Z 
+2026-11-20T03:49:53.1621939Z RefPedalBlockPlan
+2026-11-20T03:49:53.1622558Z ----------------------------------------------------------------
+2026-11-20T03:49:53.1664242Z   [pass]  placementMoveBetweenCallsCannotAdvanceOnePedalTwice39 checks     4.36 ms
+2026-11-20T03:49:53.1665533Z 
+2026-11-20T03:49:53.1665707Z RefPedalBufferedTimeFx
+2026-11-20T03:49:53.1666172Z ----------------------------------------------------------------
+2026-11-20T03:49:53.3178368Z   [pass]  analyticBufferColourAndStereoIsolation      150 checks    151.151 ms
+2026-11-20T03:49:53.3395221Z   [pass]  boardOwnsFadeAndBypassHistoryIsIndependent  160 checks    21.684 ms
+2026-11-20T03:49:53.3397321Z 
+2026-11-20T03:49:53.3398620Z RefPedalBypassLatency
+2026-11-20T03:49:53.3399206Z ----------------------------------------------------------------
+2026-11-20T03:49:53.3487933Z   [pass]  modelAndHostBypassRetainMeasuredDelayAtEveryPlacement2380 checks   9.289 ms
+2026-11-20T03:49:53.3488620Z 
+2026-11-20T03:49:53.3488742Z RefPedalCe2NodeBypass
+2026-11-20T03:49:53.3489097Z ----------------------------------------------------------------
+2026-11-20T03:49:53.3654707Z CE2_NODE rate44100 bbd0 block1 enable0 error4.4408920985006262e-16 control3.5527136788005009e-15 step0.0014945131824113875 dry1 active5f03dfa8333ab452
+2026-11-20T03:49:53.3656306Z CE2_NODE rate44100 bbd0 block1 enable1 error3.7470027081099033e-16 control2.3314683517128287e-15 step0.00095717096924141654 dry1 active5f03dfa8333ab452
+2026-11-20T03:49:53.3657582Z CE2_NODE rate44100 bbd0 block64 enable0 error4.4408920985006262e-16 control3.1641356201816961e-15 step0.0014945131824113875 dry1 active5f03dfa8333ab452
+2026-11-20T03:49:53.3658865Z CE2_NODE rate44100 bbd0 block64 enable1 error3.7470027081099033e-16 control1.3322676295501878e-15 step0.00095717096924141654 dry1 active5f03dfa8333ab452
+2026-11-20T03:49:53.3660149Z CE2_NODE rate44100 bbd0 block2048 enable0 error4.4408920985006262e-16 control3.1086244689504383e-15 step0.0014945131824113875 dry1 active5f03dfa8333ab452
+2026-11-20T03:49:53.3661442Z CE2_NODE rate44100 bbd0 block2048 enable1 error3.7470027081099033e-16 control1.4432899320127035e-15 step0.00095717096924141654 dry1 active5f03dfa8333ab452
+2026-11-20T03:49:53.3662734Z CE2_NODE rate44100 bbd1 block1 enable0 error4.4408920985006262e-16 control3.5527136788005009e-15 step0.0014984037547822529 dry1 activec226b06b4d6edc6b
+2026-11-20T03:49:53.3664005Z CE2_NODE rate44100 bbd1 block1 enable1 error3.7470027081099033e-16 control2.3314683517128287e-15 step0.00095948339601617527 dry1 activec226b06b4d6edc6b
+2026-11-20T03:49:53.3665371Z CE2_NODE rate44100 bbd1 block64 enable0 error4.4408920985006262e-16 control3.1641356201816961e-15 step0.0014984037547822529 dry1 activec226b06b4d6edc6b
+2026-11-20T03:49:53.3666650Z CE2_NODE rate44100 bbd1 block64 enable1 error3.7470027081099033e-16 control1.3322676295501878e-15 step0.00095948339601617527 dry1 activec226b06b4d6edc6b
+2026-11-20T03:49:53.3667924Z CE2_NODE rate44100 bbd1 block2048 enable0 error4.4408920985006262e-16 control3.1086244689504383e-15 step0.0014984037547822529 dry1 activec226b06b4d6edc6b
+2026-11-20T03:49:53.3669207Z CE2_NODE rate44100 bbd1 block2048 enable1 error3.7470027081099033e-16 control1.4432899320127035e-15 step0.00095948339601617527 dry1 activec226b06b4d6edc6b
+2026-11-20T03:49:53.3670491Z CE2_NODE rate48000 bbd0 block1 enable0 error4.3021142204224816e-16 control2.6645352591003757e-15 step0.0013731696710928415 dry1 actived29e00d244840ced
+2026-11-20T03:49:53.3671751Z CE2_NODE rate48000 bbd0 block1 enable1 error3.7470027081099033e-16 control2.3314683517128287e-15 step0.00088265090121660006 dry1 actived29e00d244840ced
+2026-11-20T03:49:53.3673016Z CE2_NODE rate48000 bbd0 block64 enable0 error4.3021142204224816e-16 control2.55351295663786e-15 step0.0013731696710928415 dry1 actived29e00d244840ced
+2026-11-20T03:49:53.3674096Z CE2_NODE rate48000 bbd0 block64 enable1 error3.7470027081099033e-16 control2.3314683517128287e-15 step0.00088265090121660006 dry1 actived29e00d244840ced
+2026-11-20T03:49:53.3675311Z CE2_NODE rate48000 bbd0 block2048 enable0 error4.3021142204224816e-16 control2.55351295663786e-15 step0.0013731696710928415 dry1 actived29e00d244840ced
+2026-11-20T03:49:53.3676327Z CE2_NODE rate48000 bbd0 block2048 enable1 error3.7470027081099033e-16 control1.6653345369377348e-15 step0.00088265090121660006 dry1 actived29e00d244840ced
+2026-11-20T03:49:53.3677551Z CE2_NODE rate48000 bbd1 block1 enable0 error4.3021142204224816e-16 control2.6645352591003757e-15 step0.0013779705198223025 dry1 activec175cae4518efdd2
+2026-11-20T03:49:53.3678530Z CE2_NODE rate48000 bbd1 block1 enable1 error3.7470027081099033e-16 control2.3314683517128287e-15 step0.00088953017420378977 dry1 activec175cae4518efdd2
+2026-11-20T03:49:53.3679655Z CE2_NODE rate48000 bbd1 block64 enable0 error4.3021142204224816e-16 control2.55351295663786e-15 step0.0013779705198223025 dry1 activec175cae4518efdd2
+2026-11-20T03:49:53.3680645Z CE2_NODE rate48000 bbd1 block64 enable1 error3.7470027081099033e-16 control2.3314683517128287e-15 step0.00088953017420378977 dry1 activec175cae4518efdd2
+2026-11-20T03:49:53.3681634Z CE2_NODE rate48000 bbd1 block2048 enable0 error4.3021142204224816e-16 control2.55351295663786e-15 step0.0013779705198223025 dry1 activec175cae4518efdd2
+2026-11-20T03:49:53.3682627Z CE2_NODE rate48000 bbd1 block2048 enable1 error3.7470027081099033e-16 control1.6653345369377348e-15 step0.00088953017420378977 dry1 activec175cae4518efdd2
+2026-11-20T03:49:53.3683625Z CE2_NODE rate88200 bbd0 block1 enable0 error1.3461454173580023e-15 control8.7152507433074788e-15 step0.00074768417389880701 dry1 active7a7ed9afae88ab67
+2026-11-20T03:49:53.3684636Z CE2_NODE rate88200 bbd0 block1 enable1 error1.1796119636642288e-15 control7.5495165674510645e-15 step0.00048668738304956383 dry1 active7a7ed9afae88ab67
+2026-11-20T03:49:53.3925248Z CE2_NODE rate88200 bbd0 block64 enable0 error1.3461454173580023e-15 control8.1046280797636427e-15 step0.00074768417389880701 dry1 active7a7ed9afae88ab67
+2026-11-20T03:49:53.3927564Z CE2_NODE rate88200 bbd0 block64 enable1 error1.1796119636642288e-15 control5.773159728050814e-15 step0.00048668738304956383 dry1 active7a7ed9afae88ab67
+2026-11-20T03:49:53.3929872Z CE2_NODE rate88200 bbd0 block2048 enable0 error1.3461454173580023e-15 control8.1046280797636427e-15 step0.00074768417389880701 dry1 active7a7ed9afae88ab67
+2026-11-20T03:49:53.3931827Z CE2_NODE rate88200 bbd0 block2048 enable1 error1.1796119636642288e-15 control5.773159728050814e-15 step0.00048668738304956383 dry1 active7a7ed9afae88ab67
+2026-11-20T03:49:53.3933367Z CE2_NODE rate88200 bbd1 block1 enable0 error1.3461454173580023e-15 control8.7152507433074788e-15 step0.00074957608023179523 dry1 active9e275c611d7c6e93
+2026-11-20T03:49:53.3934741Z CE2_NODE rate88200 bbd1 block1 enable1 error1.1796119636642288e-15 control7.5495165674510645e-15 step0.0004897532468938065 dry1 active9e275c611d7c6e93
+2026-11-20T03:49:53.3936339Z CE2_NODE rate88200 bbd1 block64 enable0 error1.3461454173580023e-15 control8.1046280797636427e-15 step0.00074957608023179523 dry1 active9e275c611d7c6e93
+2026-11-20T03:49:53.3937703Z CE2_NODE rate88200 bbd1 block64 enable1 error1.1796119636642288e-15 control5.773159728050814e-15 step0.0004897532468938065 dry1 active9e275c611d7c6e93
+2026-11-20T03:49:53.3939077Z CE2_NODE rate88200 bbd1 block2048 enable0 error1.3461454173580023e-15 control8.1046280797636427e-15 step0.00074957608023179523 dry1 active9e275c611d7c6e93
+2026-11-20T03:49:53.3940465Z CE2_NODE rate88200 bbd1 block2048 enable1 error1.1796119636642288e-15 control5.773159728050814e-15 step0.0004897532468938065 dry1 active9e275c611d7c6e93
+2026-11-20T03:49:53.3941837Z CE2_NODE rate96000 bbd0 block1 enable0 error5.2735593669694936e-16 control3.1086244689504383e-15 step0.00068697782139305261 dry1 activecfd2c939755c36b9
+2026-11-20T03:49:53.3943206Z CE2_NODE rate96000 bbd0 block1 enable1 error4.4408920985006262e-16 control2.886579864025407e-15 step0.00044768525767674427 dry1 activecfd2c939755c36b9
+2026-11-20T03:49:53.3944299Z CE2_NODE rate96000 bbd0 block64 enable0 error5.2735593669694936e-16 control3.0669911055269949e-15 step0.00068697782139305261 dry1 activecfd2c939755c36b9
+2026-11-20T03:49:53.3945480Z CE2_NODE rate96000 bbd0 block64 enable1 error4.4408920985006262e-16 control2.55351295663786e-15 step0.00044768525767674427 dry1 activecfd2c939755c36b9
+2026-11-20T03:49:53.3946486Z CE2_NODE rate96000 bbd0 block2048 enable0 error5.2735593669694936e-16 control3.0669911055269949e-15 step0.00068697782139305261 dry1 activecfd2c939755c36b9
+2026-11-20T03:49:53.3947749Z CE2_NODE rate96000 bbd0 block2048 enable1 error4.4408920985006262e-16 control2.55351295663786e-15 step0.00044768525767674427 dry1 activecfd2c939755c36b9
+2026-11-20T03:49:53.3948870Z CE2_NODE rate96000 bbd1 block1 enable0 error5.2735593669694936e-16 control3.1086244689504383e-15 step0.00068784926756797204 dry1 active8f2abf1ca6b27df6
+2026-11-20T03:49:53.3949879Z CE2_NODE rate96000 bbd1 block1 enable1 error4.4408920985006262e-16 control2.886579864025407e-15 step0.00044852629646020825 dry1 active8f2abf1ca6b27df6
+2026-11-20T03:49:53.3950878Z CE2_NODE rate96000 bbd1 block64 enable0 error5.2735593669694936e-16 control3.0669911055269949e-15 step0.00068784926756797204 dry1 active8f2abf1ca6b27df6
+2026-11-20T03:49:53.3951872Z CE2_NODE rate96000 bbd1 block64 enable1 error4.4408920985006262e-16 control2.55351295663786e-15 step0.00044852629646020825 dry1 active8f2abf1ca6b27df6
+2026-11-20T03:49:53.3952876Z CE2_NODE rate96000 bbd1 block2048 enable0 error5.2735593669694936e-16 control3.0669911055269949e-15 step0.00068784926756797204 dry1 active8f2abf1ca6b27df6
+2026-11-20T03:49:53.3953884Z CE2_NODE rate96000 bbd1 block2048 enable1 error4.4408920985006262e-16 control2.55351295663786e-15 step0.00044852629646020825 dry1 active8f2abf1ca6b27df6
+2026-11-20T03:49:53.3954876Z CE2_NODE rate192000 bbd0 block1 enable0 error4.1355807667287081e-15 control2.4813484600372249e-14 step0.00034361677977506888 dry1 activefb103129541c52b5
+2026-11-20T03:49:53.3956154Z CE2_NODE rate192000 bbd0 block1 enable1 error3.5110803153770576e-15 control2.3425705819590803e-14 step0.00022533436194394074 dry1 activefb103129541c52b5
+2026-11-20T03:49:53.3957141Z CE2_NODE rate192000 bbd0 block64 enable0 error4.1355807667287081e-15 control2.4757973449140991e-14 step0.00034361677977506888 dry1 activefb103129541c52b5
+2026-11-20T03:49:53.3958138Z CE2_NODE rate192000 bbd0 block64 enable1 error3.5110803153770576e-15 control2.2537527399890678e-14 step0.00022533436194394074 dry1 activefb103129541c52b5
+2026-11-20T03:49:53.3959152Z CE2_NODE rate192000 bbd0 block2048 enable0 error4.1355807667287081e-15 control2.4757973449140991e-14 step0.00034361677977506888 dry1 activefb103129541c52b5
+2026-11-20T03:49:53.4032032Z CE2_NODE rate192000 bbd0 block2048 enable1 error3.5110803153770576e-15 control2.2537527399890678e-14 step0.00022533436194394074 dry1 activefb103129541c52b5
+2026-11-20T03:49:53.4034395Z CE2_NODE rate192000 bbd1 block1 enable0 error4.1355807667287081e-15 control2.4813484600372249e-14 step0.00034414192594642637 dry1 active60f6acb2fa53714a
+2026-11-20T03:49:53.4036348Z CE2_NODE rate192000 bbd1 block1 enable1 error3.5110803153770576e-15 control2.3425705819590803e-14 step0.00022473946741695394 dry1 active60f6acb2fa53714a
+2026-11-20T03:49:53.4037647Z CE2_NODE rate192000 bbd1 block64 enable0 error4.1355807667287081e-15 control2.4757973449140991e-14 step0.00034414192594642637 dry1 active60f6acb2fa53714a
+2026-11-20T03:49:53.4038939Z CE2_NODE rate192000 bbd1 block64 enable1 error3.5110803153770576e-15 control2.2537527399890678e-14 step0.00022473946741695394 dry1 active60f6acb2fa53714a
+2026-11-20T03:49:53.4040211Z CE2_NODE rate192000 bbd1 block2048 enable0 error4.1355807667287081e-15 control2.4757973449140991e-14 step0.00034414192594642637 dry1 active60f6acb2fa53714a
+2026-11-20T03:49:53.4041480Z CE2_NODE rate192000 bbd1 block2048 enable1 error3.5110803153770576e-15 control2.2537527399890678e-14 step0.00022473946741695394 dry1 active60f6acb2fa53714a
+2026-11-20T03:49:53.4042508Z   [pass]  originalFiveMsEqualPowerUsesSeparatelyBufferedDry420 checks    54.323 ms
+2026-11-20T03:49:53.4042974Z 
+2026-11-20T03:49:53.4043099Z RefPedalChorusMemory
+2026-11-20T03:49:53.4043416Z ----------------------------------------------------------------
+2026-11-20T03:49:53.4061958Z   boss-ce2 owned bytes high=58512 lower=58512
+2026-11-20T03:49:53.4062548Z   boss-ce2w owned bytes high=208400 lower=208400
+2026-11-20T03:49:53.4063128Z   [pass]  freshBoundsAndReprepareCoverAllModeHistories762 checks    3.077 ms
+2026-11-20T03:49:53.4063955Z   [pass]  invalidPreparationCannotReserve             24 checks     0.001 ms
+2026-11-20T03:49:53.4251596Z   boss-ce2 admitted=296 retained bytes=63853120
+2026-11-20T03:49:53.4252427Z   boss-ce2w admitted=64 retained bytes=63113728
+2026-11-20T03:49:53.4253462Z   [pass]  poolRejectsBeforeFactoryAndPreservesSharedPins404 checks    18.766 ms
+2026-11-20T03:49:53.4254913Z   [pass]  preparedModelsHaveKnownCapacityReports      30 checks     0.336 ms
+2026-11-20T03:49:53.4255633Z 
+2026-11-20T03:49:53.4255759Z RefPedalControlRace
+2026-11-20T03:49:53.4256149Z ----------------------------------------------------------------
+2026-11-20T03:49:53.4453911Z   [pass]  publisherReclaimerAndAudioHaveDistinctThreads1008 checks   19.945 ms
+2026-11-20T03:49:53.4456849Z   [pass]  runtimePinSurvivesReentrantRemovalAndReclaimOutsideControlGuard12 checks     0.274 ms
+2026-11-20T03:49:53.4458857Z   [pass]  configRebuildAllowsSaveExtraToReclaimEngine 8 checks      0.2 ms
+2026-11-20T03:49:53.4473649Z   [pass]  snapshotRestoreAllowsSaveExtraToReclaimEngine10 checks     1.448 ms
+2026-11-20T03:49:53.4476375Z   [pass]  saveExtraExceptionReacquiresGuardAndAllowsRetry7 checks      0.256 ms
+2026-11-20T03:49:53.4477013Z 
+2026-11-20T03:49:53.4477200Z RefPedalHostCapture
+2026-11-20T03:49:53.4477679Z ----------------------------------------------------------------
+2026-11-20T03:49:53.4478490Z   [pass]  zeroGainRemainsExactAcrossHostCapture       18 checks     0.007 ms
+2026-11-20T03:49:53.4479452Z   [pass]  allControlsAreMonotonicWithExactEndpoints   147 checks    0.071 ms
+2026-11-20T03:49:53.4480035Z 
+2026-11-20T03:49:53.4480220Z RefPedalLooperStorageDirection
+2026-11-20T03:49:53.4480748Z ----------------------------------------------------------------
+2026-11-20T03:49:53.4556491Z   [pass]  freshReverseWrapKeepsSameVersionPagesAndExactDescendingStereo400 checks    7.597 ms
+2026-11-20T03:49:53.5703631Z   [pass]  partialTailAndFullWindowEvictionStayExactAcrossReverseWraps6999 checks   114.575 ms
+2026-11-20T03:49:53.5783662Z   [pass]  reverseReadPrimesAtActualPartialPageEnd     152 checks    8.077 ms
+2026-11-20T03:49:53.5820889Z   [pass]  reverseSparseReadPrimesFromImplicitZeroPartialPage17 checks     3.71 ms
+2026-11-20T03:49:53.5961913Z   [pass]  queuedOppositeDirectionsCannotPublishObsoleteSlots330 checks    14.059 ms
+2026-11-20T03:49:53.6039630Z   [pass]  reverseMissReportsUnderrunAndRecoversWithoutRelabellingAssets158 checks    7.763 ms
+2026-11-20T03:49:53.6040251Z 
+2026-11-20T03:49:53.6040497Z RefPedalLooperStorage
+2026-11-20T03:49:53.6040825Z ----------------------------------------------------------------
+2026-11-20T03:49:53.6044268Z 90min/48k stereo: frames=259200000 RAM=8878704 storage=2076890704 bytes
+2026-11-20T03:49:53.6044894Z   [pass]  fullDurationFitsBoundedRamWithoutTruncation 9 checks      0.495 ms
+2026-11-20T03:49:53.6112672Z   [pass]  diskPagesAndExternalManifestRoundTrip       520 checks    6.787 ms
+2026-11-20T03:49:53.6135408Z   [pass]  slowWriterNeverBlocksAudioAndReportsOverrun 39 checks     2.226 ms
+2026-11-20T03:49:53.6136844Z   [pass]  failedWritesPreservePriorManifestOutput     21 checks     0.168 ms
+2026-11-20T03:49:53.6210527Z   [pass]  slowReaderReturnsSilenceAndRecovers         141 checks    7.305 ms
+2026-11-20T03:49:53.6251986Z   [pass]  corruptManifestIsAtomicAndMissingPageIsReported43 checks     4.121 ms
+2026-11-20T03:49:53.6302315Z   [pass]  monoPagesAndMalformedManifest               43 checks     4.996 ms
+2026-11-20T03:49:53.6343127Z   [pass]  audioPagingCallsNeverAllocate               2 checks      4.038 ms
+2026-11-20T03:49:54.6399073Z   [pass]  restoreWaitsForOldJobsAndTimeoutKeepsLoop   60 checks     1005.5 ms
+2026-11-20T03:49:54.6595497Z   [pass]  sparsePartialOverdubPagesPersistAndAccumulateAcrossWraps1109 checks   19.594 ms
+2026-11-20T03:49:54.6618112Z   [pass]  atomicCaptureDistinguishesPendingAndNeverReusesOldHash55 checks     2.31 ms
+2026-11-20T03:49:54.8690879Z   [pass]  concurrentAtomicCaptureReportsCompleteGenerations303 checks    207.144 ms
+2026-11-20T03:49:54.8862334Z   [pass]  workerCompactsSparseLayerAndPersistsNewBase 1061 checks   17.166 ms
+2026-11-20T03:49:54.8915818Z   [pass]  compactionCancelCannotOverwriteNewRecording 64 checks     5.34 ms
+2026-11-20T03:49:54.9144447Z   [pass]  compactionRevisionHandoffDoesNotDoubleCountRetiredAudio161 checks    22.843 ms
+2026-11-20T03:49:54.9221573Z   [pass]  compactionSourceLifetimeIsHeldUntilWorkerFinishes15 checks     7.66 ms
+2026-11-20T03:49:55.5965348Z   [pass]  repeatedWorkerCompactionKeepsLongRunOverdubs1091 checks   674.168 ms
+2026-11-20T03:49:55.6032491Z   [pass]  failedCompactionIsExplicitAndDoesNotClaimOldHashIsLatest12 checks     6.828 ms
+2026-11-20T03:49:55.6044689Z   [pass]  reservationIncludesFixedWorkerStackAndRejectsInvalidConfig10 checks     1.181 ms
+2026-11-20T03:49:55.6045608Z 
+2026-11-20T03:49:55.6045884Z RefPedalLooperStorageWrap
+2026-11-20T03:49:55.6046393Z ----------------------------------------------------------------
+2026-11-20T03:49:55.6117967Z   [pass]  freshRestoreKeepsEntireForwardWindowAcrossNinePageWrap347 checks    7.308 ms
+2026-11-20T03:49:55.6195170Z   [pass]  freshCoreResumePrimesRaggedWindowBeforeForwardPlayback286 checks    7.658 ms
+2026-11-20T03:49:55.6550069Z   [pass]  fullCacheWindowSurvivesEvictionAndRepeatedForwardWraps2365 checks   35.377 ms
+2026-11-20T03:49:55.6552526Z 
+2026-11-20T03:49:55.6552739Z RefPedalRouting
+2026-11-20T03:49:55.6553268Z ----------------------------------------------------------------
+2026-11-20T03:49:55.6565557Z   [pass]  parallelLatencyAndPolarityCompileAndRender  259 checks    1.156 ms
+2026-11-20T03:49:55.6620239Z   [pass]  slotBypassAndBoardDryHaveIdenticalLatency   387 checks    5.483 ms
+2026-11-20T03:49:55.6628695Z   [pass]  segmentLatencyIsSummedAndDryIsSegmentLocal  130 checks    0.786 ms
+2026-11-20T03:49:55.6636618Z   [pass]  reampUsesActualSidechainOnceAtPreAndDisconnectIsTransparent6 checks      0.776 ms
+2026-11-20T03:49:55.6673887Z   [pass]  sendReturnBlendAndBypassKeepExactLatency    780 checks    3.712 ms
+2026-11-20T03:49:55.6679267Z   [pass]  invalidLoopEndpointsAndOverlapRejectAtomically6 checks      0.484 ms
+2026-11-20T03:49:55.6690468Z   [pass]  abSwitchIsEqualPowerForTenMillisecondsAndToggleIsSticky490 checks    1.103 ms
+2026-11-20T03:49:55.6699271Z   [pass]  auxSendsAlignDualLanesAndAccumulatePlacementsWithoutAllocation390 checks    0.853 ms
+2026-11-20T03:49:55.6737600Z   [pass]  feedbackHasSixtyFourSampleDelayKillAndSafeGainClamp2393 checks   3.865 ms
+2026-11-20T03:49:55.6745982Z   [pass]  feedbackWatchdogFaultGuardAndExplicitRearm  38535 checks  0.814 ms
+2026-11-20T03:49:55.6747045Z   [pass]  routingReferencesAreValidatedWithoutAnAttachedEngine6 checks      0.036 ms
+2026-11-20T03:49:55.6753155Z   [pass]  extendedHostScalarsPersistAndExplicitSameValueModelWritesWin15 checks     0.626 ms
+2026-11-20T03:49:55.6762755Z   [pass]  extendedFeedbackCanEnablePreparedEndpointsWithoutMessagePump5 checks      0.948 ms
+2026-11-20T03:49:55.6828090Z   [pass]  bypassModesPreserveColourLatencyAndDecayingTailsWithTrimCorrection560 checks    6.508 ms
+2026-11-20T03:49:55.6849954Z   [pass]  dryLatencyReadTapCrossfadeHasExactTenMillisecondDuration2217 checks   0.021 ms
+2026-11-20T03:49:55.6850951Z   [pass]  structuralDryLatencyChangeUsesSharedHistoryDuringTheDip1027 checks   2.128 ms
+2026-11-20T03:49:55.6864703Z   [pass]  clippedTailDryMustNotBeInferredFromUnclippedSlotInput1038 checks   1.445 ms
+2026-11-20T03:49:55.6871795Z   [pass]  missingWetResidualUsesOneRenderAndReportsUnavailable133 checks    0.692 ms
+2026-11-20T03:49:55.8213444Z   [pass]  registeredDelayAndReverbHotBypassPreserveActualTailsAndDry49232 checks  133.993 ms
+2026-11-20T03:49:55.8214077Z 
+2026-11-20T03:49:55.8214199Z RefPedalState
+2026-11-20T03:49:55.8214546Z ----------------------------------------------------------------
+2026-11-20T03:49:55.8248921Z   [pass]  malformedRestoreIsAtomic                    86 checks     3.645 ms
+2026-11-20T03:49:55.8254519Z   [pass]  futureSchemaVerbatimAndDisabled             7 checks      0.56 ms
+2026-11-20T03:49:55.8259939Z   [pass]  capRejectsAtomically                        3 checks      0.519 ms
+2026-11-20T03:49:55.8269793Z   [pass]  unknownNestedAndMissingModel                20 checks     0.954 ms
+2026-11-20T03:49:55.8271042Z   [pass]  identityAndOrderValidation                  6 checks      0.13 ms
+2026-11-20T03:49:55.8554470Z   [pass]  eightSnapshotsSurvivePersistence            44 checks     28.274 ms
+2026-11-20T03:49:57.3324599Z   [pass]  seededThousandRoundTrips                    5001 checks   1476.82 ms
+2026-11-20T03:49:57.4171309Z   [pass]  concurrentSaveIsCompleteGeneration          1 checks      84.72 ms
+2026-11-20T03:49:57.9216044Z   [pass]  assetsVerifyAtomicFailureAndAsyncDrain      14 checks     504.349 ms
+2026-11-20T03:49:57.9221115Z   [pass]  descriptorDefaultsAndDeterministicAudio     10 checks     0.609 ms
+2026-11-20T03:49:57.9287593Z   [pass]  invalidTypedOutputKeepsPrevious             7 checks      6.625 ms
+2026-11-20T03:49:57.9296629Z   [pass]  savedSchemaFixtures                         8 checks      0.892 ms
+2026-11-20T03:49:57.9300520Z   [pass]  unknownNumbersDoNotLosePrecision            9 checks      0.376 ms
+2026-11-20T03:49:57.9301648Z   [pass]  invalidRoutingReferencesKeepPrevious        10 checks     0.112 ms
+2026-11-20T03:49:57.9324453Z   [pass]  rawHostExtractionPreservesOnlyTopLevelBlock 19 checks     2.237 ms
+2026-11-20T03:49:57.9327481Z   [pass]  windowPreferenceMirrorsLegacyRoot           9 checks      0.289 ms
+2026-11-20T03:49:57.9332390Z   [pass]  momentaryFeedbackKillNeverResumes           8 checks      0.466 ms
+2026-11-20T03:49:57.9552945Z   [pass]  portableDoubleConversionRoundTripsEveryFiniteExponent4127 checks   21.859 ms
+2026-11-20T03:49:57.9581092Z   [pass]  portableDoubleConversionRejectsOverflowUnderflowAndMalformedGrammarAtomically56 checks     2.872 ms
+2026-11-20T03:49:57.9587943Z portable codec locale: C decimal=., custom C++ decimal=comma
+2026-11-20T03:49:57.9588788Z   [pass]  portableDoubleConversionIgnoresCppAndSystemNumericLocales11 checks     0.707 ms
+2026-11-20T03:49:57.9598569Z   [pass]  pedalMidiFootswitchModeRequiresStrictIntegerAndPreservesUnknowns39 checks     1.033 ms
+2026-11-20T03:49:57.9666622Z   [pass]  exactRuntimeExtraKeysDistinguishOpaqueDoublesAndTypes26 checks     6.771 ms
+2026-11-20T03:49:57.9671786Z   [pass]  knownOverlayUsesExactAssignmentForTinyEditsAndSignedZero12 checks     0.494 ms
+2026-11-20T03:49:57.9672711Z 
+2026-11-20T03:49:57.9672864Z RefPedalUiLifecycle
+2026-11-20T03:49:57.9673293Z ----------------------------------------------------------------
+2026-11-20T03:49:57.9678417Z   [pass]  messageDrainWaitsForQueuedCommands          514 checks    0.527 ms
+2026-11-20T03:49:58.3297629Z Native UI stress seed=0x55494235 target=10000; real processor/editor/peers, unattended native display
+2026-11-20T03:50:09.9638639Z Native UI completed 1000 operations, editors 3/2, closes 50
+2026-11-20T03:50:21.5667985Z Native UI completed 2000 operations, editors 5/4, closes 112
+2026-11-20T03:50:33.1514662Z Native UI completed 3000 operations, editors 7/6, closes 168
+2026-11-20T03:50:44.7708893Z Native UI completed 4000 operations, editors 9/8, closes 236
+2026-11-20T03:50:55.8920929Z Native UI completed 5000 operations, editors 11/10, closes 294
+2026-11-20T03:51:07.1132555Z Native UI completed 6000 operations, editors 13/12, closes 350
+2026-11-20T03:51:18.2660744Z Native UI completed 7000 operations, editors 15/14, closes 405
+2026-11-20T03:51:29.6920472Z Native UI completed 8000 operations, editors 17/16, closes 443
+2026-11-20T03:51:40.8449142Z Native UI completed 9000 operations, editors 19/18, closes 499
+2026-11-20T03:51:52.2764784Z Native UI completed 10000 operations, editors 21/20, closes 546
+2026-11-20T03:51:52.3087070Z Native UI operations=10000 seed=0x55494235 elapsedMs=113979 editorDestructions=21 nativeCloses=546 dragCancels=271 acceptedDrops=272 changedDrops=272 hostGestures=6658 hostValues=12091 kinds=knob=586,naturalValue=536,bypass=544,keyboardReorder=583,placement=541,style=534,inspector=573,settingsOpen=534,settingsGain=537,settingsClose=593,dock=563,popout=589,nativeClose=546,resize=581,browserAdd=547,removeOrDuplicate=521,drag=543,capacityError=529,editorDestroy=20,
+2026-11-20T03:51:52.3940394Z   [pass]  tenThousandNativeOperationsAndEditorDestruction409783 checks 114426 ms
+2026-11-20T03:51:52.3941109Z 
+2026-11-20T03:51:52.3941273Z RefPedalCe2
+2026-11-20T03:51:52.3941726Z ----------------------------------------------------------------
+2026-11-20T03:51:52.3985294Z   [pass]  impulseTimingSilenceAndBypass               20 checks     4.436 ms
+2026-11-20T03:51:52.3992296Z   [pass]  expressionAndBlockPartition                 4 checks      0.754 ms
+2026-11-20T03:51:52.4853414Z   [pass]  lfoRateAndSync                              4 checks      85.912 ms
+2026-11-20T03:51:52.7502042Z   [pass]  originalDistortionGatesWithEstimatedHeadroom12 checks     264.821 ms
+2026-11-20T03:51:52.9287923Z   [pass]  bbdOnOriginalThdGate                        15 checks     178.577 ms
+2026-11-20T03:51:53.1622184Z   [pass]  bbdOnHeadroomGateKeepsThirdHarmonicDominant 15 checks     233.33 ms
+2026-11-20T03:51:53.1622895Z 
+2026-11-20T03:51:53.1623093Z RefPedalCe2w
+2026-11-20T03:51:53.1623562Z ----------------------------------------------------------------
+2026-11-20T03:51:53.5467107Z   [pass]  rapidModeReversalKeepsTheCurrentAudibleBlend60 checks     384.395 ms
+2026-11-20T03:51:53.5605999Z   [pass]  resetAndReprepareClearInterruptedModeWeights35 checks     13.945 ms
+2026-11-20T03:51:53.5757266Z   [pass]  modesImpulseStereoAndBypass                 44 checks     15.11 ms
+2026-11-20T03:51:53.5780011Z   [pass]  partitionAndNoiseOffReset                   3 checks      2.268 ms
+2026-11-20T03:51:53.7952570Z   [pass]  lfoRatesAndModeTransition                   4 checks      217.158 ms
+2026-11-20T03:51:53.8135955Z   [pass]  inactiveModesDoNotReplayStaleAudio          1 checks      18.33 ms
+2026-11-20T03:51:53.8137084Z 
+2026-11-20T03:51:53.8137238Z RhythmMidiOut
+2026-11-20T03:51:53.8137648Z ----------------------------------------------------------------
+2026-11-20T03:51:54.4392265Z   [pass]  strokesReachMidiOutOnceAndStopWithTheEngine 27 checks     625.312 ms
+2026-11-20T03:52:12.3361244Z   [pass]  streamIsIndependentOfTheBlockSize           84 checks     17896.6 ms
+2026-11-20T03:52:12.3362076Z 
+2026-11-20T03:52:12.3362271Z RhythmMidiWriter
+2026-11-20T03:52:12.3362833Z ----------------------------------------------------------------
+2026-11-20T03:52:12.3363876Z   [pass]  exactChronologicalStreamAcrossBlockPartitions4 checks      0.166 ms
+2026-11-20T03:52:12.3365427Z   [pass]  stoppingCancelsFutureAttacksAndClosesActualPitches3 checks      0.005 ms
+2026-11-20T03:52:12.3366775Z   [pass]  resetReleaseDoesNotConsumeTheNextAttackBlock2 checks      0.007 ms
+2026-11-20T03:52:12.3367802Z   [pass]  overflowReleasesHeldNotesAndDropsFutureAttacks2 checks      0.009 ms
+2026-11-20T03:52:12.3947142Z   [pass]  blockedReleaseRetriesBeforeAnyNewAttack     2 checks      58.258 ms
+2026-11-20T03:52:12.3949109Z   [pass]  invalidAndDeadStrikesDoNotEmitNotes         1 checks      0.003 ms
+2026-11-20T03:52:12.3950139Z 
+2026-11-20T03:52:12.3950412Z RhythmMidiRouter
+2026-11-20T03:52:12.3951238Z ----------------------------------------------------------------
+2026-11-20T03:52:12.3952863Z   [pass]  disablingSourceOrGlobalOutputClosesNotesExactlyOnce8 checks      0.008 ms
+2026-11-20T03:52:12.3954790Z   [pass]  tinyDestinationAndZeroFramesRetainReleases  4 checks      0.006 ms
+2026-11-20T03:52:12.3956762Z   [pass]  droppedReleaseRetriesBeforePassThrough      2 checks      0.004 ms
+2026-11-20T03:52:12.4052356Z   [pass]  seededSwitchAndCapacityStressLeavesNoHeldNotes3 checks      10.537 ms
+2026-11-20T03:52:12.4053355Z   [pass]  writerAndRouterAllocateNothingAfterPreparation1 checks      0.005 ms
+2026-11-20T03:52:12.4053923Z 
+2026-11-20T03:52:12.4054060Z HostState
+2026-11-20T03:52:12.4054455Z ----------------------------------------------------------------
+2026-11-20T03:52:12.6390062Z   [pass]  theBlobCarriesItsFormatVersion              2 checks      233.528 ms
+2026-11-20T03:52:13.2130745Z   [pass]  aNewerBlobKeepsWhatItCannotReadOnWriteBack  10 checks     573.986 ms
+2026-11-20T03:52:13.4450108Z   [pass]  anOlderBlobIsBackedUpBeforeItIsMigrated     3 checks      231.884 ms
+2026-11-20T03:52:13.7338708Z   [pass]  anUnreadableBlobChangesNothingAndIsKept     4 checks      288.788 ms
+2026-11-20T03:52:14.2155499Z   [pass]  nonAsciiTextRoundTripsThroughTheBlob        1 checks      481.559 ms
+2026-11-20T03:52:14.5072092Z   [pass]  presetLoadsAndSnapshotRecallsNotifyTheHost  7 checks      291.608 ms
+2026-11-20T03:52:15.1717783Z   [pass]  everyFactoryPresetsSessionIsUnder200KB      2 checks      664.428 ms
+2026-11-20T03:52:15.1718426Z 
+2026-11-20T03:52:15.1718603Z SessionRecorderConcurrency
+2026-11-20T03:52:15.1719207Z ----------------------------------------------------------------
+2026-11-20T03:52:15.1754895Z   [pass]  resetStartsANewAudioAndMidiTimeline         13 checks     3.582 ms
+2026-11-20T03:52:15.1785162Z   [pass]  resizingAndResettingWhileCapturingRemainsUsable14 checks     2.952 ms
+2026-11-20T03:52:15.1803724Z   [pass]  savingDuringCaptureSnapshotsCoherentStereo  59 checks     1.848 ms
+2026-11-20T03:52:15.1829671Z   [pass]  combinedCapturePreservesRateAndMidiOnlyClock10 checks     2.601 ms
+2026-11-20T03:52:15.1830285Z 
+2026-11-20T03:52:15.1830439Z SessionRecorderRate
+2026-11-20T03:52:15.1830868Z ----------------------------------------------------------------
+2026-11-20T03:52:15.7978820Z   [pass]  hostRateChangesDiscardOldAudioAndMidi       10 checks     614.806 ms
+2026-11-20T03:52:16.2716946Z   [pass]  unusedRecorderRemainsUnallocated            4 checks      473.676 ms
+2026-11-20T03:52:16.2752808Z   [pass]  exportedWavUsesNewRateAndOnlyNewSamples     9 checks      3.631 ms
+2026-11-20T03:52:16.2753457Z 
+2026-11-20T03:52:16.2753605Z StateWrite
+2026-11-20T03:52:16.2754027Z ----------------------------------------------------------------
+2026-11-20T03:52:16.7980415Z   [pass]  compactSnapshotMatchesHostStateWithBoard    11 checks     522.518 ms
+2026-11-20T03:52:16.7981096Z 
+2026-11-20T03:52:16.7981249Z PracticeTrack
+2026-11-20T03:52:16.7981704Z ----------------------------------------------------------------
+2026-11-20T03:52:16.8233463Z   [pass]  loadsEveryAdvertisedFormat                  15 checks     25.158 ms
+2026-11-20T03:52:16.8379913Z   [pass]  bufferingWaitRejectsUnavailableInput        6 checks      14.613 ms
+2026-11-20T03:52:16.9647275Z   [pass]  pitchShiftMovesPitchNotTempo                6 checks      126.666 ms
+2026-11-20T03:52:17.0996020Z   [pass]  tempoShiftChangesDurationNotPitch           10 checks     134.766 ms
+2026-11-20T03:52:18.4575796Z   [pass]  panAndFiltersShapeTheTrack                  10 checks     1357.85 ms
+2026-11-20T03:52:18.4779257Z   [pass]  theTimePitchShiftDoesNotAllocate            513 checks    20.379 ms
+2026-11-20T03:52:22.4974518Z   [pass]  levelAndMonoApply                           3 checks      4019.36 ms
+2026-11-20T03:52:23.8402106Z   [pass]  loopPointsSnapToZeroCrossingsAndWrap        6 checks      1342.76 ms
+2026-11-20T03:52:23.8515688Z   [pass]  estimatesTheTempoOfAClickTrack              2 checks      11.327 ms
+2026-11-20T03:52:23.8516099Z 
+2026-11-20T03:52:23.8516231Z HostState
+2026-11-20T03:52:23.8516510Z ----------------------------------------------------------------
+2026-11-20T03:52:23.9401879Z   [pass]  programsEnumeratePresetsAndLoadByIndex      9 checks      88.531 ms
+2026-11-20T03:52:24.3924056Z   [pass]  typicalStateIsSmall                         1 checks      452.112 ms
+2026-11-20T03:52:24.4817432Z   [pass]  aSnapshotRecallAndPresetLoadNotifyTheHost   6 checks      89.335 ms
+2026-11-20T03:52:24.4823038Z 
+2026-11-20T03:52:24.4825529Z ================================================================
+2026-11-20T03:52:24.4826051Z  ALL PASSED
+2026-11-20T03:52:24.4826375Z  199 tests, 560091 checks, 262.2 s
+2026-11-20T03:52:24.4826838Z ================================================================
+

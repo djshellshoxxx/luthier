@@ -1,0 +1,59 @@
+{
+  "source": "51fd4de677fd0d4a056ded5ee2e8845b9e81584d",
+  "results": [
+    {
+      "path": "Source/Tests/ReferencePedals_mxr_phase90_scriptTests.cpp",
+      "matches_exact_blob": true,
+      "actual": "b98509e8e8fcd70c39820adc171f279fe3aabf6a",
+      "expected": "b98509e8e8fcd70c39820adc171f279fe3aabf6a"
+    },
+    {
+      "path": "Source/Tests/RefPedalReferenceSoakTests.cpp",
+      "matches_exact_blob": true,
+      "actual": "8899575f7f4d289f0f2c84c484bcd8847852596e",
+      "expected": "8899575f7f4d289f0f2c84c484bcd8847852596e"
+    },
+    {
+      "path": "Source/Tests/RefPedalPhase90MemoryTests.cpp",
+      "matches_exact_blob": true,
+      "actual": "b139501bb5596928d7caab3126137172214c43cc",
+      "expected": "b139501bb5596928d7caab3126137172214c43cc"
+    },
+    {
+      "path": "Source/Tests/RefPedalSoakTests.cpp",
+      "matches_exact_blob": true,
+      "actual": "acbb293aebfd75db445466ebb7664c3166418403",
+      "expected": "acbb293aebfd75db445466ebb7664c3166418403"
+    },
+    {
+      "path": "Source/Tests/RefPedalHostTests.cpp",
+      "matches_exact_blob": true,
+      "actual": "d4916596d6fe12d5d703b013ef563b9c636f17a3",
+      "expected": "d4916596d6fe12d5d703b013ef563b9c636f17a3"
+    },
+    {
+      "path": "Source/Tests/RefPedalStateTests.cpp",
+      "matches_exact_blob": true,
+      "actual": "6b75b256f7f784ae9dc95f396b7b6db71f7b347c",
+      "expected": "6b75b256f7f784ae9dc95f396b7b6db71f7b347c"
+    },
+    {
+      "path": "Source/Tests/RefPedalCpuBudgetTests.cpp",
+      "matches_exact_blob": true,
+      "actual": "dbf8d7fa49fed9732dc63f106fb4363d95e3deea",
+      "expected": "dbf8d7fa49fed9732dc63f106fb4363d95e3deea"
+    },
+    {
+      "path": "Source/Tests/TestFramework.h",
+      "matches_exact_blob": true,
+      "actual": "c0d386279105512e24a6a1f36afe3c8fe0497f19",
+      "expected": "c0d386279105512e24a6a1f36afe3c8fe0497f19"
+    },
+    {
+      "path": "scripts/recorder_checks/main.cpp",
+      "matches_exact_blob": true,
+      "actual": "98e2cac7de7671c3e9a2644e813a4c0a3f8bb33e",
+      "expected": "98e2cac7de7671c3e9a2644e813a4c0a3f8bb33e"
+    }
+  ]
+}

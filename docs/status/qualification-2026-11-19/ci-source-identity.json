@@ -1,0 +1,16 @@
+{
+  "candidate": "51fd4de677fd0d4a056ded5ee2e8845b9e81584d",
+  "candidate_tree": "fae7e7ab0f70dfa533d2857f1df904f89a20cf5d",
+  "run": 44662141836,
+  "event": "pull_request",
+  "checkout_merge": "527085a20570e69626c5e0aa88d624906fa4294a",
+  "checkout_tree": "fae7e7ab0f70dfa533d2857f1df904f89a20cf5d",
+  "checkout_parents": [
+    "c26e1985c199ad517fcd4259abab57b3f97eeb23",
+    "51fd4de677fd0d4a056ded5ee2e8845b9e81584d"
+  ],
+  "source_trees_identical": true,
+  "paid_job": 136042655621,
+  "free_job": 136042655631,
+  "overall_conclusion": "success"
+}

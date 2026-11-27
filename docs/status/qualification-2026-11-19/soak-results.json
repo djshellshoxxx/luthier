@@ -1,0 +1,272 @@
+{
+  "source_sha": "51fd4de677fd0d4a056ded5ee2e8845b9e81584d",
+  "binary_sha256": "ddf5b51b79810de0184244ebc7bdee5e139817b68d5090704381ccb79e304c27",
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "duration_mode": "1800 seconds wall clock per test",
+  "concurrent_runs": true,
+  "scope": "Native Linux component tests; no DAW, audio interface or listening test",
+  "results": [
+    {
+      "name": "generic-board",
+      "suite": "RefPedalSoak",
+      "started_at": "2026-11-20T03:36:59.872822+00:00",
+      "max_rss_kib": 25228,
+      "observations": [
+        {
+          "elapsed_seconds": 0.01,
+          "rss_kib": 5736
+        },
+        {
+          "elapsed_seconds": 60.06,
+          "rss_kib": 19852
+        },
+        {
+          "elapsed_seconds": 120.11,
+          "rss_kib": 19768
+        },
+        {
+          "elapsed_seconds": 180.17,
+          "rss_kib": 17080
+        },
+        {
+          "elapsed_seconds": 240.2,
+          "rss_kib": 21588
+        },
+        {
+          "elapsed_seconds": 300.28,
+          "rss_kib": 16868
+        },
+        {
+          "elapsed_seconds": 360.36,
+          "rss_kib": 16264
+        },
+        {
+          "elapsed_seconds": 420.41,
+          "rss_kib": 17080
+        },
+        {
+          "elapsed_seconds": 480.45,
+          "rss_kib": 19580
+        },
+        {
+          "elapsed_seconds": 540.51,
+          "rss_kib": 16868
+        },
+        {
+          "elapsed_seconds": 600.54,
+          "rss_kib": 19568
+        },
+        {
+          "elapsed_seconds": 660.58,
+          "rss_kib": 14708
+        },
+        {
+          "elapsed_seconds": 720.63,
+          "rss_kib": 25228
+        },
+        {
+          "elapsed_seconds": 780.68,
+          "rss_kib": 17900
+        },
+        {
+          "elapsed_seconds": 840.77,
+          "rss_kib": 21548
+        },
+        {
+          "elapsed_seconds": 900.86,
+          "rss_kib": 21488
+        },
+        {
+          "elapsed_seconds": 960.94,
+          "rss_kib": 21624
+        },
+        {
+          "elapsed_seconds": 1021.0,
+          "rss_kib": 19648
+        },
+        {
+          "elapsed_seconds": 1081.07,
+          "rss_kib": 16344
+        },
+        {
+          "elapsed_seconds": 1141.11,
+          "rss_kib": 16880
+        },
+        {
+          "elapsed_seconds": 1201.13,
+          "rss_kib": 18680
+        },
+        {
+          "elapsed_seconds": 1261.22,
+          "rss_kib": 17840
+        },
+        {
+          "elapsed_seconds": 1321.25,
+          "rss_kib": 19736
+        },
+        {
+          "elapsed_seconds": 1381.29,
+          "rss_kib": 17836
+        },
+        {
+          "elapsed_seconds": 1441.36,
+          "rss_kib": 19584
+        },
+        {
+          "elapsed_seconds": 1501.38,
+          "rss_kib": 14328
+        },
+        {
+          "elapsed_seconds": 1561.41,
+          "rss_kib": 19796
+        },
+        {
+          "elapsed_seconds": 1621.45,
+          "rss_kib": 18672
+        },
+        {
+          "elapsed_seconds": 1681.51,
+          "rss_kib": 14196
+        },
+        {
+          "elapsed_seconds": 1741.52,
+          "rss_kib": 17212
+        }
+      ],
+      "exit_code": 0,
+      "finished_at": "2026-11-20T04:07:01.427938+00:00",
+      "log": "generic-board-30min.log"
+    },
+    {
+      "name": "phaser-board",
+      "suite": "PhaserBoardQualificationSoak",
+      "started_at": "2026-11-20T03:36:59.874676+00:00",
+      "max_rss_kib": 14100,
+      "observations": [
+        {
+          "elapsed_seconds": 0.01,
+          "rss_kib": 5440
+        },
+        {
+          "elapsed_seconds": 60.06,
+          "rss_kib": 11392
+        },
+        {
+          "elapsed_seconds": 120.11,
+          "rss_kib": 14064
+        },
+        {
+          "elapsed_seconds": 180.17,
+          "rss_kib": 14100
+        },
+        {
+          "elapsed_seconds": 240.2,
+          "rss_kib": 11132
+        },
+        {
+          "elapsed_seconds": 300.28,
+          "rss_kib": 11176
+        },
+        {
+          "elapsed_seconds": 360.36,
+          "rss_kib": 11132
+        },
+        {
+          "elapsed_seconds": 420.41,
+          "rss_kib": 11396
+        },
+        {
+          "elapsed_seconds": 480.45,
+          "rss_kib": 13792
+        },
+        {
+          "elapsed_seconds": 540.51,
+          "rss_kib": 13772
+        },
+        {
+          "elapsed_seconds": 600.54,
+          "rss_kib": 13760
+        },
+        {
+          "elapsed_seconds": 660.58,
+          "rss_kib": 11364
+        },
+        {
+          "elapsed_seconds": 720.62,
+          "rss_kib": 11360
+        },
+        {
+          "elapsed_seconds": 780.67,
+          "rss_kib": 14044
+        },
+        {
+          "elapsed_seconds": 840.77,
+          "rss_kib": 11236
+        },
+        {
+          "elapsed_seconds": 900.86,
+          "rss_kib": 13780
+        },
+        {
+          "elapsed_seconds": 960.94,
+          "rss_kib": 11124
+        },
+        {
+          "elapsed_seconds": 1021.0,
+          "rss_kib": 11128
+        },
+        {
+          "elapsed_seconds": 1081.07,
+          "rss_kib": 11108
+        },
+        {
+          "elapsed_seconds": 1141.11,
+          "rss_kib": 11108
+        },
+        {
+          "elapsed_seconds": 1201.13,
+          "rss_kib": 11116
+        },
+        {
+          "elapsed_seconds": 1261.22,
+          "rss_kib": 11140
+        },
+        {
+          "elapsed_seconds": 1321.25,
+          "rss_kib": 13824
+        },
+        {
+          "elapsed_seconds": 1381.29,
+          "rss_kib": 11108
+        },
+        {
+          "elapsed_seconds": 1441.36,
+          "rss_kib": 11124
+        },
+        {
+          "elapsed_seconds": 1501.38,
+          "rss_kib": 11128
+        },
+        {
+          "elapsed_seconds": 1561.41,
+          "rss_kib": 11112
+        },
+        {
+          "elapsed_seconds": 1621.45,
+          "rss_kib": 11108
+        },
+        {
+          "elapsed_seconds": 1681.5,
+          "rss_kib": 11108
+        },
+        {
+          "elapsed_seconds": 1741.52,
+          "rss_kib": 11108
+        }
+      ],
+      "exit_code": 0,
+      "finished_at": "2026-11-20T04:07:01.428153+00:00",
+      "log": "phaser-board-30min.log"
+    }
+  ]
+}

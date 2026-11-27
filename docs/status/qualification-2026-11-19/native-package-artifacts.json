@@ -1,0 +1,44 @@
+{
+  "source_commit": "51fd4de677fd0d4a056ded5ee2e8845b9e81584d",
+  "workflow_run": 44662100996,
+  "workflow_url": "https://github.com/djshellshoxxx/luthier/actions/runs/44662100996",
+  "method": "Downloaded each Actions artifact through the connected GitHub artifact API; compared complete archive byte count and SHA-256 against the artifact metadata. Nested payload inspection is in binary-artifact-review-44662100996.json.",
+  "artifacts": [
+    {
+      "artifact_name": "installers-FREE-macos",
+      "artifact_id": 14604446562,
+      "size_in_bytes": 72875172,
+      "sha256": "0309e478753b216230ac7659ee0ce284d33d6342571cddb6d70826415c22c760",
+      "downloaded_archive": "installers-FREE-macos.zip",
+      "expired": false,
+      "download_matches_metadata": true
+    },
+    {
+      "artifact_name": "installers-PAID-windows",
+      "artifact_id": 14603418360,
+      "size_in_bytes": 107027958,
+      "sha256": "3a9a61ff4d268e3170275d0e5e9fe0fde448466fba2f72579a9b446472cdfc10",
+      "downloaded_archive": "installers-PAID-windows.zip",
+      "expired": false,
+      "download_matches_metadata": true
+    },
+    {
+      "artifact_name": "installers-PAID-macos",
+      "artifact_id": 14602758128,
+      "size_in_bytes": 160185417,
+      "sha256": "cb03238cab835c2df46950f20f3cbe00cb259d722b53f94f7fecc4fa57801673",
+      "downloaded_archive": "installers-PAID-macos.zip",
+      "expired": false,
+      "download_matches_metadata": true
+    },
+    {
+      "artifact_name": "installers-FREE-windows",
+      "artifact_id": 14602557490,
+      "size_in_bytes": 107017836,
+      "sha256": "246ed20bf93383474c6bc3e30794c116c80a534aa70aa692ce3e5b1a81a84733",
+      "downloaded_archive": "installers-FREE-windows.zip",
+      "expired": false,
+      "download_matches_metadata": true
+    }
+  ]
+}

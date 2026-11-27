@@ -1,0 +1,364 @@
+{
+  "candidate_source": "51fd4de677fd0d4a056ded5ee2e8845b9e81584d",
+  "workflow_run": 44662100996,
+  "scope": "Read-only static inspection of downloaded candidate packages; no binary execution or installation.",
+  "archive_inspections": [
+    {
+      "archive": "Luthier-Free-0.1.0-beta2-portable-win64.zip",
+      "bytes": 56544301,
+      "sha256": "1097adc046460b4e37b6a9e113efc2a58279d674be1b449a3e17fac6ffda1b73",
+      "portable_sidecar_matches": true,
+      "unsafe_paths": [],
+      "duplicate_paths": [],
+      "case_insensitive_duplicate_paths": [],
+      "symlinks": [],
+      "zip_entries": 1595,
+      "clap_entries": [],
+      "opposite_edition_paths": [],
+      "readme_matches_candidate": true,
+      "binaries": [
+        {
+          "path": "Luthier Free.exe",
+          "bytes": 15013888,
+          "sha256": "25bae7904c8ad3ce30a9908345d5f22686d4a625c1012960ebbf74d81257cff7",
+          "machine": "0x8664",
+          "optional_header_magic": "0x20b",
+          "source_sha_present": true,
+          "certificate_directory_offset": 0,
+          "certificate_directory_size": 0
+        },
+        {
+          "path": "Luthier Free.vst3/Contents/x86_64-win/Luthier Free.vst3",
+          "bytes": 14855680,
+          "sha256": "75f9404296181de007be98024b1d89e22c69a92c1150ebd071ef77a1e3a40359",
+          "machine": "0x8664",
+          "optional_header_magic": "0x20b",
+          "source_sha_present": true,
+          "certificate_directory_offset": 0,
+          "certificate_directory_size": 0
+        }
+      ],
+      "bundle_plists": [],
+      "vst3_metadata": {
+        "name": "Luthier Free",
+        "version": "0.1.0",
+        "class_ids": [
+          "ABCDEF019182FAEB4C7468614C746866",
+          "ABCDEF011234ABCD4C7468614C746866"
+        ],
+        "parser_note": "Generated moduleinfo uses trailing commas; removed only for this metadata inspection."
+      },
+      "factory_resources": {
+        "files": 1251,
+        "expected_exclusions": [
+          "icon.png",
+          "icon_small.png"
+        ],
+        "missing": [],
+        "extra": [],
+        "different_content": [],
+        "newline_only_differences": [
+          "THIRD_PARTY_LICENCES.txt",
+          "Fonts/BebasNeue-OFL.txt",
+          "Fonts/Lato-OFL.txt"
+        ],
+        "categories": {
+          "BodyIRs": 216,
+          "CabIRs": 504,
+          "Examples": 12,
+          "Fonts": 5,
+          "Guitars": 28,
+          "NormalizationFactory.json": 1,
+          "Parts": 148,
+          "Practice": 6,
+          "Presets": 1,
+          "Riffs": 303,
+          "THIRD_PARTY_LICENCES.txt": 1,
+          "Themes": 6,
+          "Tunes": 18,
+          "i18n": 1,
+          "luthier.ico": 1
+        }
+      }
+    },
+    {
+      "archive": "Luthier-Pro-0.1.0-beta2-macOS-universal.zip",
+      "bytes": 88050920,
+      "sha256": "f37aceab524aac5c4b3cb0c624e091364dc7e63220f1c393becc9f9407495c2a",
+      "unsafe_paths": [],
+      "duplicate_paths": [],
+      "case_insensitive_duplicate_paths": [],
+      "symlinks": [],
+      "zip_entries": 2343,
+      "clap_entries": [],
+      "opposite_edition_paths": [],
+      "readme_matches_candidate": true,
+      "binaries": [
+        {
+          "path": "macos/Luthier Pro.app/Contents/MacOS/Luthier Pro",
+          "bytes": 34137056,
+          "sha256": "6fcfc5735e701b0b0de8bce7ea18a8a19288771eb32eb905c522db3a55ff3dc3",
+          "slices": [
+            {
+              "cpu": "0x1000007",
+              "architecture": "x86_64",
+              "offset": 16384,
+              "size": 17975776,
+              "source_sha_present": true
+            },
+            {
+              "cpu": "0x100000c",
+              "architecture": "arm64",
+              "offset": 18006016,
+              "size": 16131040,
+              "source_sha_present": true
+            }
+          ]
+        },
+        {
+          "path": "macos/Luthier Pro.vst3/Contents/MacOS/Luthier Pro",
+          "bytes": 33739744,
+          "sha256": "35afeabc16abd2b2e81f1c599cde3f9bd86467fa6db481c385e8413b8dd752e9",
+          "slices": [
+            {
+              "cpu": "0x1000007",
+              "architecture": "x86_64",
+              "offset": 16384,
+              "size": 17761872,
+              "source_sha_present": true
+            },
+            {
+              "cpu": "0x100000c",
+              "architecture": "arm64",
+              "offset": 17793024,
+              "size": 15946720,
+              "source_sha_present": true
+            }
+          ]
+        },
+        {
+          "path": "macos/Luthier Pro.component/Contents/MacOS/Luthier Pro",
+          "bytes": 33741744,
+          "sha256": "f03169eec642dca6434eb2bb142e1658f16302d0c474f47893ceb6493d29dad2",
+          "slices": [
+            {
+              "cpu": "0x1000007",
+              "architecture": "x86_64",
+              "offset": 16384,
+              "size": 17780096,
+              "source_sha_present": true
+            },
+            {
+              "cpu": "0x100000c",
+              "architecture": "arm64",
+              "offset": 17809408,
+              "size": 15932336,
+              "source_sha_present": true
+            }
+          ]
+        }
+      ],
+      "bundle_plists": [
+        {
+          "path": "macos/Luthier Pro.vst3/Contents/Info.plist",
+          "CFBundleName": "Luthier Pro",
+          "CFBundleIdentifier": "com.luthieraudio.luthier",
+          "CFBundleExecutable": "Luthier Pro",
+          "CFBundleShortVersionString": "0.1.0"
+        },
+        {
+          "path": "macos/Luthier Pro.component/Contents/Info.plist",
+          "CFBundleName": "Luthier Pro",
+          "CFBundleIdentifier": "com.luthieraudio.luthier",
+          "CFBundleExecutable": "Luthier Pro",
+          "CFBundleShortVersionString": "0.1.0"
+        },
+        {
+          "path": "macos/Luthier Pro.app/Contents/Info.plist",
+          "CFBundleName": "Luthier Pro",
+          "CFBundleIdentifier": "com.luthieraudio.luthier",
+          "CFBundleExecutable": "Luthier Pro",
+          "CFBundleShortVersionString": "0.1.0"
+        }
+      ],
+      "vst3_metadata": {
+        "name": "Luthier Pro",
+        "version": "0.1.0",
+        "class_ids": [
+          "ABCDEF019182FAEB4C7468614C746872",
+          "ABCDEF011234ABCD4C7468614C746872"
+        ],
+        "parser_note": "Generated moduleinfo uses trailing commas; removed only for this metadata inspection."
+      },
+      "factory_resources": {
+        "files": 1250,
+        "expected_exclusions": [
+          "icon.png",
+          "icon_small.png",
+          "luthier.ico"
+        ],
+        "missing": [],
+        "extra": [],
+        "different_content": [],
+        "newline_only_differences": [],
+        "categories": {
+          "BodyIRs": 216,
+          "CabIRs": 504,
+          "Examples": 12,
+          "Fonts": 5,
+          "Guitars": 28,
+          "NormalizationFactory.json": 1,
+          "Parts": 148,
+          "Practice": 6,
+          "Presets": 1,
+          "Riffs": 303,
+          "THIRD_PARTY_LICENCES.txt": 1,
+          "Themes": 6,
+          "Tunes": 18,
+          "i18n": 1
+        }
+      }
+    },
+    {
+      "archive": "Luthier-Pro-0.1.0-beta2-portable-win64.zip",
+      "bytes": 56546312,
+      "sha256": "b9bcd882ef9273f467ac8e5588b0bd324bc3575b7abe9cedfad178c659ec7fb4",
+      "portable_sidecar_matches": true,
+      "unsafe_paths": [],
+      "duplicate_paths": [],
+      "case_insensitive_duplicate_paths": [],
+      "symlinks": [],
+      "zip_entries": 1595,
+      "clap_entries": [],
+      "opposite_edition_paths": [],
+      "readme_matches_candidate": true,
+      "binaries": [
+        {
+          "path": "Luthier Pro.exe",
+          "bytes": 15016448,
+          "sha256": "7bf134264504956ab064daad46f5dffa068ede847f069c320b1f81d8a883e5f4",
+          "machine": "0x8664",
+          "optional_header_magic": "0x20b",
+          "source_sha_present": true,
+          "certificate_directory_offset": 0,
+          "certificate_directory_size": 0
+        },
+        {
+          "path": "Luthier Pro.vst3/Contents/x86_64-win/Luthier Pro.vst3",
+          "bytes": 14858752,
+          "sha256": "e33604b3b7b05401e3be3deba31728a7c5989d6d1fe18a93eb57c3111aca0ff7",
+          "machine": "0x8664",
+          "optional_header_magic": "0x20b",
+          "source_sha_present": true,
+          "certificate_directory_offset": 0,
+          "certificate_directory_size": 0
+        }
+      ],
+      "bundle_plists": [],
+      "vst3_metadata": {
+        "name": "Luthier Pro",
+        "version": "0.1.0",
+        "class_ids": [
+          "ABCDEF019182FAEB4C7468614C746872",
+          "ABCDEF011234ABCD4C7468614C746872"
+        ],
+        "parser_note": "Generated moduleinfo uses trailing commas; removed only for this metadata inspection."
+      },
+      "factory_resources": {
+        "files": 1251,
+        "expected_exclusions": [
+          "icon.png",
+          "icon_small.png"
+        ],
+        "missing": [],
+        "extra": [],
+        "different_content": [],
+        "newline_only_differences": [
+          "THIRD_PARTY_LICENCES.txt",
+          "Fonts/BebasNeue-OFL.txt",
+          "Fonts/Lato-OFL.txt"
+        ],
+        "categories": {
+          "BodyIRs": 216,
+          "CabIRs": 504,
+          "Examples": 12,
+          "Fonts": 5,
+          "Guitars": 28,
+          "NormalizationFactory.json": 1,
+          "Parts": 148,
+          "Practice": 6,
+          "Presets": 1,
+          "Riffs": 303,
+          "THIRD_PARTY_LICENCES.txt": 1,
+          "Themes": 6,
+          "Tunes": 18,
+          "i18n": 1,
+          "luthier.ico": 1
+        }
+      }
+    }
+  ],
+  "payloads": [
+    {
+      "name": "Luthier-Free-0.1.0-beta2-macOS.dmg",
+      "bytes": 74028999,
+      "sha256": "f15841129adeaf1ec3ac575943c76a38f44760fb9b08f2b23f86de6e27b5c722",
+      "outer_artifact": "installers-FREE-macos.zip"
+    },
+    {
+      "name": "Luthier-Free-0.1.0-beta2-portable-win64.zip",
+      "bytes": 56544301,
+      "sha256": "1097adc046460b4e37b6a9e113efc2a58279d674be1b449a3e17fac6ffda1b73",
+      "outer_artifact": "installers-FREE-windows.zip"
+    },
+    {
+      "name": "Luthier-Free-0.1.0-beta2-portable-win64.zip.sha256",
+      "bytes": 111,
+      "sha256": "29ef74fc66185ed9dbf88fa8ea6f30b071b88053f708888a73b910cfead21197",
+      "outer_artifact": "installers-FREE-windows.zip"
+    },
+    {
+      "name": "Luthier-Free-0.1.0-beta2-Setup-win64.exe",
+      "bytes": 51220944,
+      "sha256": "eebb2afe22d3c9b7bd4c8f4e180abe2cf2e9063e00257fd6ef80ed700ae08a6a",
+      "outer_artifact": "installers-FREE-windows.zip"
+    },
+    {
+      "name": "Luthier-Pro-0.1.0-beta2-macOS-universal.zip",
+      "bytes": 88050920,
+      "sha256": "f37aceab524aac5c4b3cb0c624e091364dc7e63220f1c393becc9f9407495c2a",
+      "outer_artifact": "installers-PAID-macos.zip"
+    },
+    {
+      "name": "Luthier-Pro-0.1.0-beta2-macOS.dmg",
+      "bytes": 74041745,
+      "sha256": "a74a973f16ffe68f8331b2ee337f71f8aeb9146e04fc7e217f43e5d44b1e2b83",
+      "outer_artifact": "installers-PAID-macos.zip"
+    },
+    {
+      "name": "Luthier-Pro-0.1.0-beta2-portable-win64.zip",
+      "bytes": 56546312,
+      "sha256": "b9bcd882ef9273f467ac8e5588b0bd324bc3575b7abe9cedfad178c659ec7fb4",
+      "outer_artifact": "installers-PAID-windows.zip"
+    },
+    {
+      "name": "Luthier-Pro-0.1.0-beta2-portable-win64.zip.sha256",
+      "bytes": 110,
+      "sha256": "f001e69255901cf10e2e47c9697125c5588101b3190f7bd144fa788acf4b486c",
+      "outer_artifact": "installers-PAID-windows.zip"
+    },
+    {
+      "name": "Luthier-Pro-0.1.0-beta2-Setup-win64.exe",
+      "bytes": 51228679,
+      "sha256": "769db7b5bbbc9b0eb08c51d38d36744d5c68be085c36509c7b4ac69445993a4a",
+      "outer_artifact": "installers-PAID-windows.zip"
+    }
+  ],
+  "failures": [],
+  "limitations": [
+    "DMG contents and installation were not inspected on macOS.",
+    "Authenticode and Apple signature trust were not validated on a native OS.",
+    "Binary structure/source markers and asset integrity do not substitute for native test, host or listening acceptance."
+  ],
+  "result": "PASS"
+}
