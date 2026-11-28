@@ -1,0 +1,36 @@
+{
+  "candidate": "51fd4de677fd0d4a056ded5ee2e8845b9e81584d",
+  "test_sha256": "ab4733e27ddf6e87c78c471e772494fd45de92002760487c45d088e4726a12c8",
+  "selection": "Verbatim original anonymous-namespace soak<P> template copied into include file; selected MxrPhase90Script only after full4-model O3 wrapper exceeded compiler memory",
+  "LUTHIER_PERF": "1",
+  "rates": [
+    44100,
+    48000,
+    96000,
+    192000
+  ],
+  "seconds_each": 1800,
+  "rendered_seconds": 7200,
+  "samples_per_channel": 684180000,
+  "assertions": "finite and absolute sample<=16 at each rate",
+  "limitation": "Offline model numerical soak, not wall-clock DAW, deadline, allocation, lock, denormal-slowdown or hardware/listening acceptance",
+  "template_source_byte_start": 248,
+  "template_source_byte_end": 1626,
+  "template_sha256": "c4d2fa9ea286bf46c754a19118c284d7ba7788fd51dd6121f6101ec5e74195ae",
+  "template_exact_match": true,
+  "binary_sha256": "4c2519c4c302b0073f0513cc8c22ebb5a6d504d32cbcabd12a75cd1660335913",
+  "wrapper_sha256": "0f297ee238c6e71aa6f5154a97a61891908f2f4ca0dad49acbe4132238bf7bf6",
+  "cpu_models": [
+    "AMD EPYC 9V74 80-Core Processor"
+  ],
+  "kernel": {
+    "system": "Linux",
+    "node": "636643ecc05a",
+    "release": "6.18.57",
+    "version": "#1 SMP Tue Oct 20 21:56:04 UTC 2026",
+    "machine": "x86_64",
+    "processor": ""
+  },
+  "wall_seconds": 101.69819546399958,
+  "exit_code": 0
+}

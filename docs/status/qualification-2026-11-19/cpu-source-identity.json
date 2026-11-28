@@ -1,0 +1,80 @@
+[
+  {
+    "path": "docs/coverage/probes/phase90-e58-actual.cpp",
+    "git_blob_matches": true,
+    "expected_blob": "3a89311926326265e95b59a666cfa450b2c41a9f",
+    "actual_blob": "3a89311926326265e95b59a666cfa450b2c41a9f"
+  },
+  {
+    "path": "Source/ReferencePedals/Models/mxr_phase90_script.cpp",
+    "git_blob_matches": true,
+    "expected_blob": "2c103b0a34b17c6f88cd2501f7f6620bde68c483",
+    "actual_blob": "2c103b0a34b17c6f88cd2501f7f6620bde68c483"
+  },
+  {
+    "path": "Source/ReferencePedals/Models/mxr_phase90_script.h",
+    "git_blob_matches": true,
+    "expected_blob": "6dd3529f04ae186ced3f79faae04302f8f2275e3",
+    "actual_blob": "6dd3529f04ae186ced3f79faae04302f8f2275e3"
+  },
+  {
+    "path": "Source/ReferencePedals/PedalBase.h",
+    "git_blob_matches": true,
+    "expected_blob": "b8dff5347edf36f030c8e8321d50ea0d9d22e6de",
+    "actual_blob": "b8dff5347edf36f030c8e8321d50ea0d9d22e6de"
+  },
+  {
+    "path": "Source/ReferencePedals/IPedal.h",
+    "git_blob_matches": true,
+    "expected_blob": "571517d71630e5952fe52a542569424140f030cc",
+    "actual_blob": "571517d71630e5952fe52a542569424140f030cc"
+  },
+  {
+    "path": "Source/ReferencePedals/PedalDesc.h",
+    "git_blob_matches": true,
+    "expected_blob": "d0769fca82276aa813d9ee1d30c86604d364eb00",
+    "actual_blob": "d0769fca82276aa813d9ee1d30c86604d364eb00"
+  },
+  {
+    "path": "Source/ReferencePedals/PreparedMemory.h",
+    "git_blob_matches": true,
+    "expected_blob": "31258ac2af999a001bbbd8ce047cc029316255f6",
+    "actual_blob": "31258ac2af999a001bbbd8ce047cc029316255f6"
+  },
+  {
+    "path": "Source/ReferencePedals/Common/Lfo.h",
+    "git_blob_matches": true,
+    "expected_blob": "8f03c75e946c853b39ff38825d3c7f3a8ccaaa3c",
+    "actual_blob": "8f03c75e946c853b39ff38825d3c7f3a8ccaaa3c"
+  },
+  {
+    "path": "Source/ReferencePedals/Common/OnePole.h",
+    "git_blob_matches": true,
+    "expected_blob": "7df57f9ace7487875d08c0957668480922f8bf88",
+    "actual_blob": "7df57f9ace7487875d08c0957668480922f8bf88"
+  },
+  {
+    "path": "Source/ReferencePedals/Common/NoiseGen.h",
+    "git_blob_matches": true,
+    "expected_blob": "dab8be2a99ff5ff714eb248ee157d2e324ed343b",
+    "actual_blob": "dab8be2a99ff5ff714eb248ee157d2e324ed343b"
+  },
+  {
+    "path": "Source/ReferencePedals/Common/TableSin.h",
+    "git_blob_matches": true,
+    "expected_blob": "4445bbdbcc116e4d7db00a86b9b303ce49fe3f56",
+    "actual_blob": "4445bbdbcc116e4d7db00a86b9b303ce49fe3f56"
+  },
+  {
+    "path": "Source/ReferencePedals/Common/Smoothers.h",
+    "git_blob_matches": true,
+    "expected_blob": "4ae89c3bb41f19a191b942357938bb75304b3d42",
+    "actual_blob": "4ae89c3bb41f19a191b942357938bb75304b3d42"
+  },
+  {
+    "path": "Source/ReferencePedals/Common/TempoSync.h",
+    "git_blob_matches": true,
+    "expected_blob": "151f99c70a46bdaa6455968eecddfc656e549a5e",
+    "actual_blob": "151f99c70a46bdaa6455968eecddfc656e549a5e"
+  }
+]

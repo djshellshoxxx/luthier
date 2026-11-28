@@ -1,0 +1,35 @@
+RUN RefPedalPhase90.oneEqualPowerEnvelopeInDirectAndBoardPaths
+RefPedalPhase90.oneEqualPowerEnvelopeInDirectAndBoardPaths: 300 checks, 0 failures, 0.783626 wall seconds
+RUN RefPedalPhase90.nodeReversalsKeepOneEnvelopeAndSlotTrims
+RefPedalPhase90.nodeReversalsKeepOneEnvelopeAndSlotTrims: 135 checks, 0 failures, 0.0110263 wall seconds
+RUN RefPedalPhase90.otherModelsRetainLinearAndResidualTailPaths
+RefPedalPhase90.otherModelsRetainLinearAndResidualTailPaths: 40 checks, 0 failures, 9.775e-06 wall seconds
+RUN RefPedalPhase90.bothRenderEntriesKeepFreeRunningClockFrozenWhenDisabled
+RefPedalPhase90.bothRenderEntriesKeepFreeRunningClockFrozenWhenDisabled: 6 checks, 0 failures, 0.000170733 wall seconds
+RUN RefPedalPhase90.syncTimeKeepsBypassedPhaseAndRetainsLatestTempo
+RefPedalPhase90.syncTimeKeepsBypassedPhaseAndRetainsLatestTempo: 540 checks, 0 failures, 0.00218274 wall seconds
+RUN RefPedalPhase90.transportResyncOnlyRunsWhileEngagedAndStompResetSurvives
+RefPedalPhase90.transportResyncOnlyRunsWhileEngagedAndStompResetSurvives: 560 checks, 0 failures, 0.00317088 wall seconds
+RUN RefPedalPhase90.revisedTwoAnchorStaticNotchesAndBypass
+RefPedalPhase90.revisedTwoAnchorStaticNotchesAndBypass: 20 checks, 0 failures, 0.116823 wall seconds
+RUN RefPedalPhase90.originalLiteralBilinearOracleRetained
+RefPedalPhase90.originalLiteralBilinearOracleRetained: 32 checks, 0 failures, 8.0509e-05 wall seconds
+RUN RefPedalPhase90.revisedSweepEndpointsAndZeroExplicitDelay
+RefPedalPhase90.revisedSweepEndpointsAndZeroExplicitDelay: 60 checks, 0 failures, 0.630338 wall seconds
+RUN RefPedalPhase90.allRateBlockExtremesAndStereoPhase
+RefPedalPhase90.allRateBlockExtremesAndStereoPhase: 52905 checks, 0 failures, 0.0109051 wall seconds
+RUN RefPedalPhase90.blockPartitionAndSeededReset
+RefPedalPhase90.blockPartitionAndSeededReset: 4 checks, 0 failures, 0.000946762 wall seconds
+RUN RefPedalPhase90.lfoRateAndSixtySecondFeedbackStability
+RefPedalPhase90.lfoRateAndSixtySecondFeedbackStability: 3 checks, 0 failures, 0.41995 wall seconds
+RUN RefPedalPhase90.independentPointSixFeedbackStabilityBound
+RefPedalPhase90.independentPointSixFeedbackStabilityBound: 15 checks, 0 failures, 4.62552 wall seconds
+RUN RefPedalPhase90Memory.inlineOnlyModelReportsItsPreparedFootprint
+RefPedalPhase90Memory.inlineOnlyModelReportsItsPreparedFootprint: 3 checks, 0 failures, 3.1026e-05 wall seconds
+RUN RefPedalPhase90Memory.constructorFreeBoundMatchesEveryInlineConfiguration
+RefPedalPhase90Memory.constructorFreeBoundMatchesEveryInlineConfiguration: 405 checks, 0 failures, 0.00166552 wall seconds
+RUN RefPedalPhase90Memory.unsupportedInputsCannotReserve
+RefPedalPhase90Memory.unsupportedInputsCannotReserve: 10 checks, 0 failures, 1.652e-06 wall seconds
+RUN RefPedalPhase90Memory.testOnlyPoolAdmissionTracksInlineAndDryStorage
+RefPedalPhase90Memory.testOnlyPoolAdmissionTracksInlineAndDryStorage: 18 checks, 0 failures, 0.00016275 wall seconds
+17 tests, 55056 checks, 0 failures

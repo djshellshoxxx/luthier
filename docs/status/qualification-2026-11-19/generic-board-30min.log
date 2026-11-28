@@ -1,0 +1,4 @@
+RefPedalSoak.concurrentEditsAndProcessingRemainFiniteAndAllocationFree
+    seed=0x51a7 seconds=1800 edits=180000 rejected=18439 blocks=5657526 samples=2495911887 callback_new=0 callback_locks=0 invalid=0
+[pass] checks=9 failures=0 wall_seconds=1800.14
+TOTAL tests=1 checks=9 failures=0

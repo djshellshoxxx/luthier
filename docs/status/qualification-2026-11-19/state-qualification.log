@@ -1,0 +1,48 @@
+RefPedalState.malformedRestoreIsAtomic
+[pass] checks=86 failures=0 wall_seconds=0.0174258
+RefPedalState.futureSchemaVerbatimAndDisabled
+[pass] checks=7 failures=0 wall_seconds=0.00206538
+RefPedalState.capRejectsAtomically
+[pass] checks=3 failures=0 wall_seconds=0.00247317
+RefPedalState.unknownNestedAndMissingModel
+[pass] checks=20 failures=0 wall_seconds=0.00355003
+RefPedalState.identityAndOrderValidation
+[pass] checks=6 failures=0 wall_seconds=0.000291492
+RefPedalState.eightSnapshotsSurvivePersistence
+[pass] checks=44 failures=0 wall_seconds=0.103486
+RefPedalState.seededThousandRoundTrips
+[pass] checks=5001 failures=0 wall_seconds=6.00493
+RefPedalState.concurrentSaveIsCompleteGeneration
+[pass] checks=1 failures=0 wall_seconds=0.376235
+RefPedalState.assetsVerifyAtomicFailureAndAsyncDrain
+[pass] checks=14 failures=0 wall_seconds=0.506254
+RefPedalState.descriptorDefaultsAndDeterministicAudio
+[pass] checks=10 failures=0 wall_seconds=0.00160727
+RefPedalState.invalidTypedOutputKeepsPrevious
+[pass] checks=7 failures=0 wall_seconds=0.0301493
+RefPedalState.savedSchemaFixtures
+[pass] checks=8 failures=0 wall_seconds=0.00380172
+RefPedalState.unknownNumbersDoNotLosePrecision
+[pass] checks=9 failures=0 wall_seconds=0.00141305
+RefPedalState.invalidRoutingReferencesKeepPrevious
+[pass] checks=10 failures=0 wall_seconds=0.000240176
+RefPedalState.rawHostExtractionPreservesOnlyTopLevelBlock
+[pass] checks=19 failures=0 wall_seconds=0.0102942
+RefPedalState.windowPreferenceMirrorsLegacyRoot
+[pass] checks=9 failures=0 wall_seconds=0.000638876
+RefPedalState.momentaryFeedbackKillNeverResumes
+[pass] checks=8 failures=0 wall_seconds=0.00151274
+RefPedalState.portableDoubleConversionRoundTripsEveryFiniteExponent
+[pass] checks=4127 failures=0 wall_seconds=0.0234004
+RefPedalState.portableDoubleConversionRejectsOverflowUnderflowAndMalformedGrammarAtomically
+[pass] checks=56 failures=0 wall_seconds=0.0117959
+RefPedalState.portableDoubleConversionIgnoresCppAndSystemNumericLocales
+portable codec locale: C decimal=,, custom C++ decimal=comma
+[pass] checks=11 failures=0 wall_seconds=0.00240206
+RefPedalState.pedalMidiFootswitchModeRequiresStrictIntegerAndPreservesUnknowns
+[pass] checks=39 failures=0 wall_seconds=0.00356964
+RefPedalState.exactRuntimeExtraKeysDistinguishOpaqueDoublesAndTypes
+[pass] checks=26 failures=0 wall_seconds=0.0316694
+RefPedalState.knownOverlayUsesExactAssignmentForTinyEditsAndSignedZero
+[pass] checks=12 failures=0 wall_seconds=0.00140943
+TOTAL tests=23 checks=9533 failures=0

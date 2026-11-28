@@ -1,0 +1,4 @@
+PhaserBoardQualificationSoak.concurrentPhaserEditsAndProcessingRemainFiniteAndAllocationFree
+    seed=0x51a7 seconds=1800 edits=180000 rejected=16129 blocks=7729469 samples=3211945709 callback_new=0 callback_locks=0 invalid=0
+[pass] checks=9 failures=0 wall_seconds=1800.14
+TOTAL tests=1 checks=9 failures=0

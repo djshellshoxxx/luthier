@@ -205,8 +205,14 @@ racks in the Advanced panel. See [PEDALBOARD.md](PEDALBOARD.md) and
   session saved by an earlier build still loads them. They cannot be added.
 - Phaser gates still open: CPU under 0.4 % of one core is not met on the 2.1 GHz Xeon
   reference measurements (0.42-0.78 %); the specification's "peak delta < 1 LSB 24b"
-  bypass criterion has no ruling on how it is measured; the 30-minute model soak and a
-  hardware listening comparison have not been run.
+  bypass criterion has no ruling on how it is measured; a hardware listening
+  comparison has not been run. The November 19 supplemental Linux CPU probe also
+  missed the unchanged target in all ten trials (0.483628860-1.468951710 %).
+- Two 30-minute concurrent component board soaks and the four-rate extended
+  phaser render completed successfully. These are numerical and component
+  concurrency checks, not live DAW or audio-device qualification. See
+  [QUALIFICATION-2026-11-19.md](status/QUALIFICATION-2026-11-19.md) for the
+  execution evidence and measurement limits.
 - Board capacity is 16 slots and 8 snapshots.
 - The CE-2 distortion regression was repaired without changing the original
   acceptance limits; see [CHORUS-QUALIFICATION-2026-11-16.md](status/CHORUS-QUALIFICATION-2026-11-16.md).

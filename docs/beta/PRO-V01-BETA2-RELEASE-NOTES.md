@@ -1,5 +1,10 @@
 # Luthier v0.1.0 Beta 2
 
+Published November 24, 2026 Pacific from exact source
+`a2e6fda8877b93923d2e902ee28dd10fd0257f49` after the complete
+[Windows/macOS qualification run](https://github.com/djshellshoxxx/luthier/actions/runs/45544222505)
+passed and verified all eleven release assets.
+
 The Free and Pro installers identify their edition in the filename and product
 name. The release workflow freezes one source commit and builds every selected
 platform/edition with LTO, complete unit suites and strictness-10 plugin
@@ -21,8 +26,12 @@ build still loads that pedal.
 
 Phase 90 limitations still open in this beta: its CPU target (under 0.4 % of
 one core) is not yet met on every reference machine, the "under 1 LSB at 24
-bits" bypass-click wording has not been ruled on, and the 30-minute soak and
-hardware listening comparison have not been run. See docs/KNOWN_ISSUES.md.
+bits" bypass-click measurement has not been defined, and the hardware listening
+comparison has not been run. Supplemental Linux qualification completed two
+30-minute concurrent board soaks and a four-rate extended phaser render. These
+component checks do not establish live DAW, device-driver or listening behaviour.
+See [the qualification report](../status/QUALIFICATION-2026-11-19.md) and
+[known issues](../KNOWN_ISSUES.md).
 
 ## Changes since the published alpha
 
@@ -76,8 +85,12 @@ hardware listening comparison have not been run. See docs/KNOWN_ISSUES.md.
 Automated qualification does not establish compatibility with every DAW,
 interface or driver. Hardware listening, installation and saved-session
 acceptance are separate from CI. Developer ID signing/notarization on macOS
-and publisher signing on Windows depend on configured identities; use the
-per-platform build logs to establish their actual status. Factory impulse
+and publisher signing on Windows were not configured for the published beta2
+packages. Both Windows editions are unsigned. Both macOS editions contain
+ad-hoc-signed bundles; their package installers are unsigned, and Apple
+notarization was not performed. The shipping evidence is in release run
+[45544222505](https://github.com/djshellshoxxx/luthier/actions/runs/45544222505).
+Factory impulse
 responses are synthesized rather than measured captures. The remaining GUI
 fit and feature limitations are tracked in docs/KNOWN_ISSUES.md and the status
 inventory; this beta does not claim every planned feature is complete.

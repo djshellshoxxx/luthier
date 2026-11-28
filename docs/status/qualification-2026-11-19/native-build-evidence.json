@@ -1,0 +1,466 @@
+{
+  "schema_version": 1,
+  "repository": "djshellshoxxx/luthier",
+  "source_commit": "51fd4de677fd0d4a056ded5ee2e8845b9e81584d",
+  "qualification_run": {
+    "id": 44662100996,
+    "url": "https://github.com/djshellshoxxx/luthier/actions/runs/44662100996",
+    "attempt": 1,
+    "event": "push",
+    "branch": "release/v0.1.0-beta2"
+  },
+  "reviewed_at_utc": "2026-11-20T06:09:59Z",
+  "method": "Read-only inspection of GitHub Actions job records and decoded completed-job logs; local comparison of the old and current performance test definitions. No jobs were rerun and no release refs were moved.",
+  "completed_preflight": [
+    {
+      "job_id": 136042526112,
+      "name": "Check version",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-11-20T02:50:58Z",
+      "completed_at": "2026-11-20T02:51:16Z",
+      "url": "https://github.com/djshellshoxxx/luthier/actions/runs/44662100996/job/136042526112"
+    },
+    {
+      "job_id": 136047774739,
+      "name": "Windows edition coexistence",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-11-20T03:05:19Z",
+      "completed_at": "2026-11-20T03:05:43Z",
+      "url": "https://github.com/djshellshoxxx/luthier/actions/runs/44662100996/job/136047774739"
+    },
+    {
+      "job_id": 136053132004,
+      "name": "Build and package / Pick platforms",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-11-20T03:32:29Z",
+      "completed_at": "2026-11-20T03:32:31Z",
+      "url": "https://github.com/djshellshoxxx/luthier/actions/runs/44662100996/job/136053132004"
+    }
+  ],
+  "native_builds": [
+    {
+      "job_id": 136063305021,
+      "name": "Build and package / macOS universal / Free",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-11-20T04:15:39Z",
+      "completed_at": "2026-11-20T05:32:09Z",
+      "url": "https://github.com/djshellshoxxx/luthier/actions/runs/44662100996/job/136063305021",
+      "platform": "macOS universal",
+      "edition": "Free",
+      "completed_checks": [
+        "Native build",
+        "139 selected early regression tests",
+        "Strictness-10 plugin validation",
+        "Product staging",
+        "Installer packaging and artifact upload"
+      ],
+      "early_regression_result": {
+        "tests": 139,
+        "checks": 49795,
+        "result": "ALL PASSED",
+        "scope": "Selected early regression suite; not the complete sixteen-shard unit suite."
+      },
+      "plugin_validation": {
+        "strictness": 10,
+        "formats": [
+          "VST3",
+          "AU"
+        ],
+        "result": "SUCCESS"
+      },
+      "signing": {
+        "status": "Ad-hoc-signed bundles; unsigned .pkg installer; no notarization.",
+        "log_evidence": [
+          {
+            "line": 23064,
+            "message": "##[warning]MACOS_CERT_P12_BASE64 / MACOS_DEV_ID_APP not set: ad-hoc signing, no notarisation"
+          },
+          {
+            "line": 23087,
+            "message": "##[warning]MACOS_DEV_ID_INSTALLER not set: the .pkg is unsigned"
+          }
+        ]
+      }
+    },
+    {
+      "job_id": 136063305115,
+      "name": "Build and package / macOS universal / Pro",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-11-20T03:37:27Z",
+      "completed_at": "2026-11-20T05:09:22Z",
+      "url": "https://github.com/djshellshoxxx/luthier/actions/runs/44662100996/job/136063305115",
+      "platform": "macOS universal",
+      "edition": "Pro",
+      "completed_checks": [
+        "Native build",
+        "139 selected early regression tests",
+        "Strictness-10 plugin validation",
+        "Product staging",
+        "Installer packaging and artifact upload",
+        "Universal Pro bundle archive verification"
+      ],
+      "early_regression_result": {
+        "tests": 139,
+        "checks": 49812,
+        "result": "ALL PASSED",
+        "scope": "Selected early regression suite; not the complete sixteen-shard unit suite."
+      },
+      "plugin_validation": {
+        "strictness": 10,
+        "formats": [
+          "VST3",
+          "AU"
+        ],
+        "result": "SUCCESS"
+      },
+      "signing": {
+        "status": "Ad-hoc-signed bundles; unsigned .pkg installer; no notarization.",
+        "log_evidence": [
+          {
+            "line": 23038,
+            "message": "##[warning]MACOS_CERT_P12_BASE64 / MACOS_DEV_ID_APP not set: ad-hoc signing, no notarisation"
+          },
+          {
+            "line": 23061,
+            "message": "##[warning]MACOS_DEV_ID_INSTALLER not set: the .pkg is unsigned"
+          }
+        ]
+      }
+    },
+    {
+      "job_id": 136063305082,
+      "name": "Build and package / Windows x64 / Free",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-11-20T03:54:49Z",
+      "completed_at": "2026-11-20T04:55:57Z",
+      "url": "https://github.com/djshellshoxxx/luthier/actions/runs/44662100996/job/136063305082",
+      "platform": "Windows x64",
+      "edition": "Free",
+      "completed_checks": [
+        "Native build",
+        "139 selected early regression tests",
+        "Strictness-10 plugin validation",
+        "Product staging",
+        "Installer packaging and artifact upload"
+      ],
+      "early_regression_result": {
+        "tests": 139,
+        "checks": 49795,
+        "result": "ALL PASSED",
+        "scope": "Selected early regression suite; not the complete sixteen-shard unit suite."
+      },
+      "plugin_validation": {
+        "strictness": 10,
+        "formats": [
+          "VST3"
+        ],
+        "result": "SUCCESS"
+      },
+      "signing": {
+        "status": "Unsigned Windows packages.",
+        "log_evidence": [
+          {
+            "line": 3377,
+            "message": "##[warning]WINDOWS_CERT_PFX_BASE64 / WINDOWS_CERT_PASSWORD not set: the Windows package is unsigned"
+          }
+        ]
+      }
+    },
+    {
+      "job_id": 136063305320,
+      "name": "Build and package / Windows x64 / Pro",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-11-20T04:12:22Z",
+      "completed_at": "2026-11-20T05:15:16Z",
+      "url": "https://github.com/djshellshoxxx/luthier/actions/runs/44662100996/job/136063305320",
+      "platform": "Windows x64",
+      "edition": "Pro",
+      "completed_checks": [
+        "Native build",
+        "139 selected early regression tests",
+        "Strictness-10 plugin validation",
+        "Product staging",
+        "Installer packaging and artifact upload"
+      ],
+      "early_regression_result": {
+        "tests": 139,
+        "checks": 49812,
+        "result": "ALL PASSED",
+        "scope": "Selected early regression suite; not the complete sixteen-shard unit suite."
+      },
+      "plugin_validation": {
+        "strictness": 10,
+        "formats": [
+          "VST3"
+        ],
+        "result": "SUCCESS"
+      },
+      "signing": {
+        "status": "Unsigned Windows packages.",
+        "log_evidence": [
+          {
+            "line": 3396,
+            "message": "##[warning]WINDOWS_CERT_PFX_BASE64 / WINDOWS_CERT_PASSWORD not set: the Windows package is unsigned"
+          }
+        ]
+      }
+    }
+  ],
+  "full_native_unit_suite": {
+    "required_shards": 16,
+    "completed": 0,
+    "in_progress": 8,
+    "queued": 8,
+    "failed": 0,
+    "caveat": "All four native builds succeeded, but full native qualification and the previously failing performance gates remain unproved until every required shard succeeds. A queued or running shard is not a pass.",
+    "jobs": [
+      {
+        "job_id": 136106262990,
+        "name": "Build and package / Windows x64 / Pro / tests 2/4",
+        "status": "in_progress",
+        "conclusion": null,
+        "started_at": "2026-11-20T06:05:55Z",
+        "completed_at": null,
+        "url": "https://github.com/djshellshoxxx/luthier/actions/runs/44662100996/job/136106262990"
+      },
+      {
+        "job_id": 136106262995,
+        "name": "Build and package / Windows x64 / Pro / tests 3/4",
+        "status": "in_progress",
+        "conclusion": null,
+        "started_at": "2026-11-20T06:06:55Z",
+        "completed_at": null,
+        "url": "https://github.com/djshellshoxxx/luthier/actions/runs/44662100996/job/136106262995"
+      },
+      {
+        "job_id": 136106263020,
+        "name": "Build and package / Windows x64 / Pro / tests 4/4",
+        "status": "in_progress",
+        "conclusion": null,
+        "started_at": "2026-11-20T06:08:37Z",
+        "completed_at": null,
+        "url": "https://github.com/djshellshoxxx/luthier/actions/runs/44662100996/job/136106263020"
+      },
+      {
+        "job_id": 136106263037,
+        "name": "Build and package / macOS universal / Free / tests 3/4",
+        "status": "in_progress",
+        "conclusion": null,
+        "started_at": "2026-11-20T05:33:22Z",
+        "completed_at": null,
+        "url": "https://github.com/djshellshoxxx/luthier/actions/runs/44662100996/job/136106263037"
+      },
+      {
+        "job_id": 136106263051,
+        "name": "Build and package / macOS universal / Pro / tests 1/4",
+        "status": "in_progress",
+        "conclusion": null,
+        "started_at": "2026-11-20T06:07:12Z",
+        "completed_at": null,
+        "url": "https://github.com/djshellshoxxx/luthier/actions/runs/44662100996/job/136106263051"
+      },
+      {
+        "job_id": 136106263054,
+        "name": "Build and package / Windows x64 / Free / tests 2/4",
+        "status": "queued",
+        "conclusion": null,
+        "started_at": "2026-11-20T05:32:10Z",
+        "completed_at": null,
+        "url": "https://github.com/djshellshoxxx/luthier/actions/runs/44662100996/job/136106263054"
+      },
+      {
+        "job_id": 136106263073,
+        "name": "Build and package / Windows x64 / Free / tests 3/4",
+        "status": "queued",
+        "conclusion": null,
+        "started_at": "2026-11-20T05:32:10Z",
+        "completed_at": null,
+        "url": "https://github.com/djshellshoxxx/luthier/actions/runs/44662100996/job/136106263073"
+      },
+      {
+        "job_id": 136106263078,
+        "name": "Build and package / Windows x64 / Free / tests 4/4",
+        "status": "in_progress",
+        "conclusion": null,
+        "started_at": "2026-11-20T06:07:15Z",
+        "completed_at": null,
+        "url": "https://github.com/djshellshoxxx/luthier/actions/runs/44662100996/job/136106263078"
+      },
+      {
+        "job_id": 136106263086,
+        "name": "Build and package / macOS universal / Pro / tests 2/4",
+        "status": "queued",
+        "conclusion": null,
+        "started_at": "2026-11-20T05:32:10Z",
+        "completed_at": null,
+        "url": "https://github.com/djshellshoxxx/luthier/actions/runs/44662100996/job/136106263086"
+      },
+      {
+        "job_id": 136106263109,
+        "name": "Build and package / macOS universal / Free / tests 1/4",
+        "status": "in_progress",
+        "conclusion": null,
+        "started_at": "2026-11-20T06:08:17Z",
+        "completed_at": null,
+        "url": "https://github.com/djshellshoxxx/luthier/actions/runs/44662100996/job/136106263109"
+      },
+      {
+        "job_id": 136106263117,
+        "name": "Build and package / macOS universal / Free / tests 2/4",
+        "status": "queued",
+        "conclusion": null,
+        "started_at": "2026-11-20T05:32:10Z",
+        "completed_at": null,
+        "url": "https://github.com/djshellshoxxx/luthier/actions/runs/44662100996/job/136106263117"
+      },
+      {
+        "job_id": 136106263118,
+        "name": "Build and package / Windows x64 / Pro / tests 1/4",
+        "status": "queued",
+        "conclusion": null,
+        "started_at": "2026-11-20T05:32:10Z",
+        "completed_at": null,
+        "url": "https://github.com/djshellshoxxx/luthier/actions/runs/44662100996/job/136106263118"
+      },
+      {
+        "job_id": 136106263120,
+        "name": "Build and package / macOS universal / Pro / tests 4/4",
+        "status": "queued",
+        "conclusion": null,
+        "started_at": "2026-11-20T05:32:10Z",
+        "completed_at": null,
+        "url": "https://github.com/djshellshoxxx/luthier/actions/runs/44662100996/job/136106263120"
+      },
+      {
+        "job_id": 136106263126,
+        "name": "Build and package / macOS universal / Pro / tests 3/4",
+        "status": "queued",
+        "conclusion": null,
+        "started_at": "2026-11-20T05:32:10Z",
+        "completed_at": null,
+        "url": "https://github.com/djshellshoxxx/luthier/actions/runs/44662100996/job/136106263126"
+      },
+      {
+        "job_id": 136106263132,
+        "name": "Build and package / Windows x64 / Free / tests 1/4",
+        "status": "in_progress",
+        "conclusion": null,
+        "started_at": "2026-11-20T06:07:48Z",
+        "completed_at": null,
+        "url": "https://github.com/djshellshoxxx/luthier/actions/runs/44662100996/job/136106263132"
+      },
+      {
+        "job_id": 136106263522,
+        "name": "Build and package / macOS universal / Free / tests 4/4",
+        "status": "queued",
+        "conclusion": null,
+        "started_at": "2026-11-20T05:32:10Z",
+        "completed_at": null,
+        "url": "https://github.com/djshellshoxxx/luthier/actions/runs/44662100996/job/136106263522"
+      }
+    ]
+  },
+  "performance_gate_comparison": {
+    "previous_source": "7fcb88c601288e7a7a02cf64548a822b9c3fcfc4",
+    "unchanged_paths": [
+      "Source/Tests/PerfBudgetTests.cpp",
+      "Source/Tests/TestFramework.h",
+      ".github/workflows/build.yml"
+    ],
+    "finding": "git diff between previous_source and source_commit for these paths was empty. No assertion, timing threshold or native matrix change was introduced in the candidate."
+  },
+  "scheduling_comparison": {
+    "previous_run_id": 44259292225,
+    "previous_run_url": "https://github.com/djshellshoxxx/luthier/actions/runs/44259292225",
+    "previous_completed_shard_durations": {
+      "windows": {
+        "minimum_minutes": 25.02,
+        "maximum_minutes": 51.05
+      },
+      "macos": {
+        "minimum_minutes": 64.47,
+        "maximum_minutes": 161.8
+      }
+    },
+    "running_shard_comparisons": [
+      {
+        "job_id": 136106262990,
+        "name": "Build and package / Windows x64 / Pro / tests 2/4",
+        "elapsed_minutes_at_snapshot": 4.07,
+        "previous_job_id": 134709022155,
+        "previous_duration_minutes": 51.05,
+        "previous_conclusion": "failure"
+      },
+      {
+        "job_id": 136106262995,
+        "name": "Build and package / Windows x64 / Pro / tests 3/4",
+        "elapsed_minutes_at_snapshot": 3.07,
+        "previous_job_id": 134709022111,
+        "previous_duration_minutes": 40.08,
+        "previous_conclusion": "success"
+      },
+      {
+        "job_id": 136106263020,
+        "name": "Build and package / Windows x64 / Pro / tests 4/4",
+        "elapsed_minutes_at_snapshot": 1.37,
+        "previous_job_id": 134709021964,
+        "previous_duration_minutes": 28.93,
+        "previous_conclusion": "success"
+      },
+      {
+        "job_id": 136106263037,
+        "name": "Build and package / macOS universal / Free / tests 3/4",
+        "elapsed_minutes_at_snapshot": 36.62,
+        "previous_job_id": 134709022206,
+        "previous_duration_minutes": 113.75,
+        "previous_conclusion": "success"
+      },
+      {
+        "job_id": 136106263051,
+        "name": "Build and package / macOS universal / Pro / tests 1/4",
+        "elapsed_minutes_at_snapshot": 2.78,
+        "previous_job_id": 134709022118,
+        "previous_duration_minutes": 64.47,
+        "previous_conclusion": "failure"
+      },
+      {
+        "job_id": 136106263078,
+        "name": "Build and package / Windows x64 / Free / tests 4/4",
+        "elapsed_minutes_at_snapshot": 2.73,
+        "previous_job_id": 134709022028,
+        "previous_duration_minutes": 27.85,
+        "previous_conclusion": "success"
+      },
+      {
+        "job_id": 136106263109,
+        "name": "Build and package / macOS universal / Free / tests 1/4",
+        "elapsed_minutes_at_snapshot": 1.7,
+        "previous_job_id": 134709022090,
+        "previous_duration_minutes": 68.35,
+        "previous_conclusion": "success"
+      },
+      {
+        "job_id": 136106263132,
+        "name": "Build and package / Windows x64 / Free / tests 1/4",
+        "elapsed_minutes_at_snapshot": 2.18,
+        "previous_job_id": 134709022042,
+        "previous_duration_minutes": 27.68,
+        "previous_conclusion": "success"
+      }
+    ],
+    "assessment": "No likely stuck job is supported by the observed elapsed durations. The longest current running shard is still well below the duration of its previous matching shard. Queued jobs have no measured execution duration. Older matching shard labels are scheduling context, not an exact benchmark: source changes can alter interleaved test membership and runner load differs."
+  },
+  "limitations": [
+    "These records are a dated snapshot, not a publication or complete-suite success claim.",
+    "Universal macOS packaging is distinct from physical Intel/Apple Silicon hardware, DAW and listening acceptance.",
+    "Supplemental component soaks exist on codex/luthier-qualification-20261119; the frozen candidate release notes still contain an earlier unrun-soak statement.",
+    "Phaser CPU target and the unspecified 24-bit bypass-click estimator remain disclosed model limitations."
+  ]
+}

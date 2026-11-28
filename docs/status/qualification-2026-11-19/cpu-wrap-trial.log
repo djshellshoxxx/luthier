@@ -1,0 +1,12 @@
+ORACLE 10592060 checks 0 failures
+PAIR 0 stereo0 baseline0.458723180 trial0.443229640 improvement3.377536
+PAIR 0 stereo180 baseline0.506900110 trial0.486393350 improvement4.045523
+PAIR 1 stereo0 baseline0.451684360 trial0.431146960 improvement4.546848
+PAIR 1 stereo180 baseline0.509728500 trial0.484489630 improvement4.951434
+PAIR 2 stereo0 baseline0.452607130 trial0.456253130 improvement-0.805555
+PAIR 2 stereo180 baseline0.936573660 trial0.539246010 improvement42.423535
+PAIR 3 stereo0 baseline0.472902990 trial0.440522150 improvement6.847248
+PAIR 3 stereo180 baseline0.516000290 trial0.501133900 improvement2.881082
+PAIR 4 stereo0 baseline0.489692840 trial1.339080980 improvement-173.453249
+PAIR 4 stereo180 baseline0.581256890 trial0.486415080 improvement16.316677
+TOTAL 10592070 checks 0 failures

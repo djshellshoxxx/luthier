@@ -1,0 +1,13 @@
+{
+  "source": "51fd4de677fd0d4a056ded5ee2e8845b9e81584d",
+  "returncode": 0,
+  "elapsed_wall_seconds": 6.612980842590332,
+  "scope": "Original13RefPedalPhase90 plus4RefPedalPhase90Memory tests, unchanged",
+  "model_optimization": "-O2",
+  "test_optimization": "-O0",
+  "juce": "8.0.10 with all candidate untrusted-text patches applied in board-qualification",
+  "command": [
+    "/workspace/scratch/899e273912e3/phase90-checks/build/phase90-qualification",
+    "RefPedalPhase90"
+  ]
+}

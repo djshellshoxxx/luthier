@@ -1,0 +1,7 @@
+{
+  "candidate": "51fd4de677fd0d4a056ded5ee2e8845b9e81584d",
+  "source_path": "Source/Tests/CircuitTests.cpp",
+  "source_git_blob": "95ec20f72533e8784f078ae545a1b4d1ea92bc17",
+  "extraction": "Original thread-local counters and global allocation/deallocation operators, from the namespace beginning threadAllocationCount through the end of nothrow delete operators; only standard include lines added",
+  "scope": "Counts ordinary unaligned new/new[] and their nothrow forms on the current thread; does not intercept aligned allocation, direct malloc/calloc/realloc, or all OS allocations"
+}

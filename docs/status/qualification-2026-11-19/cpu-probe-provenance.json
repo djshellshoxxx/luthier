@@ -1,0 +1,44 @@
+{
+  "kernel": {
+    "system": "Linux",
+    "node": "636643ecc05a",
+    "release": "6.18.57",
+    "version": "#1 SMP Tue Oct 20 21:56:04 UTC 2026",
+    "machine": "x86_64",
+    "processor": ""
+  },
+  "cpu_models": [
+    "AMD EPYC 9V74 80-Core Processor"
+  ],
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "flags": "-std=c++17 -O3 -g0 -DNDEBUG -DLUTHIER_PRO=1; JUCE standalone/module settings; no fast-math or march=native",
+  "timing": "unchanged probe CLOCK_THREAD_CPUTIME_ID; ten seconds rendered per trial, 48000 Hz stereo, block128; five trials for stereo phase0deg and180deg",
+  "limit": "original CPU target <0.4% of one core; machine-specific comparison only",
+  "source_sha256": {
+    "Source/ReferencePedals/IPedal.h": "dc13fb5010e84600b3c7c361747cc6de51273caefec78d7958dad3c2f405077d",
+    "Source/ReferencePedals/PedalDesc.h": "cfe65d761c539fe5b0448211321291b8f8be1093e66c943c77673a64c74053d0",
+    "Source/ReferencePedals/PedalBase.h": "a99f99fce65afbc6ea9ccccad7e02c2a3c75ae00dbcda2aadee8d9111fcf6687",
+    "Source/ReferencePedals/PreparedMemory.h": "4adebdd26526edd7de5241365d657c411cca251d2d4819b6d0b078a84c728d81",
+    "Source/ReferencePedals/Models/mxr_phase90_script.cpp": "12d843b39854be890e8ba308a0554b366e1f178c27e03ac6e9471cd23631edf8",
+    "Source/ReferencePedals/Models/mxr_phase90_script.h": "05da7f7419800ec5570eb1f6f254e7ecf78c47c9fc7b2251ca657184a623581f",
+    "Source/ReferencePedals/Common/Lfo.h": "d203c6b536e4c00401585591dd2dd73b9a5360c631d6850d3ea45eafd19aa41d",
+    "Source/ReferencePedals/Common/OnePole.h": "99af0164967b2f434c012ec98aeb69acdae7fc0c546c079f8469f567e098a78c",
+    "Source/ReferencePedals/Common/Smoothers.h": "94e59b33771b0a0d9871a4d20628bf5f3dc4f76af97c2bede5656d913e14bf0b",
+    "Source/ReferencePedals/Common/NoiseGen.h": "6b92da96476a23f2fbbdf8ea20587b58b5fa6286cf846e1759efa34bc24af92b",
+    "Source/ReferencePedals/Common/TempoSync.h": "c01a1439f14b1efba031802fc5c45e9c166944e769e3bfdb005f752118869a8e",
+    "Source/ReferencePedals/Common/TableSin.h": "4d7b653a456b200427a5f04a375f40de744669511205fa8ff15ec8004f83cc22"
+  },
+  "probe_sha256": "d7fc02c52087eee1b505a0ab4e07c1b76afe56cda1b18a5aadab70674d8b2e7d",
+  "binary_sha256": "7cfb29fe2ec6092b21d07c9c0518c4fd0975b814f7573dd0dd7f8faa7bab6dac",
+  "probe_exit_code": 0,
+  "wall_seconds": 1.882702839000558,
+  "summary": {
+    "cpu_trials": 10,
+    "cpu_percent_min": 0.48362886,
+    "cpu_percent_max": 1.46895171,
+    "cpu_trials_below_original_0_4_percent": 0,
+    "max_frequency_response_error_db": 7.15567625e-10,
+    "max_thd_percent": 0.028330842,
+    "interpretation": "Probe prints measurements and returns zero regardless of CPU threshold; each trial is assessed explicitly."
+  }
+}
